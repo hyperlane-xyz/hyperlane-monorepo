@@ -15,7 +15,7 @@ pub fn termination_invariants_met(
     solana_config_path: &Path,
 ) -> eyre::Result<bool> {
     let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
-    let sol_messages_expected = 1;
+    let sol_messages_expected = 15;
     let total_messages_expected = eth_messages_expected + sol_messages_expected;
 
     let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;

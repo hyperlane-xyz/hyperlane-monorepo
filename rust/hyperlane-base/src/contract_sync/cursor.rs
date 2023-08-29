@@ -59,6 +59,23 @@ impl SyncState {
         tip: u32,
     ) -> ChainResult<Option<RangeInclusive<u32>>> {
         // We attempt to index a range of blocks that is as large as possible.
+        let range = match self.mode {
+            IndexMode::Block => self.block_range(tip),
+            IndexMode::Sequence => {
+                if let Some(range) = self.sequence_range(tip, max_sequence)? {
+                    range
+                } else {
+                    return Ok(None);
+                }
+            }
+        };
+        if range.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(range))
+    }
+
+    fn block_range(&mut self, tip: u32) -> RangeInclusive<u32> {
         let (from, to) = match self.direction {
             SyncDirection::Forward => {
                 let from = self.next_block;
@@ -74,9 +91,16 @@ impl SyncState {
                 (from, to)
             }
         };
-        let range = match self.mode {
-            IndexMode::Block => from..=to,
-            IndexMode::Sequence => {
+        from..=to
+    }
+
+    fn sequence_range(
+        &mut self,
+        tip: u32,
+        max_sequence: Option<u32>,
+    ) -> ChainResult<Option<RangeInclusive<u32>>> {
+        let (from, to) = match self.direction {
+            SyncDirection::Forward => {
                 let sequence_start = self.next_sequence;
                 let mut sequence_end = sequence_start + MAX_SEQUENCE_RANGE;
                 if let Some(max_sequence) = max_sequence {
@@ -87,13 +111,22 @@ impl SyncState {
                     self.next_block = tip;
                 }
                 self.next_sequence = sequence_end + 1;
-                sequence_start..=sequence_end
+                (sequence_start, sequence_end)
+            }
+            SyncDirection::Backward => {
+                let sequence_end = self.next_sequence;
+                let mut sequence_start = sequence_end.saturating_sub(MAX_SEQUENCE_RANGE);
+                sequence_start = u32::max(sequence_start, 0);
+                if let Some(max_sequence) = max_sequence {
+                    if self.next_sequence >= max_sequence {
+                        return Ok(None);
+                    }
+                }
+                self.next_sequence = sequence_start.saturating_sub(1);
+                (sequence_start, sequence_end)
             }
         };
-        if range.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(range))
+        Ok(Some(from..=to))
     }
 }
 
