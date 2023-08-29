@@ -24,7 +24,6 @@ contract AggregationHookTest is Test {
         for (uint8 i = 0; i < n; i++) {
             randomness = keccak256(abi.encode(randomness));
             TestPostDispatchHook subHook = new TestPostDispatchHook();
-            subHook.setRequiredMetadata(abi.encode(randomness));
             hooks[i] = address(subHook);
         }
         hook = StaticAggregationHook(factory.deploy(hooks));
