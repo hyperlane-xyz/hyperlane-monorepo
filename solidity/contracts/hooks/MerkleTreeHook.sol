@@ -4,9 +4,10 @@ pragma solidity >=0.8.0;
 import {MerkleLib, TREE_DEPTH} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
+import {Indexed} from "../Indexed.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
-contract MerkleTreeHook is IPostDispatchHook, MailboxClient {
+contract MerkleTreeHook is IPostDispatchHook, MailboxClient, Indexed {
     using Message for bytes;
     using MerkleLib for MerkleLib.Tree;
 
