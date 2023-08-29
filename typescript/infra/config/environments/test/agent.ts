@@ -7,7 +7,7 @@ import {
 import { ALL_KEY_ROLES } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
-import { chainNames } from './chains';
+import { agentChainNames, chainNames } from './chains';
 import { validators } from './validators';
 
 const roleBase = {
@@ -23,7 +23,7 @@ const hyperlane: RootAgentConfig = {
   runEnv: 'test',
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
-  contextChainNames: chainNames,
+  contextChainNames: agentChainNames,
   environmentChainNames: chainNames,
   relayer: {
     ...roleBase,
