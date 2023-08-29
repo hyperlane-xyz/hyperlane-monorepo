@@ -32,11 +32,7 @@ impl Default for InterchainGasPaymentData {
 
 impl InterchainGasPaymentData {
     pub fn complete(self, message_id: H256) -> InterchainGasPayment {
-        InterchainGasPayment {
-            message_id,
-            payment: self.payment,
-            gas_amount: self.gas_amount,
-        }
+        InterchainGasPayment::new(message_id, self.payment, self.gas_amount)
     }
 }
 

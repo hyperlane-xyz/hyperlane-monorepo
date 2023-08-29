@@ -68,11 +68,7 @@ mod test {
     use super::*;
 
     fn current_payment(gas_amount: impl Into<U256>) -> InterchainGasPayment {
-        InterchainGasPayment {
-            message_id: H256::zero(),
-            payment: U256::zero(),
-            gas_amount: gas_amount.into(),
-        }
+        InterchainGasPayment::new(H256::zero(), U256::zero(), gas_amount.into())
     }
 
     fn current_expenditure(gas_used: impl Into<U256>) -> InterchainGasExpenditure {

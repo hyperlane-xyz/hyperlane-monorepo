@@ -212,6 +212,7 @@ impl SealevelInterchainGasPaymasterIndexer {
             message_id: gas_payment_account.message_id,
             payment: gas_payment_account.payment.into(),
             gas_amount: gas_payment_account.gas_amount.into(),
+            sequence_number: Some(sequence_number),
         };
 
         Ok(SealevelGasPayment::new(
