@@ -10,6 +10,7 @@ copy() {
 }
 
 copy interfaces/IMailbox && \
+copy hooks/MerkleTreeHook && \
 copy interfaces/IInterchainGasPaymaster && \
 copy interfaces/IValidatorAnnounce && \
 copy interfaces/IInterchainSecurityModule && \
