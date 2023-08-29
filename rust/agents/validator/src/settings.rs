@@ -9,7 +9,7 @@ use std::{collections::HashSet, path::PathBuf, time::Duration};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::{eyre, Context};
 use hyperlane_base::{
-    impl_loadable_from_settings, parse,
+    impl_loadable_from_settings,
     settings::{
         parser::{RawAgentConf, RawAgentSignerConf, ValueParser},
         CheckpointSyncerConf, Settings, SignerConf,
@@ -58,20 +58,19 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
 
         let p = ValueParser::new(cwp.clone(), &raw.0);
 
-        let origin_chain_name = parse! {
-            p(err)
-            |> get_key("originChainName")?
-            |> parse_string()?
-        };
+        let origin_chain_name = p
+            .chain(&mut err)
+            .get_key("originChainName")
+            .parse_string()
+            .end();
 
         let origin_chain_name_set = origin_chain_name.map(|s| HashSet::from([s]));
-        let base = parse! {
-            p(err)
-            |> parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
+        let base = p
+            .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 origin_chain_name_set.as_ref(),
-                "Expected valid base agent configuration"
-            )?
-        };
+                "Expected valid base agent configuration",
+            )
+            .take_config_err(&mut err);
 
         let origin_chain = if let (Some(base), Some(origin_chain_name)) = (&base, origin_chain_name)
         {
@@ -82,50 +81,48 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             None
         };
 
-        let validator = parse! {
-            p(err)
-            |> get_key("validator")?
-            |> parse_from_raw_config::<SignerConf, RawAgentSignerConf, NoFilter>(
+        let validator = p
+            .chain(&mut err)
+            .get_key("validator")
+            .parse_from_raw_config::<SignerConf, RawAgentSignerConf, NoFilter>(
                 (),
-                "Expected valid validator configuration"
-            )?
-        };
+                "Expected valid validator configuration",
+            )
+            .end();
 
-        let db = parse! {
-            p(err)
-            |> get_opt_key("db")??
-            |> parse_from_str("Expected db file path")?
-            || std::env::current_dir()
-                .unwrap()
-                .join(format!("validator_db_{}", origin_chain_name.unwrap_or("")))
-        };
+        let db = p
+            .chain(&mut err)
+            .get_opt_key("db")
+            .parse_from_str("Expected db file path")
+            .unwrap_or_else(|| {
+                std::env::current_dir()
+                    .unwrap()
+                    .join(format!("validator_db_{}", origin_chain_name.unwrap_or("")))
+            });
 
-        let checkpoint_syncer = parse! {
-            p(err)
-            |> get_key("checkpointSyncer")?
-            @> parse_checkpoint_syncer()?
-        };
+        let checkpoint_syncer = p
+            .chain(&mut err)
+            .get_key("checkpointSyncer")
+            .and_then(parse_checkpoint_syncer)
+            .end();
 
-        let from_secs = Duration::from_secs;
-        let interval = parse! {
-            p(err)
-            |> get_opt_key("interval")??
-            |> parse_u64()?
-            @> from_secs()
-            || Duration::from_secs(5)
-        };
+        let interval = p
+            .chain(&mut err)
+            .get_opt_key("interval")
+            .parse_u64()
+            .map(Duration::from_secs)
+            .unwrap_or(Duration::from_secs(5));
 
         cfg_unwrap_all!(cwp, err: [origin_chain_name]);
 
-        let reorg_period = parse! {
-            p(err)
-            |> get_key("chains")?
-            |> get_key(origin_chain_name)?
-            |> get_opt_key("blocks")??
-            |> get_opt_key("reorgPeriod")??
-            |> parse_u64()?
-            || 1
-        };
+        let reorg_period = p
+            .chain(&mut err)
+            .get_key("chains")
+            .get_key(origin_chain_name)
+            .get_opt_key("blocks")
+            .get_opt_key("reorgPeriod")
+            .parse_u64()
+            .unwrap_or(1);
 
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 
@@ -144,40 +141,37 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
 /// Expects ValidatorAgentConfig.checkpointSyncer
 fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncerConf> {
     let mut err = ConfigParsingError::default();
-    let syncer_type = parse! {
-        syncer(err)
-        |> get_key("type")?
-        |> parse_string()?
-    };
+    let syncer_type = syncer.chain(&mut err).get_key("type").parse_string().end();
 
     match syncer_type {
         Some("localStorage") => {
-            let path = parse! {
-                syncer(err)
-                |> get_key("path")?
-                |> parse_from_str("Expected checkpoint syncer file path")?
-            };
+            let path = syncer
+                .chain(&mut err)
+                .get_key("path")
+                .parse_from_str("Expected checkpoint syncer file path")
+                .end();
             cfg_unwrap_all!(&syncer.cwp, err: [path]);
             err.into_result(CheckpointSyncerConf::LocalStorage { path })
         }
         Some("s3") => {
-            let bucket = parse! {
-                syncer(err)
-                |> get_key("bucket")?
-                |> parse_string()?
-                |> to_owned()
-            };
-            let region = parse! {
-                syncer(err)
-                |> get_key("region")?
-                |> parse_from_str("Expected aws region")?
-            };
-            let folder = parse! {
-                syncer(err)
-                |> get_opt_key("folder")??
-                |> parse_string()?
-                |> to_owned()
-            };
+            let bucket = syncer
+                .chain(&mut err)
+                .get_key("bucket")
+                .parse_string()
+                .end()
+                .map(str::to_owned);
+            let region = syncer
+                .chain(&mut err)
+                .get_key("region")
+                .parse_from_str("Expected aws region")
+                .end();
+            let folder = syncer
+                .chain(&mut err)
+                .get_opt_key("folder")
+                .parse_string()
+                .end()
+                .map(str::to_owned);
+
             cfg_unwrap_all!(&syncer.cwp, err: [bucket, region]);
             err.into_result(CheckpointSyncerConf::S3 {
                 bucket,

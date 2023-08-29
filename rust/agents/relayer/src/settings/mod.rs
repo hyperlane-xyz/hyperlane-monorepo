@@ -9,7 +9,7 @@ use std::{collections::HashSet, path::PathBuf};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::{eyre, Context};
 use hyperlane_base::{
-    impl_loadable_from_settings, parse,
+    impl_loadable_from_settings,
     settings::{
         parser::{RawAgentConf, ValueParser},
         Settings,
@@ -97,89 +97,69 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
 
         let p = ValueParser::new(cwp.clone(), &raw.0);
 
-        let relay_chain_names: Option<HashSet<&str>> = parse! {
-            p(err)
-            |> get_key("relayChains")?
-            |> parse_string()?
-            |> split(",")
-            |> collect()
-        };
+        let relay_chain_names: Option<HashSet<&str>> = p
+            .chain(&mut err)
+            .get_key("relayChains")
+            .parse_string()
+            .end()
+            .map(|v| v.split(',').collect());
 
-        let base = parse! {
-            p(err)
-            |> parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
+        let base = p
+            .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 relay_chain_names.as_ref(),
-                "Parsing base config"
-            )?
-        };
+                "Parsing base config",
+            )
+            .take_config_err(&mut err);
 
-        let db = parse! {
-            p(err)
-            |> get_opt_key("db")??
-            |> parse_from_str("Expected database path")?
-            || std::env::current_dir().unwrap().join("hyperlane_db")
-        };
+        let db = p
+            .chain(&mut err)
+            .get_opt_key("db")
+            .parse_from_str("Expected database path")
+            .unwrap_or_else(|| std::env::current_dir().unwrap().join("hyperlane_db"));
 
-        let (raw_gas_payment_enforcement_path, raw_gas_payment_enforcement) =
-            match parse! { p(err) |> get_opt_key("gasPaymentEnforcement")?? } {
-                None => None,
-                Some(ValueParser {
-                    val: Value::String(policy_str),
-                    cwp,
-                }) => serde_json::from_str::<Value>(policy_str)
-                    .context("Expected JSON string")
-                    .take_err(&mut err, || cwp.clone())
-                    .map(|v| (cwp, v)),
-                Some(ValueParser {
-                    val: value @ Value::Array(_),
-                    cwp,
-                }) => Some((cwp, value.clone())),
-                Some(_) => Err(eyre!("Expected JSON array or stringified JSON"))
-                    .take_err(&mut err, || cwp.clone()),
-            }
-            .unwrap_or_else(|| (&p.cwp + "gas_payment_enforcement", Value::Array(vec![])));
+        let (raw_gas_payment_enforcement_path, raw_gas_payment_enforcement) = match p
+            .get_opt_key("gasPaymentEnforcement")
+            .take_config_err_flat(&mut err)
+        {
+            None => None,
+            Some(ValueParser {
+                val: Value::String(policy_str),
+                cwp,
+            }) => serde_json::from_str::<Value>(policy_str)
+                .context("Expected JSON string")
+                .take_err(&mut err, || cwp.clone())
+                .map(|v| (cwp, v)),
+            Some(ValueParser {
+                val: value @ Value::Array(_),
+                cwp,
+            }) => Some((cwp, value.clone())),
+            Some(_) => Err(eyre!("Expected JSON array or stringified JSON"))
+                .take_err(&mut err, || cwp.clone()),
+        }
+        .unwrap_or_else(|| (&p.cwp + "gas_payment_enforcement", Value::Array(vec![])));
 
         let gas_payment_enforcement_parser = ValueParser::new(
             raw_gas_payment_enforcement_path,
             &raw_gas_payment_enforcement,
         );
-        let gas_payment_enforcement = parse! {
-            gas_payment_enforcement_parser(err)
-            |> into_array_iter()?
-            |> filter_map(|policy| {
-                let policy_type = parse! { policy(err) |> get_opt_key("type")?? |> parse_string()? };
-                let minimum_is_defined = parse! { policy(err) |> get_opt_key("minimum")?? }.is_some();
+        let gas_payment_enforcement = gas_payment_enforcement_parser.into_array_iter().map(|itr| {
+            itr.filter_map(|policy| {
+                let policy_type = policy.chain(&mut err).get_opt_key("type").parse_string().end();
+                let minimum_is_defined = matches!(policy.get_opt_key("minimum"), Ok(Some(_)));
 
-                let matching_list = parse! {
-                    policy(err)
-                    |> get_opt_key("matchingList")??
-                    @> parse_matching_list()?
-                    || Default
-                };
+                let matching_list = policy.chain(&mut err).get_opt_key("matchingList").and_then(parse_matching_list).unwrap_or_default();
 
                 let parse_minimum = |p| GasPaymentEnforcementPolicy::Minimum { payment: p };
                 match policy_type {
-                    Some("minimum") => parse! {
-                        policy(err)
-                        |> get_opt_key("payment")??
-                        |> parse_u256()?
-                        @> parse_minimum()
-                    },
-                    None if minimum_is_defined => parse! {
-                        policy(err)
-                        |> get_opt_key("payment")??
-                        |> parse_u256()?
-                        @> parse_minimum()
-                    },
+                    Some("minimum") => policy.chain(&mut err).get_opt_key("payment").parse_u256().end().map(parse_minimum),
+                    None if minimum_is_defined => policy.chain(&mut err).get_opt_key("payment").parse_u256().end().map(parse_minimum),
                     Some("none") | None => Some(GasPaymentEnforcementPolicy::None),
                     Some("onChainFeeQuoting") => {
-                        let gas_fraction = parse! {
-                            policy(err)
-                            |> get_opt_key("gasFraction")??
-                            |> parse_string()?
-                            |> replace(' ', "")
-                            || "1/2".to_owned()
-                        };
+                        let gas_fraction = policy.chain(&mut err)
+                            .get_opt_key("gasFraction")
+                            .parse_string()
+                            .map(|v| v.replace(' ', ""))
+                            .unwrap_or_else(|| "1/2".to_owned());
                         let (numerator, denominator) = gas_fraction
                             .split_once('/')
                             .ok_or_else(|| eyre!("Invalid `gas_fraction` for OnChainFeeQuoting gas payment enforcement policy; expected `numerator / denominator`"))
@@ -205,48 +185,38 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                     policy,
                     matching_list,
                 })
-            })
-            |> collect_vec()
-            || Default
-        };
+            }).collect_vec()
+        }).unwrap_or_default();
 
-        let whitelist = parse! {
-            p(err)
-            |> get_opt_key("whitelist")??
-            @> parse_matching_list()?
-            || Default
-        };
+        let whitelist = p
+            .chain(&mut err)
+            .get_opt_key("whitelist")
+            .and_then(parse_matching_list)
+            .unwrap_or_default();
+        let blacklist = p
+            .chain(&mut err)
+            .get_opt_key("blacklist")
+            .and_then(parse_matching_list)
+            .unwrap_or_default();
 
-        let blacklist = parse! {
-            p(err)
-            |> get_opt_key("blacklist")??
-            @> parse_matching_list()?
-            || Default
-        };
+        let transaction_gas_limit = p
+            .chain(&mut err)
+            .get_opt_key("transactionGasLimit")
+            .parse_u256()
+            .end();
 
-        // pub skip_transaction_gas_limit_for: HashSet<u32>,
+        let skip_transaction_gas_limit_for_names: HashSet<&str> = p
+            .chain(&mut err)
+            .get_opt_key("skipTransactionGasLimitFor")
+            .parse_string()
+            .map(|v| v.split(',').collect())
+            .unwrap_or_default();
 
-        let transaction_gas_limit = parse! {
-            p(err)
-            |> get_opt_key("transactionGasLimit")??
-            |> parse_u256()?
-        };
-
-        let skip_transaction_gas_limit_for_names: HashSet<&str> = parse! {
-            p(err)
-            |> get_opt_key("skipTransactionGasLimitFor")??
-            |> parse_string()?
-            |> split(",")
-            |> collect()
-            || Default
-        };
-
-        let allow_local_checkpoint_syncers = parse! {
-            p(err)
-            |> get_opt_key("allowLocalCheckpointSyncers")??
-            |> parse_bool()?
-            || false
-        };
+        let allow_local_checkpoint_syncers = p
+            .chain(&mut err)
+            .get_opt_key("allowLocalCheckpointSyncers")
+            .parse_bool()
+            .unwrap_or(false);
 
         cfg_unwrap_all!(cwp, err: [base]);
 
@@ -308,11 +278,10 @@ fn parse_matching_list(p: ValueParser) -> ConfigResult<MatchingList> {
         return err.into_result(MatchingList::default());
     };
     let p = ValueParser::new(p.cwp.clone(), &raw_list);
-    let ml = parse! {
-        p(err)
-        |> parse_value::<MatchingList>("Expected matching list")?
-        || Default
-    };
+    let ml = p
+        .parse_value::<MatchingList>("Expected matching list")
+        .take_config_err(&mut err)
+        .unwrap_or_default();
 
     err.into_result(ml)
 }
