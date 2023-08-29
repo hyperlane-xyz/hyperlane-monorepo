@@ -114,24 +114,21 @@ where
         }
     };
 
-    match Config::try_deserialize::<T>(config_deserializer) {
-        Ok(cfg) => Ok(cfg),
-        Err(err) => {
-            let mut err = if let Some(source_err) = err.source() {
-                let source = format!("Config error source: {source_err}");
-                Err(err).context(source)
-            } else {
-                Err(err.into())
-            };
+    Config::try_deserialize::<T>(config_deserializer).or_else(|err| {
+        let mut err = if let Some(source_err) = err.source() {
+            let source = format!("Config error source: {source_err}");
+            Err(err).context(source)
+        } else {
+            Err(err.into())
+        };
 
-            for cfg_path in base_config_sources.iter().chain(config_file_paths.iter()) {
-                err = err.with_context(|| format!("Config loaded: {cfg_path}"));
-            }
-
-            println!("Error during deserialization, showing the config for debugging: {formatted_config}");
-            err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
+        for cfg_path in base_config_sources.iter().chain(config_file_paths.iter()) {
+            err = err.with_context(|| format!("Config loaded: {cfg_path}"));
         }
-    }
+
+        println!("Error during deserialization, showing the config for debugging: {formatted_config}");
+        err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
+    })
 }
 
 /// Load a settings object from the config locations and re-join the components with the standard
