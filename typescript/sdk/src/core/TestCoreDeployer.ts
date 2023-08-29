@@ -1,8 +1,10 @@
 import {
+  InterchainGasPaymaster,
   TestInterchainGasPaymaster__factory,
+  TestIsm__factory,
   TestMailbox__factory,
-  TestMultisigIsm__factory,
 } from '@hyperlane-xyz/core';
+import { types } from '@hyperlane-xyz/utils';
 
 import { TestChains } from '../consts/chains';
 import { HyperlaneContracts } from '../contracts';
@@ -18,26 +20,30 @@ import { CoreFactories, coreFactories } from './contracts';
 const testCoreFactories = {
   ...coreFactories,
   mailbox: new TestMailbox__factory(),
-  interchainGasPaymaster: new TestInterchainGasPaymaster__factory(),
-  testIsm: new TestMultisigIsm__factory(),
 };
 
 export class TestCoreDeployer extends HyperlaneCoreDeployer {
   constructor(public readonly multiProvider: MultiProvider) {
     const ismFactory = new HyperlaneIsmFactory({}, multiProvider);
-    super(multiProvider, ismFactory);
+    super(multiProvider, ismFactory, testCoreFactories);
   }
 
   // deploy a test ISM instead of a real ISM
-  async deployIsm(chain: ChainName): Promise<string> {
-    const testIsm = await this.deployContractFromFactory(
+  async deployIsm(chain: ChainName): Promise<types.Address> {
+    const testIsm = await this.multiProvider.handleDeploy(
       chain,
-      testCoreFactories.testIsm,
-      'testIsm',
+      new TestIsm__factory(),
       [],
     );
-    await testIsm.setAccept(true);
     return testIsm.address;
+  }
+
+  async deployIgpHook(chain: string): Promise<InterchainGasPaymaster> {
+    return this.multiProvider.handleDeploy(
+      chain,
+      new TestInterchainGasPaymaster__factory(),
+      [],
+    );
   }
 
   async deploy(): Promise<ChainMap<HyperlaneContracts<CoreFactories>>> {

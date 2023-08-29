@@ -53,7 +53,7 @@ export class TestCoreApp extends HyperlaneCore {
       }
       const destinationChain = this.multiProvider.getChainName(destination);
       const inbox = this.getContracts(destinationChain).mailbox;
-      const id = dispatch.args.id;
+      const id = utils.messageId(dispatch.args.message);
       const delivered = await inbox.delivered(id);
       if (!delivered) {
         const response = await inbox.process('0x', dispatch.args.message);

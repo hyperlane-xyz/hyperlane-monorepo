@@ -30,8 +30,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   constructor(
     multiProvider: MultiProvider,
     readonly ismFactory: HyperlaneIsmFactory,
+    factories = coreFactories,
   ) {
-    super(multiProvider, coreFactories, {
+    super(multiProvider, factories, {
       logger: debug('hyperlane:CoreDeployer'),
       chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
     });
@@ -61,31 +62,30 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       chain,
       'mailbox',
       proxyAdmin,
-      [domain, owner],
+      [domain],
     );
 
     // deploy default ISM
-    const defaultIsmAddress = await this.deployIsm(chain, ismConfig);
-    await this.multiProvider.handleTx(
-      domain,
-      mailbox.setDefaultIsm(defaultIsmAddress),
-    );
+    const defaultIsm = await this.deployIsm(chain, ismConfig);
 
     // deploy required hook
     const merkleTreeHook = await this.deployMerkleTreeHook(
       chain,
       mailbox.address,
     );
-    await this.multiProvider.handleTx(
-      domain,
-      mailbox.setRequiredHook(merkleTreeHook.address),
-    );
 
     // deploy default hook
     const igpHook = await this.deployIgpHook(chain);
+
+    // configure mailbox
     await this.multiProvider.handleTx(
-      domain,
-      mailbox.setDefaultHook(igpHook.address),
+      chain,
+      mailbox.initialize(
+        owner,
+        defaultIsm,
+        igpHook.address,
+        merkleTreeHook.address,
+      ),
     );
 
     return mailbox;

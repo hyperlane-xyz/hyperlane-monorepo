@@ -33,10 +33,19 @@ describe('TestCoreDeployer', async () => {
     const recipient = await new TestRecipient__factory(signer).deploy();
     localMailbox = testCoreApp.getContracts(localChain).mailbox;
 
+    const interchainGasPayment = await localMailbox[
+      'quoteDispatch(uint32,bytes32,bytes)'
+    ](
+      multiProvider.getDomainId(remoteChain),
+      utils.addressToBytes32(recipient.address),
+      message,
+    );
+
     const dispatchResponse = localMailbox['dispatch(uint32,bytes32,bytes)'](
       multiProvider.getDomainId(remoteChain),
       utils.addressToBytes32(recipient.address),
       message,
+      { value: interchainGasPayment },
     );
     await expect(dispatchResponse).to.emit(localMailbox, 'Dispatch');
     dispatchReceipt = await testCoreApp.multiProvider.handleTx(
@@ -49,6 +58,7 @@ describe('TestCoreDeployer', async () => {
         multiProvider.getDomainId(localChain),
         utils.addressToBytes32(recipient.address),
         message,
+        { value: interchainGasPayment },
       ),
     ).to.emit(remoteMailbox, 'Dispatch');
   });

@@ -60,10 +60,10 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   ): Promise<ethers.ContractReceipt> {
     const { destinationChain, mailbox } = this.getDestination(message);
     const id = message.id;
-    const filter = mailbox.filters.Process(id);
+    const filter = mailbox.filters.ProcessId(id);
 
     return new Promise<ethers.ContractReceipt>((resolve, reject) => {
-      mailbox.once(filter, (emittedId, message, event) => {
+      mailbox.once(filter, (emittedId, event) => {
         if (id !== emittedId) {
           reject(`Expected message id ${id} but got ${emittedId}`);
         } else {
