@@ -1,7 +1,7 @@
 cargo-features = ["workspace-inheritance"]
 
 [package]
-name = "hyperlane-sealevel"
+name = "hyperlane-aptos"
 version = "0.1.0"
 edition = "2021"
 

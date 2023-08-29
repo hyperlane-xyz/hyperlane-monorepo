@@ -19,6 +19,7 @@ use hyperlane_ethereum::{
 };
 use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
+use hyperlane_aptos as h_aptos;
 
 use crate::{
     settings::signers::{BuildableWithSignerConf, RawSignerConf},
@@ -34,6 +35,8 @@ pub enum ChainConnectionConf {
     Fuel(h_fuel::ConnectionConf),
     /// Sealevel configuration.
     Sealevel(h_sealevel::ConnectionConf),
+    /// Aptos configuration.
+    Aptos(h_aptos::ConnectionConf),
 }
 
 /// Specify the chain name (enum variant) under the `chain` key
@@ -43,6 +46,7 @@ enum RawChainConnectionConf {
     Ethereum(h_eth::RawConnectionConf),
     Fuel(h_fuel::RawConnectionConf),
     Sealevel(h_sealevel::RawConnectionConf),
+    Aptos(h_aptos::RawConnectionConf),
     #[serde(other)]
     Unknown,
 }
@@ -58,6 +62,7 @@ impl FromRawConf<'_, RawChainConnectionConf> for ChainConnectionConf {
             Ethereum(r) => Ok(Self::Ethereum(r.parse_config(&cwp.join("connection"))?)),
             Fuel(r) => Ok(Self::Fuel(r.parse_config(&cwp.join("connection"))?)),
             Sealevel(r) => Ok(Self::Sealevel(r.parse_config(&cwp.join("connection"))?)),
+            Aptos(r) => Ok(Self::Aptos(r.parse_config(&cwp.join("connection"))?)),
             Unknown => {
                 Err(eyre!("Unknown chain protocol")).into_config_result(|| cwp.join("protocol"))
             }
@@ -71,6 +76,7 @@ impl ChainConnectionConf {
             Self::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
             Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
             Self::Sealevel(_) => HyperlaneDomainProtocol::Sealevel,
+            Self::Aptos(_) => HyperlaneDomainProtocol::Aptos,
         }
     }
 }
@@ -321,6 +327,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -348,6 +355,7 @@ impl ChainConf {
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
+            ChainConnectionConf::Aptos(_) => todo!()
         }
         .context(ctx)
     }
@@ -378,6 +386,7 @@ impl ChainConf {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
                 Ok(indexer as Box<dyn MessageIndexer>)
             }
+            ChainConnectionConf::Aptos(_) => todo!()
         }
         .context(ctx)
     }
@@ -408,6 +417,7 @@ impl ChainConf {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
                 Ok(indexer as Box<dyn Indexer<H256>>)
             }
+            ChainConnectionConf::Aptos(_) => todo!()
         }
         .context(ctx)
     }
@@ -439,6 +449,7 @@ impl ChainConf {
                 ));
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
+            ChainConnectionConf::Aptos(_) => todo!()
         }
         .context(ctx)
     }
@@ -472,6 +483,7 @@ impl ChainConf {
                 ));
                 Ok(indexer as Box<dyn Indexer<InterchainGasPayment>>)
             }
+            ChainConnectionConf::Aptos(_) => todo!()
         }
         .context(ctx)
     }
@@ -481,7 +493,7 @@ impl ChainConf {
         &self,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn ValidatorAnnounce>> {
-        let locator = self.locator(self.addresses.validator_announce);
+        let locator: ContractLocator<'_> = self.locator(self.addresses.validator_announce);
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::ValidatorAnnounceBuilder {})
@@ -493,6 +505,7 @@ impl ChainConf {
                 let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(conf, locator));
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
+            ChainConnectionConf::Aptos(_) => todo!()
         }
         .context("Building ValidatorAnnounce")
     }
@@ -526,6 +539,7 @@ impl ChainConf {
                 ));
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
+            ChainConnectionConf::Aptos(_) => todo!()
         }
         .context(ctx)
     }
@@ -551,6 +565,7 @@ impl ChainConf {
                 let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(conf, locator, keypair));
                 Ok(ism as Box<dyn MultisigIsm>)
             }
+            ChainConnectionConf::Aptos(_) => todo!()
         }
         .context(ctx)
     }
@@ -577,6 +592,7 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support routing ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Aptos(_) => todo!()
         }
         .context(ctx)
     }
@@ -603,6 +619,7 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support aggregation ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Aptos(_) => todo!()
         }
         .context(ctx)
     }
@@ -629,6 +646,7 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support CCIP read ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Aptos(_) => todo!()
         }
         .context(ctx)
     }

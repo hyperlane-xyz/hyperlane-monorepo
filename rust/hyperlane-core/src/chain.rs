@@ -93,6 +93,14 @@ pub enum KnownHyperlaneDomain {
     SealevelTest1 = 13375,
     /// Sealevel local chain 1
     SealevelTest2 = 13376,
+
+    
+    /// Aptos mainnet
+    // AptosMainnet = 14401,
+    /// Aptos testnet
+    AptosTestnet = 14402,
+    /// Aptos devnet
+    AptosDevnet = 14477,
 }
 
 #[derive(Clone)]
@@ -167,6 +175,8 @@ pub enum HyperlaneDomainProtocol {
     Fuel,
     /// A Sealevel-based chain type which uses hyperlane-sealevel.
     Sealevel,
+    /// A MoveVm-based chain type which uses hyperlane-aptos.
+    Aptos,
 }
 
 impl HyperlaneDomainProtocol {
@@ -176,6 +186,7 @@ impl HyperlaneDomainProtocol {
             Ethereum => format!("{:?}", H160::from(addr)),
             Fuel => format!("{:?}", addr),
             Sealevel => format!("{:?}", addr),
+            Aptos => format!("{:?}", addr),
         }
     }
 }
@@ -193,11 +204,11 @@ impl KnownHyperlaneDomain {
             Mainnet: [
                 Ethereum, Avalanche, Arbitrum, Polygon, Optimism, BinanceSmartChain, Celo,
                 Moonbeam,
-                Gnosis
+                Gnosis,
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
-                Alfajores, MoonbaseAlpha, Zksync2Testnet, Sepolia
+                Alfajores, MoonbaseAlpha, Zksync2Testnet, Sepolia, AptosDevnet, AptosTestnet
             ],
             LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2],
         })
@@ -214,6 +225,7 @@ impl KnownHyperlaneDomain {
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
+            HyperlaneDomainProtocol::Aptos: [AptosTestnet, AptosDevnet],
         })
     }
 }

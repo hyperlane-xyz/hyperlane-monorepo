@@ -3592,6 +3592,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-aptos"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "anyhow",
+ "async-trait",
+ "base64 0.21.2",
+ "borsh 0.9.3",
+ "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-multisig-ism-message-id",
+ "hyperlane-sealevel-validator-announce",
+ "jsonrpc-core",
+ "multisig-ism",
+ "num-traits",
+ "serde",
+ "serializable-account-meta",
+ "solana-account-decoder",
+ "solana-client",
+ "solana-sdk",
+ "solana-transaction-status",
+ "thiserror",
+ "tracing",
+ "tracing-futures",
+ "url",
+]
+
+[[package]]
 name = "hyperlane-base"
 version = "0.1.0"
 dependencies = [
@@ -3608,6 +3638,7 @@ dependencies = [
  "eyre",
  "fuels",
  "futures-util",
+ "hyperlane-aptos",
  "hyperlane-core",
  "hyperlane-ethereum",
  "hyperlane-fuel",
