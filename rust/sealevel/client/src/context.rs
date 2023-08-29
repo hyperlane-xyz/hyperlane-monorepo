@@ -2,6 +2,7 @@ use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig}
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     instruction::Instruction,
+    message::Message,
     pubkey::Pubkey,
     signature::{Keypair, Signature, Signer},
     signer::SignerError,
@@ -18,7 +19,7 @@ impl Signer for DummyPayer {
             "DummyPayerDummyPayerDummyPayerDummyPayerDum"
         ))
     }
-    fn try_sign_message(&self, message: &[u8]) -> Result<Signature, SignerError> {
+    fn try_sign_message(&self, _message: &[u8]) -> Result<Signature, SignerError> {
         Ok(Signature::new_unique())
     }
     fn is_interactive(&self) -> bool {
@@ -32,14 +33,30 @@ pub(crate) struct Context {
     payer_keypair: Option<Keypair>,
     payer_keypair_path: Option<String>,
     pub commitment: CommitmentConfig,
-    // TODO: can we remove this?
-    pub initial_instructions: RefCell<Vec<Instruction>>,
+    pub initial_instructions: RefCell<Vec<InstructionWithDescription>>,
+}
+
+pub(crate) struct InstructionWithDescription {
+    pub instruction: Instruction,
+    pub description: Option<String>,
+}
+
+impl<T> From<(T, Option<String>)> for InstructionWithDescription
+where
+    T: Into<Instruction>,
+{
+    fn from((instruction, description): (T, Option<String>)) -> Self {
+        Self {
+            instruction: instruction.into(),
+            description,
+        }
+    }
 }
 
 pub(crate) struct TxnBuilder<'ctx, 'rpc> {
     ctx: &'ctx Context,
     client: Option<&'rpc RpcClient>,
-    instructions: Vec<Instruction>,
+    instructions_with_descriptions: Vec<InstructionWithDescription>,
 }
 
 impl Context {
@@ -49,7 +66,7 @@ impl Context {
         payer_keypair: Option<Keypair>,
         payer_keypair_path: Option<String>,
         commitment: CommitmentConfig,
-        initial_instructions: RefCell<Vec<Instruction>>,
+        initial_instructions: RefCell<Vec<InstructionWithDescription>>,
     ) -> Self {
         Self {
             client,
@@ -65,7 +82,11 @@ impl Context {
         TxnBuilder {
             ctx: self,
             client: None,
-            instructions: self.initial_instructions.borrow_mut().drain(..).collect(),
+            instructions_with_descriptions: self
+                .initial_instructions
+                .borrow_mut()
+                .drain(..)
+                .collect(),
         }
     }
 
@@ -90,7 +111,27 @@ impl Context {
 
 impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
     pub(crate) fn add(mut self, instruction: Instruction) -> Self {
-        self.instructions.push(instruction);
+        self.instructions_with_descriptions
+            .push(InstructionWithDescription {
+                instruction,
+                description: None,
+            });
+        self
+    }
+
+    pub(crate) fn add_with_description<T>(
+        mut self,
+        instruction: Instruction,
+        description: T,
+    ) -> Self
+    where
+        T: Into<String>,
+    {
+        self.instructions_with_descriptions
+            .push(InstructionWithDescription {
+                instruction,
+                description: Some(description.into()),
+            });
         self
     }
 
@@ -104,11 +145,34 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         self.send(&[&*payer_signer])
     }
 
+    pub(crate) fn instructions(&self) -> Vec<Instruction> {
+        self.instructions_with_descriptions
+            .iter()
+            .map(|i| i.instruction.clone())
+            .collect()
+    }
+
     pub(crate) fn send<T: Signers>(self, signers: &T) {
         if !self.ctx.payer_can_sign() {
             println!("Transaction to be submitted via Squads multisig:");
-            println!("\tInstructions: {:?}", self.instructions);
-            // println!("\tSigners: {:?}", signers);
+            println!("\t==== Instructions: ====");
+
+            for (i, InstructionWithDescription { description, .. }) in
+                self.instructions_with_descriptions.iter().enumerate()
+            {
+                println!(
+                    "\tInstruction {}: {}",
+                    i,
+                    description.as_deref().unwrap_or("No description provided")
+                );
+            }
+
+            let message = Message::new(&self.instructions(), None);
+            let txn = Transaction::new_unsigned(message);
+            println!(
+                "\t==== Transaction in base58: ====\n\t{}",
+                bs58::encode(bincode::serialize(&txn).unwrap()).into_string()
+            );
             return;
         }
 
@@ -116,7 +180,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
 
         let recent_blockhash = client.get_latest_blockhash().unwrap();
         let txn = Transaction::new_signed_with_payer(
-            &self.instructions,
+            &self.instructions(),
             Some(&self.ctx.payer_pubkey),
             signers,
             recent_blockhash,
@@ -137,4 +201,11 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             })
             .unwrap();
     }
+
+    // fn pretty_print_instructions(&self) {
+    //     for (i, instruction) in self.instructions.iter().enumerate() {
+    //         println!("Instruction {} of {}", i, self.instructions.len());
+    //         println!("\t Data: {}", bs58);
+    //     }
+    // }
 }

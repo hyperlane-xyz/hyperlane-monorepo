@@ -441,13 +441,23 @@ fn main() {
     let mut instructions = vec![];
     if cli.compute_budget != DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT {
         assert!(cli.compute_budget <= MAX_COMPUTE_UNIT_LIMIT);
-        instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(
-            cli.compute_budget,
-        ));
+        instructions.push(
+            (
+                ComputeBudgetInstruction::set_compute_unit_limit(cli.compute_budget),
+                Some(format!("Set compute unit limit to {}", cli.compute_budget)),
+            )
+                .into(),
+        );
     }
     if let Some(heap_size) = cli.heap_size {
         assert!(heap_size <= MAX_HEAP_FRAME_BYTES);
-        instructions.push(ComputeBudgetInstruction::request_heap_frame(heap_size));
+        instructions.push(
+            (
+                ComputeBudgetInstruction::request_heap_frame(heap_size),
+                Some(format!("Request heap frame of {} bytes", heap_size)),
+            )
+                .into(),
+        );
     }
 
     let ctx = Context::new(
@@ -970,9 +980,12 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
             )
             .unwrap();
 
-            println!("instruction {:?}", instruction);
-
-            ctx.new_txn().add(instruction).send_with_payer();
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!("Transfer ownership to {}", transfer.new_owner),
+                )
+                .send_with_payer();
         }
     }
 }
