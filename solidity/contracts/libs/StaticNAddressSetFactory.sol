@@ -20,11 +20,11 @@ abstract contract StaticNAddressSetFactory {
     function _deployImplementation() internal virtual returns (address);
 
     /**
-     * @notice Deploys a StaticMOfNAddressSet contract address for the given
+     * @notice Deploys a StaticNAddressSet contract address for the given
      * values
      * @dev Consider sorting addresses to ensure contract reuse
      * @param _values An array of addresses
-     * @return set The contract address representing this StaticMOfNAddressSet
+     * @return set The contract address representing this StaticNAddressSet
      */
     function deploy(address[] calldata _values) external returns (address) {
         (bytes32 _salt, bytes memory _bytecode) = _saltAndBytecode(_values);
@@ -36,11 +36,11 @@ abstract contract StaticNAddressSetFactory {
     }
 
     /**
-     * @notice Returns the StaticMOfNAddressSet contract address for the given
+     * @notice Returns the StaticNAddressSet contract address for the given
      * values
      * @dev Consider sorting addresses to ensure contract reuse
      * @param _values An array of addresses
-     * @return set The contract address representing this StaticMOfNAddressSet
+     * @return set The contract address representing this StaticNAddressSet
      */
     function getAddress(address[] calldata _values)
         external
@@ -52,11 +52,11 @@ abstract contract StaticNAddressSetFactory {
     }
 
     /**
-     * @notice Returns the StaticMOfNAddressSet contract address for the given
+     * @notice Returns the StaticNAddressSet contract address for the given
      * values
      * @param _salt The salt used in Create2
      * @param _bytecode The metaproxy bytecode used in Create2
-     * @return set The contract address representing this StaticMOfNAddressSet
+     * @return set The contract address representing this StaticNAddressSet
      */
     function _getAddress(bytes32 _salt, bytes memory _bytecode)
         private
