@@ -314,7 +314,6 @@ pub fn initiate_solana_hyperlane_transfer(
         sealevel_client(&solana_cli_tools_path, &solana_config_path)
             .cmd("igp")
             .cmd("pay-for-gas")
-            // .cmd("G5rGigZBL8NmxCaukK2CAKr9Jq4SUfAhsjzeri7GUraK")
             .cmd("GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
             .cmd(message_id)
             .run()

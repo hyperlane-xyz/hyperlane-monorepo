@@ -933,11 +933,13 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
                 data: ixn.encode().unwrap(),
                 accounts,
             };
-            ctx.new_txn().add(xfer_instruction).send(&[
+            let tx_result = ctx.new_txn().add(xfer_instruction).send(&[
                 &ctx.payer,
                 &sender,
                 &unique_message_account_keypair,
             ]);
+            // Print the output so it can be used in e2e tests
+            println!("{:?}", tx_result);
         }
         TokenSubCmd::EnrollRemoteRouter(enroll) => {
             let enroll_instruction = HtInstruction::EnrollRemoteRouter(RemoteRouterConfig {
