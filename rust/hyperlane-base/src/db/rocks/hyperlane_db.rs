@@ -134,10 +134,6 @@ impl HyperlaneRocksDB {
             .retrieve_processed_by_gas_payment_meta(&payment_meta)?
             .unwrap_or(false)
         {
-            println!(
-                "~~~ already processed gas payment {:?} log_meta: {:?}",
-                payment, log_meta
-            );
             trace!(
                 ?payment,
                 ?log_meta,
@@ -149,10 +145,6 @@ impl HyperlaneRocksDB {
         // Set the gas payment as processed
         self.store_processed_by_gas_payment_meta(&payment_meta, &true)?;
 
-        println!(
-            "~~~ done processing gas payment {:?} log_meta: {:?}",
-            payment, log_meta
-        );
         // Update the total gas payment for the message to include the payment
         self.update_gas_payment_by_message_id(payment)?;
 
@@ -244,7 +236,6 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
     /// Store a list of interchain gas payments and their associated metadata.
     #[instrument(skip_all)]
     async fn store_logs(&self, payments: &[(InterchainGasPayment, LogMeta)]) -> Result<u32> {
-        println!("~~~ trying to store logs {}", payments.len());
         let mut new = 0;
         for (payment, meta) in payments {
             if self.process_gas_payment(*payment, meta)? {

@@ -72,7 +72,6 @@ where
                         estimated_time_to_sync = fmt_sync_time(eta),
                         "Found log(s) in index range"
                     );
-                    println!("~~~ the logs: {:?}", logs);
                     // Store deliveries
                     let stored = self.db.store_logs(&logs).await?;
                     // Report amount of deliveries stored into db

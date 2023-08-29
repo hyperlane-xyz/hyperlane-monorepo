@@ -1,11 +1,10 @@
 use solana_client::rpc_client::RpcClient;
-use solana_client::rpc_config::{RpcSendTransactionConfig, RpcTransactionConfig};
+use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::instruction::Instruction;
 use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::signers::Signers;
 use solana_sdk::transaction::Transaction;
-use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
 use std::cell::RefCell;
 
 pub(crate) struct Context {
@@ -44,15 +43,12 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         self
     }
 
-    pub(crate) fn send_with_payer(self) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
+    pub(crate) fn send_with_payer(self) {
         let payer = &self.ctx.payer;
         self.send(&[payer])
     }
 
-    pub(crate) fn send<T: Signers>(
-        self,
-        signers: &T,
-    ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
+    pub(crate) fn send<T: Signers>(self, signers: &T) {
         let client = self.client.unwrap_or(&self.ctx.client);
 
         let recent_blockhash = client.get_latest_blockhash().unwrap();
@@ -63,7 +59,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             recent_blockhash,
         );
 
-        let signature = client
+        let _signature = client
             .send_and_confirm_transaction_with_spinner_and_config(
                 &txn,
                 self.ctx.commitment,
@@ -77,15 +73,5 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
                 err
             })
             .unwrap();
-        client
-            .get_transaction_with_config(
-                &signature,
-                RpcTransactionConfig {
-                    encoding: Some(UiTransactionEncoding::Base64),
-                    commitment: Some(CommitmentConfig::confirmed()),
-                    ..RpcTransactionConfig::default()
-                },
-            )
-            .ok()
     }
 }

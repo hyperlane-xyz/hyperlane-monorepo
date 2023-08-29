@@ -22,11 +22,6 @@ impl GasPaymentPolicy for GasPaymentPolicyMinimum {
         _current_expenditure: &InterchainGasExpenditure,
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>> {
-        println!(
-            "~~~ evaluating payment: {:?} for message_id: {}",
-            current_payment,
-            _message.id()
-        );
         if current_payment.payment >= self.minimum_payment {
             Ok(Some(tx_cost_estimate.gas_limit))
         } else {

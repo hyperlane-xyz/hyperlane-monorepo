@@ -77,46 +77,20 @@ impl SyncState {
         let range = match self.mode {
             IndexMode::Block => from..=to,
             IndexMode::Sequence => {
-                let (from, to) = match self.direction {
-                    SyncDirection::Forward => {
-                        let sequence_start = self.next_sequence;
-                        let mut sequence_end = sequence_start + MAX_SEQUENCE_RANGE;
-                        if let Some(max_sequence) = max_sequence {
-                            if self.next_sequence >= max_sequence {
-                                return Ok(None);
-                            }
-                            sequence_end = u32::min(sequence_end, max_sequence.saturating_sub(1));
-                            self.next_block = tip;
-                            println!(
-                                "~~~ forward sequence_start: {}, sequence_end: {}, direction: {:?}",
-                                sequence_start, sequence_end, self.direction
-                            );
-                        }
-                        self.next_sequence = sequence_end + 1;
-                        (sequence_start, sequence_end)
+                let sequence_start = self.next_sequence;
+                let mut sequence_end = sequence_start + MAX_SEQUENCE_RANGE;
+                if let Some(max_sequence) = max_sequence {
+                    if self.next_sequence >= max_sequence {
+                        return Ok(None);
                     }
-                    SyncDirection::Backward => {
-                        let sequence_end = self.next_sequence;
-                        let mut sequence_start = sequence_end.saturating_sub(MAX_SEQUENCE_RANGE);
-                        sequence_start = u32::max(sequence_start, 0);
-                        if let Some(max_sequence) = max_sequence {
-                            if self.next_sequence >= max_sequence {
-                                return Ok(None);
-                            }
-                        }
-                        println!(
-                            "~~~ backward sequence_start: {}, sequence_end: {}, direction: {:?}",
-                            sequence_start, sequence_end, self.direction
-                        );
-                        self.next_sequence = sequence_start.saturating_sub(1);
-                        (sequence_start, sequence_end)
-                    }
-                };
-                from..=to
+                    sequence_end = u32::min(sequence_end, max_sequence.saturating_sub(1));
+                    self.next_block = tip;
+                }
+                self.next_sequence = sequence_end + 1;
+                sequence_start..=sequence_end
             }
         };
         if range.is_empty() {
-            println!("~~~ range is empty: {:?}", range);
             return Ok(None);
         }
         Ok(Some(range))
@@ -229,10 +203,6 @@ impl ForwardMessageSyncCursor {
                 return Ok(None);
             };
         let cursor_count = self.cursor.sync_state.next_sequence;
-        println!(
-            "~~~ tip: {}, mailbox_count: {}, cursor_count: {}",
-            tip, mailbox_count, cursor_count
-        );
         Ok(match cursor_count.cmp(&mailbox_count) {
             Ordering::Equal => {
                 // We are synced up to the latest nonce so we don't need to index anything.
@@ -360,12 +330,7 @@ impl BackwardMessageSyncCursor {
 
         // Just keep going backwards.
         let (count, tip) = self.cursor.indexer.sequence_and_tip().await?;
-        println!(
-            "~~~ backward Looking for max sequence {:?} with tip {}",
-            count, tip
-        );
-        let range = self.cursor.sync_state.get_next_range(count, tip).await?;
-        Ok(range)
+        self.cursor.sync_state.get_next_range(count, tip).await
     }
 
     /// If the previous block has been synced, rewind to the block number

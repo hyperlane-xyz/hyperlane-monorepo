@@ -3773,7 +3773,6 @@ dependencies = [
  "solana-client",
  "solana-program",
  "solana-sdk",
- "solana-transaction-status",
 ]
 
 [[package]]
@@ -6250,11 +6249,9 @@ version = "0.1.0"
 dependencies = [
  "ctrlc",
  "eyre",
- "hyperlane-core",
  "macro_rules_attribute",
  "maplit",
  "nix 0.26.2",
- "regex",
  "tempfile",
  "ureq",
  "which",
