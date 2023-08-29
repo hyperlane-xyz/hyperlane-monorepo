@@ -9,7 +9,7 @@ use std::{collections::HashSet, default::Default};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::{eyre, Context};
 use hyperlane_base::{
-    impl_loadable_from_settings, parse,
+    impl_loadable_from_settings,
     settings::{
         deprecated_parser::DeprecatedRawSettings,
         parser::{RawAgentConf, ValueParser},
@@ -63,28 +63,26 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
 
         let p = ValueParser::new(cwp.clone(), &raw.0);
 
-        let chains_names_to_scrape: Option<HashSet<&str>> = parse! {
-            p(err)
-            |> get_key("chainsToScrape")?
-            |> parse_string()?
-            |> split(",")
-            |> collect()
-        };
+        let chains_names_to_scrape: Option<HashSet<&str>> = p
+            .chain(&mut err)
+            .get_key("chainsToScrape")
+            .parse_string()
+            .end()
+            .map(|s| s.split(',').collect());
 
-        let base = parse! {
-            p(err)
-            |> parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
+        let base = p
+            .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 chains_names_to_scrape.as_ref(),
-                "Parsing base config"
-            )?
-        };
+                "Parsing base config",
+            )
+            .take_config_err(&mut err);
 
-        let db = parse! {
-            p(err)
-            |> get_key("db")?
-            |> parse_string()?
-            |> to_owned()
-        };
+        let db = p
+            .chain(&mut err)
+            .get_key("db")
+            .parse_string()
+            .end()
+            .map(|v| v.to_owned());
 
         let chains_to_scrape = if let (Some(base), Some(chains)) = (&base, chains_names_to_scrape) {
             chains

@@ -19,6 +19,11 @@ pub struct ValueParser<'v> {
 }
 
 impl<'v> ValueParser<'v> {
+    /// Create a new value parser chain.
+    pub fn chain<'e>(&self, err: &'e mut ConfigParsingError) -> ParseChain<'e, ValueParser<'v>> {
+        ParseChain(Some(self.clone()), err)
+    }
+
     /// Get a value at the given key and verify that it is present.
     pub fn get_key(&self, key: &str) -> ConfigResult<ValueParser<'v>> {
         self.get_opt_key(key)?
@@ -245,3 +250,111 @@ impl<'v> ValueParser<'v> {
         O::from_config_filtered(self.parse_value::<T>(ctx)?, &self.cwp, filter)
     }
 }
+
+pub struct ParseChain<'e, T>(Option<T>, &'e mut ConfigParsingError);
+macro_rules! define_basic_parse {
+    ($($name:ident: $ty:ty),+) => {
+        impl<'v, 'e> ParseChain<'e, ValueParser<'v>> {
+            $(pub fn $name(self) -> ParseChain<'e, $ty> {
+                self.and_then(|v| v.$name())
+            })*
+        }
+    }
+}
+
+define_basic_parse!(
+    parse_u64: u64,
+    parse_i64: i64,
+    parse_f64: f64,
+    parse_f64_unchecked: f64,
+    parse_u32: u32,
+    parse_u16: u16,
+    parse_i32: i32,
+    parse_u256: U256,
+    parse_bool: bool,
+    parse_string: &'v str,
+    parse_address_hash: H256,
+    parse_private_key: H256
+);
+
+impl<'v, 'e> ParseChain<'e, ValueParser<'v>> {
+    pub fn get_key(self, key: &str) -> Self {
+        self.and_then(|v| v.get_key(key))
+    }
+
+    pub fn get_opt_key(self, key: &str) -> Self {
+        Self(
+            self.0
+                .and_then(|v| v.get_opt_key(key).take_config_err(self.1))
+                .flatten(),
+            self.1,
+        )
+    }
+
+    pub fn parse_value<T: DeserializeOwned>(self, ctx: &'static str) -> ParseChain<'e, T> {
+        self.and_then(|v| v.parse_value::<T>(ctx))
+    }
+
+    pub fn into_obj_iter(self) -> Option<impl Iterator<Item = (String, ValueParser<'v>)> + 'v> {
+        self.and_then(|v| v.into_obj_iter()).end()
+    }
+
+    pub fn into_array_iter(self) -> Option<impl Iterator<Item = ValueParser<'v>>> {
+        self.and_then(|v| v.into_array_iter()).end()
+    }
+
+    pub fn parse_from_str<T>(self, ctx: &'static str) -> ParseChain<'e, T>
+    where
+        T: FromStr,
+        T::Err: StdError + Send + Sync + 'static,
+    {
+        ParseChain(
+            self.0
+                .and_then(|v| v.parse_from_str::<T>(ctx).take_config_err(self.1)),
+            self.1,
+        )
+    }
+
+    pub fn parse_from_raw_config<O, T, F>(self, filter: F, ctx: &'static str) -> ParseChain<'e, O>
+    where
+        O: FromRawConf<T, F>,
+        T: Debug + DeserializeOwned,
+        F: Default,
+    {
+        self.and_then(|v| v.parse_from_raw_config::<O, T, F>(filter, ctx))
+    }
+}
+
+impl<'e, T> ParseChain<'e, T> {
+    pub fn from_option(val: Option<T>, err: &'e mut ConfigParsingError) -> Self {
+        Self(val, err)
+    }
+
+    pub fn and_then<O>(self, f: impl FnOnce(T) -> ConfigResult<O>) -> ParseChain<'e, O> {
+        ParseChain(self.0.and_then(|v| f(v).take_config_err(self.1)), self.1)
+    }
+
+    pub fn map<O>(self, f: impl FnOnce(T) -> O) -> ParseChain<'e, O> {
+        ParseChain(self.0.map(f), self.1)
+    }
+
+    pub fn end(self) -> Option<T> {
+        self.0
+    }
+
+    pub fn unwrap_or(self, default: T) -> T {
+        self.0.unwrap_or(default)
+    }
+
+    pub fn unwrap_or_else(self, f: impl FnOnce() -> T) -> T {
+        self.0.unwrap_or_else(f)
+    }
+}
+
+impl<'e, T: Default> ParseChain<'e, T> {
+    pub fn unwrap_or_default(self) -> T {
+        self.0.unwrap_or_default()
+    }
+}
+
+// pub struct ParseChainIter<'e, T, I: Iterator<Item=T>>(Option<I>, &'e mut ConfigParsingError);

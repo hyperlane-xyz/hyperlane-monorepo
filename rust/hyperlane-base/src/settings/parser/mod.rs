@@ -20,15 +20,14 @@ use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
 
-pub use self::{json_value_parser::ValueParser, parse_pipe::parse};
+pub use self::json_value_parser::ValueParser;
 pub use super::envs::*;
 use crate::settings::{
-    chains::IndexSettings, trace::TracingConfig, ChainConf, ChainConnectionConf,
-    CoreContractAddresses, Settings, SignerConf,
+    chains::IndexSettings, parser::json_value_parser::ParseChain, trace::TracingConfig, ChainConf,
+    ChainConnectionConf, CoreContractAddresses, Settings, SignerConf,
 };
 
 mod json_value_parser;
-mod parse_pipe;
 
 /// The base agent config
 #[derive(Debug, Deserialize)]
@@ -45,57 +44,51 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
 
         let p = ValueParser::new(cwp.clone(), &raw.0);
 
-        let metrics_port = parse! {
-            p(err)
-            |> get_opt_key("metricsPort")??
-            |> parse_u16()?
-            || 9090
-        };
+        let metrics_port = p
+            .chain(&mut err)
+            .get_opt_key("metricsPort")
+            .parse_u16()
+            .unwrap_or(9090);
 
-        let fmt = parse! {
-            p(err)
-            |> get_opt_key("log")??
-            |> get_opt_key("format")??
-            |> parse_value("Invalid log format")?
-            || Default
-        };
+        let fmt = p
+            .chain(&mut err)
+            .get_opt_key("log")
+            .get_opt_key("format")
+            .parse_value("Invalid log format")
+            .unwrap_or_default();
 
-        let level = parse! {
-            p(err)
-            |> get_opt_key("log")??
-            |> get_opt_key("level")??
-            |> parse_value("Invalid log level")?
-            || Default
-        };
+        let level = p
+            .chain(&mut err)
+            .get_opt_key("log")
+            .get_opt_key("level")
+            .parse_value("Invalid log level")
+            .unwrap_or_default();
 
         let raw_chains: Vec<(String, ValueParser)> = if let Some(filter) = filter {
-            parse! {
-                p(err)
-                |> get_opt_key("chains")??
-                |> into_obj_iter()?
-                |> filter(|(k, _)| filter.contains(&**k))
-                |> collect()
-            }
+            p.chain(&mut err)
+                .get_opt_key("chains")
+                .into_obj_iter()
+                .map(|v| v.filter(|(k, _)| filter.contains(&**k)).collect())
         } else {
-            parse! {
-                p(err)
-                |> get_opt_key("chains")??
-                |> into_obj_iter()?
-                |> collect()
-            }
+            p.chain(&mut err)
+                .get_opt_key("chains")
+                .into_obj_iter()
+                .map(|v| v.collect())
         }
         .unwrap_or_default();
 
-        let default_signer = parse! {
-            p(err)
-            |> get_opt_key("defaultSigner")??
-            @> parse_signer()?
-        };
+        let default_signer = p
+            .chain(&mut err)
+            .get_opt_key("defaultSigner")
+            .and_then(parse_signer)
+            .end();
 
         let chains: HashMap<String, ChainConf> = raw_chains
             .into_iter()
             .filter_map(|(name, chain)| {
-                (parse! { chain(err) @> parse_chain(&*name)? }).map(|v| (name, v))
+                parse_chain(chain, &name)
+                    .take_config_err(&mut err)
+                    .map(|v| (name, v))
             })
             .map(|(name, mut chain)| {
                 if let Some(default_signer) = &default_signer {
@@ -117,40 +110,48 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
 fn parse_chain(chain: ValueParser, name: &str) -> ConfigResult<ChainConf> {
     let mut err = ConfigParsingError::default();
 
-    let domain = parse! { chain(err) @> parse_domain(name)? };
-    let signer = parse! { chain(err) |> get_opt_key("signer")?? @> parse_signer()? };
+    let domain = parse_domain(chain.clone(), name).take_config_err(&mut err);
+    let signer = chain
+        .chain(&mut err)
+        .get_opt_key("signer")
+        .and_then(parse_signer)
+        .end();
 
     // TODO(2214): is it correct to define finality blocks as `confirmations` and not `reorgPeriod`?
     // TODO(2214): should we rename `finalityBlocks` in ChainConf?
-    let finality_blocks = parse! {
-        chain(err)
-        |> get_opt_key("blocks")??
-        |> get_key("confirmations")?
-        |> parse_u32()?
-        || 1
-    };
+    let finality_blocks = chain
+        .chain(&mut err)
+        .get_opt_key("blocks")
+        .get_key("confirmations")
+        .parse_u32()
+        .unwrap_or(1);
 
-    let rpcs: Vec<ValueParser> = if let Some(custom_rpc_urls) =
-        chain.get_opt_key("customRpcUrls").unwrap_or_default()
-    {
-        // use the custom defined urls, sorted by highest prio first
-        parse! {
-            custom_rpc_urls(err)
-            |> into_obj_iter()?
-            |> map(|(_, url)| (parse! { url(err) |> get_opt_key("priority")?? |> parse_i32()? || 0 }, url))
-            |> sorted_unstable_by_key(|(p, _)| Reverse(*p))
-            |> map(|(_, url)| url)
-            |> collect()
+    let rpcs: Vec<ValueParser> =
+        if let Some(custom_rpc_urls) = chain.get_opt_key("customRpcUrls").unwrap_or_default() {
+            // use the custom defined urls, sorted by highest prio first
+            custom_rpc_urls.chain(&mut err).into_obj_iter().map(|itr| {
+                itr.map(|(_, url)| {
+                    (
+                        url.chain(&mut err)
+                            .get_opt_key("priority")
+                            .parse_i32()
+                            .unwrap_or(0),
+                        url,
+                    )
+                })
+                .sorted_unstable_by_key(|(p, _)| Reverse(*p))
+                .map(|(_, url)| url)
+                .collect()
+            })
+        } else {
+            // if no custom rpc urls are set, use the default rpc urls
+            chain
+                .chain(&mut err)
+                .get_key("rpcUrls")
+                .into_array_iter()
+                .map(Iterator::collect)
         }
-    } else {
-        // if no custom rpc urls are set, use the default rpc urls
-        parse! {
-            chain(err)
-            |> get_key("rpcUrls")?
-            |> into_array_iter()?
-            |> collect()
-        }
-    }.unwrap_or_default();
+        .unwrap_or_default();
 
     if rpcs.is_empty() {
         err.push(
@@ -163,47 +164,49 @@ fn parse_chain(chain: ValueParser, name: &str) -> ConfigResult<ChainConf> {
         );
     }
 
-    let from = parse! {
-        chain(err)
-        |> get_opt_key("index")??
-        |> get_opt_key("from")??
-        |> parse_u32()?
-        || 0
-    };
-    let chunk_size = parse! {
-        chain(err)
-        |> get_opt_key("index")??
-        |> get_opt_key("chunk")??
-        |> parse_u32()?
-        || 1999
-    };
-    let mode = parse! {
-        chain(err)
-        |> get_opt_key("index")??
-        |> get_opt_key("mode")??
-        |> parse_value("Invalid index mode")?
-        || domain.as_ref().and_then(|d| match d.domain_protocol() {
-            HyperlaneDomainProtocol::Ethereum => Some(IndexMode::Block),
-            HyperlaneDomainProtocol::Sealevel => Some(IndexMode::Sequence),
-            _ => None,
-        }).unwrap_or_default()
-    };
+    let from = chain
+        .chain(&mut err)
+        .get_opt_key("index")
+        .get_opt_key("from")
+        .parse_u32()
+        .unwrap_or(0);
+    let chunk_size = chain
+        .chain(&mut err)
+        .get_opt_key("index")
+        .get_opt_key("chunk")
+        .parse_u32()
+        .unwrap_or(1999);
+    let mode = chain
+        .chain(&mut err)
+        .get_opt_key("index")
+        .get_opt_key("mode")
+        .parse_value("Invalid index mode")
+        .unwrap_or_else(|| {
+            domain
+                .as_ref()
+                .and_then(|d| match d.domain_protocol() {
+                    HyperlaneDomainProtocol::Ethereum => Some(IndexMode::Block),
+                    HyperlaneDomainProtocol::Sealevel => Some(IndexMode::Sequence),
+                    _ => None,
+                })
+                .unwrap_or_default()
+        });
 
-    let mailbox = parse! {
-        chain(err)
-        |> get_key("mailbox")?
-        |> parse_address_hash()?
-    };
-    let interchain_gas_paymaster = parse! {
-        chain(err)
-        |> get_key("interchainGasPaymaster")?
-        |> parse_address_hash()?
-    };
-    let validator_announce = parse! {
-        chain(err)
-        |> get_key("validatorAnnounce")?
-        |> parse_address_hash()?
-    };
+    let mailbox = chain
+        .chain(&mut err)
+        .get_key("mailbox")
+        .parse_address_hash()
+        .end();
+    let interchain_gas_paymaster = chain
+        .chain(&mut err)
+        .get_key("interchainGasPaymaster")
+        .parse_address_hash()
+        .end();
+    let validator_announce = chain
+        .chain(&mut err)
+        .get_key("validatorAnnounce")
+        .parse_address_hash()
+        .end();
 
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
 
@@ -213,31 +216,28 @@ fn parse_chain(chain: ValueParser, name: &str) -> ConfigResult<ChainConf> {
                 let into_connection =
                     |url| ChainConnectionConf::Ethereum(h_eth::ConnectionConf::Http { url });
                 rpcs.into_iter().next().and_then(|rpc| {
-                    parse! {
-                        rpc(err)
-                        |> get_key("http")?
-                        |> parse_from_str("Invalid http url")?
-                        @> into_connection()
-                    }
+                    rpc.chain(&mut err)
+                        .get_key("http")
+                        .parse_from_str("Invalid http url")
+                        .end()
+                        .map(into_connection)
                 })
             } else {
                 let urls = rpcs
                     .into_iter()
                     .filter_map(|rpc| {
-                        parse! {
-                            rpc(err)
-                            |> get_key("http")?
-                            |> parse_from_str("Invalid http url")?
-                        }
+                        rpc.chain(&mut err)
+                            .get_key("http")
+                            .parse_from_str("Invalid http url")
+                            .end()
                     })
                     .collect_vec();
 
-                let rpc_consensus_type = parse! {
-                    chain(err)
-                    |> get_opt_key("rpcConsensusType")??
-                    |> parse_string()?
-                    || "fallback"
-                };
+                let rpc_consensus_type = chain
+                    .chain(&mut err)
+                    .get_opt_key("rpcConsensusType")
+                    .parse_string()
+                    .unwrap_or("fallback");
                 match rpc_consensus_type {
                     "fallback" => Some(h_eth::ConnectionConf::HttpFallback { urls }),
                     "quorum" => Some(h_eth::ConnectionConf::HttpQuorum { urls }),
@@ -247,28 +247,18 @@ fn parse_chain(chain: ValueParser, name: &str) -> ConfigResult<ChainConf> {
                 .map(ChainConnectionConf::Ethereum)
             }
         }
-        HyperlaneDomainProtocol::Fuel => rpcs
-            .into_iter()
-            .next()
-            .and_then(|rpc| {
-                parse! {
-                    rpc(err)
-                    |> get_key("http")?
-                    |> parse_from_str("Invalid http url")?
-                }
-            })
+        HyperlaneDomainProtocol::Fuel => ParseChain::from_option(rpcs.into_iter().next(), &mut err)
+            .get_key("http")
+            .parse_from_str("Invalid http url")
+            .end()
             .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url })),
-        HyperlaneDomainProtocol::Sealevel => rpcs
-            .into_iter()
-            .next()
-            .and_then(|rpc| {
-                parse! {
-                    rpc(err)
-                    |> get_key("http")?
-                    |> parse_from_str("Invalid http url")?
-                }
-            })
-            .map(|url| ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf { url })),
+        HyperlaneDomainProtocol::Sealevel => {
+            ParseChain::from_option(rpcs.into_iter().next(), &mut err)
+                .get_key("http")
+                .parse_from_str("Invalod http url")
+                .end()
+                .map(|url| ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf { url }))
+        }
     };
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce]);
@@ -294,11 +284,7 @@ fn parse_chain(chain: ValueParser, name: &str) -> ConfigResult<ChainConf> {
 /// Expects ChainMetadata
 fn parse_domain(chain: ValueParser, name: &str) -> ConfigResult<HyperlaneDomain> {
     let mut err = ConfigParsingError::default();
-    let internal_name = parse! {
-        chain(err)
-        |> get_key("name")?
-        |> parse_string()?
-    };
+    let internal_name = chain.chain(&mut err).get_key("name").parse_string().end();
 
     if let Some(internal_name) = internal_name {
         if internal_name != name {
@@ -313,28 +299,18 @@ fn parse_domain(chain: ValueParser, name: &str) -> ConfigResult<HyperlaneDomain>
     }
     .take_err(&mut err, || &chain.cwp + "name");
 
-    let domain_id = parse! {
-        chain(err)
-        |> get_opt_key("domainId")??
-        |> parse_u32()?
-    }
-    .or_else(|| {
-        parse! {
-            chain(err)
-            |> get_key("chainId")?
-            |> parse_u32()?
-        }
-    });
+    let domain_id = chain
+        .chain(&mut err)
+        .get_opt_key("domainId")
+        .parse_u32()
+        .end()
+        .or_else(|| chain.chain(&mut err).get_key("chainId").parse_u32().end());
 
-    let parse_protocol = |proto| {
-        HyperlaneDomainProtocol::try_from(proto).into_config_result(|| &chain.cwp + "protocol")
-    };
-    let protocol = parse! {
-        chain(err)
-        |> get_key("protocol")?
-        |> parse_string()?
-        @> parse_protocol()?
-    };
+    let protocol = chain
+        .chain(&mut err)
+        .get_key("protocol")
+        .parse_from_str::<HyperlaneDomainProtocol>("Invalid Hyperlane domain protocol")
+        .end();
 
     cfg_unwrap_all!(&chain.cwp, err: [domain_id, protocol]);
 
@@ -350,40 +326,37 @@ fn parse_domain(chain: ValueParser, name: &str) -> ConfigResult<HyperlaneDomain>
 fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
     let mut err = ConfigParsingError::default();
 
-    let signer_type = parse! {
-        signer(err)
-        |> get_opt_key("signerType")??
-        |> parse_string()?
-    };
+    let signer_type = signer
+        .chain(&mut err)
+        .get_opt_key("signerType")
+        .parse_string()
+        .end();
 
-    let key_is_some = signer.get_opt_key("key").unwrap_or_default().is_some();
-    let id_is_some = signer.get_opt_key("id").unwrap_or_default().is_some();
-    let region_is_some = signer.get_opt_key("region").unwrap_or_default().is_some();
+    let key_is_some = matches!(signer.get_opt_key("key"), Ok(Some(_)));
+    let id_is_some = matches!(signer.get_opt_key("id"), Ok(Some(_)));
+    let region_is_some = matches!(signer.get_opt_key("region"), Ok(Some(_)));
 
     macro_rules! parse_signer {
         (hexKey) => {{
-            let key = parse! {
-                signer(err)
-                |> get_key("key")?
-                |> parse_private_key()?
-                || Default
-            };
+            let key = signer
+                .chain(&mut err)
+                .get_key("key")
+                .parse_private_key()
+                .unwrap_or_default();
             err.into_result(SignerConf::HexKey { key })
         }};
         (aws) => {{
-            let id = parse! {
-                signer(err)
-                |> get_key("id")?
-                |> parse_string()?
-                |> to_owned()
-                || Default
-            };
-            let region = parse! {
-                signer(err)
-                |> get_key("region")?
-                |> parse_from_str("Expected AWS region")?
-                || Default
-            };
+            let id = signer
+                .chain(&mut err)
+                .get_key("id")
+                .parse_string()
+                .unwrap_or("")
+                .to_owned();
+            let region = signer
+                .chain(&mut err)
+                .get_key("region")
+                .parse_from_str("Expected AWS region")
+                .unwrap_or_default();
             err.into_result(SignerConf::Aws { id, region })
         }};
     }
@@ -411,13 +384,6 @@ impl FromRawConf<RawAgentSignerConf> for SignerConf {
         cwp: &ConfigPath,
         _filter: (),
     ) -> ConfigResult<Self> {
-        let mut err = ConfigParsingError::default();
-        let p = ValueParser::new(cwp.clone(), &raw.0);
-        let signer = parse! {
-            p(err)
-            @> parse_signer()?
-            || Default
-        };
-        err.into_result(signer)
+        parse_signer(ValueParser::new(cwp.clone(), &raw.0))
     }
 }
