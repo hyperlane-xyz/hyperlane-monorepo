@@ -1,10 +1,10 @@
-use std::sync::OnceLock;
-use std::{fmt, time::Duration};
+use std::{fmt, sync::OnceLock, time::Duration};
 
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
 use futures_util::TryStreamExt;
+use hyperlane_core::{SignedAnnouncement, SignedCheckpoint, SignedCheckpointWithMessageId};
 use prometheus::IntGauge;
 use rusoto_core::{
     credential::{Anonymous, AwsCredentials, StaticProvider},
@@ -13,10 +13,7 @@ use rusoto_core::{
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
 use tokio::time::timeout;
 
-use hyperlane_core::{SignedAnnouncement, SignedCheckpoint, SignedCheckpointWithMessageId};
-
-use crate::settings::aws_credentials::AwsChainCredentialsProvider;
-use crate::CheckpointSyncer;
+use crate::{settings::aws_credentials::AwsChainCredentialsProvider, CheckpointSyncer};
 
 /// The timeout for S3 requests. Rusoto doesn't offer timeout configuration
 /// out of the box, so S3 requests must be wrapped with a timeout.
