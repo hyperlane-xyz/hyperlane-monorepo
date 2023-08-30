@@ -84,6 +84,7 @@ hyperlane:
       #   reorgPeriod:
       #   checkpointSyncers:
       #   originChainName:
+      #   type: # "hexKey"
 
   relayer:
     enabled: false

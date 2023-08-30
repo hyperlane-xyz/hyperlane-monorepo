@@ -20,6 +20,8 @@ pub enum CheckpointSyncerConf {
     S3 {
         /// Bucket name
         bucket: String,
+        /// Folder name inside bucket - defaults to the root of the bucket
+        folder: Option<String>,
         /// S3 Region
         region: Region,
     },
@@ -36,13 +38,15 @@ impl FromStr for CheckpointSyncerConf {
 
         match prefix {
             "s3" => {
-                let [bucket, region]: [&str; 2] = suffix
-                    .split('/')
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .map_err(|_| eyre!("Error parsing storage location; could not split bucket and region ({suffix})"))?;
+                let url_components = suffix.split('/').collect::<Vec<&str>>();
+                let (bucket, region, folder): (&str, &str, Option<String>) = match url_components.len() {
+                    2 => Ok((url_components[0], url_components[1], None)),
+                    3 .. => Ok((url_components[0], url_components[1], Some(url_components[2..].join("/")))),
+                    _ => Err(eyre!("Error parsing storage location; could not split bucket, region and folder ({suffix})"))
+                }?;
                 Ok(CheckpointSyncerConf::S3 {
                     bucket: bucket.into(),
+                    folder,
                     region: region
                         .parse()
                         .context("Invalid region when parsing storage location")?,
@@ -66,8 +70,13 @@ impl CheckpointSyncerConf {
             CheckpointSyncerConf::LocalStorage { path } => {
                 Box::new(LocalStorage::new(path.clone(), latest_index_gauge)?)
             }
-            CheckpointSyncerConf::S3 { bucket, region } => Box::new(S3Storage::new(
+            CheckpointSyncerConf::S3 {
+                bucket,
+                folder,
+                region,
+            } => Box::new(S3Storage::new(
                 bucket.clone(),
+                folder.clone(),
                 region.clone(),
                 latest_index_gauge,
             )),
