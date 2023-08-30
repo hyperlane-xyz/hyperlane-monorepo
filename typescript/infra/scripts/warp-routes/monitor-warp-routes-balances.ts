@@ -9,9 +9,11 @@ import {
 import { ChainMap, MultiProvider } from '@hyperlane-xyz/sdk';
 import { debug, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
+import {
+  WarpTokenConfig,
+  tokenList,
+} from '../../src/config/nautilus_token_config';
 import { startMetricsServer } from '../../src/utils/metrics';
-
-import { WarpTokenConfig, tokenList } from './token_config';
 
 const metricsRegister = new Registry();
 const warpRouteTokenBalance = new Gauge({
@@ -27,17 +29,19 @@ const warpRouteTokenBalance = new Gauge({
   ],
 });
 
-async function main(): Promise<boolean> {
+async function main(checkFreqeuncy: number): Promise<boolean> {
   startMetricsServer(metricsRegister);
-
-  const checkFreqeuncy = 1000; // 1 second
 
   const multiProvider = new MultiProvider();
 
   setInterval(async () => {
-    console.log('Checking balances');
-    const balances = await checkBalance(tokenList, multiProvider);
-    await updateTokenBalanceMetrics(tokenList, balances);
+    try {
+      console.log('Checking balances');
+      const balances = await checkBalance(tokenList, multiProvider);
+      updateTokenBalanceMetrics(tokenList, balances);
+    } catch (e) {
+      console.error('Error checking balances', e);
+    }
   }, checkFreqeuncy);
   return true;
 }
@@ -94,32 +98,27 @@ async function checkBalance(
   return await promiseObjAll(output);
 }
 
-async function updateTokenBalanceMetrics(
+function updateTokenBalanceMetrics(
   tokenConfig: WarpTokenConfig,
   balances: ChainMap<number>,
 ) {
   objMap(tokenConfig, (chain, token) => {
-    if (token.type === 'native') {
-      warpRouteTokenBalance
-        .labels({
-          chain_name: chain,
-          token_address: ethers.constants.AddressZero,
-          token_name: token.name,
-          wallet_address: token.hypNativeAddress,
-          token_type: token.type,
-        })
-        .set(balances[chain]);
-    } else {
-      warpRouteTokenBalance
-        .labels({
-          chain_name: chain,
-          token_address: token.address,
-          token_name: token.name,
-          wallet_address: token.hypCollateralAddress,
-          token_type: token.type,
-        })
-        .set(balances[chain]);
-    }
+    const tokenAddress =
+      token.type === 'native' ? ethers.constants.AddressZero : token.address;
+    const walletAddress =
+      token.type === 'native'
+        ? token.hypNativeAddress
+        : token.hypCollateralAddress;
+
+    warpRouteTokenBalance
+      .labels({
+        chain_name: chain,
+        token_address: tokenAddress,
+        token_name: token.name,
+        wallet_address: walletAddress,
+        token_type: token.type,
+      })
+      .set(balances[chain]);
     debug('Wallet balance updated for chain', {
       chain,
       token: token.name,
@@ -128,4 +127,4 @@ async function updateTokenBalanceMetrics(
   });
 }
 
-main().then(console.log).catch(console.error);
+main(10000).then(console.log).catch(console.error);
