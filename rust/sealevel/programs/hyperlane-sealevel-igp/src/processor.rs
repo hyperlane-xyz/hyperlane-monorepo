@@ -367,6 +367,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
             destination_domain: payment.destination_domain,
             message_id: payment.message_id,
             gas_amount,
+            payment: required_payment,
             unique_gas_payment_pubkey: *unique_gas_payment_account_info.key,
             slot: Clock::get()?.slot,
         }

@@ -17,6 +17,7 @@ solana-cli-config.workspace = true
 solana-client.workspace = true
 solana-program.workspace = true
 solana-sdk.workspace = true
+solana-transaction-status.workspace = true
 
 account-utils = { path = "../libraries/account-utils" }
 hyperlane-core = { path = "../../hyperlane-core" }
