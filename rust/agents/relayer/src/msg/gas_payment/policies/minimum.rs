@@ -39,7 +39,11 @@ async fn test_gas_payment_policy_minimum() {
     let message = HyperlaneMessage::default();
 
     // If the payment is less than the minimum, returns false
-    let current_payment = InterchainGasPayment::new(H256::zero(), U256::from(999u32), U256::zero());
+    let current_payment = InterchainGasPayment {
+        message_id: H256::zero(),
+        payment: U256::from(999u32),
+        gas_amount: U256::zero(),
+    };
     // expenditure should make no difference
     let current_expenditure = InterchainGasExpenditure {
         message_id: H256::zero(),
@@ -64,8 +68,11 @@ async fn test_gas_payment_policy_minimum() {
     );
 
     // If the payment is at least the minimum, returns false
-    let current_payment =
-        InterchainGasPayment::new(H256::zero(), U256::from(1000u32), U256::zero());
+    let current_payment = InterchainGasPayment {
+        message_id: H256::zero(),
+        payment: U256::from(1000u32),
+        gas_amount: U256::zero(),
+    };
     assert_eq!(
         policy
             .message_meets_gas_payment_requirement(

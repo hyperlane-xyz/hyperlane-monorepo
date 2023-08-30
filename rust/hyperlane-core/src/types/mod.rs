@@ -1,4 +1,3 @@
-use derive_new::new;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::io::{Read, Write};
@@ -105,7 +104,7 @@ impl From<Signature> for ethers_core::types::Signature {
 }
 
 /// A payment of a message's gas costs.
-#[derive(Debug, Copy, Clone, new)]
+#[derive(Debug, Copy, Clone)]
 pub struct InterchainGasPayment {
     /// Id of the message
     pub message_id: H256,
@@ -113,9 +112,6 @@ pub struct InterchainGasPayment {
     pub payment: U256,
     /// Amount of destination gas paid for.
     pub gas_amount: U256,
-    /// Sequence number of the IGP payment
-    #[new(default)]
-    pub sequence_number: Option<u64>,
 }
 
 /// Amount of gas spent attempting to send the message.
@@ -137,11 +133,11 @@ impl Add for InterchainGasPayment {
             self.message_id, rhs.message_id,
             "Cannot add interchain gas payments for different messages"
         );
-        Self::new(
-            self.message_id,
-            self.payment + rhs.payment,
-            self.gas_amount + rhs.gas_amount,
-        )
+        Self {
+            message_id: self.message_id,
+            payment: self.payment + rhs.payment,
+            gas_amount: self.gas_amount + rhs.gas_amount,
+        }
     }
 }
 
@@ -170,25 +166,6 @@ pub struct InterchainGasPaymentMeta {
     pub log_index: u64,
 }
 
-impl InterchainGasPaymentMeta {
-    /// Constructor to act as `from()` function for `LogMeta`, with an added IGP sequence number
-    /// to work around the zero-initialized `log_index` in Sealevel, causing `InterchainGasPaymentMeta`
-    /// to not be unique as a db key.
-    /// TODO: Switch back to `from()` function once we have rocksdb migrations and can extend
-    /// `InterchainGasPaymentMeta` with new fields.
-    pub fn new(meta: &LogMeta, sequence_number: Option<u64>) -> Self {
-        let log_index = if let Some(sequence_number) = sequence_number {
-            sequence_number
-        } else {
-            meta.log_index.as_u64()
-        };
-        Self {
-            transaction_id: meta.transaction_id,
-            log_index,
-        }
-    }
-}
-
 impl Encode for InterchainGasPaymentMeta {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
@@ -211,6 +188,16 @@ impl Decode for InterchainGasPaymentMeta {
             transaction_id: H512::read_from(reader)?,
             log_index: u64::read_from(reader)?,
         })
+    }
+}
+
+impl From<&LogMeta> for InterchainGasPaymentMeta {
+    fn from(meta: &LogMeta) -> Self {
+        Self {
+            transaction_id: meta.transaction_id,
+            log_index: meta.log_index.as_u64(),
+            block_number: meta.block_number,
+        }
     }
 }
 

@@ -31,7 +31,11 @@ async fn test_gas_payment_policy_none() {
 
     let message = HyperlaneMessage::default();
 
-    let current_payment = InterchainGasPayment::new(H256::zero(), U256::zero(), U256::zero());
+    let current_payment = InterchainGasPayment {
+        message_id: H256::zero(),
+        payment: U256::zero(),
+        gas_amount: U256::zero(),
+    };
     let current_expenditure = InterchainGasExpenditure {
         message_id: H256::zero(),
         tokens_used: U256::zero(),

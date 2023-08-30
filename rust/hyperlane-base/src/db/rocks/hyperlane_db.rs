@@ -128,7 +128,7 @@ impl HyperlaneRocksDB {
         payment: InterchainGasPayment,
         log_meta: &LogMeta,
     ) -> DbResult<bool> {
-        let payment_meta = InterchainGasPaymentMeta::new(log_meta, payment.sequence_number);
+        let payment_meta = log_meta.into();
         // If the gas payment has already been processed, do nothing
         if self
             .retrieve_processed_by_gas_payment_meta(&payment_meta)?

@@ -101,11 +101,11 @@ where
             .into_iter()
             .map(|(log, log_meta)| {
                 (
-                    InterchainGasPayment::new(
-                        H256::from(log.message_id),
-                        log.payment.into(),
-                        log.gas_amount.into(),
-                    ),
+                    InterchainGasPayment {
+                        message_id: H256::from(log.message_id),
+                        payment: log.payment.into(),
+                        gas_amount: log.gas_amount.into(),
+                    },
                     log_meta.into(),
                 )
             })
