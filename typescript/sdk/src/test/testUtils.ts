@@ -50,7 +50,7 @@ export async function getRouterConfig(
       return {
         owner,
         mailbox: contracts.mailbox.address,
-        interchainGasPaymaster: await contracts.mailbox.defaultHook(),
+        interchainGasPaymaster: contracts.interchainGasPaymaster.address,
       };
     }),
   );
