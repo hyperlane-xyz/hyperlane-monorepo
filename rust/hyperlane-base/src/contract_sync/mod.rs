@@ -4,7 +4,7 @@ use cursor::*;
 use derive_new::new;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer,
+    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer,
     SequenceIndexer,
 };
 pub use metrics::ContractSyncMetrics;
@@ -98,12 +98,12 @@ where
     pub async fn rate_limited_cursor(
         &self,
         index_settings: IndexSettings,
-        index_mode: IndexMode,
     ) -> Box<dyn ContractSyncCursor<T>> {
         let watermark = self.db.retrieve_high_watermark().await.unwrap();
         let index_settings = IndexSettings {
             from: watermark.unwrap_or(index_settings.from),
             chunk_size: index_settings.chunk_size,
+            mode: index_settings.mode,
         };
         Box::new(
             RateLimitedContractSyncCursor::new(
@@ -111,7 +111,7 @@ where
                 self.db.clone(),
                 index_settings.chunk_size,
                 index_settings.from,
-                index_mode,
+                index_settings.mode,
             )
             .await
             .unwrap(),
@@ -130,7 +130,6 @@ impl MessageContractSync {
     pub async fn forward_message_sync_cursor(
         &self,
         index_settings: IndexSettings,
-        index_mode: IndexMode,
         next_nonce: u32,
     ) -> Box<dyn ContractSyncCursor<HyperlaneMessage>> {
         Box::new(ForwardMessageSyncCursor::new(
@@ -139,7 +138,7 @@ impl MessageContractSync {
             index_settings.chunk_size,
             index_settings.from,
             index_settings.from,
-            index_mode,
+            index_settings.mode,
             next_nonce,
         ))
     }
@@ -148,14 +147,13 @@ impl MessageContractSync {
     pub async fn forward_backward_message_sync_cursor(
         &self,
         index_settings: IndexSettings,
-        index_mode: IndexMode,
     ) -> Box<dyn ContractSyncCursor<HyperlaneMessage>> {
         Box::new(
             ForwardBackwardMessageSyncCursor::new(
                 self.indexer.clone(),
                 self.db.clone(),
                 index_settings.chunk_size,
-                index_mode,
+                index_settings.mode,
             )
             .await
             .unwrap(),

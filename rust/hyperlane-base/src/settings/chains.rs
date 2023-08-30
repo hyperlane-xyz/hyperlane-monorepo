@@ -85,12 +85,14 @@ pub struct IndexSettings {
     pub from: u32,
     /// The number of blocks to query at once when indexing contracts.
     pub chunk_size: u32,
+    /// The indexing mode.
+    pub mode: IndexMode,
 }
 
 impl ChainConf {
     /// Fetch the index settings and index mode, since they are often used together.
-    pub fn index_settings_and_mode(&self) -> (IndexSettings, IndexMode) {
-        (self.index.clone(), self.domain.index_mode())
+    pub fn index_settings(&self) -> IndexSettings {
+        self.index.clone()
     }
 
     /// Try to convert the chain settings into an HyperlaneProvider.

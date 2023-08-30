@@ -160,6 +160,7 @@ impl FromRawConf<DeprecatedRawCoreContractAddresses> for CoreContractAddresses {
 struct DeprecatedRawIndexSettings {
     from: Option<StrOrInt>,
     chunk: Option<StrOrInt>,
+    mode: Option<String>,
 }
 
 impl FromRawConf<DeprecatedRawIndexSettings> for IndexSettings {
@@ -180,7 +181,21 @@ impl FromRawConf<DeprecatedRawIndexSettings> for IndexSettings {
             .and_then(|v| v.try_into().take_err(&mut err, || cwp + "chunk"))
             .unwrap_or(1999);
 
-        err.into_result(Self { from, chunk_size })
+        let mode = raw
+            .mode
+            .map(serde_json::Value::from)
+            .and_then(|m| {
+                serde_json::from_value(m)
+                    .context("Invalid mode")
+                    .take_err(&mut err, || cwp + "mode")
+            })
+            .unwrap_or_default();
+
+        err.into_result(Self {
+            from,
+            chunk_size,
+            mode,
+        })
     }
 }
 
