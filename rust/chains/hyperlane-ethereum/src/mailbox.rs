@@ -251,6 +251,7 @@ where
         }
     }
 
+    // TODO: make this cache the required hook address at construction time
     async fn merkle_tree_hook(&self) -> ChainResult<MerkleTreeHook<M>> {
         let address = self.contract.required_hook().call().await?;
         Ok(MerkleTreeHook::new(address, self.provider.clone()))

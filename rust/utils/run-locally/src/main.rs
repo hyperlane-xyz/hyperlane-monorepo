@@ -302,8 +302,8 @@ fn main() -> ExitCode {
     log!("Deploying hyperlane core contracts...");
     build_cmd(yarn_infra.clone().cmd("deploy-core")).join();
 
-    log!("Deploying hyperlane igp contracts...");
-    build_cmd(yarn_infra.clone().cmd("deploy-igp")).join();
+    // log!("Deploying hyperlane igp contracts...");
+    // build_cmd(yarn_infra.clone().cmd("deploy-igp")).join();
 
     if !config.is_ci_env {
         // Follow-up 'yarn hardhat node' invocation with 'yarn prettier' to fixup
