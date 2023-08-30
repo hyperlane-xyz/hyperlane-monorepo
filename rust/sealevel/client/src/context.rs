@@ -77,15 +77,27 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
                 err
             })
             .unwrap();
-        client
-            .get_transaction_with_config(
-                &signature,
-                RpcTransactionConfig {
-                    encoding: Some(UiTransactionEncoding::Base64),
-                    commitment: Some(CommitmentConfig::confirmed()),
-                    ..RpcTransactionConfig::default()
-                },
-            )
-            .ok()
+
+        // Naive loop to wait for transaction to be confirmed so we can get the transaction.
+        // Race conditions have been observed without this!
+        loop {
+            let tx = client
+                .get_transaction_with_config(
+                    &signature,
+                    RpcTransactionConfig {
+                        encoding: Some(UiTransactionEncoding::Base64),
+                        commitment: Some(CommitmentConfig::confirmed()),
+                        ..RpcTransactionConfig::default()
+                    },
+                )
+                .ok();
+
+            if tx.is_some() {
+                return tx;
+            } else {
+                println!("Transaction {} not confirmed yet, sleeping 50ms", signature);
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        }
     }
 }

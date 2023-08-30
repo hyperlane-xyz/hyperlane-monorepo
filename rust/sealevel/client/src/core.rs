@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use solana_program::pubkey::Pubkey;
-use solana_sdk::{signature::Signer, signer::keypair::Keypair};
+use solana_sdk::signature::Signer;
 
 use std::collections::HashMap;
-use std::{fs::File, io::Write, path::Path, str::FromStr};
+use std::{fs::File, io::Write, path::Path};
 
 use crate::{
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
