@@ -13,6 +13,27 @@ use hyperlane_sealevel_validator_announce::{
     accounts::ValidatorStorageLocationsAccount, validator_storage_locations_pda_seeds,
 };
 
+// use aptos_sdk::crypto::ed25519::Ed25519PrivateKey;
+use aptos_sdk::transaction_builder::TransactionFactory;
+use aptos_types::{
+  account_address::AccountAddress, 
+  transaction::EntryFunction
+};
+use aptos_types::transaction::{ TransactionPayload };
+use move_core_types::{
+  ident_str,
+  language_storage::{ModuleId},
+};
+use aptos::common::utils;
+use aptos_sdk::{
+    rest_client::{Client, FaucetClient},
+    types::LocalAccount,
+};
+use once_cell::sync::Lazy;
+use anyhow::{Context, Result};
+use url::Url;
+use std::str::FromStr;
+
 /// A reference to a ValidatorAnnounce contract on Aptos chain
 #[derive(Debug)]
 pub struct AptosValidatorAnnounce {
@@ -31,6 +52,62 @@ impl AptosValidatorAnnounce {
             rpc_client,
             domain: locator.domain.clone(),
         }
+    }
+
+    /// Returns a ContractCall that processes the provided message.
+    /// If the provided tx_gas_limit is None, gas estimation occurs.
+    #[allow(unused)]
+    async fn announce_contract_call(
+      &self,
+      announcement: SignedType<Announcement>,
+      _tx_gas_limit: Option<U256>,
+    ) -> Result<()> {
+        let serialized_signature: [u8; 65] = announcement.signature.into();
+        
+        static NODE_URL: Lazy<Url> = Lazy::new(|| {
+          Url::from_str("https://fullnode.devnet.aptoslabs.com").unwrap()
+        });
+      
+        static FAUCET_URL: Lazy<Url> = Lazy::new(|| {
+            Url::from_str("https://faucet.devnet.aptoslabs.com").unwrap()
+        });
+
+        let rest_client = Client::new(NODE_URL.clone());
+        let faucet_client = FaucetClient::new(FAUCET_URL.clone(), NODE_URL.clone()); // <:!:section_1a
+        let mut alice = LocalAccount::generate(&mut rand::rngs::OsRng);
+
+        faucet_client
+          .fund(alice.address(), 100_000_000)
+          .await
+          .context("Failed to fund Alice's account")?;
+
+        let contract_address: &str = "0x61ad49767d3dd5d5e6e41563c3ca3e8600c52c350ca66014ee7f6874f28f5ddb";
+        let _entry = EntryFunction::new(
+          ModuleId::new(
+            AccountAddress::from_hex_literal(contract_address).unwrap(),
+            ident_str!("validator_announce").to_owned()
+          ),
+          ident_str!("announce").to_owned(),
+          vec![],
+          vec![
+            bcs::to_bytes(&announcement.value.validator).unwrap(),
+            serialized_signature.to_vec(),
+            bcs::to_bytes(&announcement.value.storage_location).unwrap()
+          ]
+        );
+
+        let payload = TransactionPayload::EntryFunction(_entry);
+        
+        const GAS_LIMIT: u64 = 100000;
+        
+        let transaction_factory = TransactionFactory::new(utils::chain_id(&rest_client).await?)
+                .with_gas_unit_price(100)
+                .with_max_gas_amount(GAS_LIMIT);
+        
+        let signed_tx = alice.sign_with_transaction_builder(transaction_factory.payload(payload));
+        let response = rest_client.submit_and_wait(&signed_tx).await?;
+        println!("response {:?}", response);
+        Ok(())
     }
 }
 

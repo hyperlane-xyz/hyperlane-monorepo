@@ -94,7 +94,7 @@ parking_lot = "0.12"
 paste = "1.0"
 pretty_env_logger = "0.5.0"
 primitive-types = "=0.12.1"
-prometheus = "0.13"
+prometheus = { version = "0.13.3", default-features = false }
 regex = "1.5"
 reqwest = "0.11"
 rlp = "=0.5.2"
@@ -145,6 +145,20 @@ walkdir = "2"
 warp = "0.3"
 which = "4.3"
 
+aptos = { path = "../aptos-core/crates/aptos" }
+aptos-sdk = { path = "../aptos-core/sdk" }
+aptos-types = { path = "../aptos-core/types" }
+move-core-types = { path = "../aptos-core/third_party/move/move-core/types" }
+
+# aptos-sdk = { git = "https://github.com/aptos-labs/aptos-core", branch = "devnet" }
+# aptos = { git = "https://github.com/aptos-labs/aptos-core", branch = "devnet" }
+# aptos-types = { git = "https://github.com/aptos-labs/aptos-core", branch = "devnet" }
+# move-core-types = { git = "https://github.com/aptos-labs/aptos-core", branch = "devnet" }
+
+bcs = { git = "https://github.com/aptos-labs/bcs.git", rev = "d31fab9d81748e2594be5cd5cdf845786a30562d" }
+once_cell = "1.18.0"
+rand = "0.7.3"
+
 [workspace.dependencies.ethers]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
 tag = "2023-06-01"
@@ -177,7 +191,7 @@ branch = "v3.2.2-relax-zeroize"
 
 [patch.crates-io.ed25519-dalek]
 version = "1.0.1"
-git = "https://github.com/Eclipse-Laboratories-Inc/ed25519-dalek"
+git = "https://github.com/blockchainlover2019/ed25519-dalek"
 branch = "main"
 
 [patch.crates-io.primitive-types]
