@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer,
-    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceIndexer, H256, H512, U256,
+    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceIndexer, H256, H512,
 };
 use hyperlane_sealevel_igp::{
     accounts::{GasPaymentAccount, ProgramDataAccount},
@@ -224,7 +224,7 @@ impl SealevelInterchainGasPaymasterIndexer {
                 block_hash: H256::zero(),
                 transaction_id: H512::zero(),
                 transaction_index: 0,
-                log_index: U256::zero(),
+                log_index: sequence_number.into(),
             },
             H256::from(gas_payment_account.igp.to_bytes()),
         ))
@@ -243,7 +243,8 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
             "Fetching SealevelInterchainGasPaymasterIndexer InterchainGasPayment logs"
         );
 
-        let mut payments = Vec::with_capacity((range.end() - range.start()) as usize);
+        let payments_capacity = range.end().saturating_sub(*range.start());
+        let mut payments = Vec::with_capacity(payments_capacity as usize);
         for nonce in range {
             if let Ok(sealevel_payment) = self.get_payment_with_sequence(nonce.into()).await {
                 let igp_account_filter = self.igp.igp_account;

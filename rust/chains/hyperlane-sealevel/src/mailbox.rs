@@ -687,8 +687,8 @@ impl SequenceIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
         // TODO: need to make sure the call and tip are at the same height?
-        let count = self.mailbox.count(None).await;
-        Ok((Some(count?), tip))
+        let count = self.mailbox.count(None).await?;
+        Ok((Some(count), tip))
     }
 }
 

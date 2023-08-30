@@ -196,7 +196,6 @@ impl From<&LogMeta> for InterchainGasPaymentMeta {
         Self {
             transaction_id: meta.transaction_id,
             log_index: meta.log_index.as_u64(),
-            block_number: meta.block_number,
         }
     }
 }

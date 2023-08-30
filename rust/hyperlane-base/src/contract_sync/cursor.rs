@@ -46,7 +46,7 @@ pub(crate) struct SyncState {
     /// In the EVM, this is used for optimizing indexing,
     /// because it's cheaper to make read calls for the sequence index than
     /// to call `eth_getLogs` with a block range.
-    /// In Sealevel, historic queries aren't supported, so the nonce field
+    /// In Sealevel, historic queries aren't supported, so the sequence field
     /// is used to query storage in sequence.
     next_sequence: u32,
     direction: SyncDirection,
@@ -62,6 +62,11 @@ impl SyncState {
         let range = match self.mode {
             IndexMode::Block => self.block_range(tip),
             IndexMode::Sequence => {
+                let max_sequence = max_sequence.ok_or_else(|| {
+                    ChainCommunicationError::from_other_str(
+                        "Sequence indexing requires a max sequence",
+                    )
+                })?;
                 if let Some(range) = self.sequence_range(tip, max_sequence)? {
                     range
                 } else {
@@ -94,34 +99,34 @@ impl SyncState {
         from..=to
     }
 
+    /// Returns the next sequence range to index.
+    ///
+    /// # Arguments
+    ///
+    /// * `tip` - The current tip of the chain.
+    /// * `max_sequence` - The maximum sequence that should be indexed.
+    /// `max_sequence` is the exclusive upper bound of the range to be indexed.
+    /// (e.g. `0..max_sequence`)
     fn sequence_range(
         &mut self,
         tip: u32,
-        max_sequence: Option<u32>,
+        max_sequence: u32,
     ) -> ChainResult<Option<RangeInclusive<u32>>> {
         let (from, to) = match self.direction {
             SyncDirection::Forward => {
                 let sequence_start = self.next_sequence;
                 let mut sequence_end = sequence_start + MAX_SEQUENCE_RANGE;
-                if let Some(max_sequence) = max_sequence {
-                    if self.next_sequence >= max_sequence {
-                        return Ok(None);
-                    }
-                    sequence_end = u32::min(sequence_end, max_sequence.saturating_sub(1));
-                    self.next_block = tip;
+                if self.next_sequence >= max_sequence {
+                    return Ok(None);
                 }
+                sequence_end = u32::min(sequence_end, max_sequence.saturating_sub(1));
+                self.next_block = tip;
                 self.next_sequence = sequence_end + 1;
                 (sequence_start, sequence_end)
             }
             SyncDirection::Backward => {
                 let sequence_end = self.next_sequence;
-                let mut sequence_start = sequence_end.saturating_sub(MAX_SEQUENCE_RANGE);
-                sequence_start = u32::max(sequence_start, 0);
-                if let Some(max_sequence) = max_sequence {
-                    if self.next_sequence >= max_sequence {
-                        return Ok(None);
-                    }
-                }
+                let sequence_start = sequence_end.saturating_sub(MAX_SEQUENCE_RANGE);
                 self.next_sequence = sequence_start.saturating_sub(1);
                 (sequence_start, sequence_end)
             }
