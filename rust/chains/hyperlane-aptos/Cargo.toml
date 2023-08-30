@@ -22,6 +22,14 @@ tracing-futures.workspace = true
 tracing.workspace = true
 url.workspace = true
 
+aptos-sdk.workspace = true
+aptos-types.workspace = true
+aptos.workspace = true
+move-core-types.workspace = true
+once_cell.workspace = true
+bcs.workspace = true
+rand.workspace = true
+
 account-utils = { path = "../../sealevel/libraries/account-utils" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["solana"] }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../sealevel/libraries/interchain-security-module-interface" }
