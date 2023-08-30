@@ -255,6 +255,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "nonce",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes",
@@ -348,6 +361,19 @@
       {
         "internalType": "contract IInterchainSecurityModule",
         "name": "module",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "requiredHook",
+    "outputs": [
+      {
+        "internalType": "contract IPostDispatchHook",
+        "name": "",
         "type": "address"
       }
     ],
