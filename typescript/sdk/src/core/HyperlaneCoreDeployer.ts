@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 
 import {
   InterchainGasPaymaster,
-  InterchainGasPaymaster__factory,
   Mailbox,
   MerkleTreeHook,
   MerkleTreeHook__factory,
@@ -42,6 +41,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     ismConfig: IsmConfig,
     proxyAdmin: types.Address,
+    defaultHook: types.Address,
     owner: types.Address,
   ): Promise<Mailbox> {
     const cachedMailbox = this.readCache(
@@ -74,16 +74,13 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox.address,
     );
 
-    // deploy default hook
-    const igpHook = await this.deployIgpHook(chain);
-
     // configure mailbox
     await this.multiProvider.handleTx(
       chain,
       mailbox.initialize(
         owner,
         defaultIsm,
-        igpHook.address,
+        defaultHook,
         merkleTreeHook.address,
       ),
     );
@@ -122,8 +119,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
   async deployIgpHook(chain: ChainName): Promise<InterchainGasPaymaster> {
     this.logger(`Deploying Interchain Gas Paymaster Hook to ${chain}`);
-    const igpFactory = new InterchainGasPaymaster__factory();
-    return this.multiProvider.handleDeploy(chain, igpFactory, []);
+    return this.multiProvider.handleDeploy(
+      chain,
+      this.factories.interchainGasPaymaster,
+      [],
+    );
   }
 
   async deployContracts(
@@ -137,10 +137,13 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
+    const interchainGasPaymaster = await this.deployIgpHook(chain);
+
     const mailbox = await this.deployMailbox(
       chain,
       config.defaultIsm,
       proxyAdmin.address,
+      interchainGasPaymaster.address,
       config.owner,
     );
 
@@ -177,6 +180,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       proxyAdmin,
       timelockController,
       validatorAnnounce,
+      interchainGasPaymaster,
     };
   }
 }
