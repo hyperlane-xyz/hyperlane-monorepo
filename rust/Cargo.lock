@@ -6625,6 +6625,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "config",
+ "derive_more",
  "ethers",
  "eyre",
  "futures",
@@ -9151,6 +9152,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "config",
+ "derive_more",
  "ethers",
  "eyre",
  "futures-util",

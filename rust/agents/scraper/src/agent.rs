@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
+use derive_more::AsRef;
 use hyperlane_base::{
     run_all, settings::IndexSettings, BaseAgent, ContractSyncMetrics, CoreMetrics,
     HyperlaneAgentCore,
@@ -12,9 +13,10 @@ use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 use crate::{chain_scraper::HyperlaneSqlDb, db::ScraperDb, settings::ScraperSettings};
 
 /// A message explorer scraper agent
-#[derive(Debug)]
+#[derive(Debug, AsRef)]
 #[allow(unused)]
 pub struct Scraper {
+    #[as_ref]
     core: HyperlaneAgentCore,
     contract_sync_metrics: Arc<ContractSyncMetrics>,
     metrics: Arc<CoreMetrics>,
@@ -130,12 +132,6 @@ impl Scraper {
             .await,
         );
         run_all(tasks)
-    }
-}
-
-impl AsRef<HyperlaneAgentCore> for Scraper {
-    fn as_ref(&self) -> &HyperlaneAgentCore {
-        &self.core
     }
 }
 
