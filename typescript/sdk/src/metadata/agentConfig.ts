@@ -54,29 +54,42 @@ export enum AgentIndexMode {
   Sequence = 'sequence',
 }
 
-export const AgentSignerSchema = z.union([
-  z
-    .object({
-      type: z.literal('hexKey').optional(),
-      key: ZHash,
-    })
-    .describe('A local hex key'),
-  z
-    .object({
-      type: z.literal('aws').optional(),
-      id: z.string().describe('The UUID identifying the AWS KMS key'),
-      region: z.string().describe('The AWS region'),
-    })
-    .describe(
-      'An AWS signer. Note that AWS credentials must be inserted into the env separately.',
-    ),
-  z
-    .object({
-      type: z.literal('node'),
-    })
-    .describe('Assume the local node will sign on RPC calls automatically'),
+export enum AgentSignerKeyType {
+  Aws = 'aws',
+  Hex = 'hexKey',
+  Node = 'node',
+}
+
+const AgentSignerHexKeySchema = z
+  .object({
+    type: z.literal(AgentSignerKeyType.Hex).optional(),
+    key: ZHash,
+  })
+  .describe('A local hex key');
+const AgentSignerAwsKeySchema = z
+  .object({
+    type: z.literal(AgentSignerKeyType.Aws).optional(),
+    id: z.string().describe('The UUID identifying the AWS KMS key'),
+    region: z.string().describe('The AWS region'),
+  })
+  .describe(
+    'An AWS signer. Note that AWS credentials must be inserted into the env separately.',
+  );
+const AgentSignerNodeSchema = z
+  .object({
+    type: z.literal(AgentSignerKeyType.Node),
+  })
+  .describe('Assume the local node will sign on RPC calls automatically');
+
+const AgentSignerSchema = z.union([
+  AgentSignerHexKeySchema,
+  AgentSignerAwsKeySchema,
+  AgentSignerNodeSchema,
 ]);
 
+export type AgentSignerHexKey = z.infer<typeof AgentSignerHexKeySchema>;
+export type AgentSignerAwsKey = z.infer<typeof AgentSignerAwsKeySchema>;
+export type AgentSignerNode = z.infer<typeof AgentSignerNodeSchema>;
 export type AgentSigner = z.infer<typeof AgentSignerSchema>;
 
 export const AgentChainMetadataSchema = ChainMetadataSchema.merge(

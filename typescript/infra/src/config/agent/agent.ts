@@ -1,5 +1,7 @@
 import {
   AgentChainMetadata,
+  AgentSignerAwsKey,
+  AgentSignerKeyType,
   ChainName,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
@@ -17,7 +19,13 @@ import {
 import { BaseScraperConfig, HelmScraperValues } from './scraper';
 import { HelmValidatorValues, ValidatorBaseChainConfigMap } from './validator';
 
-// See rust/helm/values.yaml for the full list of options and their defaults.
+export type DeepPartial<T> = T extends object
+  ? {
+      [P in keyof T]?: DeepPartial<T[P]>;
+    }
+  : T;
+
+// See @hyperlane-xyz/sdk for the full list of options and their defaults.
 // This is the root object in the values file.
 export interface HelmRootAgentValues {
   image: HelmImageValues;
@@ -25,7 +33,7 @@ export interface HelmRootAgentValues {
   nameOverride?: string;
 }
 
-// See rust/helm/values.yaml for the full list of options and their defaults.
+// See @hyperlane-xyz/sdk for the full list of options and their defaults.
 // This is at `.hyperlane` in the values file.
 interface HelmHyperlaneValues {
   runEnv: DeployEnvironment;
@@ -41,9 +49,10 @@ interface HelmHyperlaneValues {
   scraper?: HelmScraperValues;
 }
 
-// See rust/helm/values.yaml for the full list of options and their defaults.
+// See @hyperlane-xyz/sdk for the full list of options and their defaults.
 // This is at `.hyperlane.chains` in the values file.
-export interface HelmAgentChainOverride extends Partial<AgentChainMetadata> {
+export interface HelmAgentChainOverride
+  extends DeepPartial<AgentChainMetadata> {
   name: AgentChainMetadata['name'];
   disabled?: boolean;
 }
@@ -83,24 +92,31 @@ interface AgentRoleConfig {
   index?: IndexingConfig;
 }
 
-export enum KeyType {
-  Aws = 'aws',
-  Hex = 'hexKey',
-}
+// TODO(2214): remove alias, temporary to apply widely
+// export enum KeyType {
+//   Aws = 'aws',
+//   Hex = 'hexKey',
+// }
+export { AgentSignerKeyType as KeyType };
 
-export interface AwsKeyConfig {
-  type: KeyType.Aws;
-  // ID of the key, can be an alias of the form `alias/foo-bar`
-  id: string;
-  // AWS region where the key is
-  region: string;
-}
+// TODO(2214): remove alias, temporary to apply widely
+// export interface AwsKeyConfig {
+//   type: KeyType.Aws;
+//   // ID of the key, can be an alias of the form `alias/foo-bar`
+//   id: string;
+//   // AWS region where the key is
+//   region: string;
+// }
+//
+// // The private key is omitted so it can be fetched using external-secrets
+// export interface HexKeyConfig {
+//   type: KeyType.Hex;
+// }
 
-// The private key is omitted so it can be fetched using external-secrets
-export interface HexKeyConfig {
-  type: KeyType.Hex;
-}
-
+// require specifying that it's the "aws" type for helm
+export type AwsKeyConfig = Required<AgentSignerAwsKey>;
+// only require specifying that it's the "hex" type for helm since the hex key will be pulled from secrets.
+export type HexKeyConfig = { type: AgentSignerKeyType.Hex };
 export type KeyConfig = AwsKeyConfig | HexKeyConfig;
 
 interface IndexingConfig {

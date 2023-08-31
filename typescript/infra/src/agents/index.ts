@@ -248,9 +248,20 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const helmValues = await super.helmValues();
+    const cfg = await this.config.buildConfig();
+
+    helmValues.hyperlane.chains.push({
+      name: cfg.originChainName,
+      blocks: { reorgPeriod: cfg.reorgPeriod },
+    });
+
     helmValues.hyperlane.validator = {
       enabled: true,
-      configs: await this.config.buildConfig(),
+      configs: cfg.validators.map((c) => ({
+        ...c,
+        originChainName: cfg.originChainName,
+        interval: cfg.interval,
+      })),
     };
 
     // The name of the helm release for agents is `hyperlane-agent`.

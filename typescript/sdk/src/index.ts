@@ -111,8 +111,11 @@ export {
   RoutingIsmConfig,
 } from './ism/types';
 export {
-  AgentSignerSchema,
   AgentSigner,
+  AgentSignerKeyType,
+  AgentSignerHexKey,
+  AgentSignerAwsKey,
+  AgentSignerNode,
   AgentChainMetadata,
   AgentChainMetadataSchema,
   AgentConfigSchema,
