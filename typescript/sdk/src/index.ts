@@ -112,13 +112,13 @@ export {
 } from './ism/types';
 export {
   AgentSignerSchema,
-  AgentSignerV2,
+  AgentSigner,
   AgentChainMetadata,
   AgentChainMetadataSchema,
   AgentConfigSchema,
   AgentLogLevel,
   AgentLogFormat,
-  AgentConfigV2,
+  AgentConfig,
   buildAgentConfig,
   AgentConsensusType,
 } from './metadata/agentConfig';

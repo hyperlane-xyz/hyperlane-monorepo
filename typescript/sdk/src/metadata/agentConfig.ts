@@ -77,7 +77,7 @@ export const AgentSignerSchema = z.union([
     .describe('Assume the local node will sign on RPC calls automatically'),
 ]);
 
-export type AgentSignerV2 = z.infer<typeof AgentSignerSchema>;
+export type AgentSigner = z.infer<typeof AgentSignerSchema>;
 
 export const AgentChainMetadataSchema = ChainMetadataSchema.merge(
   HyperlaneDeploymentArtifactsSchema,
@@ -293,7 +293,7 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
 export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;
 
 // TODO(2214): Rename this
-export type AgentConfigV2 = z.infer<typeof AgentConfigSchema>;
+export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 
 // TODO(2214): Remove this commented out code
 // export interface AgentSigner {
@@ -374,7 +374,7 @@ export function buildAgentConfig(
   multiProvider: MultiProvider,
   addresses: ChainMap<HyperlaneDeploymentArtifacts>,
   startBlocks: ChainMap<number>,
-): AgentConfigV2 {
+): AgentConfig {
   const chainConfigs: ChainMap<AgentChainMetadata> = {};
   for (const chain of [...chains].sort()) {
     const metadata: ChainMetadata = multiProvider.getChainMetadata(chain);
