@@ -1,5 +1,5 @@
 import {
-  AgentConnectionType,
+  AgentConsensusType,
   chainMetadata,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
@@ -80,7 +80,7 @@ const hyperlane: RootAgentConfig = {
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
-    connectionType: AgentConnectionType.HttpFallback,
+    connectionType: AgentConsensusType.Fallback,
     docker: {
       repo,
       tag: '3b0685f-20230815-110725',
@@ -117,11 +117,11 @@ const hyperlane: RootAgentConfig = {
         tag: '3b0685f-20230815-110725',
       },
     },
-    connectionType: AgentConnectionType.HttpQuorum,
+    connectionType: AgentConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
   scraper: {
-    connectionType: AgentConnectionType.HttpFallback,
+    connectionType: AgentConsensusType.Fallback,
     docker: {
       repo,
       tag: 'aaddba7-20230620-154941',
@@ -134,7 +134,7 @@ const releaseCandidate: RootAgentConfig = {
   context: Contexts.ReleaseCandidate,
   rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
-    connectionType: AgentConnectionType.HttpFallback,
+    connectionType: AgentConsensusType.Fallback,
     docker: {
       repo,
       tag: '3b0685f-20230815-110725',
@@ -151,7 +151,7 @@ const releaseCandidate: RootAgentConfig = {
       repo,
       tag: 'ed7569d-20230725-171222',
     },
-    connectionType: AgentConnectionType.HttpQuorum,
+    connectionType: AgentConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
 };

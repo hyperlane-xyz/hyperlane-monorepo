@@ -1,5 +1,5 @@
 import {
-  AgentConnectionType,
+  AgentConsensusType,
   BridgeAdapterConfig,
   ChainMap,
   ChainMetadata,
@@ -43,7 +43,8 @@ export type EnvironmentConfig = {
   getMultiProvider: (
     context?: Contexts,
     role?: Role,
-    connectionType?: AgentConnectionType,
+    // TODO(2214): rename to consensusType?
+    connectionType?: AgentConsensusType,
   ) => Promise<MultiProvider>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
   keyFunderConfig?: KeyFunderConfig;

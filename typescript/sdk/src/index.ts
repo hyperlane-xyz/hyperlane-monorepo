@@ -111,12 +111,6 @@ export {
   RoutingIsmConfig,
 } from './ism/types';
 export {
-  AgentChainSetup,
-  AgentChainSetupBase,
-  AgentConfig,
-  AgentConnection,
-  AgentConnectionType,
-  AgentSigner,
   AgentSignerSchema,
   AgentSignerV2,
   AgentChainMetadata,
@@ -126,8 +120,7 @@ export {
   AgentLogFormat,
   AgentConfigV2,
   buildAgentConfig,
-  buildAgentConfigDeprecated,
-  buildAgentConfigNew,
+  AgentConsensusType,
 } from './metadata/agentConfig';
 export {
   ChainMetadata,

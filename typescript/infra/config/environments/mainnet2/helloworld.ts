@@ -1,4 +1,4 @@
-import { AgentConnectionType } from '@hyperlane-xyz/sdk';
+import { AgentConsensusType } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../../../src/config';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
@@ -24,7 +24,7 @@ export const hyperlane: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: AgentConnectionType.HttpFallback,
+    connectionType: AgentConsensusType.Fallback,
     cyclesBetweenEthereumMessages: 3, // Skip 3 cycles of Ethereum, i.e. send/receive Ethereum messages every 32 hours.
   },
 };
@@ -44,7 +44,7 @@ export const releaseCandidate: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: AgentConnectionType.Http,
+    connectionType: AgentConsensusType.Single,
   },
 };
 

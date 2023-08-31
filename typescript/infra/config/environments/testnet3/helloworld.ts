@@ -1,9 +1,5 @@
 import { HelloWorldConfig as HelloWorldContractsConfig } from '@hyperlane-xyz/helloworld';
-import {
-  AgentConnectionType,
-  ChainMap,
-  RouterConfig,
-} from '@hyperlane-xyz/sdk';
+import { AgentConsensusType, ChainMap, RouterConfig } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment, HelloWorldConfig } from '../../../src/config';
@@ -31,7 +27,7 @@ export const hyperlaneHelloworld: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: AgentConnectionType.HttpFallback,
+    connectionType: AgentConsensusType.Fallback,
   },
 };
 
@@ -50,7 +46,7 @@ export const releaseCandidateHelloworld: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: AgentConnectionType.Http,
+    connectionType: AgentConsensusType.Single,
   },
 };
 

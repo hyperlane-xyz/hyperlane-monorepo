@@ -1,4 +1,4 @@
-import { AgentConnectionType, ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import { AgentConsensusType, ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 import { DockerConfig } from './agent';
 
@@ -29,7 +29,8 @@ export interface HelloWorldKathyConfig {
   messageReceiptTimeout: number;
 
   // Which type of provider to use
-  connectionType: Exclude<AgentConnectionType, AgentConnectionType.Ws>;
+  // TODO(2214): rename to consensusType?
+  connectionType: AgentConsensusType;
   // How many cycles to skip between a cycles that send messages to/from Ethereum. Defaults to 0.
   cyclesBetweenEthereumMessages?: number;
 }

@@ -4,14 +4,14 @@ import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import {
-  AgentConnectionType,
+  AgentConsensusType,
   AllChains,
+  ChainMap,
   ChainName,
   Chains,
   HyperlaneIgp,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { ChainMap } from '@hyperlane-xyz/sdk/dist/types';
 import { error, log, warn } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
@@ -189,12 +189,13 @@ async function main() {
     .coerce('contexts-and-roles', parseContextAndRolesMap)
     .demandOption('contexts-and-roles')
 
+    // TODO(2214): rename to consensus-type?
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', AgentConnectionType.Http)
+    .default('connection-type', AgentConsensusType.Single)
     .choices('connection-type', [
-      AgentConnectionType.Http,
-      AgentConnectionType.HttpQuorum,
+      AgentConsensusType.Single,
+      AgentConsensusType.Quorum,
     ])
     .demandOption('connection-type')
 

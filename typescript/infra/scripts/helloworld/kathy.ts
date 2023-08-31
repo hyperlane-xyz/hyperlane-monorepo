@@ -4,7 +4,7 @@ import { format } from 'util';
 
 import { HelloWorldApp } from '@hyperlane-xyz/helloworld';
 import {
-  AgentConnectionType,
+  AgentConsensusType,
   ChainName,
   DispatchedMessage,
   HyperlaneCore,
@@ -71,60 +71,66 @@ const walletBalance = new Gauge({
 const MAX_MESSAGES_ALLOWED_TO_SEND = 5;
 
 function getKathyArgs() {
-  return withContext(getArgs())
-    .boolean('cycle-once')
-    .describe(
-      'cycle-once',
-      'If true, will cycle through all chain pairs once as quick as possible',
-    )
-    .default('cycle-once', false)
+  return (
+    withContext(getArgs())
+      .boolean('cycle-once')
+      .describe(
+        'cycle-once',
+        'If true, will cycle through all chain pairs once as quick as possible',
+      )
+      .default('cycle-once', false)
 
-    .number('full-cycle-time')
-    .describe(
-      'full-cycle-time',
-      'How long it should take to go through all the message pairings in milliseconds. Ignored if --cycle-once is true. Defaults to 6 hours.',
-    )
-    .default('full-cycle-time', 1000 * 60 * 60 * 6) // 6 hrs
+      .number('full-cycle-time')
+      .describe(
+        'full-cycle-time',
+        'How long it should take to go through all the message pairings in milliseconds. Ignored if --cycle-once is true. Defaults to 6 hours.',
+      )
+      .default('full-cycle-time', 1000 * 60 * 60 * 6) // 6 hrs
 
-    .number('message-send-timeout')
-    .describe(
-      'message-send-timeout',
-      'How long to wait for a message to be sent in milliseconds. Defaults to 10 min.',
-    )
-    .default('message-send-timeout', 10 * 60 * 1000) // 10 min
+      .number('message-send-timeout')
+      .describe(
+        'message-send-timeout',
+        'How long to wait for a message to be sent in milliseconds. Defaults to 10 min.',
+      )
+      .default('message-send-timeout', 10 * 60 * 1000) // 10 min
 
-    .number('message-receipt-timeout')
-    .describe(
-      'message-receipt-timeout',
-      'How long to wait for a message to be received on the destination in milliseconds. Defaults to 10 min.',
-    )
-    .default('message-receipt-timeout', 10 * 60 * 1000) // 10 min
+      .number('message-receipt-timeout')
+      .describe(
+        'message-receipt-timeout',
+        'How long to wait for a message to be received on the destination in milliseconds. Defaults to 10 min.',
+      )
+      .default('message-receipt-timeout', 10 * 60 * 1000) // 10 min
 
-    .string('chains-to-skip')
-    .array('chains-to-skip')
-    .describe('chains-to-skip', 'Chains to skip sending from or sending to.')
-    .default('chains-to-skip', [])
-    .demandOption('chains-to-skip')
-    .coerce('chains-to-skip', (chainStrs: string[]) =>
-      chainStrs.map((chainStr: string) => assertChain(chainStr)),
-    )
+      .string('chains-to-skip')
+      .array('chains-to-skip')
+      .describe('chains-to-skip', 'Chains to skip sending from or sending to.')
+      .default('chains-to-skip', [])
+      .demandOption('chains-to-skip')
+      .coerce('chains-to-skip', (chainStrs: string[]) =>
+        chainStrs.map((chainStr: string) => assertChain(chainStr)),
+      )
 
-    .string('connection-type')
-    .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', AgentConnectionType.Http)
-    .choices('connection-type', [
-      AgentConnectionType.Http,
-      AgentConnectionType.HttpQuorum,
-      AgentConnectionType.HttpFallback,
-    ])
-    .demandOption('connection-type')
+      // TODO(2214): rename to consensus-type?
+      .string('connection-type')
+      .describe(
+        'connection-type',
+        'The provider connection type to use for RPCs',
+      )
+      .default('connection-type', AgentConsensusType.Single)
+      .choices('connection-type', [
+        AgentConsensusType.Single,
+        AgentConsensusType.Quorum,
+        AgentConsensusType.Fallback,
+      ])
+      .demandOption('connection-type')
 
-    .number('cycles-between-ethereum-messages')
-    .describe(
-      'cycles-between-ethereum-messages',
-      'How many cycles to skip between a cycles that send messages to/from Ethereum',
-    )
-    .default('cycles-between-ethereum-messages', 0).argv;
+      .number('cycles-between-ethereum-messages')
+      .describe(
+        'cycles-between-ethereum-messages',
+        'How many cycles to skip between a cycles that send messages to/from Ethereum',
+      )
+      .default('cycles-between-ethereum-messages', 0).argv
+  );
 }
 
 // Returns whether an error occurred

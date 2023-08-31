@@ -1,7 +1,7 @@
 import fs from 'fs';
 
 import {
-  AgentConnectionType,
+  AgentConsensusType,
   ChainName,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
@@ -126,9 +126,9 @@ export abstract class AgentHelmManager {
     };
   }
 
-  connectionType(chain: ChainName): AgentConnectionType {
+  connectionType(chain: ChainName): AgentConsensusType {
     if (chainMetadata[chain].protocol == ProtocolType.Sealevel) {
-      return AgentConnectionType.Http;
+      return AgentConsensusType.Single;
     }
 
     return this.config.connectionType;

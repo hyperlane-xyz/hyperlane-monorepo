@@ -81,10 +81,16 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
             .and_then(parse_signer)
             .end();
 
+        let default_rpc_consensus_type = p
+            .chain(&mut err)
+            .get_opt_key("defaultRpcConsensusType")
+            .parse_string()
+            .unwrap_or("fallback");
+
         let chains: HashMap<String, ChainConf> = raw_chains
             .into_iter()
             .filter_map(|(name, chain)| {
-                parse_chain(chain, &name)
+                parse_chain(chain, &name, default_rpc_consensus_type)
                     .take_config_err(&mut err)
                     .map(|v| (name, v))
             })
@@ -105,7 +111,11 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
 }
 
 /// The chain name and ChainMetadata
-fn parse_chain(chain: ValueParser, name: &str) -> ConfigResult<ChainConf> {
+fn parse_chain(
+    chain: ValueParser,
+    name: &str,
+    default_rpc_consensus_type: &str,
+) -> ConfigResult<ChainConf> {
     let mut err = ConfigParsingError::default();
 
     let domain = parse_domain(chain.clone(), name).take_config_err(&mut err);
@@ -235,8 +245,11 @@ fn parse_chain(chain: ValueParser, name: &str) -> ConfigResult<ChainConf> {
                     .chain(&mut err)
                     .get_opt_key("rpcConsensusType")
                     .parse_string()
-                    .unwrap_or("fallback");
+                    .unwrap_or(default_rpc_consensus_type);
                 match rpc_consensus_type {
+                    "single" => Some(h_eth::ConnectionConf::Http {
+                        url: urls.into_iter().next().unwrap(),
+                    }),
                     "fallback" => Some(h_eth::ConnectionConf::HttpFallback { urls }),
                     "quorum" => Some(h_eth::ConnectionConf::HttpQuorum { urls }),
                     ty => Err(eyre!("unknown rpc consensus type `{ty}`"))

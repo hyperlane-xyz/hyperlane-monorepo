@@ -4,8 +4,6 @@
  */
 import { z } from 'zod';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
-
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -21,14 +19,16 @@ import {
 } from './deploymentArtifacts';
 import { MatchingListSchema } from './matchingList';
 
-export enum AgentConnectionType {
-  Http = 'http',
-  Ws = 'ws',
-  HttpQuorum = 'httpQuorum',
-  HttpFallback = 'httpFallback',
-}
+// TODO(2214): Remove this commented out code
+// export enum AgentConnectionType {
+//   Http = 'http',
+//   Ws = 'ws',
+//   HttpQuorum = 'httpQuorum',
+//   HttpFallback = 'httpFallback',
+// }
 
 export enum AgentConsensusType {
+  Single = 'single',
   Fallback = 'fallback',
   Quorum = 'quorum',
 }
@@ -292,63 +292,93 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
 
 export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;
 
+// TODO(2214): Rename this
 export type AgentConfigV2 = z.infer<typeof AgentConfigSchema>;
 
-/**
- * Deprecated agent config shapes.
- * See https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2215
- */
-
-export interface AgentSigner {
-  key: string;
-  type: string;
-}
-
-export type AgentConnection =
-  | { type: AgentConnectionType.Http; url: string }
-  | { type: AgentConnectionType.Ws; url: string }
-  | { type: AgentConnectionType.HttpQuorum; urls: string }
-  | { type: AgentConnectionType.HttpFallback; urls: string };
-
-export interface AgentChainSetupBase {
-  name: ChainName;
-  domain: number;
-  signer?: AgentSigner;
-  finalityBlocks: number;
-  addresses: HyperlaneDeploymentArtifacts;
-  protocol: ProtocolType;
-  connection?: AgentConnection;
-  index?: { from: number };
-}
-
-export interface AgentChainSetup extends AgentChainSetupBase {
-  signer: AgentSigner;
-  connection: AgentConnection;
-}
-
-export interface AgentConfig {
-  chains: Partial<ChainMap<AgentChainSetupBase>>;
-  tracing?: {
-    level?: string;
-    fmt?: 'json';
-  };
-}
+// TODO(2214): Remove this commented out code
+// export interface AgentSigner {
+//   key: string;
+//   type: string;
+// }
+//
+// export type AgentConnection =
+//   | { type: AgentConnectionType.Http; url: string }
+//   | { type: AgentConnectionType.Ws; url: string }
+//   | { type: AgentConnectionType.HttpQuorum; urls: string }
+//   | { type: AgentConnectionType.HttpFallback; urls: string };
+//
+// export interface AgentChainSetupBase {
+//   name: ChainName;
+//   domain: number;
+//   signer?: AgentSigner;
+//   finalityBlocks: number;
+//   addresses: HyperlaneDeploymentArtifacts;
+//   protocol: ProtocolType;
+//   connection?: AgentConnection;
+//   index?: { from: number };
+// }
+//
+// export interface AgentChainSetup extends AgentChainSetupBase {
+//   signer: AgentSigner;
+//   connection: AgentConnection;
+// }
+//
+// export interface AgentConfig {
+//   chains: Partial<ChainMap<AgentChainSetupBase>>;
+//   tracing?: {
+//     level?: string;
+//     fmt?: 'json';
+//   };
+// }
 
 /**
  * Utilities for generating agent configs from metadata / artifacts.
  */
 
-// Returns the new agent config shape that extends ChainMetadata
-export function buildAgentConfigNew(
+// // Returns the current (but deprecated) agent config shape.
+// export function buildAgentConfigDeprecated(
+//   chains: ChainName[],
+//   multiProvider: MultiProvider,
+//   addresses: ChainMap<HyperlaneDeploymentArtifacts>,
+//   startBlocks: ChainMap<number>,
+// ): AgentConfig {
+//   const agentConfig: AgentConfig = {
+//     chains: {},
+//   };
+//
+//   for (const chain of [...chains].sort()) {
+//     const metadata = multiProvider.getChainMetadata(chain);
+//     const chainConfig: AgentChainSetupBase = {
+//       name: chain,
+//       domain: metadata.chainId,
+//       addresses: {
+//         mailbox: addresses[chain].mailbox,
+//         interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
+//         validatorAnnounce: addresses[chain].validatorAnnounce,
+//       },
+//       protocol: metadata.protocol,
+//       finalityBlocks: metadata.blocks?.reorgPeriod ?? 1,
+//     };
+//
+//     chainConfig.index = {
+//       from: startBlocks[chain],
+//     };
+//
+//     agentConfig.chains[chain] = chainConfig;
+//   }
+//   return agentConfig;
+// }
+
+export function buildAgentConfig(
   chains: ChainName[],
   multiProvider: MultiProvider,
   addresses: ChainMap<HyperlaneDeploymentArtifacts>,
   startBlocks: ChainMap<number>,
-): ChainMap<AgentChainMetadata> {
-  const configs: ChainMap<AgentChainMetadata> = {};
+): AgentConfigV2 {
+  const chainConfigs: ChainMap<AgentChainMetadata> = {};
   for (const chain of [...chains].sort()) {
     const metadata: ChainMetadata = multiProvider.getChainMetadata(chain);
-    const config: AgentChainMetadata = {
+    const chainConfig: AgentChainMetadata = {
       ...metadata,
       mailbox: addresses[chain].mailbox,
       interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
@@ -357,53 +387,11 @@ export function buildAgentConfigNew(
         from: startBlocks[chain],
       },
     };
-    configs[chain] = config;
+    chainConfigs[chain] = chainConfig;
   }
-  return configs;
-}
 
-// Returns the current (but deprecated) agent config shape.
-export function buildAgentConfigDeprecated(
-  chains: ChainName[],
-  multiProvider: MultiProvider,
-  addresses: ChainMap<HyperlaneDeploymentArtifacts>,
-  startBlocks: ChainMap<number>,
-): AgentConfig {
-  const agentConfig: AgentConfig = {
-    chains: {},
-  };
-
-  for (const chain of [...chains].sort()) {
-    const metadata = multiProvider.getChainMetadata(chain);
-    const chainConfig: AgentChainSetupBase = {
-      name: chain,
-      domain: metadata.chainId,
-      addresses: {
-        mailbox: addresses[chain].mailbox,
-        interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
-        validatorAnnounce: addresses[chain].validatorAnnounce,
-      },
-      protocol: metadata.protocol,
-      finalityBlocks: metadata.blocks?.reorgPeriod ?? 1,
-    };
-
-    chainConfig.index = {
-      from: startBlocks[chain],
-    };
-
-    agentConfig.chains[chain] = chainConfig;
-  }
-  return agentConfig;
-}
-
-export function buildAgentConfig(
-  chains: ChainName[],
-  multiProvider: MultiProvider,
-  addresses: ChainMap<HyperlaneDeploymentArtifacts>,
-  startBlocks: ChainMap<number>,
-): AgentConfigV2 {
   return {
-    chains: buildAgentConfigNew(chains, multiProvider, addresses, startBlocks),
+    chains: chainConfigs,
     defaultRpcConsensusType: AgentConsensusType.Fallback,
   };
 }

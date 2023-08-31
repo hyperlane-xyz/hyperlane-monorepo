@@ -1,7 +1,7 @@
 import { providers } from 'ethers';
 
 import {
-  AgentConnectionType,
+  AgentConsensusType,
   ChainName,
   RetryJsonRpcProvider,
   RetryProviderOptions,
@@ -29,20 +29,21 @@ function buildProvider(config?: {
 export async function fetchProvider(
   environment: DeployEnvironment,
   chainName: ChainName,
-  connectionType: AgentConnectionType = AgentConnectionType.Http,
+  // TODO(2214): rename to consensusType?
+  connectionType: AgentConsensusType = AgentConsensusType.Single,
 ): Promise<providers.Provider> {
-  const single = connectionType === AgentConnectionType.Http;
+  const single = connectionType === AgentConsensusType.Single;
   const rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
   switch (connectionType) {
-    case AgentConnectionType.Http: {
+    case AgentConsensusType.Single: {
       return buildProvider({ url: rpcData[0], retry: defaultRetry });
     }
-    case AgentConnectionType.HttpQuorum: {
+    case AgentConsensusType.Quorum: {
       return new providers.FallbackProvider(
         (rpcData as string[]).map((url) => buildProvider({ url })), // disable retry for quorum
       );
     }
-    case AgentConnectionType.HttpFallback: {
+    case AgentConsensusType.Fallback: {
       return new providers.FallbackProvider(
         (rpcData as string[]).map((url, index) => {
           const fallbackProviderConfig: providers.FallbackProviderConfig = {

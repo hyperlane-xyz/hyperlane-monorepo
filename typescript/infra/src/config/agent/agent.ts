@@ -1,7 +1,6 @@
 import {
-  AgentChainSetup,
-  AgentConnection,
-  AgentConnectionType,
+  AgentChainMetadata,
+  AgentConsensusType,
   ChainName,
 } from '@hyperlane-xyz/sdk';
 
@@ -44,11 +43,9 @@ interface HelmHyperlaneValues {
 
 // See rust/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.chains` in the values file.
-export interface HelmAgentChainOverride
-  extends Partial<Omit<AgentChainSetup, 'connection'>> {
-  name: ChainName;
+export interface HelmAgentChainOverride extends Partial<AgentChainMetadata> {
+  name: AgentChainMetadata['name'];
   disabled?: boolean;
-  connection?: Partial<AgentConnection>;
 }
 
 export interface RootAgentConfig extends AgentContextConfig {
@@ -81,7 +78,8 @@ interface AgentRoleConfig {
   docker: DockerConfig;
   chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
   quorumProvider?: boolean;
-  connectionType: AgentConnectionType;
+  // TODO(2214): rename to consensusType?
+  connectionType: AgentConsensusType;
   index?: IndexingConfig;
 }
 
@@ -158,7 +156,8 @@ export abstract class AgentConfigHelper<R = unknown>
   extends RootAgentConfigHelper
   implements AgentRoleConfig
 {
-  connectionType: AgentConnectionType;
+  // TODO(2214): rename to consensusType?
+  connectionType: AgentConsensusType;
   docker: DockerConfig;
   chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
   index?: IndexingConfig;

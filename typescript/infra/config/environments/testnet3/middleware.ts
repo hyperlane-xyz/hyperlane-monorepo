@@ -1,4 +1,4 @@
-import { AgentConnectionType } from '@hyperlane-xyz/sdk';
+import { AgentConsensusType } from '@hyperlane-xyz/sdk';
 
 import { LiquidityLayerRelayerConfig } from '../../../src/config/middleware';
 
@@ -12,5 +12,5 @@ export const liquidityLayerRelayerConfig: LiquidityLayerRelayerConfig = {
   namespace: environment,
   prometheusPushGateway:
     'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
-  connectionType: AgentConnectionType.Http,
+  connectionType: AgentConsensusType.Single,
 };

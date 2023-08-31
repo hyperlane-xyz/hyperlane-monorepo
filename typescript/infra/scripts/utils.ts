@@ -2,7 +2,7 @@ import path from 'path';
 import yargs from 'yargs';
 
 import {
-  AgentConnectionType,
+  AgentConsensusType,
   AllChains,
   ChainMap,
   ChainMetadata,
@@ -177,7 +177,8 @@ export async function getMultiProviderForRole(
   context: Contexts,
   role: Role,
   index?: number,
-  connectionType?: AgentConnectionType,
+  // TODO: rename to consensusType?
+  connectionType?: AgentConsensusType,
 ): Promise<MultiProvider> {
   if (process.env.CI === 'true') {
     return new MultiProvider(); // use default RPCs
