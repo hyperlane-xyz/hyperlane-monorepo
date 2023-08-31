@@ -1,5 +1,5 @@
 import {
-  AgentConsensusType,
+  RpcConsensusType,
   chainMetadata,
   getDomainId,
   hyperlaneEnvironments,
@@ -71,7 +71,7 @@ const hyperlane: RootAgentConfig = {
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
-    connectionType: AgentConsensusType.Fallback,
+    connectionType: RpcConsensusType.Fallback,
     docker: {
       repo,
       tag: 'ed7569d-20230725-171222',
@@ -88,7 +88,7 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement,
   },
   validators: {
-    connectionType: AgentConsensusType.Fallback,
+    connectionType: RpcConsensusType.Fallback,
     docker: {
       repo,
       tag: 'ed7569d-20230725-171222',
@@ -104,7 +104,7 @@ const hyperlane: RootAgentConfig = {
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
   scraper: {
-    connectionType: AgentConsensusType.Fallback,
+    connectionType: RpcConsensusType.Fallback,
     docker: {
       repo,
       tag: 'aaddba7-20230620-154941',
@@ -117,7 +117,7 @@ const releaseCandidate: RootAgentConfig = {
   context: Contexts.ReleaseCandidate,
   rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
-    connectionType: AgentConsensusType.Fallback,
+    connectionType: RpcConsensusType.Fallback,
     docker: {
       repo,
       tag: 'c7c44b2-20230811-133851',
@@ -178,7 +178,7 @@ const releaseCandidate: RootAgentConfig = {
     skipTransactionGasLimitFor: [chainMetadata.arbitrumgoerli.chainId],
   },
   validators: {
-    connectionType: AgentConsensusType.Fallback,
+    connectionType: RpcConsensusType.Fallback,
     docker: {
       repo,
       tag: 'ed7569d-20230725-171222',

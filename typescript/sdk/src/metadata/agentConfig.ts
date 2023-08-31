@@ -27,7 +27,7 @@ import { MatchingListSchema } from './matchingList';
 //   HttpFallback = 'httpFallback',
 // }
 
-export enum AgentConsensusType {
+export enum RpcConsensusType {
   Single = 'single',
   Fallback = 'fallback',
   Quorum = 'quorum',
@@ -86,7 +86,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchema.merge(
     .record(
       RpcUrlSchema.extend({
         priority: ZNzUint.optional().describe(
-          'The priority of this RPC relative to the others defined. A larger value means it will be preferred. Only effects some AgentConsensusTypes.',
+          'The priority of this RPC relative to the others defined. A larger value means it will be preferred. Only effects some RpcConsensusTypes.',
         ),
       }),
     )
@@ -99,7 +99,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchema.merge(
       'Specify a custom RPC endpoint configuration for this chain. If this is set, then none of the `rpcUrls` will be used for this chain. The key value can be any valid string.',
     ),
   rpcConsensusType: z
-    .nativeEnum(AgentConsensusType)
+    .nativeEnum(RpcConsensusType)
     .describe('The consensus type to use when multiple RPCs are configured.')
     .optional(),
   signer: AgentSignerSchema.optional().describe(
@@ -149,7 +149,7 @@ export const AgentConfigSchema = z.object({
     'Default signer to use for any chains that have not defined their own.',
   ),
   defaultRpcConsensusType: z
-    .nativeEnum(AgentConsensusType)
+    .nativeEnum(RpcConsensusType)
     .describe(
       'The default consensus type to use for any chains that have not defined their own.',
     )
@@ -392,6 +392,6 @@ export function buildAgentConfig(
 
   return {
     chains: chainConfigs,
-    defaultRpcConsensusType: AgentConsensusType.Fallback,
+    defaultRpcConsensusType: RpcConsensusType.Fallback,
   };
 }

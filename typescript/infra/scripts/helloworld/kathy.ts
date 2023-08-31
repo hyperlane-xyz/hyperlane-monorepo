@@ -4,11 +4,11 @@ import { format } from 'util';
 
 import { HelloWorldApp } from '@hyperlane-xyz/helloworld';
 import {
-  AgentConsensusType,
   ChainName,
   DispatchedMessage,
   HyperlaneCore,
   HyperlaneIgp,
+  RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 import {
   debug,
@@ -116,11 +116,11 @@ function getKathyArgs() {
         'connection-type',
         'The provider connection type to use for RPCs',
       )
-      .default('connection-type', AgentConsensusType.Single)
+      .default('connection-type', RpcConsensusType.Single)
       .choices('connection-type', [
-        AgentConsensusType.Single,
-        AgentConsensusType.Quorum,
-        AgentConsensusType.Fallback,
+        RpcConsensusType.Single,
+        RpcConsensusType.Quorum,
+        RpcConsensusType.Fallback,
       ])
       .demandOption('connection-type')
 

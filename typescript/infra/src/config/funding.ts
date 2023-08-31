@@ -1,4 +1,4 @@
-import { AgentConsensusType } from '@hyperlane-xyz/sdk';
+import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { Role } from '../roles';
@@ -21,5 +21,5 @@ export interface KeyFunderConfig {
   cyclesBetweenEthereumMessages?: number;
   prometheusPushGateway: string;
   // TODO(2214): rename to consensusType?
-  connectionType: AgentConsensusType.Single | AgentConsensusType.Quorum;
+  connectionType: RpcConsensusType.Single | RpcConsensusType.Quorum;
 }

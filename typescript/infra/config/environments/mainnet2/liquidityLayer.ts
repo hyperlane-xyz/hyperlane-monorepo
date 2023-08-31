@@ -1,9 +1,9 @@
 import {
-  AgentConsensusType,
   BridgeAdapterConfig,
   BridgeAdapterType,
   ChainMap,
   Chains,
+  RpcConsensusType,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
 
@@ -45,5 +45,5 @@ export const relayerConfig: LiquidityLayerRelayerConfig = {
   namespace: environment,
   prometheusPushGateway:
     'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
-  connectionType: AgentConsensusType.Single,
+  connectionType: RpcConsensusType.Single,
 };

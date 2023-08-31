@@ -1,8 +1,8 @@
 import { HelloWorldApp, helloWorldFactories } from '@hyperlane-xyz/helloworld';
 import {
-  AgentConsensusType,
   HyperlaneCore,
   MultiProvider,
+  RpcConsensusType,
   attachContractsMap,
 } from '@hyperlane-xyz/sdk';
 
@@ -18,7 +18,7 @@ export async function getApp(
   keyRole: Role,
   keyContext: Contexts = context,
   // TODO(2214): rename to consensusType?
-  connectionType: AgentConsensusType = AgentConsensusType.Single,
+  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ) {
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,

@@ -1,7 +1,7 @@
 import {
   AgentChainMetadata,
-  AgentConsensusType,
   ChainName,
+  RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
@@ -79,7 +79,7 @@ interface AgentRoleConfig {
   chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
   quorumProvider?: boolean;
   // TODO(2214): rename to consensusType?
-  connectionType: AgentConsensusType;
+  connectionType: RpcConsensusType;
   index?: IndexingConfig;
 }
 
@@ -157,7 +157,7 @@ export abstract class AgentConfigHelper<R = unknown>
   implements AgentRoleConfig
 {
   // TODO(2214): rename to consensusType?
-  connectionType: AgentConsensusType;
+  connectionType: RpcConsensusType;
   docker: DockerConfig;
   chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
   index?: IndexingConfig;

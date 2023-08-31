@@ -120,7 +120,8 @@ export {
   AgentLogFormat,
   AgentConfig,
   buildAgentConfig,
-  AgentConsensusType,
+  RpcConsensusType,
+  ValidatorConfig,
 } from './metadata/agentConfig';
 export {
   ChainMetadata,

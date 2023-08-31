@@ -1,4 +1,4 @@
-import { AgentConsensusType } from '@hyperlane-xyz/sdk';
+import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 
 import { getMultiProviderForRole } from '../../../scripts/utils';
 import { EnvironmentConfig } from '../../../src/config';
@@ -25,7 +25,7 @@ export const environment: EnvironmentConfig = {
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
     // TODO(2214): rename to consensusType?
-    connectionType?: AgentConsensusType,
+    connectionType?: RpcConsensusType,
   ) =>
     getMultiProviderForRole(
       testnetConfigs,

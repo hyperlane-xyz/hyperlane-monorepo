@@ -1,10 +1,10 @@
 import { providers } from 'ethers';
 
 import {
-  AgentConsensusType,
   ChainName,
   RetryJsonRpcProvider,
   RetryProviderOptions,
+  RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
 import { getSecretRpcEndpoint } from '../agents';
@@ -30,20 +30,20 @@ export async function fetchProvider(
   environment: DeployEnvironment,
   chainName: ChainName,
   // TODO(2214): rename to consensusType?
-  connectionType: AgentConsensusType = AgentConsensusType.Single,
+  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ): Promise<providers.Provider> {
-  const single = connectionType === AgentConsensusType.Single;
+  const single = connectionType === RpcConsensusType.Single;
   const rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
   switch (connectionType) {
-    case AgentConsensusType.Single: {
+    case RpcConsensusType.Single: {
       return buildProvider({ url: rpcData[0], retry: defaultRetry });
     }
-    case AgentConsensusType.Quorum: {
+    case RpcConsensusType.Quorum: {
       return new providers.FallbackProvider(
         (rpcData as string[]).map((url) => buildProvider({ url })), // disable retry for quorum
       );
     }
-    case AgentConsensusType.Fallback: {
+    case RpcConsensusType.Fallback: {
       return new providers.FallbackProvider(
         (rpcData as string[]).map((url, index) => {
           const fallbackProviderConfig: providers.FallbackProviderConfig = {

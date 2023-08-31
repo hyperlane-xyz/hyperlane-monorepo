@@ -1,10 +1,6 @@
 import fs from 'fs';
 
-import {
-  AgentConsensusType,
-  ChainName,
-  chainMetadata,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, RpcConsensusType, chainMetadata } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
@@ -126,9 +122,9 @@ export abstract class AgentHelmManager {
     };
   }
 
-  connectionType(chain: ChainName): AgentConsensusType {
+  connectionType(chain: ChainName): RpcConsensusType {
     if (chainMetadata[chain].protocol == ProtocolType.Sealevel) {
-      return AgentConsensusType.Single;
+      return RpcConsensusType.Single;
     }
 
     return this.config.connectionType;
