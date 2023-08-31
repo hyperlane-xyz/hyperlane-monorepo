@@ -9,7 +9,7 @@ use solana_sdk::{
     signers::Signers,
     transaction::Transaction,
 };
-use std::cell::RefCell;
+use std::{cell::RefCell, io::Read};
 
 pub struct DummyPayer();
 
@@ -173,6 +173,24 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
                 "\t==== Transaction in base58: ====\n\t{}",
                 bs58::encode(bincode::serialize(&txn).unwrap()).into_string()
             );
+
+            loop {
+                println!("Continue? [y/n] then press Enter");
+                let mut input = [0u8; 1];
+                std::io::stdin().read_exact(&mut input).unwrap();
+                match input[0] {
+                    b'y' => {
+                        println!("Continuing...");
+                        break;
+                    }
+                    b'n' => {
+                        println!("Exiting with code 1...");
+                        std::process::exit(1)
+                    }
+                    _ => {}
+                }
+            }
+
             return;
         }
 

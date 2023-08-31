@@ -316,3 +316,43 @@ pub fn pay_for_gas_instruction(
 
     Ok((instruction, gas_payment_account))
 }
+
+/// Creates a TransferIgpOwnership instruction.
+pub fn transfer_igp_ownership_instruction(
+    program_id: Pubkey,
+    igp_account: Pubkey,
+    owner_payer: Pubkey,
+    new_owner: Option<Pubkey>,
+) -> Result<SolanaInstruction, ProgramError> {
+    /// 0. [writeable] The IGP or OverheadIGP.
+    /// 1. [signer] The owner of the IGP account.
+    let instruction = SolanaInstruction {
+        program_id,
+        data: Instruction::TransferIgpOwnership(new_owner).encode()?,
+        accounts: vec![
+            AccountMeta::new(igp_account, false),
+            AccountMeta::new(owner_payer, true),
+        ],
+    };
+    Ok(instruction)
+}
+
+/// Creates a TransferIgpOwnership instruction.
+pub fn transfer_overhead_igp_ownership_instruction(
+    program_id: Pubkey,
+    igp_account: Pubkey,
+    owner_payer: Pubkey,
+    new_owner: Option<Pubkey>,
+) -> Result<SolanaInstruction, ProgramError> {
+    /// 0. [writeable] The IGP or OverheadIGP.
+    /// 1. [signer] The owner of the IGP account.
+    let instruction = SolanaInstruction {
+        program_id,
+        data: Instruction::TransferOverheadIgpOwnership(new_owner).encode()?,
+        accounts: vec![
+            AccountMeta::new(igp_account, false),
+            AccountMeta::new(owner_payer, true),
+        ],
+    };
+    Ok(instruction)
+}

@@ -183,6 +183,7 @@ enum MailboxSubCmd {
     Send(Outbox),
     Receive(Inbox),
     Delivered(Delivered),
+    TransferOwnership(TransferOwnership),
 }
 
 const MAILBOX_PROG_ID: Pubkey = pubkey!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1");
@@ -217,8 +218,6 @@ struct Outbox {
     message: String,
     #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     program_id: Pubkey,
-    // #[arg(long, short, default_value_t = MAX_MESSAGE_BODY_BYTES)]
-    // message_len: usize,
 }
 
 #[derive(Args)]
@@ -386,6 +385,7 @@ enum MultisigIsmMessageIdSubCmd {
     Init(MultisigIsmMessageIdInit),
     SetValidatorsAndThreshold(MultisigIsmMessageIdSetValidatorsAndThreshold),
     Query(MultisigIsmMessageIdInit),
+    TransferOwnership(TransferOwnership),
 }
 
 #[derive(Args)]
@@ -612,6 +612,21 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
             } else {
                 println!("Message delivered");
             }
+        }
+        MailboxSubCmd::TransferOwnership(transfer_ownership) => {
+            let instruction =
+                hyperlane_sealevel_mailbox::instruction::transfer_ownership_instruction(
+                    transfer_ownership.program_id,
+                    ctx.payer_pubkey,
+                    Some(transfer_ownership.new_owner),
+                )
+                .unwrap();
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!("Transfer ownership to {}", transfer_ownership.new_owner),
+                )
+                .send_with_payer();
         }
     };
 }
@@ -1149,6 +1164,22 @@ fn process_multisig_ism_message_id_cmd(ctx: Context, cmd: MultisigIsmMessageIdCm
                     .unwrap()
                     .into_inner();
             println!("Access control: {:#?}", access_control);
+        }
+        MultisigIsmMessageIdSubCmd::TransferOwnership(transfer_ownership) => {
+            let instruction =
+                hyperlane_sealevel_multisig_ism_message_id::instruction::transfer_ownership_instruction(
+                    transfer_ownership.program_id,
+                    ctx.payer_pubkey,
+                    Some(transfer_ownership.new_owner),
+                )
+                .unwrap();
+
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!("Transfer ownership to {}", transfer_ownership.new_owner),
+                )
+                .send_with_payer();
         }
     }
 }
