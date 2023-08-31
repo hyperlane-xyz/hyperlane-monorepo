@@ -12,6 +12,7 @@ use rusoto_core::{
 };
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
 use tokio::time::timeout;
+use tracing::instrument;
 
 use crate::{settings::aws_credentials::AwsChainCredentialsProvider, CheckpointSyncer};
 
@@ -50,6 +51,7 @@ impl fmt::Debug for S3Storage {
 }
 
 impl S3Storage {
+    #[instrument(err, level = "trace")]
     async fn write_to_bucket(&self, key: String, body: &str) -> Result<()> {
         let req = PutObjectRequest {
             key: self.get_composite_key(key),
