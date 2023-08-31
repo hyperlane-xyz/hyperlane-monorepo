@@ -1,5 +1,6 @@
 import {
   AgentConfig,
+  AgentSignerKeyType,
   ValidatorConfig as AgentValidatorConfig,
   ChainMap,
   ChainName,
@@ -9,12 +10,7 @@ import { ValidatorAgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 
-import {
-  AgentConfigHelper,
-  KeyConfig,
-  KeyType,
-  RootAgentConfig,
-} from './agent';
+import { AgentConfigHelper, KeyConfig, RootAgentConfig } from './agent';
 
 // Validator agents for each chain.
 export type ValidatorBaseChainConfigMap = ChainMap<ValidatorBaseChainConfig>;
@@ -113,7 +109,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     cfg: ValidatorBaseConfig,
     idx: number,
   ): Promise<ValidatorConfig['validators'][number]> {
-    let validator: KeyConfig = { type: KeyType.Hex };
+    let validator: KeyConfig = { type: AgentSignerKeyType.Hex };
     if (cfg.checkpointSyncer.type == CheckpointSyncerType.S3) {
       const awsUser = new ValidatorAgentAwsUser(
         this.runEnv,

@@ -93,13 +93,6 @@ interface AgentRoleConfig {
 }
 
 // TODO(2214): remove alias, temporary to apply widely
-// export enum KeyType {
-//   Aws = 'aws',
-//   Hex = 'hexKey',
-// }
-export { AgentSignerKeyType as KeyType };
-
-// TODO(2214): remove alias, temporary to apply widely
 // export interface AwsKeyConfig {
 //   type: KeyType.Aws;
 //   // ID of the key, can be an alias of the form `alias/foo-bar`

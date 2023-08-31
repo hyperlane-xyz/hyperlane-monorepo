@@ -1,18 +1,17 @@
 import { BigNumberish } from 'ethers';
 
-import { ChainMap, chainMetadata } from '@hyperlane-xyz/sdk';
+import {
+  AgentSignerKeyType,
+  ChainMap,
+  chainMetadata,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { AgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 
-import {
-  AgentConfigHelper,
-  KeyConfig,
-  KeyType,
-  RootAgentConfig,
-} from './agent';
+import { AgentConfigHelper, KeyConfig, RootAgentConfig } from './agent';
 
 export type MatchingList = MatchingListElement[];
 
@@ -140,7 +139,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
           const chain = chainMetadata[name];
           // Sealevel chains always use hex keys
           if (chain?.protocol == ProtocolType.Sealevel) {
-            return [name, { type: KeyType.Hex }];
+            return [name, { type: AgentSignerKeyType.Hex }];
           } else {
             return [name, awsKey];
           }
@@ -150,7 +149,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       return Object.fromEntries(
         this.contextChainNames[Role.Relayer].map((name) => [
           name,
-          { type: KeyType.Hex },
+          { type: AgentSignerKeyType.Hex },
         ]),
       );
     }
