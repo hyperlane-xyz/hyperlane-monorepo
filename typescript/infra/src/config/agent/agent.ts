@@ -92,20 +92,6 @@ interface AgentRoleConfig {
   index?: IndexingConfig;
 }
 
-// TODO(2214): remove alias, temporary to apply widely
-// export interface AwsKeyConfig {
-//   type: KeyType.Aws;
-//   // ID of the key, can be an alias of the form `alias/foo-bar`
-//   id: string;
-//   // AWS region where the key is
-//   region: string;
-// }
-//
-// // The private key is omitted so it can be fetched using external-secrets
-// export interface HexKeyConfig {
-//   type: KeyType.Hex;
-// }
-
 // require specifying that it's the "aws" type for helm
 export type AwsKeyConfig = Required<AgentSignerAwsKey>;
 // only require specifying that it's the "hex" type for helm since the hex key will be pulled from secrets.
