@@ -61,7 +61,7 @@ spec:
 {{- $scraperChainNames = append $scraperChainNames .name }}
 {{- end }}
 {{- end }}
-          - name: HYP_SCRAPER_CHAINSTOSCRAPE
+          - name: HYP_chainsToScrape
             value: {{ $scraperChainNames | join "," }}
         resources:
           {{- toYaml .Values.hyperlane.scraper.resources | nindent 10 }}

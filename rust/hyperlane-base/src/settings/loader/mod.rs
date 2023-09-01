@@ -33,9 +33,6 @@ where
     T: DeserializeOwned,
     S: AsRef<str>,
 {
-    // Derive additional prefix from agent name
-    let prefix = format!("HYP_{}", agent_prefix).to_ascii_uppercase();
-
     let filtered_env: HashMap<String, String> = env::vars()
         .filter(|(k, _v)| {
             !ignore_prefixes
@@ -85,21 +82,22 @@ where
         }
     }
 
+    // HYP_chains_ethereum_rpcs_0_
+
     let config_deserializer = builder
         // Use a base configuration env variable prefix
         .add_source(
             Environment::default()
-                .prefix("HYP_BASE")
+                .prefix("HYP_")
                 .separator("_")
+                .casing(Case::Camel)
                 .source(&filtered_env),
         )
         .add_source(
-            Environment::default()
-                .prefix(&prefix)
-                .separator("_")
-                .source(&filtered_env),
+            CommandLineArguments::default()
+                .separator(".")
+                .casing(Case::Camel),
         )
-        .add_source(CommandLineArguments::default().separator("."))
         .build()?;
 
     let formatted_config = {
