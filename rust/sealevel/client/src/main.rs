@@ -1022,12 +1022,13 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
             ctx.new_txn().add(instruction).send_with_payer();
         }
         TokenSubCmd::TransferOwnership(transfer) => {
-            let instruction = hyperlane_sealevel_token_lib::instruction::transfer_ownership(
-                transfer.program_id,
-                ctx.payer_pubkey,
-                Some(transfer.new_owner),
-            )
-            .unwrap();
+            let instruction =
+                hyperlane_sealevel_token_lib::instruction::transfer_ownership_instruction(
+                    transfer.program_id,
+                    ctx.payer_pubkey,
+                    Some(transfer.new_owner),
+                )
+                .unwrap();
 
             ctx.new_txn()
                 .add_with_description(

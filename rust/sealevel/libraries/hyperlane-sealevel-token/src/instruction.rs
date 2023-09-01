@@ -173,7 +173,7 @@ pub fn set_destination_gas_configs(
 }
 
 /// Transfers ownership.
-pub fn transfer_ownership(
+pub fn transfer_ownership_instruction(
     program_id: Pubkey,
     owner_payer: Pubkey,
     new_owner: Option<Pubkey>,
