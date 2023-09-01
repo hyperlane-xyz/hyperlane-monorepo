@@ -1,26 +1,13 @@
 import { ethers } from 'ethers';
 
-import { TestMailbox, TestMailbox__factory } from '@hyperlane-xyz/core';
+import { TestMailbox } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
 import { ChainName } from '../types';
 
 import { HyperlaneCore } from './HyperlaneCore';
-import { coreFactories } from './contracts';
-
-export const testCoreFactories = {
-  ...coreFactories,
-  mailbox: new TestMailbox__factory(),
-};
 
 export class TestCoreApp extends HyperlaneCore {
-  getContracts(chain: ChainName): HyperlaneContracts<typeof testCoreFactories> {
-    return super.getContracts(chain) as HyperlaneContracts<
-      typeof testCoreFactories
-    >;
-  }
-
   async processMessages(): Promise<
     Map<ChainName, Map<ChainName, ethers.providers.TransactionResponse[]>>
   > {

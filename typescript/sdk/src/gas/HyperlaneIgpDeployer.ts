@@ -120,30 +120,28 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: OverheadIgpConfig,
   ): Promise<HyperlaneContracts<IgpFactories>> {
-    // NB: To share ProxyAdmins with HyperlaneCore, ensure the ProxyAdmin
-    // is loaded into the contract cache.
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
+
     let timelockController: TimelockController;
+    let proxyOwner: string;
     if (config.upgrade) {
       timelockController = await this.deployTimelock(
         chain,
         config.upgrade.timelock,
       );
-      await this.transferOwnershipOfContracts(
-        chain,
-        timelockController.address,
-        { proxyAdmin },
-      );
+      proxyOwner = timelockController.address;
     } else {
+      proxyOwner = config.owner;
       // mock this for consistent serialization
       timelockController = TimelockController__factory.connect(
         ethers.constants.AddressZero,
         this.multiProvider.getProvider(chain),
       );
-      await this.transferOwnershipOfContracts(chain, config.owner, {
-        proxyAdmin,
-      });
     }
+
+    await this.transferOwnershipOfContracts(chain, proxyOwner, {
+      proxyAdmin,
+    });
 
     const storageGasOracle = await this.deployStorageGasOracle(chain);
     const interchainGasPaymaster = await this.deployInterchainGasPaymaster(

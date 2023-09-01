@@ -1,53 +1,68 @@
 import {
-  InterchainGasPaymaster,
   TestInterchainGasPaymaster__factory,
   TestIsm__factory,
   TestMailbox__factory,
+  TestMerkleTreeHook__factory,
 } from '@hyperlane-xyz/core';
-import { types } from '@hyperlane-xyz/utils';
 
 import { TestChains } from '../consts/chains';
 import { HyperlaneContracts } from '../contracts';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { MultiProvider } from '../providers/MultiProvider';
-import { testCoreConfig } from '../test/testUtils';
 import { ChainMap, ChainName } from '../types';
 
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer';
 import { TestCoreApp } from './TestCoreApp';
-import { CoreFactories, coreFactories } from './contracts';
-
-const testCoreFactories = {
-  ...coreFactories,
-  mailbox: new TestMailbox__factory(),
-};
+import { CoreFactories } from './contracts';
+import { CoreConfig } from './types';
 
 export class TestCoreDeployer extends HyperlaneCoreDeployer {
-  constructor(public readonly multiProvider: MultiProvider) {
-    const ismFactory = new HyperlaneIsmFactory({}, multiProvider);
-    super(multiProvider, ismFactory, testCoreFactories);
-  }
+  async deployContracts(
+    chain: ChainName,
+    _config: CoreConfig,
+  ): Promise<HyperlaneContracts<CoreFactories>> {
+    const domain = this.multiProvider.getDomainId(chain);
+    const mailbox = await this.multiProvider.handleDeploy(
+      chain,
+      new TestMailbox__factory(),
+      [domain],
+    );
 
-  // deploy a test ISM instead of a real ISM
-  async deployIsm(chain: ChainName): Promise<types.Address> {
-    const testIsm = await this.multiProvider.handleDeploy(
+    const merkleTreeHook = await this.multiProvider.handleDeploy(
+      chain,
+      new TestMerkleTreeHook__factory(),
+      [mailbox.address],
+    );
+
+    // deploy a test ISM instead of a real ISM
+    const ism = await this.multiProvider.handleDeploy(
       chain,
       new TestIsm__factory(),
       [],
     );
-    return testIsm.address;
-  }
 
-  async deployIgpHook(chain: string): Promise<InterchainGasPaymaster> {
-    return this.multiProvider.handleDeploy(
+    // deploy a test IGP instead of a real IGP
+    const igp = await this.multiProvider.handleDeploy(
       chain,
       new TestInterchainGasPaymaster__factory(),
       [],
     );
+
+    const owner = await this.multiProvider.getSignerAddress(chain);
+    await mailbox.initialize(
+      owner,
+      ism.address,
+      igp.address,
+      merkleTreeHook.address,
+    );
+
+    // @ts-expect-error ts(2739)
+    return { mailbox };
   }
 
   async deploy(): Promise<ChainMap<HyperlaneContracts<CoreFactories>>> {
-    return super.deploy(testCoreConfig(TestChains));
+    const testConfig: ChainMap<CoreConfig> = Object.fromEntries(
+      TestChains.map((testChain) => [testChain, {} as any]),
+    );
+    return super.deploy(testConfig);
   }
 
   async deployApp(): Promise<TestCoreApp> {

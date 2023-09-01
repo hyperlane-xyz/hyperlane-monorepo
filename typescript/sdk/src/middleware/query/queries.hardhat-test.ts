@@ -48,7 +48,11 @@ describe.skip('InterchainQueryRouter', async () => {
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
-    config = await getRouterConfig(signer.address, coreContractsMaps);
+    config = getRouterConfig(
+      signer.address,
+      coreContractsMaps,
+      coreDeployer.igpContracts(),
+    );
   });
 
   beforeEach(async () => {

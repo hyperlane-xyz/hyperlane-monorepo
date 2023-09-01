@@ -16,7 +16,7 @@ import {
 import { ModuleType, MultisigIsmConfig } from '../ism/types';
 import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
-import { objMap, promiseObjAll } from '../utils/objects';
+import { objMap } from '../utils/objects';
 
 export function randomInt(max: number, min = 0): number {
   return Math.floor(Math.random() * (max - min)) + min;
@@ -26,7 +26,7 @@ export function randomAddress(): types.Address {
   return ethers.utils.hexlify(ethers.utils.randomBytes(20));
 }
 
-export function createRouterConfigMap(
+export function getRouterConfig(
   owner: types.Address,
   coreContracts: HyperlaneContractsMap<CoreFactories>,
   igpContracts: HyperlaneContractsMap<IgpFactories>,
@@ -36,24 +36,9 @@ export function createRouterConfigMap(
       owner,
       mailbox: contracts.mailbox.address,
       interchainGasPaymaster:
-        igpContracts[chain].interchainGasPaymaster.address,
+        igpContracts[chain].defaultIsmInterchainGasPaymaster.address,
     };
   });
-}
-
-export async function getRouterConfig(
-  owner: types.Address,
-  coreContracts: HyperlaneContractsMap<CoreFactories>,
-): Promise<ChainMap<RouterConfig>> {
-  return promiseObjAll(
-    objMap(coreContracts, async (_, contracts) => {
-      return {
-        owner,
-        mailbox: contracts.mailbox.address,
-        interchainGasPaymaster: contracts.interchainGasPaymaster.address,
-      };
-    }),
-  );
 }
 
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
@@ -80,6 +65,10 @@ export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
               .map((remote) => [remote, multisigIsm]),
           ),
         },
+        beneficiary: nonZeroAddress,
+        oracleKey: nonZeroAddress,
+        gasOracleType: {},
+        overhead: {},
       },
     ]),
   );

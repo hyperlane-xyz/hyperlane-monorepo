@@ -166,7 +166,6 @@ export {
   GasRouterConfig,
   RouterConfig,
 } from './router/types';
-export { createRouterConfigMap } from './test/testUtils';
 export {
   ChainMap,
   ChainName,

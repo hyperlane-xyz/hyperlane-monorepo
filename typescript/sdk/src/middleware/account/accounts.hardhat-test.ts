@@ -39,8 +39,13 @@ describe.skip('InterchainAccounts', async () => {
 
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
-    coreApp = await new TestCoreDeployer(multiProvider).deployApp();
-    config = await getRouterConfig(signer.address, coreApp.contractsMap);
+    const deployer = new TestCoreDeployer(multiProvider);
+    coreApp = await deployer.deployApp();
+    config = getRouterConfig(
+      signer.address,
+      coreApp.contractsMap,
+      deployer.igpContracts(),
+    );
   });
 
   beforeEach(async () => {

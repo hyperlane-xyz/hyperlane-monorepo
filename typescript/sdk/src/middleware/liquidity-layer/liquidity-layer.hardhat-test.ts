@@ -74,9 +74,10 @@ describe.skip('LiquidityLayerRouter', async () => {
       signer,
     );
     messageTransmitter = await messageTransmitterF.deploy(mockToken.address);
-    const routerConfig = await getRouterConfig(
+    const routerConfig = getRouterConfig(
       signer.address,
       coreContractsMaps,
+      coreDeployer.igpContracts(),
     );
     config = objMap(routerConfig, (chain, config) => {
       return {

@@ -1,5 +1,4 @@
 import {
-  InterchainGasPaymaster__factory,
   Mailbox__factory,
   ProxyAdmin__factory,
   TimelockController__factory,
@@ -11,7 +10,6 @@ export const coreFactories = {
   proxyAdmin: new ProxyAdmin__factory(),
   mailbox: new Mailbox__factory(),
   timelockController: new TimelockController__factory(),
-  interchainGasPaymaster: new InterchainGasPaymaster__factory(),
 };
 
 export type CoreFactories = typeof coreFactories;

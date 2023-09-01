@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import { ContractReceipt } from 'ethers';
 import { ethers } from 'hardhat';
 
-import { TestMailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
+import { Mailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { Chains } from '../consts/chains';
@@ -19,8 +19,8 @@ const message = '0xdeadbeef';
 
 describe('TestCoreDeployer', async () => {
   let testCoreApp: TestCoreApp,
-    localMailbox: TestMailbox,
-    remoteMailbox: TestMailbox,
+    localMailbox: Mailbox,
+    remoteMailbox: Mailbox,
     dispatchReceipt: ContractReceipt;
 
   beforeEach(async () => {
