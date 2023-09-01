@@ -7,6 +7,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { aggregationIsm } from './aggregationIsm';
+import { igp } from './igp';
 import { chainToValidator } from './multisigIsm';
 import { owners } from './owners';
 
@@ -22,6 +23,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   };
 
   return {
+    ...igp[local],
     owner,
     defaultIsm,
   };
