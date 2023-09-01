@@ -7,29 +7,13 @@ use solana_sdk::{
     instruction::Instruction,
     message::Message,
     pubkey::Pubkey,
-    signature::{Keypair, Signature, Signer},
-    signer::SignerError,
+    signature::{Keypair, Signer},
+    signer::null_signer::NullSigner,
     signers::Signers,
     transaction::Transaction,
 };
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
 use std::{cell::RefCell, io::Read};
-
-pub struct DummyPayer();
-
-impl Signer for DummyPayer {
-    fn try_pubkey(&self) -> Result<Pubkey, SignerError> {
-        Ok(solana_program::pubkey!(
-            "DummyPayerDummyPayerDummyPayerDummyPayerDum"
-        ))
-    }
-    fn try_sign_message(&self, _message: &[u8]) -> Result<Signature, SignerError> {
-        Ok(Signature::new_unique())
-    }
-    fn is_interactive(&self) -> bool {
-        false
-    }
-}
 
 pub(crate) struct Context {
     pub client: RpcClient,
@@ -102,7 +86,7 @@ impl Context {
         if let Some(keypair) = &self.payer_keypair {
             Box::new(Keypair::from_bytes(&keypair.to_bytes()).unwrap())
         } else {
-            Box::new(DummyPayer())
+            Box::new(NullSigner::new(&self.payer_pubkey))
         }
     }
 
