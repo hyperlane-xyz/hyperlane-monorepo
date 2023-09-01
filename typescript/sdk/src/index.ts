@@ -15,6 +15,7 @@ export {
   TestChains,
   Testnets,
 } from './consts/chains';
+export { getRouterConfig, testCoreConfig } from './test/testUtils';
 export {
   hyperlaneContractAddresses,
   hyperlaneEnvironments,

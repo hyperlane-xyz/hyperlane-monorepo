@@ -30,7 +30,11 @@ describe('deploy', async () => {
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     core = await coreDeployer.deployApp();
-    config = await getRouterConfig(signer.address, core.contractsMap);
+    config = getRouterConfig(
+      signer.address,
+      core.contractsMap,
+      coreDeployer.igpContracts(),
+    );
     deployer = new HelloWorldDeployer(multiProvider);
   });
 

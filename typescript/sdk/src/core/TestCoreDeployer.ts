@@ -6,7 +6,8 @@ import {
 } from '@hyperlane-xyz/core';
 
 import { TestChains } from '../consts/chains';
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts';
+import { IgpFactories } from '../gas/contracts';
 import { ChainMap, ChainName } from '../types';
 
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer';
@@ -15,6 +16,8 @@ import { CoreFactories } from './contracts';
 import { CoreConfig } from './types';
 
 export class TestCoreDeployer extends HyperlaneCoreDeployer {
+  private deployedIgpContracts?: ChainMap<HyperlaneContractsMap<IgpFactories>>;
+
   async deployContracts(
     chain: ChainName,
     _config: CoreConfig,
@@ -45,6 +48,10 @@ export class TestCoreDeployer extends HyperlaneCoreDeployer {
       new TestInterchainGasPaymaster__factory(),
       [],
     );
+    this.deployedIgpContracts![chain] = {
+      // @ts-ignore
+      defaultIsmInterchainGasPaymaster: igp,
+    };
 
     const owner = await this.multiProvider.getSignerAddress(chain);
     await mailbox.initialize(
@@ -58,7 +65,12 @@ export class TestCoreDeployer extends HyperlaneCoreDeployer {
     return { mailbox };
   }
 
+  igpContracts(): ChainMap<any> {
+    return this.deployedIgpContracts!;
+  }
+
   async deploy(): Promise<ChainMap<HyperlaneContracts<CoreFactories>>> {
+    this.deployedIgpContracts = {};
     const testConfig: ChainMap<CoreConfig> = Object.fromEntries(
       TestChains.map((testChain) => [testChain, {} as any]),
     );
