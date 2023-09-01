@@ -342,6 +342,19 @@ struct IgpCmd {
 #[derive(Subcommand)]
 enum IgpSubCmd {
     PayForGas(PayForGasArgs),
+    TransferIgpOwnership(TransferIgpOwnership),
+    TransferOverheadIgpOwnership(TransferIgpOwnership),
+}
+
+#[derive(Args)]
+struct TransferIgpOwnership {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    // To avoid accidentally transferring ownership to None,
+    // only support transferring to other Pubkeys for now.
+    new_owner: Pubkey,
+    #[arg(long)]
+    igp_account: Pubkey,
 }
 
 #[derive(Args)]
@@ -1240,6 +1253,41 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                 "Made a payment for message {} with gas payment data account {}",
                 payment_details.message_id, gas_payment_data_account
             );
+        }
+        IgpSubCmd::TransferIgpOwnership(transfer_ownership) => {
+            let instruction =
+                hyperlane_sealevel_igp::instruction::transfer_igp_ownership_instruction(
+                    transfer_ownership.program_id,
+                    transfer_ownership.igp_account,
+                    ctx.payer_pubkey,
+                    Some(transfer_ownership.new_owner),
+                )
+                .unwrap();
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!("Transfer IGP ownership to {}", transfer_ownership.new_owner),
+                )
+                .send_with_payer();
+        }
+        IgpSubCmd::TransferOverheadIgpOwnership(transfer_ownership) => {
+            let instruction =
+                hyperlane_sealevel_igp::instruction::transfer_overhead_igp_ownership_instruction(
+                    transfer_ownership.program_id,
+                    transfer_ownership.igp_account,
+                    ctx.payer_pubkey,
+                    Some(transfer_ownership.new_owner),
+                )
+                .unwrap();
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!(
+                        "Transfer overhead IGP ownership to {}",
+                        transfer_ownership.new_owner
+                    ),
+                )
+                .send_with_payer();
         }
     }
 }

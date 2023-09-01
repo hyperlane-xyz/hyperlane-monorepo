@@ -160,16 +160,6 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         self,
         signers: &T,
     ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
-        let client = self.client.unwrap_or(&self.ctx.client);
-
-        let recent_blockhash = client.get_latest_blockhash().unwrap();
-        let txn = Transaction::new_signed_with_payer(
-            &self.instructions(),
-            Some(&self.ctx.payer_pubkey),
-            signers,
-            recent_blockhash,
-        );
-
         if !self.ctx.payer_can_sign() {
             println!("Transaction to be submitted via Squads multisig:");
             println!("\t==== Instructions: ====");
@@ -210,6 +200,16 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
 
             return None;
         }
+
+        let client = self.client.unwrap_or(&self.ctx.client);
+
+        let recent_blockhash = client.get_latest_blockhash().unwrap();
+        let txn = Transaction::new_signed_with_payer(
+            &self.instructions(),
+            Some(&self.ctx.payer_pubkey),
+            signers,
+            recent_blockhash,
+        );
 
         let signature = client
             .send_and_confirm_transaction_with_spinner_and_config(
