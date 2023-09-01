@@ -241,11 +241,4 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             )
             .ok()
     }
-
-    // fn pretty_print_instructions(&self) {
-    //     for (i, instruction) in self.instructions.iter().enumerate() {
-    //         println!("Instruction {} of {}", i, self.instructions.len());
-    //         println!("\t Data: {}", bs58);
-    //     }
-    // }
 }
