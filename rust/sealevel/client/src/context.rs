@@ -135,6 +135,27 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             .collect()
     }
 
+    pub(crate) fn pretty_print_transaction(&self) {
+        println!("\t==== Instructions: ====");
+
+        for (i, InstructionWithDescription { description, .. }) in
+            self.instructions_with_descriptions.iter().enumerate()
+        {
+            println!(
+                "\tInstruction {}: {}",
+                i,
+                description.as_deref().unwrap_or("No description provided")
+            );
+        }
+
+        let message = Message::new(&self.instructions(), None);
+        let txn = Transaction::new_unsigned(message);
+        println!(
+            "\t==== Transaction in base58: ====\n\t{}",
+            bs58::encode(bincode::serialize(&txn).unwrap()).into_string()
+        );
+    }
+
     pub(crate) fn send_with_payer(self) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         let payer_signer = self.ctx.payer_signer();
         self.send(&[&*payer_signer])
@@ -144,43 +165,17 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         self,
         signers: &T,
     ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
+        // If the payer can't sign, it's presumed that the payer is intended
+        // to be a Squads multisig, which must be submitted via a separate
+        // process.
+        // We print the transaction to stdout and wait for user confirmation to
+        // continue.
         if !self.ctx.payer_can_sign() {
             println!("Transaction to be submitted via Squads multisig:");
-            println!("\t==== Instructions: ====");
 
-            for (i, InstructionWithDescription { description, .. }) in
-                self.instructions_with_descriptions.iter().enumerate()
-            {
-                println!(
-                    "\tInstruction {}: {}",
-                    i,
-                    description.as_deref().unwrap_or("No description provided")
-                );
-            }
+            self.pretty_print_transaction();
 
-            let message = Message::new(&self.instructions(), None);
-            let txn = Transaction::new_unsigned(message);
-            println!(
-                "\t==== Transaction in base58: ====\n\t{}",
-                bs58::encode(bincode::serialize(&txn).unwrap()).into_string()
-            );
-
-            loop {
-                println!("Continue? [y/n] then press Enter");
-                let mut input = [0u8; 1];
-                std::io::stdin().read_exact(&mut input).unwrap();
-                match input[0] {
-                    b'y' => {
-                        println!("Continuing...");
-                        break;
-                    }
-                    b'n' => {
-                        println!("Exiting with code 1...");
-                        std::process::exit(1)
-                    }
-                    _ => {}
-                }
-            }
+            wait_for_user_confirmation();
 
             return None;
         }
@@ -224,5 +219,23 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
                 },
             )
             .ok()
+    }
+}
+
+// Poor man's strategy for waiting for user confirmation
+fn wait_for_user_confirmation() {
+    println!("Continue? [y/n] then press Enter");
+    let mut input = [0u8; 1];
+    std::io::stdin().read_exact(&mut input).unwrap();
+    match input[0] {
+        b'y' => {
+            println!("Continuing...");
+            return;
+        }
+        b'n' => {
+            println!("Exiting with code 1...");
+            std::process::exit(1)
+        }
+        _ => {}
     }
 }
