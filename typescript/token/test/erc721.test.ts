@@ -11,7 +11,7 @@ import {
   MultiProvider,
   TestCoreApp,
   TestCoreDeployer,
-  deployTestIgpsAndGetRouterConfig,
+  getRouterConfig,
   objMap,
 } from '@hyperlane-xyz/sdk';
 import { utils } from '@hyperlane-xyz/utils';
@@ -86,10 +86,10 @@ for (const withCollateral of [true, false]) {
         const coreDeployer = new TestCoreDeployer(multiProvider);
         const coreContractsMaps = await coreDeployer.deploy();
         core = new TestCoreApp(coreContractsMaps, multiProvider);
-        const coreConfig = await deployTestIgpsAndGetRouterConfig(
-          multiProvider,
+        const coreConfig = getRouterConfig(
           owner.address,
           core.contractsMap,
+          coreDeployer.igpContracts(),
         );
         const configWithTokenInfo = objMap(coreConfig, (key) => ({
           ...coreConfig[key],

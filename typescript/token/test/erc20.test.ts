@@ -13,7 +13,7 @@ import {
   RouterConfig,
   TestCoreApp,
   TestCoreDeployer,
-  deployTestIgpsAndGetRouterConfig,
+  getRouterConfig,
   objMap,
 } from '@hyperlane-xyz/sdk';
 import { utils } from '@hyperlane-xyz/utils';
@@ -71,10 +71,10 @@ for (const variant of [
       const coreDeployer = new TestCoreDeployer(multiProvider);
       const coreContractsMaps = await coreDeployer.deploy();
       core = new TestCoreApp(coreContractsMaps, multiProvider);
-      const routerConfig = await deployTestIgpsAndGetRouterConfig(
-        multiProvider,
+      const routerConfig = getRouterConfig(
         owner.address,
         core.contractsMap,
+        coreDeployer.igpContracts(),
       );
 
       let erc20: ERC20 | undefined;
