@@ -1254,27 +1254,21 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                 payment_details.message_id, gas_payment_data_account
             );
         }
-        IgpSubCmd::TransferIgpOwnership(transfer_ownership) => {
+        IgpSubCmd::TransferIgpOwnership(ref transfer_ownership)
+        | IgpSubCmd::TransferOverheadIgpOwnership(ref transfer_ownership) => {
+            let igp_account_type = match cmd.cmd {
+                IgpSubCmd::TransferIgpOwnership(_) => {
+                    InterchainGasPaymasterType::Igp(transfer_ownership.igp_account)
+                }
+                IgpSubCmd::TransferOverheadIgpOwnership(_) => {
+                    InterchainGasPaymasterType::OverheadIgp(transfer_ownership.igp_account)
+                }
+                _ => unreachable!(),
+            };
             let instruction =
-                hyperlane_sealevel_igp::instruction::transfer_igp_ownership_instruction(
+                hyperlane_sealevel_igp::instruction::transfer_igp_account_ownership_instruction(
                     transfer_ownership.program_id,
-                    transfer_ownership.igp_account,
-                    ctx.payer_pubkey,
-                    Some(transfer_ownership.new_owner),
-                )
-                .unwrap();
-            ctx.new_txn()
-                .add_with_description(
-                    instruction,
-                    format!("Transfer IGP ownership to {}", transfer_ownership.new_owner),
-                )
-                .send_with_payer();
-        }
-        IgpSubCmd::TransferOverheadIgpOwnership(transfer_ownership) => {
-            let instruction =
-                hyperlane_sealevel_igp::instruction::transfer_overhead_igp_ownership_instruction(
-                    transfer_ownership.program_id,
-                    transfer_ownership.igp_account,
+                    igp_account_type.clone(),
                     ctx.payer_pubkey,
                     Some(transfer_ownership.new_owner),
                 )
@@ -1283,8 +1277,8 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                 .add_with_description(
                     instruction,
                     format!(
-                        "Transfer overhead IGP ownership to {}",
-                        transfer_ownership.new_owner
+                        "Transfer ownership of {:?} to {}",
+                        igp_account_type, transfer_ownership.new_owner
                     ),
                 )
                 .send_with_payer();
