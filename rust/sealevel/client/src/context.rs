@@ -1,4 +1,7 @@
-use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
+use solana_client::{
+    rpc_client::RpcClient,
+    rpc_config::{RpcSendTransactionConfig, RpcTransactionConfig},
+};
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     instruction::Instruction,
@@ -9,6 +12,7 @@ use solana_sdk::{
     signers::Signers,
     transaction::Transaction,
 };
+use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
 use std::{cell::RefCell, io::Read};
 
 pub struct DummyPayer();
@@ -140,11 +144,6 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         self
     }
 
-    pub(crate) fn send_with_payer(self) {
-        let payer_signer = self.ctx.payer_signer();
-        self.send(&[&*payer_signer])
-    }
-
     pub(crate) fn instructions(&self) -> Vec<Instruction> {
         self.instructions_with_descriptions
             .iter()
@@ -152,7 +151,25 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             .collect()
     }
 
-    pub(crate) fn send<T: Signers>(self, signers: &T) {
+    pub(crate) fn send_with_payer(self) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
+        let payer_signer = self.ctx.payer_signer();
+        self.send(&[&*payer_signer])
+    }
+
+    pub(crate) fn send<T: Signers>(
+        self,
+        signers: &T,
+    ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
+        let client = self.client.unwrap_or(&self.ctx.client);
+
+        let recent_blockhash = client.get_latest_blockhash().unwrap();
+        let txn = Transaction::new_signed_with_payer(
+            &self.instructions(),
+            Some(&self.ctx.payer_pubkey),
+            signers,
+            recent_blockhash,
+        );
+
         if !self.ctx.payer_can_sign() {
             println!("Transaction to be submitted via Squads multisig:");
             println!("\t==== Instructions: ====");
@@ -191,20 +208,10 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
                 }
             }
 
-            return;
+            return None;
         }
 
-        let client = self.client.unwrap_or(&self.ctx.client);
-
-        let recent_blockhash = client.get_latest_blockhash().unwrap();
-        let txn = Transaction::new_signed_with_payer(
-            &self.instructions(),
-            Some(&self.ctx.payer_pubkey),
-            signers,
-            recent_blockhash,
-        );
-
-        let _signature = client
+        let signature = client
             .send_and_confirm_transaction_with_spinner_and_config(
                 &txn,
                 self.ctx.commitment,
@@ -218,6 +225,21 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
                 err
             })
             .unwrap();
+
+        // If the commitment level set in the client is less than `finalized`,
+        // the only way to reliably read the tx is to use the deprecated
+        // `CommitmentConfig::single()` commitment...
+        #[allow(deprecated)]
+        client
+            .get_transaction_with_config(
+                &signature,
+                RpcTransactionConfig {
+                    encoding: Some(UiTransactionEncoding::Base64),
+                    commitment: Some(CommitmentConfig::single()),
+                    ..RpcTransactionConfig::default()
+                },
+            )
+            .ok()
     }
 
     // fn pretty_print_instructions(&self) {

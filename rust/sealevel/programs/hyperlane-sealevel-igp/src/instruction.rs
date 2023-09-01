@@ -324,11 +324,11 @@ pub fn transfer_igp_ownership_instruction(
     owner_payer: Pubkey,
     new_owner: Option<Pubkey>,
 ) -> Result<SolanaInstruction, ProgramError> {
-    /// 0. [writeable] The IGP or OverheadIGP.
-    /// 1. [signer] The owner of the IGP account.
+    // 0. [writeable] The IGP or OverheadIGP.
+    // 1. [signer] The owner of the IGP account.
     let instruction = SolanaInstruction {
         program_id,
-        data: Instruction::TransferIgpOwnership(new_owner).encode()?,
+        data: Instruction::TransferIgpOwnership(new_owner).try_to_vec()?,
         accounts: vec![
             AccountMeta::new(igp_account, false),
             AccountMeta::new(owner_payer, true),
@@ -344,11 +344,11 @@ pub fn transfer_overhead_igp_ownership_instruction(
     owner_payer: Pubkey,
     new_owner: Option<Pubkey>,
 ) -> Result<SolanaInstruction, ProgramError> {
-    /// 0. [writeable] The IGP or OverheadIGP.
-    /// 1. [signer] The owner of the IGP account.
+    // 0. [writeable] The IGP or OverheadIGP.
+    // 1. [signer] The owner of the IGP account.
     let instruction = SolanaInstruction {
         program_id,
-        data: Instruction::TransferOverheadIgpOwnership(new_owner).encode()?,
+        data: Instruction::TransferOverheadIgpOwnership(new_owner).try_to_vec()?,
         accounts: vec![
             AccountMeta::new(igp_account, false),
             AccountMeta::new(owner_payer, true),

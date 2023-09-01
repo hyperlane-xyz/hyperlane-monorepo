@@ -103,6 +103,7 @@ enum HyperlaneSealevelCmd {
     Core(CoreCmd),
     Mailbox(MailboxCmd),
     Token(TokenCmd),
+    Igp(IgpCmd),
     ValidatorAnnounce(ValidatorAnnounceCmd),
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
     WarpRoute(WarpRouteCmd),
@@ -333,6 +334,23 @@ struct TransferOwnership {
 }
 
 #[derive(Args)]
+struct IgpCmd {
+    #[command(subcommand)]
+    cmd: IgpSubCmd,
+}
+
+#[derive(Subcommand)]
+enum IgpSubCmd {
+    PayForGas(PayForGasArgs),
+}
+
+#[derive(Args)]
+struct PayForGasArgs {
+    program_id: Pubkey,
+    message_id: String,
+}
+
+#[derive(Args)]
 struct ValidatorAnnounceCmd {
     #[command(subcommand)]
     cmd: ValidatorAnnounceSubCmd,
@@ -477,6 +495,7 @@ fn main() {
         }
         HyperlaneSealevelCmd::Core(cmd) => process_core_cmd(ctx, cmd),
         HyperlaneSealevelCmd::WarpRoute(cmd) => process_warp_route_cmd(ctx, cmd),
+        HyperlaneSealevelCmd::Igp(cmd) => process_igp_cmd(ctx, cmd),
     }
 }
 
@@ -963,11 +982,13 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
                 data: ixn.encode().unwrap(),
                 accounts,
             };
-            ctx.new_txn().add(xfer_instruction).send(&[
+            let tx_result = ctx.new_txn().add(xfer_instruction).send(&[
                 &*ctx.payer_signer(),
                 &sender,
                 &unique_message_account_keypair,
             ]);
+            // Print the output so it can be used in e2e tests
+            println!("{:?}", tx_result);
         }
         TokenSubCmd::EnrollRemoteRouter(enroll) => {
             let enroll_instruction = HtInstruction::EnrollRemoteRouter(RemoteRouterConfig {
@@ -1180,6 +1201,45 @@ fn process_multisig_ism_message_id_cmd(ctx: Context, cmd: MultisigIsmMessageIdCm
                     format!("Transfer ownership to {}", transfer_ownership.new_owner),
                 )
                 .send_with_payer();
+        }
+    }
+}
+
+fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
+    match cmd.cmd {
+        IgpSubCmd::PayForGas(payment_details) => {
+            let unique_gas_payment_keypair = Keypair::new();
+            let salt = H256::zero();
+            let (igp_account, _igp_account_bump) = Pubkey::find_program_address(
+                hyperlane_sealevel_igp::igp_pda_seeds!(salt),
+                &payment_details.program_id,
+            );
+
+            let (overhead_igp_account, _) = Pubkey::find_program_address(
+                hyperlane_sealevel_igp::overhead_igp_pda_seeds!(salt),
+                &payment_details.program_id,
+            );
+            let (ixn, gas_payment_data_account) =
+                hyperlane_sealevel_igp::instruction::pay_for_gas_instruction(
+                    payment_details.program_id,
+                    ctx.payer_pubkey,
+                    igp_account,
+                    Some(overhead_igp_account),
+                    unique_gas_payment_keypair.pubkey(),
+                    H256::from_str(&payment_details.message_id).unwrap(),
+                    13376,
+                    100000,
+                )
+                .unwrap();
+
+            ctx.new_txn()
+                .add(ixn)
+                .send(&[&*ctx.payer_signer(), &unique_gas_payment_keypair]);
+
+            println!(
+                "Made a payment for message {} with gas payment data account {}",
+                payment_details.message_id, gas_payment_data_account
+            );
         }
     }
 }
