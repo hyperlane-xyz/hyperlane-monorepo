@@ -184,30 +184,33 @@ export const AgentConfigSchema = z.object({
 const CommaSeperatedChainList = z.string().regex(/^[a-z0-9]+(,[a-z0-9]+)*$/);
 const CommaSeperatedDomainList = z.string().regex(/^\d+(,\d+)*$/);
 
+export enum GasPaymentEnforcementPolicyType {
+  None = 'none',
+  Minimum = 'minimum',
+  OnChainFeeQuoting = 'onChainFeeQuoting',
+}
+
 const GasPaymentEnforcementBaseSchema = z.object({
   matchingList: MatchingListSchema.optional().describe(
     'An optional matching list, any message that matches will use this policy. By default all messages will match.',
   ),
 });
-const GasPaymentEnforcementSchema = z.array(
-  z.union([
-    GasPaymentEnforcementBaseSchema.extend({
-      type: z.literal('none').optional(),
-    }),
-    GasPaymentEnforcementBaseSchema.extend({
-      type: z.literal('minimum').optional(),
-      payment: ZUWei,
-    }),
-    GasPaymentEnforcementBaseSchema.extend({
-      type: z.literal('onChainFeeQuoting'),
-      gasFraction: z
-        .string()
-        .regex(/^\d+ ?\/ ?[1-9]\d*$/)
-        .optional(),
-    }),
-  ]),
-);
-
+const GasPaymentEnforcementSchema = z.union([
+  GasPaymentEnforcementBaseSchema.extend({
+    type: z.literal(GasPaymentEnforcementPolicyType.None).optional(),
+  }),
+  GasPaymentEnforcementBaseSchema.extend({
+    type: z.literal(GasPaymentEnforcementPolicyType.Minimum).optional(),
+    payment: ZUWei,
+  }),
+  GasPaymentEnforcementBaseSchema.extend({
+    type: z.literal(GasPaymentEnforcementPolicyType.OnChainFeeQuoting),
+    gasFraction: z
+      .string()
+      .regex(/^\d+ ?\/ ?[1-9]\d*$/)
+      .optional(),
+  }),
+]);
 export type GasPaymentEnforcement = z.infer<typeof GasPaymentEnforcementSchema>;
 
 export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
@@ -220,7 +223,7 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     'Comma seperated list of chains to relay messages between.',
   ),
   gasPaymentEnforcement: z
-    .union([GasPaymentEnforcementSchema, z.string().nonempty()])
+    .union([z.array(GasPaymentEnforcementSchema), z.string().nonempty()])
     .optional()
     .describe(
       'The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.',

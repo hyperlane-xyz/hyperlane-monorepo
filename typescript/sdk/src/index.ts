@@ -125,7 +125,12 @@ export {
   buildAgentConfig,
   RpcConsensusType,
   ValidatorConfig,
+  GasPaymentEnforcement,
+  RelayerConfig,
+  GasPaymentEnforcementPolicyType,
+  ScraperConfig,
 } from './metadata/agentConfig';
+export { MatchingList } from './metadata/matchingList';
 export {
   ChainMetadata,
   ChainMetadataSchema,
