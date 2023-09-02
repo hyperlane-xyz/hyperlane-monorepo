@@ -1,9 +1,9 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
-
 import {
   GasPaymentEnforcementPolicyType,
-  RootAgentConfig,
-} from '../../../src/config';
+  RpcConsensusType,
+} from '@hyperlane-xyz/sdk';
+
+import { RootAgentConfig } from '../../../src/config';
 import { ALL_KEY_ROLES } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 

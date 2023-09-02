@@ -1,4 +1,5 @@
 import {
+  GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
   hyperlaneEnvironments,
@@ -6,7 +7,6 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import {
-  GasPaymentEnforcementPolicyType,
   RootAgentConfig,
   allAgentChainNames,
   routerMatchingList,
@@ -144,7 +144,7 @@ const releaseCandidate: RootAgentConfig = {
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1
     // fees which leads to wildly off predictions.
-    skipTransactionGasLimitFor: [chainMetadata.arbitrum.chainId],
+    skipTransactionGasLimitFor: [chainMetadata.arbitrum.name],
   },
   validators: {
     docker: {
