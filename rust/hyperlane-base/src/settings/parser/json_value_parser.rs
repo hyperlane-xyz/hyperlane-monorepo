@@ -4,6 +4,7 @@ use convert_case::{Case, Casing};
 use derive_new::new;
 use eyre::{eyre, Context};
 use hyperlane_core::{config::*, utils::hex_or_base58_to_h256, H256, U256};
+use itertools::Itertools;
 use serde::de::{DeserializeOwned, StdError};
 use serde_json::Value;
 
@@ -67,11 +68,35 @@ impl<'v> ValueParser<'v> {
     /// Create an iterator over all array elements.
     pub fn into_array_iter(self) -> ConfigResult<impl Iterator<Item = ValueParser<'v>>> {
         let cwp = self.cwp.clone();
+
         match self.val {
             Value::Array(arr) => Ok(arr.iter().enumerate().map(move |(i, v)| Self {
                 val: v,
                 cwp: &cwp + i.to_string(),
-            })),
+            }))
+            .map(|itr| Box::new(itr) as Box<dyn Iterator<Item = ValueParser<'v>>>),
+            Value::Object(obj) => obj
+                .iter()
+                .map(|(k, v)| k.parse().map(|k| (k, v)))
+                .collect::<Result<Vec<(usize, &'v Value)>, _>>()
+                .context("Expected array or array-like object where all keys are indexes; some keys are not indexes")
+                .map(|arr| arr.into_iter().sorted_unstable_by_key(|(k, _)| *k))
+                .and_then(|itr| {
+                    itr.clone()
+                        .enumerate()
+                        .all(|(expected, (actual, _))| expected == actual)
+                        .then_some(itr)
+                        .ok_or(eyre!(
+                            "Expected array or array-like object where all keys are indexes; some indexes are missing"
+                        ))
+                })
+                .map(|itr| {
+                    itr.map(move |(i, v)| Self {
+                        val: v,
+                        cwp: &cwp + i.to_string(),
+                    })
+                })
+                .map(|itr| Box::new(itr) as Box<dyn Iterator<Item = ValueParser<'v>>>),
             _ => Err(eyre!("Expected an array type")),
         }
         .into_config_result(|| self.cwp)
