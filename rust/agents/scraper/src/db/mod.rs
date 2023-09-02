@@ -1,14 +1,10 @@
-use std::ops::Deref;
-
-use eyre::Result;
-use sea_orm::{Database, DbConn};
-use tracing::instrument;
-
 pub use block::*;
 pub use block_cursor::BlockCursor;
-use hyperlane_core::TxnInfo;
+use eyre::Result;
 pub use message::*;
 pub use payment::*;
+use sea_orm::{Database, DbConn};
+use tracing::instrument;
 pub use txn::*;
 
 #[allow(clippy::all)]
@@ -20,14 +16,6 @@ mod block_cursor;
 mod message;
 mod payment;
 mod txn;
-
-impl Deref for StorableTxn {
-    type Target = TxnInfo;
-
-    fn deref(&self) -> &Self::Target {
-        &self.info
-    }
-}
 
 /// Database interface to the message explorer database for the scraper. This is
 /// focused on writing data to the database.

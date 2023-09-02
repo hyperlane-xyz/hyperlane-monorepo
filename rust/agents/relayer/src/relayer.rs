@@ -1,35 +1,33 @@
-use std::fmt::{Debug, Formatter};
 use std::{
     collections::{HashMap, HashSet},
+    fmt::{Debug, Formatter},
     sync::Arc,
 };
 
 use async_trait::async_trait;
+use derive_more::AsRef;
 use eyre::Result;
-use hyperlane_base::{MessageContractSync, WatermarkContractSync};
-use tokio::sync::mpsc::UnboundedSender;
+use hyperlane_base::{
+    db::{HyperlaneRocksDB, DB},
+    run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, MessageContractSync,
+    WatermarkContractSync,
+};
+use hyperlane_core::{HyperlaneDomain, InterchainGasPayment, U256};
 use tokio::{
     sync::{
-        mpsc::{self, UnboundedReceiver},
+        mpsc::{self, UnboundedReceiver, UnboundedSender},
         RwLock,
     },
     task::JoinHandle,
 };
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{
-    db::{HyperlaneRocksDB, DB},
-    run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-};
-use hyperlane_core::{HyperlaneDomain, InterchainGasPayment, U256};
-
-use crate::msg::pending_message::MessageSubmissionMetrics;
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
     msg::{
         gas_payment::GasPaymentEnforcer,
         metadata::BaseMetadataBuilder,
-        pending_message::MessageContext,
+        pending_message::{MessageContext, MessageSubmissionMetrics},
         pending_operation::DynPendingOperation,
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
@@ -44,9 +42,11 @@ struct ContextKey {
 }
 
 /// A relayer agent
+#[derive(AsRef)]
 pub struct Relayer {
     origin_chains: HashSet<HyperlaneDomain>,
     destination_chains: HashSet<HyperlaneDomain>,
+    #[as_ref]
     core: HyperlaneAgentCore,
     message_syncs: HashMap<HyperlaneDomain, Arc<MessageContractSync>>,
     interchain_gas_payment_syncs:
@@ -76,12 +76,6 @@ impl Debug for Relayer {
             self.skip_transaction_gas_limit_for,
             self.allow_local_checkpoint_syncers
         )
-    }
-}
-
-impl AsRef<HyperlaneAgentCore> for Relayer {
-    fn as_ref(&self) -> &HyperlaneAgentCore {
-        &self.core
     }
 }
 
@@ -266,10 +260,10 @@ impl Relayer {
         &self,
         origin: &HyperlaneDomain,
     ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
-        let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
+        let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
         let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings.chunk_size)
+            .forward_backward_message_sync_cursor(index_settings)
             .await;
         tokio::spawn(async move {
             contract_sync
@@ -284,7 +278,7 @@ impl Relayer {
         &self,
         origin: &HyperlaneDomain,
     ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
-        let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
+        let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self
             .interchain_gas_payment_syncs
             .get(origin)

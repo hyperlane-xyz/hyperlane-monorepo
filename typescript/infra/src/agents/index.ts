@@ -3,9 +3,9 @@ import fs from 'fs';
 import {
   AgentConnectionType,
   ChainName,
-  ProtocolType,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import {
@@ -19,7 +19,7 @@ import {
   ScraperConfigHelper,
   ValidatorConfigHelper,
 } from '../config';
-import { Role } from '../roles';
+import { AgentRole, Role } from '../roles';
 import { fetchGCPSecret } from '../utils/gcloud';
 import {
   HelmCommand,
@@ -37,7 +37,7 @@ if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
   );
 
 export abstract class AgentHelmManager {
-  abstract readonly role: Role;
+  abstract readonly role: AgentRole;
   abstract readonly helmReleaseName: string;
   readonly helmChartPath: string = HELM_CHART_PATH;
   protected abstract readonly config: AgentConfigHelper;
@@ -119,7 +119,7 @@ export abstract class AgentHelmManager {
         aws: !!this.config.aws,
         chains: this.config.environmentChainNames.map((name) => ({
           name,
-          disabled: !this.config.contextChainNames.includes(name),
+          disabled: !this.config.contextChainNames[this.role].includes(name),
           connection: { type: this.connectionType(name) },
         })),
       },
@@ -240,12 +240,10 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
   constructor(config: RootAgentConfig, chainName: ChainName) {
     super(chainName);
     this.config = new ValidatorConfigHelper(config, chainName);
-    if (!this.config.contextChainNames.includes(chainName))
+    if (!this.config.contextChainNames[this.role].includes(chainName))
       throw Error('Context does not support chain');
     if (!this.config.environmentChainNames.includes(chainName))
       throw Error('Environment does not support chain');
-    if (this.context != Contexts.Hyperlane)
-      throw Error('Context does not support validator');
   }
 
   get length(): number {
@@ -258,6 +256,13 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
       enabled: true,
       configs: await this.config.buildConfig(),
     };
+
+    // The name of the helm release for agents is `hyperlane-agent`.
+    // This causes the name of the S3 bucket to exceed the 63 character limit in helm.
+    // To work around this, we shorten the name of the helm release to `agent`
+    if (this.config.context !== Contexts.Hyperlane) {
+      helmValues.nameOverride = 'agent';
+    }
 
     return helmValues;
   }

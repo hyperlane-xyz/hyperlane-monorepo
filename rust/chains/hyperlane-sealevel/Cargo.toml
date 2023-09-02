@@ -1,0 +1,35 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-sealevel"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+borsh.workspace = true
+derive-new.workspace = true
+jsonrpc-core.workspace = true
+num-traits.workspace = true
+serde.workspace = true
+solana-account-decoder.workspace = true
+solana-client.workspace = true
+solana-sdk.workspace = true
+solana-transaction-status.workspace = true
+thiserror.workspace = true
+tracing-futures.workspace = true
+tracing.workspace = true
+url.workspace = true
+
+account-utils = { path = "../../sealevel/libraries/account-utils" }
+hyperlane-core = { path = "../../hyperlane-core", features = ["solana"] }
+hyperlane-sealevel-interchain-security-module-interface = { path = "../../sealevel/libraries/interchain-security-module-interface" }
+hyperlane-sealevel-mailbox = { path = "../../sealevel/programs/mailbox", features = ["no-entrypoint"] }
+hyperlane-sealevel-igp = { path = "../../sealevel/programs/hyperlane-sealevel-igp", features = ["no-entrypoint"] }
+hyperlane-sealevel-message-recipient-interface = { path = "../../sealevel/libraries/message-recipient-interface" }
+hyperlane-sealevel-multisig-ism-message-id = { path = "../../sealevel/programs/ism/multisig-ism-message-id", features = ["no-entrypoint"] }
+hyperlane-sealevel-validator-announce = { path = "../../sealevel/programs/validator-announce", features = ["no-entrypoint"] }
+multisig-ism = { path = "../../sealevel/libraries/multisig-ism" }
+serializable-account-meta = { path = "../../sealevel/libraries/serializable-account-meta" }

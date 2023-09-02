@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use eyre::Result;
 use paste::paste;
 use tokio::time::sleep;
-use tracing::{debug, trace};
+use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneMessageStore,
@@ -26,7 +26,7 @@ const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_"
 const MESSAGE: &str = "message_";
 const NONCE_PROCESSED: &str = "nonce_processed_";
 const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_v2_";
-const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v2_";
+const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
 const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
     "pending_message_retry_count_for_message_id_";
@@ -215,6 +215,7 @@ impl HyperlaneRocksDB {
 #[async_trait]
 impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     /// Store a list of dispatched messages and their associated metadata.
+    #[instrument(skip_all)]
     async fn store_logs(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<u32> {
         let mut stored = 0;
         for (message, meta) in messages {
@@ -233,6 +234,7 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
 #[async_trait]
 impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
     /// Store a list of interchain gas payments and their associated metadata.
+    #[instrument(skip_all)]
     async fn store_logs(&self, payments: &[(InterchainGasPayment, LogMeta)]) -> Result<u32> {
         let mut new = 0;
         for (payment, meta) in payments {

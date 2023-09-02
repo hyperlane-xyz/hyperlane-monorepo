@@ -1,0 +1,14 @@
+{
+  "solanadevnet1": {
+    "hex": "0x473ed81cddb7b04b28a7f8979103f24ac49993a762ca7c57461b73514e32c744",
+    "base58": "5o7XXLy8N67cgCjSt4zKNnzAbDRpkVruu8BbpPNehBrK"
+  },
+  "fuji": {
+    "hex": "0x000000000000000000000000b3af04fc8b461138eca4f5fc1d5955bbe6d20fca",
+    "base58": "1111111111113WC5zqqJzmcsiZZcai6ZxbvW84do"
+  },
+  "solanadevnet": {
+    "hex": "0x87e070f2a76509a2932562468a93067e88f7916be48b44fb52786b120466bedd",
+    "base58": "A9QY6ZQ3t1T3Pk58gTx1vsSeH2B2AywwK2V7SpH2w2cC"
+  }
+}

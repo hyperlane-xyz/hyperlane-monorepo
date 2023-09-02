@@ -1,6 +1,6 @@
 import { utils as ethersUtils } from 'ethers';
 
-import { types, utils } from '@hyperlane-xyz/utils';
+import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
@@ -47,62 +47,16 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     await this.checkMailbox(chain);
     await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
-    await this.checkTimelockController(chain);
-  }
-
-  async checkTimelockController(chain: ChainName): Promise<void> {
-    const config = this.configMap[chain];
-    if (config.upgradeTimelockDelay) {
-      const timelockController =
-        this.app.getContracts(chain).timelockController;
-      if (!timelockController) {
-        // do not check if not deployed
-        return;
-      }
-
-      const minDelay = (await timelockController.getMinDelay()).toNumber();
-
-      if (minDelay !== config.upgradeTimelockDelay) {
-        this.addViolation({
-          type: CoreViolationType.TimelockController,
-          chain,
-          actual: minDelay,
-          expected: config.upgradeTimelockDelay,
-          contract: timelockController,
-        });
-      }
-
-      const roles = {
-        executor: await timelockController.EXECUTOR_ROLE(),
-        proposer: await timelockController.PROPOSER_ROLE(),
-        canceller: await timelockController.CANCELLER_ROLE(),
-        // see https://docs.openzeppelin.com/contracts/4.x/api/governance#TimelockController-constructor-uint256-address---address---address-
-        // admin: await timelockController.TIMELOCK_ADMIN_ROLE(),
-      };
-
-      for (const [label, role] of Object.entries(roles)) {
-        const ownerHasRole = await timelockController.hasRole(
-          role,
-          config.owner,
-        );
-        if (!ownerHasRole) {
-          this.addViolation({
-            type: `${CoreViolationType.TimelockController} owner ${config.owner} missing role ${label}`,
-            chain,
-            actual: false,
-            expected: true,
-            contract: timelockController,
-          });
-        }
-      }
+    if (config.upgrade) {
+      await this.checkUpgrade(chain, config.upgrade);
     }
   }
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
 
-    let ownableOverrides: Record<string, types.Address> = {};
-    if (config.upgradeTimelockDelay) {
+    let ownableOverrides: Record<string, Address> = {};
+    if (config.upgrade) {
       const timelockController =
         this.app.getAddresses(chain).timelockController;
       ownableOverrides = {
@@ -116,7 +70,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const contracts = this.app.getContracts(chain);
     const mailbox = contracts.mailbox;
     const localDomain = await mailbox.localDomain();
-    utils.assert(localDomain === this.multiProvider.getDomainId(chain));
+    assert(localDomain === this.multiProvider.getDomainId(chain));
 
     const actualIsm = await mailbox.defaultIsm();
 
@@ -201,7 +155,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       await validatorAnnounce.getAnnouncedValidators();
     [...validators].forEach((validator) => {
       const matches = announcedValidators.filter((x) =>
-        utils.eqAddress(x, validator),
+        eqAddress(x, validator),
       );
       if (matches.length == 0) {
         const violation: ValidatorAnnounceViolation = {

@@ -2,7 +2,6 @@ use std::collections::{hash_map::Entry, HashMap};
 use std::sync::Arc;
 
 use derive_new::new;
-use ethers::prelude::Address;
 use eyre::Result;
 use tracing::{debug, instrument, trace};
 
@@ -18,7 +17,7 @@ use crate::CheckpointSyncer;
 #[derive(Clone, Debug, new)]
 pub struct MultisigCheckpointSyncer {
     /// The checkpoint syncer for each valid validator signer address
-    checkpoint_syncers: HashMap<Address, Arc<dyn CheckpointSyncer>>,
+    checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>>,
 }
 
 impl MultisigCheckpointSyncer {

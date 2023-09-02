@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "relayer"
 documentation.workspace = true
@@ -11,13 +13,17 @@ version.workspace = true
 async-trait.workspace = true
 config.workspace = true
 derive-new.workspace = true
+derive_more.workspace = true
 enum_dispatch.workspace = true
 ethers-contract.workspace = true
 ethers.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
 itertools.workspace = true
+num-derive.workspace = true
+num-traits.workspace = true
 prometheus.workspace = true
+regex.workspace = true
 reqwest = { workspace = true, features = ["json"] }
 serde.workspace = true
 serde_json.workspace = true
@@ -25,18 +31,14 @@ strum.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing-futures.workspace = true
-tracing-subscriber.workspace = true
 tracing.workspace = true
 
-hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
-num-derive.workspace = true
-num-traits.workspace = true
-derive_more.workspace = true
 
 [dev-dependencies]
-tokio-test = "0.4"
+tokio-test.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 

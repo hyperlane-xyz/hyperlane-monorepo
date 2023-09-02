@@ -1,3 +1,5 @@
+use std::ops::RangeInclusive;
+
 use async_trait::async_trait;
 
 use hyperlane_core::{
@@ -35,8 +37,7 @@ pub struct FuelInterchainGasPaymasterIndexer {}
 impl Indexer<InterchainGasPayment> for FuelInterchainGasPaymasterIndexer {
     async fn fetch_logs(
         &self,
-        from_block: u32,
-        to_block: u32,
+        range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
         todo!()
     }

@@ -6,7 +6,9 @@ use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 use tracing::warn;
 
-use hyperlane_core::{HyperlaneSigner, HyperlaneSignerError, H160, H256};
+use hyperlane_core::{
+    HyperlaneSigner, HyperlaneSignerError, Signature as HyperlaneSignature, H160, H256,
+};
 
 use crate::Signers;
 
@@ -50,11 +52,14 @@ impl HyperlaneSigner for SingletonSignerHandle {
         self.address
     }
 
-    async fn sign_hash(&self, hash: &H256) -> Result<Signature, HyperlaneSignerError> {
+    async fn sign_hash(&self, hash: &H256) -> Result<HyperlaneSignature, HyperlaneSignerError> {
         let (tx, rx) = oneshot::channel();
         let task = (*hash, tx);
         self.tx.send(task).map_err(SingletonSignerError::from)?;
-        rx.await.map_err(SingletonSignerError::from)?
+        match rx.await {
+            Ok(res) => res.map(Into::into),
+            Err(err) => Err(SingletonSignerError::from(err).into()),
+        }
     }
 }
 
@@ -94,7 +99,7 @@ impl SingletonSigner {
                     }
                 }
             };
-            if tx.send(res).is_err() {
+            if tx.send(res.map(Into::into)).is_err() {
                 warn!(
                     "Failed to send signature back to the signer handle because the channel was closed"
                 );

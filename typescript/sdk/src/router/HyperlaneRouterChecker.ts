@@ -1,8 +1,8 @@
 import { ethers } from 'ethers';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert, eqAddress } from '@hyperlane-xyz/utils';
 
-import { HyperlaneFactories } from '../contracts';
+import { HyperlaneFactories } from '../contracts/types';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { ChainName } from '../types';
 
@@ -20,15 +20,10 @@ export class HyperlaneRouterChecker<
   App extends RouterApp<Factories>,
   Config extends RouterConfig,
 > extends HyperlaneAppChecker<App, Config> {
-  checkOwnership(chain: ChainName): Promise<void> {
-    const owner = this.configMap[chain].owner;
-    return super.checkOwnership(chain, owner);
-  }
-
   async checkChain(chain: ChainName): Promise<void> {
     await this.checkHyperlaneConnectionClient(chain);
     await this.checkEnrolledRouters(chain);
-    await this.checkOwnership(chain);
+    await super.checkOwnership(chain, this.configMap[chain].owner);
   }
 
   async checkHyperlaneConnectionClient(chain: ChainName): Promise<void> {
@@ -39,9 +34,15 @@ export class HyperlaneRouterChecker<
       violationType: ConnectionClientViolationType,
     ) => {
       const actual = await router[property]();
+      // TODO: check for IsmConfig
+      const value = this.configMap[chain][property];
+      if (value && typeof value === 'object')
+        throw new Error('ISM as object unimplemented');
       const expected =
-        this.configMap[chain][property] ?? ethers.constants.AddressZero;
-      if (!utils.eqAddress(actual, expected)) {
+        value && typeof value === 'string'
+          ? value
+          : ethers.constants.AddressZero;
+      if (!eqAddress(actual, expected)) {
         const violation: ConnectionClientViolation = {
           chain,
           type: violationType,
@@ -77,7 +78,7 @@ export class HyperlaneRouterChecker<
         );
         const remoteDomainId = this.multiProvider.getDomainId(remoteChain);
         const address = await router.routers(remoteDomainId);
-        utils.assert(address === utils.addressToBytes32(remoteRouter.address));
+        assert(address === addressToBytes32(remoteRouter.address));
       }),
     );
   }

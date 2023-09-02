@@ -2,11 +2,11 @@ import path from 'path';
 
 import {
   LiquidityLayerApp,
+  LiquidityLayerConfig,
   attachContractsMap,
   liquidityLayerFactories,
-  objFilter,
 } from '@hyperlane-xyz/sdk';
-import { LiquidityLayerConfig } from '@hyperlane-xyz/sdk/dist/middleware/liquidity-layer/LiquidityLayerRouterDeployer';
+import { objFilter } from '@hyperlane-xyz/utils';
 
 import { readJSON, sleep } from '../../src/utils/utils';
 import {

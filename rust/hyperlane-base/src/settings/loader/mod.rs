@@ -1,25 +1,37 @@
-use std::collections::HashMap;
-use std::env;
-use std::error::Error;
-use std::path::PathBuf;
+//! Load a settings object from the config locations.
 
-use crate::settings::loader::arguments::CommandLineArguments;
-use config::{Config, Environment, File};
+use std::{collections::HashMap, env, error::Error, fmt::Debug, path::PathBuf};
+
+use config::{Config, Environment as DeprecatedEnvironment, File};
+use convert_case::{Case, Casing};
 use eyre::{bail, Context, Result};
-use serde::Deserialize;
+use hyperlane_core::config::*;
+use itertools::Itertools;
+use serde::de::DeserializeOwned;
 
-use crate::settings::RawSettings;
+use crate::settings::loader::deprecated_arguments::DeprecatedCommandLineArguments;
 
 mod arguments;
+mod deprecated_arguments;
+mod environment;
+
+/// Deserialize a settings object from the configs.
+pub fn load_settings<T, R>(name: &str) -> ConfigResult<R>
+where
+    T: DeserializeOwned + Debug,
+    R: FromRawConf<T>,
+{
+    let root_path = ConfigPath::default();
+    let raw =
+        load_settings_object::<T, &str>(name, &[]).into_config_result(|| root_path.clone())?;
+    raw.parse_config(&root_path)
+}
 
 /// Load a settings object from the config locations.
 /// Further documentation can be found in the `settings` module.
-pub(crate) fn load_settings_object<'de, T, S>(
-    agent_prefix: &str,
-    ignore_prefixes: &[S],
-) -> Result<T>
+fn load_settings_object<T, S>(agent_prefix: &str, ignore_prefixes: &[S]) -> Result<T>
 where
-    T: Deserialize<'de> + AsMut<RawSettings>,
+    T: DeserializeOwned,
     S: AsRef<str>,
 {
     // Derive additional prefix from agent name
@@ -77,16 +89,16 @@ where
     let config_deserializer = builder
         // Use a base configuration env variable prefix
         .add_source(
-            Environment::with_prefix("HYP_BASE")
+            DeprecatedEnvironment::with_prefix("HYP_BASE")
                 .separator("_")
                 .source(Some(filtered_env.clone())),
         )
         .add_source(
-            Environment::with_prefix(&prefix)
+            DeprecatedEnvironment::with_prefix(&prefix)
                 .separator("_")
                 .source(Some(filtered_env)),
         )
-        .add_source(CommandLineArguments::default().separator("."))
+        .add_source(DeprecatedCommandLineArguments::default().separator("."))
         .build()?;
 
     let formatted_config = {
@@ -102,26 +114,34 @@ where
         }
     };
 
-    match Config::try_deserialize::<T>(config_deserializer) {
-        Ok(mut cfg) => {
-            cfg.as_mut();
-            Ok(cfg)
+    Config::try_deserialize::<T>(config_deserializer).or_else(|err| {
+        let mut err = if let Some(source_err) = err.source() {
+            let source = format!("Config error source: {source_err}");
+            Err(err).context(source)
+        } else {
+            Err(err.into())
+        };
+
+        for cfg_path in base_config_sources.iter().chain(config_file_paths.iter()) {
+            err = err.with_context(|| format!("Config loaded: {cfg_path}"));
         }
-        Err(err) => {
-            let mut err = if let Some(source_err) = err.source() {
-                let source = format!("Config error source: {source_err}");
-                Err(err).context(source)
-            } else {
-                Err(err.into())
-            };
 
-            for cfg_path in base_config_sources.iter().chain(config_file_paths.iter()) {
-                err = err.with_context(|| format!("Config loaded: {cfg_path}"));
-            }
+        println!("Error during deserialization, showing the config for debugging: {formatted_config}");
+        err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
+    })
+}
 
-            println!("Error during deserialization, showing the config for debugging: {formatted_config}");
-
-            err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
-        }
+/// Load a settings object from the config locations and re-join the components with the standard
+/// `config` crate separator `.`.
+fn split_and_recase_key(sep: &str, case: Option<Case>, key: String) -> String {
+    if let Some(case) = case {
+        // if case is given, replace case of each key component and separate them with `.`
+        key.split(sep).map(|s| s.to_case(case)).join(".")
+    } else if !sep.is_empty() && sep != "." {
+        // Just standardize the separator to `.`
+        key.replace(sep, ".")
+    } else {
+        // no changes needed if there was no separator defined and we are preserving case.
+        key
     }
 }

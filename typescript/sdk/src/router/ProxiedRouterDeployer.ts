@@ -1,14 +1,20 @@
-import { Router } from '@hyperlane-xyz/core';
-import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
+import { constants } from 'ethers';
 
-import { HyperlaneContracts } from '../contracts';
+import {
+  Router,
+  TimelockController,
+  TimelockController__factory,
+} from '@hyperlane-xyz/core';
+import { eqAddress } from '@hyperlane-xyz/utils';
+
+import { HyperlaneContracts } from '../contracts/types';
 import { ChainName } from '../types';
 
 import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
-import { ProxiedFactories, RouterConfig } from './types';
+import { ProxiedFactories, ProxiedRouterConfig } from './types';
 
 export abstract class ProxiedRouterDeployer<
-  Config extends RouterConfig,
+  Config extends ProxiedRouterConfig,
   Factories extends ProxiedFactories,
   RouterKey extends keyof Factories,
 > extends HyperlaneRouterDeployer<Config, Factories> {
@@ -43,6 +49,32 @@ export abstract class ProxiedRouterDeployer<
       [],
     );
 
+    let timelockController: TimelockController;
+    let adminOwner: string;
+    if (config.timelock) {
+      timelockController = await this.deployTimelock(chain, config.timelock);
+      adminOwner = timelockController.address;
+    } else {
+      timelockController = TimelockController__factory.connect(
+        constants.AddressZero,
+        this.multiProvider.getProvider(chain),
+      );
+      adminOwner = config.owner;
+    }
+
+    await super.runIfOwner(chain, proxyAdmin, async () => {
+      this.logger(`Checking ownership of proxy admin to ${adminOwner}`);
+
+      if (!eqAddress(await proxyAdmin.owner(), adminOwner)) {
+        this.logger(`Transferring ownership of proxy admin to ${adminOwner}`);
+        return this.multiProvider.handleTx(
+          chain,
+          proxyAdmin.transferOwnership(adminOwner),
+        );
+      }
+      return;
+    });
+
     const proxiedRouter = await this.deployProxiedContract(
       chain,
       this.routerContractName,
@@ -51,22 +83,10 @@ export abstract class ProxiedRouterDeployer<
       await this.initializeArgs(chain, config),
     );
 
-    await super.runIfOwner(chain, proxyAdmin, async () => {
-      this.logger(`Checking ownership of proxy admin to ${config.owner}`);
-
-      if (!eqAddress(await proxyAdmin.owner(), config.owner)) {
-        this.logger(`Transferring ownership of proxy admin to ${config.owner}`);
-        return this.multiProvider.handleTx(
-          chain,
-          proxyAdmin.transferOwnership(config.owner),
-        );
-      }
-      return;
-    });
-
     return {
       [this.routerContractName]: proxiedRouter,
       proxyAdmin,
+      timelockController,
     } as HyperlaneContracts<Factories>;
   }
 }

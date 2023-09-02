@@ -2,17 +2,17 @@
 
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::prelude::Middleware;
-use tracing::instrument;
-
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, H160, H256,
+    InterchainGasPayment, LogMeta, SequenceIndexer, H160, H256,
 };
+use tracing::instrument;
 
 use crate::contracts::i_interchain_gas_paymaster::{
     IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, IINTERCHAINGASPAYMASTER_ABI,
@@ -36,7 +36,7 @@ pub struct InterchainGasPaymasterIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for InterchainGasPaymasterIndexerBuilder {
-    type Output = Box<dyn Indexer<InterchainGasPayment>>;
+    type Output = Box<dyn SequenceIndexer<InterchainGasPayment>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -87,14 +87,13 @@ where
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
-        from_block: u32,
-        to_block: u32,
+        range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
         let events = self
             .contract
             .gas_payment_filter()
-            .from_block(from_block)
-            .to_block(to_block)
+            .from_block(*range.start())
+            .to_block(*range.end())
             .query_with_meta()
             .await?;
 
@@ -104,8 +103,8 @@ where
                 (
                     InterchainGasPayment {
                         message_id: H256::from(log.message_id),
-                        payment: log.payment,
-                        gas_amount: log.gas_amount,
+                        payment: log.payment.into(),
+                        gas_amount: log.gas_amount.into(),
                     },
                     log_meta.into(),
                 )
@@ -122,6 +121,23 @@ where
             .map_err(ChainCommunicationError::from_other)?
             .as_u32()
             .saturating_sub(self.finality_blocks))
+    }
+}
+
+#[async_trait]
+impl<M> SequenceIndexer<InterchainGasPayment> for EthereumInterchainGasPaymasterIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        // The InterchainGasPaymasterIndexerBuilder must return a `SequenceIndexer` type.
+        // It's fine if only a blanket implementation is provided for EVM chains, since their
+        // indexing only uses the `Index` trait, which is a supertrait of `SequenceIndexer`.
+        // TODO: if `SequenceIndexer` turns out to not depend on `Indexer` at all, then the supertrait
+        // dependency could be removed, even if the builder would still need to return a type that is both
+        // ``SequenceIndexer` and `Indexer`.
+        let tip = self.get_finalized_block_number().await?;
+        Ok((None, tip))
     }
 }
 

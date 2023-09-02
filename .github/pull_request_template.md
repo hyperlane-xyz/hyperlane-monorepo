@@ -18,7 +18,7 @@ Are there any minor or drive-by changes also included?
 
 ### Backward compatibility
 
-<!--  
+<!--
 Are these changes backward compatible? Are there any infrastructure implications, e.g. changes that would prohibit deploying older commits using this infra tooling?
 
 Yes/No

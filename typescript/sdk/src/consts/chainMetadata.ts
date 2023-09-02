@@ -1,8 +1,6 @@
-import {
-  ChainMetadata,
-  ExplorerFamily,
-  ProtocolType,
-} from '../metadata/chainMetadataTypes';
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
+import { ChainMetadata, ExplorerFamily } from '../metadata/chainMetadataTypes';
 import { ChainMap } from '../types';
 
 import { Chains, Mainnets, Testnets } from './chains';
@@ -217,8 +215,7 @@ export const celo: ChainMetadata = {
     reorgPeriod: 0,
     estimateBlockTime: 5,
   },
-  gnosisSafeTransactionServiceUrl:
-    'https://transaction-service.gnosis-safe-staging.celo-networks-dev.org',
+  gnosisSafeTransactionServiceUrl: 'https://safe-transaction-celo.safe.global/',
 };
 
 export const ethereum: ChainMetadata = {
@@ -554,6 +551,53 @@ export const gnosis: ChainMetadata = {
     'https://safe-transaction-gnosis-chain.safe.global/',
 };
 
+// Testnet for Nautilus
+export const proteustestnet: ChainMetadata = {
+  chainId: 88002,
+  domainId: 88002,
+  name: Chains.proteustestnet,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Proteus Testnet',
+  nativeToken: {
+    name: 'Zebec',
+    symbol: 'ZBC',
+    decimals: 18,
+  },
+  rpcUrls: [
+    {
+      http: 'https://api.proteus.nautchain.xyz/solana',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 1,
+  },
+};
+
+export const nautilus: ChainMetadata = {
+  chainId: 22222,
+  domainId: 22222,
+  name: Chains.nautilus,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Nautilus',
+  nativeToken: {
+    name: 'Zebec',
+    symbol: 'ZBC',
+    decimals: 18,
+  },
+  rpcUrls: [
+    {
+      http: 'https://api.nautilus.nautchain.xyz',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 1,
+  },
+};
+
 /**
  * Metadata for local test chains
  */
@@ -565,7 +609,7 @@ export const test1: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Test 1',
   nativeToken: etherToken,
-  rpcUrls: [{ http: 'http://localhost:8545' }],
+  rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
   blockExplorers: [],
   blocks: {
     confirmations: 1,
@@ -582,7 +626,7 @@ export const test2: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Test 2',
   nativeToken: etherToken,
-  rpcUrls: [{ http: 'http://localhost:8545' }],
+  rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
   blockExplorers: [],
   blocks: {
     confirmations: 1,
@@ -599,7 +643,7 @@ export const test3: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Test 3',
   nativeToken: etherToken,
-  rpcUrls: [{ http: 'http://localhost:8545' }],
+  rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
   blockExplorers: [],
   blocks: {
     confirmations: 1,
@@ -671,24 +715,6 @@ export const solanadevnet: ChainMetadata = {
   isTestnet: true,
 };
 
-export const zbctestnet: ChainMetadata = {
-  chainId: 2053254516,
-  domainId: 2053254516,
-  name: Chains.zbctestnet,
-  protocol: ProtocolType.Sealevel,
-  displayName: 'Zebec Devnet',
-  displayNameShort: 'Zebec Dev',
-  nativeToken: solToken,
-  rpcUrls: [{ http: 'https://api.zebec.eclipsenetwork.xyz:8899' }],
-  blockExplorers: [],
-  blocks: {
-    confirmations: 1,
-    reorgPeriod: 0,
-    estimateBlockTime: 0.4,
-  },
-  isTestnet: true,
-};
-
 /**
  * Collection maps
  *
@@ -714,11 +740,13 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   optimismgoerli,
   polygon,
   gnosis,
+  proteustestnet,
   test1,
   test2,
   test3,
   solanadevnet,
-  zbctestnet,
+  solana,
+  nautilus,
 };
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<

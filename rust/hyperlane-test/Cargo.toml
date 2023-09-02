@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "hyperlane-test"
 documentation.workspace = true
@@ -9,6 +11,6 @@ version.workspace = true
 
 [dependencies]
 async-trait.workspace = true
-mockall = "0.11"
+mockall.workspace = true
 
 hyperlane-core = { path = "../hyperlane-core" }
