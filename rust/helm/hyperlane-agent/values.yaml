@@ -116,6 +116,7 @@ hyperlane:
         cpu: 500m
         memory: 256Mi
     config:
+      relayChains: ''
       multisigCheckpointSyncer:
         checkpointSyncers:
     # -- Specify whether a default signer key is used for all chains in Values.hyperlane.relayerChains list.
@@ -143,6 +144,7 @@ hyperlane:
         cpu: 250m
         memory: 256Mi
     config:
+      chainsToScrape: ''
 
   kathy:
     enabled: false

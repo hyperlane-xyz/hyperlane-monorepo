@@ -80,9 +80,9 @@ FOO: "BAR" format if .format is "config_map", or otherwise
 they will be formatted as spec YAML-friendly environment variables
 */}}
 {{- define "agent-common.config-env-vars" -}}
-{{- range $key, $value := .config }}
-{{- $key_name := printf "%s%s" (default "" $.key_name_prefix) $key }}
-{{- if typeIs "map[string]interface {}" $value }}
+{{- range $key_or_idx, $value := .config }}
+{{- $key_name := printf "%s%v" (default "" $.key_name_prefix) $key_or_idx }}
+{{- if or (typeIs "map[string]interface {}" $value) (typeIs "[]interface {}" $value) }}
 {{- include "agent-common.config-env-vars" (dict "config" $value "format" $.format "key_name_prefix" (printf "%s_" $key_name)) }}
 {{- else }}
 {{- include "agent-common.config-env-var" (dict "key" $key_name "value" $value "format" $.format ) }}
