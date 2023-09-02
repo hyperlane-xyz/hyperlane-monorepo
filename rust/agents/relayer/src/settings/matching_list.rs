@@ -22,8 +22,7 @@ use serde::{
 /// - wildcard "*"
 /// - single value in decimal or hex (must start with `0x`) format
 /// - list of values in decimal or hex format
-#[derive(Debug, Deserialize, Default, Clone)]
-#[serde(transparent)]
+#[derive(Debug, Default, Clone)]
 pub struct MatchingList(Option<Vec<ListElement>>);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -60,6 +59,55 @@ impl<T: Debug> Display for Filter<T> {
                 write!(f, "]")
             }
         }
+    }
+}
+
+struct MatchingListVisitor;
+impl<'de> Visitor<'de> for MatchingListVisitor {
+    type Value = MatchingList;
+
+    fn expecting(&self, fmt: &mut Formatter) -> fmt::Result {
+        write!(fmt, "an optional list of matching rules")
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(MatchingList(None))
+    }
+
+    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let list: Vec<ListElement> = deserializer.deserialize_seq(MatchingListArrayVisitor)?;
+        Ok(if list.is_empty() {
+            // this allows for empty matching lists to be treated as if no matching list was set
+            MatchingList(None)
+        } else {
+            MatchingList(Some(list))
+        })
+    }
+}
+
+struct MatchingListArrayVisitor;
+impl<'de> Visitor<'de> for MatchingListArrayVisitor {
+    type Value = Vec<ListElement>;
+
+    fn expecting(&self, fmt: &mut Formatter) -> fmt::Result {
+        write!(fmt, "a list of matching rules")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let mut rules = seq.size_hint().map(Vec::with_capacity).unwrap_or_default();
+        while let Some(rule) = seq.next_element::<ListElement>()? {
+            rules.push(rule);
+        }
+        Ok(rules)
     }
 }
 
@@ -142,6 +190,15 @@ impl<'de> Visitor<'de> for FilterVisitor<H256> {
             values.push(parse_addr(i)?)
         }
         Ok(Self::Value::Enumerated(values))
+    }
+}
+
+impl<'de> Deserialize<'de> for MatchingList {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        d.deserialize_option(MatchingListVisitor)
     }
 }
 
@@ -374,6 +431,12 @@ mod test {
         assert_eq!(elem.recipient_address, Wildcard);
         assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(elem.sender_address, Wildcard);
+    }
+
+    #[test]
+    fn config_with_empty_list_is_none() {
+        let whitelist: MatchingList = serde_json::from_str(r#"[]"#).unwrap();
+        assert!(whitelist.0.is_none());
     }
 
     #[test]
