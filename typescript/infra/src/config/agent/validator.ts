@@ -43,8 +43,9 @@ export interface ValidatorConfig {
 
 export interface HelmValidatorValues extends HelmStatefulSetValues {
   configs?: Array<
-    // replace some types for helm config
-    Omit<AgentValidatorConfig, keyof AgentConfig | 'chains' | 'validator'> & {
+    // only keep configs specific to the validator agent and then replace
+    // the validator signing key with the version helm needs.
+    Omit<AgentValidatorConfig, keyof AgentConfig | 'validator'> & {
       validator: KeyConfig;
     }
   >;
