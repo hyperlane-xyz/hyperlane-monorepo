@@ -183,7 +183,12 @@ contract InterchainGasPaymaster is
             payable(_refundAddress).sendValue(_overpayment);
         }
 
-        emit GasPayment(_messageId, _gasAmount, _requiredPayment);
+        emit GasPayment(
+            _messageId,
+            _destinationDomain,
+            _gasAmount,
+            _requiredPayment
+        );
     }
 
     /**

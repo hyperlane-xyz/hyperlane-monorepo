@@ -34,6 +34,7 @@ contract InterchainGasPaymasterTest is Test {
 
     event GasPayment(
         bytes32 indexed messageId,
+        uint32 indexed destinationDomain,
         uint256 gasAmount,
         uint256 payment
     );
@@ -176,7 +177,12 @@ contract InterchainGasPaymasterTest is Test {
         uint256 _overpayment = 54321;
 
         vm.expectEmit(true, true, false, true);
-        emit GasPayment(testMessageId, testGasAmount, _quote);
+        emit GasPayment(
+            testMessageId,
+            testDestinationDomain,
+            testGasAmount,
+            _quote
+        );
         igp.payForGas{value: _quote + _overpayment}(
             testMessageId,
             testDestinationDomain,
