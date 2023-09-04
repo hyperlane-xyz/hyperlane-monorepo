@@ -18,22 +18,21 @@ import BigNumber from 'bignumber.js';
 import { deserializeUnchecked, serialize } from 'borsh';
 
 import {
-  HypTokenInstruction,
-  HyperlaneTokenData,
+  SEALEVEL_SPL_NOOP_ADDRESS,
   SealevelAccountDataWrapper,
+  SealevelHypTokenInstruction,
+  SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
-  TransferRemoteInstruction,
-  TransferRemoteSchema,
-  TransferRemoteWrapper,
+  SealevelInstructionWrapper,
+  SealevelTransferRemoteInstruction,
+  SealevelTransferRemoteSchema,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  DomainId,
+  Domain,
   addressToBytes,
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
-
-import { SOL_SPL_NOOP_ADDRESS } from '../consts/values';
 
 import {
   IHypTokenAdapter,
@@ -165,7 +164,7 @@ export abstract class SealevelHypTokenAdapter
     this.warpProgramPubKey = new PublicKey(warpRouteProgramId);
   }
 
-  async getTokenAccountData(): Promise<HyperlaneTokenData> {
+  async getTokenAccountData(): Promise<SealevelHyperlaneTokenData> {
     const tokenPda = this.deriveHypTokenAccount();
     const accountInfo = await this.connection.getAccountInfo(tokenPda);
     if (!accountInfo) throw new Error(`No account info found for ${tokenPda}`);
@@ -174,7 +173,7 @@ export abstract class SealevelHypTokenAdapter
       SealevelAccountDataWrapper,
       accountInfo.data,
     );
-    return wrappedData.data;
+    return wrappedData.data as SealevelHyperlaneTokenData;
   }
 
   override async getMetadata(): Promise<MinimalTokenMetadata> {
@@ -187,19 +186,19 @@ export abstract class SealevelHypTokenAdapter
     };
   }
 
-  async getDomains(): Promise<DomainId[]> {
+  async getDomains(): Promise<Domain[]> {
     const routers = await this.getAllRouters();
     return routers.map((router) => router.domain);
   }
 
-  async getRouterAddress(domain: DomainId): Promise<Buffer> {
+  async getRouterAddress(domain: Domain): Promise<Buffer> {
     const routers = await this.getAllRouters();
     const addr = routers.find((router) => router.domain === domain)?.address;
     if (!addr) throw new Error(`No router found for ${domain}`);
     return addr;
   }
 
-  async getAllRouters(): Promise<Array<{ domain: DomainId; address: Buffer }>> {
+  async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
     const tokenData = await this.getTokenAccountData();
     const domainToPubKey = tokenData.remote_router_pubkeys;
     return Array.from(domainToPubKey.entries()).map(([domain, pubKey]) => ({
@@ -208,7 +207,7 @@ export abstract class SealevelHypTokenAdapter
     }));
   }
 
-  async quoteGasPayment(destination: DomainId): Promise<string> {
+  async quoteGasPayment(destination: Domain): Promise<string> {
     // TODO Solana support
     return '0';
   }
@@ -233,15 +232,15 @@ export abstract class SealevelHypTokenAdapter
       randomWallet.publicKey,
     );
 
-    const value = new TransferRemoteWrapper({
-      instruction: HypTokenInstruction.TransferRemote,
-      data: new TransferRemoteInstruction({
+    const value = new SealevelInstructionWrapper({
+      instruction: SealevelHypTokenInstruction.TransferRemote,
+      data: new SealevelTransferRemoteInstruction({
         destination_domain: destination,
         recipient: addressToBytes(recipient),
         amount_or_id: new BigNumber(weiAmountOrId).toNumber(),
       }),
     });
-    const serializedData = serialize(TransferRemoteSchema, value);
+    const serializedData = serialize(SealevelTransferRemoteSchema, value);
 
     const transferRemoteInstruction = new TransactionInstruction({
       keys,
@@ -277,7 +276,7 @@ export abstract class SealevelHypTokenAdapter
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       // 1.   [executable] The spl_noop program.
       {
-        pubkey: new PublicKey(SOL_SPL_NOOP_ADDRESS),
+        pubkey: new PublicKey(SEALEVEL_SPL_NOOP_ADDRESS),
         isSigner: false,
         isWritable: false,
       },

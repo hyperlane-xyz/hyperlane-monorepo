@@ -1,4 +1,4 @@
-import { Address, DomainId } from '@hyperlane-xyz/utils';
+import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { ERC20Metadata } from '../config';
 
@@ -16,7 +16,7 @@ export interface TransferParams {
 }
 
 export interface TransferRemoteParams extends TransferParams {
-  destination: DomainId;
+  destination: Domain;
   txValue?: string;
 }
 
@@ -30,10 +30,10 @@ export interface ITokenAdapter {
 }
 
 export interface IHypTokenAdapter extends ITokenAdapter {
-  getDomains(): Promise<DomainId[]>;
-  getRouterAddress(domain: DomainId): Promise<Buffer>;
-  getAllRouters(): Promise<Array<{ domain: DomainId; address: Buffer }>>;
-  quoteGasPayment(destination: DomainId): Promise<string>;
+  getDomains(): Promise<Domain[]>;
+  getRouterAddress(domain: Domain): Promise<Buffer>;
+  getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>>;
+  quoteGasPayment(destination: Domain): Promise<string>;
   populateTransferRemoteTx(
     TransferParams: TransferRemoteParams,
   ): unknown | Promise<unknown>;

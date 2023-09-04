@@ -254,6 +254,18 @@ export {
   proxiedFactories,
 } from './router/types';
 export {
+  SealevelAccountDataWrapper,
+  SealevelInstructionWrapper,
+  getSealevelAccountDataSchema,
+} from './sealevel/serialization';
+export {
+  SealevelHypTokenInstruction,
+  SealevelHyperlaneTokenData,
+  SealevelHyperlaneTokenDataSchema,
+  SealevelTransferRemoteInstruction,
+  SealevelTransferRemoteSchema,
+} from './sealevel/tokenSerialization';
+export {
   createRouterConfigMap,
   deployTestIgpsAndGetRouterConfig,
 } from './test/testUtils';
@@ -267,16 +279,4 @@ export {
 export { MultiGeneric } from './utils/MultiGeneric';
 export { filterByChains } from './utils/filter';
 export { multisigIsmVerificationCost } from './utils/ism';
-export {
-  SealevelAccountDataWrapper,
-  SealevelInstructionWrapper,
-  getSealevelAccountDataSchema,
-} from './utils/sealevel';
-export {
-  SealevelHypTokenInstruction,
-  SealevelHyperlaneTokenData,
-  SealevelHyperlaneTokenDataSchema,
-  SealevelTransferRemoteInstruction,
-  SealevelTransferRemoteSchema,
-} from './utils/sealevel/tokenSerialization';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';

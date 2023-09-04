@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { PublicKey } from '@solana/web3.js';
 
 import { Domain } from '@hyperlane-xyz/utils';
@@ -6,7 +7,11 @@ import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
   getSealevelAccountDataSchema,
-} from '../sealevel';
+} from './serialization';
+
+// TODO move this code to the token package
+// after we've defined more accurate data schemas for Routers.
+// Currently the RouterAdapters use this schema as a placeholder
 
 /**
  * Hyperlane Token Borsh Schema
@@ -35,10 +40,12 @@ export class SealevelHyperlaneTokenData {
   interchain_security_module_pubkey?: PublicKey;
   // The interchain gas paymaster
   interchain_gas_paymaster?: {
-    address: Uint8Array;
+    program_id: Uint8Array;
     type: number;
+    account: Uint8Array;
   };
   interchain_gas_paymaster_pubkey?: PublicKey;
+  interchain_gas_paymaster_account_pubkey?: PublicKey;
   // Gas amounts by destination
   destination_gas?: Map<Domain, bigint>;
   /// Remote routers.
@@ -53,8 +60,12 @@ export class SealevelHyperlaneTokenData {
       ? new PublicKey(this.interchain_security_module)
       : undefined;
     this.interchain_gas_paymaster_pubkey = this.interchain_gas_paymaster
-      ?.address
-      ? new PublicKey(this.interchain_gas_paymaster.address)
+      ?.program_id
+      ? new PublicKey(this.interchain_gas_paymaster.program_id)
+      : undefined;
+    this.interchain_gas_paymaster_account_pubkey = this.interchain_gas_paymaster
+      ?.account
+      ? new PublicKey(this.interchain_gas_paymaster.account)
       : undefined;
     this.remote_router_pubkeys = new Map<number, PublicKey>();
     if (this.remote_routers) {
@@ -90,8 +101,9 @@ export const SealevelHyperlaneTokenDataSchema = new Map<any, any>([
             type: {
               kind: 'struct',
               fields: [
-                ['address', [32]],
+                ['program_id', [32]],
                 ['type', 'u8'],
+                ['account', [32]],
               ],
             },
           },
@@ -131,7 +143,7 @@ export class SealevelTransferRemoteInstruction {
 
 export const SealevelTransferRemoteSchema = new Map<any, any>([
   [
-    SealevelInstructionWrapper<SealevelTransferRemoteInstruction>,
+    SealevelInstructionWrapper,
     {
       kind: 'struct',
       fields: [

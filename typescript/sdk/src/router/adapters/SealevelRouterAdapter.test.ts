@@ -1,11 +1,11 @@
 import { deserializeUnchecked } from 'borsh';
 import { expect } from 'chai';
 
-import { SealevelAccountDataWrapper } from '../../utils/sealevel';
+import { SealevelAccountDataWrapper } from '../../sealevel/serialization';
 import {
   SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
-} from '../../utils/sealevel/tokenSerialization';
+} from '../../sealevel/tokenSerialization';
 
 // Copied from the warp token router program on Solana devnet
 const RAW_ACCOUNT_INFO =

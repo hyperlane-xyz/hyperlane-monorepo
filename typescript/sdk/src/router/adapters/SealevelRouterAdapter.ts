@@ -5,12 +5,12 @@ import { deserializeUnchecked } from 'borsh';
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
-import { ChainName } from '../../types';
-import { SealevelAccountDataWrapper } from '../../utils/sealevel';
+import { SealevelAccountDataWrapper } from '../../sealevel/serialization';
 import {
   SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
-} from '../../utils/sealevel/tokenSerialization';
+} from '../../sealevel/tokenSerialization';
+import { ChainName } from '../../types';
 import { RouterAddress } from '../types';
 
 import { IGasRouterAdapter, IRouterAdapter } from './types';
