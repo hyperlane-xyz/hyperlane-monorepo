@@ -150,22 +150,5 @@
     "interchainAccountRouter": "0x9cA4A31af0f3a8fe2806599467912809D3e17ECB",
     "merkleRootMultisigIsmFactory": "0xA9999B4abC373FF2BB95B8725FABC96CA883d811",
     "messageIdMultisigIsmFactory": "0xCCC126d96efcc342BF2781A7d224D3AB1F25B19C"
-  },
-  "solanadevnet": {
-    "storageGasOracle": "",
-    "validatorAnnounce": "",
-    "proxyAdmin": "",
-    "mailbox": "4v25Dz9RccqUrTzmfHzJMsjd1iVoNrWzeJ4o6GYuJrVn",
-    "interchainGasPaymaster": "",
-    "defaultIsmInterchainGasPaymaster": "",
-    "multisigIsm": "",
-    "testRecipient": "",
-    "interchainAccountIsm": "",
-    "aggregationIsmFactory": "",
-    "routingIsmFactory": "",
-    "interchainQueryRouter": "",
-    "interchainAccountRouter": "",
-    "merkleRootMultisigIsmFactory": "",
-    "messageIdMultisigIsmFactory": ""
   }
 }
