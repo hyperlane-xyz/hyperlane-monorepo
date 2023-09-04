@@ -23,7 +23,7 @@ use account_utils::DiscriminatorEncode;
 use hyperlane_core::{Encode, HyperlaneMessage, H160, H256};
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_igp::{
-    accounts::{InterchainGasPaymasterType, OverheadIgpAccount},
+    accounts::{IgpAccount, InterchainGasPaymasterType, OverheadIgpAccount},
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
 };
 use hyperlane_sealevel_mailbox::{
@@ -333,12 +333,25 @@ struct IgpCmd {
 #[derive(Subcommand)]
 enum IgpSubCmd {
     PayForGas(PayForGasArgs),
+    GetDomainData(GetDomainDataArgs),
 }
 
 #[derive(Args)]
 struct PayForGasArgs {
     program_id: Pubkey,
     message_id: String,
+}
+
+#[derive(Args)]
+pub(crate) struct GetDomainDataArgs {
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+    #[arg(long)]
+    chain_name: String,
+    #[arg(long)]
+    remote_domain: u32,
 }
 
 #[derive(Args)]
@@ -1159,6 +1172,32 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
             println!(
                 "Made a payment for message {} with gas payment data account {}",
                 payment_details.message_id, gas_payment_data_account
+            );
+        }
+        IgpSubCmd::GetDomainData(domain_data_args) => {
+            let core_program_ids = read_core_program_ids(
+                &domain_data_args.environments_dir,
+                &domain_data_args.environment,
+                &domain_data_args.chain_name,
+            );
+            let (igp_account, _igp_account_bump) = Pubkey::find_program_address(
+                hyperlane_sealevel_igp::igp_pda_seeds!(H256::zero()),
+                &core_program_ids.igp_account,
+            );
+            let igp_account = ctx
+                .client
+                .get_account_with_commitment(&igp_account, ctx.commitment)
+                .unwrap()
+                .value
+                .unwrap();
+
+            let igp_account = IgpAccount::fetch(&mut &igp_account.data[..])
+                .unwrap()
+                .into_inner();
+
+            println!(
+                "IGP account gas oracle: {:#?}",
+                igp_account.gas_oracles.get(&domain_data_args.remote_domain)
             );
         }
     }
