@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 use std::num::NonZeroU64;
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -14,10 +15,10 @@ use tracing::instrument;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::{
-    utils::fmt_bytes, BlockRange, ChainCommunicationError, ChainResult, Checkpoint,
-    ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProtocolError, HyperlaneProvider, IndexRange, Indexer, LogMeta,
-    Mailbox, MessageIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
+    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
+    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage,
+    SequenceIndexer, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
@@ -38,13 +39,13 @@ where
     }
 }
 
-pub struct MessageIndexerBuilder {
+pub struct SequenceIndexerBuilder {
     pub finality_blocks: u32,
 }
 
 #[async_trait]
-impl BuildableWithProvider for MessageIndexerBuilder {
-    type Output = Box<dyn MessageIndexer>;
+impl BuildableWithProvider for SequenceIndexerBuilder {
+    type Output = Box<dyn SequenceIndexer<HyperlaneMessage>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -65,7 +66,7 @@ pub struct DeliveryIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for DeliveryIndexerBuilder {
-    type Output = Box<dyn Indexer<H256>>;
+    type Output = Box<dyn SequenceIndexer<H256>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -130,13 +131,10 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let BlockRange(range) = range else {
-            return Err(ChainCommunicationError::from_other_str(
-                "EthereumMailboxIndexer only supports block-based indexing",
-            ))
-        };
-
+    async fn fetch_logs(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
         let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
             .contract
             .dispatch_filter()
@@ -154,17 +152,17 @@ where
 }
 
 #[async_trait]
-impl<M> MessageIndexer for EthereumMailboxIndexer<M>
+impl<M> SequenceIndexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
-        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         let base_call = self.contract.count();
         let call_at_tip = base_call.block(u64::from(tip));
-        let count = call_at_tip.call().await?;
-        Ok((count, tip))
+        let sequence = call_at_tip.call().await?;
+        Ok((Some(sequence), tip))
     }
 }
 
@@ -178,13 +176,7 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
-        let BlockRange(range) = range else {
-            return Err(ChainCommunicationError::from_other_str(
-                "EthereumMailboxIndexer only supports block-based indexing",
-            ))
-        };
-
+    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
         Ok(self
             .contract
             .process_id_filter()
@@ -197,6 +189,20 @@ where
             .collect())
     }
 }
+
+#[async_trait]
+impl<M> SequenceIndexer<H256> for EthereumMailboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        // A blanket implementation for this trait is fine for the EVM.
+        // TODO: Consider removing `Indexer` as a supertrait of `SequenceIndexer`
+        let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
+        Ok((None, tip))
+    }
+}
+
 pub struct MailboxBuilder {}
 
 #[async_trait]

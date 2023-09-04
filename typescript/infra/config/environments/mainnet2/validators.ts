@@ -138,7 +138,9 @@ export const validatorChainConfig = (
             '0x28aa072634dd41d19471640237852e807bd9901f',
             '0x8a93ba04f4e30064660670cb581d9aa10df78929',
           ],
-          [Contexts.ReleaseCandidate]: [],
+          [Contexts.ReleaseCandidate]: [
+            '0x8cc7dbfb5de339e4133f3af059c927ec383ace38',
+          ],
         },
         'solana',
       ),
@@ -153,7 +155,9 @@ export const validatorChainConfig = (
             '0x12b583ce1623b7de3fc727ccccda24dcab1fe022',
             '0xc8b996a421ff1e203070c709c1af93944c049cc0',
           ],
-          [Contexts.ReleaseCandidate]: [],
+          [Contexts.ReleaseCandidate]: [
+            '0xdaf2e5ddaf2532753dc78bb6fbb0a10204c888c1',
+          ],
         },
         'nautilus',
       ),

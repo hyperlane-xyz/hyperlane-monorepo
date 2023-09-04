@@ -7,9 +7,9 @@ use ethers_prometheus::middleware::{
 use eyre::{eyre, Context, Result};
 use hyperlane_core::{
     AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
-    HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner, IndexMode, Indexer,
-    InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce, H256,
+    HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, HyperlaneSigner, IndexMode,
+    InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox, MultisigIsm,
+    RoutingIsm, SequenceIndexer, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -90,6 +90,11 @@ pub struct IndexSettings {
 }
 
 impl ChainConf {
+    /// Fetch the index settings and index mode, since they are often used together.
+    pub fn index_settings(&self) -> IndexSettings {
+        self.index.clone()
+    }
+
     /// Try to convert the chain settings into an HyperlaneProvider.
     pub async fn build_provider(
         &self,
@@ -139,7 +144,7 @@ impl ChainConf {
     pub async fn build_message_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn MessageIndexer>> {
+    ) -> Result<Box<dyn SequenceIndexer<HyperlaneMessage>>> {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
@@ -149,7 +154,7 @@ impl ChainConf {
                     conf,
                     &locator,
                     metrics,
-                    h_eth::MessageIndexerBuilder {
+                    h_eth::SequenceIndexerBuilder {
                         finality_blocks: self.finality_blocks,
                     },
                 )
@@ -159,7 +164,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
-                Ok(indexer as Box<dyn MessageIndexer>)
+                Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
             }
         }
         .context(ctx)
@@ -169,7 +174,7 @@ impl ChainConf {
     pub async fn build_delivery_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn Indexer<H256>>> {
+    ) -> Result<Box<dyn SequenceIndexer<H256>>> {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
@@ -189,7 +194,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
-                Ok(indexer as Box<dyn Indexer<H256>>)
+                Ok(indexer as Box<dyn SequenceIndexer<H256>>)
             }
         }
         .context(ctx)
@@ -217,9 +222,9 @@ impl ChainConf {
 
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let paymaster = Box::new(h_sealevel::SealevelInterchainGasPaymaster::new(
-                    conf, locator,
-                ));
+                let paymaster = Box::new(
+                    h_sealevel::SealevelInterchainGasPaymaster::new(conf, &locator).await?,
+                );
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
         }
@@ -230,7 +235,7 @@ impl ChainConf {
     pub async fn build_interchain_gas_payment_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn Indexer<InterchainGasPayment>>> {
+    ) -> Result<Box<dyn SequenceIndexer<InterchainGasPayment>>> {
         let ctx = "Building IGP indexer";
         let locator = self.locator(self.addresses.interchain_gas_paymaster);
 
@@ -250,10 +255,10 @@ impl ChainConf {
 
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let indexer = Box::new(h_sealevel::SealevelInterchainGasPaymasterIndexer::new(
-                    conf, locator,
-                ));
-                Ok(indexer as Box<dyn Indexer<InterchainGasPayment>>)
+                let indexer = Box::new(
+                    h_sealevel::SealevelInterchainGasPaymasterIndexer::new(conf, locator).await?,
+                );
+                Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
             }
         }
         .context(ctx)

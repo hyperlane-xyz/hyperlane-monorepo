@@ -12,6 +12,7 @@ version.workspace = true
 [dependencies]
 async-trait.workspace = true
 config.workspace = true
+derive_more.workspace = true
 ethers.workspace = true
 eyre.workspace = true
 futures.workspace = true

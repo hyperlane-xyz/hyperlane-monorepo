@@ -2,7 +2,10 @@
 
 // TODO: Remove this module once we have finished migrating to the new format.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 
 use ethers_prometheus::middleware::PrometheusMiddlewareConf;
 use eyre::{eyre, Context};
@@ -11,8 +14,8 @@ use serde::Deserialize;
 
 use super::envs::*;
 use crate::settings::{
-    chains::IndexSettings, parser::RawSignerConf, trace::TracingConfig, ChainConf,
-    ChainConnectionConf, CoreContractAddresses, Settings, SignerConf,
+    chains::IndexSettings, trace::TracingConfig, ChainConf, ChainConnectionConf,
+    CheckpointSyncerConf, CoreContractAddresses, Settings, SignerConf,
 };
 
 /// Raw base settings.
@@ -20,7 +23,7 @@ use crate::settings::{
 #[serde(rename_all = "camelCase")]
 pub struct DeprecatedRawSettings {
     chains: Option<HashMap<String, DeprecatedRawChainConf>>,
-    defaultsigner: Option<RawSignerConf>,
+    defaultsigner: Option<DeprecatedRawSignerConf>,
     metrics: Option<StrOrInt>,
     tracing: Option<TracingConfig>,
 }
@@ -203,7 +206,7 @@ impl FromRawConf<DeprecatedRawIndexSettings> for IndexSettings {
 pub struct DeprecatedRawChainConf {
     name: Option<String>,
     domain: Option<StrOrInt>,
-    pub(super) signer: Option<RawSignerConf>,
+    pub(super) signer: Option<DeprecatedRawSignerConf>,
     finality_blocks: Option<StrOrInt>,
     addresses: Option<DeprecatedRawCoreContractAddresses>,
     #[serde(flatten, default)]
@@ -290,5 +293,143 @@ impl FromRawConf<DeprecatedRawChainConf> for ChainConf {
             index,
             metrics_conf,
         })
+    }
+}
+
+/// Raw signer types
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DeprecatedRawSignerConf {
+    #[serde(rename = "type")]
+    signer_type: Option<String>,
+    key: Option<String>,
+    id: Option<String>,
+    region: Option<String>,
+}
+
+/// Raw checkpoint syncer types
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum DeprecatedRawCheckpointSyncerConf {
+    /// A local checkpoint syncer
+    LocalStorage {
+        /// Path
+        path: Option<String>,
+    },
+    /// A checkpoint syncer on S3
+    S3 {
+        /// Bucket name
+        bucket: Option<String>,
+        /// S3 Region
+        region: Option<String>,
+        /// Folder name inside bucket - defaults to the root of the bucket
+        folder: Option<String>,
+    },
+    /// Unknown checkpoint syncer type was specified
+    #[serde(other)]
+    Unknown,
+}
+
+impl FromRawConf<DeprecatedRawSignerConf> for SignerConf {
+    fn from_config_filtered(
+        raw: DeprecatedRawSignerConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
+        let key_path = || cwp + "key";
+        let region_path = || cwp + "region";
+
+        match raw.signer_type.as_deref() {
+            Some("hexKey") => Ok(Self::HexKey {
+                key: raw
+                    .key
+                    .ok_or_else(|| eyre!("Missing `key` for HexKey signer"))
+                    .into_config_result(key_path)?
+                    .parse()
+                    .into_config_result(key_path)?,
+            }),
+            Some("aws") => Ok(Self::Aws {
+                id: raw
+                    .id
+                    .ok_or_else(|| eyre!("Missing `id` for Aws signer"))
+                    .into_config_result(|| cwp + "id")?,
+                region: raw
+                    .region
+                    .ok_or_else(|| eyre!("Missing `region` for Aws signer"))
+                    .into_config_result(region_path)?
+                    .parse()
+                    .into_config_result(region_path)?,
+            }),
+            Some(t) => Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| cwp + "type"),
+            None if raw.key.is_some() => Ok(Self::HexKey {
+                key: raw.key.unwrap().parse().into_config_result(key_path)?,
+            }),
+            None if raw.id.is_some() | raw.region.is_some() => Ok(Self::Aws {
+                id: raw
+                    .id
+                    .ok_or_else(|| eyre!("Missing `id` for Aws signer"))
+                    .into_config_result(|| cwp + "id")?,
+                region: raw
+                    .region
+                    .ok_or_else(|| eyre!("Missing `region` for Aws signer"))
+                    .into_config_result(region_path)?
+                    .parse()
+                    .into_config_result(region_path)?,
+            }),
+            None => Ok(Self::Node),
+        }
+    }
+}
+
+impl FromRawConf<DeprecatedRawCheckpointSyncerConf> for CheckpointSyncerConf {
+    fn from_config_filtered(
+        raw: DeprecatedRawCheckpointSyncerConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
+        match raw {
+            DeprecatedRawCheckpointSyncerConf::LocalStorage { path } => {
+                let path: PathBuf = path
+                    .ok_or_else(|| eyre!("Missing `path` for LocalStorage checkpoint syncer"))
+                    .into_config_result(|| cwp + "path")?
+                    .parse()
+                    .into_config_result(|| cwp + "path")?;
+                if !path.exists() {
+                    std::fs::create_dir_all(&path)
+                        .with_context(|| {
+                            format!(
+                                "Failed to create local checkpoint syncer storage directory at {:?}",
+                                path
+                            )
+                        })
+                        .into_config_result(|| cwp + "path")?;
+                } else if !path.is_dir() {
+                    Err(eyre!(
+                        "LocalStorage checkpoint syncer path is not a directory"
+                    ))
+                    .into_config_result(|| cwp + "path")?;
+                }
+                Ok(Self::LocalStorage { path })
+            }
+            DeprecatedRawCheckpointSyncerConf::S3 {
+                bucket,
+                folder,
+                region,
+            } => Ok(Self::S3 {
+                bucket: bucket
+                    .ok_or_else(|| eyre!("Missing `bucket` for S3 checkpoint syncer"))
+                    .into_config_result(|| cwp + "bucket")?,
+                folder,
+                region: region
+                    .ok_or_else(|| eyre!("Missing `region` for S3 checkpoint syncer"))
+                    .into_config_result(|| cwp + "region")?
+                    .parse()
+                    .into_config_result(|| cwp + "region")?,
+            }),
+            DeprecatedRawCheckpointSyncerConf::Unknown => {
+                Err(eyre!("Missing `type` for checkpoint syncer"))
+                    .into_config_result(|| cwp + "type")
+            }
+        }
     }
 }

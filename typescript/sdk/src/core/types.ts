@@ -1,10 +1,10 @@
-import { Mailbox } from '@hyperlane-xyz/core';
-import type { Address } from '@hyperlane-xyz/utils';
+import type { Mailbox } from '@hyperlane-xyz/core';
+import type { Address, ParsedMessage } from '@hyperlane-xyz/utils';
 
-import { UpgradeConfig } from '../deploy/proxy';
+import type { UpgradeConfig } from '../deploy/proxy';
 import type { CheckerViolation } from '../deploy/types';
-import { IsmConfig } from '../ism/types';
-import { ChainName } from '../types';
+import type { IsmConfig } from '../ism/types';
+import type { ChainName } from '../types';
 
 export type CoreConfig = {
   defaultIsm: IsmConfig;
@@ -41,3 +41,9 @@ export interface ValidatorAnnounceViolation extends CheckerViolation {
   actual: boolean;
   expected: boolean;
 }
+
+export type DispatchedMessage = {
+  id: string;
+  message: string;
+  parsed: ParsedMessage;
+};

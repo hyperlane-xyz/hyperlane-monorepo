@@ -367,6 +367,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
             destination_domain: payment.destination_domain,
             message_id: payment.message_id,
             gas_amount,
+            payment: required_payment,
             unique_gas_payment_pubkey: *unique_gas_payment_account_info.key,
             slot: Clock::get()?.slot,
         }
@@ -484,7 +485,7 @@ fn set_igp_beneficiary(
 /// Transfers ownership of an IGP variant.
 ///
 /// Accounts:
-/// 0. [] The IGP or OverheadIGP.
+/// 0. [writeable] The IGP or OverheadIGP.
 /// 1. [signer] The owner of the IGP account.
 fn transfer_igp_variant_ownership<T: account_utils::DiscriminatorPrefixedData + AccessControl>(
     program_id: &Pubkey,

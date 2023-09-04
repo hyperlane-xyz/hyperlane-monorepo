@@ -1,20 +1,24 @@
 use std::collections::HashMap;
 
+use derive_more::Deref;
 use eyre::{eyre, Context, Result};
-use sea_orm::sea_query::OnConflict;
-use sea_orm::{prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, NotSet, QuerySelect};
+use hyperlane_core::{TxnInfo, H256};
+use sea_orm::{
+    prelude::*, sea_query::OnConflict, ActiveValue::*, DeriveColumn, EnumIter, Insert, NotSet,
+    QuerySelect,
+};
 use tracing::{debug, instrument, trace};
 
-use hyperlane_core::{TxnInfo, H256};
-
-use crate::conversions::{address_to_bytes, h256_to_bytes, u256_to_decimal};
-use crate::date_time;
-use crate::db::ScraperDb;
-
 use super::generated::transaction;
+use crate::{
+    conversions::{address_to_bytes, h256_to_bytes, u256_to_decimal},
+    date_time,
+    db::ScraperDb,
+};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deref)]
 pub struct StorableTxn {
+    #[deref]
     pub info: TxnInfo,
     pub block_id: i64,
 }

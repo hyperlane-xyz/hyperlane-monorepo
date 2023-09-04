@@ -5,11 +5,10 @@ import { deserializeUnchecked } from 'borsh';
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import { ChainName } from '../../types';
+import { SealevelAccountDataWrapper } from '../../utils/sealevel';
 import {
-  HyperlaneTokenData,
-  SealevelAccountDataWrapper,
+  SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
 } from '../../utils/sealevel/tokenSerialization';
 import { RouterAddress } from '../types';
@@ -22,12 +21,6 @@ export class SealevelRouterAdapter<
   extends BaseSealevelAdapter<ContractAddrs>
   implements IRouterAdapter<ContractAddrs>
 {
-  constructor(
-    public readonly multiProvider: MultiProtocolProvider<ContractAddrs>,
-  ) {
-    super(multiProvider);
-  }
-
   async interchainSecurityModule(chain: ChainName): Promise<Address> {
     const routerAccountInfo = await this.getRouterAccountInfo(chain);
     if (!routerAccountInfo.interchain_security_module_pubkey)
@@ -72,7 +65,9 @@ export class SealevelRouterAdapter<
 
   // TODO this incorrectly assumes all sealevel routers will have the TokenRouter's data schema
   // This will need to change when other types of routers are supported
-  async getRouterAccountInfo(chain: ChainName): Promise<HyperlaneTokenData> {
+  async getRouterAccountInfo(
+    chain: ChainName,
+  ): Promise<SealevelHyperlaneTokenData> {
     const address = this.multiProvider.getChainMetadata(chain).router;
     const connection = this.multiProvider.getSolanaWeb3Provider(chain);
 
@@ -87,11 +82,11 @@ export class SealevelRouterAdapter<
       SealevelAccountDataWrapper,
       accountInfo.data,
     );
-    return accountData.data;
+    return accountData.data as SealevelHyperlaneTokenData;
   }
 
-  // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/trevor/sealevel-validator-rebase/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#LL49C1-L53C30
-  deriveMessageRecipientPda(routerAddress: Address): PublicKey {
+  // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs
+  deriveMessageRecipientPda(routerAddress: Address | PublicKey): PublicKey {
     const [pda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from('hyperlane_message_recipient'),

@@ -1,20 +1,18 @@
 import { PublicKey } from '@solana/web3.js';
 
-import { DomainId } from '@hyperlane-xyz/utils';
+import { Domain } from '@hyperlane-xyz/utils';
+
+import {
+  SealevelAccountDataWrapper,
+  SealevelInstructionWrapper,
+  getSealevelAccountDataSchema,
+} from '../sealevel';
 
 /**
  * Hyperlane Token Borsh Schema
  */
-export class SealevelAccountDataWrapper {
-  initialized!: boolean;
-  data!: HyperlaneTokenData;
-  constructor(public readonly fields: any) {
-    Object.assign(this, fields);
-  }
-}
-
 // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs#L25C12-L25C26
-export class HyperlaneTokenData {
+export class SealevelHyperlaneTokenData {
   /// The bump seed for this PDA.
   bump!: number;
   /// The address of the mailbox contract.
@@ -42,10 +40,10 @@ export class HyperlaneTokenData {
   };
   interchain_gas_paymaster_pubkey?: PublicKey;
   // Gas amounts by destination
-  destination_gas?: Map<DomainId, bigint>;
+  destination_gas?: Map<Domain, bigint>;
   /// Remote routers.
-  remote_routers?: Map<DomainId, Uint8Array>;
-  remote_router_pubkeys: Map<DomainId, PublicKey>;
+  remote_routers?: Map<Domain, Uint8Array>;
+  remote_router_pubkeys: Map<Domain, PublicKey>;
   constructor(public readonly fields: any) {
     Object.assign(this, fields);
     this.mailbox_pubkey = new PublicKey(this.mailbox);
@@ -70,16 +68,10 @@ export class HyperlaneTokenData {
 export const SealevelHyperlaneTokenDataSchema = new Map<any, any>([
   [
     SealevelAccountDataWrapper,
-    {
-      kind: 'struct',
-      fields: [
-        ['initialized', 'u8'],
-        ['data', HyperlaneTokenData],
-      ],
-    },
+    getSealevelAccountDataSchema(SealevelHyperlaneTokenData),
   ],
   [
-    HyperlaneTokenData,
+    SealevelHyperlaneTokenData,
     {
       kind: 'struct',
       fields: [
@@ -117,7 +109,7 @@ export const SealevelHyperlaneTokenDataSchema = new Map<any, any>([
  */
 
 // Should match Instruction in https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/instruction.rs
-export enum HypTokenInstruction {
+export enum SealevelHypTokenInstruction {
   Init,
   TransferRemote,
   EnrollRemoteRouter,
@@ -126,15 +118,7 @@ export enum HypTokenInstruction {
   TransferOwnership,
 }
 
-export class TransferRemoteWrapper {
-  instruction!: number;
-  data!: TransferRemoteInstruction;
-  constructor(public readonly fields: any) {
-    Object.assign(this, fields);
-  }
-}
-
-export class TransferRemoteInstruction {
+export class SealevelTransferRemoteInstruction {
   destination_domain!: number;
   recipient!: Uint8Array;
   recipient_pubkey!: PublicKey;
@@ -145,19 +129,19 @@ export class TransferRemoteInstruction {
   }
 }
 
-export const TransferRemoteSchema = new Map<any, any>([
+export const SealevelTransferRemoteSchema = new Map<any, any>([
   [
-    TransferRemoteWrapper,
+    SealevelInstructionWrapper<SealevelTransferRemoteInstruction>,
     {
       kind: 'struct',
       fields: [
         ['instruction', 'u8'],
-        ['data', TransferRemoteInstruction],
+        ['data', SealevelTransferRemoteInstruction],
       ],
     },
   ],
   [
-    TransferRemoteInstruction,
+    SealevelTransferRemoteInstruction,
     {
       kind: 'struct',
       fields: [
