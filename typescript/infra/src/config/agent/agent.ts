@@ -86,9 +86,7 @@ export interface AgentContextConfig extends AgentEnvConfig {
 interface AgentRoleConfig {
   docker: DockerConfig;
   chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
-  quorumProvider?: boolean;
-  // TODO(2214): rename to consensusType?
-  connectionType: RpcConsensusType;
+  rpcConsensusType: RpcConsensusType;
   index?: IndexingConfig;
 }
 
@@ -152,14 +150,14 @@ export abstract class AgentConfigHelper<R = unknown>
   implements AgentRoleConfig
 {
   // TODO(2214): rename to consensusType?
-  connectionType: RpcConsensusType;
+  rpcConsensusType: RpcConsensusType;
   docker: DockerConfig;
   chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
   index?: IndexingConfig;
 
   protected constructor(root: RootAgentConfig, agent: AgentRoleConfig) {
     super(root);
-    this.connectionType = agent.connectionType;
+    this.rpcConsensusType = agent.rpcConsensusType;
     this.docker = agent.docker;
     this.chainDockerOverrides = agent.chainDockerOverrides;
     this.index = agent.index;

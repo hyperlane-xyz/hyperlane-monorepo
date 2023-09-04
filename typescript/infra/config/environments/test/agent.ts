@@ -15,7 +15,7 @@ const roleBase = {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
     tag: '8852db3d88e87549269487da6da4ea5d67fdbfed',
   },
-  connectionType: RpcConsensusType.Single,
+  rpcConsensusType: RpcConsensusType.Single,
 } as const;
 
 const hyperlane: RootAgentConfig = {

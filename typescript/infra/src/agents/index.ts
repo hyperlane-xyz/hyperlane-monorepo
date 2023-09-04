@@ -127,7 +127,7 @@ export abstract class AgentHelmManager {
       return RpcConsensusType.Single;
     }
 
-    return this.config.connectionType;
+    return this.config.rpcConsensusType;
   }
 
   async doesAgentReleaseExist() {
