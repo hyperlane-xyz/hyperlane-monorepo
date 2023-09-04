@@ -108,7 +108,6 @@ export const SealevelHyperlaneTokenDataSchema = new Map<any, any>([
             },
           },
         ],
-        ['interchain_gas_paymaster_type', { kind: 'option', type: 'u8' }],
         ['destination_gas', { kind: 'map', key: 'u32', value: 'u64' }],
         ['remote_routers', { kind: 'map', key: 'u32', value: [32] }],
       ],
