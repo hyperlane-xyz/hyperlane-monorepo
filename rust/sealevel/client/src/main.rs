@@ -452,20 +452,22 @@ fn main() {
     let client = RpcClient::new(url);
 
     let keypair_path = cli.keypair.unwrap_or(config.keypair_path);
-    let (payer_pubkey, payer_keypair, payer_keypair_path) =
-        if let Ok(payer_keypair) = read_keypair_file(&keypair_path) {
-            (
-                payer_keypair.pubkey(),
-                Some(payer_keypair),
-                Some(keypair_path),
-            )
-        } else {
-            println!(
-                "Provided key is not a keypair file, treating as a public key {}",
-                keypair_path
-            );
-            (Pubkey::from_str(&keypair_path).unwrap(), None, None)
-        };
+    let (payer_pubkey, payer_keypair) = if let Ok(payer_keypair) = read_keypair_file(&keypair_path)
+    {
+        (
+            payer_keypair.pubkey(),
+            Some(PayerKeypair {
+                keypair: payer_keypair,
+                keypair_path,
+            }),
+        )
+    } else {
+        println!(
+            "Provided key is not a keypair file, treating as a public key {}",
+            keypair_path
+        );
+        (Pubkey::from_str(&keypair_path).unwrap(), None)
+    };
 
     let commitment = CommitmentConfig::processed();
 
@@ -495,7 +497,6 @@ fn main() {
         client,
         payer_pubkey,
         payer_keypair,
-        payer_keypair_path,
         commitment,
         instructions.into(),
     );

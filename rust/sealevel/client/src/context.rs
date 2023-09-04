@@ -15,11 +15,15 @@ use solana_sdk::{
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
 use std::{cell::RefCell, io::Read};
 
+pub(crate) struct PayerKeypair {
+    pub keypair: Keypair,
+    pub keypair_path: String,
+}
+
 pub(crate) struct Context {
     pub client: RpcClient,
     pub payer_pubkey: Pubkey,
-    payer_keypair: Option<Keypair>,
-    payer_keypair_path: Option<String>,
+    payer_keypair: Option<PayerKeypair>,
     pub commitment: CommitmentConfig,
     pub initial_instructions: RefCell<Vec<InstructionWithDescription>>,
 }
@@ -51,8 +55,7 @@ impl Context {
     pub(crate) fn new(
         client: RpcClient,
         payer_pubkey: Pubkey,
-        payer_keypair: Option<Keypair>,
-        payer_keypair_path: Option<String>,
+        payer_keypair: Option<PayerKeypair>,
         commitment: CommitmentConfig,
         initial_instructions: RefCell<Vec<InstructionWithDescription>>,
     ) -> Self {
@@ -60,7 +63,6 @@ impl Context {
             client,
             payer_pubkey,
             payer_keypair,
-            payer_keypair_path,
             commitment,
             initial_instructions,
         }
@@ -83,7 +85,7 @@ impl Context {
     }
 
     pub(crate) fn payer_signer(&self) -> Box<dyn Signer> {
-        if let Some(keypair) = &self.payer_keypair {
+        if let Some(PayerKeypair { keypair, .. }) = &self.payer_keypair {
             Box::new(Keypair::from_bytes(&keypair.to_bytes()).unwrap())
         } else {
             Box::new(NullSigner::new(&self.payer_pubkey))
@@ -91,34 +93,35 @@ impl Context {
     }
 
     pub(crate) fn payer_keypair_path(&self) -> &String {
-        self.payer_keypair_path
+        &self
+            .payer_keypair
             .as_ref()
             .expect("No payer keypair path")
+            .keypair_path
     }
 }
 
 impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
-    pub(crate) fn add(mut self, instruction: Instruction) -> Self {
-        self.instructions_with_descriptions
-            .push(InstructionWithDescription {
-                instruction,
-                description: None,
-            });
-        self
+    pub(crate) fn add(self, instruction: Instruction) -> Self {
+        self.add_with_optional_description(instruction, None)
     }
 
-    pub(crate) fn add_with_description<T>(
-        mut self,
-        instruction: Instruction,
-        description: T,
-    ) -> Self
+    pub(crate) fn add_with_description<T>(self, instruction: Instruction, description: T) -> Self
     where
         T: Into<String>,
     {
+        self.add_with_optional_description(instruction, Some(description.into()))
+    }
+
+    fn add_with_optional_description(
+        mut self,
+        instruction: Instruction,
+        description: Option<String>,
+    ) -> Self {
         self.instructions_with_descriptions
             .push(InstructionWithDescription {
                 instruction,
-                description: Some(description.into()),
+                description,
             });
         self
     }
@@ -232,8 +235,7 @@ fn wait_for_user_confirmation() {
             println!("Continuing...");
         }
         b'n' => {
-            println!("Exiting with code 1...");
-            std::process::exit(1)
+            panic!("User requested exit");
         }
         _ => {}
     }
