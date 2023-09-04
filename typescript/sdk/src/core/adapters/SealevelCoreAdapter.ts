@@ -15,8 +15,6 @@ import { ICoreAdapter } from './types';
 // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/mailbox/src/processor.rs
 const MESSAGE_DISPATCH_LOG_REGEX = /Dispatched message to (.*), ID (.*)/;
 
-// This adapter just routes to the HyperlaneCore
-// Which implements the needed functionality for EVM chains
 export class SealevelCoreAdapter
   extends BaseSealevelAdapter<CoreAddresses>
   implements ICoreAdapter
@@ -58,9 +56,10 @@ export class SealevelCoreAdapter
     await pollAsync(
       async () => {
         // If the PDA exists, then the message has been processed
-        // Checking existence by querying for balance
-        await connection.getBalance(pda);
-        return;
+        // Checking existence by checking for account info
+        const accountInfo = await connection.getAccountInfo(pda);
+        if (accountInfo?.data?.length) return;
+        else throw new Error(`Message ${messageId} not yet processed`);
       },
       delayMs,
       maxAttempts,

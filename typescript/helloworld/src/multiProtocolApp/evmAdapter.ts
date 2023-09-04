@@ -51,10 +51,14 @@ export class EvmHelloWorldAdapter
     origin: ChainName,
     destination: ChainName,
   ): Promise<StatCounts> {
-    const fromDomain = this.multiProvider.getDomainId(origin);
-    const toDomain = this.multiProvider.getDomainId(destination);
-    const sent = await this.getConnectedContract(origin).sentTo(toDomain);
-    const received = await this.getConnectedContract(origin).sentTo(fromDomain);
+    const originDomain = this.multiProvider.getDomainId(origin);
+    const destinationDomain = this.multiProvider.getDomainId(destination);
+    const sent = await this.getConnectedContract(origin).sentTo(
+      destinationDomain,
+    );
+    const received = await this.getConnectedContract(destination).sentTo(
+      originDomain,
+    );
     return { sent: sent.toNumber(), received: received.toNumber() };
   }
 

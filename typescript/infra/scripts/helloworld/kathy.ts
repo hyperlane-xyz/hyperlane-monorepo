@@ -159,6 +159,7 @@ async function main(): Promise<boolean> {
   startMetricsServer(metricsRegister);
   debug('Starting up', { environment });
 
+  // TODO (Rossy) remove getCoreConfigStub and re-enable getEnvironmentConfig
   // const coreConfig = getEnvironmentConfig(environment);
   const coreConfig = getCoreConfigStub(environment);
 
@@ -540,7 +541,7 @@ export function getCoreConfigStub(environment: DeployEnvironment) {
   if (!privateKeySealevel)
     throw new Error('KATHY_PRIVATE_KEY_SEALEVEL env var not set');
   const sealevelSigner = Keypair.fromSecretKey(
-    base58ToBuffer(privateKeySealevel),
+    Buffer.from(privateKeySealevel, 'hex'),
   );
   console.log('sealevelSigner address', sealevelSigner.publicKey.toBase58());
 

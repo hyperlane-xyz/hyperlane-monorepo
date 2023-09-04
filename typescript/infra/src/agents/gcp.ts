@@ -98,9 +98,6 @@ export class AgentGCPKey extends CloudAgentKey {
       case ProtocolType.Ethereum:
         return this.address;
       case ProtocolType.Sealevel:
-        // TOOD confirm if this should assume base58 keys as
-        // sealevel ususally uses
-        // See scripts/utils#getAddressesForKey
         return Keypair.fromSeed(
           Buffer.from(strip0x(this.privateKey), 'hex'),
         ).publicKey.toBase58();

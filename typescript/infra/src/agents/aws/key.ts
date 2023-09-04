@@ -56,7 +56,7 @@ export class AgentAwsKey extends CloudAgentKey {
   }
 
   get privateKey(): string {
-    throw new Error('Private key unavailabe for AWS keys');
+    throw new Error('Private key unavailable for AWS keys');
   }
 
   async getClient(): Promise<KMSClient> {

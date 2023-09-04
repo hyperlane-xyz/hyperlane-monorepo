@@ -30,10 +30,7 @@ export {
   hyperlaneEnvironmentsWithSealevel,
 } from './consts/environments';
 export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
-export {
-  SEALEVEL_SPL_NOOP_ADDRESS,
-  SEALEVEL_ZERO_ADDRESS,
-} from './consts/sealevel';
+export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel';
 export {
   attachContracts,
   attachContractsMap,

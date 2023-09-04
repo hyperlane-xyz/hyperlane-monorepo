@@ -21,9 +21,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
-  base58ToBuffer,
   objMap,
   promiseObjAll,
+  strip0x,
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
@@ -204,6 +204,8 @@ export async function getMultiProviderForRole(
   return multiProvider;
 }
 
+// Note: this will only work for keystores that allow key's to be extracted.
+// I.e. GCP will work but AWS HSMs will not.
 export async function getKeysForRole(
   txConfigs: ChainMap<ChainMetadata>,
   environment: DeployEnvironment,
@@ -224,6 +226,7 @@ export async function getKeysForRole(
   return keys;
 }
 
+// Note: this will only work for keystores that allow key's to be extracted.
 export function getAddressesForKey(
   keys: ChainMap<string>,
   chain: ChainName,
@@ -233,8 +236,8 @@ export function getAddressesForKey(
   if (protocol === ProtocolType.Ethereum) {
     return new Wallet(keys[chain]).address;
   } else if (protocol === ProtocolType.Sealevel) {
-    return Keypair.fromSecretKey(
-      base58ToBuffer(keys[chain]),
+    return Keypair.fromSeed(
+      Buffer.from(strip0x(keys[chain]), 'hex'),
     ).publicKey.toBase58();
   } else {
     throw Error(`Protocol ${protocol} not supported`);

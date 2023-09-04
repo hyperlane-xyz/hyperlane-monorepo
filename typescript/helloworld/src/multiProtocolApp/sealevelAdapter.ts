@@ -239,10 +239,12 @@ export class HelloWorldData {
   ism_pubkey?: PublicKey;
   // The address of the IGP
   igp?: {
-    address: Uint8Array;
+    program_id: Uint8Array;
     type: number;
+    igp_account: Uint8Array;
   };
   igp_pubkey?: PublicKey;
+  igp_account_pubkey?: PublicKey;
   // The address of the owner
   owner?: Uint8Array;
   owner_pubkey?: PublicKey;
@@ -263,9 +265,13 @@ export class HelloWorldData {
     Object.assign(this, fields);
     this.mailbox_pubkey = new PublicKey(this.mailbox);
     this.ism_pubkey = this.ism ? new PublicKey(this.ism) : undefined;
-    this.igp_pubkey = this.igp?.address
-      ? new PublicKey(this.igp.address)
+    this.igp_pubkey = this.igp?.program_id
+      ? new PublicKey(this.igp.program_id)
       : undefined;
+    this.igp_account_pubkey = this.igp?.igp_account
+      ? new PublicKey(this.igp.igp_account)
+      : undefined;
+
     this.owner_pubkey = this.owner ? new PublicKey(this.owner) : undefined;
   }
 }
@@ -287,8 +293,9 @@ export const HelloWorldDataSchema = new Map<any, any>([
             type: {
               kind: 'struct',
               fields: [
-                ['address', [32]],
+                ['program_id', [32]],
                 ['type', 'u8'],
+                ['igp_account', [32]],
               ],
             },
           },

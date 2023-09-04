@@ -3,8 +3,14 @@ import { Address, Domain, ProtocolType } from '@hyperlane-xyz/utils';
 import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp';
 import { ChainMap, ChainName } from '../types';
 
-import { EvmRouterAdapter } from './adapters/EvmRouterAdapter';
-import { SealevelRouterAdapter } from './adapters/SealevelRouterAdapter';
+import {
+  EvmGasRouterAdapter,
+  EvmRouterAdapter,
+} from './adapters/EvmRouterAdapter';
+import {
+  SealevelGasRouterAdapter,
+  SealevelRouterAdapter,
+} from './adapters/SealevelRouterAdapter';
 import { IGasRouterAdapter, IRouterAdapter } from './adapters/types';
 import { RouterAddress } from './types';
 
@@ -54,8 +60,9 @@ export class MultiProtocolGasRouterApp<
   ): AdapterClassType<ContractAddrs, IAdapterApi> {
     // Casts are required here to allow for default adapters while still
     // enabling extensible generic types
-    if (protocol === ProtocolType.Ethereum) return EvmRouterAdapter as any;
-    if (protocol === ProtocolType.Sealevel) return SealevelRouterAdapter as any;
+    if (protocol === ProtocolType.Ethereum) return EvmGasRouterAdapter as any;
+    if (protocol === ProtocolType.Sealevel)
+      return SealevelGasRouterAdapter as any;
     throw new Error(`No adapter for protocol ${protocol}`);
   }
 
