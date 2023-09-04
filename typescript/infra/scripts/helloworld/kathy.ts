@@ -18,8 +18,8 @@ import {
 import {
   Address,
   ProtocolType,
-  base58ToBuffer,
   debug,
+  ensure0x,
   error,
   log,
   retryAsync,
@@ -32,6 +32,7 @@ import {
   hyperlaneHelloworld,
   releaseCandidateHelloworld,
 } from '../../config/environments/testnet3/helloworld';
+import { CloudAgentKey } from '../../src/agents/keys';
 import { DeployEnvironment } from '../../src/config/environment';
 import { Role } from '../../src/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
@@ -382,7 +383,7 @@ async function main(): Promise<boolean> {
 async function sendMessage(
   app: HelloMultiProtocolApp,
   core: MultiProtocolCore,
-  keys: ChainMap<string>,
+  keys: ChainMap<CloudAgentKey>,
   multiProvider: MultiProvider,
   igp: HyperlaneIgp,
   origin: ChainName,
@@ -445,7 +446,9 @@ async function sendMessage(
       // This could be done for EVM too but the legacy MP has tx formatting utils
       // that have not yet been ported over
       const connection = app.multiProvider.getSolanaWeb3Provider(origin);
-      const payer = Keypair.fromSecretKey(base58ToBuffer(keys[origin]));
+      const payer = Keypair.fromSeed(
+        Buffer.from(keys[origin].privateKey, 'hex'),
+      );
       tx.transaction.partialSign(payer);
       // Note, tx signature essentially tx means hash on sealevel
       const txSignature = await sendAndConfirmRawTransaction(
@@ -540,7 +543,8 @@ export function getCoreConfigStub(environment: DeployEnvironment) {
   const privateKeySealevel = process.env.KATHY_PRIVATE_KEY_SEALEVEL;
   if (!privateKeySealevel)
     throw new Error('KATHY_PRIVATE_KEY_SEALEVEL env var not set');
-  const sealevelSigner = Keypair.fromSecretKey(
+
+  const sealevelSigner = Keypair.fromSeed(
     Buffer.from(privateKeySealevel, 'hex'),
   );
   console.log('sealevelSigner address', sealevelSigner.publicKey.toBase58());
@@ -557,8 +561,11 @@ export function getCoreConfigStub(environment: DeployEnvironment) {
     },
     getMultiProvider: () => multiProvider,
     getKeys: () => ({
-      fuji: privateKeyEvm,
-      solanadevnet: privateKeySealevel,
+      fuji: { address: evmSigner.address, privateKey: ensure0x(privateKeyEvm) },
+      solanadevnet: {
+        address: sealevelSigner.publicKey.toBase58(),
+        privateKey: privateKeySealevel,
+      },
     }),
   } as any;
 }

@@ -212,7 +212,7 @@ export async function getKeysForRole(
   context: Contexts,
   role: Role,
   index?: number,
-): Promise<ChainMap<string>> {
+): Promise<ChainMap<CloudAgentKey>> {
   if (process.env.CI === 'true') {
     return {};
   }
@@ -220,7 +220,9 @@ export async function getKeysForRole(
   const keys = await promiseObjAll(
     objMap(txConfigs, async (chain, _) => {
       const key = getKeyForRole(environment, context, chain, role, index);
-      return key.privateKey;
+      if (!key.privateKey)
+        throw new Error(`Key for ${chain} does not have private key`);
+      return key;
     }),
   );
   return keys;
@@ -228,7 +230,7 @@ export async function getKeysForRole(
 
 // Note: this will only work for keystores that allow key's to be extracted.
 export function getAddressesForKey(
-  keys: ChainMap<string>,
+  keys: ChainMap<CloudAgentKey>,
   chain: ChainName,
   manager: ChainMetadataManager<any>,
 ) {
@@ -237,7 +239,7 @@ export function getAddressesForKey(
     return new Wallet(keys[chain]).address;
   } else if (protocol === ProtocolType.Sealevel) {
     return Keypair.fromSeed(
-      Buffer.from(strip0x(keys[chain]), 'hex'),
+      Buffer.from(strip0x(keys[chain].privateKey), 'hex'),
     ).publicKey.toBase58();
   } else {
     throw Error(`Protocol ${protocol} not supported`);
