@@ -1,8 +1,10 @@
 import { deserializeUnchecked } from 'borsh';
 import { expect } from 'chai';
 
+import { SealevelAccountDataWrapper } from '../../utils/sealevel';
+
 import {
-  SealevelAccountDataWrapper,
+  SealevelTokenData,
   SealevelTokenDataSchema,
 } from './SealevelRouterAdapter';
 
@@ -16,15 +18,16 @@ describe('SealevelRouterAdapter', () => {
   describe('account info', () => {
     it('correctly deserializes router account info', () => {
       const rawData = Buffer.from(RAW_ACCOUNT_INFO, 'hex');
-      const accountData = deserializeUnchecked(
+      const wrappedData = deserializeUnchecked(
         SealevelTokenDataSchema,
         SealevelAccountDataWrapper,
         rawData,
       );
-      expect(accountData.initialized).to.eql(1);
-      expect(accountData.data.decimals).to.eql(6);
-      expect(accountData.data.owner_pub_key?.toBase58()).to.eql(OWNER_PUB_KEY);
-      expect(accountData.data.remote_router_pubkeys.size).to.eql(2);
+      expect(wrappedData.initialized).to.eql(1);
+      const data = wrappedData.data as SealevelTokenData;
+      expect(data.decimals).to.eql(6);
+      expect(data.owner_pub_key?.toBase58()).to.eql(OWNER_PUB_KEY);
+      expect(data.remote_router_pubkeys.size).to.eql(2);
     });
   });
 });
