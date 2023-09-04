@@ -1,0 +1,19 @@
+{
+  "solanadevnet": {
+    "storageGasOracle": "",
+    "validatorAnnounce": "",
+    "proxyAdmin": "",
+    "mailbox": "4v25Dz9RccqUrTzmfHzJMsjd1iVoNrWzeJ4o6GYuJrVn",
+    "interchainGasPaymaster": "",
+    "defaultIsmInterchainGasPaymaster": "",
+    "multisigIsm": "",
+    "testRecipient": "",
+    "interchainAccountIsm": "",
+    "aggregationIsmFactory": "",
+    "routingIsmFactory": "",
+    "interchainQueryRouter": "",
+    "interchainAccountRouter": "",
+    "merkleRootMultisigIsmFactory": "",
+    "messageIdMultisigIsmFactory": ""
+  }
+}

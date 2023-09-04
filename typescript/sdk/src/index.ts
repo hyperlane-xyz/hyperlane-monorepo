@@ -27,6 +27,7 @@ export {
   HyperlaneEnvironmentChain,
   hyperlaneContractAddresses,
   hyperlaneEnvironments,
+  hyperlaneEnvironmentsWithSealevel,
 } from './consts/environments';
 export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
 export {
@@ -126,20 +127,20 @@ export {
   ChainMetadataManagerOptions,
 } from './metadata/ChainMetadataManager';
 export {
+  AgentChainMetadata,
+  AgentChainMetadataSchema,
   AgentChainSetup,
   AgentChainSetupBase,
   AgentConfig,
+  AgentConfigSchema,
+  AgentConfigV2,
   AgentConnection,
   AgentConnectionType,
+  AgentLogFormat,
+  AgentLogLevel,
   AgentSigner,
   AgentSignerSchema,
   AgentSignerV2,
-  AgentChainMetadata,
-  AgentChainMetadataSchema,
-  AgentConfigSchema,
-  AgentLogLevel,
-  AgentLogFormat,
-  AgentConfigV2,
   buildAgentConfig,
   buildAgentConfigDeprecated,
   buildAgentConfigNew,
@@ -147,10 +148,10 @@ export {
 export {
   ChainMetadata,
   ChainMetadataSchema,
-  RpcUrlSchema,
-  RpcUrl,
   ExplorerFamily,
   ExplorerFamilyValue,
+  RpcUrl,
+  RpcUrlSchema,
   getDomainId,
   isValidChainMetadata,
 } from './metadata/chainMetadataTypes';
