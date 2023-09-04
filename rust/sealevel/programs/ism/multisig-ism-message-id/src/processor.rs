@@ -506,7 +506,7 @@ fn access_control_data(
 ///
 /// Accounts:
 /// 0. `[signer]` The current access control owner.
-/// 1. `[]` The access control PDA account.
+/// 1. `[writeable]` The access control PDA account.
 fn transfer_ownership(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

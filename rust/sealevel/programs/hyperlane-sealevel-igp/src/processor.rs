@@ -485,7 +485,7 @@ fn set_igp_beneficiary(
 /// Transfers ownership of an IGP variant.
 ///
 /// Accounts:
-/// 0. [] The IGP or OverheadIGP.
+/// 0. [writeable] The IGP or OverheadIGP.
 /// 1. [signer] The owner of the IGP account.
 fn transfer_igp_variant_ownership<T: account_utils::DiscriminatorPrefixedData + AccessControl>(
     program_id: &Pubkey,
