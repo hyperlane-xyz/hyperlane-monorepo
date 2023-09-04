@@ -6,6 +6,7 @@
 
 pub use crate::multisig_ism::*;
 pub(crate) use client::RpcClientWithDebug;
+pub use client::AptosClient;
 pub use interchain_gas::*;
 pub use interchain_security_module::*;
 pub use mailbox::*;
@@ -13,6 +14,7 @@ pub use provider::*;
 pub use solana_sdk::signer::keypair::Keypair;
 pub use trait_builder::*;
 pub use validator_announce::*;
+pub use utils::*;
 
 mod interchain_gas;
 mod interchain_security_module;
