@@ -57,6 +57,29 @@ use crate::{
     ConnectionConf, SealevelProvider,
 };
 
+use crate::AptosClient;
+use crate::utils::send_aptos_transaction;
+use aptos_sdk::{
+  transaction_builder::TransactionFactory,
+  types::{
+    account_address::AccountAddress, 
+    chain_id::ChainId,
+    transaction::{ EntryFunction, TransactionPayload }
+  },
+  move_types::{
+    ident_str,
+    language_storage::{ModuleId},
+  },
+  rest_client::{
+    Client, FaucetClient,
+    aptos_api_types::{ViewRequest, EntryFunctionId}
+  },
+  types::LocalAccount,
+  types::AccountKey,
+  crypto::ed25519::Ed25519PrivateKey
+};
+
+
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 
@@ -65,16 +88,19 @@ const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 const PROCESS_COMPUTE_UNITS: u32 = 1_400_000;
 
 /// A reference to a Mailbox contract on some Sealevel chain
-pub struct SealevelMailbox {
+pub struct AptosMailbox {
     program_id: Pubkey,
     inbox: (Pubkey, u8),
     outbox: (Pubkey, u8),
     rpc_client: RpcClient,
     domain: HyperlaneDomain,
     payer: Option<Keypair>,
+
+    aptos_client: AptosClient,
+    package_address: AccountAddress,
 }
 
-impl SealevelMailbox {
+impl AptosMailbox {
     /// Create a new sealevel mailbox
     pub fn new(
         conf: &ConnectionConf,
@@ -95,13 +121,19 @@ impl SealevelMailbox {
             domain, program_id, inbox.0, inbox.1, outbox.0, outbox.1,
         );
 
-        Ok(SealevelMailbox {
+        let package_address = AccountAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
+        let aptos_client = AptosClient::new(conf.url.to_string());
+
+        Ok(AptosMailbox {
             program_id,
             inbox,
             outbox,
             rpc_client,
             domain: locator.domain.clone(),
             payer,
+
+            package_address,
+            aptos_client
         })
     }
 
@@ -255,13 +287,13 @@ impl SealevelMailbox {
     }
 }
 
-impl HyperlaneContract for SealevelMailbox {
+impl HyperlaneContract for AptosMailbox {
     fn address(&self) -> H256 {
         self.program_id.to_bytes().into()
     }
 }
 
-impl HyperlaneChain for SealevelMailbox {
+impl HyperlaneChain for AptosMailbox {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
@@ -271,7 +303,7 @@ impl HyperlaneChain for SealevelMailbox {
     }
 }
 
-impl std::fmt::Debug for SealevelMailbox {
+impl std::fmt::Debug for AptosMailbox {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self as &dyn HyperlaneContract)
     }
@@ -280,14 +312,30 @@ impl std::fmt::Debug for SealevelMailbox {
 // TODO refactor the sealevel client into a lib and bin, pull in and use the lib here rather than
 // duplicating.
 #[async_trait]
-impl Mailbox for SealevelMailbox {
+impl Mailbox for AptosMailbox {
     #[instrument(err, ret, skip(self))]
     async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let tree = self.tree(_maybe_lag).await?;
+      
+      tracing::info!("package address: {}", self.package_address.to_hex_literal());
 
-        tree.count()
-            .try_into()
-            .map_err(ChainCommunicationError::from_other)
+      let view_response = self.aptos_client.view(
+        &ViewRequest {
+          function: EntryFunctionId::from_str(
+            &format!(
+              "{}::mailbox::outbox_get_count", 
+              self.package_address.to_hex_literal()
+            )
+          ).unwrap(),
+          type_arguments: vec![],
+          arguments: vec![]
+        },
+        Option::None
+      )
+      .await
+      .map_err(ChainCommunicationError::from_other)?;
+      
+      let view_result = serde_json::from_str::<u32>(&view_response.inner()[0].to_string()).unwrap();
+      Ok(view_result)
     }
 
     #[instrument(err, ret, skip(self))]
@@ -549,34 +597,37 @@ impl Mailbox for SealevelMailbox {
 
 /// Struct that retrieves event data for a Sealevel Mailbox contract
 #[derive(Debug)]
-pub struct SealevelMailboxIndexer {
+pub struct AptosMailboxIndexer {
     rpc_client: RpcClientWithDebug,
-    mailbox: SealevelMailbox,
+    mailbox: AptosMailbox,
     program_id: Pubkey,
+
+    aptos_client: AptosClient
 }
 
-impl SealevelMailboxIndexer {
+impl AptosMailboxIndexer {
     pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let rpc_client = RpcClientWithDebug::new(conf.url.to_string());
-        let mailbox = SealevelMailbox::new(conf, locator, None)?;
+        let mailbox = AptosMailbox::new(conf, locator, None)?;
+
+        let aptos_client = AptosClient::new(conf.url.to_string());
+
         Ok(Self {
             program_id,
             rpc_client,
             mailbox,
+            aptos_client
         })
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let height = self
-            .rpc_client
-            .get_block_height()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .try_into()
-            // FIXME solana block height is u64...
-            .expect("sealevel block height exceeds u32::MAX");
-        Ok(height)
+        let chain_state = self.aptos_client.get_ledger_information()
+          .await
+          .map_err(ChainCommunicationError::from_other)
+          .unwrap()
+          .into_inner();
+        Ok(chain_state.block_height as u32)
     }
 
     async fn get_message_with_nonce(&self, nonce: u32) -> ChainResult<(HyperlaneMessage, LogMeta)> {
@@ -682,7 +733,7 @@ impl SealevelMailboxIndexer {
 }
 
 #[async_trait]
-impl MessageIndexer for SealevelMailboxIndexer {
+impl MessageIndexer for AptosMailboxIndexer {
     #[instrument(err, skip(self))]
     async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
@@ -693,17 +744,17 @@ impl MessageIndexer for SealevelMailboxIndexer {
 }
 
 #[async_trait]
-impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
+impl Indexer<HyperlaneMessage> for AptosMailboxIndexer {
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
         let SequenceRange(range) = range else {
             return Err(ChainCommunicationError::from_other_str(
-                "SealevelMailboxIndexer only supports sequence-based indexing",
+                "AptosMailboxIndexer only supports sequence-based indexing",
             ))
         };
 
         info!(
             ?range,
-            "Fetching SealevelMailboxIndexer HyperlaneMessage logs"
+            "Fetching AptosMailboxIndexer HyperlaneMessage logs"
         );
 
         let mut messages = Vec::with_capacity((range.end() - range.start()) as usize);
@@ -719,7 +770,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
 }
 
 #[async_trait]
-impl Indexer<H256> for SealevelMailboxIndexer {
+impl Indexer<H256> for AptosMailboxIndexer {
     async fn fetch_logs(&self, _range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
         todo!()
     }
@@ -729,10 +780,10 @@ impl Indexer<H256> for SealevelMailboxIndexer {
     }
 }
 
-struct SealevelMailboxAbi;
+struct AptosMailboxAbi;
 
 // TODO figure out how this is used and if we can support it for sealevel.
-impl HyperlaneAbi for SealevelMailboxAbi {
+impl HyperlaneAbi for AptosMailboxAbi {
     const SELECTOR_SIZE_BYTES: usize = 8;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {

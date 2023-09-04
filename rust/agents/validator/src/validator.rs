@@ -254,6 +254,13 @@ impl Validator {
         let validators: [H256; 1] = [self.signer.eth_address().into()];
         loop {
             info!("Checking for validator announcement");
+            /*{
+              let result = self
+                        .validator_announce
+                        .announce(signed_announcement.clone(), None)
+                        .await;
+              info!("result: {:?}", result);
+            }*/
             if let Some(locations) = self
                 .validator_announce
                 .get_announced_storage_locations(&validators)

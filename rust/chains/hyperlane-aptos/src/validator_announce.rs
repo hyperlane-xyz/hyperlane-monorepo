@@ -1,34 +1,38 @@
+#![allow(unused)]
+
 use async_trait::async_trait;
-use tracing::{info, instrument, warn};
+use tracing::info;
+use tracing::{instrument, warn};
 
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, H512,
+    HyperlaneContract, HyperlaneDomain, SignedType, TxOutcome, ValidatorAnnounce, H256, H512,
     U256,
 };
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
+use crate::{ConnectionConf};
+use crate::AptosClient;
+use crate::utils::send_aptos_transaction;
 
-use crate::{ConnectionConf, RpcClientWithDebug};
-use hyperlane_sealevel_validator_announce::{
-    accounts::ValidatorStorageLocationsAccount, validator_storage_locations_pda_seeds,
-};
-
-// use aptos_sdk::crypto::ed25519::Ed25519PrivateKey;
-use aptos_sdk::transaction_builder::TransactionFactory;
-use aptos_types::{
-  account_address::AccountAddress, 
-  transaction::EntryFunction
-};
-use aptos_types::transaction::{ TransactionPayload };
-use move_core_types::{
-  ident_str,
-  language_storage::{ModuleId},
-};
-use aptos::common::utils;
 use aptos_sdk::{
-    rest_client::{Client, FaucetClient},
-    types::LocalAccount,
+  transaction_builder::TransactionFactory,
+  types::{
+    account_address::AccountAddress, 
+    chain_id::ChainId,
+    transaction::{ EntryFunction, TransactionPayload }
+  },
+  move_types::{
+    ident_str,
+    language_storage::{ModuleId},
+  },
+  rest_client::{
+    Client, FaucetClient,
+    aptos_api_types::{ViewRequest, EntryFunctionId}
+  },
+  types::LocalAccount,
+  types::AccountKey,
+  crypto::ed25519::Ed25519PrivateKey
 };
+
 use once_cell::sync::Lazy;
 use anyhow::{Context, Result};
 use url::Url;
@@ -37,19 +41,19 @@ use std::str::FromStr;
 /// A reference to a ValidatorAnnounce contract on Aptos chain
 #[derive(Debug)]
 pub struct AptosValidatorAnnounce {
-    program_id: Pubkey,
-    rpc_client: RpcClientWithDebug,
+    package_address: AccountAddress,
+    aptos_client: AptosClient,
     domain: HyperlaneDomain,
 }
 
 impl AptosValidatorAnnounce {
     /// Create a new Sealevel ValidatorAnnounce
     pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> Self {
-        let rpc_client = RpcClientWithDebug::new(conf.url.to_string());
-        let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
+        let aptos_client = AptosClient::new(conf.url.to_string());
+        let package_address = AccountAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
         Self {
-            program_id,
-            rpc_client,
+            package_address,
+            aptos_client,
             domain: locator.domain.clone(),
         }
     }
@@ -61,59 +65,54 @@ impl AptosValidatorAnnounce {
       &self,
       announcement: SignedType<Announcement>,
       _tx_gas_limit: Option<U256>,
-    ) -> Result<()> {
+    ) -> Result<(String, bool)> {
         let serialized_signature: [u8; 65] = announcement.signature.into();
+    
+        let account_address = AccountAddress::from_hex_literal("0x1764fd45317bbddc6379f22c6c72b52a138bf0e2db76297e81146cacf7bc42c5").unwrap();
+        let mut alice = LocalAccount::new(
+          account_address,
+          AccountKey::from_private_key(
+            Ed25519PrivateKey::try_from(
+              hex::decode("b8ab39c741f23066ee8015ff5248e5720cfb31648b13fb643ceae287b6c50520").unwrap().as_slice()
+            ).unwrap()),
+          self.aptos_client.get_account(account_address).await?.into_inner().sequence_number
+        );
         
-        static NODE_URL: Lazy<Url> = Lazy::new(|| {
-          Url::from_str("https://fullnode.devnet.aptoslabs.com").unwrap()
-        });
-      
-        static FAUCET_URL: Lazy<Url> = Lazy::new(|| {
-            Url::from_str("https://faucet.devnet.aptoslabs.com").unwrap()
-        });
 
-        let rest_client = Client::new(NODE_URL.clone());
-        let faucet_client = FaucetClient::new(FAUCET_URL.clone(), NODE_URL.clone()); // <:!:section_1a
-        let mut alice = LocalAccount::generate(&mut rand::rngs::OsRng);
-
-        faucet_client
-          .fund(alice.address(), 100_000_000)
-          .await
-          .context("Failed to fund Alice's account")?;
-
-        let contract_address: &str = "0x61ad49767d3dd5d5e6e41563c3ca3e8600c52c350ca66014ee7f6874f28f5ddb";
         let _entry = EntryFunction::new(
           ModuleId::new(
-            AccountAddress::from_hex_literal(contract_address).unwrap(),
+            self.package_address,
             ident_str!("validator_announce").to_owned()
           ),
           ident_str!("announce").to_owned(),
           vec![],
           vec![
-            bcs::to_bytes(&announcement.value.validator).unwrap(),
-            serialized_signature.to_vec(),
+            bcs::to_bytes(&AccountAddress::from_hex_literal(
+                &format!("0x{}", hex::encode(announcement.value.validator.as_bytes()))
+              ).unwrap()
+            ).unwrap(),
+            bcs::to_bytes(&serialized_signature.to_vec()).unwrap(),
             bcs::to_bytes(&announcement.value.storage_location).unwrap()
           ]
         );
 
         let payload = TransactionPayload::EntryFunction(_entry);
-        
-        const GAS_LIMIT: u64 = 100000;
-        
-        let transaction_factory = TransactionFactory::new(utils::chain_id(&rest_client).await?)
-                .with_gas_unit_price(100)
-                .with_max_gas_amount(GAS_LIMIT);
-        
-        let signed_tx = alice.sign_with_transaction_builder(transaction_factory.payload(payload));
-        let response = rest_client.submit_and_wait(&signed_tx).await?;
-        println!("response {:?}", response);
-        Ok(())
+        let response = send_aptos_transaction(
+          &self.aptos_client,
+          &mut alice,
+          payload.clone()
+        ).await?;
+
+        // fetch transaction information from the response
+        let tx_hash = response.transaction_info().unwrap().hash.to_string();
+        let has_success = response.success();
+        Ok((tx_hash, has_success))
     }
 }
 
 impl HyperlaneContract for AptosValidatorAnnounce {
     fn address(&self) -> H256 {
-        self.program_id.to_bytes().into()
+        H256(self.package_address.into_bytes())
     }
 }
 
@@ -133,52 +132,34 @@ impl ValidatorAnnounce for AptosValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-        info!(program_id=?self.program_id, validators=?validators, "Getting validator storage locations");
+        let validator_addresses: Vec<serde_json::Value> = 
+          validators.iter().map(|v| {
+            serde_json::Value::String(
+              AccountAddress::from_bytes(v.as_bytes()).unwrap().to_hex_literal()
+            )
+          }).collect();
 
-        // Get the validator storage location PDAs for each validator.
-        let account_pubkeys: Vec<Pubkey> = validators
-            .iter()
-            .map(|v| {
-                let (key, _bump) = Pubkey::find_program_address(
-                    // The seed is based off the H160 representation of the validator address.
-                    validator_storage_locations_pda_seeds!(H160::from_slice(&v.as_bytes()[12..])),
-                    &self.program_id,
-                );
-                key
-            })
-            .collect();
+        let view_response = self.aptos_client.view(
+          &ViewRequest {
+            function: EntryFunctionId::from_str(
+              &format!(
+                "{}::validator_announce::get_announced_storage_locations", 
+                self.package_address.to_hex_literal()
+              )
+            ).unwrap(),
+            type_arguments: vec![],
+            arguments: vec![
+              serde_json::Value::Array(validator_addresses),
+            ]
+          },
+          Option::None
+        )
+        .await
+        .map_err(ChainCommunicationError::from_other)?;
+  
+        let view_result = serde_json::from_str::<Vec<Vec<String>>>(&view_response.inner()[0].to_string());
 
-        // Get all validator storage location accounts.
-        // If an account doesn't exist, it will be returned as None.
-        let accounts = self
-            .rpc_client
-            .get_multiple_accounts_with_commitment(&account_pubkeys, CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .value;
-
-        // Parse the storage locations from each account.
-        // If a validator's account doesn't exist, its storage locations will
-        // be returned as an empty list.
-        let storage_locations: Vec<Vec<String>> = accounts
-            .into_iter()
-            .map(|account| {
-                account
-                    .map(|account| {
-                        match ValidatorStorageLocationsAccount::fetch(&mut &account.data[..]) {
-                            Ok(v) => v.into_inner().storage_locations,
-                            Err(err) => {
-                                // If there's an error parsing the account, gracefully return an empty list
-                                info!(?account, ?err, "Unable to parse validator announce account");
-                                vec![]
-                            }
-                        }
-                    })
-                    .unwrap_or_default()
-            })
-            .collect();
-
-        Ok(storage_locations)
+        Ok(view_result.unwrap())
     }
 
     async fn announce_tokens_needed(
@@ -194,14 +175,18 @@ impl ValidatorAnnounce for AptosValidatorAnnounce {
         _announcement: SignedType<Announcement>,
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        warn!(
-            "Announcing validator storage locations within the agents is not supported on Sealevel"
-        );
+        info!("Announcing Aptos Validator _announcement ={:?}", _announcement);
+
+        let (tx_hash, is_success) = self
+          .announce_contract_call(_announcement, _tx_gas_limit)
+          .await
+          .map_err(|e| { println!("tx error {}", e.to_string()); ChainCommunicationError::TransactionTimeout() })?;
+
         Ok(TxOutcome {
-            transaction_id: H512::zero(),
-            executed: false,
-            gas_used: U256::zero(),
-            gas_price: U256::zero(),
+          transaction_id: H512::from(H256::from_str(&tx_hash).unwrap()),
+          executed: is_success,
+          gas_used: U256::zero(),
+          gas_price: U256::zero(),
         })
     }
 }

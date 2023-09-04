@@ -13,6 +13,18 @@ use solana_sdk::{
 };
 use solana_transaction_status::UiReturnDataEncoding;
 
+use aptos_sdk::{
+  transaction_builder::TransactionFactory,
+  types::{
+    LocalAccount,
+    chain_id::ChainId,
+    transaction::{ TransactionPayload }
+  },
+  rest_client::aptos_api_types::Transaction as AptosTransaction
+};
+use crate::AptosClient;
+use anyhow::{Context, Result};
+
 /// Simulates an instruction, and attempts to deserialize it into a T.
 /// If no return data at all was returned, returns Ok(None).
 /// If some return data was returned but deserialization was unsuccessful,
@@ -77,4 +89,32 @@ pub async fn get_account_metas(
     .unwrap_or_else(Vec::new);
 
     Ok(account_metas)
+}
+
+/// Send Aptos Transaction
+pub async fn send_aptos_transaction(
+  aptos_client: &AptosClient,
+  signer: &mut LocalAccount,
+  payload: TransactionPayload,
+) -> Result<AptosTransaction> {
+        
+  const GAS_LIMIT: u64 = 100000;
+
+  let state = aptos_client
+      .get_ledger_information()
+      .await
+      .context("Failed in getting chain id")?
+      .into_inner();
+  
+  let transaction_factory = TransactionFactory::new(ChainId::new(state.chain_id))
+          .with_gas_unit_price(100)
+          .with_max_gas_amount(GAS_LIMIT);
+  
+  let signed_tx = signer.sign_with_transaction_builder(transaction_factory.payload(payload));
+
+  let response = aptos_client.submit_and_wait(&signed_tx)
+    .await
+    .map_err(|e| anyhow::anyhow!(e.to_string()))?
+    .into_inner();
+  Ok(response)
 }

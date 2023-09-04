@@ -23,12 +23,11 @@ tracing.workspace = true
 url.workspace = true
 
 aptos-sdk.workspace = true
-aptos-types.workspace = true
-aptos.workspace = true
-move-core-types.workspace = true
 once_cell.workspace = true
 bcs.workspace = true
 rand.workspace = true
+serde_json.workspace = true
+hex.workspace = true
 
 account-utils = { path = "../../sealevel/libraries/account-utils" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["solana"] }

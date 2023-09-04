@@ -342,7 +342,6 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MailboxBuilder {})
                     .await
             }
-
             ChainConnectionConf::Fuel(conf) => {
                 let wallet = self.fuel_signer().await.context(ctx)?;
                 hyperlane_fuel::FuelMailbox::new(conf, locator, wallet)
@@ -355,7 +354,12 @@ impl ChainConf {
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
-            ChainConnectionConf::Aptos(_) => todo!()
+            ChainConnectionConf::Aptos(conf) => {
+              let keypair = self.sealevel_signer().await.context(ctx)?;
+              h_aptos::AptosMailbox::new(conf, locator, keypair)
+                  .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                  .map_err(Into::into)
+          }
         }
         .context(ctx)
     }
@@ -386,7 +390,10 @@ impl ChainConf {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
                 Ok(indexer as Box<dyn MessageIndexer>)
             }
-            ChainConnectionConf::Aptos(_) => todo!()
+            ChainConnectionConf::Aptos(conf) => {
+              let indexer = Box::new(h_aptos::AptosMailboxIndexer::new(conf, locator)?);
+              Ok(indexer as Box<dyn MessageIndexer>)
+            }
         }
         .context(ctx)
     }
@@ -505,7 +512,10 @@ impl ChainConf {
                 let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(conf, locator));
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
-            ChainConnectionConf::Aptos(_) => todo!()
+            ChainConnectionConf::Aptos(conf) => {
+              let va = Box::new(h_aptos::AptosValidatorAnnounce::new(conf, locator));
+              Ok(va as Box<dyn ValidatorAnnounce>)
+            }
         }
         .context("Building ValidatorAnnounce")
     }

@@ -145,15 +145,8 @@ walkdir = "2"
 warp = "0.3"
 which = "4.3"
 
-aptos = { path = "../aptos-core/crates/aptos" }
 aptos-sdk = { path = "../aptos-core/sdk" }
-aptos-types = { path = "../aptos-core/types" }
-move-core-types = { path = "../aptos-core/third_party/move/move-core/types" }
-
 # aptos-sdk = { git = "https://github.com/aptos-labs/aptos-core", branch = "devnet" }
-# aptos = { git = "https://github.com/aptos-labs/aptos-core", branch = "devnet" }
-# aptos-types = { git = "https://github.com/aptos-labs/aptos-core", branch = "devnet" }
-# move-core-types = { git = "https://github.com/aptos-labs/aptos-core", branch = "devnet" }
 
 bcs = { git = "https://github.com/aptos-labs/bcs.git", rev = "d31fab9d81748e2594be5cd5cdf845786a30562d" }
 once_cell = "1.18.0"
