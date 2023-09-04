@@ -109,6 +109,7 @@ where
                 (
                     InterchainGasPayment {
                         message_id: H256::from(log.message_id),
+                        destination: log.destination_domain.into(),
                         payment: log.payment.into(),
                         gas_amount: log.gas_amount.into(),
                     },

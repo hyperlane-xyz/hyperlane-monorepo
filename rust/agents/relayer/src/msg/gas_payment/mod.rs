@@ -97,6 +97,17 @@ impl GasPaymentEnforcer {
                 ?whitelist,
                 "Message matched whitelist for policy"
             );
+
+            if current_payment.destination != message.destination {
+                trace!(
+                    msg=%message,
+                    ?policy,
+                    ?current_payment,
+                    ?current_expenditure,
+                    "Message destination did not match current payment destination"
+                );
+                continue;
+            }
             debug!(
                 msg=%message,
                 ?policy,
@@ -205,6 +216,52 @@ mod test {
                     .await,
                 Ok(None)
             ));
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_check_destination() {
+        #[allow(unused_must_use)]
+        test_utils::run_test_db(|db| async move {
+            let correct_destination_msg = HyperlaneMessage::default();
+            let incorrect_destination_msg = HyperlaneMessage {
+                destination: 123,
+                ..HyperlaneMessage::default()
+            };
+
+            let hyperlane_db = HyperlaneRocksDB::new(
+                &HyperlaneDomain::new_test_domain("test_check_destination"),
+                db,
+            );
+
+            let enforcer = GasPaymentEnforcer::new(
+                // Require a payment
+                vec![GasPaymentEnforcementConf {
+                    policy: GasPaymentEnforcementPolicy::None,
+                    matching_list: MatchingList::default(),
+                }],
+                hyperlane_db,
+            );
+
+            /// Ensure if the message has the correct destination, it meets the requirement
+            assert!(enforcer
+                .message_meets_gas_payment_requirement(
+                    &correct_destination_msg,
+                    &TxCostEstimate::default(),
+                )
+                .await
+                .unwrap()
+                .is_some());
+            /// Ensure if the message has the incorrect destination, it does not meet the requirement
+            assert!(enforcer
+                .message_meets_gas_payment_requirement(
+                    &incorrect_destination_msg,
+                    &TxCostEstimate::default(),
+                )
+                .await
+                .unwrap()
+                .is_none());
         })
         .await;
     }
