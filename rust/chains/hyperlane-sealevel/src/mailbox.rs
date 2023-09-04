@@ -489,13 +489,13 @@ impl Mailbox for SealevelMailbox {
             data: ixn_data,
             accounts,
         };
-        tracing::info!("accounts={:#?}", inbox_instruction.accounts);
         instructions.push(inbox_instruction);
         let (recent_blockhash, _) = self
             .rpc_client
             .get_latest_blockhash_with_commitment(commitment)
             .await
             .map_err(ChainCommunicationError::from_other)?;
+
         let txn = Transaction::new_signed_with_payer(
             &instructions,
             Some(&payer.pubkey()),
@@ -503,13 +503,16 @@ impl Mailbox for SealevelMailbox {
             recent_blockhash,
         );
 
+        tracing::info!(?txn, "Created sealevel transaction to process message");
+
         let signature = self
             .rpc_client
             .send_and_confirm_transaction(&txn)
             .await
             .map_err(ChainCommunicationError::from_other)?;
-        tracing::info!("signature={}", signature);
-        tracing::info!("txn={:?}", txn);
+
+        tracing::info!(?txn, ?signature, "Sealevel transaction sent");
+
         let executed = self
             .rpc_client
             .confirm_transaction_with_commitment(&signature, commitment)
