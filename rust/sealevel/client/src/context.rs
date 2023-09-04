@@ -230,7 +230,6 @@ fn wait_for_user_confirmation() {
     match input[0] {
         b'y' => {
             println!("Continuing...");
-            return;
         }
         b'n' => {
             println!("Exiting with code 1...");

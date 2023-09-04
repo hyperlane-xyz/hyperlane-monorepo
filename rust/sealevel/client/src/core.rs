@@ -53,7 +53,7 @@ fn deploy_multisig_ism_message_id(ctx: &mut Context, cmd: &CoreDeploy, key_dir: 
     let program_id = keypair.pubkey();
 
     deploy_program(
-        &ctx.payer_keypair_path(),
+        ctx.payer_keypair_path(),
         keypair_path.to_str().unwrap(),
         cmd.built_so_dir
             .join("hyperlane_sealevel_multisig_ism_message_id.so")
@@ -95,7 +95,7 @@ fn deploy_mailbox(
     let program_id = keypair.pubkey();
 
     deploy_program(
-        &ctx.payer_keypair_path(),
+        ctx.payer_keypair_path(),
         keypair_path.to_str().unwrap(),
         core.built_so_dir
             .join("hyperlane_sealevel_mailbox.so")
@@ -136,7 +136,7 @@ fn deploy_validator_announce(
     let program_id = keypair.pubkey();
 
     deploy_program(
-        &ctx.payer_keypair_path(),
+        ctx.payer_keypair_path(),
         keypair_path.to_str().unwrap(),
         core.built_so_dir
             .join("hyperlane_sealevel_validator_announce.so")
@@ -221,7 +221,7 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
         .collect::<Vec<_>>();
 
     deploy_program(
-        &ctx.payer_keypair_path(),
+        ctx.payer_keypair_path(),
         keypair_path.to_str().unwrap(),
         core.built_so_dir
             .join("hyperlane_sealevel_igp.so")

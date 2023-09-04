@@ -419,7 +419,7 @@ fn deploy_warp_route(
     let program_id = keypair.pubkey();
 
     deploy_program_idempotent(
-        &ctx.payer_keypair_path(),
+        ctx.payer_keypair_path(),
         &keypair,
         keypair_path.to_str().unwrap(),
         built_so_dir
