@@ -294,7 +294,7 @@ export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {
 export async function getRouterConfig(
   environment: DeployEnvironment,
   multiProvider: MultiProvider,
-  useMultiProviderOwners = true,
+  useMultiProviderOwners = false,
 ): Promise<ChainMap<RouterConfig>> {
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
@@ -310,6 +310,7 @@ export async function getRouterConfig(
   const knownChains = multiProvider.intersect(
     core.chains().concat(igp.chains()),
   ).intersection;
+
   for (const chain of knownChains) {
     config[chain] = {
       owner: useMultiProviderOwners
@@ -326,8 +327,13 @@ export async function getRouterConfig(
 export async function getProxiedRouterConfig(
   environment: DeployEnvironment,
   multiProvider: MultiProvider,
+  useMultiProviderOwners = false,
 ): Promise<ChainMap<ProxiedRouterConfig>> {
-  const config = await getRouterConfig(environment, multiProvider);
+  const config = await getRouterConfig(
+    environment,
+    multiProvider,
+    useMultiProviderOwners,
+  );
   return objMap(config, (chain, routerConfig) => ({
     timelock: environments[environment].core[chain].upgrade?.timelock,
     ...routerConfig,

@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use solana_program::pubkey::Pubkey;
-use solana_sdk::{signature::Signer, signer::keypair::Keypair};
+use solana_sdk::signature::Signer;
 
 use std::collections::HashMap;
-use std::{fs::File, io::Write, path::Path, str::FromStr};
+use std::{fs::File, io::Write, path::Path};
 
 use crate::{
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
@@ -319,37 +319,6 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
         println!("Set gas overheads for remote domains {domains:?}",)
     } else {
         println!("Skipping setting gas overheads");
-    }
-
-    // TODO: this payment logic should be in the transfer remote and this block of code needs to be
-    //  removed after that
-    if core.remote_domains.contains(&13376) {
-        // Now make a gas payment for a message ID
-        let message_id =
-            H256::from_str("0x7b8ba684e5ce44f898c5fa81785c83a00e32b5bef3412e648eb7a17bec497685")
-                .unwrap();
-        let unique_gas_payment_keypair = Keypair::new();
-        let (instruction, gas_payment_data_account) =
-            hyperlane_sealevel_igp::instruction::pay_for_gas_instruction(
-                program_id,
-                ctx.payer.pubkey(),
-                igp_account,
-                Some(overhead_igp_account),
-                unique_gas_payment_keypair.pubkey(),
-                message_id,
-                13376,
-                100000,
-            )
-            .unwrap();
-
-        ctx.new_txn()
-            .add(instruction)
-            .send(&[&ctx.payer, &unique_gas_payment_keypair]);
-
-        println!(
-            "Made a payment for message {} with gas payment data account {}",
-            message_id, gas_payment_data_account
-        );
     }
 
     (program_id, overhead_igp_account, igp_account)

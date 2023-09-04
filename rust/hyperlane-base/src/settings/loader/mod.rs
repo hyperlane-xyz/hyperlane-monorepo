@@ -1,26 +1,37 @@
-use std::{collections::HashMap, env, error::Error, path::PathBuf};
+//! Load a settings object from the config locations.
+
+use std::{collections::HashMap, env, error::Error, fmt::Debug, path::PathBuf};
 
 use config::{Config, Environment as DeprecatedEnvironment, File};
 use convert_case::{Case, Casing};
 use eyre::{bail, Context, Result};
+use hyperlane_core::config::*;
 use itertools::Itertools;
-use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
-use super::deprecated_parser::DeprecatedRawSettings;
 use crate::settings::loader::deprecated_arguments::DeprecatedCommandLineArguments;
 
 mod arguments;
 mod deprecated_arguments;
 mod environment;
 
+/// Deserialize a settings object from the configs.
+pub fn load_settings<T, R>(name: &str) -> ConfigResult<R>
+where
+    T: DeserializeOwned + Debug,
+    R: FromRawConf<T>,
+{
+    let root_path = ConfigPath::default();
+    let raw =
+        load_settings_object::<T, &str>(name, &[]).into_config_result(|| root_path.clone())?;
+    raw.parse_config(&root_path)
+}
+
 /// Load a settings object from the config locations.
 /// Further documentation can be found in the `settings` module.
-pub(crate) fn load_settings_object<'de, T, S>(
-    agent_prefix: &str,
-    ignore_prefixes: &[S],
-) -> Result<T>
+fn load_settings_object<T, S>(agent_prefix: &str, ignore_prefixes: &[S]) -> Result<T>
 where
-    T: Deserialize<'de> + AsMut<DeprecatedRawSettings>,
+    T: DeserializeOwned,
     S: AsRef<str>,
 {
     // Derive additional prefix from agent name
@@ -103,28 +114,21 @@ where
         }
     };
 
-    match Config::try_deserialize::<T>(config_deserializer) {
-        Ok(mut cfg) => {
-            cfg.as_mut();
-            Ok(cfg)
+    Config::try_deserialize::<T>(config_deserializer).or_else(|err| {
+        let mut err = if let Some(source_err) = err.source() {
+            let source = format!("Config error source: {source_err}");
+            Err(err).context(source)
+        } else {
+            Err(err.into())
+        };
+
+        for cfg_path in base_config_sources.iter().chain(config_file_paths.iter()) {
+            err = err.with_context(|| format!("Config loaded: {cfg_path}"));
         }
-        Err(err) => {
-            let mut err = if let Some(source_err) = err.source() {
-                let source = format!("Config error source: {source_err}");
-                Err(err).context(source)
-            } else {
-                Err(err.into())
-            };
 
-            for cfg_path in base_config_sources.iter().chain(config_file_paths.iter()) {
-                err = err.with_context(|| format!("Config loaded: {cfg_path}"));
-            }
-
-            println!("Error during deserialization, showing the config for debugging: {formatted_config}");
-
-            err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
-        }
-    }
+        println!("Error during deserialization, showing the config for debugging: {formatted_config}");
+        err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
+    })
 }
 
 /// Load a settings object from the config locations and re-join the components with the standard

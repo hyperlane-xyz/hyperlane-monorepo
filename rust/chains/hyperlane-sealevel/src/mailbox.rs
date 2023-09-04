@@ -1,6 +1,6 @@
 #![allow(warnings)] // FIXME remove
 
-use std::{collections::HashMap, num::NonZeroU64, str::FromStr as _};
+use std::{collections::HashMap, num::NonZeroU64, ops::RangeInclusive, str::FromStr as _};
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -10,8 +10,8 @@ use tracing::{debug, info, instrument, warn};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox,
-    MessageIndexer, SequenceRange, TxCostEstimate, TxOutcome, H256, H512, U256,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
+    SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -53,7 +53,7 @@ use solana_transaction_status::{
 
 use crate::RpcClientWithDebug;
 use crate::{
-    utils::{get_account_metas, simulate_instruction},
+    utils::{get_account_metas, get_finalized_block_number, simulate_instruction},
     ConnectionConf, SealevelProvider,
 };
 
@@ -621,7 +621,7 @@ impl SealevelMailboxIndexer {
         // that proves it's an actual message storage PDA.
         let mut valid_message_storage_pda_pubkey = Option::<Pubkey>::None;
 
-        for (pubkey, account) in accounts.iter() {
+        for (pubkey, account) in accounts {
             let unique_message_pubkey = Pubkey::new(&account.data);
             let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
                 mailbox_dispatched_message_pda_seeds!(unique_message_pubkey),
@@ -632,8 +632,8 @@ impl SealevelMailboxIndexer {
                     "Could not find program address for unique_message_pubkey",
                 )
             })?;
-            if expected_pubkey == *pubkey {
-                valid_message_storage_pda_pubkey = Some(*pubkey);
+            if expected_pubkey == pubkey {
+                valid_message_storage_pda_pubkey = Some(pubkey);
                 break;
             }
         }
@@ -682,31 +682,29 @@ impl SealevelMailboxIndexer {
 }
 
 #[async_trait]
-impl MessageIndexer for SealevelMailboxIndexer {
+impl SequenceIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     #[instrument(err, skip(self))]
-    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
         // TODO: need to make sure the call and tip are at the same height?
         let count = self.mailbox.count(None).await?;
-        Ok((count, tip))
+        Ok((Some(count), tip))
     }
 }
 
 #[async_trait]
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
-    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let SequenceRange(range) = range else {
-            return Err(ChainCommunicationError::from_other_str(
-                "SealevelMailboxIndexer only supports sequence-based indexing",
-            ))
-        };
-
+    async fn fetch_logs(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
         info!(
             ?range,
             "Fetching SealevelMailboxIndexer HyperlaneMessage logs"
         );
 
-        let mut messages = Vec::with_capacity((range.end() - range.start()) as usize);
+        let message_capacity = range.end().saturating_sub(*range.start());
+        let mut messages = Vec::with_capacity(message_capacity as usize);
         for nonce in range {
             messages.push(self.get_message_with_nonce(nonce).await?);
         }
@@ -714,18 +712,28 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.get_finalized_block_number().await
+        get_finalized_block_number(&self.rpc_client).await
     }
 }
 
 #[async_trait]
 impl Indexer<H256> for SealevelMailboxIndexer {
-    async fn fetch_logs(&self, _range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, _range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
         todo!()
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self.get_finalized_block_number().await
+    }
+}
+
+#[async_trait]
+impl SequenceIndexer<H256> for SealevelMailboxIndexer {
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        // TODO: implement when sealevel scraper support is implemented
+        info!("Message delivery indexing not implemented");
+        let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
+        Ok((Some(1), tip))
     }
 }
 

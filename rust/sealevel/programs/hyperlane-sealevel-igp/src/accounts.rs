@@ -269,8 +269,10 @@ pub struct GasPaymentData {
     pub destination_domain: u32,
     /// The message ID of the gas payment.
     pub message_id: H256,
-    /// The amount of gas paid for.
+    /// The amount of gas provided.
     pub gas_amount: u64,
+    /// The amount of lamports quoted and paid.
+    pub payment: u64,
     /// The unique gas payment pubkey.
     pub unique_gas_payment_pubkey: Pubkey,
     /// The slot of the gas payment.
@@ -286,7 +288,7 @@ impl SizedData for GasPaymentData {
         // 8 for gas_amount
         // 32 for unique_gas_payment_pubkey
         // 8 for slot
-        8 + 32 + 4 + 32 + 8 + 32 + 8
+        8 + 32 + 4 + 32 + 8 + 8 + 32 + 8
     }
 }
 

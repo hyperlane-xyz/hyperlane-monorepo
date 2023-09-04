@@ -17,7 +17,6 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
-import { helloWorldConfig } from '../config/environments/testnet3/helloworld';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -59,7 +58,7 @@ async function main() {
         : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
     const signer = await impersonateAccount(deployerAddress);
-    multiProvider.setSigner(fork, signer);
+    multiProvider.setSharedSigner(signer);
   }
 
   let config: ChainMap<unknown> = {};
@@ -120,12 +119,11 @@ async function main() {
     }));
     deployer = new TestQuerySenderDeployer(multiProvider, igp);
   } else if (module === Modules.HELLO_WORLD) {
-    const routerConfig = await getRouterConfig(
+    config = await getRouterConfig(
       environment,
       multiProvider,
-      true,
+      true, // use deployer as owner
     );
-    config = helloWorldConfig(environment, context, routerConfig);
     const ismFactory = HyperlaneIsmFactory.fromEnvironment(
       deployEnvToSdkEnv[environment],
       multiProvider,
