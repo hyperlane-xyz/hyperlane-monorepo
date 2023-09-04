@@ -96,6 +96,8 @@ export {
   Address,
   AddressBytes32,
   CallData,
+  ChainCaip19Id,
+  ChainCaip2Id,
   Checkpoint,
   Domain,
   HexString,

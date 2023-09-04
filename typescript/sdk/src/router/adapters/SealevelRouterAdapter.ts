@@ -5,78 +5,15 @@ import { deserializeUnchecked } from 'borsh';
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
-import { ChainName } from '../../types';
+import { SealevelAccountDataWrapper } from '../../sealevel/serialization';
 import {
-  SealevelAccountDataWrapper,
-  getSealevelAccountDataSchema,
-} from '../../utils/sealevel';
+  SealevelHyperlaneTokenData,
+  SealevelHyperlaneTokenDataSchema,
+} from '../../sealevel/tokenSerialization';
+import { ChainName } from '../../types';
 import { RouterAddress } from '../types';
 
 import { IGasRouterAdapter, IRouterAdapter } from './types';
-
-// Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs
-export class SealevelTokenData {
-  /// The bump seed for this PDA.
-  bump!: number;
-  /// The address of the mailbox contract.
-  mailbox!: Uint8Array;
-  mailbox_pubkey!: PublicKey;
-  /// The Mailbox process authority specific to this program as the recipient.
-  mailbox_process_authority!: Uint8Array;
-  mailbox_process_authority_pubkey!: PublicKey;
-  /// The dispatch authority PDA's bump seed.
-  dispatch_authority_bump!: number;
-  /// The decimals of the local token.
-  decimals!: number;
-  /// The decimals of the remote token.
-  remote_decimals!: number;
-  /// Access control owner.
-  owner?: Uint8Array;
-  owner_pub_key?: PublicKey;
-  /// The interchain security module.
-  interchain_security_module?: Uint8Array;
-  interchain_security_module_pubkey?: PublicKey;
-  /// Remote routers.
-  remote_routers?: Map<Domain, Uint8Array>;
-  remote_router_pubkeys: Map<Domain, PublicKey>;
-  constructor(public readonly fields: any) {
-    Object.assign(this, fields);
-    this.mailbox_pubkey = new PublicKey(this.mailbox);
-    this.mailbox_pubkey = new PublicKey(this.mailbox_process_authority);
-    this.owner_pub_key = this.owner ? new PublicKey(this.owner) : undefined;
-    this.interchain_security_module_pubkey = this.interchain_security_module
-      ? new PublicKey(this.interchain_security_module)
-      : undefined;
-    this.remote_router_pubkeys = new Map<number, PublicKey>();
-    if (this.remote_routers) {
-      for (const [k, v] of this.remote_routers.entries()) {
-        this.remote_router_pubkeys.set(k, new PublicKey(v));
-      }
-    }
-  }
-}
-
-// Hyperlane Token Borsh Schema
-export const SealevelTokenDataSchema = new Map<any, any>([
-  [SealevelAccountDataWrapper, getSealevelAccountDataSchema(SealevelTokenData)],
-  [
-    SealevelTokenData,
-    {
-      kind: 'struct',
-      fields: [
-        ['bump', 'u8'],
-        ['mailbox', [32]],
-        ['mailbox_process_authority', [32]],
-        ['dispatch_authority_bump', 'u8'],
-        ['decimals', 'u8'],
-        ['remote_decimals', 'u8'],
-        ['owner', { kind: 'option', type: [32] }],
-        ['interchain_security_module', { kind: 'option', type: [32] }],
-        ['remote_routers', { kind: 'map', key: 'u32', value: [32] }],
-      ],
-    },
-  ],
-]);
 
 export class SealevelRouterAdapter<
     ContractAddrs extends RouterAddress = RouterAddress,
@@ -128,7 +65,9 @@ export class SealevelRouterAdapter<
 
   // TODO this incorrectly assumes all sealevel routers will have the TokenRouter's data schema
   // This will need to change when other types of routers are supported
-  async getRouterAccountInfo(chain: ChainName): Promise<SealevelTokenData> {
+  async getRouterAccountInfo(
+    chain: ChainName,
+  ): Promise<SealevelHyperlaneTokenData> {
     const address = this.multiProvider.getChainMetadata(chain).router;
     const connection = this.multiProvider.getSolanaWeb3Provider(chain);
 
@@ -139,11 +78,11 @@ export class SealevelRouterAdapter<
         `No account info found for ${msgRecipientPda.toBase58()}}`,
       );
     const accountData = deserializeUnchecked(
-      SealevelTokenDataSchema,
+      SealevelHyperlaneTokenDataSchema,
       SealevelAccountDataWrapper,
       accountInfo.data,
     );
-    return accountData.data as SealevelTokenData;
+    return accountData.data as SealevelHyperlaneTokenData;
   }
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs
