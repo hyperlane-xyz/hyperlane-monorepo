@@ -1212,7 +1212,7 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                     .get_account_with_commitment(&core_program_ids.igp_account, ctx.commitment)
                     .unwrap()
                     .value
-                    .expect("IGP account not found");
+                    .expect("IGP account not found. Make sure you are connected to the right RPC.");
 
                 let igp_account = IgpAccount::fetch(&mut &igp_account.data[..])
                     .unwrap()
@@ -1242,7 +1242,7 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                     )
                     .unwrap();
                 ctx.new_txn().add(instruction).send_with_payer();
-                println!("Set gas oracle for remote domains {:?}", args.remote_domain);
+                println!("Set gas oracle for remote domain {:?}", args.remote_domain);
             }
         }
         IgpSubCmd::DestinationGasOverhead(args) => {
@@ -1258,7 +1258,7 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                     )
                     .unwrap()
                     .value
-                    .expect("Overhead IGP account not found");
+                    .expect("Overhead IGP account not found. Make sure you are connected to the right RPC.");
                 let overhead_igp_account =
                     OverheadIgpAccount::fetch(&mut &overhead_igp_account.data[..])
                         .unwrap()
@@ -1283,7 +1283,7 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                     .unwrap();
                 ctx.new_txn().add(instruction).send_with_payer();
                 println!(
-                    "Set gas overheads for remote domains {:?}",
+                    "Set gas overheads for remote domain {:?}",
                     args.remote_domain
                 )
             }
