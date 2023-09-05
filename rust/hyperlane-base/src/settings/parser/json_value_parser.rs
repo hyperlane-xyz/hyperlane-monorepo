@@ -27,7 +27,7 @@ impl<'v> ValueParser<'v> {
 
     /// Get a value at the given key and verify that it is present.
     pub fn get_key(&self, key: &str) -> ConfigResult<ValueParser<'v>> {
-        self.get_opt_key(key)?
+        self.get_opt_key(&key.to_case(Case::Flat))?
             .ok_or_else(|| eyre!("Expected key `{key}` to be defined"))
             .into_config_result(|| &self.cwp + key.to_case(Case::Snake))
     }
@@ -36,7 +36,7 @@ impl<'v> ValueParser<'v> {
     pub fn get_opt_key(&self, key: &str) -> ConfigResult<Option<ValueParser<'v>>> {
         let cwp = &self.cwp + key.to_case(Case::Snake);
         match self.val {
-            Value::Object(obj) => Ok(obj.get(key).map(|val| Self {
+            Value::Object(obj) => Ok(obj.get(&key.to_case(Case::Flat)).map(|val| Self {
                 val,
                 cwp: cwp.clone(),
             })),
@@ -46,6 +46,7 @@ impl<'v> ValueParser<'v> {
     }
 
     /// Create an iterator over all (key, value) tuples.
+    /// Be warned that keys will be in flat case.
     pub fn into_obj_iter(
         self,
     ) -> ConfigResult<impl Iterator<Item = (String, ValueParser<'v>)> + 'v> {

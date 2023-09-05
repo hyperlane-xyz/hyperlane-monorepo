@@ -74,7 +74,7 @@ The name of the ClusterSecretStore/SecretStore
 {{/*
 Recursively converts a config object into environment variables than can
 be parsed by rust. For example, a config of { foo: { bar: { baz: 420 }, booGo: 421 } } will
-be: HYP_foo_bar_baz=420 and HYP_foo_booGo=421
+be: HYP_FOO_BAR_BAZ=420 and HYP_FOO_BOOGO=421
 Env vars can be formatted in FOO="BAR" format if .format is "dot_env",
 FOO: "BAR" format if .format is "config_map", or otherwise
 they will be formatted as spec YAML-friendly environment variables
@@ -92,7 +92,7 @@ they will be formatted as spec YAML-friendly environment variables
 
 {{- define "agent-common.config-env-var" }}
 {{- if (eq .format "dot_env") }}
-HYP_{{ .key }}={{ .value | quote }}
+HYP_{{ .key | upper }}={{ .value | quote }}
 {{- else if (eq .format "config_map") }}
 HYP_{{ .key | upper }}: {{ .value | quote }}
 {{- else }}

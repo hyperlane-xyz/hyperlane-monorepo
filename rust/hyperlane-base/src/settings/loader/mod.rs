@@ -9,9 +9,12 @@ use hyperlane_core::config::*;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 
-use crate::settings::loader::{arguments::CommandLineArguments, environment::Environment};
+use crate::settings::loader::{
+    arguments::CommandLineArguments, case_adapter::CaseAdapter, environment::Environment,
+};
 
 mod arguments;
+mod case_adapter;
 mod environment;
 
 /// Deserialize a settings object from the configs.
@@ -70,7 +73,9 @@ where
         let p = PathBuf::from(path);
         if p.is_file() {
             if p.extension() == Some("json".as_ref()) {
-                builder = builder.add_source(File::from(p));
+                let config_file = File::from(p);
+                let re_cased_config_file = CaseAdapter::new(config_file, Case::Flat);
+                builder = builder.add_source(re_cased_config_file);
             } else {
                 bail!("Provided config path via CONFIG_FILES is of an unsupported type ({p:?})")
             }
@@ -81,21 +86,19 @@ where
         }
     }
 
-    // HYP_chains_ethereum_rpcs_0_
-
     let config_deserializer = builder
         // Use a base configuration env variable prefix
         .add_source(
             Environment::default()
                 .prefix("HYP_")
                 .separator("_")
-                .casing(Case::Camel)
+                .casing(Case::Flat)
                 .source(&filtered_env),
         )
         .add_source(
             CommandLineArguments::default()
                 .separator(".")
-                .casing(Case::Camel),
+                .casing(Case::Flat),
         )
         .build()?;
 

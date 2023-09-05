@@ -223,13 +223,13 @@ impl<'de> Deserialize<'de> for Filter<H256> {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
 struct ListElement {
-    #[serde(default, rename = "originDomain")]
+    #[serde(default, rename = "origindomain")]
     origin_domain: Filter<u32>,
-    #[serde(default, rename = "senderAddress")]
+    #[serde(default, rename = "senderaddress")]
     sender_address: Filter<H256>,
-    #[serde(default, rename = "destinationDomain")]
+    #[serde(default, rename = "destinationdomain")]
     destination_domain: Filter<u32>,
-    #[serde(default, rename = "recipientAddress")]
+    #[serde(default, rename = "recipientaddress")]
     recipient_address: Filter<H256>,
 }
 
@@ -328,7 +328,7 @@ mod test {
 
     #[test]
     fn basic_config() {
-        let list: MatchingList = serde_json::from_str(r#"[{"originDomain": "*", "senderAddress": "*", "destinationDomain": "*", "recipientAddress": "*"}, {}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"origindomain": "*", "senderaddress": "*", "destinationdomain": "*", "recipientaddress": "*"}, {}]"#).unwrap();
         assert!(list.0.is_some());
         assert_eq!(list.0.as_ref().unwrap().len(), 2);
         let elem = &list.0.as_ref().unwrap()[0];
@@ -369,7 +369,7 @@ mod test {
 
     #[test]
     fn config_with_address() {
-        let list: MatchingList = serde_json::from_str(r#"[{"senderAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "recipientAddress": "9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"senderaddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "recipientaddress": "9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
         assert!(list.0.is_some());
         assert_eq!(list.0.as_ref().unwrap().len(), 1);
         let elem = &list.0.as_ref().unwrap()[0];
@@ -423,7 +423,7 @@ mod test {
     #[test]
     fn config_with_multiple_domains() {
         let whitelist: MatchingList =
-            serde_json::from_str(r#"[{"destinationDomain": ["13372", "13373"]}]"#).unwrap();
+            serde_json::from_str(r#"[{"destinationdomain": ["13372", "13373"]}]"#).unwrap();
         assert!(whitelist.0.is_some());
         assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
         let elem = &whitelist.0.as_ref().unwrap()[0];
