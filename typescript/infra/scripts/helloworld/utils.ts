@@ -32,20 +32,29 @@ export async function getHelloWorldApp(
   keyContext: Contexts = context,
   connectionType: AgentConnectionType = AgentConnectionType.Http,
 ) {
+  console.log('utils.ts a');
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
     keyRole,
     connectionType,
   );
+  console.log('utils.ts b');
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
+  console.log('utils.ts c');
   const contracts = attachContractsMap(
-    helloworldConfig.addresses,
+    filterAddressesToProtocol(
+      helloworldConfig.addresses,
+      ProtocolType.Ethereum,
+      multiProvider,
+    ),
     helloWorldFactories,
   );
+  console.log('utils.ts d');
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[coreConfig.environment],
     multiProvider,
   );
+  console.log('utils.ts e');
   return new HelloWorldApp(core, contracts, multiProvider);
 }
 

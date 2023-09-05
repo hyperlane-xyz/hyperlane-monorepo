@@ -238,4 +238,21 @@ export abstract class HyperlaneAppChecker<
     const count = this.violations.length;
     assert(count === 0, `Found ${count} violations`);
   }
+
+  logViolationsTable() {
+    const violations = this.violations;
+    if (violations.length > 0) {
+      console.table(violations, [
+        'chain',
+        'remote',
+        'name',
+        'type',
+        'subType',
+        'actual',
+        'expected',
+      ]);
+    } else {
+      console.info(`${module} Checker found no violations`);
+    }
+  }
 }

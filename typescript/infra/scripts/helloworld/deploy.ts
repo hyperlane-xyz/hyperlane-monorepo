@@ -39,6 +39,11 @@ async function main() {
     console.info(`Could not load previous deployment, file may not exist`);
   }
 
+  console.log('configMap', configMap);
+  console.log('deployer.cachedAddresses', deployer.cachedAddresses);
+
+  process.exit(1);
+
   try {
     await deployer.deploy(configMap);
   } catch (e) {
