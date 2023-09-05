@@ -100,7 +100,6 @@ export {
   ChainCaip2Id,
   Checkpoint,
   Domain,
-  DomainId,
   HexString,
   InterchainSecurityModuleType,
   MerkleProof,

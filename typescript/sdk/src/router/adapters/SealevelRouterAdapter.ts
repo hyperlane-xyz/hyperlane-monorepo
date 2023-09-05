@@ -11,11 +11,6 @@ import {
   SealevelHyperlaneTokenDataSchema,
 } from '../../sealevel/tokenSerialization';
 import { ChainName } from '../../types';
-import {
-  HyperlaneTokenData,
-  SealevelAccountDataWrapper,
-  SealevelHyperlaneTokenDataSchema,
-} from '../../utils/sealevel/tokenSerialization';
 import { RouterAddress } from '../types';
 
 import { IGasRouterAdapter, IRouterAdapter } from './types';
