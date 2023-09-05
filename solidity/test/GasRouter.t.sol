@@ -26,9 +26,7 @@ contract GasRouterTest is Test {
     function setUp() public {
         originMailbox = new TestMailbox(originDomain);
         TestIsm ism = new TestIsm();
-        TestInterchainGasPaymaster igp = new TestInterchainGasPaymaster(
-            address(this)
-        );
+        TestInterchainGasPaymaster igp = new TestInterchainGasPaymaster();
         TestMerkleTreeHook _requiredHook = new TestMerkleTreeHook(
             address(originMailbox)
         );
