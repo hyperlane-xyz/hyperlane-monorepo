@@ -28,7 +28,7 @@ function getWarpRoutesHelmValues() {
   const values = {
     image: {
       repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '955b872-20230823-171506',
+      tag: '5aa0ad2-20230905-192903',
     },
   };
   return helmifyValues(values);

@@ -60,5 +60,7 @@ The warp-routes container
   imagePullPolicy: IfNotPresent
   command:
   - ./node_modules/.bin/ts-node
-  - ./typescript/infra/scripts/warp-routes/monitor-warp-routes-balances.ts -c 10000
+  - ./typescript/infra/scripts/warp-routes/monitor-warp-routes-balances.ts
+  - -c 
+  - "10000"
 {{- end }}
