@@ -333,7 +333,8 @@ struct IgpCmd {
 #[derive(Subcommand)]
 enum IgpSubCmd {
     PayForGas(PayForGasArgs),
-    GetDomainData(GetDomainDataArgs),
+    GetDomainOracleData(GetDomainOracleDataArgs),
+    GetDomainOverheadOracleData(GetDomainOracleDataArgs),
 }
 
 #[derive(Args)]
@@ -343,7 +344,7 @@ struct PayForGasArgs {
 }
 
 #[derive(Args)]
-pub(crate) struct GetDomainDataArgs {
+pub(crate) struct GetDomainOracleDataArgs {
     #[arg(long)]
     environment: String,
     #[arg(long)]
@@ -1174,7 +1175,7 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                 payment_details.message_id, gas_payment_data_account
             );
         }
-        IgpSubCmd::GetDomainData(domain_data_args) => {
+        IgpSubCmd::GetDomainOracleData(domain_data_args) => {
             let core_program_ids = read_core_program_ids(
                 &domain_data_args.environments_dir,
                 &domain_data_args.environment,
@@ -1194,6 +1195,31 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
             println!(
                 "IGP account gas oracle: {:#?}",
                 igp_account.gas_oracles.get(&domain_data_args.remote_domain)
+            );
+        }
+        IgpSubCmd::GetDomainOverheadOracleData(domain_data_args) => {
+            let core_program_ids = read_core_program_ids(
+                &domain_data_args.environments_dir,
+                &domain_data_args.environment,
+                &domain_data_args.chain_name,
+            );
+            let overhead_igp_account = ctx
+                .client
+                .get_account_with_commitment(&core_program_ids.overhead_igp_account, ctx.commitment)
+                .unwrap()
+                .value
+                .expect("Overhead IGP account not found");
+
+            let overhead_igp_account =
+                OverheadIgpAccount::fetch(&mut &overhead_igp_account.data[..])
+                    .unwrap()
+                    .into_inner();
+
+            println!(
+                "Overhead IGP account gas oracle: {:#?}",
+                overhead_igp_account
+                    .gas_overheads
+                    .get(&domain_data_args.remote_domain)
             );
         }
     }
