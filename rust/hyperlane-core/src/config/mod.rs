@@ -116,6 +116,7 @@ impl Display for ConfigParsingError {
         for (path, report) in &self.0 {
             writeln!(f, "\n#####\n")?;
             writeln!(f, "config_path: `{path}`")?;
+            // TODO(2214): the env_path is displaying extra underscores
             writeln!(f, "env_path: `{}`", path.env_name())?;
             writeln!(f, "arg_key: `{}`", path.arg_name())?;
             writeln!(f, "error: {report:?}")?;
