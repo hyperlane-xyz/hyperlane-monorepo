@@ -1,24 +1,31 @@
-use std::collections::BTreeMap;
-use std::ffi::OsStr;
-use std::fmt::{Debug, Display, Formatter};
-use std::io::{BufRead, BufReader, Read};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::Sender;
-use std::sync::{mpsc, Arc};
-use std::thread::{sleep, spawn};
-use std::time::Duration;
+use std::{
+    collections::BTreeMap,
+    ffi::OsStr,
+    fmt::{Debug, Display, Formatter},
+    io::{BufRead, BufReader, Read},
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+        mpsc::Sender,
+        Arc,
+    },
+    thread::{sleep, spawn},
+    time::Duration,
+};
 
 use eyre::Context;
 use macro_rules_attribute::apply;
 
-use crate::logging::log;
-use crate::utils::{
-    as_task, stop_child, AgentHandles, ArbitraryData, LogFilter, MappingTaskHandle,
-    SimpleTaskHandle, TaskHandle,
+use crate::{
+    logging::log,
+    utils::{
+        as_task, stop_child, AgentHandles, ArbitraryData, LogFilter, MappingTaskHandle,
+        SimpleTaskHandle, TaskHandle,
+    },
+    RUN_LOG_WATCHERS, SHUTDOWN,
 };
-use crate::{RUN_LOG_WATCHERS, SHUTDOWN};
 
 #[derive(Default, Clone)]
 #[must_use]
@@ -134,7 +141,7 @@ impl Program {
 
     /// add an env that will be prefixed with the default hyperlane env prefix
     pub fn hyp_env(self, key: impl AsRef<str>, value: impl Into<String>) -> Self {
-        const PREFIX: &str = "HYP_BASE_";
+        const PREFIX: &str = "HYP_";
         let key = key.as_ref();
         debug_assert!(
             !key.starts_with(PREFIX),

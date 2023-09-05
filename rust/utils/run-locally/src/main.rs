@@ -146,34 +146,34 @@ fn main() -> ExitCode {
 
     let common_agent_env = Program::default()
         .env("RUST_BACKTRACE", "full")
-        .hyp_env("TRACING_FMT", "compact")
-        .hyp_env("TRACING_LEVEL", "debug")
-        .hyp_env("CHAINS_TEST1_INDEX_CHUNK", "1")
-        .hyp_env("CHAINS_TEST2_INDEX_CHUNK", "1")
-        .hyp_env("CHAINS_TEST3_INDEX_CHUNK", "1");
+        .hyp_env("log_format", "compact")
+        .hyp_env("log_level", "debug")
+        .hyp_env("chains_test1_index_chunk", "1")
+        .hyp_env("chains_test2_index_chunk", "1")
+        .hyp_env("chains_test3_index_chunk", "1");
 
     let relayer_env = common_agent_env
         .clone()
         .bin(concat_path(AGENT_BIN_PATH, "relayer"))
-        .hyp_env("CHAINS_TEST1_CONNECTION_TYPE", "fallback")
+        .hyp_env("chains_test1_rpcConsensusType", "fallback")
         .hyp_env(
             "CHAINS_TEST2_CONNECTION_URLS",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
         // by setting this as a quorum provider we will cause nonce errors when delivering to test2
         // because the message will be sent to the node 3 times.
-        .hyp_env("CHAINS_TEST2_CONNECTION_TYPE", "quorum")
-        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
-        .hyp_env("METRICS", "9092")
-        .hyp_env("DB", relayer_db.to_str().unwrap())
-        .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
-        .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
-        .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[3])
-        .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
-        .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
-        .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
+        .hyp_env("chains_test2_rpcConsensusType", "quorum")
+        .hyp_env("chains_test3_rpcConsensusType", "http://127.0.0.1:8545")
+        .hyp_env("metricsPort", "9092")
+        .hyp_env("db", relayer_db.to_str().unwrap())
+        .hyp_env("chains_test1_signer_key", RELAYER_KEYS[0])
+        .hyp_env("chains_test2_signer_key", RELAYER_KEYS[1])
+        .hyp_env("chains_sealeveltest1_signer_key", RELAYER_KEYS[3])
+        .hyp_env("chains_sealeveltest2_signer_key", RELAYER_KEYS[4])
+        .hyp_env("relayChains", "invalidchain,otherinvalid")
+        .hyp_env("allowLocalCheckpointSyncers", "true")
         .hyp_env(
-            "GASPAYMENTENFORCEMENT",
+            "gasPaymentEnforcement",
             r#"[{
                 "type": "minimum",
                 "payment": "1",
@@ -189,7 +189,7 @@ fn main() -> ExitCode {
             }]"#,
         )
         .arg(
-            "chains.test1.connection.urls",
+            "chains.test1.customRpcUrls",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
         // default is used for TEST3
@@ -203,30 +203,32 @@ fn main() -> ExitCode {
         .clone()
         .bin(concat_path(AGENT_BIN_PATH, "validator"))
         .hyp_env(
-            "CHAINS_TEST1_CONNECTION_URLS",
+            "chains_test1_customRpcUrls",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
-        .hyp_env("CHAINS_TEST1_CONNECTION_TYPE", "quorum")
+        .hyp_env("chains_test1_rpcConsensusType", "quorum")
         .hyp_env(
-            "CHAINS_TEST2_CONNECTION_URLS",
+            "chains_test2_customRpcUrls",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
-        .hyp_env("CHAINS_TEST2_CONNECTION_TYPE", "fallback")
-        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
-        .hyp_env("REORGPERIOD", "0")
-        .hyp_env("INTERVAL", "5")
-        .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage");
+        .hyp_env("chains_test2_rpcConsensusType", "fallback")
+        .hyp_env("chains_test3_customRpcUrls", "http://127.0.0.1:8545")
+        .hyp_env("chains_test1_blocks_reorgPeriod", "0")
+        .hyp_env("chains_test2_blocks_reorgPeriod", "0")
+        .hyp_env("chains_test3_blocks_reorgPeriod", "0")
+        .hyp_env("interval", "5")
+        .hyp_env("checkpointSyncer_type", "localStorage");
 
     let validator_envs = (0..VALIDATOR_COUNT)
         .map(|i| {
             base_validator_env
                 .clone()
-                .hyp_env("METRICS", (9094 + i).to_string())
-                .hyp_env("DB", validator_dbs[i].to_str().unwrap())
-                .hyp_env("ORIGINCHAINNAME", VALIDATOR_ORIGIN_CHAINS[i])
-                .hyp_env("VALIDATOR_KEY", VALIDATOR_KEYS[i])
+                .hyp_env("metricsPort", (9094 + i).to_string())
+                .hyp_env("db", validator_dbs[i].to_str().unwrap())
+                .hyp_env("originChainName", VALIDATOR_ORIGIN_CHAINS[i])
+                .hyp_env("validator_key", VALIDATOR_KEYS[i])
                 .hyp_env(
-                    "CHECKPOINTSYNCER_PATH",
+                    "checkpointSyncer_path",
                     (*checkpoints_dirs[i]).as_ref().to_str().unwrap(),
                 )
         })
@@ -234,16 +236,16 @@ fn main() -> ExitCode {
 
     let scraper_env = common_agent_env
         .bin(concat_path(AGENT_BIN_PATH, "scraper"))
-        .hyp_env("CHAINS_TEST1_CONNECTION_TYPE", "quorum")
-        .hyp_env("CHAINS_TEST1_CONNECTION_URL", "http://127.0.0.1:8545")
-        .hyp_env("CHAINS_TEST2_CONNECTION_TYPE", "quorum")
-        .hyp_env("CHAINS_TEST2_CONNECTION_URL", "http://127.0.0.1:8545")
-        .hyp_env("CHAINS_TEST3_CONNECTION_TYPE", "quorum")
-        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
-        .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
-        .hyp_env("METRICS", "9093")
+        .hyp_env("chains_test1_rpcConsensusType", "quorum")
+        .hyp_env("chains_test1_customRpcUrls", "http://127.0.0.1:8545")
+        .hyp_env("chains_test2_rpcConsensusType", "quorum")
+        .hyp_env("chains_test2_customRpcUrls", "http://127.0.0.1:8545")
+        .hyp_env("chains_test3_rpcConsensusType", "quorum")
+        .hyp_env("chains_test3_customRpcUrls", "http://127.0.0.1:8545")
+        .hyp_env("chainsToScrape", "test1,test2,test3")
+        .hyp_env("metricsPort", "9093")
         .hyp_env(
-            "DB",
+            "db",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         );
 
