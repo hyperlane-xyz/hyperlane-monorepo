@@ -1,7 +1,7 @@
 node_modules/
 tmp.ts
 dist/
-.env
+.env*
 cache/
 test/outputs
 config/environments/test/core/

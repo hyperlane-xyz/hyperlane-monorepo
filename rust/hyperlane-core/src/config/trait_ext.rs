@@ -1,5 +1,6 @@
-use crate::config::{ConfigParsingError, ConfigPath, ConfigResult};
 use eyre::Report;
+
+use crate::config::{ConfigParsingError, ConfigPath, ConfigResult};
 
 /// Extension trait to better support ConfigResults with non-ConfigParsingError
 /// results.
@@ -38,13 +39,18 @@ where
 }
 
 /// Extension trait to better support ConfigResults.
-pub trait ConfigResultExt<T> {
+pub trait ConfigResultExt {
+    /// The resulting type
+    type Output;
+
     /// Take the error from a result and merge it into the given
     /// ConfigParsingError.
-    fn take_config_err(self, err: &mut ConfigParsingError) -> Option<T>;
+    fn take_config_err(self, err: &mut ConfigParsingError) -> Option<Self::Output>;
 }
 
-impl<T> ConfigResultExt<T> for ConfigResult<T> {
+impl<T> ConfigResultExt for ConfigResult<T> {
+    type Output = T;
+
     fn take_config_err(self, err: &mut ConfigParsingError) -> Option<T> {
         match self {
             Ok(v) => Some(v),
@@ -53,5 +59,23 @@ impl<T> ConfigResultExt<T> for ConfigResult<T> {
                 None
             }
         }
+    }
+}
+
+/// Extension trait to better support ConfigResults.
+pub trait ConfigResultOptionExt {
+    /// The resulting type
+    type Output;
+
+    /// Take the error from a result and merge it into the given
+    /// ConfigParsingError.
+    fn take_config_err_flat(self, err: &mut ConfigParsingError) -> Option<Self::Output>;
+}
+
+impl<T> ConfigResultOptionExt for ConfigResult<Option<T>> {
+    type Output = T;
+
+    fn take_config_err_flat(self, err: &mut ConfigParsingError) -> Option<Self::Output> {
+        self.take_config_err(err).flatten()
     }
 }

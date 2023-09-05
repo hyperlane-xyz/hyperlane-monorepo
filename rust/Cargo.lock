@@ -1983,6 +1983,7 @@ dependencies = [
 name = "ecdsa-signature"
 version = "0.1.0"
 dependencies = [
+ "getrandom 0.2.10",
  "hyperlane-core",
  "solana-program",
  "thiserror",
@@ -3601,6 +3602,7 @@ dependencies = [
  "bs58 0.5.0",
  "color-eyre",
  "config",
+ "convert_case 0.6.0",
  "derive-new",
  "ed25519-dalek",
  "ethers",
@@ -3723,7 +3725,9 @@ dependencies = [
  "async-trait",
  "base64 0.21.2",
  "borsh 0.9.3",
+ "derive-new",
  "hyperlane-core",
+ "hyperlane-sealevel-igp",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
@@ -3749,7 +3753,9 @@ name = "hyperlane-sealevel-client"
 version = "0.1.0"
 dependencies = [
  "account-utils",
+ "bincode",
  "borsh 0.9.3",
+ "bs58 0.5.0",
  "clap 4.3.19",
  "hex 0.4.3",
  "hyperlane-core",
@@ -3771,6 +3777,7 @@ dependencies = [
  "solana-client",
  "solana-program",
  "solana-sdk",
+ "solana-transaction-status",
 ]
 
 [[package]]
@@ -3903,6 +3910,7 @@ name = "hyperlane-sealevel-message-recipient-interface"
 version = "0.1.0"
 dependencies = [
  "borsh 0.9.3",
+ "getrandom 0.2.10",
  "hyperlane-core",
  "solana-program",
  "spl-type-length-value",
@@ -6267,9 +6275,11 @@ version = "0.1.0"
 dependencies = [
  "ctrlc",
  "eyre",
+ "hyperlane-core",
  "macro_rules_attribute",
  "maplit",
  "nix 0.26.2",
+ "regex",
  "tempfile",
  "ureq",
  "which",
@@ -6641,6 +6651,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "config",
+ "derive_more",
  "ethers",
  "eyre",
  "futures",
@@ -9167,6 +9178,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "config",
+ "derive_more",
  "ethers",
  "eyre",
  "futures-util",

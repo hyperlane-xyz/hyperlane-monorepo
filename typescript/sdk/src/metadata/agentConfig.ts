@@ -1,3 +1,7 @@
+/**
+ * The types defined here are the source of truth for chain metadata.
+ * ANY CHANGES HERE NEED TO BE REFLECTED IN HYPERLANE-BASE CONFIG PARSING.
+ */
 import { z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -101,21 +105,23 @@ export const AgentChainMetadataSchema = ChainMetadataSchema.merge(
   signer: AgentSignerSchema.optional().describe(
     'The signer to use for this chain',
   ),
-  index: z.object({
-    from: ZUint.optional().describe(
-      'The starting block from which to index events.',
-    ),
-    chunk: ZNzUint.optional().describe(
-      'The number of blocks to index at a time.',
-    ),
-    // TODO(2214): I think we can always interpret this from the ProtocolType
-    mode: z
-      .nativeEnum(AgentIndexMode)
-      .optional()
-      .describe(
-        'The indexing method to use for this chain; will attempt to choose a suitable default if not specified.',
+  index: z
+    .object({
+      from: ZUint.optional().describe(
+        'The starting block from which to index events.',
       ),
-  }),
+      chunk: ZNzUint.optional().describe(
+        'The number of blocks to index at a time.',
+      ),
+      // TODO(2214): I think we can always interpret this from the ProtocolType
+      mode: z
+        .nativeEnum(AgentIndexMode)
+        .optional()
+        .describe(
+          'The indexing method to use for this chain; will attempt to choose a suitable default if not specified.',
+        ),
+    })
+    .optional(),
 });
 
 export type AgentChainMetadata = z.infer<typeof AgentChainMetadataSchema>;
@@ -170,25 +176,24 @@ const GasPaymentEnforcementBaseSchema = z.object({
     'An optional matching list, any message that matches will use this policy. By default all messages will match.',
   ),
 });
-const GasPaymentEnforcementSchema = z.union([
-  GasPaymentEnforcementBaseSchema.extend({
-    type: z.literal('none').optional(),
-  }),
-  GasPaymentEnforcementBaseSchema.extend({
-    type: z.literal('minimum').optional(),
-    payment: ZUWei,
-    matchingList: MatchingListSchema.optional().describe(
-      'An optional matching list, any message that matches will use this policy. By default all messages will match.',
-    ),
-  }),
-  GasPaymentEnforcementBaseSchema.extend({
-    type: z.literal('onChainFeeQuoting'),
-    gasFraction: z.string().regex(/^\d+ ?\/ ?[1-9]\d*$/),
-    matchingList: MatchingListSchema.optional().describe(
-      'An optional matching list, any message that matches will use this policy. By default all messages will match.',
-    ),
-  }),
-]);
+const GasPaymentEnforcementSchema = z.array(
+  z.union([
+    GasPaymentEnforcementBaseSchema.extend({
+      type: z.literal('none').optional(),
+    }),
+    GasPaymentEnforcementBaseSchema.extend({
+      type: z.literal('minimum').optional(),
+      payment: ZUWei,
+    }),
+    GasPaymentEnforcementBaseSchema.extend({
+      type: z.literal('onChainFeeQuoting'),
+      gasFraction: z
+        .string()
+        .regex(/^\d+ ?\/ ?[1-9]\d*$/)
+        .optional(),
+    }),
+  ]),
+);
 
 export type GasPaymentEnforcement = z.infer<typeof GasPaymentEnforcementSchema>;
 
@@ -270,6 +275,13 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
         type: z.literal('s3'),
         bucket: z.string().nonempty(),
         region: z.string().nonempty(),
+        folder: z
+          .string()
+          .nonempty()
+          .optional()
+          .describe(
+            'The folder/key-prefix to use, defaults to the root of the bucket',
+          ),
       })
       .describe('A checkpoint syncer that uses S3'),
   ]),

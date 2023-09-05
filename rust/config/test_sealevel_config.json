@@ -5,7 +5,7 @@
       "domain": 13375,
       "addresses": {
         "mailbox": "692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1",
-        "interchainGasPaymaster": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm",
+        "interchainGasPaymaster": "DrFtxirPPsfdY4HQiNZj2A9o4Ux7JaL3gELANgAoihhp",
         "validatorAnnounce": "DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn"
       },
       "protocol": "sealevel",
@@ -24,7 +24,7 @@
       "domain": 13376,
       "addresses": {
         "mailbox": "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj",
-        "interchainGasPaymaster": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm",
+        "interchainGasPaymaster": "G5rGigZBL8NmxCaukK2CAKr9Jq4SUfAhsjzeri7GUraK",
         "validatorAnnounce": "3Uo5j2Bti9aZtrDqJmAyuwiFaJFPFoNL5yxTpVCNcUhb"
       },
       "protocol": "sealevel",

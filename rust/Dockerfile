@@ -48,7 +48,9 @@ COPY --from=builder /release/* .
 
 RUN chmod 777 /app &&  \
     mkdir /usr/share/hyperlane/ && \
-    chmod 1000 /usr/share/hyperlane
+    chmod 1000 /usr/share/hyperlane && \
+    mkdir /data/ && \
+    chown -R 1000 /data/
 
 USER 1000
 ENTRYPOINT ["tini", "--"]

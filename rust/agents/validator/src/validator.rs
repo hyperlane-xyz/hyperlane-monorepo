@@ -1,12 +1,8 @@
-use std::num::NonZeroU64;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{num::NonZeroU64, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use derive_more::AsRef;
 use eyre::Result;
-use tokio::{task::JoinHandle, time::sleep};
-use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
-
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
@@ -18,15 +14,19 @@ use hyperlane_core::{
     ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
+use tokio::{task::JoinHandle, time::sleep};
+use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use crate::{
-    settings::ValidatorSettings, submit::ValidatorSubmitter, submit::ValidatorSubmitterMetrics,
+    settings::ValidatorSettings,
+    submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
 };
 
 /// A validator agent
-#[derive(Debug)]
+#[derive(Debug, AsRef)]
 pub struct Validator {
     origin_chain: HyperlaneDomain,
+    #[as_ref]
     core: HyperlaneAgentCore,
     db: HyperlaneRocksDB,
     message_sync: Arc<MessageContractSync>,
@@ -39,13 +39,6 @@ pub struct Validator {
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
 }
-
-impl AsRef<HyperlaneAgentCore> for Validator {
-    fn as_ref(&self) -> &HyperlaneAgentCore {
-        &self.core
-    }
-}
-
 #[async_trait]
 impl BaseAgent for Validator {
     const AGENT_NAME: &'static str = "validator";
@@ -143,9 +136,8 @@ impl BaseAgent for Validator {
 
 impl Validator {
     async fn run_message_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let index_settings = self.as_ref().settings.chains[self.origin_chain.name()]
-            .index
-            .clone();
+        let index_settings =
+            self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
         let contract_sync = self.message_sync.clone();
         let cursor = contract_sync
             .forward_backward_message_sync_cursor(index_settings)
@@ -227,14 +219,6 @@ impl Validator {
     }
 
     async fn announce(&self) -> Result<()> {
-        if self.core.settings.chains[self.origin_chain.name()]
-            .signer
-            .is_none()
-        {
-            warn!(origin_chain=%self.origin_chain, "Cannot announce validator without a signer; make sure a signer is set for the origin chain");
-            return Ok(());
-        }
-
         // Sign and post the validator announcement
         let announcement = Announcement {
             validator: self.signer.eth_address(),
@@ -268,24 +252,33 @@ impl Validator {
                     announced_locations=?locations,
                     "Validator has not announced signature storage location"
                 );
-                let balance_delta = self
-                    .validator_announce
-                    .announce_tokens_needed(signed_announcement.clone())
-                    .await
-                    .unwrap_or_default();
-                if balance_delta > U256::zero() {
-                    warn!(
-                        tokens_needed=%balance_delta,
-                        validator_address=?announcement.validator,
-                        "Please send tokens to the validator address to announce",
-                    );
-                } else {
-                    let result = self
+
+                if self.core.settings.chains[self.origin_chain.name()]
+                    .signer
+                    .is_some()
+                {
+                    let balance_delta = self
                         .validator_announce
-                        .announce(signed_announcement.clone(), None)
-                        .await;
-                    Self::log_on_announce_failure(result);
+                        .announce_tokens_needed(signed_announcement.clone())
+                        .await
+                        .unwrap_or_default();
+                    if balance_delta > U256::zero() {
+                        warn!(
+                            tokens_needed=%balance_delta,
+                            validator_address=?announcement.validator,
+                            "Please send tokens to the validator address to announce",
+                        );
+                    } else {
+                        let result = self
+                            .validator_announce
+                            .announce(signed_announcement.clone(), None)
+                            .await;
+                        Self::log_on_announce_failure(result);
+                    }
+                } else {
+                    warn!(origin_chain=%self.origin_chain, "Cannot announce validator without a signer; make sure a signer is set for the origin chain");
                 }
+
                 sleep(self.interval).await;
             }
         }

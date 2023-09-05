@@ -201,6 +201,29 @@ contract InterchainAccountRouterTest is Test {
         assertEq(actualIsm, ism);
     }
 
+    function testEnrollRemoteRouterAndIsms(
+        uint32[] calldata destinations,
+        bytes32[] calldata routers,
+        bytes32[] calldata isms
+    ) public {
+        if (
+            destinations.length != routers.length ||
+            destinations.length != isms.length
+        ) {
+            vm.expectRevert(bytes("length mismatch"));
+            originRouter.enrollRemoteRouterAndIsms(destinations, routers, isms);
+            return;
+        }
+
+        originRouter.enrollRemoteRouterAndIsms(destinations, routers, isms);
+        for (uint256 i = 0; i < destinations.length; i++) {
+            bytes32 actualRouter = originRouter.routers(destinations[i]);
+            bytes32 actualIsm = originRouter.isms(destinations[i]);
+            assertEq(actualRouter, routers[i]);
+            assertEq(actualIsm, isms[i]);
+        }
+    }
+
     function testEnrollRemoteRouterAndIsmImmutable(
         bytes32 routerA,
         bytes32 ismA,

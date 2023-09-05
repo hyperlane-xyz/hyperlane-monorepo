@@ -1,10 +1,11 @@
 use std::ffi::{OsStr, OsString};
 
 use config::{ConfigError, Map, Source, Value, ValueKind};
+use convert_case::Case;
+
+use crate::settings::loader::split_and_recase_key;
 
 /// A source for loading configuration from command line arguments.
-/// Command line argument keys are case-insensitive, and the following forms are
-/// supported:
 ///
 /// * `--key=value`
 /// * `--key="value"`
@@ -23,6 +24,10 @@ pub struct CommandLineArguments {
     /// Ignore empty env values (treat as unset).
     ignore_empty: bool,
 
+    /// What casing to use for the keys in the environment. By default it will not mutate the key
+    /// value.
+    casing: Option<Case>,
+
     /// Alternate source for the environment. This can be used when you want to
     /// test your own code using this source, without the need to change the
     /// actual system environment variables.
@@ -38,6 +43,11 @@ impl CommandLineArguments {
 
     pub fn ignore_empty(mut self, ignore: bool) -> Self {
         self.ignore_empty = ignore;
+        self
+    }
+
+    pub fn casing(mut self, casing: Case) -> Self {
+        self.casing = Some(casing);
         self
     }
 
@@ -77,13 +87,7 @@ impl Source for CommandLineArguments {
                 continue;
             }
 
-            let mut key = key.to_lowercase();
-
-            // If separator is given replace with `.`
-            if !separator.is_empty() && separator != "." {
-                key = key.replace(separator, ".");
-            }
-
+            let key = split_and_recase_key(separator, self.casing, key);
             m.insert(key, Value::new(Some(&uri), ValueKind::String(value)));
         }
 
@@ -283,7 +287,8 @@ mod test {
                 Some(Value::new(
                     Some(&origin),
                     ValueKind::String($value.to_owned())
-                ))
+                )),
+                $key
             );
         };
     }
@@ -291,11 +296,12 @@ mod test {
     const ARGUMENTS: &[&str] = &[
         "--key-a",
         "value-a",
-        "--keY-b=value-b",
-        "--key-c=\"value c\"",
-        "--KEY-d='valUE d'",
+        "--key-b=value-b",
+        "--key-c-partA=\"value c a\"",
+        "--key-c-PartB=\"value c b\"",
+        "--key-d='valUE d'",
         "--key-e=''",
-        "--key-F",
+        "--key-f",
         "--key-g=value-g",
         "--key-h",
     ];
@@ -309,7 +315,8 @@ mod test {
 
         assert_arg!(config, "key.a", "value-a");
         assert_arg!(config, "key.b", "value-b");
-        assert_arg!(config, "key.c", "value c");
+        assert_arg!(config, "key.c.partA", "value c a");
+        assert_arg!(config, "key.c.PartB", "value c b");
         assert_arg!(config, "key.d", "valUE d");
         assert_arg!(config, "key.e", "");
         assert_arg!(config, "key.f", "");
@@ -329,7 +336,8 @@ mod test {
 
         assert_arg!(config, "key.a", "value-a");
         assert_arg!(config, "key.b", "value-b");
-        assert_arg!(config, "key.c", "value c");
+        assert_arg!(config, "key.c.partA", "value c a");
+        assert_arg!(config, "key.c.PartB", "value c b");
         assert_arg!(config, "key.d", "valUE d");
         assert_arg!(config, "key.g", "value-g");
 
