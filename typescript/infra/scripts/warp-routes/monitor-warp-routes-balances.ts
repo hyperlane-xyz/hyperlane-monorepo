@@ -1,12 +1,13 @@
 import { Connection } from '@solana/web3.js';
 import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
+import yargs from 'yargs';
 
 import {
   ERC20__factory,
   SealevelHypCollateralAdapter,
 } from '@hyperlane-xyz/hyperlane-token';
-import { ChainMap, MultiProvider } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 import { debug, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import {
@@ -29,7 +30,15 @@ const warpRouteTokenBalance = new Gauge({
   ],
 });
 
-async function main(checkFreqeuncy: number): Promise<boolean> {
+async function main(): Promise<boolean> {
+  const { checkFrequency } = await yargs(process.argv.slice(2))
+    .describe('checkFrequency', 'frequency to check balances in ms')
+    .demandOption('checkFrequency')
+    .alias('c', 'checkFrequency')
+    .number('checkFrequency')
+    .parse();
+  console.log('checkFrequency', checkFrequency);
+
   startMetricsServer(metricsRegister);
 
   const multiProvider = new MultiProvider();
@@ -42,7 +51,7 @@ async function main(checkFreqeuncy: number): Promise<boolean> {
     } catch (e) {
       console.error('Error checking balances', e);
     }
-  }, checkFreqeuncy);
+  }, checkFrequency);
   return true;
 }
 
@@ -52,7 +61,7 @@ async function checkBalance(
 ): Promise<ChainMap<number>> {
   const output: ChainMap<Promise<number>> = objMap(
     tokenConfig,
-    async (chain, token) => {
+    async (chain: ChainName, token: WarpTokenConfig[ChainName]) => {
       const provider = multiprovider.getProvider(chain);
       if (token.type === 'native') {
         if (token.protocolType === 'ethereum') {
@@ -102,7 +111,7 @@ function updateTokenBalanceMetrics(
   tokenConfig: WarpTokenConfig,
   balances: ChainMap<number>,
 ) {
-  objMap(tokenConfig, (chain, token) => {
+  objMap(tokenConfig, (chain: ChainName, token: WarpTokenConfig[ChainName]) => {
     const tokenAddress =
       token.type === 'native' ? ethers.constants.AddressZero : token.address;
     const walletAddress =
@@ -127,4 +136,4 @@ function updateTokenBalanceMetrics(
   });
 }
 
-main(10000).then(console.log).catch(console.error);
+main().then(console.log).catch(console.error);
