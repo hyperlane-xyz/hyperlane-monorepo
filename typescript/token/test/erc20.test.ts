@@ -126,10 +126,8 @@ for (const variant of [
         variant === TokenType.collateral || variant === TokenType.native
           ? (local as HypERC20Collateral).initialize(
               ethers.constants.AddressZero,
-              ethers.constants.AddressZero,
             )
           : (local as HypERC20).initialize(
-              ethers.constants.AddressZero,
               ethers.constants.AddressZero,
               0,
               '',
