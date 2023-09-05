@@ -116,9 +116,7 @@ macro_rules! impl_loadable_from_settings {
     ($agent:ident, $settingsparser:ident -> $settingsobj:ident) => {
         impl hyperlane_base::LoadableFromSettings for $settingsobj {
             fn load() -> hyperlane_core::config::ConfigResult<Self> {
-                hyperlane_base::settings::loader::load_settings::<$settingsparser, Self>(
-                    stringify!($agent),
-                )
+                hyperlane_base::settings::loader::load_settings::<$settingsparser, Self>()
             }
         }
     };

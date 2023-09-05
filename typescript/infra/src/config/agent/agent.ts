@@ -149,7 +149,6 @@ export abstract class AgentConfigHelper<R = unknown>
   extends RootAgentConfigHelper
   implements AgentRoleConfig
 {
-  // TODO(2214): rename to consensusType?
   rpcConsensusType: RpcConsensusType;
   docker: DockerConfig;
   chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;

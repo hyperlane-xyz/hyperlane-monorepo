@@ -15,20 +15,19 @@ mod arguments;
 mod environment;
 
 /// Deserialize a settings object from the configs.
-pub fn load_settings<T, R>(name: &str) -> ConfigResult<R>
+pub fn load_settings<T, R>() -> ConfigResult<R>
 where
     T: DeserializeOwned + Debug,
     R: FromRawConf<T>,
 {
     let root_path = ConfigPath::default();
-    let raw =
-        load_settings_object::<T, &str>(name, &[]).into_config_result(|| root_path.clone())?;
+    let raw = load_settings_object::<T, &str>(&[]).into_config_result(|| root_path.clone())?;
     raw.parse_config(&root_path)
 }
 
 /// Load a settings object from the config locations.
 /// Further documentation can be found in the `settings` module.
-fn load_settings_object<T, S>(agent_prefix: &str, ignore_prefixes: &[S]) -> Result<T>
+fn load_settings_object<T, S>(ignore_prefixes: &[S]) -> Result<T>
 where
     T: DeserializeOwned,
     S: AsRef<str>,
