@@ -3725,7 +3725,9 @@ dependencies = [
  "async-trait",
  "base64 0.21.2",
  "borsh 0.9.3",
+ "derive-new",
  "hyperlane-core",
+ "hyperlane-sealevel-igp",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
@@ -3751,7 +3753,9 @@ name = "hyperlane-sealevel-client"
 version = "0.1.0"
 dependencies = [
  "account-utils",
+ "bincode",
  "borsh 0.9.3",
+ "bs58 0.5.0",
  "clap 4.3.19",
  "hex 0.4.3",
  "hyperlane-core",
@@ -3772,6 +3776,7 @@ dependencies = [
  "solana-client",
  "solana-program",
  "solana-sdk",
+ "solana-transaction-status",
 ]
 
 [[package]]
@@ -6249,9 +6254,11 @@ version = "0.1.0"
 dependencies = [
  "ctrlc",
  "eyre",
+ "hyperlane-core",
  "macro_rules_attribute",
  "maplit",
  "nix 0.26.2",
+ "regex",
  "tempfile",
  "ureq",
  "which",

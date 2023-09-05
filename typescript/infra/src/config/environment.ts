@@ -5,15 +5,16 @@ import {
   ChainName,
   CoreConfig,
   HookConfig,
+  HyperlaneEnvironment,
   MultiProvider,
   OverheadIgpConfig,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { HyperlaneEnvironment } from '@hyperlane-xyz/sdk/dist/consts/environments';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
+import { CloudAgentKey } from '../agents/keys';
 import { Role } from '../roles';
 
 import { RootAgentConfig } from './agent';
@@ -46,6 +47,10 @@ export type EnvironmentConfig = {
     // TODO(2214): rename to consensusType?
     connectionType?: RpcConsensusType,
   ) => Promise<MultiProvider>;
+  getKeys: (
+    context?: Contexts,
+    role?: Role,
+  ) => Promise<ChainMap<CloudAgentKey>>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
   keyFunderConfig?: KeyFunderConfig;
   liquidityLayerConfig?: {

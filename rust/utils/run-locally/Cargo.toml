@@ -18,3 +18,5 @@ tempfile.workspace = true
 ureq = { workspace = true, default-features = false }
 which.workspace = true
 macro_rules_attribute.workspace = true
+regex.workspace = true
+hyperlane-core = { path = "../../hyperlane-core" }

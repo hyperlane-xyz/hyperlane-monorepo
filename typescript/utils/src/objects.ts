@@ -6,10 +6,6 @@ export function deepEquals(v1: any, v2: any) {
   return JSON.stringify(v1) === JSON.stringify(v2);
 }
 
-type MappedObject<M extends Record<any, any>, O> = {
-  [Property in keyof M]: O;
-};
-
 export type ValueOf<T> = T[keyof T];
 
 export function objMapEntries<
@@ -27,8 +23,8 @@ export function objMap<
   K extends keyof M,
   O,
   I = ValueOf<M>,
->(obj: M, func: (k: K, v: I) => O): MappedObject<M, O> {
-  return Object.fromEntries<O>(objMapEntries(obj, func)) as MappedObject<M, O>;
+>(obj: M, func: (k: K, v: I) => O): Record<K, O> {
+  return Object.fromEntries<O>(objMapEntries(obj, func)) as Record<K, O>;
 }
 
 export function objFilter<K extends string, I, O extends I>(

@@ -4,13 +4,11 @@ import {
   CoreViolationType,
   HyperlaneCore,
   HyperlaneCoreChecker,
+  MailboxViolation,
+  MailboxViolationType,
   OwnerViolation,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
-import {
-  MailboxViolation,
-  MailboxViolationType,
-} from '@hyperlane-xyz/sdk/dist/core/types';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor';

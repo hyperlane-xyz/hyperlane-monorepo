@@ -55,6 +55,10 @@ export class AgentAwsKey extends CloudAgentKey {
     this.region = agentConfig.aws.region;
   }
 
+  get privateKey(): string {
+    throw new Error('Private key unavailable for AWS keys');
+  }
+
   async getClient(): Promise<KMSClient> {
     if (this.client) {
       return this.client;

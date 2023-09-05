@@ -10,8 +10,8 @@ use solana_program::{
 };
 
 use crate::{
-    accounts::GasOracle, igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
-    overhead_igp_pda_seeds,
+    accounts::{GasOracle, InterchainGasPaymasterType},
+    igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds, overhead_igp_pda_seeds,
 };
 
 /// The program instructions.
@@ -315,4 +315,35 @@ pub fn pay_for_gas_instruction(
     };
 
     Ok((instruction, gas_payment_account))
+}
+
+/// Gets an instruction to change an IGP or Overhead IGP
+/// account's owner.
+pub fn transfer_igp_account_ownership_instruction(
+    program_id: Pubkey,
+    igp_account_type: InterchainGasPaymasterType,
+    owner_payer: Pubkey,
+    new_owner: Option<Pubkey>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (igp_account, instruction) = match igp_account_type {
+        InterchainGasPaymasterType::Igp(igp_account) => {
+            (igp_account, Instruction::TransferIgpOwnership(new_owner))
+        }
+        InterchainGasPaymasterType::OverheadIgp(igp_account) => (
+            igp_account,
+            Instruction::TransferOverheadIgpOwnership(new_owner),
+        ),
+    };
+
+    // 0. [writeable] The IGP or OverheadIGP.
+    // 1. [signer] The owner of the IGP account.
+    let instruction = SolanaInstruction {
+        program_id,
+        data: instruction.try_to_vec()?,
+        accounts: vec![
+            AccountMeta::new(igp_account, false),
+            AccountMeta::new(owner_payer, true),
+        ],
+    };
+    Ok(instruction)
 }

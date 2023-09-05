@@ -29,7 +29,7 @@ use tempfile::tempdir;
 use crate::{
     config::Config,
     ethereum::start_anvil,
-    invariants::termination_invariants_met,
+    invariants::{termination_invariants_met, SOL_MESSAGES_EXPECTED},
     solana::*,
     utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle},
 };
@@ -172,6 +172,22 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
+        .hyp_env(
+            "GASPAYMENTENFORCEMENT",
+            r#"[{
+                "type": "minimum",
+                "payment": "1",
+                "matchingList": [
+                    {
+                        "originDomain": ["13375","13376"],
+                        "destinationDomain": ["13375","13376"]
+                    }
+                ]
+            },
+            {
+                "type": "none"
+            }]"#,
+        )
         .arg(
             "chains.test1.connection.urls",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
@@ -320,9 +336,17 @@ fn main() -> ExitCode {
         state.push_agent(validator);
     }
 
+    // Send some sealevel messages before spinning up the relayer, to test the backward indexing cursor
+    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
+        initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    }
+
     state.push_agent(relayer_env.spawn("RLY"));
 
-    initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    // Send some sealevel messages after spinning up the relayer, to test the forward indexing cursor
+    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
+        initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    }
 
     log!("Setup complete! Agents running in background...");
     log!("Ctrl+C to end execution...");
