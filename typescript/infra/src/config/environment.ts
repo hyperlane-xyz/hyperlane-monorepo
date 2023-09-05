@@ -59,6 +59,6 @@ export const deployEnvToSdkEnv: Record<
   HyperlaneEnvironment
 > = {
   mainnet2: 'mainnet',
-  testnet3: 'testnet',
+  testnet4: 'testnet',
   test: 'test',
 };

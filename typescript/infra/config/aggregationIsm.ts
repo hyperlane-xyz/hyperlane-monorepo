@@ -18,18 +18,18 @@ import { chainNames as mainnet2Chains } from './environments/mainnet2/chains';
 import { owners as mainnet2Owners } from './environments/mainnet2/owners';
 import { chainNames as testChains } from './environments/test/chains';
 import { owners as testOwners } from './environments/test/owners';
-import { chainNames as testnet3Chains } from './environments/testnet3/chains';
-import { owners as testnet3Owners } from './environments/testnet3/owners';
+import { chainNames as testnet4Chains } from './environments/testnet4/chains';
+import { owners as testnet4Owners } from './environments/testnet4/owners';
 import { rcMultisigIsmConfigs } from './multisigIsm';
 
 const chains = {
   mainnet2: mainnet2Chains,
-  testnet3: testnet3Chains,
+  testnet4: testnet4Chains,
   test: testChains,
 };
 
 const owners = {
-  testnet3: testnet3Owners,
+  testnet4: testnet4Owners,
   mainnet2: mainnet2Owners,
   test: testOwners,
 };

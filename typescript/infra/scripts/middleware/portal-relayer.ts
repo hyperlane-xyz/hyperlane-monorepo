@@ -7,7 +7,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { error, log } from '@hyperlane-xyz/utils';
 
-import { bridgeAdapterConfigs } from '../../config/environments/testnet3/token-bridge';
+import { bridgeAdapterConfigs } from '../../config/environments/testnet4/token-bridge';
 import { readJSON, sleep } from '../../src/utils/utils';
 import {
   getArgs,

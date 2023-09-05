@@ -3,7 +3,6 @@ import path from 'path';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
-  HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
   HyperlaneHookDeployer,
@@ -19,7 +18,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts';
-import { helloWorldConfig } from '../config/environments/testnet3/helloworld';
+import { helloWorldConfig } from '../config/environments/testnet4/helloworld';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -42,21 +41,25 @@ import {
 } from './utils';
 
 async function main() {
+  console.log('woho');
   const {
     context = Contexts.Hyperlane,
     module,
     fork,
     environment,
   } = await withContext(withModuleAndFork(getArgs())).argv;
+  console.log('ARGS', { context, module, fork, environment });
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
+
+  console.log('ENV CONFIG', envConfig);
 
   if (fork) {
     await useLocalProvider(multiProvider, fork);
 
     // TODO: make this more generic
     const deployerAddress =
-      environment === 'testnet3'
+      environment === 'testnet4'
         ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
         : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 

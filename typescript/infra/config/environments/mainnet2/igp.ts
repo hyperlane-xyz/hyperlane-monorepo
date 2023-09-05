@@ -9,7 +9,6 @@ import {
 import { utils } from '@hyperlane-xyz/utils';
 
 import { MainnetChains, chainNames } from './chains';
-import { core } from './core';
 import { owners } from './owners';
 
 // TODO: make this generic
@@ -43,7 +42,15 @@ export const igp: ChainMap<OverheadIgpConfig> = objMap(
             ),
           ]),
       ),
-      upgrade: core[chain].upgrade,
+      upgrade: {
+        timelock: {
+          delay: 0,
+          roles: {
+            proposer: owner,
+            executor: owner,
+          },
+        },
+      },
     };
   },
 );
