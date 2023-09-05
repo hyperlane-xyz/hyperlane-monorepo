@@ -225,6 +225,7 @@ describe('Router', async () => {
             .emit(igp, 'GasPayment')
             .withArgs(
               id,
+              destination,
               testGasPaymentParams.gasAmount,
               testGasPaymentParams.payment,
             );
