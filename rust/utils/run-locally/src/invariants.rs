@@ -7,6 +7,10 @@ use crate::fetch_metric;
 use crate::logging::log;
 use crate::solana::solana_termination_invariants_met;
 
+// This number should be even, so the messages can be split into two equal halves
+// sent before and after the relayer spins up, to avoid rounding errors.
+pub const SOL_MESSAGES_EXPECTED: u32 = 20;
+
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent.
 pub fn termination_invariants_met(
@@ -15,8 +19,7 @@ pub fn termination_invariants_met(
     solana_config_path: &Path,
 ) -> eyre::Result<bool> {
     let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
-    let sol_messages_expected = 1;
-    let total_messages_expected = eth_messages_expected + sol_messages_expected;
+    let total_messages_expected = eth_messages_expected + SOL_MESSAGES_EXPECTED;
 
     let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
@@ -44,6 +47,17 @@ pub fn termination_invariants_met(
         "9092",
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "gas_payments"},
+    )?
+    .iter()
+    .sum::<u32>();
+
+    let gas_payment_sealevel_events_count = fetch_metric(
+        "9092",
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {
+                "data_type" => "gas_payments",
+                "chain" => "sealeveltest",
+        },
     )?
     .iter()
     .sum::<u32>();
@@ -87,11 +101,14 @@ pub fn termination_invariants_met(
     .iter()
     .sum::<u32>();
     // The relayer and scraper should have the same number of gas payments.
-    if gas_payments_scraped != gas_payment_events_count {
+    // TODO: Sealevel gas payments are not yet included in the event count.
+    // For now, treat as an exception in the invariants.
+    let expected_gas_payments = gas_payment_events_count - gas_payment_sealevel_events_count;
+    if gas_payments_scraped != expected_gas_payments {
         log!(
             "Scraper has scraped {} gas payments, expected {}",
             gas_payments_scraped,
-            eth_messages_expected
+            expected_gas_payments
         );
         return Ok(false);
     }

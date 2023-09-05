@@ -3,4 +3,8 @@ export { HelloWorldFactories, helloWorldFactories } from './app/contracts';
 export { HelloWorldChecker } from './deploy/check';
 export { HelloWorldConfig } from './deploy/config';
 export { HelloWorldDeployer } from './deploy/deploy';
+export { EvmHelloWorldAdapter } from './multiProtocolApp/evmAdapter';
+export { HelloMultiProtocolApp } from './multiProtocolApp/multiProtocolApp';
+export { SealevelHelloWorldAdapter } from './multiProtocolApp/sealevelAdapter';
+export { IHelloWorldAdapter } from './multiProtocolApp/types';
 export * as types from './types';

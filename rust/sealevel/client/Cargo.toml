@@ -7,6 +7,8 @@ edition = "2021"
 
 [dependencies]
 borsh.workspace = true
+bs58.workspace = true
+bincode.workspace = true
 clap = { workspace = true, features = ["derive"] }
 hex.workspace = true
 pretty_env_logger.workspace = true
@@ -17,6 +19,7 @@ solana-cli-config.workspace = true
 solana-client.workspace = true
 solana-program.workspace = true
 solana-sdk.workspace = true
+solana-transaction-status.workspace = true
 
 account-utils = { path = "../libraries/account-utils" }
 hyperlane-core = { path = "../../hyperlane-core" }

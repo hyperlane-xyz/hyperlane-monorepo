@@ -6,12 +6,12 @@ import { format } from 'util';
 import {
   AgentConnectionType,
   AllChains,
+  ChainMap,
   ChainName,
   Chains,
   HyperlaneIgp,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { ChainMap } from '@hyperlane-xyz/sdk/dist/types';
 import { error, log, warn } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';

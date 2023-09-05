@@ -14,11 +14,7 @@ import { debug } from '@hyperlane-xyz/utils';
 import { HelloWorld } from '../types';
 
 import { HelloWorldFactories } from './contracts';
-
-type Counts = {
-  sent: number;
-  received: number;
-};
+import { StatCounts } from './types';
 
 export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
   constructor(
@@ -78,7 +74,7 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     return this.core.waitForMessageProcessed(receipt);
   }
 
-  async channelStats(from: ChainName, to: ChainName): Promise<Counts> {
+  async channelStats(from: ChainName, to: ChainName): Promise<StatCounts> {
     const sent = await this.getContracts(from).router.sentTo(
       this.multiProvider.getDomainId(to),
     );
@@ -89,8 +85,8 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     return { sent: sent.toNumber(), received: received.toNumber() };
   }
 
-  async stats(): Promise<ChainMap<ChainMap<Counts>>> {
-    const entries: Array<[ChainName, ChainMap<Counts>]> = await Promise.all(
+  async stats(): Promise<ChainMap<ChainMap<StatCounts>>> {
+    const entries: Array<[ChainName, ChainMap<StatCounts>]> = await Promise.all(
       this.chains().map(async (source) => {
         const destinationEntries = await Promise.all(
           this.remoteChains(source).map(async (destination) => [
