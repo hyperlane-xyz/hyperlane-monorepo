@@ -1180,16 +1180,12 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                 &domain_data_args.environment,
                 &domain_data_args.chain_name,
             );
-            let (igp_account, _igp_account_bump) = Pubkey::find_program_address(
-                hyperlane_sealevel_igp::igp_pda_seeds!(H256::zero()),
-                &core_program_ids.igp_account,
-            );
             let igp_account = ctx
                 .client
-                .get_account_with_commitment(&igp_account, ctx.commitment)
+                .get_account_with_commitment(&core_program_ids.igp_account, ctx.commitment)
                 .unwrap()
                 .value
-                .unwrap();
+                .expect("IGP account not found");
 
             let igp_account = IgpAccount::fetch(&mut &igp_account.data[..])
                 .unwrap()
