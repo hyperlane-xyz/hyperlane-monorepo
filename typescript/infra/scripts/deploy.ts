@@ -41,18 +41,14 @@ import {
 } from './utils';
 
 async function main() {
-  console.log('woho');
   const {
     context = Contexts.Hyperlane,
     module,
     fork,
     environment,
   } = await withContext(withModuleAndFork(getArgs())).argv;
-  console.log('ARGS', { context, module, fork, environment });
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
-
-  console.log('ENV CONFIG', envConfig);
 
   if (fork) {
     await useLocalProvider(multiProvider, fork);

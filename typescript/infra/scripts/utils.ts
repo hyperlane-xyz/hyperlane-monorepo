@@ -118,7 +118,6 @@ export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
 }
 
 export function assertEnvironment(env: string): DeployEnvironment {
-  console.log("assertEnvironment's env", EnvironmentNames.includes(env));
   if (EnvironmentNames.includes(env)) {
     return env as DeployEnvironment;
   }
