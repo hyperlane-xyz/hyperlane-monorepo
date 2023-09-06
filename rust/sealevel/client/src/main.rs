@@ -1300,87 +1300,102 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
         IgpSubCmd::GasOracleConfig(args) => {
             let core_program_ids =
                 read_core_program_ids(&args.environments_dir, &args.environment, &args.chain_name);
-            if args.token_exchange_rate.is_none() {
-                // Read the gas oracle config
-                let igp_account = ctx
-                    .client
-                    .get_account_with_commitment(&core_program_ids.igp_account, ctx.commitment)
-                    .unwrap()
-                    .value
-                    .expect("IGP account not found. Make sure you are connected to the right RPC.");
+            match (
+                args.token_decimals,
+                args.token_exchange_rate,
+                args.gas_price,
+            ) {
+                (None, None, None) => {
+                    // Read the gas oracle config
+                    let igp_account = ctx
+                        .client
+                        .get_account_with_commitment(&core_program_ids.igp_account, ctx.commitment)
+                        .unwrap()
+                        .value
+                        .expect(
+                            "IGP account not found. Make sure you are connected to the right RPC.",
+                        );
 
-                let igp_account = IgpAccount::fetch(&mut &igp_account.data[..])
-                    .unwrap()
-                    .into_inner();
+                    let igp_account = IgpAccount::fetch(&mut &igp_account.data[..])
+                        .unwrap()
+                        .into_inner();
 
-                println!(
-                    "IGP account gas oracle: {:#?}",
-                    igp_account.gas_oracles.get(&args.remote_domain)
-                );
-            } else {
-                // Set the gas oracle config
-                let remote_gas_data = RemoteGasData {
-                    token_exchange_rate: args.token_exchange_rate.unwrap(),
-                    gas_price: args.gas_price.unwrap(),
-                    token_decimals: args.token_decimals.unwrap(),
-                };
-                let gas_oracle_config = GasOracleConfig {
-                    domain: args.remote_domain,
-                    gas_oracle: Some(GasOracle::RemoteGasData(remote_gas_data)),
-                };
-                let instruction =
-                    hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
-                        core_program_ids.igp_program_id,
-                        core_program_ids.igp_account,
-                        ctx.payer_pubkey,
-                        vec![gas_oracle_config],
-                    )
-                    .unwrap();
-                ctx.new_txn().add(instruction).send_with_payer();
-                println!("Set gas oracle for remote domain {:?}", args.remote_domain);
+                    println!(
+                        "IGP account gas oracle: {:#?}",
+                        igp_account.gas_oracles.get(&args.remote_domain)
+                    );
+                }
+                (Some(token_decimals), Some(token_exchange_rate), Some(gas_price)) => {
+                    // Set the gas oracle config
+                    let remote_gas_data = RemoteGasData {
+                        token_exchange_rate,
+                        gas_price: gas_price,
+                        token_decimals: token_decimals,
+                    };
+                    let gas_oracle_config = GasOracleConfig {
+                        domain: args.remote_domain,
+                        gas_oracle: Some(GasOracle::RemoteGasData(remote_gas_data)),
+                    };
+                    let instruction =
+                        hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
+                            core_program_ids.igp_program_id,
+                            core_program_ids.igp_account,
+                            ctx.payer_pubkey,
+                            vec![gas_oracle_config],
+                        )
+                        .unwrap();
+                    ctx.new_txn().add(instruction).send_with_payer();
+                    println!("Set gas oracle for remote domain {:?}", args.remote_domain);
+                }
+                _ => {
+                    println!("Must specify all or none of --token-decimals, --token-exchange-rate, and --gas-price");
+                }
             }
         }
         IgpSubCmd::DestinationGasOverhead(args) => {
             let core_program_ids =
                 read_core_program_ids(&args.environments_dir, &args.environment, &args.chain_name);
-            if args.gas_overhead.is_none() {
-                // Read the gas overhead config
-                let overhead_igp_account = ctx
-                    .client
-                    .get_account_with_commitment(
-                        &core_program_ids.overhead_igp_account,
-                        ctx.commitment,
-                    )
-                    .unwrap()
-                    .value
-                    .expect("Overhead IGP account not found. Make sure you are connected to the right RPC.");
-                let overhead_igp_account =
-                    OverheadIgpAccount::fetch(&mut &overhead_igp_account.data[..])
+            match args.gas_overhead {
+                None => {
+                    // Read the gas overhead config
+                    let overhead_igp_account = ctx
+                        .client
+                        .get_account_with_commitment(
+                            &core_program_ids.overhead_igp_account,
+                            ctx.commitment,
+                        )
                         .unwrap()
-                        .into_inner();
-                println!(
-                    "Overhead IGP account gas oracle: {:#?}",
-                    overhead_igp_account.gas_overheads.get(&args.remote_domain)
-                );
-            } else {
-                let overhead_config = GasOverheadConfig {
-                    destination_domain: args.remote_domain,
-                    gas_overhead: args.gas_overhead,
-                };
-                // Set the gas overhead config
-                let instruction =
-                    hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
-                        core_program_ids.igp_program_id,
-                        core_program_ids.overhead_igp_account,
-                        ctx.payer_pubkey,
-                        vec![overhead_config],
+                        .value
+                        .expect("Overhead IGP account not found. Make sure you are connected to the right RPC.");
+                    let overhead_igp_account =
+                        OverheadIgpAccount::fetch(&mut &overhead_igp_account.data[..])
+                            .unwrap()
+                            .into_inner();
+                    println!(
+                        "Overhead IGP account gas oracle: {:#?}",
+                        overhead_igp_account.gas_overheads.get(&args.remote_domain)
+                    );
+                }
+                Some(gas_overhead) => {
+                    let overhead_config = GasOverheadConfig {
+                        destination_domain: args.remote_domain,
+                        gas_overhead: Some(gas_overhead),
+                    };
+                    // Set the gas overhead config
+                    let instruction =
+                        hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
+                            core_program_ids.igp_program_id,
+                            core_program_ids.overhead_igp_account,
+                            ctx.payer_pubkey,
+                            vec![overhead_config],
+                        )
+                        .unwrap();
+                    ctx.new_txn().add(instruction).send_with_payer();
+                    println!(
+                        "Set gas overheads for remote domain {:?}",
+                        args.remote_domain
                     )
-                    .unwrap();
-                ctx.new_txn().add(instruction).send_with_payer();
-                println!(
-                    "Set gas overheads for remote domain {:?}",
-                    args.remote_domain
-                )
+                }
             }
         }
         IgpSubCmd::TransferIgpOwnership(ref transfer_ownership)
