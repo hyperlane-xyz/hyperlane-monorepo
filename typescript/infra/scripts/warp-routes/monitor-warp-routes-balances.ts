@@ -6,9 +6,15 @@ import yargs from 'yargs';
 import {
   ERC20__factory,
   SealevelHypCollateralAdapter,
+  TokenType,
 } from '@hyperlane-xyz/hyperlane-token';
 import { ChainMap, ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { debug, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  debug,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import {
   WarpTokenConfig,
@@ -37,7 +43,6 @@ async function main(): Promise<boolean> {
     .alias('c', 'checkFrequency')
     .number('checkFrequency')
     .parse();
-  console.log('checkFrequency', checkFrequency);
 
   startMetricsServer(metricsRegister);
 
@@ -55,6 +60,7 @@ async function main(): Promise<boolean> {
   return true;
 }
 
+// TODO: see issue https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2708
 async function checkBalance(
   tokenConfig: WarpTokenConfig,
   multiprovider: MultiProvider,
@@ -63,8 +69,8 @@ async function checkBalance(
     tokenConfig,
     async (chain: ChainName, token: WarpTokenConfig[ChainName]) => {
       const provider = multiprovider.getProvider(chain);
-      if (token.type === 'native') {
-        if (token.protocolType === 'ethereum') {
+      if (token.type === TokenType.native) {
+        if (token.protocolType === ProtocolType.Ethereum) {
           const nativeBalance = await provider.getBalance(
             token.hypNativeAddress,
           );
@@ -113,7 +119,9 @@ function updateTokenBalanceMetrics(
 ) {
   objMap(tokenConfig, (chain: ChainName, token: WarpTokenConfig[ChainName]) => {
     const tokenAddress =
-      token.type === 'native' ? ethers.constants.AddressZero : token.address;
+      token.type === TokenType.native
+        ? ethers.constants.AddressZero
+        : token.address;
     const walletAddress =
       token.type === 'native'
         ? token.hypNativeAddress
