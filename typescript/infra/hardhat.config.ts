@@ -74,10 +74,8 @@ task('kathy', 'Dispatches random hyperlane messages')
         const remote: ChainName = randomElement(core.remoteChains(local));
         const remoteId = multiProvider.getDomainId(remote);
         const mailbox = core.getContracts(local).mailbox;
-        const igp = igps.getContracts(local).interchainGasPaymaster;
         await recipient.dispatchToSelf(
           mailbox.address,
-          igp.address,
           remoteId,
           '0x1234',
           {

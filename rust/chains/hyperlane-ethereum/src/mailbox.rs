@@ -347,8 +347,9 @@ where
             .call()
             .await?;
 
+        // TODO: migrate checkpoints to merkle tree language
         Ok(Checkpoint {
-            mailbox_address: self.address(),
+            mailbox_address: merkle_hook.address().into(),
             mailbox_domain: self.domain.id(),
             root: root.into(),
             index,

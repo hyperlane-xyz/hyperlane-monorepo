@@ -6,6 +6,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
+import {IGPMetadata} from "../libs/hooks/IGPMetadata.sol";
 
 contract TestSendReceiver is IMessageRecipient {
     using TypeCasts for address;
@@ -16,39 +17,47 @@ contract TestSendReceiver is IMessageRecipient {
 
     function dispatchToSelf(
         IMailbox _mailbox,
-        IInterchainGasPaymaster _paymaster,
         uint32 _destinationDomain,
         bytes calldata _messageBody
     ) external payable {
-        bytes32 _messageId = _mailbox.dispatch(
-            _destinationDomain,
-            address(this).addressToBytes32(),
-            _messageBody
-        );
         uint256 _blockHashNum = uint256(previousBlockHash());
-        uint256 _value = msg.value;
-        if (_blockHashNum % 5 == 0) {
+        bool separatePayments = (_blockHashNum % 5 == 0);
+        bytes memory metadata;
+        if (separatePayments) {
             // Pay in two separate calls, resulting in 2 distinct events
-            uint256 _halfPayment = _value / 2;
-            uint256 _halfGasAmount = HANDLE_GAS_AMOUNT / 2;
-            _paymaster.payForGas{value: _halfPayment}(
-                _messageId,
-                _destinationDomain,
-                _halfGasAmount,
-                msg.sender
-            );
-            _paymaster.payForGas{value: _value - _halfPayment}(
-                _messageId,
-                _destinationDomain,
-                HANDLE_GAS_AMOUNT - _halfGasAmount,
+            metadata = IGPMetadata.formatMetadata(
+                HANDLE_GAS_AMOUNT / 2,
                 msg.sender
             );
         } else {
             // Pay the entire msg.value in one call
-            _paymaster.payForGas{value: _value}(
+            metadata = IGPMetadata.formatMetadata(
+                HANDLE_GAS_AMOUNT,
+                msg.sender
+            );
+        }
+
+        bytes32 recipient = address(this).addressToBytes32();
+        uint256 quote = _mailbox.quoteDispatch(
+            _destinationDomain,
+            recipient,
+            _messageBody,
+            metadata
+        );
+        bytes32 _messageId = _mailbox.dispatch{value: quote}(
+            _destinationDomain,
+            recipient,
+            _messageBody,
+            metadata
+        );
+
+        if (separatePayments) {
+            IInterchainGasPaymaster(address(_mailbox.defaultHook())).payForGas{
+                value: quote
+            }(
                 _messageId,
                 _destinationDomain,
-                HANDLE_GAS_AMOUNT,
+                HANDLE_GAS_AMOUNT / 2,
                 msg.sender
             );
         }
