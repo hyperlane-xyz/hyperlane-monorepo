@@ -6,7 +6,7 @@
     "@hyperlane-xyz/core": "1.5.0",
     "@hyperlane-xyz/sdk": "1.5.0",
     "@hyperlane-xyz/utils": "1.5.0",
-    "@openzeppelin/contracts-upgradeable": "^4.8.0",
+    "@openzeppelin/contracts-upgradeable": "^4.9.2",
     "@solana/spl-token": "^0.3.8",
     "ethers": "^5.7.2"
   },
