@@ -3,10 +3,9 @@
 use std::{collections::HashMap, env, error::Error, fmt::Debug, path::PathBuf};
 
 use config::{Config, File};
-use convert_case::{Case, Casing};
+use convert_case::Case;
 use eyre::{bail, Context, Result};
 use hyperlane_core::config::*;
-use itertools::Itertools;
 use serde::de::DeserializeOwned;
 
 use crate::settings::loader::{
@@ -88,18 +87,17 @@ where
 
     let config_deserializer = builder
         // Use a base configuration env variable prefix
-        .add_source(
+        .add_source(CaseAdapter::new(
             Environment::default()
                 .prefix("HYP_")
                 .separator("_")
-                .casing(Case::Flat)
                 .source(&filtered_env),
-        )
-        .add_source(
-            CommandLineArguments::default()
-                .separator(".")
-                .casing(Case::Flat),
-        )
+            Case::Flat,
+        ))
+        .add_source(CaseAdapter::new(
+            CommandLineArguments::default().separator("."),
+            Case::Flat,
+        ))
         .build()?;
 
     let formatted_config = {
@@ -130,19 +128,4 @@ where
         println!("Error during deserialization, showing the config for debugging: {formatted_config}");
         err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
     })
-}
-
-/// Load a settings object from the config locations and re-join the components with the standard
-/// `config` crate separator `.`.
-fn split_and_recase_key(sep: &str, case: Option<Case>, key: String) -> String {
-    if let Some(case) = case {
-        // if case is given, replace case of each key component and separate them with `.`
-        key.split(sep).map(|s| s.to_case(case)).join(".")
-    } else if !sep.is_empty() && sep != "." {
-        // Just standardize the separator to `.`
-        key.replace(sep, ".")
-    } else {
-        // no changes needed if there was no separator defined and we are preserving case.
-        key
-    }
 }
