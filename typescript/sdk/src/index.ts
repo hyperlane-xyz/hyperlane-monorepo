@@ -1,7 +1,6 @@
 export { HyperlaneApp } from './app/HyperlaneApp';
 export {
   AdapterClassType,
-  AdapterProtocolMap,
   BaseAppAdapter,
   BaseEvmAdapter,
   BaseSealevelAdapter,
@@ -28,14 +27,18 @@ export {
   HyperlaneEnvironmentChain,
   hyperlaneContractAddresses,
   hyperlaneEnvironments,
+  hyperlaneEnvironmentsWithSealevel,
 } from './consts/environments';
 export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
+export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel';
 export {
   attachContracts,
   attachContractsMap,
   connectContracts,
   connectContractsMap,
   filterAddressesMap,
+  filterAddressesToProtocol,
+  filterOwnableContracts,
   serializeContracts,
   serializeContractsMap,
 } from './contracts/contracts';
@@ -47,16 +50,21 @@ export {
   HyperlaneContractsMap,
   HyperlaneFactories,
 } from './contracts/types';
-export { DispatchedMessage, HyperlaneCore } from './core/HyperlaneCore';
+export { HyperlaneCore } from './core/HyperlaneCore';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
+export { MultiProtocolCore } from './core/MultiProtocolCore';
 export { TestCoreApp } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
+export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter';
+export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter';
+export { ICoreAdapter } from './core/adapters/types';
 export { CoreFactories, coreFactories } from './core/contracts';
 export { HyperlaneLifecyleEvent } from './core/events';
 export {
   CoreConfig,
   CoreViolationType,
+  DispatchedMessage,
   MailboxMultisigIsmViolation,
   MailboxViolation,
   MailboxViolationType,
@@ -79,6 +87,7 @@ export * as verificationUtils from './deploy/verify/utils';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
 export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer';
+export { IgpFactories, igpFactories } from './gas/contracts';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
   GasOracleContractType,
@@ -111,20 +120,24 @@ export {
   RoutingIsmConfig,
 } from './ism/types';
 export {
+  ChainMetadataManager,
+  ChainMetadataManagerOptions,
+} from './metadata/ChainMetadataManager';
+export {
+  AgentChainMetadata,
+  AgentChainMetadataSchema,
   AgentChainSetup,
   AgentChainSetupBase,
   AgentConfig,
+  AgentConfigSchema,
+  AgentConfigV2,
   AgentConnection,
   AgentConnectionType,
+  AgentLogFormat,
+  AgentLogLevel,
   AgentSigner,
   AgentSignerSchema,
   AgentSignerV2,
-  AgentChainMetadata,
-  AgentChainMetadataSchema,
-  AgentConfigSchema,
-  AgentLogLevel,
-  AgentLogFormat,
-  AgentConfigV2,
   buildAgentConfig,
   buildAgentConfigDeprecated,
   buildAgentConfigNew,
@@ -132,10 +145,10 @@ export {
 export {
   ChainMetadata,
   ChainMetadataSchema,
-  RpcUrlSchema,
-  RpcUrl,
   ExplorerFamily,
   ExplorerFamilyValue,
+  RpcUrl,
+  RpcUrlSchema,
   getDomainId,
   isValidChainMetadata,
 } from './metadata/chainMetadataTypes';
@@ -176,17 +189,21 @@ export {
   EthersV5Contract,
   EthersV5Provider,
   EthersV5Transaction,
+  EthersV5TransactionReceipt,
   ProviderMap,
   ProviderType,
   SolanaWeb3Contract,
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
+  SolanaWeb3TransactionReceipt,
   TypedContract,
   TypedProvider,
   TypedTransaction,
+  TypedTransactionReceipt,
   ViemContract,
   ViemProvider,
   ViemTransaction,
+  ViemTransactionReceipt,
 } from './providers/ProviderType';
 export {
   RetryJsonRpcProvider,
@@ -220,7 +237,6 @@ export {
 export {
   SealevelGasRouterAdapter,
   SealevelRouterAdapter,
-  SealevelTokenDataSchema,
 } from './router/adapters/SealevelRouterAdapter';
 export { IGasRouterAdapter, IRouterAdapter } from './router/adapters/types';
 export {
@@ -237,6 +253,18 @@ export {
   RouterConfig,
   proxiedFactories,
 } from './router/types';
+export {
+  SealevelAccountDataWrapper,
+  SealevelInstructionWrapper,
+  getSealevelAccountDataSchema,
+} from './sealevel/serialization';
+export {
+  SealevelHypTokenInstruction,
+  SealevelHyperlaneTokenData,
+  SealevelHyperlaneTokenDataSchema,
+  SealevelTransferRemoteInstruction,
+  SealevelTransferRemoteSchema,
+} from './sealevel/tokenSerialization';
 export {
   createRouterConfigMap,
   deployTestIgpsAndGetRouterConfig,

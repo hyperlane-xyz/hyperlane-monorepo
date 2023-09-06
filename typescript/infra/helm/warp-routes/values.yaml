@@ -1,0 +1,8 @@
+image:
+  repository: gcr.io/hyperlane-labs-dev/hyperlane-monorepo
+  tag:
+hyperlane:
+  runEnv: mainnet2
+  context: hyperlane
+nameOverride: ""
+fullnameOverride: ""

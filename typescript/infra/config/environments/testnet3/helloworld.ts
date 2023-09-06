@@ -1,14 +1,7 @@
-import { HelloWorldConfig as HelloWorldContractsConfig } from '@hyperlane-xyz/helloworld';
-import {
-  AgentConnectionType,
-  ChainMap,
-  RouterConfig,
-} from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { AgentConnectionType } from '@hyperlane-xyz/sdk';
 
-import { DeployEnvironment, HelloWorldConfig } from '../../../src/config';
+import { HelloWorldConfig } from '../../../src/config';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
-import { aggregationIsm } from '../../aggregationIsm';
 import { Contexts } from '../../contexts';
 
 import { environment } from './chains';
