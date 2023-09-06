@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use config::{ConfigError, Map, Source, Value};
+use config::{ConfigError, Map, Source, Value, ValueKind};
 use convert_case::{Case, Casing};
 use derive_new::new;
 use itertools::Itertools;
@@ -20,13 +20,34 @@ where
     }
 
     fn collect(&self) -> Result<Map<String, Value>, ConfigError> {
-        self.inner.collect().map(|config| {
-            config
-                .into_iter()
-                .map(|(k, v)| (split_and_recase_key(".", Some(self.casing), k), v))
+        self.inner.collect().map(|m| {
+            m.into_iter()
+                .map(|(k, v)| recase_pair(k, v, self.casing))
                 .collect()
         })
     }
+}
+
+fn recase_pair(key: String, mut val: Value, case: Case) -> (String, Value) {
+    let key = split_and_recase_key(".", Some(case), key);
+    match &mut val.kind {
+        ValueKind::Table(table) => {
+            let tmp = table
+                .drain()
+                .map(|(k, v)| recase_pair(k, v, case))
+                .collect_vec();
+            table.extend(tmp.into_iter());
+        }
+        ValueKind::Array(ary) => {
+            let tmp = ary
+                .drain(..)
+                .map(|v| recase_pair(String::new(), v, case).1)
+                .collect_vec();
+            ary.extend(tmp.into_iter())
+        }
+        _ => {}
+    }
+    (key, val)
 }
 
 /// Load a settings object from the config locations and re-join the components with the standard
