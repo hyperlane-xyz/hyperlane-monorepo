@@ -214,10 +214,9 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST1_CUSTOMRPCURLS_B_HTTP", "http://127.0.0.1:8545")
         .hyp_env("CHAINS_TEST1_CUSTOMRPCURLS_C_HTTP", "http://127.0.0.1:8545")
         .hyp_env("CHAINS_TEST1_RPCCONSENSUSTYPE", "quorum")
-        .hyp_env(
-            "CHAINS_TEST2_CUSTOMRPCURLS",
-            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        )
+        .hyp_env("CHAINS_TEST2_CUSTOMRPCURLS_A_HTTP", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST2_CUSTOMRPCURLS_B_HTTP", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST2_CUSTOMRPCURLS_C_HTTP", "http://127.0.0.1:8545")
         .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "fallback")
         .hyp_env(
             "CHAINS_TEST3_CUSTOMRPCURLS_LOCAL_HTTP",
