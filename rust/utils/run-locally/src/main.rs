@@ -189,8 +189,16 @@ fn main() -> ExitCode {
             }]"#,
         )
         .arg(
-            "chains.test1.customRpcUrls",
-            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+            "chains.test1.customRpcUrls.localA.http",
+            "http://127.0.0.1:8545",
+        )
+        .arg(
+            "chains.test1.customRpcUrls.localB.http",
+            "http://127.0.0.1:8545",
+        )
+        .arg(
+            "chains.test1.customRpcUrls.localC.http",
+            "http://127.0.0.1:8545",
         )
         // default is used for TEST3
         .arg("defaultSigner.key", RELAYER_KEYS[2])
@@ -202,17 +210,19 @@ fn main() -> ExitCode {
     let base_validator_env = common_agent_env
         .clone()
         .bin(concat_path(AGENT_BIN_PATH, "validator"))
-        .hyp_env(
-            "CHAINS_TEST1_CUSTOMRPCURLS",
-            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        )
+        .hyp_env("CHAINS_TEST1_CUSTOMRPCURLS_A_HTTP", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST1_CUSTOMRPCURLS_B_HTTP", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST1_CUSTOMRPCURLS_C_HTTP", "http://127.0.0.1:8545")
         .hyp_env("CHAINS_TEST1_RPCCONSENSUSTYPE", "quorum")
         .hyp_env(
             "CHAINS_TEST2_CUSTOMRPCURLS",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
         .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "fallback")
-        .hyp_env("CHAINS_TEST3_CUSTOMRPCURLS", "http://127.0.0.1:8545")
+        .hyp_env(
+            "CHAINS_TEST3_CUSTOMRPCURLS_LOCAL_HTTP",
+            "http://127.0.0.1:8545",
+        )
         .hyp_env("CHAINS_TEST1_BLOCKS_REORGPERIOD", "0")
         .hyp_env("CHAINS_TEST2_BLOCKS_REORGPERIOD", "0")
         .hyp_env("CHAINS_TEST3_BLOCKS_REORGPERIOD", "0")
@@ -237,11 +247,14 @@ fn main() -> ExitCode {
     let scraper_env = common_agent_env
         .bin(concat_path(AGENT_BIN_PATH, "scraper"))
         .hyp_env("CHAINS_TEST1_RPCCONSENSUSTYPE", "quorum")
-        .hyp_env("CHAINS_TEST1_CUSTOMRPCURLS", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST1_CUSTOMRPCURLS_A_HTTP", "http://127.0.0.1:8545")
         .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "quorum")
-        .hyp_env("CHAINS_TEST2_CUSTOMRPCURLS", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST2_CUSTOMRPCURLS_0_HTTP", "http://127.0.0.1:8545")
         .hyp_env("CHAINS_TEST3_RPCCONSENSUSTYPE", "quorum")
-        .hyp_env("CHAINS_TEST3_CUSTOMRPCURLS", "http://127.0.0.1:8545")
+        .hyp_env(
+            "CHAINS_TEST3_CUSTOMRPCURLS_SOMENAME_HTTP",
+            "http://127.0.0.1:8545",
+        )
         .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
         .hyp_env("METRICSPORT", "9093")
         .hyp_env(

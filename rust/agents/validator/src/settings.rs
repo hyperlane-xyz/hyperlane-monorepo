@@ -15,7 +15,7 @@ use hyperlane_base::{
         CheckpointSyncerConf, Settings, SignerConf,
     },
 };
-use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -125,6 +125,14 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .unwrap_or(1);
 
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
+
+        let mut base: Settings = base;
+        // If the origin chain is an EVM chain, then we can use the validator as the signer if needed.
+        if origin_chain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
+            if let Some(origin) = base.chains.get_mut(origin_chain.name()) {
+                origin.signer.get_or_insert_with(|| validator.clone());
+            }
+        }
 
         err.into_result(Self {
             base,
