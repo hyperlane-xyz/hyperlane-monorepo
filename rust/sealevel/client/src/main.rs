@@ -121,6 +121,7 @@ pub(crate) struct WarpRouteCmd {
 #[derive(Subcommand)]
 pub(crate) enum WarpRouteSubCmd {
     Deploy(WarpRouteDeploy),
+    DestinationGas(DestinationGasArgs),
 }
 
 #[derive(Args)]
@@ -139,6 +140,14 @@ pub(crate) struct WarpRouteDeploy {
     chain_config_file: PathBuf,
     #[arg(long)]
     ata_payer_funding_amount: Option<u64>,
+}
+
+#[derive(Args)]
+struct DestinationGasArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    destination_domain: u32,
 }
 
 #[derive(Args)]
@@ -1329,8 +1338,8 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                     // Set the gas oracle config
                     let remote_gas_data = RemoteGasData {
                         token_exchange_rate,
-                        gas_price: gas_price,
-                        token_decimals: token_decimals,
+                        gas_price,
+                        token_decimals,
                     };
                     let gas_oracle_config = GasOracleConfig {
                         domain: args.remote_domain,
