@@ -63,6 +63,8 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
     provider?: ethers.providers.Provider,
   ): Promise<ethers.Signer>;
 
+  abstract privateKey: string;
+
   serializeAsAddress() {
     return {
       identifier: this.identifier,

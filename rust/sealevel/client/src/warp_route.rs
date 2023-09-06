@@ -290,7 +290,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                         .add(
                             enroll_remote_routers_instruction(
                                 program_id,
-                                ctx.payer.pubkey(),
+                                ctx.payer_pubkey,
                                 router_configs,
                             )
                             .unwrap(),
@@ -356,7 +356,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                         .add(
                             set_destination_gas_configs(
                                 program_id,
-                                ctx.payer.pubkey(),
+                                ctx.payer_pubkey,
                                 destination_gas_configs,
                             )
                             .unwrap(),
@@ -419,7 +419,7 @@ fn deploy_warp_route(
     let program_id = keypair.pubkey();
 
     deploy_program_idempotent(
-        &ctx.payer_path,
+        ctx.payer_keypair_path(),
         &keypair,
         keypair_path.to_str().unwrap(),
         built_so_dir
@@ -519,7 +519,7 @@ fn fund_ata_payer_up_to(
     );
     ctx.new_txn()
         .add(solana_program::system_instruction::transfer(
-            &ctx.payer.pubkey(),
+            &ctx.payer_pubkey,
             &ata_payer_account,
             funding_amount,
         ))
@@ -575,7 +575,7 @@ fn init_warp_route(
         TokenType::Native => ctx.new_txn().add(
             hyperlane_sealevel_token_native::instruction::init_instruction(
                 program_id,
-                ctx.payer.pubkey(),
+                ctx.payer_pubkey,
                 init,
             )?,
         ),
@@ -586,7 +586,7 @@ fn init_warp_route(
                 ctx.new_txn()
                     .add(hyperlane_sealevel_token::instruction::init_instruction(
                         program_id,
-                        ctx.payer.pubkey(),
+                        ctx.payer_pubkey,
                         init,
                     )?);
 
@@ -607,7 +607,7 @@ fn init_warp_route(
         TokenType::Collateral(collateral_info) => ctx.new_txn().add(
             hyperlane_sealevel_token_collateral::instruction::init_instruction(
                 program_id,
-                ctx.payer.pubkey(),
+                ctx.payer_pubkey,
                 init,
                 collateral_info
                     .spl_token_program

@@ -7,7 +7,6 @@ import {
 import { Address, Domain, bytes32ToAddress } from '@hyperlane-xyz/utils';
 
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import { ChainName } from '../../types';
 import { RouterAddress } from '../types';
 
@@ -19,12 +18,6 @@ export class EvmRouterAdapter<
   extends BaseEvmAdapter<ContractAddrs>
   implements IRouterAdapter<ContractAddrs>
 {
-  constructor(
-    public readonly multiProvider: MultiProtocolProvider<ContractAddrs>,
-  ) {
-    super(multiProvider);
-  }
-
   interchainSecurityModule(chain: ChainName): Promise<Address> {
     return this.getConnectedContract(chain).interchainSecurityModule();
   }
