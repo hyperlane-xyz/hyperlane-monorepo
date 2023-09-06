@@ -96,7 +96,7 @@ pub trait RouterConfigGetter {
     fn router_config(&self) -> &RouterConfig;
 }
 
-pub trait Deployable<Config: RouterConfigGetter + std::fmt::Debug> {
+pub(crate) trait Deployable<Config: RouterConfigGetter + std::fmt::Debug> {
     fn deploy(
         &self,
         ctx: &mut Context,
@@ -122,7 +122,7 @@ pub trait Deployable<Config: RouterConfigGetter + std::fmt::Debug> {
         let program_id = keypair.pubkey();
 
         deploy_program_idempotent(
-            &ctx.payer_path,
+            &ctx.payer_keypair_path(),
             &keypair,
             keypair_path.to_str().unwrap(),
             built_so_dir
@@ -171,7 +171,7 @@ pub trait Deployable<Config: RouterConfigGetter + std::fmt::Debug> {
     );
 }
 
-pub fn deploy_routers<
+pub(crate) fn deploy_routers<
     Config: for<'a> Deserialize<'a> + RouterConfigGetter + std::fmt::Debug,
     Deployer: Deployable<Config>,
 >(
@@ -301,7 +301,7 @@ pub fn deploy_routers<
             ctx.new_txn()
                 .add(deployer.enroll_remote_routers_instruction(
                     program_id,
-                    ctx.payer.pubkey(),
+                    ctx.payer_pubkey,
                     router_configs,
                 ))
                 .with_client(&chain_config.client())

@@ -20,7 +20,7 @@ pub(crate) struct PayerKeypair {
     pub keypair_path: String,
 }
 
-pub struct Context {
+pub(crate) struct Context {
     pub client: RpcClient,
     pub payer_pubkey: Pubkey,
     payer_keypair: Option<PayerKeypair>,

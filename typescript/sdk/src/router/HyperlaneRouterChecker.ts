@@ -4,7 +4,12 @@ import { addressToBytes32, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
-import { ChainName } from '../types';
+import {
+  HyperlaneIsmFactory,
+  moduleMatchesConfig,
+} from '../ism/HyperlaneIsmFactory';
+import { MultiProvider } from '../providers/MultiProvider';
+import { ChainMap, ChainName } from '../types';
 
 import { RouterApp } from './RouterApps';
 import {
@@ -20,6 +25,15 @@ export class HyperlaneRouterChecker<
   App extends RouterApp<Factories>,
   Config extends RouterConfig,
 > extends HyperlaneAppChecker<App, Config> {
+  constructor(
+    multiProvider: MultiProvider,
+    app: App,
+    configMap: ChainMap<Config>,
+    readonly ismFactory?: HyperlaneIsmFactory,
+  ) {
+    super(multiProvider, app, configMap);
+  }
+
   async checkChain(chain: ChainName): Promise<void> {
     await this.checkHyperlaneConnectionClient(chain);
     await this.checkEnrolledRouters(chain);
@@ -34,10 +48,34 @@ export class HyperlaneRouterChecker<
       violationType: ConnectionClientViolationType,
     ) => {
       const actual = await router[property]();
-      // TODO: check for IsmConfig
       const value = this.configMap[chain][property];
-      if (value && typeof value === 'object')
-        throw new Error('ISM as object unimplemented');
+
+      // If the value is an object, it's an ISM config
+      // and we should make sure it matches the actual ISM config
+      if (value && typeof value === 'object') {
+        const matches = await moduleMatchesConfig(
+          chain,
+          actual,
+          value,
+          this.multiProvider,
+          this.ismFactory!.chainMap[chain],
+        );
+
+        if (!matches) {
+          const violation: ConnectionClientViolation = {
+            chain,
+            type: violationType,
+            contract: router,
+            actual,
+            expected: ethers.constants.AddressZero,
+            description: `ISM config does not match expected config ${JSON.stringify(
+              value,
+            )}`,
+          };
+          this.addViolation(violation);
+        }
+        return;
+      }
       const expected =
         value && typeof value === 'string'
           ? value

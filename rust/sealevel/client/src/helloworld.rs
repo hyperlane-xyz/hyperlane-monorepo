@@ -102,7 +102,7 @@ impl Deployable<HelloWorldConfig> for HelloWorldDeployer {
                 .connection_client
                 .interchain_security_module(core_program_ids.multisig_ism_message_id),
         );
-        let owner = Some(app_config.router_config().ownable.owner(ctx.payer.pubkey()));
+        let owner = Some(app_config.router_config().ownable.owner(ctx.payer_pubkey));
 
         println!(
             "Initializing HelloWorld program: domain_id: {}, mailbox: {}, ism: {:?}, owner: {:?}",
@@ -113,7 +113,7 @@ impl Deployable<HelloWorldConfig> for HelloWorldDeployer {
             .add(
                 init_instruction(
                     program_id,
-                    ctx.payer.pubkey(),
+                    ctx.payer_pubkey,
                     domain_id,
                     mailbox,
                     ism,

@@ -61,4 +61,5 @@ export interface ConnectionClientViolation extends CheckerViolation {
   contract: HyperlaneConnectionClient;
   actual: string;
   expected: string;
+  description?: string;
 }

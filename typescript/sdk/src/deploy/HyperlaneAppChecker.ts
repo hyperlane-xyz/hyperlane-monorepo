@@ -250,6 +250,7 @@ export abstract class HyperlaneAppChecker<
         'subType',
         'actual',
         'expected',
+        'description',
       ]);
     } else {
       console.info(`${module} Checker found no violations`);
