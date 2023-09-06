@@ -82,7 +82,7 @@ async function checkBalance(
           return 0;
         }
       } else {
-        if (token.protocolType === 'ethereum') {
+        if (token.protocolType === ProtocolType.Ethereum) {
           const tokenContract = ERC20__factory.connect(token.address, provider);
           const collateralBalance = await tokenContract.balanceOf(
             token.hypCollateralAddress,
@@ -123,7 +123,7 @@ function updateTokenBalanceMetrics(
         ? ethers.constants.AddressZero
         : token.address;
     const walletAddress =
-      token.type === 'native'
+      token.type === TokenType.native
         ? token.hypNativeAddress
         : token.hypCollateralAddress;
 
