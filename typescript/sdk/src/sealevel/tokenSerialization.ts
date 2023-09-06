@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { PublicKey } from '@solana/web3.js';
 
 import { Domain } from '@hyperlane-xyz/utils';
 
+import { SealevelInterchainGasPaymasterType } from './igpSerialization';
 import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
@@ -41,7 +41,7 @@ export class SealevelHyperlaneTokenData {
   // The interchain gas paymaster
   interchain_gas_paymaster?: {
     program_id: Uint8Array;
-    type: number;
+    type: SealevelInterchainGasPaymasterType;
     account: Uint8Array;
   };
   interchain_gas_paymaster_pubkey?: PublicKey;

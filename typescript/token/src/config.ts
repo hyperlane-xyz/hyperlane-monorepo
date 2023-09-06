@@ -20,6 +20,8 @@ export type ERC20Metadata = TokenMetadata & {
   decimals: number;
 };
 
+export type MinimalTokenMetadata = Omit<ERC20Metadata, 'totalSupply'>;
+
 export const isTokenMetadata = (metadata: any): metadata is TokenMetadata =>
   metadata.name && metadata.symbol && metadata.totalSupply !== undefined; // totalSupply can be 0
 

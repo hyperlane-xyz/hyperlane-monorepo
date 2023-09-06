@@ -34,10 +34,11 @@ import {
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
+import { MinimalTokenMetadata } from '../config';
+
 import {
   IHypTokenAdapter,
   ITokenAdapter,
-  MinimalTokenMetadata,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter';

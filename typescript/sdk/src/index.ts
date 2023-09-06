@@ -10,6 +10,7 @@ export {
   chainIdToMetadata,
   chainMetadata,
   mainnetChainsMetadata,
+  solanaChainToClusterName,
   testnetChainsMetadata,
 } from './consts/chainMetadata';
 export {
@@ -253,6 +254,11 @@ export {
   RouterConfig,
   proxiedFactories,
 } from './router/types';
+export {
+  SealevelInterchainGasPaymasterType,
+  SealevelOverheadIgpData,
+  SealevelOverheadIgpDataSchema,
+} from './sealevel/igpSerialization';
 export {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,

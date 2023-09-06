@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 export class SealevelInstructionWrapper<Instr> {
   instruction!: number;
   data!: Instr;

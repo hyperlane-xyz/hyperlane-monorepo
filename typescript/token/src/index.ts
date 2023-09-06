@@ -1,5 +1,23 @@
-export { SealevelHypCollateralAdapter } from './adapters/SealevelTokenAdapter';
-export { HypERC20App, HypERC721App } from './app';
+export {
+  EvmHypCollateralAdapter,
+  EvmHypSyntheticAdapter,
+  EvmNativeTokenAdapter,
+  EvmTokenAdapter,
+} from './adapters/EvmTokenAdapter';
+export {
+  IHypTokenAdapter,
+  ITokenAdapter,
+  TransferParams,
+  TransferRemoteParams,
+} from './adapters/ITokenAdapter';
+export {
+  SealevelHypCollateralAdapter,
+  SealevelHypNativeAdapter,
+  SealevelHypSyntheticAdapter,
+  SealevelHypTokenAdapter,
+  SealevelNativeTokenAdapter,
+  SealevelTokenAdapter,
+} from './adapters/SealevelTokenAdapter';
 export {
   CollateralConfig,
   ERC20Metadata,
@@ -10,6 +28,7 @@ export {
   HypERC721CollateralConfig,
   HypERC721Config,
   HypNativeConfig,
+  MinimalTokenMetadata,
   NativeConfig,
   SyntheticConfig,
   TokenConfig,

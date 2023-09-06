@@ -1,8 +1,6 @@
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
-import { ERC20Metadata } from '../config';
-
-export type MinimalTokenMetadata = Omit<ERC20Metadata, 'totalSupply'>;
+import { MinimalTokenMetadata } from '../config';
 
 export interface TransferParams {
   weiAmountOrId: string | number;
