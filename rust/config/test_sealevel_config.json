@@ -9,7 +9,8 @@
       "validatorAnnounce": "DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn",
       "protocol": "sealevel",
       "blocks": {
-        "reorgPeriod": 0
+        "reorgPeriod": 0,
+        "confirmations": 0
       },
       "rpcUrls": [
         {
@@ -30,7 +31,8 @@
       "validatorAnnounce": "3Uo5j2Bti9aZtrDqJmAyuwiFaJFPFoNL5yxTpVCNcUhb",
       "protocol": "sealevel",
       "blocks": {
-        "reorgPeriod": 0
+        "reorgPeriod": 0,
+        "confirmations": 0
       },
       "rpcUrls": [
         {
