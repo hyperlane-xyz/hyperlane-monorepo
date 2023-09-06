@@ -4,7 +4,12 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
-import { ChainName } from '../types';
+import {
+  HyperlaneIsmFactory,
+  moduleMatchesConfig,
+} from '../ism/HyperlaneIsmFactory';
+import { MultiProvider } from '../providers/MultiProvider';
+import { ChainMap, ChainName } from '../types';
 
 import { RouterApp } from './RouterApps';
 import {
@@ -20,6 +25,15 @@ export class HyperlaneRouterChecker<
   App extends RouterApp<Factories>,
   Config extends RouterConfig,
 > extends HyperlaneAppChecker<App, Config> {
+  constructor(
+    multiProvider: MultiProvider,
+    app: App,
+    configMap: ChainMap<Config>,
+    readonly ismFactory?: HyperlaneIsmFactory,
+  ) {
+    super(multiProvider, app, configMap);
+  }
+
   async checkChain(chain: ChainName): Promise<void> {
     await this.checkHyperlaneConnectionClient(chain);
     await this.checkEnrolledRouters(chain);
@@ -36,8 +50,30 @@ export class HyperlaneRouterChecker<
       const actual = await router[property]();
       // TODO: check for IsmConfig
       const value = this.configMap[chain][property];
-      if (value && typeof value === 'object')
-        throw new Error('ISM as object unimplemented');
+      if (value && typeof value === 'object') {
+        if (!this.ismFactory) {
+          throw Error('expected ISM factory');
+        }
+        const matches = await moduleMatchesConfig(
+          chain,
+          actual,
+          value,
+          this.multiProvider,
+          this.ismFactory!.chainMap[chain],
+        );
+        console.log('matches!?!?!?!?', matches);
+        // if (!matches) {
+        //   const violation: ConnectionClientViolation = {
+        //     chain,
+        //     type: violationType,
+        //     contract: router,
+        //     actual,
+        //     expected: value,
+        //   };
+        //   this.addViolation(violation);
+        // }
+        // throw new Error('ISM as object unimplemented');
+      }
       const expected =
         value && typeof value === 'string'
           ? value
