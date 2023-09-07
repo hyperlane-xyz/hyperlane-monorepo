@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 contract TestHook is IPostDispatchHook {
-    uint256 fee = 0;
+    uint256 public fee = 0;
 
     event TestPostDispatch(bytes metadata, bytes message);
 
