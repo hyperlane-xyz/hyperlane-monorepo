@@ -6,12 +6,13 @@
 
 use std::{collections::HashSet, path::PathBuf};
 
+use convert_case::Case;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::{eyre, Context};
 use hyperlane_base::{
     impl_loadable_from_settings,
     settings::{
-        parser::{RawAgentConf, ValueParser},
+        parser::{recase_json_value, RawAgentConf, ValueParser},
         Settings,
     },
 };
@@ -128,7 +129,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             }) => serde_json::from_str::<Value>(policy_str)
                 .context("Expected JSON string")
                 .take_err(&mut err, || cwp.clone())
-                .map(|v| (cwp, v)),
+                .map(|v| (cwp, recase_json_value(v, Case::Flat))),
             Some(ValueParser {
                 val: value @ Value::Array(_),
                 cwp,
@@ -266,7 +267,8 @@ fn parse_matching_list(p: ValueParser) -> ConfigResult<MatchingList> {
             cwp,
         } => serde_json::from_str::<Value>(matching_list_str)
             .context("Expected JSON string")
-            .take_err(&mut err, || cwp.clone()),
+            .take_err(&mut err, || cwp.clone())
+            .map(|v| recase_json_value(v, Case::Flat)),
         ValueParser {
             val: value @ Value::Array(_),
             ..

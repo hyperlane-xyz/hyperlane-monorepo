@@ -10,6 +10,7 @@ use std::{
     default::Default,
 };
 
+use convert_case::{Case, Casing};
 use eyre::{eyre, Context};
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, IndexMode,
@@ -397,4 +398,25 @@ impl FromRawConf<RawAgentSignerConf> for SignerConf {
     ) -> ConfigResult<Self> {
         parse_signer(ValueParser::new(cwp.clone(), &raw.0))
     }
+}
+
+/// Recursively re-cases a json value's keys to the given case.
+pub fn recase_json_value(mut val: Value, case: Case) -> Value {
+    match &mut val {
+        Value::Array(ary) => {
+            for i in ary {
+                let val = recase_json_value(i.take(), case);
+                *i = val;
+            }
+        }
+        Value::Object(obj) => {
+            let keys = obj.keys().cloned().collect_vec();
+            for key in keys {
+                let val = obj.remove(&key).unwrap();
+                obj.insert(key.to_case(case), recase_json_value(val, case));
+            }
+        }
+        _ => {}
+    }
+    val
 }
