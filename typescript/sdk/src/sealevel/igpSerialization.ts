@@ -16,8 +16,19 @@ export enum SealevelInterchainGasPaymasterType {
 }
 
 /**
- * IGP Borsh Schema
+ * IGP Borsh Schemas
  */
+
+// Config schema, e.g. for use in token data
+export class SealevelInterchainGasPaymasterConfig {
+  program_id!: Uint8Array;
+  type!: number;
+  igp_account!: Uint8Array;
+
+  constructor(public readonly fields: any) {
+    Object.assign(this, fields);
+  }
+}
 
 // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/trevor/sealevel-validator-rebase/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs#L21
 export class SealevelOverheadIgpData {

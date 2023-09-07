@@ -255,6 +255,7 @@ export {
   proxiedFactories,
 } from './router/types';
 export {
+  SealevelInterchainGasPaymasterConfig,
   SealevelInterchainGasPaymasterType,
   SealevelOverheadIgpData,
   SealevelOverheadIgpDataSchema,

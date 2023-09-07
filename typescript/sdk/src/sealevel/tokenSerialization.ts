@@ -2,7 +2,10 @@ import { PublicKey } from '@solana/web3.js';
 
 import { Domain } from '@hyperlane-xyz/utils';
 
-import { SealevelInterchainGasPaymasterType } from './igpSerialization';
+import {
+  SealevelInterchainGasPaymasterConfig,
+  SealevelInterchainGasPaymasterType,
+} from './igpSerialization';
 import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
@@ -42,7 +45,7 @@ export class SealevelHyperlaneTokenData {
   interchain_gas_paymaster?: {
     program_id: Uint8Array;
     type: SealevelInterchainGasPaymasterType;
-    account: Uint8Array;
+    igp_account: Uint8Array;
   };
   interchain_gas_paymaster_pubkey?: PublicKey;
   interchain_gas_paymaster_account_pubkey?: PublicKey;
@@ -64,8 +67,8 @@ export class SealevelHyperlaneTokenData {
       ? new PublicKey(this.interchain_gas_paymaster.program_id)
       : undefined;
     this.interchain_gas_paymaster_account_pubkey = this.interchain_gas_paymaster
-      ?.account
-      ? new PublicKey(this.interchain_gas_paymaster.account)
+      ?.igp_account
+      ? new PublicKey(this.interchain_gas_paymaster.igp_account)
       : undefined;
     this.remote_router_pubkeys = new Map<number, PublicKey>();
     if (this.remote_routers) {
@@ -98,18 +101,22 @@ export const SealevelHyperlaneTokenDataSchema = new Map<any, any>([
           'interchain_gas_paymaster',
           {
             kind: 'option',
-            type: {
-              kind: 'struct',
-              fields: [
-                ['program_id', [32]],
-                ['type', 'u8'],
-                ['account', [32]],
-              ],
-            },
+            type: SealevelInterchainGasPaymasterConfig,
           },
         ],
         ['destination_gas', { kind: 'map', key: 'u32', value: 'u64' }],
         ['remote_routers', { kind: 'map', key: 'u32', value: [32] }],
+      ],
+    },
+  ],
+  [
+    SealevelInterchainGasPaymasterConfig,
+    {
+      kind: 'struct',
+      fields: [
+        ['program_id', [32]],
+        ['type', 'u8'],
+        ['igp_account', [32]],
       ],
     },
   ],
