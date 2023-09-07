@@ -4,8 +4,10 @@ import { GasRouterConfig } from '@hyperlane-xyz/sdk';
 
 export enum TokenType {
   synthetic = 'synthetic',
+  fastSynthetic = 'fastSynthetic',
   syntheticUri = 'syntheticUri',
   collateral = 'collateral',
+  fastCollateral = 'fastCollateral',
   collateralUri = 'collateralUri',
   native = 'native',
 }
@@ -27,10 +29,13 @@ export const isErc20Metadata = (metadata: any): metadata is ERC20Metadata =>
   metadata.decimals && isTokenMetadata(metadata);
 
 export type SyntheticConfig = TokenMetadata & {
-  type: TokenType.synthetic | TokenType.syntheticUri;
+  type: TokenType.synthetic | TokenType.syntheticUri | TokenType.fastSynthetic;
 };
 export type CollateralConfig = {
-  type: TokenType.collateral | TokenType.collateralUri;
+  type:
+    | TokenType.collateral
+    | TokenType.collateralUri
+    | TokenType.fastCollateral;
   token: string;
 } & Partial<ERC20Metadata>;
 export type NativeConfig = {
@@ -43,12 +48,15 @@ export const isCollateralConfig = (
   config: TokenConfig,
 ): config is CollateralConfig =>
   config.type === TokenType.collateral ||
-  config.type === TokenType.collateralUri;
+  config.type === TokenType.collateralUri ||
+  config.type === TokenType.fastCollateral;
 
 export const isSyntheticConfig = (
   config: TokenConfig,
 ): config is SyntheticConfig =>
-  config.type === TokenType.synthetic || config.type === TokenType.syntheticUri;
+  config.type === TokenType.synthetic ||
+  config.type === TokenType.syntheticUri ||
+  config.type === TokenType.fastSynthetic;
 
 export const isNativeConfig = (config: TokenConfig): config is NativeConfig =>
   config.type === TokenType.native;
@@ -56,6 +64,10 @@ export const isNativeConfig = (config: TokenConfig): config is NativeConfig =>
 export const isUriConfig = (config: TokenConfig) =>
   config.type === TokenType.syntheticUri ||
   config.type === TokenType.collateralUri;
+
+export const isFastConfig = (config: TokenConfig) =>
+  config.type === TokenType.fastSynthetic ||
+  config.type === TokenType.fastCollateral;
 
 export type HypERC20Config = GasRouterConfig & SyntheticConfig & ERC20Metadata;
 export type HypERC20CollateralConfig = GasRouterConfig & CollateralConfig;
