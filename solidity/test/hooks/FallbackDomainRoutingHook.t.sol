@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
-import {Mailbox} from "../../contracts/Mailbox.sol";
+import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {ConfigFallbackDomainRoutingHook} from "../../contracts/hooks/ConfigFallbackDomainRoutingHook.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
@@ -16,7 +16,7 @@ contract FallbackDomainRoutingHookTest is Test {
     TestPostDispatchHook internal configuredTestHook;
     TestPostDispatchHook internal mailboxDefaultHook;
     TestRecipient internal testRecipient;
-    Mailbox internal mailbox;
+    TestMailbox internal mailbox;
 
     uint32 internal constant TEST_ORIGIN_DOMAIN = 1;
     uint32 internal constant TEST_DESTINATION_DOMAIN = 2;
@@ -25,7 +25,7 @@ contract FallbackDomainRoutingHookTest is Test {
     event PostDispatchHookCalled();
 
     function setUp() public {
-        mailbox = new Mailbox(TEST_ORIGIN_DOMAIN, address(this));
+        mailbox = new TestMailbox(TEST_ORIGIN_DOMAIN);
         configuredTestHook = new TestPostDispatchHook();
         mailboxDefaultHook = new TestPostDispatchHook();
         testRecipient = new TestRecipient();

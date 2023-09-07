@@ -71,6 +71,17 @@ contract MailboxTest is Test, Versioned {
         );
     }
 
+    function test_recipientIsm() public {
+        IInterchainSecurityModule ism = mailbox.recipientIsm(
+            address(recipient)
+        );
+        assertEq(address(mailbox.defaultIsm()), address(ism));
+        TestIsm newIsm = new TestIsm();
+        recipient.setInterchainSecurityModule(address(newIsm));
+        ism = mailbox.recipientIsm(address(recipient));
+        assertEq(address(ism), address(newIsm));
+    }
+
     event DefaultIsmSet(address indexed module);
 
     function test_setDefaultIsm() public {

@@ -40,6 +40,7 @@ contract MerkleTreeHook is IPostDispatchHook, MailboxClient, Indexed {
         bytes calldata, /*metadata*/
         bytes calldata message
     ) external payable override {
+        require(msg.value == 0, "MerkleTreeHook: no value expected");
         bytes32 id = message.id();
         require(isLatestDispatched(id), "message not dispatching");
         _tree.insert(id);

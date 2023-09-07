@@ -8,7 +8,7 @@ contract BadRecipient1 is IMessageRecipient {
         uint32,
         bytes32,
         bytes calldata
-    ) external pure override {
+    ) external payable override {
         assembly {
             revert(0, 0)
         }

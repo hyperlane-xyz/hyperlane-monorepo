@@ -8,6 +8,9 @@ import { Validator, types, utils } from '@hyperlane-xyz/utils';
 import domainHashTestCases from '../../../vectors/domainHash.json';
 import {
   LightTestRecipient__factory,
+  TestHook,
+  TestHook__factory,
+  TestIsm__factory,
   TestLegacyMultisigIsm,
   TestLegacyMultisigIsm__factory,
   TestMailbox,
@@ -30,6 +33,7 @@ describe('LegacyMultisigIsm', async () => {
   let multisigIsm: TestLegacyMultisigIsm,
     mailbox: TestMailbox,
     defaultHook: TestMerkleTreeHook,
+    requiredHook: TestHook,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress,
     validators: Validator[];
@@ -38,10 +42,17 @@ describe('LegacyMultisigIsm', async () => {
     const signers = await ethers.getSigners();
     [signer, nonOwner] = signers;
     const mailboxFactory = new TestMailbox__factory(signer);
-    mailbox = await mailboxFactory.deploy(ORIGIN_DOMAIN, signer.address);
+    mailbox = await mailboxFactory.deploy(ORIGIN_DOMAIN);
     const defaultHookFactory = new TestMerkleTreeHook__factory(signer);
     defaultHook = await defaultHookFactory.deploy(mailbox.address);
-    await mailbox.setDefaultHook(defaultHook.address);
+    requiredHook = await new TestHook__factory(signer).deploy();
+    const testIsm = await new TestIsm__factory(signer).deploy();
+    mailbox.initialize(
+      signer.address,
+      testIsm.address,
+      defaultHook.address,
+      requiredHook.address,
+    );
     validators = await Promise.all(
       signers
         .filter((_, i) => i > 1)
@@ -52,6 +63,7 @@ describe('LegacyMultisigIsm', async () => {
   beforeEach(async () => {
     const multisigIsmFactory = new TestLegacyMultisigIsm__factory(signer);
     multisigIsm = await multisigIsmFactory.deploy();
+    await mailbox.setDefaultIsm(multisigIsm.address);
   });
 
   describe('#constructor', () => {
@@ -406,9 +418,13 @@ describe('LegacyMultisigIsm', async () => {
       const mailboxFactory = new TestMailbox__factory(signer);
       const destinationMailbox = await mailboxFactory.deploy(
         DESTINATION_DOMAIN,
-        signer.address,
       );
-      await destinationMailbox.setDefaultIsm(multisigIsm.address);
+      await destinationMailbox.initialize(
+        signer.address,
+        multisigIsm.address,
+        defaultHook.address,
+        requiredHook.address,
+      );
       await destinationMailbox.process(metadata, message);
     });
 
@@ -530,10 +546,9 @@ describe('LegacyMultisigIsm', async () => {
 
           await multisigIsm.setThreshold(ORIGIN_DOMAIN, threshold);
 
-          // TODO: fix
-          const maxBodySize = await mailbox.MAX_MESSAGE_BODY_BYTES();
+          const maxBodySize = 2 ** 16 - 1;
           // The max body is used to estimate an upper bound on gas usage.
-          const maxBody = '0x' + 'AA'.repeat(maxBodySize.toNumber());
+          const maxBody = '0x' + 'AA'.repeat(maxBodySize);
 
           ({ message, metadata } = await dispatchMessageAndReturnMetadata(
             mailbox,
@@ -550,9 +565,13 @@ describe('LegacyMultisigIsm', async () => {
           const mailboxFactory = new TestMailbox__factory(signer);
           const destinationMailbox = await mailboxFactory.deploy(
             DESTINATION_DOMAIN,
-            signer.address,
           );
-          await destinationMailbox.setDefaultIsm(multisigIsm.address);
+          await destinationMailbox.initialize(
+            signer.address,
+            multisigIsm.address,
+            defaultHook.address,
+            requiredHook.address,
+          );
           const gas = await destinationMailbox.estimateGas.process(
             metadata,
             message,

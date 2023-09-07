@@ -24,7 +24,7 @@ contract OverheadIgpTest is Test {
     event DestinationGasOverheadSet(uint32 indexed domain, uint256 gasOverhead);
 
     function setUp() public {
-        innerIgp = new TestInterchainGasPaymaster(address(this));
+        innerIgp = new TestInterchainGasPaymaster();
         igp = new OverheadIgp(address(innerIgp));
     }
 

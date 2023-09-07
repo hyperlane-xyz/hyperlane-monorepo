@@ -12,6 +12,7 @@ import {StaticMOfNAddressSetFactory} from "../../contracts/libs/StaticMOfNAddres
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MerkleTreeHook} from "../../contracts/hooks/MerkleTreeHook.sol";
 import {TestMerkleTreeHook} from "../../contracts/test/TestMerkleTreeHook.sol";
+import {TestHook} from "../../contracts/test/TestHook.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MOfNTestUtils} from "./IsmTestUtils.sol";
 
@@ -23,6 +24,7 @@ abstract contract AbstractMultisigIsmTest is Test {
     StaticMOfNAddressSetFactory factory;
     IMultisigIsm ism;
     TestMerkleTreeHook internal merkleTreeHook;
+    TestHook internal noopHook;
     TestMailbox mailbox;
 
     function metadataPrefix(bytes memory message)
@@ -135,10 +137,12 @@ contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
     using Message for bytes;
 
     function setUp() public {
-        mailbox = new TestMailbox(ORIGIN, address(this));
+        mailbox = new TestMailbox(ORIGIN);
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
+        noopHook = new TestHook();
         factory = new StaticMerkleRootMultisigIsmFactory();
         mailbox.setDefaultHook(address(merkleTreeHook));
+        mailbox.setRequiredHook(address(noopHook));
     }
 
     function metadataPrefix(bytes memory message)
@@ -163,10 +167,13 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
     using Message for bytes;
 
     function setUp() public {
-        mailbox = new TestMailbox(ORIGIN, address(this));
+        mailbox = new TestMailbox(ORIGIN);
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
+        noopHook = new TestHook();
+
         factory = new StaticMessageIdMultisigIsmFactory();
         mailbox.setDefaultHook(address(merkleTreeHook));
+        mailbox.setRequiredHook(address(noopHook));
     }
 
     function metadataPrefix(bytes memory)
