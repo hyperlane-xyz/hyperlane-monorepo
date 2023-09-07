@@ -387,6 +387,13 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 .collect::<HashMap<String, H256>>();
             write_program_ids(&warp_route_dir, &routers_by_name);
         }
+        WarpRouteSubCmd::DestinationGas(args) => {
+            let destination_gas = get_destination_gas(&ctx.client, &args.program_id).unwrap();
+            println!(
+                "Destination gas: {:?}",
+                destination_gas[&args.destination_domain]
+            );
+        }
     }
 }
 
