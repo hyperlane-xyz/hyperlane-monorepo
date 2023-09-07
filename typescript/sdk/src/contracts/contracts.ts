@@ -78,6 +78,18 @@ export function filterAddressesToProtocol(
   );
 }
 
+export function filterAddressesExcludeProtocol(
+  addresses: HyperlaneAddressesMap<any>,
+  protocolType: ProtocolType,
+  metadataManager: ChainMetadataManager<any>,
+): HyperlaneAddressesMap<any> {
+  return objFilter(
+    addresses,
+    (c, _addrs): _addrs is any =>
+      metadataManager.tryGetChainMetadata(c)?.protocol !== protocolType,
+  );
+}
+
 export function attachContracts<F extends HyperlaneFactories>(
   addresses: HyperlaneAddresses<F>,
   factories: F,
@@ -96,6 +108,37 @@ export function attachContractsMap<F extends HyperlaneFactories>(
   return objMap(filteredAddressesMap, (_, addresses) =>
     attachContracts(addresses, factories),
   ) as HyperlaneContractsMap<F>;
+}
+
+export function attachContractsMapAndGetForeignDeployments<
+  F extends HyperlaneFactories,
+>(
+  addressesMap: HyperlaneAddressesMap<any>,
+  factories: F,
+  metadataManager: ChainMetadataManager<any>,
+) {
+  const contractsMap = attachContractsMap(
+    filterAddressesToProtocol(
+      addressesMap,
+      ProtocolType.Ethereum,
+      metadataManager,
+    ),
+    factories,
+  );
+
+  const foreignDeployments = objMap(
+    filterAddressesExcludeProtocol(
+      addressesMap,
+      ProtocolType.Ethereum,
+      metadataManager,
+    ),
+    (_, addresses) => addresses.router,
+  );
+
+  return {
+    contractsMap,
+    foreignDeployments,
+  };
 }
 
 export function connectContracts<F extends HyperlaneFactories>(

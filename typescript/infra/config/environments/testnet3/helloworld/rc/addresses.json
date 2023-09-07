@@ -24,7 +24,9 @@
     "router": "0xaAF1BF6f2BfaE290ea8615066fd167e396a2f578"
   },
   "sepolia": {
-    "router": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217",
-    "interchainSecurityModule": "0x42608422c14ed5Ec281bEd1BFcD0c0CB01880308"
+    "router": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217"
+  },
+  "solanadevnet": {
+    "router": "0xbba2f483e642449d0a39efe5f9603f7c559423acebd3c854d07560ccd0439228"
   }
 }

@@ -50,7 +50,11 @@ export abstract class HyperlaneAppChecker<
 
   async check(): Promise<void[]> {
     Object.keys(this.configMap)
-      .filter((chain) => !this.app.chains().includes(chain))
+      .filter(
+        (chain) =>
+          this.multiProvider.getChainMetadata(chain).protocol ===
+            ProtocolType.Ethereum && !this.app.chains().includes(chain),
+      )
       .forEach((chain: string) =>
         this.addViolation({
           type: ViolationType.NotDeployed,

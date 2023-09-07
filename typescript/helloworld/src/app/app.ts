@@ -9,7 +9,7 @@ import {
   MultiProvider,
   RouterApp,
 } from '@hyperlane-xyz/sdk';
-import { debug } from '@hyperlane-xyz/utils';
+import { Address, debug } from '@hyperlane-xyz/utils';
 
 import { HelloWorld } from '../types';
 
@@ -21,8 +21,9 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     public readonly core: HyperlaneCore,
     contractsMap: HyperlaneContractsMap<HelloWorldFactories>,
     multiProvider: MultiProvider,
+    foreignDeployments: ChainMap<Address> = {},
   ) {
-    super(contractsMap, multiProvider);
+    super(contractsMap, multiProvider, undefined, foreignDeployments);
   }
 
   router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {

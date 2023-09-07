@@ -17,7 +17,8 @@ import {
   igpFactories,
 } from '@hyperlane-xyz/sdk';
 import { hyperlaneEnvironmentsWithSealevel } from '@hyperlane-xyz/sdk/src';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { attachContractsMapAndGetForeignDeployments } from '@hyperlane-xyz/sdk/src/contracts/contracts';
+import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { EnvironmentConfig } from '../../src/config';
@@ -32,30 +33,30 @@ export async function getHelloWorldApp(
   keyContext: Contexts = context,
   connectionType: AgentConnectionType = AgentConnectionType.Http,
 ) {
-  console.log('utils.ts a');
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
     keyRole,
     connectionType,
   );
-  console.log('utils.ts b');
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
-  console.log('utils.ts c');
-  const contracts = attachContractsMap(
-    filterAddressesToProtocol(
+
+  const { contractsMap, foreignDeployments } =
+    attachContractsMapAndGetForeignDeployments(
       helloworldConfig.addresses,
-      ProtocolType.Ethereum,
+      helloWorldFactories,
       multiProvider,
-    ),
-    helloWorldFactories,
-  );
-  console.log('utils.ts d');
+    );
+
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[coreConfig.environment],
     multiProvider,
   );
-  console.log('utils.ts e');
-  return new HelloWorldApp(core, contracts, multiProvider);
+  return new HelloWorldApp(
+    core,
+    contractsMap,
+    multiProvider,
+    foreignDeployments,
+  );
 }
 
 export async function getHelloWorldMultiProtocolApp(

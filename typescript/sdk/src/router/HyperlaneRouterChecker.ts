@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { addressToBytes32, assert, eqAddress } from '@hyperlane-xyz/utils';
+import { addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
@@ -18,6 +18,8 @@ import {
   ConnectionClientViolationType,
   OwnableConfig,
   RouterConfig,
+  RouterViolation,
+  RouterViolationType,
 } from './types';
 
 export class HyperlaneRouterChecker<
@@ -111,12 +113,21 @@ export class HyperlaneRouterChecker<
 
     await Promise.all(
       this.app.remoteChains(chain).map(async (remoteChain) => {
-        const remoteRouter = this.app.router(
-          this.app.getContracts(remoteChain),
-        );
+        const remoteRouterAddress = this.app.routerAddress(remoteChain);
         const remoteDomainId = this.multiProvider.getDomainId(remoteChain);
-        const address = await router.routers(remoteDomainId);
-        assert(address === addressToBytes32(remoteRouter.address));
+        const actualRouter = await router.routers(remoteDomainId);
+        const expectedRouter = addressToBytes32(remoteRouterAddress);
+        if (actualRouter !== expectedRouter) {
+          const violation: RouterViolation = {
+            chain,
+            remoteChain,
+            type: RouterViolationType.EnrolledRouter,
+            contract: router,
+            actual: actualRouter,
+            expected: expectedRouter,
+          };
+          this.addViolation(violation);
+        }
       }),
     );
   }
