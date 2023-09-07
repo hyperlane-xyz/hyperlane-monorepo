@@ -46,7 +46,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
 
     // Mapping of message ID to delivery context that processed the message.
     struct Delivery {
-        address sender;
+        address processor;
         uint48 timestamp;
     }
     mapping(bytes32 => Delivery) internal deliveries;
@@ -237,6 +237,14 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
         return deliveries[_id].timestamp > 0;
     }
 
+    function processor(bytes32 _id) public view returns (address) {
+        return deliveries[_id].processor;
+    }
+
+    function processedAt(bytes32 _id) public view returns (uint48) {
+        return deliveries[_id].timestamp;
+    }
+
     /**
      * @notice Attempts to deliver `_message` to its recipient. Verifies
      * `_message` via the recipient's ISM using the provided `_metadata`.
@@ -268,7 +276,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
         /// EFFECTS ///
 
         deliveries[_id] = Delivery({
-            sender: msg.sender,
+            processor: msg.sender,
             timestamp: uint48(block.timestamp)
         });
         emit Process(_message.origin(), _message.sender(), recipient);
@@ -276,7 +284,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
 
         /// INTERACTIONS ///
 
-        // Verify the message via the ISM.
+        // Verify the message via the interchain security module.
         require(
             ism.verify(_metadata, _message),
             "Mailbox: ISM verification failed"

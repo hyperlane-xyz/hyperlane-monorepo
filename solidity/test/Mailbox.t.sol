@@ -3,7 +3,6 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "../contracts/test/TestMailbox.sol";
-import "../contracts/libs/Message.sol";
 import "../contracts/upgrade/Versioned.sol";
 import "../contracts/test/TestHook.sol";
 import "../contracts/test/TestIsm.sol";
@@ -26,9 +25,11 @@ contract MailboxTest is Test, Versioned {
     TestHook overrideHook;
     TestHook requiredHook;
 
-    TestIsm ism;
+    TestIsm defaultIsm;
     TestRecipient recipient;
     bytes32 recipientb32;
+
+    address owner;
 
     function setUp() public {
         mailbox = new TestMailbox(localDomain);
@@ -38,11 +39,12 @@ contract MailboxTest is Test, Versioned {
         merkleHook = new MerkleTreeHook(address(mailbox));
         requiredHook = new TestHook();
         overrideHook = new TestHook();
-        ism = new TestIsm();
+        defaultIsm = new TestIsm();
 
+        owner = msg.sender;
         mailbox.initialize(
-            msg.sender,
-            address(ism),
+            owner,
+            address(defaultIsm),
             address(defaultHook),
             address(requiredHook)
         );
@@ -53,8 +55,8 @@ contract MailboxTest is Test, Versioned {
     }
 
     function test_initialize() public {
-        assertEq(mailbox.owner(), msg.sender);
-        assertEq(address(mailbox.defaultIsm()), address(ism));
+        assertEq(mailbox.owner(), owner);
+        assertEq(address(mailbox.defaultIsm()), address(defaultIsm));
         assertEq(address(mailbox.defaultHook()), address(defaultHook));
         assertEq(address(mailbox.requiredHook()), address(requiredHook));
     }
@@ -62,11 +64,71 @@ contract MailboxTest is Test, Versioned {
     function test_initialize_revertsWhenCalledTwice() public {
         vm.expectRevert("Initializable: contract is already initialized");
         mailbox.initialize(
-            msg.sender,
-            address(ism),
+            owner,
+            address(defaultIsm),
             address(defaultHook),
             address(requiredHook)
         );
+    }
+
+    event DefaultIsmSet(address indexed module);
+
+    function test_setDefaultIsm() public {
+        TestIsm newIsm = new TestIsm();
+
+        // prank owner
+        vm.startPrank(owner);
+        vm.expectEmit(true, false, false, false, address(mailbox));
+        emit DefaultIsmSet(address(newIsm));
+        mailbox.setDefaultIsm(address(newIsm));
+        assertEq(address(mailbox.defaultIsm()), address(newIsm));
+
+        vm.expectRevert("Mailbox: default ISM not contract");
+        mailbox.setDefaultIsm(owner);
+        vm.stopPrank();
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        mailbox.setDefaultIsm(address(newIsm));
+    }
+
+    event DefaultHookSet(address indexed module);
+
+    function test_setDefaultHook() public {
+        TestHook newHook = new TestHook();
+
+        // prank owner
+        vm.startPrank(owner);
+        vm.expectEmit(true, false, false, false, address(mailbox));
+        emit DefaultHookSet(address(newHook));
+        mailbox.setDefaultHook(address(newHook));
+        assertEq(address(mailbox.defaultHook()), address(newHook));
+
+        vm.expectRevert("Mailbox: default hook not contract");
+        mailbox.setDefaultHook(owner);
+        vm.stopPrank();
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        mailbox.setDefaultHook(address(newHook));
+    }
+
+    event RequiredHookSet(address indexed module);
+
+    function test_setRequiredHook() public {
+        TestHook newHook = new TestHook();
+
+        // prank owner
+        vm.startPrank(owner);
+        vm.expectEmit(true, false, false, false, address(mailbox));
+        emit RequiredHookSet(address(newHook));
+        mailbox.setRequiredHook(address(newHook));
+        assertEq(address(mailbox.requiredHook()), address(newHook));
+
+        vm.expectRevert("Mailbox: required hook not contract");
+        mailbox.setRequiredHook(owner);
+        vm.stopPrank();
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        mailbox.setRequiredHook(address(newHook));
     }
 
     function expectHookQuote(
@@ -109,7 +171,7 @@ contract MailboxTest is Test, Versioned {
         requiredHook.setFee(requiredFee);
         overrideHook.setFee(overrideFee);
 
-        bytes memory message = mailbox.buildMessage(
+        bytes memory message = mailbox.buildOutboundMessage(
             remoteDomain,
             recipientb32,
             body
@@ -162,7 +224,7 @@ contract MailboxTest is Test, Versioned {
         bytes calldata metadata,
         bytes calldata body
     ) internal {
-        bytes memory message = mailbox.buildMessage(
+        bytes memory message = mailbox.buildOutboundMessage(
             remoteDomain,
             recipientb32,
             body
@@ -228,5 +290,113 @@ contract MailboxTest is Test, Versioned {
                 merkleHook
             );
         }
+    }
+
+    event ProcessId(bytes32 indexed messageId);
+
+    event Process(
+        uint32 indexed origin,
+        bytes32 indexed sender,
+        address indexed recipient
+    );
+
+    function expectProcess(
+        bytes calldata metadata,
+        bytes memory message,
+        bytes calldata body,
+        uint256 value
+    ) internal {
+        bytes32 sender = msg.sender.addressToBytes32();
+        IInterchainSecurityModule ism = mailbox.recipientIsm(
+            address(recipient)
+        );
+        vm.expectEmit(true, true, true, false, address(mailbox));
+        emit Process(remoteDomain, sender, address(recipient));
+        vm.expectEmit(true, false, false, false, address(mailbox));
+        emit ProcessId(message.id());
+        vm.expectCall(
+            address(ism),
+            abi.encodeCall(ism.verify, (metadata, message))
+        );
+        vm.expectCall(
+            address(recipient),
+            value,
+            abi.encodeCall(recipient.handle, (remoteDomain, sender, body))
+        );
+    }
+
+    function test_process(
+        bytes calldata body,
+        bytes calldata metadata,
+        uint256 value
+    ) public {
+        vm.assume(value < address(this).balance);
+        bytes memory message = mailbox.buildInboundMessage(
+            remoteDomain,
+            recipientb32,
+            msg.sender.addressToBytes32(),
+            body
+        );
+        bytes32 id = keccak256(message);
+        assertEq(mailbox.delivered(id), false);
+        expectProcess(metadata, message, body, value);
+        mailbox.process{value: value}(metadata, message);
+        assertEq(mailbox.delivered(id), true);
+        assertEq(mailbox.processor(id), address(this));
+        assertEq(mailbox.processedAt(id), uint48(block.timestamp));
+    }
+
+    function test_process_revertsWhenAlreadyDelivered() public {
+        bytes memory message = mailbox.buildInboundMessage(
+            remoteDomain,
+            recipientb32,
+            address(this).addressToBytes32(),
+            "0x"
+        );
+        mailbox.process("", message);
+        vm.expectRevert("Mailbox: already delivered");
+        mailbox.process("", message);
+    }
+
+    function test_process_revertsWhenBadVersion(bytes calldata body) public {
+        bytes memory message = Message.formatMessage(
+            VERSION + 1,
+            0,
+            localDomain,
+            address(this).addressToBytes32(),
+            remoteDomain,
+            recipientb32,
+            body
+        );
+        vm.expectRevert("Mailbox: bad version");
+        mailbox.process("", message);
+    }
+
+    function test_process_revertsWhenBadDestination(bytes calldata body)
+        public
+    {
+        bytes memory message = Message.formatMessage(
+            VERSION,
+            0,
+            remoteDomain,
+            address(this).addressToBytes32(),
+            remoteDomain,
+            recipientb32,
+            body
+        );
+        vm.expectRevert("Mailbox: unexpected destination");
+        mailbox.process("", message);
+    }
+
+    function test_process_revertsWhenISMFails(bytes calldata body) public {
+        bytes memory message = mailbox.buildInboundMessage(
+            remoteDomain,
+            recipientb32,
+            msg.sender.addressToBytes32(),
+            body
+        );
+        defaultIsm.setVerify(false);
+        vm.expectRevert("Mailbox: ISM verification failed");
+        mailbox.process("", message);
     }
 }
