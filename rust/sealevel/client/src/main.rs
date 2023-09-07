@@ -388,15 +388,17 @@ struct GasOracleConfigArgs {
     #[arg(long)]
     remote_domain: u32,
     #[command(subcommand)]
-    cmd: Option<GasOracleSubCmd>,
+    cmd: GasOracleSubCmd,
 }
 
 #[derive(Subcommand)]
 enum GasOracleSubCmd {
-    Set(SetGasOracleConfigArgs),
+    Set(SetGasOracleArgs),
+    Get,
 }
+
 #[derive(Args)]
-struct SetGasOracleConfigArgs {
+struct SetGasOracleArgs {
     #[arg(long)]
     token_exchange_rate: u128,
     #[arg(long)]
@@ -415,10 +417,20 @@ struct DestinationGasOverheadArgs {
     chain_name: String,
     #[arg(long)]
     remote_domain: u32,
-    // If the following argument is not provided, just read the current on-chain config.
-    // Otherwise, set this value on-chain.
+    #[command(subcommand)]
+    cmd: GasOverheadSubCmd,
+}
+
+#[derive(Subcommand)]
+enum GasOverheadSubCmd {
+    Set(SetGasOverheadArgs),
+    Get,
+}
+
+#[derive(Args)]
+struct SetGasOverheadArgs {
     #[arg(long)]
-    gas_overhead: Option<u64>,
+    gas_overhead: u64,
 }
 
 #[derive(Args)]
@@ -1317,52 +1329,55 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
         IgpSubCmd::GasOracleConfig(args) => {
             let core_program_ids =
                 read_core_program_ids(&args.environments_dir, &args.environment, &args.chain_name);
-            if let Some(set_args) = args.cmd {
-                let GasOracleSubCmd::Set(set_args) = set_args;
-                // Set the gas oracle config
-                let remote_gas_data = RemoteGasData {
-                    token_exchange_rate: set_args.token_exchange_rate,
-                    gas_price: set_args.gas_price,
-                    token_decimals: set_args.token_decimals,
-                };
-                let gas_oracle_config = GasOracleConfig {
-                    domain: args.remote_domain,
-                    gas_oracle: Some(GasOracle::RemoteGasData(remote_gas_data)),
-                };
-                let instruction =
-                    hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
-                        core_program_ids.igp_program_id,
-                        core_program_ids.igp_account,
-                        ctx.payer_pubkey,
-                        vec![gas_oracle_config],
-                    )
-                    .unwrap();
-                ctx.new_txn().add(instruction).send_with_payer();
-                println!("Set gas oracle for remote domain {:?}", args.remote_domain);
-            } else {
-                // Read the gas oracle config
-                let igp_account = ctx
-                    .client
-                    .get_account_with_commitment(&core_program_ids.igp_account, ctx.commitment)
-                    .unwrap()
-                    .value
-                    .expect("IGP account not found. Make sure you are connected to the right RPC.");
+            match args.cmd {
+                GasOracleSubCmd::Set(set_args) => {
+                    let remote_gas_data = RemoteGasData {
+                        token_exchange_rate: set_args.token_exchange_rate,
+                        gas_price: set_args.gas_price,
+                        token_decimals: set_args.token_decimals,
+                    };
+                    let gas_oracle_config = GasOracleConfig {
+                        domain: args.remote_domain,
+                        gas_oracle: Some(GasOracle::RemoteGasData(remote_gas_data)),
+                    };
+                    let instruction =
+                        hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
+                            core_program_ids.igp_program_id,
+                            core_program_ids.igp_account,
+                            ctx.payer_pubkey,
+                            vec![gas_oracle_config],
+                        )
+                        .unwrap();
+                    ctx.new_txn().add(instruction).send_with_payer();
+                    println!("Set gas oracle for remote domain {:?}", args.remote_domain);
+                }
+                GasOracleSubCmd::Get => {
+                    // Read the gas oracle config
+                    let igp_account = ctx
+                        .client
+                        .get_account_with_commitment(&core_program_ids.igp_account, ctx.commitment)
+                        .unwrap()
+                        .value
+                        .expect(
+                            "IGP account not found. Make sure you are connected to the right RPC.",
+                        );
 
-                let igp_account = IgpAccount::fetch(&mut &igp_account.data[..])
-                    .unwrap()
-                    .into_inner();
+                    let igp_account = IgpAccount::fetch(&mut &igp_account.data[..])
+                        .unwrap()
+                        .into_inner();
 
-                println!(
-                    "IGP account gas oracle: {:#?}",
-                    igp_account.gas_oracles.get(&args.remote_domain)
-                );
+                    println!(
+                        "IGP account gas oracle: {:#?}",
+                        igp_account.gas_oracles.get(&args.remote_domain)
+                    );
+                }
             }
         }
         IgpSubCmd::DestinationGasOverhead(args) => {
             let core_program_ids =
                 read_core_program_ids(&args.environments_dir, &args.environment, &args.chain_name);
-            match args.gas_overhead {
-                None => {
+            match args.cmd {
+                GasOverheadSubCmd::Get => {
                     // Read the gas overhead config
                     let overhead_igp_account = ctx
                         .client
@@ -1382,10 +1397,10 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                         overhead_igp_account.gas_overheads.get(&args.remote_domain)
                     );
                 }
-                Some(gas_overhead) => {
+                GasOverheadSubCmd::Set(set_args) => {
                     let overhead_config = GasOverheadConfig {
                         destination_domain: args.remote_domain,
-                        gas_overhead: Some(gas_overhead),
+                        gas_overhead: Some(set_args.gas_overhead),
                     };
                     // Set the gas overhead config
                     let instruction =
