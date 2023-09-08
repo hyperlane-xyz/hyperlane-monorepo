@@ -50,7 +50,7 @@ export class MultiProtocolCore extends MultiProtocolApp<
 
   override protocolToAdapter(
     protocol: ProtocolType,
-  ): AdapterClassType<CoreAddresses, ICoreAdapter> {
+  ): AdapterClassType<ICoreAdapter> {
     if (protocol === ProtocolType.Ethereum) return EvmCoreAdapter;
     if (protocol === ProtocolType.Sealevel) return SealevelCoreAdapter;
     throw new Error(`No adapter for protocol ${protocol}`);

@@ -31,7 +31,6 @@ export class HelloMultiProtocolApp extends MultiProtocolRouterApp<
     sender: Address,
   ): Promise<TypedTransaction> {
     return this.adapter(origin).populateSendHelloTx(
-      origin,
       destination,
       message,
       value,
@@ -40,7 +39,10 @@ export class HelloMultiProtocolApp extends MultiProtocolRouterApp<
   }
 
   channelStats(origin: ChainName, destination: ChainName): Promise<StatCounts> {
-    return this.adapter(origin).channelStats(origin, destination);
+    return this.adapter(origin).channelStats(
+      destination,
+      this.metadata(destination).mailbox,
+    );
   }
 
   async stats(): Promise<ChainMap<ChainMap<StatCounts>>> {

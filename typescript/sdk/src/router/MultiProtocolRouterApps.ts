@@ -22,7 +22,7 @@ export class MultiProtocolRouterApp<
 > extends MultiProtocolApp<ContractAddrs, IAdapterApi> {
   override protocolToAdapter(
     protocol: ProtocolType,
-  ): AdapterClassType<ContractAddrs, IAdapterApi> {
+  ): AdapterClassType<IAdapterApi> {
     // Casts are required here to allow for default adapters while still
     // enabling extensible generic types
     if (protocol === ProtocolType.Ethereum) return EvmRouterAdapter as any;
@@ -35,19 +35,17 @@ export class MultiProtocolRouterApp<
   }
 
   interchainSecurityModules(): Promise<ChainMap<Address>> {
-    return this.adapterMap((chain, adapter) =>
-      adapter.interchainSecurityModule(chain),
-    );
+    return this.adapterMap((_, adapter) => adapter.interchainSecurityModule());
   }
 
   owners(): Promise<ChainMap<Address>> {
-    return this.adapterMap((chain, adapter) => adapter.owner(chain));
+    return this.adapterMap((_, adapter) => adapter.owner());
   }
 
   remoteRouters(
     origin: ChainName,
   ): Promise<Array<{ domain: Domain; address: Address }>> {
-    return this.adapter(origin).remoteRouters(origin);
+    return this.adapter(origin).remoteRouters();
   }
 }
 
@@ -57,7 +55,7 @@ export class MultiProtocolGasRouterApp<
 > extends MultiProtocolRouterApp<ContractAddrs, IAdapterApi> {
   override protocolToAdapter(
     protocol: ProtocolType,
-  ): AdapterClassType<ContractAddrs, IAdapterApi> {
+  ): AdapterClassType<IAdapterApi> {
     // Casts are required here to allow for default adapters while still
     // enabling extensible generic types
     if (protocol === ProtocolType.Ethereum) return EvmGasRouterAdapter as any;
@@ -70,6 +68,6 @@ export class MultiProtocolGasRouterApp<
     origin: ChainName,
     destination: ChainName,
   ): Promise<string> {
-    return this.adapter(origin).quoteGasPayment(origin, destination);
+    return this.adapter(origin).quoteGasPayment(destination);
   }
 }

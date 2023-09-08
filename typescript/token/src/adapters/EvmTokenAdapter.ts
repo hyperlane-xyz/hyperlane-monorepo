@@ -1,5 +1,10 @@
-import { BigNumber, PopulatedTransaction, Signer, providers } from 'ethers';
+import { BigNumber, PopulatedTransaction } from 'ethers';
 
+import {
+  BaseEvmAdapter,
+  ChainName,
+  MultiProtocolProvider,
+} from '@hyperlane-xyz/sdk';
 import {
   Address,
   Domain,
@@ -26,16 +31,14 @@ import {
   TransferRemoteParams,
 } from './ITokenAdapter';
 
-type SignerOrProvider = Signer | providers.Provider;
-
 // Interacts with native currencies
-export class EvmNativeTokenAdapter implements ITokenAdapter {
-  constructor(public readonly signerOrProvider: SignerOrProvider) {}
-
-  async getBalance(address?: Address): Promise<string> {
-    const balanceAddress = await this.resolveAddress(address);
-    if (!isValidAddressEvm(balanceAddress)) return '0';
-    const balance = await this.signerOrProvider.getBalance(balanceAddress);
+export class EvmNativeTokenAdapter
+  extends BaseEvmAdapter
+  implements ITokenAdapter
+{
+  async getBalance(address: Address): Promise<string> {
+    if (!isValidAddressEvm(address)) return '0';
+    const balance = await this.getProvider().getBalance(address);
     return balance.toString();
   }
 
@@ -57,15 +60,6 @@ export class EvmNativeTokenAdapter implements ITokenAdapter {
     const value = BigNumber.from(weiAmountOrId);
     return { value, to: recipient };
   }
-
-  protected resolveAddress(address?: Address): Address | Promise<Address> {
-    if (address) return address;
-    else if (Signer.isSigner(this.signerOrProvider)) {
-      return this.signerOrProvider.getAddress();
-    } else {
-      throw new Error('No address provided');
-    }
-  }
 }
 
 // Interacts with ERC20/721 contracts
@@ -76,17 +70,20 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
   public readonly contract: T;
 
   constructor(
-    public readonly signerOrProvider: SignerOrProvider,
-    public readonly contractAddress: Address,
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
     public readonly contractFactory: any = ERC20__factory,
   ) {
-    super(signerOrProvider);
-    this.contract = contractFactory.connect(contractAddress, signerOrProvider);
+    super(chainName, multiProvider);
+    this.contract = contractFactory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
   }
 
-  override async getBalance(address?: Address): Promise<string> {
-    const balanceAddress = await this.resolveAddress(address);
-    const balance = await this.contract.balanceOf(balanceAddress);
+  override async getBalance(address: Address): Promise<string> {
+    const balance = await this.contract.balanceOf(address);
     return balance.toString();
   }
 
@@ -120,11 +117,12 @@ export class EvmHypSyntheticAdapter<T extends HypERC20 = HypERC20>
   implements IHypTokenAdapter
 {
   constructor(
-    public readonly signerOrProvider: SignerOrProvider,
-    public readonly contractAddress: Address,
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
     public readonly contractFactory: any = HypERC20__factory,
   ) {
-    super(signerOrProvider, contractAddress, contractFactory);
+    super(chainName, multiProvider, addresses, contractFactory);
   }
 
   getDomains(): Promise<Domain[]> {
@@ -182,10 +180,12 @@ export class EvmHypCollateralAdapter
   implements IHypTokenAdapter
 {
   constructor(
-    public readonly signerOrProvider: SignerOrProvider,
-    public readonly contractAddress: Address,
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+    public readonly contractFactory: any = HypERC20Collateral__factory,
   ) {
-    super(signerOrProvider, contractAddress, HypERC20Collateral__factory);
+    super(chainName, multiProvider, addresses, contractFactory);
   }
 
   override getMetadata(): Promise<MinimalTokenMetadata> {

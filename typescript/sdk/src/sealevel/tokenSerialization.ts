@@ -4,6 +4,7 @@ import { Domain } from '@hyperlane-xyz/utils';
 
 import {
   SealevelInterchainGasPaymasterConfig,
+  SealevelInterchainGasPaymasterConfigSchema,
   SealevelInterchainGasPaymasterType,
 } from './igpSerialization';
 import {
@@ -111,14 +112,7 @@ export const SealevelHyperlaneTokenDataSchema = new Map<any, any>([
   ],
   [
     SealevelInterchainGasPaymasterConfig,
-    {
-      kind: 'struct',
-      fields: [
-        ['program_id', [32]],
-        ['type', 'u8'],
-        ['igp_account', [32]],
-      ],
-    },
+    SealevelInterchainGasPaymasterConfigSchema,
   ],
 ]);
 

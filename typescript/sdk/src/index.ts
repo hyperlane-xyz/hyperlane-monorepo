@@ -256,6 +256,7 @@ export {
 } from './router/types';
 export {
   SealevelInterchainGasPaymasterConfig,
+  SealevelInterchainGasPaymasterConfigSchema,
   SealevelInterchainGasPaymasterType,
   SealevelOverheadIgpData,
   SealevelOverheadIgpDataSchema,
