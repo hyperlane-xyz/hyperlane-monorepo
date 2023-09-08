@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {TokenRouter} from "./libs/TokenRouter.sol";
+import {HypERC20} from "./HypERC20.sol";
 import {Message} from "./libs//Message.sol";
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
@@ -11,42 +11,101 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract FastHypERC20 is ERC20Upgradeable, TokenRouter {
-    uint8 private immutable _decimals;
-    uint256 public fastTransferId;
+contract FastHypERC20 is HypERC20 {
+    /**
+     * @notice `FastTransferMetadata` is the LP data stored against `fastTransferId`.
+     */
+    struct FastTranferMetadata {
+        address filler;
+        address recipient;
+        uint256 amount;
+        uint256 fastFee;
+    }
 
-    constructor(uint8 __decimals) {
-        _decimals = __decimals;
+    uint256 public fastTransferId;
+    // maps `fastTransferId` to metadata about the user who made the transfer.
+    mapping(uint256 => FastTranferMetadata) fastTransfers;
+
+    constructor(uint8 __decimals) HypERC20(__decimals) {}
+
+    /**
+     * @dev Mints `_amount` of token to `_recipient`/`fastFiller` who provided LP.
+     * @inheritdoc HypERC20
+     */
+    function _transferTo(
+        address _recipient,
+        uint256 _amount,
+        bytes calldata _metadata
+    ) internal override {
+        if (
+            _metadata.length > 0 &&
+            _fastTransferTo(_recipient, _amount, _metadata)
+        ) {
+            return; // Fast transfer succeeded, exit early
+        }
+
+        _mint(_recipient, _amount);
     }
 
     /**
-     * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.
-     * @param _mailbox The address of the mailbox contract.
-     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
-     * @param _totalSupply The initial supply of the token.
-     * @param _name The name of the token.
-     * @param _symbol The symbol of the token.
+     * @dev `_fastTransferTo` allows the `_transferTo` function to send the token to the LP.
+     * @param _recipient The ricipiant of the token.
+     * @param _amount The amount of tokens that is bridged.
+     * @param _metadata Metadata is a byte array ofg (uint256, uint256).
      */
-    function initialize(
-        address _mailbox,
-        address _interchainGasPaymaster,
-        uint256 _totalSupply,
-        string memory _name,
-        string memory _symbol
-    ) external initializer {
-        // transfers ownership to `msg.sender`
-        __HyperlaneConnectionClient_initialize(
-            _mailbox,
-            _interchainGasPaymaster
+    function _fastTransferTo(
+        address _recipient,
+        uint256 _amount,
+        bytes calldata _metadata
+    ) internal returns (bool) {
+        (uint256 _fastFee, uint256 _fastTransferId) = abi.decode(
+            _metadata,
+            (uint256, uint256)
         );
 
-        // Initialize ERC20 metadata
-        __ERC20_init(_name, _symbol);
-        _mint(msg.sender, _totalSupply);
+        FastTranferMetadata memory m_filledMetadata = fastTransfers[
+            _fastTransferId
+        ];
+
+        if (
+            m_filledMetadata.fastFee <= _fastFee &&
+            _recipient == m_filledMetadata.recipient
+        ) {
+            _mint(m_filledMetadata.filler, _amount);
+
+            return true;
+        }
+
+        return false;
     }
 
-    function decimals() public view override returns (uint8) {
-        return _decimals;
+    /**
+     * @dev allows an external user to full an unfilled fast transfer order.
+     * @param _recipient The recepient of the wrapped token on base chain.
+     * @param _amount The amount of wrapped tokens that is being bridged.
+     * @param _fastFee The fee the bridging entity will pay.
+     * @param _fastTransferId Id assigned on the remote chain to uniquely identify the transfer.
+     */
+    function fillFastTransfer(
+        address _recipient,
+        uint256 _amount,
+        uint256 _fastFee,
+        uint256 _fastTransferId
+    ) external {
+        require(
+            fastTransfers[_fastTransferId].filler == address(0),
+            "request already filled"
+        );
+
+        _burn(msg.sender, _amount - _fastFee);
+        _mint(_recipient, _amount - _fastFee);
+
+        fastTransfers[_fastTransferId] = FastTranferMetadata(
+            msg.sender,
+            _recipient,
+            _amount,
+            _fastFee
+        );
     }
 
     /**
@@ -63,7 +122,7 @@ contract FastHypERC20 is ERC20Upgradeable, TokenRouter {
         bytes32 _recipient,
         uint256 _amountOrId,
         uint256 _fastFee
-    ) public payable virtual returns (bytes32 messageId) {
+    ) public payable returns (bytes32 messageId) {
         bytes memory metadata;
         if (_fastFee > 0) {
             uint256 _fastTransferId = fastTransferId;
@@ -88,19 +147,6 @@ contract FastHypERC20 is ERC20Upgradeable, TokenRouter {
 
     /**
      * @dev Burns `_amount` of token from `msg.sender` balance.
-     * @inheritdoc TokenRouter
-     */
-    function _transferFromSender(uint256 _amount)
-        internal
-        override
-        returns (bytes memory)
-    {
-        _burn(msg.sender, _amount);
-        return bytes(""); // no metadata
-    }
-
-    /**
-     * @dev Burns `_amount` of token from `msg.sender` balance.
      * @dev Pays `_fastFee` of tokens to LP on source chain.
      * @dev Returns `fastFee` as bytes in the form of metadata.
      */
@@ -111,17 +157,5 @@ contract FastHypERC20 is ERC20Upgradeable, TokenRouter {
     ) internal returns (bytes memory) {
         _burn(msg.sender, _amount);
         return abi.encode(_fastFee, _fastTransferId);
-    }
-
-    /**
-     * @dev Mints `_amount` of token to `_recipient` balance.
-     * @inheritdoc TokenRouter
-     */
-    function _transferTo(
-        address _recipient,
-        uint256 _amount,
-        bytes calldata // no metadata
-    ) internal override {
-        _mint(_recipient, _amount);
     }
 }

@@ -111,12 +111,7 @@ for (const variant of [
         ...routerConfig[key],
         ...(key === localChain
           ? localTokenConfig
-          : {
-              type:
-                variant === TokenType.fastCollateral
-                  ? TokenType.fastSynthetic
-                  : TokenType.synthetic,
-            }),
+          : { type: TokenType.fastSynthetic }),
         owner: owner.address,
       })) as ChainMap<TokenConfig & RouterConfig>;
 
@@ -203,7 +198,10 @@ for (const variant of [
       }
 
       let message: string;
-      if (variant == TokenType.fastCollateral) {
+      if (
+        variant == TokenType.fastCollateral ||
+        variant === TokenType.fastSynthetic
+      ) {
         const metadata: string = utils.defaultAbiCoder.encode(
           ['uint256', 'uint256'],
           [0, 0],

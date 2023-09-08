@@ -64,7 +64,7 @@ contract HypERC20Collateral is TokenRouter {
         address _recipient,
         uint256 _amount,
         bytes calldata // no metadata
-    ) internal override {
+    ) internal virtual override {
         wrappedToken.safeTransfer(_recipient, _amount);
     }
 }
