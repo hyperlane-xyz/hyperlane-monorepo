@@ -8,7 +8,7 @@ use std::{
     marker::PhantomData,
 };
 
-use hyperlane_core::{config::StrOrInt, HyperlaneMessage, H160, H256};
+use hyperlane_core::{config::StrOrInt, utils::hex_or_base58_to_h256, HyperlaneMessage, H256};
 use serde::{
     de::{Error, SeqAccess, Visitor},
     Deserialize, Deserializer,
@@ -166,7 +166,7 @@ impl<'de> Visitor<'de> for FilterVisitor<H256> {
     fn expecting(&self, fmt: &mut Formatter) -> fmt::Result {
         write!(
             fmt,
-            "Expecting either a wildcard \"*\", hex address string, or list of hex address strings"
+            "Expecting either a wildcard \"*\", hex/base58 address string, or list of hex/base58 address strings"
         )
     }
 
@@ -311,12 +311,7 @@ fn to_serde_err<IE: ToString, OE: Error>(e: IE) -> OE {
 }
 
 fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
-    if addr_str.len() <= 42 {
-        addr_str.parse::<H160>().map(H256::from)
-    } else {
-        addr_str.parse::<H256>()
-    }
-    .map_err(to_serde_err)
+    hex_or_base58_to_h256(addr_str).map_err(to_serde_err)
 }
 
 #[cfg(test)]
@@ -369,7 +364,7 @@ mod test {
 
     #[test]
     fn config_with_address() {
-        let list: MatchingList = serde_json::from_str(r#"[{"senderaddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "recipientaddress": "9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"senderaddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "recipientaddress": "0x9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
         assert!(list.0.is_some());
         assert_eq!(list.0.as_ref().unwrap().len(), 1);
         let elem = &list.0.as_ref().unwrap()[0];
@@ -451,5 +446,12 @@ mod test {
         assert!(MatchingList(None).matches(info, true));
         // blacklist use
         assert!(!MatchingList(None).matches(info, false));
+    }
+
+    #[test]
+    fn supports_base58() {
+        serde_json::from_str::<MatchingList>(
+            r#"[{"origindomain":1399811151,"senderaddress":"DdTMkk9nuqH5LnD56HLkPiKMV3yB3BNEYSQfgmJHa5i7","destinationdomain":11155111,"recipientaddress":"0x6AD4DEBA8A147d000C09de6465267a9047d1c217"}]"#,
+        ).unwrap();
     }
 }
