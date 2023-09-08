@@ -7,6 +7,7 @@ import {IInterchainGasPaymaster} from "./interfaces/IInterchainGasPaymaster.sol"
 import {IMessageRecipient} from "./interfaces/IMessageRecipient.sol";
 import {IMailbox} from "./interfaces/IMailbox.sol";
 import {EnumerableMapExtended} from "./libs/EnumerableMapExtended.sol";
+import {IGPMetadata} from "./libs/hooks/IGPMetadata.sol";
 
 abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
@@ -123,7 +124,14 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _message
-    ) external virtual override onlyMailbox onlyRemoteRouter(_origin, _sender) {
+    )
+        external
+        payable
+        virtual
+        override
+        onlyMailbox
+        onlyRemoteRouter(_origin, _sender)
+    {
         _handle(_origin, _sender, _message);
     }
 
@@ -194,31 +202,31 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         uint256 _gasPayment,
         address _gasPaymentRefundAddress
     ) internal returns (bytes32 _messageId) {
-        _messageId = _dispatch(_destinationDomain, _messageBody);
-        // Call the IGP even if the gas payment is zero. This is to support on-chain
-        // fee quoting in IGPs, which should always revert if gas payment is insufficient.
-        interchainGasPaymaster.payForGas{value: _gasPayment}(
-            _messageId,
-            _destinationDomain,
+        // Ensure that destination chain has an enrolled router.
+        bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
+        bytes memory metadata = IGPMetadata.formatMetadata(
             _gasAmount,
             _gasPaymentRefundAddress
         );
+        _messageId = mailbox.dispatch{value: _gasPayment}(
+            _destinationDomain,
+            _router,
+            _messageBody,
+            metadata
+        );
     }
 
-    /**
-     * @notice Dispatches a message to an enrolled router via the provided Mailbox.
-     * @dev Does not pay interchain gas.
-     * @dev Reverts if there is no enrolled router for _destinationDomain.
-     * @param _destinationDomain The domain of the chain to which to send the message.
-     * @param _messageBody Raw bytes content of message.
-     */
     function _dispatch(uint32 _destinationDomain, bytes memory _messageBody)
         internal
         virtual
         returns (bytes32)
     {
-        // Ensure that destination chain has an enrolled router.
         bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
-        return mailbox.dispatch(_destinationDomain, _router, _messageBody);
+        return
+            mailbox.dispatch{value: msg.value}(
+                _destinationDomain,
+                _router,
+                _messageBody
+            );
     }
 }

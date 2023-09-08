@@ -12,6 +12,7 @@ import {StaticMOfNAddressSetFactory} from "../../contracts/libs/StaticMOfNAddres
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MerkleTreeHook} from "../../contracts/hooks/MerkleTreeHook.sol";
 import {TestMerkleTreeHook} from "../../contracts/test/TestMerkleTreeHook.sol";
+import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MOfNTestUtils} from "./IsmTestUtils.sol";
 
@@ -23,6 +24,7 @@ abstract contract AbstractMultisigIsmTest is Test {
     StaticMOfNAddressSetFactory factory;
     IMultisigIsm ism;
     TestMerkleTreeHook internal merkleTreeHook;
+    TestPostDispatchHook internal noopHook;
     TestMailbox mailbox;
 
     function metadataPrefix(bytes memory message)
@@ -84,8 +86,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint8 version = mailbox.VERSION();
         uint32 origin = mailbox.localDomain();
         bytes32 sender = TypeCasts.addressToBytes32(address(this));
-        uint32 nonce = mailbox.nonce();
-        mailbox.dispatch(destination, recipient, body);
+        uint32 nonce = merkleTreeHook.count();
         bytes memory message = Message.formatMessage(
             version,
             nonce,
@@ -95,6 +96,7 @@ abstract contract AbstractMultisigIsmTest is Test {
             recipient,
             body
         );
+        merkleTreeHook.insert(message.id());
         return message;
     }
 
@@ -135,10 +137,12 @@ contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
     using Message for bytes;
 
     function setUp() public {
-        mailbox = new TestMailbox(ORIGIN, address(this));
+        mailbox = new TestMailbox(ORIGIN);
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
+        noopHook = new TestPostDispatchHook();
         factory = new StaticMerkleRootMultisigIsmFactory();
         mailbox.setDefaultHook(address(merkleTreeHook));
+        mailbox.setRequiredHook(address(noopHook));
     }
 
     function metadataPrefix(bytes memory message)
@@ -163,10 +167,13 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
     using Message for bytes;
 
     function setUp() public {
-        mailbox = new TestMailbox(ORIGIN, address(this));
+        mailbox = new TestMailbox(ORIGIN);
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
+        noopHook = new TestPostDispatchHook();
+
         factory = new StaticMessageIdMultisigIsmFactory();
         mailbox.setDefaultHook(address(merkleTreeHook));
+        mailbox.setRequiredHook(address(noopHook));
     }
 
     function metadataPrefix(bytes memory)

@@ -23,7 +23,7 @@ describe('MockMailbox', function () {
 
     const body = ethers.utils.toUtf8Bytes('This is a test message');
 
-    await originMailbox.dispatch(
+    await originMailbox['dispatch(uint32,bytes32,bytes)'](
       DESTINATION_DOMAIN,
       addressToBytes32(recipient.address),
       body,
