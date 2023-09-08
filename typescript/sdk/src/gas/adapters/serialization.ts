@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { PublicKey } from '@solana/web3.js';
 
 import { Domain } from '@hyperlane-xyz/utils';
@@ -5,7 +6,7 @@ import { Domain } from '@hyperlane-xyz/utils';
 import {
   SealevelAccountDataWrapper,
   getSealevelAccountDataSchema,
-} from './serialization';
+} from '../../utils/sealevelSerialization';
 
 // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-igp/src/accounts.rs#L24
 export enum SealevelInterchainGasPaymasterType {
@@ -22,11 +23,17 @@ export enum SealevelInterchainGasPaymasterType {
 // Config schema, e.g. for use in token data
 export class SealevelInterchainGasPaymasterConfig {
   program_id!: Uint8Array;
-  type!: number;
-  igp_account!: Uint8Array;
+  program_id_pubkey!: PublicKey;
+  type!: SealevelInterchainGasPaymasterType;
+  igp_account?: Uint8Array;
+  igp_account_pub_key?: PublicKey;
 
   constructor(public readonly fields: any) {
     Object.assign(this, fields);
+    this.program_id_pubkey = new PublicKey(this.program_id);
+    this.igp_account_pub_key = this.igp_account
+      ? new PublicKey(this.igp_account)
+      : undefined;
   }
 }
 

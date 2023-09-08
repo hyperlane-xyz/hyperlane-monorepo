@@ -19,6 +19,13 @@ export {
   SealevelTokenAdapter,
 } from './adapters/SealevelTokenAdapter';
 export {
+  SealevelHypTokenInstruction,
+  SealevelHyperlaneTokenData,
+  SealevelHyperlaneTokenDataSchema,
+  SealevelTransferRemoteInstruction,
+  SealevelTransferRemoteSchema,
+} from './adapters/serialization';
+export {
   CollateralConfig,
   ERC20Metadata,
   ERC20RouterConfig,

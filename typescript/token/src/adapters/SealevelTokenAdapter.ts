@@ -21,12 +21,9 @@ import {
   MultiProtocolProvider,
   SEALEVEL_SPL_NOOP_ADDRESS,
   SealevelAccountDataWrapper,
-  SealevelHypTokenInstruction,
-  SealevelHyperlaneTokenData,
-  SealevelHyperlaneTokenDataSchema,
   SealevelInstructionWrapper,
-  SealevelTransferRemoteInstruction,
-  SealevelTransferRemoteSchema,
+  SealevelInterchainGasPaymasterType,
+  SealevelOverheadIgpAdapter,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -44,6 +41,13 @@ import {
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter';
+import {
+  SealevelHypTokenInstruction,
+  SealevelHyperlaneTokenData,
+  SealevelHyperlaneTokenDataSchema,
+  SealevelTransferRemoteInstruction,
+  SealevelTransferRemoteSchema,
+} from './serialization';
 
 // author @tkporter @jmrossy
 // Interacts with native currencies
@@ -154,6 +158,7 @@ export abstract class SealevelHypTokenAdapter
   implements IHypTokenAdapter
 {
   public readonly warpProgramPubKey: PublicKey;
+  protected cachedTokenAccountData: SealevelHyperlaneTokenData | undefined;
 
   constructor(
     public readonly chainName: ChainName,
@@ -174,15 +179,20 @@ export abstract class SealevelHypTokenAdapter
   }
 
   async getTokenAccountData(): Promise<SealevelHyperlaneTokenData> {
-    const tokenPda = this.deriveHypTokenAccount();
-    const accountInfo = await this.getProvider().getAccountInfo(tokenPda);
-    if (!accountInfo) throw new Error(`No account info found for ${tokenPda}`);
-    const wrappedData = deserializeUnchecked(
-      SealevelHyperlaneTokenDataSchema,
-      SealevelAccountDataWrapper,
-      accountInfo.data,
-    );
-    return wrappedData.data as SealevelHyperlaneTokenData;
+    if (!this.cachedTokenAccountData) {
+      const tokenPda = this.deriveHypTokenAccount();
+      const accountInfo = await this.getProvider().getAccountInfo(tokenPda);
+      if (!accountInfo)
+        throw new Error(`No account info found for ${tokenPda}`);
+      const wrappedData = deserializeUnchecked(
+        SealevelHyperlaneTokenDataSchema,
+        SealevelAccountDataWrapper,
+        accountInfo.data,
+      );
+      this.cachedTokenAccountData =
+        wrappedData.data as SealevelHyperlaneTokenData;
+    }
+    return this.cachedTokenAccountData;
   }
 
   override async getMetadata(): Promise<MinimalTokenMetadata> {
@@ -233,10 +243,13 @@ export abstract class SealevelHypTokenAdapter
     const fromWalletPubKey = new PublicKey(fromAccountOwner);
     const mailboxPubKey = new PublicKey(this.addresses.mailbox);
 
+    const igpKeys = await this.getIgpKeys();
+
     const keys = this.getTransferInstructionKeyList(
       fromWalletPubKey,
       mailboxPubKey,
       randomWallet.publicKey,
+      igpKeys,
     );
 
     const value = new SealevelInstructionWrapper({
@@ -271,6 +284,36 @@ export abstract class SealevelHypTokenAdapter
     }).add(transferRemoteInstruction);
     tx.partialSign(randomWallet);
     return tx;
+  }
+
+  async getIgpKeys() {
+    const tokenData = await this.getTokenAccountData();
+    if (!tokenData.interchain_gas_paymaster) return undefined;
+    const igpConfig = tokenData.interchain_gas_paymaster;
+    if (igpConfig.type === SealevelInterchainGasPaymasterType.Igp) {
+      return {
+        programId: igpConfig.program_id_pubkey,
+      };
+    } else if (
+      igpConfig.type === SealevelInterchainGasPaymasterType.OverheadIgp
+    ) {
+      if (!igpConfig.igp_account_pub_key) {
+        throw new Error('igpAccount field expected for Sealevel Overhead IGP');
+      }
+      const overheadAdapter = new SealevelOverheadIgpAdapter(
+        this.chainName,
+        this.multiProvider,
+        { igp: igpConfig.program_id_pubkey.toBase58() },
+      );
+      const overheadAccountInfo = await overheadAdapter.getAccountInfo();
+      return {
+        programId: igpConfig.program_id_pubkey,
+        igpAccount: igpConfig.igp_account_pub_key,
+        innerIgpAccount: overheadAccountInfo.inner_pub_key,
+      };
+    } else {
+      throw new Error(`Unsupported IGP type ${igpConfig.type}`);
+    }
   }
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#L257-L274
@@ -331,13 +374,16 @@ export abstract class SealevelHypTokenAdapter
         { pubkey: igp.programId, isSigner: false, isWritable: false },
         // 10.   [writeable] The IGP program data.
         {
-          pubkey: this.TODO(igp.programId),
+          pubkey: SealevelOverheadIgpAdapter.deriveIgpProgramPda(igp.programId),
           isSigner: false,
           isWritable: true,
         },
         // 11.   [writeable] Gas payment PDA.
         {
-          pubkey: this.TODO(igp.programId, randomWallet),
+          pubkey: SealevelOverheadIgpAdapter.deriveGasPaymentPda(
+            igp.programId,
+            randomWallet,
+          ),
           isSigner: false,
           isWritable: true,
         },

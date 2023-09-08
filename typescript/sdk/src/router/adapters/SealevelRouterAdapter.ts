@@ -1,16 +1,9 @@
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { PublicKey } from '@solana/web3.js';
-import { deserializeUnchecked } from 'borsh';
 
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { SealevelAccountDataWrapper } from '../../sealevel/serialization';
-import {
-  SealevelHyperlaneTokenData,
-  SealevelHyperlaneTokenDataSchema,
-} from '../../sealevel/tokenSerialization';
 import { ChainName } from '../../types';
 
 import { IGasRouterAdapter, IRouterAdapter } from './types';
@@ -64,25 +57,13 @@ export class SealevelRouterAdapter
     }));
   }
 
-  // TODO this incorrectly assumes all sealevel routers will have the TokenRouter's data schema
-  // This will need to change when other types of routers are supported
-  async getRouterAccountInfo(): Promise<SealevelHyperlaneTokenData> {
-    const connection = this.getProvider();
-
-    const msgRecipientPda = this.deriveMessageRecipientPda(
-      this.addresses.router,
-    );
-    const accountInfo = await connection.getAccountInfo(msgRecipientPda);
-    if (!accountInfo)
-      throw new Error(
-        `No account info found for ${msgRecipientPda.toBase58()}}`,
-      );
-    const accountData = deserializeUnchecked(
-      SealevelHyperlaneTokenDataSchema,
-      SealevelAccountDataWrapper,
-      accountInfo.data,
-    );
-    return accountData.data as SealevelHyperlaneTokenData;
+  getRouterAccountInfo(): Promise<{
+    owner_pub_key?: PublicKey;
+    interchain_security_module?: Uint8Array;
+    interchain_security_module_pubkey?: PublicKey;
+    remote_router_pubkeys: Map<Domain, PublicKey>;
+  }> {
+    throw new Error('TODO getRouterAccountInfo not yet implemented');
   }
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs
