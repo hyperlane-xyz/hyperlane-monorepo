@@ -5,7 +5,6 @@
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
 use std::{
-    cmp::Reverse,
     collections::{HashMap, HashSet},
     default::Default,
 };
@@ -22,8 +21,8 @@ use serde_json::Value;
 pub use self::json_value_parser::ValueParser;
 pub use super::envs::*;
 use crate::settings::{
-    chains::IndexSettings, parser::json_value_parser::ParseChain, trace::TracingConfig, ChainConf,
-    ChainConnectionConf, CoreContractAddresses, Settings, SignerConf,
+    chains::IndexSettings, trace::TracingConfig, ChainConf, ChainConnectionConf,
+    CoreContractAddresses, Settings, SignerConf,
 };
 
 mod json_value_parser;
@@ -133,32 +132,36 @@ fn parse_chain(
         .parse_u32()
         .unwrap_or(1);
 
-    let rpcs: Vec<ValueParser> =
-        if let Some(custom_rpc_urls) = chain.get_opt_key("customRpcUrls").unwrap_or_default() {
-            // use the custom defined urls, sorted by highest prio first
-            custom_rpc_urls.chain(&mut err).into_obj_iter().map(|itr| {
-                itr.map(|(_, url)| {
-                    (
-                        url.chain(&mut err)
-                            .get_opt_key("priority")
-                            .parse_i32()
-                            .unwrap_or(0),
-                        url,
-                    )
-                })
-                .sorted_unstable_by_key(|(p, _)| Reverse(*p))
-                .map(|(_, url)| url)
-                .collect()
+    let rpcs_base = chain
+        .chain(&mut err)
+        .get_key("rpcUrls")
+        .into_array_iter()
+        .map(|urls| {
+            urls.filter_map(|v| {
+                v.chain(&mut err)
+                    .get_key("http")
+                    .parse_from_str("Invalid http url")
+                    .end()
             })
-        } else {
-            // if no custom rpc urls are set, use the default rpc urls
-            chain
-                .chain(&mut err)
-                .get_key("rpcUrls")
-                .into_array_iter()
-                .map(Iterator::collect)
-        }
+            .collect_vec()
+        })
         .unwrap_or_default();
+
+    let rpc_overrides = chain
+        .chain(&mut err)
+        .get_opt_key("customRpcUrls")
+        .parse_string()
+        .end()
+        .map(|urls| {
+            urls.split(',')
+                .filter_map(|url| {
+                    url.parse()
+                        .take_err(&mut err, || &chain.cwp + "customRpcUrls")
+                })
+                .collect_vec()
+        });
+
+    let rpcs = rpc_overrides.unwrap_or(rpcs_base);
 
     if rpcs.is_empty() {
         err.push(
@@ -220,26 +223,10 @@ fn parse_chain(
     let connection: Option<ChainConnectionConf> = match domain.domain_protocol() {
         HyperlaneDomainProtocol::Ethereum => {
             if rpcs.len() <= 1 {
-                let into_connection =
-                    |url| ChainConnectionConf::Ethereum(h_eth::ConnectionConf::Http { url });
-                rpcs.into_iter().next().and_then(|rpc| {
-                    rpc.chain(&mut err)
-                        .get_key("http")
-                        .parse_from_str("Invalid http url")
-                        .end()
-                        .map(into_connection)
-                })
+                rpcs.into_iter()
+                    .next()
+                    .map(|url| ChainConnectionConf::Ethereum(h_eth::ConnectionConf::Http { url }))
             } else {
-                let urls = rpcs
-                    .into_iter()
-                    .filter_map(|rpc| {
-                        rpc.chain(&mut err)
-                            .get_key("http")
-                            .parse_from_str("Invalid http url")
-                            .end()
-                    })
-                    .collect_vec();
-
                 let rpc_consensus_type = chain
                     .chain(&mut err)
                     .get_opt_key("rpcConsensusType")
@@ -247,28 +234,24 @@ fn parse_chain(
                     .unwrap_or(default_rpc_consensus_type);
                 match rpc_consensus_type {
                     "single" => Some(h_eth::ConnectionConf::Http {
-                        url: urls.into_iter().next().unwrap(),
+                        url: rpcs.into_iter().next().unwrap(),
                     }),
-                    "fallback" => Some(h_eth::ConnectionConf::HttpFallback { urls }),
-                    "quorum" => Some(h_eth::ConnectionConf::HttpQuorum { urls }),
+                    "fallback" => Some(h_eth::ConnectionConf::HttpFallback { urls: rpcs }),
+                    "quorum" => Some(h_eth::ConnectionConf::HttpQuorum { urls: rpcs }),
                     ty => Err(eyre!("unknown rpc consensus type `{ty}`"))
                         .take_err(&mut err, || &chain.cwp + "rpc_consensus_type"),
                 }
                 .map(ChainConnectionConf::Ethereum)
             }
         }
-        HyperlaneDomainProtocol::Fuel => ParseChain::from_option(rpcs.into_iter().next(), &mut err)
-            .get_key("http")
-            .parse_from_str("Invalid http url")
-            .end()
+        HyperlaneDomainProtocol::Fuel => rpcs
+            .into_iter()
+            .next()
             .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url })),
-        HyperlaneDomainProtocol::Sealevel => {
-            ParseChain::from_option(rpcs.into_iter().next(), &mut err)
-                .get_key("http")
-                .parse_from_str("Invalod http url")
-                .end()
-                .map(|url| ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf { url }))
-        }
+        HyperlaneDomainProtocol::Sealevel => rpcs
+            .into_iter()
+            .next()
+            .map(|url| ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf { url })),
     };
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce]);

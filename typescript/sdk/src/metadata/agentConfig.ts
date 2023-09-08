@@ -7,11 +7,7 @@ import { z } from 'zod';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import {
-  ChainMetadata,
-  ChainMetadataSchema,
-  RpcUrlSchema,
-} from './chainMetadataTypes';
+import { ChainMetadata, ChainMetadataSchema } from './chainMetadataTypes';
 import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes';
 import {
   HyperlaneDeploymentArtifacts,
@@ -88,20 +84,10 @@ export const AgentChainMetadataSchema = ChainMetadataSchema.merge(
   HyperlaneDeploymentArtifactsSchema,
 ).extend({
   customRpcUrls: z
-    .record(
-      RpcUrlSchema.extend({
-        priority: ZNzUint.optional().describe(
-          'The priority of this RPC relative to the others defined. A larger value means it will be preferred. Only effects some RpcConsensusTypes.',
-        ),
-      }),
-    )
-    .refine((data) => Object.keys(data).length > 0, {
-      message:
-        'Must specify at least one RPC url if not using the default rpcUrls.',
-    })
+    .string()
     .optional()
     .describe(
-      'Specify a custom RPC endpoint configuration for this chain. If this is set, then none of the `rpcUrls` will be used for this chain. The key value can be any valid string.',
+      'Specify a comma seperated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
     ),
   rpcConsensusType: z
     .nativeEnum(RpcConsensusType)
