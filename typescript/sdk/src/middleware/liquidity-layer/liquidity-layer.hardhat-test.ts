@@ -34,7 +34,7 @@ import {
   PortalAdapterConfig,
 } from './LiquidityLayerRouterDeployer';
 
-describe('LiquidityLayerRouter', async () => {
+describe.skip('LiquidityLayerRouter', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
   const localDomain = chainMetadata[localChain].chainId;

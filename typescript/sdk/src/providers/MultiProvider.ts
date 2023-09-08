@@ -1,6 +1,7 @@
 import { Debugger, debug } from 'debug';
 import {
   BigNumber,
+  ContractFactory,
   ContractReceipt,
   ContractTransaction,
   PopulatedTransaction,
@@ -546,6 +547,22 @@ export class MultiProvider {
     chainNameOrId: ChainName | number,
   ): Partial<providers.TransactionRequest> {
     return this.getChainMetadata(chainNameOrId)?.transactionOverrides ?? {};
+  }
+
+  /**
+   * Wait for deploy tx to be confirmed
+   * @throws if chain's metadata or signer has not been set or tx fails
+   */
+  async handleDeploy<F extends ContractFactory>(
+    chainNameOrId: ChainName | number,
+    factory: F,
+    params: Parameters<F['deploy']>,
+  ): Promise<Awaited<ReturnType<F['deploy']>>> {
+    const overrides = this.getTransactionOverrides(chainNameOrId);
+    const signer = this.getSigner(chainNameOrId);
+    const contract = await factory.connect(signer).deploy(...params, overrides);
+    await this.handleTx(chainNameOrId, contract.deployTransaction);
+    return contract as Awaited<ReturnType<F['deploy']>>;
   }
 
   /**

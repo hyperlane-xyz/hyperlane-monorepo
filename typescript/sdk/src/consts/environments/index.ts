@@ -3,10 +3,9 @@ import { objMerge } from '../../utils/objects';
 import { CoreChainName } from '../chains';
 
 import mainnet from './mainnet.json';
-import test from './test.json';
 import testnet from './testnet.json';
 
-export const hyperlaneEnvironments = { test, testnet, mainnet };
+export const hyperlaneEnvironments = { testnet, mainnet };
 
 export type HyperlaneEnvironment = keyof typeof hyperlaneEnvironments;
 export type HyperlaneEnvironmentChain<E extends HyperlaneEnvironment> = Extract<

@@ -56,7 +56,7 @@ export async function deployTestIgpsAndGetRouterConfig(
     const factory = new TestInterchainGasPaymaster__factory(
       multiProvider.getSigner(chain),
     );
-    igps[chain] = await factory.deploy(owner);
+    igps[chain] = await factory.deploy();
   }
   return objMap(coreContracts, (chain, contracts) => {
     return {
@@ -91,6 +91,8 @@ export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
               .map((remote) => [remote, multisigIsm]),
           ),
         },
+        // TODO: fix
+        defaultHook: nonZeroAddress,
       },
     ]),
   );

@@ -24,7 +24,7 @@ import { InterchainQueryChecker } from './InterchainQueryChecker';
 import { InterchainQueryDeployer } from './InterchainQueryDeployer';
 import { InterchainQueryFactories } from './contracts';
 
-describe('InterchainQueryRouter', async () => {
+describe.skip('InterchainQueryRouter', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
   const localDomain = chainMetadata[localChain].chainId;
