@@ -176,7 +176,15 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       });
     }
 
+    // hack for including the IGP address in the agent config
+    const interchainGasPaymaster = TestInterchainGasPaymaster__factory.connect(
+      await mailbox.defaultHook(),
+      this.multiProvider.getProvider(chain),
+    );
+
     return {
+      // @ts-ignore
+      interchainGasPaymaster,
       mailbox,
       proxyAdmin,
       timelockController,

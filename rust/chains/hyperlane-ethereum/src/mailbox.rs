@@ -106,6 +106,12 @@ where
         }
     }
 
+    // TODO: make this cache the required hook address at construction time
+    async fn merkle_tree_hook(&self) -> ChainResult<MerkleTreeHook<M>> {
+        let address = self.contract.required_hook().call().await?;
+        Ok(MerkleTreeHook::new(address, self.provider.clone()))
+    }
+
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
@@ -159,10 +165,11 @@ where
     #[instrument(err, skip(self))]
     async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
-        let base_call = self.contract.nonce();
+        let merkle_tree = self.merkle_tree_hook().await?;
+        let base_call = merkle_tree.count();
         let call_at_tip = base_call.block(u64::from(tip));
-        let nonce = call_at_tip.call().await?;
-        Ok((nonce + 1, tip))
+        let count = call_at_tip.call().await?;
+        Ok((count, tip))
     }
 }
 
@@ -347,9 +354,8 @@ where
             .call()
             .await?;
 
-        // TODO: migrate checkpoints to merkle tree language
         Ok(Checkpoint {
-            mailbox_address: merkle_hook.address().into(),
+            mailbox_address: self.address(),
             mailbox_domain: self.domain.id(),
             root: root.into(),
             index,
