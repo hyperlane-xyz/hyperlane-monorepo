@@ -30,7 +30,6 @@ export async function getHelloWorldApp(
   context: Contexts,
   keyRole: Role,
   keyContext: Contexts = context,
-  // TODO(2214): rename to consensusType?
   connectionType: RpcConsensusType = RpcConsensusType.Single,
 ) {
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(

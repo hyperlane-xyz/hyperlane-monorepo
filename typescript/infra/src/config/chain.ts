@@ -29,7 +29,6 @@ function buildProvider(config?: {
 export async function fetchProvider(
   environment: DeployEnvironment,
   chainName: ChainName,
-  // TODO(2214): rename to consensusType?
   connectionType: RpcConsensusType = RpcConsensusType.Single,
 ): Promise<providers.Provider> {
   const single = connectionType === RpcConsensusType.Single;

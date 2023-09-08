@@ -20,6 +20,5 @@ export interface KeyFunderConfig {
   contextsAndRolesToFund: ContextAndRolesMap;
   cyclesBetweenEthereumMessages?: number;
   prometheusPushGateway: string;
-  // TODO(2214): rename to consensusType?
   connectionType: RpcConsensusType.Single | RpcConsensusType.Quorum;
 }

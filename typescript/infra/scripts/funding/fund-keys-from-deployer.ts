@@ -189,7 +189,6 @@ async function main() {
     .coerce('contexts-and-roles', parseContextAndRolesMap)
     .demandOption('contexts-and-roles')
 
-    // TODO(2214): rename to consensus-type?
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
     .default('connection-type', RpcConsensusType.Single)

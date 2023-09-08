@@ -44,7 +44,6 @@ export type EnvironmentConfig = {
   getMultiProvider: (
     context?: Contexts,
     role?: Role,
-    // TODO(2214): rename to consensusType?
     connectionType?: RpcConsensusType,
   ) => Promise<MultiProvider>;
   getKeys: (

@@ -29,7 +29,6 @@ export interface HelloWorldKathyConfig {
   messageReceiptTimeout: number;
 
   // Which type of provider to use
-  // TODO(2214): rename to consensusType?
   connectionType: RpcConsensusType;
   // How many cycles to skip between a cycles that send messages to/from Ethereum. Defaults to 0.
   cyclesBetweenEthereumMessages?: number;

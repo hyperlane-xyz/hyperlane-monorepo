@@ -26,7 +26,6 @@ export const environment: EnvironmentConfig = {
   getMultiProvider: (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
-    // TODO(2214): rename to consensusType?
     connectionType?: RpcConsensusType,
   ) =>
     getMultiProviderForRole(

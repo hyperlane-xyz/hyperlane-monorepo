@@ -60,16 +60,13 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
     const relayerConfig: RelayerConfig = {
       relayChains: this.contextChainNames[Role.Relayer].join(','),
-      // TODO(2214): do we need to stringify this?
       gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
     };
 
     if (baseConfig.whitelist) {
-      // TODO(2214): do we need to stringify this?
       relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
     }
     if (baseConfig.blacklist) {
-      // TODO(2214): do we need to stringify this?
       relayerConfig.blacklist = JSON.stringify(baseConfig.blacklist);
     }
     if (baseConfig.transactionGasLimit) {

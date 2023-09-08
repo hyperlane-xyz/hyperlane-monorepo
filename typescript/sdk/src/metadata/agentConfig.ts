@@ -118,7 +118,6 @@ export const AgentChainMetadataSchema = ChainMetadataSchema.merge(
       chunk: ZNzUint.optional().describe(
         'The number of blocks to index at a time.',
       ),
-      // TODO(2214): I think we can always interpret this from the ProtocolType
       mode: z
         .nativeEnum(AgentIndexMode)
         .optional()

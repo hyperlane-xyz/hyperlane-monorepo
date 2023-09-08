@@ -126,8 +126,6 @@ fn parse_chain(
         .and_then(parse_signer)
         .end();
 
-    // TODO(2214): is it correct to define finality blocks as `confirmations` and not `reorgPeriod`?
-    // TODO(2214): should we rename `finalityBlocks` in ChainConf?
     let finality_blocks = chain
         .chain(&mut err)
         .get_opt_key("blocks")
