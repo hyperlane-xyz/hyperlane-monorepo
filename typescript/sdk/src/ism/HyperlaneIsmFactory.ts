@@ -151,19 +151,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     const signer = this.multiProvider.getSigner(chain);
     const routingIsmFactory = this.getContracts(chain).routingIsmFactory;
     const isms: ChainMap<types.Address> = {};
-    // deploy for all origins in parallel, keep running even if some fail
-    await Promise.allSettled(
-      Object.keys(config.domains).map(async (origin) => {
-        const ism = await this.deploy(chain, config.domains[origin], origin);
-        isms[origin] = ism.address;
-      }),
-    ).then((results) => {
-      results.forEach((result) => {
-        if (result.status === 'rejected') {
-          this.logger(`Failed to deploy routing ISM: ${result.reason}`);
-        }
-      });
-    });
+    // parallelization does not work for shared signer
+    for (const origin in config.domains) {
+      const ism = await this.deploy(chain, config.domains[origin], origin);
+      isms[origin] = ism.address;
+    }
     const domains = Object.keys(isms).map((chain) =>
       this.multiProvider.getDomainId(chain),
     );

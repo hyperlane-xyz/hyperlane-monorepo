@@ -54,11 +54,11 @@ export type EnvironmentConfig = {
   storageGasOracleConfig?: AllStorageGasOracleConfigs;
 };
 
+// @ts-ignore
 export const deployEnvToSdkEnv: Record<
   DeployEnvironment,
   HyperlaneEnvironment
 > = {
   mainnet2: 'mainnet',
   testnet3: 'testnet',
-  test: 'test',
 };

@@ -5,7 +5,6 @@ import {
   ChainMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
-  HyperlaneHookDeployer,
   HyperlaneIgp,
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
@@ -69,14 +68,28 @@ async function main() {
     deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
     config = envConfig.core;
-    const ismFactory = HyperlaneIsmFactory.fromEnvironment(
-      deployEnvToSdkEnv[environment],
-      multiProvider,
-    );
+    // TODO: clean this up
+    let ismFactory: HyperlaneIsmFactory;
+    if (environment === 'test') {
+      const addresses = readJSON(
+        getModuleDirectory(environment, Modules.ISM_FACTORY, context),
+        'addresses.json',
+      );
+      ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+        addresses,
+        multiProvider,
+      );
+    } else {
+      ismFactory = HyperlaneIsmFactory.fromEnvironment(
+        deployEnvToSdkEnv[environment],
+        multiProvider,
+      );
+    }
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.HOOK) {
-    config = envConfig.hooks;
-    deployer = new HyperlaneHookDeployer(multiProvider);
+    throw new Error('Hook deployment unimplemented');
+    // config = envConfig.hooks;
+    // deployer = new HyperlaneHookDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
@@ -136,7 +149,9 @@ async function main() {
 
   console.log(`Deploying to ${modulePath}`);
 
-  const addresses = SDK_MODULES.includes(module)
+  const isSdkArtifact = SDK_MODULES.includes(module) && environment !== 'test';
+
+  const addresses = isSdkArtifact
     ? path.join(
         getContractAddressesSdkFilepath(),
         `${deployEnvToSdkEnv[environment]}.json`,

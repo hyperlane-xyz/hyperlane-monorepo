@@ -16,7 +16,7 @@ import { sleep } from './src/utils/utils';
 const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
   const coreContracts = core.getContracts(chain);
   const mailbox = coreContracts.mailbox;
-  const dispatched = await mailbox.count();
+  const dispatched = await mailbox.nonce();
   // TODO: Allow processed messages to be filtered by
   // origin, possibly sender and recipient.
   const processFilter = mailbox.filters.Process();
@@ -92,7 +92,7 @@ task('kathy', 'Dispatches random hyperlane messages')
         console.log(
           `send to ${recipient.address} on ${remote} via mailbox ${
             mailbox.address
-          } on ${local} with nonce ${(await mailbox.count()) - 1}`,
+          } on ${local} with nonce ${(await mailbox.nonce()) - 1}`,
         );
         console.log(await chainSummary(core, local));
         console.log(await chainSummary(core, remote));
