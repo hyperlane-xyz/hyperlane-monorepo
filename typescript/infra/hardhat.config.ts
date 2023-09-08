@@ -1,5 +1,6 @@
 import '@nomiclabs/hardhat-etherscan';
 import '@nomiclabs/hardhat-waffle';
+import { randomBytes } from 'ethers/lib/utils';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
@@ -10,7 +11,9 @@ import {
   HyperlaneIgp,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
+import { utils } from '@hyperlane-xyz/utils';
 
+import coreAddresses from './config/environments/test/core/addresses.json';
 import { sleep } from './src/utils/utils';
 
 const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
@@ -45,20 +48,21 @@ task('kathy', 'Dispatches random hyperlane messages')
       hre: HardhatRuntimeEnvironment,
     ) => {
       const timeout = Number.parseInt(taskArgs.timeout);
-      const environment = 'test';
-      const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
+
       const [signer] = await hre.ethers.getSigners();
       const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-      const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
-      const igps = HyperlaneIgp.fromEnvironment(environment, multiProvider);
+
+      const core = HyperlaneCore.fromAddressesMap(coreAddresses, multiProvider);
 
       const randomElement = <T>(list: T[]) =>
         list[Math.floor(Math.random() * list.length)];
 
       // Deploy a recipient
-      const recipientF = new TestSendReceiver__factory(signer);
-      const recipient = await recipientF.deploy();
-      await recipient.deployTransaction.wait();
+      const recipient = await multiProvider.handleDeploy(
+        'test1',
+        new TestSendReceiver__factory(),
+        [],
+      );
 
       const isAutomine: boolean = await hre.network.provider.send(
         'hardhat_getAutomine',
@@ -74,19 +78,15 @@ task('kathy', 'Dispatches random hyperlane messages')
         const remote: ChainName = randomElement(core.remoteChains(local));
         const remoteId = multiProvider.getDomainId(remote);
         const mailbox = core.getContracts(local).mailbox;
-        await recipient.dispatchToSelf(
-          mailbox.address,
+        const body = randomBytes(32);
+        const fee = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
           remoteId,
-          '0x1234',
-          {
-            value: interchainGasPayment,
-            // Some behavior is dependent upon the previous block hash
-            // so gas estimation may sometimes be incorrect. Just avoid
-            // estimation to avoid this.
-            gasLimit: 150_000,
-            gasPrice: 2_000_000_000,
-          },
+          utils.addressToBytes32(recipient.address),
+          body,
         );
+        await recipient.dispatchToSelf(mailbox.address, remoteId, '0x1234', {
+          value: fee,
+        });
         console.log(
           `send to ${recipient.address} on ${remote} via mailbox ${
             mailbox.address

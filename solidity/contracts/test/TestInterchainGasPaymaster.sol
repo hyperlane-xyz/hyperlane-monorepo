@@ -5,7 +5,7 @@ pragma solidity >=0.8.0;
 import {InterchainGasPaymaster} from "../igps/InterchainGasPaymaster.sol";
 
 contract TestInterchainGasPaymaster is InterchainGasPaymaster {
-    uint256 public constant gasPrice = 10;
+    uint256 public constant gasPrice = 1;
 
     constructor() {
         initialize(msg.sender, msg.sender);

@@ -15,52 +15,46 @@ contract TestSendReceiver is IMessageRecipient {
 
     event Handled(bytes32 blockHash);
 
+    // TODO: pay for gas in separate calls?
     function dispatchToSelf(
         IMailbox _mailbox,
         uint32 _destinationDomain,
         bytes calldata _messageBody
     ) external payable {
-        uint256 _blockHashNum = uint256(previousBlockHash());
-        bool separatePayments = (_blockHashNum % 5 == 0);
-        bytes memory metadata;
-        if (separatePayments) {
-            // Pay in two separate calls, resulting in 2 distinct events
-            metadata = IGPMetadata.formatMetadata(
-                HANDLE_GAS_AMOUNT / 2,
-                msg.sender
-            );
-        } else {
-            // Pay the entire msg.value in one call
-            metadata = IGPMetadata.formatMetadata(
-                HANDLE_GAS_AMOUNT,
-                msg.sender
-            );
-        }
+        // uint256 _blockHashNum = uint256(previousBlockHash());
+        // bool separatePayments = (_blockHashNum % 5 == 0);
+        // bytes memory metadata;
+        // if (separatePayments) {
+        //     // Pay in two separate calls, resulting in 2 distinct events
+        //     metadata = IGPMetadata.formatMetadata(
+        //         HANDLE_GAS_AMOUNT / 2,
+        //         msg.sender
+        //     );
+        // } else {
+        //     // Pay the entire msg.value in one call
+        //     metadata = IGPMetadata.formatMetadata(
+        //         HANDLE_GAS_AMOUNT,
+        //         msg.sender
+        //     );
+        // }
 
         bytes32 recipient = address(this).addressToBytes32();
-        uint256 quote = _mailbox.quoteDispatch(
+        _mailbox.dispatch{value: msg.value}(
             _destinationDomain,
             recipient,
-            _messageBody,
-            metadata
-        );
-        bytes32 _messageId = _mailbox.dispatch{value: quote}(
-            _destinationDomain,
-            recipient,
-            _messageBody,
-            metadata
+            _messageBody
         );
 
-        if (separatePayments) {
-            IInterchainGasPaymaster(address(_mailbox.defaultHook())).payForGas{
-                value: quote
-            }(
-                _messageId,
-                _destinationDomain,
-                HANDLE_GAS_AMOUNT / 2,
-                msg.sender
-            );
-        }
+        // if (separatePayments) {
+        //     IInterchainGasPaymaster(address(_mailbox.defaultHook())).payForGas{
+        //         value: quote
+        //     }(
+        //         _messageId,
+        //         _destinationDomain,
+        //         HANDLE_GAS_AMOUNT / 2,
+        //         msg.sender
+        //     );
+        // }
     }
 
     function handle(
