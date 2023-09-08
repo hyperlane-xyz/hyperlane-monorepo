@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../contracts/test/TestMailbox.sol";
 import "../contracts/upgrade/Versioned.sol";
-import "../contracts/test/TestHook.sol";
+import "../contracts/test/TestPostDispatchHook.sol";
 import "../contracts/test/TestIsm.sol";
 import "../contracts/test/TestRecipient.sol";
 import "../contracts/hooks/MerkleTreeHook.sol";
@@ -21,9 +21,9 @@ contract MailboxTest is Test, Versioned {
 
     MerkleTreeHook merkleHook;
 
-    TestHook defaultHook;
-    TestHook overrideHook;
-    TestHook requiredHook;
+    TestPostDispatchHook defaultHook;
+    TestPostDispatchHook overrideHook;
+    TestPostDispatchHook requiredHook;
 
     TestIsm defaultIsm;
     TestRecipient recipient;
@@ -35,10 +35,10 @@ contract MailboxTest is Test, Versioned {
         mailbox = new TestMailbox(localDomain);
         recipient = new TestRecipient();
         recipientb32 = address(recipient).addressToBytes32();
-        defaultHook = new TestHook();
+        defaultHook = new TestPostDispatchHook();
         merkleHook = new MerkleTreeHook(address(mailbox));
-        requiredHook = new TestHook();
-        overrideHook = new TestHook();
+        requiredHook = new TestPostDispatchHook();
+        overrideHook = new TestPostDispatchHook();
         defaultIsm = new TestIsm();
 
         owner = msg.sender;
@@ -105,7 +105,7 @@ contract MailboxTest is Test, Versioned {
     event DefaultHookSet(address indexed module);
 
     function test_setDefaultHook() public {
-        TestHook newHook = new TestHook();
+        TestPostDispatchHook newHook = new TestPostDispatchHook();
 
         // prank owner
         vm.startPrank(owner);
@@ -125,7 +125,7 @@ contract MailboxTest is Test, Versioned {
     event RequiredHookSet(address indexed module);
 
     function test_setRequiredHook() public {
-        TestHook newHook = new TestHook();
+        TestPostDispatchHook newHook = new TestPostDispatchHook();
 
         // prank owner
         vm.startPrank(owner);
@@ -230,8 +230,8 @@ contract MailboxTest is Test, Versioned {
     event DispatchId(bytes32 indexed messageId);
 
     function expectDispatch(
-        TestHook firstHook,
-        TestHook hook,
+        TestPostDispatchHook firstHook,
+        TestPostDispatchHook hook,
         bytes calldata metadata,
         bytes calldata body
     ) internal {
@@ -255,6 +255,7 @@ contract MailboxTest is Test, Versioned {
         bytes calldata metadata
     ) public {
         bytes calldata defaultMetadata = metadata[0:0];
+        uint256 quote;
         uint32 nonce;
         bytes32 id;
 
@@ -263,22 +264,45 @@ contract MailboxTest is Test, Versioned {
             assertEq(nonce, i);
 
             // default hook and no metadata
+            quote = mailbox.quoteDispatch(remoteDomain, recipientb32, body);
             expectDispatch(requiredHook, defaultHook, defaultMetadata, body);
-            id = mailbox.dispatch(remoteDomain, recipientb32, body);
+            id = mailbox.dispatch{value: quote}(
+                remoteDomain,
+                recipientb32,
+                body
+            );
             assertEq(mailbox.latestDispatchedId(), id);
             nonce = mailbox.nonce();
             assertEq(nonce, i + 1);
 
             // default hook with metadata
+            quote = mailbox.quoteDispatch(
+                remoteDomain,
+                recipientb32,
+                body,
+                metadata
+            );
             expectDispatch(requiredHook, defaultHook, metadata, body);
-            id = mailbox.dispatch(remoteDomain, recipientb32, body, metadata);
+            id = mailbox.dispatch{value: quote}(
+                remoteDomain,
+                recipientb32,
+                body,
+                metadata
+            );
             assertEq(mailbox.latestDispatchedId(), id);
             nonce = mailbox.nonce();
             assertEq(nonce, i + 2);
 
             // override default hook with metadata
+            quote = mailbox.quoteDispatch(
+                remoteDomain,
+                recipientb32,
+                body,
+                metadata,
+                overrideHook
+            );
             expectDispatch(requiredHook, overrideHook, metadata, body);
-            id = mailbox.dispatch(
+            id = mailbox.dispatch{value: quote}(
                 remoteDomain,
                 recipientb32,
                 body,
@@ -291,11 +315,19 @@ contract MailboxTest is Test, Versioned {
         }
     }
 
+    // for instrumenting gas costs of merkleHook.postDispatch after several insertions
     function test_100dispatch_withMerkleTreeHook(bytes calldata body) public {
+        uint256 quote = mailbox.quoteDispatch(
+            remoteDomain,
+            recipientb32,
+            body,
+            body[0:0],
+            merkleHook
+        );
         for (uint256 i = 0; i < 100; i++) {
-            mailbox.dispatch(
+            mailbox.dispatch{value: quote}(
                 remoteDomain,
-                address(recipient).addressToBytes32(),
+                recipientb32,
                 body,
                 body[0:0],
                 merkleHook
