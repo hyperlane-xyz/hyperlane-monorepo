@@ -58,7 +58,7 @@ contract TestSendReceiver is IMessageRecipient {
         uint32,
         bytes32,
         bytes calldata
-    ) external override {
+    ) external payable override {
         bytes32 blockHash = previousBlockHash();
         bool isBlockHashEndIn0 = uint256(blockHash) % 16 == 0;
         require(!isBlockHashEndIn0, "block hash ends in 0");

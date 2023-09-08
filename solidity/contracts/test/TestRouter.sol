@@ -6,14 +6,8 @@ import "../Router.sol";
 contract TestRouter is Router {
     event InitializeOverload();
 
-    function initialize(address _mailbox, address _interchainGasPaymaster)
-        external
-        initializer
-    {
-        __HyperlaneConnectionClient_initialize(
-            _mailbox,
-            _interchainGasPaymaster
-        );
+    function initialize(address _mailbox) external initializer {
+        __Router_initialize(_mailbox);
         emit InitializeOverload();
     }
 
@@ -39,7 +33,7 @@ contract TestRouter is Router {
         return _mustHaveRemoteRouter(_domain);
     }
 
-    function dispatch(uint32 _destination, bytes memory _msg) external {
+    function dispatch(uint32 _destination, bytes memory _msg) external payable {
         _dispatch(_destination, _msg);
     }
 
