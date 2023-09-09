@@ -116,13 +116,13 @@ export abstract class AgentHelmManager {
         chains: this.config.environmentChainNames.map((name) => ({
           name,
           disabled: !this.config.contextChainNames[this.role].includes(name),
-          connection: { type: this.connectionType(name) },
+          rpcConsensusType: this.rpcConsensusType(name),
         })),
       },
     };
   }
 
-  connectionType(chain: ChainName): RpcConsensusType {
+  rpcConsensusType(chain: ChainName): RpcConsensusType {
     if (chainMetadata[chain].protocol == ProtocolType.Sealevel) {
       return RpcConsensusType.Single;
     }
