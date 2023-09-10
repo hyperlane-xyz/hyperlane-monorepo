@@ -317,7 +317,7 @@ export const sepolia: ChainMetadata = {
   displayName: 'Sepolia',
   nativeToken: etherToken,
   rpcUrls: [
-    { http: 'https://eth-sepolia.g.alchemy.com/v2/demo' },
+    { http: 'https://gateway.tenderly.co/public/sepolia' },
     { http: 'https://rpc2.sepolia.org' },
   ],
   blockExplorers: [
