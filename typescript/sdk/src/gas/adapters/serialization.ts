@@ -50,7 +50,7 @@ export const SealevelInterchainGasPaymasterConfigSchema = {
  * IGP Program Data Borsh Schema
  */
 
-// Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/trevor/sealevel-validator-rebase/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs#L21
+// Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-igp/src/accounts.rs#L91
 export class SealevelOverheadIgpData {
   /// The bump seed for this PDA.
   bump!: number;
