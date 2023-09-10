@@ -13,7 +13,7 @@ import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 contract FallbackDomainRoutingHookTest is Test {
     using TypeCasts for address;
     ConfigFallbackDomainRoutingHook internal fallbackHook;
-    TestPostDispatchHook internal configuredTestHook;
+    TestPostDispatchHook internal configuredTestPostDispatchHook;
     TestPostDispatchHook internal mailboxDefaultHook;
     TestRecipient internal testRecipient;
     TestMailbox internal mailbox;
@@ -26,7 +26,7 @@ contract FallbackDomainRoutingHookTest is Test {
 
     function setUp() public {
         mailbox = new TestMailbox(TEST_ORIGIN_DOMAIN);
-        configuredTestHook = new TestPostDispatchHook();
+        configuredTestPostDispatchHook = new TestPostDispatchHook();
         mailboxDefaultHook = new TestPostDispatchHook();
         testRecipient = new TestRecipient();
         fallbackHook = new ConfigFallbackDomainRoutingHook(address(mailbox));
@@ -40,12 +40,15 @@ contract FallbackDomainRoutingHookTest is Test {
         fallbackHook.setHook(
             TEST_DESTINATION_DOMAIN,
             address(testRecipient).addressToBytes32(),
-            configuredTestHook
+            configuredTestPostDispatchHook
         );
 
         vm.expectCall(
-            address(configuredTestHook),
-            abi.encodeCall(configuredTestHook.quoteDispatch, ("", testMessage))
+            address(configuredTestPostDispatchHook),
+            abi.encodeCall(
+                configuredTestPostDispatchHook.quoteDispatch,
+                ("", testMessage)
+            )
         );
         assertEq(fallbackHook.quoteDispatch("", testMessage), 25000);
     }
@@ -64,12 +67,15 @@ contract FallbackDomainRoutingHookTest is Test {
         fallbackHook.setHook(
             TEST_DESTINATION_DOMAIN,
             address(testRecipient).addressToBytes32(),
-            configuredTestHook
+            configuredTestPostDispatchHook
         );
 
         vm.expectCall(
-            address(configuredTestHook),
-            abi.encodeCall(configuredTestHook.postDispatch, ("", testMessage))
+            address(configuredTestPostDispatchHook),
+            abi.encodeCall(
+                configuredTestPostDispatchHook.postDispatch,
+                ("", testMessage)
+            )
         );
         fallbackHook.postDispatch{value: msg.value}("", testMessage);
     }

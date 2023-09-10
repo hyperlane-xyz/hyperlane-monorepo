@@ -5,6 +5,8 @@ import {MerkleLib} from "../libs/Merkle.sol";
 import {MerkleTreeHook} from "../hooks/MerkleTreeHook.sol";
 
 contract TestMerkleTreeHook is MerkleTreeHook {
+    using MerkleLib for MerkleLib.Tree;
+
     constructor(address _mailbox) MerkleTreeHook(_mailbox) {}
 
     function proof() external view returns (bytes32[32] memory) {
@@ -21,5 +23,9 @@ contract TestMerkleTreeHook is MerkleTreeHook {
             }
         }
         return _proof;
+    }
+
+    function insert(bytes32 _id) external {
+        _tree.insert(_id);
     }
 }

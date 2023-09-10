@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import {MerkleLib, TREE_DEPTH} from "../libs/Merkle.sol";
+import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 import {Indexed} from "../Indexed.sol";
@@ -22,10 +22,6 @@ contract MerkleTreeHook is IPostDispatchHook, MailboxClient, Indexed {
 
     function root() public view returns (bytes32) {
         return _tree.root();
-    }
-
-    function branch() public view returns (bytes32[TREE_DEPTH] memory) {
-        return _tree.branch;
     }
 
     function tree() public view returns (MerkleLib.Tree memory) {

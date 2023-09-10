@@ -46,11 +46,8 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
 
     // Mapping of message ID to delivery context that processed the message.
     struct Delivery {
-        // address sender;
-        // uint48 gasUsed;
+        address processor;
         uint48 timestamp;
-        // IInterchainSecurityModule ism;
-        // uint48 value?
     }
     mapping(bytes32 => Delivery) internal deliveries;
 
@@ -111,8 +108,8 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
                 _destinationDomain,
                 _recipientAddress,
                 _messageBody,
-                defaultHook,
-                _messageBody[0:0]
+                _messageBody[0:0],
+                defaultHook
             );
     }
 
@@ -135,88 +132,55 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
                 destinationDomain,
                 recipientAddress,
                 messageBody,
-                defaultHook,
-                hookMetadata
+                hookMetadata,
+                defaultHook
             );
     }
 
-    function dispatch(
-        uint32 destinationDomain,
-        bytes32 recipientAddress,
-        bytes calldata messageBody,
-        IPostDispatchHook hook,
-        bytes calldata metadata
-    ) public payable returns (bytes32) {
-        /// CHECKS ///
-
-        // Format the message into packed bytes.
-        bytes memory message = Message.formatMessage(
-            VERSION,
-            nonce,
-            localDomain,
-            msg.sender.addressToBytes32(),
-            destinationDomain,
-            recipientAddress,
-            messageBody
-        );
-        bytes32 id = message.id();
-
-        /// EFFECTS ///
-
-        nonce += 1;
-        latestDispatchedId = id;
-        emit Dispatch(msg.sender, destinationDomain, recipientAddress, message);
-        emit DispatchId(id);
-
-        /// INTERACTIONS ///
-        uint256 requiredValue = requiredHook.quoteDispatch(metadata, message);
-        requiredHook.postDispatch{value: requiredValue}(metadata, message);
-        hook.postDispatch{value: msg.value - requiredValue}(metadata, message);
-
-        return id;
-    }
-
+    /**
+     * @notice Computes quote for dispatching a message to the destination domain & recipient.
+     * @param destinationDomain Domain of destination chain
+     * @param recipientAddress Address of recipient on destination chain as bytes32
+     * @param messageBody Raw bytes content of message body
+     * @return fee The payment required to dispatch the message
+     */
     function quoteDispatch(
         uint32 destinationDomain,
         bytes32 recipientAddress,
         bytes calldata messageBody
     ) external view returns (uint256 fee) {
-        bytes memory message = Message.formatMessage(
-            VERSION,
-            nonce,
-            localDomain,
-            msg.sender.addressToBytes32(),
-            destinationDomain,
-            recipientAddress,
-            messageBody
-        );
         return
-            requiredHook.quoteDispatch("", message) +
-            defaultHook.quoteDispatch("", message);
+            quoteDispatch(
+                destinationDomain,
+                recipientAddress,
+                messageBody,
+                messageBody[0:0],
+                defaultHook
+            );
     }
 
+    /**
+     * @notice Computes quote for dispatching a message to the destination domain & recipient.
+     * @param destinationDomain Domain of destination chain
+     * @param recipientAddress Address of recipient on destination chain as bytes32
+     * @param messageBody Raw bytes content of message body
+     * @param defaultHookMetadata Metadata used by the default post dispatch hook
+     * @return fee The payment required to dispatch the message
+     */
     function quoteDispatch(
         uint32 destinationDomain,
         bytes32 recipientAddress,
         bytes calldata messageBody,
         bytes calldata defaultHookMetadata
     ) external view returns (uint256 fee) {
-        bytes memory message = Message.formatMessage(
-            VERSION,
-            nonce,
-            localDomain,
-            msg.sender.addressToBytes32(),
-            destinationDomain,
-            recipientAddress,
-            messageBody
-        );
         return
-            requiredHook.quoteDispatch(defaultHookMetadata, message) +
-            defaultHook.quoteDispatch(defaultHookMetadata, message);
-    }
-
-    function delivered(bytes32 _id) public view override returns (bool) {
-        return deliveries[_id].timestamp > 0;
+            quoteDispatch(
+                destinationDomain,
+                recipientAddress,
+                messageBody,
+                defaultHookMetadata,
+                defaultHook
+            );
     }
 
     /**
@@ -250,19 +214,18 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
         /// EFFECTS ///
 
         deliveries[_id] = Delivery({
+            processor: msg.sender,
             timestamp: uint48(block.timestamp)
-            // sender: msg.sender
-            // gasUsed: gasleft()
         });
         emit Process(_message.origin(), _message.sender(), recipient);
         emit ProcessId(_id);
 
         /// INTERACTIONS ///
 
-        // Verify the message via the ISM.
+        // Verify the message via the interchain security module.
         require(
             ism.verify(_metadata, _message),
-            "Mailbox: verification failed"
+            "Mailbox: ISM verification failed"
         );
 
         // Deliver the message to the recipient.
@@ -273,14 +236,111 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
         );
     }
 
+    /**
+     * @notice Returns the account that processed the message.
+     * @param _id The message ID to check.
+     * @return The account that processed the message.
+     */
+    function processor(bytes32 _id) external view returns (address) {
+        return deliveries[_id].processor;
+    }
+
+    /**
+     * @notice Returns the account that processed the message.
+     * @param _id The message ID to check.
+     * @return The account that processed the message.
+     */
+    function processedAt(bytes32 _id) external view returns (uint48) {
+        return deliveries[_id].timestamp;
+    }
+
     // ============ Public Functions ============
+
+    /**
+     * @notice Dispatches a message to the destination domain & recipient.
+     * @param destinationDomain Domain of destination chain
+     * @param recipientAddress Address of recipient on destination chain as bytes32
+     * @param messageBody Raw bytes content of message body
+     * @param metadata Metadata used by the post dispatch hook
+     * @param hook Custom hook to use instead of the default
+     * @return The message ID inserted into the Mailbox's merkle tree
+     */
+    function dispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody,
+        bytes calldata metadata,
+        IPostDispatchHook hook
+    ) public payable returns (bytes32) {
+        /// CHECKS ///
+
+        // Format the message into packed bytes.
+        bytes memory message = _buildMessage(
+            destinationDomain,
+            recipientAddress,
+            messageBody
+        );
+        bytes32 id = message.id();
+
+        /// EFFECTS ///
+
+        latestDispatchedId = id;
+        nonce += 1;
+        emit Dispatch(msg.sender, destinationDomain, recipientAddress, message);
+        emit DispatchId(id);
+
+        /// INTERACTIONS ///
+        uint256 requiredValue = requiredHook.quoteDispatch(metadata, message);
+        requiredHook.postDispatch{value: requiredValue}(metadata, message);
+        hook.postDispatch{value: msg.value - requiredValue}(metadata, message);
+
+        return id;
+    }
+
+    /**
+     * @notice Computes quote for dispatching a message to the destination domain & recipient.
+     * @param destinationDomain Domain of destination chain
+     * @param recipientAddress Address of recipient on destination chain as bytes32
+     * @param messageBody Raw bytes content of message body
+     * @param metadata Metadata used by the post dispatch hook
+     * @param hook Custom hook to use instead of the default
+     * @return fee The payment required to dispatch the message
+     */
+    function quoteDispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody,
+        bytes calldata metadata,
+        IPostDispatchHook hook
+    ) public view returns (uint256 fee) {
+        bytes memory message = _buildMessage(
+            destinationDomain,
+            recipientAddress,
+            messageBody
+        );
+        return
+            requiredHook.quoteDispatch(metadata, message) +
+            hook.quoteDispatch(metadata, message);
+    }
+
+    /**
+     * @notice Returns true if the message has been processed.
+     * @param _id The message ID to check.
+     * @return True if the message has been delivered.
+     */
+    function delivered(bytes32 _id) public view override returns (bool) {
+        return deliveries[_id].timestamp > 0;
+    }
 
     /**
      * @notice Sets the default ISM for the Mailbox.
      * @param _module The new default ISM. Must be a contract.
      */
     function setDefaultIsm(address _module) public onlyOwner {
-        require(Address.isContract(_module), "Mailbox: !contract");
+        require(
+            Address.isContract(_module),
+            "Mailbox: default ISM not contract"
+        );
         defaultIsm = IInterchainSecurityModule(_module);
         emit DefaultIsmSet(_module);
     }
@@ -290,7 +350,10 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
      * @param _hook The new default post dispatch hook. Must be a contract.
      */
     function setDefaultHook(address _hook) public onlyOwner {
-        require(Address.isContract(_hook), "Mailbox: !contract");
+        require(
+            Address.isContract(_hook),
+            "Mailbox: default hook not contract"
+        );
         defaultHook = IPostDispatchHook(_hook);
         emit DefaultHookSet(_hook);
     }
@@ -300,7 +363,10 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
      * @param _hook The new default post dispatch hook. Must be a contract.
      */
     function setRequiredHook(address _hook) public onlyOwner {
-        require(Address.isContract(_hook), "Mailbox: !contract");
+        require(
+            Address.isContract(_hook),
+            "Mailbox: required hook not contract"
+        );
         requiredHook = IPostDispatchHook(_hook);
         emit RequiredHookSet(_hook);
     }
@@ -331,5 +397,23 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
             // solhint-disable-next-line no-empty-blocks
         } catch {}
         return defaultIsm;
+    }
+
+    // ============ Internal Functions ============
+    function _buildMessage(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody
+    ) internal view returns (bytes memory) {
+        return
+            Message.formatMessage(
+                VERSION,
+                nonce,
+                localDomain,
+                msg.sender.addressToBytes32(),
+                destinationDomain,
+                recipientAddress,
+                messageBody
+            );
     }
 }
