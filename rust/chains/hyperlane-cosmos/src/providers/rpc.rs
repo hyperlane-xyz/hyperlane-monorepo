@@ -1,11 +1,12 @@
+use crate::binary::h256_to_h512;
+use crate::payloads::general::{EventAttribute, Events};
 use async_trait::async_trait;
 use cosmrs::rpc::client::{Client, CompatMode, HttpClient};
-use cosmrs::tendermint::abci::EventAttribute;
 use cosmrs::tendermint::hash::Algorithm;
 use cosmrs::tendermint::Hash;
-use hyperlane_core::{ChainResult, ContractLocator, HyperlaneDomain, LogMeta, H256, H512, U256};
+use hyperlane_core::{ChainResult, ContractLocator, HyperlaneDomain, LogMeta, H256, U256};
 use sha256::digest;
-use crate::binary::h256_to_h512;
+use tracing::debug;
 
 use crate::verify::{self, bech32_decode};
 use crate::ConnectionConf;
@@ -119,16 +120,24 @@ impl WasmIndexer for CosmosWasmIndexer {
 
             for (idx, tx) in tx_results.iter().enumerate() {
                 let tx_hash = tx_hash[idx];
+                if tx.code.is_err() {
+                    debug!("tx {:?} has failed. skip!", tx_hash);
+                    continue;
+                }
+
                 let mut available = false;
 
                 let mut parse_result: Vec<(T, LogMeta)> = vec![];
 
-                for (log_idx, event) in tx.events.clone().iter().enumerate() {
-                    if event.kind.as_str().starts_with(Self::WASM_TYPE)
+                let logs = serde_json::from_str::<Vec<Events>>(&tx.log)?;
+                let logs = logs.first().unwrap();
+
+                for (log_idx, event) in logs.events.clone().into_iter().enumerate() {
+                    if event.typ.as_str().starts_with(Self::WASM_TYPE)
                         && event.attributes[0].value == addr
                     {
                         available = true;
-                    } else if event.kind.as_str() != self.event_type {
+                    } else if event.typ.as_str() != self.event_type {
                         continue;
                     }
 
@@ -137,7 +146,7 @@ impl WasmIndexer for CosmosWasmIndexer {
                         address: bech32_decode(addr.clone()),
                         block_number: block_number as u64,
                         block_hash: H256::from_slice(block.block_id.hash.as_bytes()),
-                        transaction_id: h256_to_h512(tx_hash.clone()),
+                        transaction_id: h256_to_h512(tx_hash),
                         transaction_index: idx as u64,
                         log_index: U256::from(log_idx),
                     };

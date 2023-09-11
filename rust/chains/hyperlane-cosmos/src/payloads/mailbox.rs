@@ -11,6 +11,16 @@ pub struct CountRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct ISMSpecifierRequest {
+    pub interchain_security_module: Vec<()>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ISMSpecifierResponse {
+    pub ism: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct DefaultIsmRequest {
     pub default_ism: EmptyStruct,
 }
