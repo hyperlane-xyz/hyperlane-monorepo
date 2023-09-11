@@ -21,6 +21,16 @@ describe('Agent config', () => {
 
   it('Should generate a new agent config', () => {
     const result = buildAgentConfig(...args);
-    expect(Object.keys(result)).to.deep.equal([Chains.ethereum]);
+    expect(Object.keys(result)).to.deep.equal([
+      'chains',
+      'defaultRpcConsensusType',
+    ]);
+    expect(result.chains[Chains.ethereum].mailbox).to.equal('0xmailbox');
+    expect(result.chains[Chains.ethereum].interchainGasPaymaster).to.equal(
+      '0xgas',
+    );
+    expect(result.chains[Chains.ethereum].validatorAnnounce).to.equal(
+      '0xannounce',
+    );
   });
 });
