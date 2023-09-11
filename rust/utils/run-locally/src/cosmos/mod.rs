@@ -260,6 +260,7 @@ fn launch_cosmos_validator(
     agent_config: AgentConfig,
     agent_config_path: PathBuf,
     remotes: Vec<String>,
+    debug: bool,
 ) -> AgentHandles {
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
     let validator_base = tempdir().unwrap();
@@ -287,13 +288,18 @@ fn launch_cosmos_validator(
         .hyp_env("VALIDATOR_KEY", agent_config.signer.key)
         .hyp_env("VALIDATOR_TYPE", agent_config.signer.typ)
         .hyp_env("VALIDATOR_PREFIX", "osmo1")
+        .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .spawn("VAL");
 
     validator
 }
 
 #[apply(as_task)]
-fn launch_cosmos_relayer(agent_config_path: PathBuf, relay_chains: Vec<String>) -> AgentHandles {
+fn launch_cosmos_relayer(
+    agent_config_path: PathBuf,
+    relay_chains: Vec<String>,
+    debug: bool,
+) -> AgentHandles {
     let relayer_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "relayer");
     let relayer_base = tempdir().unwrap();
 
@@ -305,6 +311,7 @@ fn launch_cosmos_relayer(agent_config_path: PathBuf, relay_chains: Vec<String>) 
         .hyp_env("REORGPERIOD", "1")
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
         .hyp_env("ALLOW_LOCAL_CHECKPOINT_SYNCERS", "true")
+        .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .spawn("RLY");
 
     relayer
@@ -312,6 +319,7 @@ fn launch_cosmos_relayer(agent_config_path: PathBuf, relay_chains: Vec<String>) 
 
 #[allow(dead_code)]
 fn run_locally() {
+    let debug = false;
     let cli_src = Some(CLISource::Local {
         path: "/Users/frostornge/dev/osmosis/eric/build/osmosisd".to_string(),
     });
@@ -438,15 +446,16 @@ fn run_locally() {
             others.remove(&chain_id);
             let remotes = others.into_iter().map(|v| v.0).collect::<Vec<_>>();
 
-            launch_cosmos_validator(agent_config, agent_config_path.clone(), remotes)
+            launch_cosmos_validator(agent_config, agent_config_path.clone(), remotes, debug)
         })
         .collect::<Vec<_>>();
     let hpl_rly = launch_cosmos_relayer(
         agent_config_path,
         agent_config_out.chains.into_keys().collect::<Vec<_>>(),
+        debug,
     );
 
-    sleep(Duration::from_secs(30)); // wait for 1 min
+    sleep(Duration::from_secs(10)); // wait for 10 seconds
 
     // dispatch messages
 
