@@ -37,9 +37,9 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
         return
             CheckpointLib.digest(
                 Message.origin(_message),
-                MessageIdMultisigIsmMetadata.originMailbox(_metadata),
+                MessageIdMultisigIsmMetadata.originMerkleTree(_metadata),
                 MessageIdMultisigIsmMetadata.root(_metadata),
-                Message.nonce(_message),
+                MessageIdMultisigIsmMetadata.index(_metadata),
                 Message.id(_message)
             );
     }

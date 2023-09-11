@@ -3,14 +3,16 @@ pragma solidity >=0.8.0;
 
 /**
  * Format of metadata:
- * [   0:  32] Origin mailbox address
+ * [   0:  32] Origin merkle tree address
  * [  32:  64] Signed checkpoint root
- * [  64:????] Validator signatures (length := threshold * 65)
+ * [  64:  68] Signed checkpoint index
+ * [  68:????] Validator signatures (length := threshold * 65)
  */
 library MessageIdMultisigIsmMetadata {
-    uint8 private constant ORIGIN_MAILBOX_OFFSET = 0;
+    uint8 private constant ORIGIN_MERKLE_TREE_OFFSET = 0;
     uint8 private constant MERKLE_ROOT_OFFSET = 32;
-    uint8 private constant SIGNATURES_OFFSET = 64;
+    uint8 private constant MERKLE_INDEX_OFFSET = 64;
+    uint8 private constant SIGNATURES_OFFSET = 68;
     uint8 private constant SIGNATURE_LENGTH = 65;
 
     /**
@@ -18,14 +20,15 @@ library MessageIdMultisigIsmMetadata {
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return Origin mailbox of the signed checkpoint as bytes32
      */
-    function originMailbox(bytes calldata _metadata)
+    function originMerkleTree(bytes calldata _metadata)
         internal
         pure
         returns (bytes32)
     {
         return
             bytes32(
-                _metadata[ORIGIN_MAILBOX_OFFSET:ORIGIN_MAILBOX_OFFSET + 32]
+                _metadata[ORIGIN_MERKLE_TREE_OFFSET:ORIGIN_MERKLE_TREE_OFFSET +
+                    32]
             );
     }
 
@@ -36,6 +39,18 @@ library MessageIdMultisigIsmMetadata {
      */
     function root(bytes calldata _metadata) internal pure returns (bytes32) {
         return bytes32(_metadata[MERKLE_ROOT_OFFSET:MERKLE_ROOT_OFFSET + 32]);
+    }
+
+    /**
+     * @notice Returns the merkle index of the signed checkpoint.
+     * @param _metadata ABI encoded Multisig ISM metadata.
+     * @return Merkle index of the signed checkpoint
+     */
+    function index(bytes calldata _metadata) internal pure returns (uint32) {
+        return
+            uint32(
+                bytes4(_metadata[MERKLE_INDEX_OFFSET:MERKLE_INDEX_OFFSET + 4])
+            );
     }
 
     /**

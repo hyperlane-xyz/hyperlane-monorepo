@@ -74,6 +74,7 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         returns (bool)
     {
         bytes32 _digest = digest(_metadata, _message);
+        console.logBytes32(_digest);
         (
             address[] memory _validators,
             uint8 _threshold

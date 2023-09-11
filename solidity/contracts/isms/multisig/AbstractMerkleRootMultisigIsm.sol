@@ -39,19 +39,19 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
         returns (bytes32)
     {
         // We verify a merkle proof of (messageId, index) I to compute root J
-        bytes32 _root = MerkleLib.branchRoot(
+        bytes32 signedRoot = MerkleLib.branchRoot(
             Message.id(_message),
             MerkleRootMultisigIsmMetadata.proof(_metadata),
-            Message.nonce(_message)
+            MerkleRootMultisigIsmMetadata.index(_metadata)
         );
         // We provide (messageId, index) J in metadata for digest derivation
         return
             CheckpointLib.digest(
                 Message.origin(_message),
-                MerkleRootMultisigIsmMetadata.originMailbox(_metadata),
-                _root,
-                MerkleRootMultisigIsmMetadata.index(_metadata),
-                MerkleRootMultisigIsmMetadata.messageId(_metadata)
+                MerkleRootMultisigIsmMetadata.originMerkleTree(_metadata),
+                signedRoot,
+                MerkleRootMultisigIsmMetadata.signedIndex(_metadata),
+                MerkleRootMultisigIsmMetadata.signedMessageId(_metadata)
             );
     }
 
