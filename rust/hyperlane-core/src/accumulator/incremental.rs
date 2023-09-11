@@ -26,6 +26,11 @@ impl Default for IncrementalMerkle {
 }
 
 impl IncrementalMerkle {
+    /// Create a new merkle tree with all of its contents
+    pub fn plant(branch: [H256; TREE_DEPTH], count: usize) -> Self {
+      IncrementalMerkle { branch, count }
+    }
+
     /// Ingest a leaf into the tree.
     pub fn ingest(&mut self, element: H256) {
         let mut node = element;

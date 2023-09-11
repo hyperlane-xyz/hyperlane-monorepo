@@ -252,15 +252,20 @@ impl Validator {
         // which the validator is signing checkpoints but has not announced
         // their locations, which makes them functionally unusable.
         let validators: [H256; 1] = [self.signer.eth_address().into()];
+
+        let mut done = true;
         loop {
             info!("Checking for validator announcement");
-            /*{
-              let result = self
+            {
+              if !done {
+                let result = self
                         .validator_announce
                         .announce(signed_announcement.clone(), None)
                         .await;
-              info!("result: {:?}", result);
-            }*/
+                info!("result: {:?}", result);
+                done = true;
+              }
+            }
             if let Some(locations) = self
                 .validator_announce
                 .get_announced_storage_locations(&validators)

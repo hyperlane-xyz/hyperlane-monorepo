@@ -10,7 +10,7 @@ use tracing::{debug, info, instrument, warn};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, IndexRange::{self, BlockRange}, Indexer, LogMeta, Mailbox,
     MessageIndexer, SequenceRange, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
@@ -59,6 +59,8 @@ use crate::{
 
 use crate::AptosClient;
 use crate::utils::send_aptos_transaction;
+use crate::types::{ MoveMerkleTree, DispatchEventData };
+
 use aptos_sdk::{
   transaction_builder::TransactionFactory,
   types::{
@@ -72,7 +74,7 @@ use aptos_sdk::{
   },
   rest_client::{
     Client, FaucetClient,
-    aptos_api_types::{ViewRequest, EntryFunctionId}
+    aptos_api_types::{ViewRequest, EntryFunctionId, VersionedEvent}
   },
   types::LocalAccount,
   types::AccountKey,
@@ -315,9 +317,6 @@ impl std::fmt::Debug for AptosMailbox {
 impl Mailbox for AptosMailbox {
     #[instrument(err, ret, skip(self))]
     async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-      
-      tracing::info!("package address: {}", self.package_address.to_hex_literal());
-
       let view_response = self.aptos_client.view(
         &ViewRequest {
           function: EntryFunctionId::from_str(
@@ -360,34 +359,30 @@ impl Mailbox for AptosMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        assert!(
-            lag.is_none(),
-            "Sealevel does not support querying point-in-time"
-        );
 
-        let outbox_account = self
-            .rpc_client
-            .get_account_with_commitment(&self.outbox.0, CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .value
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str("Could not find account data")
-            })?;
-        let outbox = OutboxAccount::fetch(&mut outbox_account.data.as_ref())
-            .map_err(ChainCommunicationError::from_other)?
-            .into_inner();
+        let view_response = self.aptos_client.view(
+          &ViewRequest {
+            function: EntryFunctionId::from_str(
+              &format!(
+                "{}::mailbox::outbox_get_tree", 
+                self.package_address.to_hex_literal()
+              )
+            ).unwrap(),
+            type_arguments: vec![],
+            arguments: vec![]
+          },
+          Option::None
+        )
+        .await
+        .map_err(ChainCommunicationError::from_other)?;
+        
+        let view_result = serde_json::from_str::<MoveMerkleTree>(&view_response.inner()[0].to_string()).unwrap();
 
-        Ok(outbox.tree)
+        Ok(view_result.into())
     }
 
     #[instrument(err, ret, skip(self))]
     async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        assert!(
-            lag.is_none(),
-            "Sealevel does not support querying point-in-time"
-        );
-
         let tree = self.tree(lag).await?;
 
         let root = tree.root();
@@ -401,7 +396,7 @@ impl Mailbox for AptosMailbox {
             )
         })?;
         let checkpoint = Checkpoint {
-            mailbox_address: self.program_id.to_bytes().into(),
+            mailbox_address: H256::from_str(&self.package_address.to_hex_literal()).unwrap(),
             mailbox_domain: self.domain.id(),
             root,
             index,
@@ -602,22 +597,26 @@ pub struct AptosMailboxIndexer {
     mailbox: AptosMailbox,
     program_id: Pubkey,
 
-    aptos_client: AptosClient
+    aptos_client: AptosClient,
+    package_address: AccountAddress
 }
 
 impl AptosMailboxIndexer {
     pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
+        let aptos_client = AptosClient::new(conf.url.to_string());
+        let package_address = AccountAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
+
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let rpc_client = RpcClientWithDebug::new(conf.url.to_string());
         let mailbox = AptosMailbox::new(conf, locator, None)?;
-
-        let aptos_client = AptosClient::new(conf.url.to_string());
 
         Ok(Self {
             program_id,
             rpc_client,
             mailbox,
-            aptos_client
+
+            aptos_client,
+            package_address
         })
     }
 
@@ -628,107 +627,6 @@ impl AptosMailboxIndexer {
           .unwrap()
           .into_inner();
         Ok(chain_state.block_height as u32)
-    }
-
-    async fn get_message_with_nonce(&self, nonce: u32) -> ChainResult<(HyperlaneMessage, LogMeta)> {
-        let target_message_account_bytes = &[
-            &hyperlane_sealevel_mailbox::accounts::DISPATCHED_MESSAGE_DISCRIMINATOR[..],
-            &nonce.to_le_bytes()[..],
-        ]
-        .concat();
-        let target_message_account_bytes = base64::encode(target_message_account_bytes);
-
-        // First, find all accounts with the matching account data.
-        // To keep responses small in case there is ever more than 1
-        // match, we don't request the full account data, and just request
-        // the `unique_message_pubkey` field.
-        let memcmp = RpcFilterType::Memcmp(Memcmp {
-            // Ignore the first byte, which is the `initialized` bool flag.
-            offset: 1,
-            bytes: MemcmpEncodedBytes::Base64(target_message_account_bytes),
-            encoding: None,
-        });
-        let config = RpcProgramAccountsConfig {
-            filters: Some(vec![memcmp]),
-            account_config: RpcAccountInfoConfig {
-                encoding: Some(UiAccountEncoding::Base64),
-                // Don't return any data
-                data_slice: Some(UiDataSliceConfig {
-                    offset: 1 + 8 + 4 + 8, // the offset to get the `unique_message_pubkey` field
-                    length: 32,            // the length of the `unique_message_pubkey` field
-                }),
-                commitment: Some(CommitmentConfig::finalized()),
-                min_context_slot: None,
-            },
-            with_context: Some(false),
-        };
-        let accounts = self
-            .rpc_client
-            .get_program_accounts_with_config(&self.mailbox.program_id, config)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
-
-        // Now loop through matching accounts and find the one with a valid account pubkey
-        // that proves it's an actual message storage PDA.
-        let mut valid_message_storage_pda_pubkey = Option::<Pubkey>::None;
-
-        for (pubkey, account) in accounts.iter() {
-            let unique_message_pubkey = Pubkey::new(&account.data);
-            let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
-                mailbox_dispatched_message_pda_seeds!(unique_message_pubkey),
-                &self.mailbox.program_id,
-            )
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str(
-                    "Could not find program address for unique_message_pubkey",
-                )
-            })?;
-            if expected_pubkey == *pubkey {
-                valid_message_storage_pda_pubkey = Some(*pubkey);
-                break;
-            }
-        }
-
-        let valid_message_storage_pda_pubkey =
-            valid_message_storage_pda_pubkey.ok_or_else(|| {
-                ChainCommunicationError::from_other_str(
-                    "Could not find valid message storage PDA pubkey",
-                )
-            })?;
-
-        // Now that we have the valid message storage PDA pubkey, we can get the full account data.
-        let account = self
-            .rpc_client
-            .get_account_with_commitment(
-                &valid_message_storage_pda_pubkey,
-                CommitmentConfig::finalized(),
-            )
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .value
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str("Could not find account data")
-            })?;
-        let dispatched_message_account =
-            DispatchedMessageAccount::fetch(&mut account.data.as_ref())
-                .map_err(ChainCommunicationError::from_other)?
-                .into_inner();
-        let hyperlane_message =
-            HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
-
-        Ok((
-            hyperlane_message,
-            LogMeta {
-                address: self.mailbox.program_id.to_bytes().into(),
-                block_number: dispatched_message_account.slot,
-                // TODO: get these when building out scraper support.
-                // It's inconvenient to get these :|
-                block_hash: H256::zero(),
-                transaction_id: H512::zero(),
-                transaction_index: 0,
-                log_index: U256::zero(),
-            },
-        ))
     }
 }
 
@@ -746,9 +644,12 @@ impl MessageIndexer for AptosMailboxIndexer {
 #[async_trait]
 impl Indexer<HyperlaneMessage> for AptosMailboxIndexer {
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let SequenceRange(range) = range else {
+
+        info!("range type :{:?}", range);
+        
+        let BlockRange(range) = range else {
             return Err(ChainCommunicationError::from_other_str(
-                "AptosMailboxIndexer only supports sequence-based indexing",
+                "AptosMailboxIndexer only supports block-based indexing",
             ))
         };
 
@@ -757,10 +658,60 @@ impl Indexer<HyperlaneMessage> for AptosMailboxIndexer {
             "Fetching AptosMailboxIndexer HyperlaneMessage logs"
         );
 
+        let dispatch_events = self.aptos_client.get_account_events(
+          self.package_address,
+          &format!("{}::mailbox::MailBoxState", self.package_address.to_hex_literal()),
+          "dispatch_events",
+          None,
+          Some(10000)
+        ).await
+        .map_err(ChainCommunicationError::from_other)?
+        .into_inner();
+
+        let blk_start_no: u32 = *range.start();
+        let blk_end_no = *range.end();
+        let start_block = self.aptos_client.get_block_by_height(blk_start_no as u64, false)
+          .await
+          .map_err(ChainCommunicationError::from_other)?
+          .into_inner();
+        let end_block = self.aptos_client.get_block_by_height(blk_end_no as u64, false)
+          .await
+          .map_err(ChainCommunicationError::from_other)?
+          .into_inner();
+    
+        let start_tx_version = start_block.first_version;
+        let end_tx_version = end_block.last_version;
+
+        let new_dispatches: Vec<VersionedEvent> = dispatch_events
+          .into_iter()
+          .filter(|e| 
+            e.version.0 > start_tx_version.0 
+            && e.version.0 <= end_tx_version.0
+          )
+          .collect();
+
         let mut messages = Vec::with_capacity((range.end() - range.start()) as usize);
-        for nonce in range {
-            messages.push(self.get_message_with_nonce(nonce).await?);
+        for dispatch in new_dispatches {
+          let mut evt_data: DispatchEventData = dispatch.clone().try_into()?;
+          println!("before pushing message {:?}", evt_data);
+          messages.push(
+            (
+              evt_data.into_hyperlane_msg()?,
+              LogMeta {
+                address: self.mailbox.program_id.to_bytes().into(),
+                block_number: evt_data.block_height.parse().unwrap_or(0),
+                // TODO: get these when building out scraper support.
+                // It's inconvenient to get these :|
+                block_hash: H256::zero(),
+                transaction_id: H512::from_str(&evt_data.transaction_hash).unwrap_or(H512::zero()),
+                transaction_index: *dispatch.version.inner(),
+                log_index: U256::zero(),
+              }
+            )
+          );
         }
+        
+        info!("dispatched messages: {:?}", messages);
         Ok(messages)
     }
 
