@@ -30,8 +30,11 @@ use cli::{OsmosisCLI, OsmosisEndpoint};
 
 use self::deploy::deploy_cw_hyperlane;
 
-const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
-const OSMOSIS_CLI_VERSION: &str = "16.1.1";
+// const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
+// const OSMOSIS_CLI_VERSION: &str = "19.0.0";
+
+const OSMOSIS_CLI_GIT: &str = "https://github.com/hashableric/osmosis";
+const OSMOSIS_CLI_VERSION: &str = "19.0.0-mnts";
 
 const KEY_HPL_VALIDATOR: (&str,&str) = ("hpl-validator", "guard evolve region sentence danger sort despair eye deputy brave trim actor left recipe debate document upgrade sustain bus cage afford half demand pigeon");
 const KEY_HPL_RELAYER: (&str,&str) = ("hpl-relayer", "moral item damp melt gloom vendor notice head assume balance doctor retire fashion trim find biology saddle undo switch fault cattle toast drip empty");
@@ -73,26 +76,49 @@ fn make_target() -> String {
     format!("{}-{}", os, arch)
 }
 
-pub fn install_cli(dir: Option<PathBuf>) -> PathBuf {
-    let target = make_target();
+pub enum CLISource {
+    Local { path: String },
+    Remote { url: String, version: String },
+}
 
-    let dir_path = match dir {
-        Some(path) => path,
-        None => tempdir().unwrap().into_path(),
-    };
-    let dir_path = dir_path.to_str().unwrap();
+impl Default for CLISource {
+    fn default() -> Self {
+        Self::Remote {
+            url: OSMOSIS_CLI_GIT.to_string(),
+            version: OSMOSIS_CLI_VERSION.to_string(),
+        }
+    }
+}
 
-    let release_name = format!("osmosisd-{OSMOSIS_CLI_VERSION}-{target}");
-    let release_comp = format!("{release_name}.tar.gz");
+impl CLISource {
+    fn install_remote(dir: Option<PathBuf>, git: String, version: String) -> PathBuf {
+        let target = make_target();
 
-    log!("Downloading Osmosis CLI v{}", OSMOSIS_CLI_VERSION);
-    let uri = format!("{OSMOSIS_CLI_GIT}/releases/download/v{OSMOSIS_CLI_VERSION}/{release_comp}");
-    download(&release_comp, &uri, dir_path);
+        let dir_path = match dir {
+            Some(path) => path,
+            None => tempdir().unwrap().into_path(),
+        };
+        let dir_path = dir_path.to_str().unwrap();
 
-    log!("Uncompressing Osmosis release");
-    unzip(&release_comp, dir_path);
+        let release_name = format!("osmosisd-{version}-{target}");
+        let release_comp = format!("{release_name}.tar.gz");
 
-    concat_path(dir_path, "osmosisd")
+        log!("Downloading Osmosis CLI v{}", version);
+        let uri = format!("{git}/releases/download/v{version}/{release_comp}");
+        download(&release_comp, &uri, dir_path);
+
+        log!("Uncompressing Osmosis release");
+        unzip(&release_comp, dir_path);
+
+        concat_path(dir_path, "osmosisd")
+    }
+
+    pub fn install(self, dir: Option<PathBuf>) -> PathBuf {
+        match self {
+            CLISource::Local { path } => path.into(),
+            CLISource::Remote { url, version } => Self::install_remote(dir, url, version),
+        }
+    }
 }
 
 pub fn install_codes(dir: Option<PathBuf>) -> BTreeMap<String, PathBuf> {
@@ -128,9 +154,15 @@ pub fn install_codes(dir: Option<PathBuf>) -> BTreeMap<String, PathBuf> {
 #[allow(dead_code)]
 pub fn install_cosmos(
     cli_dir: Option<PathBuf>,
+    cli_src: Option<CLISource>,
     codes_dir: Option<PathBuf>,
 ) -> (PathBuf, BTreeMap<String, PathBuf>) {
-    let osmosisd = install_cli(cli_dir);
+    let osmosisd = cli_src
+        .unwrap_or(CLISource::Remote {
+            url: OSMOSIS_CLI_GIT.to_string(),
+            version: OSMOSIS_CLI_VERSION.to_string(),
+        })
+        .install(cli_dir);
     let codes = install_codes(codes_dir);
 
     (osmosisd, codes)
@@ -280,7 +312,12 @@ fn launch_cosmos_relayer(agent_config_path: PathBuf, relay_chains: Vec<String>) 
 
 #[allow(dead_code)]
 fn run_locally() {
-    let (osmosisd, codes) = install_cosmos(None, None);
+    let cli_src = Some(CLISource::Local {
+        path: "/Users/frostornge/dev/osmosis/eric/build/osmosisd".to_string(),
+    });
+    // let cli_src = None;
+
+    let (osmosisd, codes) = install_cosmos(None, cli_src, None);
 
     let addr_base = "tcp://0.0.0.0";
     let default_config = CosmosConfig {
@@ -409,10 +446,14 @@ fn run_locally() {
         agent_config_out.chains.into_keys().collect::<Vec<_>>(),
     );
 
+    sleep(Duration::from_secs(30)); // wait for 1 min
+
+    // dispatch messages
+
     for node in nodes.iter() {
         let targets = nodes
             .iter()
-            .filter(|v| v.domain == node.domain)
+            .filter(|v| v.domain != node.domain)
             .collect::<Vec<_>>();
 
         if !targets.is_empty() {
@@ -450,7 +491,7 @@ fn run_locally() {
         relayer: hpl_rly.join(),
     };
 
-    sleep(Duration::from_secs(1000)); // wait for 2 min
+    sleep(Duration::from_secs(1000)); // wait for a long time
 }
 
 #[cfg(test)]
