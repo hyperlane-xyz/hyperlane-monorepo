@@ -4,7 +4,8 @@ use cursor::*;
 use derive_new::new;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer, MessageIndexer,
+    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer,
+    SequenceIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 use tokio::time::sleep;
@@ -88,7 +89,7 @@ where
 
 /// A ContractSync for syncing events using a RateLimitedContractSyncCursor
 pub type WatermarkContractSync<T> =
-    ContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>, Arc<dyn Indexer<T>>>;
+    ContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>, Arc<dyn SequenceIndexer<T>>>;
 impl<T> WatermarkContractSync<T>
 where
     T: Debug + Send + Sync + Clone + 'static,
@@ -110,6 +111,7 @@ where
                 self.db.clone(),
                 index_settings.chunk_size,
                 index_settings.from,
+                index_settings.mode,
             )
             .await
             .unwrap(),
@@ -118,8 +120,11 @@ where
 }
 
 /// A ContractSync for syncing messages using a MessageSyncCursor
-pub type MessageContractSync =
-    ContractSync<HyperlaneMessage, Arc<dyn HyperlaneMessageStore>, Arc<dyn MessageIndexer>>;
+pub type MessageContractSync = ContractSync<
+    HyperlaneMessage,
+    Arc<dyn HyperlaneMessageStore>,
+    Arc<dyn SequenceIndexer<HyperlaneMessage>>,
+>;
 impl MessageContractSync {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     pub async fn forward_message_sync_cursor(
@@ -127,17 +132,14 @@ impl MessageContractSync {
         index_settings: IndexSettings,
         next_nonce: u32,
     ) -> Box<dyn ContractSyncCursor<HyperlaneMessage>> {
-        let forward_data = MessageSyncCursor::new(
+        Box::new(ForwardMessageSyncCursor::new(
             self.indexer.clone(),
             self.db.clone(),
             index_settings.chunk_size,
             index_settings.from,
             index_settings.from,
-            next_nonce,
-        );
-        Box::new(ForwardMessageSyncCursor::new(
-            forward_data,
             index_settings.mode,
+            next_nonce,
         ))
     }
 

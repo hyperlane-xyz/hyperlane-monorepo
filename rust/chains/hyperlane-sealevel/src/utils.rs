@@ -13,6 +13,8 @@ use solana_sdk::{
 };
 use solana_transaction_status::UiReturnDataEncoding;
 
+use crate::client::RpcClientWithDebug;
+
 /// Simulates an instruction, and attempts to deserialize it into a T.
 /// If no return data at all was returned, returns Ok(None).
 /// If some return data was returned but deserialization was unsuccessful,
@@ -77,4 +79,15 @@ pub async fn get_account_metas(
     .unwrap_or_else(Vec::new);
 
     Ok(account_metas)
+}
+
+pub async fn get_finalized_block_number(rpc_client: &RpcClientWithDebug) -> ChainResult<u32> {
+    let height = rpc_client
+        .get_block_height()
+        .await
+        .map_err(ChainCommunicationError::from_other)?
+        .try_into()
+        // FIXME solana block height is u64...
+        .expect("sealevel block height exceeds u32::MAX");
+    Ok(height)
 }

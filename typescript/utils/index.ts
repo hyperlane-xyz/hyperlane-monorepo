@@ -2,8 +2,8 @@ export {
   addressToByteHexString,
   addressToBytes,
   addressToBytes32,
+  addressToBytesEvm,
   addressToBytesSol,
-  adressToBytesEvm,
   bytes32ToAddress,
   capitalizeAddress,
   convertToProtocolAddress,
@@ -42,6 +42,7 @@ export {
   sleep,
   timeout,
 } from './src/async';
+export { base58ToBuffer, bufferToBase58 } from './src/base58';
 export { fromBase64, toBase64 } from './src/base64';
 export {
   BigNumberMax,
@@ -95,6 +96,8 @@ export {
   Address,
   AddressBytes32,
   CallData,
+  ChainCaip19Id,
+  ChainCaip2Id,
   Checkpoint,
   Domain,
   HexString,

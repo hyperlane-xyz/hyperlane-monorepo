@@ -2,7 +2,7 @@ image:
   repository: gcr.io/hyperlane-labs-dev/hyperlane-monorepo
   tag:
 hyperlane:
-  runEnv: testnet2
+  runEnv: testnet3
   context: hyperlane
   # Only used for fetching secrets, so all chains should be included regardless of being skipped
   chains: []

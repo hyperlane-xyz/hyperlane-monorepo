@@ -6,6 +6,7 @@ pub struct Config {
     pub ci_mode: bool,
     pub ci_mode_timeout: u64,
     pub kathy_messages: u64,
+    // TODO: Include count of sealevel messages in a field separate from `kathy_messages`?
 }
 
 impl Config {

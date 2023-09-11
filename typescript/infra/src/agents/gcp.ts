@@ -98,10 +98,9 @@ export class AgentGCPKey extends CloudAgentKey {
       case ProtocolType.Ethereum:
         return this.address;
       case ProtocolType.Sealevel:
-        const keypair = Keypair.fromSeed(
-          Uint8Array.from(Buffer.from(strip0x(this.privateKey), 'hex')),
-        );
-        return keypair.publicKey.toBase58();
+        return Keypair.fromSeed(
+          Buffer.from(strip0x(this.privateKey), 'hex'),
+        ).publicKey.toBase58();
       default:
         return undefined;
     }

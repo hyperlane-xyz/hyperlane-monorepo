@@ -1035,6 +1035,7 @@ async fn assert_gas_payment(
     gas_payment_account_key: Pubkey,
     destination_domain: u32,
     gas_amount: u64,
+    payment: u64,
     message_id: H256,
     sequence_number: u64,
 ) {
@@ -1063,6 +1064,7 @@ async fn assert_gas_payment(
             destination_domain,
             message_id,
             gas_amount,
+            payment,
             unique_gas_payment_pubkey,
             slot,
         }
@@ -1130,6 +1132,7 @@ async fn run_pay_for_gas_tests(gas_amount: u64, overhead_gas_amount: Option<u64>
         gas_payment_pda_key,
         TEST_DESTINATION_DOMAIN,
         gas_amount + overhead_gas_amount.unwrap_or_default(),
+        quote,
         message_id,
         0,
     )
@@ -1157,6 +1160,7 @@ async fn run_pay_for_gas_tests(gas_amount: u64, overhead_gas_amount: Option<u64>
         gas_payment_pda_key,
         TEST_DESTINATION_DOMAIN,
         gas_amount + overhead_gas_amount.unwrap_or_default(),
+        quote,
         message_id,
         1,
     )

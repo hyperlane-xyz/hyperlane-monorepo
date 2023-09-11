@@ -1,6 +1,6 @@
 import { Debugger, debug } from 'debug';
 
-import { exclude, isNumeric } from '@hyperlane-xyz/utils';
+import { exclude, isNumeric, pick } from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { ChainMap, ChainName } from '../types';
@@ -22,7 +22,7 @@ export interface ChainMetadataManagerOptions {
  */
 export class ChainMetadataManager<MetaExt = {}> {
   public readonly metadata: ChainMap<ChainMetadata<MetaExt>> = {};
-  protected readonly logger: Debugger;
+  public readonly logger: Debugger;
 
   /**
    * Create a new ChainMetadataManager with the given chainMetadata,
@@ -285,5 +285,37 @@ export class ChainMetadataManager<MetaExt = {}> {
       newMetadata[name] = { ...meta, ...additionalMetadata[name] };
     }
     return new ChainMetadataManager(newMetadata);
+  }
+
+  /**
+   * Create a new instance from the intersection
+   * of current's chains and the provided chain list
+   */
+  intersect(
+    chains: ChainName[],
+    throwIfNotSubset = false,
+  ): {
+    intersection: ChainName[];
+    result: ChainMetadataManager<MetaExt>;
+  } {
+    const knownChains = this.getKnownChainNames();
+    const intersection: ChainName[] = [];
+
+    for (const chain of chains) {
+      if (knownChains.includes(chain)) intersection.push(chain);
+      else if (throwIfNotSubset)
+        throw new Error(`Known chains does not include ${chain}`);
+    }
+
+    if (!intersection.length) {
+      throw new Error(
+        `No chains shared between known chains and list (${knownChains} and ${chains})`,
+      );
+    }
+
+    const intersectionMetadata = pick(this.metadata, intersection);
+    const result = new ChainMetadataManager(intersectionMetadata);
+
+    return { intersection, result };
   }
 }
