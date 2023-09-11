@@ -58,7 +58,7 @@
     "coverage": "hardhat coverage",
     "lint": "solhint contracts/**/*.sol && eslint . --ext .ts",
     "prettier": "prettier --write ./contracts ./test",
-    "test": "forge test -vvv",
+    "test": "forge test -vvv && hardhat test test/erc721.test.ts",
     "deploy-warp-route": "DEBUG=* ts-node scripts/deploy"
   },
   "types": "dist/index.d.ts"

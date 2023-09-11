@@ -40,7 +40,12 @@ contract HypNative is TokenRouter {
         emit SentTransferRemote(_destination, _recipient, _amount);
     }
 
-    function balanceOf(address _account) external view returns (uint256) {
+    function balanceOf(address _account)
+        external
+        view
+        override
+        returns (uint256)
+    {
         return _account.balance;
     }
 

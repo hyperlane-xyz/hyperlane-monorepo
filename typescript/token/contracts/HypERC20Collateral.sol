@@ -32,7 +32,12 @@ contract HypERC20Collateral is TokenRouter {
         __Router_initialize(_mailbox);
     }
 
-    function balanceOf(address _account) external view returns (uint256) {
+    function balanceOf(address _account)
+        external
+        view
+        override
+        returns (uint256)
+    {
         return wrappedToken.balanceOf(_account);
     }
 

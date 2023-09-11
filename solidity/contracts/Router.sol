@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
+import "forge-std/console.sol";
+
 // ============ Internal Imports ============
 import {HyperlaneConnectionClient} from "./HyperlaneConnectionClient.sol";
 import {IInterchainGasPaymaster} from "./interfaces/IInterchainGasPaymaster.sol";
@@ -135,6 +137,7 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         onlyMailbox
         onlyRemoteRouter(_origin, _sender)
     {
+        console.log("Router.handle", _routers.contains(_origin));
         _handle(_origin, _sender, _message);
     }
 
