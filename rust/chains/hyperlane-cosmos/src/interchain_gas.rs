@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, Indexer,
     InterchainGasPaymaster, SequenceIndexer, U256,
@@ -9,9 +8,10 @@ use std::ops::RangeInclusive;
 use tracing::info;
 
 use crate::grpc::WasmGrpcProvider;
+use crate::payloads::general::EventAttribute;
 use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
 use crate::signers::Signer;
-use crate::ConnectionConf;
+use crate::{ConnectionConf, CosmosProvider};
 
 /// A reference to a InterchainGasPaymaster contract on some Cosmos chain
 #[derive(Debug)]
@@ -35,7 +35,7 @@ impl HyperlaneChain for CosmosInterchainGasPaymaster {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        todo!()
+        Box::new(CosmosProvider::new(self.domain.clone()))
     }
 }
 
