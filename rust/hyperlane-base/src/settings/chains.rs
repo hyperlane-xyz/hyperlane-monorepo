@@ -275,8 +275,13 @@ impl ChainConf {
                     h_sealevel::SealevelInterchainGasPaymasterIndexer::new(conf, locator).await?,
                 );
                 Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
+            },
+            ChainConnectionConf::Aptos(conf) => {
+              let indexer = Box::new(h_aptos::SealevelInterchainGasPaymasterIndexer::new(
+                conf, locator,
+              ));
+              Ok(indexer as Box<dyn Indexer<InterchainGasPayment>>)
             }
-            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -361,7 +366,11 @@ impl ChainConf {
                 let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(conf, locator, keypair));
                 Ok(ism as Box<dyn MultisigIsm>)
             }
-            ChainConnectionConf::Aptos(_) => todo!(),
+            ChainConnectionConf::Aptos(conf) => {
+              let keypair = self.aptos_signer().await.context(ctx)?;
+              let ism = Box::new(h_aptos::SealevelMultisigIsm::new(conf, locator, keypair));
+              Ok(ism as Box<dyn MultisigIsm>)
+            }
         }
         .context(ctx)
     }
@@ -388,7 +397,9 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support routing ISM yet")).context(ctx)
             }
-            ChainConnectionConf::Aptos(_) => todo!(),
+            ChainConnectionConf::Aptos(_) => {
+              Err(eyre!("Aptos does not support routing ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -415,7 +426,9 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support aggregation ISM yet")).context(ctx)
             }
-            ChainConnectionConf::Aptos(_) => todo!(),
+            ChainConnectionConf::Aptos(_) => {
+              Err(eyre!("Aptos does not support aggregation ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -442,7 +455,9 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support CCIP read ISM yet")).context(ctx)
             }
-            ChainConnectionConf::Aptos(_) => todo!(),
+            ChainConnectionConf::Aptos(_) => {
+              Err(eyre!("Aptos does not support CCIP read ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -467,6 +482,10 @@ impl ChainConf {
 
     async fn sealevel_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
         self.signer().await
+    }
+
+    async fn aptos_signer(&self) -> Result<Option<h_aptos::Keypair>> {
+      self.signer().await
     }
 
     /// Get a clone of the ethereum metrics conf with correctly configured
