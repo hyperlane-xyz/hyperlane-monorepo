@@ -4,23 +4,24 @@ use std::ops::RangeInclusive;
 use std::str::FromStr;
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
+use crate::payloads::general::EventAttribute;
 use crate::payloads::mailbox::{ProcessMessageRequest, ProcessMessageRequestInner};
 use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
+use crate::CosmosProvider;
 use crate::{signers::Signer, verify, ConnectionConf};
 use async_trait::async_trait;
 
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
 
-use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, utils::fmt_bytes, ChainResult, Checkpoint,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
     Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_core::{ContractLocator, MessageIndexer, RawHyperlaneMessage, SequenceIndexer, H512};
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {
@@ -60,7 +61,7 @@ impl HyperlaneChain for CosmosMailbox {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        todo!()
+        Box::new(CosmosProvider::new(self.domain.clone()))
     }
 }
 
@@ -126,10 +127,23 @@ impl Mailbox for CosmosMailbox {
             message_delivered: mailbox::DeliveredRequestInner { id },
         };
 
-        let data = self.provider.wasm_query(payload, None).await?;
-        let response: mailbox::DeliveredResponse = serde_json::from_slice(&data)?;
+        let delivered = match self.provider.wasm_query(payload, None).await {
+            Ok(v) => {
+                let response: mailbox::DeliveredResponse = serde_json::from_slice(&v)?;
 
-        Ok(response.delivered)
+                response.delivered
+            }
+            Err(err) => {
+                warn!(
+                    "error while checking the message delivery status: {:?}",
+                    err
+                );
+
+                false
+            }
+        };
+
+        Ok(delivered)
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
@@ -167,15 +181,19 @@ impl Mailbox for CosmosMailbox {
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         let address = verify::digest_to_addr(recipient, &self.signer.prefix)?;
 
-        let payload = mailbox::DefaultIsmRequest {
-            default_ism: general::EmptyStruct {},
+        let payload = mailbox::ISMSpecifierRequest {
+            interchain_security_module: vec![],
         };
 
         let data = self.provider.wasm_query_to(address, payload, None).await?;
-        let response: mailbox::DefaultIsmResponse = serde_json::from_slice(&data)?;
+
+        let response: mailbox::ISMSpecifierResponse = serde_json::from_slice(&data)?;
 
         // convert Hex to H256
-        let ism = H256::from_slice(&hex::decode(response.default_ism)?);
+        let ism = response.ism.unwrap_or_else(|| {
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string()
+        });
+        let ism = H256::from_slice(&hex::decode(ism)?);
         Ok(ism)
     }
 

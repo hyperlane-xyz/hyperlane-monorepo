@@ -4,7 +4,7 @@ use base64::Engine;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, H512, U256,
+    HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
         GetAnnounceStorageLocationsRequestInner,
     },
     signers::Signer,
-    ConnectionConf,
+    ConnectionConf, CosmosProvider,
 };
 
 /// A reference to a ValidatorAnnounce contract on some Cosmos chain
@@ -23,7 +23,7 @@ pub struct CosmosValidatorAnnounce {
     _conf: ConnectionConf,
     domain: HyperlaneDomain,
     address: H256,
-    signer: Signer,
+    _signer: Signer,
     provider: Box<WasmGrpcProvider>,
 }
 
@@ -36,7 +36,7 @@ impl CosmosValidatorAnnounce {
             _conf: conf,
             domain: locator.domain.clone(),
             address: locator.address,
-            signer: signer,
+            _signer: signer,
             provider: Box::new(provider),
         }
     }
@@ -54,7 +54,7 @@ impl HyperlaneChain for CosmosValidatorAnnounce {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        todo!()
+        Box::new(CosmosProvider::new(self.domain.clone()))
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
     signers::Signer,
-    ConnectionConf,
+    ConnectionConf, CosmosProvider,
 };
 use async_trait::async_trait;
 use hyperlane_core::{
@@ -51,7 +51,7 @@ impl HyperlaneChain for CosmosMultisigIsm {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        todo!()
+        Box::new(CosmosProvider::new(self.domain.clone()))
     }
 }
 
