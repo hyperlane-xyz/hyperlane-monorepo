@@ -74,7 +74,7 @@ export class SealevelOverheadIgpData {
 export const SealevelOverheadIgpDataSchema = new Map<any, any>([
   [
     SealevelAccountDataWrapper,
-    getSealevelAccountDataSchema(SealevelOverheadIgpData),
+    getSealevelAccountDataSchema(SealevelOverheadIgpData, [8]),
   ],
   [
     SealevelOverheadIgpData,
