@@ -175,9 +175,6 @@ jobs:
       - name: Unit tests
         run: yarn workspace @hyperlane-xyz/core run test
 
-      - name: Prepare build for Slither
-        run: forge build --build-info
-
       - name: Run Slither
         uses: crytic/slither-action@main
         id: slither
@@ -185,8 +182,6 @@ jobs:
           target: 'solidity/'
           slither-config: 'solidity/slither.config.json'
           sarif: results.sarif
-          fail-on: none
-          ignore-compile: true
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v2
