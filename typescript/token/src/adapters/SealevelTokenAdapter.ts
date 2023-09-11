@@ -303,7 +303,7 @@ export abstract class SealevelHypTokenAdapter
       const overheadAdapter = new SealevelOverheadIgpAdapter(
         this.chainName,
         this.multiProvider,
-        { igp: igpConfig.program_id_pubkey.toBase58() },
+        { igp: igpConfig.igp_account_pub_key.toBase58() },
       );
       const overheadAccountInfo = await overheadAdapter.getAccountInfo();
       return {

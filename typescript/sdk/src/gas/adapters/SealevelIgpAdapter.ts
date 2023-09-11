@@ -26,10 +26,8 @@ export class SealevelOverheadIgpAdapter extends BaseSealevelAdapter {
     const address = this.addresses.igp;
     const connection = this.getProvider();
 
-    const pda = SealevelOverheadIgpAdapter.deriveIgpProgramPda(address);
-    const accountInfo = await connection.getAccountInfo(pda);
-    if (!accountInfo)
-      throw new Error(`No account info found for ${pda.toBase58()}}`);
+    const accountInfo = await connection.getAccountInfo(new PublicKey(address));
+    if (!accountInfo) throw new Error(`No account info found for ${address}}`);
 
     const accountData = deserializeUnchecked(
       SealevelOverheadIgpDataSchema,
