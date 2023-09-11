@@ -10,29 +10,25 @@ use crate::{
     payloads::ism_routes::{IsmRouteRequest, IsmRouteRequestInner, IsmRouteRespnose},
     signers::Signer,
     verify::bech32_decode,
-    ConnectionConf,
+    ConnectionConf, CosmosProvider,
 };
 
 /// A reference to a RoutingIsm contract on some Cosmos chain
 #[derive(Debug)]
 pub struct CosmosRoutingIsm {
-    _conf: ConnectionConf,
     domain: HyperlaneDomain,
     address: H256,
-    _signer: Signer,
     provider: Box<WasmGrpcProvider>,
 }
 
 impl CosmosRoutingIsm {
     /// create a new instance of CosmosRoutingIsm
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
+    pub fn new(conf: &ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
         let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
 
         Self {
-            _conf: conf,
             domain: locator.domain.clone(),
             address: locator.address,
-            _signer: signer,
             provider: Box::new(provider),
         }
     }
@@ -50,7 +46,7 @@ impl HyperlaneChain for CosmosRoutingIsm {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        todo!()
+        Box::new(CosmosProvider::new(self.domain.clone()))
     }
 }
 
