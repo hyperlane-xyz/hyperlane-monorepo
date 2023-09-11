@@ -189,16 +189,8 @@ fn main() -> ExitCode {
             }]"#,
         )
         .arg(
-            "chains.test1.customRpcUrls.localA.http",
-            "http://127.0.0.1:8545",
-        )
-        .arg(
-            "chains.test1.customRpcUrls.localB.http",
-            "http://127.0.0.1:8545",
-        )
-        .arg(
-            "chains.test1.customRpcUrls.localC.http",
-            "http://127.0.0.1:8545",
+            "chains.test1.customRpcUrls",
+            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
         // default is used for TEST3
         .arg("defaultSigner.key", RELAYER_KEYS[2])
