@@ -53,9 +53,7 @@ abstract contract AbstractMultisigIsmTest is Test {
             index,
             messageId
         );
-        console.logBytes32(digest);
         bytes memory metadata = metadataPrefix(message);
-        console.logBytes(metadata);
         for (uint256 i = 0; i < m; i++) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
             metadata = abi.encodePacked(metadata, r, s, v);
@@ -89,9 +87,7 @@ abstract contract AbstractMultisigIsmTest is Test {
             recipient,
             body
         );
-        bytes32 id = message.id();
-        console.logBytes32(id);
-        merkleTreeHook.insert(id);
+        merkleTreeHook.insert(message.id());
         return message;
     }
 
