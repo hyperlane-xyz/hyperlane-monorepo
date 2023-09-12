@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use derive_new::new;
+use tracing::trace;
 
 /// Calculates the expected time to catch up to the tip of the blockchain.
 #[derive(new)]
@@ -24,7 +25,6 @@ pub(crate) struct SyncerEtaCalculator {
 
 impl SyncerEtaCalculator {
     /// Calculate the expected time to catch up to the tip of the blockchain.
-    #[instrument(err)]
     pub fn calculate(&mut self, current_block: u32, current_tip: u32) -> Duration {
         let now = Instant::now();
         let elapsed = now.duration_since(self.last_time).as_secs_f64();
@@ -57,11 +57,19 @@ impl SyncerEtaCalculator {
             new_rate
         };
 
+        let default_duration = Duration::from_secs_f64(60. * 60. * 24. * 365.25);
         self.last_eta = if effective_rate <= 0. {
             // max out at 1yr if we are behind
-            Duration::from_secs_f64(60. * 60. * 24. * 365.25)
+            default_duration
         } else {
-            Duration::from_secs_f64((current_tip - current_block) as f64 / effective_rate)
+            match Duration::try_from_secs_f64((current_tip - current_block) as f64 / effective_rate)
+            {
+                Ok(eta) => eta,
+                Err(e) => {
+                    trace!(error=?e, tip=?current_tip, block=?current_block, rate=?effective_rate, "Failed to calculate the eta");
+                    default_duration
+                }
+            }
         };
 
         self.last_eta
