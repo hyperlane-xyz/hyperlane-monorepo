@@ -39,8 +39,10 @@ abstract contract HypTokenTest is Test {
     uint32 internal constant DESTINATION = 22;
     uint256 internal constant TRANSFER_ID = 0;
 
-    ERC721Test internal primaryToken =
-        new ERC721Test(NAME, SYMBOL, INITIAL_SUPPLY);
+    ERC721Test internal localPrimaryToken =
+        new ERC721Test(NAME, SYMBOL, INITIAL_SUPPLY * 2);
+    ERC721Test internal remotePrimaryToken =
+        new ERC721Test(NAME, SYMBOL, INITIAL_SUPPLY * 2);
     TestMailbox internal localMailbox;
     TestMailbox internal remoteMailbox;
     TokenRouter internal localToken;
@@ -56,16 +58,20 @@ abstract contract HypTokenTest is Test {
 
         remoteMailbox = new TestMailbox(DESTINATION);
 
-        remoteToken = new HypERC721Collateral(address(primaryToken));
+        remoteToken = new HypERC721Collateral(address(remotePrimaryToken));
     }
 
     function _deployRemoteToken(bool isCollateral) internal {
         if (isCollateral) {
-            remoteToken = new HypERC721Collateral(address(primaryToken));
+            remoteToken = new HypERC721Collateral(address(remotePrimaryToken));
             HypERC721Collateral(address(remoteToken)).initialize(
                 address(remoteMailbox)
             );
-            primaryToken.transferFrom(address(this), address(remoteToken), 0); // need for processing messages
+            remotePrimaryToken.transferFrom(
+                address(this),
+                address(remoteToken),
+                0
+            ); // need for processing messages
         } else {
             remoteToken = new HypERC721();
             HypERC721(address(remoteToken)).initialize(
@@ -186,20 +192,67 @@ contract HypERC721Test is HypTokenTest, IERC721Receiver {
     }
 }
 
-// contract HypERC721CollateralTest is HypTokenTest {
-//     HypERC721Collateral internal hyp721Collateral;
+contract HypERC721CollateralTest is HypTokenTest {
+    using TypeCasts for address;
 
-//     function setUp() public override {
-//         super.setUp();
+    HypERC721Collateral internal hyp721Collateral;
 
-//         localToken = new HypERC721Collateral(address(primaryToken));
-//         hyp721Collateral = HypERC721Collateral(address(localToken));
+    function setUp() public override {
+        super.setUp();
 
-//         hyp721Collateral.initialize(address(localMailbox));
-//     }
+        localToken = new HypERC721Collateral(address(localPrimaryToken));
+        hyp721Collateral = HypERC721Collateral(address(localToken));
 
-//     function testInitialize_revert_ifAlreadyInitialized() public {
-//         vm.expectRevert("Initializable: contract is already initialized");
-//         hyp721Collateral.initialize(ALICE);
-//     }
-// }
+        hyp721Collateral.initialize(address(localMailbox));
+
+        hyp721Collateral.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+
+        localPrimaryToken.transferFrom(
+            address(this),
+            address(hyp721Collateral),
+            INITIAL_SUPPLY + 1
+        );
+        localPrimaryToken.ownerOf(0);
+    }
+
+    function testInitialize_revert_ifAlreadyInitialized() public {
+        vm.expectRevert("Initializable: contract is already initialized");
+        hyp721Collateral.initialize(ALICE);
+    }
+
+    function testRemoteTransfer(bool isCollateral) public {
+        localPrimaryToken.ownerOf(0);
+        localPrimaryToken.approve(address(hyp721Collateral), 0);
+        _deployRemoteToken(isCollateral);
+        _expectTransferRemote(25000, 0);
+        assertEq(
+            hyp721Collateral.balanceOf(address(this)),
+            INITIAL_SUPPLY * 2 - 2
+        );
+    }
+
+    function testRemoteTransfer_revert_unowned() public {
+        localPrimaryToken.transferFrom(address(this), BOB, 1);
+
+        _deployRemoteToken(false);
+        vm.expectRevert("ERC721: caller is not token owner or approved");
+        _expectTransferRemote(25000, 1);
+        assertEq(
+            hyp721Collateral.balanceOf(address(this)),
+            INITIAL_SUPPLY * 2 - 2
+        );
+    }
+
+    function testRemoteTransfer_revert_invalidTokenId() public {
+        _deployRemoteToken(false);
+        vm.expectRevert("ERC721: invalid token ID");
+        _expectTransferRemote(25000, INITIAL_SUPPLY * 2);
+        assertEq(
+            hyp721Collateral.balanceOf(address(this)),
+            INITIAL_SUPPLY * 2 - 1
+        );
+    }
+}
