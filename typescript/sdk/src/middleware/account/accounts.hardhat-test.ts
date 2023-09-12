@@ -13,7 +13,7 @@ import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterConfig } from '../../router/types';
-import { getRouterConfig } from '../../test/testUtils';
+import { deployTestIgpsAndGetRouterConfig } from '../../test/testUtils';
 import { ChainMap } from '../../types';
 
 import { InterchainAccount } from './InterchainAccount';
@@ -21,8 +21,7 @@ import { InterchainAccountChecker } from './InterchainAccountChecker';
 import { InterchainAccountDeployer } from './InterchainAccountDeployer';
 import { InterchainAccountFactories } from './contracts';
 
-// TODO: update for v3
-describe.skip('InterchainAccounts', async () => {
+describe('InterchainAccounts', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
 
@@ -39,12 +38,11 @@ describe.skip('InterchainAccounts', async () => {
 
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
-    const deployer = new TestCoreDeployer(multiProvider);
-    coreApp = await deployer.deployApp();
-    config = getRouterConfig(
+    coreApp = await new TestCoreDeployer(multiProvider).deployApp();
+    config = await deployTestIgpsAndGetRouterConfig(
+      multiProvider,
       signer.address,
       coreApp.contractsMap,
-      deployer.igpContracts(),
     );
   });
 

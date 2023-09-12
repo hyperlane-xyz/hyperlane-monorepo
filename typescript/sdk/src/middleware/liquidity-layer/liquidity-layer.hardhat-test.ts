@@ -21,7 +21,7 @@ import { Chains } from '../../consts/chains';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';
-import { getRouterConfig } from '../../test/testUtils';
+import { deployTestIgpsAndGetRouterConfig } from '../../test/testUtils';
 import { ChainMap } from '../../types';
 import { objMap } from '../../utils/objects';
 
@@ -34,8 +34,7 @@ import {
   PortalAdapterConfig,
 } from './LiquidityLayerRouterDeployer';
 
-// TODO: update for v3
-describe.skip('LiquidityLayerRouter', async () => {
+describe('LiquidityLayerRouter', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
   const localDomain = chainMetadata[localChain].chainId;
@@ -74,10 +73,10 @@ describe.skip('LiquidityLayerRouter', async () => {
       signer,
     );
     messageTransmitter = await messageTransmitterF.deploy(mockToken.address);
-    const routerConfig = getRouterConfig(
+    const routerConfig = await deployTestIgpsAndGetRouterConfig(
+      multiProvider,
       signer.address,
       coreContractsMaps,
-      coreDeployer.igpContracts(),
     );
     config = objMap(routerConfig, (chain, config) => {
       return {

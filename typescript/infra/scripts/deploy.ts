@@ -3,7 +3,6 @@ import path from 'path';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
-  HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
   HyperlaneHookDeployer,
@@ -14,7 +13,6 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
-  hyperlaneEnvironments,
   objMap,
 } from '@hyperlane-xyz/sdk';
 
@@ -78,8 +76,7 @@ async function main() {
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.HOOK) {
     config = envConfig.hooks;
-    const core = hyperlaneEnvironments[deployEnvToSdkEnv[environment]];
-    deployer = new HyperlaneHookDeployer(multiProvider, core);
+    deployer = new HyperlaneHookDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);

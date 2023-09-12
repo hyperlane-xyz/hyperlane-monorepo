@@ -16,7 +16,7 @@ import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterConfig } from '../../router/types';
-import { getRouterConfig } from '../../test/testUtils';
+import { deployTestIgpsAndGetRouterConfig } from '../../test/testUtils';
 import { ChainMap } from '../../types';
 
 import { InterchainQuery } from './InterchainQuery';
@@ -24,8 +24,7 @@ import { InterchainQueryChecker } from './InterchainQueryChecker';
 import { InterchainQueryDeployer } from './InterchainQueryDeployer';
 import { InterchainQueryFactories } from './contracts';
 
-// TODO: update for v3
-describe.skip('InterchainQueryRouter', async () => {
+describe('InterchainQueryRouter', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
   const localDomain = chainMetadata[localChain].chainId;
@@ -48,10 +47,10 @@ describe.skip('InterchainQueryRouter', async () => {
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
-    config = getRouterConfig(
+    config = await deployTestIgpsAndGetRouterConfig(
+      multiProvider,
       signer.address,
       coreContractsMaps,
-      coreDeployer.igpContracts(),
     );
   });
 

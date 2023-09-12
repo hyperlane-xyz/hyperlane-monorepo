@@ -3,7 +3,7 @@ import {
   HyperlaneIgp,
   MultiProvider,
   attachContractsMap,
-  getRouterConfig,
+  createRouterConfigMap,
 } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldApp } from '../app/app';
@@ -29,7 +29,7 @@ async function check() {
   const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
   const igp = HyperlaneIgp.fromEnvironment('testnet', multiProvider);
   const app = new HelloWorldApp(core, contractsMap, multiProvider);
-  const config = getRouterConfig(
+  const config = createRouterConfigMap(
     ownerAddress,
     core.contractsMap,
     igp.contractsMap,

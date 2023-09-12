@@ -15,6 +15,8 @@ import {
   TestMailbox__factory,
   TestMerkleTreeHook,
   TestMerkleTreeHook__factory,
+  TestPostDispatchHook,
+  TestPostDispatchHook__factory,
   TestRecipient__factory,
 } from '../../types';
 import {

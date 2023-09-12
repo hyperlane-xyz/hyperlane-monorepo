@@ -4,7 +4,7 @@ import {
   HyperlaneCore,
   HyperlaneIgp,
   MultiProvider,
-  getRouterConfig,
+  createRouterConfigMap,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 
@@ -21,7 +21,7 @@ async function main() {
 
   const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
   const igp = HyperlaneIgp.fromEnvironment('testnet', multiProvider);
-  const config = getRouterConfig(
+  const config = createRouterConfigMap(
     signer.address,
     core.contractsMap,
     igp.contractsMap,

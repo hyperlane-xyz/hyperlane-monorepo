@@ -15,7 +15,6 @@ export {
   TestChains,
   Testnets,
 } from './consts/chains';
-export { getRouterConfig, testCoreConfig } from './test/testUtils';
 export {
   hyperlaneContractAddresses,
   hyperlaneEnvironments,
@@ -167,6 +166,10 @@ export {
   GasRouterConfig,
   RouterConfig,
 } from './router/types';
+export {
+  createRouterConfigMap,
+  deployTestIgpsAndGetRouterConfig,
+} from './test/testUtils';
 export {
   ChainMap,
   ChainName,

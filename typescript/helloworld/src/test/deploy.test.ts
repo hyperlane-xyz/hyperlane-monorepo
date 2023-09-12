@@ -7,8 +7,8 @@ import {
   MultiProvider,
   TestCoreApp,
   TestCoreDeployer,
+  deployTestIgpsAndGetRouterConfig,
 } from '@hyperlane-xyz/sdk';
-import { getRouterConfig } from '@hyperlane-xyz/sdk/dist/test/testUtils';
 
 import { HelloWorldApp } from '../app/app';
 import { HelloWorldFactories } from '../app/contracts';
@@ -30,10 +30,10 @@ describe('deploy', async () => {
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     core = await coreDeployer.deployApp();
-    config = getRouterConfig(
+    config = await deployTestIgpsAndGetRouterConfig(
+      multiProvider,
       signer.address,
       core.contractsMap,
-      coreDeployer.igpContracts(),
     );
     deployer = new HelloWorldDeployer(multiProvider);
   });

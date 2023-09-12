@@ -8,7 +8,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { chainNames } from './chains';
-import { igp } from './igp';
 import { owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
@@ -24,7 +23,6 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
 
   if (local === 'arbitrum') {
     return {
-      ...igp[local],
       owner,
       defaultIsm,
       upgrade: {
@@ -41,7 +39,6 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   }
 
   return {
-    ...igp[local],
     owner,
     defaultIsm,
   };

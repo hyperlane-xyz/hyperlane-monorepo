@@ -3,7 +3,6 @@ import type { types } from '@hyperlane-xyz/utils';
 
 import { UpgradeConfig } from '../deploy/proxy';
 import type { CheckerViolation } from '../deploy/types';
-import { OverheadIgpConfig } from '../gas/types';
 import { IsmConfig } from '../ism/types';
 import { ChainName } from '../types';
 
@@ -12,7 +11,7 @@ export type CoreConfig = {
   owner: types.Address;
   remove?: boolean;
   upgrade?: UpgradeConfig;
-} & OverheadIgpConfig;
+};
 
 export enum CoreViolationType {
   Mailbox = 'Mailbox',

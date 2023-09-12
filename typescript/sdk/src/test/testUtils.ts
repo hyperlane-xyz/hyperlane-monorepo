@@ -1,5 +1,9 @@
 import { ethers } from 'ethers';
 
+import {
+  TestInterchainGasPaymaster,
+  TestInterchainGasPaymaster__factory,
+} from '@hyperlane-xyz/core';
 import { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
@@ -14,6 +18,7 @@ import {
   CoinGeckoSimplePriceParams,
 } from '../gas/token-prices';
 import { ModuleType, MultisigIsmConfig } from '../ism/types';
+import { MultiProvider } from '../providers/MultiProvider';
 import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
@@ -26,7 +31,7 @@ export function randomAddress(): types.Address {
   return ethers.utils.hexlify(ethers.utils.randomBytes(20));
 }
 
-export function getRouterConfig(
+export function createRouterConfigMap(
   owner: types.Address,
   coreContracts: HyperlaneContractsMap<CoreFactories>,
   igpContracts: HyperlaneContractsMap<IgpFactories>,
@@ -36,7 +41,28 @@ export function getRouterConfig(
       owner,
       mailbox: contracts.mailbox.address,
       interchainGasPaymaster:
-        igpContracts[chain].defaultIsmInterchainGasPaymaster.address,
+        igpContracts[chain].interchainGasPaymaster.address,
+    };
+  });
+}
+
+export async function deployTestIgpsAndGetRouterConfig(
+  multiProvider: MultiProvider,
+  owner: types.Address,
+  coreContracts: HyperlaneContractsMap<CoreFactories>,
+): Promise<ChainMap<RouterConfig>> {
+  const igps: ChainMap<TestInterchainGasPaymaster> = {};
+  for (const chain of multiProvider.getKnownChainNames()) {
+    const factory = new TestInterchainGasPaymaster__factory(
+      multiProvider.getSigner(chain),
+    );
+    igps[chain] = await factory.deploy(owner);
+  }
+  return objMap(coreContracts, (chain, contracts) => {
+    return {
+      owner,
+      mailbox: contracts.mailbox.address,
+      interchainGasPaymaster: igps[chain].address,
     };
   });
 }
@@ -65,10 +91,6 @@ export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
               .map((remote) => [remote, multisigIsm]),
           ),
         },
-        beneficiary: nonZeroAddress,
-        oracleKey: nonZeroAddress,
-        gasOracleType: {},
-        overhead: {},
       },
     ]),
   );
