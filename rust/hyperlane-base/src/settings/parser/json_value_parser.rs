@@ -78,10 +78,14 @@ impl<'v> ValueParser<'v> {
             .map(|itr| Box::new(itr) as Box<dyn Iterator<Item = ValueParser<'v>>>),
             Value::Object(obj) => obj
                 .iter()
+                // convert all keys to a usize index of their position in the array
                 .map(|(k, v)| k.parse().map(|k| (k, v)))
+                // handle any errors during index parsing
                 .collect::<Result<Vec<(usize, &'v Value)>, _>>()
                 .context("Expected array or array-like object where all keys are indexes; some keys are not indexes")
+                // sort by index
                 .map(|arr| arr.into_iter().sorted_unstable_by_key(|(k, _)| *k))
+                // check that all indexes are present
                 .and_then(|itr| {
                     itr.clone()
                         .enumerate()
@@ -91,6 +95,7 @@ impl<'v> ValueParser<'v> {
                             "Expected array or array-like object where all keys are indexes; some indexes are missing"
                         ))
                 })
+                // convert to an iterator of value parsers over the values
                 .map(|itr| {
                     itr.map(move |(i, v)| Self {
                         val: v,
