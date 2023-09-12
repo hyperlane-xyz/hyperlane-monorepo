@@ -24,6 +24,7 @@ pub(crate) struct SyncerEtaCalculator {
 
 impl SyncerEtaCalculator {
     /// Calculate the expected time to catch up to the tip of the blockchain.
+    #[instrument(err)]
     pub fn calculate(&mut self, current_block: u32, current_tip: u32) -> Duration {
         let now = Instant::now();
         let elapsed = now.duration_since(self.last_time).as_secs_f64();
