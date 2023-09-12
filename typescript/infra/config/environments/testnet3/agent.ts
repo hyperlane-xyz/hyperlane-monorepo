@@ -122,29 +122,7 @@ const releaseCandidate: RootAgentConfig = {
       repo,
       tag: 'c7c44b2-20230811-133851',
     },
-    whitelist: [
-      ...releaseCandidateHelloworldMatchingList,
-      // Whitelist all traffic to solanadevnet
-      {
-        originDomain: '*',
-        senderAddress: '*',
-        destinationDomain: [
-          getDomainId(chainMetadata.solanadevnet),
-          getDomainId(chainMetadata.proteustestnet),
-        ],
-        recipientAddress: '*',
-      },
-      // Whitelist all traffic from solanadevnet to fuji
-      {
-        originDomain: [
-          getDomainId(chainMetadata.solanadevnet),
-          getDomainId(chainMetadata.proteustestnet),
-        ],
-        senderAddress: '*',
-        destinationDomain: [getDomainId(chainMetadata.bsctestnet)],
-        recipientAddress: '*',
-      },
-    ],
+    whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement: [
       // Don't require gas payments from solanadevnet
       {
@@ -153,19 +131,13 @@ const releaseCandidate: RootAgentConfig = {
           {
             originDomain: [getDomainId(chainMetadata.solanadevnet)],
             senderAddress: '*',
-            destinationDomain: [
-              getDomainId(chainMetadata.bsctestnet),
-              getDomainId(chainMetadata.proteustestnet),
-            ],
+            destinationDomain: '*',
             recipientAddress: '*',
           },
           {
-            originDomain: [getDomainId(chainMetadata.bsctestnet)],
+            originDomain: '*',
             senderAddress: '*',
-            destinationDomain: [
-              getDomainId(chainMetadata.solanadevnet),
-              getDomainId(chainMetadata.proteustestnet),
-            ],
+            destinationDomain: [getDomainId(chainMetadata.solanadevnet)],
             recipientAddress: '*',
           },
         ],
