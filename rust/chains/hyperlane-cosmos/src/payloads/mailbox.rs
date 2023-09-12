@@ -42,7 +42,7 @@ pub struct MerkleTreeRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ProcessMessageRequest {
-    pub process_message: ProcessMessageRequestInner,
+    pub process: ProcessMessageRequestInner,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
