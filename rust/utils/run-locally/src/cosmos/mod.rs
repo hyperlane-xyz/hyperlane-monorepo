@@ -495,7 +495,7 @@ fn run_locally() {
         }
     }
 
-    let stack = CosmosHyperlaneStack {
+    let _stack = CosmosHyperlaneStack {
         validators: hpl_val.into_iter().map(|v| v.join()).collect(),
         relayer: hpl_rly.join(),
     };
