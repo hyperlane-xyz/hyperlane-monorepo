@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Formatter};
+use std::io::Cursor;
 use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
@@ -20,7 +21,9 @@ use hyperlane_core::{
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
     Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
 };
-use hyperlane_core::{ContractLocator, MessageIndexer, RawHyperlaneMessage, SequenceIndexer, H512};
+use hyperlane_core::{
+    ContractLocator, Decode, MessageIndexer, RawHyperlaneMessage, SequenceIndexer, H512,
+};
 use tracing::{info, instrument, warn};
 
 /// A reference to a Mailbox contract on some Cosmos chain
@@ -190,10 +193,13 @@ impl Mailbox for CosmosMailbox {
         let response: mailbox::ISMSpecifierResponse = serde_json::from_slice(&data)?;
 
         // convert Hex to H256
-        let ism = response.ism.unwrap_or_else(|| {
-            "0000000000000000000000000000000000000000000000000000000000000000".to_string()
-        });
-        let ism = H256::from_slice(&hex::decode(ism)?);
+        let default_ism = self.default_ism().await?;
+        let ism = response
+            .ism
+            .map(hex::decode)
+            .transpose()?
+            .map(|v| H256::from_slice(&v))
+            .unwrap_or(default_ism);
         Ok(ism)
     }
 
@@ -205,7 +211,7 @@ impl Mailbox for CosmosMailbox {
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let process_message = ProcessMessageRequest {
-            process_message: ProcessMessageRequestInner {
+            process: ProcessMessageRequestInner {
                 message: hex::encode(RawHyperlaneMessage::from(message)),
                 metadata: hex::encode(metadata),
             },
@@ -230,7 +236,7 @@ impl Mailbox for CosmosMailbox {
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
         let process_message = ProcessMessageRequest {
-            process_message: ProcessMessageRequestInner {
+            process: ProcessMessageRequestInner {
                 message: hex::encode(RawHyperlaneMessage::from(message)),
                 metadata: hex::encode(metadata),
             },
@@ -285,19 +291,9 @@ impl CosmosMailboxIndexer {
                 let key = attr.key.as_str();
                 let value = attr.value.as_str();
 
-                match key {
-                    "version" => res.version = value.parse().unwrap(),
-                    "nonce" => res.nonce = value.parse().unwrap(),
-                    "origin" => res.origin = value.parse().unwrap(),
-                    "sender" => {
-                        res.sender = H256::from_slice(hex::decode(value).unwrap().as_slice())
-                    }
-                    "destination" => res.destination = value.parse().unwrap(),
-                    "recipient" => {
-                        res.recipient = H256::from_slice(hex::decode(value).unwrap().as_slice())
-                    }
-                    "body" => res.body = hex::decode(value).unwrap(),
-                    _ => {}
+                if key == "message" {
+                    let mut reader = Cursor::new(hex::decode(value).unwrap());
+                    res = HyperlaneMessage::read_from(&mut reader).unwrap();
                 }
             }
 
