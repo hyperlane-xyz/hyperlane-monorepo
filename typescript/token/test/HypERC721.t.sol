@@ -25,8 +25,10 @@ import {ERC721Test} from "../contracts/test/ERC721Test.sol";
 import {TokenRouter} from "../contracts/libs/TokenRouter.sol";
 import {HypERC721} from "../contracts/HypERC721.sol";
 import {HypERC721Collateral} from "../contracts/HypERC721Collateral.sol";
+import {HypERC721URIStorage} from "../contracts/extensions/HypERC721URIStorage.sol";
+import {HypERC721URICollateral} from "../contracts/extensions/HypERC721URICollateral.sol";
 
-abstract contract HypTokenTest is Test {
+abstract contract HypTokenTest is Test, IERC721Receiver {
     using TypeCasts for address;
 
     uint256 internal constant INITIAL_SUPPLY = 10;
@@ -38,6 +40,7 @@ abstract contract HypTokenTest is Test {
     uint32 internal constant ORIGIN = 11;
     uint32 internal constant DESTINATION = 22;
     uint256 internal constant TRANSFER_ID = 0;
+    string internal constant URI = "http://bit.ly/3reJLpx";
 
     ERC721Test internal localPrimaryToken =
         new ERC721Test(NAME, SYMBOL, INITIAL_SUPPLY * 2);
@@ -119,14 +122,23 @@ abstract contract HypTokenTest is Test {
         uint256 gasAfter = gasleft();
         console.log("Overhead gas usage: %d", gasBefore - gasAfter);
     }
+
+    function onERC721Received(
+        address, /*operator*/
+        address, /*from*/
+        uint256, /*tokenId*/
+        bytes calldata /*data*/
+    ) external pure returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
+    }
 }
 
-contract HypERC721Test is HypTokenTest, IERC721Receiver {
+contract HypERC721Test is HypTokenTest {
     using TypeCasts for address;
 
     HypERC721 internal hyp721;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
 
         localToken = new HypERC721();
@@ -147,6 +159,10 @@ contract HypERC721Test is HypTokenTest, IERC721Receiver {
 
     function testTotalSupply() public {
         assertEq(hyp721.balanceOf(address(this)), INITIAL_SUPPLY);
+    }
+
+    function testOwnerOf() public {
+        assertEq(hyp721.ownerOf(0), address(this));
     }
 
     function testLocalTransfer() public {
@@ -181,14 +197,45 @@ contract HypERC721Test is HypTokenTest, IERC721Receiver {
         _expectTransferRemote(25000, INITIAL_SUPPLY);
         assertEq(hyp721.balanceOf(address(this)), INITIAL_SUPPLY);
     }
+}
 
-    function onERC721Received(
-        address, /*operator*/
-        address, /*from*/
-        uint256, /*tokenId*/
-        bytes calldata /*data*/
-    ) external pure returns (bytes4) {
-        return IERC721Receiver.onERC721Received.selector;
+contract MockHypERC721URIStorage is HypERC721URIStorage {
+    function setTokenURI(uint256 tokenId, string memory uri) public {
+        _setTokenURI(tokenId, uri);
+    }
+}
+
+contract HypERC721URIStorageTest is HypTokenTest {
+    using TypeCasts for address;
+
+    MockHypERC721URIStorage internal hyp721Storage;
+
+    function setUp() public override {
+        super.setUp();
+
+        localToken = new MockHypERC721URIStorage();
+        hyp721Storage = MockHypERC721URIStorage(address(localToken));
+
+        hyp721Storage.initialize(
+            address(localMailbox),
+            INITIAL_SUPPLY,
+            NAME,
+            SYMBOL
+        );
+        hyp721Storage.setTokenURI(0, URI);
+        hyp721Storage.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+    }
+
+    function testRemoteTransfers_revert_burned() public {
+        _deployRemoteToken(false);
+        _expectTransferRemote(25000, 0);
+        assertEq(hyp721Storage.balanceOf(address(this)), INITIAL_SUPPLY - 1);
+
+        vm.expectRevert("ERC721: invalid token ID");
+        assertEq(hyp721Storage.tokenURI(0), "");
     }
 }
 
@@ -215,7 +262,6 @@ contract HypERC721CollateralTest is HypTokenTest {
             address(hyp721Collateral),
             INITIAL_SUPPLY + 1
         );
-        localPrimaryToken.ownerOf(0);
     }
 
     function testInitialize_revert_ifAlreadyInitialized() public {
@@ -224,7 +270,6 @@ contract HypERC721CollateralTest is HypTokenTest {
     }
 
     function testRemoteTransfer(bool isCollateral) public {
-        localPrimaryToken.ownerOf(0);
         localPrimaryToken.approve(address(hyp721Collateral), 0);
         _deployRemoteToken(isCollateral);
         _expectTransferRemote(25000, 0);
@@ -253,6 +298,45 @@ contract HypERC721CollateralTest is HypTokenTest {
         assertEq(
             hyp721Collateral.balanceOf(address(this)),
             INITIAL_SUPPLY * 2 - 1
+        );
+    }
+}
+
+contract HypERC721CollateralURIStorageTest is HypTokenTest {
+    using TypeCasts for address;
+
+    HypERC721URICollateral internal hyp721URICollateral;
+
+    function setUp() public override {
+        super.setUp();
+
+        localToken = new HypERC721URICollateral(address(localPrimaryToken));
+        hyp721URICollateral = HypERC721URICollateral(address(localToken));
+
+        hyp721URICollateral.initialize(address(localMailbox));
+        hyp721URICollateral.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+
+        // localPrimaryToken.setTokenURI(0, URI);
+        localPrimaryToken.transferFrom(
+            address(this),
+            address(hyp721URICollateral),
+            INITIAL_SUPPLY + 1
+        );
+        localPrimaryToken.ownerOf(0);
+    }
+
+    function testRemoteTransfers_revert_burned() public {
+        // doesn't actually check if the URI is correct
+        // just for CODECOV
+        _deployRemoteToken(false);
+        localPrimaryToken.approve(address(hyp721URICollateral), 0);
+        _expectTransferRemote(25000, 0);
+        assertEq(
+            hyp721URICollateral.balanceOf(address(this)),
+            INITIAL_SUPPLY * 2 - 2
         );
     }
 }
