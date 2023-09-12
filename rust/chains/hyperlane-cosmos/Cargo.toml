@@ -26,6 +26,7 @@ hyper = { workspace = true }
 hyper-tls = { workspace = true }
 sha256 = { workspace = true }
 hex = { workspace = true }
+hpl-interface = { version = "0.0.1" }
 
 hyperlane-core = { path = "../../hyperlane-core" }
 
