@@ -27,18 +27,24 @@ fn parse_pubkey_or_default(maybe_str: Option<&String>, default: Pubkey) -> Pubke
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct OptionalConnectionClientConfig {
-    pub mailbox: Option<String>,
-    pub interchain_gas_paymaster: Option<String>,
-    pub interchain_security_module: Option<String>,
+    #[serde(default)]
+    #[serde(with = "crate::core::serde_option_pubkey")]
+    pub mailbox: Option<Pubkey>,
+    #[serde(default)]
+    #[serde(with = "crate::core::serde_option_pubkey")]
+    pub interchain_gas_paymaster: Option<Pubkey>,
+    #[serde(default)]
+    #[serde(with = "crate::core::serde_option_pubkey")]
+    pub interchain_security_module: Option<Pubkey>,
 }
 
 impl OptionalConnectionClientConfig {
     pub fn mailbox(&self, default: Pubkey) -> Pubkey {
-        parse_pubkey_or_default(self.mailbox.as_ref(), default)
+        self.mailbox.unwrap_or(default)
     }
 
-    pub fn interchain_security_module(&self, default: Pubkey) -> Pubkey {
-        parse_pubkey_or_default(self.interchain_security_module.as_ref(), default)
+    pub fn interchain_security_module(&self) -> Option<Pubkey> {
+        self.interchain_security_module
     }
 }
 
@@ -96,7 +102,9 @@ pub trait RouterConfigGetter {
     fn router_config(&self) -> &RouterConfig;
 }
 
-pub(crate) trait Deployable<Config: RouterConfigGetter + std::fmt::Debug> {
+pub(crate) trait Deployable<Config: RouterConfigGetter + std::fmt::Debug>:
+    ConnectionClient
+{
     fn deploy(
         &self,
         ctx: &mut Context,
@@ -171,6 +179,21 @@ pub(crate) trait Deployable<Config: RouterConfigGetter + std::fmt::Debug> {
     );
 }
 
+pub(crate) trait ConnectionClient {
+    fn get_interchain_security_module(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+    ) -> Option<Pubkey>;
+
+    fn set_interchain_security_module_instruction(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+        ism: Option<Pubkey>,
+    ) -> Instruction;
+}
+
 pub(crate) fn deploy_routers<
     Config: for<'a> Deserialize<'a> + RouterConfigGetter + std::fmt::Debug,
     Deployer: Deployable<Config>,
@@ -242,6 +265,38 @@ pub(crate) fn deploy_routers<
             chain_config.domain_id(),
             H256::from_slice(&program_id.to_bytes()[..]),
         );
+
+        let actual_ism =
+            deployer.get_interchain_security_module(&chain_config.client(), &program_id);
+        let expected_ism = app_config
+            .router_config()
+            .connection_client
+            .interchain_security_module();
+
+        println!(
+            "actual_ism {:?} expected_ism {:?}",
+            actual_ism, expected_ism
+        );
+
+        if actual_ism != expected_ism {
+            println!("Setting correct one...");
+            ctx.new_txn()
+                .add_with_description(
+                    deployer.set_interchain_security_module_instruction(
+                        &chain_config.client(),
+                        &program_id,
+                        expected_ism,
+                    ),
+                    format!(
+                        "Setting ISM for chain: {} ({}) to {:?}",
+                        chain_name,
+                        chain_config.domain_id(),
+                        expected_ism
+                    ),
+                )
+                .with_client(&chain_config.client())
+                .send_with_payer();
+        }
     }
 
     // Now enroll routers

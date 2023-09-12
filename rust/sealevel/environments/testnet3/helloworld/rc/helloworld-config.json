@@ -1,5 +1,7 @@
 {
-  "solanadevnet": {},
+  "solanadevnet": {
+    "interchainSecurityModule": "2NE6Y1rXp1Kpp6vBNqDHYL7HNk7iqh8BKmvCoZtUcZLn"
+  },
   "alfajores": {
     "foreignDeployment": "0x40Adcb03F3C58170b4751c4140636FC6085Ff475"
   },

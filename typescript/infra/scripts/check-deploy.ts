@@ -112,6 +112,7 @@ async function check() {
     console.log('configMap', configMap);
     const hwConfig = helloWorldConfig(environment, context, configMap);
     console.log('config', config);
+    console.log('hwConfig', hwConfig);
     const ismFactory = HyperlaneIsmFactory.fromEnvironment(
       deployEnvToSdkEnv[environment],
       multiProvider,

@@ -7,7 +7,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { exclude, objMap } from '@hyperlane-xyz/utils';
 
-import { TestnetChains, supportedChainNames } from './chains';
+import {
+  TestnetChains,
+  ethereumChainNames,
+  supportedChainNames,
+} from './chains';
 import { owners } from './owners';
 
 function getGasOracles(local: TestnetChains) {
@@ -28,7 +32,7 @@ export const igp: ChainMap<OverheadIgpConfig> = objMap(
       beneficiary: owner,
       gasOracleType: getGasOracles(chain),
       overhead: Object.fromEntries(
-        exclude(chain, supportedChainNames)
+        exclude(chain, ethereumChainNames)
           .filter((remote) => {
             const remoteConfig = defaultMultisigIsmConfigs[remote];
             if (!remoteConfig) {

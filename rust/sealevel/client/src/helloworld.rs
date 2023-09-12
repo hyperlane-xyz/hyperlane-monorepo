@@ -4,7 +4,10 @@ use hyperlane_core::H256;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_hello_world::{
     accounts::HelloWorldStorageAccount,
-    instruction::{enroll_remote_routers_instruction, init_instruction},
+    instruction::{
+        enroll_remote_routers_instruction, init_instruction,
+        set_interchain_security_module_instruction,
+    },
     program_storage_pda_seeds,
 };
 use serde::{Deserialize, Serialize};
@@ -12,7 +15,10 @@ use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Signer};
 
 use crate::{
     cmd_utils::account_exists,
-    router::{deploy_routers, ChainMetadata, Deployable, RouterConfig, RouterConfigGetter},
+    router::{
+        deploy_routers, ChainMetadata, ConnectionClient, Deployable, RouterConfig,
+        RouterConfigGetter,
+    },
     Context, CoreProgramIds, HelloWorldCmd, HelloWorldDeploy, HelloWorldSubCmd, RpcClient,
 };
 
@@ -96,12 +102,10 @@ impl Deployable<HelloWorldConfig> for HelloWorldDeployer {
             .router_config()
             .connection_client
             .mailbox(core_program_ids.mailbox);
-        let ism = Some(
-            app_config
-                .router_config()
-                .connection_client
-                .interchain_security_module(core_program_ids.multisig_ism_message_id),
-        );
+        let ism = app_config
+            .router_config()
+            .connection_client
+            .interchain_security_module();
         let owner = Some(app_config.router_config().ownable.owner(ctx.payer_pubkey));
 
         println!(
@@ -131,6 +135,41 @@ impl Deployable<HelloWorldConfig> for HelloWorldDeployer {
 impl RouterConfigGetter for HelloWorldConfig {
     fn router_config(&self) -> &RouterConfig {
         &self.router_config
+    }
+}
+
+impl ConnectionClient for HelloWorldDeployer {
+    fn get_interchain_security_module(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+    ) -> Option<Pubkey> {
+        let (program_storage_account, _program_storage_bump) =
+            Pubkey::find_program_address(program_storage_pda_seeds!(), program_id);
+
+        let account = client.get_account(&program_storage_account).unwrap();
+        let storage = HelloWorldStorageAccount::fetch(&mut &account.data[..])
+            .unwrap()
+            .into_inner();
+
+        storage.ism
+    }
+
+    fn set_interchain_security_module_instruction(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+        ism: Option<Pubkey>,
+    ) -> Instruction {
+        let program_storage_key =
+            Pubkey::find_program_address(program_storage_pda_seeds!(), program_id);
+        let account = client.get_account(&program_storage_key.0).unwrap();
+        let storage = HelloWorldStorageAccount::fetch(&mut &account.data[..])
+            .unwrap()
+            .into_inner();
+
+        set_interchain_security_module_instruction(*program_id, storage.owner.unwrap(), ism)
+            .unwrap()
     }
 }
 

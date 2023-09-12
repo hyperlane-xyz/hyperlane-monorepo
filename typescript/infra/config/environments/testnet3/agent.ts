@@ -74,7 +74,7 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'ed7569d-20230725-171222',
+      tag: '3b0685f-20230815-110725',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,

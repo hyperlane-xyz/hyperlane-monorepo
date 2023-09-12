@@ -8,6 +8,7 @@ use std::{fs::File, io::Write, path::Path};
 
 use crate::{
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
+    multisig_ism::deploy_multisig_ism_message_id,
     Context, CoreCmd, CoreDeploy, CoreSubCmd,
 };
 use hyperlane_core::H256;
@@ -21,7 +22,12 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let core_dir = create_new_directory(&chain_dir, "core");
             let key_dir = create_new_directory(&core_dir, "keys");
 
-            let ism_program_id = deploy_multisig_ism_message_id(&mut ctx, &core, &key_dir);
+            let ism_program_id = deploy_multisig_ism_message_id(
+                &mut ctx,
+                &core.built_so_dir,
+                core.use_existing_keys,
+                &key_dir,
+            );
 
             let mailbox_program_id = deploy_mailbox(&mut ctx, &core, &key_dir, ism_program_id);
 
@@ -42,43 +48,6 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             write_program_ids(&core_dir, program_ids);
         }
     }
-}
-
-fn deploy_multisig_ism_message_id(ctx: &mut Context, cmd: &CoreDeploy, key_dir: &Path) -> Pubkey {
-    let (keypair, keypair_path) = create_and_write_keypair(
-        key_dir,
-        "hyperlane_sealevel_multisig_ism_message_id-keypair.json",
-        cmd.use_existing_keys,
-    );
-    let program_id = keypair.pubkey();
-
-    deploy_program(
-        ctx.payer_keypair_path(),
-        keypair_path.to_str().unwrap(),
-        cmd.built_so_dir
-            .join("hyperlane_sealevel_multisig_ism_message_id.so")
-            .to_str()
-            .unwrap(),
-        &ctx.client.url(),
-    );
-
-    println!(
-        "Deployed Multisig ISM Message ID at program ID {}",
-        program_id
-    );
-
-    // Initialize
-    let instruction = hyperlane_sealevel_multisig_ism_message_id::instruction::init_instruction(
-        program_id,
-        ctx.payer_pubkey,
-    )
-    .unwrap();
-
-    ctx.new_txn().add(instruction).send_with_payer();
-
-    println!("Initialized Multisig ISM Message ID ");
-
-    program_id
 }
 
 fn deploy_mailbox(
@@ -340,7 +309,7 @@ pub struct CoreProgramIds {
     pub igp_account: Pubkey,
 }
 
-mod serde_pubkey {
+pub(crate) mod serde_pubkey {
     use borsh::BorshDeserialize;
     use serde::{Deserialize, Deserializer, Serializer};
     use solana_sdk::pubkey::Pubkey;
@@ -361,6 +330,48 @@ mod serde_pubkey {
         match RawPubkey::deserialize(de)? {
             RawPubkey::String(s) => Pubkey::from_str(&s).map_err(serde::de::Error::custom),
             RawPubkey::Bytes(b) => Pubkey::try_from_slice(&b).map_err(serde::de::Error::custom),
+        }
+    }
+}
+
+pub(crate) mod serde_option_pubkey {
+    use borsh::BorshDeserialize;
+    use serde::{Deserialize, Deserializer, Serializer};
+    use solana_sdk::pubkey::Pubkey;
+    use std::str::FromStr;
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum RawPubkey {
+        String(String),
+        Bytes(Vec<u8>),
+    }
+
+    pub fn serialize<S: Serializer>(k: &Option<Pubkey>, ser: S) -> Result<S::Ok, S::Error> {
+        ser.serialize_str(&k.map(|k| k.to_string()).unwrap_or_default())
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Option<Pubkey>, D::Error> {
+        match Option::<RawPubkey>::deserialize(de)? {
+            Some(RawPubkey::String(s)) => {
+                if s.len() == 0 {
+                    Ok(None)
+                } else {
+                    Pubkey::from_str(&s)
+                        .map_err(serde::de::Error::custom)
+                        .map(Some)
+                }
+            }
+            Some(RawPubkey::Bytes(b)) => {
+                if b.len() == 0 {
+                    Ok(None)
+                } else {
+                    Pubkey::try_from_slice(&b)
+                        .map_err(serde::de::Error::custom)
+                        .map(Some)
+                }
+            }
+            None => Ok(None),
         }
     }
 }

@@ -8,6 +8,7 @@ import { owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const defaultIsm = aggregationIsm('testnet3', local, Contexts.Hyperlane);
+  console.log('defaultIsm foobar', JSON.stringify(defaultIsm), owners);
   return {
     owner,
     defaultIsm,

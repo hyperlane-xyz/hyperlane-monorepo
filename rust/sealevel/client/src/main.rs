@@ -66,16 +66,22 @@ use hyperlane_sealevel_validator_announce::{
     validator_storage_locations_pda_seeds,
 };
 
-use crate::helloworld::process_helloworld_cmd;
-use crate::warp_route::process_warp_route_cmd;
-pub(crate) use crate::{context::*, core::*};
-
 mod cmd_utils;
 mod context;
 mod r#core;
 mod helloworld;
+mod multisig_ism;
 mod router;
 mod warp_route;
+
+use crate::cmd_utils::create_new_directory;
+use crate::helloworld::process_helloworld_cmd;
+use crate::multisig_ism::{
+    configure_multisig_ism_message_id, deploy_multisig_ism_message_id,
+    set_validators_and_threshold, write_multisig_ism_program_ids,
+};
+use crate::warp_route::process_warp_route_cmd;
+pub(crate) use crate::{context::*, core::*};
 
 // Note: from solana_program_runtime::compute_budget
 const DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT: u32 = 200_000;
@@ -390,10 +396,38 @@ struct MultisigIsmMessageIdCmd {
 
 #[derive(Subcommand)]
 enum MultisigIsmMessageIdSubCmd {
+    Deploy(MultisigIsmMessageIdDeploy),
     Init(MultisigIsmMessageIdInit),
     SetValidatorsAndThreshold(MultisigIsmMessageIdSetValidatorsAndThreshold),
     Query(MultisigIsmMessageIdInit),
     TransferOwnership(TransferOwnership),
+    Configure(MultisigIsmMessageIdConfigure),
+}
+
+#[derive(Args)]
+struct MultisigIsmMessageIdDeploy {
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+    #[arg(long)]
+    built_so_dir: PathBuf,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    context: String,
+}
+
+#[derive(Args)]
+struct MultisigIsmMessageIdConfigure {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    multisig_config_file: PathBuf,
+    #[arg(long)]
+    chain_config_file: PathBuf,
+    #[arg(long, value_delimiter = ',')]
+    remote_chains: Vec<String>,
 }
 
 #[derive(Args)]
@@ -1103,8 +1137,21 @@ fn process_validator_announce_cmd(ctx: Context, cmd: ValidatorAnnounceCmd) {
     }
 }
 
-fn process_multisig_ism_message_id_cmd(ctx: Context, cmd: MultisigIsmMessageIdCmd) {
+fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessageIdCmd) {
     match cmd.cmd {
+        MultisigIsmMessageIdSubCmd::Deploy(deploy) => {
+            let environments_dir =
+                create_new_directory(&deploy.environments_dir, &deploy.environment);
+            let ism_dir = create_new_directory(&environments_dir, "multisig-ism-message-id");
+            let chain_dir = create_new_directory(&ism_dir, &deploy.chain);
+            let context_dir = create_new_directory(&chain_dir, &deploy.context);
+            let key_dir = create_new_directory(&context_dir, "keys");
+
+            let ism_program_id =
+                deploy_multisig_ism_message_id(&mut ctx, &deploy.built_so_dir, true, &key_dir);
+
+            write_multisig_ism_program_ids(&context_dir.join("program-ids.json"), ism_program_id);
+        }
         MultisigIsmMessageIdSubCmd::Init(init) => {
             let init_instruction =
                 hyperlane_sealevel_multisig_ism_message_id::instruction::init_instruction(
@@ -1115,42 +1162,52 @@ fn process_multisig_ism_message_id_cmd(ctx: Context, cmd: MultisigIsmMessageIdCm
             ctx.new_txn().add(init_instruction).send_with_payer();
         }
         MultisigIsmMessageIdSubCmd::SetValidatorsAndThreshold(set_config) => {
-            let (access_control_pda_key, _access_control_pda_bump) = Pubkey::find_program_address(
-                multisig_ism_message_id_access_control_pda_seeds!(),
-                &set_config.program_id,
-            );
-
-            let (domain_data_pda_key, _domain_data_pda_bump) = Pubkey::find_program_address(
-                multisig_ism_message_id_domain_data_pda_seeds!(set_config.domain),
-                &set_config.program_id,
-            );
-
-            let ixn = MultisigIsmMessageIdInstruction::SetValidatorsAndThreshold(Domained {
-                domain: set_config.domain,
-                data: ValidatorsAndThreshold {
+            set_validators_and_threshold(
+                &mut ctx,
+                set_config.program_id,
+                set_config.domain,
+                ValidatorsAndThreshold {
                     validators: set_config.validators,
                     threshold: set_config.threshold,
                 },
-            });
+            );
 
-            // Accounts:
-            // 0. `[signer]` The access control owner and payer of the domain PDA.
-            // 1. `[]` The access control PDA account.
-            // 2. `[writable]` The PDA relating to the provided domain.
-            // 3. `[executable]` OPTIONAL - The system program account. Required if creating the domain PDA.
-            let accounts = vec![
-                AccountMeta::new(ctx.payer_pubkey, true),
-                AccountMeta::new_readonly(access_control_pda_key, false),
-                AccountMeta::new(domain_data_pda_key, false),
-                AccountMeta::new_readonly(system_program::id(), false),
-            ];
+            // let (access_control_pda_key, _access_control_pda_bump) = Pubkey::find_program_address(
+            //     multisig_ism_message_id_access_control_pda_seeds!(),
+            //     &set_config.program_id,
+            // );
 
-            let set_instruction = Instruction {
-                program_id: set_config.program_id,
-                data: ixn.encode().unwrap(),
-                accounts,
-            };
-            ctx.new_txn().add(set_instruction).send_with_payer();
+            // let (domain_data_pda_key, _domain_data_pda_bump) = Pubkey::find_program_address(
+            //     multisig_ism_message_id_domain_data_pda_seeds!(set_config.domain),
+            //     &set_config.program_id,
+            // );
+
+            // let ixn = MultisigIsmMessageIdInstruction::SetValidatorsAndThreshold(Domained {
+            //     domain: set_config.domain,
+            //     data: ValidatorsAndThreshold {
+            //         validators: set_config.validators,
+            //         threshold: set_config.threshold,
+            //     },
+            // });
+
+            // // Accounts:
+            // // 0. `[signer]` The access control owner and payer of the domain PDA.
+            // // 1. `[]` The access control PDA account.
+            // // 2. `[writable]` The PDA relating to the provided domain.
+            // // 3. `[executable]` OPTIONAL - The system program account. Required if creating the domain PDA.
+            // let accounts = vec![
+            //     AccountMeta::new(ctx.payer_pubkey, true),
+            //     AccountMeta::new_readonly(access_control_pda_key, false),
+            //     AccountMeta::new(domain_data_pda_key, false),
+            //     AccountMeta::new_readonly(system_program::id(), false),
+            // ];
+
+            // let set_instruction = Instruction {
+            //     program_id: set_config.program_id,
+            //     data: ixn.encode().unwrap(),
+            //     accounts,
+            // };
+            // ctx.new_txn().add(set_instruction).send_with_payer();
         }
         MultisigIsmMessageIdSubCmd::Query(query) => {
             let (access_control_pda_key, _access_control_pda_bump) = Pubkey::find_program_address(
@@ -1184,6 +1241,15 @@ fn process_multisig_ism_message_id_cmd(ctx: Context, cmd: MultisigIsmMessageIdCm
                     format!("Transfer ownership to {}", transfer_ownership.new_owner),
                 )
                 .send_with_payer();
+        }
+        MultisigIsmMessageIdSubCmd::Configure(configure) => {
+            configure_multisig_ism_message_id(
+                &mut ctx,
+                configure.program_id,
+                &configure.multisig_config_file,
+                &configure.chain_config_file,
+                configure.remote_chains,
+            );
         }
     }
 }

@@ -117,3 +117,30 @@ pub fn enroll_remote_routers_instruction(
 
     Ok(instruction)
 }
+
+/// Gets an instruction to set the interchain security module.
+pub fn set_interchain_security_module_instruction(
+    program_id: Pubkey,
+    owner: Pubkey,
+    ism: Option<Pubkey>,
+) -> Result<Instruction, ProgramError> {
+    let (program_storage_account, _program_storage_bump) =
+        Pubkey::try_find_program_address(program_storage_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    // Accounts:
+    // 0. [writeable] Storage PDA account.
+    // 1. [signer] Owner.
+    let accounts = vec![
+        AccountMeta::new(program_storage_account, false),
+        AccountMeta::new(owner, true),
+    ];
+
+    let instruction = Instruction {
+        program_id,
+        data: HelloWorldInstruction::SetInterchainSecurityModule(ism).try_to_vec()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
