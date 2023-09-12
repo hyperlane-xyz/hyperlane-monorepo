@@ -55,7 +55,7 @@
     "clean": "hardhat clean && rm -rf dist cache src/types && forge clean",
     "docs": "forge doc",
     "build": "hardhat compile",
-    "coverage": "hardhat coverage",
+    "coverage": "forge coverage --report lcov",
     "lint": "solhint contracts/**/*.sol && eslint . --ext .ts",
     "prettier": "prettier --write ./contracts ./test",
     "test": "forge test -vvv",
