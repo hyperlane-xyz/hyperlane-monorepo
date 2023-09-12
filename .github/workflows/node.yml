@@ -156,6 +156,13 @@ jobs:
         with:
           submodules: recursive
 
+      - uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
