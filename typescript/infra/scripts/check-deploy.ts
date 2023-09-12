@@ -113,6 +113,11 @@ async function check() {
     const hwConfig = helloWorldConfig(environment, context, configMap);
     console.log('config', config);
     console.log('hwConfig', hwConfig);
+    console.log(
+      'hwConfig.fuji.interchainSecurityModule',
+      JSON.stringify(hwConfig.fuji.interchainSecurityModule),
+      hwConfig.fuji.interchainSecurityModule,
+    );
     const ismFactory = HyperlaneIsmFactory.fromEnvironment(
       deployEnvToSdkEnv[environment],
       multiProvider,

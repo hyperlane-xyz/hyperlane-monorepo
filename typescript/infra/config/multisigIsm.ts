@@ -111,4 +111,9 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     threshold: 1,
     validators: ['0x6d13367c7cd713a4ea79a2552adf824bf1ecdd5e'],
   },
+  solanadevnet: {
+    type: ModuleType.LEGACY_MULTISIG,
+    threshold: 1,
+    validators: ['0x21b9eff4d1a6d3122596c7fb80315bf094b6e5c2'],
+  },
 };
