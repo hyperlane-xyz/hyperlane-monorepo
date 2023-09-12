@@ -310,7 +310,7 @@ fn launch_cosmos_relayer(
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
         .hyp_env("REORGPERIOD", "1")
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
-        .hyp_env("ALLOW_LOCAL_CHECKPOINT_SYNCERS", "true")
+        .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .spawn("RLY");
 
