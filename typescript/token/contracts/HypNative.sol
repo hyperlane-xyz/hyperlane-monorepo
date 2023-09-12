@@ -12,6 +12,13 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  */
 contract HypNative is TokenRouter {
     /**
+     * @dev Emitted when native tokens are donated to the contract.
+     * @param sender The address of the sender.
+     * @param amount The amount of native tokens donated.
+     */
+    event Donation(address indexed sender, uint256 amount);
+
+    /**
      * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.
      * @param _mailbox The address of the mailbox contract.
      * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
@@ -35,16 +42,10 @@ contract HypNative is TokenRouter {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) public payable override returns (bytes32 messageId) {
+    ) public payable virtual override returns (bytes32 messageId) {
         require(msg.value >= _amount, "Native: amount exceeds msg.value");
         uint256 gasPayment = msg.value - _amount;
-        messageId = _dispatchWithGas(
-            _destination,
-            Message.format(_recipient, _amount, ""),
-            gasPayment,
-            msg.sender
-        );
-        emit SentTransferRemote(_destination, _recipient, _amount);
+        return _transferRemote(_destination, _recipient, _amount, gasPayment);
     }
 
     function balanceOf(address _account) external view returns (uint256) {
@@ -52,9 +53,9 @@ contract HypNative is TokenRouter {
     }
 
     /**
+     * @inheritdoc TokenRouter
      * @dev No-op because native amount is transferred in `msg.value`
      * @dev Compiler will not include this in the bytecode.
-     * @inheritdoc TokenRouter
      */
     function _transferFromSender(uint256)
         internal
@@ -73,7 +74,11 @@ contract HypNative is TokenRouter {
         address _recipient,
         uint256 _amount,
         bytes calldata // no metadata
-    ) internal override {
+    ) internal virtual override {
         Address.sendValue(payable(_recipient), _amount);
+    }
+
+    receive() external payable {
+        emit Donation(msg.sender, msg.value);
     }
 }
