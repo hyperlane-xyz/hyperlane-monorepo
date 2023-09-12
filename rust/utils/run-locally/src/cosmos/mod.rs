@@ -262,7 +262,6 @@ fn launch_cosmos_node(config: CosmosConfig) -> CosmosResp {
 fn launch_cosmos_validator(
     agent_config: AgentConfig,
     agent_config_path: PathBuf,
-    remotes: Vec<String>,
     debug: bool,
 ) -> AgentHandles {
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
@@ -284,7 +283,6 @@ fn launch_cosmos_validator(
         .hyp_env("CHECKPOINTSYNCER_PATH", checkpoint_path.to_str().unwrap())
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage")
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
-        .hyp_env("RELAYCHAINS", remotes.join(","))
         .hyp_env("REORGPERIOD", "1")
         .hyp_env("DB", validator_base_db.to_str().unwrap())
         .hyp_env("METRICS", agent_config.domain.to_string())
@@ -444,14 +442,8 @@ fn run_locally() {
     let hpl_val = agent_config_out
         .chains
         .clone()
-        .into_iter()
-        .map(|(chain_id, agent_config)| {
-            let mut others = agent_config_out.chains.clone();
-            others.remove(&chain_id);
-            let remotes = others.into_iter().map(|v| v.0).collect::<Vec<_>>();
-
-            launch_cosmos_validator(agent_config, agent_config_path.clone(), remotes, debug)
-        })
+        .into_values()
+        .map(|agent_config| launch_cosmos_validator(agent_config, agent_config_path.clone(), debug))
         .collect::<Vec<_>>();
     let hpl_rly = launch_cosmos_relayer(
         agent_config_path,
