@@ -105,7 +105,7 @@ export abstract class MultiProtocolApp<
   adapter(chain: ChainName): IAdapterApi {
     const metadata = this.metadata(chain);
     const Adapter = this.protocolToAdapter(metadata.protocol);
-    return new Adapter(chain, this.multiProvider, this.metadata(chain));
+    return new Adapter(chain, this.multiProvider, metadata);
   }
 
   adapters(): ChainMap<IAdapterApi> {
