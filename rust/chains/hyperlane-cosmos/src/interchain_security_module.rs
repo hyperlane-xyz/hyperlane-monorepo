@@ -52,6 +52,7 @@ fn ism_type_to_module_type(ism_type: hpl_interface::ism::ISMType) -> ModuleType 
         hpl_interface::ism::ISMType::Aggregation => ModuleType::Aggregation,
         hpl_interface::ism::ISMType::LegacyMultisig => ModuleType::LegacyMultisig,
         hpl_interface::ism::ISMType::Multisig => ModuleType::LegacyMultisig,
+        hpl_interface::ism::ISMType::Owned => ModuleType::LegacyMultisig,
         _ => ModuleType::Null,
     }
 }
