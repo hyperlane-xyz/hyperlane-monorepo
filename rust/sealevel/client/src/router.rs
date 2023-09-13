@@ -105,6 +105,7 @@ pub trait RouterConfigGetter {
 pub(crate) trait Deployable<Config: RouterConfigGetter + std::fmt::Debug>:
     ConnectionClient
 {
+    #[allow(clippy::too_many_arguments)]
     fn deploy(
         &self,
         ctx: &mut Context,
@@ -130,7 +131,7 @@ pub(crate) trait Deployable<Config: RouterConfigGetter + std::fmt::Debug>:
         let program_id = keypair.pubkey();
 
         deploy_program_idempotent(
-            &ctx.payer_keypair_path(),
+            ctx.payer_keypair_path(),
             &keypair,
             keypair_path.to_str().unwrap(),
             built_so_dir
@@ -194,6 +195,7 @@ pub(crate) trait ConnectionClient {
     ) -> Instruction;
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn deploy_routers<
     Config: for<'a> Deserialize<'a> + RouterConfigGetter + std::fmt::Debug,
     Deployer: Deployable<Config>,

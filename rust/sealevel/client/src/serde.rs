@@ -43,7 +43,7 @@ pub(crate) mod serde_option_pubkey {
     pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Option<Pubkey>, D::Error> {
         match Option::<RawPubkey>::deserialize(de)? {
             Some(RawPubkey::String(s)) => {
-                if s.len() == 0 {
+                if s.is_empty() {
                     Ok(None)
                 } else {
                     Pubkey::from_str(&s)
@@ -52,7 +52,7 @@ pub(crate) mod serde_option_pubkey {
                 }
             }
             Some(RawPubkey::Bytes(b)) => {
-                if b.len() == 0 {
+                if b.is_empty() {
                     Ok(None)
                 } else {
                     Pubkey::try_from_slice(&b)

@@ -11,7 +11,7 @@ use hyperlane_sealevel_hello_world::{
     program_storage_pda_seeds,
 };
 use serde::{Deserialize, Serialize};
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Signer};
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 
 use crate::{
     cmd_utils::account_exists,

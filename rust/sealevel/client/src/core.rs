@@ -4,9 +4,10 @@ use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
 
 use std::collections::HashMap;
-use std::{fs::File, io::Write, path::Path};
+use std::{fs::File, path::Path};
 
 use crate::{
+    artifacts::{read_json, write_json},
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
     multisig_ism::deploy_multisig_ism_message_id,
     Context, CoreCmd, CoreDeploy, CoreSubCmd,
@@ -310,14 +311,7 @@ pub struct CoreProgramIds {
 }
 
 fn write_program_ids(core_dir: &Path, program_ids: CoreProgramIds) {
-    let json = serde_json::to_string_pretty(&program_ids).unwrap();
-    let path = core_dir.join("program-ids.json");
-
-    println!("Writing program IDs to {}:\n{}", path.display(), json);
-
-    let mut file = File::create(path).expect("Failed to create keypair file");
-    file.write_all(json.as_bytes())
-        .expect("Failed to write program IDs to file");
+    write_json(&core_dir.join("program-ids.json"), program_ids);
 }
 
 pub(crate) fn read_core_program_ids(
@@ -330,6 +324,5 @@ pub(crate) fn read_core_program_ids(
         .join(chain)
         .join("core")
         .join("program-ids.json");
-    let file = File::open(path).expect("Failed to open program IDs file");
-    serde_json::from_reader(file).expect("Failed to read program IDs file")
+    read_json(&path)
 }

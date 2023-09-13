@@ -40,9 +40,7 @@ use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds as multisig_ism_message_id_access_control_pda_seeds,
     accounts::{AccessControlAccount, DomainDataAccount},
     domain_data_pda_seeds as multisig_ism_message_id_domain_data_pda_seeds,
-    instruction::{
-        Domained, Instruction as MultisigIsmMessageIdInstruction, ValidatorsAndThreshold,
-    },
+    instruction::ValidatorsAndThreshold,
 };
 use hyperlane_sealevel_token::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin,
@@ -69,6 +67,7 @@ use hyperlane_sealevel_validator_announce::{
     validator_storage_locations_pda_seeds,
 };
 
+mod artifacts;
 mod cmd_utils;
 mod context;
 mod r#core;
@@ -78,11 +77,11 @@ mod router;
 mod serde;
 mod warp_route;
 
+use crate::artifacts::{write_json, SingularProgramIdArtifact};
 use crate::cmd_utils::create_new_directory;
 use crate::helloworld::process_helloworld_cmd;
 use crate::multisig_ism::{
-    configure_multisig_ism_message_id, deploy_multisig_ism_message_id,
-    set_validators_and_threshold, write_multisig_ism_program_ids,
+    configure_multisig_ism_message_id, deploy_multisig_ism_message_id, set_validators_and_threshold,
 };
 use crate::warp_route::process_warp_route_cmd;
 pub(crate) use crate::{context::*, core::*};
@@ -1227,7 +1226,10 @@ fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessage
             let ism_program_id =
                 deploy_multisig_ism_message_id(&mut ctx, &deploy.built_so_dir, true, &key_dir);
 
-            write_multisig_ism_program_ids(&context_dir.join("program-ids.json"), ism_program_id);
+            write_json::<SingularProgramIdArtifact>(
+                &context_dir.join("program-ids.json"),
+                ism_program_id.into(),
+            );
         }
         MultisigIsmMessageIdSubCmd::Init(init) => {
             let init_instruction =

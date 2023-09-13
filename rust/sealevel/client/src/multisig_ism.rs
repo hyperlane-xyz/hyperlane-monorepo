@@ -8,16 +8,16 @@ use solana_sdk::{
 };
 
 use std::collections::{HashMap, HashSet};
-use std::{fs::File, io::Write, path::Path};
+use std::{fs::File, path::Path};
 
 use crate::{
-    cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
+    cmd_utils::{create_and_write_keypair, deploy_program},
     router::ChainMetadata,
-    Context, CoreCmd, CoreDeploy, CoreSubCmd,
+    Context,
 };
 use account_utils::DiscriminatorEncode;
-use hyperlane_core::{ModuleType, H160, H256};
-use hyperlane_sealevel_igp::accounts::{SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE};
+use hyperlane_core::H160;
+
 use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds,
     accounts::DomainDataAccount,
@@ -28,18 +28,6 @@ use hyperlane_sealevel_multisig_ism_message_id::{
 };
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct MultisigIsmProgramIds {
-    #[serde(with = "crate::serde::serde_pubkey")]
-    pub program_id: Pubkey,
-}
-
-impl Into<MultisigIsmProgramIds> for Pubkey {
-    fn into(self) -> MultisigIsmProgramIds {
-        MultisigIsmProgramIds { program_id: self }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct MultisigIsmConfig {
     #[serde(rename = "type")]
@@ -48,11 +36,11 @@ pub(crate) struct MultisigIsmConfig {
     pub threshold: u8,
 }
 
-impl Into<ValidatorsAndThreshold> for MultisigIsmConfig {
-    fn into(self) -> ValidatorsAndThreshold {
+impl From<MultisigIsmConfig> for ValidatorsAndThreshold {
+    fn from(val: MultisigIsmConfig) -> Self {
         ValidatorsAndThreshold {
-            validators: self.validators,
-            threshold: self.threshold,
+            validators: val.validators,
+            threshold: val.threshold,
         }
     }
 }
@@ -206,22 +194,4 @@ pub(crate) fn set_validators_and_threshold(
             ),
         )
         .send_with_payer();
-}
-
-pub(crate) fn write_multisig_ism_program_ids<T>(path: &Path, program_id: T)
-where
-    T: Into<MultisigIsmProgramIds>,
-{
-    let program_ids: MultisigIsmProgramIds = program_id.into();
-    let json = serde_json::to_string_pretty(&program_ids).unwrap();
-    println!("Writing program IDs to {}:\n{}", path.display(), json);
-
-    let mut file = File::create(path).expect("Failed to create keypair file");
-    file.write_all(json.as_bytes())
-        .expect("Failed to write program IDs to file");
-}
-
-pub(crate) fn read_multisig_ism_program_ids(path: &Path) -> MultisigIsmProgramIds {
-    let file = File::open(path).expect("Failed to open program IDs file");
-    serde_json::from_reader(file).expect("Failed to read program IDs file")
 }
