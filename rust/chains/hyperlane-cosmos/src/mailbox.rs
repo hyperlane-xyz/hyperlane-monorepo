@@ -25,6 +25,7 @@ use hyperlane_core::{
     ContractLocator, Decode, MessageIndexer, RawHyperlaneMessage, SequenceIndexer, H512,
 };
 use tracing::{info, instrument, warn};
+use crate::binary::h256_to_h512;
 
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {
@@ -222,7 +223,7 @@ impl Mailbox for CosmosMailbox {
             .wasm_send(process_message, tx_gas_limit)
             .await?;
         Ok(TxOutcome {
-            transaction_id: H512::from_slice(hex::decode(response.txhash).unwrap().as_slice()),
+            transaction_id: h256_to_h512(H256::from_slice(hex::decode(response.txhash).unwrap().as_slice())),
             executed: response.code == 0,
             gas_used: U256::from(response.gas_used),
             gas_price: U256::from(response.gas_wanted),
@@ -241,6 +242,9 @@ impl Mailbox for CosmosMailbox {
                 metadata: hex::encode(metadata),
             },
         };
+
+        println!("process_message: {:?}", process_message);
+        println!("metadata: {:?}", metadata);
 
         let response: SimulateResponse = self.provider.wasm_simulate(process_message).await?;
         let result = TxCostEstimate {

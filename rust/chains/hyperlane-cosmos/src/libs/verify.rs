@@ -80,12 +80,32 @@ pub fn pub_to_addr(pub_key: Vec<u8>, prefix: &str) -> ChainResult<String> {
 
 /// encode H256 to bech32 address
 pub fn priv_to_binary_addr(priv_key: Vec<u8>) -> ChainResult<H160> {
-    let sha_hash = sha256_digest(
-        SigningKey::from_slice(priv_key.as_slice())
-            .unwrap()
-            .public_key()
-            .to_bytes(),
-    )?;
+    let pub_key = SigningKey::from_slice(priv_key.as_slice())
+        .unwrap()
+        .public_key()
+        .to_bytes();
+
+    println!("pub_key: {:?}", pub_key);
+    let sha_hash = sha256_digest(pub_key)?;
+    let rip_hash = ripemd160_digest(sha_hash)?;
+
+    Ok(H160::from_slice(rip_hash.as_slice()))
+}
+
+/// encode H256 to bech32 address
+pub fn pub_to_binary_addr(pub_key: Vec<u8>) -> ChainResult<H160> {
+    let sha_hash = match (pub_key.len() == 33) && (pub_key[0] == 0x02 || pub_key[0] == 0x03) {
+        true => sha256_digest(pub_key)?,
+        false => {
+            let comp_pub_key = vec![0x03];
+            let comp_pub_key = comp_pub_key
+                .into_iter()
+                .chain(pub_key[1..33].iter().cloned())
+                .collect::<Vec<u8>>();
+
+            sha256_digest(comp_pub_key)?
+        }
+    };
     let rip_hash = ripemd160_digest(sha_hash)?;
 
     Ok(H160::from_slice(rip_hash.as_slice()))
