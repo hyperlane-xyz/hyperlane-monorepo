@@ -142,3 +142,31 @@ pub fn transfer_ownership_instruction(
     };
     Ok(instruction)
 }
+
+/// Creates a InboxSetDefaultIsm instruction.
+pub fn set_default_ism_instruction(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    default_ism: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (inbox_account, _inbox_bump) =
+        Pubkey::try_find_program_address(mailbox_inbox_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+    let (outbox_account, _outbox_bump) =
+        Pubkey::try_find_program_address(mailbox_outbox_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    // 0. [writeable] - The Inbox PDA account.
+    // 1. [] - The Outbox PDA account.
+    // 2. [signer] - The owner of the Mailbox.
+    let instruction = SolanaInstruction {
+        program_id,
+        data: Instruction::InboxSetDefaultIsm(default_ism).into_instruction_data()?,
+        accounts: vec![
+            AccountMeta::new(inbox_account, false),
+            AccountMeta::new_readonly(outbox_account, false),
+            AccountMeta::new(owner_payer, true),
+        ],
+    };
+    Ok(instruction)
+}

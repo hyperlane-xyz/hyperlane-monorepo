@@ -197,6 +197,7 @@ enum MailboxSubCmd {
     Send(Outbox),
     Delivered(Delivered),
     TransferOwnership(TransferOwnership),
+    SetDefaultIsm(SetDefaultIsm),
 }
 
 const MAILBOX_PROG_ID: Pubkey = pubkey!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1");
@@ -219,6 +220,14 @@ struct Init {
 struct Query {
     #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     program_id: Pubkey,
+}
+
+#[derive(Args)]
+struct SetDefaultIsm {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    #[arg(long, short)]
+    default_ism: Pubkey,
 }
 
 #[derive(Args)]
@@ -726,6 +735,20 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 .add_with_description(
                     instruction,
                     format!("Transfer ownership to {}", transfer_ownership.new_owner),
+                )
+                .send_with_payer();
+        }
+        MailboxSubCmd::SetDefaultIsm(set_default_ism) => {
+            let instruction = hyperlane_sealevel_mailbox::instruction::set_default_ism_instruction(
+                set_default_ism.program_id,
+                ctx.payer_pubkey,
+                set_default_ism.default_ism,
+            )
+            .unwrap();
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!("Setting default ISM to {}", set_default_ism.default_ism),
                 )
                 .send_with_payer();
         }
