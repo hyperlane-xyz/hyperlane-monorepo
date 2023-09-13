@@ -46,7 +46,7 @@ contract MockMailbox is Versioned {
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         bytes calldata _messageBody
-    ) external returns (bytes32) {
+    ) public payable returns (bytes32) {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
         MockMailbox _destinationMailbox = remoteMailboxes[_destinationDomain];
         require(
@@ -62,6 +62,15 @@ contract MockMailbox is Versioned {
         );
         outboundNonce++;
         return bytes32(0);
+    }
+
+    function dispatch(
+        uint32 _destinationDomain,
+        bytes32 _recipientAddress,
+        bytes calldata _messageBody,
+        bytes calldata /*_metadata*/
+    ) external payable returns (bytes32) {
+        return dispatch(_destinationDomain, _recipientAddress, _messageBody);
     }
 
     function addInboundMessage(

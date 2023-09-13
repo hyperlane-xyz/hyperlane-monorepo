@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
-import {Mailbox} from "../../contracts/Mailbox.sol";
+import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {ConfigFallbackDomainRoutingHook} from "../../contracts/hooks/ConfigFallbackDomainRoutingHook.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
@@ -13,10 +13,10 @@ import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 contract FallbackDomainRoutingHookTest is Test {
     using TypeCasts for address;
     ConfigFallbackDomainRoutingHook internal fallbackHook;
-    TestPostDispatchHook internal configuredTestHook;
+    TestPostDispatchHook internal configuredTestPostDispatchHook;
     TestPostDispatchHook internal mailboxDefaultHook;
     TestRecipient internal testRecipient;
-    Mailbox internal mailbox;
+    TestMailbox internal mailbox;
 
     uint32 internal constant TEST_ORIGIN_DOMAIN = 1;
     uint32 internal constant TEST_DESTINATION_DOMAIN = 2;
@@ -25,8 +25,8 @@ contract FallbackDomainRoutingHookTest is Test {
     event PostDispatchHookCalled();
 
     function setUp() public {
-        mailbox = new Mailbox(TEST_ORIGIN_DOMAIN, address(this));
-        configuredTestHook = new TestPostDispatchHook();
+        mailbox = new TestMailbox(TEST_ORIGIN_DOMAIN);
+        configuredTestPostDispatchHook = new TestPostDispatchHook();
         mailboxDefaultHook = new TestPostDispatchHook();
         testRecipient = new TestRecipient();
         fallbackHook = new ConfigFallbackDomainRoutingHook(address(mailbox));
@@ -40,12 +40,15 @@ contract FallbackDomainRoutingHookTest is Test {
         fallbackHook.setHook(
             TEST_DESTINATION_DOMAIN,
             address(testRecipient).addressToBytes32(),
-            configuredTestHook
+            configuredTestPostDispatchHook
         );
 
         vm.expectCall(
-            address(configuredTestHook),
-            abi.encodeCall(configuredTestHook.quoteDispatch, ("", testMessage))
+            address(configuredTestPostDispatchHook),
+            abi.encodeCall(
+                configuredTestPostDispatchHook.quoteDispatch,
+                ("", testMessage)
+            )
         );
         assertEq(fallbackHook.quoteDispatch("", testMessage), 25000);
     }
@@ -64,12 +67,15 @@ contract FallbackDomainRoutingHookTest is Test {
         fallbackHook.setHook(
             TEST_DESTINATION_DOMAIN,
             address(testRecipient).addressToBytes32(),
-            configuredTestHook
+            configuredTestPostDispatchHook
         );
 
         vm.expectCall(
-            address(configuredTestHook),
-            abi.encodeCall(configuredTestHook.postDispatch, ("", testMessage))
+            address(configuredTestPostDispatchHook),
+            abi.encodeCall(
+                configuredTestPostDispatchHook.postDispatch,
+                ("", testMessage)
+            )
         );
         fallbackHook.postDispatch{value: msg.value}("", testMessage);
     }

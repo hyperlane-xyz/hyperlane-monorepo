@@ -9,7 +9,7 @@ contract LightTestRecipient is TestRecipient {
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _data
-    ) external override {
+    ) external payable override {
         // do nothing
     }
 }

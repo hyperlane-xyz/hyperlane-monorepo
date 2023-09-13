@@ -8,9 +8,17 @@ interface IMailbox {
     // ============ Events ============
     /**
      * @notice Emitted when a new message is dispatched via Hyperlane
+     * @param sender The address that dispatched the message
+     * @param destination The destination domain of the message
+     * @param recipient The message recipient address on `destination`
      * @param message Raw bytes of message
      */
-    event Dispatch(bytes message);
+    event Dispatch(
+        address indexed sender,
+        uint32 indexed destination,
+        bytes32 indexed recipient,
+        bytes message
+    );
 
     /**
      * @notice Emitted when a new message is dispatched via Hyperlane
@@ -19,16 +27,22 @@ interface IMailbox {
     event DispatchId(bytes32 indexed messageId);
 
     /**
-     * @notice Emitted when a Hyperlane message is delivered
-     * @param message Raw bytes of message
-     */
-    event Process(bytes message);
-
-    /**
      * @notice Emitted when a Hyperlane message is processed
      * @param messageId The unique message identifier
      */
     event ProcessId(bytes32 indexed messageId);
+
+    /**
+     * @notice Emitted when a Hyperlane message is delivered
+     * @param origin The origin domain of the message
+     * @param sender The message sender address on `origin`
+     * @param recipient The address that handled the message
+     */
+    event Process(
+        uint32 indexed origin,
+        bytes32 indexed sender,
+        address indexed recipient
+    );
 
     function localDomain() external view returns (uint32);
 
@@ -46,6 +60,12 @@ interface IMailbox {
         bytes calldata messageBody
     ) external payable returns (bytes32 messageId);
 
+    function quoteDispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody
+    ) external view returns (uint256 fee);
+
     function dispatch(
         uint32 destinationDomain,
         bytes32 recipientAddress,
@@ -53,13 +73,28 @@ interface IMailbox {
         bytes calldata defaultHookMetadata
     ) external payable returns (bytes32 messageId);
 
+    function quoteDispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody,
+        bytes calldata defaultHookMetadata
+    ) external view returns (uint256 fee);
+
     function dispatch(
         uint32 destinationDomain,
         bytes32 recipientAddress,
         bytes calldata body,
-        IPostDispatchHook customHook,
-        bytes calldata customHookMetadata
+        bytes calldata customHookMetadata,
+        IPostDispatchHook customHook
     ) external payable returns (bytes32 messageId);
+
+    function quoteDispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody,
+        bytes calldata customHookMetadata,
+        IPostDispatchHook customHook
+    ) external view returns (uint256 fee);
 
     function process(bytes calldata metadata, bytes calldata message)
         external

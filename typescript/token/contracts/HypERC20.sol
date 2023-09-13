@@ -20,23 +20,18 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
     /**
      * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.
      * @param _mailbox The address of the mailbox contract.
-     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
      * @param _totalSupply The initial supply of the token.
      * @param _name The name of the token.
      * @param _symbol The symbol of the token.
      */
     function initialize(
         address _mailbox,
-        address _interchainGasPaymaster,
         uint256 _totalSupply,
         string memory _name,
         string memory _symbol
     ) external initializer {
-        // transfers ownership to `msg.sender`
-        __HyperlaneConnectionClient_initialize(
-            _mailbox,
-            _interchainGasPaymaster
-        );
+        // initialize router
+        __Router_initialize(_mailbox);
 
         // Initialize ERC20 metadata
         __ERC20_init(_name, _symbol);
@@ -45,6 +40,15 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
 
     function decimals() public view override returns (uint8) {
         return _decimals;
+    }
+
+    function balanceOf(address _account)
+        public
+        view
+        override(TokenRouter, ERC20Upgradeable)
+        returns (uint256)
+    {
+        return ERC20Upgradeable.balanceOf(_account);
     }
 
     /**

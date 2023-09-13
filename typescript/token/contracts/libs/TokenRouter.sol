@@ -73,6 +73,13 @@ abstract contract TokenRouter is GasRouter {
         returns (bytes memory metadata);
 
     /**
+     * @notice Returns the balance of `account` on this token router.
+     * @param account The address to query the balance of.
+     * @return The balance of `account`.
+     */
+    function balanceOf(address account) external virtual returns (uint256);
+
+    /**
      * @dev Mints tokens to recipient when router receives transfer message.
      * @dev Emits `ReceivedTransferRemote` event on the destination chain.
      * @param _origin The identifier of the origin chain.

@@ -12,6 +12,15 @@ import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC72
  * @author Abacus Works
  */
 contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
+    function balanceOf(address account)
+        public
+        view
+        override(HypERC721, ERC721Upgradeable)
+        returns (uint256)
+    {
+        return HypERC721.balanceOf(account);
+    }
+
     /**
      * @return _tokenURI The URI of `_tokenId`.
      * @inheritdoc HypERC721

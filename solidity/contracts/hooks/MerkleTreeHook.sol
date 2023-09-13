@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import {MerkleLib, TREE_DEPTH} from "../libs/Merkle.sol";
+import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 import {Indexed} from "../Indexed.sol";
@@ -24,10 +24,6 @@ contract MerkleTreeHook is IPostDispatchHook, MailboxClient, Indexed {
         return _tree.root();
     }
 
-    function branch() public view returns (bytes32[TREE_DEPTH] memory) {
-        return _tree.branch;
-    }
-
     function tree() public view returns (MerkleLib.Tree memory) {
         return _tree;
     }
@@ -40,6 +36,7 @@ contract MerkleTreeHook is IPostDispatchHook, MailboxClient, Indexed {
         bytes calldata, /*metadata*/
         bytes calldata message
     ) external payable override {
+        require(msg.value == 0, "MerkleTreeHook: no value expected");
         bytes32 id = message.id();
         require(isLatestDispatched(id), "message not dispatching");
         _tree.insert(id);

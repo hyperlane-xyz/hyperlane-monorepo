@@ -27,8 +27,9 @@ describe('HyperlaneConnectionClient', async () => {
   beforeEach(async () => {
     const mailboxFactory = new Mailbox__factory(signer);
     const domain = 1000;
-    mailbox = await mailboxFactory.deploy(domain, signer.address);
-    newMailbox = await mailboxFactory.deploy(domain, signer.address);
+    // TODO: fix
+    mailbox = await mailboxFactory.deploy(domain);
+    newMailbox = await mailboxFactory.deploy(domain);
 
     const connectionClientFactory = new TestHyperlaneConnectionClient__factory(
       signer,
@@ -63,7 +64,7 @@ describe('HyperlaneConnectionClient', async () => {
 
     before(async () => {
       const paymasterFactory = new TestInterchainGasPaymaster__factory(signer);
-      newPaymaster = await paymasterFactory.deploy(signer.address);
+      newPaymaster = await paymasterFactory.deploy();
     });
 
     it('Allows owner to set the interchainGasPaymaster', async () => {
