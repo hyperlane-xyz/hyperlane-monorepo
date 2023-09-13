@@ -21,17 +21,10 @@ contract HypNative is TokenRouter {
     /**
      * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.
      * @param _mailbox The address of the mailbox contract.
-     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
      */
-    function initialize(address _mailbox, address _interchainGasPaymaster)
-        external
-        initializer
-    {
+    function initialize(address _mailbox) external initializer {
         // transfers ownership to `msg.sender`
-        __HyperlaneConnectionClient_initialize(
-            _mailbox,
-            _interchainGasPaymaster
-        );
+        __Router_initialize(_mailbox);
     }
 
     /**
@@ -48,7 +41,12 @@ contract HypNative is TokenRouter {
         return _transferRemote(_destination, _recipient, _amount, gasPayment);
     }
 
-    function balanceOf(address _account) external view returns (uint256) {
+    function balanceOf(address _account)
+        external
+        view
+        override
+        returns (uint256)
+    {
         return _account.balance;
     }
 

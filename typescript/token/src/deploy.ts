@@ -130,10 +130,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       'HypERC20Collateral',
       [config.token],
     );
-    await this.multiProvider.handleTx(
-      chain,
-      router.initialize(config.mailbox, config.interchainGasPaymaster),
-    );
+    await this.multiProvider.handleTx(chain, router.initialize(config.mailbox));
     return router;
   }
 
@@ -159,7 +156,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
     }
     await this.multiProvider.handleTx(
       chain,
-      router.initialize(config.mailbox, config.interchainGasPaymaster),
+      router.initialize(config.mailbox),
     );
     return router;
   }
@@ -178,7 +175,6 @@ export class HypERC20Deployer extends GasRouterDeployer<
       chain,
       router.initialize(
         config.mailbox,
-        config.interchainGasPaymaster,
         config.totalSupply,
         config.name,
         config.symbol,

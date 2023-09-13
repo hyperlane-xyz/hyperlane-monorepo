@@ -28,19 +28,21 @@ contract HypERC721Collateral is TokenRouter {
     /**
      * @notice Initializes the Hyperlane router.
      * @param _mailbox The address of the mailbox contract.
-     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
      */
-    function initialize(address _mailbox, address _interchainGasPaymaster)
-        external
-        initializer
-    {
-        __HyperlaneConnectionClient_initialize(
-            _mailbox,
-            _interchainGasPaymaster
-        );
+    function initialize(address _mailbox) external initializer {
+        __Router_initialize(_mailbox);
     }
 
-    function balanceOf(address _account) external view returns (uint256) {
+    /**
+     * @dev Returns the balance of `_account` for `wrappedToken`.
+     * @inheritdoc TokenRouter
+     */
+    function balanceOf(address _account)
+        external
+        view
+        override
+        returns (uint256)
+    {
         return IERC721(wrappedToken).balanceOf(_account);
     }
 
