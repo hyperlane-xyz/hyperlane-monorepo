@@ -337,7 +337,13 @@ for (const variant of [
         // provide liquidity on the local chain and send amount to recipient
         await (local as FastHypERC20Collateral)
           .connect(fastFiller)
-          .fillFastTransfer(recipient.address, amount, fastFee, 1);
+          .fillFastTransfer(
+            recipient.address,
+            amount,
+            fastFee,
+            remoteDomain,
+            1,
+          );
 
         await core.processMessages();
 

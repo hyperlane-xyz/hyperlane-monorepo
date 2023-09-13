@@ -4,13 +4,17 @@ pragma solidity >=0.8.0;
 import {Message} from "./Message.sol";
 import {TokenRouter} from "./TokenRouter.sol";
 
+import {TypeCasts} from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
+
 /**
  * @title Common FastTransfer functionality for ERC20 Tokens with remote transfer support.
  * @author Abacus Works
  */
 abstract contract FastTransfer is TokenRouter {
+    using TypeCasts for bytes32;
+    using Message for bytes;
     /**
-     * @notice `FastTransferMetadata` is the LP data stored against `fastTransferIdMap`.
+     * @notice `FastTransferMetadata` is the LP data stored against `fastTransferId`.
      */
     struct FastTranferMetadata {
         address filler;
@@ -19,19 +23,36 @@ abstract contract FastTransfer is TokenRouter {
         uint256 fastFee;
     }
 
-    mapping(uint32 => uint256) public fastTransferIdMap;
-    // maps `fastTransferIdMap` to `FastTranferMetadata`.
-    mapping(uint256 => FastTranferMetadata) filledFastTransfers;
+    uint256 public fastTransferId;
+    // maps `fastTransferId` to `FastTranferMetadata`.
+    mapping(bytes32 => FastTranferMetadata) filledFastTransfers;
+
+    /**
+     * @dev delegates transfer logic to `_transferTo`.
+     * @inheritdoc TokenRouter
+     */
+    function _handle(
+        uint32 _origin,
+        bytes32,
+        bytes calldata _message
+    ) internal virtual override {
+        bytes32 recipient = _message.recipient();
+        uint256 amount = _message.amount();
+        bytes calldata metadata = _message.metadata();
+        _transferTo(recipient.bytes32ToAddress(), amount, _origin, metadata);
+        emit ReceivedTransferRemote(_origin, recipient, amount);
+    }
 
     /**
      * @dev Transfers `_amount` of token to `_recipient`/`fastFiller` who provided LP.
-     * @inheritdoc TokenRouter
+     * @dev Called by `handle` after message decoding.
      */
     function _transferTo(
         address _recipient,
         uint256 _amount,
+        uint32 _origin,
         bytes calldata _metadata
-    ) internal virtual override {
+    ) internal virtual {
         if (_metadata.length > 0) {
             (uint256 _fastFee, uint256 _fastTransferId) = abi.decode(
                 _metadata,
@@ -39,7 +60,7 @@ abstract contract FastTransfer is TokenRouter {
             );
 
             FastTranferMetadata memory m_filledMetadata = filledFastTransfers[
-                _fastTransferId
+                keccak256(abi.encodePacked(_origin, _fastTransferId))
             ];
 
             m_filledMetadata.fastFee <= _fastFee &&
@@ -63,17 +84,21 @@ abstract contract FastTransfer is TokenRouter {
         address _recipient,
         uint256 _amount,
         uint256 _fastFee,
+        uint32 _origin,
         uint256 _fastTransferId
     ) external virtual {
+        bytes32 filledFastTransfersKey = keccak256(
+            abi.encodePacked(_origin, _fastTransferId)
+        );
         require(
-            filledFastTransfers[_fastTransferId].filler == address(0),
+            filledFastTransfers[filledFastTransfersKey].filler == address(0),
             "request already filled"
         );
 
         _fastRecieveFrom(msg.sender, _amount - _fastFee);
         _fastTransferTo(_recipient, _amount - _fastFee);
 
-        filledFastTransfers[_fastTransferId] = FastTranferMetadata(
+        filledFastTransfers[filledFastTransfersKey] = FastTranferMetadata(
             msg.sender,
             _recipient,
             _amount,
@@ -98,8 +123,8 @@ abstract contract FastTransfer is TokenRouter {
     ) public payable virtual returns (bytes32 messageId) {
         bytes memory metadata;
         if (_fastFee > 0) {
-            uint256 _fastTransferId = fastTransferIdMap[_destination];
-            fastTransferIdMap[_destination] = _fastTransferId + 1;
+            uint256 _fastTransferId = fastTransferId;
+            fastTransferId = _fastTransferId + 1;
             metadata = _fastTransferFromSender(
                 _amountOrId,
                 _fastFee,

@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {HypERC20Collateral} from "./HypERC20Collateral.sol";
+import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FastTransfer} from "./libs/FastTransfer.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -21,15 +22,15 @@ contract FastHypERC20Collateral is FastTransfer, HypERC20Collateral {
     constructor(address erc20) HypERC20Collateral(erc20) {}
 
     /**
-     * @dev Transfers `_amount` of `wrappedToken` to `_recipient`/`fastFiller` who provided LP.
+     * @dev delegates transfer logic to `_transferTo`.
      * @inheritdoc FastTransfer
      */
-    function _transferTo(
-        address _recipient,
-        uint256 _amount,
-        bytes calldata _metadata
-    ) internal virtual override(FastTransfer, HypERC20Collateral) {
-        FastTransfer._transferTo(_recipient, _amount, _metadata);
+    function _handle(
+        uint32 _origin,
+        bytes32 _sender,
+        bytes calldata _message
+    ) internal virtual override(FastTransfer, TokenRouter) {
+        FastTransfer._handle(_origin, _sender, _message);
     }
 
     /**

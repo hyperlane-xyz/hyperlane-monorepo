@@ -2,6 +2,8 @@
 pragma solidity >=0.8.0;
 
 import {HypERC20} from "./HypERC20.sol";
+
+import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FastTransfer} from "./libs/FastTransfer.sol";
 import {Message} from "./libs/Message.sol";
 
@@ -16,15 +18,15 @@ contract FastHypERC20 is FastTransfer, HypERC20 {
     constructor(uint8 __decimals) HypERC20(__decimals) {}
 
     /**
-     * @dev Mints `_amount` of token to `_recipient`/`fastFiller` who provided LP.
-     * @inheritdoc FastTransfer
+     * @dev delegates transfer logic to `_transferTo`.
+     * @inheritdoc TokenRouter
      */
-    function _transferTo(
-        address _recipient,
-        uint256 _amount,
-        bytes calldata _metadata
-    ) internal override(FastTransfer, HypERC20) {
-        FastTransfer._transferTo(_recipient, _amount, _metadata);
+    function _handle(
+        uint32 _origin,
+        bytes32 _sender,
+        bytes calldata _message
+    ) internal virtual override(FastTransfer, TokenRouter) {
+        FastTransfer._handle(_origin, _sender, _message);
     }
 
     /**
