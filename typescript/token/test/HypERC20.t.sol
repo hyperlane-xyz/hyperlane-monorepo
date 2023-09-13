@@ -122,7 +122,7 @@ abstract contract HypTokenTest is Test {
         localToken.setDestinationGas(config);
     }
 
-    function _expectRemoteTransfer(uint256 _msgValue, uint256 _amount)
+    function _performRemoteTransfer(uint256 _msgValue, uint256 _amount)
         internal
     {
         vm.prank(ALICE);
@@ -139,24 +139,24 @@ abstract contract HypTokenTest is Test {
         assertEq(remoteToken.balanceOf(BOB), _amount);
     }
 
-    function _expectRemoteTransferAndGas(
+    function _performRemoteTransferAndGas(
         uint256 _msgValue,
         uint256 _amount,
         uint256 _gasOverhead
     ) internal {
         uint256 ethBalance = ALICE.balance;
-        _expectRemoteTransfer(_msgValue + _gasOverhead, _amount);
+        _performRemoteTransfer(_msgValue + _gasOverhead, _amount);
         assertEq(ALICE.balance, ethBalance - REQUIRED_VALUE - _gasOverhead);
     }
 
-    function _expectRemoteTransferWithEmit(
+    function _performRemoteTransferWithEmit(
         uint256 _msgValue,
         uint256 _amount,
         uint256 _gasOverhead
     ) internal {
         vm.expectEmit(true, true, false, true);
         emit SentTransferRemote(DESTINATION, BOB.addressToBytes32(), _amount);
-        _expectRemoteTransferAndGas(_msgValue, _amount, _gasOverhead);
+        _performRemoteTransferAndGas(_msgValue, _amount, _gasOverhead);
     }
 
     function testBenchmark_overheadGasUsage() public {
@@ -228,13 +228,13 @@ contract HypERC20Test is HypTokenTest {
             address(localToken).addressToBytes32()
         );
         uint256 balanceBefore = erc20Token.balanceOf(ALICE);
-        _expectRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
+        _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
         assertEq(erc20Token.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
     }
 
     function testRemoteTransfer_invalidAmount() public {
         vm.expectRevert("ERC20: burn amount exceeds balance");
-        _expectRemoteTransfer(REQUIRED_VALUE, TRANSFER_AMT * 11);
+        _performRemoteTransfer(REQUIRED_VALUE, TRANSFER_AMT * 11);
         assertEq(erc20Token.balanceOf(ALICE), 1000e18);
     }
 
@@ -242,7 +242,7 @@ contract HypERC20Test is HypTokenTest {
         _setCustomGasConfig();
 
         uint256 balanceBefore = erc20Token.balanceOf(ALICE);
-        _expectRemoteTransferAndGas(
+        _performRemoteTransferAndGas(
             REQUIRED_VALUE,
             TRANSFER_AMT,
             GAS_LIMIT * IGP_GAS_PRICE
@@ -286,13 +286,13 @@ contract HypERC20CollateralTest is HypTokenTest {
 
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);
-        _expectRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
+        _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
         assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
     }
 
     function testRemoteTransfer_invalidAllowance() public {
         vm.expectRevert("ERC20: insufficient allowance");
-        _expectRemoteTransfer(REQUIRED_VALUE, TRANSFER_AMT);
+        _performRemoteTransfer(REQUIRED_VALUE, TRANSFER_AMT);
         assertEq(localToken.balanceOf(ALICE), 1000e18);
     }
 
@@ -303,7 +303,7 @@ contract HypERC20CollateralTest is HypTokenTest {
 
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);
-        _expectRemoteTransferAndGas(
+        _performRemoteTransferAndGas(
             REQUIRED_VALUE,
             TRANSFER_AMT,
             GAS_LIMIT * IGP_GAS_PRICE
@@ -341,7 +341,7 @@ contract HypNativeTest is HypTokenTest {
     }
 
     function testRemoteTransfer() public {
-        _expectRemoteTransferWithEmit(
+        _performRemoteTransferWithEmit(
             REQUIRED_VALUE,
             TRANSFER_AMT,
             TRANSFER_AMT
@@ -350,14 +350,17 @@ contract HypNativeTest is HypTokenTest {
 
     function testRemoteTransfer_invalidAmount() public {
         vm.expectRevert("Native: amount exceeds msg.value");
-        _expectRemoteTransfer(REQUIRED_VALUE + TRANSFER_AMT, TRANSFER_AMT * 10);
+        _performRemoteTransfer(
+            REQUIRED_VALUE + TRANSFER_AMT,
+            TRANSFER_AMT * 10
+        );
         assertEq(localToken.balanceOf(ALICE), 1000e18);
     }
 
     function testRemoteTransfer_withCustomGasConfig() public {
         _setCustomGasConfig();
 
-        _expectRemoteTransferAndGas(
+        _performRemoteTransferAndGas(
             REQUIRED_VALUE,
             TRANSFER_AMT,
             TRANSFER_AMT + GAS_LIMIT * IGP_GAS_PRICE

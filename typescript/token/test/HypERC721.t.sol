@@ -28,6 +28,8 @@ import {HypERC721Collateral} from "../contracts/HypERC721Collateral.sol";
 import {HypERC721URIStorage} from "../contracts/extensions/HypERC721URIStorage.sol";
 import {HypERC721URICollateral} from "../contracts/extensions/HypERC721URICollateral.sol";
 
+import {ERC721URIStorageUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
+
 abstract contract HypTokenTest is Test, IERC721Receiver {
     using TypeCasts for address;
 
@@ -51,6 +53,13 @@ abstract contract HypTokenTest is Test, IERC721Receiver {
     TokenRouter internal localToken;
     TokenRouter internal remoteToken;
     TestPostDispatchHook internal noopHook;
+
+    event Dispatch(
+        address indexed sender,
+        uint32 indexed destination,
+        bytes32 indexed recipient,
+        bytes message
+    );
 
     function setUp() public virtual {
         noopHook = new TestPostDispatchHook();
@@ -99,7 +108,9 @@ abstract contract HypTokenTest is Test, IERC721Receiver {
         );
     }
 
-    function _expectTransferRemote(uint256 _msgValue, uint256 _tokenId) public {
+    function _performRemoteTransfer(uint256 _msgValue, uint256 _tokenId)
+        public
+    {
         localToken.transferRemote{value: _msgValue}(
             DESTINATION,
             ALICE.addressToBytes32(),
@@ -178,7 +189,7 @@ contract HypERC721Test is HypTokenTest {
 
     function testRemoteTransfer(bool isCollateral) public {
         _deployRemoteToken(isCollateral);
-        _expectTransferRemote(25000, 0);
+        _performRemoteTransfer(25000, 0);
         assertEq(hyp721.balanceOf(address(this)), INITIAL_SUPPLY - 1);
     }
 
@@ -187,14 +198,14 @@ contract HypERC721Test is HypTokenTest {
 
         _deployRemoteToken(false);
         vm.expectRevert("!owner");
-        _expectTransferRemote(25000, 1);
+        _performRemoteTransfer(25000, 1);
         assertEq(hyp721.balanceOf(address(this)), INITIAL_SUPPLY - 1);
     }
 
     function testRemoteTransfer_revert_invalidTokenId() public {
         _deployRemoteToken(false);
         vm.expectRevert("ERC721: invalid token ID");
-        _expectTransferRemote(25000, INITIAL_SUPPLY);
+        _performRemoteTransfer(25000, INITIAL_SUPPLY);
         assertEq(hyp721.balanceOf(address(this)), INITIAL_SUPPLY);
     }
 }
@@ -231,7 +242,7 @@ contract HypERC721URIStorageTest is HypTokenTest {
 
     function testRemoteTransfers_revert_burned() public {
         _deployRemoteToken(false);
-        _expectTransferRemote(25000, 0);
+        _performRemoteTransfer(25000, 0);
         assertEq(hyp721Storage.balanceOf(address(this)), INITIAL_SUPPLY - 1);
 
         vm.expectRevert("ERC721: invalid token ID");
@@ -272,7 +283,7 @@ contract HypERC721CollateralTest is HypTokenTest {
     function testRemoteTransfer(bool isCollateral) public {
         localPrimaryToken.approve(address(hyp721Collateral), 0);
         _deployRemoteToken(isCollateral);
-        _expectTransferRemote(25000, 0);
+        _performRemoteTransfer(25000, 0);
         assertEq(
             hyp721Collateral.balanceOf(address(this)),
             INITIAL_SUPPLY * 2 - 2
@@ -284,7 +295,7 @@ contract HypERC721CollateralTest is HypTokenTest {
 
         _deployRemoteToken(false);
         vm.expectRevert("ERC721: caller is not token owner or approved");
-        _expectTransferRemote(25000, 1);
+        _performRemoteTransfer(25000, 1);
         assertEq(
             hyp721Collateral.balanceOf(address(this)),
             INITIAL_SUPPLY * 2 - 2
@@ -294,7 +305,7 @@ contract HypERC721CollateralTest is HypTokenTest {
     function testRemoteTransfer_revert_invalidTokenId() public {
         _deployRemoteToken(false);
         vm.expectRevert("ERC721: invalid token ID");
-        _expectTransferRemote(25000, INITIAL_SUPPLY * 2);
+        _performRemoteTransfer(25000, INITIAL_SUPPLY * 2);
         assertEq(
             hyp721Collateral.balanceOf(address(this)),
             INITIAL_SUPPLY * 2 - 1
@@ -329,11 +340,27 @@ contract HypERC721CollateralURIStorageTest is HypTokenTest {
     }
 
     function testRemoteTransfers_revert_burned() public {
-        // doesn't actually check if the URI is correct
-        // just for CODECOV
         _deployRemoteToken(false);
         localPrimaryToken.approve(address(hyp721URICollateral), 0);
-        _expectTransferRemote(25000, 0);
+
+        bytes
+            memory message = hex"03000000000000000b0000000000000000000000001d1499e622d69689cdf9004d05ec547d650ff21100000016000000000000000000000000a0cb889707d426a7a386870a03bc70d1b069759800000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000544553542d424153452d55524930";
+        vm.expectEmit(true, true, false, true);
+
+        emit Dispatch(
+            address(localToken),
+            DESTINATION,
+            address(remoteToken).addressToBytes32(),
+            message
+        );
+        localToken.transferRemote{value: 25000}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_ID
+        );
+
+        _processTransfers(BOB, 0);
+        assertEq(remoteToken.balanceOf(BOB), 1);
         assertEq(
             hyp721URICollateral.balanceOf(address(this)),
             INITIAL_SUPPLY * 2 - 2
