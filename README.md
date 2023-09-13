@@ -12,7 +12,9 @@
 
 ## Versioning
 
-Note this is the branch for Hyperlane v2.
+Note this is the branch for Hyperlane v3.
+
+V2 is on the main branch but is eventually being phased out.
 
 V1 has since been deprecated in favor of V2, but if you are looking for code relating to the existing V1 deployments of the `testnet2` or `mainnet` environments, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
 

@@ -54,11 +54,11 @@
   "scripts": {
     "clean": "hardhat clean && rm -rf dist cache src/types && forge clean",
     "docs": "forge doc",
-    "build": "hardhat compile && tsc",
-    "coverage": "hardhat coverage",
+    "build": "forge build",
+    "coverage": "forge coverage --report lcov",
     "lint": "solhint contracts/**/*.sol && eslint . --ext .ts",
     "prettier": "prettier --write ./contracts ./test",
-    "test": "hardhat test ./test/*.test.ts",
+    "test": "forge test -vvv",
     "deploy-warp-route": "DEBUG=* ts-node scripts/deploy"
   },
   "types": "dist/index.d.ts"
