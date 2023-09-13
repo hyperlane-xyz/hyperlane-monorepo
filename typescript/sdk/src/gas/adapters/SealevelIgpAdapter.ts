@@ -16,10 +16,10 @@ import {
 export class SealevelOverheadIgpAdapter extends BaseSealevelAdapter {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { igp: Address },
   ) {
-    super(chainName, multiProvider);
+    super(chainName, multiProvider, addresses);
   }
 
   async getAccountInfo(): Promise<SealevelOverheadIgpData> {

@@ -17,7 +17,7 @@ export class SealevelRouterAdapter
     public readonly multiProvider: MultiProtocolProvider<any>,
     public readonly addresses: { router: Address },
   ) {
-    super(chainName, multiProvider);
+    super(chainName, multiProvider, addresses);
   }
 
   async interchainSecurityModule(): Promise<Address> {

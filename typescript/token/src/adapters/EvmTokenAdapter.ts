@@ -11,7 +11,6 @@ import {
   addressToByteHexString,
   addressToBytes32,
   bytes32ToAddress,
-  isValidAddressEvm,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
@@ -37,7 +36,6 @@ export class EvmNativeTokenAdapter
   implements ITokenAdapter
 {
   async getBalance(address: Address): Promise<string> {
-    if (!isValidAddressEvm(address)) return '0';
     const balance = await this.getProvider().getBalance(address);
     return balance.toString();
   }
@@ -75,7 +73,7 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     public readonly addresses: { token: Address },
     public readonly contractFactory: any = ERC20__factory,
   ) {
-    super(chainName, multiProvider);
+    super(chainName, multiProvider, addresses);
     this.contract = contractFactory.connect(
       addresses.token,
       this.getProvider(),
@@ -168,6 +166,7 @@ export class EvmHypSyntheticAdapter<T extends HypERC20 = HypERC20>
       recipBytes32,
       weiAmountOrId,
       {
+        // Note, typically the value is the gas payment as quoted by IGP
         value: txValue,
       },
     );

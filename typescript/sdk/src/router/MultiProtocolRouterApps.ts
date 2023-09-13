@@ -17,9 +17,9 @@ import { RouterAddress } from './types';
 export { Router } from '@hyperlane-xyz/core';
 
 export class MultiProtocolRouterApp<
-  ContractAddrs extends RouterAddress = RouterAddress,
   IAdapterApi extends IRouterAdapter = IRouterAdapter,
-> extends MultiProtocolApp<ContractAddrs, IAdapterApi> {
+  ContractAddrs extends RouterAddress = RouterAddress,
+> extends MultiProtocolApp<IAdapterApi, ContractAddrs> {
   override protocolToAdapter(
     protocol: ProtocolType,
   ): AdapterClassType<IAdapterApi> {
@@ -31,7 +31,7 @@ export class MultiProtocolRouterApp<
   }
 
   router(chain: ChainName): Address {
-    return this.metadata(chain).router;
+    return this.addresses[chain].router;
   }
 
   interchainSecurityModules(): Promise<ChainMap<Address>> {
@@ -50,9 +50,9 @@ export class MultiProtocolRouterApp<
 }
 
 export class MultiProtocolGasRouterApp<
-  ContractAddrs extends RouterAddress = RouterAddress,
   IAdapterApi extends IGasRouterAdapter = IGasRouterAdapter,
-> extends MultiProtocolRouterApp<ContractAddrs, IAdapterApi> {
+  ContractAddrs extends RouterAddress = RouterAddress,
+> extends MultiProtocolRouterApp<IAdapterApi, ContractAddrs> {
   override protocolToAdapter(
     protocol: ProtocolType,
   ): AdapterClassType<IAdapterApi> {

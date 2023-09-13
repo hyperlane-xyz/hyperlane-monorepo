@@ -15,6 +15,8 @@ export interface IHelloWorldAdapter extends IRouterAdapter {
     sender: Address,
   ) => Promise<TypedTransaction>;
 
+  // TODO break apart into separate origin + destination methods to
+  // handle case where origin/dest protocols differ
   channelStats: (
     destination: ChainName,
     destinationMailbox: Address,

@@ -10,21 +10,22 @@ import {
 } from '../../providers/ProviderType';
 import { ChainName } from '../../types';
 import { HyperlaneCore } from '../HyperlaneCore';
-import { CoreAddresses, CoreFactories } from '../contracts';
+import { CoreFactories } from '../contracts';
 
 import { ICoreAdapter } from './types';
 
 // This adapter just routes to the HyperlaneCore
 // Which implements the needed functionality for EVM chains
+// TODO deprecate HyperlaneCore and replace all evm-specific classes with adapters
 export class EvmCoreAdapter extends BaseEvmAdapter implements ICoreAdapter {
   core: HyperlaneCore;
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider<CoreAddresses>,
+    public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { mailbox: Address },
   ) {
-    super(chainName, multiProvider);
+    super(chainName, multiProvider, addresses);
     const contractsMap = {
       [chainName]: {
         mailbox: Mailbox__factory.connect(

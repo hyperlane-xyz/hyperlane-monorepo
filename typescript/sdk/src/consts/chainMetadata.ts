@@ -317,8 +317,9 @@ export const sepolia: ChainMetadata = {
   displayName: 'Sepolia',
   nativeToken: etherToken,
   rpcUrls: [
-    { http: 'https://gateway.tenderly.co/public/sepolia' },
+    { http: 'https://endpoints.omniatech.io/v1/eth/sepolia/public' },
     { http: 'https://rpc2.sepolia.org' },
+    { http: 'https://rpc.sepolia.org' },
   ],
   blockExplorers: [
     {

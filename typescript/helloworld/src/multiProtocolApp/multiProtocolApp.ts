@@ -14,8 +14,8 @@ import { SealevelHelloWorldAdapter } from './sealevelAdapter';
 import { IHelloWorldAdapter } from './types';
 
 export class HelloMultiProtocolApp extends MultiProtocolRouterApp<
-  RouterAddress & { mailbox: Address },
-  IHelloWorldAdapter
+  IHelloWorldAdapter,
+  RouterAddress & { mailbox: Address }
 > {
   override protocolToAdapter(protocol: ProtocolType) {
     if (protocol === ProtocolType.Ethereum) return EvmHelloWorldAdapter;
@@ -41,7 +41,7 @@ export class HelloMultiProtocolApp extends MultiProtocolRouterApp<
   channelStats(origin: ChainName, destination: ChainName): Promise<StatCounts> {
     return this.adapter(origin).channelStats(
       destination,
-      this.metadata(destination).mailbox,
+      this.addresses[destination].mailbox,
     );
   }
 

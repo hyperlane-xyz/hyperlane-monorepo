@@ -102,7 +102,7 @@ async function checkBalance(
             MultiProtocolProvider.fromMultiProvider(multiprovider),
             {
               token: token.address,
-              warp: token.hypCollateralAddress,
+              warpRouter: token.hypCollateralAddress,
               // Mailbox only required for transfers, using system as placeholder
               mailbox: SystemProgram.programId.toBase58(),
             },

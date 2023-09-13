@@ -216,6 +216,7 @@ export class ChainMetadataManager<MetaExt = {}> {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata?.blockExplorers?.length) return null;
     const url = new URL(metadata.blockExplorers[0].url);
+    // TODO move handling of these chain/protocol specific quirks to ChainMetadata
     if (
       metadata.protocol === ProtocolType.Sealevel &&
       solanaChainToClusterName[metadata.name]

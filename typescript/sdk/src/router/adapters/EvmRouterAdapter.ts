@@ -18,7 +18,7 @@ export class EvmRouterAdapter extends BaseEvmAdapter implements IRouterAdapter {
     public readonly multiProvider: MultiProtocolProvider<any>,
     public readonly addresses: { router: Address },
   ) {
-    super(chainName, multiProvider);
+    super(chainName, multiProvider, addresses);
   }
 
   interchainSecurityModule(): Promise<Address> {

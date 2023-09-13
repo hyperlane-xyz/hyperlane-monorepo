@@ -1,7 +1,12 @@
 import { PublicKey } from '@solana/web3.js';
 import debug from 'debug';
 
-import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
@@ -24,13 +29,15 @@ export abstract class BaseAppAdapter {
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly addresses: Record<string, Address>,
     public readonly logger = debug(`hyperlane:AppAdapter`),
   ) {}
 }
 
-export type AdapterClassType<API = {}> = new (
+export type AdapterClassType<API> = new (
   chainName: ChainName,
   multiProvider: MultiProtocolProvider<any>,
+  addresses: any,
   ...args: any
 ) => API;
 
@@ -87,11 +94,12 @@ export class BaseSealevelAdapter extends BaseAppAdapter {
  * @override protocolToAdapter - This should return an Adapter class for a given protocol type
  */
 export abstract class MultiProtocolApp<
-  ContractAddrs = {},
-  IAdapterApi extends BaseAppAdapter = BaseAppAdapter,
-> extends MultiGeneric<ChainMetadata<ContractAddrs>> {
+  IAdapterApi extends BaseAppAdapter,
+  ContractAddrs extends Record<string, Address> = {},
+> extends MultiGeneric<ChainMetadata> {
   constructor(
-    public readonly multiProvider: MultiProtocolProvider<ContractAddrs>,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: ChainMap<ContractAddrs>,
     public readonly logger = debug('hyperlane:MultiProtocolApp'),
   ) {
     super(multiProvider.metadata);
@@ -102,10 +110,11 @@ export abstract class MultiProtocolApp<
     protocol: ProtocolType,
   ): AdapterClassType<IAdapterApi>;
 
+  // Subclasses may want to override this to provide adapters more arguments
   adapter(chain: ChainName): IAdapterApi {
     const metadata = this.metadata(chain);
     const Adapter = this.protocolToAdapter(metadata.protocol);
-    return new Adapter(chain, this.multiProvider, this.metadata(chain));
+    return new Adapter(chain, this.multiProvider, this.addresses[chain]);
   }
 
   adapters(): ChainMap<IAdapterApi> {
@@ -118,7 +127,7 @@ export abstract class MultiProtocolApp<
     return promiseObjAll(objMap(this.adapters(), fn));
   }
 
-  metadata(chain: ChainName): ChainMetadata<ContractAddrs> {
+  metadata(chain: ChainName): ChainMetadata {
     return this.get(chain);
   }
 
