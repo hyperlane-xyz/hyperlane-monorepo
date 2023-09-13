@@ -17,3 +17,4 @@ nix = { version = "0.26", default-features = false, features = ["signal"] }
 tempfile = "3.3"
 ureq = { version = "2.4", default-features = false }
 which = "4.4"
+macro_rules_attribute = "0.2"

@@ -151,19 +151,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     const signer = this.multiProvider.getSigner(chain);
     const routingIsmFactory = this.getContracts(chain).routingIsmFactory;
     const isms: ChainMap<types.Address> = {};
-    // deploy for all origins in parallel, keep running even if some fail
-    await Promise.allSettled(
-      Object.keys(config.domains).map(async (origin) => {
-        const ism = await this.deploy(chain, config.domains[origin], origin);
-        isms[origin] = ism.address;
-      }),
-    ).then((results) => {
-      results.forEach((result) => {
-        if (result.status === 'rejected') {
-          this.logger(`Failed to deploy routing ISM: ${result.reason}`);
-        }
-      });
-    });
+    for (const origin of Object.keys(config.domains)) {
+      const ism = await this.deploy(chain, config.domains[origin], origin);
+      isms[origin] = ism.address;
+    }
     const domains = Object.keys(isms).map((chain) =>
       this.multiProvider.getDomainId(chain),
     );
@@ -322,6 +313,9 @@ export async function moduleCanCertainlyVerify(
           }
         }
         return verified >= threshold;
+      } else if (moduleType === ModuleType.CCIP) {
+        // TODO: add verify for CCIP
+        return true;
       } else {
         throw new Error(`Unsupported module type: ${moduleType}`);
       }
