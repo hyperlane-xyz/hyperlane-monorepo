@@ -218,7 +218,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _message
-    ) external override onlyMailbox {
+    ) external payable override onlyMailbox {
         (
             bytes32 _owner,
             bytes32 _ism,
