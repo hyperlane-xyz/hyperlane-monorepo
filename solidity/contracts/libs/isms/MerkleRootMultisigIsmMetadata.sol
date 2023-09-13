@@ -3,49 +3,59 @@ pragma solidity >=0.8.0;
 
 /**
  * Format of metadata:
- * [   0:  32] Origin mailbox address
- * [  32:  36] Signed checkpoint index
+ * [   0:  32] Origin merkle tree address
+ * [  32:  36] Index of message ID in merkle tree
  * [  36:  68] Signed checkpoint message ID
  * [  68:1092] Merkle proof
- * [1092:????] Validator signatures (length := threshold * 65)
+ * [1092:1096] Signed checkpoint index (computed from proof and index)
+ * [1096:????] Validator signatures (length := threshold * 65)
  */
 library MerkleRootMultisigIsmMetadata {
-    uint8 private constant ORIGIN_MAILBOX_OFFSET = 0;
-    uint8 private constant CHECKPOINT_INDEX_OFFSET = 32;
-    uint8 private constant CHECKPOINT_MESSAGE_ID_OFFSET = 36;
+    uint8 private constant ORIGIN_MERKLE_TREE_OFFSET = 0;
+    uint8 private constant MESSAGE_INDEX_OFFSET = 32;
+    uint8 private constant MESSAGE_ID_OFFSET = 36;
     uint8 private constant MERKLE_PROOF_OFFSET = 68;
     uint16 private constant MERKLE_PROOF_LENGTH = 32 * 32;
-    uint16 private constant SIGNATURES_OFFSET = 1092;
+    uint16 private constant SIGNED_INDEX_OFFSET = 1092;
+    uint16 private constant SIGNATURES_OFFSET = 1096;
     uint8 private constant SIGNATURE_LENGTH = 65;
 
     /**
-     * @notice Returns the origin mailbox of the signed checkpoint as bytes32.
+     * @notice Returns the origin merkle tree hook of the signed checkpoint as bytes32.
      * @param _metadata ABI encoded Multisig ISM metadata.
-     * @return Origin mailbox of the signed checkpoint as bytes32
+     * @return Origin merkle tree hook of the signed checkpoint as bytes32
      */
-    function originMailbox(bytes calldata _metadata)
+    function originMerkleTreeHook(bytes calldata _metadata)
         internal
         pure
         returns (bytes32)
     {
         return
             bytes32(
-                _metadata[ORIGIN_MAILBOX_OFFSET:ORIGIN_MAILBOX_OFFSET + 32]
+                _metadata[ORIGIN_MERKLE_TREE_OFFSET:ORIGIN_MERKLE_TREE_OFFSET +
+                    32]
             );
     }
 
-    /**
-     * @notice Returns the index of the signed checkpoint.
-     * @param _metadata ABI encoded Multisig ISM metadata.
-     * @return Index of the signed checkpoint
-     */
-    function index(bytes calldata _metadata) internal pure returns (uint32) {
+    function messageIndex(bytes calldata _metadata)
+        internal
+        pure
+        returns (uint32)
+    {
         return
             uint32(
-                bytes4(
-                    _metadata[CHECKPOINT_INDEX_OFFSET:CHECKPOINT_INDEX_OFFSET +
-                        4]
-                )
+                bytes4(_metadata[MESSAGE_INDEX_OFFSET:MESSAGE_INDEX_OFFSET + 4])
+            );
+    }
+
+    function signedIndex(bytes calldata _metadata)
+        internal
+        pure
+        returns (uint32)
+    {
+        return
+            uint32(
+                bytes4(_metadata[SIGNED_INDEX_OFFSET:SIGNED_INDEX_OFFSET + 4])
             );
     }
 
@@ -54,16 +64,12 @@ library MerkleRootMultisigIsmMetadata {
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return Message ID of the signed checkpoint
      */
-    function messageId(bytes calldata _metadata)
+    function signedMessageId(bytes calldata _metadata)
         internal
         pure
         returns (bytes32)
     {
-        return
-            bytes32(
-                _metadata[CHECKPOINT_MESSAGE_ID_OFFSET:CHECKPOINT_MESSAGE_ID_OFFSET +
-                    32]
-            );
+        return bytes32(_metadata[MESSAGE_ID_OFFSET:MESSAGE_ID_OFFSET + 32]);
     }
 
     /**

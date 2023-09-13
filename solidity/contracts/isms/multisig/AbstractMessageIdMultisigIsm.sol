@@ -19,6 +19,9 @@ import {CheckpointLib} from "../../libs/CheckpointLib.sol";
  * This abstract contract can be customized to change the `validatorsAndThreshold()` (static or dynamic).
  */
 abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
+    using Message for bytes;
+    using MessageIdMultisigIsmMetadata for bytes;
+
     // ============ Constants ============
 
     // solhint-disable-next-line const-name-snakecase
@@ -36,11 +39,11 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
     {
         return
             CheckpointLib.digest(
-                Message.origin(_message),
-                MessageIdMultisigIsmMetadata.originMailbox(_metadata),
-                MessageIdMultisigIsmMetadata.root(_metadata),
-                Message.nonce(_message),
-                Message.id(_message)
+                _message.origin(),
+                _metadata.originMerkleTreeHook(),
+                _metadata.root(),
+                _metadata.index(),
+                _message.id()
             );
     }
 
@@ -52,8 +55,8 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
         pure
         virtual
         override
-        returns (bytes memory)
+        returns (bytes calldata)
     {
-        return MessageIdMultisigIsmMetadata.signatureAt(_metadata, _index);
+        return _metadata.signatureAt(_index);
     }
 }
