@@ -278,24 +278,17 @@ impl MultisigCheckpointSyncer {
             Vec<SignedCheckpointWithSigner<CheckpointWithMessageId>>,
         > = HashMap::new();
 
-        warn!(
-            "Fetching checkpoint for index {}, validator {:?}",
-            index, validators
-        );
-
         for validator in validators.iter() {
             let addr = H160::from(*validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&addr) {
                 // Gracefully ignore an error fetching the checkpoint from a validator's
                 // checkpoint syncer, which can happen if the validator has not
                 // signed the checkpoint at `index`.
-
                 if let Ok(Some(signed_checkpoint)) = checkpoint_syncer.fetch_checkpoint(index).await
                 {
-                    warn!("signed_checkpoint: {:?}", signed_checkpoint);
                     // If the signed checkpoint is for a different index, ignore it
                     if signed_checkpoint.value.index != index {
-                        info!(
+                        debug!(
                             validator = format!("{:#x}", validator),
                             index = index,
                             checkpoint_index = signed_checkpoint.value.index,
@@ -316,7 +309,7 @@ impl MultisigCheckpointSyncer {
                     };
 
                     if H256::from(signer) != *validator {
-                        info!(
+                        debug!(
                             validator = format!("{:#x}", validator),
                             index = index,
                             "Checkpoint signature mismatch"
@@ -344,7 +337,7 @@ impl MultisigCheckpointSyncer {
                         }
                     };
 
-                    warn!(
+                    debug!(
                         validator = format!("{:#x}", validator),
                         index = index,
                         root = format!("{:#x}", root),
@@ -358,7 +351,7 @@ impl MultisigCheckpointSyncer {
                                 MultisigSignedCheckpoint::<CheckpointWithMessageId>::try_from(
                                     signed_checkpoints,
                                 )?;
-                            info!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
+                            debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
                             return Ok(Some(checkpoint));
                         }
                     }

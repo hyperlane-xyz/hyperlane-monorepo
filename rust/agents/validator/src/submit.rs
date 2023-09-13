@@ -134,14 +134,7 @@ impl ValidatorSubmitter {
                             continue;
                         }
 
-                        warn!("queued_checkpoint: {:?}", queued_checkpoint);
-
                         let signed_checkpoint = self.signer.sign(queued_checkpoint).await?;
-                        warn!("signed_checkpoint: {:?}", signed_checkpoint);
-                        warn!(
-                            "signed_checkpoint.signing_value: {:?}",
-                            queued_checkpoint.signing_hash()
-                        );
                         self.checkpoint_syncer
                             .write_checkpoint(&signed_checkpoint)
                             .await?;

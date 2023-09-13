@@ -9,7 +9,6 @@ use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
 use tracing::{debug, trace, warn};
 
-
 use crate::msg::metadata::BaseMetadataBuilder;
 
 use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
@@ -54,8 +53,6 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
                 .context(CTX)?,
             trace!("No quorum checkpoint found")
         );
-
-        println!("quorum_checkpoint: {:?}", quorum_checkpoint);
 
         if quorum_checkpoint.checkpoint.message_id != message.id() {
             warn!(
