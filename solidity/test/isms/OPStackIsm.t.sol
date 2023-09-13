@@ -15,13 +15,8 @@ import {OPStackHook} from "../../contracts/hooks/OPStackHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {NotCrossChainCall} from "../../contracts/isms/hook/crossChainEnabled/errors.sol";
 
-import {Lib_CrossDomainUtils} from "@eth-optimism/contracts/libraries/bridge/Lib_CrossDomainUtils.sol";
 import {AddressAliasHelper} from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
-import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
-import {ICanonicalTransactionChain} from "@eth-optimism/contracts/L1/rollup/ICanonicalTransactionChain.sol";
-import {L2CrossDomainMessenger} from "@eth-optimism/contracts-bedrock/contracts/L2/L2CrossDomainMessenger.sol";
-import {Encoding} from "@eth-optimism/contracts-bedrock/contracts/libraries/Encoding.sol";
-import {Hashing} from "@eth-optimism/contracts-bedrock/contracts/libraries/Hashing.sol";
+import {ICrossDomainMessenger, IL2CrossDomainMessenger} from "../../contracts/interfaces/optimism/ICrossDomainMessenger.sol";
 
 contract OPStackIsmTest is Test {
     using LibBit for uint256;
@@ -44,7 +39,7 @@ contract OPStackIsmTest is Test {
     address internal alice = address(0x1);
 
     ICrossDomainMessenger internal l1Messenger;
-    L2CrossDomainMessenger internal l2Messenger;
+    IL2CrossDomainMessenger internal l2Messenger;
     TestMailbox internal l1Mailbox;
     OPStackIsm internal opISM;
     OPStackHook internal opHook;
@@ -108,7 +103,7 @@ contract OPStackIsmTest is Test {
     function deployOPStackIsm() public {
         vm.selectFork(optimismFork);
 
-        l2Messenger = L2CrossDomainMessenger(L2_MESSENGER_ADDRESS);
+        l2Messenger = IL2CrossDomainMessenger(L2_MESSENGER_ADDRESS);
         opISM = new OPStackIsm(L2_MESSENGER_ADDRESS);
 
         vm.makePersistent(address(opISM));
@@ -154,9 +149,7 @@ contract OPStackIsmTest is Test {
             (messageId)
         );
 
-        uint40 nonce = ICanonicalTransactionChain(L1_CANNONICAL_CHAIN)
-            .getQueueLength();
-
+        uint40 testNonce = 123;
         l1Mailbox.updateLatestDispatchedId(messageId);
 
         vm.expectEmit(true, true, true, false, L1_MESSENGER_ADDRESS);
@@ -164,7 +157,7 @@ contract OPStackIsmTest is Test {
             address(opISM),
             address(opHook),
             encodedHookData,
-            nonce,
+            testNonce,
             DEFAULT_GAS_LIMIT
         );
         opHook.postDispatch(testMetadata, encodedMessage);
@@ -232,15 +225,12 @@ contract OPStackIsmTest is Test {
             (messageId)
         );
 
-        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+        (uint240 nonce, uint16 verison) = decodeVersionedNonce(
             l2Messenger.messageNonce()
         );
-        uint256 versionedNonce = Encoding.encodeVersionedNonce(
-            nonce + 1,
-            verison
-        );
+        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, verison);
 
-        bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
+        bytes32 versionedHash = hashCrossDomainMessageV1(
             versionedNonce,
             address(opHook),
             address(opISM),
@@ -307,13 +297,10 @@ contract OPStackIsmTest is Test {
             (messageId)
         );
 
-        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+        (uint240 nonce, uint16 verison) = decodeVersionedNonce(
             l2Messenger.messageNonce()
         );
-        uint256 versionedNonce = Encoding.encodeVersionedNonce(
-            nonce + 1,
-            verison
-        );
+        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, verison);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage(
@@ -341,13 +328,10 @@ contract OPStackIsmTest is Test {
             (messageId)
         );
 
-        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+        (uint240 nonce, uint16 verison) = decodeVersionedNonce(
             l2Messenger.messageNonce()
         );
-        uint256 versionedNonce = Encoding.encodeVersionedNonce(
-            nonce + 1,
-            verison
-        );
+        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, verison);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage{value: _msgValue}(
@@ -377,13 +361,10 @@ contract OPStackIsmTest is Test {
             (messageId)
         );
 
-        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+        (uint240 nonce, uint16 verison) = decodeVersionedNonce(
             l2Messenger.messageNonce()
         );
-        uint256 versionedNonce = Encoding.encodeVersionedNonce(
-            nonce + 1,
-            verison
-        );
+        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, verison);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage(
@@ -429,13 +410,10 @@ contract OPStackIsmTest is Test {
             (_messageId)
         );
 
-        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+        (uint240 nonce, uint16 verison) = decodeVersionedNonce(
             l2Messenger.messageNonce()
         );
-        uint256 versionedNonce = Encoding.encodeVersionedNonce(
-            nonce + 1,
-            verison
-        );
+        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, verison);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage(
@@ -464,5 +442,103 @@ contract OPStackIsmTest is Test {
                 TypeCasts.addressToBytes32(address(testRecipient)),
                 testMessage
             );
+    }
+
+    /// @dev from eth-optimism/contracts-bedrock/contracts/libraries/Hashing.sol
+    /// @notice Hashes a cross domain message based on the V1 (current) encoding.
+    /// @param _nonce    Message nonce.
+    /// @param _sender   Address of the sender of the message.
+    /// @param _target   Address of the target of the message.
+    /// @param _value    ETH value to send to the target.
+    /// @param _gasLimit Gas limit to use for the message.
+    /// @param _data     Data to send with the message.
+    /// @return Hashed cross domain message.
+    function hashCrossDomainMessageV1(
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                encodeCrossDomainMessageV1(
+                    _nonce,
+                    _sender,
+                    _target,
+                    _value,
+                    _gasLimit,
+                    _data
+                )
+            );
+    }
+
+    /// @dev from eth-optimism/contracts-bedrock/contracts/libraries/Encoding.sol
+    /// @notice Encodes a cross domain message based on the V1 (current) encoding.
+    /// @param _nonce    Message nonce.
+    /// @param _sender   Address of the sender of the message.
+    /// @param _target   Address of the target of the message.
+    /// @param _value    ETH value to send to the target.
+    /// @param _gasLimit Gas limit to use for the message.
+    /// @param _data     Data to send with the message.
+    /// @return Encoded cross domain message.
+    function encodeCrossDomainMessageV1(
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodeWithSignature(
+                "relayMessage(uint256,address,address,uint256,uint256,bytes)",
+                _nonce,
+                _sender,
+                _target,
+                _value,
+                _gasLimit,
+                _data
+            );
+    }
+
+    /// @dev from eth-optimism/contracts-bedrock/contracts/libraries/Encoding.sol
+    /// @notice Adds a version number into the first two bytes of a message nonce.
+    /// @param _nonce   Message nonce to encode into.
+    /// @param _version Version number to encode into the message nonce.
+    /// @return Message nonce with version encoded into the first two bytes.
+    function encodeVersionedNonce(uint240 _nonce, uint16 _version)
+        internal
+        pure
+        returns (uint256)
+    {
+        uint256 nonce;
+        assembly {
+            nonce := or(shl(240, _version), _nonce)
+        }
+        return nonce;
+    }
+
+    /// @dev from eth-optimism/contracts-bedrock/contracts/libraries/Encoding.sol
+    /// @notice Pulls the version out of a version-encoded nonce.
+    /// @param _nonce Message nonce with version encoded into the first two bytes.
+    /// @return Nonce without encoded version.
+    /// @return Version of the message.
+    function decodeVersionedNonce(uint256 _nonce)
+        internal
+        pure
+        returns (uint240, uint16)
+    {
+        uint240 nonce;
+        uint16 version;
+        assembly {
+            nonce := and(
+                _nonce,
+                0x0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+            )
+            version := shr(240, _nonce)
+        }
+        return (nonce, version);
     }
 }
