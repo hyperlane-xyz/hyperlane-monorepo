@@ -181,9 +181,10 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             wait_for_user_confirmation();
 
             return None;
-        } else {
-            self.pretty_print_transaction();
         }
+
+        // Print the tx as an indication for what's about to happen
+        self.pretty_print_transaction();
 
         let client = self.client.unwrap_or(&self.ctx.client);
 

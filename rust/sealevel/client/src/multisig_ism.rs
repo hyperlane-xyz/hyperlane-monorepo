@@ -29,7 +29,7 @@ use hyperlane_sealevel_multisig_ism_message_id::{
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct MultisigIsmProgramIds {
-    #[serde(with = "crate::core::serde_pubkey")]
+    #[serde(with = "crate::serde::serde_pubkey")]
     pub program_id: Pubkey,
 }
 

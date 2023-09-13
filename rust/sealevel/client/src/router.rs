@@ -28,13 +28,13 @@ fn parse_pubkey_or_default(maybe_str: Option<&String>, default: Pubkey) -> Pubke
 #[serde(rename_all = "camelCase")]
 pub struct OptionalConnectionClientConfig {
     #[serde(default)]
-    #[serde(with = "crate::core::serde_option_pubkey")]
+    #[serde(with = "crate::serde::serde_option_pubkey")]
     pub mailbox: Option<Pubkey>,
     #[serde(default)]
-    #[serde(with = "crate::core::serde_option_pubkey")]
+    #[serde(with = "crate::serde::serde_option_pubkey")]
     pub interchain_gas_paymaster: Option<Pubkey>,
     #[serde(default)]
-    #[serde(with = "crate::core::serde_option_pubkey")]
+    #[serde(with = "crate::serde::serde_option_pubkey")]
     pub interchain_security_module: Option<Pubkey>,
 }
 

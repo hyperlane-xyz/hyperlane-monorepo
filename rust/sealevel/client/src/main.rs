@@ -75,6 +75,7 @@ mod r#core;
 mod helloworld;
 mod multisig_ism;
 mod router;
+mod serde;
 mod warp_route;
 
 use crate::cmd_utils::create_new_directory;
