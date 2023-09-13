@@ -1,6 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
+import { error } from 'console';
 import { BigNumber, BigNumberish, utils } from 'ethers';
 import { ethers } from 'hardhat';
 
@@ -268,14 +269,16 @@ for (const variant of [
       await expectBalance(remote, owner, remoteOwner);
     });
 
-    if (variant === TokenType.fastCollateral) {
-      it('should allow for fast remote transfers', async () => {
+    if (
+      variant === TokenType.fastCollateral ||
+      variant === TokenType.fastSynthetic
+    ) {
+      it('should allow fast remote transfer from remote chain', async () => {
         // First transfer tokens to the remote chain from the owner to owner.
         const localOwner = await local.balanceOf(owner.address);
         const localRecipient = await local.balanceOf(recipient.address);
         const remoteOwner = await remote.balanceOf(owner.address);
         const remoteRecipient = await remote.balanceOf(recipient.address);
-        console.log(localOwner, localRecipient, remoteOwner, remoteRecipient);
 
         await local.transferRemote(
           remoteDomain,
@@ -321,14 +324,13 @@ for (const variant of [
         await expectBalance(remote, owner, remoteOwner);
 
         // Transfer some wrapped tokens to the fast filler.
-        const tokenAddress = await (
-          local as FastHypERC20Collateral
-        ).wrappedToken();
-
-        const token = ERC20__factory.connect(tokenAddress, owner);
-        await token.transfer(fastFiller.address, amount);
-
-        await expectBalance(local, owner, expectedLocal.sub(amount));
+        const token = await transferToFastFiller(
+          variant,
+          local,
+          owner,
+          fastFiller,
+          expectedLocal,
+        );
 
         token.connect(fastFiller).approve(local.address, amount - fastFee);
 
@@ -348,6 +350,37 @@ for (const variant of [
         await expectBalance(remote, recipient, remoteRecipient);
         await expectBalance(remote, owner, remoteOwner);
         await expectBalance(token, fastFiller, amount + fastFee);
+      });
+
+      it('should credit full transfer amount to receiver if no one fills the transfer', async () => {
+        // First transfer tokens to the remote chain from the owner to owner.
+        const localOwner = await local.balanceOf(owner.address);
+        const localRecipient = await local.balanceOf(recipient.address);
+        const remoteOwner = await remote.balanceOf(owner.address);
+        const remoteRecipient = await remote.balanceOf(recipient.address);
+
+        await local.transferRemote(
+          remoteDomain,
+          addressToBytes32(owner.address),
+          amount,
+          {
+            value: interchainGasPayment,
+          },
+        );
+
+        let expectedLocal = localOwner.sub(amount);
+
+        await expectBalance(local, recipient, localRecipient);
+        await expectBalance(local, owner, expectedLocal);
+        await expectBalance(remote, recipient, remoteRecipient);
+        await expectBalance(remote, owner, remoteOwner);
+
+        await core.processMessages();
+
+        await expectBalance(local, recipient, localRecipient);
+        await expectBalance(local, owner, expectedLocal);
+        await expectBalance(remote, recipient, remoteRecipient);
+        await expectBalance(remote, owner, remoteOwner.add(amount));
       });
     }
 
@@ -417,4 +450,38 @@ const expectBalance = async (
   balance: BigNumberish,
 ) => {
   return expect(await token.balanceOf(signer.address)).to.eq(balance);
+};
+
+const transferToFastFiller = async (
+  variant: TokenType,
+  local: HypERC20 | HypERC20Collateral | HypNative,
+  owner: SignerWithAddress,
+  fastFiller: SignerWithAddress,
+  ownerBalance: BigNumber,
+) => {
+  if (variant == TokenType.fastCollateral) {
+    // Transfer some wrapped tokens to the fast filler.
+    const tokenAddress = await (local as FastHypERC20Collateral).wrappedToken();
+
+    const token = ERC20__factory.connect(tokenAddress, owner);
+    await token.transfer(fastFiller.address, amount);
+
+    await expectBalance(local, owner, ownerBalance.sub(amount));
+    await expectBalance(local, fastFiller, amount);
+
+    return token;
+  } else if (variant == TokenType.fastSynthetic) {
+    // Transfer some wrapped tokens to the fast filler.
+    const tokenAddress = (local as FastHypERC20).address;
+
+    const token = ERC20__factory.connect(tokenAddress, owner);
+    await token.transfer(fastFiller.address, amount);
+
+    await expectBalance(local, owner, ownerBalance.sub(amount));
+    await expectBalance(local, fastFiller, amount);
+
+    return token;
+  }
+
+  throw error('unsupported type');
 };
