@@ -1,50 +1,46 @@
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { PublicKey } from '@solana/web3.js';
-import { deserializeUnchecked } from 'borsh';
 
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
-import { SealevelAccountDataWrapper } from '../../sealevel/serialization';
-import {
-  SealevelHyperlaneTokenData,
-  SealevelHyperlaneTokenDataSchema,
-} from '../../sealevel/tokenSerialization';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import { ChainName } from '../../types';
-import { RouterAddress } from '../types';
 
 import { IGasRouterAdapter, IRouterAdapter } from './types';
 
-export class SealevelRouterAdapter<
-    ContractAddrs extends RouterAddress = RouterAddress,
-  >
-  extends BaseSealevelAdapter<ContractAddrs>
-  implements IRouterAdapter<ContractAddrs>
+export class SealevelRouterAdapter
+  extends BaseSealevelAdapter
+  implements IRouterAdapter
 {
-  async interchainSecurityModule(chain: ChainName): Promise<Address> {
-    const routerAccountInfo = await this.getRouterAccountInfo(chain);
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly addresses: { router: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+
+  async interchainSecurityModule(): Promise<Address> {
+    const routerAccountInfo = await this.getRouterAccountInfo();
     if (!routerAccountInfo.interchain_security_module_pubkey)
-      throw new Error(`No ism found for router on ${chain}`);
+      throw new Error(`No ism found for router on ${this.chainName}`);
     return routerAccountInfo.interchain_security_module_pubkey.toBase58();
   }
 
-  async owner(chain: ChainName): Promise<Address> {
-    const routerAccountInfo = await this.getRouterAccountInfo(chain);
+  async owner(): Promise<Address> {
+    const routerAccountInfo = await this.getRouterAccountInfo();
     if (!routerAccountInfo.owner_pub_key)
-      throw new Error(`No owner found for router on ${chain}`);
+      throw new Error(`No owner found for router on ${this.chainName}`);
     return routerAccountInfo.owner_pub_key.toBase58();
   }
 
-  async remoteDomains(originChain: ChainName): Promise<Domain[]> {
-    const routers = await this.remoteRouters(originChain);
+  async remoteDomains(): Promise<Domain[]> {
+    const routers = await this.remoteRouters();
     return routers.map((router) => router.domain);
   }
 
-  async remoteRouter(
-    originChain: ChainName,
-    remoteDomain: Domain,
-  ): Promise<Address> {
-    const routers = await this.remoteRouters(originChain);
+  async remoteRouter(remoteDomain: Domain): Promise<Address> {
+    const routers = await this.remoteRouters();
     const addr = routers.find(
       (router) => router.domain === remoteDomain,
     )?.address;
@@ -52,10 +48,8 @@ export class SealevelRouterAdapter<
     return addr;
   }
 
-  async remoteRouters(
-    originChain: ChainName,
-  ): Promise<Array<{ domain: Domain; address: Address }>> {
-    const routerAccountInfo = await this.getRouterAccountInfo(originChain);
+  async remoteRouters(): Promise<Array<{ domain: Domain; address: Address }>> {
+    const routerAccountInfo = await this.getRouterAccountInfo();
     const domainToPubKey = routerAccountInfo.remote_router_pubkeys;
     return Array.from(domainToPubKey.entries()).map(([domain, pubKey]) => ({
       domain,
@@ -63,54 +57,29 @@ export class SealevelRouterAdapter<
     }));
   }
 
-  // TODO this incorrectly assumes all sealevel routers will have the TokenRouter's data schema
-  // This will need to change when other types of routers are supported
-  async getRouterAccountInfo(
-    chain: ChainName,
-  ): Promise<SealevelHyperlaneTokenData> {
-    const address = this.multiProvider.getChainMetadata(chain).router;
-    const connection = this.multiProvider.getSolanaWeb3Provider(chain);
-
-    const msgRecipientPda = this.deriveMessageRecipientPda(address);
-    const accountInfo = await connection.getAccountInfo(msgRecipientPda);
-    if (!accountInfo)
-      throw new Error(
-        `No account info found for ${msgRecipientPda.toBase58()}}`,
-      );
-    const accountData = deserializeUnchecked(
-      SealevelHyperlaneTokenDataSchema,
-      SealevelAccountDataWrapper,
-      accountInfo.data,
-    );
-    return accountData.data as SealevelHyperlaneTokenData;
+  getRouterAccountInfo(): Promise<{
+    owner_pub_key?: PublicKey;
+    interchain_security_module?: Uint8Array;
+    interchain_security_module_pubkey?: PublicKey;
+    remote_router_pubkeys: Map<Domain, PublicKey>;
+  }> {
+    throw new Error('TODO getRouterAccountInfo not yet implemented');
   }
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs
   deriveMessageRecipientPda(routerAddress: Address | PublicKey): PublicKey {
-    const [pda] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('hyperlane_message_recipient'),
-        Buffer.from('-'),
-        Buffer.from('handle'),
-        Buffer.from('-'),
-        Buffer.from('account_metas'),
-      ],
-      new PublicKey(routerAddress),
+    return super.derivePda(
+      ['hyperlane_message_recipient', '-', 'handle', '-', 'account_metas'],
+      routerAddress,
     );
-    return pda;
   }
 }
 
-export class SealevelGasRouterAdapter<
-    ContractAddrs extends RouterAddress = RouterAddress,
-  >
-  extends SealevelRouterAdapter<ContractAddrs>
-  implements IGasRouterAdapter<ContractAddrs>
+export class SealevelGasRouterAdapter
+  extends SealevelRouterAdapter
+  implements IGasRouterAdapter
 {
-  async quoteGasPayment(
-    _origin: ChainName,
-    _destination: ChainName,
-  ): Promise<string> {
+  async quoteGasPayment(_destination: ChainName): Promise<string> {
     throw new Error('Gas payments not yet supported for sealevel');
   }
 }

@@ -316,10 +316,7 @@ export const sepolia: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Sepolia',
   nativeToken: etherToken,
-  rpcUrls: [
-    { http: 'https://endpoints.omniatech.io/v1/eth/sepolia/public' },
-    { http: 'https://rpc.sepolia.org' },
-  ],
+  rpcUrls: [{ http: 'https://endpoints.omniatech.io/v1/eth/sepolia/public' }],
   blockExplorers: [
     {
       name: 'Etherscan',
@@ -668,9 +665,9 @@ export const solana: ChainMetadata = {
   rpcUrls: [{ http: 'https://api.mainnet-beta.solana.com' }],
   blockExplorers: [
     {
-      name: 'SolScan',
-      url: 'https://solscan.io',
-      apiUrl: 'https://public-api.solscan.io',
+      name: 'Solana Explorer',
+      url: 'https://explorer.solana.com',
+      apiUrl: 'https://explorer.solana.com',
       family: ExplorerFamily.Other,
     },
   ],
@@ -690,6 +687,14 @@ export const solanatestnet: ChainMetadata = {
   displayNameShort: 'Sol Testnet',
   nativeToken: solToken,
   rpcUrls: [{ http: 'https://api.testnet.solana.com' }],
+  blockExplorers: [
+    {
+      name: 'Solana Explorer',
+      url: 'https://explorer.solana.com',
+      apiUrl: 'https://explorer.solana.com',
+      family: ExplorerFamily.Other,
+    },
+  ],
   blocks: {
     confirmations: 1,
     reorgPeriod: 0,
@@ -707,6 +712,14 @@ export const solanadevnet: ChainMetadata = {
   displayNameShort: 'Sol Devnet',
   nativeToken: solToken,
   rpcUrls: [{ http: 'https://api.devnet.solana.com' }],
+  blockExplorers: [
+    {
+      name: 'Solana Explorer',
+      url: 'https://explorer.solana.com',
+      apiUrl: 'https://explorer.solana.com',
+      family: ExplorerFamily.Other,
+    },
+  ],
   blocks: {
     confirmations: 1,
     reorgPeriod: 0,
@@ -744,8 +757,9 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   test1,
   test2,
   test3,
-  solanadevnet,
   solana,
+  solanatestnet,
+  solanadevnet,
   nautilus,
 };
 
@@ -762,3 +776,9 @@ export const mainnetChainsMetadata: Array<ChainMetadata> = Mainnets.map(
 export const testnetChainsMetadata: Array<ChainMetadata> = Testnets.map(
   (chainName) => chainMetadata[chainName],
 );
+
+export const solanaChainToClusterName: ChainMap<string> = {
+  solana: 'mainnet-beta',
+  solanatestnet: 'testnet',
+  solanadevnet: 'devnet',
+};

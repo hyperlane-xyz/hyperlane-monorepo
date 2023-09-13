@@ -1,8 +1,11 @@
 import { Debugger, debug } from 'debug';
 
-import { exclude, isNumeric, pick } from '@hyperlane-xyz/utils';
+import { ProtocolType, exclude, isNumeric, pick } from '@hyperlane-xyz/utils';
 
-import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
+import {
+  chainMetadata as defaultChainMetadata,
+  solanaChainToClusterName,
+} from '../consts/chainMetadata';
 import { ChainMap, ChainName } from '../types';
 
 import {
@@ -210,9 +213,17 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get a block explorer URL for a given chain name, chain id, or domain id
    */
   tryGetExplorerUrl(chainNameOrId: ChainName | number): string | null {
-    const explorers = this.tryGetChainMetadata(chainNameOrId)?.blockExplorers;
-    if (!explorers?.length) return null;
-    return explorers[0].url;
+    const metadata = this.tryGetChainMetadata(chainNameOrId);
+    if (!metadata?.blockExplorers?.length) return null;
+    const url = new URL(metadata.blockExplorers[0].url);
+    // TODO move handling of these chain/protocol specific quirks to ChainMetadata
+    if (
+      metadata.protocol === ProtocolType.Sealevel &&
+      solanaChainToClusterName[metadata.name]
+    ) {
+      url.searchParams.set('cluster', solanaChainToClusterName[metadata.name]);
+    }
+    return url.toString();
   }
 
   /**
@@ -229,9 +240,11 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get a block explorer's API URL for a given chain name, chain id, or domain id
    */
   tryGetExplorerApiUrl(chainNameOrId: ChainName | number): string | null {
-    const explorers = this.tryGetChainMetadata(chainNameOrId)?.blockExplorers;
-    if (!explorers?.length || !explorers[0].apiUrl) return null;
-    const { apiUrl, apiKey } = explorers[0];
+    const metadata = this.tryGetChainMetadata(chainNameOrId);
+    const { protocol, blockExplorers } = metadata || {};
+    if (protocol !== ProtocolType.Ethereum) return null;
+    if (!blockExplorers?.length || !blockExplorers[0].apiUrl) return null;
+    const { apiUrl, apiKey } = blockExplorers[0];
     if (!apiKey) return apiUrl;
     const url = new URL(apiUrl);
     url.searchParams.set('apikey', apiKey);
@@ -256,7 +269,43 @@ export class ChainMetadataManager<MetaExt = {}> {
     response: { hash: string },
   ): string | null {
     const baseUrl = this.tryGetExplorerUrl(chainNameOrId);
-    return baseUrl ? `${baseUrl}/tx/${response.hash}` : null;
+    if (!baseUrl) return null;
+    const chainName = this.getChainName(chainNameOrId);
+    const urlPathStub = ['nautilus', 'proteustestnet'].includes(chainName)
+      ? 'transaction'
+      : 'tx';
+    const url = new URL(baseUrl);
+    url.pathname += `/${urlPathStub}/${response.hash}`;
+    return url.toString();
+  }
+
+  /**
+   * Get a block explorer URL for given chain's address
+   */
+  async tryGetExplorerAddressUrl(
+    chainNameOrId: ChainName | number,
+    address?: string,
+  ): Promise<string | null> {
+    if (!address) return null;
+    const baseUrl = this.tryGetExplorerUrl(chainNameOrId);
+    if (!baseUrl) return null;
+    const url = new URL(baseUrl);
+    url.pathname += `/address/${address}`;
+    return url.toString();
+  }
+
+  /**
+   * Get a block explorer URL for given chain's address
+   * @throws if address or the chain's block explorer data has no been set
+   */
+  async getExplorerAddressUrl(
+    chainNameOrId: ChainName | number,
+    address?: string,
+  ): Promise<string> {
+    const url = await this.tryGetExplorerAddressUrl(chainNameOrId, address);
+    if (!url)
+      throw new Error(`Missing data for address url for ${chainNameOrId}`);
+    return url;
   }
 
   /**
