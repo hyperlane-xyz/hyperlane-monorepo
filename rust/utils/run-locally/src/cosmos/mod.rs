@@ -14,6 +14,7 @@ mod crypto;
 mod deploy;
 mod link;
 mod rpc;
+mod source;
 mod types;
 mod utils;
 
@@ -22,13 +23,13 @@ use types::*;
 use utils::*;
 
 use crate::cosmos::link::link_networks;
-use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
 use crate::AGENT_BIN_PATH;
 use cli::{OsmosisCLI, OsmosisEndpoint};
 
 use self::deploy::deploy_cw_hyperlane;
+use self::source::{CLISource, CodeSource};
 
 // const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
 // const OSMOSIS_CLI_VERSION: &str = "19.0.0";
@@ -159,6 +160,7 @@ pub fn install_cosmos(
     cli_dir: Option<PathBuf>,
     cli_src: Option<CLISource>,
     codes_dir: Option<PathBuf>,
+    codes_src: Option<CodeSource>,
 ) -> (PathBuf, BTreeMap<String, PathBuf>) {
     let osmosisd = cli_src
         .unwrap_or(CLISource::Remote {
@@ -321,13 +323,17 @@ fn launch_cosmos_relayer(
 #[allow(dead_code)]
 fn run_locally() {
     let debug = false;
-    let cli_src = Some(CLISource::Local {
-        path: "/Users/eric/many-things/osmosis/osmosis/build/osmosisd".to_string(),
-    });
-    let wasm_path: PathBuf = "/Users/eric/many-things/mitosis/cw-hyperlane/artifacts".into();
+    let cli_src = Some(CLISource::local(
+        "/Users/frostornge/dev/osmosis/eric/build/osmosisd",
+    ));
     // let cli_src = None;
 
-    let (osmosisd, codes) = install_cosmos(None, cli_src, Some(wasm_path));
+    let code_src = Some(CodeSource::local(
+        "/Users/frostornge/dev/hyperlane/cw-hyperlane/artifacts",
+    ));
+    // let code_src = None;
+
+    let (osmosisd, codes) = install_cosmos(None, cli_src, None, code_src);
 
     let addr_base = "tcp://0.0.0.0";
     let default_config = CosmosConfig {
