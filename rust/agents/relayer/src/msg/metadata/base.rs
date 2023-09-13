@@ -93,7 +93,6 @@ impl MetadataBuilder for BaseMetadataBuilder {
             ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(base)),
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
-
         metadata_builder
             .build(ism_address, message)
             .await
