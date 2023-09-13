@@ -1,5 +1,7 @@
-use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::{fs::File, path::Path};
 
+use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
@@ -7,20 +9,18 @@ use solana_sdk::{
     system_program,
 };
 
-use std::collections::{HashMap, HashSet};
-use std::{fs::File, path::Path};
-
 use crate::{
-    cmd_utils::{create_and_write_keypair, deploy_program},
+    artifacts::{write_json, SingularProgramIdArtifact},
+    cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
     router::ChainMetadata,
-    Context,
+    Context, MultisigIsmMessageIdCmd, MultisigIsmMessageIdSubCmd,
 };
 use account_utils::DiscriminatorEncode;
 use hyperlane_core::H160;
 
 use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds,
-    accounts::DomainDataAccount,
+    accounts::{AccessControlAccount, DomainDataAccount},
     domain_data_pda_seeds,
     instruction::{
         Domained, Instruction as MultisigIsmMessageIdInstruction, ValidatorsAndThreshold,
@@ -41,6 +41,115 @@ impl From<MultisigIsmConfig> for ValidatorsAndThreshold {
         ValidatorsAndThreshold {
             validators: val.validators,
             threshold: val.threshold,
+        }
+    }
+}
+
+pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessageIdCmd) {
+    match cmd.cmd {
+        MultisigIsmMessageIdSubCmd::Deploy(deploy) => {
+            let environments_dir =
+                create_new_directory(&deploy.environments_dir, &deploy.environment);
+            let ism_dir = create_new_directory(&environments_dir, "multisig-ism-message-id");
+            let chain_dir = create_new_directory(&ism_dir, &deploy.chain);
+            let context_dir = create_new_directory(&chain_dir, &deploy.context);
+            let key_dir = create_new_directory(&context_dir, "keys");
+
+            let ism_program_id =
+                deploy_multisig_ism_message_id(&mut ctx, &deploy.built_so_dir, true, &key_dir);
+
+            write_json::<SingularProgramIdArtifact>(
+                &context_dir.join("program-ids.json"),
+                ism_program_id.into(),
+            );
+        }
+        MultisigIsmMessageIdSubCmd::Init(init) => {
+            let init_instruction =
+                hyperlane_sealevel_multisig_ism_message_id::instruction::init_instruction(
+                    init.program_id,
+                    ctx.payer_pubkey,
+                )
+                .unwrap();
+            ctx.new_txn().add(init_instruction).send_with_payer();
+        }
+        MultisigIsmMessageIdSubCmd::SetValidatorsAndThreshold(set_config) => {
+            set_validators_and_threshold(
+                &mut ctx,
+                set_config.program_id,
+                set_config.domain,
+                ValidatorsAndThreshold {
+                    validators: set_config.validators,
+                    threshold: set_config.threshold,
+                },
+            );
+        }
+        MultisigIsmMessageIdSubCmd::Query(query) => {
+            let (access_control_pda_key, _access_control_pda_bump) =
+                Pubkey::find_program_address(access_control_pda_seeds!(), &query.program_id);
+
+            let accounts = ctx
+                .client
+                .get_multiple_accounts_with_commitment(&[access_control_pda_key], ctx.commitment)
+                .unwrap()
+                .value;
+            let access_control =
+                AccessControlAccount::fetch(&mut &accounts[0].as_ref().unwrap().data[..])
+                    .unwrap()
+                    .into_inner();
+            println!("Access control: {:#?}", access_control);
+
+            if let Some(domains) = query.domains {
+                for domain in domains {
+                    println!("Querying domain data for origin domain: {}", domain);
+
+                    let (domain_data_pda_key, _domain_data_pda_bump) = Pubkey::find_program_address(
+                        domain_data_pda_seeds!(domain),
+                        &query.program_id,
+                    );
+
+                    let accounts = ctx
+                        .client
+                        .get_multiple_accounts_with_commitment(
+                            &[domain_data_pda_key],
+                            ctx.commitment,
+                        )
+                        .unwrap()
+                        .value;
+
+                    if let Some(account) = &accounts[0] {
+                        let domain_data = DomainDataAccount::fetch(&mut &account.data[..])
+                            .unwrap()
+                            .into_inner();
+                        println!("Domain data: {:#?}", domain_data);
+                    } else {
+                        println!("Domain data not yet created");
+                    }
+                }
+            }
+        }
+        MultisigIsmMessageIdSubCmd::TransferOwnership(transfer_ownership) => {
+            let instruction =
+                hyperlane_sealevel_multisig_ism_message_id::instruction::transfer_ownership_instruction(
+                    transfer_ownership.program_id,
+                    ctx.payer_pubkey,
+                    Some(transfer_ownership.new_owner),
+                )
+                .unwrap();
+
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!("Transfer ownership to {}", transfer_ownership.new_owner),
+                )
+                .send_with_payer();
+        }
+        MultisigIsmMessageIdSubCmd::Configure(configure) => {
+            configure_multisig_ism_message_id(
+                &mut ctx,
+                configure.program_id,
+                &configure.multisig_config_file,
+                &configure.chain_config_file,
+            );
         }
     }
 }
