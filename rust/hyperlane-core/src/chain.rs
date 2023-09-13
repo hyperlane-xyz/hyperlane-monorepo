@@ -99,6 +99,12 @@ pub enum KnownHyperlaneDomain {
     LineaGoerli = 59140,
     BaseGoerli = 84531,
     ScrollSepolia = 534351,
+    
+    /// Cosmos local chains
+    #[cfg_attr(feature = "strum", strum(serialize = "cosmos-test-26657"))]
+    CosmosTest26657 = 26657,
+    #[cfg_attr(feature = "strum", strum(serialize = "cosmos-test-26658"))]
+    CosmosTest26658 = 26658,
 }
 
 #[derive(Clone)]
@@ -196,7 +202,7 @@ impl KnownHyperlaneDomain {
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
                 Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia, Chiado
             ],
-            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2],
+            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest26657, CosmosTest26658],
         })
     }
 
@@ -211,6 +217,7 @@ impl KnownHyperlaneDomain {
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
+            HyperlaneDomainProtocol::Cosmos: [CosmosTest26657, CosmosTest26658],
         })
     }
 }

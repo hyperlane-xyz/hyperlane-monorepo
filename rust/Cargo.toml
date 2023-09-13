@@ -174,6 +174,7 @@ hyper-tls = "0.5.0"
 hex = "0.4.3"
 tendermint-rpc = { version = "0.32.0", features = ["http-client", "tokio"]}
 hpl-interface = "0.0.1"
+elliptic-curve = "0.12.3"
 
 [workspace.dependencies.ethers]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
