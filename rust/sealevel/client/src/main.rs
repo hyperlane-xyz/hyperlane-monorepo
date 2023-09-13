@@ -297,6 +297,7 @@ enum TokenSubCmd {
     TransferRemote(TokenTransferRemote),
     EnrollRemoteRouter(TokenEnrollRemoteRouter),
     TransferOwnership(TransferOwnership),
+    SetIgp(SetIgp),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -343,6 +344,23 @@ struct TransferOwnership {
     // To avoid accidentally transferring ownership to None,
     // only support transferring to other Pubkeys for now.
     new_owner: Pubkey,
+}
+
+#[derive(Args)]
+struct SetIgp {
+    #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
+    program_id: Pubkey,
+    owner: Pubkey,
+    igp_program: Pubkey,
+    #[arg(value_enum)]
+    igp_type: IgpType,
+    igp_account: Pubkey,
+}
+
+#[derive(ValueEnum, Clone)]
+enum IgpType {
+    Igp,
+    OverheadIgp,
 }
 
 #[derive(Args)]
@@ -1107,6 +1125,21 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
                     format!("Transfer ownership to {}", transfer.new_owner),
                 )
                 .send_with_payer();
+        }
+        TokenSubCmd::SetIgp(args) => {
+            let igp_type: InterchainGasPaymasterType = match args.igp_type {
+                IgpType::Igp => InterchainGasPaymasterType::Igp(args.igp_account),
+                IgpType::OverheadIgp => InterchainGasPaymasterType::OverheadIgp(args.igp_account),
+            };
+            let instruction = hyperlane_sealevel_token_lib::instruction::set_igp_instruction(
+                args.program_id,
+                ctx.payer_pubkey,
+                args.igp_program,
+                igp_type,
+            )
+            .unwrap();
+
+            ctx.new_txn().add(instruction).send_with_payer();
         }
     }
 }
