@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use hyperlane_core::H256;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_hello_world::{
-    accounts::HelloWorldStorageAccount,
+    accounts::{HelloWorldStorage, HelloWorldStorageAccount},
     instruction::{
         enroll_remote_routers_instruction, init_instruction,
         set_interchain_security_module_instruction,
@@ -53,6 +53,18 @@ impl HelloWorldDeployer {
     }
 }
 
+impl HelloWorldDeployer {
+    fn get_storage(&self, client: &RpcClient, program_id: &Pubkey) -> HelloWorldStorage {
+        let (program_storage_account, _program_storage_bump) =
+            Pubkey::find_program_address(program_storage_pda_seeds!(), program_id);
+
+        let account = client.get_account(&program_storage_account).unwrap();
+        *HelloWorldStorageAccount::fetch(&mut &account.data[..])
+            .unwrap()
+            .into_inner()
+    }
+}
+
 impl Deployable<HelloWorldConfig> for HelloWorldDeployer {
     fn program_name(&self, _config: &HelloWorldConfig) -> &str {
         "hyperlane_sealevel_hello_world"
@@ -68,13 +80,7 @@ impl Deployable<HelloWorldConfig> for HelloWorldDeployer {
     }
 
     fn get_routers(&self, client: &RpcClient, program_id: &Pubkey) -> HashMap<u32, H256> {
-        let (program_storage_account, _program_storage_bump) =
-            Pubkey::find_program_address(program_storage_pda_seeds!(), program_id);
-
-        let account = client.get_account(&program_storage_account).unwrap();
-        let storage = HelloWorldStorageAccount::fetch(&mut &account.data[..])
-            .unwrap()
-            .into_inner();
+        let storage = self.get_storage(client, program_id);
 
         storage.routers
     }
@@ -94,8 +100,6 @@ impl Deployable<HelloWorldConfig> for HelloWorldDeployer {
             println!("HelloWorld storage already exists, skipping init");
             return;
         }
-
-        println!("about to init...");
 
         let domain_id = chain_config.domain_id();
         let mailbox = app_config
@@ -144,13 +148,7 @@ impl ConnectionClient for HelloWorldDeployer {
         client: &RpcClient,
         program_id: &Pubkey,
     ) -> Option<Pubkey> {
-        let (program_storage_account, _program_storage_bump) =
-            Pubkey::find_program_address(program_storage_pda_seeds!(), program_id);
-
-        let account = client.get_account(&program_storage_account).unwrap();
-        let storage = HelloWorldStorageAccount::fetch(&mut &account.data[..])
-            .unwrap()
-            .into_inner();
+        let storage = self.get_storage(client, program_id);
 
         storage.ism
     }
@@ -161,12 +159,7 @@ impl ConnectionClient for HelloWorldDeployer {
         program_id: &Pubkey,
         ism: Option<Pubkey>,
     ) -> Instruction {
-        let program_storage_key =
-            Pubkey::find_program_address(program_storage_pda_seeds!(), program_id);
-        let account = client.get_account(&program_storage_key.0).unwrap();
-        let storage = HelloWorldStorageAccount::fetch(&mut &account.data[..])
-            .unwrap()
-            .into_inner();
+        let storage = self.get_storage(client, program_id);
 
         set_interchain_security_module_instruction(*program_id, storage.owner.unwrap(), ism)
             .unwrap()
