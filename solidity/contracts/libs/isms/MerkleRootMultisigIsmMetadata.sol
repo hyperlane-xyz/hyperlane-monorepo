@@ -12,7 +12,7 @@ pragma solidity >=0.8.0;
  */
 library MerkleRootMultisigIsmMetadata {
     uint8 private constant ORIGIN_MERKLE_TREE_OFFSET = 0;
-    uint8 private constant MERKLE_INDEX_OFFSET = 32;
+    uint8 private constant MESSAGE_INDEX_OFFSET = 32;
     uint8 private constant MESSAGE_ID_OFFSET = 36;
     uint8 private constant MERKLE_PROOF_OFFSET = 68;
     uint16 private constant MERKLE_PROOF_LENGTH = 32 * 32;
@@ -37,10 +37,14 @@ library MerkleRootMultisigIsmMetadata {
             );
     }
 
-    function index(bytes calldata _metadata) internal pure returns (uint32) {
+    function messageIndex(bytes calldata _metadata)
+        internal
+        pure
+        returns (uint32)
+    {
         return
             uint32(
-                bytes4(_metadata[MERKLE_INDEX_OFFSET:MERKLE_INDEX_OFFSET + 4])
+                bytes4(_metadata[MESSAGE_INDEX_OFFSET:MESSAGE_INDEX_OFFSET + 4])
             );
     }
 

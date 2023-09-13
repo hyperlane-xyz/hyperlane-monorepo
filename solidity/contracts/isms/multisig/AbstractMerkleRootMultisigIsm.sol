@@ -23,6 +23,9 @@ import {CheckpointLib} from "../../libs/CheckpointLib.sol";
  * @dev May be adapted in future to support batch message verification against a single root.
  */
 abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
+    using MerkleRootMultisigIsmMetadata for bytes;
+    using Message for bytes;
+
     // ============ Constants ============
 
     // solhint-disable-next-line const-name-snakecase
@@ -40,18 +43,18 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
     {
         // We verify a merkle proof of (messageId, index) I to compute root J
         bytes32 signedRoot = MerkleLib.branchRoot(
-            Message.id(_message),
-            MerkleRootMultisigIsmMetadata.proof(_metadata),
-            MerkleRootMultisigIsmMetadata.index(_metadata)
+            _message.id(),
+            _metadata.proof(),
+            _metadata.messageIndex()
         );
         // We provide (messageId, index) J in metadata for digest derivation
         return
             CheckpointLib.digest(
-                Message.origin(_message),
-                MerkleRootMultisigIsmMetadata.originMerkleTree(_metadata),
+                _message.origin(),
+                _metadata.originMerkleTree(),
                 signedRoot,
-                MerkleRootMultisigIsmMetadata.signedIndex(_metadata),
-                MerkleRootMultisigIsmMetadata.signedMessageId(_metadata)
+                _metadata.signedIndex(),
+                _metadata.signedMessageId()
             );
     }
 
@@ -63,8 +66,8 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
         pure
         virtual
         override
-        returns (bytes memory signature)
+        returns (bytes calldata)
     {
-        return MerkleRootMultisigIsmMetadata.signatureAt(_metadata, _index);
+        return _metadata.signatureAt(_index);
     }
 }
