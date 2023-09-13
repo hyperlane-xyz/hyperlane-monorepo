@@ -6,7 +6,6 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-no-entrypoint = []
 test-data = ["dep:hex"]
 
 [dependencies]
@@ -24,3 +23,6 @@ hex.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true

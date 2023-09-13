@@ -19,6 +19,7 @@ import {MOfNTestUtils} from "./IsmTestUtils.sol";
 /// @notice since we removed merkle tree from the mailbox, we need to include the MerkleTreeHook in the test
 abstract contract AbstractMultisigIsmTest is Test {
     using Message for bytes;
+    using TypeCasts for address;
 
     uint32 constant ORIGIN = 11;
     StaticMOfNAddressSetFactory factory;
@@ -42,16 +43,13 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint32 domain = mailbox.localDomain();
         uint256[] memory keys = addValidators(m, n, seed);
         uint256[] memory signers = MOfNTestUtils.choose(m, keys, seed);
-        bytes32 mailboxAsBytes32 = TypeCasts.addressToBytes32(address(mailbox));
-        // bytes
-        bytes32 checkpointRoot = merkleTreeHook.root();
-        uint32 checkpointIndex = uint32(merkleTreeHook.count() - 1);
+        (bytes32 root, uint32 index) = merkleTreeHook.latestCheckpoint();
         bytes32 messageId = message.id();
         bytes32 digest = CheckpointLib.digest(
             domain,
-            mailboxAsBytes32,
-            checkpointRoot,
-            checkpointIndex,
+            address(merkleTreeHook).addressToBytes32(),
+            root,
+            index,
             messageId
         );
         bytes memory metadata = metadataPrefix(message);
@@ -83,15 +81,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         bytes32 recipient,
         bytes calldata body
     ) internal returns (bytes memory) {
-        uint8 version = mailbox.VERSION();
-        uint32 origin = mailbox.localDomain();
-        bytes32 sender = TypeCasts.addressToBytes32(address(this));
-        uint32 nonce = merkleTreeHook.count();
-        bytes memory message = Message.formatMessage(
-            version,
-            nonce,
-            origin,
-            sender,
+        bytes memory message = mailbox.buildOutboundMessage(
             destination,
             recipient,
             body
@@ -134,6 +124,7 @@ abstract contract AbstractMultisigIsmTest is Test {
 }
 
 contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
+    using TypeCasts for address;
     using Message for bytes;
 
     function setUp() public {
@@ -145,6 +136,7 @@ contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
         mailbox.setRequiredHook(address(noopHook));
     }
 
+    // TODO: test merkleIndex != signedIndex
     function metadataPrefix(bytes memory message)
         internal
         view
@@ -152,19 +144,19 @@ contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
         returns (bytes memory)
     {
         uint32 checkpointIndex = uint32(merkleTreeHook.count() - 1);
-        bytes32 mailboxAsBytes32 = TypeCasts.addressToBytes32(address(mailbox));
         return
             abi.encodePacked(
-                mailboxAsBytes32,
+                address(merkleTreeHook).addressToBytes32(),
                 checkpointIndex,
                 message.id(),
-                merkleTreeHook.proof()
+                merkleTreeHook.proof(),
+                checkpointIndex
             );
     }
 }
 
 contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
-    using Message for bytes;
+    using TypeCasts for address;
 
     function setUp() public {
         mailbox = new TestMailbox(ORIGIN);
@@ -182,7 +174,12 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
         override
         returns (bytes memory)
     {
-        bytes32 mailboxAsBytes32 = TypeCasts.addressToBytes32(address(mailbox));
-        return abi.encodePacked(mailboxAsBytes32, merkleTreeHook.root());
+        (bytes32 root, uint32 index) = merkleTreeHook.latestCheckpoint();
+        return
+            abi.encodePacked(
+                address(merkleTreeHook).addressToBytes32(),
+                root,
+                index
+            );
     }
 }

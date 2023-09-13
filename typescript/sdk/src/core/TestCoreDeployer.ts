@@ -5,7 +5,7 @@ import {
 } from '@hyperlane-xyz/core';
 
 import { TestChains } from '../consts/chains';
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { testCoreConfig } from '../test/testUtils';

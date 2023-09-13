@@ -5,19 +5,6 @@ use sha3::{digest::Update, Digest, Keccak256};
 
 use crate::{KnownHyperlaneDomain, H160, H256};
 
-/// Strips the '0x' prefix off of hex string so it can be deserialized.
-///
-/// # Arguments
-///
-/// * `s` - The hex str
-pub fn strip_0x_prefix(s: &str) -> &str {
-    if s.len() < 2 || &s[..2] != "0x" {
-        s
-    } else {
-        &s[2..]
-    }
-}
-
 /// Converts a hex or base58 string to an H256.
 pub fn hex_or_base58_to_h256(string: &str) -> Result<H256> {
     let h256 = if string.starts_with("0x") {
@@ -115,6 +102,98 @@ pub fn fmt_sync_time(dur: Duration) -> String {
         "synced".into()
     } else {
         fmt_duration(dur)
+    }
+}
+
+/// Use as `#[serde(with = serde_u128)]` to serialize/deserialize u128s as strings but not break
+/// support for numbers.
+pub mod serde_u128 {
+    use serde::{de, de::Visitor, Deserializer, Serializer};
+
+    struct U128Visitor;
+
+    impl Visitor<'_> for U128Visitor {
+        type Value = u128;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a string or number representing a u128")
+        }
+
+        fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+            v.parse::<u128>()
+                .map_err(|_| E::custom("failed to parse u128"))
+        }
+
+        fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
+            Ok(v as u128)
+        }
+
+        fn visit_u128<E: de::Error>(self, v: u128) -> Result<Self::Value, E> {
+            Ok(v)
+        }
+    }
+
+    /// Serialize a u128 as a string.
+    pub fn serialize<S: Serializer>(v: &u128, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&v.to_string())
+    }
+
+    /// Deserialize a u128 that might be a string or a number.
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<u128, D::Error> {
+        d.deserialize_any(U128Visitor)
+    }
+
+    #[cfg(test)]
+    mod test {
+        #[derive(Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+        struct Test {
+            #[serde(with = "super")]
+            v: u128,
+        }
+
+        #[test]
+        fn test_serialize() {
+            assert_eq!(
+                serde_json::to_string(&Test { v: 0 }).unwrap(),
+                r#"{"v":"0"}"#
+            );
+            assert_eq!(
+                serde_json::to_string(&Test { v: 42 }).unwrap(),
+                r#"{"v":"42"}"#
+            );
+            assert_eq!(
+                serde_json::to_string(&Test { v: u128::MAX }).unwrap(),
+                format!(r#"{{"v":"{}"}}"#, u128::MAX)
+            );
+        }
+
+        #[test]
+        fn test_deserialize_str() {
+            assert_eq!(
+                serde_json::from_str::<Test>(r#"{"v":"0"}"#).unwrap(),
+                Test { v: 0 }
+            );
+            assert_eq!(
+                serde_json::from_str::<Test>(r#"{"v":"42"}"#).unwrap(),
+                Test { v: 42 }
+            );
+            assert_eq!(
+                serde_json::from_str::<Test>(&format!(r#"{{"v":"{}"}}"#, u128::MAX)).unwrap(),
+                Test { v: u128::MAX }
+            )
+        }
+
+        #[test]
+        fn test_deserialize_int() {
+            assert_eq!(
+                serde_json::from_str::<Test>(r#"{"v":0}"#).unwrap(),
+                Test { v: 0 }
+            );
+            assert_eq!(
+                serde_json::from_str::<Test>(r#"{"v":42}"#).unwrap(),
+                Test { v: 42 }
+            );
+        }
     }
 }
 

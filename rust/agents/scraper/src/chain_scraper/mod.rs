@@ -1,25 +1,22 @@
 //! This module (and children) are responsible for scraping blockchain data and
 //! keeping things updated.
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::Result;
-use itertools::Itertools;
-use tracing::trace;
-
-use hyperlane_base::chains::IndexSettings;
+use hyperlane_base::settings::IndexSettings;
 use hyperlane_core::{
     BlockInfo, Delivery, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneMessageStore, HyperlaneProvider, HyperlaneWatermarkedLogStore, InterchainGasPayment,
     LogMeta, H256,
 };
+use itertools::Itertools;
+use tracing::trace;
 
-use crate::db::StorablePayment;
-use crate::{
-    date_time,
-    db::{BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorableTxn},
+use crate::db::{
+    BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorablePayment,
+    StorableTxn,
 };
 
 /// Maximum number of records to query at a time. This came about because when a
@@ -80,7 +77,14 @@ impl HyperlaneSqlDb {
         log_meta: impl Iterator<Item = &LogMeta>,
     ) -> Result<impl Iterator<Item = TxnWithId>> {
         let block_hash_by_txn_hash: HashMap<H256, H256> = log_meta
-            .map(|meta| (meta.transaction_hash, meta.block_hash))
+            .map(|meta| {
+                (
+                    meta.transaction_id
+                        .try_into()
+                        .expect("256-bit transaction ids are the maximum supported at this time"),
+                    meta.block_hash,
+                )
+            })
             .collect();
 
         // all blocks we care about
@@ -143,20 +147,23 @@ impl HyperlaneSqlDb {
         let mut txns_to_fetch = txns.iter_mut().filter(|(_, id)| id.0.is_none());
 
         let mut txns_to_insert: Vec<StorableTxn> = Vec::with_capacity(CHUNK_SIZE);
+        let mut hashes_to_insert: Vec<&H256> = Vec::with_capacity(CHUNK_SIZE);
+
         for mut chunk in as_chunks::<(&H256, &mut (Option<i64>, i64))>(txns_to_fetch, CHUNK_SIZE) {
             for (hash, (_, block_id)) in chunk.iter() {
                 let info = self.provider.get_txn_by_hash(hash).await?;
+                hashes_to_insert.push(*hash);
                 txns_to_insert.push(StorableTxn {
                     info,
                     block_id: *block_id,
                 });
             }
 
-            let mut cur_id = self.db.store_txns(txns_to_insert.drain(..)).await?;
-            for (_hash, (txn_id, _block_id)) in chunk.iter_mut() {
-                debug_assert!(cur_id > 0);
-                let _ = txn_id.insert(cur_id);
-                cur_id += 1;
+            self.db.store_txns(txns_to_insert.drain(..)).await?;
+            let ids = self.db.get_txn_ids(hashes_to_insert.drain(..)).await?;
+
+            for (hash, (txn_id, _block_id)) in chunk.iter_mut() {
+                let _ = txn_id.insert(ids[hash]);
             }
         }
 
@@ -209,6 +216,7 @@ impl HyperlaneSqlDb {
 
         let mut blocks_to_insert: Vec<(&mut BasicBlock, Option<BlockInfo>)> =
             Vec::with_capacity(CHUNK_SIZE);
+        let mut hashes_to_insert: Vec<&H256> = Vec::with_capacity(CHUNK_SIZE);
         for chunk in as_chunks(blocks_to_fetch, CHUNK_SIZE) {
             debug_assert!(!chunk.is_empty());
             for (hash, block_info) in chunk {
@@ -216,13 +224,12 @@ impl HyperlaneSqlDb {
                 let basic_info_ref = block_info.insert(BasicBlock {
                     id: -1,
                     hash: *hash,
-                    timestamp: date_time::from_unix_timestamp_s(info.timestamp),
                 });
                 blocks_to_insert.push((basic_info_ref, Some(info)));
+                hashes_to_insert.push(hash);
             }
 
-            let mut cur_id = self
-                .db
+            self.db
                 .store_blocks(
                     self.domain().id(),
                     blocks_to_insert
@@ -231,9 +238,16 @@ impl HyperlaneSqlDb {
                 )
                 .await?;
 
+            let hashes = self
+                .db
+                .get_block_basic(hashes_to_insert.drain(..))
+                .await?
+                .into_iter()
+                .map(|b| (b.hash, b.id))
+                .collect::<HashMap<_, _>>();
+
             for (block_ref, _) in blocks_to_insert.drain(..) {
-                block_ref.id = cur_id;
-                cur_id += 1;
+                block_ref.id = hashes[&block_ref.hash];
             }
         }
 
@@ -265,7 +279,13 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneSqlDb {
             .map(|t| (t.hash, t))
             .collect();
         let storable = messages.iter().map(|m| {
-            let txn = txns.get(&m.1.transaction_hash).unwrap();
+            let txn = txns
+                .get(
+                    &m.1.transaction_id
+                        .try_into()
+                        .expect("256-bit transaction ids are the maximum supported at this time"),
+                )
+                .unwrap();
             StorableMessage {
                 msg: m.0.clone(),
                 meta: &m.1,
@@ -292,7 +312,15 @@ impl HyperlaneLogStore<Delivery> for HyperlaneSqlDb {
             .map(|t| (t.hash, t))
             .collect();
         let storable = deliveries.iter().map(|(message_id, meta)| {
-            let txn_id = txns.get(&meta.transaction_hash).unwrap().id;
+            let txn_id = txns
+                .get(
+                    &meta
+                        .transaction_id
+                        .try_into()
+                        .expect("256-bit transaction ids are the maximum supported at this time"),
+                )
+                .unwrap()
+                .id;
             StorableDelivery {
                 message_id: *message_id,
                 meta,
@@ -320,7 +348,15 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
             .map(|t| (t.hash, t))
             .collect();
         let storable = payments.iter().map(|(payment, meta)| {
-            let txn_id = txns.get(&meta.transaction_hash).unwrap().id;
+            let txn_id = txns
+                .get(
+                    &meta
+                        .transaction_id
+                        .try_into()
+                        .expect("256-bit transaction ids are the maximum supported at this time"),
+                )
+                .unwrap()
+                .id;
             StorablePayment {
                 payment,
                 meta,

@@ -1,24 +1,45 @@
-import { BigNumber, ethers } from 'ethers';
+import { Keypair, sendAndConfirmRawTransaction } from '@solana/web3.js';
+import { BigNumber, Wallet, ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
-import { HelloWorldApp } from '@hyperlane-xyz/helloworld';
+import { HelloMultiProtocolApp } from '@hyperlane-xyz/helloworld';
 import {
   AgentConnectionType,
+  ChainMap,
   ChainName,
-  DispatchedMessage,
-  HyperlaneCore,
   HyperlaneIgp,
+  MultiProtocolCore,
+  MultiProvider,
+  ProviderType,
+  TypedTransactionReceipt,
+  chainMetadata,
 } from '@hyperlane-xyz/sdk';
-import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  debug,
+  ensure0x,
+  error,
+  log,
+  retryAsync,
+  timeout,
+  warn,
+} from '@hyperlane-xyz/utils';
 
-import { deployEnvToSdkEnv } from '../../src/config/environment';
+import { Contexts } from '../../config/contexts';
+import {
+  hyperlaneHelloworld,
+  releaseCandidateHelloworld,
+} from '../../config/environments/testnet3/helloworld';
+import { CloudAgentKey } from '../../src/agents/keys';
+import { DeployEnvironment } from '../../src/config/environment';
 import { Role } from '../../src/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { getArgs, getEnvironmentConfig, withContext } from '../utils';
+import { getAddressesForKey, getArgs, withContext } from '../utils';
 
-import { getApp } from './utils';
+import { getHelloWorldMultiProtocolApp } from './utils';
 
 const metricsRegister = new Registry();
 // TODO rename counter names
@@ -139,18 +160,19 @@ async function main(): Promise<boolean> {
   startMetricsServer(metricsRegister);
   debug('Starting up', { environment });
 
-  const coreConfig = getEnvironmentConfig(environment);
-  const app = await getApp(
-    coreConfig,
-    context,
-    Role.Kathy,
-    undefined,
-    connectionType,
-  );
-  const igp = HyperlaneIgp.fromEnvironment(
-    deployEnvToSdkEnv[coreConfig.environment],
-    app.multiProvider,
-  );
+  // TODO (Rossy) remove getCoreConfigStub and re-enable getEnvironmentConfig
+  // const coreConfig = getEnvironmentConfig(environment);
+  const coreConfig = getCoreConfigStub(environment);
+
+  const { app, core, igp, multiProvider, keys } =
+    await getHelloWorldMultiProtocolApp(
+      coreConfig,
+      context,
+      Role.Kathy,
+      undefined,
+      connectionType,
+    );
+
   const appChains = app.chains();
 
   // Ensure the specified chains to skip are actually valid for the app.
@@ -221,7 +243,9 @@ async function main(): Promise<boolean> {
     messageReceiptSeconds.labels({ origin, remote }).inc(0);
   }
 
-  chains.map((chain) => updateWalletBalanceMetricFor(app, chain));
+  chains.map((chain) =>
+    updateWalletBalanceMetricFor(app, chain, coreConfig.owners[chain]),
+  );
 
   // Incremented each time an entire cycle has occurred
   let currentCycle = 0;
@@ -320,6 +344,9 @@ async function main(): Promise<boolean> {
     try {
       await sendMessage(
         app,
+        core,
+        keys,
+        multiProvider,
         igp,
         origin,
         destination,
@@ -336,12 +363,14 @@ async function main(): Promise<boolean> {
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
       errorOccurred = true;
     }
-    updateWalletBalanceMetricFor(app, origin).catch((e) => {
-      warn('Failed to update wallet balance for chain', {
-        chain: origin,
-        err: format(e),
-      });
-    });
+    updateWalletBalanceMetricFor(app, origin, coreConfig.owners[origin]).catch(
+      (e) => {
+        warn('Failed to update wallet balance for chain', {
+          chain: origin,
+          err: format(e),
+        });
+      },
+    );
 
     // Break if we should stop sending messages
     if (await nextMessage()) {
@@ -352,7 +381,10 @@ async function main(): Promise<boolean> {
 }
 
 async function sendMessage(
-  app: HelloWorldApp,
+  app: HelloMultiProtocolApp,
+  core: MultiProtocolCore,
+  keys: ChainMap<CloudAgentKey>,
+  multiProvider: MultiProvider,
   igp: HyperlaneIgp,
   origin: ChainName,
   destination: ChainName,
@@ -363,27 +395,86 @@ async function sendMessage(
   const msg = 'Hello!';
   const expectedHandleGas = BigNumber.from(50_000);
 
-  const value = await utils.retryAsync(
-    () =>
-      igp.quoteGasPaymentForDefaultIsmIgp(
-        origin,
-        destination,
-        expectedHandleGas,
-      ),
-    2,
-  );
+  // TODO sealevel igp support here
+  let value: string;
+  if (app.metadata(origin).protocol == ProtocolType.Ethereum) {
+    const valueBn = await retryAsync(
+      () =>
+        igp.quoteGasPaymentForDefaultIsmIgp(
+          origin,
+          destination,
+          expectedHandleGas,
+        ),
+      2,
+    );
+    value = valueBn.toString();
+  } else {
+    value = '0';
+  }
+
   const metricLabels = { origin, remote: destination };
 
   log('Sending message', {
     origin,
     destination,
-    interchainGasPayment: value.toString(),
+    interchainGasPayment: value,
   });
 
-  const receipt = await utils.retryAsync(
+  const sendAndConfirmMsg = async () => {
+    const sender = getAddressesForKey(keys, origin, multiProvider);
+    const tx = await app.populateHelloWorldTx(
+      origin,
+      destination,
+      msg,
+      value,
+      sender,
+    );
+
+    let txReceipt: TypedTransactionReceipt;
+    if (tx.type == ProviderType.EthersV5) {
+      // Utilize the legacy evm-specific multiprovider utils to send the transaction
+      const receipt = await multiProvider.sendTransaction(
+        origin,
+        tx.transaction,
+      );
+      txReceipt = {
+        type: ProviderType.EthersV5,
+        receipt,
+      };
+    } else if (tx.type === ProviderType.SolanaWeb3) {
+      // Utilize the new multi-protocol provider for non-evm chains
+      // This could be done for EVM too but the legacy MP has tx formatting utils
+      // that have not yet been ported over
+      const connection = app.multiProvider.getSolanaWeb3Provider(origin);
+      const payer = Keypair.fromSeed(
+        Buffer.from(keys[origin].privateKey, 'hex'),
+      );
+      tx.transaction.partialSign(payer);
+      // Note, tx signature essentially tx means hash on sealevel
+      const txSignature = await sendAndConfirmRawTransaction(
+        connection,
+        tx.transaction.serialize(),
+      );
+      const receipt = await connection.getTransaction(txSignature, {
+        commitment: 'confirmed',
+        maxSupportedTransactionVersion: 0,
+      });
+      if (!receipt)
+        throw new Error(`Sealevel tx not found with signature ${txSignature}`);
+      txReceipt = {
+        type: ProviderType.SolanaWeb3,
+        receipt,
+      };
+    } else {
+      throw new Error(`Unsupported provider type for kathy send ${tx.type}`);
+    }
+    return txReceipt;
+  };
+
+  const receipt = await retryAsync(
     () =>
-      utils.timeout(
-        app.sendHelloWorld(origin, destination, msg, value),
+      timeout(
+        sendAndConfirmMsg(),
         messageSendTimeout,
         'Timeout sending message',
       ),
@@ -391,43 +482,17 @@ async function sendMessage(
   );
   messageSendSeconds.labels(metricLabels).inc((Date.now() - startTime) / 1000);
 
-  const [message] = app.core.getDispatchedMessages(receipt);
-  log('Message sent', {
+  log('Message sent, waiting for it to be processed', {
     origin,
     destination,
-    events: receipt.events,
-    logs: receipt.logs,
-    message,
+    receipt,
   });
 
-  try {
-    await utils.timeout(
-      app.waitForMessageProcessed(receipt),
-      messageReceiptTimeout,
-      'Timeout waiting for message to be received',
-    );
-  } catch (error) {
-    // If we weren't able to get the receipt for message processing,
-    // try to read the state to ensure it wasn't a transient provider issue
-    log('Checking if message was received despite timeout', {
-      message,
-    });
-
-    // Try a few times to see if the message has been processed --
-    // we've seen some intermittent issues when fetching state.
-    // This will throw if the message is found to have not been processed.
-    await utils.retryAsync(async () => {
-      if (!(await messageIsProcessed(app.core, origin, destination, message))) {
-        throw error;
-      }
-    }, 3);
-
-    // Otherwise, the message has been processed
-    log(
-      'Did not receive event for message delivery even though it was delivered',
-      { origin, destination, message },
-    );
-  }
+  await timeout(
+    core.waitForMessagesProcessed(origin, destination, receipt, 5000, 36),
+    messageReceiptTimeout,
+    'Timeout waiting for message to be received',
+  );
 
   messageReceiptSeconds
     .labels(metricLabels)
@@ -438,24 +503,13 @@ async function sendMessage(
   });
 }
 
-async function messageIsProcessed(
-  core: HyperlaneCore,
-  origin: ChainName,
-  destination: ChainName,
-  message: DispatchedMessage,
-): Promise<boolean> {
-  const destinationMailbox = core.getContracts(destination).mailbox;
-  return destinationMailbox.delivered(message.id);
-}
-
 async function updateWalletBalanceMetricFor(
-  app: HelloWorldApp,
+  app: HelloMultiProtocolApp,
   chain: ChainName,
+  signerAddress: Address,
 ): Promise<void> {
-  const provider = app.multiProvider.getProvider(chain);
-  const signerAddress = await app
-    .getContracts(chain)
-    .router.signer.getAddress();
+  if (app.metadata(chain).protocol !== ProtocolType.Ethereum) return;
+  const provider = app.multiProvider.getEthersV5Provider(chain);
   const signerBalance = await provider.getBalance(signerAddress);
   const balance = parseFloat(ethers.utils.formatEther(signerBalance));
   walletBalance
@@ -470,6 +524,50 @@ async function updateWalletBalanceMetricFor(
     })
     .set(balance);
   debug('Wallet balance updated for chain', { chain, signerAddress, balance });
+}
+
+// Get a core config intended for testing Kathy without secret access
+export function getCoreConfigStub(environment: DeployEnvironment) {
+  const multiProvider = new MultiProvider({
+    // Desired chains here. Key must have funds on these chains
+    fuji: chainMetadata.fuji,
+    solanadevnet: chainMetadata.solanadevnet,
+  });
+
+  const privateKeyEvm = process.env.KATHY_PRIVATE_KEY_EVM;
+  if (!privateKeyEvm) throw new Error('KATHY_PRIVATE_KEY_EVM env var not set');
+  const evmSigner = new Wallet(privateKeyEvm);
+  console.log('evmSigner address', evmSigner.address);
+  multiProvider.setSharedSigner(evmSigner);
+
+  const privateKeySealevel = process.env.KATHY_PRIVATE_KEY_SEALEVEL;
+  if (!privateKeySealevel)
+    throw new Error('KATHY_PRIVATE_KEY_SEALEVEL env var not set');
+
+  const sealevelSigner = Keypair.fromSeed(
+    Buffer.from(privateKeySealevel, 'hex'),
+  );
+  console.log('sealevelSigner address', sealevelSigner.publicKey.toBase58());
+
+  return {
+    helloWorld: {
+      [Contexts.Hyperlane]: hyperlaneHelloworld,
+      [Contexts.ReleaseCandidate]: releaseCandidateHelloworld,
+    },
+    environment,
+    owners: {
+      fuji: evmSigner.address,
+      solanadevnet: sealevelSigner.publicKey.toBase58(),
+    },
+    getMultiProvider: () => multiProvider,
+    getKeys: () => ({
+      fuji: { address: evmSigner.address, privateKey: ensure0x(privateKeyEvm) },
+      solanadevnet: {
+        address: sealevelSigner.publicKey.toBase58(),
+        privateKey: privateKeySealevel,
+      },
+    }),
+  } as any;
 }
 
 main()

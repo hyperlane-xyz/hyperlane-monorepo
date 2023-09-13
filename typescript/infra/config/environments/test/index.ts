@@ -30,5 +30,8 @@ export const environment: EnvironmentConfig = {
     mp.setSharedSigner(signer);
     return mp;
   },
+  getKeys: async () => {
+    throw new Error('Not implemented');
+  },
   storageGasOracleConfig,
 };

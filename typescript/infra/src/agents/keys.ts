@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
-import { ChainName, ProtocolType } from '@hyperlane-xyz/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { DeployEnvironment } from '../config';
@@ -61,6 +62,8 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
   abstract getSigner(
     provider?: ethers.providers.Provider,
   ): Promise<ethers.Signer>;
+
+  abstract privateKey: string;
 
   serializeAsAddress() {
     return {

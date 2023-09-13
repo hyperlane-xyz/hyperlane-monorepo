@@ -3,12 +3,13 @@ import { providers } from 'ethers';
 import {
   ChainMap,
   ChainName,
+  GasConfig,
   GasRouterDeployer,
   HyperlaneContracts,
   MultiProvider,
-  objMap,
+  RouterConfig,
 } from '@hyperlane-xyz/sdk';
-import { GasConfig, RouterConfig } from '@hyperlane-xyz/sdk/dist/router/types';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import {
   CollateralConfig,
@@ -44,6 +45,7 @@ import {
   HypERC721URIStorage__factory,
   HypERC721__factory,
   HypNative,
+  HypNativeScaled__factory,
   HypNative__factory,
 } from './types';
 
@@ -110,7 +112,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
     );
     // Filter out undefined values
     const definedConfigMetadata = Object.fromEntries(
-      Object.entries(metadata).filter(([_, v]) => v !== undefined),
+      Object.entries(metadata).filter(([k, v]) => !!k && !!v),
     );
     return {
       ...fetchedMetadata,
@@ -128,10 +130,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       'HypERC20Collateral',
       [config.token],
     );
-    await this.multiProvider.handleTx(
-      chain,
-      router.initialize(config.mailbox, config.interchainGasPaymaster),
-    );
+    await this.multiProvider.handleTx(chain, router.initialize(config.mailbox));
     return router;
   }
 
@@ -139,16 +138,23 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypNativeConfig,
   ): Promise<HypNative> {
-    const router = await this.deployContractFromFactory(
-      chain,
-      new HypNative__factory(),
-      'HypNative',
-      [],
-    );
-    await this.multiProvider.handleTx(
-      chain,
-      router.initialize(config.mailbox, config.interchainGasPaymaster),
-    );
+    let router: HypNative;
+    if (config.scale) {
+      router = await this.deployContractFromFactory(
+        chain,
+        new HypNativeScaled__factory(),
+        'HypNativeScaled',
+        [config.scale],
+      );
+    } else {
+      router = await this.deployContractFromFactory(
+        chain,
+        new HypNative__factory(),
+        'HypNative',
+        [],
+      );
+    }
+    await this.multiProvider.handleTx(chain, router.initialize(config.mailbox));
     return router;
   }
 
@@ -166,7 +172,6 @@ export class HypERC20Deployer extends GasRouterDeployer<
       chain,
       router.initialize(
         config.mailbox,
-        config.interchainGasPaymaster,
         config.totalSupply,
         config.name,
         config.symbol,

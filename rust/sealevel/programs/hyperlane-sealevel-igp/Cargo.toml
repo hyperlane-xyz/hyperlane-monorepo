@@ -1,0 +1,32 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-sealevel-igp"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+no-spl-noop = []
+serde = ["dep:serde"]
+
+[dependencies]
+hyperlane-core = { path = "../../../hyperlane-core" }
+access-control = { path = "../../libraries/access-control" }
+account-utils = { path = "../../libraries/account-utils" }
+serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
+borsh.workspace = true
+solana-program.workspace = true
+num-derive.workspace = true
+num-traits.workspace = true
+thiserror.workspace = true
+# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
+# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
+getrandom = { workspace = true, features = ["custom"] }
+serde = { workspace = true, optional = true }
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true

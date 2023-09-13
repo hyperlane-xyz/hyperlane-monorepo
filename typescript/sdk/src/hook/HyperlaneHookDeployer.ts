@@ -1,12 +1,16 @@
 import debug from 'debug';
 
-import { types } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  objFilter,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts';
+import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
-import { objFilter, objMap, promiseObjAll } from '../utils/objects';
 
 import { isHookConfig, isISMConfig } from './config';
 import { OptimismHookFactories, optimismHookFactories } from './contracts';
@@ -19,7 +23,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 > {
   constructor(
     multiProvider: MultiProvider,
-    readonly core: ChainMap<{ mailbox: types.Address }>,
+    readonly core: ChainMap<{ mailbox: Address }>,
   ) {
     super(multiProvider, optimismHookFactories, {
       logger: debug('hyperlane:HookDeployer'),

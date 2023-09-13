@@ -3,8 +3,8 @@ import {
   CoreConfig,
   ModuleType,
   RoutingIsmConfig,
-  objMap,
 } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { aggregationIsm } from './aggregationIsm';
 import { chainToValidator } from './multisigIsm';

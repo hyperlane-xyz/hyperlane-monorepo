@@ -22,6 +22,7 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {Indexed} from "../Indexed.sol";
 
 // ============ External Imports ============
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
@@ -228,7 +229,14 @@ contract InterchainGasPaymaster is
         returns (uint128 tokenExchangeRate, uint128 gasPrice)
     {
         IGasOracle _gasOracle = gasOracles[_destinationDomain];
-        require(address(_gasOracle) != address(0), "!gas oracle");
+
+        require(
+            address(_gasOracle) != address(0),
+            string.concat(
+                "Configured IGP doesn't support domain ",
+                Strings.toString(_destinationDomain)
+            )
+        );
 
         return _gasOracle.getExchangeRateAndGasPrice(_destinationDomain);
     }

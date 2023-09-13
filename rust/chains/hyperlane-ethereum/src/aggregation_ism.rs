@@ -106,9 +106,9 @@ where
     }
 }
 
-pub struct EthereumRoutingIsmAbi;
+pub struct EthereumAggregationIsmAbi;
 
-impl HyperlaneAbi for EthereumRoutingIsmAbi {
+impl HyperlaneAbi for EthereumAggregationIsmAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {

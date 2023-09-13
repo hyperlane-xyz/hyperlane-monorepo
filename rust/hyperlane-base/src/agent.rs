@@ -1,14 +1,13 @@
-use std::env;
-use std::fmt::Debug;
-use std::sync::Arc;
+use std::{env, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
+use hyperlane_core::config::*;
 use tokio::task::JoinHandle;
 use tracing::{debug_span, instrument::Instrumented, Instrument};
 
-use crate::{cancel_task, metrics::CoreMetrics, settings::Settings};
+use crate::{metrics::CoreMetrics, settings::Settings};
 
 /// Properties shared across all hyperlane agents
 #[derive(Debug)]
@@ -19,11 +18,11 @@ pub struct HyperlaneAgentCore {
     pub settings: Settings,
 }
 
-/// Settings of an agent.
-pub trait NewFromSettings: AsRef<Settings> + Sized {
+/// Settings of an agent defined from configuration
+pub trait LoadableFromSettings: AsRef<Settings> + Sized {
     /// Create a new instance of these settings by reading the configs and env
     /// vars.
-    fn new() -> hyperlane_core::config::ConfigResult<Self>;
+    fn load() -> ConfigResult<Self>;
 }
 
 /// A fundamental agent which does not make any assumptions about the tools
@@ -34,7 +33,7 @@ pub trait BaseAgent: Send + Sync + Debug {
     const AGENT_NAME: &'static str;
 
     /// The settings object for this agent
-    type Settings: NewFromSettings;
+    type Settings: LoadableFromSettings;
 
     /// Instantiate the agent from the standard settings object
     async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
@@ -64,7 +63,7 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
         color_eyre::install()?;
     }
 
-    let settings = A::Settings::new()?;
+    let settings = A::Settings::load()?;
     let core_settings: &Settings = settings.as_ref();
 
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
@@ -86,7 +85,9 @@ pub fn run_all(
         let (res, _, remaining) = select_all(tasks).await;
 
         for task in remaining.into_iter() {
-            cancel_task!(task);
+            let t = task.into_inner();
+            t.abort();
+            t.await;
         }
 
         res?

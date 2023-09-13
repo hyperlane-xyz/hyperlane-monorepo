@@ -4,8 +4,8 @@ import { expect } from 'chai';
 import { ContractReceipt } from 'ethers';
 import { ethers } from 'hardhat';
 
-import { Mailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
-import { utils } from '@hyperlane-xyz/utils';
+import { TestMailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { Chains } from '../consts/chains';
 import { MultiProvider } from '../providers/MultiProvider';
@@ -19,8 +19,8 @@ const message = '0xdeadbeef';
 
 describe('TestCoreDeployer', async () => {
   let testCoreApp: TestCoreApp,
-    localMailbox: Mailbox,
-    remoteMailbox: Mailbox,
+    localMailbox: TestMailbox,
+    remoteMailbox: TestMailbox,
     dispatchReceipt: ContractReceipt;
 
   beforeEach(async () => {
@@ -37,13 +37,13 @@ describe('TestCoreDeployer', async () => {
       'quoteDispatch(uint32,bytes32,bytes)'
     ](
       multiProvider.getDomainId(remoteChain),
-      utils.addressToBytes32(recipient.address),
+      addressToBytes32(recipient.address),
       message,
     );
 
     const dispatchResponse = localMailbox['dispatch(uint32,bytes32,bytes)'](
       multiProvider.getDomainId(remoteChain),
-      utils.addressToBytes32(recipient.address),
+      addressToBytes32(recipient.address),
       message,
       { value: interchainGasPayment },
     );
@@ -56,7 +56,7 @@ describe('TestCoreDeployer', async () => {
     await expect(
       remoteMailbox['dispatch(uint32,bytes32,bytes)'](
         multiProvider.getDomainId(localChain),
-        utils.addressToBytes32(recipient.address),
+        addressToBytes32(recipient.address),
         message,
         { value: interchainGasPayment },
       ),

@@ -3,12 +3,13 @@ import {
   chainMetadata,
   getDomainId,
   hyperlaneEnvironments,
-  objMap,
 } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import {
   GasPaymentEnforcementPolicyType,
   RootAgentConfig,
+  allAgentChainNames,
   routerMatchingList,
 } from '../../../src/config';
 import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
@@ -43,7 +44,7 @@ const contextBase = {
   namespace: environment,
   runEnv: environment,
   contextChainNames: agentChainNames,
-  environmentChainNames: agentChainNames,
+  environmentChainNames: allAgentChainNames(agentChainNames),
   aws: {
     region: 'us-east-1',
   },
@@ -66,13 +67,14 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
+  contextChainNames: agentChainNames,
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'f03257a-20230714-154845',
+      tag: 'ed7569d-20230725-171222',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -89,14 +91,14 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '497db63-20230614-174455',
+      tag: 'ed7569d-20230725-171222',
     },
     chainDockerOverrides: {
       [chainMetadata.solanadevnet.name]: {
         tag: '79bad9d-20230706-190752',
       },
-      [chainMetadata.zbctestnet.name]: {
-        tag: '79bad9d-20230706-190752',
+      [chainMetadata.proteustestnet.name]: {
+        tag: 'c7c44b2-20230811-133851',
       },
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -118,43 +120,52 @@ const releaseCandidate: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'f03257a-20230714-154845',
+      tag: 'c7c44b2-20230811-133851',
     },
     whitelist: [
       ...releaseCandidateHelloworldMatchingList,
-      // Whitelist all traffic to solanadevnet and zbctestnet
+      // Whitelist all traffic to solanadevnet
       {
         originDomain: '*',
         senderAddress: '*',
         destinationDomain: [
           getDomainId(chainMetadata.solanadevnet),
-          getDomainId(chainMetadata.zbctestnet),
+          getDomainId(chainMetadata.proteustestnet),
         ],
         recipientAddress: '*',
       },
-      // Whitelist all traffic from solanadevnet and zbctestnet to fuji
+      // Whitelist all traffic from solanadevnet to fuji
       {
         originDomain: [
           getDomainId(chainMetadata.solanadevnet),
-          getDomainId(chainMetadata.zbctestnet),
+          getDomainId(chainMetadata.proteustestnet),
         ],
         senderAddress: '*',
-        destinationDomain: [getDomainId(chainMetadata.fuji)],
+        destinationDomain: [getDomainId(chainMetadata.bsctestnet)],
         recipientAddress: '*',
       },
     ],
     gasPaymentEnforcement: [
-      // Don't require gas payments from solanadevnet or zbctestnet
+      // Don't require gas payments from solanadevnet
       {
         type: GasPaymentEnforcementPolicyType.None,
         matchingList: [
           {
-            originDomain: [
-              getDomainId(chainMetadata.solanadevnet),
-              getDomainId(chainMetadata.zbctestnet),
-            ],
+            originDomain: [getDomainId(chainMetadata.solanadevnet)],
             senderAddress: '*',
-            destinationDomain: [getDomainId(chainMetadata.fuji)],
+            destinationDomain: [
+              getDomainId(chainMetadata.bsctestnet),
+              getDomainId(chainMetadata.proteustestnet),
+            ],
+            recipientAddress: '*',
+          },
+          {
+            originDomain: [getDomainId(chainMetadata.bsctestnet)],
+            senderAddress: '*',
+            destinationDomain: [
+              getDomainId(chainMetadata.solanadevnet),
+              getDomainId(chainMetadata.proteustestnet),
+            ],
             recipientAddress: '*',
           },
         ],
@@ -170,7 +181,7 @@ const releaseCandidate: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '497db63-20230614-174455',
+      tag: 'ed7569d-20230725-171222',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },

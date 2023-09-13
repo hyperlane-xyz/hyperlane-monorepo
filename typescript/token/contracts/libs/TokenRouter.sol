@@ -51,12 +51,32 @@ abstract contract TokenRouter is GasRouter {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amountOrId
-    ) public payable virtual returns (bytes32 messageId) {
+    ) external payable virtual returns (bytes32 messageId) {
+        return
+            _transferRemote(_destination, _recipient, _amountOrId, msg.value);
+    }
+
+    /**
+     * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
+     * @dev Delegates transfer logic to `_transferFromSender` implementation.
+     * @dev Emits `SentTransferRemote` event on the origin chain.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
+     * @param _gasPayment The amount of native token to pay for interchain gas.
+     * @return messageId The identifier of the dispatched message.
+     */
+    function _transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amountOrId,
+        uint256 _gasPayment
+    ) internal returns (bytes32 messageId) {
         bytes memory metadata = _transferFromSender(_amountOrId);
         messageId = _dispatchWithGas(
             _destination,
             Message.format(_recipient, _amountOrId, metadata),
-            msg.value, // interchain gas payment
+            _gasPayment,
             msg.sender // refund address
         );
         emit SentTransferRemote(_destination, _recipient, _amountOrId);
@@ -71,6 +91,13 @@ abstract contract TokenRouter is GasRouter {
         internal
         virtual
         returns (bytes memory metadata);
+
+    /**
+     * @notice Returns the balance of `account` on this token router.
+     * @param account The address to query the balance of.
+     * @return The balance of `account`.
+     */
+    function balanceOf(address account) external virtual returns (uint256);
 
     /**
      * @dev Mints tokens to recipient when router receives transfer message.

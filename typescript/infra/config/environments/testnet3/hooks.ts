@@ -5,8 +5,8 @@ import {
   MessageHookConfig,
   NoMetadataIsmConfig,
   filterByChains,
-  objMap,
 } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { owners } from './owners';
 
