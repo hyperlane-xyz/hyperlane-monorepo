@@ -41,8 +41,12 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
         override
         returns (bytes32)
     {
+        require(
+            _metadata.messageIndex() <= _metadata.signedIndex(),
+            "Invalid merkle index metadata"
+        );
         // We verify a merkle proof of (messageId, index) I to compute root J
-        bytes32 signedRoot = MerkleLib.branchRoot(
+        bytes32 _signedRoot = MerkleLib.branchRoot(
             _message.id(),
             _metadata.proof(),
             _metadata.messageIndex()
@@ -51,8 +55,8 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
         return
             CheckpointLib.digest(
                 _message.origin(),
-                _metadata.originMerkleTree(),
-                signedRoot,
+                _metadata.originMerkleTreeHook(),
+                _signedRoot,
                 _metadata.signedIndex(),
                 _metadata.signedMessageId()
             );

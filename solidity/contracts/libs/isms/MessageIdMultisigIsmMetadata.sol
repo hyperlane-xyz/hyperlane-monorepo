@@ -16,11 +16,11 @@ library MessageIdMultisigIsmMetadata {
     uint8 private constant SIGNATURE_LENGTH = 65;
 
     /**
-     * @notice Returns the origin mailbox of the signed checkpoint as bytes32.
+     * @notice Returns the origin merkle tree hook of the signed checkpoint as bytes32.
      * @param _metadata ABI encoded Multisig ISM metadata.
-     * @return Origin mailbox of the signed checkpoint as bytes32
+     * @return Origin merkle tree hook of the signed checkpoint as bytes32
      */
-    function originMerkleTree(bytes calldata _metadata)
+    function originMerkleTreeHook(bytes calldata _metadata)
         internal
         pure
         returns (bytes32)

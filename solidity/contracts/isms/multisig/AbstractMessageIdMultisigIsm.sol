@@ -40,7 +40,7 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
         return
             CheckpointLib.digest(
                 _message.origin(),
-                _metadata.originMerkleTree(),
+                _metadata.originMerkleTreeHook(),
                 _metadata.root(),
                 _metadata.index(),
                 _message.id()

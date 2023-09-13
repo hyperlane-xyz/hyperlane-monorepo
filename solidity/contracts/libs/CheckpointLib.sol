@@ -40,7 +40,7 @@ library CheckpointLib {
      * @notice Returns the domain hash that validators are expected to use
      * when signing checkpoints.
      * @param _origin The origin domain of the checkpoint.
-     * @param _originMerkleTree The address of the origin mailbox as bytes32.
+     * @param _originMerkleTree The address of the origin merkle tree as bytes32.
      * @return The domain hash.
      */
     function domainHash(uint32 _origin, bytes32 _originMerkleTree)
