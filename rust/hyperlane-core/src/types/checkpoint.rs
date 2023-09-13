@@ -35,7 +35,9 @@ impl Signable for CheckpointWithMessageId {
     fn signing_hash(&self) -> H256 {
         // sign:
         // domain_hash(mailbox_address, mailbox_domain) || root || index (as u32) || message_id
-        H256::from_slice(
+        println!("Signable for CheckpointWithMessageId\ndomain_hash: {:?}\nroot: {:?}\nindex: {:?}\nmessage_id: {:?}",domain_hash(self.mailbox_address, self.mailbox_domain), self.root, self.index.to_be_bytes(), self.message_id);
+
+        let result = H256::from_slice(
             Keccak256::new()
                 .chain(domain_hash(
                     self.merkle_tree_hook_address,
@@ -45,8 +47,10 @@ impl Signable for CheckpointWithMessageId {
                 .chain(self.index.to_be_bytes())
                 .chain(self.message_id)
                 .finalize()
-                .as_slice(),
-        )
+                .as_slice());
+
+        println!("result: {:?}", result);
+        result
     }
 }
 

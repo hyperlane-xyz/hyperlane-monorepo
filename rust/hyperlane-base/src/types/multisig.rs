@@ -3,7 +3,8 @@ use std::sync::Arc;
 
 use derive_new::new;
 use eyre::Result;
-use tracing::{debug, instrument, trace};
+use hyperlane_cosmos::verify::pub_to_binary_addr;
+use tracing::{debug, info, instrument, trace, warn};
 
 use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithMessageId, H160, H256};
 
@@ -105,17 +106,24 @@ impl MultisigCheckpointSyncer {
         let mut signed_checkpoints_per_root: HashMap<H256, Vec<SignedCheckpointWithMessageId>> =
             HashMap::new();
 
+        warn!(
+            "Fetching checkpoint for index {}, validator {:?}",
+            index, validators
+        );
+
         for validator in validators.iter() {
             let addr = H160::from(*validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&addr) {
                 // Gracefully ignore an error fetching the checkpoint from a validator's
                 // checkpoint syncer, which can happen if the validator has not
                 // signed the checkpoint at `index`.
+
                 if let Ok(Some(signed_checkpoint)) = checkpoint_syncer.fetch_checkpoint(index).await
                 {
+                    warn!("signed_checkpoint: {:?}", signed_checkpoint);
                     // If the signed checkpoint is for a different index, ignore it
                     if signed_checkpoint.value.index != index {
-                        debug!(
+                        info!(
                             validator = format!("{:#x}", validator),
                             index = index,
                             checkpoint_index = signed_checkpoint.value.index,
@@ -123,10 +131,20 @@ impl MultisigCheckpointSyncer {
                         );
                         continue;
                     }
-                    // Ensure that the signature is actually by the validator at the current index
-                    let signer = signed_checkpoint.recover()?;
+
+                    // Ensure that the signature is actually by the validator
+                    let domain =
+                        KnownHyperlaneDomain::try_from(signed_checkpoint.value.mailbox_domain)?;
+
+                    let signer = match domain.domain_protocol() {
+                        HyperlaneDomainProtocol::Cosmos => {
+                            pub_to_binary_addr(signed_checkpoint.recover_pubkey()?.to_vec())?
+                        }
+                        _ => signed_checkpoint.recover()?,
+                    };
+
                     if H256::from(signer) != *validator {
-                        debug!(
+                        info!(
                             validator = format!("{:#x}", validator),
                             index = index,
                             "Checkpoint signature mismatch"
@@ -156,14 +174,14 @@ impl MultisigCheckpointSyncer {
                         return Ok(Some(checkpoint));
                     }
                 } else {
-                    debug!(
+                    info!(
                         validator = format!("{:#x}", validator),
                         index = index,
                         "Unable to find signed checkpoint"
                     );
                 }
             } else {
-                debug!(%validator, "Unable to find checkpoint syncer");
+                info!(%validator, "Unable to find checkpoint syncer");
                 continue;
             }
         }

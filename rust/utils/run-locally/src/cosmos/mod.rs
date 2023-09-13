@@ -121,23 +121,26 @@ impl CLISource {
     }
 }
 
-pub fn install_codes(dir: Option<PathBuf>) -> BTreeMap<String, PathBuf> {
+pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, PathBuf> {
     let dir_path = match dir {
         Some(path) => path,
         None => tempdir().unwrap().into_path(),
     };
-    let dir_path = dir_path.to_str().unwrap();
 
-    let release_name = format!("cw-hyperlane-v{CW_HYPERLANE_VERSION}");
-    let release_comp = format!("{release_name}.tar.gz");
+    if !local {
+        let dir_path = dir_path.to_str().unwrap();
 
-    log!("Downloading cw-hyperlane v{}", CW_HYPERLANE_VERSION);
-    let uri =
-        format!("{CW_HYPERLANE_GIT}/releases/download/v{CW_HYPERLANE_VERSION}/{release_comp}");
-    download(&release_comp, &uri, dir_path);
+        let release_name = format!("cw-hyperlane-v{CW_HYPERLANE_VERSION}");
+        let release_comp = format!("{release_name}.tar.gz");
 
-    log!("Uncompressing cw-hyperlane release");
-    unzip(&release_comp, dir_path);
+        log!("Downloading cw-hyperlane v{}", CW_HYPERLANE_VERSION);
+        let uri =
+            format!("{CW_HYPERLANE_GIT}/releases/download/v{CW_HYPERLANE_VERSION}/{release_comp}");
+        download(&release_comp, &uri, dir_path);
+
+        log!("Uncompressing cw-hyperlane release");
+        unzip(&release_comp, dir_path);
+    }
 
     // make contract_name => path map
     fs::read_dir(dir_path)
@@ -163,7 +166,7 @@ pub fn install_cosmos(
             version: OSMOSIS_CLI_VERSION.to_string(),
         })
         .install(cli_dir);
-    let codes = install_codes(codes_dir);
+    let codes = install_codes(codes_dir, true);
 
     (osmosisd, codes)
 }
@@ -321,11 +324,12 @@ fn launch_cosmos_relayer(
 fn run_locally() {
     let debug = false;
     let cli_src = Some(CLISource::Local {
-        path: "/Users/frostornge/dev/osmosis/eric/build/osmosisd".to_string(),
+        path: "/Users/eric/many-things/osmosis/osmosis/build/osmosisd".to_string(),
     });
+    let wasm_path: PathBuf = "/Users/eric/many-things/mitosis/cw-hyperlane/artifacts".into();
     // let cli_src = None;
 
-    let (osmosisd, codes) = install_cosmos(None, cli_src, None);
+    let (osmosisd, codes) = install_cosmos(None, cli_src, Some(wasm_path));
 
     let addr_base = "tcp://0.0.0.0";
     let default_config = CosmosConfig {
