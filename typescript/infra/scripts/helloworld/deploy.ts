@@ -1,18 +1,22 @@
 import path from 'path';
 
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
-import { serializeContractsMap } from '@hyperlane-xyz/sdk';
-import { filterAddressesExcludeProtocol } from '@hyperlane-xyz/sdk/src';
+import {
+  HyperlaneIsmFactory,
+  filterAddressesExcludeProtocol,
+  serializeContractsMap,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
+import { helloWorldRouterConfig } from '../../src/config/helloworld-getters';
 import { Role } from '../../src/roles';
 import { readJSON, writeJSON } from '../../src/utils/utils';
 import {
   getEnvironmentConfig,
   getEnvironmentDirectory,
   getArgs as getRootArgs,
-  getRouterConfig,
   withContext,
 } from '../utils';
 
@@ -31,8 +35,16 @@ async function main() {
     Contexts.Hyperlane,
     Role.Deployer,
   );
-  const configMap = await getRouterConfig(environment, multiProvider, true);
-  const deployer = new HelloWorldDeployer(multiProvider);
+  const configMap = await helloWorldRouterConfig(
+    environment,
+    context,
+    multiProvider,
+  );
+  const ismFactory = HyperlaneIsmFactory.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider,
+  );
+  const deployer = new HelloWorldDeployer(multiProvider, ismFactory);
   const dir = path.join(
     getEnvironmentDirectory(environment),
     'helloworld',
@@ -69,8 +81,6 @@ async function main() {
     configMapWithForeignDeployments,
   );
 
-  // process.exit(1);
-
   try {
     await deployer.deploy(configMapWithForeignDeployments);
   } catch (e) {
@@ -81,6 +91,7 @@ async function main() {
   writeJSON(
     dir,
     'addresses.json',
+    // TODO need to make sure foreign deployments are included in this
     serializeContractsMap(deployer.deployedContracts),
   );
   writeJSON(

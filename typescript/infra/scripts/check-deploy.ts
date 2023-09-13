@@ -19,6 +19,7 @@ import {
   DeployEnvironment,
   deployEnvToSdkEnv,
 } from '../src/config/environment';
+import { helloWorldRouterConfig } from '../src/config/helloworld-getters';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
 import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
 import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor';
@@ -108,9 +109,13 @@ async function check() {
       Contexts.Hyperlane, // Owner should always be from the hyperlane context
     );
     console.log('check.ts b');
-    const configMap = await getRouterConfig(environment, multiProvider, true);
-    console.log('configMap', configMap);
-    const hwConfig = helloWorldConfig(environment, context, configMap);
+    // const configMap = await getRouterConfig(environment, multiProvider, true);
+    // console.log('configMap', configMap);
+    const hwConfig = await helloWorldRouterConfig(
+      environment,
+      context,
+      multiProvider,
+    );
     console.log('config', config);
     console.log('hwConfig', hwConfig);
     console.log(
@@ -175,16 +180,3 @@ check()
     console.error(e);
     process.exit(1);
   });
-
-export const helloWorldConfig = (
-  environment: DeployEnvironment,
-  context: Contexts,
-  configMap: ChainMap<HelloWorldConfig>,
-): ChainMap<HelloWorldConfig> =>
-  objMap(configMap, (chain, config) => ({
-    ...config,
-    interchainSecurityModule:
-      context === Contexts.Hyperlane
-        ? undefined
-        : aggregationIsm(environment, chain, context),
-  }));

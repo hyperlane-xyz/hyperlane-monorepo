@@ -25,5 +25,8 @@
   },
   "sepolia": {
     "router": "0x5d56B8a669F50193b54319442c6EEE5edD662381"
+  },
+  "solanadevnet": {
+    "router": "CXQX54kdkU5GqdRJjCmHpwHfEMgFb5SeBmMWntP2Ds7J"
   }
 }

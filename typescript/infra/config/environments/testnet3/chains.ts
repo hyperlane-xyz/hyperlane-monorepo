@@ -9,7 +9,7 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
   mumbai: {
     ...chainMetadata.mumbai,
     transactionOverrides: {
-      maxFeePerGas: 70 * 10 ** 9, // 70 gwei
+      maxFeePerGas: 150 * 10 ** 9, // 70 gwei
       maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
     },
   },

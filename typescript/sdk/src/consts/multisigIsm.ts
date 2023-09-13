@@ -107,6 +107,15 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
       '0xa18580444eaeb1c5957e7b66a6bf84b6519f904d', // staked
     ],
   },
+  solana: {
+    type: ModuleType.LEGACY_MULTISIG,
+    threshold: 2,
+    validators: [
+      '0x3cd1a081f38874bbb075bf10b62adcb858db864c', // abacus
+      '0x2b0c45f6111ae1c1684d4287792e3bd6ebd1abcc', // ZKV
+      '0x7b9ec253a8ba38994457eb9dbe386938d545351a', // everstake
+    ],
+  },
   // ----------------- Testnets -----------------
   alfajores: {
     type: ModuleType.LEGACY_MULTISIG,

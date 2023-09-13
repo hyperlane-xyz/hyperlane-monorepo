@@ -104,7 +104,6 @@ pub(crate) fn configure_multisig_ism_message_id(
     program_id: Pubkey,
     multisig_config_file_path: &Path,
     chain_config_path: &Path,
-    remote_chains: Vec<String>,
 ) {
     let multisig_config_file =
         File::open(multisig_config_file_path).expect("Failed to open config file");
@@ -116,10 +115,10 @@ pub(crate) fn configure_multisig_ism_message_id(
         serde_json::from_reader(chain_config_file).unwrap();
 
     for (chain_name, multisig_ism_config) in multisig_configs {
-        if !remote_chains.contains(&chain_name) {
-            continue;
-        }
-
+        println!(
+            "Configuring Multisig ISM Message ID for chain {} and config {:?}",
+            chain_name, multisig_ism_config
+        );
         let chain_config = chain_configs.get(&chain_name).unwrap();
 
         let (domain_data_key, _domain_data_bump) = Pubkey::find_program_address(

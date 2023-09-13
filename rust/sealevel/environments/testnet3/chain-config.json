@@ -1,22 +1,4 @@
 {
-  "solanadevnet": {
-    "chainId": 1399811151,
-    "name": "solanadevnet",
-    "rpcUrls": [
-      {
-        "http": "https://api.devnet.solana.com"
-      }
-    ]
-  },
-  "zbctestnet": {
-    "chainId": 2053254516,
-    "name": "zbctestnet",
-    "rpcUrls": [
-      {
-        "http": "https://api.zebec.eclipsenetwork.xyz:8899"
-      }
-    ]
-  },
   "alfajores": {
     "chainId": 44787,
     "domainId": 44787,
@@ -323,5 +305,31 @@
       "estimateBlockTime": 13
     },
     "isTestnet": true
+  },
+  "solanadevnet": {
+    "chainId": 1399811151,
+    "name": "solanadevnet",
+    "rpcUrls": [
+      {
+        "http": "https://api.devnet.solana.com"
+      }
+    ]
+  },
+  "proteustestnet": {
+    "chainId": 88002,
+    "domainId": 88002,
+    "name": "proteustestnet",
+    "protocol": "ethereum",
+    "displayName": "Proteus Testnet",
+    "nativeToken": {
+      "name": "Zebec",
+      "symbol": "ZBC",
+      "decimals": 18
+    },
+    "rpcUrls": [
+      {
+        "http": "https://api.proteus.nautchain.xyz/solana"
+      }
+    ]
   }
 }

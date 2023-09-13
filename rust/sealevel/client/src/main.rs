@@ -38,7 +38,7 @@ use hyperlane_sealevel_mailbox::{
 };
 use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds as multisig_ism_message_id_access_control_pda_seeds,
-    accounts::AccessControlAccount,
+    accounts::{AccessControlAccount, DomainDataAccount},
     domain_data_pda_seeds as multisig_ism_message_id_domain_data_pda_seeds,
     instruction::{
         Domained, Instruction as MultisigIsmMessageIdInstruction, ValidatorsAndThreshold,
@@ -469,7 +469,7 @@ enum MultisigIsmMessageIdSubCmd {
     Deploy(MultisigIsmMessageIdDeploy),
     Init(MultisigIsmMessageIdInit),
     SetValidatorsAndThreshold(MultisigIsmMessageIdSetValidatorsAndThreshold),
-    Query(MultisigIsmMessageIdInit),
+    Query(MultisigIsmMessageIdQuery),
     TransferOwnership(TransferOwnership),
     Configure(MultisigIsmMessageIdConfigure),
 }
@@ -496,14 +496,20 @@ struct MultisigIsmMessageIdConfigure {
     multisig_config_file: PathBuf,
     #[arg(long)]
     chain_config_file: PathBuf,
-    #[arg(long, value_delimiter = ',')]
-    remote_chains: Vec<String>,
 }
 
 #[derive(Args)]
 struct MultisigIsmMessageIdInit {
     #[arg(long, short, default_value_t = MULTISIG_ISM_MESSAGE_ID_PROG_ID)]
     program_id: Pubkey,
+}
+
+#[derive(Args)]
+struct MultisigIsmMessageIdQuery {
+    #[arg(long, short, default_value_t = MULTISIG_ISM_MESSAGE_ID_PROG_ID)]
+    program_id: Pubkey,
+    #[arg(long, value_delimiter = ',')]
+    domains: Option<Vec<u32>>,
 }
 
 #[derive(Args)]
@@ -1295,6 +1301,35 @@ fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessage
                     .unwrap()
                     .into_inner();
             println!("Access control: {:#?}", access_control);
+
+            if let Some(domains) = query.domains {
+                for domain in domains {
+                    println!("Querying domain data for origin domain: {}", domain);
+
+                    let (domain_data_pda_key, _domain_data_pda_bump) = Pubkey::find_program_address(
+                        multisig_ism_message_id_domain_data_pda_seeds!(domain),
+                        &query.program_id,
+                    );
+
+                    let accounts = ctx
+                        .client
+                        .get_multiple_accounts_with_commitment(
+                            &[domain_data_pda_key],
+                            ctx.commitment,
+                        )
+                        .unwrap()
+                        .value;
+
+                    if let Some(account) = &accounts[0] {
+                        let domain_data = DomainDataAccount::fetch(&mut &account.data[..])
+                            .unwrap()
+                            .into_inner();
+                        println!("Domain data: {:#?}", domain_data);
+                    } else {
+                        println!("Domain data not yet created");
+                    }
+                }
+            }
         }
         MultisigIsmMessageIdSubCmd::TransferOwnership(transfer_ownership) => {
             let instruction =
@@ -1318,7 +1353,6 @@ fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessage
                 configure.program_id,
                 &configure.multisig_config_file,
                 &configure.chain_config_file,
-                configure.remote_chains,
             );
         }
     }

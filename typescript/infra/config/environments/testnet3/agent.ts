@@ -57,7 +57,20 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
     // all messages between interchain query routers.
     // This whitelist will become more strict with
     // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
-    matchingList: interchainQueriesMatchingList,
+    matchingList: [
+      ...interchainQueriesMatchingList,
+      {
+        originDomain: [getDomainId(chainMetadata.solanadevnet)],
+        senderAddress: [
+          // hyperlane context helloworld router on solanadevnet
+          'CXQX54kdkU5GqdRJjCmHpwHfEMgFb5SeBmMWntP2Ds7J',
+          // non-IGP-paying warp route on solanadevnet
+          'PJH5QAbxAqrrnSXfH3GHR8icua8CDFZmo97z91xmpvx',
+        ],
+        destinationDomain: '*',
+        recipientAddress: '*',
+      },
+    ],
   },
   // Default policy is OnChainFeeQuoting
   {
@@ -74,7 +87,7 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '3b0685f-20230815-110725',
+      tag: '35fdc74-20230913-104940',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,

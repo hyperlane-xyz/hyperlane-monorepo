@@ -5,9 +5,9 @@ import {
   HyperlaneAppChecker,
   RouterApp,
   RouterConfig,
+  RouterViolation,
   RouterViolationType,
 } from '@hyperlane-xyz/sdk';
-import { RouterViolation } from '@hyperlane-xyz/sdk/src';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppGovernor } from './HyperlaneAppGovernor';

@@ -11,14 +11,14 @@ import {
   MultiProtocolProvider,
   MultiProvider,
   attachContractsMap,
+  attachContractsMapAndGetForeignDeployments,
   chainMetadata,
   filterAddressesToProtocol,
   hyperlaneEnvironments,
+  hyperlaneEnvironmentsWithSealevel,
   igpFactories,
 } from '@hyperlane-xyz/sdk';
-import { hyperlaneEnvironmentsWithSealevel } from '@hyperlane-xyz/sdk/src';
-import { attachContractsMapAndGetForeignDeployments } from '@hyperlane-xyz/sdk/src/contracts/contracts';
-import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { EnvironmentConfig } from '../../src/config';
