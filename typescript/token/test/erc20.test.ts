@@ -82,6 +82,7 @@ for (const variant of [
           tokenMetadata.name,
           tokenMetadata.symbol,
           tokenMetadata.totalSupply,
+          tokenMetadata.decimals,
         );
         localTokenConfig = {
           type: variant,

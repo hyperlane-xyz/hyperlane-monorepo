@@ -23,8 +23,11 @@ use account_utils::DiscriminatorEncode;
 use hyperlane_core::{Encode, HyperlaneMessage, H160, H256};
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_igp::{
-    accounts::{InterchainGasPaymasterType, OverheadIgpAccount},
+    accounts::{
+        GasOracle, IgpAccount, InterchainGasPaymasterType, OverheadIgpAccount, RemoteGasData,
+    },
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
+    instruction::{GasOracleConfig, GasOverheadConfig},
 };
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
@@ -118,6 +121,7 @@ pub(crate) struct WarpRouteCmd {
 #[derive(Subcommand)]
 pub(crate) enum WarpRouteSubCmd {
     Deploy(WarpRouteDeploy),
+    DestinationGas(DestinationGasArgs),
 }
 
 #[derive(Args)]
@@ -136,6 +140,14 @@ pub(crate) struct WarpRouteDeploy {
     chain_config_file: PathBuf,
     #[arg(long)]
     ata_payer_funding_amount: Option<u64>,
+}
+
+#[derive(Args)]
+struct DestinationGasArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    destination_domain: u32,
 }
 
 #[derive(Args)]
@@ -184,6 +196,7 @@ enum MailboxSubCmd {
     Send(Outbox),
     Receive(Inbox),
     Delivered(Delivered),
+    TransferOwnership(TransferOwnership),
 }
 
 const MAILBOX_PROG_ID: Pubkey = pubkey!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1");
@@ -218,8 +231,6 @@ struct Outbox {
     message: String,
     #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     program_id: Pubkey,
-    // #[arg(long, short, default_value_t = MAX_MESSAGE_BODY_BYTES)]
-    // message_len: usize,
 }
 
 #[derive(Args)]
@@ -285,6 +296,7 @@ enum TokenSubCmd {
     Query(TokenQuery),
     TransferRemote(TokenTransferRemote),
     EnrollRemoteRouter(TokenEnrollRemoteRouter),
+    TransferOwnership(TransferOwnership),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -325,6 +337,15 @@ struct TokenEnrollRemoteRouter {
 }
 
 #[derive(Args)]
+struct TransferOwnership {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    // To avoid accidentally transferring ownership to None,
+    // only support transferring to other Pubkeys for now.
+    new_owner: Pubkey,
+}
+
+#[derive(Args)]
 struct IgpCmd {
     #[command(subcommand)]
     cmd: IgpSubCmd,
@@ -333,12 +354,83 @@ struct IgpCmd {
 #[derive(Subcommand)]
 enum IgpSubCmd {
     PayForGas(PayForGasArgs),
+    GasOracleConfig(GasOracleConfigArgs),
+    DestinationGasOverhead(DestinationGasOverheadArgs),
+    TransferIgpOwnership(TransferIgpOwnership),
+    TransferOverheadIgpOwnership(TransferIgpOwnership),
+}
+
+#[derive(Args)]
+struct TransferIgpOwnership {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    // To avoid accidentally transferring ownership to None,
+    // only support transferring to other Pubkeys for now.
+    new_owner: Pubkey,
+    #[arg(long)]
+    igp_account: Pubkey,
 }
 
 #[derive(Args)]
 struct PayForGasArgs {
     program_id: Pubkey,
     message_id: String,
+}
+
+#[derive(Args)]
+struct GasOracleConfigArgs {
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+    #[arg(long)]
+    chain_name: String,
+    #[arg(long)]
+    remote_domain: u32,
+    #[command(subcommand)]
+    cmd: GasOracleSubCmd,
+}
+
+#[derive(Subcommand)]
+enum GasOracleSubCmd {
+    Set(SetGasOracleArgs),
+    Get,
+}
+
+#[derive(Args)]
+struct SetGasOracleArgs {
+    #[arg(long)]
+    token_exchange_rate: u128,
+    #[arg(long)]
+    gas_price: u128,
+    #[arg(long)]
+    token_decimals: u8,
+}
+
+#[derive(Args)]
+struct DestinationGasOverheadArgs {
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+    #[arg(long)]
+    chain_name: String,
+    #[arg(long)]
+    remote_domain: u32,
+    #[command(subcommand)]
+    cmd: GasOverheadSubCmd,
+}
+
+#[derive(Subcommand)]
+enum GasOverheadSubCmd {
+    Set(SetGasOverheadArgs),
+    Get,
+}
+
+#[derive(Args)]
+struct SetGasOverheadArgs {
+    #[arg(long)]
+    gas_overhead: u64,
 }
 
 #[derive(Args)]
@@ -394,6 +486,7 @@ enum MultisigIsmMessageIdSubCmd {
     Init(MultisigIsmMessageIdInit),
     SetValidatorsAndThreshold(MultisigIsmMessageIdSetValidatorsAndThreshold),
     Query(MultisigIsmMessageIdInit),
+    TransferOwnership(TransferOwnership),
 }
 
 #[derive(Args)]
@@ -426,32 +519,57 @@ fn main() {
     };
     let url = normalize_to_url_if_moniker(cli.url.unwrap_or(config.json_rpc_url));
     is_url(&url).unwrap();
-    let keypair_path = cli.keypair.unwrap_or(config.keypair_path);
-    is_keypair(&keypair_path).unwrap();
-
     let client = RpcClient::new(url);
-    let payer = read_keypair_file(keypair_path.clone()).unwrap();
+
+    let keypair_path = cli.keypair.unwrap_or(config.keypair_path);
+    let (payer_pubkey, payer_keypair) = if let Ok(payer_keypair) = read_keypair_file(&keypair_path)
+    {
+        (
+            payer_keypair.pubkey(),
+            Some(PayerKeypair {
+                keypair: payer_keypair,
+                keypair_path,
+            }),
+        )
+    } else {
+        println!(
+            "Provided key is not a keypair file, treating as a public key {}",
+            keypair_path
+        );
+        (Pubkey::from_str(&keypair_path).unwrap(), None)
+    };
+
     let commitment = CommitmentConfig::processed();
 
     let mut instructions = vec![];
     if cli.compute_budget != DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT {
         assert!(cli.compute_budget <= MAX_COMPUTE_UNIT_LIMIT);
-        instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(
-            cli.compute_budget,
-        ));
+        instructions.push(
+            (
+                ComputeBudgetInstruction::set_compute_unit_limit(cli.compute_budget),
+                Some(format!("Set compute unit limit to {}", cli.compute_budget)),
+            )
+                .into(),
+        );
     }
     if let Some(heap_size) = cli.heap_size {
         assert!(heap_size <= MAX_HEAP_FRAME_BYTES);
-        instructions.push(ComputeBudgetInstruction::request_heap_frame(heap_size));
+        instructions.push(
+            (
+                ComputeBudgetInstruction::request_heap_frame(heap_size),
+                Some(format!("Request heap frame of {} bytes", heap_size)),
+            )
+                .into(),
+        );
     }
 
-    let ctx = Context {
+    let ctx = Context::new(
         client,
-        payer,
-        payer_path: keypair_path,
+        payer_pubkey,
+        payer_keypair,
         commitment,
-        initial_instructions: instructions.into(),
-    };
+        instructions.into(),
+    );
     match cli.cmd {
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Token(cmd) => process_token_cmd(ctx, cmd),
@@ -472,7 +590,7 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 init.program_id,
                 init.local_domain,
                 init.default_ism,
-                ctx.payer.pubkey(),
+                ctx.payer_pubkey,
             )
             .unwrap();
 
@@ -520,7 +638,7 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
             let (outbox_account, _outbox_bump) =
                 Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &outbox.program_id);
             let ixn = MailboxInstruction::OutboxDispatch(OutboxDispatch {
-                sender: ctx.payer.pubkey(),
+                sender: ctx.payer_pubkey,
                 destination_domain: outbox.destination,
                 recipient: H256(outbox.recipient.to_bytes()),
                 message_body: outbox.message.into(),
@@ -531,7 +649,7 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 data: ixn.into_instruction_data().unwrap(),
                 accounts: vec![
                     AccountMeta::new(outbox_account, false),
-                    AccountMeta::new_readonly(ctx.payer.pubkey(), true),
+                    AccountMeta::new_readonly(ctx.payer_pubkey, true),
                     AccountMeta::new_readonly(spl_noop::id(), false),
                 ],
             };
@@ -597,6 +715,21 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
             } else {
                 println!("Message delivered");
             }
+        }
+        MailboxSubCmd::TransferOwnership(transfer_ownership) => {
+            let instruction =
+                hyperlane_sealevel_mailbox::instruction::transfer_ownership_instruction(
+                    transfer_ownership.program_id,
+                    ctx.payer_pubkey,
+                    Some(transfer_ownership.new_owner),
+                )
+                .unwrap();
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!("Transfer ownership to {}", transfer_ownership.new_owner),
+                )
+                .send_with_payer();
         }
     };
 }
@@ -934,7 +1067,7 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
                 accounts,
             };
             let tx_result = ctx.new_txn().add(xfer_instruction).send(&[
-                &ctx.payer,
+                &*ctx.payer_signer(),
                 &sender,
                 &unique_message_account_keypair,
             ]);
@@ -954,10 +1087,26 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
                 data: enroll_instruction.encode().unwrap(),
                 accounts: vec![
                     AccountMeta::new(token_account, false),
-                    AccountMeta::new_readonly(ctx.payer.pubkey(), true),
+                    AccountMeta::new_readonly(ctx.payer_pubkey, true),
                 ],
             };
             ctx.new_txn().add(instruction).send_with_payer();
+        }
+        TokenSubCmd::TransferOwnership(transfer) => {
+            let instruction =
+                hyperlane_sealevel_token_lib::instruction::transfer_ownership_instruction(
+                    transfer.program_id,
+                    ctx.payer_pubkey,
+                    Some(transfer.new_owner),
+                )
+                .unwrap();
+
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!("Transfer ownership to {}", transfer.new_owner),
+                )
+                .send_with_payer();
         }
     }
 }
@@ -968,7 +1117,7 @@ fn process_validator_announce_cmd(ctx: Context, cmd: ValidatorAnnounceCmd) {
             let init_instruction =
                 hyperlane_sealevel_validator_announce::instruction::init_instruction(
                     init.program_id,
-                    ctx.payer.pubkey(),
+                    ctx.payer_pubkey,
                     init.mailbox_id,
                     init.local_domain,
                 )
@@ -1014,7 +1163,7 @@ fn process_validator_announce_cmd(ctx: Context, cmd: ValidatorAnnounceCmd) {
             // 3. [writeable] The validator-specific ValidatorStorageLocationsAccount PDA account.
             // 4. [writeable] The ReplayProtection PDA account specific to the announcement being made.
             let accounts = vec![
-                AccountMeta::new_readonly(ctx.payer.pubkey(), true),
+                AccountMeta::new_readonly(ctx.payer_pubkey, true),
                 AccountMeta::new_readonly(system_program::id(), false),
                 AccountMeta::new_readonly(validator_announce_account, false),
                 AccountMeta::new(validator_storage_locations_key, false),
@@ -1062,7 +1211,7 @@ fn process_multisig_ism_message_id_cmd(ctx: Context, cmd: MultisigIsmMessageIdCm
             let init_instruction =
                 hyperlane_sealevel_multisig_ism_message_id::instruction::init_instruction(
                     init.program_id,
-                    ctx.payer.pubkey(),
+                    ctx.payer_pubkey,
                 )
                 .unwrap();
             ctx.new_txn().add(init_instruction).send_with_payer();
@@ -1092,7 +1241,7 @@ fn process_multisig_ism_message_id_cmd(ctx: Context, cmd: MultisigIsmMessageIdCm
             // 2. `[writable]` The PDA relating to the provided domain.
             // 3. `[executable]` OPTIONAL - The system program account. Required if creating the domain PDA.
             let accounts = vec![
-                AccountMeta::new(ctx.payer.pubkey(), true),
+                AccountMeta::new(ctx.payer_pubkey, true),
                 AccountMeta::new_readonly(access_control_pda_key, false),
                 AccountMeta::new(domain_data_pda_key, false),
                 AccountMeta::new_readonly(system_program::id(), false),
@@ -1122,6 +1271,22 @@ fn process_multisig_ism_message_id_cmd(ctx: Context, cmd: MultisigIsmMessageIdCm
                     .into_inner();
             println!("Access control: {:#?}", access_control);
         }
+        MultisigIsmMessageIdSubCmd::TransferOwnership(transfer_ownership) => {
+            let instruction =
+                hyperlane_sealevel_multisig_ism_message_id::instruction::transfer_ownership_instruction(
+                    transfer_ownership.program_id,
+                    ctx.payer_pubkey,
+                    Some(transfer_ownership.new_owner),
+                )
+                .unwrap();
+
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!("Transfer ownership to {}", transfer_ownership.new_owner),
+                )
+                .send_with_payer();
+        }
     }
 }
 
@@ -1142,7 +1307,7 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
             let (ixn, gas_payment_data_account) =
                 hyperlane_sealevel_igp::instruction::pay_for_gas_instruction(
                     payment_details.program_id,
-                    ctx.payer.pubkey(),
+                    ctx.payer_pubkey,
                     igp_account,
                     Some(overhead_igp_account),
                     unique_gas_payment_keypair.pubkey(),
@@ -1154,12 +1319,134 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
 
             ctx.new_txn()
                 .add(ixn)
-                .send(&[&ctx.payer, &unique_gas_payment_keypair]);
+                .send(&[&*ctx.payer_signer(), &unique_gas_payment_keypair]);
 
             println!(
                 "Made a payment for message {} with gas payment data account {}",
                 payment_details.message_id, gas_payment_data_account
             );
+        }
+        IgpSubCmd::GasOracleConfig(args) => {
+            let core_program_ids =
+                read_core_program_ids(&args.environments_dir, &args.environment, &args.chain_name);
+            match args.cmd {
+                GasOracleSubCmd::Set(set_args) => {
+                    let remote_gas_data = RemoteGasData {
+                        token_exchange_rate: set_args.token_exchange_rate,
+                        gas_price: set_args.gas_price,
+                        token_decimals: set_args.token_decimals,
+                    };
+                    let gas_oracle_config = GasOracleConfig {
+                        domain: args.remote_domain,
+                        gas_oracle: Some(GasOracle::RemoteGasData(remote_gas_data)),
+                    };
+                    let instruction =
+                        hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
+                            core_program_ids.igp_program_id,
+                            core_program_ids.igp_account,
+                            ctx.payer_pubkey,
+                            vec![gas_oracle_config],
+                        )
+                        .unwrap();
+                    ctx.new_txn().add(instruction).send_with_payer();
+                    println!("Set gas oracle for remote domain {:?}", args.remote_domain);
+                }
+                GasOracleSubCmd::Get => {
+                    // Read the gas oracle config
+                    let igp_account = ctx
+                        .client
+                        .get_account_with_commitment(&core_program_ids.igp_account, ctx.commitment)
+                        .unwrap()
+                        .value
+                        .expect(
+                            "IGP account not found. Make sure you are connected to the right RPC.",
+                        );
+
+                    let igp_account = IgpAccount::fetch(&mut &igp_account.data[..])
+                        .unwrap()
+                        .into_inner();
+
+                    println!(
+                        "IGP account gas oracle: {:#?}",
+                        igp_account.gas_oracles.get(&args.remote_domain)
+                    );
+                }
+            }
+        }
+        IgpSubCmd::DestinationGasOverhead(args) => {
+            let core_program_ids =
+                read_core_program_ids(&args.environments_dir, &args.environment, &args.chain_name);
+            match args.cmd {
+                GasOverheadSubCmd::Get => {
+                    // Read the gas overhead config
+                    let overhead_igp_account = ctx
+                        .client
+                        .get_account_with_commitment(
+                            &core_program_ids.overhead_igp_account,
+                            ctx.commitment,
+                        )
+                        .unwrap()
+                        .value
+                        .expect("Overhead IGP account not found. Make sure you are connected to the right RPC.");
+                    let overhead_igp_account =
+                        OverheadIgpAccount::fetch(&mut &overhead_igp_account.data[..])
+                            .unwrap()
+                            .into_inner();
+                    println!(
+                        "Overhead IGP account gas oracle: {:#?}",
+                        overhead_igp_account.gas_overheads.get(&args.remote_domain)
+                    );
+                }
+                GasOverheadSubCmd::Set(set_args) => {
+                    let overhead_config = GasOverheadConfig {
+                        destination_domain: args.remote_domain,
+                        gas_overhead: Some(set_args.gas_overhead),
+                    };
+                    // Set the gas overhead config
+                    let instruction =
+                        hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
+                            core_program_ids.igp_program_id,
+                            core_program_ids.overhead_igp_account,
+                            ctx.payer_pubkey,
+                            vec![overhead_config],
+                        )
+                        .unwrap();
+                    ctx.new_txn().add(instruction).send_with_payer();
+                    println!(
+                        "Set gas overheads for remote domain {:?}",
+                        args.remote_domain
+                    )
+                }
+            }
+        }
+        IgpSubCmd::TransferIgpOwnership(ref transfer_ownership)
+        | IgpSubCmd::TransferOverheadIgpOwnership(ref transfer_ownership) => {
+            let igp_account_type = match cmd.cmd {
+                IgpSubCmd::TransferIgpOwnership(_) => {
+                    InterchainGasPaymasterType::Igp(transfer_ownership.igp_account)
+                }
+                IgpSubCmd::TransferOverheadIgpOwnership(_) => {
+                    InterchainGasPaymasterType::OverheadIgp(transfer_ownership.igp_account)
+                }
+                _ => unreachable!(),
+            };
+            let instruction =
+                hyperlane_sealevel_igp::instruction::transfer_igp_account_ownership_instruction(
+                    transfer_ownership.program_id,
+                    igp_account_type.clone(),
+                    ctx.payer_pubkey,
+                    Some(transfer_ownership.new_owner),
+                )
+                .unwrap();
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!(
+                        "Transfer ownership of {:?} to {}",
+                        igp_account_type, transfer_ownership.new_owner
+                    ),
+                )
+                .send_with_payer();
         }
     }
 }

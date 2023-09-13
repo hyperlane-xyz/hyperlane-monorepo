@@ -120,6 +120,29 @@ pub fn init_instruction(
     Ok(instruction)
 }
 
+/// Creates a TransferOwnership instruction.
+pub fn transfer_ownership_instruction(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    new_owner: Option<Pubkey>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (access_control_pda_key, _access_control_pda_bump) =
+        Pubkey::try_find_program_address(access_control_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    // 0. `[signer]` The current access control owner.
+    // 1. `[writeable]` The access control PDA account.
+    let instruction = SolanaInstruction {
+        program_id,
+        data: Instruction::TransferOwnership(new_owner).encode()?,
+        accounts: vec![
+            AccountMeta::new(owner_payer, true),
+            AccountMeta::new(access_control_pda_key, false),
+        ],
+    };
+    Ok(instruction)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
