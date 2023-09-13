@@ -4,7 +4,6 @@ use std::{
     collections::HashMap,
     fs::File,
     path::{Path, PathBuf},
-    str::FromStr,
 };
 
 use solana_client::rpc_client::RpcClient;
@@ -17,12 +16,6 @@ use crate::{
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program_idempotent},
     read_core_program_ids, Context, CoreProgramIds,
 };
-
-fn parse_pubkey_or_default(maybe_str: Option<&String>, default: Pubkey) -> Pubkey {
-    maybe_str
-        .map(|s| Pubkey::from_str(s).unwrap())
-        .unwrap_or(default)
-}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -51,18 +44,21 @@ impl OptionalConnectionClientConfig {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct OptionalOwnableConfig {
-    pub owner: Option<String>,
+    #[serde(default)]
+    #[serde(with = "crate::serde::serde_option_pubkey")]
+    pub owner: Option<Pubkey>,
 }
 
 impl OptionalOwnableConfig {
     pub fn owner(&self, default: Pubkey) -> Pubkey {
-        parse_pubkey_or_default(self.owner.as_ref(), default)
+        self.owner.unwrap_or(default)
     }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RouterConfig {
+    // Kept as a string to allow for hex or base58
     pub foreign_deployment: Option<String>,
     #[serde(flatten)]
     pub ownable: OptionalOwnableConfig,

@@ -525,7 +525,6 @@ pub(crate) struct HelloWorldCmd {
 pub(crate) enum HelloWorldSubCmd {
     Deploy(HelloWorldDeploy),
     Query(HelloWorldQuery),
-    // Send,
 }
 
 #[derive(Args)]

@@ -120,9 +120,9 @@ pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: Multisi
                         let domain_data = DomainDataAccount::fetch(&mut &account.data[..])
                             .unwrap()
                             .into_inner();
-                        println!("Domain data: {:#?}", domain_data);
+                        println!("Domain data for {}:\n{:#?}", domain, domain_data);
                     } else {
-                        println!("Domain data not yet created");
+                        println!("No domain data for domain {}", domain);
                     }
                 }
             }
@@ -196,7 +196,10 @@ pub(crate) fn deploy_multisig_ism_message_id(
     program_id
 }
 
-pub(crate) fn configure_multisig_ism_message_id(
+/// Configures the multisig-ism-message-id program
+/// with the validators and thresholds for each of the domains
+/// specified in the multisig config file.
+fn configure_multisig_ism_message_id(
     ctx: &mut Context,
     program_id: Pubkey,
     multisig_config_file_path: &Path,
@@ -249,7 +252,16 @@ pub(crate) fn configure_multisig_ism_message_id(
             false
         };
 
-        if !matches {
+        if matches {
+            println!(
+                "Multisig ISM Message ID already correctly configured for chain {}",
+                chain_name
+            );
+        } else {
+            println!(
+                "Multisig ISM Message ID incorrectly configured for chain {}, configuring now",
+                chain_name
+            );
             set_validators_and_threshold(
                 ctx,
                 program_id,
