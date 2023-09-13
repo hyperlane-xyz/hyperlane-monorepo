@@ -112,8 +112,7 @@ export abstract class MultiProtocolApp<
 
   // Subclasses may want to override this to provide adapters more arguments
   adapter(chain: ChainName): IAdapterApi {
-    const metadata = this.metadata(chain);
-    const Adapter = this.protocolToAdapter(metadata.protocol);
+    const Adapter = this.protocolToAdapter(this.protocol(chain));
     return new Adapter(chain, this.multiProvider, this.addresses[chain]);
   }
 
