@@ -6,10 +6,9 @@ import {
   HyperlaneDeploymentArtifacts,
   MultiProvider,
   buildAgentConfigDeprecated,
-  objMap,
-  promiseObjAll,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
+import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { getAgentConfigDirectory } from '../../scripts/utils';
 import { DeployEnvironment } from '../config';
@@ -48,6 +47,14 @@ export async function deployWithArtifacts<Config>(
     deployer.cacheAddressesMap(addressesMap);
   }
 
+  process.on('SIGINT', async () => {
+    // Call the post deploy hook to write the addresses and verification
+    await postDeploy(deployer, cache, agentConfig);
+
+    console.log('\nCaught (Ctrl+C), gracefully exiting...');
+    process.exit(0); // Exit the process
+  });
+
   try {
     if (fork) {
       deployer.deployedContracts[fork] = await deployer.deployContracts(
@@ -61,6 +68,23 @@ export async function deployWithArtifacts<Config>(
     console.error('Failed to deploy contracts', e);
   }
 
+  await postDeploy(deployer, cache, agentConfig);
+}
+
+export async function postDeploy<Config>(
+  deployer: HyperlaneDeployer<Config, any>,
+  cache: {
+    addresses: string;
+    verification: string;
+    read: boolean;
+    write: boolean;
+  },
+  agentConfig?: {
+    multiProvider: MultiProvider;
+    addresses: string;
+    environment: DeployEnvironment;
+  },
+) {
   if (cache.write) {
     // cache addresses of deployed contracts
     writeMergedJSONAtPath(

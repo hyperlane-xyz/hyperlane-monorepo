@@ -3,7 +3,7 @@ name: node
 on:
   # Triggers the workflow on push or pull request against main
   push:
-    branches: [main]
+    branches: [v3]
   pull_request:
     branches: [v3]
   # Allows you to run this workflow manually from the Actions tab
@@ -48,6 +48,9 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 18
+
+      - name: Install Foundry
+        uses: onbjerg/foundry-toolchain@v1
 
       - name: yarn-cache
         uses: actions/cache@v3

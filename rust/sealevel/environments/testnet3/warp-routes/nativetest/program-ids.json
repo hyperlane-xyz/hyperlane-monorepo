@@ -6,9 +6,5 @@
   "solanadevnet": {
     "hex": "0x2a8cb95fbada0e0c294c85e739226f17adaca5ddf01ab99e0efaf8a73be32103",
     "base58": "3s6afZYk3EmjsZQ33N9yPTdSk4cY5CKeQ5wtoBcWjFUn"
-  },
-  "zbctestnet": {
-    "hex": "0xd0ad8272c26063c7cb60ff750e553aee50f22195d27540ce7e7fb275c975e097",
-    "base58": "F3bFj2U3nFTiPZxjnPeBqf9JPAHm7K49JbqUQAcEpfx2"
   }
 }

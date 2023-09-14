@@ -1,14 +1,7 @@
-import { HelloWorldConfig as HelloWorldContractsConfig } from '@hyperlane-xyz/helloworld';
-import {
-  AgentConnectionType,
-  ChainMap,
-  RouterConfig,
-  objMap,
-} from '@hyperlane-xyz/sdk';
+import { AgentConnectionType } from '@hyperlane-xyz/sdk';
 
-import { DeployEnvironment, HelloWorldConfig } from '../../../src/config';
+import { HelloWorldConfig } from '../../../src/config';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
-import { aggregationIsm } from '../../aggregationIsm';
 import { Contexts } from '../../contexts';
 
 import { environment } from './chains';
@@ -58,13 +51,3 @@ export const helloWorld = {
   [Contexts.Hyperlane]: hyperlaneHelloworld,
   [Contexts.ReleaseCandidate]: releaseCandidateHelloworld,
 };
-
-export const helloWorldConfig = (
-  environment: DeployEnvironment,
-  context: Contexts,
-  routerConfigMap: ChainMap<RouterConfig>,
-): ChainMap<HelloWorldContractsConfig> =>
-  objMap(routerConfigMap, (chain, routerConfig) => ({
-    ...routerConfig,
-    interchainSecurityModule: aggregationIsm(environment, chain, context),
-  }));

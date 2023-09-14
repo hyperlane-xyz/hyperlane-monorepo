@@ -5,19 +5,24 @@ import {
   Mailbox__factory,
   Router,
 } from '@hyperlane-xyz/core';
-import { types, utils } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addressToBytes32,
+  objFilter,
+  objMap,
+  objMerge,
+} from '@hyperlane-xyz/utils';
 
+import { filterOwnableContracts } from '../contracts/contracts';
 import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-  filterOwnableContracts,
-} from '../contracts';
+} from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { moduleCanCertainlyVerify } from '../ism/HyperlaneIsmFactory';
 import { RouterConfig } from '../router/types';
 import { ChainMap } from '../types';
-import { objFilter, objMap, objMerge } from '../utils/objects';
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,
@@ -99,7 +104,7 @@ export abstract class HyperlaneRouterDeployer<
   async enrollRemoteRouters(
     deployedContractsMap: HyperlaneContractsMap<Factories>,
     _: ChainMap<Config>,
-    foreignRouters: ChainMap<types.Address> = {},
+    foreignRouters: ChainMap<Address> = {},
   ): Promise<void> {
     this.logger(
       `Enrolling deployed routers with each other (if not already)...`,
@@ -108,7 +113,7 @@ export abstract class HyperlaneRouterDeployer<
     // Make all routers aware of each other.
 
     // Routers that were deployed.
-    const deployedRouters: ChainMap<types.Address> = objMap(
+    const deployedRouters: ChainMap<Address> = objMap(
       deployedContractsMap,
       (_, contracts) => this.router(contracts).address,
     );
@@ -125,7 +130,7 @@ export abstract class HyperlaneRouterDeployer<
         allRemoteChains.map(async (remote) => {
           const remoteDomain = this.multiProvider.getDomainId(remote);
           const current = await this.router(contracts).routers(remoteDomain);
-          const expected = utils.addressToBytes32(allRouters[remote]);
+          const expected = addressToBytes32(allRouters[remote]);
           return current !== expected ? [remoteDomain, expected] : undefined;
         }),
       );
@@ -180,7 +185,7 @@ export abstract class HyperlaneRouterDeployer<
     );
 
     // Create a map of chains that have foreign deployments.
-    const foreignDeployments: ChainMap<types.Address> = objFilter(
+    const foreignDeployments: ChainMap<Address> = objFilter(
       objMap(configMap, (_, config) => config.foreignDeployment),
       (_chainName, foreignDeployment): foreignDeployment is string =>
         foreignDeployment !== undefined,
@@ -195,6 +200,7 @@ export abstract class HyperlaneRouterDeployer<
     );
     await this.initConnectionClients(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
+    this.logger(`Finished deploying router contracts for all chains.`);
 
     return deployedContractsMap;
   }

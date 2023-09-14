@@ -5,7 +5,7 @@ import { ContractReceipt } from 'ethers';
 import { ethers } from 'hardhat';
 
 import { TestMailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
-import { utils } from '@hyperlane-xyz/utils';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { Chains } from '../consts/chains';
 import { MultiProvider } from '../providers/MultiProvider';
@@ -35,7 +35,7 @@ describe('TestCoreDeployer', async () => {
 
     const dispatchResponse = localMailbox.dispatch(
       multiProvider.getDomainId(remoteChain),
-      utils.addressToBytes32(recipient.address),
+      addressToBytes32(recipient.address),
       message,
     );
     await expect(dispatchResponse).to.emit(localMailbox, 'Dispatch');
@@ -47,7 +47,7 @@ describe('TestCoreDeployer', async () => {
     await expect(
       remoteMailbox.dispatch(
         multiProvider.getDomainId(localChain),
-        utils.addressToBytes32(recipient.address),
+        addressToBytes32(recipient.address),
         message,
       ),
     ).to.emit(remoteMailbox, 'Dispatch');

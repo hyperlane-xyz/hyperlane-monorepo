@@ -131,7 +131,7 @@
       "domain": 1399811151,
       "addresses": {
         "mailbox": "4v25Dz9RccqUrTzmfHzJMsjd1iVoNrWzeJ4o6GYuJrVn",
-        "interchainGasPaymaster": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm",
+        "interchainGasPaymaster": "7hMPEGdgBQFsjEz3aaNwZp8WMFHs615zAM3erXBDJuJR",
         "validatorAnnounce": "CMHKvdq4CopDf7qXnDCaTybS15QekQeRt4oUB219yxsp"
       },
       "protocol": "sealevel",
@@ -145,23 +145,18 @@
         "mode": "sequence"
       }
     },
-    "zbctestnet": {
-      "name": "zbctestnet",
-      "domain": 2053254516,
+    "proteustestnet": {
+      "name": "proteustestnet",
+      "domain": 88002,
       "addresses": {
-        "mailbox": "4hW22NXtJ2AXrEVbeAmxjhvxWPSNvfTfAphKXdRBZUco",
-        "interchainGasPaymaster": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm",
-        "validatorAnnounce": "Ar1WiYNhN6F33pj4pcVo5jRMV3V8iJqKiMRSbaDEeqkq"
+        "mailbox": "0x918D3924Fad8F71551D9081172e9Bb169745461e",
+        "interchainGasPaymaster": "0x06b62A9F5AEcc1E601D0E02732b4E1D0705DE7Db",
+        "validatorAnnounce": "0xEEea93d0d0287c71e47B3f62AFB0a92b9E8429a1"
       },
-      "protocol": "sealevel",
-      "finalityBlocks": 0,
-      "connection": {
-        "type": "http",
-        "url": "https://api.zebec.eclipsenetwork.xyz:8899"
-      },
+      "protocol": "ethereum",
+      "finalityBlocks": 1,
       "index": {
-        "from": 1,
-        "mode": "sequence"
+        "from": 8609588
       }
     }
   }

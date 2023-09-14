@@ -1,0 +1,22 @@
+{
+    "solanadevnet": {
+        "type": "collateral",
+        "decimals": 6,
+        "remoteDecimals": 18,
+        "token": "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr",
+        "splTokenProgram": "token"
+    },
+    "bsctestnet": {
+        "type": "collateral",
+        "decimals": 18,
+        "token": "0x64544969ed7ebf5f083679233325356ebe738930",
+        "name": "USDC",
+        "symbol": "USDC",
+        "foreignDeployment": "0x31b5234A896FbC4b3e2F7237592D054716762131"
+    },
+    "proteustestnet": {
+        "type": "native",
+        "decimals": 18,
+        "foreignDeployment": "0x34A9af13c5555BAD0783C220911b9ef59CfDBCEf"
+    }
+}

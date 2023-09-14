@@ -2,8 +2,7 @@ import fetch from 'cross-fetch';
 import { Debugger, debug } from 'debug';
 import { ethers } from 'ethers';
 
-import { utils } from '@hyperlane-xyz/utils';
-import { sleep } from '@hyperlane-xyz/utils/dist/src/utils';
+import { sleep, strip0x } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
@@ -101,7 +100,7 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     if (result.message === 'NOTOK') {
       switch (result.result) {
         case ExplorerApiErrors.VERIFICATION_PENDING:
-          await utils.sleep(5000); // wait 5 seconds
+          await sleep(5000); // wait 5 seconds
           return this.submitForm(chain, action, options);
         case ExplorerApiErrors.ALREADY_VERIFIED:
         case ExplorerApiErrors.ALREADY_VERIFIED_ALT:
@@ -191,7 +190,7 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
       contractname: input.name,
       contractaddress: input.address,
       // TYPO IS ENFORCED BY API
-      constructorArguements: utils.strip0x(input.constructorArguments ?? ''),
+      constructorArguements: strip0x(input.constructorArguments ?? ''),
       ...this.compilerOptions,
     };
 

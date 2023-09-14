@@ -3,7 +3,10 @@
 use account_utils::{DiscriminatorData, DiscriminatorEncode, PROGRAM_INSTRUCTION_DISCRIMINATOR};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
-use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+use hyperlane_sealevel_connection_client::{
+    gas_router::GasRouterConfig, router::RemoteRouterConfig,
+};
+use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
     program_error::ProgramError,
@@ -25,8 +28,12 @@ pub enum Instruction {
     EnrollRemoteRouter(RemoteRouterConfig),
     /// Enroll multiple remote routers. Only owner.
     EnrollRemoteRouters(Vec<RemoteRouterConfig>),
+    /// Enroll multiple remote routers. Only owner.
+    SetDestinationGasConfigs(Vec<GasRouterConfig>),
     /// Set the interchain security module. Only owner.
     SetInterchainSecurityModule(Option<Pubkey>),
+    /// Set the interchain gas paymaster program and account. Only owner.
+    SetInterchainGasPaymaster(Option<(Pubkey, InterchainGasPaymasterType)>),
     /// Transfer ownership of the program. Only owner.
     TransferOwnership(Option<Pubkey>),
 }
@@ -42,6 +49,8 @@ pub struct Init {
     pub mailbox: Pubkey,
     /// The interchain security module.
     pub interchain_security_module: Option<Pubkey>,
+    /// The interchain gas paymaster program and account.
+    pub interchain_gas_paymaster: Option<(Pubkey, InterchainGasPaymasterType)>,
     /// The local decimals.
     pub decimals: u8,
     /// The remote decimals.
@@ -114,11 +123,73 @@ pub fn enroll_remote_routers_instruction(
     let ixn = Instruction::EnrollRemoteRouters(configs);
 
     // Accounts:
-    // 0. [writeable] The token PDA account.
-    // 1. [signer] The owner.
+    // 0. [executable] The system program.
+    // 1. [writeable] The token PDA account.
+    // 2. [signer] The owner.
     let accounts = vec![
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
         AccountMeta::new(token_key, false),
         AccountMeta::new(owner_payer, true),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.encode()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Sets destination gas configs.
+pub fn set_destination_gas_configs(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    configs: Vec<GasRouterConfig>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (token_key, _token_bump) =
+        Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::SetDestinationGasConfigs(configs);
+
+    // Accounts:
+    // 0. [executable] The system program.
+    // 1. [writeable] The token PDA account.
+    // 2. [signer] The owner.
+    let accounts = vec![
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new(token_key, false),
+        AccountMeta::new(owner_payer, true),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.encode()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Transfers ownership.
+pub fn transfer_ownership_instruction(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    new_owner: Option<Pubkey>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (token_key, _token_bump) =
+        Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::TransferOwnership(new_owner);
+
+    // Accounts:
+    // 0. [writeable] The token PDA account.
+    // 1. [signer] The current owner.
+    let accounts = vec![
+        AccountMeta::new(token_key, false),
+        AccountMeta::new_readonly(owner_payer, true),
     ];
 
     let instruction = SolanaInstruction {

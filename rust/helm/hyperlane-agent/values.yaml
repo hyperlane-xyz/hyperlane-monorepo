@@ -42,7 +42,6 @@ hyperlane:
     format: json
     # Set the log level
     level: debug
-    uri: ''
   metrics:
     port: 9090
   aws: # true | false
@@ -80,11 +79,12 @@ hyperlane:
         cpu: 100m
         memory: 256Mi
     # -- How long to wait between checking for updates
-    configs:
-      - interval:
-        reorgPeriod:
-        checkpointSyncers:
-        originChainName:
+    configs: []
+      # - interval:
+      #   reorgPeriod:
+      #   checkpointSyncers:
+      #   originChainName:
+      #   type: # "hexKey"
 
   relayer:
     enabled: false
@@ -105,6 +105,9 @@ hyperlane:
     config:
       multisigCheckpointSyncer:
         checkpointSyncers:
+    # -- Specify whether a default signer key is used for all chains in Values.hyperlane.relayerChains list.
+    # It affects chains whose signer type is hexKey.
+    usingDefaultSignerKey: true
 
   relayerChains:
     - name: 'alfajores'

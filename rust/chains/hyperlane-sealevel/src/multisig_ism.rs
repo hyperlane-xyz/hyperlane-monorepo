@@ -4,6 +4,7 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H256,
 };
+use serializable_account_meta::SimulationReturnData;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
@@ -81,19 +82,21 @@ impl MultisigIsm for SealevelMultisigIsm {
             account_metas,
         );
 
-        let validators_and_threshold = simulate_instruction::<ValidatorsAndThreshold>(
-            &self.rpc_client,
-            self.payer
-                .as_ref()
-                .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
-            instruction,
-        )
-        .await?
-        .ok_or_else(|| {
-            ChainCommunicationError::from_other_str(
-                "No return data was returned from the multisig ism",
+        let validators_and_threshold =
+            simulate_instruction::<SimulationReturnData<ValidatorsAndThreshold>>(
+                &self.rpc_client,
+                self.payer
+                    .as_ref()
+                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
+                instruction,
             )
-        })?;
+            .await?
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str(
+                    "No return data was returned from the multisig ism",
+                )
+            })?
+            .return_data;
 
         let validators = validators_and_threshold
             .validators

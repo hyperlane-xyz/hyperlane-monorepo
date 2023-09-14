@@ -11,7 +11,9 @@ pub fn fetch_metric(port: &str, metric: &str, labels: &HashMap<&str, &str>) -> R
         .filter(|l| {
             labels
                 .iter()
-                .all(|(k, v)| l.contains(&format!("{k}=\"{v}\"")))
+                // Do no check for the closing quotation mark when matching, to allow for
+                // only matching a label value prefix.
+                .all(|(k, v)| l.contains(&format!("{k}=\"{v}")))
         })
         .map(|l| {
             Ok(l.rsplit_once(' ')

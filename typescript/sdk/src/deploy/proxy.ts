@@ -1,23 +1,22 @@
 import { ethers } from 'ethers';
 
-import type { types } from '@hyperlane-xyz/utils';
-import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
+import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 export type UpgradeConfig = {
   timelock: {
     delay: number;
     // canceller inherited from proposer and admin not supported
     roles: {
-      executor: types.Address;
-      proposer: types.Address;
+      executor: Address;
+      proposer: Address;
     };
   };
 };
 
 export async function proxyImplementation(
   provider: ethers.providers.Provider,
-  proxy: types.Address,
-): Promise<types.Address> {
+  proxy: Address,
+): Promise<Address> {
   // Hardcoded storage slot for implementation per EIP-1967
   const storageValue = await provider.getStorageAt(
     proxy,
@@ -28,8 +27,8 @@ export async function proxyImplementation(
 
 export async function proxyAdmin(
   provider: ethers.providers.Provider,
-  proxy: types.Address,
-): Promise<types.Address> {
+  proxy: Address,
+): Promise<Address> {
   // Hardcoded storage slot for admin per EIP-1967
   const storageValue = await provider.getStorageAt(
     proxy,
@@ -40,7 +39,7 @@ export async function proxyAdmin(
 
 export async function isProxy(
   provider: ethers.providers.Provider,
-  proxy: types.Address,
+  proxy: Address,
 ): Promise<boolean> {
   const admin = await proxyAdmin(provider, proxy);
   return !eqAddress(admin, ethers.constants.AddressZero);

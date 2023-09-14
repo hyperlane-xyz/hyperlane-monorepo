@@ -1,10 +1,10 @@
-use std::{fmt, time::Duration};
+use std::{fmt, sync::OnceLock, time::Duration};
 
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
 use futures_util::TryStreamExt;
-use once_cell::sync::OnceCell;
+use hyperlane_core::{SignedAnnouncement, SignedCheckpoint, SignedCheckpointWithMessageId};
 use prometheus::IntGauge;
 use rusoto_core::{
     credential::{Anonymous, AwsCredentials, StaticProvider},
@@ -13,10 +13,7 @@ use rusoto_core::{
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
 use tokio::time::timeout;
 
-use crate::settings::aws_credentials::AwsChainCredentialsProvider;
-use hyperlane_core::{SignedAnnouncement, SignedCheckpoint, SignedCheckpointWithMessageId};
-
-use crate::CheckpointSyncer;
+use crate::{settings::aws_credentials::AwsChainCredentialsProvider, CheckpointSyncer};
 
 /// The timeout for S3 requests. Rusoto doesn't offer timeout configuration
 /// out of the box, so S3 requests must be wrapped with a timeout.
@@ -28,14 +25,16 @@ const S3_REQUEST_TIMEOUT_SECONDS: u64 = 30;
 pub struct S3Storage {
     /// The name of the bucket.
     bucket: String,
+    /// A specific folder inside the above repo - set to empty string to use the root of the bucket
+    folder: Option<String>,
     /// The region of the bucket.
     region: Region,
     /// A client with AWS credentials.
     #[new(default)]
-    authenticated_client: OnceCell<S3Client>,
+    authenticated_client: OnceLock<S3Client>,
     /// A client without credentials for anonymous requests.
     #[new(default)]
-    anonymous_client: OnceCell<S3Client>,
+    anonymous_client: OnceLock<S3Client>,
     /// The latest seen signed checkpoint index.
     latest_index: Option<IntGauge>,
 }
@@ -44,6 +43,7 @@ impl fmt::Debug for S3Storage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("S3Storage")
             .field("bucket", &self.bucket)
+            .field("folder", &self.folder)
             .field("region", &self.region)
             .finish()
     }
@@ -52,7 +52,7 @@ impl fmt::Debug for S3Storage {
 impl S3Storage {
     async fn write_to_bucket(&self, key: String, body: &str) -> Result<()> {
         let req = PutObjectRequest {
-            key,
+            key: self.get_composite_key(key),
             bucket: self.bucket.clone(),
             body: Some(Vec::from(body).into()),
             content_type: Some("application/json".to_owned()),
@@ -69,7 +69,7 @@ impl S3Storage {
     /// Uses an anonymous client. This should only be used for publicly accessible buckets.
     async fn anonymously_read_from_bucket(&self, key: String) -> Result<Option<Vec<u8>>> {
         let req = GetObjectRequest {
-            key,
+            key: self.get_composite_key(key),
             bucket: self.bucket.clone(),
             ..Default::default()
         };
@@ -118,6 +118,13 @@ impl S3Storage {
                 self.region.clone(),
             )
         })
+    }
+
+    fn get_composite_key(&self, key: String) -> String {
+        match self.folder.as_deref() {
+            None | Some("") => key,
+            Some(folder_str) => format!("{}/{}", folder_str, key),
+        }
     }
 
     fn legacy_checkpoint_key(index: u32) -> String {
@@ -209,6 +216,11 @@ impl CheckpointSyncer for S3Storage {
     }
 
     fn announcement_location(&self) -> String {
-        format!("s3://{}/{}", self.bucket, self.region.name())
+        match self.folder.as_deref() {
+            None | Some("") => format!("s3://{}/{}", self.bucket, self.region.name()),
+            Some(folder_str) => {
+                format!("s3://{}/{}/{}", self.bucket, self.region.name(), folder_str)
+            }
+        }
     }
 }

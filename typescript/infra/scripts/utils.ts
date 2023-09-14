@@ -1,3 +1,5 @@
+import { Keypair } from '@solana/web3.js';
+import { Wallet } from 'ethers';
 import path from 'path';
 import yargs from 'yargs';
 
@@ -6,19 +8,23 @@ import {
   AllChains,
   ChainMap,
   ChainMetadata,
+  ChainMetadataManager,
   ChainName,
   Chains,
   CoreConfig,
   HyperlaneCore,
   HyperlaneIgp,
   MultiProvider,
-  ProtocolType,
+  ProxiedRouterConfig,
   RouterConfig,
   collectValidators,
+} from '@hyperlane-xyz/sdk';
+import {
+  ProtocolType,
   objMap,
   promiseObjAll,
-} from '@hyperlane-xyz/sdk';
-import { ProxiedRouterConfig } from '@hyperlane-xyz/sdk/dist/router/types';
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
@@ -187,7 +193,7 @@ export async function getMultiProviderForRole(
 
   const multiProvider = new MultiProvider(txConfigs);
   await promiseObjAll(
-    objMap(txConfigs, async (chain, config) => {
+    objMap(txConfigs, async (chain, _) => {
       const provider = await fetchProvider(environment, chain, connectionType);
       const key = getKeyForRole(environment, context, chain, role, index);
       const signer = await key.getSigner(provider);
@@ -196,6 +202,48 @@ export async function getMultiProviderForRole(
     }),
   );
   return multiProvider;
+}
+
+// Note: this will only work for keystores that allow key's to be extracted.
+// I.e. GCP will work but AWS HSMs will not.
+export async function getKeysForRole(
+  txConfigs: ChainMap<ChainMetadata>,
+  environment: DeployEnvironment,
+  context: Contexts,
+  role: Role,
+  index?: number,
+): Promise<ChainMap<CloudAgentKey>> {
+  if (process.env.CI === 'true') {
+    return {};
+  }
+
+  const keys = await promiseObjAll(
+    objMap(txConfigs, async (chain, _) => {
+      const key = getKeyForRole(environment, context, chain, role, index);
+      if (!key.privateKey)
+        throw new Error(`Key for ${chain} does not have private key`);
+      return key;
+    }),
+  );
+  return keys;
+}
+
+// Note: this will only work for keystores that allow key's to be extracted.
+export function getAddressesForKey(
+  keys: ChainMap<CloudAgentKey>,
+  chain: ChainName,
+  manager: ChainMetadataManager<any>,
+) {
+  const protocol = manager.getChainMetadata(chain).protocol;
+  if (protocol === ProtocolType.Ethereum) {
+    return new Wallet(keys[chain]).address;
+  } else if (protocol === ProtocolType.Sealevel) {
+    return Keypair.fromSeed(
+      Buffer.from(strip0x(keys[chain].privateKey), 'hex'),
+    ).publicKey.toBase58();
+  } else {
+    throw Error(`Protocol ${protocol} not supported`);
+  }
 }
 
 export function getContractAddressesSdkFilepath() {
@@ -267,6 +315,7 @@ export async function getRouterConfig(
   const knownChains = multiProvider.intersect(
     core.chains().concat(igp.chains()),
   ).intersection;
+
   for (const chain of knownChains) {
     config[chain] = {
       owner: useMultiProviderOwners
@@ -283,8 +332,13 @@ export async function getRouterConfig(
 export async function getProxiedRouterConfig(
   environment: DeployEnvironment,
   multiProvider: MultiProvider,
+  useMultiProviderOwners = false,
 ): Promise<ChainMap<ProxiedRouterConfig>> {
-  const config = await getRouterConfig(environment, multiProvider);
+  const config = await getRouterConfig(
+    environment,
+    multiProvider,
+    useMultiProviderOwners,
+  );
   return objMap(config, (chain, routerConfig) => ({
     timelock: environments[environment].core[chain].upgrade?.timelock,
     ...routerConfig,

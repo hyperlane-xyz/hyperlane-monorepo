@@ -4,7 +4,13 @@
 
 use account_utils::DiscriminatorEncode;
 use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
-use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+use hyperlane_sealevel_connection_client::{
+    gas_router::GasRouterConfig, router::RemoteRouterConfig,
+};
+use hyperlane_sealevel_igp::{
+    accounts::{GasPaymentAccount, GasPaymentData, InterchainGasPaymasterType},
+    igp_gas_payment_pda_seeds,
+};
 use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
@@ -24,8 +30,9 @@ use hyperlane_sealevel_token_lib::{
     message::TokenMessage,
 };
 use hyperlane_test_utils::{
-    assert_token_balance, assert_transaction_error, initialize_mailbox, mailbox_id,
-    new_funded_keypair, process, transfer_lamports, MailboxAccounts,
+    assert_token_balance, assert_transaction_error, igp_program_id, initialize_igp_accounts,
+    initialize_mailbox, mailbox_id, new_funded_keypair, process, transfer_lamports, IgpAccounts,
+    MailboxAccounts,
 };
 use solana_program::{
     instruction::{AccountMeta, Instruction},
@@ -49,6 +56,7 @@ const LOCAL_DECIMALS: u8 = 8;
 const LOCAL_DECIMALS_U32: u32 = LOCAL_DECIMALS as u32;
 const REMOTE_DOMAIN: u32 = 4321;
 const REMOTE_DECIMALS: u8 = 18;
+const REMOTE_GAS_AMOUNT: u64 = 200000;
 
 fn hyperlane_sealevel_token_id() -> Pubkey {
     pubkey!("3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH")
@@ -83,6 +91,12 @@ async fn setup_client() -> (BanksClient, Keypair) {
         processor!(hyperlane_sealevel_mailbox::processor::process_instruction),
     );
 
+    program_test.add_program(
+        "hyperlane_sealevel_igp",
+        igp_program_id(),
+        processor!(hyperlane_sealevel_igp::processor::process_instruction),
+    );
+
     // This serves as the default ISM on the Mailbox
     program_test.add_program(
         "hyperlane_sealevel_test_ism",
@@ -111,6 +125,7 @@ async fn initialize_hyperlane_token(
     program_id: &Pubkey,
     banks_client: &mut BanksClient,
     payer: &Keypair,
+    igp_accounts: Option<&IgpAccounts>,
 ) -> Result<HyperlaneTokenAccounts, BanksClientError> {
     let (mailbox_process_authority_key, _mailbox_process_authority_bump) =
         Pubkey::find_program_address(
@@ -138,6 +153,12 @@ async fn initialize_hyperlane_token(
                 &HyperlaneTokenInstruction::Init(Init {
                     mailbox: mailbox_id(),
                     interchain_security_module: None,
+                    interchain_gas_paymaster: igp_accounts.map(|igp_accounts| {
+                        (
+                            igp_accounts.program,
+                            InterchainGasPaymasterType::OverheadIgp(igp_accounts.overhead_igp),
+                        )
+                    }),
                     decimals: LOCAL_DECIMALS,
                     remote_decimals: REMOTE_DECIMALS,
                 })
@@ -173,6 +194,17 @@ async fn initialize_hyperlane_token(
     );
     banks_client.process_transaction(transaction).await?;
 
+    // Set destination gas configs
+    set_destination_gas_config(
+        banks_client,
+        program_id,
+        payer,
+        &token_account_key,
+        REMOTE_DOMAIN,
+        REMOTE_GAS_AMOUNT,
+    )
+    .await?;
+
     Ok(HyperlaneTokenAccounts {
         token: token_account_key,
         token_bump: token_account_bump_seed,
@@ -206,6 +238,41 @@ async fn enroll_remote_router(
             .encode()
             .unwrap(),
             vec![
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new(*token_account, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+            ],
+        )],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(transaction).await?;
+
+    Ok(())
+}
+
+async fn set_destination_gas_config(
+    banks_client: &mut BanksClient,
+    program_id: &Pubkey,
+    payer: &Keypair,
+    token_account: &Pubkey,
+    domain: u32,
+    gas: u64,
+) -> Result<(), BanksClientError> {
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    // Enroll the remote router
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            *program_id,
+            &HyperlaneTokenInstruction::SetDestinationGasConfigs(vec![GasRouterConfig {
+                domain,
+                gas: Some(gas),
+            }])
+            .encode()
+            .unwrap(),
+            vec![
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
                 AccountMeta::new(*token_account, false),
                 AccountMeta::new_readonly(payer.pubkey(), true),
             ],
@@ -231,8 +298,13 @@ async fn test_initialize() {
             .await
             .unwrap();
 
+    let igp_accounts =
+        initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
+            .await
+            .unwrap();
+
     let hyperlane_token_accounts =
-        initialize_hyperlane_token(&program_id, &mut banks_client, &payer)
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, Some(&igp_accounts))
             .await
             .unwrap();
 
@@ -257,6 +329,11 @@ async fn test_initialize() {
             remote_decimals: REMOTE_DECIMALS,
             owner: Some(payer.pubkey()),
             interchain_security_module: None,
+            interchain_gas_paymaster: Some((
+                igp_accounts.program,
+                InterchainGasPaymasterType::OverheadIgp(igp_accounts.overhead_igp),
+            )),
+            destination_gas: HashMap::from([(REMOTE_DOMAIN, REMOTE_GAS_AMOUNT)]),
             remote_routers: HashMap::new(),
             plugin_data: SyntheticPlugin {
                 mint: hyperlane_token_accounts.mint,
@@ -290,14 +367,15 @@ async fn test_initialize_errors_if_called_twice() {
 
     let (mut banks_client, payer) = setup_client().await;
 
-    initialize_hyperlane_token(&program_id, &mut banks_client, &payer)
+    initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
         .await
         .unwrap();
 
     let new_payer = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
 
     // To ensure a different signature is used, we'll use a different payer
-    let init_result = initialize_hyperlane_token(&program_id, &mut banks_client, &new_payer).await;
+    let init_result =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &new_payer, None).await;
 
     assert_transaction_error(
         init_result,
@@ -315,6 +393,7 @@ async fn transfer_from_remote(
         BanksClient,
         Keypair,
         MailboxAccounts,
+        IgpAccounts,
         HyperlaneTokenAccounts,
         Pubkey,
     ),
@@ -330,8 +409,13 @@ async fn transfer_from_remote(
             .await
             .unwrap();
 
+    let igp_accounts =
+        initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
+            .await
+            .unwrap();
+
     let hyperlane_token_accounts =
-        initialize_hyperlane_token(&program_id, &mut banks_client, &payer)
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, Some(&igp_accounts))
             .await
             .unwrap();
     // ATA payer must have a balance to create new ATAs
@@ -390,6 +474,7 @@ async fn transfer_from_remote(
         banks_client,
         payer,
         mailbox_accounts,
+        igp_accounts,
         hyperlane_token_accounts,
         recipient_associated_token_account,
     ))
@@ -410,6 +495,7 @@ async fn test_transfer_from_remote() {
         mut banks_client,
         _payer,
         _mailbox_accounts,
+        _igp_accounts,
         _hyperlane_token_accounts,
         recipient_associated_token_account,
     ) = transfer_from_remote(remote_transfer_amount, None, None, None)
@@ -465,7 +551,7 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
             .unwrap();
 
     let hyperlane_token_accounts =
-        initialize_hyperlane_token(&program_id, &mut banks_client, &payer)
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
             .await
             .unwrap();
 
@@ -552,21 +638,27 @@ async fn test_transfer_remote() {
     // Mint 100 tokens to the token sender's ATA.
     // We do this by just faking a transfer from remote.
     let sender_initial_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
-    let (mut banks_client, payer, mailbox_accounts, hyperlane_token_accounts, token_sender_ata) =
-        transfer_from_remote(
-            // The amount of remote tokens is expected
-            convert_decimals(
-                sender_initial_balance.into(),
-                LOCAL_DECIMALS,
-                REMOTE_DECIMALS,
-            )
-            .unwrap(),
-            None,
-            None,
-            Some(token_sender_pubkey),
+    let (
+        mut banks_client,
+        payer,
+        mailbox_accounts,
+        igp_accounts,
+        hyperlane_token_accounts,
+        token_sender_ata,
+    ) = transfer_from_remote(
+        // The amount of remote tokens is expected
+        convert_decimals(
+            sender_initial_balance.into(),
+            LOCAL_DECIMALS,
+            REMOTE_DECIMALS,
         )
-        .await
-        .unwrap();
+        .unwrap(),
+        None,
+        None,
+        Some(token_sender_pubkey),
+    )
+    .await
+    .unwrap();
 
     // Give the token_sender a SOL balance to pay tx fees.
     transfer_lamports(
@@ -596,6 +688,10 @@ async fn test_transfer_remote() {
         mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
         &mailbox_program_id,
     );
+    let (gas_payment_pda_key, _gas_payment_pda_bump) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &igp_program_id(),
+    );
 
     let remote_token_recipient = H256::random();
     // Transfer 69 tokens.
@@ -623,9 +719,16 @@ async fn test_transfer_remote() {
             // 6.  [signer] The token sender and mailbox payer.
             // 7.  [signer] Unique message account.
             // 8.  [writeable] Message storage PDA.
-            // 9. [executable] The spl_token_2022 program.
-            // 10. [writeable] The mint / mint authority PDA account.
-            // 11. [writeable] The token sender's associated token account, from which tokens will be burned.
+            //     ---- If using an IGP ----
+            // 9.  [executable] The IGP program.
+            // 10. [writeable] The IGP program data.
+            // 11. [writeable] Gas payment PDA.
+            // 12. [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+            // 13. [writeable] The IGP account.
+            //      ---- End if ----
+            // 14. [executable] The spl_token_2022 program.
+            // 15. [writeable] The mint / mint authority PDA account.
+            // 16. [writeable] The token sender's associated token account, from which tokens will be burned.
             vec![
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
                 AccountMeta::new_readonly(spl_noop::id(), false),
@@ -636,6 +739,11 @@ async fn test_transfer_remote() {
                 AccountMeta::new_readonly(token_sender_pubkey, true),
                 AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
                 AccountMeta::new(dispatched_message_key, false),
+                AccountMeta::new_readonly(igp_accounts.program, false),
+                AccountMeta::new(igp_accounts.program_data, false),
+                AccountMeta::new(gas_payment_pda_key, false),
+                AccountMeta::new_readonly(igp_accounts.overhead_igp, false),
+                AccountMeta::new(igp_accounts.igp, false),
                 AccountMeta::new_readonly(spl_token_2022::id(), false),
                 AccountMeta::new(hyperlane_token_accounts.mint, false),
                 AccountMeta::new(token_sender_ata, false),
@@ -694,6 +802,32 @@ async fn test_transfer_remote() {
             message.to_vec(),
         )),
     );
+
+    // And let's also look at the gas payment account to verify the gas payment looks right.
+    let gas_payment_account_data = banks_client
+        .get_account(gas_payment_pda_key)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let gas_payment = GasPaymentAccount::fetch(&mut &gas_payment_account_data[..])
+        .unwrap()
+        .into_inner();
+
+    assert_eq!(
+        *gas_payment,
+        GasPaymentData {
+            sequence_number: 0,
+            igp: igp_accounts.igp,
+            destination_domain: REMOTE_DOMAIN,
+            message_id: message.id(),
+            gas_amount: REMOTE_GAS_AMOUNT,
+            unique_gas_payment_pubkey: unique_message_account_keypair.pubkey(),
+            slot: transfer_remote_tx_status.slot,
+            payment: REMOTE_GAS_AMOUNT
+        }
+        .into(),
+    );
 }
 
 #[tokio::test]
@@ -703,7 +837,7 @@ async fn test_enroll_remote_router() {
     let (mut banks_client, payer) = setup_client().await;
 
     let hyperlane_token_accounts =
-        initialize_hyperlane_token(&program_id, &mut banks_client, &payer)
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
             .await
             .unwrap();
 
@@ -743,13 +877,13 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
     let (mut banks_client, payer) = setup_client().await;
 
     let hyperlane_token_accounts =
-        initialize_hyperlane_token(&program_id, &mut banks_client, &payer)
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
             .await
             .unwrap();
 
     let non_owner = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
 
-    // Use the mint authority as the payer, which has a balance but is not the owner,
+    // Use the non_owner as the payer, which has a balance but is not the owner,
     // so we expect this to fail.
     let result = enroll_remote_router(
         &mut banks_client,
@@ -766,7 +900,7 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
         TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
 
-    // Also try using the mint authority as the payer and specifying the correct
+    // Also try using the non_owner as the payer and specifying the correct
     // owner account, but the owner isn't a signer:
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     // Enroll the remote router
@@ -780,6 +914,108 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
             .encode()
             .unwrap(),
             vec![
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(payer.pubkey(), false),
+            ],
+        )],
+        Some(&non_owner.pubkey()),
+        &[&non_owner],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+}
+
+#[tokio::test]
+async fn test_set_destination_gas_configs() {
+    let program_id = hyperlane_sealevel_token_id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
+            .await
+            .unwrap();
+
+    // Set the destination gas config
+    let gas = 111222333;
+    set_destination_gas_config(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        gas,
+    )
+    .await
+    .unwrap();
+
+    // Verify the destination gas was set.
+    let token_account_data = banks_client
+        .get_account(hyperlane_token_accounts.token)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let token = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(&mut &token_account_data[..])
+        .unwrap()
+        .into_inner();
+    assert_eq!(
+        token.destination_gas,
+        vec![(REMOTE_DOMAIN, gas)].into_iter().collect(),
+    );
+}
+
+#[tokio::test]
+async fn test_set_destination_gas_configs_errors_if_not_signed_by_owner() {
+    let program_id = hyperlane_sealevel_token_id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
+            .await
+            .unwrap();
+
+    let non_owner = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+
+    // Use the non_owner as the payer, which has a balance but is not the owner,
+    // so we expect this to fail.
+    let gas = 111222333;
+    let result = set_destination_gas_config(
+        &mut banks_client,
+        &program_id,
+        &non_owner,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        gas,
+    )
+    .await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+
+    // Also try using the non_owner as the payer and specifying the correct
+    // owner account, but the owner isn't a signer:
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    // Try setting
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::SetDestinationGasConfigs(vec![GasRouterConfig {
+                domain: REMOTE_DOMAIN,
+                gas: Some(gas),
+            }])
+            .encode()
+            .unwrap(),
+            vec![
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
                 AccountMeta::new(hyperlane_token_accounts.token, false),
                 AccountMeta::new_readonly(payer.pubkey(), false),
             ],
@@ -802,7 +1038,7 @@ async fn test_transfer_ownership() {
     let (mut banks_client, payer) = setup_client().await;
 
     let hyperlane_token_accounts =
-        initialize_hyperlane_token(&program_id, &mut banks_client, &payer)
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
             .await
             .unwrap();
 
@@ -847,7 +1083,7 @@ async fn test_transfer_ownership_errors_if_owner_not_signer() {
     let (mut banks_client, payer) = setup_client().await;
 
     let hyperlane_token_accounts =
-        initialize_hyperlane_token(&program_id, &mut banks_client, &payer)
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
             .await
             .unwrap();
 
@@ -886,14 +1122,13 @@ async fn test_set_interchain_security_module() {
     let (mut banks_client, payer) = setup_client().await;
 
     let hyperlane_token_accounts =
-        initialize_hyperlane_token(&program_id, &mut banks_client, &payer)
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
             .await
             .unwrap();
 
     let new_ism = Some(Pubkey::new_unique());
 
     // Set the ISM
-    // Transfer ownership
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_bytes(
@@ -932,7 +1167,7 @@ async fn test_set_interchain_security_module_errors_if_owner_not_signer() {
     let (mut banks_client, payer) = setup_client().await;
 
     let hyperlane_token_accounts =
-        initialize_hyperlane_token(&program_id, &mut banks_client, &payer)
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
             .await
             .unwrap();
 
@@ -961,5 +1196,143 @@ async fn test_set_interchain_security_module_errors_if_owner_not_signer() {
     assert_transaction_error(
         result,
         TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+
+    // Also try using the non_owner as the payer and specifying the correct
+    // owner account, but the owner isn't a signer:
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::SetInterchainSecurityModule(new_ism)
+                .encode()
+                .unwrap(),
+            vec![
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(payer.pubkey(), false),
+            ],
+        )],
+        Some(&non_owner.pubkey()),
+        &[&non_owner],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+}
+
+#[tokio::test]
+async fn test_set_interchain_gas_paymaster() {
+    let program_id = hyperlane_sealevel_token_id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
+            .await
+            .unwrap();
+
+    let new_igp = Some((
+        Pubkey::new_unique(),
+        InterchainGasPaymasterType::OverheadIgp(Pubkey::new_unique()),
+    ));
+
+    // Set the IGP
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::SetInterchainGasPaymaster(new_igp.clone())
+                .encode()
+                .unwrap(),
+            vec![
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+            ],
+        )],
+        Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(transaction).await.unwrap();
+
+    // Verify the new IGP is set
+    let token_account_data = banks_client
+        .get_account(hyperlane_token_accounts.token)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let token = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(&mut &token_account_data[..])
+        .unwrap()
+        .into_inner();
+    assert_eq!(token.interchain_gas_paymaster, new_igp);
+}
+
+#[tokio::test]
+async fn test_set_interchain_gas_paymaster_errors_if_owner_not_signer() {
+    let program_id = hyperlane_sealevel_token_id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
+            .await
+            .unwrap();
+
+    let new_igp = Some((
+        Pubkey::new_unique(),
+        InterchainGasPaymasterType::OverheadIgp(Pubkey::new_unique()),
+    ));
+    let non_owner = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+
+    // Try setting the ISM using the mint authority key
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::SetInterchainGasPaymaster(new_igp.clone())
+                .encode()
+                .unwrap(),
+            vec![
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(non_owner.pubkey(), true),
+            ],
+        )],
+        Some(&non_owner.pubkey()),
+        &[&non_owner],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+
+    // Also try using the non_owner as the payer and specifying the correct
+    // owner account, but the owner isn't a signer:
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::SetInterchainGasPaymaster(new_igp)
+                .encode()
+                .unwrap(),
+            vec![
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(payer.pubkey(), false),
+            ],
+        )],
+        Some(&non_owner.pubkey()),
+        &[&non_owner],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
     );
 }

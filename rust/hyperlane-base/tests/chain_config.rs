@@ -1,13 +1,10 @@
-use std::collections::BTreeSet;
-use std::fs::read_to_string;
-use std::path::Path;
+use std::{collections::BTreeSet, fs::read_to_string, path::Path};
 
 use config::{Config, FileFormat};
 use eyre::Context;
-use walkdir::WalkDir;
-
-use hyperlane_base::{RawSettings, Settings};
+use hyperlane_base::settings::{deprecated_parser::DeprecatedRawSettings, Settings};
 use hyperlane_core::{config::*, KnownHyperlaneDomain};
+use walkdir::WalkDir;
 
 /// Relative path to the `hyperlane-monorepo/rust/config/`
 /// directory, which is where the agent's config files
@@ -74,11 +71,11 @@ fn hyperlane_settings() -> Vec<Settings> {
         .zip(files.iter())
         // Filter out config files that can't be parsed as json (e.g. env files)
         .filter_map(|(p, f)| {
-            let raw: RawSettings = Config::builder()
+            let raw: DeprecatedRawSettings = Config::builder()
                 .add_source(config::File::from_str(f.as_str(), FileFormat::Json))
                 .build()
                 .ok()?
-                .try_deserialize::<RawSettings>()
+                .try_deserialize::<DeprecatedRawSettings>()
                 .unwrap_or_else(|e| {
                     panic!("!cfg({}): {:?}: {}", p, e, f);
                 });
