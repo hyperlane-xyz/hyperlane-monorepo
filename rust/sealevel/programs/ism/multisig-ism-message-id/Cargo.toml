@@ -26,7 +26,7 @@ serializable-account-meta = { path = "../../../libraries/serializable-account-me
 
 [dev-dependencies]
 hyperlane-sealevel-multisig-ism-message-id = { path = "../multisig-ism-message-id" }
-
+hyperlane-test-utils = { path = "../../../libraries/test-utils" }
 solana-program-test.workspace = true
 solana-sdk.workspace = true
 hex.workspace = true
@@ -34,3 +34,6 @@ multisig-ism = { path = "../../../libraries/multisig-ism", features = ["test-dat
 
 [lib]
 crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true

@@ -1,12 +1,18 @@
-use std::fmt;
-use std::fmt::{Debug, Display, Formatter};
-use std::marker::PhantomData;
+//! The correct settings shape is defined in the TypeScript SDK metadata. While the the exact shape
+//! and validations it defines are not applied here, we should mirror them.
+//! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use serde::de::{Error, SeqAccess, Visitor};
-use serde::{Deserialize, Deserializer};
+use std::{
+    fmt,
+    fmt::{Debug, Display, Formatter},
+    marker::PhantomData,
+};
 
-use hyperlane_core::config::StrOrInt;
-use hyperlane_core::{HyperlaneMessage, H160, H256};
+use hyperlane_core::{config::StrOrInt, utils::hex_or_base58_to_h256, HyperlaneMessage, H256};
+use serde::{
+    de::{Error, SeqAccess, Visitor},
+    Deserialize, Deserializer,
+};
 
 /// Defines a set of patterns for determining if a message should or should not
 /// be relayed. This is useful for determine if a message matches a given set or
@@ -112,7 +118,7 @@ impl<'de> Visitor<'de> for FilterVisitor<H256> {
     fn expecting(&self, fmt: &mut Formatter) -> fmt::Result {
         write!(
             fmt,
-            "Expecting either a wildcard \"*\", hex address string, or list of hex address strings"
+            "Expecting either a wildcard \"*\", hex/base58 address string, or list of hex/base58 address strings"
         )
     }
 
@@ -248,21 +254,15 @@ fn to_serde_err<IE: ToString, OE: Error>(e: IE) -> OE {
 }
 
 fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
-    if addr_str.len() <= 42 {
-        addr_str.parse::<H160>().map(H256::from)
-    } else {
-        addr_str.parse::<H256>()
-    }
-    .map_err(to_serde_err)
+    hex_or_base58_to_h256(addr_str).map_err(to_serde_err)
 }
 
 #[cfg(test)]
 mod test {
     use hyperlane_core::{H160, H256};
 
-    use crate::settings::matching_list::MatchInfo;
-
     use super::{Filter::*, MatchingList};
+    use crate::settings::matching_list::MatchInfo;
 
     #[test]
     fn basic_config() {
@@ -307,7 +307,7 @@ mod test {
 
     #[test]
     fn config_with_address() {
-        let list: MatchingList = serde_json::from_str(r#"[{"senderAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "recipientAddress": "9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"senderAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "recipientAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
         assert!(list.0.is_some());
         assert_eq!(list.0.as_ref().unwrap().len(), 1);
         let elem = &list.0.as_ref().unwrap()[0];
@@ -383,5 +383,12 @@ mod test {
         assert!(MatchingList(None).matches(info, true));
         // blacklist use
         assert!(!MatchingList(None).matches(info, false));
+    }
+
+    #[test]
+    fn supports_base58() {
+        serde_json::from_str::<MatchingList>(
+            r#"[{"originDomain":1399811151,"senderAddress":"DdTMkk9nuqH5LnD56HLkPiKMV3yB3BNEYSQfgmJHa5i7","destinationDomain":11155111,"recipientAddress":"0x6AD4DEBA8A147d000C09de6465267a9047d1c217"}]"#,
+        ).unwrap();
     }
 }

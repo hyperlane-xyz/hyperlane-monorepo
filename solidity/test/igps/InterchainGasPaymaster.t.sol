@@ -276,7 +276,7 @@ contract InterchainGasPaymasterTest is Test {
     function testQuoteGasPaymentRevertsIfNoGasOracleSet() public {
         uint32 _unknownDomain = 22222;
 
-        vm.expectRevert("!gas oracle");
+        vm.expectRevert("Configured IGP doesn't support domain 22222");
         igp.quoteGasPayment(_unknownDomain, testGasAmount);
     }
 
@@ -369,7 +369,7 @@ contract InterchainGasPaymasterTest is Test {
     function testGetExchangeRateAndGasPriceRevertsIfNoGasOracleSet() public {
         uint32 _unknownDomain = 22222;
 
-        vm.expectRevert("!gas oracle");
+        vm.expectRevert("Configured IGP doesn't support domain 22222");
         igp.getExchangeRateAndGasPrice(_unknownDomain);
     }
 
