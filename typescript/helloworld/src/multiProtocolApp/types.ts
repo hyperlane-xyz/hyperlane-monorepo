@@ -1,25 +1,24 @@
 import {
   ChainName,
   IRouterAdapter,
-  RouterAddress,
   TypedTransaction,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { StatCounts } from '../app/types';
 
-export interface IHelloWorldAdapter
-  extends IRouterAdapter<RouterAddress & { mailbox: Address }> {
+export interface IHelloWorldAdapter extends IRouterAdapter {
   populateSendHelloTx: (
-    origin: ChainName,
     destination: ChainName,
     message: string,
     value: string,
     sender: Address,
   ) => Promise<TypedTransaction>;
 
+  // TODO break apart into separate origin + destination methods to
+  // handle case where origin/dest protocols differ
   channelStats: (
-    origin: ChainName,
     destination: ChainName,
+    destinationMailbox: Address,
   ) => Promise<StatCounts>;
 }

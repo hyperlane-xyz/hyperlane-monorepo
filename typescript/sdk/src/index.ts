@@ -10,6 +10,7 @@ export {
   chainIdToMetadata,
   chainMetadata,
   mainnetChainsMetadata,
+  solanaChainToClusterName,
   testnetChainsMetadata,
 } from './consts/chainMetadata';
 export {
@@ -89,6 +90,14 @@ export * as verificationUtils from './deploy/verify/utils';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
 export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer';
+export { SealevelOverheadIgpAdapter } from './gas/adapters/SealevelIgpAdapter';
+export {
+  SealevelInterchainGasPaymasterConfig,
+  SealevelInterchainGasPaymasterConfigSchema,
+  SealevelInterchainGasPaymasterType,
+  SealevelOverheadIgpData,
+  SealevelOverheadIgpDataSchema,
+} from './gas/adapters/serialization';
 export { IgpFactories, igpFactories } from './gas/contracts';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
@@ -258,18 +267,6 @@ export {
   proxiedFactories,
 } from './router/types';
 export {
-  SealevelAccountDataWrapper,
-  SealevelInstructionWrapper,
-  getSealevelAccountDataSchema,
-} from './sealevel/serialization';
-export {
-  SealevelHypTokenInstruction,
-  SealevelHyperlaneTokenData,
-  SealevelHyperlaneTokenDataSchema,
-  SealevelTransferRemoteInstruction,
-  SealevelTransferRemoteSchema,
-} from './sealevel/tokenSerialization';
-export {
   createRouterConfigMap,
   deployTestIgpsAndGetRouterConfig,
 } from './test/testUtils';
@@ -283,4 +280,9 @@ export {
 export { MultiGeneric } from './utils/MultiGeneric';
 export { filterByChains } from './utils/filter';
 export { multisigIsmVerificationCost } from './utils/ism';
+export {
+  SealevelAccountDataWrapper,
+  SealevelInstructionWrapper,
+  getSealevelAccountDataSchema,
+} from './utils/sealevelSerialization';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';

@@ -70,6 +70,16 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
         destinationDomain: '*',
         recipientAddress: '*',
       },
+      {
+        originDomain: [getDomainId(chainMetadata.bsctestnet)],
+        senderAddress: [
+          // testnet ZBC warp route on bsctestnet, which pays
+          // an IGP that isn't indexed by the relayer at the moment
+          '0x31b5234A896FbC4b3e2F7237592D054716762131',
+        ],
+        destinationDomain: '*',
+        recipientAddress: '*',
+      },
     ],
   },
   // Default policy is OnChainFeeQuoting
