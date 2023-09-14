@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 import {HypERC20Collateral} from "./HypERC20Collateral.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {FastTransfer} from "./libs/FastTransfer.sol";
+import {FastTokenRouter} from "./libs/FastTokenRouter.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -12,7 +12,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * @title Hyperlane ERC20 Token Collateral that wraps an existing ERC20 with remote transfer functionality.
  * @author Abacus Works
  */
-contract FastHypERC20Collateral is FastTransfer, HypERC20Collateral {
+contract FastHypERC20Collateral is FastTokenRouter, HypERC20Collateral {
     using SafeERC20 for IERC20;
 
     /**
@@ -23,19 +23,19 @@ contract FastHypERC20Collateral is FastTransfer, HypERC20Collateral {
 
     /**
      * @dev delegates transfer logic to `_transferTo`.
-     * @inheritdoc FastTransfer
+     * @inheritdoc FastTokenRouter
      */
     function _handle(
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _message
-    ) internal virtual override(FastTransfer, TokenRouter) {
-        FastTransfer._handle(_origin, _sender, _message);
+    ) internal virtual override(FastTokenRouter, TokenRouter) {
+        FastTokenRouter._handle(_origin, _sender, _message);
     }
 
     /**
      * @dev Transfers `_amount` of `wrappedToken` to `_recipient`.
-     * @inheritdoc FastTransfer
+     * @inheritdoc FastTokenRouter
      */
     function _fastTransferTo(address _recipient, uint256 _amount)
         internal
@@ -46,7 +46,7 @@ contract FastHypERC20Collateral is FastTransfer, HypERC20Collateral {
 
     /**
      * @dev Transfers in `_amount` of `wrappedToken` from `_recipient`.
-     * @inheritdoc FastTransfer
+     * @inheritdoc FastTokenRouter
      */
     function _fastRecieveFrom(address _sender, uint256 _amount)
         internal

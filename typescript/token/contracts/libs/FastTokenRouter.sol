@@ -7,10 +7,10 @@ import {TokenRouter} from "./TokenRouter.sol";
 import {TypeCasts} from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
 
 /**
- * @title Common FastTransfer functionality for ERC20 Tokens with remote transfer support.
+ * @title Common FastTokenRouter functionality for ERC20 Tokens with remote transfer support.
  * @author Abacus Works
  */
-abstract contract FastTransfer is TokenRouter {
+abstract contract FastTokenRouter is TokenRouter {
     using TypeCasts for bytes32;
     using Message for bytes;
     /**
@@ -53,24 +53,14 @@ abstract contract FastTransfer is TokenRouter {
         uint32 _origin,
         bytes calldata _metadata
     ) internal virtual {
-        if (_metadata.length > 0) {
-            (uint256 _fastFee, uint256 _fastTransferId) = abi.decode(
-                _metadata,
-                (uint256, uint256)
-            );
+        address _tokenRecipient = _getTokenRecipient(
+            _recipient,
+            _amount,
+            _origin,
+            _metadata
+        );
 
-            FastTranferMetadata memory m_filledMetadata = filledFastTransfers[
-                keccak256(abi.encodePacked(_origin, _fastTransferId))
-            ];
-
-            m_filledMetadata.fastFee <= _fastFee &&
-                _recipient == m_filledMetadata.recipient &&
-                _amount == m_filledMetadata.amount
-                ? _fastTransferTo(m_filledMetadata.filler, _amount)
-                : _fastTransferTo(_recipient, _amount);
-        } else {
-            _fastTransferTo(_recipient, _amount);
-        }
+        _fastTransferTo(_tokenRecipient, _amount);
     }
 
     /**
@@ -95,15 +85,15 @@ abstract contract FastTransfer is TokenRouter {
             "request already filled"
         );
 
-        _fastRecieveFrom(msg.sender, _amount - _fastFee);
-        _fastTransferTo(_recipient, _amount - _fastFee);
-
         filledFastTransfers[filledFastTransfersKey] = FastTranferMetadata(
             msg.sender,
             _recipient,
             _amount,
             _fastFee
         );
+
+        _fastRecieveFrom(msg.sender, _amount - _fastFee);
+        _fastTransferTo(_recipient, _amount - _fastFee);
     }
 
     /**
@@ -121,18 +111,13 @@ abstract contract FastTransfer is TokenRouter {
         uint256 _amountOrId,
         uint256 _fastFee
     ) public payable virtual returns (bytes32 messageId) {
-        bytes memory metadata;
-        if (_fastFee > 0) {
-            uint256 _fastTransferId = fastTransferId;
-            fastTransferId = _fastTransferId + 1;
-            metadata = _fastTransferFromSender(
-                _amountOrId,
-                _fastFee,
-                _fastTransferId + 1
-            );
-        } else {
-            metadata = _fastTransferFromSender(_amountOrId, 0, 0);
-        }
+        uint256 _fastTransferId = fastTransferId;
+        fastTransferId = _fastTransferId + 1;
+        bytes memory metadata = _fastTransferFromSender(
+            _amountOrId,
+            _fastFee,
+            _fastTransferId + 1
+        );
 
         messageId = _dispatchWithGas(
             _destination,
@@ -155,6 +140,41 @@ abstract contract FastTransfer is TokenRouter {
     ) internal virtual returns (bytes memory) {
         _fastRecieveFrom(msg.sender, _amount);
         return abi.encode(_fastFee, _fastTransferId);
+    }
+
+    /**
+     * @dev returns an address that indicates who should recieve the bridged tokens.
+     * @dev if _fastFees was inlcuded and someone filled the order before the mailbox made the contract call, the filler gets the funds.
+     */
+    function _getTokenRecipient(
+        address _recipient,
+        uint256 _amount,
+        uint32 _origin,
+        bytes calldata _metadata
+    ) internal view returns (address) {
+        if (_metadata.length == 0) {
+            return _recipient;
+        }
+
+        // decode metadata to extract `_fastFee` and `_fastTransferId`.
+        (uint256 _fastFee, uint256 _fastTransferId) = abi.decode(
+            _metadata,
+            (uint256, uint256)
+        );
+
+        FastTranferMetadata memory m_filledMetadata = filledFastTransfers[
+            keccak256(abi.encodePacked(_origin, _fastTransferId))
+        ];
+
+        if (
+            m_filledMetadata.fastFee <= _fastFee &&
+            _recipient == m_filledMetadata.recipient &&
+            _amount == m_filledMetadata.amount
+        ) {
+            return m_filledMetadata.filler;
+        }
+
+        return _recipient;
     }
 
     /**

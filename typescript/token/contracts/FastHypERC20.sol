@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import {HypERC20} from "./HypERC20.sol";
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {FastTransfer} from "./libs/FastTransfer.sol";
+import {FastTokenRouter} from "./libs/FastTokenRouter.sol";
 import {Message} from "./libs/Message.sol";
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
@@ -14,7 +14,7 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract FastHypERC20 is FastTransfer, HypERC20 {
+contract FastHypERC20 is FastTokenRouter, HypERC20 {
     constructor(uint8 __decimals) HypERC20(__decimals) {}
 
     /**
@@ -25,13 +25,13 @@ contract FastHypERC20 is FastTransfer, HypERC20 {
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _message
-    ) internal virtual override(FastTransfer, TokenRouter) {
-        FastTransfer._handle(_origin, _sender, _message);
+    ) internal virtual override(FastTokenRouter, TokenRouter) {
+        FastTokenRouter._handle(_origin, _sender, _message);
     }
 
     /**
      * @dev Mints `_amount` of tokens to `_recipient`.
-     * @inheritdoc FastTransfer
+     * @inheritdoc FastTokenRouter
      */
     function _fastTransferTo(address _recipient, uint256 _amount)
         internal
@@ -42,7 +42,7 @@ contract FastHypERC20 is FastTransfer, HypERC20 {
 
     /**
      * @dev Burns `_amount` of tokens from `_recipient`.
-     * @inheritdoc FastTransfer
+     * @inheritdoc FastTokenRouter
      */
     function _fastRecieveFrom(address _sender, uint256 _amount)
         internal
