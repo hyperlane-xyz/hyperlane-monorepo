@@ -1,39 +1,31 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{utils::hex_or_base58_to_h256, H256};
+use hyperlane_core::H256;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::File, path::Path, str::FromStr};
+use std::collections::HashMap;
 
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
-use solana_program::program_error::ProgramError;
-use solana_sdk::{
-    commitment_config::CommitmentConfig, instruction::Instruction, pubkey::Pubkey,
-    signature::Signer,
-};
 
-use hyperlane_sealevel_connection_client::{
-    gas_router::GasRouterConfig, router::RemoteRouterConfig,
-};
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+
+use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_token::{hyperlane_token_mint_pda_seeds, spl_token, spl_token_2022};
 use hyperlane_sealevel_token_lib::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
     instruction::{
-        enroll_remote_routers_instruction, set_destination_gas_configs,
-        set_interchain_security_module_instruction, Init,
+        enroll_remote_routers_instruction, set_interchain_security_module_instruction, Init,
     },
 };
 
 use crate::{
-    cmd_utils::{
-        account_exists, create_and_write_keypair, create_new_directory, deploy_program_idempotent,
-    },
-    core::{read_core_program_ids, CoreProgramIds},
+    cmd_utils::account_exists,
+    core::CoreProgramIds,
     router::{
-        deploy_routers, ChainMetadata, ConnectionClient, Deployable, RouterConfig,
-        RouterConfigGetter,
+        deploy_routers, ChainMetadata, ConnectionClient, RouterConfig, RouterConfigGetter,
+        RouterDeployer,
     },
-    Context, WarpRouteCmd, WarpRouteDeploy, WarpRouteSubCmd,
+    Context, WarpRouteCmd, WarpRouteSubCmd,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -161,7 +153,7 @@ impl WarpRouteDeployer {
 
 impl WarpRouteDeployer {}
 
-impl Deployable<TokenConfig> for WarpRouteDeployer {
+impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
     fn program_name(&self, config: &TokenConfig) -> &str {
         match config.token_type {
             TokenType::Native => "hyperlane_sealevel_token_native",
@@ -211,6 +203,10 @@ impl Deployable<TokenConfig> for WarpRouteDeployer {
         }
 
         let domain_id = chain_config.domain_id();
+
+        // TODO: consider pulling the setting of defaults into router.rs,
+        // and possibly have a more distinct connection client abstration.
+
         let mailbox = app_config
             .router_config()
             .connection_client

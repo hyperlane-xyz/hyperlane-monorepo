@@ -16,8 +16,8 @@ use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use crate::{
     cmd_utils::account_exists,
     router::{
-        deploy_routers, ChainMetadata, ConnectionClient, Deployable, RouterConfig,
-        RouterConfigGetter,
+        deploy_routers, ChainMetadata, ConnectionClient, RouterConfig, RouterConfigGetter,
+        RouterDeployer,
     },
     Context, CoreProgramIds, HelloWorldCmd, HelloWorldDeploy, HelloWorldSubCmd, RpcClient,
 };
@@ -65,7 +65,7 @@ impl HelloWorldDeployer {
     }
 }
 
-impl Deployable<HelloWorldConfig> for HelloWorldDeployer {
+impl RouterDeployer<HelloWorldConfig> for HelloWorldDeployer {
     fn program_name(&self, _config: &HelloWorldConfig) -> &str {
         "hyperlane_sealevel_hello_world"
     }

@@ -19,6 +19,7 @@ use crate::{
     read_core_program_ids, Context, CoreProgramIds,
 };
 
+/// Optional connection client configuration.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct OptionalConnectionClientConfig {
@@ -69,6 +70,7 @@ impl OptionalConnectionClientConfig {
     }
 }
 
+/// Optional ownable configuration.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct OptionalOwnableConfig {
@@ -83,6 +85,7 @@ impl OptionalOwnableConfig {
     }
 }
 
+/// Router configuration.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RouterConfig {
@@ -126,7 +129,7 @@ pub trait RouterConfigGetter {
     fn router_config(&self) -> &RouterConfig;
 }
 
-pub(crate) trait Deployable<Config: RouterConfigGetter + std::fmt::Debug>:
+pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
     ConnectionClient
 {
     #[allow(clippy::too_many_arguments)]
@@ -222,7 +225,7 @@ pub(crate) trait ConnectionClient {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn deploy_routers<
     Config: for<'a> Deserialize<'a> + RouterConfigGetter + std::fmt::Debug,
-    Deployer: Deployable<Config>,
+    Deployer: RouterDeployer<Config>,
 >(
     ctx: &mut Context,
     deployer: Deployer,
@@ -273,8 +276,10 @@ pub(crate) fn deploy_routers<
             .get(chain_name)
             .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
-        if app_config.router_config().ownable.owner.is_some() {
-            println!("WARNING: Ownership transfer is not yet supported in this deploy tooling, ownership is granted to the payer account");
+        if let Some(configured_owner) = app_config.router_config().ownable.owner {
+            if configured_owner != ctx.payer_pubkey {
+                println!("WARNING: Ownership transfer is not yet supported in this deploy tooling, ownership is granted to the payer account");
+            }
         }
 
         let program_id = deployer.deploy(
@@ -292,6 +297,9 @@ pub(crate) fn deploy_routers<
             H256::from_slice(&program_id.to_bytes()[..]),
         );
 
+        // TODO pull this out into connection-client specific logic
+        // that also looks for IGP inconsistency.
+
         let actual_ism =
             deployer.get_interchain_security_module(&chain_config.client(), &program_id);
         let expected_ism = app_config
@@ -299,13 +307,7 @@ pub(crate) fn deploy_routers<
             .connection_client
             .interchain_security_module();
 
-        println!(
-            "actual_ism {:?} expected_ism {:?}",
-            actual_ism, expected_ism
-        );
-
         if actual_ism != expected_ism {
-            println!("Setting correct one...");
             ctx.new_txn()
                 .add_with_description(
                     deployer.set_interchain_security_module_instruction(
