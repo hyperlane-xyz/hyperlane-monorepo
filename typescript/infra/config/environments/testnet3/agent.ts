@@ -61,12 +61,7 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
       ...interchainQueriesMatchingList,
       {
         originDomain: [getDomainId(chainMetadata.solanadevnet)],
-        senderAddress: [
-          // hyperlane context helloworld router on solanadevnet
-          'CXQX54kdkU5GqdRJjCmHpwHfEMgFb5SeBmMWntP2Ds7J',
-          // non-IGP-paying warp route on solanadevnet
-          'PJH5QAbxAqrrnSXfH3GHR8icua8CDFZmo97z91xmpvx',
-        ],
+        senderAddress: '*',
         destinationDomain: '*',
         recipientAddress: '*',
       },

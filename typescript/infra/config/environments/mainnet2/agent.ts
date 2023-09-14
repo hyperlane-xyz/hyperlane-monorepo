@@ -2,6 +2,7 @@ import {
   AgentConnectionType,
   ChainMap,
   chainMetadata,
+  getDomainId,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
@@ -59,7 +60,21 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
     // all messages between interchain query routers.
     // This whitelist will become more strict with
     // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
-    matchingList: interchainQueriesMatchingList,
+    matchingList: [
+      ...interchainQueriesMatchingList,
+      {
+        originDomain: [getDomainId(chainMetadata.solana)],
+        senderAddress: '*',
+        destinationDomain: '*',
+        recipientAddress: '*',
+      },
+      {
+        originDomain: [getDomainId(chainMetadata.bsc)],
+        senderAddress: ['0xC27980812E2E66491FD457D488509b7E04144b98'],
+        destinationDomain: '*',
+        recipientAddress: '*',
+      },
+    ],
   },
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
