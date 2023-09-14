@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use derive_new::new;
-use tracing::debug;
+use tracing::warn;
 
 /// Calculates the expected time to catch up to the tip of the blockchain.
 #[derive(new)]
@@ -66,7 +66,7 @@ impl SyncerEtaCalculator {
             {
                 Ok(eta) => eta,
                 Err(e) => {
-                    debug!(error=?e, tip=?current_tip, block=?current_block, rate=?effective_rate, "Failed to calculate the eta");
+                    warn!(error=?e, tip=?current_tip, block=?current_block, rate=?effective_rate, "Failed to calculate the eta");
                     default_duration
                 }
             }
