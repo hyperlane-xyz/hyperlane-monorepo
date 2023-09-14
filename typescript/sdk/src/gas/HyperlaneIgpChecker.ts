@@ -1,6 +1,6 @@
 import { BigNumber, utils as ethersUtils } from 'ethers';
 
-import { types, utils } from '@hyperlane-xyz/utils';
+import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
@@ -147,7 +147,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       const actualGasOracle = await igp.gasOracles(remoteId);
       const expectedGasOracle = this.getGasOracleAddress(local, remote);
 
-      if (!utils.eqAddress(actualGasOracle, expectedGasOracle)) {
+      if (eqAddress(actualGasOracle, expectedGasOracle)) {
         const remoteChain = remote as ChainName;
         gasOraclesViolation.actual[remoteChain] = actualGasOracle;
         gasOraclesViolation.expected[remoteChain] = expectedGasOracle;
@@ -160,7 +160,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
 
     const actualBeneficiary = await igp.beneficiary();
     const expectedBeneficiary = this.configMap[local].beneficiary;
-    if (!utils.eqAddress(actualBeneficiary, expectedBeneficiary)) {
+    if (eqAddress(actualBeneficiary, expectedBeneficiary)) {
       const violation: IgpBeneficiaryViolation = {
         type: 'InterchainGasPaymaster',
         subType: IgpViolationType.Beneficiary,
@@ -173,7 +173,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     }
   }
 
-  getGasOracleAddress(local: ChainName, remote: ChainName): types.Address {
+  getGasOracleAddress(local: ChainName, remote: ChainName): Address {
     const config = this.configMap[local];
     const gasOracleType = config.gasOracleType[remote];
     if (!gasOracleType) {

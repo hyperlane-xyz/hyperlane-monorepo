@@ -1,13 +1,13 @@
-import { ethers } from 'ethers';
+import { constants } from 'ethers';
 
 import {
   Router,
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
+import { eqAddress } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneContracts } from '../contracts/types';
 import { ChainName } from '../types';
 
 import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
@@ -56,7 +56,7 @@ export abstract class ProxiedRouterDeployer<
       adminOwner = timelockController.address;
     } else {
       timelockController = TimelockController__factory.connect(
-        ethers.constants.AddressZero,
+        constants.AddressZero,
         this.multiProvider.getProvider(chain),
       );
       adminOwner = config.owner;

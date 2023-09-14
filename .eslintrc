@@ -29,5 +29,23 @@
     "@typescript-eslint/no-floating-promises": ["error"],
     "@typescript-eslint/no-non-null-assertion": ["off"],
     "@typescript-eslint/no-require-imports": ["warn"],
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      { 
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ],
+    "@typescript-eslint/ban-types": [
+      "error",
+      {
+        "types": {
+          // Unban the {} type which is a useful shorthand for non-nullish value
+          "{}": false
+        },
+        "extendDefaults": true
+      }
+    ]
   }
 }

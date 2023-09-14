@@ -1,12 +1,18 @@
+import { objMerge } from '@hyperlane-xyz/utils';
+
 import { ChainName } from '../../types';
-import { objMerge } from '../../utils/objects';
 import { CoreChainName } from '../chains';
 
 import mainnet from './mainnet.json';
 import test from './test.json';
+import testnetSealevel from './testnet-sealevel.json';
 import testnet from './testnet.json';
 
 export const hyperlaneEnvironments = { test, testnet, mainnet };
+export const hyperlaneEnvironmentsWithSealevel = {
+  ...hyperlaneEnvironments,
+  testnet: { ...testnet, ...testnetSealevel },
+};
 
 export type HyperlaneEnvironment = keyof typeof hyperlaneEnvironments;
 export type HyperlaneEnvironmentChain<E extends HyperlaneEnvironment> = Extract<

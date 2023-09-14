@@ -11,7 +11,7 @@ use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
-    MessageIndexer, SequenceIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -53,19 +53,12 @@ use solana_transaction_status::{
 
 use crate::RpcClientWithDebug;
 use crate::{
-    utils::{get_account_metas, simulate_instruction},
+    utils::{get_account_metas, get_finalized_block_number, simulate_instruction},
     ConnectionConf, SealevelProvider,
 };
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
-
-// FIXME solana uses the first 64 byte signature of a transaction to uniquely identify the
-// transaction rather than a 32 byte transaction hash like ethereum. Hash it here to reduce
-// size - requires more thought to ensure this makes sense to do...
-fn signature_to_txn_hash(signature: &Signature) -> H256 {
-    H256::from(solana_sdk::hash::hash(signature.as_ref()).to_bytes())
-}
 
 // The max amount of compute units for a transaction.
 // TODO: consider a more sane value and/or use IGP gas payments instead.
@@ -496,13 +489,13 @@ impl Mailbox for SealevelMailbox {
             data: ixn_data,
             accounts,
         };
-        tracing::info!("accounts={:#?}", inbox_instruction.accounts);
         instructions.push(inbox_instruction);
         let (recent_blockhash, _) = self
             .rpc_client
             .get_latest_blockhash_with_commitment(commitment)
             .await
             .map_err(ChainCommunicationError::from_other)?;
+
         let txn = Transaction::new_signed_with_payer(
             &instructions,
             Some(&payer.pubkey()),
@@ -510,13 +503,16 @@ impl Mailbox for SealevelMailbox {
             recent_blockhash,
         );
 
+        tracing::info!(?txn, "Created sealevel transaction to process message");
+
         let signature = self
             .rpc_client
             .send_and_confirm_transaction(&txn)
             .await
             .map_err(ChainCommunicationError::from_other)?;
-        tracing::info!("signature={}", signature);
-        tracing::info!("txn={:?}", txn);
+
+        tracing::info!(?txn, ?signature, "Sealevel transaction sent");
+
         let executed = self
             .rpc_client
             .confirm_transaction_with_commitment(&signature, commitment)
@@ -524,10 +520,10 @@ impl Mailbox for SealevelMailbox {
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
             .map(|ctx| ctx.value)
             .unwrap_or(false);
-        let txid = signature_to_txn_hash(&signature);
+        let txid = signature.into();
 
         Ok(TxOutcome {
-            txid,
+            transaction_id: txid,
             executed,
             // TODO use correct data upon integrating IGP support
             gas_price: U256::zero(),
@@ -628,7 +624,7 @@ impl SealevelMailboxIndexer {
         // that proves it's an actual message storage PDA.
         let mut valid_message_storage_pda_pubkey = Option::<Pubkey>::None;
 
-        for (pubkey, account) in accounts.iter() {
+        for (pubkey, account) in accounts {
             let unique_message_pubkey = Pubkey::new(&account.data);
             let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
                 mailbox_dispatched_message_pda_seeds!(unique_message_pubkey),
@@ -639,8 +635,8 @@ impl SealevelMailboxIndexer {
                     "Could not find program address for unique_message_pubkey",
                 )
             })?;
-            if expected_pubkey == *pubkey {
-                valid_message_storage_pda_pubkey = Some(*pubkey);
+            if expected_pubkey == pubkey {
+                valid_message_storage_pda_pubkey = Some(pubkey);
                 break;
             }
         }
@@ -680,7 +676,7 @@ impl SealevelMailboxIndexer {
                 // TODO: get these when building out scraper support.
                 // It's inconvenient to get these :|
                 block_hash: H256::zero(),
-                transaction_hash: H256::zero(),
+                transaction_id: H512::zero(),
                 transaction_index: 0,
                 log_index: U256::zero(),
             },
@@ -689,13 +685,13 @@ impl SealevelMailboxIndexer {
 }
 
 #[async_trait]
-impl MessageIndexer for SealevelMailboxIndexer {
+impl SequenceIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     #[instrument(err, skip(self))]
-    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
         // TODO: need to make sure the call and tip are at the same height?
         let count = self.mailbox.count(None).await?;
-        Ok((count, tip))
+        Ok((Some(count), tip))
     }
 }
 
@@ -719,7 +715,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.get_finalized_block_number().await
+        get_finalized_block_number(&self.rpc_client).await
     }
 }
 
@@ -736,10 +732,11 @@ impl Indexer<H256> for SealevelMailboxIndexer {
 
 #[async_trait]
 impl SequenceIndexer<H256> for SealevelMailboxIndexer {
-    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when sealevel scraper support is implemented
         info!("Message delivery indexing not implemented");
-        Ok((1, 1))
+        let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
+        Ok((Some(1), tip))
     }
 }
 

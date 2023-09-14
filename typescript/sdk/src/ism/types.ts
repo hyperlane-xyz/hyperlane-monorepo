@@ -1,13 +1,18 @@
 import {
   IAggregationIsm,
+  IInterchainSecurityModule,
   IMultisigIsm,
   IRoutingIsm,
 } from '@hyperlane-xyz/core';
-import type { types } from '@hyperlane-xyz/utils';
+import type { Address } from '@hyperlane-xyz/utils';
 
 import { ChainMap } from '../types';
 
-export type DeployedIsm = IMultisigIsm | IAggregationIsm | IRoutingIsm;
+export type DeployedIsm =
+  | IInterchainSecurityModule
+  | IMultisigIsm
+  | IAggregationIsm
+  | IRoutingIsm;
 
 export enum ModuleType {
   UNUSED,
@@ -23,13 +28,13 @@ export type MultisigIsmConfig = {
     | ModuleType.LEGACY_MULTISIG
     | ModuleType.MERKLE_ROOT_MULTISIG
     | ModuleType.MESSAGE_ID_MULTISIG;
-  validators: Array<types.Address>;
+  validators: Array<Address>;
   threshold: number;
 };
 
 export type RoutingIsmConfig = {
   type: ModuleType.ROUTING;
-  owner: types.Address;
+  owner: Address;
   domains: ChainMap<IsmConfig>;
 };
 
@@ -40,6 +45,7 @@ export type AggregationIsmConfig = {
 };
 
 export type IsmConfig =
+  | Address
   | RoutingIsmConfig
   | MultisigIsmConfig
   | AggregationIsmConfig;

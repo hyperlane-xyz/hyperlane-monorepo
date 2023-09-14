@@ -3,7 +3,13 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { Validator, types, utils } from '@hyperlane-xyz/utils';
+import {
+  InterchainSecurityModuleType,
+  Validator,
+  addressToBytes32,
+  formatLegacyMultisigIsmMetadata,
+  parseLegacyMultisigIsmMetadata,
+} from '@hyperlane-xyz/utils';
 
 import domainHashTestCases from '../../../vectors/domainHash.json';
 import {
@@ -57,7 +63,7 @@ describe('LegacyMultisigIsm', async () => {
   describe('#moduleType', () => {
     it('returns the correct type', async () => {
       expect(await multisigIsm.moduleType()).to.equal(
-        types.InterchainSecurityModuleType.MULTISIG,
+        InterchainSecurityModuleType.MULTISIG,
       );
     });
   });
@@ -337,7 +343,7 @@ describe('LegacyMultisigIsm', async () => {
       const dispatch = await dispatchMessage(
         mailbox,
         DESTINATION_DOMAIN,
-        utils.addressToBytes32(multisigIsm.address),
+        addressToBytes32(multisigIsm.address),
         'hello',
       );
       message = dispatch.message;
@@ -410,7 +416,7 @@ describe('LegacyMultisigIsm', async () => {
         ORIGIN_DOMAIN,
         mailbox.address,
       );
-      const parsedMetadata = utils.parseLegacyMultisigIsmMetadata(metadata);
+      const parsedMetadata = parseLegacyMultisigIsmMetadata(metadata);
       const nonValidatorSignature = (
         await signCheckpoint(
           parsedMetadata.checkpointRoot,
@@ -420,7 +426,7 @@ describe('LegacyMultisigIsm', async () => {
         )
       )[0];
       parsedMetadata.signatures.push(nonValidatorSignature);
-      const modifiedMetadata = utils.formatLegacyMultisigIsmMetadata({
+      const modifiedMetadata = formatLegacyMultisigIsmMetadata({
         ...parsedMetadata,
         signatures: parsedMetadata.signatures.slice(1),
       });
@@ -430,8 +436,8 @@ describe('LegacyMultisigIsm', async () => {
     });
 
     it('reverts when the provided validator set does not match the stored commitment', async () => {
-      const parsedMetadata = utils.parseLegacyMultisigIsmMetadata(metadata);
-      const modifiedMetadata = utils.formatLegacyMultisigIsmMetadata({
+      const parsedMetadata = parseLegacyMultisigIsmMetadata(metadata);
+      const modifiedMetadata = formatLegacyMultisigIsmMetadata({
         ...parsedMetadata,
         validators: parsedMetadata.validators.slice(1),
       });
@@ -441,8 +447,8 @@ describe('LegacyMultisigIsm', async () => {
     });
 
     it('reverts when an invalid merkle proof is provided', async () => {
-      const parsedMetadata = utils.parseLegacyMultisigIsmMetadata(metadata);
-      const modifiedMetadata = utils.formatLegacyMultisigIsmMetadata({
+      const parsedMetadata = parseLegacyMultisigIsmMetadata(metadata);
+      const modifiedMetadata = formatLegacyMultisigIsmMetadata({
         ...parsedMetadata,
         proof: parsedMetadata.proof.reverse(),
       });

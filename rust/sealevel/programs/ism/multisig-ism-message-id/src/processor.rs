@@ -293,11 +293,14 @@ fn get_validators_and_threshold(
     domain: u32,
 ) -> ProgramResult {
     let validators_and_threshold = validators_and_threshold(program_id, accounts, domain)?;
-    set_return_data(
-        &validators_and_threshold
-            .try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?,
-    );
+    // Wrap it in the SimulationReturnData because serialized validators_and_threshold
+    // may end with zero byte(s), which are incorrectly truncated as
+    // simulated transaction return data.
+    // See `SimulationReturnData` for details.
+    let bytes = SimulationReturnData::new(validators_and_threshold)
+        .try_to_vec()
+        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    set_return_data(&bytes[..]);
     Ok(())
 }
 
@@ -461,12 +464,14 @@ fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 
     let access_control_data = access_control_data(program_id, access_control_pda_account)?;
 
-    set_return_data(
-        &access_control_data
-            .owner
-            .try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?,
-    );
+    // Wrap it in the SimulationReturnData because serialized `access_control_data.owner`
+    // may end with zero byte(s), which are incorrectly truncated as
+    // simulated transaction return data.
+    // See `SimulationReturnData` for details.
+    let bytes = SimulationReturnData::new(access_control_data.owner)
+        .try_to_vec()
+        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    set_return_data(&bytes[..]);
     Ok(())
 }
 
@@ -501,7 +506,7 @@ fn access_control_data(
 ///
 /// Accounts:
 /// 0. `[signer]` The current access control owner.
-/// 1. `[]` The access control PDA account.
+/// 1. `[writeable]` The access control PDA account.
 fn transfer_ownership(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

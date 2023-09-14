@@ -4,7 +4,7 @@ import { ethers } from 'hardhat';
 import sinon from 'sinon';
 
 import { TestChains } from '../consts/chains';
-import { HyperlaneContractsMap } from '../contracts';
+import { HyperlaneContractsMap } from '../contracts/types';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { HyperlaneIsmFactoryDeployer } from '../ism/HyperlaneIsmFactoryDeployer';
 import { MultiProvider } from '../providers/MultiProvider';

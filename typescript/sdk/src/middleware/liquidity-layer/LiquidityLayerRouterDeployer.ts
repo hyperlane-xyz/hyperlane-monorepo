@@ -5,14 +5,16 @@ import {
   LiquidityLayerRouter,
   PortalAdapter,
 } from '@hyperlane-xyz/core';
-import { types, utils } from '@hyperlane-xyz/utils';
+import { Address, eqAddress, objFilter, objMap } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, HyperlaneContractsMap } from '../../contracts';
+import {
+  HyperlaneContracts,
+  HyperlaneContractsMap,
+} from '../../contracts/types';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
 import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
-import { objFilter, objMap } from '../../utils/objects';
 
 import { LiquidityLayerFactories, liquidityLayerFactories } from './contracts';
 
@@ -89,7 +91,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
   async enrollRemoteRouters(
     contractsMap: HyperlaneContractsMap<LiquidityLayerFactories>,
     configMap: ChainMap<LiquidityLayerConfig>,
-    foreignRouters: ChainMap<types.Address>,
+    foreignRouters: ChainMap<Address>,
   ): Promise<void> {
     this.logger(`Enroll LiquidityLayerRouters with each other`);
     await super.enrollRemoteRouters(contractsMap, configMap, foreignRouters);
@@ -205,7 +207,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     }
 
     if (
-      !utils.eqAddress(
+      !eqAddress(
         await router.liquidityLayerAdapters('Portal'),
         portalAdapter.address,
       )
@@ -244,7 +246,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     );
 
     if (
-      !utils.eqAddress(
+      !eqAddress(
         await circleBridgeAdapter.tokenSymbolToAddress('USDC'),
         adapterConfig.usdcAddress,
       )
@@ -280,7 +282,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     }
 
     if (
-      !utils.eqAddress(
+      !eqAddress(
         await router.liquidityLayerAdapters('Circle'),
         circleBridgeAdapter.address,
       )

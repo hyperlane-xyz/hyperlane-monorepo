@@ -1,19 +1,29 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::program_error::ProgramError;
 use spl_type_length_value::discriminator::Discriminator;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
-use crate::SizedData;
+use crate::{Data, SizedData};
 
 pub const PROGRAM_INSTRUCTION_DISCRIMINATOR: [u8; Discriminator::LENGTH] = [1, 1, 1, 1, 1, 1, 1, 1];
 
+pub trait DiscriminatorPrefixedData: Data + DiscriminatorData {}
+
+impl<T> DiscriminatorPrefixedData for T where T: Data + DiscriminatorData {}
+
 /// A wrapper type that prefixes data with a discriminator when Borsh (de)serialized.
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct DiscriminatorPrefixed<T> {
+pub struct DiscriminatorPrefixed<T>
+where
+    T: DiscriminatorPrefixedData,
+{
     pub data: T,
 }
 
-impl<T> DiscriminatorPrefixed<T> {
+impl<T> DiscriminatorPrefixed<T>
+where
+    T: DiscriminatorPrefixedData,
+{
     pub fn new(data: T) -> Self {
         Self { data }
     }
@@ -21,7 +31,7 @@ impl<T> DiscriminatorPrefixed<T> {
 
 impl<T> BorshSerialize for DiscriminatorPrefixed<T>
 where
-    T: DiscriminatorData + borsh::BorshSerialize,
+    T: DiscriminatorPrefixedData,
 {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         T::DISCRIMINATOR.serialize(writer)?;
@@ -31,7 +41,7 @@ where
 
 impl<T> BorshDeserialize for DiscriminatorPrefixed<T>
 where
-    T: DiscriminatorData + borsh::BorshDeserialize,
+    T: DiscriminatorPrefixedData,
 {
     fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
         let (discriminator, rest) = buf.split_at(Discriminator::LENGTH);
@@ -49,7 +59,7 @@ where
 
 impl<T> SizedData for DiscriminatorPrefixed<T>
 where
-    T: SizedData,
+    T: DiscriminatorPrefixedData + SizedData,
 {
     fn size(&self) -> usize {
         // Discriminator prefix + data
@@ -57,7 +67,10 @@ where
     }
 }
 
-impl<T> Deref for DiscriminatorPrefixed<T> {
+impl<T> Deref for DiscriminatorPrefixed<T>
+where
+    T: DiscriminatorPrefixedData,
+{
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -65,7 +78,19 @@ impl<T> Deref for DiscriminatorPrefixed<T> {
     }
 }
 
-impl<T> From<T> for DiscriminatorPrefixed<T> {
+impl<T> DerefMut for DiscriminatorPrefixed<T>
+where
+    T: DiscriminatorPrefixedData,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+
+impl<T> From<T> for DiscriminatorPrefixed<T>
+where
+    T: DiscriminatorPrefixedData,
+{
     fn from(data: T) -> Self {
         Self::new(data)
     }
@@ -115,7 +140,7 @@ mod test {
 
     #[test]
     fn test_discriminator_prefixed_size() {
-        #[derive(BorshSerialize, BorshDeserialize)]
+        #[derive(BorshSerialize, BorshDeserialize, Default)]
         struct Foo {
             a: u64,
         }

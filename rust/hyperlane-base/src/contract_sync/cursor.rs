@@ -13,8 +13,9 @@ use tokio::time::sleep;
 use tracing::{debug, warn};
 
 use hyperlane_core::{
-    ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage, HyperlaneMessageStore,
-    HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta, MessageIndexer, SequenceIndexer,
+    ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage,
+    HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta,
+    SequenceIndexer,
 };
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
@@ -28,7 +29,7 @@ const MAX_SEQUENCE_RANGE: u32 = 100;
 /// message sync cursors.
 #[derive(Debug, new)]
 pub(crate) struct MessageSyncCursor {
-    indexer: Arc<dyn MessageIndexer>,
+    indexer: Arc<dyn SequenceIndexer<HyperlaneMessage>>,
     db: Arc<dyn HyperlaneMessageStore>,
     sync_state: SyncState,
 }
@@ -45,7 +46,7 @@ pub(crate) struct SyncState {
     /// In the EVM, this is used for optimizing indexing,
     /// because it's cheaper to make read calls for the sequence index than
     /// to call `eth_getLogs` with a block range.
-    /// In Sealevel, historic queries aren't supported, so the nonce field
+    /// In Sealevel, historic queries aren't supported, so the sequence field
     /// is used to query storage in sequence.
     next_sequence: u32,
     direction: SyncDirection,
@@ -54,17 +55,37 @@ pub(crate) struct SyncState {
 impl SyncState {
     async fn get_next_range(
         &mut self,
-        max_sequence_index: Option<u32>,
-        tip: Option<u32>,
+        max_sequence: Option<u32>,
+        tip: u32,
     ) -> ChainResult<Option<RangeInclusive<u32>>> {
         // We attempt to index a range of blocks that is as large as possible.
+        let range = match self.mode {
+            IndexMode::Block => self.block_range(tip),
+            IndexMode::Sequence => {
+                let max_sequence = max_sequence.ok_or_else(|| {
+                    ChainCommunicationError::from_other_str(
+                        "Sequence indexing requires a max sequence",
+                    )
+                })?;
+                if let Some(range) = self.sequence_range(tip, max_sequence)? {
+                    range
+                } else {
+                    return Ok(None);
+                }
+            }
+        };
+        if range.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(range))
+    }
+
+    fn block_range(&mut self, tip: u32) -> RangeInclusive<u32> {
         let (from, to) = match self.direction {
             SyncDirection::Forward => {
                 let from = self.next_block;
                 let mut to = from + self.chunk_size;
-                if let Some(tip) = tip {
-                    to = u32::min(to, tip);
-                }
+                to = u32::min(to, tip);
                 self.next_block = to + 1;
                 (from, to)
             }
@@ -75,25 +96,42 @@ impl SyncState {
                 (from, to)
             }
         };
-        let range = match self.mode {
-            IndexMode::Block => from..=to,
-            IndexMode::Sequence => {
+        from..=to
+    }
+
+    /// Returns the next sequence range to index.
+    ///
+    /// # Arguments
+    ///
+    /// * `tip` - The current tip of the chain.
+    /// * `max_sequence` - The maximum sequence that should be indexed.
+    /// `max_sequence` is the exclusive upper bound of the range to be indexed.
+    /// (e.g. `0..max_sequence`)
+    fn sequence_range(
+        &mut self,
+        tip: u32,
+        max_sequence: u32,
+    ) -> ChainResult<Option<RangeInclusive<u32>>> {
+        let (from, to) = match self.direction {
+            SyncDirection::Forward => {
                 let sequence_start = self.next_sequence;
                 let mut sequence_end = sequence_start + MAX_SEQUENCE_RANGE;
-                if let Some(max_sequence_index) = max_sequence_index {
-                    sequence_end = u32::min(sequence_end, max_sequence_index.saturating_sub(1));
+                if self.next_sequence >= max_sequence {
+                    return Ok(None);
                 }
+                sequence_end = u32::min(sequence_end, max_sequence.saturating_sub(1));
+                self.next_block = tip;
                 self.next_sequence = sequence_end + 1;
-                if let Some(tip) = tip {
-                    self.next_block = tip;
-                }
-                sequence_start..=sequence_end
+                (sequence_start, sequence_end)
+            }
+            SyncDirection::Backward => {
+                let sequence_end = self.next_sequence;
+                let sequence_start = sequence_end.saturating_sub(MAX_SEQUENCE_RANGE);
+                self.next_sequence = sequence_start.saturating_sub(1);
+                (sequence_start, sequence_end)
             }
         };
-        if range.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(range))
+        Ok(Some(from..=to))
     }
 }
 
@@ -149,7 +187,7 @@ pub(crate) struct ForwardMessageSyncCursor {
 
 impl ForwardMessageSyncCursor {
     pub fn new(
-        indexer: Arc<dyn MessageIndexer>,
+        indexer: Arc<dyn SequenceIndexer<HyperlaneMessage>>,
         db: Arc<dyn HyperlaneMessageStore>,
         chunk_size: u32,
         start_block: u32,
@@ -198,7 +236,10 @@ impl ForwardMessageSyncCursor {
             self.cursor.sync_state.next_sequence += 1;
         }
 
-        let (mailbox_count, tip) = self.cursor.indexer.fetch_count_at_tip().await?;
+        let (Some(mailbox_count), tip) = self.cursor.indexer.sequence_and_tip().await?
+            else {
+                return Ok(None);
+            };
         let cursor_count = self.cursor.sync_state.next_sequence;
         Ok(match cursor_count.cmp(&mailbox_count) {
             Ordering::Equal => {
@@ -211,7 +252,7 @@ impl ForwardMessageSyncCursor {
                 // The cursor is behind the mailbox, so we need to index some blocks.
                 self.cursor
                     .sync_state
-                    .get_next_range(Some(mailbox_count), Some(tip))
+                    .get_next_range(Some(mailbox_count), tip)
                     .await?
             }
             Ordering::Greater => {
@@ -265,7 +306,7 @@ pub(crate) struct BackwardMessageSyncCursor {
 impl BackwardMessageSyncCursor {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        indexer: Arc<dyn MessageIndexer>,
+        indexer: Arc<dyn SequenceIndexer<HyperlaneMessage>>,
         db: Arc<dyn HyperlaneMessageStore>,
         chunk_size: u32,
         start_block: u32,
@@ -326,11 +367,8 @@ impl BackwardMessageSyncCursor {
         }
 
         // Just keep going backwards.
-        let (count, tip) = self.cursor.indexer.fetch_count_at_tip().await?;
-        self.cursor
-            .sync_state
-            .get_next_range(Some(count), Some(tip))
-            .await
+        let (count, tip) = self.cursor.indexer.sequence_and_tip().await?;
+        self.cursor.sync_state.get_next_range(count, tip).await
     }
 
     /// If the previous block has been synced, rewind to the block number
@@ -364,12 +402,15 @@ pub(crate) struct ForwardBackwardMessageSyncCursor {
 impl ForwardBackwardMessageSyncCursor {
     /// Construct a new contract sync helper.
     pub async fn new(
-        indexer: Arc<dyn MessageIndexer>,
+        indexer: Arc<dyn SequenceIndexer<HyperlaneMessage>>,
         db: Arc<dyn HyperlaneMessageStore>,
         chunk_size: u32,
         mode: IndexMode,
     ) -> Result<Self> {
-        let (count, tip) = indexer.fetch_count_at_tip().await?;
+        let (count, tip) = indexer.sequence_and_tip().await?;
+        let count = count.ok_or(ChainCommunicationError::from_other_str(
+            "Failed to query message count",
+        ))?;
         let forward_cursor = ForwardMessageSyncCursor::new(
             indexer.clone(),
             db.clone(),
@@ -518,17 +559,16 @@ where
         };
 
         let rate_limit = self.get_rate_limit().await?;
-        let action = if let Some(rate_limit) = rate_limit {
-            CursorAction::Sleep(rate_limit)
-        } else {
-            // According to the logic in `get_rate_limit` we should be able to safely unwrap here.
-            // However, take the safer option and fall back to a zero duration sleep
-            match self.sync_state.get_next_range(None, None).await? {
-                Some(range) => CursorAction::Query(range),
-                None => CursorAction::Sleep(Duration::from_secs(0)),
-            }
-        };
-        Ok((action, eta))
+        if let Some(rate_limit) = rate_limit {
+            return Ok((CursorAction::Sleep(rate_limit), eta));
+        }
+        let (count, tip) = self.indexer.sequence_and_tip().await?;
+        if let Some(range) = self.sync_state.get_next_range(count, tip).await? {
+            return Ok((CursorAction::Query(range), eta));
+        }
+
+        // TODO: Define the sleep time from interval flag
+        Ok((CursorAction::Sleep(Duration::from_secs(5)), eta))
     }
 
     fn latest_block(&self) -> u32 {

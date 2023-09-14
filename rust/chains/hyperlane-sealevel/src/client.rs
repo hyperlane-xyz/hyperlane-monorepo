@@ -1,11 +1,16 @@
 use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::commitment_config::CommitmentConfig;
 
 /// Kludge to implement Debug for RpcClient.
-pub(crate) struct RpcClientWithDebug(RpcClient);
+pub struct RpcClientWithDebug(RpcClient);
 
 impl RpcClientWithDebug {
     pub fn new(rpc_endpoint: String) -> Self {
         Self(RpcClient::new(rpc_endpoint))
+    }
+
+    pub fn new_with_commitment(rpc_endpoint: String, commitment: CommitmentConfig) -> Self {
+        Self(RpcClient::new_with_commitment(rpc_endpoint, commitment))
     }
 }
 
