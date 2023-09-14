@@ -90,8 +90,6 @@ export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
               .map((remote) => [remote, multisigIsm]),
           ),
         },
-        // TODO: fix
-        defaultHook: nonZeroAddress,
       },
     ]),
   );

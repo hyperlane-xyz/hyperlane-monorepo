@@ -43,6 +43,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint32 domain = mailbox.localDomain();
         uint256[] memory keys = addValidators(m, n, seed);
         uint256[] memory signers = MOfNTestUtils.choose(m, keys, seed);
+        // bytes
         (bytes32 root, uint32 index) = merkleTreeHook.latestCheckpoint();
         bytes32 messageId = message.id();
         bytes32 digest = CheckpointLib.digest(
