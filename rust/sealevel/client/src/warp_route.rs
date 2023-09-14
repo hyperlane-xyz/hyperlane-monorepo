@@ -202,7 +202,7 @@ impl Deployable<TokenConfig> for WarpRouteDeployer {
                 fund_ata_payer_up_to(ctx, client, program_id, ata_payer_funding_amount);
             }
         }
-        
+
         let (token_pda, _token_bump) =
             Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
         if account_exists(client, &token_pda).unwrap() {
@@ -222,14 +222,15 @@ impl Deployable<TokenConfig> for WarpRouteDeployer {
         let owner = Some(app_config.router_config().ownable.owner(ctx.payer_pubkey));
 
         // Default to the Overhead IGP
-        let interchain_gas_paymaster = Some(app_config
-            .router_config()
-            .connection_client
-            .interchain_gas_paymaster_config(client)
-            .unwrap_or((
-                core_program_ids.igp_program_id,
-                InterchainGasPaymasterType::OverheadIgp(core_program_ids.overhead_igp_account),
-            ))
+        let interchain_gas_paymaster = Some(
+            app_config
+                .router_config()
+                .connection_client
+                .interchain_gas_paymaster_config(client)
+                .unwrap_or((
+                    core_program_ids.igp_program_id,
+                    InterchainGasPaymasterType::OverheadIgp(core_program_ids.overhead_igp_account),
+                )),
         );
 
         println!(
@@ -251,18 +252,20 @@ impl Deployable<TokenConfig> for WarpRouteDeployer {
                     program_id,
                     ctx.payer_pubkey,
                     init,
-                ).unwrap(),
+                )
+                .unwrap(),
             ),
             TokenType::Synthetic(_token_metadata) => {
                 let decimals = init.decimals;
 
-                let init_txn =
-                    ctx.new_txn()
-                        .add(hyperlane_sealevel_token::instruction::init_instruction(
-                            program_id,
-                            ctx.payer_pubkey,
-                            init,
-                        ).unwrap());
+                let init_txn = ctx.new_txn().add(
+                    hyperlane_sealevel_token::instruction::init_instruction(
+                        program_id,
+                        ctx.payer_pubkey,
+                        init,
+                    )
+                    .unwrap(),
+                );
 
                 let (mint_account, _mint_bump) =
                     Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
@@ -289,7 +292,8 @@ impl Deployable<TokenConfig> for WarpRouteDeployer {
                         .expect("Cannot initalize collateral warp route without SPL token program")
                         .program_id(),
                     collateral_info.mint.parse().expect("Invalid mint address"),
-                ).unwrap(),
+                )
+                .unwrap(),
             ),
         }
         .with_client(client)
