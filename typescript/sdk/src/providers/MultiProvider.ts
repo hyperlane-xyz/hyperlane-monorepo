@@ -264,30 +264,17 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   /**
    * Get a block explorer URL for given chain's address
    */
-  async tryGetExplorerAddressUrl(
+  override async tryGetExplorerAddressUrl(
     chainNameOrId: ChainName | number,
     address?: string,
   ): Promise<string | null> {
-    const baseUrl = this.tryGetExplorerUrl(chainNameOrId);
-    if (!baseUrl) return null;
-    if (address) return `${baseUrl}/address/${address}`;
+    if (address) return super.tryGetExplorerAddressUrl(chainNameOrId, address);
     const signer = this.tryGetSigner(chainNameOrId);
-    if (!signer) return null;
-    return `${baseUrl}/address/${await signer.getAddress()}`;
-  }
-
-  /**
-   * Get a block explorer URL for given chain's address
-   * @throws if chain's metadata, signer, or block explorer data has no been set
-   */
-  async getExplorerAddressUrl(
-    chainNameOrId: ChainName | number,
-    address?: string,
-  ): Promise<string> {
-    const url = await this.tryGetExplorerAddressUrl(chainNameOrId, address);
-    if (!url)
-      throw new Error(`Missing data for address url for ${chainNameOrId}`);
-    return url;
+    if (signer) {
+      const signerAddr = await signer.getAddress();
+      return super.tryGetExplorerAddressUrl(chainNameOrId, signerAddr);
+    }
+    return null;
   }
 
   /**

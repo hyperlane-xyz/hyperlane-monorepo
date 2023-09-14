@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 export class SealevelInstructionWrapper<Instr> {
   instruction!: number;
   data!: Instr;
@@ -9,6 +8,7 @@ export class SealevelInstructionWrapper<Instr> {
 
 export class SealevelAccountDataWrapper<T> {
   initialized!: boolean;
+  discriminator?: unknown;
   data!: T;
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
   constructor(public readonly fields: any) {
@@ -16,11 +16,15 @@ export class SealevelAccountDataWrapper<T> {
   }
 }
 
-export function getSealevelAccountDataSchema<T>(DataClass: T) {
+export function getSealevelAccountDataSchema<T>(
+  DataClass: T,
+  discriminator?: any,
+) {
   return {
     kind: 'struct',
     fields: [
       ['initialized', 'u8'],
+      ...(discriminator ? [['discriminator', discriminator]] : []),
       ['data', DataClass],
     ],
   };
