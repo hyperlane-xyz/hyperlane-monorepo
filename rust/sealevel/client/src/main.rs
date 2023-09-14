@@ -506,7 +506,7 @@ struct MultisigIsmMessageIdInit {
 
 #[derive(Args)]
 struct MultisigIsmMessageIdQuery {
-    #[arg(long, short, default_value_t = MULTISIG_ISM_MESSAGE_ID_PROG_ID)]
+    #[arg(long, short)]
     program_id: Pubkey,
     #[arg(long, value_delimiter = ',')]
     domains: Option<Vec<u32>>,

@@ -194,106 +194,109 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
 
         let (token_pda, _token_bump) =
             Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
-        if !account_exists(client, &token_pda).unwrap() {
-            let domain_id = chain_config.domain_id();
-
-            // TODO: consider pulling the setting of defaults into router.rs,
-            // and possibly have a more distinct connection client abstration.
-
-            let mailbox = app_config
-                .router_config()
-                .connection_client
-                .mailbox(core_program_ids.mailbox);
-            let interchain_security_module = app_config
-                .router_config()
-                .connection_client
-                .interchain_security_module();
-            let owner = Some(app_config.router_config().ownable.owner(ctx.payer_pubkey));
-
-            // Default to the Overhead IGP
-            let interchain_gas_paymaster = Some(
-                app_config
-                    .router_config()
-                    .connection_client
-                    .interchain_gas_paymaster_config(client)
-                    .unwrap_or((
-                        core_program_ids.igp_program_id,
-                        InterchainGasPaymasterType::OverheadIgp(
-                            core_program_ids.overhead_igp_account,
-                        ),
-                    )),
-            );
-
-            println!(
-                "Initializing Warp Route program: domain_id: {}, mailbox: {}, ism: {:?}, owner: {:?}, igp: {:?}",
-                domain_id, mailbox, interchain_security_module, owner, interchain_gas_paymaster
-            );
-
-            let init = Init {
-                mailbox,
-                interchain_security_module,
-                interchain_gas_paymaster,
-                decimals: app_config.decimal_metadata.decimals,
-                remote_decimals: app_config.decimal_metadata.remote_decimals(),
-            };
-
-            match &app_config.token_type {
-                TokenType::Native => ctx.new_txn().add(
-                    hyperlane_sealevel_token_native::instruction::init_instruction(
-                        program_id,
-                        ctx.payer_pubkey,
-                        init,
-                    )
-                    .unwrap(),
-                ),
-                TokenType::Synthetic(_token_metadata) => {
-                    let decimals = init.decimals;
-
-                    let init_txn = ctx.new_txn().add(
-                        hyperlane_sealevel_token::instruction::init_instruction(
-                            program_id,
-                            ctx.payer_pubkey,
-                            init,
-                        )
-                        .unwrap(),
-                    );
-
-                    let (mint_account, _mint_bump) = Pubkey::find_program_address(
-                        hyperlane_token_mint_pda_seeds!(),
-                        &program_id,
-                    );
-                    // TODO: Also set Metaplex metadata?
-                    init_txn.add(
-                        spl_token_2022::instruction::initialize_mint2(
-                            &spl_token_2022::id(),
-                            &mint_account,
-                            &mint_account,
-                            None,
-                            decimals,
-                        )
-                        .unwrap(),
-                    )
-                }
-                TokenType::Collateral(collateral_info) => ctx.new_txn().add(
-                    hyperlane_sealevel_token_collateral::instruction::init_instruction(
-                        program_id,
-                        ctx.payer_pubkey,
-                        init,
-                        collateral_info
-                            .spl_token_program
-                            .as_ref()
-                            .expect(
-                                "Cannot initalize collateral warp route without SPL token program",
-                            )
-                            .program_id(),
-                        collateral_info.mint.parse().expect("Invalid mint address"),
-                    )
-                    .unwrap(),
-                ),
-            }
-            .with_client(client)
-            .send_with_payer();
+        if account_exists(client, &token_pda).unwrap() {
+            println!("Warp route token already exists, skipping init");
+            return;
         }
+
+        let domain_id = chain_config.domain_id();
+
+        // TODO: consider pulling the setting of defaults into router.rs,
+        // and possibly have a more distinct connection client abstration.
+
+        let mailbox = app_config
+            .router_config()
+            .connection_client
+            .mailbox(core_program_ids.mailbox);
+        let interchain_security_module = app_config
+            .router_config()
+            .connection_client
+            .interchain_security_module();
+        let owner = Some(app_config.router_config().ownable.owner(ctx.payer_pubkey));
+
+        // Default to the Overhead IGP
+        let interchain_gas_paymaster = Some(
+            app_config
+                .router_config()
+                .connection_client
+                .interchain_gas_paymaster_config(client)
+                .unwrap_or((
+                    core_program_ids.igp_program_id,
+                    InterchainGasPaymasterType::OverheadIgp(
+                        core_program_ids.overhead_igp_account,
+                    ),
+                )),
+        );
+
+        println!(
+            "Initializing Warp Route program: domain_id: {}, mailbox: {}, ism: {:?}, owner: {:?}, igp: {:?}",
+            domain_id, mailbox, interchain_security_module, owner, interchain_gas_paymaster
+        );
+
+        let init = Init {
+            mailbox,
+            interchain_security_module,
+            interchain_gas_paymaster,
+            decimals: app_config.decimal_metadata.decimals,
+            remote_decimals: app_config.decimal_metadata.remote_decimals(),
+        };
+
+        match &app_config.token_type {
+            TokenType::Native => ctx.new_txn().add(
+                hyperlane_sealevel_token_native::instruction::init_instruction(
+                    program_id,
+                    ctx.payer_pubkey,
+                    init,
+                )
+                .unwrap(),
+            ),
+            TokenType::Synthetic(_token_metadata) => {
+                let decimals = init.decimals;
+
+                let init_txn = ctx.new_txn().add(
+                    hyperlane_sealevel_token::instruction::init_instruction(
+                        program_id,
+                        ctx.payer_pubkey,
+                        init,
+                    )
+                    .unwrap(),
+                );
+
+                let (mint_account, _mint_bump) = Pubkey::find_program_address(
+                    hyperlane_token_mint_pda_seeds!(),
+                    &program_id,
+                );
+                // TODO: Also set Metaplex metadata?
+                init_txn.add(
+                    spl_token_2022::instruction::initialize_mint2(
+                        &spl_token_2022::id(),
+                        &mint_account,
+                        &mint_account,
+                        None,
+                        decimals,
+                    )
+                    .unwrap(),
+                )
+            }
+            TokenType::Collateral(collateral_info) => ctx.new_txn().add(
+                hyperlane_sealevel_token_collateral::instruction::init_instruction(
+                    program_id,
+                    ctx.payer_pubkey,
+                    init,
+                    collateral_info
+                        .spl_token_program
+                        .as_ref()
+                        .expect(
+                            "Cannot initalize collateral warp route without SPL token program",
+                        )
+                        .program_id(),
+                    collateral_info.mint.parse().expect("Invalid mint address"),
+                )
+                .unwrap(),
+            ),
+        }
+        .with_client(client)
+        .send_with_payer();
     }
 
     fn post_deploy(
