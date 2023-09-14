@@ -1,6 +1,6 @@
 use std::io::{Error, ErrorKind};
 
-use crate::{HyperlaneProtocolError, H160, H256, H512, U256};
+use crate::{GasPaymentKey, HyperlaneProtocolError, H160, H256, H512, U256};
 
 /// Simple trait for types with a canonical encoding
 pub trait Encode {

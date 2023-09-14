@@ -228,7 +228,7 @@ mod test {
             };
 
             let hyperlane_db = HyperlaneRocksDB::new(
-                &HyperlaneDomain::new_test_domain("test_check_destination"),
+                &HyperlaneDomain::new_test_domain("test_different_destinations"),
                 db,
             );
             let enforcer = GasPaymentEnforcer::new(
@@ -284,7 +284,7 @@ mod test {
             };
 
             let hyperlane_db = HyperlaneRocksDB::new(
-                &HyperlaneDomain::new_test_domain("test_check_destination"),
+                &HyperlaneDomain::new_test_domain("test_half_and_half_payment"),
                 db,
             );
 
