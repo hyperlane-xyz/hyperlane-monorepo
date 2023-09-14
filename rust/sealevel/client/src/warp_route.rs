@@ -222,9 +222,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 .interchain_gas_paymaster_config(client)
                 .unwrap_or((
                     core_program_ids.igp_program_id,
-                    InterchainGasPaymasterType::OverheadIgp(
-                        core_program_ids.overhead_igp_account,
-                    ),
+                    InterchainGasPaymasterType::OverheadIgp(core_program_ids.overhead_igp_account),
                 )),
         );
 
@@ -262,10 +260,8 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     .unwrap(),
                 );
 
-                let (mint_account, _mint_bump) = Pubkey::find_program_address(
-                    hyperlane_token_mint_pda_seeds!(),
-                    &program_id,
-                );
+                let (mint_account, _mint_bump) =
+                    Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
                 // TODO: Also set Metaplex metadata?
                 init_txn.add(
                     spl_token_2022::instruction::initialize_mint2(
@@ -286,9 +282,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     collateral_info
                         .spl_token_program
                         .as_ref()
-                        .expect(
-                            "Cannot initalize collateral warp route without SPL token program",
-                        )
+                        .expect("Cannot initalize collateral warp route without SPL token program")
                         .program_id(),
                     collateral_info.mint.parse().expect("Invalid mint address"),
                 )
