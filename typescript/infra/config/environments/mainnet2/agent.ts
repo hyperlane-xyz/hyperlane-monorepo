@@ -1,5 +1,6 @@
 import {
   AgentConnectionType,
+  ChainMap,
   chainMetadata,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
@@ -11,7 +12,10 @@ import {
   allAgentChainNames,
   routerMatchingList,
 } from '../../../src/config';
-import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
+import {
+  GasPaymentEnforcementConfig,
+  MatchingList,
+} from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
@@ -62,18 +66,70 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
   },
 ];
 
-const nautilusZbcWarpRouteMatchingList = routerMatchingList({
-  bsc: {
-    router: '0xC27980812E2E66491FD457D488509b7E04144b98',
+const nautilusWarpRoutes: Array<ChainMap<{ router: string }>> = [
+  {
+    bsc: {
+      router: '0xC27980812E2E66491FD457D488509b7E04144b98',
+    },
+    nautilus: {
+      router: '0x4501bBE6e731A4bC5c60C03A77435b2f6d5e9Fe7',
+    },
+    solana: {
+      router:
+        '0xc5ba229fa2822fe65ac2bd0a93d8371d75292c3415dd381923c1088a3308528b',
+    },
   },
-  nautilus: {
-    router: '0x4501bBE6e731A4bC5c60C03A77435b2f6d5e9Fe7',
+  // ETH
+  {
+    bsc: {
+      router: '0x2a6822dc5639b3fe70de6b65b9ff872e554162fa',
+    },
+    nautilus: {
+      router: '0x182E8d7c5F1B06201b102123FC7dF0EaeB445a7B',
+    },
   },
-  solana: {
-    router:
-      '0xc5ba229fa2822fe65ac2bd0a93d8371d75292c3415dd381923c1088a3308528b',
+  // USDC
+  {
+    bsc: {
+      router: '0x6937a62f93a56D2AE9392Fa1649b830ca37F3ea4',
+    },
+    nautilus: {
+      router: '0xB2723928400AE5778f6A3C69D7Ca9e90FC430180',
+    },
   },
-});
+  // BTC
+  {
+    bsc: {
+      router: '0xB3545006A532E8C23ebC4e33d5ab2232Cafc35Ad',
+    },
+    nautilus: {
+      router: '0x61DDB465eEA5bc3708Cf8B53156aC91a77A2f029',
+    },
+  },
+  // USDT
+  {
+    bsc: {
+      router: '0xb7d36720a16A1F9Cfc1f7910Ac49f03965401a36',
+    },
+    nautilus: {
+      router: '0xBDa330Ea8F3005C421C8088e638fBB64fA71b9e0',
+    },
+  },
+  // POSE
+  {
+    bsc: {
+      router: '0x807D2C6c3d64873Cc729dfC65fB717C3E05e682f',
+    },
+    nautilus: {
+      router: '0xA1ac41d8A663fd317cc3BD94C7de92dC4BA4a882',
+    },
+  },
+];
+
+const nautilusWarpRouteMatchingList = nautilusWarpRoutes.reduce(
+  (agg, warpRoute) => [...agg, ...routerMatchingList(warpRoute)],
+  [] as MatchingList,
+);
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
@@ -83,7 +139,7 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '3b0685f-20230815-110725',
+      tag: '35fdc74-20230913-104940',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -99,7 +155,7 @@ const hyperlane: RootAgentConfig = {
       // and because the Solana warp route does not yet have an IGP configured.
       {
         type: GasPaymentEnforcementPolicyType.None,
-        matchingList: nautilusZbcWarpRouteMatchingList,
+        matchingList: nautilusWarpRouteMatchingList,
       },
       ...gasPaymentEnforcement,
     ],
