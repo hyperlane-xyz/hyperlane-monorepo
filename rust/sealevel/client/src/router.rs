@@ -10,7 +10,9 @@ use solana_client::rpc_client::RpcClient;
 use solana_program::instruction::Instruction;
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signer};
 
+use account_utils::DiscriminatorData;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+use hyperlane_sealevel_igp::accounts::{Igp, OverheadIgp, InterchainGasPaymasterType};
 
 use crate::{
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program_idempotent},
@@ -38,6 +40,28 @@ impl OptionalConnectionClientConfig {
 
     pub fn interchain_security_module(&self) -> Option<Pubkey> {
         self.interchain_security_module
+    }
+
+    pub fn interchain_gas_paymaster_config(&self, client: &RpcClient) -> Option<(Pubkey, InterchainGasPaymasterType)> {
+        if let Some(igp_pubkey) = self.interchain_gas_paymaster {
+            let account = client.get_account(&self.interchain_gas_paymaster.unwrap()).unwrap();
+
+            match &account.data[1..9] {
+                Igp::DISCRIMINATOR_SLICE => {
+                    Some((account.owner, InterchainGasPaymasterType::Igp(igp_pubkey)))
+                },
+                OverheadIgp::DISCRIMINATOR_SLICE => {
+                    Some((account.owner, InterchainGasPaymasterType::OverheadIgp(igp_pubkey)))
+                },
+                _ => {
+                    panic!("Invalid IGP account configured {}", igp_pubkey);
+                }
+            }
+        } else {
+            None
+        }
+
+        
     }
 }
 
