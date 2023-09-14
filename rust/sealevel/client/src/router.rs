@@ -287,7 +287,6 @@ pub(crate) fn deploy_routers<
 
     // Non-foreign app configs to deploy to.
     let app_configs_to_deploy = app_configs
-        // .clone()
         .iter()
         .filter(|(_, app_config)| app_config.router_config().foreign_deployment.is_none())
         .collect::<HashMap<_, _>>();
@@ -352,6 +351,52 @@ pub(crate) fn deploy_routers<
     }
 
     // Now enroll all the routers.
+    enroll_all_remote_routers(
+        &deployer,
+        ctx,
+        &app_configs_to_deploy,
+        &chain_configs,
+        &routers,
+    );
+
+    // Call the post-deploy hook.
+    deployer.post_deploy(
+        ctx,
+        &app_configs,
+        &app_configs_to_deploy,
+        &chain_configs,
+        &routers,
+    );
+
+    // Now write the program ids to a file!
+    let routers_by_name: HashMap<String, H256> = routers
+        .iter()
+        .map(|(domain_id, router)| {
+            (
+                chain_configs
+                    .iter()
+                    .find(|(_, chain_config)| chain_config.domain_id() == *domain_id)
+                    .unwrap()
+                    .0
+                    .clone(),
+                *router,
+            )
+        })
+        .collect::<HashMap<String, H256>>();
+    write_router_program_ids(&deploy_dir, &routers_by_name);
+}
+
+/// For each chain in app_configs_to_deploy, enrolls all the remote routers.
+/// Idempotent.
+fn enroll_all_remote_routers<
+    Config: for<'a> Deserialize<'a> + RouterConfigGetter + std::fmt::Debug + Clone,
+>(
+    deployer: &impl RouterDeployer<Config>,
+    ctx: &mut Context,
+    app_configs_to_deploy: &HashMap<&String, &Config>,
+    chain_configs: &HashMap<String, ChainMetadata>,
+    routers: &HashMap<u32, H256>,
+) {
     for (chain_name, _) in app_configs_to_deploy.iter() {
         let chain_config = chain_configs
             .get(*chain_name)
@@ -419,32 +464,6 @@ pub(crate) fn deploy_routers<
             );
         }
     }
-
-    // Call the post-deploy hook.
-    deployer.post_deploy(
-        ctx,
-        &app_configs,
-        &app_configs_to_deploy,
-        &chain_configs,
-        &routers,
-    );
-
-    // Now write the program ids to a file!
-    let routers_by_name: HashMap<String, H256> = routers
-        .iter()
-        .map(|(domain_id, router)| {
-            (
-                chain_configs
-                    .iter()
-                    .find(|(_, chain_config)| chain_config.domain_id() == *domain_id)
-                    .unwrap()
-                    .0
-                    .clone(),
-                *router,
-            )
-        })
-        .collect::<HashMap<String, H256>>();
-    write_router_program_ids(&deploy_dir, &routers_by_name);
 }
 
 // Writes router program IDs as hex and base58.
