@@ -66,7 +66,7 @@ abstract contract HypTokenTest is Test {
         localMailbox = new TestMailbox(ORIGIN);
         remoteMailbox = new TestMailbox(DESTINATION);
 
-        primaryToken = new ERC20Test(NAME, SYMBOL, TOTAL_SUPPLY);
+        primaryToken = new ERC20Test(NAME, SYMBOL, TOTAL_SUPPLY, DECIMALS);
 
         noopHook = new TestPostDispatchHook();
         localMailbox.setDefaultHook(address(noopHook));
@@ -320,7 +320,7 @@ contract HypNativeTest is HypTokenTest {
         super.setUp();
 
         localToken = new HypNative();
-        nativeToken = HypNative(address(localToken));
+        nativeToken = HypNative(payable(address(localToken)));
 
         nativeToken.initialize(address(localMailbox));
 
