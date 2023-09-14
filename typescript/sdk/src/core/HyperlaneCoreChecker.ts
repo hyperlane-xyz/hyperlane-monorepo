@@ -57,10 +57,9 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
 
     let ownableOverrides: Record<string, Address> = {};
     if (config.upgrade) {
-      const timelockController =
-        this.app.getAddresses(chain).timelockController;
+      const proxyOwner = await this.app.getContracts(chain).proxyAdmin.owner();
       ownableOverrides = {
-        proxyAdmin: timelockController,
+        proxyAdmin: proxyOwner,
       };
     }
     return this.checkOwnership(chain, config.owner, ownableOverrides);

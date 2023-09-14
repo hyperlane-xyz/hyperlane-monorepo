@@ -60,7 +60,7 @@ export { TestCoreDeployer } from './core/TestCoreDeployer';
 export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter';
 export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter';
 export { ICoreAdapter } from './core/adapters/types';
-export { CoreFactories, coreFactories } from './core/contracts';
+export { CoreFactories, coreFactories, CoreAddresses } from './core/contracts';
 export { HyperlaneLifecyleEvent } from './core/events';
 export {
   CoreConfig,

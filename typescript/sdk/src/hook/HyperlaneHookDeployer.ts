@@ -1,13 +1,13 @@
 import debug from 'debug';
 
-import {
-  Address,
-  objFilter,
-  objMap,
-  promiseObjAll,
-} from '@hyperlane-xyz/utils';
+import { objFilter, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts/types';
+import {
+  HyperlaneAddressesMap,
+  HyperlaneContracts,
+  HyperlaneContractsMap,
+} from '../contracts/types';
+import { CoreFactories } from '../core/contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -23,7 +23,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 > {
   constructor(
     multiProvider: MultiProvider,
-    readonly core: ChainMap<{ mailbox: Address }>,
+    public core: HyperlaneAddressesMap<CoreFactories>,
   ) {
     super(multiProvider, optimismHookFactories, {
       logger: debug('hyperlane:HookDeployer'),

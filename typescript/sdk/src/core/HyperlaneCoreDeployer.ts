@@ -1,13 +1,10 @@
 import debug from 'debug';
-import { ethers } from 'ethers';
 
 import {
   Mailbox,
   MerkleTreeHook,
   MerkleTreeHook__factory,
   TestInterchainGasPaymaster__factory,
-  TimelockController,
-  TimelockController__factory,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
@@ -126,10 +123,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       return undefined as any;
     }
 
-    this.startingBlockNumbers[chain] = await this.multiProvider
-      .getProvider(chain)
-      .getBlockNumber();
-
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
     // TODO: deploy using default hook config
@@ -147,38 +140,31 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       config.owner,
     );
 
+    this.startingBlockNumbers[chain] = (
+      await mailbox.deployedBlock()
+    ).toNumber();
+
     const validatorAnnounce = await this.deployValidatorAnnounce(
       chain,
       mailbox.address,
     );
 
-    let timelockController: TimelockController;
+    let proxyOwner: string;
     if (config.upgrade) {
-      timelockController = await this.deployTimelock(
+      const timelockController = await this.deployTimelock(
         chain,
         config.upgrade.timelock,
       );
-      await this.transferOwnershipOfContracts(
-        chain,
-        timelockController.address,
-        { proxyAdmin },
-      );
+      proxyOwner = timelockController.address;
     } else {
-      // mock this for consistent serialization
-      timelockController = TimelockController__factory.connect(
-        ethers.constants.AddressZero,
-        this.multiProvider.getProvider(chain),
-      );
-      await this.transferOwnershipOfContracts(chain, config.owner, {
-        mailbox,
-        proxyAdmin,
-      });
+      proxyOwner = config.owner;
     }
+
+    await this.transferOwnershipOfContracts(chain, proxyOwner, { proxyAdmin });
 
     return {
       mailbox,
       proxyAdmin,
-      timelockController,
       validatorAnnounce,
     };
   }
