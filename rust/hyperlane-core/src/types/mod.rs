@@ -103,6 +103,15 @@ impl From<Signature> for ethers_core::types::Signature {
     }
 }
 
+/// Key for the gas payment
+#[derive(Debug, Copy, Clone)]
+pub struct GasPaymentKey {
+    /// Id of the message
+    pub message_id: H256,
+    /// Destination domain paid for.
+    pub destination: u32,
+}
+
 /// A payment of a message's gas costs.
 #[derive(Debug, Copy, Clone)]
 pub struct InterchainGasPayment {

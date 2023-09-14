@@ -9,7 +9,6 @@ use hyperlane_core::{
 /// the key.
 #[derive(Debug, Copy, Clone)]
 pub(super) struct InterchainGasPaymentData {
-    pub destination: u32,
     pub payment: U256,
     pub gas_amount: U256,
 }
@@ -25,7 +24,6 @@ pub(super) struct InterchainGasExpenditureData {
 impl Default for InterchainGasPaymentData {
     fn default() -> Self {
         Self {
-            destination: 0,
             payment: U256::zero(),
             gas_amount: U256::zero(),
         }
@@ -33,10 +31,10 @@ impl Default for InterchainGasPaymentData {
 }
 
 impl InterchainGasPaymentData {
-    pub fn complete(self, message_id: H256) -> InterchainGasPayment {
+    pub fn complete(self, message_id: H256, destination: u32) -> InterchainGasPayment {
         InterchainGasPayment {
             message_id,
-            destination: self.destination,
+            destination,
             payment: self.payment,
             gas_amount: self.gas_amount,
         }
@@ -46,7 +44,6 @@ impl InterchainGasPaymentData {
 impl From<InterchainGasPayment> for InterchainGasPaymentData {
     fn from(p: InterchainGasPayment) -> Self {
         Self {
-            destination: p.destination,
             payment: p.payment,
             gas_amount: p.gas_amount,
         }
@@ -69,7 +66,6 @@ impl Decode for InterchainGasPaymentData {
         Self: Sized,
     {
         Ok(Self {
-            destination: u32::read_from(reader)?,
             payment: U256::read_from(reader)?,
             gas_amount: U256::read_from(reader)?,
         })
