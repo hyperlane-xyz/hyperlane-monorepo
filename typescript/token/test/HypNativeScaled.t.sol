@@ -40,17 +40,13 @@ contract HypNativeScaledTest is Test {
         synth = new HypERC20(decimals);
         synth.initialize(
             address(environment.mailboxes(synthDomain)),
-            address(environment.igps(synthDomain)),
             mintAmount * (10**decimals),
             "Zebec BSC Token",
             "ZBC"
         );
 
         native = new HypNativeScaled(scale);
-        native.initialize(
-            address(environment.mailboxes(nativeDomain)),
-            address(environment.igps(nativeDomain))
-        );
+        native.initialize(address(environment.mailboxes(nativeDomain)));
 
         native.enrollRemoteRouter(
             synthDomain,
