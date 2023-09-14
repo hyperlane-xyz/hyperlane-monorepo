@@ -154,10 +154,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
         [],
       );
     }
-    await this.multiProvider.handleTx(
-      chain,
-      router.initialize(config.mailbox),
-    );
+    await this.multiProvider.handleTx(chain, router.initialize(config.mailbox));
     return router;
   }
 
