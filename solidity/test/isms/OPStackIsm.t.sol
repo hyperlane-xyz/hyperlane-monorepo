@@ -225,10 +225,10 @@ contract OPStackIsmTest is Test {
             (messageId)
         );
 
-        (uint240 nonce, uint16 verison) = decodeVersionedNonce(
+        (uint240 nonce, uint16 version) = decodeVersionedNonce(
             l2Messenger.messageNonce()
         );
-        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, verison);
+        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, version);
 
         bytes32 versionedHash = hashCrossDomainMessageV1(
             versionedNonce,
@@ -297,10 +297,10 @@ contract OPStackIsmTest is Test {
             (messageId)
         );
 
-        (uint240 nonce, uint16 verison) = decodeVersionedNonce(
+        (uint240 nonce, uint16 version) = decodeVersionedNonce(
             l2Messenger.messageNonce()
         );
-        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, verison);
+        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, version);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage(
@@ -328,10 +328,10 @@ contract OPStackIsmTest is Test {
             (messageId)
         );
 
-        (uint240 nonce, uint16 verison) = decodeVersionedNonce(
+        (uint240 nonce, uint16 version) = decodeVersionedNonce(
             l2Messenger.messageNonce()
         );
-        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, verison);
+        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, version);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage{value: _msgValue}(
@@ -361,10 +361,10 @@ contract OPStackIsmTest is Test {
             (messageId)
         );
 
-        (uint240 nonce, uint16 verison) = decodeVersionedNonce(
+        (uint240 nonce, uint16 version) = decodeVersionedNonce(
             l2Messenger.messageNonce()
         );
-        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, verison);
+        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, version);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage(
@@ -410,10 +410,10 @@ contract OPStackIsmTest is Test {
             (_messageId)
         );
 
-        (uint240 nonce, uint16 verison) = decodeVersionedNonce(
+        (uint240 nonce, uint16 version) = decodeVersionedNonce(
             l2Messenger.messageNonce()
         );
-        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, verison);
+        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, version);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage(
