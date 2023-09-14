@@ -7,14 +7,17 @@ use solana_client::{client_error::ClientError, rpc_client::RpcClient};
 
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 
-use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+use hyperlane_sealevel_connection_client::{
+    gas_router::GasRouterConfig, router::RemoteRouterConfig,
+};
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_token::{hyperlane_token_mint_pda_seeds, spl_token, spl_token_2022};
 use hyperlane_sealevel_token_lib::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
     instruction::{
-        enroll_remote_routers_instruction, set_interchain_security_module_instruction, Init,
+        enroll_remote_routers_instruction, set_destination_gas_configs,
+        set_interchain_security_module_instruction, Init,
     },
 };
 
@@ -28,6 +31,7 @@ use crate::{
     Context, WarpRouteCmd, WarpRouteSubCmd,
 };
 
+/// Configuration relating to decimals.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct DecimalMetadata {
@@ -41,6 +45,7 @@ impl DecimalMetadata {
     }
 }
 
+/// Configuration relating to a Warp Route token.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(tag = "type", rename_all = "camelCase")]
 enum TokenType {
@@ -50,14 +55,6 @@ enum TokenType {
 }
 
 impl TokenType {
-    fn program_name(&self) -> &str {
-        match self {
-            TokenType::Native => "hyperlane_sealevel_token_native",
-            TokenType::Synthetic(_) => "hyperlane_sealevel_token",
-            TokenType::Collateral(_) => "hyperlane_sealevel_token_collateral",
-        }
-    }
-
     // Borrowed from HypERC20Deployer's `gasOverheadDefault`.
     fn gas_overhead_default(&self) -> u64 {
         // TODO: note these are the amounts specific to the EVM.
@@ -197,103 +194,192 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
 
         let (token_pda, _token_bump) =
             Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
-        if account_exists(client, &token_pda).unwrap() {
-            println!("Token PDA already exists, skipping init");
-            return;
-        }
+        if !account_exists(client, &token_pda).unwrap() {
+            let domain_id = chain_config.domain_id();
 
-        let domain_id = chain_config.domain_id();
+            // TODO: consider pulling the setting of defaults into router.rs,
+            // and possibly have a more distinct connection client abstration.
 
-        // TODO: consider pulling the setting of defaults into router.rs,
-        // and possibly have a more distinct connection client abstration.
-
-        let mailbox = app_config
-            .router_config()
-            .connection_client
-            .mailbox(core_program_ids.mailbox);
-        let interchain_security_module = app_config
-            .router_config()
-            .connection_client
-            .interchain_security_module();
-        let owner = Some(app_config.router_config().ownable.owner(ctx.payer_pubkey));
-
-        // Default to the Overhead IGP
-        let interchain_gas_paymaster = Some(
-            app_config
+            let mailbox = app_config
                 .router_config()
                 .connection_client
-                .interchain_gas_paymaster_config(client)
-                .unwrap_or((
-                    core_program_ids.igp_program_id,
-                    InterchainGasPaymasterType::OverheadIgp(core_program_ids.overhead_igp_account),
-                )),
-        );
+                .mailbox(core_program_ids.mailbox);
+            let interchain_security_module = app_config
+                .router_config()
+                .connection_client
+                .interchain_security_module();
+            let owner = Some(app_config.router_config().ownable.owner(ctx.payer_pubkey));
 
-        println!(
-            "Initializing Warp Route program: domain_id: {}, mailbox: {}, ism: {:?}, owner: {:?}, igp: {:?}",
-            domain_id, mailbox, interchain_security_module, owner, interchain_gas_paymaster
-        );
+            // Default to the Overhead IGP
+            let interchain_gas_paymaster = Some(
+                app_config
+                    .router_config()
+                    .connection_client
+                    .interchain_gas_paymaster_config(client)
+                    .unwrap_or((
+                        core_program_ids.igp_program_id,
+                        InterchainGasPaymasterType::OverheadIgp(
+                            core_program_ids.overhead_igp_account,
+                        ),
+                    )),
+            );
 
-        let init = Init {
-            mailbox,
-            interchain_security_module,
-            interchain_gas_paymaster,
-            decimals: app_config.decimal_metadata.decimals,
-            remote_decimals: app_config.decimal_metadata.remote_decimals(),
-        };
+            println!(
+                "Initializing Warp Route program: domain_id: {}, mailbox: {}, ism: {:?}, owner: {:?}, igp: {:?}",
+                domain_id, mailbox, interchain_security_module, owner, interchain_gas_paymaster
+            );
 
-        match &app_config.token_type {
-            TokenType::Native => ctx.new_txn().add(
-                hyperlane_sealevel_token_native::instruction::init_instruction(
-                    program_id,
-                    ctx.payer_pubkey,
-                    init,
-                )
-                .unwrap(),
-            ),
-            TokenType::Synthetic(_token_metadata) => {
-                let decimals = init.decimals;
+            let init = Init {
+                mailbox,
+                interchain_security_module,
+                interchain_gas_paymaster,
+                decimals: app_config.decimal_metadata.decimals,
+                remote_decimals: app_config.decimal_metadata.remote_decimals(),
+            };
 
-                let init_txn = ctx.new_txn().add(
-                    hyperlane_sealevel_token::instruction::init_instruction(
+            match &app_config.token_type {
+                TokenType::Native => ctx.new_txn().add(
+                    hyperlane_sealevel_token_native::instruction::init_instruction(
                         program_id,
                         ctx.payer_pubkey,
                         init,
                     )
                     .unwrap(),
-                );
+                ),
+                TokenType::Synthetic(_token_metadata) => {
+                    let decimals = init.decimals;
 
-                let (mint_account, _mint_bump) =
-                    Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
-                // TODO: Also set Metaplex metadata?
-                init_txn.add(
-                    spl_token_2022::instruction::initialize_mint2(
-                        &spl_token_2022::id(),
-                        &mint_account,
-                        &mint_account,
-                        None,
-                        decimals,
+                    let init_txn = ctx.new_txn().add(
+                        hyperlane_sealevel_token::instruction::init_instruction(
+                            program_id,
+                            ctx.payer_pubkey,
+                            init,
+                        )
+                        .unwrap(),
+                    );
+
+                    let (mint_account, _mint_bump) = Pubkey::find_program_address(
+                        hyperlane_token_mint_pda_seeds!(),
+                        &program_id,
+                    );
+                    // TODO: Also set Metaplex metadata?
+                    init_txn.add(
+                        spl_token_2022::instruction::initialize_mint2(
+                            &spl_token_2022::id(),
+                            &mint_account,
+                            &mint_account,
+                            None,
+                            decimals,
+                        )
+                        .unwrap(),
+                    )
+                }
+                TokenType::Collateral(collateral_info) => ctx.new_txn().add(
+                    hyperlane_sealevel_token_collateral::instruction::init_instruction(
+                        program_id,
+                        ctx.payer_pubkey,
+                        init,
+                        collateral_info
+                            .spl_token_program
+                            .as_ref()
+                            .expect(
+                                "Cannot initalize collateral warp route without SPL token program",
+                            )
+                            .program_id(),
+                        collateral_info.mint.parse().expect("Invalid mint address"),
                     )
                     .unwrap(),
-                )
+                ),
             }
-            TokenType::Collateral(collateral_info) => ctx.new_txn().add(
-                hyperlane_sealevel_token_collateral::instruction::init_instruction(
-                    program_id,
-                    ctx.payer_pubkey,
-                    init,
-                    collateral_info
-                        .spl_token_program
-                        .as_ref()
-                        .expect("Cannot initalize collateral warp route without SPL token program")
-                        .program_id(),
-                    collateral_info.mint.parse().expect("Invalid mint address"),
-                )
-                .unwrap(),
-            ),
+            .with_client(client)
+            .send_with_payer();
         }
-        .with_client(client)
-        .send_with_payer();
+    }
+
+    fn post_deploy(
+        &self,
+        ctx: &mut Context,
+        app_configs: &HashMap<String, TokenConfig>,
+        app_configs_to_deploy: &HashMap<&String, &TokenConfig>,
+        chain_configs: &HashMap<String, ChainMetadata>,
+        routers: &HashMap<u32, H256>,
+    ) {
+        // Set gas amounts for each destination chain
+        for chain_name in app_configs_to_deploy.keys() {
+            let chain_config = chain_configs
+                .get(*chain_name)
+                .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
+
+            let domain_id = chain_config.domain_id();
+            let program_id: Pubkey =
+                Pubkey::new_from_array(*routers.get(&domain_id).unwrap().as_fixed_bytes());
+
+            // And set destination gas
+            let configured_destination_gas =
+                get_destination_gas(&chain_config.client(), &program_id).unwrap();
+
+            let expected_destination_gas = app_configs
+                .iter()
+                // filter out local chain
+                .filter(|(dest_chain_name, _)| dest_chain_name != chain_name)
+                .map(|(dest_chain_name, app_config)| {
+                    let domain = chain_configs.get(dest_chain_name).unwrap().domain_id();
+                    (
+                        domain,
+                        GasRouterConfig {
+                            domain,
+                            gas: Some(app_config.token_type.gas_overhead_default()),
+                        },
+                    )
+                })
+                .collect::<HashMap<u32, GasRouterConfig>>();
+
+            // Destination gas to set or update to a Some value
+            let destination_gas_to_set = expected_destination_gas
+                .iter()
+                .filter(|(domain, expected_config)| {
+                    configured_destination_gas.get(domain) != expected_config.gas.as_ref()
+                })
+                .map(|(_, expected_config)| expected_config.clone());
+
+            // Destination gas to remove
+            let destination_gas_to_unset = configured_destination_gas
+                .iter()
+                .filter(|(domain, _)| !expected_destination_gas.contains_key(domain))
+                .map(|(domain, _)| GasRouterConfig {
+                    domain: *domain,
+                    gas: None,
+                });
+
+            // All destination gas config changes
+            let destination_gas_configs = destination_gas_to_set
+                .chain(destination_gas_to_unset)
+                .collect::<Vec<GasRouterConfig>>();
+
+            if !destination_gas_configs.is_empty() {
+                let description = format!(
+                    "Setting destination gas amounts for chain: {}, program_id {}, destination gas: {:?}",
+                    chain_name, program_id, destination_gas_configs,
+                );
+                ctx.new_txn()
+                    .add_with_description(
+                        set_destination_gas_configs(
+                            program_id,
+                            ctx.payer_pubkey,
+                            destination_gas_configs,
+                        )
+                        .unwrap(),
+                        description,
+                    )
+                    .with_client(&chain_config.client())
+                    .send_with_payer();
+            } else {
+                println!(
+                    "No destination gas amount changes for chain: {}, program_id {}",
+                    chain_name, program_id
+                );
+            }
+        }
     }
 }
 
@@ -349,6 +435,7 @@ fn get_destination_gas(
     Ok(token_data.destination_gas)
 }
 
+// Funds the ATA payer up to the specified amount.
 fn fund_ata_payer_up_to(
     ctx: &mut Context,
     client: &RpcClient,
@@ -369,16 +456,18 @@ fn fund_ata_payer_up_to(
         return;
     }
 
-    println!(
-        "Funding ATA payer {} with funding_amount {} to reach total balance of {}",
-        ata_payer_account, funding_amount, ata_payer_funding_amount
-    );
     ctx.new_txn()
-        .add(solana_program::system_instruction::transfer(
-            &ctx.payer_pubkey,
-            &ata_payer_account,
-            funding_amount,
-        ))
+        .add_with_description(
+            solana_program::system_instruction::transfer(
+                &ctx.payer_pubkey,
+                &ata_payer_account,
+                funding_amount,
+            ),
+            format!(
+                "Funding ATA payer {} with funding_amount {} to reach total balance of {}",
+                ata_payer_account, funding_amount, ata_payer_funding_amount
+            ),
+        )
         .with_client(client)
         .send_with_payer();
 }

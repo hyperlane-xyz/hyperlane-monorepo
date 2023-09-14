@@ -15,6 +15,7 @@ use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_igp::accounts::{Igp, InterchainGasPaymasterType, OverheadIgp};
 
 use crate::{
+    artifacts::{write_json, HexAndBase58ProgramIdArtifact},
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program_idempotent},
     read_core_program_ids, Context, CoreProgramIds,
 };
@@ -183,6 +184,27 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
         program_id
     }
 
+    fn init_program_idempotent(
+        &self,
+        ctx: &mut Context,
+        client: &RpcClient,
+        core_program_ids: &CoreProgramIds,
+        chain_config: &ChainMetadata,
+        app_config: &Config,
+        program_id: Pubkey,
+    );
+
+    fn post_deploy(
+        &self,
+        _ctx: &mut Context,
+        _app_configs: &HashMap<String, Config>,
+        _app_configs_to_deploy: &HashMap<&String, &Config>,
+        _chain_configs: &HashMap<String, ChainMetadata>,
+        _routers: &HashMap<u32, H256>,
+    ) {
+        // By default, do nothing.
+    }
+
     /// The program's name, i.e. the name of the program's .so file (without the .so suffix)
     /// and the name that will be used to create the keypair file
     fn program_name(&self, config: &Config) -> &str;
@@ -195,25 +217,17 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
     ) -> Instruction;
 
     fn get_routers(&self, rpc_client: &RpcClient, program_id: &Pubkey) -> HashMap<u32, H256>;
-
-    fn init_program_idempotent(
-        &self,
-        ctx: &mut Context,
-        client: &RpcClient,
-        core_program_ids: &CoreProgramIds,
-        chain_config: &ChainMetadata,
-        app_config: &Config,
-        program_id: Pubkey,
-    );
 }
 
 pub(crate) trait ConnectionClient {
+    /// Gets the interchain security module configured on-chain.
     fn get_interchain_security_module(
         &self,
         client: &RpcClient,
         program_id: &Pubkey,
     ) -> Option<Pubkey>;
 
+    /// Gets an instruction to set the interchain security module.
     fn set_interchain_security_module_instruction(
         &self,
         client: &RpcClient,
@@ -224,7 +238,7 @@ pub(crate) trait ConnectionClient {
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn deploy_routers<
-    Config: for<'a> Deserialize<'a> + RouterConfigGetter + std::fmt::Debug,
+    Config: for<'a> Deserialize<'a> + RouterConfigGetter + std::fmt::Debug + Clone,
     Deployer: RouterDeployer<Config>,
 >(
     ctx: &mut Context,
@@ -237,9 +251,11 @@ pub(crate) fn deploy_routers<
     environment: &str,
     built_so_dir_path: PathBuf,
 ) {
+    // Load the app configs from the app config file.
     let app_config_file = File::open(app_config_file_path).unwrap();
     let app_configs: HashMap<String, Config> = serde_json::from_reader(app_config_file).unwrap();
 
+    // Load the chain configs from the chain config file.
     let chain_config_file = File::open(chain_config_file_path).unwrap();
     let chain_configs: HashMap<String, ChainMetadata> =
         serde_json::from_reader(chain_config_file).unwrap();
@@ -250,6 +266,9 @@ pub(crate) fn deploy_routers<
     let deploy_dir = create_new_directory(&artifacts_dir, deploy_name);
     let keys_dir = create_new_directory(&deploy_dir, "keys");
 
+    // Builds a HashMap of all the foreign deployments from the app config.
+    // These domains with foreign deployments will not have any txs / deployments
+    // made directly to them, but the routers will be enrolled on the other chains.
     let foreign_deployments = app_configs
         .iter()
         .map(|(chain_name, app_config)| (chain_name, app_config.router_config()))
@@ -263,17 +282,20 @@ pub(crate) fn deploy_routers<
         })
         .collect::<HashMap<u32, H256>>();
 
+    // A map of all the routers, including the foreign deployments.
     let mut routers: HashMap<u32, H256> = foreign_deployments;
 
+    // Non-foreign app configs to deploy to.
     let app_configs_to_deploy = app_configs
-        .into_iter()
+        // .clone()
+        .iter()
         .filter(|(_, app_config)| app_config.router_config().foreign_deployment.is_none())
         .collect::<HashMap<_, _>>();
 
-    // Deploy to chains that don't have a foreign deployment
+    // Now we deploy to chains that don't have a foreign deployment
     for (chain_name, app_config) in app_configs_to_deploy.iter() {
         let chain_config = chain_configs
-            .get(chain_name)
+            .get(*chain_name)
             .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
         if let Some(configured_owner) = app_config.router_config().ownable.owner {
@@ -282,6 +304,7 @@ pub(crate) fn deploy_routers<
             }
         }
 
+        // Deploy - this is idempotent.
         let program_id = deployer.deploy(
             ctx,
             &keys_dir,
@@ -292,13 +315,14 @@ pub(crate) fn deploy_routers<
             app_config,
         );
 
+        // Add the router to the list of routers.
         routers.insert(
             chain_config.domain_id(),
             H256::from_slice(&program_id.to_bytes()[..]),
         );
 
-        // TODO pull this out into connection-client specific logic
-        // that also looks for IGP inconsistency.
+        // Configure the connection client.
+        // TODO pull this out into connection-client specific logic that also looks for IGP inconsistency etc.
 
         let actual_ism =
             deployer.get_interchain_security_module(&chain_config.client(), &program_id);
@@ -327,10 +351,10 @@ pub(crate) fn deploy_routers<
         }
     }
 
-    // Now enroll routers
-    for (chain_name, _) in app_configs_to_deploy {
+    // Now enroll all the routers.
+    for (chain_name, _) in app_configs_to_deploy.iter() {
         let chain_config = chain_configs
-            .get(&chain_name)
+            .get(*chain_name)
             .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
         let domain_id = chain_config.domain_id();
@@ -338,7 +362,6 @@ pub(crate) fn deploy_routers<
             Pubkey::new_from_array(*routers.get(&domain_id).unwrap().as_fixed_bytes());
 
         let enrolled_routers = deployer.get_routers(&chain_config.client(), &program_id);
-
         let expected_routers = routers
             .iter()
             .filter(|(router_domain_id, _)| *router_domain_id != &domain_id)
@@ -397,6 +420,16 @@ pub(crate) fn deploy_routers<
         }
     }
 
+    // Call the post-deploy hook.
+    deployer.post_deploy(
+        ctx,
+        &app_configs,
+        &app_configs_to_deploy,
+        &chain_configs,
+        &routers,
+    );
+
+    // Now write the program ids to a file!
     let routers_by_name: HashMap<String, H256> = routers
         .iter()
         .map(|(domain_id, router)| {
@@ -411,30 +444,16 @@ pub(crate) fn deploy_routers<
             )
         })
         .collect::<HashMap<String, H256>>();
-    write_program_ids(&deploy_dir, &routers_by_name);
+    write_router_program_ids(&deploy_dir, &routers_by_name);
 }
 
-#[derive(Serialize, Deserialize)]
-struct SerializedProgramId {
-    hex: String,
-    base58: String,
-}
-
-fn write_program_ids(deploy_dir: &Path, routers: &HashMap<String, H256>) {
+// Writes router program IDs as hex and base58.
+fn write_router_program_ids(deploy_dir: &Path, routers: &HashMap<String, H256>) {
     let serialized_program_ids = routers
         .iter()
-        .map(|(chain_name, router)| {
-            (
-                chain_name.clone(),
-                SerializedProgramId {
-                    hex: format!("0x{}", hex::encode(router)),
-                    base58: Pubkey::new_from_array(router.to_fixed_bytes()).to_string(),
-                },
-            )
-        })
-        .collect::<HashMap<String, SerializedProgramId>>();
+        .map(|(chain_name, router)| (chain_name.clone(), (*router).into()))
+        .collect::<HashMap<String, HexAndBase58ProgramIdArtifact>>();
 
     let program_ids_file = deploy_dir.join("program-ids.json");
-    let program_ids_file = File::create(program_ids_file).unwrap();
-    serde_json::to_writer_pretty(program_ids_file, &serialized_program_ids).unwrap();
+    write_json(&program_ids_file, serialized_program_ids);
 }
