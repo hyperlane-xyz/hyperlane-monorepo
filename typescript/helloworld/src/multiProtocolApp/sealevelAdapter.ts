@@ -9,14 +9,15 @@ import {
 import { deserializeUnchecked, serialize } from 'borsh';
 
 import {
-  BaseSealevelAdapter,
   ChainName,
+  MultiProtocolProvider,
   ProviderType,
-  RouterAddress,
   SEALEVEL_SPL_NOOP_ADDRESS,
   SealevelAccountDataWrapper,
   SealevelCoreAdapter,
   SealevelInstructionWrapper,
+  SealevelInterchainGasPaymasterConfig,
+  SealevelInterchainGasPaymasterConfigSchema,
   SealevelRouterAdapter,
   SolanaWeb3Transaction,
   getSealevelAccountDataSchema,
@@ -28,11 +29,18 @@ import { StatCounts } from '../app/types';
 import { IHelloWorldAdapter } from './types';
 
 export class SealevelHelloWorldAdapter
-  extends SealevelRouterAdapter<RouterAddress & { mailbox: Address }>
+  extends SealevelRouterAdapter
   implements IHelloWorldAdapter
 {
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { router: Address; mailbox: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+
   async populateSendHelloTx(
-    origin: ChainName,
     destination: ChainName,
     message: string,
     value: string,
@@ -40,14 +48,13 @@ export class SealevelHelloWorldAdapter
   ): Promise<SolanaWeb3Transaction> {
     this.logger(
       'Creating sendHelloWorld tx for sealevel',
-      origin,
+      this.chainName,
       destination,
       message,
       value,
     );
 
-    const { mailbox, router: programId } =
-      this.multiProvider.getChainMetadata(origin);
+    const { mailbox, router: programId } = this.addresses;
     const mailboxPubKey = new PublicKey(mailbox);
     const senderPubKey = new PublicKey(sender);
     const programPubKey = new PublicKey(programId);
@@ -75,7 +82,7 @@ export class SealevelHelloWorldAdapter
       data: Buffer.from(serializedData),
     });
 
-    const connection = this.multiProvider.getSolanaWeb3Provider(origin);
+    const connection = this.getProvider();
     const recentBlockhash = (await connection.getLatestBlockhash('finalized'))
       .blockhash;
     // @ts-ignore Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
@@ -151,23 +158,20 @@ export class SealevelHelloWorldAdapter
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/dd7ff727b0d3d393a159afa5f0a364775bde3a58/rust/sealevel/programs/helloworld/src/processor.rs#L44
   deriveProgramStoragePDA(programId: string | PublicKey): PublicKey {
-    return BaseSealevelAdapter.derivePda(
+    return this.derivePda(
       ['hello_world', '-', 'handle', '-', 'storage'],
       programId,
     );
   }
 
-  async channelStats(
-    origin: ChainName,
-    _destination: ChainName,
-  ): Promise<StatCounts> {
-    const data = await this.getAccountInfo(origin);
+  async channelStats(_destination: ChainName): Promise<StatCounts> {
+    const data = await this.getAccountInfo();
     return { sent: data.sent, received: data.received };
   }
 
-  async getAccountInfo(chain: ChainName): Promise<HelloWorldData> {
-    const address = this.multiProvider.getChainMetadata(chain).router;
-    const connection = this.multiProvider.getSolanaWeb3Provider(chain);
+  async getAccountInfo(): Promise<HelloWorldData> {
+    const address = this.addresses.router;
+    const connection = this.getProvider();
 
     const msgRecipientPda = this.deriveMessageRecipientPda(address);
     const accountInfo = await connection.getAccountInfo(msgRecipientPda);
@@ -290,14 +294,7 @@ export const HelloWorldDataSchema = new Map<any, any>([
           'igp',
           {
             kind: 'option',
-            type: {
-              kind: 'struct',
-              fields: [
-                ['program_id', [32]],
-                ['type', 'u8'],
-                ['igp_account', [32]],
-              ],
-            },
+            type: SealevelInterchainGasPaymasterConfig,
           },
         ],
         ['owner', { kind: 'option', type: [32] }],
@@ -308,5 +305,9 @@ export const HelloWorldDataSchema = new Map<any, any>([
         ['routers', { kind: 'map', key: 'u32', value: [32] }],
       ],
     },
+  ],
+  [
+    SealevelInterchainGasPaymasterConfig,
+    SealevelInterchainGasPaymasterConfigSchema,
   ],
 ]);

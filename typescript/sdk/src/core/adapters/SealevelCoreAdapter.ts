@@ -1,14 +1,14 @@
 import { PublicKey } from '@solana/web3.js';
 
-import { HexString, pollAsync } from '@hyperlane-xyz/utils';
+import { Address, HexString, pollAsync } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import {
   ProviderType,
   TypedTransactionReceipt,
 } from '../../providers/ProviderType';
 import { ChainName } from '../../types';
-import { CoreAddresses } from '../contracts';
 
 import { ICoreAdapter } from './types';
 
@@ -16,9 +16,17 @@ import { ICoreAdapter } from './types';
 const MESSAGE_DISPATCH_LOG_REGEX = /Dispatched message to (.*), ID (.*)/;
 
 export class SealevelCoreAdapter
-  extends BaseSealevelAdapter<CoreAddresses>
+  extends BaseSealevelAdapter
   implements ICoreAdapter
 {
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { mailbox: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+
   extractMessageIds(
     sourceTx: TypedTransactionReceipt,
   ): Array<{ messageId: HexString; destination: ChainName }> {
@@ -45,10 +53,8 @@ export class SealevelCoreAdapter
     delayMs?: number,
     maxAttempts?: number,
   ): Promise<void> {
-    const destinationMailbox =
-      this.multiProvider.getChainMetadata(destination).mailbox;
     const pda = SealevelCoreAdapter.deriveMailboxMessageProcessedPda(
-      destinationMailbox,
+      this.addresses.mailbox,
       messageId,
     );
     const connection = this.multiProvider.getSolanaWeb3Provider(destination);

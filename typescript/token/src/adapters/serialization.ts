@@ -1,17 +1,13 @@
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { PublicKey } from '@solana/web3.js';
-
-import { Domain } from '@hyperlane-xyz/utils';
 
 import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
+  SealevelInterchainGasPaymasterConfig,
+  SealevelInterchainGasPaymasterConfigSchema,
   getSealevelAccountDataSchema,
-} from './serialization';
-
-// TODO move this code to the token package
-// after we've defined more accurate data schemas for Routers.
-// Currently the RouterAdapters use this schema as a placeholder
+} from '@hyperlane-xyz/sdk';
+import { Domain } from '@hyperlane-xyz/utils';
 
 /**
  * Hyperlane Token Borsh Schema
@@ -39,11 +35,7 @@ export class SealevelHyperlaneTokenData {
   interchain_security_module?: Uint8Array;
   interchain_security_module_pubkey?: PublicKey;
   // The interchain gas paymaster
-  interchain_gas_paymaster?: {
-    program_id: Uint8Array;
-    type: number;
-    account: Uint8Array;
-  };
+  interchain_gas_paymaster?: SealevelInterchainGasPaymasterConfig;
   interchain_gas_paymaster_pubkey?: PublicKey;
   interchain_gas_paymaster_account_pubkey?: PublicKey;
   // Gas amounts by destination
@@ -64,8 +56,8 @@ export class SealevelHyperlaneTokenData {
       ? new PublicKey(this.interchain_gas_paymaster.program_id)
       : undefined;
     this.interchain_gas_paymaster_account_pubkey = this.interchain_gas_paymaster
-      ?.account
-      ? new PublicKey(this.interchain_gas_paymaster.account)
+      ?.igp_account
+      ? new PublicKey(this.interchain_gas_paymaster.igp_account)
       : undefined;
     this.remote_router_pubkeys = new Map<number, PublicKey>();
     if (this.remote_routers) {
@@ -98,20 +90,17 @@ export const SealevelHyperlaneTokenDataSchema = new Map<any, any>([
           'interchain_gas_paymaster',
           {
             kind: 'option',
-            type: {
-              kind: 'struct',
-              fields: [
-                ['program_id', [32]],
-                ['type', 'u8'],
-                ['account', [32]],
-              ],
-            },
+            type: SealevelInterchainGasPaymasterConfig,
           },
         ],
         ['destination_gas', { kind: 'map', key: 'u32', value: 'u64' }],
         ['remote_routers', { kind: 'map', key: 'u32', value: [32] }],
       ],
     },
+  ],
+  [
+    SealevelInterchainGasPaymasterConfig,
+    SealevelInterchainGasPaymasterConfigSchema,
   ],
 ]);
 

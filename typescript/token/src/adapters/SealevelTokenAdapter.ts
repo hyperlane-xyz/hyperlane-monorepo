@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
@@ -7,7 +6,6 @@ import {
 } from '@solana/spl-token';
 import {
   AccountMeta,
-  Connection,
   Keypair,
   PublicKey,
   SystemProgram,
@@ -18,41 +16,47 @@ import BigNumber from 'bignumber.js';
 import { deserializeUnchecked, serialize } from 'borsh';
 
 import {
+  BaseSealevelAdapter,
+  ChainName,
+  MultiProtocolProvider,
   SEALEVEL_SPL_NOOP_ADDRESS,
   SealevelAccountDataWrapper,
-  SealevelHypTokenInstruction,
-  SealevelHyperlaneTokenData,
-  SealevelHyperlaneTokenDataSchema,
   SealevelInstructionWrapper,
-  SealevelTransferRemoteInstruction,
-  SealevelTransferRemoteSchema,
+  SealevelInterchainGasPaymasterType,
+  SealevelOverheadIgpAdapter,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   Domain,
   addressToBytes,
+  eqAddress,
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
+
+import { MinimalTokenMetadata } from '../config';
 
 import {
   IHypTokenAdapter,
   ITokenAdapter,
-  MinimalTokenMetadata,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter';
+import {
+  SealevelHypTokenInstruction,
+  SealevelHyperlaneTokenData,
+  SealevelHyperlaneTokenDataSchema,
+  SealevelTransferRemoteInstruction,
+  SealevelTransferRemoteSchema,
+} from './serialization';
 
 // author @tkporter @jmrossy
 // Interacts with native currencies
-export class SealevelNativeTokenAdapter implements ITokenAdapter {
-  constructor(
-    public readonly connection: Connection,
-    public readonly signerAddress?: Address,
-  ) {}
-
-  async getBalance(address?: Address): Promise<string> {
-    const pubKey = resolveAddress(address, this.signerAddress);
-    const balance = await this.connection.getBalance(pubKey);
+export class SealevelNativeTokenAdapter
+  extends BaseSealevelAdapter
+  implements ITokenAdapter
+{
+  async getBalance(address: Address): Promise<string> {
+    const balance = await this.getProvider().getBalance(new PublicKey(address));
     return balance.toString();
   }
 
@@ -69,10 +73,11 @@ export class SealevelNativeTokenAdapter implements ITokenAdapter {
     recipient,
     fromAccountOwner,
   }: TransferParams): Transaction {
-    const fromPubkey = resolveAddress(fromAccountOwner, this.signerAddress);
+    if (!fromAccountOwner)
+      throw new Error('fromAccountOwner required for Sealevel');
     return new Transaction().add(
       SystemProgram.transfer({
-        fromPubkey,
+        fromPubkey: new PublicKey(fromAccountOwner),
         toPubkey: new PublicKey(recipient),
         lamports: new BigNumber(weiAmountOrId).toNumber(),
       }),
@@ -81,25 +86,31 @@ export class SealevelNativeTokenAdapter implements ITokenAdapter {
 }
 
 // Interacts with SPL token programs
-export class SealevelTokenAdapter implements ITokenAdapter {
+export class SealevelTokenAdapter
+  extends BaseSealevelAdapter
+  implements ITokenAdapter
+{
   public readonly tokenProgramPubKey: PublicKey;
 
   constructor(
-    public readonly connection: Connection,
-    public readonly tokenProgramId: Address,
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
     public readonly isSpl2022: boolean = false,
-    public readonly signerAddress?: Address,
   ) {
-    this.tokenProgramPubKey = new PublicKey(tokenProgramId);
+    super(chainName, multiProvider, addresses);
+    this.tokenProgramPubKey = new PublicKey(addresses.token);
   }
 
   async getBalance(owner: Address): Promise<string> {
     const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
-    const response = await this.connection.getTokenAccountBalance(tokenPubKey);
+    const response = await this.getProvider().getTokenAccountBalance(
+      tokenPubKey,
+    );
     return response.value.amount;
   }
 
-  async getMetadata(isNft?: boolean): Promise<MinimalTokenMetadata> {
+  async getMetadata(_isNft?: boolean): Promise<MinimalTokenMetadata> {
     // TODO solana support
     return { decimals: 9, symbol: 'SPL', name: 'SPL Token' };
   }
@@ -114,16 +125,15 @@ export class SealevelTokenAdapter implements ITokenAdapter {
     fromAccountOwner,
     fromTokenAccount,
   }: TransferParams): Transaction {
-    if (!fromTokenAccount) throw new Error('No fromTokenAccount provided');
-    const fromWalletPubKey = resolveAddress(
-      fromAccountOwner,
-      this.signerAddress,
-    );
+    if (!fromTokenAccount)
+      throw new Error('fromTokenAccount required for Sealevel');
+    if (!fromAccountOwner)
+      throw new Error('fromAccountOwner required for Sealevel');
     return new Transaction().add(
       createTransferInstruction(
         new PublicKey(fromTokenAccount),
         new PublicKey(recipient),
-        fromWalletPubKey,
+        new PublicKey(fromAccountOwner),
         new BigNumber(weiAmountOrId).toNumber(),
       ),
     );
@@ -148,32 +158,41 @@ export abstract class SealevelHypTokenAdapter
   implements IHypTokenAdapter
 {
   public readonly warpProgramPubKey: PublicKey;
+  protected cachedTokenAccountData: SealevelHyperlaneTokenData | undefined;
 
   constructor(
-    public readonly connection: Connection,
-    public readonly warpRouteProgramId: Address,
-    public readonly tokenProgramId: Address,
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: {
+      token: Address;
+      warpRouter: Address;
+      mailbox: Address;
+    },
     public readonly isSpl2022: boolean = false,
-    public readonly signerAddress?: Address,
   ) {
     // Pass in placeholder address to avoid errors for native token addresses (which as represented here as 0s)
-    const superTokenProgramId = isZeroishAddress(tokenProgramId)
+    const superTokenProgramId = isZeroishAddress(addresses.token)
       ? SystemProgram.programId.toBase58()
-      : tokenProgramId;
-    super(connection, superTokenProgramId, isSpl2022, signerAddress);
-    this.warpProgramPubKey = new PublicKey(warpRouteProgramId);
+      : addresses.token;
+    super(chainName, multiProvider, { token: superTokenProgramId }, isSpl2022);
+    this.warpProgramPubKey = new PublicKey(addresses.warpRouter);
   }
 
   async getTokenAccountData(): Promise<SealevelHyperlaneTokenData> {
-    const tokenPda = this.deriveHypTokenAccount();
-    const accountInfo = await this.connection.getAccountInfo(tokenPda);
-    if (!accountInfo) throw new Error(`No account info found for ${tokenPda}`);
-    const wrappedData = deserializeUnchecked(
-      SealevelHyperlaneTokenDataSchema,
-      SealevelAccountDataWrapper,
-      accountInfo.data,
-    );
-    return wrappedData.data as SealevelHyperlaneTokenData;
+    if (!this.cachedTokenAccountData) {
+      const tokenPda = this.deriveHypTokenAccount();
+      const accountInfo = await this.getProvider().getAccountInfo(tokenPda);
+      if (!accountInfo)
+        throw new Error(`No account info found for ${tokenPda}`);
+      const wrappedData = deserializeUnchecked(
+        SealevelHyperlaneTokenDataSchema,
+        SealevelAccountDataWrapper,
+        accountInfo.data,
+      );
+      this.cachedTokenAccountData =
+        wrappedData.data as SealevelHyperlaneTokenData;
+    }
+    return this.cachedTokenAccountData;
   }
 
   override async getMetadata(): Promise<MinimalTokenMetadata> {
@@ -207,7 +226,7 @@ export abstract class SealevelHypTokenAdapter
     }));
   }
 
-  async quoteGasPayment(destination: Domain): Promise<string> {
+  async quoteGasPayment(_destination: Domain): Promise<string> {
     // TODO Solana support
     return '0';
   }
@@ -217,20 +236,19 @@ export abstract class SealevelHypTokenAdapter
     destination,
     recipient,
     fromAccountOwner,
-    mailbox,
   }: TransferRemoteParams): Promise<Transaction> {
-    if (!mailbox) throw new Error('No mailbox provided');
-    const fromWalletPubKey = resolveAddress(
-      fromAccountOwner,
-      this.signerAddress,
-    );
+    if (!fromAccountOwner)
+      throw new Error('fromAccountOwner required for Sealevel');
     const randomWallet = Keypair.generate();
-    const mailboxPubKey = new PublicKey(mailbox);
-    const keys = this.getTransferInstructionKeyList(
-      fromWalletPubKey,
-      mailboxPubKey,
-      randomWallet.publicKey,
-    );
+    const fromWalletPubKey = new PublicKey(fromAccountOwner);
+    const mailboxPubKey = new PublicKey(this.addresses.mailbox);
+
+    const keys = this.getTransferInstructionKeyList({
+      sender: fromWalletPubKey,
+      mailbox: mailboxPubKey,
+      randomWallet: randomWallet.publicKey,
+      igp: await this.getIgpKeys(),
+    });
 
     const value = new SealevelInstructionWrapper({
       instruction: SealevelHypTokenInstruction.TransferRemote,
@@ -254,7 +272,7 @@ export abstract class SealevelHypTokenAdapter
     });
 
     const recentBlockhash = (
-      await this.connection.getLatestBlockhash('finalized')
+      await this.getProvider().getLatestBlockhash('finalized')
     ).blockhash;
     // @ts-ignore Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
     const tx = new Transaction({
@@ -266,12 +284,44 @@ export abstract class SealevelHypTokenAdapter
     return tx;
   }
 
-  getTransferInstructionKeyList(
-    sender: PublicKey,
-    mailbox: PublicKey,
-    randomWallet: PublicKey,
-  ): Array<AccountMeta> {
-    return [
+  async getIgpKeys() {
+    const tokenData = await this.getTokenAccountData();
+    if (!tokenData.interchain_gas_paymaster) return undefined;
+    const igpConfig = tokenData.interchain_gas_paymaster;
+    if (igpConfig.type === SealevelInterchainGasPaymasterType.Igp) {
+      return {
+        programId: igpConfig.program_id_pubkey,
+      };
+    } else if (
+      igpConfig.type === SealevelInterchainGasPaymasterType.OverheadIgp
+    ) {
+      if (!igpConfig.igp_account_pub_key) {
+        throw new Error('igpAccount field expected for Sealevel Overhead IGP');
+      }
+      const overheadAdapter = new SealevelOverheadIgpAdapter(
+        this.chainName,
+        this.multiProvider,
+        { igp: igpConfig.igp_account_pub_key.toBase58() },
+      );
+      const overheadAccountInfo = await overheadAdapter.getAccountInfo();
+      return {
+        programId: igpConfig.program_id_pubkey,
+        igpAccount: igpConfig.igp_account_pub_key,
+        innerIgpAccount: overheadAccountInfo.inner_pub_key,
+      };
+    } else {
+      throw new Error(`Unsupported IGP type ${igpConfig.type}`);
+    }
+  }
+
+  // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#L257-L274
+  getTransferInstructionKeyList({
+    sender,
+    mailbox,
+    randomWallet,
+    igp,
+  }: KeyListParams): Array<AccountMeta> {
+    let keys = [
       // 0.   [executable] The system program.
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       // 1.   [executable] The spl_noop program.
@@ -305,31 +355,75 @@ export abstract class SealevelHypTokenAdapter
       // 7.   [signer] Unique message account.
       { pubkey: randomWallet, isSigner: true, isWritable: false },
       // 8.   [writeable] Message storage PDA.
-      // prettier-ignore
-      { pubkey: this.deriveMsgStorageAccount(mailbox, randomWallet), isSigner: false, isWritable: true, },
+      {
+        pubkey: this.deriveMsgStorageAccount(mailbox, randomWallet),
+        isSigner: false,
+        isWritable: true,
+      },
     ];
+    if (igp) {
+      keys = [
+        ...keys,
+        // 9.    [executable] The IGP program.
+        { pubkey: igp.programId, isSigner: false, isWritable: false },
+        // 10.   [writeable] The IGP program data.
+        {
+          pubkey: SealevelOverheadIgpAdapter.deriveIgpProgramPda(igp.programId),
+          isSigner: false,
+          isWritable: true,
+        },
+        // 11.   [writeable] Gas payment PDA.
+        {
+          pubkey: SealevelOverheadIgpAdapter.deriveGasPaymentPda(
+            igp.programId,
+            randomWallet,
+          ),
+          isSigner: false,
+          isWritable: true,
+        },
+      ];
+      if (igp.igpAccount && igp.innerIgpAccount) {
+        keys = [
+          ...keys,
+          // 12.   [] OPTIONAL - The Overhead IGP account, if the configured IGP is an Overhead IGP
+          {
+            pubkey: igp.igpAccount,
+            isSigner: false,
+            isWritable: false,
+          },
+          // 13.   [writeable] The Overhead's inner IGP account
+          {
+            pubkey: igp.innerIgpAccount,
+            isSigner: false,
+            isWritable: true,
+          },
+        ];
+      } else {
+        keys = [
+          ...keys,
+          // 12.   [writeable] The IGP account.
+          {
+            pubkey: igp.programId,
+            isSigner: false,
+            isWritable: true,
+          },
+        ];
+      }
+    }
+    return keys;
   }
 
   // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/mailbox/src/pda_seeds.rs#L19
   deriveMailboxOutboxAccount(mailbox: PublicKey): PublicKey {
-    const [pda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('hyperlane'), Buffer.from('-'), Buffer.from('outbox')],
-      mailbox,
-    );
-    return pda;
+    return super.derivePda(['hyperlane', '-', 'outbox'], mailbox);
   }
 
   // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/mailbox/src/pda_seeds.rs#L57
   deriveMessageDispatchAuthorityAccount(): PublicKey {
-    const [pda] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('hyperlane_dispatcher'),
-        Buffer.from('-'),
-        Buffer.from('dispatch_authority'),
-      ],
+    return super.derivePda(
+      ['hyperlane_dispatcher', '-', 'dispatch_authority'],
       this.warpProgramPubKey,
     );
-    return pda;
   }
 
   // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/mailbox/src/pda_seeds.rs#L33-L37
@@ -337,32 +431,24 @@ export abstract class SealevelHypTokenAdapter
     mailbox: PublicKey,
     randomWalletPubKey: PublicKey,
   ): PublicKey {
-    const [pda] = PublicKey.findProgramAddressSync(
+    return super.derivePda(
       [
-        Buffer.from('hyperlane'),
-        Buffer.from('-'),
-        Buffer.from('dispatched_message'),
-        Buffer.from('-'),
+        'hyperlane',
+        '-',
+        'dispatched_message',
+        '-',
         randomWalletPubKey.toBuffer(),
       ],
       mailbox,
     );
-    return pda;
   }
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#LL49C1-L53C30
   deriveHypTokenAccount(): PublicKey {
-    const [pda] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('hyperlane_message_recipient'),
-        Buffer.from('-'),
-        Buffer.from('handle'),
-        Buffer.from('-'),
-        Buffer.from('account_metas'),
-      ],
+    return super.derivePda(
+      ['hyperlane_message_recipient', '-', 'handle', '-', 'account_metas'],
       this.warpProgramPubKey,
     );
-    return pda;
   }
 }
 
@@ -371,22 +457,20 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
   public readonly wrappedNative: SealevelNativeTokenAdapter;
 
   constructor(
-    public readonly connection: Connection,
-    public readonly warpRouteProgramId: Address,
-    public readonly tokenProgramId: Address,
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: {
+      token: Address;
+      warpRouter: Address;
+      mailbox: Address;
+    },
     public readonly isSpl2022: boolean = false,
-    public readonly signerAddress?: Address,
   ) {
-    super(
-      connection,
-      warpRouteProgramId,
-      tokenProgramId,
-      isSpl2022,
-      signerAddress,
-    );
+    super(chainName, multiProvider, addresses, isSpl2022);
     this.wrappedNative = new SealevelNativeTokenAdapter(
-      connection,
-      signerAddress,
+      chainName,
+      multiProvider,
+      {},
     );
   }
 
@@ -398,13 +482,9 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
     return this.wrappedNative.getMetadata();
   }
 
-  getTransferInstructionKeyList(
-    sender: PublicKey,
-    mailbox: PublicKey,
-    randomWallet: PublicKey,
-  ): Array<AccountMeta> {
+  getTransferInstructionKeyList(params: KeyListParams): Array<AccountMeta> {
     return [
-      ...super.getTransferInstructionKeyList(sender, mailbox, randomWallet),
+      ...super.getTransferInstructionKeyList(params),
       // 9.   [executable] The system program.
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       // 10.  [writeable] The native token collateral PDA account.
@@ -418,15 +498,10 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
 
   // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-token-native/src/plugin.rs#L26
   deriveNativeTokenCollateralAccount(): PublicKey {
-    const [pda] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('hyperlane_token'),
-        Buffer.from('-'),
-        Buffer.from('native_collateral'),
-      ],
+    return super.derivePda(
+      ['hyperlane_token', '-', 'native_collateral'],
       this.warpProgramPubKey,
     );
-    return pda;
   }
 }
 
@@ -437,9 +512,9 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
     // This is because collateral warp routes don't hold escrowed collateral
     // tokens in their associated token account - instead, they hold them in
     // the escrow account.
-    if (owner === this.warpRouteProgramId) {
+    if (eqAddress(owner, this.addresses.warpRouter)) {
       const collateralAccount = this.deriveEscrowAccount();
-      const response = await this.connection.getTokenAccountBalance(
+      const response = await this.getProvider().getTokenAccountBalance(
         collateralAccount,
       );
       return response.value.amount;
@@ -449,19 +524,17 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
   }
 
   override getTransferInstructionKeyList(
-    sender: PublicKey,
-    mailbox: PublicKey,
-    randomWallet: PublicKey,
+    params: KeyListParams,
   ): Array<AccountMeta> {
     return [
-      ...super.getTransferInstructionKeyList(sender, mailbox, randomWallet),
+      ...super.getTransferInstructionKeyList(params),
       /// 9.   [executable] The SPL token program for the mint.
       { pubkey: this.getTokenProgramId(), isSigner: false, isWritable: false },
       /// 10.  [writeable] The mint.
       { pubkey: this.tokenProgramPubKey, isSigner: false, isWritable: true },
       /// 11.  [writeable] The token sender's associated token account, from which tokens will be sent.
       {
-        pubkey: this.deriveAssociatedTokenAccount(sender),
+        pubkey: this.deriveAssociatedTokenAccount(params.sender),
         isSigner: false,
         isWritable: true,
       },
@@ -471,23 +544,20 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
   }
 
   deriveEscrowAccount(): PublicKey {
-    const [pda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('hyperlane_token'), Buffer.from('-'), Buffer.from('escrow')],
+    return super.derivePda(
+      ['hyperlane_token', '-', 'escrow'],
       this.warpProgramPubKey,
     );
-    return pda;
   }
 }
 
 // Interacts with Hyp Synthetic token programs (aka 'HypTokens')
 export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
   override getTransferInstructionKeyList(
-    sender: PublicKey,
-    mailbox: PublicKey,
-    randomWallet: PublicKey,
+    params: KeyListParams,
   ): Array<AccountMeta> {
     return [
-      ...super.getTransferInstructionKeyList(sender, mailbox, randomWallet),
+      ...super.getTransferInstructionKeyList(params),
       /// 9. [executable] The spl_token_2022 program.
       { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
       /// 10. [writeable] The mint / mint authority PDA account.
@@ -498,7 +568,7 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
       },
       /// 11. [writeable] The token sender's associated token account, from which tokens will be burned.
       {
-        pubkey: this.deriveAssociatedTokenAccount(sender),
+        pubkey: this.deriveAssociatedTokenAccount(params.sender),
         isSigner: false,
         isWritable: true,
       },
@@ -507,16 +577,17 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
 
   override async getBalance(owner: Address): Promise<string> {
     const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
-    const response = await this.connection.getTokenAccountBalance(tokenPubKey);
+    const response = await this.getProvider().getTokenAccountBalance(
+      tokenPubKey,
+    );
     return response.value.amount;
   }
 
   deriveMintAuthorityAccount(): PublicKey {
-    const [pda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('hyperlane_token'), Buffer.from('-'), Buffer.from('mint')],
+    return super.derivePda(
+      ['hyperlane_token', '-', 'mint'],
       this.warpProgramPubKey,
     );
-    return pda;
   }
 
   override deriveAssociatedTokenAccount(owner: PublicKey): PublicKey {
@@ -529,8 +600,13 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
   }
 }
 
-function resolveAddress(address1?: Address, address2?: Address): PublicKey {
-  if (address1) return new PublicKey(address1);
-  else if (address2) return new PublicKey(address2);
-  else throw new Error('No address provided');
+interface KeyListParams {
+  sender: PublicKey;
+  mailbox: PublicKey;
+  randomWallet: PublicKey;
+  igp?: {
+    programId: PublicKey;
+    igpAccount?: PublicKey;
+    innerIgpAccount?: PublicKey;
+  };
 }
