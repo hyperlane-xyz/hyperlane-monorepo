@@ -563,6 +563,7 @@ where
             return Ok((CursorAction::Sleep(rate_limit), eta));
         }
         let (count, tip) = self.indexer.sequence_and_tip().await?;
+        self.tip = tip;
         if let Some(range) = self.sync_state.get_next_range(count, tip).await? {
             return Ok((CursorAction::Query(range), eta));
         }
