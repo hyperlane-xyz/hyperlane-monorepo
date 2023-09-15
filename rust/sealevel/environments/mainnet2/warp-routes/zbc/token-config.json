@@ -4,7 +4,8 @@
         "decimals": 9,
         "remoteDecimals": 9,
         "token": "wzbcJyhGhQDLTV1S99apZiiBdE4jmYfbw99saMMdP59",
-        "splTokenProgram": "token"
+        "splTokenProgram": "token",
+        "interchainSecurityModule": "9k74DkJvS2x9QhG4XfnKsLkqaCDyVfaj8s6FyJyhAeEP"
     },
     "bsc": {
         "type": "collateral",

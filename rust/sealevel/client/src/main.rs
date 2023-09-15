@@ -280,6 +280,7 @@ enum TokenSubCmd {
     TransferRemote(TokenTransferRemote),
     EnrollRemoteRouter(TokenEnrollRemoteRouter),
     TransferOwnership(TransferOwnership),
+    SetInterchainSecurityModule(SetInterchainSecurityModule),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -317,6 +318,14 @@ struct TokenEnrollRemoteRouter {
     program_id: Pubkey,
     domain: u32,
     router: H256,
+}
+
+#[derive(Args)]
+struct SetInterchainSecurityModule {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    #[arg(long, short)]
+    ism: Option<Pubkey>,
 }
 
 #[derive(Args)]
@@ -1127,6 +1136,19 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
                     instruction,
                     format!("Transfer ownership to {}", transfer.new_owner),
                 )
+                .send_with_payer();
+        }
+        TokenSubCmd::SetInterchainSecurityModule(set_ism) => {
+            let instruction =
+                hyperlane_sealevel_token_lib::instruction::set_interchain_security_module_instruction(
+                    set_ism.program_id,
+                    ctx.payer_pubkey,
+                    set_ism.ism
+                )
+                .unwrap();
+
+            ctx.new_txn()
+                .add_with_description(instruction, format!("Set ISM to {:?}", set_ism.ism))
                 .send_with_payer();
         }
     }
