@@ -14,7 +14,7 @@ contract MerkleTreeHook is IPostDispatchHook, MailboxClient, Indexed {
     // An incremental merkle tree used to store outbound message IDs.
     MerkleLib.Tree internal _tree;
 
-    event InsertedIntoTree(bytes32 indexed messageId, uint32 indexed index);
+    event InsertedIntoTree(bytes32 messageId, uint32 index);
 
     constructor(address _mailbox) MailboxClient(_mailbox) {}
 

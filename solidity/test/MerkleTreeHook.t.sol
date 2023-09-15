@@ -32,7 +32,7 @@ contract MerkleTreeHookTest is Test {
         )
     ];
 
-    event InsertedIntoTree(bytes32 indexed messageId, uint32 indexed index);
+    event InsertedIntoTree(bytes32 messageId, uint32 index);
 
     function setUp() public {
         mailbox = new TestMailbox(ORIGIN);
@@ -52,7 +52,7 @@ contract MerkleTreeHookTest is Test {
             bytes memory currMessage = testMessage[i];
             mailbox.updateLatestDispatchedId(currMessage.id());
 
-            vm.expectEmit(true, false, false, true);
+            vm.expectEmit(false, false, false, true);
             emit InsertedIntoTree(currMessage.id(), i);
             hook.postDispatch("", currMessage);
 
