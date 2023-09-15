@@ -67,7 +67,7 @@ impl SyncState {
                         "Sequence indexing requires a max sequence",
                     )
                 })?;
-                if let Some(range) = self.sequence_range(tip, max_sequence)? {
+                if let Some(range) = self.sequence_range(max_sequence)? {
                     range
                 } else {
                     return Ok(None);
@@ -107,11 +107,7 @@ impl SyncState {
     /// * `max_sequence` - The maximum sequence that should be indexed.
     /// `max_sequence` is the exclusive upper bound of the range to be indexed.
     /// (e.g. `0..max_sequence`)
-    fn sequence_range(
-        &mut self,
-        tip: u32,
-        max_sequence: u32,
-    ) -> ChainResult<Option<RangeInclusive<u32>>> {
+    fn sequence_range(&mut self, max_sequence: u32) -> ChainResult<Option<RangeInclusive<u32>>> {
         let (from, to) = match self.direction {
             SyncDirection::Forward => {
                 let sequence_start = self.next_sequence;
@@ -120,7 +116,6 @@ impl SyncState {
                     return Ok(None);
                 }
                 sequence_end = u32::min(sequence_end, max_sequence.saturating_sub(1));
-                self.next_block = tip;
                 self.next_sequence = sequence_end + 1;
                 (sequence_start, sequence_end)
             }
@@ -476,6 +471,7 @@ pub(crate) struct RateLimitedContractSyncCursor<T> {
     indexer: Arc<dyn SequenceIndexer<T>>,
     db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
     tip: u32,
+    max_sequence: Option<u32>,
     last_tip_update: Instant,
     eta_calculator: SyncerEtaCalculator,
     sync_state: SyncState,
@@ -490,11 +486,12 @@ impl<T> RateLimitedContractSyncCursor<T> {
         initial_height: u32,
         mode: IndexMode,
     ) -> Result<Self> {
-        let tip = indexer.get_finalized_block_number().await?;
+        let (max_sequence, tip) = indexer.sequence_and_tip().await?;
         Ok(Self {
             indexer,
             db,
             tip,
+            max_sequence,
             last_tip_update: Instant::now(),
             eta_calculator: SyncerEtaCalculator::new(initial_height, tip, ETA_TIME_WINDOW),
             sync_state: SyncState::new(
@@ -539,6 +536,32 @@ impl<T> RateLimitedContractSyncCursor<T> {
             }
         }
     }
+
+    fn sync_end(&self) -> ChainResult<u32> {
+        match self.sync_state.mode {
+            IndexMode::Block => Ok(self.tip),
+            IndexMode::Sequence => {
+                self.max_sequence
+                    .ok_or(ChainCommunicationError::from_other_str(
+                        "Sequence indexing requires a max sequence",
+                    ))
+            }
+        }
+    }
+
+    fn sync_position(&self) -> u32 {
+        match self.sync_state.mode {
+            IndexMode::Block => self.sync_state.next_block,
+            IndexMode::Sequence => self.sync_state.next_sequence,
+        }
+    }
+
+    fn sync_step(&self) -> u32 {
+        match self.sync_state.mode {
+            IndexMode::Block => self.sync_state.chunk_size,
+            IndexMode::Sequence => MAX_SEQUENCE_RANGE,
+        }
+    }
 }
 
 #[async_trait]
@@ -547,13 +570,10 @@ where
     T: Send + Debug + 'static,
 {
     async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
-        let to = u32::min(
-            self.tip,
-            self.sync_state.next_block + self.sync_state.chunk_size,
-        );
-        let from = to.saturating_sub(self.sync_state.chunk_size);
+        let to = u32::min(self.sync_end()?, self.sync_position() + self.sync_step());
+        let from = self.sync_position();
         let eta = if to < self.tip {
-            self.eta_calculator.calculate(from, self.tip)
+            self.eta_calculator.calculate(from, self.sync_end()?)
         } else {
             Duration::from_secs(0)
         };
@@ -562,9 +582,10 @@ where
         if let Some(rate_limit) = rate_limit {
             return Ok((CursorAction::Sleep(rate_limit), eta));
         }
-        let (count, tip) = self.indexer.sequence_and_tip().await?;
+        let (max_sequence, tip) = self.indexer.sequence_and_tip().await?;
         self.tip = tip;
-        if let Some(range) = self.sync_state.get_next_range(count, tip).await? {
+        self.max_sequence = max_sequence;
+        if let Some(range) = self.sync_state.get_next_range(max_sequence, tip).await? {
             return Ok((CursorAction::Query(range), eta));
         }
 
