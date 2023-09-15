@@ -1124,12 +1124,19 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
                 let instruction = hyperlane_sealevel_token_lib::instruction::set_igp_instruction(
                     args.program_id,
                     ctx.payer_pubkey,
-                    set_args.igp_program,
-                    igp_type,
+                    Some((set_args.igp_program, igp_type.clone())),
                 )
                 .unwrap();
 
-                ctx.new_txn().add(instruction).send_with_payer();
+                ctx.new_txn()
+                    .add_with_description(
+                        instruction,
+                        format!(
+                            "Set IGP of {} to program {}, type {:?}",
+                            args.program_id, set_args.igp_program, igp_type
+                        ),
+                    )
+                    .send_with_payer();
             }
             GetSetCmd::Get(get_args) => {
                 let (token_account, _token_bump) =
