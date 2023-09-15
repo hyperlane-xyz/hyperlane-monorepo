@@ -13,19 +13,10 @@ import {TypeCasts} from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
 abstract contract FastTokenRouter is TokenRouter {
     using TypeCasts for bytes32;
     using Message for bytes;
-    /**
-     * @notice `FastTransferMetadata` is the LP data stored against `fastTransferId`.
-     */
-    struct FastTranferMetadata {
-        address filler;
-        address recipient;
-        uint256 amount;
-        uint256 fastFee;
-    }
 
     uint256 public fastTransferId;
-    // maps `fastTransferId` to `FastTranferMetadata`.
-    mapping(bytes32 => FastTranferMetadata) filledFastTransfers;
+    // maps `fastTransferId` to the filler address.
+    mapping(bytes32 => address) filledFastTransfers;
 
     /**
      * @dev delegates transfer logic to `_transferTo`.
@@ -77,20 +68,19 @@ abstract contract FastTokenRouter is TokenRouter {
         uint32 _origin,
         uint256 _fastTransferId
     ) external virtual {
-        bytes32 filledFastTransfersKey = keccak256(
-            abi.encodePacked(_origin, _fastTransferId)
+        bytes32 filledFastTransfersKey = _getFastTransfersKey(
+            _origin,
+            _fastTransferId,
+            _amount,
+            _fastFee,
+            _recipient
         );
         require(
-            filledFastTransfers[filledFastTransfersKey].filler == address(0),
+            filledFastTransfers[filledFastTransfersKey] == address(0),
             "request already filled"
         );
 
-        filledFastTransfers[filledFastTransfersKey] = FastTranferMetadata(
-            msg.sender,
-            _recipient,
-            _amount,
-            _fastFee
-        );
+        filledFastTransfers[filledFastTransfersKey] = msg.sender;
 
         _fastRecieveFrom(msg.sender, _amount - _fastFee);
         _fastTransferTo(_recipient, _amount - _fastFee);
@@ -162,19 +152,42 @@ abstract contract FastTokenRouter is TokenRouter {
             (uint256, uint256)
         );
 
-        FastTranferMetadata memory m_filledMetadata = filledFastTransfers[
-            keccak256(abi.encodePacked(_origin, _fastTransferId))
+        address _fillerAddress = filledFastTransfers[
+            _getFastTransfersKey(
+                _origin,
+                _fastTransferId,
+                _amount,
+                _fastFee,
+                _recipient
+            )
         ];
-
-        if (
-            m_filledMetadata.fastFee <= _fastFee &&
-            _recipient == m_filledMetadata.recipient &&
-            _amount == m_filledMetadata.amount
-        ) {
-            return m_filledMetadata.filler;
+        if (_fillerAddress != address(0)) {
+            return _fillerAddress;
         }
 
         return _recipient;
+    }
+
+    /**
+     * @dev generates the key for storing the filler address of fast transfers.
+     */
+    function _getFastTransfersKey(
+        uint32 _origin,
+        uint256 _fastTransferId,
+        uint256 _amount,
+        uint256 _fastFee,
+        address _recipient
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked(
+                    _origin,
+                    _fastTransferId,
+                    _amount,
+                    _fastFee,
+                    _recipient
+                )
+            );
     }
 
     /**
