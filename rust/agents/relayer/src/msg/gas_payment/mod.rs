@@ -247,7 +247,7 @@ mod test {
                 payment: U256::one(),
                 gas_amount: U256::one(),
             };
-            hyperlane_db.process_gas_payment(wrong_destination_payment, &LogMeta::default());
+            hyperlane_db.process_gas_payment(wrong_destination_payment, &LogMeta::random());
             // Ensure if the gas payment was made to the incorrect destination, it does not meet
             // the requirement
             assert!(enforcer
@@ -258,11 +258,11 @@ mod test {
 
             let correct_destination_payment = InterchainGasPayment {
                 message_id: msg.id(),
-                destination: 123,
+                destination: msg.destination,
                 payment: U256::one(),
                 gas_amount: U256::one(),
             };
-            hyperlane_db.process_gas_payment(correct_destination_payment, &LogMeta::default());
+            hyperlane_db.process_gas_payment(correct_destination_payment, &LogMeta::random());
             // Ensure if the gas payment was made to the correct destination, it meets the
             // requirement
             assert!(enforcer
@@ -304,7 +304,7 @@ mod test {
                 payment: U256::one(),
                 gas_amount: U256::one(),
             };
-            hyperlane_db.process_gas_payment(initial_payment, &LogMeta::default());
+            hyperlane_db.process_gas_payment(initial_payment, &LogMeta::random());
 
             // Ensure if only half gas payment was made, it does not meet the requirement
             assert!(enforcer
@@ -315,11 +315,11 @@ mod test {
 
             let deficit_payment = InterchainGasPayment {
                 message_id: msg.id(),
-                destination: 123,
+                destination: msg.destination,
                 payment: U256::one(),
                 gas_amount: U256::one(),
             };
-            hyperlane_db.process_gas_payment(deficit_payment, &LogMeta::default());
+            hyperlane_db.process_gas_payment(deficit_payment, &LogMeta::random());
             // Ensure if the full gas payment was made, it meets the requirement
             assert!(enforcer
                 .message_meets_gas_payment_requirement(&msg, &TxCostEstimate::default(),)

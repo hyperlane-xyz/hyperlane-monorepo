@@ -67,3 +67,17 @@ impl Ord for LogMeta {
         self.partial_cmp(other).unwrap()
     }
 }
+
+impl LogMeta {
+    /// Create a new LogMeta with random transaction ID
+    pub fn random() -> Self {
+        Self {
+            address: H256::zero(),
+            block_number: 1,
+            block_hash: H256::zero(),
+            transaction_id: H512::random(),
+            transaction_index: 0,
+            log_index: U256::zero(),
+        }
+    }
+}

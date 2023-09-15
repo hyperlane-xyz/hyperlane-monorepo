@@ -165,9 +165,7 @@ impl HyperlaneRocksDB {
             message_id: event.message_id,
             destination: event.destination,
         };
-        println!("update_gas_payment_by_message_id: {:?}", key);
         let existing_payment = self.retrieve_gas_payment_by_message_id(key)?;
-        println!("existing_payment: {:?}", existing_payment);
         let total = existing_payment + event;
 
         debug!(?event, new_total_gas_payment=?total, "Storing gas payment");
@@ -200,12 +198,6 @@ impl HyperlaneRocksDB {
         &self,
         key: GasPaymentKey,
     ) -> DbResult<InterchainGasPayment> {
-        println!(
-            "retrieve_gas_payment_by_message_id: {:?}",
-            self.retrieve_interchain_gas_payment_data_by_message_id(&key)?
-                .unwrap_or_default()
-                .complete(key.message_id, key.destination)
-        );
         Ok(self
             .retrieve_interchain_gas_payment_data_by_message_id(&key)?
             .unwrap_or_default()
