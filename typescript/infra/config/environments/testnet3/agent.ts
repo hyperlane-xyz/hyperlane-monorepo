@@ -57,7 +57,30 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
     // all messages between interchain query routers.
     // This whitelist will become more strict with
     // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
-    matchingList: interchainQueriesMatchingList,
+    matchingList: [
+      ...interchainQueriesMatchingList,
+      {
+        originDomain: [getDomainId(chainMetadata.solanadevnet)],
+        senderAddress: [
+          // hyperlane context helloworld router on solanadevnet
+          'CXQX54kdkU5GqdRJjCmHpwHfEMgFb5SeBmMWntP2Ds7J',
+          // non-IGP-paying warp route on solanadevnet
+          'PJH5QAbxAqrrnSXfH3GHR8icua8CDFZmo97z91xmpvx',
+        ],
+        destinationDomain: '*',
+        recipientAddress: '*',
+      },
+      {
+        originDomain: [getDomainId(chainMetadata.bsctestnet)],
+        senderAddress: [
+          // testnet ZBC warp route on bsctestnet, which pays
+          // an IGP that isn't indexed by the relayer at the moment
+          '0x31b5234A896FbC4b3e2F7237592D054716762131',
+        ],
+        destinationDomain: '*',
+        recipientAddress: '*',
+      },
+    ],
   },
   // Default policy is OnChainFeeQuoting
   {
@@ -74,7 +97,7 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'ed7569d-20230725-171222',
+      tag: '35fdc74-20230913-104940',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -120,31 +143,9 @@ const releaseCandidate: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'c7c44b2-20230811-133851',
+      tag: '892cc5d-20230908-162614',
     },
-    whitelist: [
-      ...releaseCandidateHelloworldMatchingList,
-      // Whitelist all traffic to solanadevnet
-      {
-        originDomain: '*',
-        senderAddress: '*',
-        destinationDomain: [
-          getDomainId(chainMetadata.solanadevnet),
-          getDomainId(chainMetadata.proteustestnet),
-        ],
-        recipientAddress: '*',
-      },
-      // Whitelist all traffic from solanadevnet to fuji
-      {
-        originDomain: [
-          getDomainId(chainMetadata.solanadevnet),
-          getDomainId(chainMetadata.proteustestnet),
-        ],
-        senderAddress: '*',
-        destinationDomain: [getDomainId(chainMetadata.bsctestnet)],
-        recipientAddress: '*',
-      },
-    ],
+    whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement: [
       // Don't require gas payments from solanadevnet
       {
@@ -153,19 +154,13 @@ const releaseCandidate: RootAgentConfig = {
           {
             originDomain: [getDomainId(chainMetadata.solanadevnet)],
             senderAddress: '*',
-            destinationDomain: [
-              getDomainId(chainMetadata.bsctestnet),
-              getDomainId(chainMetadata.proteustestnet),
-            ],
+            destinationDomain: '*',
             recipientAddress: '*',
           },
           {
-            originDomain: [getDomainId(chainMetadata.bsctestnet)],
+            originDomain: '*',
             senderAddress: '*',
-            destinationDomain: [
-              getDomainId(chainMetadata.solanadevnet),
-              getDomainId(chainMetadata.proteustestnet),
-            ],
+            destinationDomain: [getDomainId(chainMetadata.solanadevnet)],
             recipientAddress: '*',
           },
         ],

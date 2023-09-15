@@ -1,8 +1,6 @@
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
-import { ERC20Metadata } from '../config';
-
-export type MinimalTokenMetadata = Omit<ERC20Metadata, 'totalSupply'>;
+import { MinimalTokenMetadata } from '../config';
 
 export interface TransferParams {
   weiAmountOrId: string | number;
@@ -12,7 +10,6 @@ export interface TransferParams {
   // Included here optionally to keep Adapter types simple
   fromTokenAccount?: Address;
   fromAccountOwner?: Address;
-  mailbox?: Address;
 }
 
 export interface TransferRemoteParams extends TransferParams {
@@ -21,7 +18,7 @@ export interface TransferRemoteParams extends TransferParams {
 }
 
 export interface ITokenAdapter {
-  getBalance(address?: Address): Promise<string>;
+  getBalance(address: Address): Promise<string>;
   getMetadata(isNft?: boolean): Promise<MinimalTokenMetadata>;
   populateApproveTx(TransferParams: TransferParams): unknown | Promise<unknown>;
   populateTransferTx(

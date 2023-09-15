@@ -13,11 +13,11 @@ export const coreFactories = {
   timelockController: new TimelockController__factory(),
 };
 
-export interface CoreAddresses {
+export type CoreAddresses = {
   validatorAnnounce: Address;
   proxyAdmin: Address;
   mailbox: Address;
   timelockController?: Address;
-}
+};
 
 export type CoreFactories = typeof coreFactories;

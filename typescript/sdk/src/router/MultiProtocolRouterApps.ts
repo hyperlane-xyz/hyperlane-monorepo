@@ -17,12 +17,12 @@ import { RouterAddress } from './types';
 export { Router } from '@hyperlane-xyz/core';
 
 export class MultiProtocolRouterApp<
-  ContractAddrs extends RouterAddress = RouterAddress,
   IAdapterApi extends IRouterAdapter = IRouterAdapter,
-> extends MultiProtocolApp<ContractAddrs, IAdapterApi> {
+  ContractAddrs extends RouterAddress = RouterAddress,
+> extends MultiProtocolApp<IAdapterApi, ContractAddrs> {
   override protocolToAdapter(
     protocol: ProtocolType,
-  ): AdapterClassType<ContractAddrs, IAdapterApi> {
+  ): AdapterClassType<IAdapterApi> {
     // Casts are required here to allow for default adapters while still
     // enabling extensible generic types
     if (protocol === ProtocolType.Ethereum) return EvmRouterAdapter as any;
@@ -31,33 +31,31 @@ export class MultiProtocolRouterApp<
   }
 
   router(chain: ChainName): Address {
-    return this.metadata(chain).router;
+    return this.addresses[chain].router;
   }
 
   interchainSecurityModules(): Promise<ChainMap<Address>> {
-    return this.adapterMap((chain, adapter) =>
-      adapter.interchainSecurityModule(chain),
-    );
+    return this.adapterMap((_, adapter) => adapter.interchainSecurityModule());
   }
 
   owners(): Promise<ChainMap<Address>> {
-    return this.adapterMap((chain, adapter) => adapter.owner(chain));
+    return this.adapterMap((_, adapter) => adapter.owner());
   }
 
   remoteRouters(
     origin: ChainName,
   ): Promise<Array<{ domain: Domain; address: Address }>> {
-    return this.adapter(origin).remoteRouters(origin);
+    return this.adapter(origin).remoteRouters();
   }
 }
 
 export class MultiProtocolGasRouterApp<
-  ContractAddrs extends RouterAddress = RouterAddress,
   IAdapterApi extends IGasRouterAdapter = IGasRouterAdapter,
-> extends MultiProtocolRouterApp<ContractAddrs, IAdapterApi> {
+  ContractAddrs extends RouterAddress = RouterAddress,
+> extends MultiProtocolRouterApp<IAdapterApi, ContractAddrs> {
   override protocolToAdapter(
     protocol: ProtocolType,
-  ): AdapterClassType<ContractAddrs, IAdapterApi> {
+  ): AdapterClassType<IAdapterApi> {
     // Casts are required here to allow for default adapters while still
     // enabling extensible generic types
     if (protocol === ProtocolType.Ethereum) return EvmGasRouterAdapter as any;
@@ -70,6 +68,6 @@ export class MultiProtocolGasRouterApp<
     origin: ChainName,
     destination: ChainName,
   ): Promise<string> {
-    return this.adapter(origin).quoteGasPayment(origin, destination);
+    return this.adapter(origin).quoteGasPayment(destination);
   }
 }

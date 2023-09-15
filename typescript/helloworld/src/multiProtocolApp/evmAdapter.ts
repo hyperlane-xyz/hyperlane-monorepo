@@ -2,8 +2,8 @@ import {
   ChainName,
   EthersV5Transaction,
   EvmRouterAdapter,
+  MultiProtocolProvider,
   ProviderType,
-  RouterAddress,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -13,19 +13,27 @@ import { HelloWorld, HelloWorld__factory } from '../types';
 import { IHelloWorldAdapter } from './types';
 
 export class EvmHelloWorldAdapter
-  extends EvmRouterAdapter<RouterAddress & { mailbox: Address }>
+  extends EvmRouterAdapter
   implements IHelloWorldAdapter
 {
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { router: Address; mailbox: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+
   async populateSendHelloTx(
-    origin: ChainName,
     destination: ChainName,
     message: string,
     value: string,
   ): Promise<EthersV5Transaction> {
-    const contract = this.getConnectedContract(origin);
+    const contract = this.getConnectedContract();
     const toDomain = this.multiProvider.getDomainId(destination);
-    const { transactionOverrides } =
-      this.multiProvider.getChainMetadata(origin);
+    const { transactionOverrides } = this.multiProvider.getChainMetadata(
+      this.chainName,
+    );
 
     // apply gas buffer due to https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/634
     const estimated = await contract.estimateGas.sendHelloWorld(
@@ -48,23 +56,27 @@ export class EvmHelloWorldAdapter
   }
 
   async channelStats(
-    origin: ChainName,
     destination: ChainName,
+    destinationMailbox: Address,
   ): Promise<StatCounts> {
-    const originDomain = this.multiProvider.getDomainId(origin);
+    const originDomain = this.multiProvider.getDomainId(this.chainName);
     const destinationDomain = this.multiProvider.getDomainId(destination);
-    const sent = await this.getConnectedContract(origin).sentTo(
-      destinationDomain,
+    const originContract = this.getConnectedContract();
+    const sent = await originContract.sentTo(destinationDomain);
+    const destinationProvider =
+      this.multiProvider.getEthersV5Provider(destination);
+    const destinationContract = HelloWorld__factory.connect(
+      destinationMailbox,
+      destinationProvider,
     );
-    const received = await this.getConnectedContract(destination).sentTo(
-      originDomain,
-    );
+    const received = await destinationContract.sentTo(originDomain);
     return { sent: sent.toNumber(), received: received.toNumber() };
   }
 
-  override getConnectedContract(chain: ChainName): HelloWorld {
-    const address = this.multiProvider.getChainMetadata(chain).router;
-    const provider = this.multiProvider.getEthersV5Provider(chain);
-    return HelloWorld__factory.connect(address, provider);
+  override getConnectedContract(): HelloWorld {
+    return HelloWorld__factory.connect(
+      this.addresses.router,
+      this.getProvider(),
+    );
   }
 }

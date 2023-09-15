@@ -1,6 +1,6 @@
 import { Debugger, debug } from 'debug';
 
-import { objFilter, objMap, pick } from '@hyperlane-xyz/utils';
+import { ProtocolType, objFilter, objMap, pick } from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
@@ -20,6 +20,13 @@ import {
   ProviderBuilderMap,
   defaultProviderBuilderMap,
 } from './providerBuilders';
+
+export const PROTOCOL_DEFAULT_PROVIDER_TYPE: Partial<
+  Record<ProtocolType, ProviderType>
+> = {
+  [ProtocolType.Ethereum]: ProviderType.EthersV5,
+  [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
+};
 
 export interface MultiProtocolProviderOptions {
   loggerName?: string;
@@ -107,11 +114,13 @@ export class MultiProtocolProvider<
 
   tryGetProvider(
     chainNameOrId: ChainName | number,
-    type: ProviderType,
+    type?: ProviderType,
   ): TypedProvider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
-    const { name, chainId, rpcUrls } = metadata;
+    const { protocol, name, chainId, rpcUrls } = metadata;
+    type = type || PROTOCOL_DEFAULT_PROVIDER_TYPE[protocol];
+    if (!type) return null;
 
     if (this.providers[name]?.[type]) return this.providers[name][type]!;
 
@@ -126,7 +135,7 @@ export class MultiProtocolProvider<
 
   getProvider(
     chainNameOrId: ChainName | number,
-    type: ProviderType,
+    type?: ProviderType,
   ): TypedProvider {
     const provider = this.tryGetProvider(chainNameOrId, type);
     if (!provider)
