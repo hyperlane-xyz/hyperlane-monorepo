@@ -7,7 +7,6 @@ use derive_new::new;
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{HyperlaneMessage, H256};
-use tracing::debug;
 
 use crate::msg::metadata::BaseMetadataBuilder;
 
@@ -49,8 +48,6 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
             .await
             .context(CTX)?
         else {
-            debug!(?message, highest_nonce, ?checkpoint_syncer
-                "No quorum checkpoint found for message");
             return Ok(None);
         };
 
