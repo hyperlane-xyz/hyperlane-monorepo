@@ -37,7 +37,12 @@ import { DeployEnvironment } from '../../src/config/environment';
 import { Role } from '../../src/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { getAddressesForKey, getArgs, withContext } from '../utils';
+import {
+  getAddressesForKey,
+  getArgs,
+  getEnvironmentConfig,
+  withContext,
+} from '../utils';
 
 import { getHelloWorldMultiProtocolApp } from './utils';
 
@@ -160,9 +165,8 @@ async function main(): Promise<boolean> {
   startMetricsServer(metricsRegister);
   debug('Starting up', { environment });
 
-  // TODO (Rossy) remove getCoreConfigStub and re-enable getEnvironmentConfig
-  // const coreConfig = getEnvironmentConfig(environment);
-  const coreConfig = getCoreConfigStub(environment);
+  const coreConfig = getEnvironmentConfig(environment);
+  // const coreConfig = getCoreConfigStub(environment);
 
   const { app, core, igp, multiProvider, keys } =
     await getHelloWorldMultiProtocolApp(
