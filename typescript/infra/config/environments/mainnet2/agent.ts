@@ -1,6 +1,5 @@
 import {
   AgentConnectionType,
-  ChainMap,
   chainMetadata,
   getDomainId,
   hyperlaneEnvironments,
@@ -13,10 +12,7 @@ import {
   allAgentChainNames,
   routerMatchingList,
 } from '../../../src/config';
-import {
-  GasPaymentEnforcementConfig,
-  MatchingList,
-} from '../../../src/config/agent/relayer';
+import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
@@ -102,15 +98,6 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
   },
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
-    matchingList: [
-      {
-        originDomain: [getDomainId(chainMetadata.solana)],
-        // solana -> nautilus warp route
-        senderAddress: ['EJqwFjvVJSAxH8Ur2PYuMfdvoJeutjmH6GkoEFQ4MdSa'],
-        destinationDomain: '*',
-        recipientAddress: '*',
-      },
-    ],
   },
 ];
 
