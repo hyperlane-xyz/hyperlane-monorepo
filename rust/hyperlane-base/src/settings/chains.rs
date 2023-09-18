@@ -264,6 +264,34 @@ impl ChainConf {
         .context(ctx)
     }
 
+    /// Try to convert the chain settings into a merkle tree hook indexer
+    pub async fn build_merkle_tree_hook_indexer(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn Indexer<H256>>> {
+        let ctx = "Building merkle tree hook indexer";
+        let locator = self.locator(self.addresses.mailbox);
+
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
+                let mailbox = EthereumMailbox::new(conf, locator);
+                let merkle_tree_hook = mailbox.merkle_tree_hook().await.unwrap();
+                self.build_ethereum(
+                    conf,
+                    &locator,
+                    metrics,
+                    h_eth::MerkleTreeHookIndexerBuilder {
+                        merkle_tree_hook_address: merkle_tree_hook.address,
+                        finality_blocks: self.finality_blocks,
+                    },
+                )
+                .await
+            }
+            ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => todo!(),
+        }
+    }
+
     /// Try to convert the chain settings into a ValidatorAnnounce
     pub async fn build_validator_announce(
         &self,

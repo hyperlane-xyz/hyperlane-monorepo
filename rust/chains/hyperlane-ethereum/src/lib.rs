@@ -40,6 +40,10 @@ mod interchain_security_module;
 
 /// MultisigIsm abi
 #[cfg(not(doctest))]
+mod merkle_tree_hook;
+
+/// MultisigIsm abi
+#[cfg(not(doctest))]
 mod multisig_ism;
 
 /// RoutingIsm abi
