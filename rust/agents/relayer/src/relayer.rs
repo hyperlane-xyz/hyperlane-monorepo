@@ -133,6 +133,16 @@ impl BaseAgent for Relayer {
                     .collect(),
             )
             .await?;
+        let merkle_tree_hook_syncs = settings
+            .build_merkle_tree_hook_indexers(
+                settings.origin_chains.iter(),
+                &metrics,
+                &contract_sync_metrics,
+                dbs.iter()
+                    .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
+                    .collect(),
+            )
+            .await?;
 
         let whitelist = Arc::new(settings.whitelist);
         let blacklist = Arc::new(settings.blacklist);

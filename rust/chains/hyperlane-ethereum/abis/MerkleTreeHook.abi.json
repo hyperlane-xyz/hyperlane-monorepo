@@ -11,17 +11,23 @@
     "type": "constructor"
   },
   {
-    "inputs": [],
-    "name": "branch",
-    "outputs": [
+    "anonymous": false,
+    "inputs": [
       {
-        "internalType": "bytes32[32]",
-        "name": "",
-        "type": "bytes32[32]"
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "messageId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "index",
+        "type": "uint32"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "name": "InsertedIntoTree",
+    "type": "event"
   },
   {
     "inputs": [],
