@@ -78,6 +78,15 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
   },
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
+    matchingList: [
+      {
+        originDomain: [getDomainId(chainMetadata.solana)],
+        // solana -> nautilus warp route
+        senderAddress: ['EJqwFjvVJSAxH8Ur2PYuMfdvoJeutjmH6GkoEFQ4MdSa'],
+        destinationDomain: '*',
+        recipientAddress: '*',
+      },
+    ],
   },
 ];
 
