@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use ethers::prelude::Selector;
 use eyre::{eyre, Context, Result};
+use h_eth::EthereumMailboxIndexer;
 use serde::Deserialize;
 
 use ethers_prometheus::middleware::{
@@ -11,7 +12,7 @@ use hyperlane_core::{
     config::*, utils::hex_or_base58_to_h256, AggregationIsm, CcipReadIsm, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner,
     IndexMode, Indexer, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule,
-    Mailbox, MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce, H256,
+    Mailbox, MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce, H256, accumulator::merkle,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -474,6 +475,34 @@ impl ChainConf {
             }
         }
         .context(ctx)
+    }
+
+    /// Try to convert the chain settings into a merkle tree hook indexer
+    pub async fn build_merkle_tree_hook_indexer(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn Indexer<H256>>> {
+        let ctx = "Building merkle tree hook indexer";
+        let locator = self.locator(self.addresses.mailbox);
+        
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
+                let mailbox = EthereumMailbox::new(conf, locator);
+                let merkle_tree_hook = mailbox.merkle_tree_hook().await.unwrap();
+                self.build_ethereum(
+                    conf,
+                    &locator,
+                    metrics,
+                    h_eth::MerkleTreeHookIndexerBuilder {
+                        merkle_tree_hook_address: merkle_tree_hook.address, 
+                        finality_blocks: self.finality_blocks,
+                    },
+                )
+                .await
+            }
+            ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => todo!(),
+        }
     }
 
     /// Try to convert the chain settings into a ValidatorAnnounce
