@@ -1,86 +1,96 @@
 use async_trait::async_trait;
 use num_traits::cast::FromPrimitive;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Keypair};
+use solana_sdk::{signature::Keypair};
 use tracing::warn;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256,
 };
-use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
-use serializable_account_meta::SimulationReturnData;
 
-use crate::{utils::simulate_instruction, ConnectionConf, RpcClientWithDebug};
+use crate::ConnectionConf;
+use crate::AptosClient;
+use aptos_sdk::{
+  types::account_address::AccountAddress,
+  rest_client::aptos_api_types::{ViewRequest, EntryFunctionId},
+};
+
+use std::str::FromStr;
 
 /// A reference to an InterchainSecurityModule contract on some Sealevel chain
+#[allow(unused)]
 #[derive(Debug)]
-pub struct SealevelInterchainSecurityModule {
-    rpc_client: RpcClientWithDebug,
+pub struct AptosInterchainSecurityModule {
+    aptos_client: AptosClient,
+    package_address: AccountAddress,
     payer: Option<Keypair>,
-    program_id: Pubkey,
     domain: HyperlaneDomain,
 }
 
-impl SealevelInterchainSecurityModule {
+impl AptosInterchainSecurityModule {
     /// Create a new sealevel InterchainSecurityModule
     pub fn new(conf: &ConnectionConf, locator: ContractLocator, payer: Option<Keypair>) -> Self {
-        let rpc_client = RpcClientWithDebug::new(conf.url.to_string());
-        let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
+        let aptos_client = AptosClient::new(conf.url.to_string());
+        let package_address = AccountAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
         Self {
-            rpc_client,
+            aptos_client,
             payer,
-            program_id,
+            package_address,
             domain: locator.domain.clone(),
         }
     }
 }
 
-impl HyperlaneContract for SealevelInterchainSecurityModule {
+impl HyperlaneContract for AptosInterchainSecurityModule {
     fn address(&self) -> H256 {
-        self.program_id.to_bytes().into()
+        self.package_address.into_bytes().into()
     }
 }
 
-impl HyperlaneChain for SealevelInterchainSecurityModule {
+impl HyperlaneChain for AptosInterchainSecurityModule {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
 
     fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
-        Box::new(crate::SealevelProvider::new(self.domain.clone()))
+        Box::new(crate::AptosHpProvider::new(self.domain.clone()))
     }
 }
 
 #[async_trait]
-impl InterchainSecurityModule for SealevelInterchainSecurityModule {
+impl InterchainSecurityModule for AptosInterchainSecurityModule {
     async fn module_type(&self) -> ChainResult<ModuleType> {
-        let instruction = Instruction::new_with_bytes(
-            self.program_id,
-            &InterchainSecurityModuleInstruction::Type
-                .encode()
-                .map_err(ChainCommunicationError::from_other)?[..],
-            vec![],
-        );
+      
+      tracing::warn!("ism package address {}", (self.package_address.to_hex_literal()));
 
-        let module = simulate_instruction::<SimulationReturnData<u32>>(
-            &self.rpc_client,
-            self.payer
-                .as_ref()
-                .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
-            instruction,
-        )
-        .await?
-        .ok_or_else(|| {
-            ChainCommunicationError::from_other_str("No return data was returned from the ISM")
-        })?
-        .return_data;
-
-        if let Some(module_type) = ModuleType::from_u32(module) {
-            Ok(module_type)
-        } else {
-            warn!(%module, "Unknown module type");
-            Ok(ModuleType::Unused)
-        }
+      let view_response = self.aptos_client.view(
+        &ViewRequest {
+          function: EntryFunctionId::from_str(
+            &format!(
+              "{}::multisig_ism::get_module_type", 
+              self.package_address.to_hex_literal()
+            )
+          ).unwrap(),
+          type_arguments: vec![],
+          arguments: vec![]
+        },
+        Option::None
+      )
+      .await
+      .map_err(ChainCommunicationError::from_other)?;
+      
+      let view_result: u64 = serde_json::from_str::<String>(
+        &view_response.inner()[0].to_string()
+      ).unwrap()
+      .parse()
+      .unwrap();
+    
+      if let Some(module_type) = ModuleType::from_u64(view_result) {
+        Ok(module_type)
+      } else {
+        warn!(%view_result, "Unknown module type");
+        Ok(ModuleType::Unused)
+      }
     }
 
     async fn dry_run_verify(

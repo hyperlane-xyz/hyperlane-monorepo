@@ -122,7 +122,7 @@ impl HyperlaneChain for AptosValidatorAnnounce {
     }
 
     fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
-        Box::new(crate::SealevelProvider::new(self.domain.clone()))
+        Box::new(crate::AptosHpProvider::new(self.domain.clone()))
     }
 }
 

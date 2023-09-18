@@ -355,7 +355,7 @@ impl ChainConf {
                     .map_err(Into::into)
             }
             ChainConnectionConf::Aptos(conf) => {
-              let keypair = self.sealevel_signer().await.context(ctx)?;
+              let keypair = self.aptos_signer().await.context(ctx)?;
               h_aptos::AptosMailbox::new(conf, locator, keypair)
                   .map(|m| Box::new(m) as Box<dyn Mailbox>)
                   .map_err(Into::into)
@@ -534,7 +534,7 @@ impl ChainConf {
     ) -> Result<Box<dyn InterchainSecurityModule>> {
         let ctx = "Building ISM";
         let locator = self.locator(address);
-
+        
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(
@@ -554,7 +554,13 @@ impl ChainConf {
                 ));
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
-            ChainConnectionConf::Aptos(_) => todo!()
+            ChainConnectionConf::Aptos(conf) => {
+              let keypair = self.sealevel_signer().await.context(ctx)?;
+              let ism = Box::new(h_aptos::AptosInterchainSecurityModule::new(
+                  conf, locator, keypair,
+              ));
+              Ok(ism as Box<dyn InterchainSecurityModule>)
+            }
         }
         .context(ctx)
     }
@@ -582,7 +588,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Aptos(conf) => {
               let keypair = self.aptos_signer().await.context(ctx)?;
-              let ism = Box::new(h_aptos::SealevelMultisigIsm::new(conf, locator, keypair));
+              let ism = Box::new(h_aptos::AptosMultisigISM::new(conf, locator, keypair));
               Ok(ism as Box<dyn MultisigIsm>)
             }
         }
