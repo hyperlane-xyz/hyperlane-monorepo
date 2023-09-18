@@ -60,7 +60,13 @@ export class SafeMultiSend extends MultiSend {
     const safeTransactionData = calls.map((call) => {
       return { to: call.to, data: call.data.toString(), value: '0' };
     });
-    const nextNonce = await safeService.getNextNonce(this.safeAddress);
+    let nextNonce = await safeService.getNextNonce(this.safeAddress);
+
+    if (this.chain !== 'celo') {
+      nextNonce -= 1;
+    }
+    console.log(`about to propose chain ${this.chain} nextNonce ${nextNonce}`);
+
     const safeTransaction = await safeSdk.createTransaction({
       safeTransactionData,
       options: { nonce: nextNonce },
