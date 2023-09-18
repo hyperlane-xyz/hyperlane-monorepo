@@ -6,31 +6,31 @@ use hyperlane_core::{
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
 #[derive(Debug)]
-pub struct SealevelProvider {
+pub struct AptosHpProvider {
     domain: HyperlaneDomain,
 }
 
-impl SealevelProvider {
+impl AptosHpProvider {
     /// Create a new Sealevel provider.
     pub fn new(domain: HyperlaneDomain) -> Self {
-        SealevelProvider { domain }
+      AptosHpProvider { domain }
     }
 }
 
-impl HyperlaneChain for SealevelProvider {
+impl HyperlaneChain for AptosHpProvider {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(SealevelProvider {
+        Box::new(AptosHpProvider {
             domain: self.domain.clone(),
         })
     }
 }
 
 #[async_trait]
-impl HyperlaneProvider for SealevelProvider {
+impl HyperlaneProvider for AptosHpProvider {
     async fn get_block_by_hash(&self, _hash: &H256) -> ChainResult<BlockInfo> {
         todo!() // FIXME
     }

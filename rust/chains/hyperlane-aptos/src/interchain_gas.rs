@@ -1,27 +1,33 @@
+#![allow(unused)]
+
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, IndexRange, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
-    H256,
+    H256, ChainCommunicationError,
 };
 use tracing::{info, instrument};
 
-use crate::{ConnectionConf, SealevelProvider};
-use solana_sdk::pubkey::Pubkey;
+use crate::{ConnectionConf, AptosHpProvider};
+
+use crate::AptosClient;
+use aptos_sdk::types::account_address::AccountAddress;
 
 /// A reference to an IGP contract on some Sealevel chain
 #[derive(Debug)]
 pub struct SealevelInterchainGasPaymaster {
-    program_id: Pubkey,
     domain: HyperlaneDomain,
+    package_address: AccountAddress
 }
 
 impl SealevelInterchainGasPaymaster {
     /// Create a new Sealevel IGP.
     pub fn new(_conf: &ConnectionConf, locator: ContractLocator) -> Self {
-        let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
+      
+        let package_address = AccountAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
+      
         Self {
-            program_id,
+            package_address,
             domain: locator.domain.clone(),
         }
     }
@@ -29,7 +35,7 @@ impl SealevelInterchainGasPaymaster {
 
 impl HyperlaneContract for SealevelInterchainGasPaymaster {
     fn address(&self) -> H256 {
-        self.program_id.to_bytes().into()
+        self.package_address.into_bytes().into()
     }
 }
 
@@ -39,7 +45,7 @@ impl HyperlaneChain for SealevelInterchainGasPaymaster {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(SealevelProvider::new(self.domain.clone()))
+        Box::new(AptosHpProvider::new(self.domain.clone()))
     }
 }
 
@@ -47,12 +53,15 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 
 /// Struct that retrieves event data for a Sealevel IGP contract
 #[derive(Debug)]
-pub struct SealevelInterchainGasPaymasterIndexer {}
+pub struct SealevelInterchainGasPaymasterIndexer {
+  aptos_client: AptosClient
+}
 
 impl SealevelInterchainGasPaymasterIndexer {
     /// Create a new Sealevel IGP indexer.
-    pub fn new(_conf: &ConnectionConf, _locator: ContractLocator) -> Self {
-        Self {}
+    pub fn new(conf: &ConnectionConf, _locator: ContractLocator) -> Self {
+        let aptos_client = AptosClient::new(conf.url.to_string());
+        Self { aptos_client }
     }
 }
 
@@ -69,8 +78,13 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        // As a workaround to avoid gas payment indexing on Sealevel,
-        // we pretend the block number is 1.
-        Ok(1)
+      /*let chain_state = self.aptos_client.get_ledger_information()
+        .await
+        .map_err(ChainCommunicationError::from_other)
+        .unwrap()
+        .into_inner();*/
+      // Ok(chain_state.block_height as u32)
+      // TODO:
+      Ok(1)
     }
 }
