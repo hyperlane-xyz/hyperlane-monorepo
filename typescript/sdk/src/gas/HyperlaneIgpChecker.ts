@@ -147,7 +147,12 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       expected: {},
     };
 
-    const remotes = this.app.remoteChains(local);
+    // In addition to all remote chains on the app, which are just Ethereum chains,
+    // also consider what the config says about non-Ethereum chains.
+    const remotes = new Set([
+      ...this.app.remoteChains(local),
+      ...Object.keys(this.configMap[local].gasOracleType),
+    ]);
     for (const remote of remotes) {
       const remoteId = this.multiProvider.getDomainId(remote);
       const actualGasOracle = await igp.gasOracles(remoteId);

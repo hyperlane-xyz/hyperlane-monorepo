@@ -1,4 +1,4 @@
-import { Contract } from 'ethers';
+import { Contract, ethers } from 'ethers';
 
 import { Ownable } from '@hyperlane-xyz/core';
 import {
@@ -186,16 +186,29 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
   contractsMap: HyperlaneContractsMap<F>;
   multiProvider: MultiProvider;
 } {
+  // Hack to accommodate non-Ethereum artifacts, while still retaining their
+  // presence in the addressesMap so that they are included in the list of chains
+  // or the multiprovider. A Ethereum-style address from another execution environment
+  // will cause Ethers to throw if we try to attach it, so we replace it with the
+  // zero address.
+  const addressesMapWithEthereumizedAddresses = objMap(
+    addressesMap,
+    (chain, addresses) => {
+      const metadata = multiProvider.getChainMetadata(chain);
+      if (metadata.protocol === ProtocolType.Ethereum) {
+        return addresses;
+      }
+      return objMap(
+        addresses,
+        (_key, _address) => ethers.constants.AddressZero,
+      );
+    },
+  );
+
   // Attaches contracts for each chain for which we have a complete set of
   // addresses
-  // const contractsMap = attachContractsMap(addressesMap, factories);
-
   const contractsMap = attachContractsMap(
-    filterAddressesToProtocol(
-      addressesMap,
-      ProtocolType.Ethereum,
-      multiProvider,
-    ),
+    addressesMapWithEthereumizedAddresses,
     factories,
   );
 

@@ -15,7 +15,6 @@ import {
   chainMetadata,
   filterAddressesToProtocol,
   hyperlaneEnvironments,
-  hyperlaneEnvironmentsWithSealevel,
   igpFactories,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
@@ -86,7 +85,7 @@ export async function getHelloWorldMultiProtocolApp(
   }
 
   const core = MultiProtocolCore.fromAddressesMap(
-    hyperlaneEnvironmentsWithSealevel[sdkEnvName],
+    hyperlaneEnvironments[sdkEnvName],
     multiProtocolProvider,
   );
 

@@ -46,6 +46,14 @@ export async function canProposeSafeTransactions(
   const safeService = getSafeService(chain, multiProvider);
   const safe = await getSafe(chain, multiProvider, safeAddress);
   const delegates = await getSafeDelegates(safeService, safeAddress);
+  // Hack:
+  // The Safe transaction service doesn't work correctly for Celo and returns an empty array
+  // of delegates! However the mainnet deployer is present in the delegate list. As a workaround,
+  // we explicitly hardcode this situation:
+  if (chain === 'celo') {
+    // Mainnet Celo deployer
+    delegates.push('0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba');
+  }
   const owners = await safe.getOwners();
   return delegates.includes(proposer) || owners.includes(proposer);
 }
