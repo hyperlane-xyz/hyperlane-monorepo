@@ -274,14 +274,13 @@ impl ChainConf {
 
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
-                let mailbox = EthereumMailbox::new(conf, locator);
-                let merkle_tree_hook = mailbox.merkle_tree_hook().await.unwrap();
+                // TODO: fix how do I get the merkle tree address without provider here from mailbox?
                 self.build_ethereum(
                     conf,
                     &locator,
                     metrics,
                     h_eth::MerkleTreeHookIndexerBuilder {
-                        merkle_tree_hook_address: merkle_tree_hook.address,
+                        merkle_tree_hook_address: self.addresses.mailbox.into(),
                         finality_blocks: self.finality_blocks,
                     },
                 )
@@ -290,6 +289,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => todo!(),
         }
+        .context(ctx)
     }
 
     /// Try to convert the chain settings into a ValidatorAnnounce

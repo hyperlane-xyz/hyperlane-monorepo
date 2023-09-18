@@ -152,6 +152,28 @@ impl HyperlaneRocksDB {
         Ok(true)
     }
 
+    /// If the provided gas payment, identified by its metadata, has not been
+    /// processed, processes the gas payment and records it as processed.
+    /// Returns whether the gas payment was processed for the first time.
+    pub fn process_tree_insertion(
+        &self,
+        index: u32,
+        leaf: H256,
+        log_meta: &LogMeta,
+    ) -> DbResult<bool> {
+        let merkle_tree_meta = log_meta.into();
+        // double insertions are ok, so no need to check if it's already been processed
+
+        // Set the gas payment as processed
+        self.store_processed_by_gas_payment_meta(&merkle_tree_meta, &true)?;
+
+        // Update the total gas payment for the message to include the payment
+        // self.update_gas_payment_by_message_id(payment)?;
+
+        // Return true to indicate the gas payment was processed for the first time
+        Ok(true)
+    }
+
     /// Processes the gas expenditure and store the total expenditure for the
     /// message.
     pub fn process_gas_expenditure(&self, expenditure: InterchainGasExpenditure) -> DbResult<()> {
@@ -250,6 +272,23 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
             debug!(payments = new, "Wrote new gas payments to database");
         }
         Ok(new)
+    }
+}
+
+#[async_trait]
+impl HyperlaneLogStore<H256> for HyperlaneRocksDB {
+    /// Store a list of interchain gas payments and their associated metadata.
+    #[instrument(skip_all)]
+    async fn store_logs(&self, leaves: &[(H256, LogMeta)]) -> Result<u32> {
+        let mut insertions = 0;
+        for (leaf, meta) in leaves {
+            // send index
+            if self.process_tree_insertion(insertions, *leaf, meta)? {
+                insertions += 1;
+            }
+            // ingest_leaf into merkleTree
+        }
+        Ok(insertions)
     }
 }
 

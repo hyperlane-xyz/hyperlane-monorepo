@@ -271,6 +271,12 @@ where
         }
     }
 
+    // TODO: make this cache the required hook address at construction time
+    pub async fn merkle_tree_hook(&self) -> ChainResult<MerkleTreeHook<M>> {
+        let address = self.contract.required_hook().call().await?;
+        Ok(MerkleTreeHook::new(address, self.provider.clone()))
+    }
+
     /// Returns a ContractCall that processes the provided message.
     /// If the provided tx_gas_limit is None, gas estimation occurs.
     async fn process_contract_call(
