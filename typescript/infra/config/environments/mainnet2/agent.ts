@@ -86,11 +86,7 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
       ...interchainQueriesMatchingList,
       {
         originDomain: [getDomainId(chainMetadata.bsc)],
-        senderAddress: [
-          '0xC27980812E2E66491FD457D488509b7E04144b98',
-          // bsc routers
-          ...bscNautilusWarpRoutes.map((r) => r.router),
-        ],
+        senderAddress: bscNautilusWarpRoutes.map((r) => r.router),
         destinationDomain: '*',
         recipientAddress: '*',
       },
