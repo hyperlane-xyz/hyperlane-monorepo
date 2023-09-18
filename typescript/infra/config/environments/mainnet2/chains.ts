@@ -2,7 +2,7 @@ import { ChainMap, ChainMetadata, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { AgentChainNames, Role } from '../../../src/roles';
 
-export const mainnetConfigs: ChainMap<ChainMetadata> = {
+export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
   bsc: {
     ...chainMetadata.bsc,
     transactionOverrides: {
@@ -40,11 +40,26 @@ export const mainnetConfigs: ChainMap<ChainMetadata> = {
   gnosis: chainMetadata.gnosis,
 };
 
+// Blessed
+export const nonEthereumMainnetConfigs: ChainMap<ChainMetadata> = {
+  solana: chainMetadata.solana,
+};
+
+export const mainnetConfigs: ChainMap<ChainMetadata> = {
+  ...ethereumMainnetConfigs,
+  ...nonEthereumMainnetConfigs,
+};
+
+// "Blessed" chains.
 export type MainnetChains = keyof typeof mainnetConfigs;
 export const supportedChainNames = Object.keys(
   mainnetConfigs,
 ) as MainnetChains[];
 export const environment = 'mainnet2';
+
+export const ethereumChainNames = Object.keys(
+  ethereumMainnetConfigs,
+) as MainnetChains[];
 
 const validatorChainNames = [
   ...supportedChainNames,
@@ -57,5 +72,5 @@ const relayerChainNames = validatorChainNames;
 export const agentChainNames: AgentChainNames = {
   [Role.Validator]: validatorChainNames,
   [Role.Relayer]: relayerChainNames,
-  [Role.Scraper]: supportedChainNames,
+  [Role.Scraper]: ethereumChainNames,
 };

@@ -1,0 +1,19 @@
+{
+  "solana": {
+    "storageGasOracle": "",
+    "validatorAnnounce": "",
+    "proxyAdmin": "",
+    "mailbox": "Ge9atjAc3Ltu91VTbNpJDCjZ9CFxFyck4h3YBcTF9XPq",
+    "interchainGasPaymaster": "FCNfmLSZLo5x7oNYmkYU8WdPUu7pj636P9CaMxkmaCp7",
+    "defaultIsmInterchainGasPaymaster": "",
+    "multisigIsm": "",
+    "testRecipient": "",
+    "interchainAccountIsm": "",
+    "aggregationIsmFactory": "",
+    "routingIsmFactory": "",
+    "interchainQueryRouter": "",
+    "interchainAccountRouter": "",
+    "merkleRootMultisigIsmFactory": "",
+    "messageIdMultisigIsmFactory": ""
+  }
+}

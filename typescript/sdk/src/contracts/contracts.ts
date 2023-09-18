@@ -188,7 +188,16 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
 } {
   // Attaches contracts for each chain for which we have a complete set of
   // addresses
-  const contractsMap = attachContractsMap(addressesMap, factories);
+  // const contractsMap = attachContractsMap(addressesMap, factories);
+
+  const contractsMap = attachContractsMap(
+    filterAddressesToProtocol(
+      addressesMap,
+      ProtocolType.Ethereum,
+      multiProvider,
+    ),
+    factories,
+  );
 
   // Filters out providers for chains for which we don't have a complete set
   // of addresses

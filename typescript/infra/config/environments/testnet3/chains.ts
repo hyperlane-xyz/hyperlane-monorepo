@@ -31,7 +31,7 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
   ...nonEthereumTestnetConfigs,
 };
 
-// "Blessed" chains that we want core contracts for.
+// "Blessed" chains.
 export type TestnetChains = keyof typeof testnetConfigs;
 export const supportedChainNames = Object.keys(
   testnetConfigs,
