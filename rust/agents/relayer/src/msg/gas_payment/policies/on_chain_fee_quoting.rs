@@ -70,6 +70,7 @@ mod test {
     fn current_payment(gas_amount: impl Into<U256>) -> InterchainGasPayment {
         InterchainGasPayment {
             message_id: H256::zero(),
+            destination: 0,
             payment: U256::zero(),
             gas_amount: gas_amount.into(),
         }
