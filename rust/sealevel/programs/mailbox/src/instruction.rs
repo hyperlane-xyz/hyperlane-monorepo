@@ -143,7 +143,7 @@ pub fn transfer_ownership_instruction(
     Ok(instruction)
 }
 
-/// Creates a InboxSetDefaultIsm instruction.
+/// Creates an InboxSetDefaultIsm instruction.
 pub fn set_default_ism_instruction(
     program_id: Pubkey,
     owner_payer: Pubkey,

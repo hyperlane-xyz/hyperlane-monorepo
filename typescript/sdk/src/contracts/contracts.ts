@@ -5,6 +5,7 @@ import {
   Address,
   ProtocolType,
   ValueOf,
+  hexOrBase58ToHex,
   objFilter,
   objMap,
   pick,
@@ -132,7 +133,7 @@ export function attachContractsMapAndGetForeignDeployments<
       ProtocolType.Ethereum,
       metadataManager,
     ),
-    (_, addresses) => addresses.router,
+    (_, addresses) => hexOrBase58ToHex(addresses.router),
   );
 
   return {

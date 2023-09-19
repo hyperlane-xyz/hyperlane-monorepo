@@ -32,24 +32,14 @@ export const igp: ChainMap<OverheadIgpConfig> = objMap(
       beneficiary: owner,
       gasOracleType: getGasOracles(chain),
       overhead: Object.fromEntries(
-        exclude(chain, ethereumChainNames)
-          .filter((remote) => {
-            const remoteConfig = defaultMultisigIsmConfigs[remote];
-            if (!remoteConfig) {
-              console.warn(
-                `WARNING: No default multisig config for ${remote}. Skipping overhead calculation.`,
-              );
-              return false;
-            }
-            return true;
-          })
-          .map((remote) => [
-            remote,
-            multisigIsmVerificationCost(
-              defaultMultisigIsmConfigs[remote].threshold,
-              defaultMultisigIsmConfigs[remote].validators.length,
-            ),
-          ]),
+        // Not setting overhead for non-Ethereum destination chains
+        exclude(chain, ethereumChainNames).map((remote) => [
+          remote,
+          multisigIsmVerificationCost(
+            defaultMultisigIsmConfigs[remote].threshold,
+            defaultMultisigIsmConfigs[remote].validators.length,
+          ),
+        ]),
       ),
     };
   },

@@ -7,7 +7,10 @@ import {
   AllStorageGasOracleConfigs,
   getAllStorageGasOracleConfigs,
 } from '../../../src/config';
-import { TOKEN_EXCHANGE_RATE_DECIMALS } from '../../../src/config/gas-oracle';
+import {
+  TOKEN_EXCHANGE_RATE_DECIMALS,
+  getTokenExchangeRateFromValues,
+} from '../../../src/config/gas-oracle';
 import { mustGetChainNativeTokenDecimals } from '../../../src/utils/utils';
 
 import { supportedChainNames } from './chains';
@@ -83,18 +86,7 @@ function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
   const localValue = tokenUsdPrices[local];
   const remoteValue = tokenUsdPrices[remote];
 
-  // Apply multiplier to overcharge
-
-  // This does not account for decimals.
-  const exchangeRate = remoteValue
-    .mul(TOKEN_EXCHANGE_RATE_MULTIPLIER)
-    .div(localValue);
-
-  return convertDecimalsEthersBigNumber(
-    mustGetChainNativeTokenDecimals(remote),
-    mustGetChainNativeTokenDecimals(local),
-    exchangeRate,
-  );
+  return getTokenExchangeRateFromValues(local, localValue, remote, remoteValue);
 }
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =

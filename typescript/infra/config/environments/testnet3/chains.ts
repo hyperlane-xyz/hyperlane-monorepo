@@ -21,7 +21,7 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
   arbitrumgoerli: chainMetadata.arbitrumgoerli,
 };
 
-// Blessed
+// Blessed non-Ethereum chains.
 export const nonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
   solanadevnet: chainMetadata.solanadevnet,
 };
@@ -31,7 +31,6 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
   ...nonEthereumTestnetConfigs,
 };
 
-// "Blessed" chains.
 export type TestnetChains = keyof typeof testnetConfigs;
 export const supportedChainNames = Object.keys(
   testnetConfigs,
@@ -43,7 +42,6 @@ export const ethereumChainNames = Object.keys(
 
 export const environment = 'testnet3';
 
-// Chains that we want to run agents for.
 const validatorChainNames = [
   ...supportedChainNames,
   chainMetadata.proteustestnet.name,

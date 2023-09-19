@@ -6,7 +6,12 @@ import {
   filterAddressesExcludeProtocol,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, objMerge } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  hexOrBase58ToHex,
+  objMap,
+  objMerge,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
@@ -69,16 +74,9 @@ async function main() {
         multiProvider,
       ),
       (_chain, addresses) => ({
-        foreignDeployment: addresses.router,
+        foreignDeployment: hexOrBase58ToHex(addresses.router),
       }),
     ),
-  );
-
-  console.log('configMap', configMap);
-  console.log('deployer.cachedAddresses', deployer.cachedAddresses);
-  console.log(
-    'configMapWithForeignDeployments',
-    configMapWithForeignDeployments,
   );
 
   try {

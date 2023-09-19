@@ -101,27 +101,16 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker, config.owners);
   } else if (module === Modules.HELLO_WORLD) {
-    console.log('check.ts a');
     const app = await getHelloWorldApp(
       config,
       context,
       Role.Deployer,
       Contexts.Hyperlane, // Owner should always be from the hyperlane context
     );
-    console.log('check.ts b');
-    // const configMap = await getRouterConfig(environment, multiProvider, true);
-    // console.log('configMap', configMap);
     const hwConfig = await helloWorldRouterConfig(
       environment,
       context,
       multiProvider,
-    );
-    console.log('config', config);
-    console.log('hwConfig', hwConfig);
-    console.log(
-      'hwConfig.fuji.interchainSecurityModule',
-      JSON.stringify(hwConfig.fuji.interchainSecurityModule),
-      hwConfig.fuji.interchainSecurityModule,
     );
     const ismFactory = HyperlaneIsmFactory.fromEnvironment(
       deployEnvToSdkEnv[environment],

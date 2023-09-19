@@ -40,7 +40,7 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
   gnosis: chainMetadata.gnosis,
 };
 
-// Blessed
+// Blessed non-Ethereum chains.
 export const nonEthereumMainnetConfigs: ChainMap<ChainMetadata> = {
   solana: chainMetadata.solana,
 };
@@ -50,7 +50,6 @@ export const mainnetConfigs: ChainMap<ChainMetadata> = {
   ...nonEthereumMainnetConfigs,
 };
 
-// "Blessed" chains.
 export type MainnetChains = keyof typeof mainnetConfigs;
 export const supportedChainNames = Object.keys(
   mainnetConfigs,

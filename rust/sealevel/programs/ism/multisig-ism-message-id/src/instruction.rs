@@ -144,6 +144,7 @@ pub fn transfer_ownership_instruction(
     Ok(instruction)
 }
 
+/// Greats a SetValidatorsAndThreshold instruction.
 pub fn set_validators_and_threshold_instruction(
     program_id: Pubkey,
     owner_payer: Pubkey,
