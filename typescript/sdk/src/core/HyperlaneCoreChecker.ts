@@ -75,12 +75,6 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const actualIsm = await mailbox.defaultIsm();
 
     const config = this.configMap[chain];
-    console.log('checkMailbox config', chain, config);
-    console.log(
-      'checkMailbox config.defaultIsm',
-      JSON.stringify(config.defaultIsm),
-    );
-    console.log('actualIsm', actualIsm);
     const matches = await moduleMatchesConfig(
       chain,
       actualIsm,
