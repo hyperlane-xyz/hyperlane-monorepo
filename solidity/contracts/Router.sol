@@ -7,7 +7,7 @@ import {IInterchainGasPaymaster} from "./interfaces/IInterchainGasPaymaster.sol"
 import {IMessageRecipient} from "./interfaces/IMessageRecipient.sol";
 import {IMailbox} from "./interfaces/IMailbox.sol";
 import {EnumerableMapExtended} from "./libs/EnumerableMapExtended.sol";
-import {IGPMetadata} from "./libs/hooks/IGPMetadata.sol";
+import {GlobalHookMetadata} from "./libs/hooks/GlobalHookMetadata.sol";
 
 abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
@@ -204,9 +204,12 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     ) internal returns (bytes32 _messageId) {
         // Ensure that destination chain has an enrolled router.
         bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
-        bytes memory metadata = IGPMetadata.formatMetadata(
+        bytes memory metadata = GlobalHookMetadata.formatMetadata(
+            1,
+            0,
             _gasAmount,
-            _gasPaymentRefundAddress
+            _gasPaymentRefundAddress,
+            bytes("")
         );
         _messageId = mailbox.dispatch{value: _gasPayment}(
             _destinationDomain,

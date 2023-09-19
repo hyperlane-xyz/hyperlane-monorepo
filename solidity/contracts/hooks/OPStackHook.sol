@@ -17,7 +17,7 @@ pragma solidity >=0.8.0;
 import {AbstractMessageIdAuthHook} from "./AbstractMessageIdAuthHook.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
-import {OPStackHookMetadata} from "../libs/hooks/OPStackHookMetadata.sol";
+import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 // ============ External Imports ============
@@ -30,7 +30,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * the native OPStack bridge.
  */
 contract OPStackHook is AbstractMessageIdAuthHook {
-    using OPStackHookMetadata for bytes;
+    using GlobalHookMetadata for bytes;
 
     // ============ Constants ============
 
@@ -76,14 +76,11 @@ contract OPStackHook is AbstractMessageIdAuthHook {
         internal
         override
     {
+        uint256 _msgValue = metadata.msgValue(0);
         require(
-            metadata.msgValue() < 2**255,
+            _msgValue < 2**255,
             "OPStackHook: msgValue must less than 2 ** 255"
         );
-        l1Messenger.sendMessage{value: metadata.msgValue()}(
-            ism,
-            payload,
-            GAS_LIMIT
-        );
+        l1Messenger.sendMessage{value: _msgValue}(ism, payload, GAS_LIMIT);
     }
 }

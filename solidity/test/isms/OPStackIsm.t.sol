@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 
 import {LibBit} from "../../contracts/libs/LibBit.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
+import {GlobalHookMetadata} from "../../contracts/libs/hooks/GlobalHookMetadata.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
@@ -33,7 +34,8 @@ contract OPStackIsmTest is Test {
     address internal constant L2_MESSENGER_ADDRESS =
         0x4200000000000000000000000000000000000007;
 
-    uint8 internal constant VERSION = 0;
+    uint8 internal constant OPTIMISM_VERSION = 0;
+    uint8 internal constant HYPERLANE_VERSION = 1;
     uint256 internal constant DEFAULT_GAS_LIMIT = 1_920_000;
 
     address internal alice = address(0x1);
@@ -169,7 +171,7 @@ contract OPStackIsmTest is Test {
         vm.selectFork(mainnetFork);
 
         bytes memory message = MessageUtils.formatMessage(
-            VERSION,
+            OPTIMISM_VERSION,
             uint32(0),
             MAINNET_DOMAIN,
             TypeCasts.addressToBytes32(address(this)),
@@ -191,8 +193,12 @@ contract OPStackIsmTest is Test {
         vm.selectFork(mainnetFork);
 
         vm.deal(address(this), uint256(2**255 + 1));
-        bytes memory excessValueMetadata = abi.encodePacked(
-            uint256(2**255 + 1)
+        bytes memory excessValueMetadata = GlobalHookMetadata.formatMetadata(
+            HYPERLANE_VERSION,
+            uint256(2**255 + 1),
+            DEFAULT_GAS_LIMIT,
+            address(this),
+            ""
         );
 
         l1Mailbox.updateLatestDispatchedId(messageId);
@@ -377,7 +383,7 @@ contract OPStackIsmTest is Test {
         );
 
         bytes memory invalidMessage = MessageUtils.formatMessage(
-            VERSION,
+            HYPERLANE_VERSION,
             uint8(0),
             MAINNET_DOMAIN,
             TypeCasts.addressToBytes32(address(this)),
@@ -395,7 +401,7 @@ contract OPStackIsmTest is Test {
         vm.selectFork(optimismFork);
 
         bytes memory invalidMessage = MessageUtils.formatMessage(
-            VERSION,
+            HYPERLANE_VERSION,
             uint8(0),
             MAINNET_DOMAIN,
             TypeCasts.addressToBytes32(address(this)),
@@ -434,7 +440,7 @@ contract OPStackIsmTest is Test {
     function _encodeTestMessage() internal view returns (bytes memory) {
         return
             MessageUtils.formatMessage(
-                VERSION,
+                HYPERLANE_VERSION,
                 uint32(0),
                 MAINNET_DOMAIN,
                 TypeCasts.addressToBytes32(address(this)),
