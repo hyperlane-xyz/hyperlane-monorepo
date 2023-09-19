@@ -36,7 +36,9 @@ export type SyntheticConfig = {
 export type CollateralConfig = {
   type: TokenType.collateral | TokenType.collateralUri;
   token: string;
+  erc4626?: string;
 } & Partial<ERC20Metadata>;
+
 export type NativeConfig = {
   type: TokenType.native;
 } & Partial<TokenDecimals>;
@@ -48,6 +50,11 @@ export const isCollateralConfig = (
 ): config is CollateralConfig =>
   config.type === TokenType.collateral ||
   config.type === TokenType.collateralUri;
+
+export const isCollateralSavingConfig = (
+  config: TokenConfig,
+): config is CollateralConfig =>
+  (config as CollateralConfig).erc4626 !== undefined;
 
 export const isSyntheticConfig = (
   config: TokenConfig,

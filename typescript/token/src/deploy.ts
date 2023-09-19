@@ -24,6 +24,7 @@ import {
   TokenConfig,
   TokenMetadata,
   isCollateralConfig,
+  isCollateralSavingConfig,
   isErc20Metadata,
   isNativeConfig,
   isSyntheticConfig,
@@ -36,6 +37,8 @@ import {
   ERC721EnumerableUpgradeable__factory,
   HypERC20,
   HypERC20Collateral,
+  HypERC20CollateralSaving,
+  HypERC20CollateralSaving__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC721,
@@ -137,6 +140,23 @@ export class HypERC20Deployer extends GasRouterDeployer<
     return router;
   }
 
+  protected async deployCollateralSaving(
+    chain: ChainName,
+    config: HypERC20CollateralConfig,
+  ): Promise<HypERC20Collateral> {
+    const router = await this.deployContractFromFactory(
+      chain,
+      new HypERC20CollateralSaving__factory(),
+      'HypERC20CollateralSaving',
+      [config.token, config.erc4626 as string],
+    );
+    await this.multiProvider.handleTx(
+      chain,
+      router.initialize(config.mailbox, config.interchainGasPaymaster),
+    );
+    return router;
+  }
+
   protected async deployNative(
     chain: ChainName,
     config: HypNativeConfig,
@@ -192,9 +212,17 @@ export class HypERC20Deployer extends GasRouterDeployer<
   }
 
   async deployContracts(chain: ChainName, config: HypERC20Config) {
-    let router: HypERC20 | HypERC20Collateral | HypNative;
+    let router:
+      | HypERC20
+      | HypERC20Collateral
+      | HypERC20CollateralSaving
+      | HypNative;
     if (isCollateralConfig(config)) {
-      router = await this.deployCollateral(chain, config);
+      if (isCollateralSavingConfig(config)) {
+        router = await this.deployCollateralSaving(chain, config);
+      } else {
+        router = await this.deployCollateral(chain, config);
+      }
     } else if (isNativeConfig(config)) {
       router = await this.deployNative(chain, config);
     } else if (isSyntheticConfig(config)) {

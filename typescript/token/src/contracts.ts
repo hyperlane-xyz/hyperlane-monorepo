@@ -1,4 +1,5 @@
 import {
+  HypERC20CollateralSaving__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC721Collateral__factory,
@@ -8,7 +9,11 @@ import {
 } from './types';
 
 export type HypERC20Factories = {
-  router: HypERC20__factory | HypERC20Collateral__factory | HypNative__factory;
+  router:
+    | HypERC20__factory
+    | HypERC20Collateral__factory
+    | HypERC20CollateralSaving__factory
+    | HypNative__factory;
 };
 export type HypERC721Factories = {
   router:
