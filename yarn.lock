@@ -4059,6 +4059,7 @@ __metadata:
     ethereum-waffle: ^3.4.4
     ethers: ^5.7.2
     hardhat: ^2.16.1
+    mocha: ^10.2.0
     prettier: ^2.4.1
     prom-client: ^14.0.1
     prompts: ^2.4.2
@@ -14399,7 +14400,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"mocha@npm:^10.0.0":
+"mocha@npm:^10.0.0, mocha@npm:^10.2.0":
   version: 10.2.0
   resolution: "mocha@npm:10.2.0"
   dependencies:
