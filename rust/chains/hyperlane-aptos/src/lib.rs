@@ -5,7 +5,6 @@
 #![deny(warnings)]
 
 pub use crate::multisig_ism::*;
-pub(crate) use client::RpcClientWithDebug;
 pub use client::AptosClient;
 pub use interchain_gas::*;
 pub use interchain_security_module::*;

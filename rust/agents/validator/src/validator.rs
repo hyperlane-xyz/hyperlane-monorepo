@@ -253,10 +253,11 @@ impl Validator {
         // their locations, which makes them functionally unusable.
         let validators: [H256; 1] = [self.signer.eth_address().into()];
 
-        let mut done = true;
+        // let mut done = true;
+        // TODO: should be automatic announcing
         loop {
             info!("Checking for validator announcement");
-            {
+            /*{
               if !done {
                 let result = self
                         .validator_announce
@@ -265,7 +266,7 @@ impl Validator {
                 info!("result: {:?}", result);
                 done = true;
               }
-            }
+            }*/
             if let Some(locations) = self
                 .validator_announce
                 .get_announced_storage_locations(&validators)
