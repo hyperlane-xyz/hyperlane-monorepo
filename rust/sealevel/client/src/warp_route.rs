@@ -1,17 +1,21 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
+use hyperlane_sealevel_token_collateral::plugin::CollateralPlugin;
+use hyperlane_sealevel_token_native::plugin::NativePlugin;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug};
 
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
 
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+use solana_sdk::{instruction::Instruction, program_error::ProgramError, pubkey::Pubkey};
 
 use hyperlane_sealevel_connection_client::{
     gas_router::GasRouterConfig, router::RemoteRouterConfig,
 };
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
-use hyperlane_sealevel_token::{hyperlane_token_mint_pda_seeds, spl_token, spl_token_2022};
+use hyperlane_sealevel_token::{
+    hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin, spl_token, spl_token_2022,
+};
 use hyperlane_sealevel_token_lib::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
@@ -28,7 +32,7 @@ use crate::{
         deploy_routers, ChainMetadata, ConnectionClient, RouterConfig, RouterConfigGetter,
         RouterDeployer,
     },
-    Context, WarpRouteCmd, WarpRouteSubCmd,
+    Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
 
 /// Configuration relating to decimals.
@@ -467,4 +471,28 @@ fn fund_ata_payer_up_to(
         )
         .with_client(client)
         .send_with_payer();
+}
+
+pub fn parse_token_account_data(token_type: FlatTokenType, data: &mut &[u8]) {
+    fn print_data_or_err<T: Debug>(data: Result<T, ProgramError>) {
+        match data {
+            Ok(data) => println!("{:#?}", data),
+            Err(err) => println!("Failed to deserialize account data: {}", err),
+        }
+    }
+
+    match token_type {
+        FlatTokenType::Native => {
+            let res = HyperlaneTokenAccount::<NativePlugin>::fetch(data);
+            print_data_or_err(res);
+        }
+        FlatTokenType::Synthetic => {
+            let res = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(data);
+            print_data_or_err(res);
+        }
+        FlatTokenType::Collateral => {
+            let res = HyperlaneTokenAccount::<CollateralPlugin>::fetch(data);
+            print_data_or_err(res);
+        }
+    }
 }
