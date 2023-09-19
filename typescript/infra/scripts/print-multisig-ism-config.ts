@@ -4,6 +4,9 @@ import { multisigIsms } from '../config/aggregationIsm';
 
 import { getArgs, withContext } from './utils';
 
+// This script exists to print the default multisig ISM validator sets for a given environment
+// so they can easily be copied into the Sealevel tooling. :'(
+
 async function main() {
   const args = await withContext(getArgs())
     .describe('local', 'local chain')

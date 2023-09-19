@@ -302,13 +302,8 @@ async function main(): Promise<boolean> {
       destination,
     };
 
-    if (origin !== 'solanadevnet') {
-      continue;
-    }
-
     // Skip Ethereum if we've been configured to do so for this cycle
     if (
-      // @ts-ignore
       (origin === 'ethereum' || destination === 'ethereum') &&
       currentCycle % (cyclesBetweenEthereumMessages + 1) !== 0
     ) {

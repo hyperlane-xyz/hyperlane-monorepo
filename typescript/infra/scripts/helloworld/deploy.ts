@@ -86,12 +86,11 @@ async function main() {
     console.error(e);
   }
 
-  writeJSON(
-    dir,
-    'addresses.json',
-    // TODO need to make sure foreign deployments are included in this
-    serializeContractsMap(deployer.deployedContracts),
-  );
+  writeJSON(dir, 'addresses.json', {
+    // To include foreign deployments that may be present in the addresses.json already
+    ...deployer.cachedAddresses,
+    ...serializeContractsMap(deployer.deployedContracts),
+  });
   writeJSON(
     dir,
     'verification.json',

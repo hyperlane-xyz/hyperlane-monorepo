@@ -1,5 +1,8 @@
 import { getArgs, getEnvironmentConfig } from './utils';
 
+// This script exists to print the chain metadata configs for a given environment
+// so they can easily be copied into the Sealevel tooling. :'(
+
 async function main() {
   const args = await getArgs().argv;
 
