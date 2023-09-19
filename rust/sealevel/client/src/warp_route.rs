@@ -297,6 +297,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         .send_with_payer();
     }
 
+    /// Sets gas router configs on all deployable chains.
     fn post_deploy(
         &self,
         ctx: &mut Context,

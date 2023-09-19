@@ -152,7 +152,7 @@
       "reorgPeriod": 0,
       "estimateBlockTime": 5
     },
-    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-celo.safe.global/"
+    "gnosisSafeTransactionServiceUrl": "https://mainnet-tx-svc.celo-safe-prod.celo-networks-dev.org/"
   },
   "arbitrum": {
     "chainId": 42161,

@@ -44,6 +44,8 @@ impl OptionalConnectionClientConfig {
         self.interchain_security_module
     }
 
+    /// Uses the configured IGP account, if Some, to get the IGP program ID
+    /// and generate a config of the form Some((program_id, Igp account)).
     pub fn interchain_gas_paymaster_config(
         &self,
         client: &RpcClient,
@@ -236,6 +238,8 @@ pub(crate) trait ConnectionClient {
     ) -> Instruction;
 }
 
+/// Idempotently deploys routers on multiple Sealevel chains and enrolls all routers (including
+/// foreign deployments) on each Sealevel chain.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn deploy_routers<
     Config: for<'a> Deserialize<'a> + RouterConfigGetter + std::fmt::Debug + Clone,

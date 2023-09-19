@@ -1,3 +1,4 @@
+/// For serializing and deserializing Pubkey
 pub(crate) mod serde_pubkey {
     use borsh::BorshDeserialize;
     use serde::{Deserialize, Deserializer, Serializer};
@@ -23,6 +24,7 @@ pub(crate) mod serde_pubkey {
     }
 }
 
+/// For serializing and deserializing Option<Pubkey>
 pub(crate) mod serde_option_pubkey {
     use borsh::BorshDeserialize;
     use serde::{Deserialize, Deserializer, Serializer};
