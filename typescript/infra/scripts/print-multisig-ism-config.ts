@@ -1,6 +1,6 @@
 import { AllChains, ModuleType } from '@hyperlane-xyz/sdk';
 
-import { multisigIsms } from '../config/aggregationIsm';
+import { multisigIsms } from '../config/routingIsm';
 
 import { getArgs, withContext } from './utils';
 

@@ -13,8 +13,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { aggregationIsm } from '../config/aggregationIsm';
 import { Contexts } from '../config/contexts';
+import { aggregationIsm } from '../config/routingIsm';
 import {
   DeployEnvironment,
   deployEnvToSdkEnv,

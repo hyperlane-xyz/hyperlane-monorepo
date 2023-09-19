@@ -1,8 +1,8 @@
 import { ChainMap, MultiProvider, RouterConfig } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { aggregationIsm } from '../../config/aggregationIsm';
 import { Contexts } from '../../config/contexts';
+import { routingIsm } from '../../config/routingIsm';
 import { getRouterConfig } from '../../scripts/utils';
 
 import { DeployEnvironment } from './environment';
@@ -18,7 +18,7 @@ export const helloWorldConfig = (
     interchainSecurityModule:
       context === Contexts.Hyperlane
         ? undefined
-        : aggregationIsm(environment, chain, context),
+        : routingIsm(environment, chain, context),
   }));
 
 export async function helloWorldRouterConfig(
@@ -32,6 +32,6 @@ export async function helloWorldRouterConfig(
     interchainSecurityModule:
       context === Contexts.Hyperlane
         ? undefined
-        : aggregationIsm(environment, chain.toString(), context),
+        : routingIsm(environment, chain.toString(), context),
   }));
 }
