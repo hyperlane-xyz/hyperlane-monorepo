@@ -333,7 +333,9 @@ for (const variant of [
           expectedLocal,
         );
 
-        token.connect(fastFiller).approve(local.address, amount - fastFee);
+        await token
+          .connect(fastFiller)
+          .approve(local.address, amount - fastFee);
 
         // provide liquidity on the local chain and send amount to recipient
         await (local as FastHypERC20Collateral)
