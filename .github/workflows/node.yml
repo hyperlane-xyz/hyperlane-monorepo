@@ -112,9 +112,6 @@ jobs:
       - name: helloworld
         run: yarn workspace @hyperlane-xyz/helloworld run test
 
-      - name: token
-        run: yarn workspace @hyperlane-xyz/hyperlane-token run test
-
       - name: infra
         run: yarn workspace @hyperlane-xyz/infra run test
 
@@ -173,8 +170,11 @@ jobs:
       #- name: gas
       #  run: yarn workspace @hyperlane-xyz/core run gas-ci
 
-      - name: Unit tests
+      - name: Core unit tests
         run: yarn workspace @hyperlane-xyz/core run test
+
+      - name: Token unit tests
+        run: yarn workspace @hyperlane-xyz/hyperlane-token run test
 
       - name: Run Slither
         uses: crytic/slither-action@v0.3.0
