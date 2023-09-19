@@ -9,7 +9,7 @@ use serde::Deserialize;
 use hyperlane_core::{
     config::*, Delivery, HyperlaneChain, HyperlaneDomain, HyperlaneMessageStore, HyperlaneProvider,
     HyperlaneWatermarkedLogStore, InterchainGasPaymaster, InterchainGasPayment, Mailbox,
-    MultisigIsm, ValidatorAnnounce, H256,
+    MerkleTreeInsertion, MultisigIsm, ValidatorAnnounce, H256,
 };
 
 use crate::{
@@ -255,5 +255,5 @@ impl Settings {
     build_indexer_fns!(build_delivery_indexer, build_delivery_indexers -> dyn HyperlaneWatermarkedLogStore<Delivery>, WatermarkContractSync<Delivery>);
     build_indexer_fns!(build_message_indexer, build_message_indexers -> dyn HyperlaneMessageStore, MessageContractSync);
     build_indexer_fns!(build_interchain_gas_payment_indexer, build_interchain_gas_payment_indexers -> dyn HyperlaneWatermarkedLogStore<InterchainGasPayment>, WatermarkContractSync<InterchainGasPayment>);
-    build_indexer_fns!(build_merkle_tree_hook_indexer, build_merkle_tree_hook_indexers -> dyn HyperlaneWatermarkedLogStore<H256>, WatermarkContractSync<H256>);
+    build_indexer_fns!(build_merkle_tree_hook_indexer, build_merkle_tree_hook_indexers -> dyn HyperlaneWatermarkedLogStore<MerkleTreeInsertion>, WatermarkContractSync<MerkleTreeInsertion>);
 }

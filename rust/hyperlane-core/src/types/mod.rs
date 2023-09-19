@@ -10,6 +10,7 @@ pub use announcement::*;
 pub use chain_data::*;
 pub use checkpoint::*;
 pub use log_metadata::*;
+pub use merkle_tree::*;
 pub use message::*;
 
 use crate::{Decode, Encode, HyperlaneProtocolError};
@@ -18,6 +19,7 @@ mod announcement;
 mod chain_data;
 mod checkpoint;
 mod log_metadata;
+mod merkle_tree;
 mod message;
 mod serialize;
 

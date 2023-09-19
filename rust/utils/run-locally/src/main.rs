@@ -272,7 +272,7 @@ fn main() -> ExitCode {
         build_cmd(yarn_monorepo.clone().cmd("install")).join();
 
         log!("Building packages...");
-        build_cmd(yarn_monorepo.clone().cmd("build")).join();
+        build_cmd(yarn_monorepo.cmd("build")).join();
     }
 
     shutdown_if_needed!();
