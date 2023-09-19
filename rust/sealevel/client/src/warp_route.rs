@@ -21,7 +21,7 @@ use hyperlane_sealevel_token_lib::{
     hyperlane_token_pda_seeds,
     instruction::{
         enroll_remote_routers_instruction, set_destination_gas_configs,
-        set_interchain_security_module_instruction, Init,
+        set_interchain_security_module_instruction, transfer_ownership_instruction, Init,
     },
 };
 
@@ -29,7 +29,7 @@ use crate::{
     cmd_utils::account_exists,
     core::CoreProgramIds,
     router::{
-        deploy_routers, ChainMetadata, ConnectionClient, RouterConfig, RouterConfigGetter,
+        deploy_routers, ChainMetadata, ConnectionClient, Ownable, RouterConfig, RouterConfigGetter,
         RouterDeployer,
     },
     Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
@@ -388,6 +388,27 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
 impl RouterConfigGetter for TokenConfig {
     fn router_config(&self) -> &RouterConfig {
         &self.router_config
+    }
+}
+
+impl Ownable for WarpRouteDeployer {
+    /// Gets the owner configured on-chain.
+    fn get_owner(&self, client: &RpcClient, program_id: &Pubkey) -> Option<Pubkey> {
+        let token = get_token_data::<()>(client, program_id);
+
+        token.owner
+    }
+
+    /// Gets an instruction to set the owner.
+    fn set_owner_instruction(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+        new_owner: Option<Pubkey>,
+    ) -> Instruction {
+        let token = get_token_data::<()>(client, program_id);
+
+        transfer_ownership_instruction(*program_id, token.owner.unwrap(), new_owner).unwrap()
     }
 }
 

@@ -98,6 +98,8 @@ struct Cli {
     heap_size: Option<u32>,
     #[arg(long, short = 'C')]
     config: Option<String>,
+    #[arg(long, default_value_t = false)]
+    require_tx_approval: bool,
 }
 
 #[derive(Subcommand)]
@@ -659,6 +661,7 @@ fn main() {
         payer_keypair,
         commitment,
         instructions.into(),
+        cli.require_tx_approval,
     );
     match cli.cmd {
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),

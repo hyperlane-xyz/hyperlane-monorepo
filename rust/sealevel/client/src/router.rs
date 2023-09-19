@@ -145,6 +145,7 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
         built_so_dir: &Path,
         chain_config: &ChainMetadata,
         app_config: &Config,
+        existing_program_ids: Option<&HashMap<String, Pubkey>>,
     ) -> Pubkey {
         let program_name = self.program_name(app_config);
 
@@ -153,24 +154,36 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
             program_name, chain_config.name, app_config
         );
 
-        let (keypair, keypair_path) = create_and_write_keypair(
-            key_dir,
-            format!("{}-{}.json", program_name, chain_config.name).as_str(),
-            true,
-        );
-        let program_id = keypair.pubkey();
+        let program_id = existing_program_ids
+            .map(|existing_program_ids| {
+                existing_program_ids.get(&chain_config.name).map(|id| {
+                    println!("Recovered existing program id {}", id);
+                    *id
+                })
+            })
+            .flatten()
+            .unwrap_or_else(|| {
+                let (keypair, keypair_path) = create_and_write_keypair(
+                    key_dir,
+                    format!("{}-{}.json", program_name, chain_config.name).as_str(),
+                    true,
+                );
+                let program_id = keypair.pubkey();
 
-        deploy_program_idempotent(
-            ctx.payer_keypair_path(),
-            &keypair,
-            keypair_path.to_str().unwrap(),
-            built_so_dir
-                .join(format!("{}.so", program_name))
-                .to_str()
-                .unwrap(),
-            &chain_config.rpc_urls[0].http,
-        )
-        .unwrap();
+                deploy_program_idempotent(
+                    ctx.payer_keypair_path(),
+                    &keypair,
+                    keypair_path.to_str().unwrap(),
+                    built_so_dir
+                        .join(format!("{}.so", program_name))
+                        .to_str()
+                        .unwrap(),
+                    &chain_config.rpc_urls[0].http,
+                )
+                .unwrap();
+
+                program_id
+            });
 
         let core_program_ids =
             read_core_program_ids(environments_dir, environment, &chain_config.name);
@@ -221,7 +234,20 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
     fn get_routers(&self, rpc_client: &RpcClient, program_id: &Pubkey) -> HashMap<u32, H256>;
 }
 
-pub(crate) trait ConnectionClient {
+pub(crate) trait Ownable {
+    /// Gets the owner configured on-chain.
+    fn get_owner(&self, client: &RpcClient, program_id: &Pubkey) -> Option<Pubkey>;
+
+    /// Gets an instruction to set the owner.
+    fn set_owner_instruction(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+        new_owner: Option<Pubkey>,
+    ) -> Instruction;
+}
+
+pub(crate) trait ConnectionClient: Ownable {
     /// Gets the interchain security module configured on-chain.
     fn get_interchain_security_module(
         &self,
@@ -270,6 +296,8 @@ pub(crate) fn deploy_routers<
     let deploy_dir = create_new_directory(&artifacts_dir, deploy_name);
     let keys_dir = create_new_directory(&deploy_dir, "keys");
 
+    let existing_program_ids = read_router_program_ids(&deploy_dir);
+
     // Builds a HashMap of all the foreign deployments from the app config.
     // These domains with foreign deployments will not have any txs / deployments
     // made directly to them, but the routers will be enrolled on the other chains.
@@ -316,6 +344,7 @@ pub(crate) fn deploy_routers<
             &built_so_dir_path,
             chain_config,
             app_config,
+            existing_program_ids.as_ref(),
         );
 
         // Add the router to the list of routers.
@@ -324,34 +353,21 @@ pub(crate) fn deploy_routers<
             H256::from_slice(&program_id.to_bytes()[..]),
         );
 
-        // Configure the connection client.
-        // TODO pull this out into connection-client specific logic that also looks for IGP inconsistency etc.
+        configure_connection_client(
+            ctx,
+            &deployer,
+            &program_id,
+            app_config.router_config(),
+            chain_config,
+        );
 
-        let actual_ism =
-            deployer.get_interchain_security_module(&chain_config.client(), &program_id);
-        let expected_ism = app_config
-            .router_config()
-            .connection_client
-            .interchain_security_module();
-
-        if actual_ism != expected_ism {
-            ctx.new_txn()
-                .add_with_description(
-                    deployer.set_interchain_security_module_instruction(
-                        &chain_config.client(),
-                        &program_id,
-                        expected_ism,
-                    ),
-                    format!(
-                        "Setting ISM for chain: {} ({}) to {:?}",
-                        chain_name,
-                        chain_config.domain_id(),
-                        expected_ism
-                    ),
-                )
-                .with_client(&chain_config.client())
-                .send_with_payer();
-        }
+        configure_owner(
+            ctx,
+            &deployer,
+            &program_id,
+            app_config.router_config(),
+            chain_config,
+        );
     }
 
     // Now enroll all the routers.
@@ -388,6 +404,73 @@ pub(crate) fn deploy_routers<
         })
         .collect::<HashMap<String, H256>>();
     write_router_program_ids(&deploy_dir, &routers_by_name);
+}
+
+// Idempotent.
+// TODO: This should really be brought out into some nicer abstraction, and we should
+// also look for IGP inconsistency etc.
+fn configure_connection_client(
+    ctx: &mut Context,
+    deployer: &impl ConnectionClient,
+    program_id: &Pubkey,
+    router_config: &RouterConfig,
+    chain_config: &ChainMetadata,
+) {
+    // Just ISM for now
+
+    let client = chain_config.client();
+
+    let actual_ism = deployer.get_interchain_security_module(&client, &program_id);
+    let expected_ism = router_config.connection_client.interchain_security_module();
+
+    if actual_ism != expected_ism {
+        ctx.new_txn()
+            .add_with_description(
+                deployer.set_interchain_security_module_instruction(
+                    &client,
+                    &program_id,
+                    expected_ism,
+                ),
+                format!(
+                    "Setting ISM for chain: {} ({}) to {:?}",
+                    chain_config.name,
+                    chain_config.domain_id(),
+                    expected_ism
+                ),
+            )
+            .with_client(&client)
+            .send_with_payer();
+    }
+}
+
+// Idempotent.
+// TODO: This should really be brought out into some nicer abstraction
+fn configure_owner(
+    ctx: &mut Context,
+    deployer: &impl ConnectionClient,
+    program_id: &Pubkey,
+    router_config: &RouterConfig,
+    chain_config: &ChainMetadata,
+) {
+    let client = chain_config.client();
+
+    let actual_owner = deployer.get_owner(&client, &program_id);
+    let expected_owner = Some(router_config.ownable.owner(ctx.payer_pubkey));
+
+    if actual_owner != expected_owner {
+        ctx.new_txn()
+            .add_with_description(
+                deployer.set_owner_instruction(&client, &program_id, expected_owner),
+                format!(
+                    "Setting owner for chain: {} ({}) to {:?}",
+                    chain_config.name,
+                    chain_config.domain_id(),
+                    expected_owner,
+                ),
+            )
+            .with_client(&client)
+            .send_with_payer();
+    }
 }
 
 /// For each chain in app_configs_to_deploy, enrolls all the remote routers.
@@ -479,4 +562,22 @@ fn write_router_program_ids(deploy_dir: &Path, routers: &HashMap<String, H256>) 
 
     let program_ids_file = deploy_dir.join("program-ids.json");
     write_json(&program_ids_file, serialized_program_ids);
+}
+
+fn read_router_program_ids(deploy_dir: &Path) -> Option<HashMap<String, Pubkey>> {
+    let program_ids_file = deploy_dir.join("program-ids.json");
+
+    if !program_ids_file.exists() {
+        return None;
+    }
+
+    let serialized_program_ids: HashMap<String, HexAndBase58ProgramIdArtifact> =
+        serde_json::from_reader(File::open(program_ids_file).unwrap()).unwrap();
+
+    let existing_program_ids = serialized_program_ids
+        .iter()
+        .map(|(chain_name, program_id)| (chain_name.clone(), program_id.into()))
+        .collect::<HashMap<String, Pubkey>>();
+
+    Some(existing_program_ids)
 }

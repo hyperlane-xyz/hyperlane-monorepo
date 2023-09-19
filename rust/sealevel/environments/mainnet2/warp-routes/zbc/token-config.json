@@ -5,7 +5,8 @@
         "remoteDecimals": 9,
         "token": "wzbcJyhGhQDLTV1S99apZiiBdE4jmYfbw99saMMdP59",
         "splTokenProgram": "token",
-        "interchainSecurityModule": "9k74DkJvS2x9QhG4XfnKsLkqaCDyVfaj8s6FyJyhAeEP"
+        "interchainSecurityModule": "9k74DkJvS2x9QhG4XfnKsLkqaCDyVfaj8s6FyJyhAeEP",
+        "owner": "EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3"
     },
     "bsc": {
         "type": "collateral",

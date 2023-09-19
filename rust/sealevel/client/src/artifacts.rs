@@ -3,7 +3,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use hyperlane_core::H256;
 use solana_program::pubkey::Pubkey;
 
-use std::{fs::File, io::Write, path::Path};
+use std::{fs::File, io::Write, path::Path, str::FromStr};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct SingularProgramIdArtifact {
@@ -29,6 +29,12 @@ impl From<H256> for HexAndBase58ProgramIdArtifact {
             hex: format!("0x{}", hex::encode(val)),
             base58: Pubkey::new_from_array(val.to_fixed_bytes()).to_string(),
         }
+    }
+}
+
+impl Into<Pubkey> for &HexAndBase58ProgramIdArtifact {
+    fn into(self) -> Pubkey {
+        Pubkey::from_str(&self.base58).unwrap()
     }
 }
 

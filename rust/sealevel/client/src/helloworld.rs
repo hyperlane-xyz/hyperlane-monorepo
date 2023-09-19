@@ -16,7 +16,7 @@ use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use crate::{
     cmd_utils::account_exists,
     router::{
-        deploy_routers, ChainMetadata, ConnectionClient, RouterConfig, RouterConfigGetter,
+        deploy_routers, ChainMetadata, ConnectionClient, Ownable, RouterConfig, RouterConfigGetter,
         RouterDeployer,
     },
     Context, CoreProgramIds, HelloWorldCmd, HelloWorldDeploy, HelloWorldSubCmd, RpcClient,
@@ -138,6 +138,25 @@ impl RouterDeployer<HelloWorldConfig> for HelloWorldDeployer {
 impl RouterConfigGetter for HelloWorldConfig {
     fn router_config(&self) -> &RouterConfig {
         &self.router_config
+    }
+}
+
+impl Ownable for HelloWorldDeployer {
+    /// Gets the owner configured on-chain.
+    fn get_owner(&self, client: &RpcClient, program_id: &Pubkey) -> Option<Pubkey> {
+        let storage = self.get_storage(client, program_id);
+
+        storage.owner
+    }
+
+    /// Gets an instruction to set the owner.
+    fn set_owner_instruction(
+        &self,
+        _client: &RpcClient,
+        _program_id: &Pubkey,
+        _new_owner: Option<Pubkey>,
+    ) -> Instruction {
+        unimplemented!("HelloWorld does not support changing the owner")
     }
 }
 
