@@ -3,11 +3,7 @@ use std::{fs::File, path::Path};
 
 use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
-use solana_sdk::{
-    instruction::{AccountMeta, Instruction},
-    signature::Signer,
-    system_program,
-};
+use solana_sdk::signature::Signer;
 
 use crate::{
     artifacts::{write_json, SingularProgramIdArtifact},
@@ -15,21 +11,22 @@ use crate::{
     router::ChainMetadata,
     Context, MultisigIsmMessageIdCmd, MultisigIsmMessageIdSubCmd,
 };
-use account_utils::DiscriminatorEncode;
+
 use hyperlane_core::H160;
 
 use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds,
     accounts::{AccessControlAccount, DomainDataAccount},
     domain_data_pda_seeds,
-    instruction::{
-        Domained, Instruction as MultisigIsmMessageIdInstruction, ValidatorsAndThreshold,
-    },
+    instruction::{set_validators_and_threshold_instruction, ValidatorsAndThreshold},
 };
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct MultisigIsmConfig {
+    /// Note this type is ignored in this tooling. It'll always assume this
+    /// relates to a multisig-ism-message-id variant, which is the only type
+    /// implemented in Sealevel.
     #[serde(rename = "type")]
     pub module_type: u8,
     pub validators: Vec<H160>,
@@ -189,9 +186,15 @@ pub(crate) fn deploy_multisig_ism_message_id(
     )
     .unwrap();
 
-    ctx.new_txn().add(instruction).send_with_payer();
-
-    println!("Initialized Multisig ISM Message ID ");
+    ctx.new_txn()
+        .add_with_description(
+            instruction,
+            format!(
+                "Initializing Multisig ISM Message ID with payer & owner {}",
+                ctx.payer_pubkey
+            ),
+        )
+        .send_with_payer();
 
     program_id
 }
@@ -278,41 +281,20 @@ pub(crate) fn set_validators_and_threshold(
     domain: u32,
     validators_and_threshold: ValidatorsAndThreshold,
 ) {
-    let (access_control_pda_key, _access_control_pda_bump) =
-        Pubkey::find_program_address(access_control_pda_seeds!(), &program_id);
-
-    let (domain_data_pda_key, _domain_data_pda_bump) =
-        Pubkey::find_program_address(domain_data_pda_seeds!(domain), &program_id);
-
-    let ixn = MultisigIsmMessageIdInstruction::SetValidatorsAndThreshold(Domained {
-        domain,
-        data: validators_and_threshold.clone(),
-    });
-
-    // Accounts:
-    // 0. `[signer]` The access control owner and payer of the domain PDA.
-    // 1. `[]` The access control PDA account.
-    // 2. `[writable]` The PDA relating to the provided domain.
-    // 3. `[executable]` OPTIONAL - The system program account. Required if creating the domain PDA.
-    let accounts = vec![
-        AccountMeta::new(ctx.payer_pubkey, true),
-        AccountMeta::new_readonly(access_control_pda_key, false),
-        AccountMeta::new(domain_data_pda_key, false),
-        AccountMeta::new_readonly(system_program::id(), false),
-    ];
-
-    let set_instruction = Instruction {
-        program_id,
-        data: ixn.encode().unwrap(),
-        accounts,
-    };
+    let description = format!(
+        "Set for remote domain {} validators and threshold: {:?}",
+        domain, validators_and_threshold
+    );
     ctx.new_txn()
         .add_with_description(
-            set_instruction,
-            format!(
-                "Set for remote domain {} validators and threshold: {:?}",
-                domain, validators_and_threshold
-            ),
+            set_validators_and_threshold_instruction(
+                program_id,
+                ctx.payer_pubkey,
+                domain,
+                validators_and_threshold,
+            )
+            .unwrap(),
+            description,
         )
         .send_with_payer();
 }

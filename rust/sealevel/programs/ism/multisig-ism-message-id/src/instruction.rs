@@ -5,11 +5,12 @@ use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
     program_error::ProgramError,
     pubkey::Pubkey,
+    system_program,
 };
 
 use std::collections::HashSet;
 
-use crate::{access_control_pda_seeds, error::Error};
+use crate::{access_control_pda_seeds, domain_data_pda_seeds, error::Error};
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
@@ -139,6 +140,43 @@ pub fn transfer_ownership_instruction(
             AccountMeta::new(owner_payer, true),
             AccountMeta::new(access_control_pda_key, false),
         ],
+    };
+    Ok(instruction)
+}
+
+pub fn set_validators_and_threshold_instruction(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    domain: u32,
+    validators_and_threshold: ValidatorsAndThreshold,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (access_control_pda_key, _access_control_pda_bump) =
+        Pubkey::find_program_address(access_control_pda_seeds!(), &program_id);
+
+    let (domain_data_pda_key, _domain_data_pda_bump) =
+        Pubkey::find_program_address(domain_data_pda_seeds!(domain), &program_id);
+
+    let ixn = Instruction::SetValidatorsAndThreshold(Domained {
+        domain,
+        data: validators_and_threshold.clone(),
+    });
+
+    // Accounts:
+    // 0. `[signer]` The access control owner and payer of the domain PDA.
+    // 1. `[]` The access control PDA account.
+    // 2. `[writable]` The PDA relating to the provided domain.
+    // 3. `[executable]` OPTIONAL - The system program account. Required if creating the domain PDA.
+    let accounts = vec![
+        AccountMeta::new(owner_payer, true),
+        AccountMeta::new_readonly(access_control_pda_key, false),
+        AccountMeta::new(domain_data_pda_key, false),
+        AccountMeta::new_readonly(system_program::id(), false),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.encode().unwrap(),
+        accounts,
     };
     Ok(instruction)
 }

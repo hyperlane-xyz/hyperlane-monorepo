@@ -112,13 +112,8 @@ impl RouterDeployer<HelloWorldConfig> for HelloWorldDeployer {
             .interchain_security_module();
         let owner = Some(app_config.router_config().ownable.owner(ctx.payer_pubkey));
 
-        println!(
-            "Initializing HelloWorld program: domain_id: {}, mailbox: {}, ism: {:?}, owner: {:?}",
-            domain_id, mailbox, ism, owner
-        );
-
         ctx.new_txn()
-            .add(
+            .add_with_description(
                 init_instruction(
                     program_id,
                     ctx.payer_pubkey,
@@ -130,6 +125,10 @@ impl RouterDeployer<HelloWorldConfig> for HelloWorldDeployer {
                     owner,
                 )
                 .unwrap(),
+                format!(
+                    "Initializing HelloWorld program: domain_id: {}, mailbox: {}, ism: {:?}, owner: {:?}",
+            domain_id, mailbox, ism, owner
+                )
             )
             .with_client(client)
             .send_with_payer();
