@@ -14,6 +14,8 @@ contract MerkleTreeHook is IPostDispatchHook, MailboxClient, Indexed {
     // An incremental merkle tree used to store outbound message IDs.
     MerkleLib.Tree internal _tree;
 
+    event InsertedIntoTree(bytes32 messageId, uint32 index);
+
     constructor(address _mailbox) MailboxClient(_mailbox) {}
 
     function count() public view returns (uint32) {
@@ -39,7 +41,9 @@ contract MerkleTreeHook is IPostDispatchHook, MailboxClient, Indexed {
         require(msg.value == 0, "MerkleTreeHook: no value expected");
         bytes32 id = message.id();
         require(isLatestDispatched(id), "message not dispatching");
+
         _tree.insert(id);
+        emit InsertedIntoTree(id, count() - 1);
     }
 
     function quoteDispatch(

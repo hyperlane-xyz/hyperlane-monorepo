@@ -1,6 +1,6 @@
 use std::io::{Error, ErrorKind};
 
-use crate::{HyperlaneProtocolError, H160, H256, H512, U256};
+use crate::{GasPaymentKey, HyperlaneProtocolError, H160, H256, H512, U256};
 
 /// Simple trait for types with a canonical encoding
 pub trait Encode {
@@ -177,5 +177,30 @@ impl Decode for bool {
                 "decoded bool invalid",
             ))),
         }
+    }
+}
+
+impl Encode for GasPaymentKey {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: std::io::Write,
+    {
+        let mut written = 0;
+        written += self.message_id.write_to(writer)?;
+        written += self.destination.write_to(writer)?;
+        Ok(written)
+    }
+}
+
+impl Decode for GasPaymentKey {
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+    where
+        R: std::io::Read,
+        Self: Sized,
+    {
+        Ok(Self {
+            message_id: H256::read_from(reader)?,
+            destination: u32::read_from(reader)?,
+        })
     }
 }
