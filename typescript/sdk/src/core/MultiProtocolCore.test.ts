@@ -7,20 +7,22 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
 
 import { MultiProtocolCore } from './MultiProtocolCore';
 import { EvmCoreAdapter } from './adapters/EvmCoreAdapter';
-import { CoreAddresses } from './contracts';
 
 describe('MultiProtocolCore', () => {
   describe('constructs', () => {
     it('with constructor', async () => {
-      const multiProvider = new MultiProtocolProvider<CoreAddresses>({
+      const multiProvider = new MultiProtocolProvider({
         ethereum: {
           ...ethereum,
+        },
+      });
+      const core = new MultiProtocolCore(multiProvider, {
+        ethereum: {
           validatorAnnounce: ethers.constants.AddressZero,
           proxyAdmin: ethers.constants.AddressZero,
           mailbox: ethers.constants.AddressZero,
         },
       });
-      const core = new MultiProtocolCore(multiProvider);
       expect(core).to.be.instanceOf(MultiProtocolCore);
       const ethAdapter = core.adapter(Chains.ethereum);
       expect(ethAdapter).to.be.instanceOf(EvmCoreAdapter);

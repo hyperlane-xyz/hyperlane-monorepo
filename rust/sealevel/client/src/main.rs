@@ -23,8 +23,11 @@ use account_utils::DiscriminatorEncode;
 use hyperlane_core::{Encode, HyperlaneMessage, H160, H256};
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_igp::{
-    accounts::{InterchainGasPaymasterType, OverheadIgpAccount},
+    accounts::{
+        GasOracle, IgpAccount, InterchainGasPaymasterType, OverheadIgpAccount, RemoteGasData,
+    },
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
+    instruction::{GasOracleConfig, GasOverheadConfig},
 };
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
@@ -42,7 +45,7 @@ use hyperlane_sealevel_multisig_ism_message_id::{
     },
 };
 use hyperlane_sealevel_token::{
-    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin,
+    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
     spl_associated_token_account::get_associated_token_address_with_program_id, spl_token_2022,
 };
 use hyperlane_sealevel_token_collateral::{
@@ -53,9 +56,7 @@ use hyperlane_sealevel_token_lib::{
     hyperlane_token_pda_seeds,
     instruction::{Instruction as HtInstruction, TransferRemote as HtTransferRemote},
 };
-use hyperlane_sealevel_token_native::{
-    hyperlane_token_native_collateral_pda_seeds, plugin::NativePlugin,
-};
+use hyperlane_sealevel_token_native::hyperlane_token_native_collateral_pda_seeds;
 use hyperlane_sealevel_validator_announce::{
     accounts::ValidatorStorageLocationsAccount,
     instruction::{
@@ -65,6 +66,7 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
+use warp_route::parse_token_account_data;
 
 use crate::warp_route::process_warp_route_cmd;
 pub(crate) use crate::{context::*, core::*};
@@ -118,6 +120,7 @@ pub(crate) struct WarpRouteCmd {
 #[derive(Subcommand)]
 pub(crate) enum WarpRouteSubCmd {
     Deploy(WarpRouteDeploy),
+    DestinationGas(DestinationGasArgs),
 }
 
 #[derive(Args)]
@@ -136,6 +139,14 @@ pub(crate) struct WarpRouteDeploy {
     chain_config_file: PathBuf,
     #[arg(long)]
     ata_payer_funding_amount: Option<u64>,
+}
+
+#[derive(Args)]
+struct DestinationGasArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    destination_domain: u32,
 }
 
 #[derive(Args)]
@@ -285,10 +296,11 @@ enum TokenSubCmd {
     TransferRemote(TokenTransferRemote),
     EnrollRemoteRouter(TokenEnrollRemoteRouter),
     TransferOwnership(TransferOwnership),
+    Igp(Igp),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-enum TokenType {
+pub enum TokenType {
     Native,
     Synthetic,
     Collateral,
@@ -334,6 +346,39 @@ struct TransferOwnership {
 }
 
 #[derive(Args)]
+struct Igp {
+    #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
+    program_id: Pubkey,
+    #[command(subcommand)]
+    cmd: GetSetCmd<GetIgpArgs, SetIgpArgs>,
+}
+
+#[derive(Subcommand)]
+enum GetSetCmd<G: Args, S: Args> {
+    Get(G),
+    Set(S),
+}
+
+#[derive(Args)]
+struct SetIgpArgs {
+    igp_program: Pubkey,
+    #[arg(value_enum)]
+    igp_type: IgpType,
+    igp_account: Pubkey,
+}
+
+#[derive(Args)]
+struct GetIgpArgs {
+    token_type: TokenType,
+}
+
+#[derive(ValueEnum, Clone)]
+enum IgpType {
+    Igp,
+    OverheadIgp,
+}
+
+#[derive(Args)]
 struct IgpCmd {
     #[command(subcommand)]
     cmd: IgpSubCmd,
@@ -342,6 +387,8 @@ struct IgpCmd {
 #[derive(Subcommand)]
 enum IgpSubCmd {
     PayForGas(PayForGasArgs),
+    GasOracleConfig(GasOracleConfigArgs),
+    DestinationGasOverhead(DestinationGasOverheadArgs),
     TransferIgpOwnership(TransferIgpOwnership),
     TransferOverheadIgpOwnership(TransferIgpOwnership),
 }
@@ -361,6 +408,59 @@ struct TransferIgpOwnership {
 struct PayForGasArgs {
     program_id: Pubkey,
     message_id: String,
+}
+
+#[derive(Args)]
+struct GasOracleConfigArgs {
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+    #[arg(long)]
+    chain_name: String,
+    #[arg(long)]
+    remote_domain: u32,
+    #[command(subcommand)]
+    cmd: GetSetCmd<GetGasOracleArgs, SetGasOracleArgs>,
+}
+
+#[derive(Args)]
+struct SetGasOracleArgs {
+    #[arg(long)]
+    token_exchange_rate: u128,
+    #[arg(long)]
+    gas_price: u128,
+    #[arg(long)]
+    token_decimals: u8,
+}
+
+#[derive(Args)]
+struct GetGasOracleArgs;
+
+#[derive(Args)]
+struct DestinationGasOverheadArgs {
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+    #[arg(long)]
+    chain_name: String,
+    #[arg(long)]
+    remote_domain: u32,
+    #[command(subcommand)]
+    cmd: GasOverheadSubCmd,
+}
+
+#[derive(Subcommand)]
+enum GasOverheadSubCmd {
+    Set(SetGasOverheadArgs),
+    Get,
+}
+
+#[derive(Args)]
+struct SetGasOverheadArgs {
+    #[arg(long)]
+    gas_overhead: u64,
 }
 
 #[derive(Args)]
@@ -715,32 +815,7 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
             );
             if let Some(info) = &accounts[0] {
                 println!("{:#?}", info);
-
-                match query.token_type {
-                    TokenType::Native => {
-                        match HyperlaneTokenAccount::<NativePlugin>::fetch(&mut info.data.as_ref())
-                        {
-                            Ok(token) => println!("{:#?}", token.into_inner()),
-                            Err(err) => println!("Failed to deserialize account data: {}", err),
-                        }
-                    }
-                    TokenType::Synthetic => {
-                        match HyperlaneTokenAccount::<SyntheticPlugin>::fetch(
-                            &mut info.data.as_ref(),
-                        ) {
-                            Ok(token) => println!("{:#?}", token.into_inner()),
-                            Err(err) => println!("Failed to deserialize account data: {}", err),
-                        }
-                    }
-                    TokenType::Collateral => {
-                        match HyperlaneTokenAccount::<CollateralPlugin>::fetch(
-                            &mut info.data.as_ref(),
-                        ) {
-                            Ok(token) => println!("{:#?}", token.into_inner()),
-                            Err(err) => println!("Failed to deserialize account data: {}", err),
-                        }
-                    }
-                }
+                parse_token_account_data(query.token_type, &mut info.data.as_ref());
             } else {
                 println!("Not yet created?");
             }
@@ -1038,6 +1113,46 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
                 )
                 .send_with_payer();
         }
+        TokenSubCmd::Igp(args) => match args.cmd {
+            GetSetCmd::Set(set_args) => {
+                let igp_type: InterchainGasPaymasterType = match set_args.igp_type {
+                    IgpType::Igp => InterchainGasPaymasterType::Igp(set_args.igp_account),
+                    IgpType::OverheadIgp => {
+                        InterchainGasPaymasterType::OverheadIgp(set_args.igp_account)
+                    }
+                };
+                let instruction = hyperlane_sealevel_token_lib::instruction::set_igp_instruction(
+                    args.program_id,
+                    ctx.payer_pubkey,
+                    Some((set_args.igp_program, igp_type.clone())),
+                )
+                .unwrap();
+
+                ctx.new_txn()
+                    .add_with_description(
+                        instruction,
+                        format!(
+                            "Set IGP of {} to program {}, type {:?}",
+                            args.program_id, set_args.igp_program, igp_type
+                        ),
+                    )
+                    .send_with_payer();
+            }
+            GetSetCmd::Get(get_args) => {
+                let (token_account, _token_bump) =
+                    Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &args.program_id);
+                let token_account = ctx
+                    .client
+                    .get_account_with_commitment(&token_account, ctx.commitment)
+                    .unwrap()
+                    .value
+                    .expect(
+                        "Token account not found. Make sure you are connected to the right RPC.",
+                    );
+
+                parse_token_account_data(get_args.token_type, &mut &token_account.data[..]);
+            }
+        },
     }
 }
 
@@ -1255,6 +1370,98 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                 "Made a payment for message {} with gas payment data account {}",
                 payment_details.message_id, gas_payment_data_account
             );
+        }
+        IgpSubCmd::GasOracleConfig(args) => {
+            let core_program_ids =
+                read_core_program_ids(&args.environments_dir, &args.environment, &args.chain_name);
+            match args.cmd {
+                GetSetCmd::Set(set_args) => {
+                    let remote_gas_data = RemoteGasData {
+                        token_exchange_rate: set_args.token_exchange_rate,
+                        gas_price: set_args.gas_price,
+                        token_decimals: set_args.token_decimals,
+                    };
+                    let gas_oracle_config = GasOracleConfig {
+                        domain: args.remote_domain,
+                        gas_oracle: Some(GasOracle::RemoteGasData(remote_gas_data)),
+                    };
+                    let instruction =
+                        hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
+                            core_program_ids.igp_program_id,
+                            core_program_ids.igp_account,
+                            ctx.payer_pubkey,
+                            vec![gas_oracle_config],
+                        )
+                        .unwrap();
+                    ctx.new_txn().add(instruction).send_with_payer();
+                    println!("Set gas oracle for remote domain {:?}", args.remote_domain);
+                }
+                GetSetCmd::Get(_) => {
+                    let igp_account = ctx
+                        .client
+                        .get_account_with_commitment(&core_program_ids.igp_account, ctx.commitment)
+                        .unwrap()
+                        .value
+                        .expect(
+                            "IGP account not found. Make sure you are connected to the right RPC.",
+                        );
+
+                    let igp_account = IgpAccount::fetch(&mut &igp_account.data[..])
+                        .unwrap()
+                        .into_inner();
+
+                    println!(
+                        "IGP account gas oracle: {:#?}",
+                        igp_account.gas_oracles.get(&args.remote_domain)
+                    );
+                }
+            }
+        }
+        IgpSubCmd::DestinationGasOverhead(args) => {
+            let core_program_ids =
+                read_core_program_ids(&args.environments_dir, &args.environment, &args.chain_name);
+            match args.cmd {
+                GasOverheadSubCmd::Get => {
+                    // Read the gas overhead config
+                    let overhead_igp_account = ctx
+                        .client
+                        .get_account_with_commitment(
+                            &core_program_ids.overhead_igp_account,
+                            ctx.commitment,
+                        )
+                        .unwrap()
+                        .value
+                        .expect("Overhead IGP account not found. Make sure you are connected to the right RPC.");
+                    let overhead_igp_account =
+                        OverheadIgpAccount::fetch(&mut &overhead_igp_account.data[..])
+                            .unwrap()
+                            .into_inner();
+                    println!(
+                        "Overhead IGP account gas oracle: {:#?}",
+                        overhead_igp_account.gas_overheads.get(&args.remote_domain)
+                    );
+                }
+                GasOverheadSubCmd::Set(set_args) => {
+                    let overhead_config = GasOverheadConfig {
+                        destination_domain: args.remote_domain,
+                        gas_overhead: Some(set_args.gas_overhead),
+                    };
+                    // Set the gas overhead config
+                    let instruction =
+                        hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
+                            core_program_ids.igp_program_id,
+                            core_program_ids.overhead_igp_account,
+                            ctx.payer_pubkey,
+                            vec![overhead_config],
+                        )
+                        .unwrap();
+                    ctx.new_txn().add(instruction).send_with_payer();
+                    println!(
+                        "Set gas overheads for remote domain {:?}",
+                        args.remote_domain
+                    )
+                }
+            }
         }
         IgpSubCmd::TransferIgpOwnership(ref transfer_ownership)
         | IgpSubCmd::TransferOverheadIgpOwnership(ref transfer_ownership) => {

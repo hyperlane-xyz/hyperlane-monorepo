@@ -1,6 +1,8 @@
 use hyperlane_core::{utils::hex_or_base58_to_h256, H256};
+use hyperlane_sealevel_token_collateral::plugin::CollateralPlugin;
+use hyperlane_sealevel_token_native::plugin::NativePlugin;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::File, path::Path, str::FromStr};
+use std::{collections::HashMap, fmt::Debug, fs::File, path::Path, str::FromStr};
 
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
 use solana_program::program_error::ProgramError;
@@ -10,7 +12,9 @@ use hyperlane_sealevel_connection_client::{
     gas_router::GasRouterConfig, router::RemoteRouterConfig,
 };
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
-use hyperlane_sealevel_token::{hyperlane_token_mint_pda_seeds, spl_token, spl_token_2022};
+use hyperlane_sealevel_token::{
+    hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin, spl_token, spl_token_2022,
+};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
@@ -22,7 +26,7 @@ use crate::{
         account_exists, create_and_write_keypair, create_new_directory, deploy_program_idempotent,
     },
     core::{read_core_program_ids, CoreProgramIds},
-    Context, WarpRouteCmd, WarpRouteSubCmd,
+    Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -387,6 +391,13 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 .collect::<HashMap<String, H256>>();
             write_program_ids(&warp_route_dir, &routers_by_name);
         }
+        WarpRouteSubCmd::DestinationGas(args) => {
+            let destination_gas = get_destination_gas(&ctx.client, &args.program_id).unwrap();
+            println!(
+                "Destination gas: {:?}",
+                destination_gas[&args.destination_domain]
+            );
+        }
     }
 }
 
@@ -677,4 +688,28 @@ fn write_program_ids(warp_route_dir: &Path, routers: &HashMap<String, H256>) {
     let program_ids_file = warp_route_dir.join("program-ids.json");
     let program_ids_file = File::create(program_ids_file).unwrap();
     serde_json::to_writer_pretty(program_ids_file, &serialized_program_ids).unwrap();
+}
+
+pub fn parse_token_account_data(token_type: FlatTokenType, data: &mut &[u8]) {
+    fn print_data_or_err<T: Debug>(data: Result<T, ProgramError>) {
+        match data {
+            Ok(data) => println!("{:#?}", data),
+            Err(err) => println!("Failed to deserialize account data: {}", err),
+        }
+    }
+
+    match token_type {
+        FlatTokenType::Native => {
+            let res = HyperlaneTokenAccount::<NativePlugin>::fetch(data);
+            print_data_or_err(res);
+        }
+        FlatTokenType::Synthetic => {
+            let res = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(data);
+            print_data_or_err(res);
+        }
+        FlatTokenType::Collateral => {
+            let res = HyperlaneTokenAccount::<CollateralPlugin>::fetch(data);
+            print_data_or_err(res);
+        }
+    }
 }
