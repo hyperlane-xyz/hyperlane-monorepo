@@ -12,7 +12,7 @@ use hyperlane_base::{
     run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, MessageContractSync,
     WatermarkContractSync,
 };
-use hyperlane_core::{HyperlaneDomain, InterchainGasPayment, U256};
+use hyperlane_core::{HyperlaneDomain, InterchainGasPayment, MerkleTreeInsertion, U256};
 use tokio::{
     sync::{
         mpsc::{self, UnboundedReceiver, UnboundedSender},
@@ -22,6 +22,7 @@ use tokio::{
 };
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
+use crate::msg::pending_message::MessageSubmissionMetrics;
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
     msg::{
@@ -55,6 +56,8 @@ pub struct Relayer {
     /// sent between
     msg_ctxs: HashMap<ContextKey, Arc<MessageContext>>,
     prover_syncs: HashMap<HyperlaneDomain, Arc<RwLock<MerkleTreeBuilder>>>,
+    merkle_tree_hook_syncs:
+        HashMap<HyperlaneDomain, Arc<WatermarkContractSync<MerkleTreeInsertion>>>,
     dbs: HashMap<HyperlaneDomain, HyperlaneRocksDB>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
@@ -229,6 +232,7 @@ impl BaseAgent for Relayer {
             message_syncs,
             interchain_gas_payment_syncs,
             prover_syncs,
+            merkle_tree_hook_syncs,
             whitelist,
             blacklist,
             transaction_gas_limit,
@@ -254,6 +258,7 @@ impl BaseAgent for Relayer {
         for origin in &self.origin_chains {
             tasks.push(self.run_message_sync(origin).await);
             tasks.push(self.run_interchain_gas_payment_sync(origin).await);
+            tasks.push(self.run_merkle_tree_hook_syncs(origin).await);
         }
 
         // each message process attempts to send messages from a chain
@@ -296,6 +301,17 @@ impl Relayer {
             .clone();
         let cursor = contract_sync.rate_limited_cursor(index_settings).await;
         tokio::spawn(async move { contract_sync.clone().sync("gas_payments", cursor).await })
+            .instrument(info_span!("ContractSync"))
+    }
+
+    async fn run_merkle_tree_hook_syncs(
+        &self,
+        origin: &HyperlaneDomain,
+    ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+        let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
+        let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
+        let cursor = contract_sync.rate_limited_cursor(index_settings).await;
+        tokio::spawn(async move { contract_sync.clone().sync("merkle_tree_hook", cursor).await })
             .instrument(info_span!("ContractSync"))
     }
 

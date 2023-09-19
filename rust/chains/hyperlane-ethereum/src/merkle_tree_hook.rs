@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -5,24 +6,21 @@ use ethers::prelude::Middleware;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator,
-    IndexRange::{self, BlockRange},
-    Indexer, LogMeta, H160, H256,
+    ChainCommunicationError, ChainResult, ContractLocator, Indexer, LogMeta, MerkleTreeInsertion,
+    H160, H256,
 };
 
+use crate::contracts::i_mailbox::IMailbox as EthereumMailboxInternal;
 use crate::{contracts::mailbox, trait_builder::BuildableWithProvider};
-use crate::{
-    contracts::merkle_tree_hook::MerkleTreeHook as MerkleTreeHookInternal, EthereumMailbox,
-};
+use crate::{contracts::merkle_tree_hook::MerkleTreeHook, EthereumMailbox};
 
 pub struct MerkleTreeHookIndexerBuilder {
-    pub merkle_tree_hook_address: H160,
     pub finality_blocks: u32,
 }
 
 #[async_trait]
 impl BuildableWithProvider for MerkleTreeHookIndexerBuilder {
-    type Output = Box<dyn Indexer<H256>>;
+    type Output = Box<dyn Indexer<MerkleTreeInsertion>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -43,7 +41,7 @@ pub struct EthereumMerkleTreeHookIndexer<M>
 where
     M: Middleware,
 {
-    contract: Arc<MerkleTreeHookInternal<M>>,
+    contract: Arc<EthereumMailboxInternal<M>>,
     provider: Arc<M>,
     finality_blocks: u32,
 }
@@ -55,7 +53,7 @@ where
     /// Create new EthereumMerkleTreeHookIndexer
     pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         Self {
-            contract: Arc::new(MerkleTreeHookInternal::new(
+            contract: Arc::new(EthereumMailboxInternal::new(
                 locator.address,
                 provider.clone(),
             )),
@@ -63,10 +61,16 @@ where
             finality_blocks,
         }
     }
+
+    // TODO: make this cache the required hook address at construction time
+    pub async fn merkle_tree_hook(&self) -> ChainResult<MerkleTreeHook<M>> {
+        let address = self.contract.required_hook().call().await?;
+        Ok(MerkleTreeHook::new(address, self.provider.clone()))
+    }
 }
 
 #[async_trait]
-impl<M> Indexer<H256> for EthereumMerkleTreeHookIndexer<M>
+impl<M> Indexer<MerkleTreeInsertion> for EthereumMerkleTreeHookIndexer<M>
 where
     M: Middleware + 'static,
 {
@@ -78,8 +82,8 @@ where
             ));
         };
 
-        let events = self
-            .contract
+        let merkle_tree_hook = self.merkle_tree_hook().await?;
+        let events = merkle_tree_hook
             .inserted_into_tree_filter()
             .from_block(*range.start())
             .to_block(*range.end())
@@ -88,7 +92,12 @@ where
 
         Ok(events
             .into_iter()
-            .map(|(log, log_meta)| (H256::from(log.message_id), log_meta.into()))
+            .map(|(log, log_meta)| {
+                (
+                    MerkleTreeInsertion::new(log.index, H256::from(log.message_id)),
+                    log_meta.into(),
+                )
+            })
             .collect())
     }
 
