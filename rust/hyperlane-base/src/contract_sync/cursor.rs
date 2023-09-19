@@ -570,10 +570,11 @@ where
     T: Send + Debug + 'static,
 {
     async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
-        let to = u32::min(self.sync_end()?, self.sync_position() + self.sync_step());
+        let sync_end = self.sync_end()?;
+        let to = u32::min(sync_end, self.sync_position() + self.sync_step());
         let from = self.sync_position();
-        let eta = if to < self.tip {
-            self.eta_calculator.calculate(from, self.sync_end()?)
+        let eta = if to < sync_end {
+            self.eta_calculator.calculate(from, sync_end)
         } else {
             Duration::from_secs(0)
         };
