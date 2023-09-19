@@ -66,8 +66,8 @@ jobs:
           path: ./*
           key: ${{ github.sha }}
 
-      - name: core build
-        run: yarn workspace @hyperlane-xyz/core build
+      - name: build
+        run: yarn build
 
   lint-prettier:
     runs-on: ubuntu-latest
