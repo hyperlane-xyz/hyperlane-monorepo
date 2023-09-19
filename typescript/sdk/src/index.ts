@@ -126,6 +126,7 @@ export {
   IsmConfig,
   ModuleType,
   MultisigIsmConfig,
+  MultisigConfig,
   RoutingIsmConfig,
 } from './ism/types';
 export {

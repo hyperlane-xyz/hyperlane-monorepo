@@ -11,6 +11,7 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
+import { Modules, getAddresses } from './scripts/utils';
 import { sleep } from './src/utils/utils';
 
 const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
@@ -49,8 +50,14 @@ task('kathy', 'Dispatches random hyperlane messages')
       const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
       const [signer] = await hre.ethers.getSigners();
       const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-      const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
-      const igps = HyperlaneIgp.fromEnvironment(environment, multiProvider);
+      const core = HyperlaneCore.fromAddressesMap(
+        getAddresses(environment, Modules.CORE),
+        multiProvider,
+      );
+      const igps = HyperlaneIgp.fromAddressesMap(
+        getAddresses(environment, Modules.INTERCHAIN_GAS_PAYMASTER),
+        multiProvider,
+      );
 
       const randomElement = <T>(list: T[]) =>
         list[Math.floor(Math.random() * list.length)];

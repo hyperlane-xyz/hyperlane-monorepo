@@ -1,10 +1,9 @@
-import { ModuleType, MultisigIsmConfig } from '../ism/types';
+import { MultisigConfig } from '../ism/types';
 import { ChainMap } from '../types';
 
-export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
+export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
   // ----------------- Mainnets -----------------
   celo: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 4,
     validators: [
       '0x1f20274b1210046769d48174c2f0e7c25ca7d5c5', // abacus
@@ -16,7 +15,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   ethereum: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 4,
     validators: [
       '0x4c327ccb881a7542be77500b2833dc84c839e7b7', // abacus
@@ -28,7 +26,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   avalanche: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 4,
     validators: [
       '0xa7aa52623fe3d78c343008c95894be669e218b8d', // abacus
@@ -40,7 +37,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   polygon: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 4,
     validators: [
       '0x59a001c3451e7f9f3b4759ea215382c1e9aa5fc1', // abacus
@@ -52,7 +48,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   bsc: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 4,
     validators: [
       '0xcc84b1eb711e5076b2755cf4ad1d2b42c458a45e', // abacus
@@ -64,7 +59,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   arbitrum: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 4,
     validators: [
       '0xbcb815f38d481a5eba4d7ac4c9e74d9d0fc2a7e7', // abacus
@@ -76,7 +70,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   optimism: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 4,
     validators: [
       '0x9f2296d5cfc6b5176adc7716c7596898ded13d35', // abacus
@@ -88,7 +81,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   moonbeam: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 3,
     validators: [
       '0x237243d32d10e3bdbbf8dbcccc98ad44c1c172ea', // abacus
@@ -98,7 +90,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   gnosis: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 3,
     validators: [
       '0xd0529ec8df08d0d63c0f023786bfa81e4bb51fd6', // abacus
@@ -109,7 +100,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
   },
   // ----------------- Testnets -----------------
   alfajores: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 2,
     validators: [
       '0xe6072396568e73ce6803b12b7e04164e839f1e54',
@@ -118,7 +108,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   fuji: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 2,
     validators: [
       '0x9fa19ead5ec76e437948b35e227511b106293c40',
@@ -127,7 +116,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   mumbai: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 2,
     validators: [
       '0x0a664ea799447da6b15645cf8b9e82072a68343f',
@@ -136,7 +124,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   bsctestnet: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 2,
     validators: [
       '0x23338c8714976dd4a57eaeff17cbd26d7e275c08',
@@ -145,7 +132,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   goerli: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 2,
     validators: [
       '0xf43fbd072fd38e1121d4b3b0b8a35116bbb01ea9',
@@ -154,7 +140,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   sepolia: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 2,
     validators: [
       '0xbc748ee311f5f2d1975d61cdf531755ce8ce3066',
@@ -163,7 +148,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   moonbasealpha: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 2,
     validators: [
       '0x890c2aeac157c3f067f3e42b8afc797939c59a32',
@@ -172,7 +156,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   optimismgoerli: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 2,
     validators: [
       '0xbb8d77eefbecc55db6e5a19b0fc3dc290776f189',
@@ -181,7 +164,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   arbitrumgoerli: {
-    type: ModuleType.MESSAGE_ID_MULTISIG,
     threshold: 2,
     validators: [
       '0xce798fa21e323f6b24d9838a10ffecdefdfc4f30',

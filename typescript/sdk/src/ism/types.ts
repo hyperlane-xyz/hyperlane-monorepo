@@ -24,10 +24,13 @@ export enum ModuleType {
   MESSAGE_ID_MULTISIG,
 }
 
-export type MultisigIsmConfig = {
-  type: ModuleType.MERKLE_ROOT_MULTISIG | ModuleType.MESSAGE_ID_MULTISIG;
+export type MultisigConfig = {
   validators: Array<Address>;
   threshold: number;
+};
+
+export type MultisigIsmConfig = MultisigConfig & {
+  type: ModuleType.MERKLE_ROOT_MULTISIG | ModuleType.MESSAGE_ID_MULTISIG;
 };
 
 export type RoutingIsmConfig = {
