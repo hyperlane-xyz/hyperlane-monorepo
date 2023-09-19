@@ -4,16 +4,16 @@ use hyperlane_core::{
     BlockInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo, H256,
 };
 
-/// A wrapper around a Sealevel provider to get generic blockchain information.
+/// A wrapper around a Aptos provider to get generic blockchain information.
 #[derive(Debug)]
 pub struct AptosHpProvider {
     domain: HyperlaneDomain,
 }
 
 impl AptosHpProvider {
-    /// Create a new Sealevel provider.
+    /// Create a new Aptos provider.
     pub fn new(domain: HyperlaneDomain) -> Self {
-      AptosHpProvider { domain }
+        AptosHpProvider { domain }
     }
 }
 

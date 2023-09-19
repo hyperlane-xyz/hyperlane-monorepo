@@ -5,14 +5,14 @@ use hyperlane_core::{
     ChainCommunicationError,
 };
 
-/// Sealevel connection configuration
+/// Aptos connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// Fully qualified string to connect to
     pub url: Url,
 }
 
-/// Raw Sealevel connection configuration used for better deserialization errors.
+/// Raw Aptos connection configuration used for better deserialization errors.
 #[derive(Debug, serde::Deserialize)]
 pub struct RawConnectionConf {
     url: Option<String>,
@@ -52,10 +52,10 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
-struct SealevelNewConnectionError(#[from] anyhow::Error);
+struct AptosNewConnectionError(#[from] anyhow::Error);
 
-impl From<SealevelNewConnectionError> for ChainCommunicationError {
-    fn from(err: SealevelNewConnectionError) -> Self {
+impl From<AptosNewConnectionError> for ChainCommunicationError {
+    fn from(err: AptosNewConnectionError) -> Self {
         ChainCommunicationError::from_other(err)
     }
 }

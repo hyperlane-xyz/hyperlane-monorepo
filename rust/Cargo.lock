@@ -4953,7 +4953,6 @@ dependencies = [
 name = "hyperlane-aptos"
 version = "0.1.0"
 dependencies = [
- "account-utils",
  "anyhow",
  "aptos-sdk",
  "async-trait",
@@ -4962,19 +4961,12 @@ dependencies = [
  "borsh 0.9.3",
  "hex 0.4.3",
  "hyperlane-core",
- "hyperlane-sealevel-interchain-security-module-interface",
- "hyperlane-sealevel-mailbox",
- "hyperlane-sealevel-message-recipient-interface",
- "hyperlane-sealevel-multisig-ism-message-id",
- "hyperlane-sealevel-validator-announce",
  "jsonrpc-core",
- "multisig-ism",
  "num-traits 0.2.16",
  "once_cell",
  "rand 0.7.3",
  "serde 1.0.188",
  "serde_json",
- "serializable-account-meta",
  "solana-account-decoder",
  "solana-client",
  "solana-sdk",
