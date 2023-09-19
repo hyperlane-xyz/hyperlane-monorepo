@@ -13,10 +13,31 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+import {GlobalHookMetadata} from "../../libs/hooks/GlobalHookMetadata.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 
 contract StaticAggregationHook is IPostDispatchHook {
+    using GlobalHookMetadata for bytes;
+
+    // ============ Constants ============
+
+    // The variant of the metadata used in the hook
+    uint8 public constant METADATA_VARIANT = 1;
+
+    // ============ External functions ============
+
+    // @inheritdoc IPostDispatchHook
+    function supportsMetadata(bytes calldata metadata)
+        public
+        pure
+        override
+        returns (bool)
+    {
+        return metadata.length == 0 || metadata.variant() == METADATA_VARIANT;
+    }
+
+    // @inheritdoc IPostDispatchHook
     function postDispatch(bytes calldata metadata, bytes calldata message)
         external
         payable
@@ -37,6 +58,7 @@ contract StaticAggregationHook is IPostDispatchHook {
         }
     }
 
+    // @inheritdoc IPostDispatchHook
     function quoteDispatch(bytes calldata metadata, bytes calldata message)
         external
         view

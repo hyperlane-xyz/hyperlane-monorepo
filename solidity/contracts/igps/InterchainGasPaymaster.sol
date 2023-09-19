@@ -16,6 +16,7 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
 import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
 import {IGasOracle} from "../interfaces/IGasOracle.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
@@ -47,6 +48,8 @@ contract InterchainGasPaymaster is
     uint256 internal constant TOKEN_EXCHANGE_RATE_SCALE = 1e10;
     /// @notice default for user call if metadata not provided
     uint256 internal immutable DEFAULT_GAS_USAGE = 69_420;
+    // The variant of the metadata used in the hook
+    uint8 public constant METADATA_VARIANT = 1;
 
     // ============ Public Storage ============
 
@@ -89,6 +92,16 @@ contract InterchainGasPaymaster is
         __Ownable_init();
         _transferOwnership(_owner);
         _setBeneficiary(_beneficiary);
+    }
+
+    // @inheritdoc IPostDispatchHook
+    function supportsMetadata(bytes calldata metadata)
+        public
+        pure
+        override
+        returns (bool)
+    {
+        return metadata.length == 0 || metadata.variant() == METADATA_VARIANT;
     }
 
     /**

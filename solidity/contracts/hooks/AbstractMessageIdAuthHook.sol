@@ -17,6 +17,7 @@ pragma solidity >=0.8.0;
 import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
+import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
@@ -30,10 +31,13 @@ abstract contract AbstractMessageIdAuthHook is
     IPostDispatchHook,
     MailboxClient
 {
+    using GlobalHookMetadata for bytes;
     using Message for bytes;
 
     // ============ Constants ============
 
+    // The variant of the metadata used in the hook
+    uint8 public constant METADATA_VARIANT = 1;
     // address for ISM to verify messages
     address public immutable ism;
     // Domain of chain on which the ISM is deployed
@@ -55,16 +59,28 @@ abstract contract AbstractMessageIdAuthHook is
         destinationDomain = _destinationDomain;
     }
 
-    /**
-     * @notice Hook to inform the optimism ISM of messages published through.
-     * metadata The metadata for the hook caller
-     * @param message The message being dispatched
-     */
+    // ============ External functions ============
+
+    // @inheritdoc IPostDispatchHook
+    function supportsMetadata(bytes calldata metadata)
+        public
+        pure
+        override
+        returns (bool)
+    {
+        return metadata.length == 0 || metadata.variant() == METADATA_VARIANT;
+    }
+
+    // @inheritdoc IPostDispatchHook
     function postDispatch(bytes calldata metadata, bytes calldata message)
         external
         payable
         override
     {
+        require(
+            supportsMetadata(metadata),
+            "AbstractMessageIdAuthHook: invalid metadata variant"
+        );
         bytes32 id = message.id();
         require(
             isLatestDispatched(id),

@@ -49,7 +49,7 @@ contract OPStackIsmTest is Test {
     TestRecipient internal testRecipient;
     bytes internal testMessage =
         abi.encodePacked("Hello from the other chain!");
-    bytes internal testMetadata = abi.encodePacked(uint256(0));
+    bytes internal testMetadata = abi.encodePacked(uint8(1), uint256(0));
 
     bytes internal encodedMessage;
     bytes32 internal messageId;

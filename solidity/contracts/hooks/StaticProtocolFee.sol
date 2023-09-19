@@ -15,6 +15,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
+import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -26,11 +27,14 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * @dev V3 WIP
  */
 contract StaticProtocolFee is IPostDispatchHook, Ownable {
+    using GlobalHookMetadata for bytes;
     using Address for address payable;
     using Message for bytes;
 
     // ============ Constants ============
 
+    // The variant of the metadata used in the hook
+    uint8 public constant METADATA_VARIANT = 1;
     /// @notice The maximum protocol fee that can be set.
     uint256 public immutable MAX_PROTOCOL_FEE;
 
@@ -56,6 +60,16 @@ contract StaticProtocolFee is IPostDispatchHook, Ownable {
     }
 
     // ============ External Functions ============
+
+    // @inheritdoc IPostDispatchHook
+    function supportsMetadata(bytes calldata metadata)
+        public
+        pure
+        override
+        returns (bool)
+    {
+        return metadata.length == 0 || metadata.variant() == METADATA_VARIANT;
+    }
 
     /**
      * @notice Collects the protocol fee from the sender.

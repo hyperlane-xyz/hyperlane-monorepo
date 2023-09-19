@@ -16,27 +16,27 @@ pragma solidity >=0.8.0;
 /**
  * Format of metadata:
  *
- * [0:1] version
+ * [0:1] variant
  * [1:33] msg.value
  * [34:65] Gas limit for message (IGP)
  * [66:85] Refund address for message (IGP)
  * [86:] Custom metadata
  */
 library GlobalHookMetadata {
-    uint8 private constant VERSION_OFFSET = 0;
+    uint8 private constant VARIANT_OFFSET = 0;
     uint8 private constant MSG_VALUE_OFFSET = 1;
     uint8 private constant GAS_LIMIT_OFFSET = 33;
     uint8 private constant REFUND_ADDRESS_OFFSET = 65;
     uint256 private constant MIN_METADATA_LENGTH = 85;
 
     /**
-     * @notice Returns the version of the metadata.
+     * @notice Returns the variant of the metadata.
      * @param _metadata ABI encoded global hook metadata.
-     * @return Version of the metadata as uint8.
+     * @return variant of the metadata as uint8.
      */
-    function version(bytes calldata _metadata) internal pure returns (uint8) {
-        if (_metadata.length < VERSION_OFFSET + 1) return 0;
-        return uint8(_metadata[VERSION_OFFSET]);
+    function variant(bytes calldata _metadata) internal pure returns (uint8) {
+        if (_metadata.length < VARIANT_OFFSET + 1) return 0;
+        return uint8(_metadata[VARIANT_OFFSET]);
     }
 
     /**
@@ -104,7 +104,7 @@ library GlobalHookMetadata {
 
     /**
      * @notice Formats the specified gas limit and refund address into global hook metadata.
-     * @param _version Version of the metadata.
+     * @param _variant Variant of the metadata.
      * @param _msgValue msg.value for the message.
      * @param _gasLimit Gas limit for the message.
      * @param _refundAddress Refund address for the message.
@@ -112,7 +112,7 @@ library GlobalHookMetadata {
      * @return ABI encoded global hook metadata.
      */
     function formatMetadata(
-        uint8 _version,
+        uint8 _variant,
         uint256 _msgValue,
         uint256 _gasLimit,
         address _refundAddress,
@@ -120,7 +120,7 @@ library GlobalHookMetadata {
     ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
-                _version,
+                _variant,
                 _msgValue,
                 _gasLimit,
                 _refundAddress,
