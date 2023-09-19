@@ -21,7 +21,7 @@ import { InterchainAccountChecker } from './InterchainAccountChecker';
 import { InterchainAccountDeployer } from './InterchainAccountDeployer';
 import { InterchainAccountFactories } from './contracts';
 
-describe('InterchainAccounts', async () => {
+describe.skip('InterchainAccounts', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
 

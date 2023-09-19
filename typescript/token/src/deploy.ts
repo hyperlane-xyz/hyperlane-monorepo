@@ -316,10 +316,7 @@ export class HypERC721Deployer extends GasRouterDeployer<
         [config.token],
       );
     }
-    await this.multiProvider.handleTx(
-      chain,
-      router.initialize(config.mailbox, config.interchainGasPaymaster),
-    );
+    await this.multiProvider.handleTx(chain, router.initialize(config.mailbox));
     return router;
   }
 
@@ -347,7 +344,6 @@ export class HypERC721Deployer extends GasRouterDeployer<
       chain,
       router.initialize(
         config.mailbox,
-        config.interchainGasPaymaster,
         config.totalSupply,
         config.name,
         config.symbol,
