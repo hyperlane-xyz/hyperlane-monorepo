@@ -1,4 +1,4 @@
-//! Implementation of hyperlane for Sealevel.
+//! Implementation of hyperlane for Aptos.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -12,9 +12,9 @@ pub use mailbox::*;
 pub use provider::*;
 pub use solana_sdk::signer::keypair::Keypair;
 pub use trait_builder::*;
-pub use validator_announce::*;
-pub use utils::*;
 pub use types::*;
+pub use utils::*;
+pub use validator_announce::*;
 
 mod interchain_gas;
 mod interchain_security_module;
@@ -22,8 +22,8 @@ mod mailbox;
 mod multisig_ism;
 mod provider;
 mod trait_builder;
-mod utils;
 mod types;
+mod utils;
 
 mod client;
 mod validator_announce;

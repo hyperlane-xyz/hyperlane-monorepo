@@ -8,53 +8,43 @@ use jsonrpc_core::futures_util::TryFutureExt;
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, IndexRange::{self, BlockRange}, Indexer, LogMeta, Mailbox,
-    MessageIndexer, SequenceRange, TxCostEstimate, TxOutcome, H256, H512, U256,
+    accumulator::incremental::IncrementalMerkle,
+    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, Decode as _, Encode as _,
+    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider,
+    IndexRange::{self, BlockRange},
+    Indexer, LogMeta, Mailbox, MessageIndexer, SequenceRange, TxCostEstimate, TxOutcome, H256,
+    H512, U256,
 };
 
-use serializable_account_meta::SimulationReturnData;
+use crate::{utils, AptosHpProvider, ConnectionConf};
 
-use crate::{
-    ConnectionConf, AptosHpProvider,
-};
+use solana_sdk::signature::Keypair;
 
-use solana_sdk::{
-  signature::Keypair,
-};
-
+use crate::types::{DispatchEventData, MoveMerkleTree};
+use crate::utils::{convert_addr_string_to_h256, send_aptos_transaction};
 use crate::AptosClient;
-use crate::utils::{ send_aptos_transaction, convert_addr_string_to_h256 };
-use crate::types::{ MoveMerkleTree, DispatchEventData };
 
 use aptos_sdk::{
-  crypto::ed25519::Ed25519PublicKey,
-  transaction_builder::TransactionFactory,
-  types::{
-    account_address::AccountAddress, 
-    chain_id::ChainId,
-    transaction::{ EntryFunction, TransactionPayload }
-  },
-  move_types::{
-    ident_str,
-    language_storage::{ModuleId},
-  },
-  rest_client::{
-    Client, FaucetClient,
-    aptos_api_types::{ViewRequest, EntryFunctionId, VersionedEvent}
-  },
-  types::LocalAccount,
-  types::transaction::authenticator::AuthenticationKey,
-  types::AccountKey,
-  crypto::ed25519::Ed25519PrivateKey
+    crypto::ed25519::Ed25519PrivateKey,
+    crypto::ed25519::Ed25519PublicKey,
+    move_types::{ident_str, language_storage::ModuleId},
+    rest_client::{
+        aptos_api_types::{EntryFunctionId, VersionedEvent, ViewRequest},
+        Client, FaucetClient,
+    },
+    transaction_builder::TransactionFactory,
+    types::transaction::authenticator::AuthenticationKey,
+    types::AccountKey,
+    types::LocalAccount,
+    types::{
+        account_address::AccountAddress,
+        chain_id::ChainId,
+        transaction::{EntryFunction, TransactionPayload},
+    },
 };
 
-// The max amount of compute units for a transaction.
-// TODO: consider a more sane value and/or use IGP gas payments instead.
-const PROCESS_COMPUTE_UNITS: u32 = 1_400_000;
-
-/// A reference to a Mailbox contract on some Sealevel chain
+/// A reference to a Mailbox contract on some Aptos chain
 pub struct AptosMailbox {
     domain: HyperlaneDomain,
     payer: Option<Keypair>,
@@ -63,21 +53,22 @@ pub struct AptosMailbox {
 }
 
 impl AptosMailbox {
-    /// Create a new sealevel mailbox
+    /// Create a new Aptos mailbox
     pub fn new(
         conf: &ConnectionConf,
         locator: ContractLocator,
         payer: Option<Keypair>,
     ) -> ChainResult<Self> {
         let domain = locator.domain.id();
-        let package_address = AccountAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
+        let package_address =
+            AccountAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
         let aptos_client = AptosClient::new(conf.url.to_string());
 
         Ok(AptosMailbox {
             domain: locator.domain.clone(),
             payer,
             package_address,
-            aptos_client
+            aptos_client,
         })
     }
 }
@@ -104,75 +95,51 @@ impl std::fmt::Debug for AptosMailbox {
     }
 }
 
-// TODO refactor the sealevel client into a lib and bin, pull in and use the lib here rather than
-// duplicating.
 #[async_trait]
 impl Mailbox for AptosMailbox {
     #[instrument(err, ret, skip(self))]
     async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-      let view_response = self.aptos_client.view(
-        &ViewRequest {
-          function: EntryFunctionId::from_str(
-            &format!(
-              "{}::mailbox::outbox_get_count", 
-              self.package_address.to_hex_literal()
-            )
-          ).unwrap(),
-          type_arguments: vec![],
-          arguments: vec![]
-        },
-        Option::None
-      )
-      .await
-      .map_err(ChainCommunicationError::from_other)?;
-      
-      let view_result = serde_json::from_str::<u32>(&view_response.inner()[0].to_string()).unwrap();
-      Ok(view_result)
+        let view_response = utils::send_view_request(
+            &self.aptos_client,
+            self.package_address.to_hex_literal(),
+            "mailbox".to_string(),
+            "outbox_get_count".to_string(),
+            vec![],
+            vec![],
+        )
+        .await?;
+        let view_result = serde_json::from_str::<u32>(&view_response[0].to_string()).unwrap();
+        Ok(view_result)
     }
 
     #[instrument(err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        let view_response = self.aptos_client.view(
-          &ViewRequest {
-            function: EntryFunctionId::from_str(
-              &format!(
-                "{}::mailbox::delivered", 
-                self.package_address.to_hex_literal()
-              )
-            ).unwrap(),
-            type_arguments: vec![],
-            arguments: vec![serde_json::json!(hex::encode(id.as_bytes()))]
-          },
-          Option::None
+        let view_response = utils::send_view_request(
+            &self.aptos_client,
+            self.package_address.to_hex_literal(),
+            "mailbox".to_string(),
+            "delivered".to_string(),
+            vec![],
+            vec![serde_json::json!(hex::encode(id.as_bytes()))],
         )
-        .await
-        .map_err(ChainCommunicationError::from_other)?;
-        
-        let view_result = serde_json::from_str::<bool>(&view_response.inner()[0].to_string()).unwrap();
+        .await?;
+        let view_result = serde_json::from_str::<bool>(&view_response[0].to_string()).unwrap();
         Ok(view_result)
     }
 
     #[instrument(err, ret, skip(self))]
     async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-
-        let view_response = self.aptos_client.view(
-          &ViewRequest {
-            function: EntryFunctionId::from_str(
-              &format!(
-                "{}::mailbox::outbox_get_tree", 
-                self.package_address.to_hex_literal()
-              )
-            ).unwrap(),
-            type_arguments: vec![],
-            arguments: vec![]
-          },
-          Option::None
+        let view_response = utils::send_view_request(
+            &self.aptos_client,
+            self.package_address.to_hex_literal(),
+            "mailbox".to_string(),
+            "outbox_get_tree".to_string(),
+            vec![],
+            vec![],
         )
-        .await
-        .map_err(ChainCommunicationError::from_other)?;
-        
-        let view_result = serde_json::from_str::<MoveMerkleTree>(&view_response.inner()[0].to_string()).unwrap();
-
+        .await?;
+        let view_result =
+            serde_json::from_str::<MoveMerkleTree>(&view_response[0].to_string()).unwrap();
         Ok(view_result.into())
     }
 
@@ -202,23 +169,17 @@ impl Mailbox for AptosMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
-        let view_response = self.aptos_client.view(
-          &ViewRequest {
-            function: EntryFunctionId::from_str(
-              &format!(
-                "{}::mailbox::get_default_ism", 
-                self.package_address.to_hex_literal()
-              )
-            ).unwrap(),
-            type_arguments: vec![],
-            arguments: vec![]
-          },
-          Option::None
+        let view_response = utils::send_view_request(
+            &self.aptos_client,
+            self.package_address.to_hex_literal(),
+            "mailbox".to_string(),
+            "get_default_ism".to_string(),
+            vec![],
+            vec![],
         )
-        .await
-        .map_err(ChainCommunicationError::from_other)?;
-        
-        let ism_address = serde_json::from_str::<String>(&view_response.inner()[0].to_string()).unwrap();
+        .await?;
+
+        let ism_address = serde_json::from_str::<String>(&view_response[0].to_string()).unwrap();
 
         Ok(convert_addr_string_to_h256(&ism_address).unwrap())
     }
@@ -236,7 +197,6 @@ impl Mailbox for AptosMailbox {
         metadata: &[u8],
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        
         // get recipient address
         let recipient: AccountAddress = message.recipient.0.into();
 
@@ -249,38 +209,39 @@ impl Mailbox for AptosMailbox {
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
 
         // !TODO: modularize this
-        let signer_priv_key = Ed25519PrivateKey::try_from(payer.secret().to_bytes().as_ref()).unwrap();
-        let signer_address = AuthenticationKey::ed25519(&Ed25519PublicKey::from(&signer_priv_key)).derived_address();
+        let signer_priv_key =
+            Ed25519PrivateKey::try_from(payer.secret().to_bytes().as_ref()).unwrap();
+        let signer_address =
+            AuthenticationKey::ed25519(&Ed25519PublicKey::from(&signer_priv_key)).derived_address();
         let mut signer_account = LocalAccount::new(
-          signer_address,
-          AccountKey::from_private_key(signer_priv_key),
-          self.aptos_client.get_account(signer_address)
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .into_inner()
-            .sequence_number
+            signer_address,
+            AccountKey::from_private_key(signer_priv_key),
+            self.aptos_client
+                .get_account(signer_address)
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+                .into_inner()
+                .sequence_number,
         );
         
-        let _entry = EntryFunction::new(
-          ModuleId::new(
+        let payload = utils::make_aptos_payload(
             recipient,
-            ident_str!("hello_world").to_owned()
-          ),
-          ident_str!("handle_message").to_owned(),
-          vec![],
-          vec![
-            bcs::to_bytes(&encoded_message).unwrap(),
-            bcs::to_bytes(&metadata.to_vec()).unwrap()
-          ]
+            "hello_world",
+            "handle_message",
+            vec![],
+            vec![
+                bcs::to_bytes(&encoded_message).unwrap(),
+                bcs::to_bytes(&metadata.to_vec()).unwrap(),
+            ],
         );
 
-        let payload = TransactionPayload::EntryFunction(_entry);
-        let response = send_aptos_transaction(
-          &self.aptos_client,
-          &mut signer_account,
-          payload.clone()
-        ).await
-        .map_err(|e| { println!("tx error {}", e.to_string()); ChainCommunicationError::TransactionTimeout() })?;
+        let response =
+            send_aptos_transaction(&self.aptos_client, &mut signer_account, payload.clone())
+                .await
+                .map_err(|e| {
+                    println!("tx error {}", e.to_string());
+                    ChainCommunicationError::TransactionTimeout()
+                })?;
 
         // fetch transaction information from the response
         let tx_hash = response.transaction_info().unwrap().hash.to_string();
@@ -314,33 +275,36 @@ impl Mailbox for AptosMailbox {
     }
 }
 
-/// Struct that retrieves event data for a Sealevel Mailbox contract
+/// Struct that retrieves event data for a Aptos Mailbox contract
 #[derive(Debug)]
 pub struct AptosMailboxIndexer {
     mailbox: AptosMailbox,
     aptos_client: AptosClient,
-    package_address: AccountAddress
+    package_address: AccountAddress,
 }
 
 impl AptosMailboxIndexer {
     pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
         let aptos_client = AptosClient::new(conf.url.to_string());
-        let package_address = AccountAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
+        let package_address =
+            AccountAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
         let mailbox = AptosMailbox::new(conf, locator, None)?;
 
         Ok(Self {
             mailbox,
             aptos_client,
-            package_address
+            package_address,
         })
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let chain_state = self.aptos_client.get_ledger_information()
-          .await
-          .map_err(ChainCommunicationError::from_other)
-          .unwrap()
-          .into_inner();
+        let chain_state = self
+            .aptos_client
+            .get_ledger_information()
+            .await
+            .map_err(ChainCommunicationError::from_other)
+            .unwrap()
+            .into_inner();
         Ok(chain_state.block_height as u32)
     }
 }
@@ -359,74 +323,73 @@ impl MessageIndexer for AptosMailboxIndexer {
 #[async_trait]
 impl Indexer<HyperlaneMessage> for AptosMailboxIndexer {
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-
         info!("range type :{:?}", range);
-        
+
         let BlockRange(range) = range else {
             return Err(ChainCommunicationError::from_other_str(
                 "AptosMailboxIndexer only supports block-based indexing",
             ))
         };
 
-        info!(
-            ?range,
-            "Fetching AptosMailboxIndexer HyperlaneMessage logs"
-        );
+        info!(?range, "Fetching AptosMailboxIndexer HyperlaneMessage logs");
 
-        let dispatch_events = self.aptos_client.get_account_events(
-          self.package_address,
-          &format!("{}::mailbox::MailBoxState", self.package_address.to_hex_literal()),
-          "dispatch_events",
-          None,
-          Some(10000)
-        ).await
-        .map_err(ChainCommunicationError::from_other)?
-        .into_inner();
+        let dispatch_events = self
+            .aptos_client
+            .get_account_events(
+                self.package_address,
+                &format!(
+                    "{}::mailbox::MailBoxState",
+                    self.package_address.to_hex_literal()
+                ),
+                "dispatch_events",
+                None,
+                Some(10000),
+            )
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
 
         let blk_start_no: u32 = *range.start();
         let blk_end_no = *range.end();
-        let start_block = self.aptos_client.get_block_by_height(blk_start_no as u64, false)
-          .await
-          .map_err(ChainCommunicationError::from_other)?
-          .into_inner();
-        let end_block = self.aptos_client.get_block_by_height(blk_end_no as u64, false)
-          .await
-          .map_err(ChainCommunicationError::from_other)?
-          .into_inner();
-    
+        let start_block = self
+            .aptos_client
+            .get_block_by_height(blk_start_no as u64, false)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+        let end_block = self
+            .aptos_client
+            .get_block_by_height(blk_end_no as u64, false)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+
         let start_tx_version = start_block.first_version;
         let end_tx_version = end_block.last_version;
 
         let new_dispatches: Vec<VersionedEvent> = dispatch_events
-          .into_iter()
-          .filter(|e| 
-            e.version.0 > start_tx_version.0 
-            && e.version.0 <= end_tx_version.0
-          )
-          .collect();
+            .into_iter()
+            .filter(|e| e.version.0 > start_tx_version.0 && e.version.0 <= end_tx_version.0)
+            .collect();
 
         let mut messages = Vec::with_capacity((range.end() - range.start()) as usize);
         for dispatch in new_dispatches {
-          let mut evt_data: DispatchEventData = dispatch.clone().try_into()?;
-          println!("before pushing message {:?}", evt_data);
-          messages.push(
-            (
-              evt_data.into_hyperlane_msg()?,
-              LogMeta {
-                address: self.mailbox.package_address.into_bytes().into(),
-                block_number: evt_data.block_height.parse().unwrap_or(0),
-                // TODO: get these when building out scraper support.
-                // It's inconvenient to get these :|
-                block_hash: H256::zero(),
-                transaction_id: H512::from_str(&evt_data.transaction_hash).unwrap_or(H512::zero()),
-                transaction_index: *dispatch.version.inner(),
-                log_index: U256::zero(),
-              }
-            )
-          );
+            let mut evt_data: DispatchEventData = dispatch.clone().try_into()?;
+            messages.push((
+                evt_data.into_hyperlane_msg()?,
+                LogMeta {
+                    address: self.mailbox.package_address.into_bytes().into(),
+                    block_number: evt_data.block_height.parse().unwrap_or(0),
+                    // TODO: get these when building out scraper support.
+                    // It's inconvenient to get these :|
+                    block_hash: H256::zero(),
+                    transaction_id: H512::from_str(&evt_data.transaction_hash)
+                        .unwrap_or(H512::zero()),
+                    transaction_index: *dispatch.version.inner(),
+                    log_index: U256::zero(),
+                },
+            ));
         }
-        
-        info!("dispatched messages: {:?}", messages);
         Ok(messages)
     }
 
@@ -448,7 +411,7 @@ impl Indexer<H256> for AptosMailboxIndexer {
 
 struct AptosMailboxAbi;
 
-// TODO figure out how this is used and if we can support it for sealevel.
+// TODO figure out how this is used and if we can support it for Aptos.
 impl HyperlaneAbi for AptosMailboxAbi {
     const SELECTOR_SIZE_BYTES: usize = 8;
 

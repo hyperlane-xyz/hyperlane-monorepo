@@ -2,30 +2,30 @@
 
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, IndexRange, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
-    H256, ChainCommunicationError,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, IndexRange, Indexer, InterchainGasPaymaster,
+    InterchainGasPayment, LogMeta, H256,
 };
 use tracing::{info, instrument};
 
-use crate::{ConnectionConf, AptosHpProvider};
+use crate::{AptosHpProvider, ConnectionConf};
 
 use crate::AptosClient;
 use aptos_sdk::types::account_address::AccountAddress;
 
-/// A reference to an IGP contract on some Sealevel chain
+/// A reference to an IGP contract on some Aptos chain
 #[derive(Debug)]
-pub struct SealevelInterchainGasPaymaster {
+pub struct AptosInterchainGasPaymaster {
     domain: HyperlaneDomain,
-    package_address: AccountAddress
+    package_address: AccountAddress,
 }
 
-impl SealevelInterchainGasPaymaster {
-    /// Create a new Sealevel IGP.
+impl AptosInterchainGasPaymaster {
+    /// Create a new Aptos IGP.
     pub fn new(_conf: &ConnectionConf, locator: ContractLocator) -> Self {
-      
-        let package_address = AccountAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
-      
+        let package_address =
+            AccountAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
+
         Self {
             package_address,
             domain: locator.domain.clone(),
@@ -33,13 +33,13 @@ impl SealevelInterchainGasPaymaster {
     }
 }
 
-impl HyperlaneContract for SealevelInterchainGasPaymaster {
+impl HyperlaneContract for AptosInterchainGasPaymaster {
     fn address(&self) -> H256 {
         self.package_address.into_bytes().into()
     }
 }
 
-impl HyperlaneChain for SealevelInterchainGasPaymaster {
+impl HyperlaneChain for AptosInterchainGasPaymaster {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
@@ -49,16 +49,16 @@ impl HyperlaneChain for SealevelInterchainGasPaymaster {
     }
 }
 
-impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
+impl InterchainGasPaymaster for AptosInterchainGasPaymaster {}
 
-/// Struct that retrieves event data for a Sealevel IGP contract
+/// Struct that retrieves event data for a Aptos IGP contract
 #[derive(Debug)]
-pub struct SealevelInterchainGasPaymasterIndexer {
-  aptos_client: AptosClient
+pub struct AptosInterchainGasPaymasterIndexer {
+    aptos_client: AptosClient,
 }
 
-impl SealevelInterchainGasPaymasterIndexer {
-    /// Create a new Sealevel IGP indexer.
+impl AptosInterchainGasPaymasterIndexer {
+    /// Create a new Aptos IGP indexer.
     pub fn new(conf: &ConnectionConf, _locator: ContractLocator) -> Self {
         let aptos_client = AptosClient::new(conf.url.to_string());
         Self { aptos_client }
@@ -66,25 +66,25 @@ impl SealevelInterchainGasPaymasterIndexer {
 }
 
 #[async_trait]
-impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
+impl Indexer<InterchainGasPayment> for AptosInterchainGasPaymasterIndexer {
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
         _range: IndexRange,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        info!("Gas payment indexing not implemented for Sealevel");
+        info!("Gas payment indexing not implemented for Aptos");
         Ok(vec![])
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-      /*let chain_state = self.aptos_client.get_ledger_information()
+        /*let chain_state = self.aptos_client.get_ledger_information()
         .await
         .map_err(ChainCommunicationError::from_other)
         .unwrap()
         .into_inner();*/
-      // Ok(chain_state.block_height as u32)
-      // TODO:
-      Ok(1)
+        // Ok(chain_state.block_height as u32)
+        // TODO:
+        Ok(1)
     }
 }

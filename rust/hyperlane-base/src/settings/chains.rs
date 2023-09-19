@@ -7,6 +7,7 @@ use serde::Deserialize;
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
+use hyperlane_aptos as h_aptos;
 use hyperlane_core::{
     config::*, utils::hex_or_base58_to_h256, AggregationIsm, CcipReadIsm, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner,
@@ -19,7 +20,6 @@ use hyperlane_ethereum::{
 };
 use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
-use hyperlane_aptos as h_aptos;
 
 use crate::{
     settings::signers::{BuildableWithSignerConf, RawSignerConf},
@@ -355,11 +355,11 @@ impl ChainConf {
                     .map_err(Into::into)
             }
             ChainConnectionConf::Aptos(conf) => {
-              let keypair = self.aptos_signer().await.context(ctx)?;
-              h_aptos::AptosMailbox::new(conf, locator, keypair)
-                  .map(|m| Box::new(m) as Box<dyn Mailbox>)
-                  .map_err(Into::into)
-          }
+                let keypair = self.aptos_signer().await.context(ctx)?;
+                h_aptos::AptosMailbox::new(conf, locator, keypair)
+                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
+            }
         }
         .context(ctx)
     }
@@ -391,8 +391,8 @@ impl ChainConf {
                 Ok(indexer as Box<dyn MessageIndexer>)
             }
             ChainConnectionConf::Aptos(conf) => {
-              let indexer = Box::new(h_aptos::AptosMailboxIndexer::new(conf, locator)?);
-              Ok(indexer as Box<dyn MessageIndexer>)
+                let indexer = Box::new(h_aptos::AptosMailboxIndexer::new(conf, locator)?);
+                Ok(indexer as Box<dyn MessageIndexer>)
             }
         }
         .context(ctx)
@@ -424,7 +424,7 @@ impl ChainConf {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
                 Ok(indexer as Box<dyn Indexer<H256>>)
             }
-            ChainConnectionConf::Aptos(_) => todo!()
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -456,7 +456,7 @@ impl ChainConf {
                 ));
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
-            ChainConnectionConf::Aptos(_) => todo!()
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -489,12 +489,12 @@ impl ChainConf {
                     conf, locator,
                 ));
                 Ok(indexer as Box<dyn Indexer<InterchainGasPayment>>)
-            },
+            }
             ChainConnectionConf::Aptos(conf) => {
-              let indexer = Box::new(h_aptos::SealevelInterchainGasPaymasterIndexer::new(
-                conf, locator,
-              ));
-              Ok(indexer as Box<dyn Indexer<InterchainGasPayment>>)
+                let indexer = Box::new(h_aptos::AptosInterchainGasPaymasterIndexer::new(
+                    conf, locator,
+                ));
+                Ok(indexer as Box<dyn Indexer<InterchainGasPayment>>)
             }
         }
         .context(ctx)
@@ -518,8 +518,9 @@ impl ChainConf {
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
             ChainConnectionConf::Aptos(conf) => {
-              let va = Box::new(h_aptos::AptosValidatorAnnounce::new(conf, locator));
-              Ok(va as Box<dyn ValidatorAnnounce>)
+                let keypair = self.aptos_signer().await.context("Announcing Validator")?;
+                let va = Box::new(h_aptos::AptosValidatorAnnounce::new(conf, locator, keypair));
+                Ok(va as Box<dyn ValidatorAnnounce>)
             }
         }
         .context("Building ValidatorAnnounce")
@@ -534,7 +535,7 @@ impl ChainConf {
     ) -> Result<Box<dyn InterchainSecurityModule>> {
         let ctx = "Building ISM";
         let locator = self.locator(address);
-        
+
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(
@@ -555,11 +556,11 @@ impl ChainConf {
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::Aptos(conf) => {
-              let keypair = self.sealevel_signer().await.context(ctx)?;
-              let ism = Box::new(h_aptos::AptosInterchainSecurityModule::new(
-                  conf, locator, keypair,
-              ));
-              Ok(ism as Box<dyn InterchainSecurityModule>)
+                let keypair = self.aptos_signer().await.context(ctx)?;
+                let ism = Box::new(h_aptos::AptosInterchainSecurityModule::new(
+                    conf, locator, keypair,
+                ));
+                Ok(ism as Box<dyn InterchainSecurityModule>)
             }
         }
         .context(ctx)
@@ -587,9 +588,9 @@ impl ChainConf {
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Aptos(conf) => {
-              let keypair = self.aptos_signer().await.context(ctx)?;
-              let ism = Box::new(h_aptos::AptosMultisigISM::new(conf, locator, keypair));
-              Ok(ism as Box<dyn MultisigIsm>)
+                let keypair = self.aptos_signer().await.context(ctx)?;
+                let ism = Box::new(h_aptos::AptosMultisigISM::new(conf, locator, keypair));
+                Ok(ism as Box<dyn MultisigIsm>)
             }
         }
         .context(ctx)
@@ -618,7 +619,7 @@ impl ChainConf {
                 Err(eyre!("Sealevel does not support routing ISM yet")).context(ctx)
             }
             ChainConnectionConf::Aptos(_) => {
-              Err(eyre!("Aptos does not support routing ISM yet")).context(ctx)
+                Err(eyre!("Aptos does not support routing ISM yet")).context(ctx)
             }
         }
         .context(ctx)
@@ -647,7 +648,7 @@ impl ChainConf {
                 Err(eyre!("Sealevel does not support aggregation ISM yet")).context(ctx)
             }
             ChainConnectionConf::Aptos(_) => {
-              Err(eyre!("Aptos does not support aggregation ISM yet")).context(ctx)
+                Err(eyre!("Aptos does not support aggregation ISM yet")).context(ctx)
             }
         }
         .context(ctx)
@@ -676,7 +677,7 @@ impl ChainConf {
                 Err(eyre!("Sealevel does not support CCIP read ISM yet")).context(ctx)
             }
             ChainConnectionConf::Aptos(_) => {
-              Err(eyre!("Aptos does not support CCIP read ISM yet")).context(ctx)
+                Err(eyre!("Aptos does not support CCIP read ISM yet")).context(ctx)
             }
         }
         .context(ctx)
@@ -705,7 +706,7 @@ impl ChainConf {
     }
 
     async fn aptos_signer(&self) -> Result<Option<h_aptos::Keypair>> {
-      self.signer().await
+        self.signer().await
     }
 
     /// Get a clone of the ethereum metrics conf with correctly configured
