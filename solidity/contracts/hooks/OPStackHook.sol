@@ -75,11 +75,14 @@ contract OPStackHook is AbstractMessageIdAuthHook {
         internal
         override
     {
-        uint256 _msgValue = metadata.msgValue(0);
         require(
-            _msgValue < 2**255,
+            metadata.msgValue(0) < 2**255,
             "OPStackHook: msgValue must less than 2 ** 255"
         );
-        l1Messenger.sendMessage{value: _msgValue}(ism, payload, GAS_LIMIT);
+        l1Messenger.sendMessage{value: metadata.msgValue(0)}(
+            ism,
+            payload,
+            GAS_LIMIT
+        );
     }
 }
