@@ -169,6 +169,8 @@ impl HyperlaneRocksDB {
 
         self.store_merkle_leaf_index_by_message_id(&insertion.message_id(), &insertion.index())?;
 
+        self.store_merkle_leaf_index_by_message_id(&insertion.message_id(), &insertion.index())?;
+
         // Return true to indicate the tree insertion was processed
         Ok(true)
     }
@@ -360,7 +362,13 @@ make_store_and_retrieve!(
     H256,
     u32
 );
-// make_store_and_retrieve!(pub(self), merkle_tree_insertion_by_leaf_index, MERKLE_TREE_INSERTION, u32, MerkleTreeInsertion);
+make_store_and_retrieve!(
+    pub,
+    merkle_tree_insertion_by_leaf_index,
+    MERKLE_TREE_INSERTION,
+    u32,
+    MerkleTreeInsertion
+);
 make_store_and_retrieve!(
     pub,
     merkle_leaf_index_by_message_id,

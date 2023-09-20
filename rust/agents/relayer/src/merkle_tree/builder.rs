@@ -108,10 +108,7 @@ impl MerkleTreeBuilder {
     fn ingest_nonce(&mut self, nonce: u32) -> Result<(), MerkleTreeBuilderError> {
         match self.db.retrieve_message_id_by_nonce(&nonce) {
             Ok(Some(leaf)) => {
-                debug!(nonce, "Ingesting leaf");
-                self.prover.ingest(leaf).expect("!tree full");
-                self.incremental.ingest(leaf);
-                assert_eq!(self.prover.root(), self.incremental.root());
+                self.ingest_message_id(leaf);
                 Ok(())
             }
             Ok(None) => {
@@ -146,5 +143,12 @@ impl MerkleTreeBuilder {
         }
 
         Ok(())
+    }
+
+    pub async fn ingest_message_id(&mut self, message_id: H256) {
+        debug!(?message_id, "Ingesting leaf");
+        self.prover.ingest(message_id).expect("!tree full");
+        self.incremental.ingest(message_id);
+        assert_eq!(self.prover.root(), self.incremental.root());
     }
 }

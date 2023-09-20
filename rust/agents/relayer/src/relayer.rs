@@ -24,9 +24,9 @@ use hyperlane_base::{
 use hyperlane_core::{HyperlaneDomain, InterchainGasPayment, MerkleTreeInsertion, U256};
 
 use crate::msg::pending_message::MessageSubmissionMetrics;
-use crate::processor::{Processor, ProcessorTicker};
+use crate::processor::{Processor, ProcessorExt};
 use crate::{
-    merkle_tree_builder::MerkleTreeBuilder,
+    merkle_tree::builder::MerkleTreeBuilder,
     msg::{
         gas_payment::GasPaymentEnforcer,
         metadata::BaseMetadataBuilder,
@@ -352,7 +352,6 @@ impl Relayer {
             self.whitelist.clone(),
             self.blacklist.clone(),
             metrics,
-            self.prover_syncs[origin].clone(),
             send_channels,
             destination_ctxs,
         );
