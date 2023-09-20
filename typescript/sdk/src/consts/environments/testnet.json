@@ -14,7 +14,8 @@
     "interchainQueryRouter": "0xc341cBC69745C541d698cb2cB4eDb91c2F0413aE",
     "interchainAccountRouter": "0x2b0db6161f2f7aE86b7eA07711354575a6D99667",
     "merkleRootMultisigIsmFactory": "0x6525Ac4008E38e0E70DaEf59d5f0e1721bd8aA83",
-    "messageIdMultisigIsmFactory": "0x4C739E01f295B70762C0bA9D86123E1775C2f703"
+    "messageIdMultisigIsmFactory": "0x4C739E01f295B70762C0bA9D86123E1775C2f703",
+    "timelockController": "0x0000000000000000000000000000000000000000"
   },
   "fuji": {
     "storageGasOracle": "0xd44E79A697136888f0d720Fb6703400a9204FD39",
@@ -31,7 +32,8 @@
     "interchainQueryRouter": "0x7192d5Ad540E9fEfc3FD1845d41c18EE86980AAb",
     "interchainAccountRouter": "0xb0811feF53FF499bd8E09018F8E568b95c42A721",
     "merkleRootMultisigIsmFactory": "0x76a1aaE73e9D837ceF10Ac5AF5AfDD30d7612f98",
-    "messageIdMultisigIsmFactory": "0xA1e6d12a3F5F7e05E4D6cb39E71534F27fE29561"
+    "messageIdMultisigIsmFactory": "0xA1e6d12a3F5F7e05E4D6cb39E71534F27fE29561",
+    "timelockController": "0x0000000000000000000000000000000000000000"
   },
   "mumbai": {
     "storageGasOracle": "0x8970bdA0B0A01d1bA2656b510B2859560e75a7c5",
@@ -48,7 +50,8 @@
     "interchainQueryRouter": "0xD786eC480Da58792175c9DDEdD99802Badf1037E",
     "interchainAccountRouter": "0x03Ae748aee6E31560D4E46AdbCF15c6D60bD70e7",
     "merkleRootMultisigIsmFactory": "0xbA38823853Fa2994823F3E62d3EAC5cC701C8CCA",
-    "messageIdMultisigIsmFactory": "0x5F8A06fb970775C0C317AF6AfA5aD45B11FBD342"
+    "messageIdMultisigIsmFactory": "0x5F8A06fb970775C0C317AF6AfA5aD45B11FBD342",
+    "timelockController": "0x0000000000000000000000000000000000000000"
   },
   "bsctestnet": {
     "storageGasOracle": "0x1a75f55e8f574CdB5abb1b2702b9caF2E5F7d4D6",
@@ -65,7 +68,8 @@
     "interchainQueryRouter": "0x6117c92e1D05fD23Adc6077bA0d2956EE3175984",
     "interchainAccountRouter": "0x404693BeD61D6B17F44738c0b4ddF9c2D65Ba0BF",
     "merkleRootMultisigIsmFactory": "0x8DA546024850D998Be3b65204c0F0f63C1f3B0A1",
-    "messageIdMultisigIsmFactory": "0x7Bc0bb71aE0E9bDC0Ac53e932870728D95FA28bF"
+    "messageIdMultisigIsmFactory": "0x7Bc0bb71aE0E9bDC0Ac53e932870728D95FA28bF",
+    "timelockController": "0x0000000000000000000000000000000000000000"
   },
   "goerli": {
     "storageGasOracle": "0xce8E9D701A1DFfe672c1d8dB20De2B3fa6F4437D",
@@ -82,7 +86,8 @@
     "interchainQueryRouter": "0x46A2B1C3E8a93C3613Ebf326235FbD3e2f65660F",
     "interchainAccountRouter": "0x55486284a85d7b51a7bBfd343702414D65276fa6",
     "merkleRootMultisigIsmFactory": "0x4dD7716b876441355657a18c7E7b02129F88E3c0",
-    "messageIdMultisigIsmFactory": "0x14b0F0c0a59704E92f95252cE24Ef6aB1d679733"
+    "messageIdMultisigIsmFactory": "0x14b0F0c0a59704E92f95252cE24Ef6aB1d679733",
+    "timelockController": "0x0000000000000000000000000000000000000000"
   },
   "moonbasealpha": {
     "storageGasOracle": "0xAd754Dbc3F725259E49A90CAB347AeC343D432ed",
@@ -98,7 +103,8 @@
     "interchainAccountIsm": "0x4B7657A56f51B42A8702957EecFF8CBE86fF48C8",
     "interchainAccountRouter": "0xFB03bC45D20848F94DAF6884A92795dd44dDE241",
     "merkleRootMultisigIsmFactory": "0x0616A79374e81eB1d2275eCe5837aD050f9c53f1",
-    "messageIdMultisigIsmFactory": "0x3D696c38Dd958e635f9077e65b64aA9cf7c92627"
+    "messageIdMultisigIsmFactory": "0x3D696c38Dd958e635f9077e65b64aA9cf7c92627",
+    "timelockController": "0x0000000000000000000000000000000000000000"
   },
   "optimismgoerli": {
     "storageGasOracle": "0xdE72697715aAeC4CaBbD638C0Aba64488005C64b",
@@ -115,7 +121,8 @@
     "interchainQueryRouter": "0x6385E09099d889f912F90c47F10E903fe4feBF69",
     "interchainAccountRouter": "0x6f393F8Dfb327d99c946e0Dd2f39F51B1aB446bf",
     "merkleRootMultisigIsmFactory": "0xC5Bb8CDD44B6c56695df45c7AA8012a97dD6ED13",
-    "messageIdMultisigIsmFactory": "0x39a8711BF44165A2292Cb5cB43229659c2Bb11c9"
+    "messageIdMultisigIsmFactory": "0x39a8711BF44165A2292Cb5cB43229659c2Bb11c9",
+    "timelockController": "0x0000000000000000000000000000000000000000"
   },
   "arbitrumgoerli": {
     "storageGasOracle": "0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766",
@@ -132,7 +139,8 @@
     "interchainQueryRouter": "0x5b1E05e1fdDBc0f3d31c4E634ff4D5d84A56deEe",
     "interchainAccountRouter": "0x3C636ccC50222a9eb54849C7a622D60a40928a5E",
     "merkleRootMultisigIsmFactory": "0x0502Be39aE255D022013DC0aeAa52fDBCD5f0331",
-    "messageIdMultisigIsmFactory": "0x71eAD731EBdd1334d80a89a572fDFA67830C504c"
+    "messageIdMultisigIsmFactory": "0x71eAD731EBdd1334d80a89a572fDFA67830C504c",
+    "timelockController": "0x0000000000000000000000000000000000000000"
   },
   "sepolia": {
     "storageGasOracle": "0x1D5EbC3e15e9ECDe0e3530C85899556797eeaea5",
@@ -149,7 +157,8 @@
     "interchainQueryRouter": "0x507C18fa4e3b0ce6beBD494488D62d1ed0fB0555",
     "interchainAccountRouter": "0x9cA4A31af0f3a8fe2806599467912809D3e17ECB",
     "merkleRootMultisigIsmFactory": "0xA9999B4abC373FF2BB95B8725FABC96CA883d811",
-    "messageIdMultisigIsmFactory": "0xCCC126d96efcc342BF2781A7d224D3AB1F25B19C"
+    "messageIdMultisigIsmFactory": "0xCCC126d96efcc342BF2781A7d224D3AB1F25B19C",
+    "timelockController": "0x0000000000000000000000000000000000000000"
   },
   "solanadevnet": {
     "storageGasOracle": "0x0000000000000000000000000000000000000000",
