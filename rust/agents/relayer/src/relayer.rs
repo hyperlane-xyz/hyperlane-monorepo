@@ -22,6 +22,7 @@ use tokio::{
 };
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
+use crate::merkle_tree::processor::{MerkleTreeProcessor, MerkleTreeProcessorMetrics};
 use crate::msg::pending_message::MessageSubmissionMetrics;
 use crate::processor::{Processor, ProcessorExt};
 use crate::{
@@ -265,7 +266,7 @@ impl BaseAgent for Relayer {
         // each message process attempts to send messages from a chain
         for origin in &self.origin_chains {
             tasks.push(self.run_message_processor(origin, send_channels.clone()));
-            // tasks.push(self.run_merkle_tree_builder(origin, send_channels.clone()));
+            tasks.push(self.run_merkle_tree_processor(origin));
         }
 
         run_all(tasks)
@@ -353,21 +354,34 @@ impl Relayer {
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
         let processor = Processor::new(Box::new(message_processor));
-        let process_fut = processor.spawn();
         tokio::spawn(async move {
-            let res = tokio::try_join!(process_fut)?;
+            let res = tokio::try_join!(processor.spawn())?;
             info!(?res, "try_join finished for message processor");
             Ok(())
         })
         .instrument(span)
     }
 
-    // fn run_merkle_tree_builder(
-    //     &self,
-    //     origin: &HyperlaneDomain,
-    //     send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
-    // ) -> Instrumented<JoinHandle<Result<()>>> {
-    // }
+    fn run_merkle_tree_processor(
+        &self,
+        origin: &HyperlaneDomain,
+    ) -> Instrumented<JoinHandle<Result<()>>> {
+        let metrics = MerkleTreeProcessorMetrics::new();
+        let merkle_tree_processor = MerkleTreeProcessor::new(
+            self.dbs.get(origin).unwrap().clone(),
+            metrics,
+            self.prover_syncs[origin].clone(),
+        );
+
+        let span = info_span!("MerkleTreeProcessor", origin=%merkle_tree_processor.domain());
+        let processor = Processor::new(Box::new(merkle_tree_processor));
+        tokio::spawn(async move {
+            let res = tokio::try_join!(processor.spawn())?;
+            info!(?res, "try_join finished for merkle tree processor");
+            Ok(())
+        })
+        .instrument(span)
+    }
 
     #[allow(clippy::too_many_arguments)]
     #[tracing::instrument(skip(self, receiver))]

@@ -11,7 +11,7 @@ use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
 use prometheus::IntGauge;
-use tokio::sync::{mpsc::UnboundedSender, RwLock};
+use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, trace};
 
 use super::pending_message::*;
@@ -181,6 +181,7 @@ mod test {
     use std::time::Instant;
 
     use crate::{
+        merkle_tree::builder::MerkleTreeBuilder,
         msg::{
             gas_payment::GasPaymentEnforcer, metadata::BaseMetadataBuilder,
             pending_operation::PendingOperation,
@@ -196,7 +197,10 @@ mod test {
     use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
     use prometheus::{IntCounter, Registry};
     use tokio::{
-        sync::mpsc::{self, UnboundedReceiver},
+        sync::{
+            mpsc::{self, UnboundedReceiver},
+            RwLock,
+        },
         time::sleep,
     };
 
@@ -286,7 +290,6 @@ mod test {
                 Default::default(),
                 Default::default(),
                 dummy_processor_metrics(origin_domain.id()),
-                Arc::new(RwLock::new(MerkleTreeBuilder::new(db.clone()))),
                 HashMap::from([(destination_domain.id(), send_channel)]),
                 HashMap::from([(destination_domain.id(), message_context)]),
             ),

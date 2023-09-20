@@ -1,2 +1,2 @@
 pub(crate) mod builder;
-mod processor;
+pub(crate) mod processor;
