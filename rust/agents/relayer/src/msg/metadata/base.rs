@@ -134,11 +134,11 @@ impl BaseMetadataBuilder {
                 .context(CTX)
                 // If no proof is found, `get_proof(...)` returns `Ok(None)`,
                 // so errors should break the retry loop.
-                .map_err(|err| BackoffError::permanent(err))?
+                .map_err(BackoffError::permanent)?
                 .ok_or(MerkleTreeBuilderError::Other("No proof found in DB".into()))
                 .context(CTX)
                 // Transient errors are retried
-                .map_err(|err| BackoffError::transient(err))
+                .map_err(BackoffError::transient)
         })
         .await?;
         // checkpoint may be fraudulent if the root does not
