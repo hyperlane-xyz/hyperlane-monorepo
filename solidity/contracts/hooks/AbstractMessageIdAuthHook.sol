@@ -15,6 +15,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
+import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
 import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
@@ -28,7 +29,7 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
  * @dev V3 WIP
  */
 abstract contract AbstractMessageIdAuthHook is
-    IPostDispatchHook,
+    AbstractPostDispatchHook,
     MailboxClient
 {
     using GlobalHookMetadata for bytes;
@@ -36,8 +37,6 @@ abstract contract AbstractMessageIdAuthHook is
 
     // ============ Constants ============
 
-    // The variant of the metadata used in the hook
-    uint8 public constant METADATA_VARIANT = 1;
     // address for ISM to verify messages
     address public immutable ism;
     // Domain of chain on which the ISM is deployed
@@ -59,28 +58,13 @@ abstract contract AbstractMessageIdAuthHook is
         destinationDomain = _destinationDomain;
     }
 
-    // ============ External functions ============
+    // ============ Internal functions ============
 
-    // @inheritdoc IPostDispatchHook
-    function supportsMetadata(bytes calldata metadata)
-        public
-        pure
-        override
-        returns (bool)
-    {
-        return metadata.length == 0 || metadata.variant() == METADATA_VARIANT;
-    }
-
-    // @inheritdoc IPostDispatchHook
-    function postDispatch(bytes calldata metadata, bytes calldata message)
-        external
-        payable
+    /// @inheritdoc AbstractPostDispatchHook
+    function _postDispatch(bytes calldata metadata, bytes calldata message)
+        internal
         override
     {
-        require(
-            supportsMetadata(metadata),
-            "AbstractMessageIdAuthHook: invalid metadata variant"
-        );
         bytes32 id = message.id();
         require(
             isLatestDispatched(id),
@@ -96,8 +80,6 @@ abstract contract AbstractMessageIdAuthHook is
         );
         _sendMessageId(metadata, payload);
     }
-
-    // ============ Internal functions ============
 
     /**
      * @notice Send a message to the ISM.

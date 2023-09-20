@@ -91,7 +91,6 @@ contract InterchainGasPaymasterTest is Test {
         );
 
         bytes memory metadata = GlobalHookMetadata.formatMetadata(
-            1,
             0,
             uint256(testGasAmount), // gas limit
             testRefundAddress, // refund address,
@@ -143,7 +142,6 @@ contract InterchainGasPaymasterTest is Test {
 
         uint256 _overpayment = 25000;
         bytes memory metadata = GlobalHookMetadata.formatMetadata(
-            1,
             0,
             uint256(testGasAmount), // gas limit
             testRefundAddress, // refund address

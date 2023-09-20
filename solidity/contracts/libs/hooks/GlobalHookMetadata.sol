@@ -16,27 +16,29 @@ pragma solidity >=0.8.0;
 /**
  * Format of metadata:
  *
- * [0:1] variant
- * [1:33] msg.value
- * [34:65] Gas limit for message (IGP)
- * [66:85] Refund address for message (IGP)
- * [86:] Custom metadata
+ * [0:2] variant
+ * [3:34] msg.value
+ * [35:66] Gas limit for message (IGP)
+ * [67:86] Refund address for message (IGP)
+ * [87:] Custom metadata
  */
 library GlobalHookMetadata {
     uint8 private constant VARIANT_OFFSET = 0;
-    uint8 private constant MSG_VALUE_OFFSET = 1;
-    uint8 private constant GAS_LIMIT_OFFSET = 33;
-    uint8 private constant REFUND_ADDRESS_OFFSET = 65;
-    uint256 private constant MIN_METADATA_LENGTH = 85;
+    uint8 private constant MSG_VALUE_OFFSET = 2;
+    uint8 private constant GAS_LIMIT_OFFSET = 34;
+    uint8 private constant REFUND_ADDRESS_OFFSET = 66;
+    uint256 private constant MIN_METADATA_LENGTH = 86;
+
+    uint16 public constant VARIANT = 1;
 
     /**
      * @notice Returns the variant of the metadata.
      * @param _metadata ABI encoded global hook metadata.
      * @return variant of the metadata as uint8.
      */
-    function variant(bytes calldata _metadata) internal pure returns (uint8) {
-        if (_metadata.length < VARIANT_OFFSET + 1) return 0;
-        return uint8(_metadata[VARIANT_OFFSET]);
+    function variant(bytes calldata _metadata) internal pure returns (uint16) {
+        if (_metadata.length < VARIANT_OFFSET + 2) return 0;
+        return uint16(bytes2(_metadata[VARIANT_OFFSET:VARIANT_OFFSET + 2]));
     }
 
     /**
@@ -96,15 +98,14 @@ library GlobalHookMetadata {
     function getCustomMetadata(bytes calldata _metadata)
         internal
         pure
-        returns (bytes memory)
+        returns (bytes calldata)
     {
-        if (_metadata.length < MIN_METADATA_LENGTH) return "";
+        if (_metadata.length < MIN_METADATA_LENGTH) return _metadata[0:0];
         return _metadata[MIN_METADATA_LENGTH:];
     }
 
     /**
      * @notice Formats the specified gas limit and refund address into global hook metadata.
-     * @param _variant Variant of the metadata.
      * @param _msgValue msg.value for the message.
      * @param _gasLimit Gas limit for the message.
      * @param _refundAddress Refund address for the message.
@@ -112,7 +113,6 @@ library GlobalHookMetadata {
      * @return ABI encoded global hook metadata.
      */
     function formatMetadata(
-        uint8 _variant,
         uint256 _msgValue,
         uint256 _gasLimit,
         address _refundAddress,
@@ -120,7 +120,7 @@ library GlobalHookMetadata {
     ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
-                _variant,
+                VARIANT,
                 _msgValue,
                 _gasLimit,
                 _refundAddress,

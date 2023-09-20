@@ -59,9 +59,8 @@ contract OPStackHook is AbstractMessageIdAuthHook {
 
     // ============ External functions ============
 
-    /// @inheritdoc IPostDispatchHook
-    function quoteDispatch(bytes calldata, bytes calldata)
-        external
+    function _quoteDispatch(bytes calldata, bytes calldata)
+        internal
         pure
         override
         returns (uint256)

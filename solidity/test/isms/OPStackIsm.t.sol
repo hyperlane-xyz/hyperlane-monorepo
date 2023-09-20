@@ -6,6 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {LibBit} from "../../contracts/libs/LibBit.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {GlobalHookMetadata} from "../../contracts/libs/hooks/GlobalHookMetadata.sol";
+import {GlobalHookMetadata} from "../../contracts/libs/hooks/GlobalHookMetadata.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
@@ -49,7 +50,8 @@ contract OPStackIsmTest is Test {
     TestRecipient internal testRecipient;
     bytes internal testMessage =
         abi.encodePacked("Hello from the other chain!");
-    bytes internal testMetadata = abi.encodePacked(uint8(1), uint256(0));
+    bytes internal testMetadata =
+        GlobalHookMetadata.formatMetadata(0, 0, address(this), "");
 
     bytes internal encodedMessage;
     bytes32 internal messageId;
@@ -194,7 +196,6 @@ contract OPStackIsmTest is Test {
 
         vm.deal(address(this), uint256(2**255 + 1));
         bytes memory excessValueMetadata = GlobalHookMetadata.formatMetadata(
-            HYPERLANE_VERSION,
             uint256(2**255 + 1),
             DEFAULT_GAS_LIMIT,
             address(this),

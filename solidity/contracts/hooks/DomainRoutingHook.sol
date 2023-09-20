@@ -16,12 +16,14 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
 import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract DomainRoutingHook is IPostDispatchHook, Ownable {
+contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient, Ownable {
     using GlobalHookMetadata for bytes;
     using Message for bytes;
 
@@ -30,14 +32,9 @@ contract DomainRoutingHook is IPostDispatchHook, Ownable {
         address hook;
     }
 
-    // ============ Constants ============
-
-    // The variant of the metadata used in the hook
-    uint8 public constant METADATA_VARIANT = 1;
-
     mapping(uint32 => IPostDispatchHook) public hooks;
 
-    constructor(address _owner) {
+    constructor(address _mailbox, address _owner) MailboxClient(_mailbox) {
         _transferOwnership(_owner);
     }
 
@@ -51,46 +48,30 @@ contract DomainRoutingHook is IPostDispatchHook, Ownable {
         }
     }
 
-    function supportsMetadata(bytes calldata metadata)
-        public
-        pure
-        override
-        returns (bool)
-    {
-        return metadata.length == 0 || metadata.variant() == METADATA_VARIANT;
-    }
+    // ============ Internal Functions ============
 
-    function postDispatch(bytes calldata metadata, bytes calldata message)
-        public
-        payable
+    /// @inheritdoc AbstractPostDispatchHook
+    function _postDispatch(bytes calldata metadata, bytes calldata message)
+        internal
         virtual
         override
     {
-        require(
-            supportsMetadata(metadata),
-            "DomainRoutingHook: invalid metadata variant"
-        );
         _getConfiguredHook(message).postDispatch{value: msg.value}(
             metadata,
             message
         );
     }
 
-    function quoteDispatch(bytes calldata metadata, bytes calldata message)
-        public
+    /// @inheritdoc AbstractPostDispatchHook
+    function _quoteDispatch(bytes calldata metadata, bytes calldata message)
+        internal
         view
         virtual
         override
         returns (uint256)
     {
-        require(
-            supportsMetadata(metadata),
-            "DomainRoutingHook: invalid metadata variant"
-        );
         return _getConfiguredHook(message).quoteDispatch(metadata, message);
     }
-
-    // ============ Internal Functions ============
 
     function _getConfiguredHook(bytes calldata message)
         internal

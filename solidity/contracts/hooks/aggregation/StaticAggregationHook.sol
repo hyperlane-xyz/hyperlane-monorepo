@@ -15,32 +15,17 @@ pragma solidity >=0.8.0;
 
 import {GlobalHookMetadata} from "../../libs/hooks/GlobalHookMetadata.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+import {AbstractPostDispatchHook} from "../AbstractPostDispatchHook.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 
-contract StaticAggregationHook is IPostDispatchHook {
+contract StaticAggregationHook is AbstractPostDispatchHook {
     using GlobalHookMetadata for bytes;
-
-    // ============ Constants ============
-
-    // The variant of the metadata used in the hook
-    uint8 public constant METADATA_VARIANT = 1;
 
     // ============ External functions ============
 
-    // @inheritdoc IPostDispatchHook
-    function supportsMetadata(bytes calldata metadata)
-        public
-        pure
-        override
-        returns (bool)
-    {
-        return metadata.length == 0 || metadata.variant() == METADATA_VARIANT;
-    }
-
-    // @inheritdoc IPostDispatchHook
-    function postDispatch(bytes calldata metadata, bytes calldata message)
-        external
-        payable
+    /// @inheritdoc AbstractPostDispatchHook
+    function _postDispatch(bytes calldata metadata, bytes calldata message)
+        internal
         override
     {
         address[] memory _hooks = hooks(message);
@@ -58,9 +43,9 @@ contract StaticAggregationHook is IPostDispatchHook {
         }
     }
 
-    // @inheritdoc IPostDispatchHook
-    function quoteDispatch(bytes calldata metadata, bytes calldata message)
-        external
+    /// @inheritdoc AbstractPostDispatchHook
+    function _quoteDispatch(bytes calldata metadata, bytes calldata message)
+        internal
         view
         override
         returns (uint256)

@@ -51,7 +51,6 @@ abstract contract GasRouter is Router {
                 _mustHaveRemoteRouter(_destinationDomain),
                 "",
                 GlobalHookMetadata.formatMetadata(
-                    1,
                     0,
                     destinationGas[_destinationDomain],
                     address(this),

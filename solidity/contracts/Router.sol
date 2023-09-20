@@ -205,7 +205,6 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         // Ensure that destination chain has an enrolled router.
         bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
         bytes memory metadata = GlobalHookMetadata.formatMetadata(
-            1,
             0,
             _gasAmount,
             _gasPaymentRefundAddress,
