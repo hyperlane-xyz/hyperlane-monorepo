@@ -65,6 +65,9 @@ pub enum MerkleTreeBuilderError {
     /// DB Error
     #[error("{0}")]
     DbError(#[from] DbError),
+    /// Some other error occured.
+    #[error("Failed to build the merkle tree: {0}")]
+    Other(String),
 }
 
 impl MerkleTreeBuilder {
@@ -81,11 +84,24 @@ impl MerkleTreeBuilder {
     #[instrument(err, skip(self), level="debug", fields(prover_latest_index=self.count()-1))]
     pub fn get_proof(
         &self,
-        leaf_index: u32,
+        message_nonce: u32,
         root_index: u32,
-    ) -> Result<Proof, MerkleTreeBuilderError> {
+    ) -> Result<Option<Proof>, MerkleTreeBuilderError> {
+        let Some(message_id) = self
+            .db
+            .retrieve_message_id_by_nonce(&message_nonce)?
+        else {
+            return Ok(None);
+        };
+        let Some(leaf_index) = self
+            .db
+            .retrieve_merkle_leaf_index_by_message_id(&message_id)?
+        else {
+            return Ok(None);
+        };
         self.prover
             .prove_against_previous(leaf_index as usize, root_index as usize)
+            .map(Option::from)
             .map_err(Into::into)
     }
 
@@ -111,10 +127,10 @@ impl MerkleTreeBuilder {
     }
 
     #[instrument(err, skip(self), level = "debug")]
-    pub async fn update_to_index(&mut self, index: u32) -> Result<(), MerkleTreeBuilderError> {
-        if index >= self.count() {
+    pub async fn update_to_index(&mut self, leaf_index: u32) -> Result<(), MerkleTreeBuilderError> {
+        if leaf_index >= self.count() {
             let starting_index = self.prover.count() as u32;
-            for i in starting_index..=index {
+            for i in starting_index..=leaf_index {
                 self.db.wait_for_message_nonce(i).await?;
                 self.ingest_nonce(i)?;
             }

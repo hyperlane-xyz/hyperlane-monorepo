@@ -15,6 +15,11 @@ impl MerkleTreeInsertion {
     pub fn index(&self) -> u32 {
         self.leaf_index
     }
+
+    /// ID of the message inserted
+    pub fn message_id(&self) -> H256 {
+        self.message_id
+    }
 }
 
 impl Encode for MerkleTreeInsertion {

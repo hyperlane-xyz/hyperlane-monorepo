@@ -15,6 +15,7 @@ use crate::relayer::Relayer;
 
 mod merkle_tree_builder;
 mod msg;
+mod processor;
 mod prover;
 mod relayer;
 mod settings;
