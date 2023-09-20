@@ -59,6 +59,10 @@ impl ProcessorExt for MessageProcessor {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
+        // Forever, scan HyperlaneRocksDB looking for new messages to send. When criteria are
+        // satisfied or the message is disqualified, push the message onto
+        // self.tx_msg and then continue the scan at the next highest
+        // nonce.
         // Scan until we find next nonce without delivery confirmation.
         if let Some(msg) = self.try_get_unprocessed_message()? {
             debug!(?msg, "Processor working on message");
