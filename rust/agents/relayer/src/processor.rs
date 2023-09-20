@@ -30,10 +30,6 @@ impl Processor {
 
     #[instrument(ret, err, skip(self), level = "info", fields(domain=%self.ticker.domain()))]
     async fn main_loop(mut self) -> Result<()> {
-        // Forever, scan HyperlaneRocksDB looking for new messages to send. When criteria are
-        // satisfied or the message is disqualified, push the message onto
-        // self.tx_msg and then continue the scan at the next highest
-        // nonce.
         loop {
             self.ticker.tick().await?;
         }

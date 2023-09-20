@@ -66,7 +66,7 @@ impl ProcessorExt for MerkleTreeProcessor {
 
 impl MerkleTreeProcessor {
     fn next_unprocessed_leaf(&mut self) -> Result<Option<MerkleTreeInsertion>> {
-        if let Some(insertion) = self
+        let leaf = if let Some(insertion) = self
             .db
             .retrieve_merkle_tree_insertion_by_leaf_index(&self.leaf_index)?
         {
@@ -74,11 +74,12 @@ impl MerkleTreeProcessor {
             self.metrics
                 .max_leaf_index_gauge
                 .set(insertion.index() as i64);
-            return Ok(Some(insertion));
+            Some(insertion)
         } else {
             debug!(leaf_index=?self.leaf_index, "No message found in DB for leaf index");
-            return Ok(None);
-        }
+            None
+        };
+        Ok(leaf)
     }
 }
 
