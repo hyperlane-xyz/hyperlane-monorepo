@@ -18,7 +18,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
 use crate::{
-    merkle_tree_builder::MerkleTreeBuilder,
+    merkle_tree_builder::{MerkleTreeBuilder,MerkleTreeBuilderError},
     msg::metadata::{
         multisig::{
             LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
@@ -100,6 +100,15 @@ impl MetadataBuilder for BaseMetadataBuilder {
     }
 }
 
+fn constant_backoff() -> ExponentialBackoff {
+    ExponentialBackoff {
+        initial_interval: std::time::Duration::from_secs(1),
+        multiplier: 1.0,
+        max_elapsed_time: None,
+        ..ExponentialBackoff::default()
+    }
+}
+
 impl BaseMetadataBuilder {
     pub fn domain(&self) -> &HyperlaneDomain {
         &self.destination_chain_setup.domain
@@ -117,9 +126,7 @@ impl BaseMetadataBuilder {
 
     pub async fn get_proof(&self, nonce: u32, checkpoint: Checkpoint) -> Result<Option<Proof>> {
         const CTX: &str = "When fetching message proof";
-        // TODO: wrap this in a retry operation, since the proof is not guaranteed
-        // to have been added to the DB yet
-        let proof = retry(ExponentialBackoff::default(), || async {
+        let proof = retry(constant_backoff(), || async {
             let res = self
                 .origin_prover_sync
                 .read()
@@ -135,7 +142,7 @@ impl BaseMetadataBuilder {
                 .map_err(|err| BackoffError::transient(err));
             res
         })
-        .await;
+        .await?;
         // checkpoint may be fraudulent if the root does not
         // match the canonical root at the checkpoint's index
         let proof = proof?;

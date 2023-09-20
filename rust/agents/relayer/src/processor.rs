@@ -8,7 +8,7 @@ use tokio::task::JoinHandle;
 use tracing::{info_span, instrument, instrument::Instrumented, Instrument};
 
 #[async_trait]
-pub trait ProcessorTicker: Send + Debug {
+pub trait ProcessorExt: Send + Debug {
     /// The domain this processor is getting messages from.
     fn domain(&self) -> &HyperlaneDomain;
 
@@ -19,7 +19,7 @@ pub trait ProcessorTicker: Send + Debug {
 
 #[derive(new)]
 pub struct Processor {
-    ticker: Box<dyn ProcessorTicker>,
+    ticker: Box<dyn ProcessorExt>,
 }
 
 impl Processor {

@@ -11,13 +11,11 @@ use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
 use prometheus::IntGauge;
-use tokio::{
-    sync::{mpsc::UnboundedSender, RwLock},
-    task::JoinHandle,
-};
-use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
+use tokio::sync::{mpsc::UnboundedSender, RwLock};
+use tracing::{debug, trace};
 
 use super::pending_message::*;
+use crate::processor::ProcessorExt;
 use crate::processor::{Processor, ProcessorTicker};
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder, msg::pending_operation::DynPendingOperation,
@@ -32,7 +30,6 @@ pub struct MessageProcessor {
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
     metrics: MessageProcessorMetrics,
-    prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     /// channel for each destination chain to send operations (i.e. message
     /// submissions) to
     send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
@@ -46,17 +43,14 @@ impl Debug for MessageProcessor {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "MessageProcessor {{ whitelist: {:?}, blacklist: {:?}, prover_sync: {:?}, message_nonce: {:?} }}",
-            self.whitelist,
-            self.blacklist,
-            self.prover_sync,
-            self.message_nonce
+            "MessageProcessor {{ whitelist: {:?}, blacklist: {:?}, message_nonce: {:?} }}",
+            self.whitelist, self.blacklist, self.message_nonce
         )
     }
 }
 
 #[async_trait]
-impl ProcessorTicker for MessageProcessor {
+impl ProcessorExt for MessageProcessor {
     /// The domain this processor is getting messages from.
     fn domain(&self) -> &HyperlaneDomain {
         self.db.domain()
@@ -97,17 +91,6 @@ impl ProcessorTicker for MessageProcessor {
                 self.message_nonce += 1;
                 return Ok(());
             }
-
-            // Feed the message to the prover sync
-            // TODO: wrap this in a retry as it can fail if the merkletree insertion hasn't persisted
-            // the event yet
-            // Cannot use the msg.nonce here because the merkle tree has to include
-            // duplicates to reflect on-chain logic
-            // self.prover_sync
-            //     .write()
-            //     .await
-            //     .update_to_index(leaf_index)
-            //     .await?;
 
             debug!(%msg, "Sending message to submitter");
 
@@ -197,6 +180,15 @@ impl MessageProcessorMetrics {
 mod test {
     use std::time::Instant;
 
+    use crate::{
+        msg::{
+            gas_payment::GasPaymentEnforcer, metadata::BaseMetadataBuilder,
+            pending_operation::PendingOperation,
+        },
+        processor::Processor,
+    };
+
+    use super::*;
     use hyperlane_base::{
         db::{test_utils, HyperlaneRocksDB},
         settings::{ChainConf, ChainConnectionConf, Settings},
@@ -361,7 +353,7 @@ mod test {
             dummy_message_processor(origin_domain, destination_domain, db);
 
         let processor = Processor::new(Box::new(message_processor));
-        let process_fut = processor::spawn();
+        let process_fut = processor.spawn();
         let mut pending_messages = vec![];
         let pending_message_accumulator = async {
             while let Some(pm) = receive_channel.recv().await {
