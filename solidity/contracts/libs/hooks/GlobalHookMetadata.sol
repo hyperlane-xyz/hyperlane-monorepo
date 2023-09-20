@@ -16,11 +16,11 @@ pragma solidity >=0.8.0;
 /**
  * Format of metadata:
  *
- * [0:2] variant
- * [3:34] msg.value
- * [35:66] Gas limit for message (IGP)
- * [67:86] Refund address for message (IGP)
- * [87:] Custom metadata
+ * [0:1] variant
+ * [2:33] msg.value
+ * [34:65] Gas limit for message (IGP)
+ * [66:85] Refund address for message (IGP)
+ * [86:] Custom metadata
  */
 library GlobalHookMetadata {
     uint8 private constant VARIANT_OFFSET = 0;
@@ -125,6 +125,40 @@ library GlobalHookMetadata {
                 _gasLimit,
                 _refundAddress,
                 _customMetadata
+            );
+    }
+
+    /**
+     * @notice Formats the specified gas limit and refund address into global hook metadata.
+     * @param _msgValue msg.value for the message.
+     * @return ABI encoded global hook metadata.
+     */
+    function formatMetadata(uint256 _msgValue)
+        internal
+        view
+        returns (bytes memory)
+    {
+        return abi.encodePacked(VARIANT, _msgValue, uint256(0), msg.sender, "");
+    }
+
+    /**
+     * @notice Formats the specified gas limit and refund address into global hook metadata.
+     * @param _gasLimit Gas limit for the message.
+     * @param _refundAddress Refund address for the message.
+     * @return ABI encoded global hook metadata.
+     */
+    function formatMetadata(uint256 _gasLimit, address _refundAddress)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return
+            abi.encodePacked(
+                VARIANT,
+                uint256(0),
+                _gasLimit,
+                _refundAddress,
+                ""
             );
     }
 }

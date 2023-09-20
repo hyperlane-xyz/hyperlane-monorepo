@@ -85,7 +85,7 @@ contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
     // ============ Internal Functions ============
 
     /// @inheritdoc AbstractPostDispatchHook
-    function _postDispatch(bytes calldata, bytes calldata message)
+    function _postDispatch(bytes calldata metadata, bytes calldata message)
         internal
         override
     {
@@ -95,7 +95,10 @@ contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
         );
 
         uint256 refund = msg.value - protocolFee;
-        if (refund > 0) payable(message.senderAddress()).sendValue(refund);
+        if (refund > 0)
+            payable(metadata.refundAddress(message.senderAddress())).sendValue(
+                refund
+            );
     }
 
     /// @inheritdoc AbstractPostDispatchHook
