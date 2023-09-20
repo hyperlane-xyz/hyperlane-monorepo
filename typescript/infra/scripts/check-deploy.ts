@@ -1,6 +1,5 @@
-import { HelloWorldChecker, HelloWorldConfig } from '@hyperlane-xyz/helloworld';
+import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
-  ChainMap,
   HyperlaneCore,
   HyperlaneCoreChecker,
   HyperlaneIgp,
@@ -11,14 +10,9 @@ import {
   InterchainQuery,
   InterchainQueryChecker,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
-import { aggregationIsm } from '../config/routingIsm';
-import {
-  DeployEnvironment,
-  deployEnvToSdkEnv,
-} from '../src/config/environment';
+import { deployEnvToSdkEnv } from '../src/config/environment';
 import { helloWorldRouterConfig } from '../src/config/helloworld-getters';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
 import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
@@ -33,7 +27,6 @@ import {
   getEnvironmentConfig,
   getProxiedRouterConfig,
   getArgs as getRootArgs,
-  getRouterConfig,
   withContext,
   withModuleAndFork,
 } from './utils';

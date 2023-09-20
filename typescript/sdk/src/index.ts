@@ -119,6 +119,7 @@ export {
 export {
   HyperlaneIsmFactory,
   collectValidators,
+  moduleCanCertainlyVerify,
 } from './ism/HyperlaneIsmFactory';
 export { HyperlaneIsmFactoryDeployer } from './ism/HyperlaneIsmFactoryDeployer';
 export {

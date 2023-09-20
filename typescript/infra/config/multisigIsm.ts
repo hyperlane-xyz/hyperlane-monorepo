@@ -65,6 +65,13 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
       '0x15f48e78092a4f79febface509cfd76467c6cdbb', // abacus
     ],
   },
+  solana: {
+    type: ModuleType.LEGACY_MULTISIG,
+    threshold: 1,
+    validators: [
+      '0x8cc7dbfb5de339e4133f3af059c927ec383ace38', // abacus
+    ],
+  },
   // ----------------- Testnets -----------------
   alfajores: {
     type: ModuleType.LEGACY_MULTISIG,

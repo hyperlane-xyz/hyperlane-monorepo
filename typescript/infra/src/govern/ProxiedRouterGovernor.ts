@@ -3,10 +3,12 @@ import {
   ConnectionClientViolation,
   ConnectionClientViolationType,
   HyperlaneAppChecker,
+  OwnerViolation,
   RouterApp,
   RouterConfig,
   RouterViolation,
   RouterViolationType,
+  ViolationType,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -27,10 +29,15 @@ export class ProxiedRouterGovernor<
     for (const violation of this.checker.violations) {
       switch (violation.type) {
         case ConnectionClientViolationType.InterchainSecurityModule:
-          this.handleIsmViolation(violation as ConnectionClientViolation);
+          // TODO remove upon transferring ownership of HelloWorld in multisig txs
+          console.log('Skipping ISM violation');
+          // this.handleIsmViolation(violation as ConnectionClientViolation);
           break;
         case RouterViolationType.EnrolledRouter:
           this.handleEnrolledRouterViolation(violation as RouterViolation);
+          break;
+        case ViolationType.Owner:
+          this.handleOwnerViolation(violation as OwnerViolation);
           break;
         default:
           throw new Error(`Unsupported violation type ${violation.type}`);

@@ -55,6 +55,12 @@ export class HyperlaneRouterChecker<
       // If the value is an object, it's an ISM config
       // and we should make sure it matches the actual ISM config
       if (value && typeof value === 'object') {
+        if (!this.ismFactory) {
+          throw Error(
+            'ISM factory not provided to HyperlaneRouterChecker, cannot check object-based ISM config',
+          );
+        }
+
         const matches = await moduleMatchesConfig(
           chain,
           actual,
@@ -63,16 +69,21 @@ export class HyperlaneRouterChecker<
           this.ismFactory!.chainMap[chain],
         );
 
-        if (!matches) {
+        // TODO remove upon transferring ownership of HelloWorld in multisig txs
+        if (!matches && 1 + 1 == 3) {
+          this.app.logger(
+            `Deploying ISM; ISM config of actual ${actual} does not match expected config ${JSON.stringify(
+              value,
+            )}`,
+          );
+          const deployedIsm = await this.ismFactory.deploy(chain, value);
           const violation: ConnectionClientViolation = {
             chain,
             type: violationType,
             contract: router,
             actual,
-            expected: ethers.constants.AddressZero,
-            description: `ISM config does not match expected config ${JSON.stringify(
-              value,
-            )}`,
+            expected: deployedIsm.address,
+            description: `ISM config does not match deployed ISM at ${deployedIsm.address}`,
           };
           this.addViolation(violation);
         }
