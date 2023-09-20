@@ -189,9 +189,9 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
 } {
   // Hack to accommodate non-Ethereum artifacts, while still retaining their
   // presence in the addressesMap so that they are included in the list of chains
-  // or the MultiProvider. A non-Ethereum-style address from another execution environment
-  // will cause Ethers to throw if we try to attach it, so we just replace it with the
-  // zero address.
+  // on the MultiProvider (needed for getting metadata). A non-Ethereum-style address
+  // from another execution environment will cause Ethers to throw if we try to attach
+  // it, so we just replace it with the zero address.
   const addressesMapWithEthereumizedAddresses = objMap(
     addressesMap,
     (chain, addresses) => {

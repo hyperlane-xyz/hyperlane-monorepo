@@ -65,14 +65,8 @@ export abstract class HyperlaneAppChecker<
       );
 
     return Promise.all(
-      this.app
-        .chains()
-        .filter(
-          (chain) =>
-            this.multiProvider.getChainMetadata(chain).protocol ===
-            ProtocolType.Ethereum,
-        )
-        .map((chain) => this.checkChain(chain)),
+      // this.app.chains() will only return Ethereum chains that can be interacted with.
+      this.app.chains().map((chain) => this.checkChain(chain)),
     );
   }
 

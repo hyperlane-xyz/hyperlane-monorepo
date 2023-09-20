@@ -38,13 +38,6 @@ async function main() {
     multiProvider,
   );
 
-  console.log(
-    'after creating igp',
-    multiProvider.tryGetChainMetadata('solanadevnet'),
-  );
-  console.log('on igp', igp.multiProvider.tryGetChainMetadata('solanadevnet'));
-  console.log('igp chains', igp.chains());
-
   for (const chain of igp.chains()) {
     if (
       multiProvider.getChainMetadata(chain).protocol !== ProtocolType.Ethereum

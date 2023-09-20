@@ -317,10 +317,14 @@ export async function getRouterConfig(
   ).intersection;
 
   for (const chain of knownChains) {
-    config[chain] = {
-      owner: useMultiProviderOwners
+    // MultiProvider signers are only used for Ethereum chains.
+    const owner =
+      useMultiProviderOwners &&
+      multiProvider.getChainMetadata(chain).protocol === ProtocolType.Ethereum
         ? await multiProvider.getSignerAddress(chain)
-        : owners[chain],
+        : owners[chain];
+    config[chain] = {
+      owner: owner,
       mailbox: core.getContracts(chain).mailbox.address,
       interchainGasPaymaster:
         igp.getContracts(chain).defaultIsmInterchainGasPaymaster.address,

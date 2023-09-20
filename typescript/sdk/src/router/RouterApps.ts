@@ -70,15 +70,6 @@ export abstract class GasRouterApp<
   Factories extends HyperlaneFactories,
   R extends GasRouter,
 > extends RouterApp<Factories> {
-  constructor(
-    contractsMap: HyperlaneContractsMap<Factories>,
-    multiProvider: MultiProvider,
-    logger?: debug.Debugger,
-    readonly foreignDeployments: ChainMap<Address> = {},
-  ) {
-    super(contractsMap, multiProvider, logger);
-  }
-
   abstract router(contracts: HyperlaneContracts<Factories>): R;
 
   async quoteGasPayment(
