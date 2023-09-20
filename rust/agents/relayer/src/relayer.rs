@@ -23,6 +23,7 @@ use tokio::{
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use crate::msg::pending_message::MessageSubmissionMetrics;
+use crate::processor::{Processor, ProcessorTicker};
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
     msg::{
@@ -264,6 +265,7 @@ impl BaseAgent for Relayer {
         // each message process attempts to send messages from a chain
         for origin in &self.origin_chains {
             tasks.push(self.run_message_processor(origin, send_channels.clone()));
+            // tasks.push(self.run_merkle_tree_builder(origin, send_channels.clone()));
         }
 
         run_all(tasks)
@@ -351,7 +353,8 @@ impl Relayer {
         );
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
-        let process_fut = message_processor.spawn();
+        let processor = Processor::new(Box::new(message_processor));
+        let process_fut = processor.spawn();
         tokio::spawn(async move {
             let res = tokio::try_join!(process_fut)?;
             info!(?res, "try_join finished for message processor");
@@ -359,6 +362,13 @@ impl Relayer {
         })
         .instrument(span)
     }
+
+    // fn run_merkle_tree_builder(
+    //     &self,
+    //     origin: &HyperlaneDomain,
+    //     send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
+    // ) -> Instrumented<JoinHandle<Result<()>>> {
+    // }
 
     #[allow(clippy::too_many_arguments)]
     #[tracing::instrument(skip(self, receiver))]

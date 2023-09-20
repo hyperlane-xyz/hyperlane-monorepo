@@ -1,6 +1,8 @@
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
+use backoff::Error as BackoffError;
+use backoff::{future::retry, ExponentialBackoff};
 use derive_new::new;
 use eyre::{Context, Result};
 use hyperlane_base::{
@@ -115,15 +117,28 @@ impl BaseMetadataBuilder {
 
     pub async fn get_proof(&self, nonce: u32, checkpoint: Checkpoint) -> Result<Option<Proof>> {
         const CTX: &str = "When fetching message proof";
-        let proof = self
-            .origin_prover_sync
-            .read()
-            .await
-            .get_proof(nonce, checkpoint.index)
-            .context(CTX)?;
+        // TODO: wrap this in a retry operation, since the proof is not guaranteed
+        // to have been added to the DB yet
+        let proof = retry(ExponentialBackoff::default(), || async {
+            let res = self
+                .origin_prover_sync
+                .read()
+                .await
+                .get_proof(nonce, checkpoint.index);
+            let proof = res
+                .context(CTX)
+                .map_err(|err| BackoffError::permanent(err))?;
 
+            let res = proof
+                .ok_or(MerkleTreeBuilderError::Other("No proof found in DB".into()))
+                .context(CTX)
+                .map_err(|err| BackoffError::transient(err));
+            res
+        })
+        .await;
         // checkpoint may be fraudulent if the root does not
         // match the canonical root at the checkpoint's index
+        let proof = proof?;
         if proof.root() != checkpoint.root {
             info!(
                 ?checkpoint,

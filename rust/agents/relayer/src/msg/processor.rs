@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
@@ -17,6 +18,7 @@ use tokio::{
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 
 use super::pending_message::*;
+use crate::processor::{Processor, ProcessorTicker};
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder, msg::pending_operation::DynPendingOperation,
     settings::matching_list::MatchingList,
@@ -53,62 +55,11 @@ impl Debug for MessageProcessor {
     }
 }
 
-impl MessageProcessor {
+#[async_trait]
+impl ProcessorTicker for MessageProcessor {
     /// The domain this processor is getting messages from.
-    pub fn domain(&self) -> &HyperlaneDomain {
+    fn domain(&self) -> &HyperlaneDomain {
         self.db.domain()
-    }
-
-    pub fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
-        let span = info_span!("MessageProcessor");
-        tokio::spawn(async move { self.main_loop().await }).instrument(span)
-    }
-
-    #[instrument(ret, err, skip(self), level = "info", fields(domain=%self.domain()))]
-    async fn main_loop(mut self) -> Result<()> {
-        // Forever, scan HyperlaneRocksDB looking for new messages to send. When criteria are
-        // satisfied or the message is disqualified, push the message onto
-        // self.tx_msg and then continue the scan at the next highest
-        // nonce.
-        loop {
-            self.tick().await?;
-        }
-    }
-
-    /// Tries to get the next message to process.
-    ///
-    /// If no message with self.message_nonce is found, returns None.
-    /// If the message with self.message_nonce is found and has previously
-    /// been marked as processed, increments self.message_nonce and returns
-    /// None.
-    fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
-        loop {
-            // First, see if we can find the message so we can update the gauge.
-            if let Some(message) = self.db.retrieve_message_by_nonce(self.message_nonce)? {
-                // Update the latest nonce gauges
-                self.metrics
-                    .max_last_known_message_nonce_gauge
-                    .set(message.nonce as i64);
-                if let Some(metrics) = self.metrics.get(message.destination) {
-                    metrics.set(message.nonce as i64);
-                }
-
-                // If this message has already been processed, on to the next one.
-                if !self
-                    .db
-                    .retrieve_processed_by_nonce(&self.message_nonce)?
-                    .unwrap_or(false)
-                {
-                    return Ok(Some(message));
-                } else {
-                    debug!(nonce=?self.message_nonce, "Message already marked as processed in DB");
-                    self.message_nonce += 1;
-                }
-            } else {
-                trace!(nonce=?self.message_nonce, "No message found in DB for nonce");
-                return Ok(None);
-            }
-        }
     }
 
     /// One round of processing, extracted from infinite work loop for
@@ -148,11 +99,15 @@ impl MessageProcessor {
             }
 
             // Feed the message to the prover sync
-            self.prover_sync
-                .write()
-                .await
-                .update_to_index(msg.nonce)
-                .await?;
+            // TODO: wrap this in a retry as it can fail if the merkletree insertion hasn't persisted
+            // the event yet
+            // Cannot use the msg.nonce here because the merkle tree has to include
+            // duplicates to reflect on-chain logic
+            // self.prover_sync
+            //     .write()
+            //     .await
+            //     .update_to_index(leaf_index)
+            //     .await?;
 
             debug!(%msg, "Sending message to submitter");
 
@@ -167,6 +122,38 @@ impl MessageProcessor {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
         Ok(())
+    }
+}
+
+impl MessageProcessor {
+    fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
+        loop {
+            // First, see if we can find the message so we can update the gauge.
+            if let Some(message) = self.db.retrieve_message_by_nonce(self.message_nonce)? {
+                // Update the latest nonce gauges
+                self.metrics
+                    .max_last_known_message_nonce_gauge
+                    .set(message.nonce as i64);
+                if let Some(metrics) = self.metrics.get(message.destination) {
+                    metrics.set(message.nonce as i64);
+                }
+
+                // If this message has already been processed, on to the next one.
+                if !self
+                    .db
+                    .retrieve_processed_by_nonce(&self.message_nonce)?
+                    .unwrap_or(false)
+                {
+                    return Ok(Some(message));
+                } else {
+                    debug!(nonce=?self.message_nonce, "Message already marked as processed in DB");
+                    self.message_nonce += 1;
+                }
+            } else {
+                trace!(nonce=?self.message_nonce, "No message found in DB for nonce");
+                return Ok(None);
+            }
+        }
     }
 }
 
@@ -373,7 +360,8 @@ mod test {
         let (message_processor, mut receive_channel) =
             dummy_message_processor(origin_domain, destination_domain, db);
 
-        let process_fut = message_processor.spawn();
+        let processor = Processor::new(Box::new(message_processor));
+        let process_fut = processor::spawn();
         let mut pending_messages = vec![];
         let pending_message_accumulator = async {
             while let Some(pm) = receive_channel.recv().await {
