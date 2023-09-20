@@ -13,13 +13,19 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+import {GlobalHookMetadata} from "../../libs/hooks/GlobalHookMetadata.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+import {AbstractPostDispatchHook} from "../AbstractPostDispatchHook.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 
-contract StaticAggregationHook is IPostDispatchHook {
-    function postDispatch(bytes calldata metadata, bytes calldata message)
-        external
-        payable
+contract StaticAggregationHook is AbstractPostDispatchHook {
+    using GlobalHookMetadata for bytes;
+
+    // ============ External functions ============
+
+    /// @inheritdoc AbstractPostDispatchHook
+    function _postDispatch(bytes calldata metadata, bytes calldata message)
+        internal
         override
     {
         address[] memory _hooks = hooks(message);
@@ -37,8 +43,9 @@ contract StaticAggregationHook is IPostDispatchHook {
         }
     }
 
-    function quoteDispatch(bytes calldata metadata, bytes calldata message)
-        external
+    /// @inheritdoc AbstractPostDispatchHook
+    function _quoteDispatch(bytes calldata metadata, bytes calldata message)
+        internal
         view
         override
         returns (uint256)

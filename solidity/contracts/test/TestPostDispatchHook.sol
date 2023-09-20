@@ -1,15 +1,23 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {AbstractPostDispatchHook} from "../hooks/AbstractPostDispatchHook.sol";
+import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
 
-contract TestPostDispatchHook is IPostDispatchHook {
+contract TestPostDispatchHook is AbstractPostDispatchHook {
+    using GlobalHookMetadata for bytes;
+
+    // ============ Public Storage ============
+
+    // test fees for quoteDispatch
     uint256 public fee = 25000;
 
-    function postDispatch(
-        bytes calldata, /*metadata*/
+    // ============ Internal functions ============
+    function _postDispatch(
+        bytes calldata,
+        /*metadata*/
         bytes calldata /*message*/
-    ) external payable {
+    ) internal pure override {
         // test - empty
     }
 
@@ -17,10 +25,11 @@ contract TestPostDispatchHook is IPostDispatchHook {
         fee = _fee;
     }
 
-    function quoteDispatch(
-        bytes calldata, /*metadata*/
+    function _quoteDispatch(
+        bytes calldata,
+        /*metadata*/
         bytes calldata /*message*/
-    ) external view override returns (uint256) {
+    ) internal view override returns (uint256) {
         return fee;
     }
 }

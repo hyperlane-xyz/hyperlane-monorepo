@@ -15,9 +15,10 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
+import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
-import {OPStackHookMetadata} from "../libs/hooks/OPStackHookMetadata.sol";
+import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
@@ -28,9 +29,10 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
  * @dev V3 WIP
  */
 abstract contract AbstractMessageIdAuthHook is
-    IPostDispatchHook,
+    AbstractPostDispatchHook,
     MailboxClient
 {
+    using GlobalHookMetadata for bytes;
     using Message for bytes;
 
     // ============ Constants ============
@@ -56,14 +58,11 @@ abstract contract AbstractMessageIdAuthHook is
         destinationDomain = _destinationDomain;
     }
 
-    /**
-     * @notice Hook to inform the optimism ISM of messages published through.
-     * metadata The metadata for the hook caller
-     * @param message The message being dispatched
-     */
-    function postDispatch(bytes calldata metadata, bytes calldata message)
-        external
-        payable
+    // ============ Internal functions ============
+
+    /// @inheritdoc AbstractPostDispatchHook
+    function _postDispatch(bytes calldata metadata, bytes calldata message)
+        internal
         override
     {
         bytes32 id = message.id();
@@ -81,8 +80,6 @@ abstract contract AbstractMessageIdAuthHook is
         );
         _sendMessageId(metadata, payload);
     }
-
-    // ============ Internal functions ============
 
     /**
      * @notice Send a message to the ISM.

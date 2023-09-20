@@ -14,40 +14,28 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 import {Message} from "../libs/Message.sol";
+import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
+import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
 
-contract ConfigFallbackDomainRoutingHook is IPostDispatchHook {
+contract ConfigFallbackDomainRoutingHook is
+    AbstractPostDispatchHook,
+    MailboxClient
+{
     using Message for bytes;
+    using GlobalHookMetadata for bytes;
 
-    IMailbox public immutable mailbox;
+    // ============ Public Storage ============
 
     /// @notice message sender => destination => recipient => hook
     mapping(address => mapping(uint32 => mapping(bytes32 => IPostDispatchHook)))
         public customHooks;
 
-    constructor(address _mailbox) {
-        mailbox = IMailbox(_mailbox);
-    }
+    constructor(address _mailbox) MailboxClient(_mailbox) {}
 
-    function postDispatch(bytes calldata metadata, bytes calldata message)
-        public
-        payable
-        override
-    {
-        _getConfiguredHook(message).postDispatch{value: msg.value}(
-            metadata,
-            message
-        );
-    }
-
-    function quoteDispatch(bytes calldata metadata, bytes calldata message)
-        public
-        view
-        returns (uint256)
-    {
-        return _getConfiguredHook(message).quoteDispatch(metadata, message);
-    }
+    // ============ External Functions ============
 
     function setHook(
         uint32 destinationDomain,
@@ -58,6 +46,27 @@ contract ConfigFallbackDomainRoutingHook is IPostDispatchHook {
     }
 
     // ============ Internal Functions ============
+
+    /// @inheritdoc AbstractPostDispatchHook
+    function _postDispatch(bytes calldata metadata, bytes calldata message)
+        internal
+        override
+    {
+        _getConfiguredHook(message).postDispatch{value: msg.value}(
+            metadata,
+            message
+        );
+    }
+
+    /// @inheritdoc AbstractPostDispatchHook
+    function _quoteDispatch(bytes calldata metadata, bytes calldata message)
+        internal
+        view
+        override
+        returns (uint256)
+    {
+        return _getConfiguredHook(message).quoteDispatch(metadata, message);
+    }
 
     function _getConfiguredHook(bytes calldata message)
         internal

@@ -1,14 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
+import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract DomainRoutingHook is IPostDispatchHook, Ownable {
+contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient, Ownable {
+    using GlobalHookMetadata for bytes;
     using Message for bytes;
 
     struct HookConfig {
@@ -18,7 +34,7 @@ contract DomainRoutingHook is IPostDispatchHook, Ownable {
 
     mapping(uint32 => IPostDispatchHook) public hooks;
 
-    constructor(address _owner) {
+    constructor(address _mailbox, address _owner) MailboxClient(_mailbox) {
         _transferOwnership(_owner);
     }
 
@@ -32,9 +48,11 @@ contract DomainRoutingHook is IPostDispatchHook, Ownable {
         }
     }
 
-    function postDispatch(bytes calldata metadata, bytes calldata message)
-        public
-        payable
+    // ============ Internal Functions ============
+
+    /// @inheritdoc AbstractPostDispatchHook
+    function _postDispatch(bytes calldata metadata, bytes calldata message)
+        internal
         virtual
         override
     {
@@ -44,8 +62,9 @@ contract DomainRoutingHook is IPostDispatchHook, Ownable {
         );
     }
 
-    function quoteDispatch(bytes calldata metadata, bytes calldata message)
-        public
+    /// @inheritdoc AbstractPostDispatchHook
+    function _quoteDispatch(bytes calldata metadata, bytes calldata message)
+        internal
         view
         virtual
         override
@@ -53,8 +72,6 @@ contract DomainRoutingHook is IPostDispatchHook, Ownable {
     {
         return _getConfiguredHook(message).quoteDispatch(metadata, message);
     }
-
-    // ============ Internal Functions ============
 
     function _getConfiguredHook(bytes calldata message)
         internal

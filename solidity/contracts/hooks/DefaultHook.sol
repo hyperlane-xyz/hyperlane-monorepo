@@ -23,11 +23,12 @@ contract ConfigurableDomainRoutingHook is DomainRoutingHook {
     /// @notice mapping of destination domain and recipient to custom hook
     mapping(bytes32 => address) public customHooks;
 
-    constructor(address mailbox, address owner) DomainRoutingHook(owner) {}
+    constructor(address mailbox, address owner)
+        DomainRoutingHook(mailbox, owner)
+    {}
 
-    function postDispatch(bytes calldata metadata, bytes calldata message)
-        public
-        payable
+    function _postDispatch(bytes calldata metadata, bytes calldata message)
+        internal
         override
     {
         bytes32 hookKey = keccak256(
@@ -41,7 +42,7 @@ contract ConfigurableDomainRoutingHook is DomainRoutingHook {
                 message
             );
         } else {
-            super.postDispatch(metadata, message);
+            super._postDispatch(metadata, message);
         }
     }
 

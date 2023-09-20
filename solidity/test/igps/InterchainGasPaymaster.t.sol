@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {IGPMetadata} from "../../contracts/libs/hooks/IGPMetadata.sol";
+import {GlobalHookMetadata} from "../../contracts/libs/hooks/GlobalHookMetadata.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
@@ -12,7 +12,7 @@ import {StorageGasOracle} from "../../contracts/igps/gas-oracles/StorageGasOracl
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 
 contract InterchainGasPaymasterTest is Test {
-    using IGPMetadata for bytes;
+    using GlobalHookMetadata for bytes;
     using TypeCasts for address;
     using MessageUtils for bytes;
 
@@ -90,9 +90,11 @@ contract InterchainGasPaymasterTest is Test {
             150 // 1 wei gas price
         );
 
-        bytes memory metadata = IGPMetadata.formatMetadata(
+        bytes memory metadata = GlobalHookMetadata.formatMetadata(
+            0,
             uint256(testGasAmount), // gas limit
-            testRefundAddress // refund address
+            testRefundAddress, // refund address,
+            bytes("")
         );
         // 150 * 300_000 = 45_000_000
         assertEq(igp.quoteDispatch(metadata, testEncodedMessage), 45_000_000);
@@ -139,9 +141,11 @@ contract InterchainGasPaymasterTest is Test {
         );
 
         uint256 _overpayment = 25000;
-        bytes memory metadata = IGPMetadata.formatMetadata(
+        bytes memory metadata = GlobalHookMetadata.formatMetadata(
+            0,
             uint256(testGasAmount), // gas limit
-            testRefundAddress // refund address
+            testRefundAddress, // refund address
+            bytes("")
         );
         bytes memory message = _encodeTestMessage();
 
