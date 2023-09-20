@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use backoff::Error as BackoffError;
 use backoff::{future::retry, ExponentialBackoff};
 use derive_new::new;
-use eyre::{Context, Error, Result};
+use eyre::{Context, Result};
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
@@ -127,25 +127,22 @@ impl BaseMetadataBuilder {
     pub async fn get_proof(&self, nonce: u32, checkpoint: Checkpoint) -> Result<Option<Proof>> {
         const CTX: &str = "When fetching message proof";
         let proof = retry(constant_backoff(), || async {
-            let res = self
-                .origin_prover_sync
+            self.origin_prover_sync
                 .read()
                 .await
-                .get_proof(nonce, checkpoint.index);
-            let proof = res
+                .get_proof(nonce, checkpoint.index)
                 .context(CTX)
-                .map_err(|err| BackoffError::permanent(err))?;
-
-            let res = proof
+                // If no proof is found, `get_proof(...)` returns `Ok(None)`,
+                // so errors should break the retry loop.
+                .map_err(|err| BackoffError::permanent(err))?
                 .ok_or(MerkleTreeBuilderError::Other("No proof found in DB".into()))
                 .context(CTX)
-                .map_err(|err| BackoffError::transient(err));
-            res
+                // Transient errors are retried
+                .map_err(|err| BackoffError::transient(err))
         })
         .await?;
         // checkpoint may be fraudulent if the root does not
         // match the canonical root at the checkpoint's index
-        let proof = proof?;
         if proof.root() != checkpoint.root {
             info!(
                 ?checkpoint,
