@@ -47,7 +47,7 @@ impl ProcessorExt for MerkleTreeProcessor {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
-        if let Some(insertion) = self.get_next_unprocessed_leaf()? {
+        if let Some(insertion) = self.next_unprocessed_leaf()? {
             // Feed the message to the prover sync
             self.prover_sync
                 .write()
@@ -55,9 +55,8 @@ impl ProcessorExt for MerkleTreeProcessor {
                 .ingest_message_id(insertion.message_id())
                 .await?;
 
-            // Finally, build the submit arg and dispatch it to the submitter.
-            // TODO: either persist the merkle tree, or have an interface that
-            // the submitter can read from
+            // No need to explicitly send the merkle tree to the submitter, since it's
+            // behind a shared Arc.
         } else {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -66,21 +65,19 @@ impl ProcessorExt for MerkleTreeProcessor {
 }
 
 impl MerkleTreeProcessor {
-    fn get_next_unprocessed_leaf(&mut self) -> Result<Option<MerkleTreeInsertion>> {
-        loop {
-            if let Some(insertion) = self
-                .db
-                .retrieve_merkle_tree_insertion_by_leaf_index(&self.leaf_index)?
-            {
-                // Update the metrics
-                self.metrics
-                    .max_leaf_index_gauge
-                    .set(insertion.index() as i64);
-                return Ok(Some(insertion));
-            } else {
-                debug!(leaf_index=?self.leaf_index, "No message found in DB for nonce");
-                return Ok(None);
-            }
+    fn next_unprocessed_leaf(&mut self) -> Result<Option<MerkleTreeInsertion>> {
+        if let Some(insertion) = self
+            .db
+            .retrieve_merkle_tree_insertion_by_leaf_index(&self.leaf_index)?
+        {
+            // Update the metrics
+            self.metrics
+                .max_leaf_index_gauge
+                .set(insertion.index() as i64);
+            return Ok(Some(insertion));
+        } else {
+            debug!(leaf_index=?self.leaf_index, "No message found in DB for leaf index");
+            return Ok(None);
         }
     }
 }
