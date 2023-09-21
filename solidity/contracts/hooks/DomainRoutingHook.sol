@@ -15,7 +15,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
-import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
@@ -24,7 +24,7 @@ import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient, Ownable {
-    using GlobalHookMetadata for bytes;
+    using StandardHookMetadata for bytes;
     using Message for bytes;
 
     struct HookConfig {

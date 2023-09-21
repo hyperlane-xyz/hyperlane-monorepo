@@ -27,11 +27,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
- * @title ArbtractNativeISM
- * @notice Uses the native bridges to verify interchain messages.
- * @dev In the future, the hook might be moved inside the Mailbox which doesn't require storage mappings for senders.
- *      for more details see https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2381
- * @dev V3 WIP
+ * @title AbstractMessageIdAuthorizedIsm
+ * @notice Uses external verfication options to verify interchain messages which need a authorized caller
  */
 abstract contract AbstractMessageIdAuthorizedIsm is
     IInterchainSecurityModule,
@@ -46,10 +43,11 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     /// first bit is boolean for verification
     /// rest of bits is the amount to send to the recipient
     /// @dev bc of the bit packing, we can only send up to 2^255 wei
+    /// @dev the first bit is reserved for verification and the rest 255 bits are for the msg.value
     mapping(bytes32 => uint256) public verifiedMessages;
     /// @notice Index of verification bit in verifiedMessages
     uint256 public constant MASK_INDEX = 255;
-    /// @notice Address for Hook on L1 responsible for sending message via the Optimism bridge
+    /// @notice Address for the authorized hook
     address public authorizedHook;
 
     // ============ Events ============
@@ -63,7 +61,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     function setAuthorizedHook(address _hook) external initializer {
         require(
             _hook != address(0),
-            "AbstractNativeISM: invalid authorized hook"
+            "AbstractMessageIdAuthorizedIsm: invalid authorized hook"
         );
         authorizedHook = _hook;
     }
@@ -75,22 +73,26 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      * @param message Message to verify.
      */
     function verify(
-        bytes calldata, /*_metadata*/
+        bytes calldata,
+        /*_metadata*/
         bytes calldata message
     ) external returns (bool) {
         bytes32 messageId = message.id();
 
+        // check for the first bit (used for verification)
         bool verified = verifiedMessages[messageId].isBitSet(MASK_INDEX);
-        if (verified)
+        // rest 255 bits contains the msg.value passed from the hook
+        if (verified) {
             payable(message.recipientAddress()).sendValue(
                 verifiedMessages[messageId].clearBit(MASK_INDEX)
             );
+        }
         return verified;
     }
 
     /**
-     * @notice Receive a message from the L2 messenger.
-     * @dev Only callable by the L2 messenger.
+     * @notice Receive a message from the AbstractMessageIdAuthHook
+     * @dev Only callable by the authorized hook.
      * @param messageId Hyperlane Id of the message.
      */
     function verifyMessageId(bytes32 messageId) external payable virtual {

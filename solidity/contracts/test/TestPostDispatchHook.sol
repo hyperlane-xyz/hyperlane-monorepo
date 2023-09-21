@@ -2,10 +2,10 @@
 pragma solidity >=0.8.0;
 
 import {AbstractPostDispatchHook} from "../hooks/AbstractPostDispatchHook.sol";
-import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
 
 contract TestPostDispatchHook is AbstractPostDispatchHook {
-    using GlobalHookMetadata for bytes;
+    using StandardHookMetadata for bytes;
 
     // ============ Public Storage ============
 

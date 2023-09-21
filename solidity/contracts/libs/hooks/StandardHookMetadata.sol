@@ -22,7 +22,7 @@ pragma solidity >=0.8.0;
  * [66:85] Refund address for message (IGP)
  * [86:] Custom metadata
  */
-library GlobalHookMetadata {
+library StandardHookMetadata {
     uint8 private constant VARIANT_OFFSET = 0;
     uint8 private constant MSG_VALUE_OFFSET = 2;
     uint8 private constant GAS_LIMIT_OFFSET = 34;

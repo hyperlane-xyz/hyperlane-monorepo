@@ -2,7 +2,7 @@
 pragma solidity >=0.6.11;
 
 import {Router} from "./Router.sol";
-import {GlobalHookMetadata} from "./libs/hooks/GlobalHookMetadata.sol";
+import {StandardHookMetadata} from "./libs/hooks/StandardHookMetadata.sol";
 
 abstract contract GasRouter is Router {
     // ============ Mutable Storage ============
@@ -50,7 +50,7 @@ abstract contract GasRouter is Router {
                 _destinationDomain,
                 _mustHaveRemoteRouter(_destinationDomain),
                 "",
-                GlobalHookMetadata.formatMetadata(
+                StandardHookMetadata.formatMetadata(
                     0,
                     destinationGas[_destinationDomain],
                     address(this),

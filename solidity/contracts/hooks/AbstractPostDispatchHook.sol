@@ -14,7 +14,7 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
@@ -23,7 +23,7 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
  * @notice Abstract post dispatch hook supporting the current global hook metadata variant.
  */
 abstract contract AbstractPostDispatchHook is IPostDispatchHook {
-    using GlobalHookMetadata for bytes;
+    using StandardHookMetadata for bytes;
 
     // ============ External functions ============
 
@@ -36,7 +36,7 @@ abstract contract AbstractPostDispatchHook is IPostDispatchHook {
     {
         return
             metadata.length == 0 ||
-            metadata.variant() == GlobalHookMetadata.VARIANT;
+            metadata.variant() == StandardHookMetadata.VARIANT;
     }
 
     /// @inheritdoc IPostDispatchHook
