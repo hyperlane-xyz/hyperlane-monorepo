@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
+use ethers_core::types::BlockNumber;
 use tracing::instrument;
 
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
@@ -23,6 +24,7 @@ use hyperlane_core::{
 
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::contracts::i_mailbox::{IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI};
+use crate::contracts::merkle_tree_hook::MerkleTreeHook;
 use crate::trait_builder::BuildableWithProvider;
 use crate::tx::{fill_tx_gas_params, report_tx};
 use crate::EthereumProvider;
@@ -79,6 +81,15 @@ impl BuildableWithProvider for DeliveryIndexerBuilder {
             self.finality_blocks,
         ))
     }
+}
+
+// TODO: make this cache the required hook address at construction time
+async fn merkle_tree_hook<M: Middleware + 'static>(
+    contract: &Arc<EthereumMailboxInternal<M>>,
+    provider: &Arc<M>,
+) -> ChainResult<MerkleTreeHook<M>> {
+    let address = contract.required_hook().call().await?;
+    Ok(MerkleTreeHook::new(address, provider.clone()))
 }
 
 #[derive(Debug, Clone)]
@@ -159,7 +170,8 @@ where
     #[instrument(err, skip(self))]
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
-        let base_call = self.contract.count();
+        let merkle_tree = merkle_tree_hook(&self.contract, &self.provider).await?;
+        let base_call = merkle_tree.count();
         let call_at_tip = base_call.block(u64::from(tip));
         let sequence = call_at_tip.call().await?;
         Ok((Some(sequence), tip))
@@ -307,19 +319,19 @@ where
 {
     #[instrument(skip(self))]
     async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let base_call = self.contract.count();
-        let call_with_lag = if let Some(lag) = maybe_lag {
-            let tip = self
-                .provider
-                .get_block_number()
-                .await
-                .map_err(ChainCommunicationError::from_other)?
-                .as_u64();
-            base_call.block(tip.saturating_sub(lag.get()))
-        } else {
-            base_call
-        };
-        let count = call_with_lag.call().await?;
+        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
+
+        let merkle_tree = merkle_tree_hook(&self.contract, &self.provider).await?;
+
+        let fixed_block_number: BlockNumber = self
+            .provider
+            .get_block_number()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .saturating_sub(lag)
+            .into();
+
+        let count = merkle_tree.count().block(fixed_block_number).call().await?;
         Ok(count)
     }
 
@@ -330,20 +342,23 @@ where
 
     #[instrument(skip(self))]
     async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        let base_call = self.contract.latest_checkpoint();
-        let call_with_lag = match maybe_lag {
-            Some(lag) => {
-                let tip = self
-                    .provider
-                    .get_block_number()
-                    .await
-                    .map_err(ChainCommunicationError::from_other)?
-                    .as_u64();
-                base_call.block(tip.saturating_sub(lag.get()))
-            }
-            None => base_call,
-        };
-        let (root, index) = call_with_lag.call().await?;
+        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
+
+        let merkle_tree = merkle_tree_hook(&self.contract, &self.provider).await?;
+
+        let fixed_block_number: BlockNumber = self
+            .provider
+            .get_block_number()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .saturating_sub(lag)
+            .into();
+
+        let (root, index) = merkle_tree
+            .latest_checkpoint()
+            .block(fixed_block_number)
+            .call()
+            .await?;
         Ok(Checkpoint {
             mailbox_address: self.address(),
             mailbox_domain: self.domain.id(),
@@ -354,12 +369,12 @@ where
 
     #[instrument(skip(self))]
     #[allow(clippy::needless_range_loop)]
-    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        let lag = lag.map(|v| v.get()).unwrap_or(0).into();
+    async fn tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
+        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
 
-        // use consistent block for all storage slot or view calls to prevent
-        // race conditions where tree contents change between calls
-        let fixed_block_number = self
+        let merkle_tree = merkle_tree_hook(&self.contract, &self.provider).await?;
+
+        let fixed_block_number: BlockNumber = self
             .provider
             .get_block_number()
             .await
@@ -367,49 +382,17 @@ where
             .saturating_sub(lag)
             .into();
 
-        let expected_root = self
-            .contract
-            .root()
-            .block(fixed_block_number)
-            .call()
-            .await?
-            .into();
+        // TODO: implement From<Tree> for IncrementalMerkle
+        let raw_tree = merkle_tree.tree().block(fixed_block_number).call().await?;
+        let branch = raw_tree
+            .branch
+            .iter()
+            .map(|v| v.into())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
 
-        // TODO: migrate to single contract view call once mailbox is upgraded
-        // see https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2250
-        // let branch = self.contract.branch().block(block_number).call().await;
-
-        let mut branch = [H256::zero(); TREE_DEPTH];
-
-        for index in 0..TREE_DEPTH {
-            let slot = U256::from(MERKLE_TREE_CONTRACT_SLOT) + index;
-            let mut location = [0u8; 32];
-            slot.to_big_endian(&mut location);
-
-            branch[index] = self
-                .provider
-                .get_storage_at(
-                    self.contract.address(),
-                    location.into(),
-                    Some(fixed_block_number),
-                )
-                .await
-                .map(Into::into)
-                .map_err(ChainCommunicationError::from_other)?;
-        }
-
-        let count = self
-            .contract
-            .count()
-            .block(fixed_block_number)
-            .call()
-            .await? as usize;
-
-        let tree = IncrementalMerkle::new(branch, count);
-
-        // validate tree built from storage slot lookups matches expected
-        // result from root() view call at consistent block
-        assert_eq!(tree.root(), expected_root);
+        let tree = IncrementalMerkle::new(branch, raw_tree.count.as_usize());
 
         Ok(tree)
     }

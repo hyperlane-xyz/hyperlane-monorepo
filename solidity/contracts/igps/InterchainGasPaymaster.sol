@@ -48,7 +48,7 @@ contract InterchainGasPaymaster is
     /// @notice The scale of gas oracle token exchange rates.
     uint256 internal constant TOKEN_EXCHANGE_RATE_SCALE = 1e10;
     /// @notice default for user call if metadata not provided
-    uint256 internal immutable DEFAULT_GAS_USAGE = 69_420;
+    uint256 internal immutable DEFAULT_GAS_USAGE = 100_000;
 
     // ============ Public Storage ============
 
