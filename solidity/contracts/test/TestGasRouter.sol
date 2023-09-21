@@ -2,7 +2,7 @@
 pragma solidity >=0.6.11;
 
 import "./TestRouter.sol";
-import "../client/GasRouter.sol";
+import "../GasRouter.sol";
 
 contract TestGasRouter is TestRouter, GasRouter {
     constructor(address _mailbox) TestRouter(_mailbox) {}

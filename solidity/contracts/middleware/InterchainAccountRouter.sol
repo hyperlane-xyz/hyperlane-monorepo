@@ -10,7 +10,7 @@ import {MinimalProxy} from "../libs/MinimalProxy.sol";
 import {CallLib} from "../libs/Call.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {EnumerableMapExtended} from "../libs/EnumerableMapExtended.sol";
-import {Router, MailboxClient} from "../client/Router.sol";
+import {Router, MailboxClient} from "../Router.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";

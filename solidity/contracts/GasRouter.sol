@@ -2,7 +2,7 @@
 pragma solidity >=0.6.11;
 
 import {Router} from "./Router.sol";
-import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {GlobalHookMetadata} from "./libs/hooks/GlobalHookMetadata.sol";
 
 abstract contract GasRouter is Router {
     // ============ Mutable Storage ============

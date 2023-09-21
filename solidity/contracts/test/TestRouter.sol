@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import "../client/Router.sol";
+import "../Router.sol";
 
 contract TestRouter is Router {
     event InitializeOverload();
