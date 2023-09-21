@@ -39,7 +39,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     ismConfig: IsmConfig,
     proxyAdmin: Address,
-    defaultHook: Address,
+    _defaultHook: Address,
     owner: Address,
   ): Promise<Mailbox> {
     const cachedMailbox = this.readCache(
@@ -71,13 +71,17 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox.address,
     );
 
+    console.log(
+      'Deploying merkle tree hook as both the required and the default hook',
+    );
+
     // configure mailbox
     await this.multiProvider.handleTx(
       chain,
       mailbox.initialize(
         owner,
         defaultIsm,
-        defaultHook,
+        merkleTreeHook.address,
         merkleTreeHook.address,
       ),
     );
