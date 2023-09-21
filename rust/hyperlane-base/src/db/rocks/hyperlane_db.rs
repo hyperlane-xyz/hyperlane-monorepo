@@ -156,7 +156,7 @@ impl HyperlaneRocksDB {
 
     /// Store the merkle tree insertion event, and also store a mapping from message_id to leaf_index
     pub fn process_tree_insertion(&self, insertion: &MerkleTreeInsertion) -> DbResult<bool> {
-        if let Ok(Some(_)) = self.retrieve_merkle_leaf_index_by_message_id(&insertion.message_id())
+        if let Ok(Some(_)) = self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())
         {
             debug!(insertion=?insertion, "Tree insertion already stored in db");
             return Ok(false);

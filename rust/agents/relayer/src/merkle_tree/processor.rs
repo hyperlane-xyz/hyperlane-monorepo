@@ -55,6 +55,8 @@ impl ProcessorExt for MerkleTreeProcessor {
                 .ingest_message_id(insertion.message_id())
                 .await?;
 
+            // Increase the leaf index to move on to the next leaf
+            self.leaf_index += 1;
             // No need to explicitly send the merkle tree to the submitter, since it's
             // behind a shared Arc.
         } else {
