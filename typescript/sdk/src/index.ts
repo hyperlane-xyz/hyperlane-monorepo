@@ -60,7 +60,7 @@ export { TestCoreDeployer } from './core/TestCoreDeployer';
 export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter';
 export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter';
 export { ICoreAdapter } from './core/adapters/types';
-export { CoreFactories, coreFactories, CoreAddresses } from './core/contracts';
+export { CoreAddresses, CoreFactories, coreFactories } from './core/contracts';
 export { HyperlaneLifecyleEvent } from './core/events';
 export {
   CoreConfig,
@@ -108,12 +108,12 @@ export {
   IgpViolationType,
   OverheadIgpConfig,
 } from './gas/types';
-export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
+export { HyperlaneInterceptorDeployer } from './hook/HyperlaneInterceptorDeployer';
 export {
-  HookConfig,
   HookContractType,
-  MessageHookConfig,
+  InterceptorConfig,
   NoMetadataIsmConfig,
+  PostDispatchHookConfig,
 } from './hook/types';
 export {
   HyperlaneIsmFactory,
@@ -125,8 +125,8 @@ export {
   DeployedIsm,
   IsmConfig,
   ModuleType,
-  MultisigIsmConfig,
   MultisigConfig,
+  MultisigIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
 export {

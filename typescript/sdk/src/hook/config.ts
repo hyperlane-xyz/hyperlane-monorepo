@@ -1,14 +1,6 @@
-import {
-  HookConfig,
-  HookContractType,
-  MessageHookConfig,
-  NoMetadataIsmConfig,
-} from './types';
+import { HookContractType, PostDispatchHookConfig } from './types';
 
-export const isISMConfig = (
-  config: HookConfig,
-): config is NoMetadataIsmConfig =>
-  config.hookContractType === HookContractType.ISM;
-
-export const isHookConfig = (config: HookConfig): config is MessageHookConfig =>
+export const isHookConfig = (
+  config: PostDispatchHookConfig,
+): config is PostDispatchHookConfig =>
   config.hookContractType === HookContractType.HOOK;
