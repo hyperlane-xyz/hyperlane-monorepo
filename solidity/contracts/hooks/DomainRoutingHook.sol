@@ -56,7 +56,7 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient, Ownable {
         virtual
         override
     {
-        _getConfiguredHook(message).postDispatch{value: msg.value}(
+        hooks[message.destination()].postDispatch{value: msg.value}(
             metadata,
             message
         );
@@ -70,14 +70,6 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient, Ownable {
         override
         returns (uint256)
     {
-        return _getConfiguredHook(message).quoteDispatch(metadata, message);
-    }
-
-    function _getConfiguredHook(bytes calldata message)
-        internal
-        view
-        returns (IPostDispatchHook)
-    {
-        return hooks[message.destination()];
+        return hooks[message.destination()].quoteDispatch(metadata, message);
     }
 }

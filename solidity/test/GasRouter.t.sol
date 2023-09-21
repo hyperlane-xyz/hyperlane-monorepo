@@ -47,11 +47,12 @@ contract GasRouterTest is Test {
         // Same for origin and remote
         gasPrice = igp.gasPrice();
 
-        originRouter = new TestGasRouter();
-        remoteRouter = new TestGasRouter();
+        originRouter = new TestGasRouter(address(originMailbox));
+        remoteRouter = new TestGasRouter(address(remoteMailbox));
 
-        originRouter.initialize(address(originMailbox));
-        remoteRouter.initialize(address(remoteMailbox));
+        address owner = address(this);
+        originRouter.initialize(address(0), address(0), owner);
+        remoteRouter.initialize(address(0), address(0), owner);
 
         originRouter.enrollRemoteRouter(
             remoteDomain,
@@ -104,7 +105,7 @@ contract GasRouterTest is Test {
         assert(passRefund);
     }
 
-    function testDispatchWithGas(uint256 gas) public {
+    function testDispatch(uint256 gas) public {
         vm.assume(gas > 0 && type(uint256).max / gas > gasPrice);
         vm.deal(address(this), gas * gasPrice);
 
@@ -112,16 +113,10 @@ contract GasRouterTest is Test {
 
         uint256 requiredPayment = gas * gasPrice;
         vm.expectRevert("insufficient interchain gas payment");
-        originRouter.dispatchWithGas{value: requiredPayment - 1}(
-            remoteDomain,
-            ""
-        );
+        originRouter.dispatch{value: requiredPayment - 1}(remoteDomain, "");
 
         vm.deal(address(this), requiredPayment + 1);
-        originRouter.dispatchWithGas{value: requiredPayment + 1}(
-            remoteDomain,
-            ""
-        );
+        originRouter.dispatch{value: requiredPayment + 1}(remoteDomain, "");
         assertEq(refund, 1);
 
         // Reset the IGP balance to avoid a balance overflow
@@ -132,9 +127,6 @@ contract GasRouterTest is Test {
         vm.expectRevert(
             "Address: unable to send value, recipient may have reverted"
         );
-        originRouter.dispatchWithGas{value: requiredPayment + 1}(
-            remoteDomain,
-            ""
-        );
+        originRouter.dispatch{value: requiredPayment + 1}(remoteDomain, "");
     }
 }

@@ -13,12 +13,18 @@ abstract contract MailboxClient {
 
     IMailbox immutable mailbox;
 
-    constructor(address _mailbox) {
-        require(Address.isContract(_mailbox), "MailboxClient: invalid mailbox");
+    uint32 immutable localDomain;
+
+    constructor(address _mailbox) onlyContract(_mailbox) {
         mailbox = IMailbox(_mailbox);
+        localDomain = mailbox.localDomain();
     }
 
     // ============ Modifiers ============
+    modifier onlyContract(address _contract) {
+        require(Address.isContract(_contract), "address is not a contract");
+        _;
+    }
 
     /**
      * @notice Only accept messages from an Hyperlane Mailbox contract

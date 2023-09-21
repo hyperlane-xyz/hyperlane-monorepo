@@ -31,7 +31,6 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @notice Uses the native bridges to verify interchain messages.
  * @dev In the future, the hook might be moved inside the Mailbox which doesn't require storage mappings for senders.
  *      for more details see https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2381
- * @dev V3 WIP
  */
 abstract contract AbstractMessageIdAuthorizedIsm is
     IInterchainSecurityModule,

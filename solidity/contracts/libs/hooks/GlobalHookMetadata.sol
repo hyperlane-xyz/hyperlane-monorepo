@@ -138,7 +138,7 @@ library GlobalHookMetadata {
         view
         returns (bytes memory)
     {
-        return abi.encodePacked(VARIANT, _msgValue, uint256(0), msg.sender, "");
+        return formatMetadata(_msgValue, uint256(0), msg.sender, "");
     }
 
     /**
@@ -152,13 +152,6 @@ library GlobalHookMetadata {
         pure
         returns (bytes memory)
     {
-        return
-            abi.encodePacked(
-                VARIANT,
-                uint256(0),
-                _gasLimit,
-                _refundAddress,
-                ""
-            );
+        return formatMetadata(uint256(0), _gasLimit, _refundAddress, "");
     }
 }

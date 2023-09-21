@@ -26,7 +26,6 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
  * @title AbstractMessageIdAuthHook
  * @notice Message hook to inform an Abstract Message ID ISM of messages published through
  * a third-party bridge.
- * @dev V3 WIP
  */
 abstract contract AbstractMessageIdAuthHook is
     AbstractPostDispatchHook,

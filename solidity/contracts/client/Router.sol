@@ -2,71 +2,59 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
-import {HyperlaneConnectionClient} from "./HyperlaneConnectionClient.sol";
-import {IInterchainGasPaymaster} from "./interfaces/IInterchainGasPaymaster.sol";
-import {IMessageRecipient} from "./interfaces/IMessageRecipient.sol";
-import {IMailbox} from "./interfaces/IMailbox.sol";
-import {EnumerableMapExtended} from "./libs/EnumerableMapExtended.sol";
-import {GlobalHookMetadata} from "./libs/hooks/GlobalHookMetadata.sol";
+import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
+import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
+import {EnumerableMapExtended} from "../libs/EnumerableMapExtended.sol";
+import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {MailboxClient} from "./MailboxClient.sol";
 
-abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
+// ============ External Imports ============
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+
+abstract contract Router is
+    OwnableUpgradeable,
+    MailboxClient,
+    IMessageRecipient
+{
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
-
-    string private constant NO_ROUTER_ENROLLED_REVERT_MESSAGE =
-        "No router enrolled for domain. Did you specify the right domain ID?";
 
     // ============ Mutable Storage ============
     EnumerableMapExtended.UintToBytes32Map internal _routers;
-    uint256[49] private __GAP; // gap for upgrade safety
 
-    // ============ Events ============
+    IPostDispatchHook public hook;
+
+    IInterchainSecurityModule public interchainSecurityModule;
+
+    uint256[48] private __GAP; // gap for upgrade safety
+
+    constructor(address _mailbox) MailboxClient(_mailbox) {}
 
     /**
-     * @notice Emitted when a router is set.
-     * @param domain The domain of the new router
-     * @param router The address of the new router
+     * @notice Initializes the Router contract with Hyperlane core contracts and the address of the interchain security module.
+     * @param _hook The address of the post dispatch hook contract.
+     * @param _interchainSecurityModule The address of the interchain security module contract.
+     * @param _owner The address with owner privileges.
      */
-    event RemoteRouterEnrolled(uint32 indexed domain, bytes32 router);
-
-    // ============ Modifiers ============
-    /**
-     * @notice Only accept messages from a remote Router contract
-     * @param _origin The domain the message is coming from
-     * @param _router The address the message is coming from
-     */
-    modifier onlyRemoteRouter(uint32 _origin, bytes32 _router) {
-        require(
-            _isRemoteRouter(_origin, _router),
-            NO_ROUTER_ENROLLED_REVERT_MESSAGE
-        );
-        _;
+    function initialize(
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
+    ) external virtual initializer {
+        _Router_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
     // ======== Initializer =========
-    function __Router_initialize(address _mailbox) internal onlyInitializing {
-        __HyperlaneConnectionClient_initialize(_mailbox);
-    }
-
-    function __Router_initialize(
-        address _mailbox,
-        address _interchainGasPaymaster
+    function _Router_initialize(
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
     ) internal onlyInitializing {
-        __HyperlaneConnectionClient_initialize(
-            _mailbox,
-            _interchainGasPaymaster
-        );
-    }
-
-    function __Router_initialize(
-        address _mailbox,
-        address _interchainGasPaymaster,
-        address _interchainSecurityModule
-    ) internal onlyInitializing {
-        __HyperlaneConnectionClient_initialize(
-            _mailbox,
-            _interchainGasPaymaster,
-            _interchainSecurityModule
-        );
+        __Ownable_init();
+        setHook(_hook);
+        setInterchainSecurityModule(_interchainSecurityModule);
+        _transferOwnership(_owner);
     }
 
     // ============ External functions ============
@@ -124,15 +112,22 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _message
-    )
-        external
-        payable
-        virtual
-        override
-        onlyMailbox
-        onlyRemoteRouter(_origin, _sender)
-    {
+    ) external payable virtual override onlyMailbox {
+        bytes32 _router = _mustHaveRemoteRouter(_origin);
+        require(_router == _sender, "Enrolled router does not match sender");
         _handle(_origin, _sender, _message);
+    }
+
+    /**
+     * @notice Sets the address of the application's custom hook.
+     * @param _hook The address of the hook contract.
+     */
+    function setHook(address _hook) public onlyOwner {
+        hook = IPostDispatchHook(_hook);
+    }
+
+    function setInterchainSecurityModule(address _module) public onlyOwner {
+        interchainSecurityModule = IInterchainSecurityModule(_module);
     }
 
     // ============ Virtual functions ============
@@ -141,6 +136,11 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         bytes32 _sender,
         bytes calldata _message
     ) internal virtual;
+
+    // TODO: add messageBody?
+    function _metadata(uint32) internal view virtual returns (bytes memory) {
+        return bytes("");
+    }
 
     // ============ Internal functions ============
 
@@ -154,7 +154,6 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         virtual
     {
         _routers.set(_domain, _address);
-        emit RemoteRouterEnrolled(_domain, _address);
     }
 
     /**
@@ -181,41 +180,14 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         returns (bytes32)
     {
         (bool contained, bytes32 _router) = _routers.tryGet(_domain);
-        require(contained, NO_ROUTER_ENROLLED_REVERT_MESSAGE);
+        require(
+            contained,
+            string.concat(
+                "No router enrolled for domain",
+                Strings.toString(_domain)
+            )
+        );
         return _router;
-    }
-
-    /**
-     * @notice Dispatches a message to an enrolled router via the local router's Mailbox
-     * and pays for it to be relayed to the destination.
-     * @dev Reverts if there is no enrolled router for _destinationDomain.
-     * @param _destinationDomain The domain of the chain to which to send the message.
-     * @param _messageBody Raw bytes content of message.
-     * @param _gasAmount The amount of destination gas for the message that is requested via the InterchainGasPaymaster.
-     * @param _gasPayment The amount of native tokens to pay for the message to be relayed.
-     * @param _gasPaymentRefundAddress The address to refund any gas overpayment to.
-     */
-    function _dispatchWithGas(
-        uint32 _destinationDomain,
-        bytes memory _messageBody,
-        uint256 _gasAmount,
-        uint256 _gasPayment,
-        address _gasPaymentRefundAddress
-    ) internal returns (bytes32 _messageId) {
-        // Ensure that destination chain has an enrolled router.
-        bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
-        bytes memory metadata = GlobalHookMetadata.formatMetadata(
-            0,
-            _gasAmount,
-            _gasPaymentRefundAddress,
-            bytes("")
-        );
-        _messageId = mailbox.dispatch{value: _gasPayment}(
-            _destinationDomain,
-            _router,
-            _messageBody,
-            metadata
-        );
     }
 
     function _dispatch(uint32 _destinationDomain, bytes memory _messageBody)
@@ -228,7 +200,24 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
             mailbox.dispatch{value: msg.value}(
                 _destinationDomain,
                 _router,
-                _messageBody
+                _messageBody,
+                _metadata(_destinationDomain),
+                hook
+            );
+    }
+
+    function _quoteDispatch(
+        uint32 _destinationDomain,
+        bytes memory _messageBody
+    ) internal view virtual returns (uint256) {
+        bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
+        return
+            mailbox.quoteDispatch(
+                _destinationDomain,
+                _router,
+                _messageBody,
+                _metadata(_destinationDomain),
+                hook
             );
     }
 }

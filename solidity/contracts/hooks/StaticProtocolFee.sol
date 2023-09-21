@@ -24,7 +24,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 /**
  * @title StaticProtocolFee
  * @notice Collects a static protocol fee from the sender.
- * @dev V3 WIP
  */
 contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
     using GlobalHookMetadata for bytes;
@@ -95,10 +94,11 @@ contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
         );
 
         uint256 refund = msg.value - protocolFee;
-        if (refund > 0)
+        if (refund > 0) {
             payable(metadata.refundAddress(message.senderAddress())).sendValue(
                 refund
             );
+        }
     }
 
     /// @inheritdoc AbstractPostDispatchHook

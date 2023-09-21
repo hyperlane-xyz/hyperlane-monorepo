@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "forge-std/Test.sol";
 import "../contracts/mock/MockMailbox.sol";
-import "../contracts/HyperlaneConnectionClient.sol";
 import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecurityModule.sol";
@@ -70,14 +69,13 @@ contract InterchainAccountRouterTest is Test {
     Callable target;
 
     function deployProxiedIcaRouter(
-        uint32 _domain,
         MockMailbox _mailbox,
         IInterchainGasPaymaster _igps,
         IInterchainSecurityModule _ism,
         address _owner
     ) public returns (InterchainAccountRouter) {
         InterchainAccountRouter implementation = new InterchainAccountRouter(
-            _domain
+            address(_mailbox)
         );
 
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -85,7 +83,6 @@ contract InterchainAccountRouterTest is Test {
             address(1), // no proxy owner necessary for testing
             abi.encodeWithSelector(
                 InterchainAccountRouter.initialize.selector,
-                address(_mailbox),
                 address(_igps),
                 address(_ism),
                 _owner
@@ -104,14 +101,12 @@ contract InterchainAccountRouterTest is Test {
 
         address owner = address(this);
         originRouter = deployProxiedIcaRouter(
-            origin,
             environment.mailboxes(origin),
             environment.igps(destination),
             icaIsm,
             owner
         );
         destinationRouter = deployProxiedIcaRouter(
-            destination,
             environment.mailboxes(destination),
             environment.igps(destination),
             icaIsm,

@@ -397,7 +397,7 @@ contract MailboxTest is Test, Versioned {
         mailbox.process{value: value}(metadata, message);
         assertEq(mailbox.delivered(id), true);
         assertEq(mailbox.processor(id), address(this));
-        assertEq(mailbox.processedAt(id), uint48(block.timestamp));
+        assertEq(mailbox.processedAt(id), uint48(block.number));
     }
 
     function test_process_revertsWhenAlreadyDelivered() public {

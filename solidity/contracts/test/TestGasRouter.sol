@@ -2,27 +2,17 @@
 pragma solidity >=0.6.11;
 
 import "./TestRouter.sol";
-import "../GasRouter.sol";
+import "../client/GasRouter.sol";
 
 contract TestGasRouter is TestRouter, GasRouter {
-    function dispatchWithGas(
-        uint32 _destinationDomain,
-        bytes memory _messageBody,
-        uint256 _gasPayment,
-        address _gasPaymentRefundAddress
-    ) external payable {
-        _dispatchWithGas(
-            _destinationDomain,
-            _messageBody,
-            _gasPayment,
-            _gasPaymentRefundAddress
-        );
-    }
+    constructor(address _mailbox) TestRouter(_mailbox) {}
 
-    function dispatchWithGas(
-        uint32 _destinationDomain,
-        bytes memory _messageBody
-    ) external payable {
-        _dispatchWithGas(_destinationDomain, _messageBody);
+    function _metadata(uint32 _destination)
+        internal
+        view
+        override(GasRouter, Router)
+        returns (bytes memory)
+    {
+        return GasRouter._metadata(_destination);
     }
 }
