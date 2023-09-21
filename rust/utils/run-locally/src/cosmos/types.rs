@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::collections::BTreeMap;
 
 use hpl_interface::types::bech32_decode;
 
@@ -131,8 +131,12 @@ fn to_hex_addr(addr: &str) -> String {
 }
 
 impl AgentConfig {
-    pub fn new(bin: PathBuf, validator: &str, network: &CosmosNetwork) -> Self {
-        let cli = OsmosisCLI::new(bin, network.launch_resp.home_path.to_str().unwrap());
+    pub fn new(image: &str, validator: &str, network: &CosmosNetwork) -> Self {
+        let cli = OsmosisCLI::new(
+            image,
+            network.launch_resp.home_path.to_str().unwrap(),
+            &network.chain_id,
+        );
         let validator = cli.get_keypair(validator);
 
         AgentConfig {
