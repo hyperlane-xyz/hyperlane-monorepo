@@ -33,21 +33,50 @@ impl OsmosisEndpoint {
 }
 
 pub struct OsmosisCLI {
-    pub bin: PathBuf,
+    pub image: String,
     pub home: String,
+    pub chain_id: String,
 }
+
+const OSMOSIS_DOCKER_CLI_HOME: &str = "/etc/data/home";
 
 #[allow(dead_code)]
 impl OsmosisCLI {
-    pub fn new(bin: PathBuf, home: &str) -> Self {
+    pub fn new(image: &str, home: &str, chain_id: &str) -> Self {
         Self {
-            bin,
+            image: image.to_string(),
             home: home.to_string(),
+            chain_id: chain_id.to_string(),
         }
     }
 
-    fn cli(&self) -> Program {
-        Program::new(self.bin.clone()).arg("home", &self.home)
+    fn docker_cli(&self) -> Program {
+        Program::new("docker")
+    }
+
+    fn docker_container_name(&self) -> String {
+        format!("osmosis-{}", self.chain_id)
+    }
+
+    fn osmosis_cli(&self, p: Program) -> Program {
+        p.cmd(self.image.to_string())
+            .arg("home", OSMOSIS_DOCKER_CLI_HOME)
+    }
+
+    fn cli_run(&self) -> Program {
+        self.osmosis_cli(
+            self.docker_cli()
+                .cmd("run")
+                .raw_arg("--rm")
+                .arg("volume", format!("{}:{OSMOSIS_DOCKER_CLI_HOME}", self.home)),
+        )
+    }
+
+    fn cli_exec(&self) -> Program {
+        self.docker_cli()
+            .cmd("exec")
+            .cmd(self.docker_container_name())
+            .cmd("osmosisd")
     }
 
     fn add_gas(&self, program: Program) -> Program {
@@ -58,11 +87,12 @@ impl OsmosisCLI {
             .flag("yes")
     }
 
-    pub fn init(&self, moniker: &str, chain_id: &str) {
-        self.cli()
+    /// Must use cli_run to modify mounted home's genesis / config and something
+    pub fn init(&self, moniker: &str) {
+        self.cli_run()
             .cmd("init")
             .cmd(moniker)
-            .arg("chain-id", chain_id)
+            .arg("chain-id", self.chain_id.to_string())
             .run()
             .join();
 
@@ -92,7 +122,7 @@ impl OsmosisCLI {
         );
 
         // modify client config
-        let client_chain_id = chain_id.to_string();
+        let client_chain_id = self.chain_id.to_string();
         let client_config_path = concat_path(&self.home, "config/client.toml");
         modify_toml(
             client_config_path,
@@ -107,15 +137,15 @@ impl OsmosisCLI {
         self.add_default_keys();
         self.add_genesis_accs();
 
-        self.cli()
+        self.cli_run()
             .cmd("gentx")
             .cmd("validator")
             .cmd(format!("{}uosmo", GENESIS_FUND))
-            .arg("chain-id", chain_id)
+            .arg("chain-id", self.chain_id.to_string())
             .run()
             .join();
 
-        self.cli().cmd("collect-gentxs").run().join();
+        self.cli_run().cmd("collect-gentxs").run().join();
     }
 
     pub fn start(&self, addr_base: String, port_base: u32) -> (AgentHandles, OsmosisEndpoint) {
@@ -127,14 +157,17 @@ impl OsmosisCLI {
         let mut get_next_addr = || {
             let port = next_port;
             next_port += 1;
-            format!("{addr_base}:{port}")
+            (format!("{addr_base}:{port}"), port)
         };
 
-        let addr = get_next_addr();
-        let p2p_addr = get_next_addr();
-        let rpc_addr = get_next_addr();
-        let grpc_addr = get_next_addr().replace("tcp://", "");
-        let pprof_addr = get_next_addr().replace("tcp://", "");
+        let (addr, port) = get_next_addr();
+        let (_p2p_addr, p2p_port) = get_next_addr();
+        let (rpc_addr, rpc_port) = get_next_addr();
+        let (grpc_addr, grpc_port) = get_next_addr();
+        let grpc_addr = grpc_addr.replace("tcp://", "");
+
+        let (pprof_addr, pprof_port) = get_next_addr();
+        let _pprof_addr = pprof_addr.replace("tcp://", "");
 
         let endpoint = OsmosisEndpoint {
             addr,
@@ -142,17 +175,28 @@ impl OsmosisCLI {
             grpc_addr,
         };
 
-        let node = self
-            .cli()
-            .cmd("start")
-            .arg("address", &endpoint.addr) // default is tcp://0.0.0.0:26658
-            // addrs
-            .arg("p2p.laddr", p2p_addr) // default is tcp://0.0.0.0:26655
-            .arg("rpc.laddr", &endpoint.rpc_addr) // default is tcp://0.0.0.0:26657
-            .arg("grpc.address", &endpoint.grpc_addr) // default is 0.0.0.0:9090
-            .arg("rpc.pprof_laddr", pprof_addr) // default is localhost:6060
-            .arg("log_level", "panic")
-            .spawn("COSMOS");
+        // .arg("address", &endpoint.addr) // default is tcp://0.0.0.0:26658
+        // .arg("p2p.laddr", p2p_addr) // default is tcp://0.0.0.0:26655
+        // .arg("rpc.laddr", &endpoint.rpc_addr) // default is tcp://0.0.0.0:26657
+        // .arg("grpc.address", &endpoint.grpc_addr) // default is 0.0.0.0:9090
+        // .arg("rpc.pprof_laddr", pprof_addr) // default is localhost:6060
+        // .arg("log_level", "panic")
+        let program_base = self
+            .osmosis_cli(
+                self.docker_cli()
+                    .cmd("run")
+                    .raw_arg("--rm")
+                    .arg("volume", format!("{}:{OSMOSIS_DOCKER_CLI_HOME}", self.home))
+                    .arg("name", self.docker_container_name())
+                    .arg("publish", format!("{}:26658", &port))
+                    .arg("publish", format!("{}:26657", &rpc_port))
+                    .arg("publish", format!("{}:26655", &p2p_port))
+                    .arg("publish", format!("{}:9090", &grpc_port))
+                    .arg("publish", format!("{}:6060", &pprof_port)),
+            )
+            .arg("log_level", "panic");
+
+        let node = program_base.cmd("start").spawn("COSMOS");
 
         endpoint.wait_for_node();
 
@@ -169,11 +213,16 @@ impl OsmosisCLI {
 
         for (name, code) in codes {
             let cmd = self
-                .cli()
+                .docker_cli()
+                .arg(
+                    "volume",
+                    format!("{}:/etc/codes/{name}.wasm", code.to_str().unwrap()),
+                )
+                .cmd(self.docker_container_name())
                 .cmd("tx")
                 .cmd("wasm")
                 .cmd("store")
-                .cmd(code.to_str().unwrap())
+                .cmd(format!("/etc/codes/{name}.wasm"))
                 .arg("from", sender);
 
             let cmd = self.add_gas(cmd);
@@ -208,7 +257,7 @@ impl OsmosisCLI {
         label: &str,
     ) -> String {
         let mut cmd = self
-            .cli()
+            .cli_exec()
             .cmd("tx")
             .cmd("wasm")
             .cmd("instantiate")
@@ -255,7 +304,7 @@ impl OsmosisCLI {
         funds: Vec<Coin>,
     ) -> TxResponse {
         let mut cmd = self
-            .cli()
+            .cli_exec()
             .cmd("tx")
             .cmd("wasm")
             .cmd("execute")
@@ -284,20 +333,18 @@ impl OsmosisCLI {
 
     pub fn wasm_query<T: serde::ser::Serialize, U: serde::de::DeserializeOwned>(
         &self,
-        endpoint: &OsmosisEndpoint,
+        _endpoint: &OsmosisEndpoint,
         contract: &str,
         query_msg: T,
     ) -> U {
-        let mut cmd = self
-            .cli()
+        let cmd = self
+            .cli_exec()
             .cmd("query")
             .cmd("wasm")
             .cmd("contract-state")
             .cmd("smart")
             .cmd(contract)
             .cmd(serde_json::to_string(&query_msg).unwrap());
-
-        cmd = endpoint.add_rpc(cmd);
 
         let output = cmd.run_with_output().join();
         let output = output.first().unwrap();
@@ -306,9 +353,9 @@ impl OsmosisCLI {
         output.data
     }
 
-    pub fn query_balance(&self, endpoint: &OsmosisEndpoint, addr: &str) -> BalanceResponse {
-        let cmd = endpoint
-            .add_rpc(self.cli())
+    pub fn query_balance(&self, _endpoint: &OsmosisEndpoint, addr: &str) -> BalanceResponse {
+        let cmd = self
+            .cli_exec()
             .cmd("query")
             .cmd("bank")
             .cmd("balances")
@@ -323,7 +370,7 @@ impl OsmosisCLI {
 
     fn add_genesis_accs(&self) {
         for name in default_keys().into_iter().map(|(name, _)| name) {
-            self.cli()
+            self.cli_run()
                 .cmd("add-genesis-account")
                 .cmd(self.get_addr(name))
                 .cmd(format!("{}uosmo", GENESIS_FUND * 2))
@@ -340,7 +387,13 @@ impl OsmosisCLI {
 
     pub fn add_key(&self, name: &str, mnemonic: &str) {
         let mut child = self
-            .cli()
+            .osmosis_cli(
+                self.docker_cli()
+                    .cmd("run")
+                    .flag("rm")
+                    .raw_arg("-i")
+                    .arg("volume", format!("{}:{OSMOSIS_DOCKER_CLI_HOME}", self.home)),
+            )
             .cmd("keys")
             .cmd("add")
             .cmd(name)
@@ -362,7 +415,7 @@ impl OsmosisCLI {
 
     pub fn get_addr(&self, name: &str) -> String {
         let out = self
-            .cli()
+            .cli_run()
             .cmd("keys")
             .cmd("show")
             .raw_arg("-a")
@@ -374,7 +427,7 @@ impl OsmosisCLI {
 
     pub fn get_keypair(&self, name: &str) -> KeyPair {
         let cmd = self
-            .cli()
+            .cli_run()
             .cmd("keys")
             .cmd("export")
             .cmd(name)
