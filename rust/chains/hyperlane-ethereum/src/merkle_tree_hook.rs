@@ -1,4 +1,5 @@
 #![allow(missing_docs)]
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -7,12 +8,12 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Indexer, LogMeta, MerkleTreeInsertion,
-    H160, H256,
+    SequenceIndexer, H256,
 };
 
 use crate::contracts::i_mailbox::IMailbox as EthereumMailboxInternal;
-use crate::{contracts::mailbox, trait_builder::BuildableWithProvider};
-use crate::{contracts::merkle_tree_hook::MerkleTreeHook, EthereumMailbox};
+use crate::contracts::merkle_tree_hook::MerkleTreeHook;
+use crate::trait_builder::BuildableWithProvider;
 
 pub struct MerkleTreeHookIndexerBuilder {
     pub finality_blocks: u32,
@@ -20,7 +21,7 @@ pub struct MerkleTreeHookIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for MerkleTreeHookIndexerBuilder {
-    type Output = Box<dyn Indexer<MerkleTreeInsertion>>;
+    type Output = Box<dyn SequenceIndexer<MerkleTreeInsertion>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -75,13 +76,10 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
-        let BlockRange(range) = range else {
-            return Err(ChainCommunicationError::from_other_str(
-                "EthereumMerkleTreeHookIndexer only supports block-based indexing",
-            ));
-        };
-
+    async fn fetch_logs(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(MerkleTreeInsertion, LogMeta)>> {
         let merkle_tree_hook = self.merkle_tree_hook().await?;
         let events = merkle_tree_hook
             .inserted_into_tree_filter()
@@ -90,7 +88,7 @@ where
             .query_with_meta()
             .await?;
 
-        Ok(events
+        let logs = events
             .into_iter()
             .map(|(log, log_meta)| {
                 (
@@ -98,7 +96,8 @@ where
                     log_meta.into(),
                 )
             })
-            .collect())
+            .collect();
+        Ok(logs)
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
@@ -110,5 +109,22 @@ where
             .map_err(ChainCommunicationError::from_other)?
             .as_u32()
             .saturating_sub(self.finality_blocks))
+    }
+}
+
+#[async_trait]
+impl<M> SequenceIndexer<MerkleTreeInsertion> for EthereumMerkleTreeHookIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        // The InterchainGasPaymasterIndexerBuilder must return a `SequenceIndexer` type.
+        // It's fine if only a blanket implementation is provided for EVM chains, since their
+        // indexing only uses the `Index` trait, which is a supertrait of `SequenceIndexer`.
+        // TODO: if `SequenceIndexer` turns out to not depend on `Indexer` at all, then the supertrait
+        // dependency could be removed, even if the builder would still need to return a type that is both
+        // ``SequenceIndexer` and `Indexer`.
+        let tip = self.get_finalized_block_number().await?;
+        Ok((None, tip))
     }
 }

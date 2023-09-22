@@ -8,7 +8,7 @@ use eyre::{eyre, Context, Result};
 use hyperlane_core::{
     AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
     HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, HyperlaneSigner, IndexMode,
-    Indexer, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
+    InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
     MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceIndexer, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
@@ -268,11 +268,11 @@ impl ChainConf {
     pub async fn build_merkle_tree_hook_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn Indexer<MerkleTreeInsertion>>> {
+    ) -> Result<Box<dyn SequenceIndexer<MerkleTreeInsertion>>> {
         let ctx = "Building merkle tree hook indexer";
         let locator = self.locator(self.addresses.mailbox);
 
-        match &self.connection()? {
+        match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(
                     conf,

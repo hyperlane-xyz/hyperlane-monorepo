@@ -23,7 +23,6 @@ use tokio::{
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use crate::merkle_tree::processor::{MerkleTreeProcessor, MerkleTreeProcessorMetrics};
-use crate::msg::pending_message::MessageSubmissionMetrics;
 use crate::processor::{Processor, ProcessorExt};
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,

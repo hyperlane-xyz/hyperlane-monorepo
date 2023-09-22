@@ -18,7 +18,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
 use crate::{
-    merkle_tree_builder::{MerkleTreeBuilder, MerkleTreeBuilderError},
+    merkle_tree::builder::{MerkleTreeBuilder, MerkleTreeBuilderError},
     msg::metadata::{
         multisig::{
             LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,

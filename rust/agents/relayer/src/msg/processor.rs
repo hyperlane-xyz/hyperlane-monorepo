@@ -15,12 +15,8 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, trace};
 
 use super::pending_message::*;
-use crate::processor::ProcessorExt;
-use crate::processor::{Processor, ProcessorTicker};
-use crate::{
-    merkle_tree_builder::MerkleTreeBuilder, msg::pending_operation::DynPendingOperation,
-    settings::matching_list::MatchingList,
-};
+use crate::msg::pending_operation::DynPendingOperation;
+use crate::{processor::ProcessorExt, settings::matching_list::MatchingList};
 
 /// Finds unprocessed messages from an origin and submits then through a channel
 /// for to the appropriate destination.
@@ -206,12 +202,6 @@ mod test {
             RwLock,
         },
         time::sleep,
-    };
-
-    use super::*;
-    use crate::msg::{
-        gas_payment::GasPaymentEnforcer, metadata::BaseMetadataBuilder,
-        pending_operation::PendingOperation,
     };
 
     fn dummy_processor_metrics(domain_id: u32) -> MessageProcessorMetrics {

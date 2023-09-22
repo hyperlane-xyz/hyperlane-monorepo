@@ -14,7 +14,6 @@ use ethers_core::types::BlockNumber;
 use tracing::instrument;
 
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
-use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::{
     utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
@@ -28,9 +27,6 @@ use crate::contracts::merkle_tree_hook::MerkleTreeHook;
 use crate::trait_builder::BuildableWithProvider;
 use crate::tx::{fill_tx_gas_params, report_tx};
 use crate::EthereumProvider;
-
-/// derived from `forge inspect Mailbox storage --pretty`
-const MERKLE_TREE_CONTRACT_SLOT: u32 = 152;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
