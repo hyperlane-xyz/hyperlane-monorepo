@@ -10,7 +10,7 @@ contract TestGasRouter is TestRouter, GasRouter {
     function _metadata(uint32 _destination)
         internal
         view
-        override(GasRouter, Router)
+        override(GasRouter, MailboxClient)
         returns (bytes memory)
     {
         return GasRouter._metadata(_destination);

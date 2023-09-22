@@ -70,7 +70,7 @@ contract InterchainAccountRouterTest is Test {
 
     function deployProxiedIcaRouter(
         MockMailbox _mailbox,
-        IInterchainGasPaymaster _igps,
+        IInterchainGasPaymaster _igp,
         IInterchainSecurityModule _ism,
         address _owner
     ) public returns (InterchainAccountRouter) {
@@ -83,7 +83,7 @@ contract InterchainAccountRouterTest is Test {
             address(1), // no proxy owner necessary for testing
             abi.encodeWithSelector(
                 InterchainAccountRouter.initialize.selector,
-                address(_igps),
+                address(_igp),
                 address(_ism),
                 _owner
             )
@@ -344,7 +344,7 @@ contract InterchainAccountRouterTest is Test {
         string memory failureMessage = "failing ism";
         FailingIsm failingIsm = new FailingIsm(failureMessage);
 
-        environment.mailboxes(destination).setDefaultIsm(failingIsm);
+        environment.mailboxes(destination).setDefaultIsm(address(failingIsm));
         originRouter.callRemoteWithOverrides(
             destination,
             routerOverride,

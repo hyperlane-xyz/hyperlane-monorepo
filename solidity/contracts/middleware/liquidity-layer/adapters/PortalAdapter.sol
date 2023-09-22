@@ -62,7 +62,7 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
         address _owner,
         address _portalTokenBridge,
         address _liquidityLayerRouter
-    ) public override initializer {
+    ) public initializer {
         // Transfer ownership of the contract to deployer
         _transferOwnership(_owner);
 

@@ -58,10 +58,10 @@ contract ERC5164ISMTest is Test {
         dispatcher = new MockMessageDispatcher();
         executor = new MockMessageExecutor();
         testRecipient = new TestRecipient();
+        srcMailbox = new TestMailbox(TEST1_DOMAIN);
     }
 
     function deployContracts() public {
-        srcMailbox = new TestMailbox(TEST1_DOMAIN);
         ism = new ERC5164ISM(address(executor));
         hook = new ERC5164Hook(
             address(srcMailbox),
@@ -92,7 +92,7 @@ contract ERC5164ISMTest is Test {
             "AbstractMessageIdAuthHook: invalid destination domain"
         );
         hook = new ERC5164Hook(
-            address(dispatcher),
+            address(srcMailbox),
             0,
             address(ism),
             address(dispatcher)
@@ -100,7 +100,7 @@ contract ERC5164ISMTest is Test {
 
         vm.expectRevert("AbstractMessageIdAuthHook: invalid ISM");
         hook = new ERC5164Hook(
-            address(dispatcher),
+            address(srcMailbox),
             TEST2_DOMAIN,
             address(0),
             address(dispatcher)
@@ -108,7 +108,7 @@ contract ERC5164ISMTest is Test {
 
         vm.expectRevert("ERC5164Hook: invalid dispatcher");
         hook = new ERC5164Hook(
-            address(dispatcher),
+            address(srcMailbox),
             TEST2_DOMAIN,
             address(ism),
             address(0)

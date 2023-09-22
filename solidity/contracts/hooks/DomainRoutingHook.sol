@@ -20,10 +20,7 @@ import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 
-// ============ External Imports ============
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
-contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient, Ownable {
+contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
     using GlobalHookMetadata for bytes;
     using Message for bytes;
 

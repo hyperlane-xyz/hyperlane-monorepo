@@ -10,7 +10,7 @@ contract TestPostDispatchHook is AbstractPostDispatchHook {
     // ============ Public Storage ============
 
     // test fees for quoteDispatch
-    uint256 public fee = 25000;
+    uint256 public fee = 0;
 
     // ============ Internal functions ============
     function _postDispatch(

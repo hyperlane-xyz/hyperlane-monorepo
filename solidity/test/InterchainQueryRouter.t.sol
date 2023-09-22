@@ -53,18 +53,6 @@ contract InterchainQueryRouterTest is Test {
         originRouter = new InterchainQueryRouter(originMailbox);
         remoteRouter = new InterchainQueryRouter(remoteMailbox);
 
-        address owner = address(this);
-        originRouter.initialize(
-            address(environment.igps(originDomain)),
-            address(environment.isms(originDomain)),
-            owner
-        );
-        remoteRouter.initialize(
-            address(environment.igps(remoteDomain)),
-            address(environment.isms(remoteDomain)),
-            owner
-        );
-
         originRouter.enrollRemoteRouter(
             remoteDomain,
             TypeCasts.addressToBytes32(address(remoteRouter))
@@ -82,11 +70,7 @@ contract InterchainQueryRouterTest is Test {
     ) public {
         vm.expectEmit(true, true, false, true, address(originRouter));
         emit QueryDispatched(remoteDomain, address(this));
-
-        CallLib.StaticCallWithCallback[]
-            memory calls = new CallLib.StaticCallWithCallback[](1);
-        calls[0] = CallLib.build(target, call, callback);
-        originRouter.query(remoteDomain, calls);
+        originRouter.query(remoteDomain, target, call, callback);
     }
 
     function processQuery() public {

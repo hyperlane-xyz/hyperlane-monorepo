@@ -92,8 +92,8 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         address _interchainGasPaymaster,
         address _interchainSecurityModule,
         address _owner
-    ) external override initializer {
-        _Router_initialize(
+    ) external initializer {
+        _MailboxClient_initialize(
             _interchainGasPaymaster,
             _interchainSecurityModule,
             _owner

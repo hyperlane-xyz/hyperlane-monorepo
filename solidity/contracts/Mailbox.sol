@@ -273,7 +273,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
         bytes calldata messageBody,
         bytes calldata metadata,
         IPostDispatchHook hook
-    ) public payable returns (bytes32) {
+    ) public payable virtual returns (bytes32) {
         if (address(hook) == address(0)) {
             hook = defaultHook;
         }

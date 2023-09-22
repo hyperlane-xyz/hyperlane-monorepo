@@ -66,7 +66,7 @@ abstract contract AbstractMessageIdAuthHook is
     {
         bytes32 id = message.id();
         require(
-            isLatestDispatched(id),
+            _isLatestDispatched(id),
             "AbstractMessageIdAuthHook: message not latest dispatched"
         );
         require(

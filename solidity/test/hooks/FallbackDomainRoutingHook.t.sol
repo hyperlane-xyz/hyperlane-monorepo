@@ -36,7 +36,9 @@ contract FallbackDomainRoutingHookTest is Test {
 
     /* ============ hook.quoteDispatch ============ */
 
-    function test_quoteDispatchHook_configured() public {
+    function test_quoteDispatchHook_configured(uint256 fee) public {
+        configuredTestPostDispatchHook.setFee(fee);
+
         fallbackHook.setHook(
             TEST_DESTINATION_DOMAIN,
             address(testRecipient).addressToBytes32(),
@@ -50,7 +52,7 @@ contract FallbackDomainRoutingHookTest is Test {
                 ("", testMessage)
             )
         );
-        assertEq(fallbackHook.quoteDispatch("", testMessage), 25000);
+        assertEq(fallbackHook.quoteDispatch("", testMessage), fee);
     }
 
     function test_quoteDispatch_default() public payable {

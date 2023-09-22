@@ -15,7 +15,6 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
-import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 /**

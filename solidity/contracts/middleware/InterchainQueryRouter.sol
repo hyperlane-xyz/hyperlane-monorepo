@@ -43,6 +43,18 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
 
     constructor(address _mailbox) Router(_mailbox) {}
 
+    function initialize(
+        address _interchainGasPaymaster,
+        address _interchainSecurityModule,
+        address _owner
+    ) external initializer {
+        _MailboxClient_initialize(
+            _interchainGasPaymaster,
+            _interchainSecurityModule,
+            _owner
+        );
+    }
+
     /**
      * @notice Dispatches a sequence of static calls (query) to the destination domain and set of callbacks to resolve the results on the dispatcher.
      * @param _destination The domain of the chain to query.

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import "../contracts/test/TestGasRouter.sol";
 import "../contracts/test/TestMailbox.sol";
 import "../contracts/test/TestIsm.sol";
@@ -49,10 +48,6 @@ contract GasRouterTest is Test {
 
         originRouter = new TestGasRouter(address(originMailbox));
         remoteRouter = new TestGasRouter(address(remoteMailbox));
-
-        address owner = address(this);
-        originRouter.initialize(address(0), address(0), owner);
-        remoteRouter.initialize(address(0), address(0), owner);
 
         originRouter.enrollRemoteRouter(
             remoteDomain,

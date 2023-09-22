@@ -10,52 +10,17 @@ import {GlobalHookMetadata} from "./libs/hooks/GlobalHookMetadata.sol";
 import {MailboxClient} from "./client/MailboxClient.sol";
 
 // ============ External Imports ============
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
-abstract contract Router is
-    OwnableUpgradeable,
-    MailboxClient,
-    IMessageRecipient
-{
+abstract contract Router is MailboxClient, IMessageRecipient {
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
 
     // ============ Mutable Storage ============
     EnumerableMapExtended.UintToBytes32Map internal _routers;
 
-    IPostDispatchHook public hook;
-
-    IInterchainSecurityModule public interchainSecurityModule;
-
     uint256[48] private __GAP; // gap for upgrade safety
 
     constructor(address _mailbox) MailboxClient(_mailbox) {}
-
-    /**
-     * @notice Initializes the Router contract with Hyperlane core contracts and the address of the interchain security module.
-     * @param _hook The address of the post dispatch hook contract.
-     * @param _interchainSecurityModule The address of the interchain security module contract.
-     * @param _owner The address with owner privileges.
-     */
-    function initialize(
-        address _hook,
-        address _interchainSecurityModule,
-        address _owner
-    ) external virtual initializer {
-        _Router_initialize(_hook, _interchainSecurityModule, _owner);
-    }
-
-    // ======== Initializer =========
-    function _Router_initialize(
-        address _hook,
-        address _interchainSecurityModule,
-        address _owner
-    ) internal onlyInitializing {
-        __Ownable_init();
-        setHook(_hook);
-        setInterchainSecurityModule(_interchainSecurityModule);
-        _transferOwnership(_owner);
-    }
 
     // ============ External functions ============
     function domains() external view returns (uint32[] memory) {
@@ -118,29 +83,12 @@ abstract contract Router is
         _handle(_origin, _sender, _message);
     }
 
-    /**
-     * @notice Sets the address of the application's custom hook.
-     * @param _hook The address of the hook contract.
-     */
-    function setHook(address _hook) public onlyOwner {
-        hook = IPostDispatchHook(_hook);
-    }
-
-    function setInterchainSecurityModule(address _module) public onlyOwner {
-        interchainSecurityModule = IInterchainSecurityModule(_module);
-    }
-
     // ============ Virtual functions ============
     function _handle(
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _message
     ) internal virtual;
-
-    // TODO: add messageBody?
-    function _metadata(uint32) internal view virtual returns (bytes memory) {
-        return bytes("");
-    }
 
     // ============ Internal functions ============
 
@@ -196,14 +144,7 @@ abstract contract Router is
         returns (bytes32)
     {
         bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
-        return
-            mailbox.dispatch{value: msg.value}(
-                _destinationDomain,
-                _router,
-                _messageBody,
-                _metadata(_destinationDomain),
-                hook
-            );
+        return super._dispatch(_destinationDomain, _router, _messageBody);
     }
 
     function _quoteDispatch(
@@ -211,13 +152,6 @@ abstract contract Router is
         bytes memory _messageBody
     ) internal view virtual returns (uint256) {
         bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
-        return
-            mailbox.quoteDispatch(
-                _destinationDomain,
-                _router,
-                _messageBody,
-                _metadata(_destinationDomain),
-                hook
-            );
+        return super._quoteDispatch(_destinationDomain, _router, _messageBody);
     }
 }

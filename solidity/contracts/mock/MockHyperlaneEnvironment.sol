@@ -25,14 +25,21 @@ contract MockHyperlaneEnvironment {
         originMailbox.addRemoteMailbox(_destinationDomain, destinationMailbox);
         destinationMailbox.addRemoteMailbox(_originDomain, originMailbox);
 
-        igps[originDomain] = new TestInterchainGasPaymaster();
-        igps[destinationDomain] = new TestInterchainGasPaymaster();
-
         isms[originDomain] = new TestMultisigIsm();
         isms[destinationDomain] = new TestMultisigIsm();
 
-        originMailbox.setDefaultIsm(isms[originDomain]);
-        destinationMailbox.setDefaultIsm(isms[destinationDomain]);
+        originMailbox.setDefaultIsm(address(isms[originDomain]));
+        destinationMailbox.setDefaultIsm(address(isms[destinationDomain]));
+
+        igps[originDomain] = new TestInterchainGasPaymaster();
+        igps[destinationDomain] = new TestInterchainGasPaymaster();
+
+        // TODO: update routers with IGP paymentss
+        // originMailbox.setDefaultHook(address(igps[originDomain]));
+        // destinationMailbox.setDefaultHook(address(igps[destinationDomain]));
+
+        originMailbox.transferOwnership(msg.sender);
+        destinationMailbox.transferOwnership(msg.sender);
 
         mailboxes[_originDomain] = originMailbox;
         mailboxes[_destinationDomain] = destinationMailbox;

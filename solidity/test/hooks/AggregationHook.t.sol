@@ -15,10 +15,14 @@ contract AggregationHookTest is Test {
         factory = new StaticAggregationHookFactory();
     }
 
-    function deployHooks(uint8 n) internal returns (address[] memory) {
+    function deployHooks(uint8 n, uint256 fee)
+        internal
+        returns (address[] memory)
+    {
         address[] memory hooks = new address[](n);
         for (uint8 i = 0; i < n; i++) {
             TestPostDispatchHook subHook = new TestPostDispatchHook();
+            subHook.setFee(fee);
             hooks[i] = address(subHook);
         }
         hook = StaticAggregationHook(factory.deploy(hooks));
@@ -26,14 +30,15 @@ contract AggregationHookTest is Test {
     }
 
     function testPostDispatch(uint8 _hooks) public {
-        address[] memory hooksDeployed = deployHooks(_hooks);
-        uint256 _msgValue = hooksDeployed.length * 25000;
+        uint256 fee = 25000;
+        address[] memory hooksDeployed = deployHooks(_hooks, fee);
+        uint256 _msgValue = hooksDeployed.length * fee;
 
         bytes memory message = abi.encodePacked("hello world");
         for (uint256 i = 0; i < hooksDeployed.length; i++) {
             vm.expectCall(
                 hooksDeployed[i],
-                25000,
+                fee,
                 abi.encodeCall(
                     TestPostDispatchHook(hooksDeployed[i]).postDispatch,
                     ("", "hello world")
@@ -44,15 +49,16 @@ contract AggregationHookTest is Test {
     }
 
     function testPostDispatch_reverts_outOfFund(uint8 _hooks, uint8 k) public {
-        address[] memory hooksDeployed = deployHooks(_hooks);
+        uint256 fee = 25000;
+        address[] memory hooksDeployed = deployHooks(_hooks, fee);
         vm.assume(k < hooksDeployed.length);
-        uint256 _msgValue = uint256(k) * 25000;
+        uint256 _msgValue = uint256(k) * fee;
 
         bytes memory message = abi.encodePacked("hello world");
         for (uint256 i = 0; i < k; i++) {
             vm.expectCall(
                 hooksDeployed[i],
-                25000,
+                fee,
                 abi.encodeCall(
                     TestPostDispatchHook(hooksDeployed[i]).postDispatch,
                     ("", "hello world")
@@ -64,8 +70,9 @@ contract AggregationHookTest is Test {
     }
 
     function testQuoteDispatch(uint8 _hooks) public {
-        address[] memory hooksDeployed = deployHooks(_hooks);
-        uint256 _msgValue = hooksDeployed.length * 25000;
+        uint256 fee = 25000;
+        address[] memory hooksDeployed = deployHooks(_hooks, fee);
+        uint256 _msgValue = hooksDeployed.length * fee;
 
         bytes memory message = abi.encodePacked("hello world");
         uint256 totalQuote = hook.quoteDispatch("", message);
@@ -74,7 +81,8 @@ contract AggregationHookTest is Test {
     }
 
     function testMetadata(uint8 _hooks) public {
-        address[] memory expectedHooks = deployHooks(_hooks);
+        uint256 fee = 25000;
+        address[] memory expectedHooks = deployHooks(_hooks, fee);
         address[] memory actualHook = hook.hooks("");
         assertEq(actualHook, expectedHooks);
     }
