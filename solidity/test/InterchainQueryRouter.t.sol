@@ -26,10 +26,10 @@ contract InterchainQueryRouterTest is Test {
         address indexed sender
     );
 
-    MockHyperlaneEnvironment environment;
+    MockHyperlaneEnvironment public environment;
 
-    InterchainQueryRouter originRouter;
-    InterchainQueryRouter remoteRouter;
+    InterchainQueryRouter public originRouter;
+    InterchainQueryRouter public remoteRouter;
 
     TestRecipient recipient;
 
