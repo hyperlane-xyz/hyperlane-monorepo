@@ -8,7 +8,6 @@ use crate::utils::TaskHandle;
 pub(crate) fn sed(from: &str, to: &str, file: &str) {
     Program::new("sed")
         .raw_arg("-i")
-        .raw_arg("-e")
         .cmd(format!("s/{from}/{to}/g"))
         .cmd(file)
         .run()
