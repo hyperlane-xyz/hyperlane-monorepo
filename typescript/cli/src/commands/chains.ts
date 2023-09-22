@@ -55,6 +55,7 @@ const addressesCommand: CommandModule = {
         type: 'string',
         description: 'Chain to display addresses for',
         choices: Object.values(Chains),
+        alias: 'chain',
       },
     }),
   handler: (args) => {
