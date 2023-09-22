@@ -2,8 +2,13 @@ import { CommandModule } from 'yargs';
 
 import { createChainConfig } from '../config/chain.js';
 import { createMultisigConfig } from '../config/multisig.js';
-import { readChainConfig, readMultisigConfig } from '../configs.js';
-import { log } from '../logger.js';
+import { createWarpConfig } from '../config/warp.js';
+import {
+  readChainConfig,
+  readMultisigConfig,
+  readWarpRouteConfig,
+} from '../configs.js';
+import { log, logGreen } from '../logger.js';
 import { FileFormat } from '../utils/files.js';
 
 import {
@@ -37,6 +42,7 @@ const createCommand: CommandModule = {
     yargs
       .command(createChainCommand)
       .command(createMultisigCommand)
+      .command(createWarpCommand)
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
@@ -76,6 +82,24 @@ const createMultisigCommand: CommandModule = {
   },
 };
 
+const createWarpCommand: CommandModule = {
+  command: 'warp',
+  describe: 'Create a new Warp Route tokens config',
+  builder: (yargs) =>
+    yargs.options({
+      output: outputFileOption('./configs/warp-tokens.yaml'),
+      format: fileFormatOption,
+      chains: chainsCommandOption,
+    }),
+  handler: async (argv: any) => {
+    const format: FileFormat = argv.format;
+    const outPath: string = argv.output;
+    const chainConfigPath: string = argv.chains;
+    await createWarpConfig({ format, outPath, chainConfigPath });
+    process.exit(0);
+  },
+};
+
 /**
  * Validate commands
  */
@@ -86,6 +110,7 @@ const validateCommand: CommandModule = {
     yargs
       .command(validateChainCommand)
       .command(validateMultisigCommand)
+      .command(validateWarpCommand)
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
@@ -105,6 +130,7 @@ const validateChainCommand: CommandModule = {
   handler: async (argv) => {
     const path = argv.path as string;
     readChainConfig(path);
+    process.exit(0);
   },
 };
 
@@ -122,5 +148,26 @@ const validateMultisigCommand: CommandModule = {
   handler: async (argv) => {
     const path = argv.path as string;
     readMultisigConfig(path);
+    logGreen('Config is valid');
+    process.exit(0);
+  },
+};
+
+const validateWarpCommand: CommandModule = {
+  command: 'warp',
+  describe: 'Validate a Warp Route config in a YAML or JSON file',
+  builder: (yargs) =>
+    yargs.options({
+      path: {
+        type: 'string',
+        description: 'Input file path',
+        demandOption: true,
+      },
+    }),
+  handler: async (argv) => {
+    const path = argv.path as string;
+    readWarpRouteConfig(path);
+    logGreen('Config is valid');
+    process.exit(0);
   },
 };

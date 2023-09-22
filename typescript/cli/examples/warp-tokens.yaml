@@ -2,11 +2,11 @@
 # Typically used with the 'hyperlane deploy warp' command
 #
 # Token Types:
+#   native
+#   collateral
 #   synthetic
 #   syntheticUri
-#   collateral
 #   collateralUri
-#   native
 ---
 base:
   chainName: anvil1

@@ -2,13 +2,14 @@ import { ethers } from 'ethers';
 
 import {
   ERC20__factory,
-  HypERC20App,
+  EvmHypCollateralAdapter,
   HypERC20Collateral__factory,
 } from '@hyperlane-xyz/hyperlane-token';
 import {
   ChainName,
   HyperlaneContractsMap,
   HyperlaneCore,
+  MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { Address, timeout } from '@hyperlane-xyz/utils';
@@ -127,19 +128,24 @@ async function executeDelivery({
     );
   }
 
-  const app = new HypERC20App(
-    {
-      [origin]: {
-        router: HypERC20Collateral__factory.connect(
-          routerAddress,
-          connectedSigner,
-        ),
-      },
-    },
-    multiProvider,
+  // TODO move next section into MultiProtocolTokenApp when it exists
+  const adapter = new EvmHypCollateralAdapter(
+    origin,
+    MultiProtocolProvider.fromMultiProvider(multiProvider),
+    { token: routerAddress },
   );
+  const destinationDomain = multiProvider.getDomainId(destination);
+  const gasPayment = await adapter.quoteGasPayment(destinationDomain);
+  const transferTx = await adapter.populateTransferRemoteTx({
+    weiAmountOrId: wei,
+    destination: destinationDomain,
+    recipient,
+    txValue: gasPayment,
+  });
 
-  const receipt = await app.transfer(origin, destination, recipient, wei);
+  const txResponse = await connectedSigner.sendTransaction(transferTx);
+  const receipt = await multiProvider.handleTx(origin, txResponse);
+
   const message = core.getDispatchedMessages(receipt)[0];
   logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
   logBlue(`Message ID: ${message.id}`);

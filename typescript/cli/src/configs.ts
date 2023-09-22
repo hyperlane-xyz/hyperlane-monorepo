@@ -147,7 +147,12 @@ export const WarpRouteConfigSchema = z.object({
     .nonempty(),
 });
 
-export type WarpRouteConfig = z.infer<typeof WarpRouteConfigSchema>;
+type InferredType = z.infer<typeof WarpRouteConfigSchema>;
+// A workaround for Zod's terrible typing for nonEmpty arrays
+export type WarpRouteConfig = {
+  base: InferredType['base'];
+  synthetics: Array<InferredType['synthetics'][0]>;
+};
 
 export function readWarpRouteConfig(filePath: string) {
   const config = readYamlOrJson(filePath);
@@ -160,4 +165,8 @@ export function readWarpRouteConfig(filePath: string) {
     );
   }
   return result.data;
+}
+
+export function isValidWarpRouteConfig(config: any) {
+  return WarpRouteConfigSchema.safeParse(config).success;
 }

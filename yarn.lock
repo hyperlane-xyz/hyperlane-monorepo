@@ -3856,8 +3856,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cli@workspace:typescript/cli"
   dependencies:
-    "@hyperlane-xyz/hyperlane-token": 1.4.3-beta2
-    "@hyperlane-xyz/sdk": 1.4.3-beta2
+    "@hyperlane-xyz/hyperlane-token": 1.5.1
+    "@hyperlane-xyz/sdk": 1.5.1
     "@inquirer/prompts": ^3.0.0
     "@types/node": ^18.14.5
     "@types/yargs": ^17.0.24
@@ -3904,18 +3904,6 @@ __metadata:
     typescript: ^5.1.6
   languageName: unknown
   linkType: soft
-
-"@hyperlane-xyz/core@npm:1.4.3-beta2":
-  version: 1.4.3-beta2
-  resolution: "@hyperlane-xyz/core@npm:1.4.3-beta2"
-  dependencies:
-    "@eth-optimism/contracts": ^0.6.0
-    "@hyperlane-xyz/utils": 1.4.3-beta2
-    "@openzeppelin/contracts": ^4.8.0
-    "@openzeppelin/contracts-upgradeable": ^4.8.0
-  checksum: 8419ee0aa67822b5c5d4ccda4f9ecf2d56dd9d5d0125b09f6273dbeb456112480c226d50991b07c02c1e816ae2497ee458726c117a34b05e677cc9e93d035ff7
-  languageName: node
-  linkType: hard
 
 "@hyperlane-xyz/helloworld@1.5.1, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
@@ -3983,19 +3971,6 @@ __metadata:
     typescript: ^5.1.6
   languageName: unknown
   linkType: soft
-
-"@hyperlane-xyz/hyperlane-token@npm:1.4.3-beta2":
-  version: 1.4.3-beta2
-  resolution: "@hyperlane-xyz/hyperlane-token@npm:1.4.3-beta2"
-  dependencies:
-    "@hyperlane-xyz/core": 1.4.3-beta2
-    "@hyperlane-xyz/sdk": 1.4.3-beta2
-    "@hyperlane-xyz/utils": 1.4.3-beta2
-    "@openzeppelin/contracts-upgradeable": ^4.8.0
-    ethers: ^5.7.2
-  checksum: c968ed3eae8f5d084568cbeb4875bfff3037f724c3e8b70fc8562a166e02b40531924cfd6c32231c0a2dffb51d7429f464894efb0c68ffcb925caded870540f8
-  languageName: node
-  linkType: hard
 
 "@hyperlane-xyz/infra@workspace:typescript/infra":
   version: 0.0.0-use.local
@@ -4089,26 +4064,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@npm:1.4.3-beta2":
-  version: 1.4.3-beta2
-  resolution: "@hyperlane-xyz/sdk@npm:1.4.3-beta2"
-  dependencies:
-    "@hyperlane-xyz/core": 1.4.3-beta2
-    "@hyperlane-xyz/utils": 1.4.3-beta2
-    "@solana/web3.js": ^1.78.0
-    "@types/coingecko-api": ^1.0.10
-    "@types/debug": ^4.1.7
-    "@wagmi/chains": ^0.2.6
-    coingecko-api: ^1.0.10
-    cross-fetch: ^3.1.5
-    debug: ^4.3.4
-    ethers: ^5.7.2
-    viem: ^1.3.1
-    zod: ^3.21.2
-  checksum: fb2973403736bdb45b2e9a3cbae56ef8c5e1cfc9c22197cc437cff33663c3a759ee7560718ac2eb0ba9a2192de375cc06e7ce31d4f6aa361ef5e595bfb2fb222
-  languageName: node
-  linkType: hard
-
 "@hyperlane-xyz/utils@1.5.1, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
@@ -4121,17 +4076,6 @@ __metadata:
     typescript: ^5.1.6
   languageName: unknown
   linkType: soft
-
-"@hyperlane-xyz/utils@npm:1.4.3-beta2":
-  version: 1.4.3-beta2
-  resolution: "@hyperlane-xyz/utils@npm:1.4.3-beta2"
-  dependencies:
-    "@solana/web3.js": ^1.78.0
-    bignumber.js: ^9.1.1
-    ethers: ^5.7.2
-  checksum: f2ed147758d7f7370bd122a08e584dc05051e0df57da6c623c4192f15cad0956aaa854900b7db5213c95646a6259fa8c2d21a9c84dc5641f97ebe631417c6b9b
-  languageName: node
-  linkType: hard
 
 "@inquirer/checkbox@npm:^1.3.5":
   version: 1.3.5
