@@ -69,20 +69,13 @@ contract GasRouterTest is Test {
         uint32 domain,
         uint256 gas
     ) public {
-        GasRouter.GasRouterConfig[]
-            memory gasConfigs = new GasRouter.GasRouterConfig[](1);
-        gasConfigs[0] = GasRouter.GasRouterConfig(domain, gas);
-        gasRouter.setDestinationGas(gasConfigs);
+        gasRouter.setDestinationGas(domain, gas);
     }
 
     function testSetDestinationGas(uint256 gas) public {
-        vm.expectEmit(true, false, false, true, address(remoteRouter));
-        emit DestinationGasSet(originDomain, gas);
         setDestinationGas(remoteRouter, originDomain, gas);
         assertEq(remoteRouter.destinationGas(originDomain), gas);
 
-        vm.expectEmit(true, false, false, true, address(originRouter));
-        emit DestinationGasSet(remoteDomain, gas);
         setDestinationGas(originRouter, remoteDomain, gas);
         assertEq(originRouter.destinationGas(remoteDomain), gas);
     }

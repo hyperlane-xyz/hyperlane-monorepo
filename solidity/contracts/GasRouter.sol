@@ -27,6 +27,15 @@ abstract contract GasRouter is Router {
     }
 
     /**
+     * @notice Sets the gas amount dispatched for each configured domain.
+     * @param domain The destination domain ID
+     * @param gas The gas limit
+     */
+    function setDestinationGas(uint32 domain, uint256 gas) external onlyOwner {
+        _setDestinationGas(domain, gas);
+    }
+
+    /**
      * @notice Returns the gas payment required to dispatch a message to the given domain's router.
      * @param _destinationDomain The domain of the router.
      * @return _gasPayment Payment computed by the registered InterchainGasPaymaster.
