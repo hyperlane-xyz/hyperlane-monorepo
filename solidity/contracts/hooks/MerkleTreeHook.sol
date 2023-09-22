@@ -36,10 +36,6 @@ contract MerkleTreeHook is AbstractPostDispatchHook, MailboxClient, Indexed {
         return uint32(_tree.count);
     }
 
-    function index() public view returns (uint32) {
-        return count() - 1;
-    }
-
     function root() public view returns (bytes32) {
         return _tree.root();
     }
@@ -49,7 +45,7 @@ contract MerkleTreeHook is AbstractPostDispatchHook, MailboxClient, Indexed {
     }
 
     function latestCheckpoint() external view returns (bytes32, uint32) {
-        return (root(), index());
+        return (root(), count() - 1);
     }
 
     // ============ Internal Functions ============
@@ -61,13 +57,14 @@ contract MerkleTreeHook is AbstractPostDispatchHook, MailboxClient, Indexed {
         bytes calldata message
     ) internal override {
         require(msg.value == 0, "MerkleTreeHook: no value expected");
-        bytes32 id = message.id();
 
         // ensure messages which were not dispatched are not inserted into the tree
-        require(_isLatestDispatched(id), "Message not dispatched from mailbox");
+        bytes32 id = message.id();
+        require(_isLatestDispatched(id), "message not dispatching");
 
+        uint32 index = count();
         _tree.insert(id);
-        emit InsertedIntoTree(id, index());
+        emit InsertedIntoTree(id, index);
     }
 
     /// @inheritdoc AbstractPostDispatchHook
