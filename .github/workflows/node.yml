@@ -50,6 +50,9 @@ jobs:
         with:
           node-version: 18
 
+      - name: Install Foundry
+        uses: onbjerg/foundry-toolchain@v1
+
       - name: yarn-cache
         uses: actions/cache@v3
         with:
@@ -99,6 +102,9 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install Foundry
+        uses: onbjerg/foundry-toolchain@v1
+
       - uses: actions/cache@v3
         with:
           path: ./*
@@ -120,6 +126,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [yarn-build]
     strategy:
+      fail-fast: false
       matrix:
         environment: [testnet3, mainnet2]
         module: [ism, core, igp, ica, helloworld]
@@ -175,7 +182,7 @@ jobs:
         run: yarn workspace @hyperlane-xyz/core run test
 
       - name: Run Slither
-        uses: crytic/slither-action@main
+        uses: crytic/slither-action@v0.3.0
         id: slither
         with:
           target: 'solidity/'

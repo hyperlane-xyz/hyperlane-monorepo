@@ -3,12 +3,12 @@ import {
   HyperlaneCoreChecker,
   HyperlaneIgp,
   HyperlaneIgpChecker,
+  HyperlaneIsmFactory,
   InterchainAccount,
   InterchainAccountChecker,
   InterchainQuery,
   InterchainQueryChecker,
 } from '@hyperlane-xyz/sdk';
-import { HyperlaneIsmFactory } from '@hyperlane-xyz/sdk/dist/ism/HyperlaneIsmFactory';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';

@@ -2,9 +2,10 @@ export {
   addressToByteHexString,
   addressToBytes,
   addressToBytes32,
+  addressToBytesEvm,
   addressToBytesSol,
-  adressToBytesEvm,
   bytes32ToAddress,
+  bytesToProtocolAddress,
   capitalizeAddress,
   convertToProtocolAddress,
   ensure0x,
@@ -28,6 +29,7 @@ export {
   strip0x,
 } from './src/addresses';
 export {
+  convertDecimals,
   eqAmountApproximate,
   fromWei,
   fromWeiRounded,
@@ -42,12 +44,12 @@ export {
   sleep,
   timeout,
 } from './src/async';
+export { base58ToBuffer, bufferToBase58 } from './src/base58';
 export { fromBase64, toBase64 } from './src/base64';
 export {
   BigNumberMax,
   BigNumberMin,
   bigToFixed,
-  convertDecimalValue,
   fixedToBig,
   isBigNumberish,
   isZeroish,
@@ -95,6 +97,7 @@ export {
   Address,
   AddressBytes32,
   CallData,
+  ChainCaip2Id,
   Checkpoint,
   Domain,
   HexString,
@@ -109,6 +112,7 @@ export {
   S3Checkpoint,
   S3CheckpointWithId,
   SignatureLike,
+  TokenCaip19Id,
 } from './src/types';
 export { assert } from './src/validation';
 export { BaseValidator, Validator } from './src/validator';

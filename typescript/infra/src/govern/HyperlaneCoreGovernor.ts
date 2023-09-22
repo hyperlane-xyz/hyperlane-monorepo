@@ -4,13 +4,11 @@ import {
   CoreViolationType,
   HyperlaneCore,
   HyperlaneCoreChecker,
+  MailboxViolation,
+  MailboxViolationType,
   OwnerViolation,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
-import {
-  MailboxViolation,
-  MailboxViolationType,
-} from '@hyperlane-xyz/sdk/dist/core/types';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor';
@@ -29,17 +27,26 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
   protected async handleMailboxViolation(violation: MailboxViolation) {
     switch (violation.mailboxType) {
       case MailboxViolationType.DefaultIsm: {
-        const ism = await this.checker.ismFactory.deploy(
-          violation.chain,
-          violation.expected,
-        );
+        let ismAddress: string;
+        if (typeof violation.expected === 'object') {
+          const ism = await this.checker.ismFactory.deploy(
+            violation.chain,
+            violation.expected,
+          );
+          ismAddress = ism.address;
+        } else if (typeof violation.expected === 'string') {
+          ismAddress = violation.expected;
+        } else {
+          throw new Error('Invalid mailbox violation expected value');
+        }
+
         this.pushCall(violation.chain, {
           to: violation.contract.address,
           data: violation.contract.interface.encodeFunctionData(
             'setDefaultIsm',
-            [ism.address],
+            [ismAddress],
           ),
-          description: `Set ${violation.chain} Mailbox default ISM to ${ism.address}`,
+          description: `Set ${violation.chain} Mailbox default ISM to ${ismAddress}`,
         });
         break;
       }

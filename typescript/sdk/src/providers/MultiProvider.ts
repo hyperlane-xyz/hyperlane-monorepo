@@ -26,7 +26,9 @@ type Provider = providers.Provider;
 
 export interface MultiProviderOptions {
   loggerName?: string;
+  providers?: ChainMap<Provider>;
   providerBuilder?: ProviderBuilderFn<Provider>;
+  signers?: ChainMap<Signer>;
 }
 
 /**
@@ -34,9 +36,9 @@ export interface MultiProviderOptions {
  * @typeParam MetaExt - Extra metadata fields for chains (such as contract addresses)
  */
 export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
-  readonly providers: ChainMap<Provider> = {};
+  readonly providers: ChainMap<Provider>;
   readonly providerBuilder: ProviderBuilderFn<Provider>;
-  signers: ChainMap<Signer> = {};
+  signers: ChainMap<Signer>;
   useSharedSigner = false; // A single signer to be used for all chains
   readonly logger: Debugger;
 
@@ -50,7 +52,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   ) {
     super(chainMetadata, options);
     this.logger = debug(options?.loggerName || 'hyperlane:MultiProvider');
+    this.providers = options?.providers || {};
     this.providerBuilder = options?.providerBuilder || defaultProviderBuilder;
+    this.signers = options?.signers || {};
   }
 
   override addChain(metadata: ChainMetadata<MetaExt>): void {
@@ -241,69 +245,36 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Create a new MultiProvider from the intersection
    * of current's chains and the provided chain list
    */
-  intersect(
+  override intersect(
     chains: ChainName[],
     throwIfNotSubset = false,
   ): {
     intersection: ChainName[];
-    multiProvider: MultiProvider<MetaExt>;
+    result: MultiProvider<MetaExt>;
   } {
-    const ownChains = this.getKnownChainNames();
-    const intersection: ChainName[] = [];
-
-    for (const chain of chains) {
-      if (ownChains.includes(chain)) {
-        intersection.push(chain);
-      } else if (throwIfNotSubset) {
-        throw new Error(
-          `MultiProvider#intersect: chains specified ${chain}, but ownChains did not include it`,
-        );
-      }
-    }
-
-    if (!intersection.length) {
-      throw new Error(
-        `No chains shared between MultiProvider and list (${ownChains} and ${chains})`,
-      );
-    }
-
-    const intersectionMetadata = pick(this.metadata, intersection);
-    const intersectionProviders = pick(this.providers, intersection);
-    const intersectionSigners = pick(this.signers, intersection);
-    const multiProvider = new MultiProvider(intersectionMetadata);
-    multiProvider.setProviders(intersectionProviders);
-    multiProvider.setSigners(intersectionSigners);
-
-    return { intersection, multiProvider };
+    const { intersection, result } = super.intersect(chains, throwIfNotSubset);
+    const multiProvider = new MultiProvider(result.metadata, {
+      ...this.options,
+      providers: pick(this.providers, intersection),
+      signers: pick(this.signers, intersection),
+    });
+    return { intersection, result: multiProvider };
   }
 
   /**
    * Get a block explorer URL for given chain's address
    */
-  async tryGetExplorerAddressUrl(
+  override async tryGetExplorerAddressUrl(
     chainNameOrId: ChainName | number,
     address?: string,
   ): Promise<string | null> {
-    const baseUrl = this.tryGetExplorerUrl(chainNameOrId);
-    if (!baseUrl) return null;
-    if (address) return `${baseUrl}/address/${address}`;
+    if (address) return super.tryGetExplorerAddressUrl(chainNameOrId, address);
     const signer = this.tryGetSigner(chainNameOrId);
-    if (!signer) return null;
-    return `${baseUrl}/address/${await signer.getAddress()}`;
-  }
-
-  /**
-   * Get a block explorer URL for given chain's address
-   * @throws if chain's metadata, signer, or block explorer data has no been set
-   */
-  async getExplorerAddressUrl(
-    chainNameOrId: ChainName | number,
-    address?: string,
-  ): Promise<string> {
-    const url = await this.tryGetExplorerAddressUrl(chainNameOrId, address);
-    if (!url)
-      throw new Error(`Missing data for address url for ${chainNameOrId}`);
-    return url;
+    if (signer) {
+      const signerAddr = await signer.getAddress();
+      return super.tryGetExplorerAddressUrl(chainNameOrId, signerAddr);
+    }
+    return null;
   }
 
   /**

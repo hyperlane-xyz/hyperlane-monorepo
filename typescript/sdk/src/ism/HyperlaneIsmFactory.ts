@@ -67,6 +67,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     config: IsmConfig,
     origin?: ChainName,
   ): Promise<DeployedIsm> {
+    if (typeof config === 'string') {
+      // TODO: return the appropriate ISM type
+      return IInterchainSecurityModule__factory.connect(
+        config,
+        this.multiProvider.getSignerOrProvider(chain),
+      );
+    }
+
     if (
       config.type === ModuleType.MERKLE_ROOT_MULTISIG ||
       config.type === ModuleType.MESSAGE_ID_MULTISIG ||
@@ -359,6 +367,10 @@ export async function moduleMatchesConfig(
   contracts: HyperlaneContracts<IsmFactoryFactories>,
   origin?: ChainName,
 ): Promise<boolean> {
+  if (typeof config === 'string') {
+    return eqAddress(moduleAddress, config);
+  }
+
   const provider = multiProvider.getProvider(chain);
   const module = IInterchainSecurityModule__factory.connect(
     moduleAddress,
@@ -483,6 +495,14 @@ export function collectValidators(
   origin: ChainName,
   config: IsmConfig,
 ): Set<string> {
+  // TODO: support address configurations in collectValidators
+  if (typeof config === 'string') {
+    debug('hyperlane:IsmFactory')(
+      'Address config unimplemented in collectValidators',
+    );
+    return new Set([]);
+  }
+
   let validators: string[] = [];
   if (
     config.type === ModuleType.MERKLE_ROOT_MULTISIG ||

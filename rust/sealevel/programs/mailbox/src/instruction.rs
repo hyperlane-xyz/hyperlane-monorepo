@@ -119,3 +119,26 @@ pub fn init_instruction(
     };
     Ok(instruction)
 }
+
+/// Creates a TransferOwnership instruction.
+pub fn transfer_ownership_instruction(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    new_owner: Option<Pubkey>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (outbox_account, _outbox_bump) =
+        Pubkey::try_find_program_address(mailbox_outbox_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    // 0. `[writeable]` The Outbox PDA account.
+    // 1. `[signer]` The current owner.
+    let instruction = SolanaInstruction {
+        program_id,
+        data: Instruction::TransferOwnership(new_owner).into_instruction_data()?,
+        accounts: vec![
+            AccountMeta::new(outbox_account, false),
+            AccountMeta::new(owner_payer, true),
+        ],
+    };
+    Ok(instruction)
+}

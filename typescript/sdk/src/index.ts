@@ -1,7 +1,6 @@
 export { HyperlaneApp } from './app/HyperlaneApp';
 export {
   AdapterClassType,
-  AdapterProtocolMap,
   BaseAppAdapter,
   BaseEvmAdapter,
   BaseSealevelAdapter,
@@ -12,6 +11,7 @@ export {
   chainIdToMetadata,
   chainMetadata,
   mainnetChainsMetadata,
+  solanaChainToClusterName,
   testnetChainsMetadata,
 } from './consts/chainMetadata';
 export {
@@ -29,14 +29,18 @@ export {
   HyperlaneEnvironmentChain,
   hyperlaneContractAddresses,
   hyperlaneEnvironments,
+  hyperlaneEnvironmentsWithSealevel,
 } from './consts/environments';
 export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
+export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel';
 export {
   attachContracts,
   attachContractsMap,
   connectContracts,
   connectContractsMap,
   filterAddressesMap,
+  filterAddressesToProtocol,
+  filterOwnableContracts,
   serializeContracts,
   serializeContractsMap,
 } from './contracts/contracts';
@@ -48,16 +52,21 @@ export {
   HyperlaneContractsMap,
   HyperlaneFactories,
 } from './contracts/types';
-export { DispatchedMessage, HyperlaneCore } from './core/HyperlaneCore';
+export { HyperlaneCore } from './core/HyperlaneCore';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
+export { MultiProtocolCore } from './core/MultiProtocolCore';
 export { TestCoreApp } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
+export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter';
+export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter';
+export { ICoreAdapter } from './core/adapters/types';
 export { CoreFactories, coreFactories } from './core/contracts';
 export { HyperlaneLifecyleEvent } from './core/events';
 export {
   CoreConfig,
   CoreViolationType,
+  DispatchedMessage,
   MailboxMultisigIsmViolation,
   MailboxViolation,
   MailboxViolationType,
@@ -80,6 +89,15 @@ export * as verificationUtils from './deploy/verify/utils';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
 export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer';
+export { SealevelOverheadIgpAdapter } from './gas/adapters/SealevelIgpAdapter';
+export {
+  SealevelInterchainGasPaymasterConfig,
+  SealevelInterchainGasPaymasterConfigSchema,
+  SealevelInterchainGasPaymasterType,
+  SealevelOverheadIgpData,
+  SealevelOverheadIgpDataSchema,
+} from './gas/adapters/serialization';
+export { IgpFactories, igpFactories } from './gas/contracts';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
   GasOracleContractType,
@@ -112,17 +130,24 @@ export {
   RoutingIsmConfig,
 } from './ism/types';
 export {
+  ChainMetadataManager,
+  ChainMetadataManagerOptions,
+} from './metadata/ChainMetadataManager';
+export {
+  AgentChainMetadata,
+  AgentChainMetadataSchema,
   AgentChainSetup,
   AgentChainSetupBase,
   AgentConfig,
+  AgentConfigSchema,
+  AgentConfigV2,
   AgentConnection,
   AgentConnectionType,
-  AgentMetadataExtSchema,
-  AgentMetadataExtension,
+  AgentLogFormat,
+  AgentLogLevel,
   AgentSigner,
-  ChainMetadataForAgent,
-  ChainMetadataForAgentSchema,
-  CombinedAgentConfig,
+  AgentSignerSchema,
+  AgentSignerV2,
   buildAgentConfig,
   buildAgentConfigDeprecated,
   buildAgentConfigNew,
@@ -132,12 +157,12 @@ export {
   ChainMetadataSchema,
   ExplorerFamily,
   ExplorerFamilyValue,
+  RpcUrl,
+  RpcUrlSchema,
   getDomainId,
   isValidChainMetadata,
 } from './metadata/chainMetadataTypes';
 export {
-  ChainMetadataWithArtifacts,
-  ChainMetadataWithArtifactsSchema,
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
 } from './metadata/deploymentArtifacts';
@@ -174,17 +199,21 @@ export {
   EthersV5Contract,
   EthersV5Provider,
   EthersV5Transaction,
+  EthersV5TransactionReceipt,
   ProviderMap,
   ProviderType,
   SolanaWeb3Contract,
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
+  SolanaWeb3TransactionReceipt,
   TypedContract,
   TypedProvider,
   TypedTransaction,
+  TypedTransactionReceipt,
   ViemContract,
   ViemProvider,
   ViemTransaction,
+  ViemTransactionReceipt,
 } from './providers/ProviderType';
 export {
   RetryJsonRpcProvider,
@@ -211,6 +240,15 @@ export {
   MultiProtocolRouterApp,
 } from './router/MultiProtocolRouterApps';
 export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
+export {
+  EvmGasRouterAdapter,
+  EvmRouterAdapter,
+} from './router/adapters/EvmRouterAdapter';
+export {
+  SealevelGasRouterAdapter,
+  SealevelRouterAdapter,
+} from './router/adapters/SealevelRouterAdapter';
+export { IGasRouterAdapter, IRouterAdapter } from './router/adapters/types';
 export {
   ConnectionClientConfig,
   ConnectionClientViolation,
@@ -239,4 +277,9 @@ export {
 export { MultiGeneric } from './utils/MultiGeneric';
 export { filterByChains } from './utils/filter';
 export { multisigIsmVerificationCost } from './utils/ism';
+export {
+  SealevelAccountDataWrapper,
+  SealevelInstructionWrapper,
+  getSealevelAccountDataSchema,
+} from './utils/sealevelSerialization';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';

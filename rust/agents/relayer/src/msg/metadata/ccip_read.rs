@@ -1,36 +1,26 @@
 use async_trait::async_trait;
+use derive_more::Deref;
+use derive_new::new;
+use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
+use eyre::Context;
+use hyperlane_core::{HyperlaneMessage, RawHyperlaneMessage, H256};
 use hyperlane_ethereum::OffchainLookup;
+use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::ops::Deref;
-
-use derive_new::new;
-use eyre::Context;
 use tracing::{info, instrument};
 
 use super::{BaseMetadataBuilder, MetadataBuilder};
-use ethers::abi::AbiDecode;
-use ethers::core::utils::hex::decode as hex_decode;
-use hyperlane_core::{HyperlaneMessage, RawHyperlaneMessage, H256};
-use regex::Regex;
 
 #[derive(Serialize, Deserialize)]
 struct OffchainResponse {
     data: String,
 }
 
-#[derive(Clone, Debug, new)]
+#[derive(Clone, Debug, new, Deref)]
 pub struct CcipReadIsmMetadataBuilder {
     base: BaseMetadataBuilder,
-}
-
-impl Deref for CcipReadIsmMetadataBuilder {
-    type Target = BaseMetadataBuilder;
-
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
 }
 
 #[async_trait]

@@ -1,6 +1,8 @@
 use hyperlane_core::{utils::hex_or_base58_to_h256, H256};
+use hyperlane_sealevel_token_collateral::plugin::CollateralPlugin;
+use hyperlane_sealevel_token_native::plugin::NativePlugin;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::File, path::Path, str::FromStr};
+use std::{collections::HashMap, fmt::Debug, fs::File, path::Path, str::FromStr};
 
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
 use solana_program::program_error::ProgramError;
@@ -10,7 +12,9 @@ use hyperlane_sealevel_connection_client::{
     gas_router::GasRouterConfig, router::RemoteRouterConfig,
 };
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
-use hyperlane_sealevel_token::{hyperlane_token_mint_pda_seeds, spl_token, spl_token_2022};
+use hyperlane_sealevel_token::{
+    hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin, spl_token, spl_token_2022,
+};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
@@ -22,7 +26,7 @@ use crate::{
         account_exists, create_and_write_keypair, create_new_directory, deploy_program_idempotent,
     },
     core::{read_core_program_ids, CoreProgramIds},
-    Context, WarpRouteCmd, WarpRouteSubCmd,
+    Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -290,7 +294,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                         .add(
                             enroll_remote_routers_instruction(
                                 program_id,
-                                ctx.payer.pubkey(),
+                                ctx.payer_pubkey,
                                 router_configs,
                             )
                             .unwrap(),
@@ -356,7 +360,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                         .add(
                             set_destination_gas_configs(
                                 program_id,
-                                ctx.payer.pubkey(),
+                                ctx.payer_pubkey,
                                 destination_gas_configs,
                             )
                             .unwrap(),
@@ -386,6 +390,13 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 })
                 .collect::<HashMap<String, H256>>();
             write_program_ids(&warp_route_dir, &routers_by_name);
+        }
+        WarpRouteSubCmd::DestinationGas(args) => {
+            let destination_gas = get_destination_gas(&ctx.client, &args.program_id).unwrap();
+            println!(
+                "Destination gas: {:?}",
+                destination_gas[&args.destination_domain]
+            );
         }
     }
 }
@@ -419,7 +430,7 @@ fn deploy_warp_route(
     let program_id = keypair.pubkey();
 
     deploy_program_idempotent(
-        &ctx.payer_path,
+        ctx.payer_keypair_path(),
         &keypair,
         keypair_path.to_str().unwrap(),
         built_so_dir
@@ -519,7 +530,7 @@ fn fund_ata_payer_up_to(
     );
     ctx.new_txn()
         .add(solana_program::system_instruction::transfer(
-            &ctx.payer.pubkey(),
+            &ctx.payer_pubkey,
             &ata_payer_account,
             funding_amount,
         ))
@@ -544,15 +555,20 @@ fn init_warp_route(
         .map(|s| Pubkey::from_str(s).unwrap())
         .unwrap_or(core_program_ids.mailbox);
 
-    let interchain_gas_paymaster = token_config
-        .connection_client
-        .interchain_gas_paymaster
-        .clone()
-        .map(|config| (config.program_id, config.igp_account))
-        .unwrap_or((
-            core_program_ids.igp_program_id,
-            InterchainGasPaymasterType::OverheadIgp(core_program_ids.overhead_igp_account),
-        ));
+    // TODO for now not specifying an IGP for compatibility with the warp route UI.
+
+    // let interchain_gas_paymaster = Some(token_config
+    //     .connection_client
+    //     .interchain_gas_paymaster
+    //     .clone()
+    //     .map(|config| (config.program_id, config.igp_account))
+    //     .unwrap_or((
+    //         core_program_ids.igp_program_id,
+    //         InterchainGasPaymasterType::OverheadIgp(core_program_ids.overhead_igp_account),
+    //     ))
+    // );
+
+    let interchain_gas_paymaster = None;
 
     let init = Init {
         mailbox,
@@ -561,7 +577,7 @@ fn init_warp_route(
             .interchain_security_module
             .as_ref()
             .map(|s| Pubkey::from_str(s).unwrap()),
-        interchain_gas_paymaster: Some(interchain_gas_paymaster),
+        interchain_gas_paymaster,
         decimals: token_config.decimal_metadata.decimals,
         remote_decimals: token_config.decimal_metadata.remote_decimals(),
     };
@@ -570,7 +586,7 @@ fn init_warp_route(
         TokenType::Native => ctx.new_txn().add(
             hyperlane_sealevel_token_native::instruction::init_instruction(
                 program_id,
-                ctx.payer.pubkey(),
+                ctx.payer_pubkey,
                 init,
             )?,
         ),
@@ -581,7 +597,7 @@ fn init_warp_route(
                 ctx.new_txn()
                     .add(hyperlane_sealevel_token::instruction::init_instruction(
                         program_id,
-                        ctx.payer.pubkey(),
+                        ctx.payer_pubkey,
                         init,
                     )?);
 
@@ -602,7 +618,7 @@ fn init_warp_route(
         TokenType::Collateral(collateral_info) => ctx.new_txn().add(
             hyperlane_sealevel_token_collateral::instruction::init_instruction(
                 program_id,
-                ctx.payer.pubkey(),
+                ctx.payer_pubkey,
                 init,
                 collateral_info
                     .spl_token_program
@@ -672,4 +688,28 @@ fn write_program_ids(warp_route_dir: &Path, routers: &HashMap<String, H256>) {
     let program_ids_file = warp_route_dir.join("program-ids.json");
     let program_ids_file = File::create(program_ids_file).unwrap();
     serde_json::to_writer_pretty(program_ids_file, &serialized_program_ids).unwrap();
+}
+
+pub fn parse_token_account_data(token_type: FlatTokenType, data: &mut &[u8]) {
+    fn print_data_or_err<T: Debug>(data: Result<T, ProgramError>) {
+        match data {
+            Ok(data) => println!("{:#?}", data),
+            Err(err) => println!("Failed to deserialize account data: {}", err),
+        }
+    }
+
+    match token_type {
+        FlatTokenType::Native => {
+            let res = HyperlaneTokenAccount::<NativePlugin>::fetch(data);
+            print_data_or_err(res);
+        }
+        FlatTokenType::Synthetic => {
+            let res = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(data);
+            print_data_or_err(res);
+        }
+        FlatTokenType::Collateral => {
+            let res = HyperlaneTokenAccount::<CollateralPlugin>::fetch(data);
+            print_data_or_err(res);
+        }
+    }
 }

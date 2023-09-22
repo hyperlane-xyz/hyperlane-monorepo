@@ -4,6 +4,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use macro_rules_attribute::apply;
+use regex::Regex;
 use tempfile::{tempdir, NamedTempFile};
 
 use crate::logging::log;
@@ -296,7 +297,7 @@ pub fn initiate_solana_hyperlane_transfer(
         .trim()
         .to_owned();
 
-    sealevel_client(&solana_cli_tools_path, &solana_config_path)
+    let output = sealevel_client(&solana_cli_tools_path, &solana_config_path)
         .cmd("token")
         .cmd("transfer-remote")
         .cmd(SOLANA_KEYPAIR)
@@ -305,8 +306,33 @@ pub fn initiate_solana_hyperlane_transfer(
         .cmd(sender) // send to self
         .cmd("native")
         .arg("program-id", "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga")
-        .run()
+        .run_with_output()
         .join();
+
+    let message_id = get_message_id_from_logs(output);
+    if let Some(message_id) = message_id {
+        sealevel_client(&solana_cli_tools_path, &solana_config_path)
+            .cmd("igp")
+            .cmd("pay-for-gas")
+            .cmd("GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
+            .cmd(message_id)
+            .run()
+            .join();
+    }
+}
+
+fn get_message_id_from_logs(logs: Vec<String>) -> Option<String> {
+    let message_id_regex = Regex::new(r"Dispatched message to \d+, ID 0x([0-9a-fA-F]+)").unwrap();
+    for log in logs {
+        // Use the regular expression to capture the ID
+        if let Some(captures) = message_id_regex.captures(&log) {
+            if let Some(id_match) = captures.get(1) {
+                let id = id_match.as_str();
+                return Some(format!("0x{}", id));
+            }
+        }
+    }
+    None
 }
 
 pub fn solana_termination_invariants_met(

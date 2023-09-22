@@ -215,8 +215,7 @@ export const celo: ChainMetadata = {
     reorgPeriod: 0,
     estimateBlockTime: 5,
   },
-  gnosisSafeTransactionServiceUrl:
-    'https://transaction-service.gnosis-safe-staging.celo-networks-dev.org',
+  gnosisSafeTransactionServiceUrl: 'https://safe-transaction-celo.safe.global/',
 };
 
 export const ethereum: ChainMetadata = {
@@ -317,10 +316,7 @@ export const sepolia: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Sepolia',
   nativeToken: etherToken,
-  rpcUrls: [
-    { http: 'https://endpoints.omniatech.io/v1/eth/sepolia/public' },
-    { http: 'https://rpc.sepolia.org' },
-  ],
+  rpcUrls: [{ http: 'https://endpoints.omniatech.io/v1/eth/sepolia/public' }],
   blockExplorers: [
     {
       name: 'Etherscan',
@@ -552,6 +548,53 @@ export const gnosis: ChainMetadata = {
     'https://safe-transaction-gnosis-chain.safe.global/',
 };
 
+// Testnet for Nautilus
+export const proteustestnet: ChainMetadata = {
+  chainId: 88002,
+  domainId: 88002,
+  name: Chains.proteustestnet,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Proteus Testnet',
+  nativeToken: {
+    name: 'Zebec',
+    symbol: 'ZBC',
+    decimals: 18,
+  },
+  rpcUrls: [
+    {
+      http: 'https://api.proteus.nautchain.xyz/solana',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 1,
+  },
+};
+
+export const nautilus: ChainMetadata = {
+  chainId: 22222,
+  domainId: 22222,
+  name: Chains.nautilus,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Nautilus',
+  nativeToken: {
+    name: 'Zebec',
+    symbol: 'ZBC',
+    decimals: 18,
+  },
+  rpcUrls: [
+    {
+      http: 'https://api.nautilus.nautchain.xyz',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 1,
+  },
+};
+
 /**
  * Metadata for local test chains
  */
@@ -622,9 +665,9 @@ export const solana: ChainMetadata = {
   rpcUrls: [{ http: 'https://api.mainnet-beta.solana.com' }],
   blockExplorers: [
     {
-      name: 'SolScan',
-      url: 'https://solscan.io',
-      apiUrl: 'https://public-api.solscan.io',
+      name: 'Solana Explorer',
+      url: 'https://explorer.solana.com',
+      apiUrl: 'https://explorer.solana.com',
       family: ExplorerFamily.Other,
     },
   ],
@@ -644,6 +687,14 @@ export const solanatestnet: ChainMetadata = {
   displayNameShort: 'Sol Testnet',
   nativeToken: solToken,
   rpcUrls: [{ http: 'https://api.testnet.solana.com' }],
+  blockExplorers: [
+    {
+      name: 'Solana Explorer',
+      url: 'https://explorer.solana.com',
+      apiUrl: 'https://explorer.solana.com',
+      family: ExplorerFamily.Other,
+    },
+  ],
   blocks: {
     confirmations: 1,
     reorgPeriod: 0,
@@ -661,6 +712,14 @@ export const solanadevnet: ChainMetadata = {
   displayNameShort: 'Sol Devnet',
   nativeToken: solToken,
   rpcUrls: [{ http: 'https://api.devnet.solana.com' }],
+  blockExplorers: [
+    {
+      name: 'Solana Explorer',
+      url: 'https://explorer.solana.com',
+      apiUrl: 'https://explorer.solana.com',
+      family: ExplorerFamily.Other,
+    },
+  ],
   blocks: {
     confirmations: 1,
     reorgPeriod: 0,
@@ -694,10 +753,14 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   optimismgoerli,
   polygon,
   gnosis,
+  proteustestnet,
   test1,
   test2,
   test3,
+  solana,
+  solanatestnet,
   solanadevnet,
+  nautilus,
 };
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<
@@ -713,3 +776,9 @@ export const mainnetChainsMetadata: Array<ChainMetadata> = Mainnets.map(
 export const testnetChainsMetadata: Array<ChainMetadata> = Testnets.map(
   (chainName) => chainMetadata[chainName],
 );
+
+export const solanaChainToClusterName: ChainMap<string> = {
+  solana: 'mainnet-beta',
+  solanatestnet: 'testnet',
+  solanadevnet: 'devnet',
+};

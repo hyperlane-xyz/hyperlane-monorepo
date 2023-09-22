@@ -1,6 +1,5 @@
 import SafeApiKit from '@safe-global/api-kit';
-import Safe from '@safe-global/protocol-kit';
-import { EthersAdapter } from '@safe-global/protocol-kit';
+import Safe, { EthersAdapter } from '@safe-global/protocol-kit';
 import { ethers } from 'ethers';
 
 import { ChainName, MultiProvider, chainMetadata } from '@hyperlane-xyz/sdk';

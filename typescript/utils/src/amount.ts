@@ -2,7 +2,7 @@ import { formatUnits, parseUnits } from '@ethersproject/units';
 import BigNumber from 'bignumber.js';
 
 const DEFAULT_MIN_ROUNDED_VALUE = 0.00001;
-const DEFAULT_DISPLAY_DECIMALS = 5;
+const DEFAULT_DISPLAY_DECIMALS = 4;
 const DEFAULT_TOKEN_DECIMALS = 18;
 
 type NumberT = BigNumber.Value;
@@ -35,10 +35,11 @@ export function fromWeiRounded(
   // If amount is less than min value
   if (amount.lt(DEFAULT_MIN_ROUNDED_VALUE)) {
     if (roundDownIfSmall) return '0';
-    else return DEFAULT_MIN_ROUNDED_VALUE.toString();
+    return amount.toString(10);
   }
 
-  return amount.toFixed(DEFAULT_DISPLAY_DECIMALS).toString();
+  const displayDecimals = amount.gte(10000) ? 2 : DEFAULT_DISPLAY_DECIMALS;
+  return amount.toFixed(displayDecimals).toString();
 }
 
 export function toWei(
@@ -46,7 +47,11 @@ export function toWei(
   decimals = DEFAULT_TOKEN_DECIMALS,
 ): BigNumber {
   if (!value) return new BigNumber(0);
-  const valueString = value.toString().trim();
+  // First convert to a BigNumber, and then call `toString` with the
+  // explicit radix 10 such that the result is formatted as a base-10 string
+  // and not in scientific notation.
+  const valueBN = new BigNumber(value);
+  const valueString = valueBN.toString(10).trim();
   const components = valueString.split('.');
   if (components.length === 1) {
     return new BigNumber(parseUnits(valueString, decimals).toString());
@@ -82,4 +87,33 @@ export function eqAmountApproximate(
   const minValueWei = toWei(DEFAULT_MIN_ROUNDED_VALUE);
   // Is difference btwn amount and balance less than min amount shown for token
   return amountInWei1.minus(amountInWei2).abs().lt(minValueWei);
+}
+
+/**
+ * Converts a value with `fromDecimals` decimals to a value with `toDecimals` decimals.
+ * Incurs a loss of precision when `fromDecimals` > `toDecimals`.
+ * @param fromDecimals The number of decimals `value` has.
+ * @param toDecimals The number of decimals to convert `value` to.
+ * @param value The value to convert.
+ * @returns `value` represented with `toDecimals` decimals.
+ */
+export function convertDecimals(
+  fromDecimals: number,
+  toDecimals: number,
+  value: NumberT,
+) {
+  const amount = new BigNumber(value);
+
+  if (fromDecimals === toDecimals) return amount;
+  else if (fromDecimals > toDecimals) {
+    const difference = fromDecimals - toDecimals;
+    return amount
+      .div(new BigNumber(10).pow(difference))
+      .integerValue(BigNumber.ROUND_FLOOR);
+  }
+  // fromDecimals < toDecimals
+  else {
+    const difference = toDecimals - fromDecimals;
+    return amount.times(new BigNumber(10).pow(difference));
+  }
 }

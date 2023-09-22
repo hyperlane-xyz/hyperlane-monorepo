@@ -32,6 +32,8 @@ pub enum Instruction {
     SetDestinationGasConfigs(Vec<GasRouterConfig>),
     /// Set the interchain security module. Only owner.
     SetInterchainSecurityModule(Option<Pubkey>),
+    /// Set the interchain gas paymaster program and account. Only owner.
+    SetInterchainGasPaymaster(Option<(Pubkey, InterchainGasPaymasterType)>),
     /// Transfer ownership of the program. Only owner.
     TransferOwnership(Option<Pubkey>),
 }
@@ -159,6 +161,64 @@ pub fn set_destination_gas_configs(
         AccountMeta::new_readonly(solana_program::system_program::id(), false),
         AccountMeta::new(token_key, false),
         AccountMeta::new(owner_payer, true),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.encode()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Transfers ownership.
+pub fn transfer_ownership_instruction(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    new_owner: Option<Pubkey>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (token_key, _token_bump) =
+        Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::TransferOwnership(new_owner);
+
+    // Accounts:
+    // 0. [writeable] The token PDA account.
+    // 1. [signer] The current owner.
+    let accounts = vec![
+        AccountMeta::new(token_key, false),
+        AccountMeta::new_readonly(owner_payer, true),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.encode()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Sets the igp for a warp route
+pub fn set_igp_instruction(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    igp_program_and_account: Option<(Pubkey, InterchainGasPaymasterType)>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (token_key, _token_bump) =
+        Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::SetInterchainGasPaymaster(igp_program_and_account);
+
+    // Accounts:
+    // 0. [writeable] The token PDA account.
+    // 1. [signer] The current owner.
+    let accounts = vec![
+        AccountMeta::new(token_key, false),
+        AccountMeta::new_readonly(owner_payer, true),
     ];
 
     let instruction = SolanaInstruction {

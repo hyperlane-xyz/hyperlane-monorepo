@@ -9,81 +9,66 @@ import { Address, Domain, bytes32ToAddress } from '@hyperlane-xyz/utils';
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import { ChainName } from '../../types';
-import { RouterAddress } from '../types';
 
 import { IGasRouterAdapter, IRouterAdapter } from './types';
 
-export class EvmRouterAdapter<
-    ContractAddrs extends RouterAddress = RouterAddress,
-  >
-  extends BaseEvmAdapter<ContractAddrs>
-  implements IRouterAdapter<ContractAddrs>
-{
+export class EvmRouterAdapter extends BaseEvmAdapter implements IRouterAdapter {
   constructor(
-    public readonly multiProvider: MultiProtocolProvider<ContractAddrs>,
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly addresses: { router: Address },
   ) {
-    super(multiProvider);
+    super(chainName, multiProvider, addresses);
   }
 
-  interchainSecurityModule(chain: ChainName): Promise<Address> {
-    return this.getConnectedContract(chain).interchainSecurityModule();
+  interchainSecurityModule(): Promise<Address> {
+    return this.getConnectedContract().interchainSecurityModule();
   }
 
-  owner(chain: ChainName): Promise<Address> {
-    return this.getConnectedContract(chain).owner();
+  owner(): Promise<Address> {
+    return this.getConnectedContract().owner();
   }
 
-  remoteDomains(originChain: ChainName): Promise<Domain[]> {
-    return this.getConnectedContract(originChain).domains();
+  remoteDomains(): Promise<Domain[]> {
+    return this.getConnectedContract().domains();
   }
 
-  async remoteRouter(
-    originChain: ChainName,
-    remoteDomain: Domain,
-  ): Promise<Address> {
-    const routerAddressesAsBytes32 = await this.getConnectedContract(
-      originChain,
-    ).routers(remoteDomain);
+  async remoteRouter(remoteDomain: Domain): Promise<Address> {
+    const routerAddressesAsBytes32 = await this.getConnectedContract().routers(
+      remoteDomain,
+    );
     return bytes32ToAddress(routerAddressesAsBytes32);
   }
 
-  async remoteRouters(
-    originChain: ChainName,
-  ): Promise<Array<{ domain: Domain; address: Address }>> {
-    const domains = await this.remoteDomains(originChain);
+  async remoteRouters(): Promise<Array<{ domain: Domain; address: Address }>> {
+    const domains = await this.remoteDomains();
     const routers: Address[] = await Promise.all(
-      domains.map((d) => this.remoteRouter(originChain, d)),
+      domains.map((d) => this.remoteRouter(d)),
     );
     return domains.map((d, i) => ({ domain: d, address: routers[i] }));
   }
 
-  getConnectedContract(chain: ChainName): Router {
-    const address = this.multiProvider.getChainMetadata(chain).router;
-    const provider = this.multiProvider.getEthersV5Provider(chain);
-    return Router__factory.connect(address, provider);
+  getConnectedContract(): Router {
+    return Router__factory.connect(this.addresses.router, this.getProvider());
   }
 }
 
-export class EvmGasRouterAdapter<
-    ContractAddrs extends RouterAddress = RouterAddress,
-  >
-  extends EvmRouterAdapter<ContractAddrs>
-  implements IGasRouterAdapter<ContractAddrs>
+export class EvmGasRouterAdapter
+  extends EvmRouterAdapter
+  implements IGasRouterAdapter
 {
-  async quoteGasPayment(
-    origin: ChainName,
-    destination: ChainName,
-  ): Promise<string> {
+  async quoteGasPayment(destination: ChainName): Promise<string> {
     const destDomain = this.multiProvider.getDomainId(destination);
-    const amount = await this.getConnectedContract(origin).quoteGasPayment(
+    const amount = await this.getConnectedContract().quoteGasPayment(
       destDomain,
     );
     return amount.toString();
   }
 
-  override getConnectedContract(chain: ChainName): GasRouter {
-    const address = this.multiProvider.getChainMetadata(chain).router;
-    const provider = this.multiProvider.getEthersV5Provider(chain);
-    return GasRouter__factory.connect(address, provider);
+  override getConnectedContract(): GasRouter {
+    return GasRouter__factory.connect(
+      this.addresses.router,
+      this.getProvider(),
+    );
   }
 }
