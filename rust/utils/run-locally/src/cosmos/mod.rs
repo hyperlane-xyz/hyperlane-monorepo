@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::thread::sleep;
 use std::time::Duration;
-use std::{env, fs};
 
 use hpl_interface::mailbox;
 use hpl_interface::types::bech32_decode;
@@ -320,26 +320,18 @@ fn launch_cosmos_relayer(
     relayer
 }
 
-const ENV_CLI_PATH_KEY: &str = "E2E_OSMOSIS_CLI_PATH";
-const ENV_CW_HYPERLANE_PATH_KEY: &str = "E2E_CW_HYPERLANE_PATH";
-
 #[allow(dead_code)]
 fn run_locally() {
     let debug = false;
+    let cli_src = Some(CLISource::local(
+        "/Users/frostornge/dev/osmosis/eric/build/osmosisd",
+    ));
+    // let cli_src = None;
 
-    let cli_src = Some(
-        env::var(ENV_CLI_PATH_KEY)
-            .as_ref()
-            .map(|v| CLISource::local(v))
-            .unwrap_or_default(),
-    );
-
-    let code_src = Some(
-        env::var(ENV_CW_HYPERLANE_PATH_KEY)
-            .as_ref()
-            .map(|v| CodeSource::local(v))
-            .unwrap_or_default(),
-    );
+    let code_src = Some(CodeSource::local(
+        "/Users/frostornge/dev/hyperlane/cw-hyperlane/artifacts",
+    ));
+    // let code_src = None;
 
     let (osmosisd, codes) = install_cosmos(None, cli_src, None, code_src);
 
