@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
-import {GlobalHookMetadata} from "../../contracts/libs/hooks/GlobalHookMetadata.sol";
+import {StandardHookMetadata} from "../../contracts/libs/hooks/StandardHookMetadata.sol";
 
 import {StaticProtocolFee} from "../../contracts/hooks/StaticProtocolFee.sol";
 
@@ -114,7 +114,7 @@ contract StaticProtocolFeeTest is Test {
         uint256 feeRequired,
         uint256 feeSent
     ) public {
-        bytes memory metadata = GlobalHookMetadata.formatMetadata(
+        bytes memory metadata = StandardHookMetadata.formatMetadata(
             0,
             0,
             bob,

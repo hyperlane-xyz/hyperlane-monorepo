@@ -18,12 +18,12 @@ import {Message} from "../libs/Message.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 import {Indexed} from "../Indexed.sol";
 import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
-import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
 
 contract MerkleTreeHook is AbstractPostDispatchHook, MailboxClient, Indexed {
     using Message for bytes;
     using MerkleLib for MerkleLib.Tree;
-    using GlobalHookMetadata for bytes;
+    using StandardHookMetadata for bytes;
 
     // An incremental merkle tree used to store outbound message IDs.
     MerkleLib.Tree internal _tree;

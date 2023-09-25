@@ -25,10 +25,10 @@ import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.s
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
- * @title ERC5164ISM
+ * @title Erc5164Ism
  * @notice Uses the generic eip-5164 standard to verify interchain messages.
  */
-contract ERC5164ISM is AbstractMessageIdAuthorizedIsm {
+contract Erc5164Ism is AbstractMessageIdAuthorizedIsm {
     // ============ Constants ============
 
     uint8 public constant moduleType =
@@ -39,7 +39,7 @@ contract ERC5164ISM is AbstractMessageIdAuthorizedIsm {
     // ============ Constructor ============
 
     constructor(address _executor) {
-        require(Address.isContract(_executor), "ERC5164ISM: invalid executor");
+        require(Address.isContract(_executor), "Erc5164Ism: invalid executor");
         executor = _executor;
     }
 

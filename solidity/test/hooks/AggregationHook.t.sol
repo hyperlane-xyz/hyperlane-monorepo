@@ -11,6 +11,8 @@ contract AggregationHookTest is Test {
     StaticAggregationHookFactory internal factory;
     StaticAggregationHook internal hook;
 
+    uint256 internal constant PER_HOOK_GAS_AMOUNT = 25000;
+
     function setUp() public {
         factory = new StaticAggregationHookFactory();
     }
@@ -27,13 +29,13 @@ contract AggregationHookTest is Test {
 
     function testPostDispatch(uint8 _hooks) public {
         address[] memory hooksDeployed = deployHooks(_hooks);
-        uint256 _msgValue = hooksDeployed.length * 25000;
+        uint256 _msgValue = hooksDeployed.length * PER_HOOK_GAS_AMOUNT;
 
         bytes memory message = abi.encodePacked("hello world");
         for (uint256 i = 0; i < hooksDeployed.length; i++) {
             vm.expectCall(
                 hooksDeployed[i],
-                25000,
+                PER_HOOK_GAS_AMOUNT,
                 abi.encodeCall(
                     TestPostDispatchHook(hooksDeployed[i]).postDispatch,
                     ("", "hello world")
@@ -46,13 +48,13 @@ contract AggregationHookTest is Test {
     function testPostDispatch_reverts_outOfFund(uint8 _hooks, uint8 k) public {
         address[] memory hooksDeployed = deployHooks(_hooks);
         vm.assume(k < hooksDeployed.length);
-        uint256 _msgValue = uint256(k) * 25000;
+        uint256 _msgValue = uint256(k) * PER_HOOK_GAS_AMOUNT;
 
         bytes memory message = abi.encodePacked("hello world");
         for (uint256 i = 0; i < k; i++) {
             vm.expectCall(
                 hooksDeployed[i],
-                25000,
+                PER_HOOK_GAS_AMOUNT,
                 abi.encodeCall(
                     TestPostDispatchHook(hooksDeployed[i]).postDispatch,
                     ("", "hello world")
@@ -65,7 +67,7 @@ contract AggregationHookTest is Test {
 
     function testQuoteDispatch(uint8 _hooks) public {
         address[] memory hooksDeployed = deployHooks(_hooks);
-        uint256 _msgValue = hooksDeployed.length * 25000;
+        uint256 _msgValue = hooksDeployed.length * PER_HOOK_GAS_AMOUNT;
 
         bytes memory message = abi.encodePacked("hello world");
         uint256 totalQuote = hook.quoteDispatch("", message);

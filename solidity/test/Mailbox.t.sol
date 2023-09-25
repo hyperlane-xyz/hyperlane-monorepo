@@ -10,11 +10,11 @@ import "../contracts/test/TestIsm.sol";
 import "../contracts/test/TestRecipient.sol";
 import "../contracts/hooks/MerkleTreeHook.sol";
 
-import {GlobalHookMetadata} from "../contracts/libs/hooks/GlobalHookMetadata.sol";
+import {StandardHookMetadata} from "../contracts/libs/hooks/StandardHookMetadata.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
 contract MailboxTest is Test, Versioned {
-    using GlobalHookMetadata for bytes;
+    using StandardHookMetadata for bytes;
     using TypeCasts for address;
     using Message for bytes;
 
@@ -177,7 +177,7 @@ contract MailboxTest is Test, Versioned {
         bytes calldata metadata
     ) public {
         bytes memory prefixedMetadata = abi.encodePacked(
-            GlobalHookMetadata.VARIANT,
+            StandardHookMetadata.VARIANT,
             metadata
         );
         vm.assume(
@@ -262,7 +262,7 @@ contract MailboxTest is Test, Versioned {
         bytes calldata metadata
     ) public {
         bytes memory prefixedMetadata = abi.encodePacked(
-            GlobalHookMetadata.VARIANT,
+            StandardHookMetadata.VARIANT,
             metadata
         );
         bytes calldata defaultMetadata = metadata[0:0];

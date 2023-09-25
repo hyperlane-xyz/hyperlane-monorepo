@@ -14,7 +14,7 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 import {Message} from "../libs/Message.sol";
-import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
 import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
@@ -25,7 +25,7 @@ contract ConfigFallbackDomainRoutingHook is
     MailboxClient
 {
     using Message for bytes;
-    using GlobalHookMetadata for bytes;
+    using StandardHookMetadata for bytes;
 
     // ============ Public Storage ============
 

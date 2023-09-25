@@ -15,7 +15,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
-import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
 import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -27,7 +27,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * @dev V3 WIP
  */
 contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
-    using GlobalHookMetadata for bytes;
+    using StandardHookMetadata for bytes;
     using Address for address payable;
     using Message for bytes;
 
@@ -95,10 +95,11 @@ contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
         );
 
         uint256 refund = msg.value - protocolFee;
-        if (refund > 0)
+        if (refund > 0) {
             payable(metadata.refundAddress(message.senderAddress())).sendValue(
                 refund
             );
+        }
     }
 
     /// @inheritdoc AbstractPostDispatchHook
