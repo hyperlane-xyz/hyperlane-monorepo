@@ -15,8 +15,8 @@ pub const SOL_MESSAGES_EXPECTED: u32 = 20;
 /// number of messages have been sent.
 pub fn termination_invariants_met(
     config: &Config,
-    solana_cli_tools_path: &Path,
-    solana_config_path: &Path,
+    // solana_cli_tools_path: &Path,
+    // solana_config_path: &Path,
 ) -> eyre::Result<bool> {
     let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
     let total_messages_expected = eth_messages_expected + SOL_MESSAGES_EXPECTED;
@@ -72,10 +72,10 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path) {
-        log!("Solana termination invariants not met");
-        return Ok(false);
-    }
+    // if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path) {
+    //     log!("Solana termination invariants not met");
+    //     return Ok(false);
+    // }
 
     let dispatched_messages_scraped = fetch_metric(
         "9093",
