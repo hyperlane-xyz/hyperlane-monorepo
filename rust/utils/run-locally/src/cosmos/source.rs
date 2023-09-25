@@ -75,7 +75,7 @@ impl CodeSource {
         unzip(&release_comp, dir_path);
 
         // make contract_name => path map
-        fs::read_dir(dir_path)
+        fs::read_dir(concat_path(dir_path, release_name))
             .unwrap()
             .map(|v| {
                 let entry = v.unwrap();
