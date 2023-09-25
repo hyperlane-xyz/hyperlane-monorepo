@@ -362,9 +362,7 @@ fn main() -> ExitCode {
         if config.ci_mode {
             // for CI we have to look for the end condition.
             // if termination_invariants_met(&config, &solana_path, &solana_config_path)
-            if termination_invariants_met(&config)
-                .unwrap_or(false)
-            {
+            if termination_invariants_met(&config).unwrap_or(false) {
                 // end condition reached successfully
                 break;
             } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
