@@ -203,7 +203,7 @@ contract OPStackIsmTest is Test {
         );
 
         l1Mailbox.updateLatestDispatchedId(messageId);
-        vm.expectRevert("OPStackHook: msgValue must less than 2 ** 255");
+        vm.expectRevert("OPStackHook: msgValue must be less than 2 ** 255");
         opHook.postDispatch(excessValueMetadata, encodedMessage);
     }
 

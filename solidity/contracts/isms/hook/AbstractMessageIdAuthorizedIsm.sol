@@ -53,7 +53,6 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     // ============ Events ============
 
     /// @notice Emitted when a message is received from the external bridge
-    /// Might be useful for debugging for the scraper
     event ReceivedMessage(bytes32 indexed messageId);
 
     // ============ Initializer ============

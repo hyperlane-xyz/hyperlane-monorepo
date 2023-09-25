@@ -32,6 +32,7 @@ contract MerkleTreeHook is AbstractPostDispatchHook, MailboxClient, Indexed {
 
     constructor(address _mailbox) MailboxClient(_mailbox) {}
 
+    // count cannot exceed 2**TREE_DEPTH, see MerkleLib.sol
     function count() public view returns (uint32) {
         return uint32(_tree.count);
     }

@@ -18,6 +18,11 @@ import {IMailbox} from "../interfaces/IMailbox.sol";
 import {DomainRoutingHook} from "./DomainRoutingHook.sol";
 import {Message} from "../libs/Message.sol";
 
+/**
+ * @title FallbackDomainRoutingHook
+ * @notice Delegates to a hook based on the destination domain of the message.
+ * If no hook is configured for the destination domain, delegates to a fallback hook.
+ */
 contract FallbackDomainRoutingHook is DomainRoutingHook {
     using Message for bytes;
 

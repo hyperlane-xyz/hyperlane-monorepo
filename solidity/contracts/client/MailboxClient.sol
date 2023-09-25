@@ -14,9 +14,9 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 abstract contract MailboxClient is OwnableUpgradeable {
     using Message for bytes;
 
-    IMailbox immutable mailbox;
+    IMailbox public immutable mailbox;
 
-    uint32 immutable localDomain;
+    uint32 public immutable localDomain;
 
     IPostDispatchHook public hook;
 

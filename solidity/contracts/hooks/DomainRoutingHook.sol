@@ -23,6 +23,10 @@ import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 // ============ External Imports ============
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
+/**
+ * @title DomainRoutingHook
+ * @notice Delegates to a hook based on the destination domain of the message.
+ */
 contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
     using Strings for uint32;
     using Message for bytes;
