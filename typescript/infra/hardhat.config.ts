@@ -88,11 +88,10 @@ task('kathy', 'Dispatches random hyperlane messages')
           remoteId,
           '0x1234',
           {
-            value: interchainGasPayment,
             // Some behavior is dependent upon the previous block hash
             // so gas estimation may sometimes be incorrect. Just avoid
             // estimation to avoid this.
-            gasLimit: 150_000,
+            gasLimit: 250_000,
             gasPrice: 2_000_000_000,
           },
         );
