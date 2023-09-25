@@ -76,6 +76,7 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient, Ownable {
     function _getConfiguredHook(bytes calldata message)
         internal
         view
+        virtual
         returns (IPostDispatchHook)
     {
         return hooks[message.destination()];

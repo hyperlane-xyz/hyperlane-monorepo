@@ -34,14 +34,6 @@ contract FallbackDomainRoutingHookTest is Test {
         mailbox.setDefaultHook(address(mailboxDefaultHook));
     }
 
-    function _setUpTestMessage(uint32 originDomain, uint32 destinationDomain)
-        public
-    {
-        // vm.assume(originDomain != 0 && destinationDomain != 0);
-
-        testMessage = _encodeTestMessage(originDomain, destinationDomain);
-    }
-
     /* ============ hook.quoteDispatch ============ */
 
     function test_quoteDispatchHook_configured(
