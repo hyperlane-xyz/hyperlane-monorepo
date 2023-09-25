@@ -2,15 +2,25 @@
 pragma solidity >=0.8.0;
 
 import {AbstractPostDispatchHook} from "../hooks/AbstractPostDispatchHook.sol";
-import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
 
 contract TestPostDispatchHook is AbstractPostDispatchHook {
-    using StandardHookMetadata for bytes;
-
     // ============ Public Storage ============
 
     // test fees for quoteDispatch
     uint256 public fee = 0;
+
+    function supportsMetadata(bytes calldata)
+        public
+        pure
+        override
+        returns (bool)
+    {
+        return true;
+    }
+
+    function setFee(uint256 _fee) external {
+        fee = _fee;
+    }
 
     // ============ Internal functions ============
     function _postDispatch(
@@ -19,10 +29,6 @@ contract TestPostDispatchHook is AbstractPostDispatchHook {
         bytes calldata /*message*/
     ) internal pure override {
         // test - empty
-    }
-
-    function setFee(uint256 _fee) external {
-        fee = _fee;
     }
 
     function _quoteDispatch(

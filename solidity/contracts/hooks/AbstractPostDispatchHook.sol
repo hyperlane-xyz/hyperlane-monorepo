@@ -30,6 +30,7 @@ abstract contract AbstractPostDispatchHook is IPostDispatchHook {
     function supportsMetadata(bytes calldata metadata)
         public
         pure
+        virtual
         override
         returns (bool)
     {

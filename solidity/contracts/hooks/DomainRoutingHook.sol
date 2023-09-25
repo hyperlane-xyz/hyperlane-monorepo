@@ -20,8 +20,11 @@ import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 
+// ============ External Imports ============
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+
 contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
-    using StandardHookMetadata for bytes;
+    using Strings for uint32;
     using Message for bytes;
 
     struct HookConfig {
@@ -45,6 +48,17 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
         }
     }
 
+    function supportsMetadata(bytes calldata)
+        public
+        pure
+        virtual
+        override
+        returns (bool)
+    {
+        // routing hook does not care about metadata shape
+        return true;
+    }
+
     // ============ Internal Functions ============
 
     /// @inheritdoc AbstractPostDispatchHook
@@ -53,7 +67,7 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
         virtual
         override
     {
-        hooks[message.destination()].postDispatch{value: msg.value}(
+        _getConfiguredHook(message).postDispatch{value: msg.value}(
             metadata,
             message
         );
@@ -67,6 +81,22 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
         override
         returns (uint256)
     {
-        return hooks[message.destination()].quoteDispatch(metadata, message);
+        return _getConfiguredHook(message).quoteDispatch(metadata, message);
+    }
+
+    function _getConfiguredHook(bytes calldata message)
+        internal
+        view
+        virtual
+        returns (IPostDispatchHook hook)
+    {
+        hook = hooks[message.destination()];
+        require(
+            address(hook) != address(0),
+            string.concat(
+                "No hook configured for destination: ",
+                message.destination().toString()
+            )
+        );
     }
 }
