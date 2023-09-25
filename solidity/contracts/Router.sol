@@ -6,8 +6,8 @@ import {IMessageRecipient} from "./interfaces/IMessageRecipient.sol";
 import {IPostDispatchHook} from "./interfaces/hooks/IPostDispatchHook.sol";
 import {IInterchainSecurityModule} from "./interfaces/IInterchainSecurityModule.sol";
 import {EnumerableMapExtended} from "./libs/EnumerableMapExtended.sol";
-import {GlobalHookMetadata} from "./libs/hooks/GlobalHookMetadata.sol";
 import {MailboxClient} from "./client/MailboxClient.sol";
+import {StandardHookMetadata} from "./libs/hooks/StandardHookMetadata.sol";
 
 // ============ External Imports ============
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";

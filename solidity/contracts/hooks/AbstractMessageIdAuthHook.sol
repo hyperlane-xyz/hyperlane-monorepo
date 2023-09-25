@@ -18,7 +18,7 @@ import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuth
 import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
-import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
@@ -31,7 +31,7 @@ abstract contract AbstractMessageIdAuthHook is
     AbstractPostDispatchHook,
     MailboxClient
 {
-    using GlobalHookMetadata for bytes;
+    using StandardHookMetadata for bytes;
     using Message for bytes;
 
     // ============ Constants ============

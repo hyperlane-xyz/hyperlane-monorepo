@@ -11,12 +11,12 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {IMessageDispatcher} from "../../contracts/interfaces/hooks/IMessageDispatcher.sol";
 import {ERC5164Hook} from "../../contracts/hooks/ERC5164Hook.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
-import {ERC5164ISM} from "../../contracts/isms/hook/ERC5164ISM.sol";
+import {ERC5164Ism} from "../../contracts/isms/hook/ERC5164Ism.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {MockMessageDispatcher, MockMessageExecutor} from "../../contracts/mock/MockERC5164.sol";
 
-contract ERC5164ISMTest is Test {
+contract ERC5164IsmTest is Test {
     using LibBit for uint256;
     using TypeCasts for address;
     using Message for bytes;
@@ -26,8 +26,8 @@ contract ERC5164ISMTest is Test {
     MockMessageExecutor internal executor;
 
     ERC5164Hook internal hook;
-    ERC5164ISM internal ism;
-    TestMailbox internal srcMailbox;
+    ERC5164Ism internal ism;
+    TestMailbox internal originMailbox;
     TestRecipient internal testRecipient;
 
     uint32 internal constant TEST1_DOMAIN = 1;
@@ -58,13 +58,10 @@ contract ERC5164ISMTest is Test {
         dispatcher = new MockMessageDispatcher();
         executor = new MockMessageExecutor();
         testRecipient = new TestRecipient();
-        srcMailbox = new TestMailbox(TEST1_DOMAIN);
-    }
-
-    function deployContracts() public {
-        ism = new ERC5164ISM(address(executor));
+        originMailbox = new TestMailbox(TEST1_DOMAIN);
+        ism = new ERC5164Ism(address(executor));
         hook = new ERC5164Hook(
-            address(srcMailbox),
+            address(originMailbox),
             TEST2_DOMAIN,
             address(ism),
             address(dispatcher)
@@ -77,8 +74,8 @@ contract ERC5164ISMTest is Test {
     ///////////////////////////////////////////////////////////////////
 
     function test_constructor() public {
-        vm.expectRevert("ERC5164ISM: invalid executor");
-        ism = new ERC5164ISM(alice);
+        vm.expectRevert("ERC5164Ism: invalid executor");
+        ism = new ERC5164Ism(alice);
 
         vm.expectRevert("MailboxClient: invalid mailbox");
         hook = new ERC5164Hook(
@@ -92,7 +89,7 @@ contract ERC5164ISMTest is Test {
             "AbstractMessageIdAuthHook: invalid destination domain"
         );
         hook = new ERC5164Hook(
-            address(srcMailbox),
+            address(originMailbox),
             0,
             address(ism),
             address(dispatcher)
@@ -100,7 +97,7 @@ contract ERC5164ISMTest is Test {
 
         vm.expectRevert("AbstractMessageIdAuthHook: invalid ISM");
         hook = new ERC5164Hook(
-            address(srcMailbox),
+            address(originMailbox),
             TEST2_DOMAIN,
             address(0),
             address(dispatcher)
@@ -108,7 +105,7 @@ contract ERC5164ISMTest is Test {
 
         vm.expectRevert("ERC5164Hook: invalid dispatcher");
         hook = new ERC5164Hook(
-            address(srcMailbox),
+            address(originMailbox),
             TEST2_DOMAIN,
             address(ism),
             address(0)
@@ -116,13 +113,11 @@ contract ERC5164ISMTest is Test {
     }
 
     function test_postDispatch() public {
-        deployContracts();
-
         bytes memory encodedHookData = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
             (messageId)
         );
-        srcMailbox.updateLatestDispatchedId(messageId);
+        originMailbox.updateLatestDispatchedId(messageId);
 
         // note: not checking for messageId since this is implementation dependent on each vendor
         vm.expectEmit(false, true, true, true, address(dispatcher));
@@ -138,8 +133,6 @@ contract ERC5164ISMTest is Test {
     }
 
     function test_postDispatch_RevertWhen_ChainIDNotSupported() public {
-        deployContracts();
-
         encodedMessage = MessageUtils.formatMessage(
             VERSION,
             0,
@@ -149,7 +142,7 @@ contract ERC5164ISMTest is Test {
             TypeCasts.addressToBytes32(address(testRecipient)),
             testMessage
         );
-        srcMailbox.updateLatestDispatchedId(Message.id(encodedMessage));
+        originMailbox.updateLatestDispatchedId(Message.id(encodedMessage));
 
         vm.expectRevert(
             "AbstractMessageIdAuthHook: invalid destination domain"
@@ -158,9 +151,7 @@ contract ERC5164ISMTest is Test {
     }
 
     function test_postDispatch_RevertWhen_msgValueNotAllowed() public payable {
-        deployContracts();
-
-        srcMailbox.updateLatestDispatchedId(messageId);
+        originMailbox.updateLatestDispatchedId(messageId);
 
         vm.expectRevert("ERC5164Hook: no value allowed");
         hook.postDispatch{value: 1}(bytes(""), encodedMessage);
@@ -169,8 +160,6 @@ contract ERC5164ISMTest is Test {
     /* ============ ISM.verifyMessageId ============ */
 
     function test_verifyMessageId() public {
-        deployContracts();
-
         vm.startPrank(address(executor));
 
         ism.verifyMessageId(messageId);
@@ -180,8 +169,6 @@ contract ERC5164ISMTest is Test {
     }
 
     function test_verifyMessageId_RevertWhen_NotAuthorized() public {
-        deployContracts();
-
         vm.startPrank(alice);
 
         // needs to be called by the authorized hook contract on Ethereum
@@ -196,8 +183,6 @@ contract ERC5164ISMTest is Test {
     /* ============ ISM.verify ============ */
 
     function test_verify() public {
-        deployContracts();
-
         vm.startPrank(address(executor));
 
         ism.verifyMessageId(messageId);
@@ -209,8 +194,6 @@ contract ERC5164ISMTest is Test {
     }
 
     function test_verify_RevertWhen_InvalidMessage() public {
-        deployContracts();
-
         vm.startPrank(address(executor));
 
         ism.verifyMessageId(messageId);

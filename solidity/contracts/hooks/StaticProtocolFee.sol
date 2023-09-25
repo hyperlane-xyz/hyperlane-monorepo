@@ -15,7 +15,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
-import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
 import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -26,7 +26,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * @notice Collects a static protocol fee from the sender.
  */
 contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
-    using GlobalHookMetadata for bytes;
+    using StandardHookMetadata for bytes;
     using Address for address payable;
     using Message for bytes;
 

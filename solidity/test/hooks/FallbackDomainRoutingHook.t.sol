@@ -12,6 +12,7 @@ import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 
 contract FallbackDomainRoutingHookTest is Test {
     using TypeCasts for address;
+
     ConfigFallbackDomainRoutingHook internal fallbackHook;
     TestPostDispatchHook internal configuredTestPostDispatchHook;
     TestPostDispatchHook internal mailboxDefaultHook;
@@ -30,17 +31,29 @@ contract FallbackDomainRoutingHookTest is Test {
         mailboxDefaultHook = new TestPostDispatchHook();
         testRecipient = new TestRecipient();
         fallbackHook = new ConfigFallbackDomainRoutingHook(address(mailbox));
-        testMessage = _encodeTestMessage();
         mailbox.setDefaultHook(address(mailboxDefaultHook));
+    }
+
+    function _setUpTestMessage(uint32 originDomain, uint32 destinationDomain)
+        public
+    {
+        // vm.assume(originDomain != 0 && destinationDomain != 0);
+
+        testMessage = _encodeTestMessage(originDomain, destinationDomain);
     }
 
     /* ============ hook.quoteDispatch ============ */
 
-    function test_quoteDispatchHook_configured(uint256 fee) public {
+    function test_quoteDispatchHook_configured(
+        uint32 originDomain,
+        uint32 destinationDomain,
+        uint256 fee
+    ) public {
         configuredTestPostDispatchHook.setFee(fee);
+        testMessage = _encodeTestMessage(originDomain, destinationDomain);
 
         fallbackHook.setHook(
-            TEST_DESTINATION_DOMAIN,
+            destinationDomain,
             address(testRecipient).addressToBytes32(),
             configuredTestPostDispatchHook
         );
@@ -55,7 +68,12 @@ contract FallbackDomainRoutingHookTest is Test {
         assertEq(fallbackHook.quoteDispatch("", testMessage), fee);
     }
 
-    function test_quoteDispatch_default() public payable {
+    function test_quoteDispatch_default(
+        uint32 originDomain,
+        uint32 destinationDomain
+    ) public payable {
+        testMessage = _encodeTestMessage(originDomain, destinationDomain);
+
         vm.expectCall(
             address(mailboxDefaultHook),
             abi.encodeCall(mailboxDefaultHook.quoteDispatch, ("", testMessage))
@@ -65,9 +83,14 @@ contract FallbackDomainRoutingHookTest is Test {
 
     /* ============ hook.postDispatch ============ */
 
-    function test_postDispatchHook_configured() public payable {
+    function test_postDispatchHook_configured(
+        uint32 originDomain,
+        uint32 destinationDomain
+    ) public payable {
+        testMessage = _encodeTestMessage(originDomain, destinationDomain);
+
         fallbackHook.setHook(
-            TEST_DESTINATION_DOMAIN,
+            destinationDomain,
             address(testRecipient).addressToBytes32(),
             configuredTestPostDispatchHook
         );
@@ -82,7 +105,12 @@ contract FallbackDomainRoutingHookTest is Test {
         fallbackHook.postDispatch{value: msg.value}("", testMessage);
     }
 
-    function test_postDispatch_default() public payable {
+    function test_postDispatch_default(
+        uint32 originDomain,
+        uint32 destinationDomain
+    ) public payable {
+        testMessage = _encodeTestMessage(originDomain, destinationDomain);
+
         vm.expectCall(
             address(mailboxDefaultHook),
             abi.encodeCall(mailboxDefaultHook.postDispatch, ("", testMessage))
@@ -91,14 +119,18 @@ contract FallbackDomainRoutingHookTest is Test {
         fallbackHook.postDispatch{value: msg.value}("", testMessage);
     }
 
-    function _encodeTestMessage() internal view returns (bytes memory) {
+    function _encodeTestMessage(uint32 originDomain, uint32 destinationDomain)
+        internal
+        view
+        returns (bytes memory)
+    {
         return
             MessageUtils.formatMessage(
                 uint8(0), // version
                 uint32(1), // nonce
-                TEST_ORIGIN_DOMAIN,
+                originDomain,
                 address(this).addressToBytes32(),
-                TEST_DESTINATION_DOMAIN,
+                destinationDomain,
                 address(testRecipient).addressToBytes32(),
                 abi.encodePacked("Hello from the other chain!")
             );

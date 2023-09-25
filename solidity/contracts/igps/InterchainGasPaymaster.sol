@@ -15,8 +15,8 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
-import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
-import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
+import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
+import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
 import {IGasOracle} from "../interfaces/IGasOracle.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
@@ -42,7 +42,7 @@ contract InterchainGasPaymaster is
 {
     using Address for address payable;
     using Message for bytes;
-    using GlobalHookMetadata for bytes;
+    using StandardHookMetadata for bytes;
     // ============ Constants ============
 
     /// @notice The scale of gas oracle token exchange rates.

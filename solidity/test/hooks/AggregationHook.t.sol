@@ -11,6 +11,8 @@ contract AggregationHookTest is Test {
     StaticAggregationHookFactory internal factory;
     StaticAggregationHook internal hook;
 
+    uint256 internal constant PER_HOOK_GAS_AMOUNT = 25000;
+
     function setUp() public {
         factory = new StaticAggregationHookFactory();
     }
@@ -30,7 +32,7 @@ contract AggregationHookTest is Test {
     }
 
     function testPostDispatch(uint8 _hooks) public {
-        uint256 fee = 25000;
+        uint256 fee = PER_HOOK_GAS_AMOUNT;
         address[] memory hooksDeployed = deployHooks(_hooks, fee);
         uint256 _msgValue = hooksDeployed.length * fee;
 
@@ -38,7 +40,7 @@ contract AggregationHookTest is Test {
         for (uint256 i = 0; i < hooksDeployed.length; i++) {
             vm.expectCall(
                 hooksDeployed[i],
-                fee,
+                PER_HOOK_GAS_AMOUNT,
                 abi.encodeCall(
                     TestPostDispatchHook(hooksDeployed[i]).postDispatch,
                     ("", "hello world")
@@ -49,7 +51,7 @@ contract AggregationHookTest is Test {
     }
 
     function testPostDispatch_reverts_outOfFund(uint8 _hooks, uint8 k) public {
-        uint256 fee = 25000;
+        uint256 fee = PER_HOOK_GAS_AMOUNT;
         address[] memory hooksDeployed = deployHooks(_hooks, fee);
         vm.assume(k < hooksDeployed.length);
         uint256 _msgValue = uint256(k) * fee;
@@ -70,7 +72,7 @@ contract AggregationHookTest is Test {
     }
 
     function testQuoteDispatch(uint8 _hooks) public {
-        uint256 fee = 25000;
+        uint256 fee = PER_HOOK_GAS_AMOUNT;
         address[] memory hooksDeployed = deployHooks(_hooks, fee);
         uint256 _msgValue = hooksDeployed.length * fee;
 
@@ -81,7 +83,7 @@ contract AggregationHookTest is Test {
     }
 
     function testMetadata(uint8 _hooks) public {
-        uint256 fee = 25000;
+        uint256 fee = PER_HOOK_GAS_AMOUNT;
         address[] memory expectedHooks = deployHooks(_hooks, fee);
         address[] memory actualHook = hook.hooks("");
         assertEq(actualHook, expectedHooks);
