@@ -55,9 +55,9 @@ fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
         KEY_ACCOUNTS3,
     ]
 }
-
 const CW_HYPERLANE_GIT: &str = "https://github.com/many-things/cw-hyperlane";
-const CW_HYPERLANE_VERSION: &str = "0.0.4";
+
+const CW_HYPERLANE_VERSION: &str = "0.0.5";
 
 fn make_target() -> String {
     let os = if cfg!(target_os = "linux") {
