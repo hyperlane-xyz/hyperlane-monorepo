@@ -17,7 +17,10 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
-import { deployEnvToSdkEnv } from '../src/config/environment';
+import {
+  DeployEnvironment,
+  deployEnvToSdkEnv,
+} from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
 import { TestRecipientDeployer } from '../src/deployment/testcontracts/testrecipient';
@@ -134,9 +137,49 @@ async function main() {
     return;
   }
 
-  const modulePath = getModuleDirectory(environment, module, context);
+  const { modulePath, addresses } = getModulePathAndAddressesPath(
+    environment,
+    module,
+    context,
+  );
 
   console.log(`Deploying to ${modulePath}`);
+
+  const verification = path.join(modulePath, 'verification.json');
+
+  const cache = {
+    addresses,
+    verification,
+    read: environment !== 'test',
+    write: true,
+  };
+  const agentConfigModules: Array<Modules> = [
+    Modules.CORE,
+    Modules.INTERCHAIN_GAS_PAYMASTER,
+  ];
+  // Don't write agent config in fork tests
+  const agentConfig =
+    agentConfigModules.includes(module) && !fork
+      ? {
+          addresses,
+          environment,
+          multiProvider,
+          agentConfigModuleAddressPaths: agentConfigModules.map(
+            (m) =>
+              getModulePathAndAddressesPath(environment, m, context).addresses,
+          ),
+        }
+      : undefined;
+
+  await deployWithArtifacts(config, deployer, cache, fork, agentConfig);
+}
+
+function getModulePathAndAddressesPath(
+  environment: DeployEnvironment,
+  module: Modules,
+  context: Contexts,
+) {
+  const modulePath = getModuleDirectory(environment, module, context);
 
   const isSdkArtifact = SDK_MODULES.includes(module) && environment !== 'test';
 
@@ -147,25 +190,7 @@ async function main() {
       )
     : path.join(modulePath, 'addresses.json');
 
-  const verification = path.join(modulePath, 'verification.json');
-
-  const cache = {
-    addresses,
-    verification,
-    read: environment !== 'test',
-    write: true,
-  };
-  // Don't write agent config in fork tests
-  const agentConfig =
-    ['core', 'igp'].includes(module) && !fork
-      ? {
-          addresses,
-          environment,
-          multiProvider,
-        }
-      : undefined;
-
-  await deployWithArtifacts(config, deployer, cache, fork, agentConfig);
+  return { modulePath, addresses };
 }
 
 main()

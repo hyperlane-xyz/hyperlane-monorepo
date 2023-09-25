@@ -8,7 +8,7 @@ import {
   buildAgentConfigDeprecated,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
-import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { objMap, objMerge, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { getAgentConfigDirectory } from '../../scripts/utils';
 import { DeployEnvironment } from '../config';
@@ -32,7 +32,7 @@ export async function deployWithArtifacts<Config>(
   fork?: ChainName,
   agentConfig?: {
     multiProvider: MultiProvider;
-    addresses: string;
+    agentConfigModuleAddressPaths: string[];
     environment: DeployEnvironment;
   },
 ) {
@@ -81,7 +81,7 @@ export async function postDeploy<Config>(
   },
   agentConfig?: {
     multiProvider: MultiProvider;
-    addresses: string;
+    agentConfigModuleAddressPaths: string[];
     environment: DeployEnvironment;
   },
 ) {
@@ -106,7 +106,7 @@ export async function postDeploy<Config>(
   }
   if (agentConfig) {
     await writeAgentConfig(
-      agentConfig.addresses,
+      agentConfig.agentConfigModuleAddressPaths,
       agentConfig.multiProvider,
       agentConfig.environment,
     );
@@ -114,15 +114,20 @@ export async function postDeploy<Config>(
 }
 
 export async function writeAgentConfig(
-  addressesPath: string,
+  agentConfigModuleAddressPaths: string[],
   multiProvider: MultiProvider,
   environment: DeployEnvironment,
 ) {
   let addresses: ChainMap<HyperlaneAddresses<any>> = {};
   try {
-    addresses = readJSONAtPath(addressesPath);
+    addresses = agentConfigModuleAddressPaths
+      .map(readJSONAtPath)
+      .reduce((acc, val) => objMerge(acc, val), {});
   } catch (e) {
-    console.error('Failed to load cached addresses');
+    console.error(
+      'Failed to load all required cached addresses, not writing agent config',
+    );
+    return;
   }
   // Write agent config indexing from the deployed or latest block numbers.
   // For non-net-new deployments, these changes will need to be
