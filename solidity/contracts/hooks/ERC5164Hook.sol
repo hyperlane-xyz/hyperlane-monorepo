@@ -28,7 +28,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * any of the 5164 adapters.
  */
 contract ERC5164Hook is AbstractMessageIdAuthHook {
-    IMessageDispatcher immutable dispatcher;
+    IMessageDispatcher public immutable dispatcher;
 
     constructor(
         address _mailbox,

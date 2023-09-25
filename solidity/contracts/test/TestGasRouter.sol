@@ -5,24 +5,14 @@ import "./TestRouter.sol";
 import "../GasRouter.sol";
 
 contract TestGasRouter is TestRouter, GasRouter {
-    function dispatchWithGas(
-        uint32 _destinationDomain,
-        bytes memory _messageBody,
-        uint256 _gasPayment,
-        address _gasPaymentRefundAddress
-    ) external payable {
-        _dispatchWithGas(
-            _destinationDomain,
-            _messageBody,
-            _gasPayment,
-            _gasPaymentRefundAddress
-        );
-    }
+    constructor(address _mailbox) TestRouter(_mailbox) {}
 
-    function dispatchWithGas(
-        uint32 _destinationDomain,
-        bytes memory _messageBody
-    ) external payable {
-        _dispatchWithGas(_destinationDomain, _messageBody);
+    function _metadata(uint32 _destination)
+        internal
+        view
+        override(GasRouter, MailboxClient)
+        returns (bytes memory)
+    {
+        return GasRouter._metadata(_destination);
     }
 }

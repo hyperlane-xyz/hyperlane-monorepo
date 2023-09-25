@@ -62,6 +62,8 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         _;
     }
 
+    constructor(address _mailbox) Router(_mailbox) {}
+
     /**
      * @param _owner The new owner.
      * @param _tokenMessenger The TokenMessenger contract.

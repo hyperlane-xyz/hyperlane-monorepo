@@ -15,7 +15,6 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
-import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 /**
@@ -31,6 +30,7 @@ abstract contract AbstractPostDispatchHook is IPostDispatchHook {
     function supportsMetadata(bytes calldata metadata)
         public
         pure
+        virtual
         override
         returns (bool)
     {

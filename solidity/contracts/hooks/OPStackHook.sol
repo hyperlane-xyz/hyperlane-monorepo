@@ -78,7 +78,7 @@ contract OPStackHook is AbstractMessageIdAuthHook {
     {
         require(
             metadata.msgValue(0) < 2**255,
-            "OPStackHook: msgValue must less than 2 ** 255"
+            "OPStackHook: msgValue must be less than 2 ** 255"
         );
         l1Messenger.sendMessage{value: metadata.msgValue(0)}(
             ism,

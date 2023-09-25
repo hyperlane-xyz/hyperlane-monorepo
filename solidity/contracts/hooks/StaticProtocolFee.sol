@@ -24,7 +24,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 /**
  * @title StaticProtocolFee
  * @notice Collects a static protocol fee from the sender.
- * @dev V3 WIP
  */
 contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
     using StandardHookMetadata for bytes;

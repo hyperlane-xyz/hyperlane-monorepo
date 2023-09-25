@@ -6,10 +6,7 @@ import "../Router.sol";
 contract TestRouter is Router {
     event InitializeOverload();
 
-    function initialize(address _mailbox) external initializer {
-        __Router_initialize(_mailbox);
-        emit InitializeOverload();
-    }
+    constructor(address _mailbox) Router(_mailbox) {}
 
     function _handle(
         uint32,
@@ -35,21 +32,5 @@ contract TestRouter is Router {
 
     function dispatch(uint32 _destination, bytes memory _msg) external payable {
         _dispatch(_destination, _msg);
-    }
-
-    function dispatchWithGas(
-        uint32 _destinationDomain,
-        bytes memory _messageBody,
-        uint256 _gasAmount,
-        uint256 _gasPayment,
-        address _gasPaymentRefundAddress
-    ) external payable {
-        _dispatchWithGas(
-            _destinationDomain,
-            _messageBody,
-            _gasAmount,
-            _gasPayment,
-            _gasPaymentRefundAddress
-        );
     }
 }

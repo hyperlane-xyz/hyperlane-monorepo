@@ -21,10 +21,14 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 
 // ============ External Imports ============
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
-contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient, Ownable {
-    using StandardHookMetadata for bytes;
+/**
+ * @title DomainRoutingHook
+ * @notice Delegates to a hook based on the destination domain of the message.
+ */
+contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
+    using Strings for uint32;
     using Message for bytes;
 
     struct HookConfig {
@@ -46,6 +50,17 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient, Ownable {
         for (uint256 i = 0; i < configs.length; i++) {
             setHook(configs[i].destination, configs[i].hook);
         }
+    }
+
+    function supportsMetadata(bytes calldata)
+        public
+        pure
+        virtual
+        override
+        returns (bool)
+    {
+        // routing hook does not care about metadata shape
+        return true;
     }
 
     // ============ Internal Functions ============
@@ -76,8 +91,16 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient, Ownable {
     function _getConfiguredHook(bytes calldata message)
         internal
         view
-        returns (IPostDispatchHook)
+        virtual
+        returns (IPostDispatchHook hook)
     {
-        return hooks[message.destination()];
+        hook = hooks[message.destination()];
+        require(
+            address(hook) != address(0),
+            string.concat(
+                "No hook configured for destination: ",
+                message.destination().toString()
+            )
+        );
     }
 }

@@ -37,6 +37,11 @@ library MerkleRootMultisigIsmMetadata {
             );
     }
 
+    /**
+     * @notice Returns the index of the message being proven.
+     * @param _metadata ABI encoded Multisig ISM metadata.
+     * @return Index of the target message in the merkle tree.
+     */
     function messageIndex(bytes calldata _metadata)
         internal
         pure
@@ -48,6 +53,11 @@ library MerkleRootMultisigIsmMetadata {
             );
     }
 
+    /**
+     * @notice Returns the index of the signed checkpoint.
+     * @param _metadata ABI encoded Multisig ISM metadata.
+     * @return Index of the signed checkpoint
+     */
     function signedIndex(bytes calldata _metadata)
         internal
         pure

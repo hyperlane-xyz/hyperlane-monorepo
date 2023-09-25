@@ -20,6 +20,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 contract InterchainQueryRouter is Router, IInterchainQueryRouter {
     using TypeCasts for address;
     using TypeCasts for bytes32;
+    using InterchainQueryMessage for bytes;
 
     /**
      * @notice Emitted when a query is dispatched to another chain.
@@ -40,21 +41,20 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
      */
     event QueryResolved(uint32 indexed destination, address indexed sender);
 
+    constructor(address _mailbox) Router(_mailbox) {}
+
     /**
      * @notice Initializes the Router contract with Hyperlane core contracts and the address of the interchain security module.
-     * @param _mailbox The address of the mailbox contract.
      * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
      * @param _interchainSecurityModule The address of the interchain security module contract.
      * @param _owner The address with owner privileges.
      */
     function initialize(
-        address _mailbox,
         address _interchainGasPaymaster,
         address _interchainSecurityModule,
         address _owner
     ) external initializer {
-        __HyperlaneConnectionClient_initialize(
-            _mailbox,
+        _MailboxClient_initialize(
             _interchainGasPaymaster,
             _interchainSecurityModule,
             _owner
@@ -117,9 +117,8 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        InterchainQueryMessage.MessageType messageType = InterchainQueryMessage
-            .messageType(_message);
-        bytes32 sender = InterchainQueryMessage.sender(_message);
+        InterchainQueryMessage.MessageType messageType = _message.messageType();
+        bytes32 sender = _message.sender();
         if (messageType == InterchainQueryMessage.MessageType.QUERY) {
             CallLib.StaticCallWithCallback[]
                 memory callsWithCallback = InterchainQueryMessage
@@ -134,7 +133,7 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
             );
         } else if (messageType == InterchainQueryMessage.MessageType.RESPONSE) {
             address senderAddress = sender.bytes32ToAddress();
-            bytes[] memory rawCalls = InterchainQueryMessage.rawCalls(_message);
+            bytes[] memory rawCalls = _message.rawCalls();
             CallLib.multicallto(senderAddress, rawCalls);
             emit QueryResolved(_origin, senderAddress);
         } else {

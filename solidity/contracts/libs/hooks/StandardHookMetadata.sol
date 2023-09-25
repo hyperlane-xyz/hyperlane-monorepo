@@ -44,6 +44,7 @@ library StandardHookMetadata {
     /**
      * @notice Returns the specified value for the message.
      * @param _metadata ABI encoded global hook metadata.
+     * @param _default Default fallback value.
      * @return Value for the message as uint256.
      */
     function msgValue(bytes calldata _metadata, uint256 _default)
@@ -59,6 +60,7 @@ library StandardHookMetadata {
     /**
      * @notice Returns the specified gas limit for the message.
      * @param _metadata ABI encoded global hook metadata.
+     * @param _default Default fallback gas limit.
      * @return Gas limit for the message as uint256.
      */
     function gasLimit(bytes calldata _metadata, uint256 _default)
@@ -74,6 +76,7 @@ library StandardHookMetadata {
     /**
      * @notice Returns the specified refund address for the message.
      * @param _metadata ABI encoded global hook metadata.
+     * @param _default Default fallback refund address.
      * @return Refund address for the message as address.
      */
     function refundAddress(bytes calldata _metadata, address _default)
@@ -138,7 +141,7 @@ library StandardHookMetadata {
         view
         returns (bytes memory)
     {
-        return abi.encodePacked(VARIANT, _msgValue, uint256(0), msg.sender, "");
+        return formatMetadata(_msgValue, uint256(0), msg.sender, "");
     }
 
     /**
@@ -152,13 +155,6 @@ library StandardHookMetadata {
         pure
         returns (bytes memory)
     {
-        return
-            abi.encodePacked(
-                VARIANT,
-                uint256(0),
-                _gasLimit,
-                _refundAddress,
-                ""
-            );
+        return formatMetadata(uint256(0), _gasLimit, _refundAddress, "");
     }
 }

@@ -8,7 +8,7 @@ library CheckpointLib {
     /**
      * @notice Returns the digest validators are expected to sign when signing checkpoints.
      * @param _origin The origin domain of the checkpoint.
-     * @param _originMerkleTree The address of the origin merkle tree hook as bytes32.
+     * @param _originmerkleTreeHook The address of the origin merkle tree hook as bytes32.
      * @param _checkpointRoot The root of the checkpoint.
      * @param _checkpointIndex The index of the checkpoint.
      * @param _messageId The message ID of the checkpoint.
@@ -17,12 +17,12 @@ library CheckpointLib {
      */
     function digest(
         uint32 _origin,
-        bytes32 _originMerkleTree,
+        bytes32 _originmerkleTreeHook,
         bytes32 _checkpointRoot,
         uint32 _checkpointIndex,
         bytes32 _messageId
     ) internal pure returns (bytes32) {
-        bytes32 _domainHash = domainHash(_origin, _originMerkleTree);
+        bytes32 _domainHash = domainHash(_origin, _originmerkleTreeHook);
         return
             ECDSA.toEthSignedMessageHash(
                 keccak256(
@@ -40,10 +40,10 @@ library CheckpointLib {
      * @notice Returns the domain hash that validators are expected to use
      * when signing checkpoints.
      * @param _origin The origin domain of the checkpoint.
-     * @param _originMerkleTree The address of the origin merkle tree as bytes32.
+     * @param _originmerkleTreeHook The address of the origin merkle tree as bytes32.
      * @return The domain hash.
      */
-    function domainHash(uint32 _origin, bytes32 _originMerkleTree)
+    function domainHash(uint32 _origin, bytes32 _originmerkleTreeHook)
         internal
         pure
         returns (bytes32)
@@ -55,7 +55,7 @@ library CheckpointLib {
         // anything other than a whitelisted tree.
         return
             keccak256(
-                abi.encodePacked(_origin, _originMerkleTree, "HYPERLANE")
+                abi.encodePacked(_origin, _originmerkleTreeHook, "HYPERLANE")
             );
     }
 }
