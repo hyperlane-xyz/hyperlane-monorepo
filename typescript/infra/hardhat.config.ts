@@ -11,8 +11,8 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
-import { Modules, getAddresses } from './scripts/utils';
-import { sleep } from './src/utils/utils';
+// import { Modules, getAddresses } from './scripts/utils';
+import { Modules, getAddresses, sleep } from './src/utils/utils';
 
 const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
   const coreContracts = core.getContracts(chain);
