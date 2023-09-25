@@ -43,6 +43,12 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
 
     constructor(address _mailbox) Router(_mailbox) {}
 
+    /**
+     * @notice Initializes the Router contract with Hyperlane core contracts and the address of the interchain security module.
+     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
+     * @param _interchainSecurityModule The address of the interchain security module contract.
+     * @param _owner The address with owner privileges.
+     */
     function initialize(
         address _interchainGasPaymaster,
         address _interchainSecurityModule,

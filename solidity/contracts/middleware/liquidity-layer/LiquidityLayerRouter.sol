@@ -23,6 +23,24 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
 
     constructor(address _mailbox) Router(_mailbox) {}
 
+    /**
+     * @notice Initializes the Router contract with Hyperlane core contracts and the address of the interchain security module.
+     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
+     * @param _interchainSecurityModule The address of the interchain security module contract.
+     * @param _owner The address with owner privileges.
+     */
+    function initialize(
+        address _interchainGasPaymaster,
+        address _interchainSecurityModule,
+        address _owner
+    ) external initializer {
+        _MailboxClient_initialize(
+            _interchainGasPaymaster,
+            _interchainSecurityModule,
+            _owner
+        );
+    }
+
     function dispatchWithTokens(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
