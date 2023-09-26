@@ -166,10 +166,7 @@ where
     #[instrument(err, skip(self))]
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
-        let merkle_tree = merkle_tree_hook(&self.contract, &self.provider).await?;
-        let base_call = merkle_tree.count();
-        let call_at_tip = base_call.block(u64::from(tip));
-        let sequence = call_at_tip.call().await?;
+        let sequence = self.contract.nonce().block(u64::from(tip)).call().await?;
         Ok((Some(sequence), tip))
     }
 }
