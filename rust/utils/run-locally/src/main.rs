@@ -52,32 +52,38 @@ const RELAYER_KEYS: &[&str] = &[
     "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
     // test3
     "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
-    // aptostestnet
+    // sealeveltest1
+    "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
+    // sealeveltest2
+    "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
+    // aptoslocalnet1
     "0xb25d6937002ecd4d79c7bdfddc0053febc8896f2109e96c45bf69efd84544cd5", // 0x2177..:A10
-                                                                          // sealeveltest1
-                                                                          //"0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
-                                                                          // sealeveltest2
-                                                                          //"0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
+    // aptoslocalnet2
+    "0xf984db645790f569c23821273a95ee3878949e1098c29bcb0ba14101309adeae", // 0xcc78..
 ];
 /// These private keys are from hardhat/anvil's testing accounts.
 /// These must be consistent with the ISM config for the test.
 const VALIDATOR_KEYS: &[&str] = &[
     // eth
-    "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
-    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
-    "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
-    // aptos,
+    //"0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
+    //"0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
+    //"0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
+    // aptoslocalnet1,
     "0xeddbc896fd1cd2af834cd65c69aac4ea118e7956e5aeeb9b4afa1afdf79f2608", // 0x598..
+    // aptoslocalnet2,
+    "0xe299c1e6e1f89b4ed2992782137e24d5edbfc51bb702635a85ed6b687c2b5988", // 0xef7a..
                                                                           // sealevel
                                                                           //"0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
 ];
 
-const VALIDATOR_ORIGIN_CHAINS: &[&str] = &[
+/*const VALIDATOR_ORIGIN_CHAINS: &[&str] = &[
     "test1",
     "test2",
     "test3",
-    "aptostestnet", /*, "sealeveltest1"*/
-];
+    "sealeveltest1"
+];*/
+
+const VALIDATOR_ORIGIN_CHAINS: &[&str] = &["aptoslocalnet1", "aptoslocalnet2"];
 
 const AGENT_BIN_PATH: &str = "target/debug";
 const INFRA_PATH: &str = "../typescript/infra";
@@ -184,10 +190,41 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
         //.hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[3])
         //.hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
-        .hyp_env("CHAINS_APTOSTESTNET_SIGNER_KEY", RELAYER_KEYS[3])
+        .hyp_env("CHAINS_APTOSLOCALNET1_SIGNER_KEY", RELAYER_KEYS[5])
+        .hyp_env("CHAINS_APTOSLOCALNET2_SIGNER_KEY", RELAYER_KEYS[6])
+        .hyp_env("CHAINS_APTOSLOCALNET1_CONNECTION_TYPE", "httpFallback")
+        .hyp_env("CHAINS_APTOSLOCALNET2_CONNECTION_TYPE", "httpFallback")
         .hyp_env(
-            "CHAINS_APTOSTESTNET_CONNECTION_URL",
+            "CHAINS_APTOSLOCALNET1_CONNECTION_URL",
             "http://127.0.0.1:8080/v1",
+        )
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET2_CONNECTION_URL",
+            "http://127.0.0.1:8080/v1",
+        )
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET1_ADDRESSES_MAILBOX",
+            "0x476307c25c54b76b331a4e3422ae293ada422f5455efed1553cf4de1222a108f",
+        )
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET1_ADDRESSES_INTERCHAIN_GAS_PAYMASTER",
+            "0xc5cb1f1ce6951226e9c46ce8d42eda1ac9774a0fef91e2910939119ef0c95568",
+        )
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET1_ADDRESSES_VALIDATOR_ANNOUNCE",
+            "0xa4a4eb4bab83650ba62cabe9ce429ad021b29c12f2fbf808768838255c7e191d",
+        )
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET2_ADDRESSES_MAILBOX",
+            "0xd338e68ca12527e77cab474ee8ec91ffa4e6512ced9ae8f47e28c5c7c4804b78",
+        )
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET2_ADDRESSES_INTERCHAIN_GAS_PAYMASTER",
+            "0xea7d568d0705450331a8f09fd1c823faec91f4ef1c7e6ed4b12c0c53d0c08bc8",
+        )
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET2_ADDRESSES_VALIDATOR_ANNOUNCE",
+            "0xce1f65297828eaa6e460724a869317154f05cdde26619c0e5c0ca23aac3f69c7",
         )
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
@@ -216,7 +253,7 @@ fn main() -> ExitCode {
         .arg(
             "relayChains",
             //"test1,test2,test3,sealeveltest1,sealeveltest2",
-            "test1,test2,test3,aptostestnet",
+            "aptoslocalnet1, aptoslocalnet2",
         );
 
     let base_validator_env = common_agent_env
@@ -233,6 +270,40 @@ fn main() -> ExitCode {
         )
         .hyp_env("CHAINS_TEST2_CONNECTION_TYPE", "httpFallback")
         .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_APTOSLOCALNET1_CONNECTION_TYPE", "httpFallback")
+        .hyp_env("CHAINS_APTOSLOCALNET2_CONNECTION_TYPE", "httpFallback")
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET1_CONNECTION_URL",
+            "http://127.0.0.1:8080/v1",
+        )
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET2_CONNECTION_URL",
+            "http://127.0.0.1:8080/v1",
+        )
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET1_ADDRESSES_MAILBOX",
+            "0x476307c25c54b76b331a4e3422ae293ada422f5455efed1553cf4de1222a108f",
+        )
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET1_ADDRESSES_INTERCHAIN_GAS_PAYMASTER",
+            "0xc5cb1f1ce6951226e9c46ce8d42eda1ac9774a0fef91e2910939119ef0c95568",
+        )
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET1_ADDRESSES_VALIDATOR_ANNOUNCE",
+            "0xa4a4eb4bab83650ba62cabe9ce429ad021b29c12f2fbf808768838255c7e191d",
+        )
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET2_ADDRESSES_MAILBOX",
+            "0xd338e68ca12527e77cab474ee8ec91ffa4e6512ced9ae8f47e28c5c7c4804b78",
+        )
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET2_ADDRESSES_INTERCHAIN_GAS_PAYMASTER",
+            "0xea7d568d0705450331a8f09fd1c823faec91f4ef1c7e6ed4b12c0c53d0c08bc8",
+        )
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET2_ADDRESSES_VALIDATOR_ANNOUNCE",
+            "0xce1f65297828eaa6e460724a869317154f05cdde26619c0e5c0ca23aac3f69c7",
+        )
         .hyp_env("REORGPERIOD", "0")
         .hyp_env("INTERVAL", "5")
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage");
@@ -260,7 +331,18 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST2_CONNECTION_URL", "http://127.0.0.1:8545")
         .hyp_env("CHAINS_TEST3_CONNECTION_TYPE", "httpQuorum")
         .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
-        .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
+        .hyp_env("CHAINS_APTOSLOCALNET1_CONNECTION_TYPE", "httpQuorum")
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET1_CONNECTION_URL",
+            "http://127.0.0.1:8080/v1",
+        )
+        .hyp_env("CHAINS_APTOSLOCALNET2_CONNECTION_TYPE", "httpQuorum")
+        .hyp_env(
+            "CHAINS_APTOSLOCALNET2_CONNECTION_URL",
+            "http://127.0.0.1:8080/v1",
+        )
+        //.hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
+        .hyp_env("CHAINSTOSCRAPE", "aptoslocalnet1,aptoslocalnet2")
         .hyp_env("METRICS", "9093")
         .hyp_env(
             "DB",
@@ -278,7 +360,7 @@ fn main() -> ExitCode {
             .join(", ")
     );
     log!("Relayer DB in {}", relayer_db.display());
-    (0..3).for_each(|i| {
+    (0..VALIDATOR_COUNT).for_each(|i| {
         log!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
     });
 
@@ -294,10 +376,10 @@ fn main() -> ExitCode {
     */
 
     // aptos
-    install_aptos_cli().join();
-    let local_net_runner = start_aptos_local_testnet().join();
-    state.push_agent(local_net_runner);
-    init_aptos_modules_state().join();
+    //install_aptos_cli().join();
+    //let local_net_runner = start_aptos_local_testnet().join();
+    //state.push_agent(local_net_runner);
+    //init_aptos_modules_state().join();
 
     // this task takes a long time in the CI so run it in parallel
     log!("Building rust...");
@@ -340,7 +422,7 @@ fn main() -> ExitCode {
     state.push_agent(solana_validator);
     */
 
-    state.push_agent(start_anvil.join());
+    //state.push_agent(start_anvil.join());
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
     state.push_agent(validator_envs.first().unwrap().clone().spawn("VL1"));
@@ -359,7 +441,7 @@ fn main() -> ExitCode {
         .cmd("kathy")
         .arg("messages", (config.kathy_messages / 2).to_string())
         .arg("timeout", "1000");
-    kathy_env.clone().run().join();
+    //kathy_env.clone().run().join();
 
     // spawn the rest of the validators
     for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {
@@ -383,7 +465,7 @@ fn main() -> ExitCode {
     log!("Ctrl+C to end execution...");
 
     // Send half the kathy messages after the relayer comes up
-    state.push_agent(kathy_env.flag("mineforever").spawn("KTY"));
+    //state.push_agent(kathy_env.flag("mineforever").spawn("KTY"));
 
     let loop_start = Instant::now();
     // give things a chance to fully start.

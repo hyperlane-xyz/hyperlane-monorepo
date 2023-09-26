@@ -51,7 +51,10 @@ impl HyperlaneChain for AptosInterchainSecurityModule {
     }
 
     fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
-        Box::new(crate::AptosHpProvider::new(self.domain.clone()))
+        Box::new(crate::AptosHpProvider::new(
+            self.domain.clone(),
+            self.aptos_client.path_prefix_string(),
+        ))
     }
 }
 

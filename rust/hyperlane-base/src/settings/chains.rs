@@ -113,7 +113,13 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => todo!(),
-            ChainConnectionConf::Aptos(_) => todo!(),
+            ChainConnectionConf::Aptos(conf) => {
+                let locator = self.locator(H256::zero());
+                Ok(Box::new(h_aptos::AptosHpProvider::new(
+                    locator.domain.clone(),
+                    conf.url.to_string(),
+                )) as Box<dyn HyperlaneProvider>)
+            }
         }
         .context(ctx)
     }

@@ -5,6 +5,8 @@ module hp_igps::igps {
   use aptos_framework::aptos_coin::AptosCoin;
   use aptos_framework::account;
   use aptos_framework::event::{Self, EventHandle}; 
+  use aptos_framework::block;
+  use aptos_framework::transaction_context;
 
   use hp_igps::gas_oracle::Self;
   use hp_igps::events::{ Self, GasPaymentEvent, SetBeneficiaryEvent };
@@ -68,7 +70,9 @@ module hp_igps::igps {
       events::new_gas_payment_event(
         message_id,
         gas_amount,
-        required_amount
+        required_amount,
+        block::get_current_block_height(),
+        transaction_context::get_transaction_hash(),
       )
     );
   }
