@@ -81,7 +81,7 @@ impl AptosValidatorAnnounce {
 
         let signer_address =
             AuthenticationKey::ed25519(&Ed25519PublicKey::from(&signer_priv_key)).derived_address();
-            
+
         let mut signer_account = LocalAccount::new(
             signer_address,
             AccountKey::from_private_key(signer_priv_key),

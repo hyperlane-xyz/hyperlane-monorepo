@@ -6,6 +6,7 @@ members = [
     "chains/hyperlane-ethereum",
     "chains/hyperlane-fuel",
     "chains/hyperlane-sealevel",
+    "chains/hyperlane-aptos",
     "ethers-prometheus",
     "hyperlane-base",
     "hyperlane-core",
@@ -145,12 +146,13 @@ walkdir = "2"
 warp = "0.3"
 which = "4.3"
 
-aptos-sdk = { path = "../aptos-core/sdk" }
-# aptos-sdk = { git = "https://github.com/aptos-labs/aptos-core", branch = "devnet" }
-
 bcs = { git = "https://github.com/aptos-labs/bcs.git", rev = "d31fab9d81748e2594be5cd5cdf845786a30562d" }
 once_cell = "1.18.0"
 rand = "0.7.3"
+
+[workspace.dependencies.aptos-sdk]
+git = "https://github.com/blockchainlover2019/aptos-core"
+branch = "sovereign-labs-rollup"
 
 [workspace.dependencies.ethers]
 git = "https://github.com/hyperlane-xyz/ethers-rs"

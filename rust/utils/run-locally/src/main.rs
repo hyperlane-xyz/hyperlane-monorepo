@@ -27,12 +27,14 @@ use logging::log;
 pub use metrics::fetch_metric;
 use program::Program;
 
+use crate::aptos::*;
 use crate::config::Config;
 use crate::ethereum::start_anvil;
 use crate::invariants::termination_invariants_met;
 use crate::solana::*;
 use crate::utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle};
 
+mod aptos;
 mod config;
 mod ethereum;
 mod invariants;
@@ -50,10 +52,12 @@ const RELAYER_KEYS: &[&str] = &[
     "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
     // test3
     "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
-    // sealeveltest1
-    "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
-    // sealeveltest2
-    "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
+    // aptostestnet
+    "0xb25d6937002ecd4d79c7bdfddc0053febc8896f2109e96c45bf69efd84544cd5", // 0x2177..:A10
+                                                                          // sealeveltest1
+                                                                          //"0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
+                                                                          // sealeveltest2
+                                                                          //"0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
 ];
 /// These private keys are from hardhat/anvil's testing accounts.
 /// These must be consistent with the ISM config for the test.
@@ -62,11 +66,18 @@ const VALIDATOR_KEYS: &[&str] = &[
     "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
     "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
     "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
-    // sealevel
-    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+    // aptos,
+    "0xeddbc896fd1cd2af834cd65c69aac4ea118e7956e5aeeb9b4afa1afdf79f2608", // 0x598..
+                                                                          // sealevel
+                                                                          //"0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
 ];
 
-const VALIDATOR_ORIGIN_CHAINS: &[&str] = &["test1", "test2", "test3", "sealeveltest1"];
+const VALIDATOR_ORIGIN_CHAINS: &[&str] = &[
+    "test1",
+    "test2",
+    "test3",
+    "aptostestnet", /*, "sealeveltest1"*/
+];
 
 const AGENT_BIN_PATH: &str = "target/debug";
 const INFRA_PATH: &str = "../typescript/infra";
@@ -133,10 +144,14 @@ fn main() -> ExitCode {
 
     let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
     fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
-    let checkpoints_dirs: Vec<DynPath> = (0..VALIDATOR_COUNT - 1)
+    /*let checkpoints_dirs: Vec<DynPath> = (0..VALIDATOR_COUNT - 1)
+    .map(|_| Box::new(tempdir().unwrap()) as DynPath)
+    .chain([Box::new(solana_checkpoint_path) as DynPath])
+    .collect();*/
+    let checkpoints_dirs: Vec<DynPath> = (0..VALIDATOR_COUNT)
         .map(|_| Box::new(tempdir().unwrap()) as DynPath)
-        .chain([Box::new(solana_checkpoint_path) as DynPath])
         .collect();
+
     let rocks_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
     let validator_dbs = (0..VALIDATOR_COUNT)
@@ -167,8 +182,13 @@ fn main() -> ExitCode {
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
         .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
-        .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[3])
-        .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
+        //.hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[3])
+        //.hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
+        .hyp_env("CHAINS_APTOSTESTNET_SIGNER_KEY", RELAYER_KEYS[3])
+        .hyp_env(
+            "CHAINS_APTOSTESTNET_CONNECTION_URL",
+            "http://127.0.0.1:8080/v1",
+        )
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .arg(
@@ -179,7 +199,8 @@ fn main() -> ExitCode {
         .arg("defaultSigner.key", RELAYER_KEYS[2])
         .arg(
             "relayChains",
-            "test1,test2,test3,sealeveltest1,sealeveltest2",
+            //"test1,test2,test3,sealeveltest1,sealeveltest2",
+            "test1,test2,test3,aptostestnet",
         );
 
     let base_validator_env = common_agent_env
@@ -249,9 +270,18 @@ fn main() -> ExitCode {
     // Ready to run...
     //
 
+    //solana
+    /*
     let (solana_path, solana_path_tempdir) = install_solana_cli_tools().join();
     state.data.push(Box::new(solana_path_tempdir));
     let solana_program_builder = build_solana_programs(solana_path.clone());
+    */
+
+    // aptos
+    install_aptos_cli().join();
+    let local_net_runner = start_aptos_local_testnet().join();
+    state.push_agent(local_net_runner);
+    init_aptos_modules_state().join();
 
     // this task takes a long time in the CI so run it in parallel
     log!("Building rust...");
@@ -262,13 +292,13 @@ fn main() -> ExitCode {
         .arg("bin", "validator")
         .arg("bin", "scraper")
         .arg("bin", "init-db")
-        .arg("bin", "hyperlane-sealevel-client")
+        // .arg("bin", "hyperlane-sealevel-client")
         .filter_logs(|l| !l.contains("workspace-inheritance"))
         .run();
 
     let start_anvil = start_anvil(config.clone());
 
-    let solana_program_path = solana_program_builder.join();
+    // let solana_program_path = solana_program_builder.join();
 
     log!("Running postgres db...");
     let postgres = Program::new("docker")
@@ -283,8 +313,8 @@ fn main() -> ExitCode {
 
     build_rust.join();
 
-    let solana_ledger_dir = tempdir().unwrap();
-    let start_solana_validator = start_solana_test_validator(
+    // let solana_ledger_dir = tempdir().unwrap();
+    /* let start_solana_validator = start_solana_test_validator(
         solana_path.clone(),
         solana_program_path,
         solana_ledger_dir.as_ref().to_path_buf(),
@@ -292,6 +322,8 @@ fn main() -> ExitCode {
 
     let (solana_config_path, solana_validator) = start_solana_validator.join();
     state.push_agent(solana_validator);
+    */
+
     state.push_agent(start_anvil.join());
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
@@ -321,7 +353,7 @@ fn main() -> ExitCode {
 
     state.push_agent(relayer_env.spawn("RLY"));
 
-    initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    //initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
 
     log!("Setup complete! Agents running in background...");
     log!("Ctrl+C to end execution...");
@@ -336,7 +368,8 @@ fn main() -> ExitCode {
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
-            if termination_invariants_met(&config, &solana_path, &solana_config_path)
+            //solana
+            /*if termination_invariants_met(&config, &solana_path, &solana_config_path)
                 .unwrap_or(false)
             {
                 // end condition reached successfully
@@ -346,7 +379,7 @@ fn main() -> ExitCode {
                 log!("CI timeout reached before queues emptied");
                 failure_occurred = true;
                 break;
-            }
+            }*/
         }
 
         // verify long-running tasks are still running

@@ -223,7 +223,7 @@ impl Mailbox for AptosMailbox {
                 .into_inner()
                 .sequence_number,
         );
-        
+
         let payload = utils::make_aptos_payload(
             recipient,
             "hello_world",

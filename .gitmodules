@@ -1,10 +1,3 @@
 [submodule "solidity/lib/forge-std"]
 	path = solidity/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
-[submodule "aptos-core"]
-	path = aptos-core
-	url = https://github.com/movemntdev/aptos-core
-	branch = sovereign-labs-rollup
-[submodule "x25519-dalek"]
-	path = x25519-dalek
-	url = https://github.com/movemntdev/x25519-dalek
