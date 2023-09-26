@@ -131,7 +131,7 @@ abstract contract Router is MailboxClient, IMessageRecipient {
         require(
             contained,
             string.concat(
-                "No router enrolled for domain",
+                "No router enrolled for domain: ",
                 Strings.toString(_domain)
             )
         );

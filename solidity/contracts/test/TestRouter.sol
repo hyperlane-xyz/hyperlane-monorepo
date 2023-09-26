@@ -8,6 +8,13 @@ contract TestRouter is Router {
 
     constructor(address _mailbox) Router(_mailbox) {}
 
+    function initialize(address _hook, address _interchainSecurityModule)
+        public
+        initializer
+    {
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, msg.sender);
+    }
+
     function _handle(
         uint32,
         bytes32,
