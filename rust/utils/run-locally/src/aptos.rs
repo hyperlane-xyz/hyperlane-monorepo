@@ -46,7 +46,7 @@ pub fn start_aptos_local_testnet() -> AgentHandles {
     sleep(Duration::from_secs(20));
 
     Program::new("bash")
-        .working_dir("../move/")
+        .working_dir("../move/e2e/")
         .cmd("compile-and-deploy.sh")
         .run()
         .join();
@@ -57,9 +57,15 @@ pub fn start_aptos_local_testnet() -> AgentHandles {
 #[apply(as_task)]
 pub fn init_aptos_modules_state() {
     Program::new("bash")
-        .working_dir("../move/")
+        .working_dir("../move/e2e/")
         .cmd("init_states.sh")
-        .cmd("init_all")
+        .cmd("init_ln1_modules")
+        .run()
+        .join();
+    Program::new("bash")
+        .working_dir("../move/e2e/")
+        .cmd("init_states.sh")
+        .cmd("init_ln2_modules")
         .run()
         .join();
 }

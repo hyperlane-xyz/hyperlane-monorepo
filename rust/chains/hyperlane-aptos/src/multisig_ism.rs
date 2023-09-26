@@ -70,7 +70,10 @@ impl HyperlaneChain for AptosMultisigISM {
         &self.domain
     }
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(AptosHpProvider::new(self.domain.clone()))
+        Box::new(AptosHpProvider::new(
+            self.domain.clone(),
+            self.aptos_client.path_prefix_string(),
+        ))
     }
 }
 

@@ -13,6 +13,8 @@ module hp_igps::events {
     message_id: vector<u8>,
     gas_amount: u256,
     required_payment: u64,
+    block_height: u64,
+    transaction_hash: vector<u8>,
   }
 
   struct SetBeneficiaryEvent has store, drop {
@@ -31,8 +33,10 @@ module hp_igps::events {
     message_id: vector<u8>,
     gas_amount: u256,
     required_payment: u64,
+    block_height: u64,
+    transaction_hash: vector<u8>,
   ): GasPaymentEvent {
-    GasPaymentEvent { message_id, gas_amount, required_payment }
+    GasPaymentEvent { message_id, gas_amount, required_payment, block_height, transaction_hash }
   }
   
   public fun new_set_beneficiary_event(

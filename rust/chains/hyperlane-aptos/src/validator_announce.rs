@@ -8,8 +8,8 @@ use tracing::info;
 use tracing::{instrument, warn};
 
 use crate::utils::{self, send_aptos_transaction};
-use crate::AptosClient;
 use crate::ConnectionConf;
+use crate::{convert_keypair_to_aptos_account, AptosClient};
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, SignedType, TxOutcome, ValidatorAnnounce, H256, H512, U256,
@@ -75,23 +75,7 @@ impl AptosValidatorAnnounce {
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
 
-        // !TODO: modularize this
-        let signer_priv_key =
-            Ed25519PrivateKey::try_from(payer.secret().to_bytes().as_ref()).unwrap();
-
-        let signer_address =
-            AuthenticationKey::ed25519(&Ed25519PublicKey::from(&signer_priv_key)).derived_address();
-
-        let mut signer_account = LocalAccount::new(
-            signer_address,
-            AccountKey::from_private_key(signer_priv_key),
-            self.aptos_client
-                .get_account(signer_address)
-                .await
-                .map_err(ChainCommunicationError::from_other)?
-                .into_inner()
-                .sequence_number,
-        );
+        let mut signer_account = convert_keypair_to_aptos_account(&self.aptos_client, payer).await;
 
         let payload = utils::make_aptos_payload(
             self.package_address,
@@ -134,7 +118,10 @@ impl HyperlaneChain for AptosValidatorAnnounce {
     }
 
     fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
-        Box::new(crate::AptosHpProvider::new(self.domain.clone()))
+        Box::new(crate::AptosHpProvider::new(
+            self.domain.clone(),
+            self.aptos_client.path_prefix_string(),
+        ))
     }
 }
 
