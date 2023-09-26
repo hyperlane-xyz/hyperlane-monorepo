@@ -21,6 +21,10 @@ component_management:
       name: isms
       paths:
         - solidity/contracts/isms/**
+    - component_id: module_token
+      name: token
+      paths:
+        - solidity/contracts/token/**
     - component_id: module_middlewares
       name: middlewares
       paths:
