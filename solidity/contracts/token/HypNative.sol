@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {Message} from "./libs/Message.sol";
+import {TokenMessage} from "./libs/TokenMessage.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
@@ -18,14 +18,7 @@ contract HypNative is TokenRouter {
      */
     event Donation(address indexed sender, uint256 amount);
 
-    /**
-     * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.
-     * @param _mailbox The address of the mailbox contract.
-     */
-    function initialize(address _mailbox) external initializer {
-        // transfers ownership to `msg.sender`
-        __Router_initialize(_mailbox);
-    }
+    constructor(address mailbox) TokenRouter(mailbox) {}
 
     /**
      * @inheritdoc TokenRouter

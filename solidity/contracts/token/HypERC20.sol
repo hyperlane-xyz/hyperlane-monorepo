@@ -13,26 +13,21 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 contract HypERC20 is ERC20Upgradeable, TokenRouter {
     uint8 private immutable _decimals;
 
-    constructor(uint8 __decimals) {
+    constructor(uint8 __decimals, address _mailbox) TokenRouter(_mailbox) {
         _decimals = __decimals;
     }
 
     /**
      * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.
-     * @param _mailbox The address of the mailbox contract.
      * @param _totalSupply The initial supply of the token.
      * @param _name The name of the token.
      * @param _symbol The symbol of the token.
      */
     function initialize(
-        address _mailbox,
         uint256 _totalSupply,
         string memory _name,
         string memory _symbol
     ) external initializer {
-        // initialize router
-        __Router_initialize(_mailbox);
-
         // Initialize ERC20 metadata
         __ERC20_init(_name, _symbol);
         _mint(msg.sender, _totalSupply);

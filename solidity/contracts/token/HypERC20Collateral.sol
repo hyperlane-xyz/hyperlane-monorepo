@@ -2,7 +2,8 @@
 pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {Message} from "./libs/Message.sol";
+import {TokenMessage} from "./libs/TokenMessage.sol";
+import {MailboxClient} from "../client/MailboxClient.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -20,16 +21,8 @@ contract HypERC20Collateral is TokenRouter {
      * @notice Constructor
      * @param erc20 Address of the token to keep as collateral
      */
-    constructor(address erc20) {
+    constructor(address erc20, address _mailbox) TokenRouter(_mailbox) {
         wrappedToken = IERC20(erc20);
-    }
-
-    /**
-     * @notice Initializes the Hyperlane router.
-     * @param _mailbox The address of the mailbox contract.
-     */
-    function initialize(address _mailbox) external initializer {
-        __Router_initialize(_mailbox);
     }
 
     function balanceOf(address _account)

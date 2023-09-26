@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-library Message {
+library TokenMessage {
     function format(
         bytes32 _recipient,
         uint256 _amount,

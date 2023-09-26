@@ -15,19 +15,18 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
+import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
+import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
+import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
+
+import {ERC721Test} from "../../contracts/test/ERC721Test.sol";
+import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
+import {HypERC721} from "../../contracts/token/HypERC721.sol";
+import {HypERC721Collateral} from "../../contracts/token/HypERC721Collateral.sol";
+import {HypERC721URIStorage} from "../../contracts/token/extensions/HypERC721URIStorage.sol";
+import {HypERC721URICollateral} from "../../contracts/token/extensions/HypERC721URICollateral.sol";
+
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-
-import {TestMailbox} from "@hyperlane-xyz/core/contracts/test/TestMailbox.sol";
-import {TestPostDispatchHook} from "@hyperlane-xyz/core/contracts/test/TestPostDispatchHook.sol";
-import {TypeCasts} from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
-
-import {ERC721Test} from "../contracts/test/ERC721Test.sol";
-import {TokenRouter} from "../contracts/libs/TokenRouter.sol";
-import {HypERC721} from "../contracts/HypERC721.sol";
-import {HypERC721Collateral} from "../contracts/HypERC721Collateral.sol";
-import {HypERC721URIStorage} from "../contracts/extensions/HypERC721URIStorage.sol";
-import {HypERC721URICollateral} from "../contracts/extensions/HypERC721URICollateral.sol";
-
 import {ERC721URIStorageUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
 
 abstract contract HypTokenTest is Test, IERC721Receiver {
@@ -70,13 +69,16 @@ abstract contract HypTokenTest is Test, IERC721Receiver {
 
         remoteMailbox = new TestMailbox(DESTINATION);
 
-        remoteToken = new HypERC721Collateral(address(remotePrimaryToken));
+        remoteToken = new HypERC721Collateral(
+            address(remotePrimaryToken),
+            address(remoteMailbox)
+        );
     }
 
     function _deployRemoteToken(bool isCollateral) internal {
         if (isCollateral) {
-            remoteToken = new HypERC721Collateral(address(remotePrimaryToken));
-            HypERC721Collateral(address(remoteToken)).initialize(
+            remoteToken = new HypERC721Collateral(
+                address(remotePrimaryToken),
                 address(remoteMailbox)
             );
             remotePrimaryToken.transferFrom(
@@ -85,13 +87,9 @@ abstract contract HypTokenTest is Test, IERC721Receiver {
                 0
             ); // need for processing messages
         } else {
-            remoteToken = new HypERC721();
-            HypERC721(address(remoteToken)).initialize(
-                address(remoteMailbox),
-                0,
-                NAME,
-                SYMBOL
-            );
+            HypERC721 erc721 = new HypERC721(address(remoteMailbox));
+            erc721.initialize(0, NAME, SYMBOL);
+            remoteToken = TokenRouter(address(erc721));
         }
         remoteToken.enrollRemoteRouter(
             ORIGIN,
@@ -152,10 +150,10 @@ contract HypERC721Test is HypTokenTest {
     function setUp() public virtual override {
         super.setUp();
 
-        localToken = new HypERC721();
+        localToken = new HypERC721(address(localMailbox));
         hyp721 = HypERC721(address(localToken));
 
-        hyp721.initialize(address(localMailbox), INITIAL_SUPPLY, NAME, SYMBOL);
+        hyp721.initialize(INITIAL_SUPPLY, NAME, SYMBOL);
 
         hyp721.enrollRemoteRouter(
             DESTINATION,
@@ -165,7 +163,7 @@ contract HypERC721Test is HypTokenTest {
 
     function testInitialize_revert_ifAlreadyInitialized() public {
         vm.expectRevert("Initializable: contract is already initialized");
-        hyp721.initialize(address(localMailbox), INITIAL_SUPPLY, NAME, SYMBOL);
+        hyp721.initialize(INITIAL_SUPPLY, NAME, SYMBOL);
     }
 
     function testTotalSupply() public {
@@ -211,6 +209,8 @@ contract HypERC721Test is HypTokenTest {
 }
 
 contract MockHypERC721URIStorage is HypERC721URIStorage {
+    constructor(address mailbox) HypERC721URIStorage(mailbox) {}
+
     function setTokenURI(uint256 tokenId, string memory uri) public {
         _setTokenURI(tokenId, uri);
     }
@@ -224,15 +224,10 @@ contract HypERC721URIStorageTest is HypTokenTest {
     function setUp() public override {
         super.setUp();
 
-        localToken = new MockHypERC721URIStorage();
+        localToken = new MockHypERC721URIStorage(address(localMailbox));
         hyp721Storage = MockHypERC721URIStorage(address(localToken));
 
-        hyp721Storage.initialize(
-            address(localMailbox),
-            INITIAL_SUPPLY,
-            NAME,
-            SYMBOL
-        );
+        hyp721Storage.initialize(INITIAL_SUPPLY, NAME, SYMBOL);
         hyp721Storage.setTokenURI(0, URI);
         hyp721Storage.enrollRemoteRouter(
             DESTINATION,
@@ -258,10 +253,11 @@ contract HypERC721CollateralTest is HypTokenTest {
     function setUp() public override {
         super.setUp();
 
-        localToken = new HypERC721Collateral(address(localPrimaryToken));
+        localToken = new HypERC721Collateral(
+            address(localPrimaryToken),
+            address(localMailbox)
+        );
         hyp721Collateral = HypERC721Collateral(address(localToken));
-
-        hyp721Collateral.initialize(address(localMailbox));
 
         hyp721Collateral.enrollRemoteRouter(
             DESTINATION,
@@ -275,10 +271,7 @@ contract HypERC721CollateralTest is HypTokenTest {
         );
     }
 
-    function testInitialize_revert_ifAlreadyInitialized() public {
-        vm.expectRevert("Initializable: contract is already initialized");
-        hyp721Collateral.initialize(ALICE);
-    }
+    function testInitialize_revert_ifAlreadyInitialized() public {}
 
     function testRemoteTransfer(bool isCollateral) public {
         localPrimaryToken.approve(address(hyp721Collateral), 0);
@@ -321,10 +314,12 @@ contract HypERC721CollateralURIStorageTest is HypTokenTest {
     function setUp() public override {
         super.setUp();
 
-        localToken = new HypERC721URICollateral(address(localPrimaryToken));
+        localToken = new HypERC721URICollateral(
+            address(localPrimaryToken),
+            address(localMailbox)
+        );
         hyp721URICollateral = HypERC721URICollateral(address(localToken));
 
-        hyp721URICollateral.initialize(address(localMailbox));
         hyp721URICollateral.enrollRemoteRouter(
             DESTINATION,
             address(remoteToken).addressToBytes32()

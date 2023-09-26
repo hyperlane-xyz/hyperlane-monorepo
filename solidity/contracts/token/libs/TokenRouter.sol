@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {GasRouter} from "@hyperlane-xyz/core/contracts/GasRouter.sol";
-import {TypeCasts} from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
-import {Message} from "./Message.sol";
+import {GasRouter} from "../../client/GasRouter.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {TokenMessage} from "./TokenMessage.sol";
 
 /**
  * @title Hyperlane Token Router that extends Router with abstract token (ERC20/ERC721) remote transfer functionality.
@@ -12,7 +13,7 @@ import {Message} from "./Message.sol";
 abstract contract TokenRouter is GasRouter {
     using TypeCasts for bytes32;
     using TypeCasts for address;
-    using Message for bytes;
+    using TokenMessage for bytes;
 
     /**
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
@@ -37,6 +38,8 @@ abstract contract TokenRouter is GasRouter {
         bytes32 indexed recipient,
         uint256 amount
     );
+
+    constructor(address _mailbox) GasRouter(_mailbox) {}
 
     /**
      * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
@@ -73,11 +76,10 @@ abstract contract TokenRouter is GasRouter {
         uint256 _gasPayment
     ) internal returns (bytes32 messageId) {
         bytes memory metadata = _transferFromSender(_amountOrId);
-        messageId = _dispatchWithGas(
+        messageId = _dispatch(
             _destination,
-            Message.format(_recipient, _amountOrId, metadata),
             _gasPayment,
-            msg.sender // refund address
+            TokenMessage.format(_recipient, _amountOrId, metadata)
         );
         emit SentTransferRemote(_destination, _recipient, _amountOrId);
     }

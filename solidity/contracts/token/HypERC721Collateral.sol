@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {Message} from "./libs/Message.sol";
+import {TokenMessage} from "./libs/TokenMessage.sol";
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
@@ -17,20 +17,12 @@ contract HypERC721Collateral is TokenRouter {
      * @notice Constructor
      * @param erc721 Address of the token to keep as collateral
      */
-    constructor(address erc721) {
+    constructor(address erc721, address mailbox) TokenRouter(mailbox) {
         wrappedToken = IERC721(erc721);
     }
 
     function ownerOf(uint256 _tokenId) external view returns (address) {
         return IERC721(wrappedToken).ownerOf(_tokenId);
-    }
-
-    /**
-     * @notice Initializes the Hyperlane router.
-     * @param _mailbox The address of the mailbox contract.
-     */
-    function initialize(address _mailbox) external initializer {
-        __Router_initialize(_mailbox);
     }
 
     /**

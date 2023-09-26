@@ -13,6 +13,8 @@ abstract contract GasRouter is Router {
         uint256 gas;
     }
 
+    constructor(address _mailbox) Router(_mailbox) {}
+
     /**
      * @notice Sets the gas amount dispatched for each configured domain.
      * @param gasConfigs The array of GasRouterConfig structs

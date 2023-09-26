@@ -152,6 +152,7 @@ contract InterchainGasPaymaster is
         );
         uint256 _overpayment = msg.value - _requiredPayment;
         if (_overpayment > 0) {
+            require(_refundAddress != address(0), "no refund address");
             payable(_refundAddress).sendValue(_overpayment);
         }
 

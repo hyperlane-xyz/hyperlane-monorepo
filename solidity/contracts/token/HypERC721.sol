@@ -12,25 +12,25 @@ import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/t
  * @author Abacus Works
  */
 contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
+    constructor(address mailbox) TokenRouter(mailbox) {}
+
     /**
      * @notice Initializes the Hyperlane router, ERC721 metadata, and mints initial supply to deployer.
-     * @param _mailbox The address of the mailbox contract.
      * @param _mintAmount The amount of NFTs to mint to `msg.sender`.
      * @param _name The name of the token.
      * @param _symbol The symbol of the token.
      */
     function initialize(
-        address _mailbox,
         uint256 _mintAmount,
         string memory _name,
         string memory _symbol
     ) external initializer {
-        // transfers ownership to `msg.sender`
-        __Router_initialize(_mailbox);
+        address owner = msg.sender;
+        _transferOwnership(owner);
 
         __ERC721_init(_name, _symbol);
         for (uint256 i = 0; i < _mintAmount; i++) {
-            _safeMint(msg.sender, i);
+            _safeMint(owner, i);
         }
     }
 

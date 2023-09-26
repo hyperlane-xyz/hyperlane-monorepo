@@ -143,8 +143,17 @@ abstract contract Router is MailboxClient, IMessageRecipient {
         virtual
         returns (bytes32)
     {
+        return _dispatch(_destinationDomain, msg.value, _messageBody);
+    }
+
+    function _dispatch(
+        uint32 _destinationDomain,
+        uint256 _value,
+        bytes memory _messageBody
+    ) internal virtual returns (bytes32) {
         bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
-        return super._dispatch(_destinationDomain, _router, _messageBody);
+        return
+            super._dispatch(_destinationDomain, _router, _value, _messageBody);
     }
 
     function _quoteDispatch(

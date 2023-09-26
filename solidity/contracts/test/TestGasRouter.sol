@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import "./TestRouter.sol";
 import "../client/GasRouter.sol";
 
-contract TestGasRouter is TestRouter, GasRouter {
-    constructor(address _mailbox) TestRouter(_mailbox) {}
+contract TestGasRouter is GasRouter {
+    constructor(address _mailbox) GasRouter(_mailbox) {}
 
-    function _metadata(uint32 _destination)
-        internal
-        view
-        override(GasRouter, MailboxClient)
-        returns (bytes memory)
-    {
-        return GasRouter._metadata(_destination);
+    function dispatch(uint32 _destination, bytes memory _msg) external payable {
+        _dispatch(_destination, _msg);
     }
+
+    function _handle(
+        uint32,
+        bytes32,
+        bytes calldata
+    ) internal pure override {}
 }

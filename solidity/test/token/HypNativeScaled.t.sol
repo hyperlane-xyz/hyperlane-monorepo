@@ -3,10 +3,10 @@ pragma solidity >=0.8.0;
 
 import "forge-std/Test.sol";
 
-import {HypNativeScaled} from "../contracts/extensions/HypNativeScaled.sol";
-import {HypERC20} from "../contracts/HypERC20.sol";
-import {TypeCasts} from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
-import {MockHyperlaneEnvironment} from "@hyperlane-xyz/core/contracts/mock/MockHyperlaneEnvironment.sol";
+import {HypNativeScaled} from "../../contracts/token/extensions/HypNativeScaled.sol";
+import {HypERC20} from "../../contracts/token/HypERC20.sol";
+import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
+import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
 
 contract HypNativeScaledTest is Test {
     uint32 nativeDomain = 1;
@@ -37,16 +37,16 @@ contract HypNativeScaledTest is Test {
     function setUp() public {
         environment = new MockHyperlaneEnvironment(synthDomain, nativeDomain);
 
-        synth = new HypERC20(decimals);
-        synth.initialize(
-            address(environment.mailboxes(synthDomain)),
-            mintAmount * (10**decimals),
-            "Zebec BSC Token",
-            "ZBC"
+        synth = new HypERC20(
+            decimals,
+            address(environment.mailboxes(synthDomain))
         );
+        synth.initialize(mintAmount * (10**decimals), "Zebec BSC Token", "ZBC");
 
-        native = new HypNativeScaled(scale);
-        native.initialize(address(environment.mailboxes(nativeDomain)));
+        native = new HypNativeScaled(
+            scale,
+            address(environment.mailboxes(nativeDomain))
+        );
 
         native.enrollRemoteRouter(
             synthDomain,

@@ -15,17 +15,17 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import {TypeCasts} from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
-import {TestMailbox} from "@hyperlane-xyz/core/contracts/test/TestMailbox.sol";
-import {TestPostDispatchHook} from "@hyperlane-xyz/core/contracts/test/TestPostDispatchHook.sol";
-import {TestInterchainGasPaymaster} from "@hyperlane-xyz/core/contracts/test/TestInterchainGasPaymaster.sol";
-import {GasRouter} from "@hyperlane-xyz/core/contracts/GasRouter.sol";
+import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
+import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
+import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
+import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
+import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
+import {GasRouter} from "../../contracts/client/GasRouter.sol";
 
-import {ERC20Test} from "../contracts/test/ERC20Test.sol";
-import {HypERC20} from "../contracts/HypERC20.sol";
-import {HypERC20Collateral} from "../contracts/HypERC20Collateral.sol";
-import {HypNative} from "../contracts/HypNative.sol";
-import {TokenRouter} from "../contracts/libs/TokenRouter.sol";
+import {HypERC20} from "../../contracts/token/HypERC20.sol";
+import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
+import {HypNative} from "../../contracts/token/HypNative.sol";
+import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 
 abstract contract HypTokenTest is Test {
     using TypeCasts for address;
@@ -35,7 +35,6 @@ abstract contract HypTokenTest is Test {
     uint256 internal constant TOTAL_SUPPLY = 1_000_000e18;
     uint256 internal REQUIRED_VALUE; // initialized in setUp
     uint256 internal constant GAS_LIMIT = 10_000;
-    uint256 internal IGP_GAS_PRICE; // initialized in test
     uint256 internal constant TRANSFER_AMT = 100e18;
     string internal constant NAME = "HyperlaneInu";
     string internal constant SYMBOL = "HYP";
@@ -74,13 +73,8 @@ abstract contract HypTokenTest is Test {
 
         REQUIRED_VALUE = noopHook.quoteDispatch("", "");
 
-        remoteToken = new HypERC20(DECIMALS);
-        remoteToken.initialize(
-            address(remoteMailbox),
-            TOTAL_SUPPLY,
-            NAME,
-            SYMBOL
-        );
+        remoteToken = new HypERC20(DECIMALS, address(remoteMailbox));
+        remoteToken.initialize(TOTAL_SUPPLY, NAME, SYMBOL);
         remoteToken.enrollRemoteRouter(
             ORIGIN,
             address(localToken).addressToBytes32()
@@ -110,8 +104,7 @@ abstract contract HypTokenTest is Test {
     }
 
     function _setCustomGasConfig() internal {
-        localMailbox.setDefaultHook(address(igp));
-        IGP_GAS_PRICE = igp.gasPrice();
+        localToken.setHook(address(igp));
 
         TokenRouter.GasRouterConfig[]
             memory config = new TokenRouter.GasRouterConfig[](1);
@@ -180,15 +173,10 @@ contract HypERC20Test is HypTokenTest {
     function setUp() public override {
         super.setUp();
 
-        localToken = new HypERC20(DECIMALS);
+        localToken = new HypERC20(DECIMALS, address(localMailbox));
         erc20Token = HypERC20(address(localToken));
 
-        erc20Token.initialize(
-            address(localMailbox),
-            TOTAL_SUPPLY,
-            NAME,
-            SYMBOL
-        );
+        erc20Token.initialize(TOTAL_SUPPLY, NAME, SYMBOL);
 
         erc20Token.enrollRemoteRouter(
             DESTINATION,
@@ -201,7 +189,7 @@ contract HypERC20Test is HypTokenTest {
 
     function testInitialize_revert_ifAlreadyInitialized() public {
         vm.expectRevert("Initializable: contract is already initialized");
-        erc20Token.initialize(ALICE, TOTAL_SUPPLY, NAME, SYMBOL);
+        erc20Token.initialize(TOTAL_SUPPLY, NAME, SYMBOL);
     }
 
     function testTotalSupply() public {
@@ -245,7 +233,7 @@ contract HypERC20Test is HypTokenTest {
         _performRemoteTransferAndGas(
             REQUIRED_VALUE,
             TRANSFER_AMT,
-            GAS_LIMIT * IGP_GAS_PRICE
+            GAS_LIMIT * igp.gasPrice()
         );
         assertEq(erc20Token.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
     }
@@ -258,12 +246,11 @@ contract HypERC20CollateralTest is HypTokenTest {
     function setUp() public override {
         super.setUp();
 
-        localToken = new HypERC20Collateral(address(primaryToken));
-        erc20Collateral = HypERC20Collateral(address(localToken));
-
-        HypERC20Collateral(address(localToken)).initialize(
+        localToken = new HypERC20Collateral(
+            address(primaryToken),
             address(localMailbox)
         );
+        erc20Collateral = HypERC20Collateral(address(localToken));
 
         erc20Collateral.enrollRemoteRouter(
             DESTINATION,
@@ -276,10 +263,7 @@ contract HypERC20CollateralTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
-    function testInitialize_revert_ifAlreadyInitialized() public {
-        vm.expectRevert("Initializable: contract is already initialized");
-        erc20Collateral.initialize(ALICE);
-    }
+    function testInitialize_revert_ifAlreadyInitialized() public {}
 
     function testRemoteTransfer() public {
         uint256 balanceBefore = localToken.balanceOf(ALICE);
@@ -306,7 +290,7 @@ contract HypERC20CollateralTest is HypTokenTest {
         _performRemoteTransferAndGas(
             REQUIRED_VALUE,
             TRANSFER_AMT,
-            GAS_LIMIT * IGP_GAS_PRICE
+            GAS_LIMIT * igp.gasPrice()
         );
         assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
     }
@@ -319,10 +303,8 @@ contract HypNativeTest is HypTokenTest {
     function setUp() public override {
         super.setUp();
 
-        localToken = new HypNative();
+        localToken = new HypNative(address(localMailbox));
         nativeToken = HypNative(payable(address(localToken)));
-
-        nativeToken.initialize(address(localMailbox));
 
         nativeToken.enrollRemoteRouter(
             DESTINATION,
@@ -335,10 +317,7 @@ contract HypNativeTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
-    function testInitialize_revert_ifAlreadyInitialized() public {
-        vm.expectRevert("Initializable: contract is already initialized");
-        nativeToken.initialize(ALICE);
-    }
+    function testInitialize_revert_ifAlreadyInitialized() public {}
 
     function testRemoteTransfer() public {
         _performRemoteTransferWithEmit(
@@ -363,7 +342,7 @@ contract HypNativeTest is HypTokenTest {
         _performRemoteTransferAndGas(
             REQUIRED_VALUE,
             TRANSFER_AMT,
-            TRANSFER_AMT + GAS_LIMIT * IGP_GAS_PRICE
+            TRANSFER_AMT + GAS_LIMIT * igp.gasPrice()
         );
     }
 }

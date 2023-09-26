@@ -13,7 +13,7 @@ import {TokenRouter} from "../libs/TokenRouter.sol";
 contract HypNativeScaled is HypNative {
     uint256 public immutable scale;
 
-    constructor(uint256 _scale) {
+    constructor(uint256 _scale, address _mailbox) HypNative(_mailbox) {
         scale = _scale;
     }
 
