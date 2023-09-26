@@ -5,6 +5,7 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use eyre::{eyre, Context, Result};
+use hyperlane_aptos as h_aptos;
 use hyperlane_core::{
     AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
     HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, HyperlaneSigner, IndexMode,
@@ -54,6 +55,8 @@ pub enum ChainConnectionConf {
     Fuel(h_fuel::ConnectionConf),
     /// Sealevel configuration.
     Sealevel(h_sealevel::ConnectionConf),
+    /// Aptos configuration.
+    Aptos(h_aptos::ConnectionConf),
 }
 
 impl ChainConnectionConf {
@@ -63,6 +66,7 @@ impl ChainConnectionConf {
             Self::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
             Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
             Self::Sealevel(_) => HyperlaneDomainProtocol::Sealevel,
+            Self::Aptos(_) => HyperlaneDomainProtocol::Aptos,
         }
     }
 }
@@ -109,6 +113,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -136,6 +141,7 @@ impl ChainConf {
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -166,6 +172,7 @@ impl ChainConf {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
                 Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
             }
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -196,6 +203,7 @@ impl ChainConf {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
                 Ok(indexer as Box<dyn SequenceIndexer<H256>>)
             }
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -227,6 +235,7 @@ impl ChainConf {
                 );
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -260,6 +269,7 @@ impl ChainConf {
                 );
                 Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
             }
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -281,6 +291,7 @@ impl ChainConf {
                 let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(conf, locator));
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context("Building ValidatorAnnounce")
     }
@@ -314,6 +325,7 @@ impl ChainConf {
                 ));
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -339,6 +351,7 @@ impl ChainConf {
                 let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(conf, locator, keypair));
                 Ok(ism as Box<dyn MultisigIsm>)
             }
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -365,6 +378,7 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support routing ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -391,6 +405,7 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support aggregation ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -417,6 +432,7 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support CCIP read ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }

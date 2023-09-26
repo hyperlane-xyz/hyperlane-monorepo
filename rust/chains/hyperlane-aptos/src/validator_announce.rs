@@ -13,15 +13,15 @@ use hyperlane_sealevel_validator_announce::{
     accounts::ValidatorStorageLocationsAccount, validator_storage_locations_pda_seeds,
 };
 
-/// A reference to a ValidatorAnnounce contract on some Sealevel chain
+/// A reference to a ValidatorAnnounce contract on Aptos chain
 #[derive(Debug)]
-pub struct SealevelValidatorAnnounce {
+pub struct AptosValidatorAnnounce {
     program_id: Pubkey,
     rpc_client: RpcClientWithDebug,
     domain: HyperlaneDomain,
 }
 
-impl SealevelValidatorAnnounce {
+impl AptosValidatorAnnounce {
     /// Create a new Sealevel ValidatorAnnounce
     pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> Self {
         let rpc_client = RpcClientWithDebug::new(conf.url.to_string());
@@ -34,13 +34,13 @@ impl SealevelValidatorAnnounce {
     }
 }
 
-impl HyperlaneContract for SealevelValidatorAnnounce {
+impl HyperlaneContract for AptosValidatorAnnounce {
     fn address(&self) -> H256 {
         self.program_id.to_bytes().into()
     }
 }
 
-impl HyperlaneChain for SealevelValidatorAnnounce {
+impl HyperlaneChain for AptosValidatorAnnounce {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
@@ -51,7 +51,7 @@ impl HyperlaneChain for SealevelValidatorAnnounce {
 }
 
 #[async_trait]
-impl ValidatorAnnounce for SealevelValidatorAnnounce {
+impl ValidatorAnnounce for AptosValidatorAnnounce {
     async fn get_announced_storage_locations(
         &self,
         validators: &[H256],
