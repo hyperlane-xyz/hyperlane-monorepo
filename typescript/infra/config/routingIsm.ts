@@ -39,7 +39,7 @@ const owners = {
   test: testOwners,
 };
 
-const mainnetHyperlaneDefaultIsmCache: ChainMap<Address> = {
+export const mainnetHyperlaneDefaultIsmCache: ChainMap<Address> = {
   ethereum: '0x3Ef03aEf1392E5e0C16fd4D22C3c3b4f81C8AF0C',
   optimism: '0xA7a0f9CB7d3bc3520A82ECF009F8f3949a926237',
   arbitrum: '0xD629aB5353D6B11f52eD80EFb26a28e5E347B52F',
