@@ -99,8 +99,10 @@ pub enum KnownHyperlaneDomain {
     // AptosMainnet = 14401,
     /// Aptos testnet
     AptosTestnet = 14402,
-    /// Aptos devnet
-    AptosDevnet = 14477,
+    /// Aptos localnet1
+    AptosLocalnet1 = 14411,
+    /// Aptos localnet2
+    AptosLocalnet2 = 14412,
 }
 
 #[derive(Clone)]
@@ -197,9 +199,9 @@ impl KnownHyperlaneDomain {
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
-                Alfajores, MoonbaseAlpha, Zksync2Testnet, Sepolia, AptosDevnet, AptosTestnet
+                Alfajores, MoonbaseAlpha, Zksync2Testnet, Sepolia, AptosTestnet
             ],
-            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2],
+            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, AptosLocalnet1, AptosLocalnet2],
         })
     }
 
@@ -214,7 +216,7 @@ impl KnownHyperlaneDomain {
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
-            HyperlaneDomainProtocol::Aptos: [AptosTestnet, AptosDevnet],
+            HyperlaneDomainProtocol::Aptos: [AptosTestnet, AptosLocalnet1, AptosLocalnet2],
         })
     }
 }

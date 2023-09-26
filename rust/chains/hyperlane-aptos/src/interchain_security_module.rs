@@ -4,8 +4,8 @@ use solana_sdk::signature::Keypair;
 use tracing::warn;
 
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256,
+    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256,
 };
 
 use crate::utils;

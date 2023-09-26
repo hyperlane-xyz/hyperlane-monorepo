@@ -1,0 +1,28 @@
+[package]
+name = "examples"
+version = "1.0.0"
+authors = []
+
+[addresses]
+examples = "_"
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-core.git"
+rev = "testnet"
+subdir = "aptos-move/framework/aptos-framework"
+
+[dependencies.HyperlaneLibrary]
+local = "../library"
+
+[dependencies.HyperlaneISM]
+local = "../isms"
+
+[dependencies.HyperlaneMailBox]
+local = "../mailbox"
+
+[dependencies.HyperlaneRouter]
+local = "../router"
+
+[dev-dependencies]

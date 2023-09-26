@@ -1,0 +1,25 @@
+[package]
+name = "HyperlaneRouter"
+version = "1.0.0"
+authors = []
+
+[addresses]
+hp_router = "_"
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-core.git"
+rev = "testnet"
+subdir = "aptos-move/framework/aptos-framework"
+
+[dependencies.HyperlaneLibrary]
+local = "../library"
+
+[dependencies.HyperlaneMailBox]
+local = "../mailbox"
+
+[dependencies.HyperlaneIGP]
+local = "../igps"
+
+[dev-dependencies]
