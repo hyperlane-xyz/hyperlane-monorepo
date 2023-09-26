@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-import {TypeCasts} from "./TypeCasts.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 library CallLib {
     struct StaticCall {

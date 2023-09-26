@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
-import {StandardHookMetadata} from "../../contracts/libs/hooks/StandardHookMetadata.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 
 import {StaticProtocolFee} from "../../contracts/hooks/StaticProtocolFee.sol";
 

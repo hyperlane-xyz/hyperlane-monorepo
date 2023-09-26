@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {IInterchainQueryRouter} from "../interfaces/middleware/IInterchainQueryRouter.sol";
-import {CallLib} from "../libs/Call.sol";
+import {InterchainQueryRouter} from "../middleware/InterchainQueryRouter.sol";
+import {CallLib} from "../middleware/libs/Call.sol";
 
 contract TestQuerySender {
-    IInterchainQueryRouter queryRouter;
+    InterchainQueryRouter queryRouter;
 
     address public lastAddressResult;
     uint256 public lastUint256Result;
@@ -16,7 +16,7 @@ contract TestQuerySender {
     event ReceivedBytes32Result(bytes32 result);
 
     function initialize(address _queryRouterAddress) external {
-        queryRouter = IInterchainQueryRouter(_queryRouterAddress);
+        queryRouter = InterchainQueryRouter(_queryRouterAddress);
     }
 
     function queryAddress(

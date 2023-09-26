@@ -10,7 +10,7 @@ import "../contracts/test/TestIsm.sol";
 import "../contracts/test/TestRecipient.sol";
 import "../contracts/hooks/MerkleTreeHook.sol";
 
-import {StandardHookMetadata} from "../contracts/libs/hooks/StandardHookMetadata.sol";
+import {StandardHookMetadata} from "../contracts/hooks/libs/StandardHookMetadata.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
 contract MailboxTest is Test, Versioned {

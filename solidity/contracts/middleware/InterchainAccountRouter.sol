@@ -2,15 +2,13 @@
 pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
-import {OwnableMulticall} from "../OwnableMulticall.sol";
-import {IRouter} from "../interfaces/IRouter.sol";
-import {IInterchainAccountRouter} from "../interfaces/middleware/IInterchainAccountRouter.sol";
-import {InterchainAccountMessage} from "../libs/middleware/InterchainAccountMessage.sol";
+import {OwnableMulticall} from "./libs/OwnableMulticall.sol";
+import {InterchainAccountMessage} from "./libs/InterchainAccountMessage.sol";
+import {CallLib} from "./libs/Call.sol";
 import {MinimalProxy} from "../libs/MinimalProxy.sol";
-import {CallLib} from "../libs/Call.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {EnumerableMapExtended} from "../libs/EnumerableMapExtended.sol";
-import {Router, MailboxClient} from "../Router.sol";
+import {Router} from "../client/Router.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -21,7 +19,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @title A contract that allows accounts on chain A to call contracts via a
  * proxy contract on chain B.
  */
-contract InterchainAccountRouter is Router, IInterchainAccountRouter {
+contract InterchainAccountRouter is Router {
     // ============ Libraries ============
 
     using TypeCasts for address;

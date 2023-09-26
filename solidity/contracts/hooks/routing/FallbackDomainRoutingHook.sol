@@ -13,10 +13,10 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {IMailbox} from "../interfaces/IMailbox.sol";
+import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+import {IMailbox} from "../../interfaces/IMailbox.sol";
 import {DomainRoutingHook} from "./DomainRoutingHook.sol";
-import {Message} from "../libs/Message.sol";
+import {Message} from "../../libs/Message.sol";
 
 /**
  * @title FallbackDomainRoutingHook

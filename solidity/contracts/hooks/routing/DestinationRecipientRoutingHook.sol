@@ -13,8 +13,8 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
-import {Message} from "../libs/Message.sol";
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {Message} from "../../libs/Message.sol";
+import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {DomainRoutingHook} from "./DomainRoutingHook.sol";
 
 contract DestinationRecipientRoutingHook is DomainRoutingHook {

@@ -15,8 +15,9 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
-import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
-import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
+import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
+import {AbstractPostDispatchHook} from "./libs/AbstractPostDispatchHook.sol";
+
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";

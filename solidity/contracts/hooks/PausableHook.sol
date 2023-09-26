@@ -13,8 +13,8 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
-import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
-import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
+import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
+import {AbstractPostDispatchHook} from "./libs/AbstractPostDispatchHook.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";

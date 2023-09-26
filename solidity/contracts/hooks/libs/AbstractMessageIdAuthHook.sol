@@ -14,13 +14,12 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
-import {TypeCasts} from "../libs/TypeCasts.sol";
-import {Message} from "../libs/Message.sol";
-import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
-import {MailboxClient} from "../client/MailboxClient.sol";
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {AbstractMessageIdAuthorizedIsm} from "../../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {Message} from "../../libs/Message.sol";
+import {StandardHookMetadata} from "./StandardHookMetadata.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
 
 /**
  * @title AbstractMessageIdAuthHook

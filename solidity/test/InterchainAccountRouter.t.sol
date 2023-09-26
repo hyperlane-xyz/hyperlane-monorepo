@@ -8,10 +8,8 @@ import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecurityModule.sol";
 import {IInterchainGasPaymaster} from "../contracts/interfaces/IInterchainGasPaymaster.sol";
-import {InterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
+import {CallLib, OwnableMulticall, InterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
 import {InterchainAccountIsm} from "../contracts/isms/routing/InterchainAccountIsm.sol";
-import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
-import {CallLib} from "../contracts/libs/Call.sol";
 
 contract Callable {
     mapping(address => bytes32) public data;

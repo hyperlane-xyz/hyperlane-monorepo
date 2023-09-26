@@ -14,11 +14,11 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {Message} from "../libs/Message.sol";
-import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
-import {MailboxClient} from "../client/MailboxClient.sol";
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
+import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
+import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
+import {Message} from "../../libs/Message.sol";
+import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 
 // ============ External Imports ============
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";

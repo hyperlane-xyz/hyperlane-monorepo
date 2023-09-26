@@ -2,10 +2,11 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {IValidatorAnnounce} from "./interfaces/IValidatorAnnounce.sol";
-import {IMailbox} from "./interfaces/IMailbox.sol";
-import {TypeCasts} from "./libs/TypeCasts.sol";
-import {ValidatorAnnouncements} from "./libs/ValidatorAnnouncements.sol";
+import {IValidatorAnnounce} from "../../interfaces/IValidatorAnnounce.sol";
+import {IMailbox} from "../../interfaces/IMailbox.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
+
 // ============ External Imports ============
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -14,18 +15,11 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
  * @title ValidatorAnnounce
  * @notice Stores the location(s) of validator signed checkpoints
  */
-contract ValidatorAnnounce is IValidatorAnnounce {
+contract ValidatorAnnounce is MailboxClient, IValidatorAnnounce {
     // ============ Libraries ============
 
     using EnumerableSet for EnumerableSet.AddressSet;
     using TypeCasts for address;
-
-    // ============ Constants ============
-
-    // Address of the mailbox being validated
-    address public immutable mailbox;
-    // Domain of chain on which the contract is deployed
-    uint32 public immutable localDomain;
 
     // ============ Public Storage ============
 
@@ -51,10 +45,7 @@ contract ValidatorAnnounce is IValidatorAnnounce {
 
     // ============ Constructor ============
 
-    constructor(address _mailbox) {
-        mailbox = _mailbox;
-        localDomain = IMailbox(mailbox).localDomain();
-    }
+    constructor(address _mailbox) MailboxClient(_mailbox) {}
 
     // ============ External Functions ============
 
@@ -79,8 +70,7 @@ contract ValidatorAnnounce is IValidatorAnnounce {
         replayProtection[_replayId] = true;
 
         // Verify that the signature matches the declared validator
-        bytes32 _announcementDigest = ValidatorAnnouncements
-            .getAnnouncementDigest(mailbox, localDomain, _storageLocation);
+        bytes32 _announcementDigest = getAnnouncementDigest(_storageLocation);
         address _signer = ECDSA.recover(_announcementDigest, _signature);
         require(_signer == _validator, "!signature");
 
@@ -113,5 +103,35 @@ contract ValidatorAnnounce is IValidatorAnnounce {
     /// @notice Returns a list of validators that have made announcements
     function getAnnouncedValidators() external view returns (address[] memory) {
         return validators.values();
+    }
+
+    /**
+     * @notice Returns the digest validators are expected to sign when signing announcements.
+     * @param _storageLocation Storage location string.
+     * @return The digest of the announcement.
+     */
+    function getAnnouncementDigest(string memory _storageLocation)
+        public
+        view
+        returns (bytes32)
+    {
+        return
+            ECDSA.toEthSignedMessageHash(
+                keccak256(abi.encodePacked(_domainHash(), _storageLocation))
+            );
+    }
+
+    /**
+     * @notice Returns the domain separator used in validator announcements.
+     */
+    function _domainHash() internal view returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked(
+                    localDomain,
+                    address(mailbox).addressToBytes32(),
+                    "HYPERLANE_ANNOUNCEMENT"
+                )
+            );
     }
 }

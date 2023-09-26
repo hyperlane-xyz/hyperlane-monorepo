@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {CallLib} from "../Call.sol";
-import {TypeCasts} from "../TypeCasts.sol";
+import {CallLib} from "./Call.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 /**
  * Format of message:

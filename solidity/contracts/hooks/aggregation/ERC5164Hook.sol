@@ -14,10 +14,10 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {TypeCasts} from "../libs/TypeCasts.sol";
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {IMessageDispatcher} from "../interfaces/hooks/IMessageDispatcher.sol";
-import {AbstractMessageIdAuthHook} from "./AbstractMessageIdAuthHook.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+import {IMessageDispatcher} from "../../interfaces/hooks/IMessageDispatcher.sol";
+import {AbstractMessageIdAuthHook} from "../libs/AbstractMessageIdAuthHook.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";

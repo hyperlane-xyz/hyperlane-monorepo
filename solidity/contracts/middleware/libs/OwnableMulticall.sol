@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
-import {CallLib} from "./libs/Call.sol";
+import {CallLib} from "./Call.sol";
 
 /*
  * @title OwnableMulticall

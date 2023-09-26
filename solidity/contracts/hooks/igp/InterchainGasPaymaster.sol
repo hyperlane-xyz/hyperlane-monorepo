@@ -14,14 +14,13 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {Message} from "../libs/Message.sol";
-import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
-import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
-import {IGasOracle} from "../interfaces/IGasOracle.sol";
-import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {AbstractPostDispatchHook} from "../hooks/AbstractPostDispatchHook.sol";
-import {Indexed} from "../Indexed.sol";
+import {Message} from "../../libs/Message.sol";
+import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
+import {IGasOracle} from "../../interfaces/IGasOracle.sol";
+import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
+import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
+import {Indexed} from "../../libs/Indexed.sol";
 
 // ============ External Imports ============
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
