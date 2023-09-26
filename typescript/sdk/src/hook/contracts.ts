@@ -1,7 +1,7 @@
 import {
   MerkleTreeHook__factory,
-  OPStackHook__factory,
   OverheadIgp__factory,
+  StaticMerkleRootMultisigIsm__factory,
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
 
@@ -11,6 +11,7 @@ export const merkleRootHookFactories = {
   hook: new MerkleTreeHook__factory(),
 };
 export type MerkleRootHookFactories = typeof merkleRootHookFactories;
+export type MerkleRootIsmFactories = typeof merkleRootIsmFactories;
 
 export const igpFactories = {
   // interchainGasPaymaster: new InterchainGasPaymaster__factory(),
@@ -19,11 +20,15 @@ export const igpFactories = {
   ...proxiedFactories,
 };
 
-export const opStackHookFactories = {
-  hook: new OPStackHook__factory(),
+export const merkleRootIsmFactories = {
+  ism: new StaticMerkleRootMultisigIsm__factory(),
 };
 
+export type MerkleRootInterceptorFactories =
+  | MerkleRootHookFactories
+  | MerkleRootIsmFactories;
+
 export type PostDispatchHookFactories =
-  | typeof opStackHookFactories
+  | MerkleRootInterceptorFactories
   | typeof merkleRootHookFactories
   | typeof igpFactories;

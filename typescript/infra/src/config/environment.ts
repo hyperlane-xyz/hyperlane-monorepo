@@ -5,8 +5,8 @@ import {
   ChainMetadata,
   ChainName,
   CoreConfig,
-  HookConfig,
   HyperlaneEnvironment,
+  InterceptorConfig,
   MultiProvider,
   OverheadIgpConfig,
 } from '@hyperlane-xyz/sdk';
@@ -37,7 +37,7 @@ export type EnvironmentConfig = {
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
-  hooks: ChainMap<HookConfig>;
+  hooks?: ChainMap<InterceptorConfig>;
   igp: ChainMap<OverheadIgpConfig>;
   owners: ChainMap<Address>;
   infra: InfrastructureConfig;

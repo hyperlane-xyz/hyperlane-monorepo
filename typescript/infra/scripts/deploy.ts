@@ -1,4 +1,3 @@
-import { getAddress } from 'ethers/lib/utils';
 import path from 'path';
 
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
@@ -10,10 +9,15 @@ import {
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
   HyperlaneIsmFactoryDeployer,
+  InterceptorConfig,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
+  MerkleRootInterceptorDeployer,
+  ModuleType,
+  defaultMultisigIsmConfigs,
 } from '@hyperlane-xyz/sdk';
+import { HookContractType } from '@hyperlane-xyz/sdk/src';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
@@ -22,7 +26,6 @@ import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
 import { TestRecipientDeployer } from '../src/deployment/testcontracts/testrecipient';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
-import { readJSON } from '../src/utils/utils';
 
 import {
   Modules,
@@ -67,6 +70,7 @@ async function main() {
     config = objMap(envConfig.core, (_chain) => true);
     deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
+    console.log(envConfig);
     config = envConfig.core;
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.ISM_FACTORY),
@@ -74,9 +78,39 @@ async function main() {
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.HOOK) {
-    throw new Error('Hook deployment unimplemented');
+    // throw new Error('Hook deployment unimplemented');
     // config = envConfig.hooks;
     // deployer = new HyperlaneHookDeployer(multiProvider);
+    // if (envConfig.hooks) {
+    //   config = envConfig.hooks;
+    //   console.log('envConfig: ', config);
+    //   deployer = new MerkleTreeInterceptorDeployer(multiProvider);
+    // } else {
+
+    const mrConfig: ChainMap<InterceptorConfig> = {
+      test1: {
+        type: HookContractType.HOOK,
+        mailbox: '0xb7f8bc63bbcad18155201308c8f3540b07f84f5e',
+      },
+      test2: {
+        type: ModuleType.MERKLE_ROOT_MULTISIG,
+        validators: defaultMultisigIsmConfigs.optimism.validators,
+        threshold: defaultMultisigIsmConfigs.optimism.threshold,
+      },
+    };
+
+    config = mrConfig;
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      getAddresses(environment, Modules.ISM_FACTORY),
+      multiProvider,
+    );
+    deployer = new MerkleRootInterceptorDeployer(
+      multiProvider,
+      ismFactory,
+      '0xb7f8bc63bbcad18155201308c8f3540b07f84f5e',
+    );
+    // throw new Error('Hook deployment unimplemented');
+    // }
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);

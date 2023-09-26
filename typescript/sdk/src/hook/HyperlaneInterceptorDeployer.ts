@@ -1,4 +1,4 @@
-import { objFilter } from '@hyperlane-xyz/utils';
+import { Address, objFilter } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneContracts,
@@ -13,37 +13,37 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
 import { isHookConfig } from './config';
-import { PostDispatchHookConfig } from './types';
+import { InterceptorConfig } from './types';
 
 export abstract class HyperlaneInterceptorDeployer<
-  HookConfig extends PostDispatchHookConfig,
+  Config extends InterceptorConfig,
   HookFactories extends HyperlaneFactories,
-> extends HyperlaneDeployer<HookConfig, HookFactories> {
+> extends HyperlaneDeployer<Config, HookFactories> {
   constructor(
     multiProvider: MultiProvider,
     factories: HookFactories,
+    mailbox: Address,
     options?: DeployerOptions,
   ) {
     super(multiProvider, factories, options);
   }
 
   async deploy(
-    configMap: ChainMap<HookConfig>,
+    configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<HookFactories>> {
     // TODO: uncomment when ISMs are implemented
-    // const ismConfigMap = objFilter(
-    //   configMap,
-    //   (_, config: IsmConfig): config is IsmConfig => !isHookConfig(config),
-    // );
-    // await super.deploy(ismConfigMap);
-
-    // deploy Hooks next
-    const hookConfigMap = objFilter(
+    const ismConfigMap = objFilter(
       configMap,
-      (_, config: HookConfig): config is HookConfig => isHookConfig(config),
+      (_, config): config is Config => !isHookConfig(config),
+    );
+    await super.deploy(ismConfigMap);
+
+    const hookConfigMap = objFilter(configMap, (_, config): config is Config =>
+      isHookConfig(config),
     );
     await super.deploy(hookConfigMap);
 
+    // deploy Hooks next
     // TODO: post deploy steps
     // configure ISMs with authorized hooks
     // await promiseObjAll(
@@ -62,24 +62,25 @@ export abstract class HyperlaneInterceptorDeployer<
 
   async deployContracts(
     chain: ChainName,
-    config: HookConfig,
+    config: Config,
   ): Promise<HyperlaneContracts<HookFactories>> {
-    this.logger(`Deploying ${config.hookContractType} on ${chain}`);
     if (isHookConfig(config)) {
       return this.deployHookContracts(chain, config);
     } else {
-      throw new Error('ISM as object unimplemented');
+      return this.deployIsmContracts(chain, config);
     }
   }
 
   protected abstract deployHookContracts(
     chain: ChainName,
-    config: HookConfig,
+    config: Config,
+    mailbox?: Address,
   ): Promise<HyperlaneContracts<HookFactories>>;
 
-  //   protected abstract deployIsmContracts(
-  //     chain: ChainName,
-  //     config: IsmConfig,
-  //   ): Promise<HyperlaneContracts<PostDispatchHookFactories>>;
-  // }
+  protected abstract deployIsmContracts(
+    chain: ChainName,
+    config: Config,
+  ): Promise<HyperlaneContracts<HookFactories>>;
+
+  // protected abstract matchConfig(chain: ChainName, config: HookConfig): boolean;
 }

@@ -109,10 +109,13 @@ export {
   OverheadIgpConfig,
 } from './gas/types';
 export { HyperlaneInterceptorDeployer } from './hook/HyperlaneInterceptorDeployer';
+export { MerkleRootInterceptorDeployer } from './hook/MerkleRootInterceptorDeployer';
 export {
   HookContractType,
   InterceptorConfig,
+  MerkleTreeHookConfig,
   NoMetadataIsmConfig,
+  OpStackHookConfig,
   PostDispatchHookConfig,
 } from './hook/types';
 export {

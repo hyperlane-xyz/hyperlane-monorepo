@@ -9,6 +9,8 @@ import {
   IRoutingIsm__factory,
   StaticAggregationIsm__factory,
   StaticMOfNAddressSetFactory,
+  StaticMerkleRootMultisigIsm,
+  StaticMerkleRootMultisigIsm__factory,
 } from '@hyperlane-xyz/core';
 import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
 
@@ -120,6 +122,24 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     );
 
     return IMultisigIsm__factory.connect(address, signer);
+  }
+
+  public async deployMerkleRootMultisigIsm(
+    chain: ChainName,
+    config: MultisigIsmConfig,
+  ): Promise<StaticMerkleRootMultisigIsm> {
+    const signer = this.multiProvider.getSigner(chain);
+    const multisigIsmFactory =
+      this.getContracts(chain).merkleRootMultisigIsmFactory;
+
+    const address = await this.deployMOfNFactory(
+      chain,
+      multisigIsmFactory,
+      config.validators,
+      config.threshold,
+    );
+
+    return StaticMerkleRootMultisigIsm__factory.connect(address, signer);
   }
 
   private async deployRoutingIsm(chain: ChainName, config: RoutingIsmConfig) {

@@ -1,6 +1,6 @@
 import type { Address } from '@hyperlane-xyz/utils';
 
-import type { IsmConfig } from '../ism/types';
+import type { IsmConfig, MultisigIsmConfig } from '../ism/types';
 import { ChainName } from '../types';
 
 export enum HookContractType {
@@ -9,7 +9,7 @@ export enum HookContractType {
 }
 
 export type OpStackHookConfig = {
-  hookContractType: HookContractType.HOOK;
+  type: HookContractType.HOOK;
   mailbox: Address;
   nativeBridge: Address;
   remoteIsm?: Address;
@@ -17,14 +17,20 @@ export type OpStackHookConfig = {
 };
 
 export type MerkleTreeHookConfig = {
-  hookContractType: HookContractType.HOOK;
+  type: HookContractType.HOOK;
   mailbox: Address;
 };
 
-export type PostDispatchHookConfig = OpStackHookConfig | MerkleTreeHookConfig;
+export type MerkleRootInterceptorConfig =
+  | MerkleTreeHookConfig
+  | MultisigIsmConfig;
+
+export type PostDispatchHookConfig =
+  | OpStackHookConfig
+  | MerkleRootInterceptorConfig;
 
 export type NoMetadataIsmConfig = {
-  hookContractType: HookContractType.ISM;
+  type: HookContractType.ISM;
   nativeBridge: Address;
 };
 
