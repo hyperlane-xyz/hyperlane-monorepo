@@ -68,7 +68,7 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
         address _recipient,
         uint256 _amount,
         bytes calldata // no metadata
-    ) internal override {
+    ) internal virtual override {
         _mint(_recipient, _amount);
     }
 }
