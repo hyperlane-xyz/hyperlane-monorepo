@@ -11,7 +11,7 @@ use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
-    SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
+    MerkleTreeHook, SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -277,39 +277,8 @@ impl std::fmt::Debug for SealevelMailbox {
     }
 }
 
-// TODO refactor the sealevel client into a lib and bin, pull in and use the lib here rather than
-// duplicating.
 #[async_trait]
-impl Mailbox for SealevelMailbox {
-    #[instrument(err, ret, skip(self))]
-    async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let tree = self.tree(_maybe_lag).await?;
-
-        tree.count()
-            .try_into()
-            .map_err(ChainCommunicationError::from_other)
-    }
-
-    #[instrument(err, ret, skip(self))]
-    async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        let (processed_message_account_key, _processed_message_account_bump) =
-            Pubkey::find_program_address(
-                mailbox_processed_message_pda_seeds!(id),
-                &self.program_id,
-            );
-
-        let account = self
-            .rpc_client
-            .get_account_with_commitment(
-                &processed_message_account_key,
-                CommitmentConfig::finalized(),
-            )
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
-
-        Ok(account.value.is_some())
-    }
-
+impl MerkleTreeHook for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
     async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
         assert!(
@@ -359,6 +328,45 @@ impl Mailbox for SealevelMailbox {
             index,
         };
         Ok(checkpoint)
+    }
+
+    #[instrument(err, ret, skip(self))]
+    async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+        let tree = self.tree(_maybe_lag).await?;
+
+        tree.count()
+            .try_into()
+            .map_err(ChainCommunicationError::from_other)
+    }
+}
+
+// TODO refactor the sealevel client into a lib and bin, pull in and use the lib here rather than
+// duplicating.
+#[async_trait]
+impl Mailbox for SealevelMailbox {
+    #[instrument(err, ret, skip(self))]
+    async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+        <Self as MerkleTreeHook>::count(self, _maybe_lag).await
+    }
+
+    #[instrument(err, ret, skip(self))]
+    async fn delivered(&self, id: H256) -> ChainResult<bool> {
+        let (processed_message_account_key, _processed_message_account_bump) =
+            Pubkey::find_program_address(
+                mailbox_processed_message_pda_seeds!(id),
+                &self.program_id,
+            );
+
+        let account = self
+            .rpc_client
+            .get_account_with_commitment(
+                &processed_message_account_key,
+                CommitmentConfig::finalized(),
+            )
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+
+        Ok(account.value.is_some())
     }
 
     #[instrument(err, ret, skip(self))]
@@ -690,7 +698,7 @@ impl SequenceIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
         // TODO: need to make sure the call and tip are at the same height?
-        let count = self.mailbox.count(None).await?;
+        let count = Mailbox::count(&self.mailbox, None).await?;
         Ok((Some(count), tip))
     }
 }

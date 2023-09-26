@@ -319,9 +319,6 @@ where
     #[instrument(skip(self))]
     async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
         let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
-
-        let merkle_tree = merkle_tree_hook(&self.contract, &self.provider).await?;
-
         let fixed_block_number: BlockNumber = self
             .provider
             .get_block_number()
@@ -330,70 +327,18 @@ where
             .saturating_sub(lag)
             .into();
 
-        let count = merkle_tree.count().block(fixed_block_number).call().await?;
-        Ok(count)
+        let nonce = self
+            .contract
+            .nonce()
+            .block(fixed_block_number)
+            .call()
+            .await?;
+        Ok(nonce)
     }
 
     #[instrument(skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         Ok(self.contract.delivered(id.into()).call().await?)
-    }
-
-    #[instrument(skip(self))]
-    async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
-
-        let merkle_tree = merkle_tree_hook(&self.contract, &self.provider).await?;
-
-        let fixed_block_number: BlockNumber = self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .saturating_sub(lag)
-            .into();
-
-        let (root, index) = merkle_tree
-            .latest_checkpoint()
-            .block(fixed_block_number)
-            .call()
-            .await?;
-        Ok(Checkpoint {
-            mailbox_address: self.address(),
-            mailbox_domain: self.domain.id(),
-            root: root.into(),
-            index,
-        })
-    }
-
-    #[instrument(skip(self))]
-    #[allow(clippy::needless_range_loop)]
-    async fn tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
-
-        let merkle_tree = merkle_tree_hook(&self.contract, &self.provider).await?;
-
-        let fixed_block_number: BlockNumber = self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .saturating_sub(lag)
-            .into();
-
-        // TODO: implement From<Tree> for IncrementalMerkle
-        let raw_tree = merkle_tree.tree().block(fixed_block_number).call().await?;
-        let branch = raw_tree
-            .branch
-            .iter()
-            .map(|v| v.into())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-
-        let tree = IncrementalMerkle::new(branch, raw_tree.count.as_usize());
-
-        Ok(tree)
     }
 
     #[instrument(skip(self))]

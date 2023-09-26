@@ -9,7 +9,8 @@ use hyperlane_core::{
     AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
     HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, HyperlaneSigner, IndexMode,
     InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceIndexer, ValidatorAnnounce, H256,
+    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceIndexer,
+    ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -115,7 +116,7 @@ impl ChainConf {
 
     /// Try to convert the chain setting into a Mailbox contract
     pub async fn build_mailbox(&self, metrics: &CoreMetrics) -> Result<Box<dyn Mailbox>> {
-        let ctx = "Building provider";
+        let ctx = "Building mailbox";
         let locator = self.locator(self.addresses.mailbox);
 
         match &self.connection {
@@ -135,6 +136,29 @@ impl ChainConf {
                 h_sealevel::SealevelMailbox::new(conf, locator, keypair)
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
+            }
+        }
+        .context(ctx)
+    }
+
+    /// Try to convert the chain setting into a Mailbox contract
+    pub async fn build_merkle_tree_hook(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn MerkleTreeHook>> {
+        let ctx = "Building merkle tree hook";
+        let locator = self.locator(self.addresses.mailbox);
+
+        match &self.connection {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(conf, &locator, metrics, h_eth::MerkleTreeHookBuilder {})
+                    .await
+            }
+            ChainConnectionConf::Fuel(_conf) => {
+                todo!("Fuel does not support merkle tree hooks yet")
+            }
+            ChainConnectionConf::Sealevel(_conf) => {
+                todo!("Sealevel does not support merkle tree hooks yet")
             }
         }
         .context(ctx)

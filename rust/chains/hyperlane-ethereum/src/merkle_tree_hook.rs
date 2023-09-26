@@ -1,19 +1,38 @@
 #![allow(missing_docs)]
+use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::prelude::Middleware;
+use ethers_core::types::BlockNumber;
+use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, Indexer, LogMeta, MerkleTreeInsertion,
-    SequenceIndexer, H256,
+    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, LogMeta, MerkleTreeHook,
+    MerkleTreeInsertion, SequenceIndexer, H256,
 };
 
-use crate::contracts::i_mailbox::IMailbox as EthereumMailboxInternal;
-use crate::contracts::merkle_tree_hook::MerkleTreeHook;
+use crate::contracts::merkle_tree_hook::MerkleTreeHook as MerkleTreeHookContract;
 use crate::trait_builder::BuildableWithProvider;
+use crate::EthereumProvider;
+
+pub struct MerkleTreeHookBuilder {}
+
+#[async_trait]
+impl BuildableWithProvider for MerkleTreeHookBuilder {
+    type Output = Box<dyn MerkleTreeHook>;
+
+    async fn build_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(EthereumMerkleTreeHook::new(Arc::new(provider), locator))
+    }
+}
 
 pub struct MerkleTreeHookIndexerBuilder {
     pub finality_blocks: u32,
@@ -42,7 +61,7 @@ pub struct EthereumMerkleTreeHookIndexer<M>
 where
     M: Middleware,
 {
-    contract: Arc<EthereumMailboxInternal<M>>,
+    contract: Arc<MerkleTreeHookContract<M>>,
     provider: Arc<M>,
     finality_blocks: u32,
 }
@@ -54,19 +73,13 @@ where
     /// Create new EthereumMerkleTreeHookIndexer
     pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         Self {
-            contract: Arc::new(EthereumMailboxInternal::new(
+            contract: Arc::new(MerkleTreeHookContract::new(
                 locator.address,
                 provider.clone(),
             )),
             provider,
             finality_blocks,
         }
-    }
-
-    // TODO: make this cache the required hook address at construction time
-    pub async fn merkle_tree_hook(&self) -> ChainResult<MerkleTreeHook<M>> {
-        let address = self.contract.required_hook().call().await?;
-        Ok(MerkleTreeHook::new(address, self.provider.clone()))
     }
 }
 
@@ -80,8 +93,8 @@ where
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(MerkleTreeInsertion, LogMeta)>> {
-        let merkle_tree_hook = self.merkle_tree_hook().await?;
-        let events = merkle_tree_hook
+        let events = self
+            .contract
             .inserted_into_tree_filter()
             .from_block(*range.start())
             .to_block(*range.end())
@@ -126,5 +139,144 @@ where
         // ``SequenceIndexer` and `Indexer`.
         let tip = self.get_finalized_block_number().await?;
         Ok((None, tip))
+    }
+}
+
+/// A reference to a Mailbox contract on some Ethereum chain
+#[derive(Debug)]
+pub struct EthereumMerkleTreeHook<M>
+where
+    M: Middleware,
+{
+    contract: Arc<MerkleTreeHookContract<M>>,
+    domain: HyperlaneDomain,
+    provider: Arc<M>,
+}
+
+impl<M> EthereumMerkleTreeHook<M>
+where
+    M: Middleware,
+{
+    /// Create a reference to a mailbox at a specific Ethereum address on some
+    /// chain
+    pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
+        Self {
+            contract: Arc::new(MerkleTreeHookContract::new(
+                locator.address,
+                provider.clone(),
+            )),
+            domain: locator.domain.clone(),
+            provider,
+        }
+    }
+}
+
+impl<M> HyperlaneChain for EthereumMerkleTreeHook<M>
+where
+    M: Middleware + 'static,
+{
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(EthereumProvider::new(
+            self.provider.clone(),
+            self.domain.clone(),
+        ))
+    }
+}
+
+impl<M> HyperlaneContract for EthereumMerkleTreeHook<M>
+where
+    M: Middleware + 'static,
+{
+    fn address(&self) -> H256 {
+        self.contract.address().into()
+    }
+}
+
+#[async_trait]
+impl<M> MerkleTreeHook for EthereumMerkleTreeHook<M>
+where
+    M: Middleware + 'static,
+{
+    #[instrument(skip(self))]
+    async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
+        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
+
+        let fixed_block_number: BlockNumber = self
+            .provider
+            .get_block_number()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .saturating_sub(lag)
+            .into();
+
+        let (root, index) = self
+            .contract
+            .latest_checkpoint()
+            .block(fixed_block_number)
+            .call()
+            .await?;
+        Ok(Checkpoint {
+            mailbox_address: self.address(),
+            mailbox_domain: self.domain.id(),
+            root: root.into(),
+            index,
+        })
+    }
+
+    #[instrument(skip(self))]
+    #[allow(clippy::needless_range_loop)]
+    async fn tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
+        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
+
+        let fixed_block_number: BlockNumber = self
+            .provider
+            .get_block_number()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .saturating_sub(lag)
+            .into();
+
+        // TODO: implement From<Tree> for IncrementalMerkle
+        let raw_tree = self
+            .contract
+            .tree()
+            .block(fixed_block_number)
+            .call()
+            .await?;
+        let branch = raw_tree
+            .branch
+            .iter()
+            .map(|v| v.into())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+
+        let tree = IncrementalMerkle::new(branch, raw_tree.count.as_usize());
+
+        Ok(tree)
+    }
+
+    #[instrument(skip(self))]
+    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
+        let fixed_block_number: BlockNumber = self
+            .provider
+            .get_block_number()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .saturating_sub(lag)
+            .into();
+
+        let count = self
+            .contract
+            .count()
+            .block(fixed_block_number)
+            .call()
+            .await?;
+        Ok(count)
     }
 }

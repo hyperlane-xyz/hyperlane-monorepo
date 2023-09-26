@@ -10,8 +10,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Announcement, ChainResult, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, TxOutcome,
-    ValidatorAnnounce, H256, U256,
+    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, MerkleTreeHook,
+    TxOutcome, ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
 use tokio::{task::JoinHandle, time::sleep};
@@ -30,7 +30,7 @@ pub struct Validator {
     core: HyperlaneAgentCore,
     db: HyperlaneRocksDB,
     message_sync: Arc<MessageContractSync>,
-    mailbox: Arc<dyn Mailbox>,
+    merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
     signer: SingletonSignerHandle,
     // temporary holder until `run` is called
@@ -39,6 +39,7 @@ pub struct Validator {
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
 }
+
 #[async_trait]
 impl BaseAgent for Validator {
     const AGENT_NAME: &'static str = "validator";
@@ -58,8 +59,8 @@ impl BaseAgent for Validator {
         let core = settings.build_hyperlane_core(metrics.clone());
         let checkpoint_syncer = settings.checkpoint_syncer.build(None)?.into();
 
-        let mailbox = settings
-            .build_mailbox(&settings.origin_chain, &metrics)
+        let merkle_tree_hook = settings
+            .build_merkle_tree_hook(&settings.origin_chain, &metrics)
             .await?;
 
         let validator_announce = settings
@@ -82,7 +83,7 @@ impl BaseAgent for Validator {
             origin_chain: settings.origin_chain,
             core,
             db: msg_db,
-            mailbox: mailbox.into(),
+            merkle_tree_hook: merkle_tree_hook.into(),
             message_sync,
             validator_announce: validator_announce.into(),
             signer,
@@ -115,13 +116,13 @@ impl BaseAgent for Validator {
         // Ensure that the mailbox has count > 0 before we begin indexing
         // messages or submitting checkpoints.
         while self
-            .mailbox
+            .merkle_tree_hook
             .count(reorg_period)
             .await
-            .expect("Failed to get count of mailbox")
+            .expect("Failed to get count in merkle tree hook. Has one been deployed?")
             == 0
         {
-            info!("Waiting for first message to mailbox");
+            info!("Waiting for first message in merkle tree hook");
             sleep(self.interval).await;
         }
 
@@ -155,7 +156,7 @@ impl Validator {
         let submitter = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,
-            self.mailbox.clone(),
+            self.merkle_tree_hook.clone(),
             self.signer.clone(),
             self.checkpoint_syncer.clone(),
             self.db.clone(),
@@ -165,7 +166,7 @@ impl Validator {
         let empty_tree = IncrementalMerkle::default();
         let reorg_period = NonZeroU64::new(self.reorg_period);
         let tip_tree = self
-            .mailbox
+            .merkle_tree_hook
             .tree(reorg_period)
             .await
             .expect("failed to get mailbox tree");
@@ -222,8 +223,8 @@ impl Validator {
         // Sign and post the validator announcement
         let announcement = Announcement {
             validator: self.signer.eth_address(),
-            mailbox_address: self.mailbox.address(),
-            mailbox_domain: self.mailbox.domain().id(),
+            mailbox_address: self.merkle_tree_hook.address(),
+            mailbox_domain: self.merkle_tree_hook.domain().id(),
             storage_location: self.checkpoint_syncer.announcement_location(),
         };
         let signed_announcement = self.signer.sign(announcement.clone()).await?;
