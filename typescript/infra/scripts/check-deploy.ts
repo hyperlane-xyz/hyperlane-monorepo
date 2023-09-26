@@ -13,7 +13,7 @@ import {
 
 import { Contexts } from '../config/contexts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
-import { helloWorldRouterConfig } from '../src/config/helloworld-getters';
+import { helloWorldRouterConfig } from '../src/config/helloworld';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
 import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
 import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor';

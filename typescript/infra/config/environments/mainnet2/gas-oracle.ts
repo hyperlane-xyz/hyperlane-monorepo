@@ -1,7 +1,6 @@
 import { BigNumber, ethers } from 'ethers';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import { convertDecimalsEthersBigNumber } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
@@ -11,15 +10,8 @@ import {
   TOKEN_EXCHANGE_RATE_DECIMALS,
   getTokenExchangeRateFromValues,
 } from '../../../src/config/gas-oracle';
-import { mustGetChainNativeTokenDecimals } from '../../../src/utils/utils';
 
 import { supportedChainNames } from './chains';
-
-// Overcharge by 30% to account for market making risk
-const TOKEN_EXCHANGE_RATE_MULTIPLIER = ethers.utils.parseUnits(
-  '1.30',
-  TOKEN_EXCHANGE_RATE_DECIMALS,
-);
 
 // Taken by looking at each network's gas history and overestimating
 // Last updated Mar 9, 2023.

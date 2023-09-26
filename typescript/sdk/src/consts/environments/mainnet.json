@@ -155,20 +155,20 @@
     "messageIdMultisigIsmFactory": "0xC4275763D7b621eb732847957012F1fb35C90BB8"
   },
   "solana": {
-    "storageGasOracle": "0x0000000000000000000000000000000000000000",
-    "validatorAnnounce": "0x0000000000000000000000000000000000000000",
-    "proxyAdmin": "0x0000000000000000000000000000000000000000",
+    "storageGasOracle": "11111111111111111111",
+    "validatorAnnounce": "11111111111111111111",
+    "proxyAdmin": "11111111111111111111",
     "mailbox": "Ge9atjAc3Ltu91VTbNpJDCjZ9CFxFyck4h3YBcTF9XPq",
     "interchainGasPaymaster": "FCNfmLSZLo5x7oNYmkYU8WdPUu7pj636P9CaMxkmaCp7",
-    "defaultIsmInterchainGasPaymaster": "0x0000000000000000000000000000000000000000",
-    "multisigIsm": "0x0000000000000000000000000000000000000000",
-    "testRecipient": "0x0000000000000000000000000000000000000000",
-    "interchainAccountIsm": "0x0000000000000000000000000000000000000000",
-    "aggregationIsmFactory": "0x0000000000000000000000000000000000000000",
-    "routingIsmFactory": "0x0000000000000000000000000000000000000000",
-    "interchainQueryRouter": "0x0000000000000000000000000000000000000000",
-    "interchainAccountRouter": "0x0000000000000000000000000000000000000000",
-    "merkleRootMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
-    "messageIdMultisigIsmFactory": "0x0000000000000000000000000000000000000000"
+    "defaultIsmInterchainGasPaymaster": "11111111111111111111",
+    "multisigIsm": "11111111111111111111",
+    "testRecipient": "11111111111111111111",
+    "interchainAccountIsm": "11111111111111111111",
+    "aggregationIsmFactory": "11111111111111111111",
+    "routingIsmFactory": "11111111111111111111",
+    "interchainQueryRouter": "11111111111111111111",
+    "interchainAccountRouter": "11111111111111111111",
+    "merkleRootMultisigIsmFactory": "11111111111111111111",
+    "messageIdMultisigIsmFactory": "11111111111111111111"
   }
 }
