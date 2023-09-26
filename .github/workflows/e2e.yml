@@ -52,20 +52,20 @@ jobs:
         with:
           mold-version: 2.0.0
           make-default: true
-      - name: rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: 'v2-rust'
-          shared-key: 'e2e'
-          workspaces: |
-            ./rust
-      - name: node module cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            **/node_modules
-            .yarn/cache
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+      # - name: rust cache
+      #   uses: Swatinem/rust-cache@v2
+      #   with:
+      #     prefix-key: 'v2-rust'
+      #     shared-key: 'e2e'
+      #     workspaces: |
+      #       ./rust
+      # - name: node module cache
+      #   uses: actions/cache@v3
+      #   with:
+      #     path: |
+      #       **/node_modules
+      #       .yarn/cache
+      #     key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
       - name: build test
         run: cargo build --release --bin run-locally
       - name: run test
