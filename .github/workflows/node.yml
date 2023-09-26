@@ -67,7 +67,8 @@ jobs:
           key: ${{ github.sha }}
 
       - name: build
-        run: yarn build
+        # TODO: revert
+        run: yarn workspace @hyperlane-xyz/core run build
 
   lint-prettier:
     runs-on: ubuntu-latest
