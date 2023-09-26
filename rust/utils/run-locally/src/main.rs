@@ -129,6 +129,8 @@ fn main() -> ExitCode {
     assert_eq!(VALIDATOR_ORIGIN_CHAINS.len(), VALIDATOR_KEYS.len());
     const VALIDATOR_COUNT: usize = VALIDATOR_KEYS.len();
 
+    Program::new("yarn").cmd("clean").run().join();
+
     let config = Config::load();
 
     // let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
