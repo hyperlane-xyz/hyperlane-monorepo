@@ -215,7 +215,8 @@ jobs:
         uses: onbjerg/foundry-toolchain@v1
 
       - name: Run tests with coverage
-        run: yarn coverage
+      # TODO: revert
+        run: yarn workspace @hyperlane-xyz/core run coverage
         env:
           NODE_OPTIONS: --max_old_space_size=4096
 
