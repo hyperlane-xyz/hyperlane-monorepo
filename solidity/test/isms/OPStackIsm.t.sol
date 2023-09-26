@@ -15,7 +15,8 @@ import {TestMultisigIsm} from "../../contracts/test/TestMultisigIsm.sol";
 import {OPStackIsm} from "../../contracts/isms/hook/OPStackIsm.sol";
 import {OPStackHook} from "../../contracts/hooks/OPStackHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
-import {NotCrossChainCall} from "../../contracts/isms/hook/crossChainEnabled/errors.sol";
+
+import {NotCrossChainCall} from "@openzeppelin/contracts/crosschain/errors.sol";
 
 import {AddressAliasHelper} from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
 import {ICrossDomainMessenger, IL2CrossDomainMessenger} from "../../contracts/interfaces/optimism/ICrossDomainMessenger.sol";
