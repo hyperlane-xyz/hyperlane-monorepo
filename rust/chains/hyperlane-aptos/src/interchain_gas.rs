@@ -1,11 +1,12 @@
 #![allow(unused)]
 
+use std::ops::RangeInclusive;
+
 use async_trait::async_trait;
-use hyperlane_core::IndexRange::BlockRange;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, IndexRange, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, H256,
+    HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment,
+    LogMeta, SequenceIndexer, H256,
 };
 use tracing::{info, instrument};
 
@@ -82,14 +83,8 @@ impl Indexer<InterchainGasPayment> for AptosInterchainGasPaymasterIndexer {
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
-        range: IndexRange,
+        range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        let BlockRange(range) = range else {
-          return Err(ChainCommunicationError::from_other_str(
-              "AptosInterchainGasPaymasterIndexer only supports block-based indexing",
-          ))
-        };
-
         get_filtered_events::<InterchainGasPayment, GasPaymentEventData>(
             &self.aptos_client,
             self.package_address,
@@ -110,5 +105,13 @@ impl Indexer<InterchainGasPayment> for AptosInterchainGasPaymasterIndexer {
             .unwrap()
             .into_inner();
         Ok(chain_state.block_height as u32)
+    }
+}
+
+#[async_trait]
+impl SequenceIndexer<InterchainGasPayment> for AptosInterchainGasPaymasterIndexer {
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = self.get_finalized_block_number().await?;
+        Ok((None, tip))
     }
 }

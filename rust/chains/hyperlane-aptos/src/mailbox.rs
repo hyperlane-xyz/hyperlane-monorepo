@@ -1,20 +1,20 @@
 #![allow(warnings)] // FIXME remove
 
+use std::ops::RangeInclusive;
 use std::{collections::HashMap, num::NonZeroU64, str::FromStr as _};
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
+use hyperlane_core::SequenceIndexer;
 use jsonrpc_core::futures_util::TryFutureExt;
+use jsonrpc_core::Middleware;
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle,
-    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, Decode as _, Encode as _,
-    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider,
-    IndexRange::{self, BlockRange},
-    Indexer, LogMeta, Mailbox, MessageIndexer, SequenceRange, TxCostEstimate, TxOutcome, H256,
-    H512, U256,
+    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
+    ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
+    TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
 use crate::{
@@ -332,28 +332,21 @@ impl AptosMailboxIndexer {
 }
 
 #[async_trait]
-impl MessageIndexer for AptosMailboxIndexer {
+impl SequenceIndexer<HyperlaneMessage> for AptosMailboxIndexer {
     #[instrument(err, skip(self))]
-    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
         let count = self.mailbox.count(None).await?;
-        Ok((count, tip))
+        Ok((Some(count), tip))
     }
 }
 
 #[async_trait]
 impl Indexer<HyperlaneMessage> for AptosMailboxIndexer {
-    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        info!("range type :{:?}", range);
-
-        let BlockRange(range) = range else {
-            return Err(ChainCommunicationError::from_other_str(
-                "AptosMailboxIndexer only supports block-based indexing",
-            ))
-        };
-
-        info!(?range, "Fetching AptosMailboxIndexer HyperlaneMessage logs");
-
+    async fn fetch_logs(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
         get_filtered_events::<HyperlaneMessage, DispatchEventData>(
             &self.aptos_client,
             self.package_address,
@@ -371,12 +364,22 @@ impl Indexer<HyperlaneMessage> for AptosMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for AptosMailboxIndexer {
-    async fn fetch_logs(&self, _range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, _range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
         todo!()
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self.get_finalized_block_number().await
+    }
+}
+
+#[async_trait]
+impl SequenceIndexer<H256> for AptosMailboxIndexer {
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        // TODO: implement when sealevel scraper support is implemented
+        info!("Message delivery indexing not implemented");
+        let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
+        Ok((Some(1), tip))
     }
 }
 

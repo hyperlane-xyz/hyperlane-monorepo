@@ -184,7 +184,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Aptos(conf) => {
                 let indexer = Box::new(h_aptos::AptosMailboxIndexer::new(conf, locator)?);
-                Ok(indexer as Box<dyn MessageIndexer>)
+                Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
             }
         }
         .context(ctx)
@@ -216,7 +216,10 @@ impl ChainConf {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
                 Ok(indexer as Box<dyn SequenceIndexer<H256>>)
             }
-            ChainConnectionConf::Aptos(_) => todo!(),
+            ChainConnectionConf::Aptos(conf) => {
+                let indexer = Box::new(h_aptos::AptosMailboxIndexer::new(conf, locator)?);
+                Ok(indexer as Box<dyn SequenceIndexer<H256>>)
+            }
         }
         .context(ctx)
     }
@@ -281,12 +284,12 @@ impl ChainConf {
                     h_sealevel::SealevelInterchainGasPaymasterIndexer::new(conf, locator).await?,
                 );
                 Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
-            },
+            }
             ChainConnectionConf::Aptos(conf) => {
                 let indexer = Box::new(h_aptos::AptosInterchainGasPaymasterIndexer::new(
                     conf, locator,
                 ));
-                Ok(indexer as Box<dyn Indexer<InterchainGasPayment>>)
+                Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
             }
         }
         .context(ctx)

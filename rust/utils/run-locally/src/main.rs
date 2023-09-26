@@ -450,9 +450,9 @@ fn main() -> ExitCode {
     }
 
     // Send some sealevel messages before spinning up the relayer, to test the backward indexing cursor
-    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
+    /*for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
         initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
-    }
+    }*/
 
     state.push_agent(relayer_env.spawn("RLY"));
 

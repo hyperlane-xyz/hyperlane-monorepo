@@ -187,6 +187,7 @@ fn parse_chain(chain: ValueParser, name: &str) -> ConfigResult<ChainConf> {
                 .and_then(|d| match d.domain_protocol() {
                     HyperlaneDomainProtocol::Ethereum => Some(IndexMode::Block),
                     HyperlaneDomainProtocol::Sealevel => Some(IndexMode::Sequence),
+                    HyperlaneDomainProtocol::Aptos => Some(IndexMode::Block),
                     _ => None,
                 })
                 .unwrap_or_default()
@@ -258,6 +259,13 @@ fn parse_chain(chain: ValueParser, name: &str) -> ConfigResult<ChainConf> {
                 .parse_from_str("Invalod http url")
                 .end()
                 .map(|url| ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf { url }))
+        }
+        HyperlaneDomainProtocol::Aptos => {
+            ParseChain::from_option(rpcs.into_iter().next(), &mut err)
+                .get_key("http")
+                .parse_from_str("Invalid http url")
+                .end()
+                .map(|url| ChainConnectionConf::Aptos(h_aptos::ConnectionConf { url }))
         }
     };
 
