@@ -72,7 +72,7 @@ const bscNautilusWarpRoutes: Array<{ router: string }> = [
   },
   // POSE
   {
-    router: '0x807D2C6c3d64873Cc729dfC65fB717C3E05e682f',
+    router: '0x97a2D58d30A2c838946194494207F7Cf50c25815',
   },
 ];
 
