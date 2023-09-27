@@ -4,7 +4,7 @@ import {
   getDomainId,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { ProtocolType, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import {
   GasPaymentEnforcementPolicyType,
@@ -24,13 +24,14 @@ const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
 );
 
-const interchainQueryRouters = objMap(
-  hyperlaneEnvironments.mainnet,
-  (_, addresses) => {
+const interchainQueryRouters = objFilter(
+  objMap(hyperlaneEnvironments.mainnet, (_, addresses) => {
     return {
       router: addresses.interchainQueryRouter,
     };
-  },
+  }),
+  (chain, _addresses): _addresses is { router: string } =>
+    chainMetadata[chain].protocol === ProtocolType.Ethereum,
 );
 
 const interchainQueriesMatchingList = routerMatchingList(
