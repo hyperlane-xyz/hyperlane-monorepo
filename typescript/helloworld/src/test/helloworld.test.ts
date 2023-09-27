@@ -57,7 +57,7 @@ describe('HelloWorld', async () => {
     local = contracts[localChain].router;
     remote = contracts[remoteChain].router;
     localIgp = IInterchainGasPaymaster__factory.connect(
-      config[localChain].interchainGasPaymaster,
+      config[localChain].hook!,
       multiProvider.getProvider(localChain),
     );
 

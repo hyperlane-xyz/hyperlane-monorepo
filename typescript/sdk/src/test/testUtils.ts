@@ -61,7 +61,7 @@ export async function deployTestIgpsAndGetRouterConfig(
     return {
       owner,
       mailbox: contracts.mailbox.address,
-      interchainGasPaymaster: igps[chain].address,
+      hook: igps[chain].address,
     };
   });
 }

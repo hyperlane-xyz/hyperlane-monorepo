@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import {
   ChainName,
   HyperlaneContracts,
@@ -31,7 +33,7 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   async deployContracts(chain: ChainName, config: HelloWorldConfig) {
     const router = await this.deployContract(chain, 'router', [
       config.mailbox,
-      config.interchainGasPaymaster,
+      config.hook ?? ethers.constants.AddressZero,
     ]);
     return {
       router,
