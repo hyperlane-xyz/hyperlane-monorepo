@@ -17,6 +17,8 @@ module hp_mailbox::events {
     origin_domain: u32,
     sender: vector<u8>,
     recipient: address,
+    block_height: u64,
+    transaction_hash: vector<u8>,
   }
 
   struct IsmSetEvent has store, drop {
@@ -44,7 +46,9 @@ module hp_mailbox::events {
     origin_domain: u32,
     sender: vector<u8>,
     recipient: address,
+    block_height: u64,
+    transaction_hash: vector<u8>,
   ): ProcessEvent {
-    ProcessEvent { message_id, origin_domain, sender, recipient }
+    ProcessEvent { message_id, origin_domain, sender, recipient, block_height, transaction_hash }
   }
 }

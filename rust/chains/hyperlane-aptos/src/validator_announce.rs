@@ -8,8 +8,8 @@ use tracing::info;
 use tracing::{instrument, warn};
 
 use crate::utils::{self, send_aptos_transaction};
-use crate::ConnectionConf;
-use crate::{convert_keypair_to_aptos_account, AptosClient};
+use crate::{convert_hex_string_to_h256, convert_keypair_to_aptos_account, AptosClient};
+use crate::{simulate_aptos_transaction, ConnectionConf};
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, SignedType, TxOutcome, ValidatorAnnounce, H256, H512, U256,
@@ -95,6 +95,7 @@ impl AptosValidatorAnnounce {
                 bcs::to_bytes(&announcement.value.storage_location).unwrap(),
             ],
         );
+
         let response =
             send_aptos_transaction(&self.aptos_client, &mut signer_account, payload.clone())
                 .await?;
@@ -151,8 +152,13 @@ impl ValidatorAnnounce for AptosValidatorAnnounce {
             vec![serde_json::Value::Array(validator_addresses)],
         )
         .await?;
+
         let view_result = serde_json::from_str::<Vec<Vec<String>>>(&view_response[0].to_string());
-        Ok(view_result.unwrap())
+        let mut view_result = view_result.unwrap();
+        if view_result.len() == 0 {
+            view_result.push(vec![]);
+        }
+        Ok(view_result)
     }
 
     async fn announce_tokens_needed(
@@ -182,7 +188,7 @@ impl ValidatorAnnounce for AptosValidatorAnnounce {
             })?;
 
         Ok(TxOutcome {
-            transaction_id: H512::from(H256::from_str(&tx_hash).unwrap()),
+            transaction_id: H512::from(convert_hex_string_to_h256(&tx_hash).unwrap()),
             executed: is_success,
             gas_used: U256::zero(),
             gas_price: U256::zero(),

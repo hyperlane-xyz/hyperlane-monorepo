@@ -10,6 +10,7 @@ module hp_router::router {
   use hp_igps::igps;
   use hp_mailbox::mailbox;
   use hp_library::msg_utils;
+  use hp_library::h256;
   use hp_router::events::{Self, EnrollRemoteRouterEvent};
 
   //
@@ -24,18 +25,22 @@ module hp_router::router {
   const ERROR_ROUTER_ALREADY_INITED: u64 = 6;
   const ERROR_DUPLICATED_TYPEINFO: u64 = 7;
   
+  //
+  // Constants
+  //
+  const APTOS_TESTNET_DOMAIN: u32 = 14402;
   
   //
   // Resources
   //
 
   struct RouterRegistry has key {
-    router_state_map: SimpleMap<TypeInfo, RouterState>
+    router_state_map: SimpleMap<TypeInfo, RouterState>,
+    local_domain: u32,
   }
 
   struct RouterState has store {
     owner_address: address,
-    local_domain: u32,
     routers: SimpleMap<u32, vector<u8>>,
     // event handle
     enroll_router_events: EventHandle<EnrollRemoteRouterEvent>
@@ -45,11 +50,12 @@ module hp_router::router {
 
   fun init_module(account: &signer) {
     move_to<RouterRegistry>(account, RouterRegistry {
-      router_state_map: simple_map::create<TypeInfo, RouterState>()
+      router_state_map: simple_map::create<TypeInfo, RouterState>(),
+      local_domain: APTOS_TESTNET_DOMAIN
     });
   }
 
-  public fun init<T>(account: &signer, local_domain: u32): RouterCap<T> acquires RouterRegistry {
+  public fun init<T>(account: &signer): RouterCap<T> acquires RouterRegistry {
     let account_address = signer::address_of(account);
 
     // Type T should be declared within that account address
@@ -60,7 +66,6 @@ module hp_router::router {
 
     simple_map::add(&mut registry.router_state_map, type_info::type_of<T>(), RouterState {
       owner_address: account_address,
-      local_domain,
       routers: simple_map::create<u32, vector<u8>>(),
       enroll_router_events: account::new_event_handle<EnrollRemoteRouterEvent>(account)
     });
@@ -168,7 +173,7 @@ module hp_router::router {
     mailbox::outbox_dispatch(
       get_type_address<T>(),
       dest_domain,
-      recipient,
+      h256::from_bytes(&recipient),
       message_body
     )
   }

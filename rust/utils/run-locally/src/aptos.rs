@@ -40,7 +40,7 @@ pub fn start_aptos_local_testnet() -> AgentHandles {
         .arg("faucet-port", "8081")
         .flag("force-restart")
         .flag("assume-yes")
-        .spawn("APTOS");
+        .spawn("APTOS-NODE");
 
     // wait for faucet to get started.
     sleep(Duration::from_secs(20));
@@ -55,6 +55,15 @@ pub fn start_aptos_local_testnet() -> AgentHandles {
 }
 
 #[apply(as_task)]
+pub fn start_aptos_deploying() {
+    Program::new("bash")
+        .working_dir("../move/e2e/")
+        .cmd("compile-and-deploy.sh")
+        .run()
+        .join();
+}
+
+#[apply(as_task)]
 pub fn init_aptos_modules_state() {
     Program::new("bash")
         .working_dir("../move/e2e/")
@@ -66,6 +75,22 @@ pub fn init_aptos_modules_state() {
         .working_dir("../move/e2e/")
         .cmd("init_states.sh")
         .cmd("init_ln2_modules")
+        .run()
+        .join();
+}
+
+#[apply(as_task)]
+pub fn aptos_send_messages() {
+    Program::new("bash")
+        .working_dir("../move/e2e/")
+        .cmd("init_states.sh")
+        .cmd("send_hello_ln1_to_ln2")
+        .run()
+        .join();
+    Program::new("bash")
+        .working_dir("../move/e2e/")
+        .cmd("init_states.sh")
+        .cmd("send_hello_ln2_to_ln1")
         .run()
         .join();
 }

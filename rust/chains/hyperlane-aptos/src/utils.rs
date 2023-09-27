@@ -23,7 +23,7 @@ use solana_sdk::signature::Keypair;
 use std::{ops::RangeInclusive, str::FromStr};
 
 /// limit of gas unit
-const GAS_UNIT_LIMIT: u64 = 1500000;
+const GAS_UNIT_LIMIT: u64 = 100000;
 /// minimum price of gas unit of aptos chains
 pub const GAS_UNIT_PRICE: u64 = 100;
 
@@ -131,7 +131,7 @@ pub async fn send_view_request(
 }
 
 /// Convert address string to H256
-pub fn convert_addr_string_to_h256(addr: &str) -> Result<H256, String> {
+pub fn convert_hex_string_to_h256(addr: &str) -> Result<H256, String> {
     let formated_addr = format!("{:0>64}", addr.to_string().trim_start_matches("0x"));
     H256::from_str(&formated_addr).map_err(|e| e.to_string())
 }
@@ -157,6 +157,7 @@ pub async fn convert_keypair_to_aptos_account(
     );
     signer_account
 }
+
 /// Filter events based on range
 pub async fn get_filtered_events<T, S>(
     aptos_client: &AptosClient,
@@ -170,6 +171,7 @@ where
     ChainCommunicationError:
         From<<S as TryFrom<VersionedEvent>>::Error> + From<<S as TryInto<T>>::Error>,
 {
+    // fetch events from global storage
     let events: Vec<VersionedEvent> = aptos_client
         .get_account_events(account_address, struct_tag, field_name, None, Some(10000))
         .await
@@ -192,11 +194,13 @@ where
     let start_tx_version = start_block.first_version;
     let end_tx_version = end_block.last_version;
 
+    // filter events which is in from `start_tx_version` to `end_tx_version`
     let filtered_events: Vec<VersionedEvent> = events
         .into_iter()
         .filter(|e| e.version.0 > start_tx_version.0 && e.version.0 <= end_tx_version.0)
         .collect();
 
+    // prepare result
     let mut messages: Vec<(T, LogMeta)> =
         Vec::with_capacity((range.end() - range.start()) as usize);
     for filtered_event in filtered_events {
@@ -212,8 +216,10 @@ where
             LogMeta {
                 address: account_address.into_bytes().into(),
                 block_number: block_height,
-                block_hash: convert_addr_string_to_h256(&block.block_hash.to_string()).unwrap(),
-                transaction_id: H512::from_str(&evt_data.transaction_hash()).unwrap(),
+                block_hash: convert_hex_string_to_h256(&block.block_hash.to_string()).unwrap(),
+                transaction_id: H512::from(
+                    convert_hex_string_to_h256(&evt_data.transaction_hash()).unwrap(),
+                ),
                 transaction_index: *filtered_event.version.inner(),
                 log_index: U256::from(*filtered_event.sequence_number.inner()),
             },

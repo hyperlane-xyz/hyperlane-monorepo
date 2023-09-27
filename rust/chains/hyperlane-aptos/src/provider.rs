@@ -8,7 +8,7 @@ use hyperlane_core::{
     TxnReceiptInfo, H256, U256,
 };
 
-use crate::{convert_addr_string_to_h256, AptosClient};
+use crate::{convert_hex_string_to_h256, AptosClient};
 
 /// A wrapper around a Aptos provider to get generic blockchain information.
 #[derive(Debug)]
@@ -43,13 +43,9 @@ impl HyperlaneChain for AptosHpProvider {
 
 #[async_trait]
 impl HyperlaneProvider for AptosHpProvider {
-    async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
+    async fn get_block_by_hash(&self, _hash: &H256) -> ChainResult<BlockInfo> {
         // getting block by hash is not supported in Aptos
-        Ok(BlockInfo {
-            hash: *hash,
-            timestamp: 0,
-            number: 0,
-        })
+        todo!() // FIXME
     }
 
     async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
@@ -69,7 +65,7 @@ impl HyperlaneProvider for AptosHpProvider {
         if let Transaction::UserTransaction(tx) = transaction {
             gas_price = Some(U256::from(tx.request.gas_unit_price.0));
             gas_limit = U256::from(tx.request.max_gas_amount.0);
-            sender = convert_addr_string_to_h256(&tx.request.sender.to_string()).unwrap();
+            sender = convert_hex_string_to_h256(&tx.request.sender.to_string()).unwrap();
         }
 
         Ok(TxnInfo {

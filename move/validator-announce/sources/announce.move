@@ -124,6 +124,10 @@ module hp_validator::validator_announce {
     let signer_address_bytes = option::extract<vector<u8>>(&mut signer_address_result);
 
     // TODO: compare `address_bytes` and `address`
+
+    aptos_std::debug::print<vector<u8>>(&signer_address_bytes);
+    aptos_std::debug::print<address>(&validator);
+    
     assert!(utils::compare_bytes_and_address(&signer_address_bytes, &validator), ERROR_INVALID_VALIDATOR_SIGN);
   }
   
@@ -188,5 +192,37 @@ module hp_validator::validator_announce {
     assert!(get_announced_validators() == vector[validator], 1);
     assert!(get_announced_storage_locations(vector[validator]) == vector[vector[storage_location]], 2);
   }
+
+  #[test(aptos = @0x1, announce_signer = @hp_validator, bob = @0xb0b)]
+  fun announce_test(aptos: signer, announce_signer: signer, bob: signer) acquires ValidatorState {
+    let mailbox: address = @0x476307c25c54b76b331a4e3422ae293ada422f5455efed1553cf4de1222a108f;
+    let domain: u32 = 14411;
+    let validator: address = @0x598264ff31f198f6071226b2b7e9ce360163accd;
+    let storage_location: String = string::utf8(b"file:///tmp/hyperlane-validator-signatures-APTOSLOCALNET1-1");
+    // init envs
+    test_utils::setup(&aptos, &announce_signer, vector[]);
+    init_module(&announce_signer);
+    initialize(&announce_signer, mailbox, domain);
+
+    let signature = x"d512c8e5c2861f33c909a72369155518e5388ff2a707b25b62ad72db78eec65f648e65313cda5a5144e787102ae1b801ea8720960f737ddc8020e7bdb6608fff1c";
+    let validator_state = borrow_global_mut<ValidatorState>(@hp_validator);
+    verify_validator_signed_announcement_internal(
+      validator_state,
+      validator,
+      signature,
+      storage_location
+    );
+
+    announce(
+      &bob,
+      validator,
+      signature,
+      storage_location
+    );
+    
+    assert!(get_announced_validators() == vector[validator], 1);
+    assert!(get_announced_storage_locations(vector[validator]) == vector[vector[storage_location]], 2);
+  }
+
   
 }

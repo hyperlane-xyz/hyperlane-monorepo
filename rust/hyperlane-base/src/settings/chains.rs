@@ -113,13 +113,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => todo!(),
-            ChainConnectionConf::Aptos(conf) => {
-                let locator = self.locator(H256::zero());
-                Ok(Box::new(h_aptos::AptosHpProvider::new(
-                    locator.domain.clone(),
-                    conf.url.to_string(),
-                )) as Box<dyn HyperlaneProvider>)
-            }
+            ChainConnectionConf::Aptos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -251,7 +245,10 @@ impl ChainConf {
                 );
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
-            ChainConnectionConf::Aptos(_) => todo!(),
+            ChainConnectionConf::Aptos(conf) => {
+                let paymaster = Box::new(h_aptos::AptosInterchainGasPaymaster::new(conf, &locator));
+                Ok(paymaster as Box<dyn InterchainGasPaymaster>)
+            }
         }
         .context(ctx)
     }

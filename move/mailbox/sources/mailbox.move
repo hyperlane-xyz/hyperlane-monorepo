@@ -11,6 +11,7 @@ module hp_mailbox::mailbox {
   use hp_mailbox::events::{Self, ProcessEvent, DispatchEvent};
   use hp_library::msg_utils;
   use hp_library::utils;
+  use hp_library::h256::{Self, H256};
   use hp_library::merkle_tree::{Self, MerkleTree};
   use hp_isms::multisig_ism;
 
@@ -107,7 +108,9 @@ module hp_mailbox::mailbox {
         id,
         state.local_domain,
         msg_utils::sender(&message),
-        msg_utils::recipient(&message)
+        msg_utils::recipient(&message),
+        block::get_current_block_height(),
+        transaction_context::get_transaction_hash(),
       ));
   }
 
@@ -115,7 +118,7 @@ module hp_mailbox::mailbox {
   public fun outbox_dispatch(
     sender_address: address,
     destination_domain: u32,
-    recipient: vector<u8>, // package::module
+    _recipient: H256, // package::module
     message_body: vector<u8>,
   ): vector<u8> acquires MailBoxState {
     
@@ -125,9 +128,12 @@ module hp_mailbox::mailbox {
 
     assert!(vector::length(&message_body) < MAX_MESSAGE_BODY_BYTES, ERROR_MSG_LENGTH_OVERFLOW);
     
+    // convert H256 to 32-bytes vector
+    let recipient = h256::to_bytes(&_recipient);
+
     //! Emit Event so that the relayer can fetch message content
     // TODO : optimize format_message_into_bytes. id() consumes memory
-    
+
     let message_bytes = msg_utils::format_message_into_bytes(
       utils::get_version(), // version
       tree_count,   // nonce

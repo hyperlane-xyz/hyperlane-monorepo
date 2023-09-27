@@ -1,12 +1,12 @@
 // !TODO: add remote router control, gas control
 module examples::hello_world {
-
+  use std::vector;
   use hp_router::router;
+  use hp_library::msg_utils;
 
   // Constants
 
   const DOMAIN_BSCTESTNET: u32 = 97;
-  const DOMAIN_APTOSTESTNET: u32 = 14402;
   const DEFAULT_GAS_AMOUNT: u256 = 1_000_000_000;
 
   // Errors
@@ -15,14 +15,16 @@ module examples::hello_world {
   struct HelloWorld {}
 
   struct State has key {
-    cap: router::RouterCap<HelloWorld>
+    cap: router::RouterCap<HelloWorld>,
+    received_messages: vector<vector<u8>>
   }
 
   /// Initialize Module
   fun init_module(account: &signer) {
-    let cap = router::init<HelloWorld>(account, DOMAIN_APTOSTESTNET);
-    move_to<State>(account, State {
-      cap
+    let cap = router::init<HelloWorld>(account);
+    move_to<State>(account, State { 
+      cap,
+      received_messages: vector::empty()
     });
   }
 
@@ -32,12 +34,10 @@ module examples::hello_world {
     dest_domain: u32,
     message: vector<u8>
   ) acquires State {
-    assert!(dest_domain == DOMAIN_BSCTESTNET, ERROR_INVALID_DOMAIN);
-
     let state = borrow_global<State>(@examples);
 
     router::dispatch<HelloWorld>(
-      DOMAIN_BSCTESTNET,
+      dest_domain,
       message,
       &state.cap
     );
@@ -49,13 +49,11 @@ module examples::hello_world {
     dest_domain: u32,
     message: vector<u8>
   ) acquires State {
-    assert!(dest_domain == DOMAIN_BSCTESTNET, ERROR_INVALID_DOMAIN);
-
     let state = borrow_global<State>(@examples);
 
     router::dispatch_with_gas<HelloWorld>(
       account,
-      DOMAIN_BSCTESTNET,
+      dest_domain,
       message,
       DEFAULT_GAS_AMOUNT,
       &state.cap
@@ -64,17 +62,19 @@ module examples::hello_world {
 
 
   /// Receive message from other chains
-  public fun handle_message(
+  public entry fun handle_message(
     message: vector<u8>,
     metadata: vector<u8>
   ) acquires State {
-    let state = borrow_global<State>(@examples);
+    let state = borrow_global_mut<State>(@examples);
 
     router::handle<HelloWorld>(
       message,
       metadata,
       &state.cap
     );
+
+    vector::push_back(&mut state.received_messages, msg_utils::body(&message));
   }
 
   #[test]

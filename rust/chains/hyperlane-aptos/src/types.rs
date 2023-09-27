@@ -106,7 +106,7 @@ impl TryInto<InterchainGasPayment> for GasPaymentEventData {
     type Error = ChainCommunicationError;
     fn try_into(self) -> Result<InterchainGasPayment, Self::Error> {
         Ok(InterchainGasPayment {
-            message_id: utils::convert_addr_string_to_h256(&self.message_id).unwrap(),
+            message_id: utils::convert_hex_string_to_h256(&self.message_id).unwrap(),
             payment: U256::from_str(&self.required_amount)
                 .map_err(ChainCommunicationError::from_other)
                 .unwrap(),
@@ -118,6 +118,47 @@ impl TryInto<InterchainGasPayment> for GasPaymentEventData {
 }
 
 impl TxSpecificData for GasPaymentEventData {
+    fn block_height(&self) -> String {
+        self.block_height.clone()
+    }
+    fn transaction_hash(&self) -> String {
+        self.transaction_hash.clone()
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+/// Move Value Data of GasPayment Event
+pub struct MsgProcessEventData {
+    /// hyperlane message id
+    pub message_id: String,
+    /// domain of origin chain
+    pub origin_domain: u32,
+    /// address of sender (router)
+    pub sender: String,
+    /// address of recipient
+    pub recipient: String,
+    /// block number
+    pub block_height: String,
+    /// hash of transaction
+    pub transaction_hash: String,
+}
+
+impl TryFrom<VersionedEvent> for MsgProcessEventData {
+    type Error = ChainCommunicationError;
+    fn try_from(value: VersionedEvent) -> Result<Self, Self::Error> {
+        serde_json::from_str::<Self>(&value.data.to_string())
+            .map_err(ChainCommunicationError::from_other)
+    }
+}
+
+impl TryInto<H256> for MsgProcessEventData {
+    type Error = ChainCommunicationError;
+    fn try_into(self) -> Result<H256, Self::Error> {
+        Ok(utils::convert_hex_string_to_h256(&self.message_id).unwrap())
+    }
+}
+
+impl TxSpecificData for MsgProcessEventData {
     fn block_height(&self) -> String {
         self.block_height.clone()
     }

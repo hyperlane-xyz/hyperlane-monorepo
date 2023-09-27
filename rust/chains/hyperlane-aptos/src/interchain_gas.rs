@@ -25,7 +25,7 @@ pub struct AptosInterchainGasPaymaster {
 
 impl AptosInterchainGasPaymaster {
     /// Create a new Aptos IGP.
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> Self {
+    pub fn new(conf: &ConnectionConf, locator: &ContractLocator) -> Self {
         let package_address =
             AccountAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
         let aptos_client_url = conf.url.to_string();

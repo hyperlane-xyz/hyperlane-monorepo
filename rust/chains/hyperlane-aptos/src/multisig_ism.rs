@@ -97,7 +97,7 @@ impl MultisigIsm for AptosMultisigISM {
             serde_json::from_str::<Vec<String>>(&view_response[0].to_string())
                 .unwrap()
                 .iter()
-                .map(|v| utils::convert_addr_string_to_h256(v).unwrap())
+                .map(|v| utils::convert_hex_string_to_h256(v).unwrap())
                 .collect();
         let threshold = serde_json::from_str::<String>(&view_response[1].to_string())
             .unwrap()

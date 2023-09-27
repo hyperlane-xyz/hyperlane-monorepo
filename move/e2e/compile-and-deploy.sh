@@ -31,6 +31,7 @@ LN2_MAILBOX_ADDRESS="0xd338e68ca12527e77cab474ee8ec91ffa4e6512ced9ae8f47e28c5c7c
 LN2_ROUTER_ADDRESS="0xd85669f567da6d24d296dccb7a7bfa1c666530eeb0e7b294791094e7a2dce8e3"
 LN2_VALIDATOR_ANNOUNCE_ADDRESS="0xce1f65297828eaa6e460724a869317154f05cdde26619c0e5c0ca23aac3f69c7"
 
+################# Fund contract signers and compile & publish contracts ####################
 function fund_and_publish() {
   cd $PWD_DIR_PATH
   cd ../$1
@@ -58,4 +59,17 @@ fund_and_publish "mailbox" $LN2_MAILBOX_ADDRESS "../e2e/aptos-test-keys/localnet
 fund_and_publish "router" $LN2_ROUTER_ADDRESS "../e2e/aptos-test-keys/localnet2/router-keypair.json" "$LN2_ADDRESS_MATHING"
 fund_and_publish "examples" $LN2_EXAMPLES_ADDRESS "../e2e/aptos-test-keys/localnet2/examples-keypair.json" "$LN2_ADDRESS_MATHING"
 
+################# Fund signers ####################
+function fund() {
+  aptos account fund-with-faucet --account $1 --url $REST_API_URL --faucet-url $FAUCET_URL
+}
 
+LN1_VALIDATOR_SIGNER_ADDRESS="0x21779477148b80ec9e123cc087a04ebbfb4a9de0ba64aa8f31510a0266423bb9"
+LN1_RELAYER_SIGNER_ADDRESS="0x8b4376073a408ece791f4adc34a8afdde405bae071711dcbb95ca4e5d4f26c93"
+LN2_VALIDATOR_SIGNER_ADDRESS="0xef7adb55757d157d1a1f76d5d04806aba4f9099a32260b9356d6dd53c177cd1e"
+LN2_RELAYER_SIGNER_ADDRESS="0xcc7867910e0c3a1b8f304255123a4459c0222c78987d628f1effbf122f436b7b"
+
+fund $LN1_VALIDATOR_SIGNER_ADDRESS
+fund $LN1_RELAYER_SIGNER_ADDRESS
+fund $LN2_VALIDATOR_SIGNER_ADDRESS
+fund $LN2_RELAYER_SIGNER_ADDRESS

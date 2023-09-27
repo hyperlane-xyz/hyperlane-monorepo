@@ -19,13 +19,13 @@ use hyperlane_core::{
 
 use crate::{
     convert_keypair_to_aptos_account, get_filtered_events, simulate_aptos_transaction, utils,
-    AptosHpProvider, ConnectionConf, GAS_UNIT_PRICE,
+    AptosHpProvider, ConnectionConf, MsgProcessEventData, GAS_UNIT_PRICE,
 };
 
 use solana_sdk::signature::Keypair;
 
 use crate::types::{DispatchEventData, MoveMerkleTree};
-use crate::utils::{convert_addr_string_to_h256, send_aptos_transaction};
+use crate::utils::{convert_hex_string_to_h256, send_aptos_transaction};
 use crate::AptosClient;
 
 use aptos_sdk::{
@@ -187,7 +187,7 @@ impl Mailbox for AptosMailbox {
 
         let ism_address = serde_json::from_str::<String>(&view_response[0].to_string()).unwrap();
 
-        Ok(convert_addr_string_to_h256(&ism_address).unwrap())
+        Ok(convert_hex_string_to_h256(&ism_address).unwrap())
     }
 
     #[instrument(err, ret, skip(self))]
@@ -236,11 +236,13 @@ impl Mailbox for AptosMailbox {
                 })?;
 
         // fetch transaction information from the response
-        let tx_hash = response.transaction_info().unwrap().hash.to_string();
+        let tx_hash =
+            convert_hex_string_to_h256(&response.transaction_info().unwrap().hash.to_string())
+                .unwrap();
         let has_success = response.success();
         let gas_used = response.transaction_info().unwrap().gas_used;
         Ok(TxOutcome {
-            transaction_id: H512::from_str(&tx_hash).unwrap(),
+            transaction_id: H512::from(tx_hash),
             executed: has_success,
             gas_price: U256::from(GAS_UNIT_PRICE),
             gas_used: U256::from(gas_used.0),
@@ -350,8 +352,11 @@ impl Indexer<HyperlaneMessage> for AptosMailboxIndexer {
         get_filtered_events::<HyperlaneMessage, DispatchEventData>(
             &self.aptos_client,
             self.package_address,
-            &format!("{}::igps::IgpState", self.package_address.to_hex_literal()),
-            "gas_payment_events",
+            &format!(
+                "{}::mailbox::MailBoxState",
+                self.package_address.to_hex_literal()
+            ),
+            "dispatch_events",
             range,
         )
         .await
@@ -364,8 +369,18 @@ impl Indexer<HyperlaneMessage> for AptosMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for AptosMailboxIndexer {
-    async fn fetch_logs(&self, _range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
-        todo!()
+    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
+        get_filtered_events::<H256, MsgProcessEventData>(
+            &self.aptos_client,
+            self.package_address,
+            &format!(
+                "{}::mailbox::MailBoxState",
+                self.package_address.to_hex_literal()
+            ),
+            "process_events",
+            range,
+        )
+        .await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
