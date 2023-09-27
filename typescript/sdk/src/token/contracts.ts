@@ -5,7 +5,7 @@ import {
   HypERC721URICollateral__factory,
   HypERC721__factory,
   HypNative__factory,
-} from './types';
+} from '@hyperlane-xyz/core';
 
 export type HypERC20Factories = {
   router: HypERC20__factory | HypERC20Collateral__factory | HypNative__factory;

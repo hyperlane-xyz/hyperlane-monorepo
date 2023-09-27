@@ -1,13 +1,16 @@
 import { PublicKey } from '@solana/web3.js';
 
+import { Domain } from '@hyperlane-xyz/utils';
+
+import {
+  SealevelInterchainGasPaymasterConfig,
+  SealevelInterchainGasPaymasterConfigSchema,
+} from '../../gas/adapters/serialization';
 import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
-  SealevelInterchainGasPaymasterConfig,
-  SealevelInterchainGasPaymasterConfigSchema,
   getSealevelAccountDataSchema,
-} from '@hyperlane-xyz/sdk';
-import { Domain } from '@hyperlane-xyz/utils';
+} from '../../utils/sealevelSerialization';
 
 /**
  * Hyperlane Token Borsh Schema

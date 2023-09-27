@@ -1,15 +1,29 @@
 import { providers } from 'ethers';
 
 import {
-  ChainMap,
-  ChainName,
-  GasConfig,
-  GasRouterDeployer,
-  HyperlaneContracts,
-  MultiProvider,
-  RouterConfig,
-} from '@hyperlane-xyz/sdk';
+  ERC20__factory,
+  ERC721EnumerableUpgradeable__factory,
+  HypERC20,
+  HypERC20Collateral,
+  HypERC20Collateral__factory,
+  HypERC20__factory,
+  HypERC721,
+  HypERC721Collateral,
+  HypERC721Collateral__factory,
+  HypERC721URICollateral__factory,
+  HypERC721URIStorage__factory,
+  HypERC721__factory,
+  HypNative,
+  HypNativeScaled__factory,
+  HypNative__factory,
+} from '@hyperlane-xyz/core';
 import { objMap } from '@hyperlane-xyz/utils';
+
+import { HyperlaneContracts } from '../contracts/types';
+import { MultiProvider } from '../providers/MultiProvider';
+import { GasRouterDeployer } from '../router/GasRouterDeployer';
+import { GasConfig, RouterConfig } from '../router/types';
+import { ChainMap, ChainName } from '../types';
 
 import {
   CollateralConfig,
@@ -31,23 +45,6 @@ import {
   isUriConfig,
 } from './config';
 import { HypERC20Factories, HypERC721Factories } from './contracts';
-import {
-  ERC20__factory,
-  ERC721EnumerableUpgradeable__factory,
-  HypERC20,
-  HypERC20Collateral,
-  HypERC20Collateral__factory,
-  HypERC20__factory,
-  HypERC721,
-  HypERC721Collateral,
-  HypERC721Collateral__factory,
-  HypERC721URICollateral__factory,
-  HypERC721URIStorage__factory,
-  HypERC721__factory,
-  HypNative,
-  HypNativeScaled__factory,
-  HypNative__factory,
-} from './types';
 
 export class HypERC20Deployer extends GasRouterDeployer<
   ERC20RouterConfig,
@@ -124,14 +121,12 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20CollateralConfig,
   ): Promise<HypERC20Collateral> {
-    const router = await this.deployContractFromFactory(
+    return this.deployContractFromFactory(
       chain,
       new HypERC20Collateral__factory(),
       'HypERC20Collateral',
-      [config.token],
+      [config.token, config.mailbox],
     );
-    await this.multiProvider.handleTx(chain, router.initialize(config.mailbox));
-    return router;
   }
 
   protected async deployNative(
@@ -144,17 +139,16 @@ export class HypERC20Deployer extends GasRouterDeployer<
         chain,
         new HypNativeScaled__factory(),
         'HypNativeScaled',
-        [config.scale],
+        [config.scale, config.mailbox],
       );
     } else {
       router = await this.deployContractFromFactory(
         chain,
         new HypNative__factory(),
         'HypNative',
-        [],
+        [config.mailbox],
       );
     }
-    await this.multiProvider.handleTx(chain, router.initialize(config.mailbox));
     return router;
   }
 
@@ -166,16 +160,11 @@ export class HypERC20Deployer extends GasRouterDeployer<
       chain,
       new HypERC20__factory(),
       'HypERC20',
-      [config.decimals],
+      [config.decimals, config.mailbox],
     );
     await this.multiProvider.handleTx(
       chain,
-      router.initialize(
-        config.mailbox,
-        config.totalSupply,
-        config.name,
-        config.symbol,
-      ),
+      router.initialize(config.totalSupply, config.name, config.symbol),
     );
     return router;
   }
@@ -306,17 +295,16 @@ export class HypERC721Deployer extends GasRouterDeployer<
         chain,
         new HypERC721URICollateral__factory(),
         'HypERC721URICollateral',
-        [config.token],
+        [config.token, config.mailbox],
       );
     } else {
       router = await this.deployContractFromFactory(
         chain,
         new HypERC721Collateral__factory(),
         'HypERC721Collateral',
-        [config.token],
+        [config.token, config.mailbox],
       );
     }
-    await this.multiProvider.handleTx(chain, router.initialize(config.mailbox));
     return router;
   }
 
@@ -330,24 +318,19 @@ export class HypERC721Deployer extends GasRouterDeployer<
         chain,
         new HypERC721URIStorage__factory(),
         'HypERC721URIStorage',
-        [],
+        [config.mailbox],
       );
     } else {
       router = await this.deployContractFromFactory(
         chain,
         new HypERC721__factory(),
         'HypERC721',
-        [],
+        [config.mailbox],
       );
     }
     await this.multiProvider.handleTx(
       chain,
-      router.initialize(
-        config.mailbox,
-        config.totalSupply,
-        config.name,
-        config.symbol,
-      ),
+      router.initialize(config.totalSupply, config.name, config.symbol),
     );
     return router;
   }

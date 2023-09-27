@@ -16,16 +16,6 @@ import BigNumber from 'bignumber.js';
 import { deserializeUnchecked, serialize } from 'borsh';
 
 import {
-  BaseSealevelAdapter,
-  ChainName,
-  MultiProtocolProvider,
-  SEALEVEL_SPL_NOOP_ADDRESS,
-  SealevelAccountDataWrapper,
-  SealevelInstructionWrapper,
-  SealevelInterchainGasPaymasterType,
-  SealevelOverheadIgpAdapter,
-} from '@hyperlane-xyz/sdk';
-import {
   Address,
   Domain,
   addressToBytes,
@@ -33,6 +23,16 @@ import {
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
+import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
+import { SEALEVEL_SPL_NOOP_ADDRESS } from '../../consts/sealevel';
+import { SealevelOverheadIgpAdapter } from '../../gas/adapters/SealevelIgpAdapter';
+import { SealevelInterchainGasPaymasterType } from '../../gas/adapters/serialization';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
+import { ChainName } from '../../types';
+import {
+  SealevelAccountDataWrapper,
+  SealevelInstructionWrapper,
+} from '../../utils/sealevelSerialization';
 import { MinimalTokenMetadata } from '../config';
 
 import {

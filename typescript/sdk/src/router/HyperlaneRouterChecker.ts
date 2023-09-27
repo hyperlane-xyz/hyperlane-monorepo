@@ -8,9 +8,9 @@ import { ChainName } from '../types';
 
 import { RouterApp } from './RouterApps';
 import {
-  ConnectionClientConfig,
-  ConnectionClientViolation,
-  ConnectionClientViolationType,
+  ClientViolation,
+  ClientViolationType,
+  MailboxClientConfig,
   OwnableConfig,
   RouterConfig,
 } from './types';
@@ -21,29 +21,29 @@ export class HyperlaneRouterChecker<
   Config extends RouterConfig,
 > extends HyperlaneAppChecker<App, Config> {
   async checkChain(chain: ChainName): Promise<void> {
-    await this.checkHyperlaneConnectionClient(chain);
+    await this.checkMailboxClient(chain);
     await this.checkEnrolledRouters(chain);
     await super.checkOwnership(chain, this.configMap[chain].owner);
   }
 
-  async checkHyperlaneConnectionClient(chain: ChainName): Promise<void> {
+  async checkMailboxClient(chain: ChainName): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
 
     const checkConnectionClientProperty = async (
-      property: keyof (ConnectionClientConfig & OwnableConfig),
-      violationType: ConnectionClientViolationType,
+      property: keyof (MailboxClientConfig & OwnableConfig),
+      violationType: ClientViolationType,
     ) => {
       const actual = await router[property]();
       // TODO: check for IsmConfig
       const value = this.configMap[chain][property];
       if (value && typeof value === 'object')
-        throw new Error('ISM as object unimplemented');
+        throw new Error('object config unimplemented');
       const expected =
         value && typeof value === 'string'
           ? value
           : ethers.constants.AddressZero;
       if (!eqAddress(actual, expected)) {
-        const violation: ConnectionClientViolation = {
+        const violation: ClientViolation = {
           chain,
           type: violationType,
           contract: router,
@@ -54,17 +54,11 @@ export class HyperlaneRouterChecker<
       }
     };
 
-    await checkConnectionClientProperty(
-      'mailbox',
-      ConnectionClientViolationType.Mailbox,
-    );
-    await checkConnectionClientProperty(
-      'interchainGasPaymaster',
-      ConnectionClientViolationType.InterchainGasPaymaster,
-    );
+    await checkConnectionClientProperty('mailbox', ClientViolationType.Mailbox);
+    await checkConnectionClientProperty('hook', ClientViolationType.Hook);
     await checkConnectionClientProperty(
       'interchainSecurityModule',
-      ConnectionClientViolationType.InterchainSecurityModule,
+      ClientViolationType.Hook,
     );
   }
 

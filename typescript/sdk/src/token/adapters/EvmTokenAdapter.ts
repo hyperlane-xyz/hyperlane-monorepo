@@ -1,10 +1,12 @@
 import { BigNumber, PopulatedTransaction } from 'ethers';
 
 import {
-  BaseEvmAdapter,
-  ChainName,
-  MultiProtocolProvider,
-} from '@hyperlane-xyz/sdk';
+  ERC20,
+  ERC20__factory,
+  HypERC20,
+  HypERC20Collateral__factory,
+  HypERC20__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
@@ -14,14 +16,10 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
+import { BaseEvmAdapter } from '../../app/MultiProtocolApp';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
+import { ChainName } from '../../types';
 import { MinimalTokenMetadata } from '../config';
-import {
-  ERC20,
-  ERC20__factory,
-  HypERC20,
-  HypERC20Collateral__factory,
-  HypERC20__factory,
-} from '../types';
 
 import {
   IHypTokenAdapter,
