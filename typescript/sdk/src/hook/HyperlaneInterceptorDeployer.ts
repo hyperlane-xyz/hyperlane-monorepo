@@ -1,4 +1,9 @@
-import { Address, objFilter } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  objFilter,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneContracts,
@@ -15,14 +20,17 @@ import { ChainMap, ChainName } from '../types';
 import { isHookConfig } from './config';
 import { InterceptorConfig } from './types';
 
+export interface HookOptions {
+  remoteIsm?: Address;
+}
+
 export abstract class HyperlaneInterceptorDeployer<
   Config extends InterceptorConfig,
   HookFactories extends HyperlaneFactories,
 > extends HyperlaneDeployer<Config, HookFactories> {
   constructor(
-    multiProvider: MultiProvider,
+    protected readonly multiProvider: MultiProvider,
     factories: HookFactories,
-    mailbox: Address,
     options?: DeployerOptions,
   ) {
     super(multiProvider, factories, options);
@@ -31,32 +39,27 @@ export abstract class HyperlaneInterceptorDeployer<
   async deploy(
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<HookFactories>> {
-    // TODO: uncomment when ISMs are implemented
     const ismConfigMap = objFilter(
       configMap,
       (_, config): config is Config => !isHookConfig(config),
     );
+    this.logger(`Deploying ISM contracts to ${Object.keys(ismConfigMap)}`);
     await super.deploy(ismConfigMap);
 
     const hookConfigMap = objFilter(configMap, (_, config): config is Config =>
       isHookConfig(config),
     );
+    this.logger(`Deploying hook contracts to ${Object.keys(hookConfigMap)}`);
     await super.deploy(hookConfigMap);
 
-    // deploy Hooks next
-    // TODO: post deploy steps
-    // configure ISMs with authorized hooks
-    // await promiseObjAll(
-    //   objMap(hookConfigMap, (hookChain, hookConfig) => {
-    //     const hookAddress = this.deployedContracts[hookChain].hook.address;
-    //     const ism = this.deployedContracts[hookConfig.destination].ism;
-    //     return this.multiProvider.handleTx(
-    //       hookConfig.destination,
-    //       ism.setAuthorizedHook(hookAddress),
-    //     );
-    //   }),
-    // );
+    // post deploy actions (e.g. setting up authored hook)
+    await promiseObjAll(
+      objMap(ismConfigMap, (chain, config) => {
+        return this.postDeploy(chain, config);
+      }),
+    );
 
+    this.logger('Interceptor deployment finished successfully');
     return this.deployedContracts;
   }
 
@@ -74,13 +77,16 @@ export abstract class HyperlaneInterceptorDeployer<
   protected abstract deployHookContracts(
     chain: ChainName,
     config: Config,
-    mailbox?: Address,
   ): Promise<HyperlaneContracts<HookFactories>>;
 
   protected abstract deployIsmContracts(
     chain: ChainName,
     config: Config,
   ): Promise<HyperlaneContracts<HookFactories>>;
+
+  protected postDeploy(__: ChainName, _: Config): Promise<void> {
+    return Promise.resolve();
+  }
 
   // protected abstract matchConfig(chain: ChainName, config: HookConfig): boolean;
 }

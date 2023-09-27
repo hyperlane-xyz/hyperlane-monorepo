@@ -33,3 +33,15 @@
 //     }
 //   },
 // );
+
+// merkleRootHook
+// const mrConfig: ChainMap<InterceptorConfig> = {
+//   test1: {
+//     type: HookContractType.HOOK,
+//   },
+//   test2: {
+//     type: ModuleType.MERKLE_ROOT_MULTISIG,
+//     validators: defaultMultisigIsmConfigs.optimism.validators,
+//     threshold: defaultMultisigIsmConfigs.optimism.threshold,
+//   },
+// };

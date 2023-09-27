@@ -110,6 +110,7 @@ export {
 } from './gas/types';
 export { HyperlaneInterceptorDeployer } from './hook/HyperlaneInterceptorDeployer';
 export { MerkleRootInterceptorDeployer } from './hook/MerkleRootInterceptorDeployer';
+export { OpStackInterceptorDeployer } from './hook/OpStackInterceptorDeployer';
 export {
   HookContractType,
   InterceptorConfig,

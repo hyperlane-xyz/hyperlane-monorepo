@@ -1,3 +1,4 @@
+import { BigNumber } from 'ethers';
 import path from 'path';
 
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
@@ -13,9 +14,7 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
-  MerkleRootInterceptorDeployer,
-  ModuleType,
-  defaultMultisigIsmConfigs,
+  OpStackInterceptorDeployer,
 } from '@hyperlane-xyz/sdk';
 import { HookContractType } from '@hyperlane-xyz/sdk/src';
 import { objMap } from '@hyperlane-xyz/utils';
@@ -90,23 +89,20 @@ async function main() {
     const mrConfig: ChainMap<InterceptorConfig> = {
       test1: {
         type: HookContractType.HOOK,
-        mailbox: '0xb7f8bc63bbcad18155201308c8f3540b07f84f5e',
+        destinationDomain: BigNumber.from(10),
+        destination: 'test2',
+        nativeBridge: '0xa85233c63b9ee964add6f2cffe00fd84eb32338f',
       },
       test2: {
-        type: ModuleType.MERKLE_ROOT_MULTISIG,
-        validators: defaultMultisigIsmConfigs.optimism.validators,
-        threshold: defaultMultisigIsmConfigs.optimism.threshold,
+        type: HookContractType.ISM,
+        origin: 'test1',
+        nativeBridge: '0x322813fd9a801c5507c9de605d63cea4f2ce6c44',
       },
     };
 
     config = mrConfig;
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.ISM_FACTORY),
+    deployer = new OpStackInterceptorDeployer(
       multiProvider,
-    );
-    deployer = new MerkleRootInterceptorDeployer(
-      multiProvider,
-      ismFactory,
       '0xb7f8bc63bbcad18155201308c8f3540b07f84f5e',
     );
     // throw new Error('Hook deployment unimplemented');

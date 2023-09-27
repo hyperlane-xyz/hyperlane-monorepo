@@ -1,3 +1,5 @@
+import { BigNumber } from 'ethers';
+
 import type { Address } from '@hyperlane-xyz/utils';
 
 import type { IsmConfig, MultisigIsmConfig } from '../ism/types';
@@ -10,20 +12,21 @@ export enum HookContractType {
 
 export type OpStackHookConfig = {
   type: HookContractType.HOOK;
-  mailbox: Address;
   nativeBridge: Address;
   remoteIsm?: Address;
+  destinationDomain: BigNumber;
   destination: ChainName;
 };
 
 export type MerkleTreeHookConfig = {
   type: HookContractType.HOOK;
-  mailbox: Address;
 };
 
 export type MerkleRootInterceptorConfig =
   | MerkleTreeHookConfig
   | MultisigIsmConfig;
+
+export type OpStackInterceptorConfig = OpStackHookConfig | NoMetadataIsmConfig;
 
 export type PostDispatchHookConfig =
   | OpStackHookConfig
@@ -31,7 +34,11 @@ export type PostDispatchHookConfig =
 
 export type NoMetadataIsmConfig = {
   type: HookContractType.ISM;
+  origin: ChainName;
   nativeBridge: Address;
 };
 
-export type InterceptorConfig = PostDispatchHookConfig | IsmConfig;
+export type InterceptorConfig =
+  | PostDispatchHookConfig
+  | IsmConfig
+  | NoMetadataIsmConfig;

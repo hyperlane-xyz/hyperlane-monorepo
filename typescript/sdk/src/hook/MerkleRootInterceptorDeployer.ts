@@ -15,7 +15,7 @@ import {
   MerkleRootInterceptorFactories,
   MerkleRootIsmFactories,
   merkleRootHookFactories,
-} from './contracts';
+} from './contracts/merkleRoot';
 import { MerkleRootInterceptorConfig, MerkleTreeHookConfig } from './types';
 
 export class MerkleRootInterceptorDeployer extends HyperlaneInterceptorDeployer<
@@ -27,7 +27,7 @@ export class MerkleRootInterceptorDeployer extends HyperlaneInterceptorDeployer<
     readonly ismFactory: HyperlaneIsmFactory,
     readonly mailbox: Address,
   ) {
-    super(multiProvider, merkleRootHookFactories, mailbox, {
+    super(multiProvider, merkleRootHookFactories, {
       logger: debug('hyperlane:MerkleTreeInterceptorDeployer'),
     });
   }
@@ -45,7 +45,7 @@ export class MerkleRootInterceptorDeployer extends HyperlaneInterceptorDeployer<
     );
 
     return {
-      hook: merkleTreeHook,
+      merkleRootHook: merkleTreeHook,
     };
   }
 
