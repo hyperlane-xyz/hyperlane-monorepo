@@ -151,7 +151,7 @@ export abstract class HyperlaneDeployer<
     }
   }
 
-  protected async initConnectionClient(
+  protected async initMailboxClient(
     local: ChainName,
     client: MailboxClient,
     config: MailboxClientConfig,

@@ -52,7 +52,6 @@ export abstract class HyperlaneRouterDeployer<
       for (const remote of remotes) {
         const origin = this.multiProvider.getDomainId(local);
         const destination = this.multiProvider.getDomainId(remote);
-        // TODO: build metadata?
         const message = formatMessage(
           0,
           0,
@@ -97,14 +96,14 @@ export abstract class HyperlaneRouterDeployer<
     }
   }
 
-  async initConnectionClients(
+  async initMailboxClients(
     contractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
   ): Promise<void> {
     for (const chain of Object.keys(contractsMap)) {
       const contracts = contractsMap[chain];
       const config = configMap[chain];
-      await super.initConnectionClient(chain, this.router(contracts), config);
+      await super.initMailboxClient(chain, this.router(contracts), config);
     }
   }
 
@@ -205,7 +204,7 @@ export abstract class HyperlaneRouterDeployer<
       configMap,
       foreignDeployments,
     );
-    await this.initConnectionClients(deployedContractsMap, configMap);
+    await this.initMailboxClients(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
     this.logger(`Finished deploying router contracts for all chains.`);
 
