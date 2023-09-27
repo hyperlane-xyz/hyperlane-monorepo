@@ -128,6 +128,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     chain: ChainName,
     config: MultisigIsmConfig,
   ): Promise<StaticMerkleRootMultisigIsm> {
+    this.logger(`Deploying Merkle Root Multisig ISM to ${chain}`);
     const signer = this.multiProvider.getSigner(chain);
     const multisigIsmFactory =
       this.getContracts(chain).merkleRootMultisigIsmFactory;

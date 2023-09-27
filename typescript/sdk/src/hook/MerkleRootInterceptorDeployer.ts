@@ -36,14 +36,14 @@ export class MerkleRootInterceptorDeployer extends HyperlaneInterceptorDeployer<
     chain: ChainName,
     _: MerkleTreeHookConfig,
   ): Promise<HyperlaneContracts<MerkleRootHookFactories>> {
-    this.logger(`Deploying Merkle Tree Hook to ${chain}`);
+    this.logger(`Deploying MerkleRootHook to ${chain}`);
     const merkleTreeFactory = new MerkleTreeHook__factory();
     const merkleTreeHook = await this.multiProvider.handleDeploy(
       chain,
       merkleTreeFactory,
       [this.mailbox],
     );
-
+    this.logger(`MerkleRootHook successfully deployed on ${chain}`);
     return {
       merkleRootHook: merkleTreeHook,
     };
