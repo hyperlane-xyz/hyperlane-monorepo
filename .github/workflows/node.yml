@@ -67,8 +67,7 @@ jobs:
           key: ${{ github.sha }}
 
       - name: build
-        # TODO: revert
-        run: yarn workspace @hyperlane-xyz/core run build
+        run: yarn build
 
   lint-prettier:
     runs-on: ubuntu-latest
@@ -215,8 +214,7 @@ jobs:
         uses: onbjerg/foundry-toolchain@v1
 
       - name: Run tests with coverage
-      # TODO: revert
-        run: yarn workspace @hyperlane-xyz/core run coverage
+        run: yarn coverage
         env:
           NODE_OPTIONS: --max_old_space_size=4096
 

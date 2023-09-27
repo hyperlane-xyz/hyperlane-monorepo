@@ -264,10 +264,6 @@ export {
   proxiedFactories,
 } from './router/types';
 export {
-  createRouterConfigMap,
-  deployTestIgpsAndGetRouterConfig,
-} from './test/testUtils';
-export {
   EvmHypCollateralAdapter,
   EvmHypSyntheticAdapter,
   EvmNativeTokenAdapter,

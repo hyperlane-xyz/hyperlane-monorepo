@@ -8,16 +8,11 @@ import {
   MultiProvider,
   TestCoreApp,
   TestCoreDeployer,
-  deployTestIgpsAndGetRouterConfig,
 } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
-import {
-  HelloWorld,
-  IInterchainGasPaymaster,
-  IInterchainGasPaymaster__factory,
-} from '../types';
+import { HelloWorld } from '../types';
 
 describe('HelloWorld', async () => {
   const localChain = Chains.test1;
@@ -28,26 +23,18 @@ describe('HelloWorld', async () => {
   let signer: SignerWithAddress;
   let local: HelloWorld;
   let remote: HelloWorld;
-  let localIgp: IInterchainGasPaymaster;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let config: ChainMap<HelloWorldConfig>;
 
   before(async () => {
     [signer] = await ethers.getSigners();
-
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    coreApp = await new TestCoreDeployer(multiProvider).deployApp();
+    config = coreApp.getRouterConfig(signer.address);
+
     localDomain = multiProvider.getDomainId(localChain);
     remoteDomain = multiProvider.getDomainId(remoteChain);
-
-    const coreDeployer = new TestCoreDeployer(multiProvider);
-    const coreContractsMaps = await coreDeployer.deploy();
-    coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
-    config = await deployTestIgpsAndGetRouterConfig(
-      multiProvider,
-      signer.address,
-      coreContractsMaps,
-    );
   });
 
   beforeEach(async () => {
@@ -56,10 +43,6 @@ describe('HelloWorld', async () => {
 
     local = contracts[localChain].router;
     remote = contracts[remoteChain].router;
-    localIgp = IInterchainGasPaymaster__factory.connect(
-      config[localChain].hook!,
-      multiProvider.getProvider(localChain),
-    );
 
     // The all counts start empty
     expect(await local.sent()).to.equal(0);
@@ -68,19 +51,16 @@ describe('HelloWorld', async () => {
     expect(await remote.received()).to.equal(0);
   });
 
-  async function quoteGasPayment(
-    fromRouter: HelloWorld,
-    destinationDomain: number,
-    igp: IInterchainGasPaymaster,
-  ) {
-    const handleGasAmount = await fromRouter.HANDLE_GAS_AMOUNT();
-    return igp.quoteGasPayment(destinationDomain, handleGasAmount);
+  async function quoteGasPayment() {
+    const handleGasAmount = await local.HANDLE_GAS_AMOUNT();
+    const GAS_PRICE = 10;
+    return handleGasAmount.mul(GAS_PRICE);
   }
 
   it('sends a message', async () => {
     await expect(
       local.sendHelloWorld(remoteDomain, 'Hello', {
-        value: await quoteGasPayment(local, remoteDomain, localIgp),
+        value: await quoteGasPayment(),
       }),
     ).to.emit(local, 'SentHelloWorld');
     // The sent counts are correct
@@ -100,7 +80,7 @@ describe('HelloWorld', async () => {
 
   it('handles a message', async () => {
     await local.sendHelloWorld(remoteDomain, 'World', {
-      value: await quoteGasPayment(local, remoteDomain, localIgp),
+      value: await quoteGasPayment(),
     });
     // Mock processing of the message by Hyperlane
     await coreApp.processOutboundMessages(localChain);

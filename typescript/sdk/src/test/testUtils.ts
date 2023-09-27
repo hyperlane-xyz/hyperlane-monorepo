@@ -1,9 +1,5 @@
 import { ethers } from 'ethers';
 
-import {
-  TestInterchainGasPaymaster,
-  TestInterchainGasPaymaster__factory,
-} from '@hyperlane-xyz/core';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
@@ -18,7 +14,6 @@ import {
   CoinGeckoSimplePriceParams,
 } from '../gas/token-prices';
 import { ModuleType, MultisigIsmConfig } from '../ism/types';
-import { MultiProvider } from '../providers/MultiProvider';
 import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
@@ -41,27 +36,6 @@ export function createRouterConfigMap(
       mailbox: contracts.mailbox.address,
       interchainGasPaymaster:
         igpContracts[chain].interchainGasPaymaster.address,
-    };
-  });
-}
-
-export async function deployTestIgpsAndGetRouterConfig(
-  multiProvider: MultiProvider,
-  owner: Address,
-  coreContracts: HyperlaneContractsMap<CoreFactories>,
-): Promise<ChainMap<RouterConfig>> {
-  const igps: ChainMap<TestInterchainGasPaymaster> = {};
-  for (const chain of multiProvider.getKnownChainNames()) {
-    const factory = new TestInterchainGasPaymaster__factory(
-      multiProvider.getSigner(chain),
-    );
-    igps[chain] = await factory.deploy();
-  }
-  return objMap(coreContracts, (chain, contracts) => {
-    return {
-      owner,
-      mailbox: contracts.mailbox.address,
-      hook: igps[chain].address,
     };
   });
 }
