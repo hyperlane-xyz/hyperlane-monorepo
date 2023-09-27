@@ -15,7 +15,8 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
+import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -23,9 +24,9 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 /**
  * @title StaticProtocolFee
  * @notice Collects a static protocol fee from the sender.
- * @dev V3 WIP
  */
-contract StaticProtocolFee is IPostDispatchHook, Ownable {
+contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
+    using StandardHookMetadata for bytes;
     using Address for address payable;
     using Message for bytes;
 
@@ -58,33 +59,6 @@ contract StaticProtocolFee is IPostDispatchHook, Ownable {
     // ============ External Functions ============
 
     /**
-     * @notice Collects the protocol fee from the sender.
-     */
-    function postDispatch(bytes calldata, bytes calldata message)
-        external
-        payable
-        override
-    {
-        require(
-            msg.value >= protocolFee,
-            "StaticProtocolFee: insufficient protocol fee"
-        );
-
-        uint256 refund = msg.value - protocolFee;
-        if (refund > 0) payable(message.senderAddress()).sendValue(refund);
-    }
-
-    /// @inheritdoc IPostDispatchHook
-    function quoteDispatch(bytes calldata, bytes calldata)
-        external
-        view
-        override
-        returns (uint256)
-    {
-        return protocolFee;
-    }
-
-    /**
      * @notice Sets the protocol fee.
      * @param _protocolFee The new protocol fee.
      */
@@ -108,6 +82,34 @@ contract StaticProtocolFee is IPostDispatchHook, Ownable {
     }
 
     // ============ Internal Functions ============
+
+    /// @inheritdoc AbstractPostDispatchHook
+    function _postDispatch(bytes calldata metadata, bytes calldata message)
+        internal
+        override
+    {
+        require(
+            msg.value >= protocolFee,
+            "StaticProtocolFee: insufficient protocol fee"
+        );
+
+        uint256 refund = msg.value - protocolFee;
+        if (refund > 0) {
+            payable(metadata.refundAddress(message.senderAddress())).sendValue(
+                refund
+            );
+        }
+    }
+
+    /// @inheritdoc AbstractPostDispatchHook
+    function _quoteDispatch(bytes calldata, bytes calldata)
+        internal
+        view
+        override
+        returns (uint256)
+    {
+        return protocolFee;
+    }
 
     /**
      * @notice Sets the protocol fee.

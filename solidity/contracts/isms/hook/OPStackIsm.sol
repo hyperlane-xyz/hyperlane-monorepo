@@ -27,7 +27,6 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 /**
  * @title OPStackIsm
  * @notice Uses the native Optimism bridge to verify interchain messages.
- * @dev V3 WIP
  */
 contract OPStackIsm is
     CrossChainEnabledOptimism,

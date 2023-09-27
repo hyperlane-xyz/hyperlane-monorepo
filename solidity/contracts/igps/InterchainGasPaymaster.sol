@@ -15,10 +15,12 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
-import {IGPMetadata} from "../libs/hooks/IGPMetadata.sol";
+import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
+import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
 import {IGasOracle} from "../interfaces/IGasOracle.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {AbstractPostDispatchHook} from "../hooks/AbstractPostDispatchHook.sol";
 import {Indexed} from "../Indexed.sol";
 
 // ============ External Imports ============
@@ -33,14 +35,14 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  */
 contract InterchainGasPaymaster is
     IInterchainGasPaymaster,
-    IPostDispatchHook,
+    AbstractPostDispatchHook,
     IGasOracle,
     Indexed,
     OwnableUpgradeable
 {
     using Address for address payable;
     using Message for bytes;
-    using IGPMetadata for bytes;
+    using StandardHookMetadata for bytes;
     // ============ Constants ============
 
     /// @notice The scale of gas oracle token exchange rates.
@@ -89,36 +91,6 @@ contract InterchainGasPaymaster is
         __Ownable_init();
         _transferOwnership(_owner);
         _setBeneficiary(_beneficiary);
-    }
-
-    /**
-     * @notice pay for gas as a hook
-     * @param metadata The metadata as gasConfig.
-     * @param message The message to pay for.
-     */
-    function postDispatch(bytes calldata metadata, bytes calldata message)
-        external
-        payable
-        override
-    {
-        uint256 gasLimit = metadata.gasLimit(DEFAULT_GAS_USAGE);
-        address refundAddress = metadata.refundAddress(message.senderAddress());
-        payForGas(message.id(), message.destination(), gasLimit, refundAddress);
-    }
-
-    /**
-     * @notice Quote gas payment for a hook call.
-     * @param metadata The metadata as gasConfig.
-     * @param message The message to pay for.
-     */
-    function quoteDispatch(bytes calldata metadata, bytes calldata message)
-        external
-        view
-        override
-        returns (uint256)
-    {
-        uint256 gasLimit = metadata.gasLimit(DEFAULT_GAS_USAGE);
-        return quoteGasPayment(message.destination(), gasLimit);
     }
 
     /**
@@ -247,6 +219,27 @@ contract InterchainGasPaymaster is
     }
 
     // ============ Internal Functions ============
+
+    /// @inheritdoc AbstractPostDispatchHook
+    function _postDispatch(bytes calldata metadata, bytes calldata message)
+        internal
+        override
+    {
+        uint256 gasLimit = metadata.gasLimit(DEFAULT_GAS_USAGE);
+        address refundAddress = metadata.refundAddress(message.senderAddress());
+        payForGas(message.id(), message.destination(), gasLimit, refundAddress);
+    }
+
+    /// @inheritdoc AbstractPostDispatchHook
+    function _quoteDispatch(bytes calldata metadata, bytes calldata message)
+        internal
+        view
+        override
+        returns (uint256)
+    {
+        uint256 gasLimit = metadata.gasLimit(DEFAULT_GAS_USAGE);
+        return quoteGasPayment(message.destination(), gasLimit);
+    }
 
     /**
      * @notice Sets the beneficiary.

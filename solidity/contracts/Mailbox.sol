@@ -47,7 +47,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
     // Mapping of message ID to delivery context that processed the message.
     struct Delivery {
         address processor;
-        uint48 timestamp;
+        uint48 blockNumber;
     }
     mapping(bytes32 => Delivery) internal deliveries;
 
@@ -92,7 +92,8 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
 
     // ============ External Functions ============
     /**
-     * @notice Dispatches a message to the destination domain & recipient.
+     * @notice Dispatches a message to the destination domain & recipient
+     * using the default hook and empty metadata.
      * @param _destinationDomain Domain of destination chain
      * @param _recipientAddress Address of recipient on destination chain as bytes32
      * @param _messageBody Raw bytes content of message body
@@ -138,7 +139,8 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
     }
 
     /**
-     * @notice Computes quote for dispatching a message to the destination domain & recipient.
+     * @notice Computes quote for dipatching a message to the destination domain & recipient
+     * using the default hook and empty metadata.
      * @param destinationDomain Domain of destination chain
      * @param recipientAddress Address of recipient on destination chain as bytes32
      * @param messageBody Raw bytes content of message body
@@ -215,7 +217,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
 
         deliveries[_id] = Delivery({
             processor: msg.sender,
-            timestamp: uint48(block.timestamp)
+            blockNumber: uint48(block.number)
         });
         emit Process(_message.origin(), _message.sender(), recipient);
         emit ProcessId(_id);
@@ -248,10 +250,10 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
     /**
      * @notice Returns the account that processed the message.
      * @param _id The message ID to check.
-     * @return The account that processed the message.
+     * @return The number of the block that the message was processed at.
      */
     function processedAt(bytes32 _id) external view returns (uint48) {
-        return deliveries[_id].timestamp;
+        return deliveries[_id].blockNumber;
     }
 
     // ============ Public Functions ============
@@ -271,7 +273,11 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
         bytes calldata messageBody,
         bytes calldata metadata,
         IPostDispatchHook hook
-    ) public payable returns (bytes32) {
+    ) public payable virtual returns (bytes32) {
+        if (address(hook) == address(0)) {
+            hook = defaultHook;
+        }
+
         /// CHECKS ///
 
         // Format the message into packed bytes.
@@ -313,6 +319,10 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
         bytes calldata metadata,
         IPostDispatchHook hook
     ) public view returns (uint256 fee) {
+        if (address(hook) == address(0)) {
+            hook = defaultHook;
+        }
+
         bytes memory message = _buildMessage(
             destinationDomain,
             recipientAddress,
@@ -329,7 +339,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
      * @return True if the message has been delivered.
      */
     function delivered(bytes32 _id) public view override returns (bool) {
-        return deliveries[_id].timestamp > 0;
+        return deliveries[_id].blockNumber > 0;
     }
 
     /**

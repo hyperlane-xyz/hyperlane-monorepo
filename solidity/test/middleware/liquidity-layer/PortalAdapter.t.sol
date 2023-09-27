@@ -8,6 +8,7 @@ import {PortalAdapter} from "../../../contracts/middleware/liquidity-layer/adapt
 import {TestTokenRecipient} from "../../../contracts/test/TestTokenRecipient.sol";
 import {MockToken} from "../../../contracts/mock/MockToken.sol";
 import {MockPortalBridge} from "../../../contracts/mock/MockPortalBridge.sol";
+import {MockMailbox} from "../../../contracts/mock/MockMailbox.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -27,19 +28,20 @@ contract PortalAdapterTest is Test {
         token = new MockToken();
         recipient = new TestTokenRecipient();
 
-        originAdapter = new PortalAdapter();
-        destinationAdapter = new PortalAdapter();
+        MockMailbox originMailbox = new MockMailbox(originDomain);
+        MockMailbox destinationMailbox = new MockMailbox(destinationDomain);
+
+        originAdapter = new PortalAdapter(address(originMailbox));
+        destinationAdapter = new PortalAdapter(address(destinationMailbox));
 
         portalBridge = new MockPortalBridge(token);
 
         originAdapter.initialize(
-            originDomain,
             address(this),
             address(portalBridge),
             address(this)
         );
         destinationAdapter.initialize(
-            destinationDomain,
             address(this),
             address(portalBridge),
             address(this)

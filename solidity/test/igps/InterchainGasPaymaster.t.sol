@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {IGPMetadata} from "../../contracts/libs/hooks/IGPMetadata.sol";
+import {StandardHookMetadata} from "../../contracts/libs/hooks/StandardHookMetadata.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
@@ -12,7 +12,7 @@ import {StorageGasOracle} from "../../contracts/igps/gas-oracles/StorageGasOracl
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 
 contract InterchainGasPaymasterTest is Test {
-    using IGPMetadata for bytes;
+    using StandardHookMetadata for bytes;
     using TypeCasts for address;
     using MessageUtils for bytes;
 
@@ -24,6 +24,8 @@ contract InterchainGasPaymasterTest is Test {
     uint32 constant testOriginDomain = 22222;
     uint32 constant testDestinationDomain = 11111;
     uint256 constant testGasAmount = 300000;
+    uint128 constant TEST_EXCHANGE_RATE = 1e10; // 1.0 exchange rate (remote token has exact same value as local)
+    uint128 constant TEST_GAS_PRICE = 150; // 150 wei gas price
     bytes constant testMessage = "hello world";
     bytes32 constant testMessageId =
         0x6ae9a99190641b9ed0c07143340612dde0e9cb7deaa5fe07597858ae9ba5fd7f;
@@ -75,24 +77,26 @@ contract InterchainGasPaymasterTest is Test {
     function testQuoteDispatch_defaultGasLimit() public {
         setRemoteGasData(
             testDestinationDomain,
-            1 * 1e10, // 1.0 exchange rate (remote token has exact same value as local)
-            150 // 1 wei gas price
+            1 * TEST_EXCHANGE_RATE,
+            TEST_GAS_PRICE
         );
 
-        // 150 * 69_420 = 10_413_000
+        // 150 (gas_price) * 69_420 (default_gas_limit) = 10_413_000
         assertEq(igp.quoteDispatch("", testEncodedMessage), 10_413_000);
     }
 
     function testQuoteDispatch_customWithMetadata() public {
         setRemoteGasData(
             testDestinationDomain,
-            1 * 1e10, // 1.0 exchange rate (remote token has exact same value as local)
-            150 // 1 wei gas price
+            1 * TEST_EXCHANGE_RATE,
+            TEST_GAS_PRICE
         );
 
-        bytes memory metadata = IGPMetadata.formatMetadata(
+        bytes memory metadata = StandardHookMetadata.formatMetadata(
+            0,
             uint256(testGasAmount), // gas limit
-            testRefundAddress // refund address
+            testRefundAddress, // refund address,
+            bytes("")
         );
         // 150 * 300_000 = 45_000_000
         assertEq(igp.quoteDispatch(metadata, testEncodedMessage), 45_000_000);
@@ -103,7 +107,7 @@ contract InterchainGasPaymasterTest is Test {
     function testPostDispatch_defaultGasLimit() public {
         setRemoteGasData(
             testDestinationDomain,
-            1 * 1e10, // 1.0 exchange rate (remote token has exact same value as local)
+            1 * TEST_EXCHANGE_RATE,
             1 // 1 wei gas price
         );
 
@@ -127,7 +131,7 @@ contract InterchainGasPaymasterTest is Test {
     function testPostDispatch_customWithMetadata() public {
         setRemoteGasData(
             testDestinationDomain,
-            1 * 1e10, // 1.0 exchange rate (remote token has exact same value as local)
+            1 * TEST_EXCHANGE_RATE,
             1 // 1 wei gas price
         );
 
@@ -139,9 +143,11 @@ contract InterchainGasPaymasterTest is Test {
         );
 
         uint256 _overpayment = 25000;
-        bytes memory metadata = IGPMetadata.formatMetadata(
+        bytes memory metadata = StandardHookMetadata.formatMetadata(
+            0,
             uint256(testGasAmount), // gas limit
-            testRefundAddress // refund address
+            testRefundAddress, // refund address
+            bytes("")
         );
         bytes memory message = _encodeTestMessage();
 
@@ -162,7 +168,7 @@ contract InterchainGasPaymasterTest is Test {
     function testPayForGas() public {
         setRemoteGasData(
             testDestinationDomain,
-            1 * 1e10, // 1.0 exchange rate (remote token has exact same value as local)
+            1 * TEST_EXCHANGE_RATE,
             1 // 1 wei gas price
         );
 
@@ -203,7 +209,7 @@ contract InterchainGasPaymasterTest is Test {
     function testPayForGasRevertsIfPaymentInsufficient() public {
         setRemoteGasData(
             testDestinationDomain,
-            1 * 1e10, // 1.0 exchange rate (remote token has exact same value as local)
+            1 * TEST_EXCHANGE_RATE,
             1 // 1 wei gas price
         );
 
@@ -224,7 +230,7 @@ contract InterchainGasPaymasterTest is Test {
         setRemoteGasData(
             testDestinationDomain,
             2 * 1e9, // 0.2 exchange rate (remote token less valuable)
-            150 * 1e9 // 150 gwei gas price
+            TEST_GAS_PRICE * 1e9 // 150 gwei gas price
         );
 
         // 300,000 destination gas
@@ -243,7 +249,7 @@ contract InterchainGasPaymasterTest is Test {
         // Testing when the remote token is much more valuable & there's a super high gas price
         setRemoteGasData(
             testDestinationDomain,
-            5000 * 1e10, // 5000 exchange rate (remote token much more valuable)
+            5000 * TEST_EXCHANGE_RATE,
             1500 * 1e9 // 1500 gwei gas price
         );
 
@@ -334,7 +340,7 @@ contract InterchainGasPaymasterTest is Test {
     function testClaim() public {
         setRemoteGasData(
             testDestinationDomain,
-            1 * 1e10, // 1.0 exchange rate (remote token has exact same value as local)
+            1 * TEST_EXCHANGE_RATE,
             1 // 1 wei gas price
         );
         // Pay some funds into the IGP
@@ -360,8 +366,7 @@ contract InterchainGasPaymasterTest is Test {
     // ============ getExchangeRateAndGasPrice ============
 
     function testGetExchangeRateAndGasPrice() public {
-        // 1.0 exchange rate (remote token has exact same value as local)
-        uint128 _tokenExchangeRate = 1 * 1e10;
+        uint128 _tokenExchangeRate = 1 * TEST_EXCHANGE_RATE;
         // 1 wei gas price
         uint128 _gasPrice = 1;
         setRemoteGasData(testDestinationDomain, _tokenExchangeRate, _gasPrice);

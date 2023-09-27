@@ -1,9 +1,31 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 interface IPostDispatchHook {
     /**
-     * @notice Post action afte a message is dispatched via the Mailbox
+     * @notice Returns whether the hook supports metadata
+     * @param metadata metadata
+     * @return Whether the hook supports metadata
+     */
+    function supportsMetadata(bytes calldata metadata)
+        external
+        view
+        returns (bool);
+
+    /**
+     * @notice Post action after a message is dispatched via the Mailbox
      * @param metadata The metadata required for the hook
      * @param message The message passed from the Mailbox.dispatch() call
      */
@@ -12,10 +34,10 @@ interface IPostDispatchHook {
         payable;
 
     /**
-     * @notice Estimate the amount of gas consumed by the postDispatch call
+     * @notice Compute the payment required by the postDispatch call
      * @param metadata The metadata required for the hook
      * @param message The message passed from the Mailbox.dispatch() call
-     * @return Gas quote for the postDispatch call
+     * @return Quoted payment for the postDispatch call
      */
     function quoteDispatch(bytes calldata metadata, bytes calldata message)
         external

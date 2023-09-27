@@ -4,14 +4,17 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../contracts/test/TestMailbox.sol";
 import "../contracts/upgrade/Versioned.sol";
+import "../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import "../contracts/test/TestPostDispatchHook.sol";
 import "../contracts/test/TestIsm.sol";
 import "../contracts/test/TestRecipient.sol";
 import "../contracts/hooks/MerkleTreeHook.sol";
 
+import {StandardHookMetadata} from "../contracts/libs/hooks/StandardHookMetadata.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
 contract MailboxTest is Test, Versioned {
+    using StandardHookMetadata for bytes;
     using TypeCasts for address;
     using Message for bytes;
 
@@ -144,7 +147,7 @@ contract MailboxTest is Test, Versioned {
 
     function expectHookQuote(
         IPostDispatchHook hook,
-        bytes calldata metadata,
+        bytes memory metadata,
         bytes memory message
     ) internal {
         vm.expectCall(
@@ -155,7 +158,7 @@ contract MailboxTest is Test, Versioned {
 
     function expectHookPost(
         IPostDispatchHook hook,
-        bytes calldata metadata,
+        bytes memory metadata,
         bytes memory message,
         uint256 value
     ) internal {
@@ -173,6 +176,10 @@ contract MailboxTest is Test, Versioned {
         bytes calldata body,
         bytes calldata metadata
     ) public {
+        bytes memory prefixedMetadata = abi.encodePacked(
+            StandardHookMetadata.VARIANT,
+            metadata
+        );
         vm.assume(
             requiredFee < type(uint128).max &&
                 defaultFee < type(uint128).max &&
@@ -198,23 +205,23 @@ contract MailboxTest is Test, Versioned {
         );
         assertEq(quote, defaultFee + requiredFee);
 
-        expectHookQuote(requiredHook, metadata, message);
-        expectHookQuote(defaultHook, metadata, message);
+        expectHookQuote(requiredHook, prefixedMetadata, message);
+        expectHookQuote(defaultHook, prefixedMetadata, message);
         quote = mailbox.quoteDispatch(
             remoteDomain,
             address(recipient).addressToBytes32(),
             body,
-            metadata
+            prefixedMetadata
         );
         assertEq(quote, defaultFee + requiredFee);
 
-        expectHookQuote(requiredHook, metadata, message);
-        expectHookQuote(overrideHook, metadata, message);
+        expectHookQuote(requiredHook, prefixedMetadata, message);
+        expectHookQuote(overrideHook, prefixedMetadata, message);
         quote = mailbox.quoteDispatch(
             remoteDomain,
             address(recipient).addressToBytes32(),
             body,
-            metadata,
+            prefixedMetadata,
             overrideHook
         );
         assertEq(quote, overrideFee + requiredFee);
@@ -232,7 +239,7 @@ contract MailboxTest is Test, Versioned {
     function expectDispatch(
         TestPostDispatchHook firstHook,
         TestPostDispatchHook hook,
-        bytes calldata metadata,
+        bytes memory metadata,
         bytes calldata body
     ) internal {
         bytes memory message = mailbox.buildOutboundMessage(
@@ -254,6 +261,10 @@ contract MailboxTest is Test, Versioned {
         bytes calldata body,
         bytes calldata metadata
     ) public {
+        bytes memory prefixedMetadata = abi.encodePacked(
+            StandardHookMetadata.VARIANT,
+            metadata
+        );
         bytes calldata defaultMetadata = metadata[0:0];
         uint256 quote;
         uint32 nonce;
@@ -280,14 +291,14 @@ contract MailboxTest is Test, Versioned {
                 remoteDomain,
                 recipientb32,
                 body,
-                metadata
+                prefixedMetadata
             );
-            expectDispatch(requiredHook, defaultHook, metadata, body);
+            expectDispatch(requiredHook, defaultHook, prefixedMetadata, body);
             id = mailbox.dispatch{value: quote}(
                 remoteDomain,
                 recipientb32,
                 body,
-                metadata
+                prefixedMetadata
             );
             assertEq(mailbox.latestDispatchedId(), id);
             nonce = mailbox.nonce();
@@ -298,15 +309,15 @@ contract MailboxTest is Test, Versioned {
                 remoteDomain,
                 recipientb32,
                 body,
-                metadata,
+                prefixedMetadata,
                 overrideHook
             );
-            expectDispatch(requiredHook, overrideHook, metadata, body);
+            expectDispatch(requiredHook, overrideHook, prefixedMetadata, body);
             id = mailbox.dispatch{value: quote}(
                 remoteDomain,
                 recipientb32,
                 body,
-                metadata,
+                prefixedMetadata,
                 overrideHook
             );
             assertEq(mailbox.latestDispatchedId(), id);
@@ -386,7 +397,7 @@ contract MailboxTest is Test, Versioned {
         mailbox.process{value: value}(metadata, message);
         assertEq(mailbox.delivered(id), true);
         assertEq(mailbox.processor(id), address(this));
-        assertEq(mailbox.processedAt(id), uint48(block.timestamp));
+        assertEq(mailbox.processedAt(id), uint48(block.number));
     }
 
     function test_process_revertsWhenAlreadyDelivered() public {

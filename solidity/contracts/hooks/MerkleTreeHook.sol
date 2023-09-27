@@ -1,15 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 import {Indexed} from "../Indexed.sol";
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
+import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
 
-contract MerkleTreeHook is IPostDispatchHook, MailboxClient, Indexed {
+contract MerkleTreeHook is AbstractPostDispatchHook, MailboxClient, Indexed {
     using Message for bytes;
     using MerkleLib for MerkleLib.Tree;
+    using StandardHookMetadata for bytes;
 
     // An incremental merkle tree used to store outbound message IDs.
     MerkleLib.Tree internal _tree;
@@ -18,6 +32,7 @@ contract MerkleTreeHook is IPostDispatchHook, MailboxClient, Indexed {
 
     constructor(address _mailbox) MailboxClient(_mailbox) {}
 
+    // count cannot exceed 2**TREE_DEPTH, see MerkleLib.sol
     function count() public view returns (uint32) {
         return uint32(_tree.count);
     }
@@ -34,22 +49,31 @@ contract MerkleTreeHook is IPostDispatchHook, MailboxClient, Indexed {
         return (root(), count() - 1);
     }
 
-    function postDispatch(
-        bytes calldata, /*metadata*/
-        bytes calldata message
-    ) external payable override {
-        require(msg.value == 0, "MerkleTreeHook: no value expected");
-        bytes32 id = message.id();
-        require(isLatestDispatched(id), "message not dispatching");
+    // ============ Internal Functions ============
 
+    /// @inheritdoc AbstractPostDispatchHook
+    function _postDispatch(
+        bytes calldata,
+        /*metadata*/
+        bytes calldata message
+    ) internal override {
+        require(msg.value == 0, "MerkleTreeHook: no value expected");
+
+        // ensure messages which were not dispatched are not inserted into the tree
+        bytes32 id = message.id();
+        require(_isLatestDispatched(id), "message not dispatching");
+
+        uint32 index = count();
         _tree.insert(id);
-        emit InsertedIntoTree(id, count() - 1);
+        emit InsertedIntoTree(id, index);
     }
 
-    function quoteDispatch(
-        bytes calldata, /*metadata*/
+    /// @inheritdoc AbstractPostDispatchHook
+    function _quoteDispatch(
+        bytes calldata,
+        /*metadata*/
         bytes calldata /*message*/
-    ) external pure override returns (uint256) {
+    ) internal pure override returns (uint256) {
         return 0;
     }
 }

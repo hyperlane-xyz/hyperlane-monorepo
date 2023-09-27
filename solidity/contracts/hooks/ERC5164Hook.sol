@@ -28,7 +28,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * any of the 5164 adapters.
  */
 contract ERC5164Hook is AbstractMessageIdAuthHook {
-    IMessageDispatcher immutable dispatcher;
+    IMessageDispatcher public immutable dispatcher;
 
     constructor(
         address _mailbox,
@@ -43,8 +43,8 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
         dispatcher = IMessageDispatcher(_dispatcher);
     }
 
-    function quoteDispatch(bytes calldata, bytes calldata)
-        external
+    function _quoteDispatch(bytes calldata, bytes calldata)
+        internal
         pure
         override
         returns (uint256)
@@ -53,7 +53,8 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
     }
 
     function _sendMessageId(
-        bytes calldata, /* metadata */
+        bytes calldata,
+        /* metadata */
         bytes memory payload
     ) internal override {
         require(msg.value == 0, "ERC5164Hook: no value allowed");
