@@ -37,7 +37,10 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching LegacyMultisig metadata";
-        let highest_nonce = self.highest_known_nonce().await;
+        let Some(highest_nonce) = self.highest_known_nonce().await
+        else {
+            return Ok(None);
+        };
         let Some(quorum_checkpoint) = checkpoint_syncer
             .legacy_fetch_checkpoint_in_range(
                 validators,

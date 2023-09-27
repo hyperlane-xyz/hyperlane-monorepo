@@ -3,6 +3,7 @@ use std::{num::NonZeroU64, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
+use futures_util::future::ready;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
@@ -113,22 +114,26 @@ impl BaseAgent for Validator {
 
         let reorg_period = NonZeroU64::new(self.reorg_period);
 
-        // Ensure that the mailbox has count > 0 before we begin indexing
+        // Ensure that the merkle tree hook has count > 0 before we begin indexing
         // messages or submitting checkpoints.
-        while self
-            .merkle_tree_hook
-            .count(reorg_period)
-            .await
-            .expect("Failed to get count in merkle tree hook. Has one been deployed?")
-            == 0
-        {
-            info!("Waiting for first message in merkle tree hook");
-            sleep(self.interval).await;
-        }
-
-        tasks.push(self.run_message_sync().await);
-        for checkpoint_sync_task in self.run_checkpoint_submitters().await {
-            tasks.push(checkpoint_sync_task);
+        loop {
+            match self.merkle_tree_hook.count(reorg_period).await {
+                Ok(0) => {
+                    info!("Waiting for first message in merkle tree hook");
+                    sleep(self.interval).await;
+                }
+                Ok(_) => {
+                    tasks.push(self.run_message_sync().await);
+                    for checkpoint_sync_task in self.run_checkpoint_submitters().await {
+                        tasks.push(checkpoint_sync_task);
+                    }
+                    break;
+                }
+                _ => {
+                    // Future that immediately resolves
+                    return tokio::spawn(ready(Ok(()))).instrument(info_span!("Validator"));
+                }
+            }
         }
 
         run_all(tasks)
@@ -169,8 +174,8 @@ impl Validator {
             .merkle_tree_hook
             .tree(reorg_period)
             .await
-            .expect("failed to get mailbox tree");
-        assert!(tip_tree.count() > 0, "mailbox tree is empty");
+            .expect("failed to get merkle tree");
+        assert!(tip_tree.count() > 0, "merkle tree is empty");
         let backfill_target = submitter.checkpoint(&tip_tree);
 
         let legacy_submitter = submitter.clone();

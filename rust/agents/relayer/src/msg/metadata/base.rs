@@ -155,8 +155,8 @@ impl BaseMetadataBuilder {
         }
     }
 
-    pub async fn highest_known_nonce(&self) -> u32 {
-        self.origin_prover_sync.read().await.count() - 1
+    pub async fn highest_known_nonce(&self) -> Option<u32> {
+        self.origin_prover_sync.read().await.count().checked_sub(1)
     }
 
     pub async fn build_ism(&self, address: H256) -> Result<Box<dyn InterchainSecurityModule>> {

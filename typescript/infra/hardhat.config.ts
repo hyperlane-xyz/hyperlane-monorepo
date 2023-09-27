@@ -82,7 +82,7 @@ task('kathy', 'Dispatches random hyperlane messages')
         const remoteId = multiProvider.getDomainId(remote);
         const mailbox = core.getContracts(local).mailbox;
         const igp = igps.getContracts(local).interchainGasPaymaster;
-        await recipient.dispatchToSelf(
+        let tx = await recipient.dispatchToSelf(
           mailbox.address,
           igp.address,
           remoteId,
@@ -100,6 +100,12 @@ task('kathy', 'Dispatches random hyperlane messages')
             mailbox.address
           } on ${local} with nonce ${(await mailbox.nonce()) - 1}`,
         );
+        try {
+          await tx.wait();
+        } catch (e) {
+          console.log(`Transaction failed: ${tx.hash}`);
+          console.log(e);
+        }
         console.log(await chainSummary(core, local));
         console.log(await chainSummary(core, remote));
 

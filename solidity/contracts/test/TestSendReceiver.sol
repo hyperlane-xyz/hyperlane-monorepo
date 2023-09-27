@@ -6,6 +6,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
+import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
 
 // import {IGPMetadata} from "../libs/hooks/IGPMetadata.sol";
 
@@ -41,10 +42,17 @@ contract TestSendReceiver is IMessageRecipient {
         // }
 
         bytes32 recipient = address(this).addressToBytes32();
+        bytes memory hookMetadata = GlobalHookMetadata.formatMetadata(
+            0,
+            0,
+            msg.sender,
+            bytes("")
+        );
         _mailbox.dispatch{value: msg.value}(
             _destinationDomain,
             recipient,
-            _messageBody
+            _messageBody,
+            hookMetadata
         );
 
         // if (separatePayments) {
