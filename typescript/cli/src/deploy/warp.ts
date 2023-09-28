@@ -21,11 +21,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
-import {
-  WarpRouteConfig,
-  readDeploymentArtifacts,
-  readWarpRouteConfig,
-} from '../configs.js';
+import { readDeploymentArtifacts } from '../config/artifacts.js';
+import { WarpRouteConfig, readWarpRouteConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_BALANCE } from '../consts.js';
 import { getDeployerContext, getMergedContractAddresses } from '../context.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';

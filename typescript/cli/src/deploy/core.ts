@@ -28,7 +28,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
-import { readDeploymentArtifacts, readMultisigConfig } from '../configs.js';
+import { readDeploymentArtifacts } from '../config/artifacts.js';
+import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_BALANCE } from '../consts.js';
 import {
   getDeployerContext,

@@ -166,6 +166,21 @@ export class ChainMetadataManager<MetaExt = {}> {
   }
 
   /**
+   * Get the protocol type for a given chain name, chain id, or domain id
+   */
+  tryGetProtocol(chainNameOrId: ChainName | number): ProtocolType | null {
+    return this.tryGetChainMetadata(chainNameOrId)?.protocol ?? null;
+  }
+
+  /**
+   * Get the protocol type for a given chain name, chain id, or domain id
+   * @throws if chain's metadata or protocol has not been set
+   */
+  getProtocol(chainNameOrId: ChainName | number): ProtocolType {
+    return this.getChainMetadata(chainNameOrId).protocol;
+  }
+
+  /**
    * Get the domain ids for a list of chain names, chain ids, or domain ids
    * @throws if any chain's metadata has not been set
    */

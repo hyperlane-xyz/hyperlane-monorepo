@@ -1,13 +1,54 @@
 import { confirm, input, select } from '@inquirer/prompts';
+import { z } from 'zod';
 
-import {
-  MultisigConfigMap,
-  isValidMultisigConfig,
-  readChainConfigIfExists,
-} from '../configs.js';
+import { ChainMap, ModuleType, MultisigIsmConfig } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
+
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
-import { FileFormat, mergeYamlOrJson } from '../utils/files.js';
+import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
+
+import { readChainConfigIfExists } from './chain.js';
+
+const MultisigConfigMapSchema = z.object({}).catchall(
+  z.object({
+    type: z.string(),
+    threshold: z.number(),
+    validators: z.array(z.string()),
+  }),
+);
+export type MultisigConfigMap = z.infer<typeof MultisigConfigMapSchema>;
+
+export function readMultisigConfig(filePath: string) {
+  const config = readYamlOrJson(filePath);
+  if (!config) throw new Error(`No multisig config found at ${filePath}`);
+  const result = MultisigConfigMapSchema.safeParse(config);
+  if (!result.success) {
+    const firstIssue = result.error.issues[0];
+    throw new Error(
+      `Invalid multisig config: ${firstIssue.path} => ${firstIssue.message}`,
+    );
+  }
+  const parsedConfig = result.data;
+  const formattedConfig = objMap(parsedConfig, (_, config) => ({
+    ...config,
+    type: humanReadableIsmTypeToEnum(config.type),
+  }));
+
+  logGreen(`All multisig configs in ${filePath} are valid`);
+  return formattedConfig as ChainMap<MultisigIsmConfig>;
+}
+
+export function isValidMultisigConfig(config: any) {
+  return MultisigConfigMapSchema.safeParse(config).success;
+}
+
+function humanReadableIsmTypeToEnum(type: string): ModuleType {
+  for (const [key, value] of Object.entries(ModuleType)) {
+    if (key.toLowerCase() === type) return parseInt(value.toString(), 10);
+  }
+  throw new Error(`Invalid ISM type ${type}`);
+}
 
 export async function createMultisigConfig({
   format,

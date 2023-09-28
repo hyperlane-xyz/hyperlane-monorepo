@@ -1,10 +1,60 @@
 import { confirm, input, select } from '@inquirer/prompts';
+import fs from 'fs';
 
-import { ChainMetadata, isValidChainMetadata } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainMetadata,
+  ChainMetadataSchema,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { errorRed, logBlue, logGreen } from '../logger.js';
-import { FileFormat, mergeYamlOrJson } from '../utils/files.js';
+import { getMultiProvider } from '../context.js';
+import { errorRed, log, logBlue, logGreen } from '../logger.js';
+import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
+
+export function readChainConfig(filePath: string) {
+  log(`Reading file configs in ${filePath}`);
+  const chainToMetadata = readYamlOrJson<ChainMap<ChainMetadata>>(filePath);
+
+  if (
+    !chainToMetadata ||
+    typeof chainToMetadata !== 'object' ||
+    !Object.keys(chainToMetadata).length
+  ) {
+    errorRed(`No configs found in ${filePath}`);
+    process.exit(1);
+  }
+
+  for (const [chain, metadata] of Object.entries(chainToMetadata)) {
+    const parseResult = ChainMetadataSchema.safeParse(metadata);
+    if (!parseResult.success) {
+      errorRed(
+        `Chain config for ${chain} is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/chain-config.yaml for an example`,
+      );
+      errorRed(JSON.stringify(parseResult.error.errors));
+      process.exit(1);
+    }
+    if (metadata.name !== chain) {
+      errorRed(`Chain ${chain} name does not match key`);
+      process.exit(1);
+    }
+  }
+
+  // Ensure multiprovider accepts this metadata
+  getMultiProvider(chainToMetadata);
+
+  logGreen(`All chain configs in ${filePath} are valid`);
+  return chainToMetadata;
+}
+
+export function readChainConfigIfExists(filePath: string) {
+  if (!fs.existsSync(filePath)) {
+    log('No chain config file provided');
+    return {};
+  } else {
+    return readChainConfig(filePath);
+  }
+}
 
 export async function createChainConfig({
   format,
@@ -44,13 +94,15 @@ export async function createChainConfig({
     protocol,
     rpcUrls: [{ http: rpcUrl }],
   };
-  if (isValidChainMetadata(metadata)) {
+  const parseResult = ChainMetadataSchema.safeParse(metadata);
+  if (parseResult.success) {
     logGreen(`Chain config is valid, writing to file ${outPath}`);
     mergeYamlOrJson(outPath, { [name]: metadata }, format);
   } else {
     errorRed(
       `Chain config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/chain-config.yaml for an example`,
     );
+    errorRed(JSON.stringify(parseResult.error.errors));
     throw new Error('Invalid chain config');
   }
 }

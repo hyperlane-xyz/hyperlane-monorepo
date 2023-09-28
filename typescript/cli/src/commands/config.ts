@@ -1,13 +1,11 @@
 import { CommandModule } from 'yargs';
 
-import { createChainConfig } from '../config/chain.js';
-import { createMultisigConfig } from '../config/multisig.js';
-import { createWarpConfig } from '../config/warp.js';
+import { createChainConfig, readChainConfig } from '../config/chain.js';
 import {
-  readChainConfig,
+  createMultisigConfig,
   readMultisigConfig,
-  readWarpRouteConfig,
-} from '../configs.js';
+} from '../config/multisig.js';
+import { createWarpConfig, readWarpRouteConfig } from '../config/warp.js';
 import { log, logGreen } from '../logger.js';
 import { FileFormat } from '../utils/files.js';
 

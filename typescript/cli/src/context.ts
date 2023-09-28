@@ -10,7 +10,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMerge } from '@hyperlane-xyz/utils';
 
-import { readChainConfigIfExists } from './configs.js';
+import { readChainConfigIfExists } from './config/chain.js';
 import { keyToSigner } from './utils/keys.js';
 
 export const sdkContractAddressesMap = {
