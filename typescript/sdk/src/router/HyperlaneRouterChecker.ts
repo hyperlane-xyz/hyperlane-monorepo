@@ -69,8 +69,7 @@ export class HyperlaneRouterChecker<
           this.ismFactory!.chainMap[chain],
         );
 
-        // TODO remove upon transferring ownership of HelloWorld in multisig txs
-        if (!matches && 1 + 1 == 3) {
+        if (!matches) {
           this.app.logger(
             `Deploying ISM; ISM config of actual ${actual} does not match expected config ${JSON.stringify(
               value,
