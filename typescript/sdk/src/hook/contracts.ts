@@ -4,7 +4,7 @@ import {
 } from '@hyperlane-xyz/core';
 
 export const merkleRootHookFactories = {
-  merkleRootHook: new MerkleTreeHook__factory(),
+  hook: new MerkleTreeHook__factory(),
 };
 
 export type MerkleRootHookFactories = typeof merkleRootHookFactories;
@@ -14,6 +14,10 @@ export const merkleRootIsmFactories = {
   ism: new StaticMerkleRootMultisigIsm__factory(),
 };
 
-export type MerkleRootInterceptorFactories =
-  | MerkleRootHookFactories
-  | MerkleRootIsmFactories;
+export type MerkleRootInterceptorFactories = MerkleRootHookFactories &
+  MerkleRootIsmFactories;
+
+export type HookFactories = MerkleRootHookFactories;
+export type IsmFactories = MerkleRootIsmFactories;
+
+export type InterceptorFactories = HookFactories & IsmFactories;

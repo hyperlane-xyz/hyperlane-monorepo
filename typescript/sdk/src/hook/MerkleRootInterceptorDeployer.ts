@@ -4,21 +4,22 @@ import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultisigIsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
-import { HyperlaneInterceptorDeployer } from './HyperlaneInterceptorDeployer';
 import {
   MerkleRootHookFactories,
   MerkleRootInterceptorFactories,
   MerkleRootIsmFactories,
   merkleRootHookFactories,
-} from './contracts/merkleRoot';
-import { MerkleRootInterceptorConfig, MerkleTreeHookConfig } from './types';
+  merkleRootIsmFactories,
+} from './contracts';
+import { MerkleRootHookConfig, MerkleRootInterceptorConfig } from './types';
 
-export class MerkleRootInterceptorDeployer extends HyperlaneInterceptorDeployer<
+export class MerkleRootInterceptorDeployer extends HyperlaneDeployer<
   MerkleRootInterceptorConfig,
   MerkleRootInterceptorFactories
 > {
@@ -27,14 +28,30 @@ export class MerkleRootInterceptorDeployer extends HyperlaneInterceptorDeployer<
     readonly ismFactory: HyperlaneIsmFactory,
     readonly mailbox: Address,
   ) {
-    super(multiProvider, merkleRootHookFactories, {
-      logger: debug('hyperlane:MerkleTreeInterceptorDeployer'),
-    });
+    super(
+      multiProvider,
+      { ...merkleRootHookFactories, ...merkleRootIsmFactories },
+      {
+        logger: debug('hyperlane:MerkleRootInterceptorDeployer'),
+      },
+    );
+  }
+
+  async deployContracts(
+    chain: ChainName,
+    config: MerkleRootInterceptorConfig,
+  ): Promise<HyperlaneContracts<MerkleRootInterceptorFactories>> {
+    const hookContracts = await this.deployHookContracts(chain, config.hook);
+    const ismContracts = await this.deployIsmContracts(chain, config.ism);
+    return {
+      ...hookContracts,
+      ...ismContracts,
+    };
   }
 
   async deployHookContracts(
     chain: ChainName,
-    _: MerkleTreeHookConfig,
+    _: MerkleRootHookConfig,
   ): Promise<HyperlaneContracts<MerkleRootHookFactories>> {
     this.logger(`Deploying MerkleRootHook to ${chain}`);
     const merkleTreeFactory = new MerkleTreeHook__factory();
@@ -45,7 +62,7 @@ export class MerkleRootInterceptorDeployer extends HyperlaneInterceptorDeployer<
     );
     this.logger(`MerkleRootHook successfully deployed on ${chain}`);
     return {
-      merkleRootHook: merkleTreeHook,
+      hook: merkleTreeHook,
     };
   }
 

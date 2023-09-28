@@ -1,4 +1,3 @@
-import { BigNumber } from 'ethers';
 import path from 'path';
 
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
@@ -10,13 +9,11 @@ import {
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
   HyperlaneIsmFactoryDeployer,
-  InterceptorConfig,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
-  OpStackInterceptorDeployer,
+  MerkleRootInterceptorDeployer,
 } from '@hyperlane-xyz/sdk';
-import { HookContractType } from '@hyperlane-xyz/sdk/src';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
@@ -78,35 +75,20 @@ async function main() {
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.HOOK) {
     // throw new Error('Hook deployment unimplemented');
-    // config = envConfig.hooks;
-    // deployer = new HyperlaneHookDeployer(multiProvider);
-    // if (envConfig.hooks) {
-    //   config = envConfig.hooks;
-    //   console.log('envConfig: ', config);
-    //   deployer = new MerkleTreeInterceptorDeployer(multiProvider);
-    // } else {
-
-    const mrConfig: ChainMap<InterceptorConfig> = {
-      test1: {
-        type: HookContractType.HOOK,
-        destinationDomain: BigNumber.from(10),
-        destination: 'test2',
-        nativeBridge: '0xa85233c63b9ee964add6f2cffe00fd84eb32338f',
-      },
-      test2: {
-        type: HookContractType.ISM,
-        origin: 'test1',
-        nativeBridge: '0x322813fd9a801c5507c9de605d63cea4f2ce6c44',
-      },
-    };
-
-    config = mrConfig;
-    deployer = new OpStackInterceptorDeployer(
+    if (!envConfig.hooks) {
+      throw new Error(`No hook config for ${environment}`);
+    }
+    config = envConfig.hooks;
+    console.log(config);
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      getAddresses(environment, Modules.ISM_FACTORY),
       multiProvider,
+    );
+    deployer = new MerkleRootInterceptorDeployer(
+      multiProvider,
+      ismFactory,
       '0xb7f8bc63bbcad18155201308c8f3540b07f84f5e',
     );
-    // throw new Error('Hook deployment unimplemented');
-    // }
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);

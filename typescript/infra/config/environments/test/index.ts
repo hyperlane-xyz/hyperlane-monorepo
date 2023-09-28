@@ -11,6 +11,7 @@ import { storageGasOracleConfig } from './gas-oracle';
 // import { hooks } from './hooks';
 import { igp } from './igp';
 import { infra } from './infra';
+import { merkleRoot } from './interceptor';
 import { owners } from './owners';
 
 export const environment: EnvironmentConfig = {
@@ -18,7 +19,7 @@ export const environment: EnvironmentConfig = {
   chainMetadataConfigs: testConfigs,
   agents,
   core,
-  // hooks,
+  hooks: merkleRoot,
   igp,
   owners,
   infra,
