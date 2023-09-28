@@ -61,7 +61,11 @@ export const routingIsm = (
   environment: DeployEnvironment,
   local: ChainName,
   context: Contexts,
-): RoutingIsmConfig => {
+): RoutingIsmConfig | string => {
+  if (environment === 'mainnet2' && context === Contexts.Hyperlane) {
+    return mainnetHyperlaneDefaultIsmCache[local];
+  }
+
   const aggregationIsms: ChainMap<AggregationIsmConfig> = chains[
     environment
   ].reduce(
