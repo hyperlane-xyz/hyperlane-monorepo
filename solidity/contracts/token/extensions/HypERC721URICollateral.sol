@@ -11,8 +11,8 @@ import {IERC721MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/to
  */
 contract HypERC721URICollateral is HypERC721Collateral {
     // solhint-disable-next-line no-empty-blocks
-    constructor(address erc721, address mailbox)
-        HypERC721Collateral(erc721, mailbox)
+    constructor(address erc721, address _mailbox)
+        HypERC721Collateral(erc721, _mailbox)
     {}
 
     /**
