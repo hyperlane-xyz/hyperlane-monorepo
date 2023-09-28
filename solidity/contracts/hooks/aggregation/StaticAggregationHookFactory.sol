@@ -15,9 +15,9 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {StaticAggregationHook} from "./StaticAggregationHook.sol";
-import {StaticNAddressSetFactory} from "../../libs/StaticNAddressSetFactory.sol";
+import {StaticAddressSetFactory} from "../../libs/StaticAddressSetFactory.sol";
 
-contract StaticAggregationHookFactory is StaticNAddressSetFactory {
+contract StaticAggregationHookFactory is StaticAddressSetFactory {
     function _deployImplementation()
         internal
         virtual

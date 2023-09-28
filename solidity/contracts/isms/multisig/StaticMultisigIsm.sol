@@ -5,7 +5,7 @@ import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
 import {AbstractMerkleRootMultisigIsm} from "./AbstractMerkleRootMultisigIsm.sol";
 import {AbstractMessageIdMultisigIsm} from "./AbstractMessageIdMultisigIsm.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
-import {StaticMOfNAddressSetFactory} from "../../libs/StaticMOfNAddressSetFactory.sol";
+import {StaticMOfNAddressSetFactory} from "../../libs/StaticAddressSetFactory.sol";
 
 /**
  * @title AbstractMetaProxyMultisigIsm

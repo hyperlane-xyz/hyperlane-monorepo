@@ -9,12 +9,12 @@ import {MetaProxy} from "./MetaProxy.sol";
 
 abstract contract StaticMOfNAddressSetFactory {
     // ============ Immutables ============
-    address private immutable _implementation;
+    address public immutable implementation;
 
     // ============ Constructor ============
 
     constructor() {
-        _implementation = _deployImplementation();
+        implementation = _deployImplementation();
     }
 
     function _deployImplementation() internal virtual returns (address);
@@ -28,7 +28,7 @@ abstract contract StaticMOfNAddressSetFactory {
      * @return set The contract address representing this StaticMOfNAddressSet
      */
     function deploy(address[] calldata _values, uint8 _threshold)
-        external
+        public
         returns (address)
     {
         (bytes32 _salt, bytes memory _bytecode) = _saltAndBytecode(
@@ -70,7 +70,7 @@ abstract contract StaticMOfNAddressSetFactory {
      * @return set The contract address representing this StaticMOfNAddressSet
      */
     function _getAddress(bytes32 _salt, bytes memory _bytecode)
-        private
+        internal
         view
         returns (address)
     {
@@ -86,13 +86,45 @@ abstract contract StaticMOfNAddressSetFactory {
      * @return _bytecode The metaproxy bytecode used in Create2
      */
     function _saltAndBytecode(address[] calldata _values, uint8 _threshold)
-        private
+        internal
         view
         returns (bytes32, bytes memory)
     {
         bytes memory _metadata = abi.encode(_values, _threshold);
-        bytes memory _bytecode = MetaProxy.bytecode(_implementation, _metadata);
+        bytes memory _bytecode = MetaProxy.bytecode(implementation, _metadata);
         bytes32 _salt = keccak256(_metadata);
         return (_salt, _bytecode);
+    }
+}
+
+abstract contract StaticAddressSetFactory is StaticMOfNAddressSetFactory {
+    /**
+     * @notice Deploys a StaticNAddressSet contract address for the given
+     * values
+     * @dev Consider sorting addresses to ensure contract reuse
+     * @param _values An array of addresses
+     * @return set The contract address representing this StaticNAddressSet
+     */
+    function deploy(address[] calldata _values) external returns (address) {
+        return super.deploy(_values, uint8(_values.length));
+    }
+
+    /**
+     * @notice Returns the StaticNAddressSet contract address for the given
+     * values
+     * @dev Consider sorting addresses to ensure contract reuse
+     * @param _values An array of addresses
+     * @return set The contract address representing this StaticNAddressSet
+     */
+    function getAddress(address[] calldata _values)
+        external
+        view
+        returns (address)
+    {
+        (bytes32 _salt, bytes memory _bytecode) = _saltAndBytecode(
+            _values,
+            uint8(_values.length)
+        );
+        return super._getAddress(_salt, _bytecode);
     }
 }
