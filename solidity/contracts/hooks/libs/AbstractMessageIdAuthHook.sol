@@ -43,10 +43,10 @@ abstract contract AbstractMessageIdAuthHook is
     // ============ Constructor ============
 
     constructor(
-        address mailbox,
+        address _mailbox,
         uint32 _destinationDomain,
         address _ism
-    ) MailboxClient(mailbox) {
+    ) MailboxClient(_mailbox) {
         require(_ism != address(0), "AbstractMessageIdAuthHook: invalid ISM");
         require(
             _destinationDomain != 0,

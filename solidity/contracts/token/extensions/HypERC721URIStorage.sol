@@ -12,7 +12,7 @@ import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC72
  * @author Abacus Works
  */
 contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
-    constructor(address mailbox) HypERC721(mailbox) {}
+    constructor(address _mailbox) HypERC721(_mailbox) {}
 
     function balanceOf(address account)
         public
