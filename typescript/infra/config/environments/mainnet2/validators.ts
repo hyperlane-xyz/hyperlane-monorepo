@@ -1,4 +1,4 @@
-import { chainMetadata } from '@hyperlane-xyz/sdk';
+import { CoreChainName, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
@@ -20,6 +20,7 @@ export const validatorChainConfig = (
           [Contexts.ReleaseCandidate]: [
             '0xe7a82e210f512f8e9900d6bc2acbf7981c63e66e',
           ],
+          [Contexts.Permissionless]: [],
         },
         'celo',
       ),
@@ -33,6 +34,7 @@ export const validatorChainConfig = (
           [Contexts.ReleaseCandidate]: [
             '0xaea1adb1c687b061e5b60b9da84cb69e7b5fab44',
           ],
+          [Contexts.Permissionless]: [],
         },
         'ethereum',
       ),
@@ -46,6 +48,7 @@ export const validatorChainConfig = (
           [Contexts.ReleaseCandidate]: [
             '0x706976391e23dea28152e0207936bd942aba01ce',
           ],
+          [Contexts.Permissionless]: [],
         },
         'avalanche',
       ),
@@ -59,6 +62,7 @@ export const validatorChainConfig = (
           [Contexts.ReleaseCandidate]: [
             '0xef372f6ff7775989b3ac884506ee31c79638c989',
           ],
+          [Contexts.Permissionless]: [],
         },
         'polygon',
       ),
@@ -72,6 +76,7 @@ export const validatorChainConfig = (
           [Contexts.ReleaseCandidate]: [
             '0x0823081031a4a6f97c6083775c191d17ca96d0ab',
           ],
+          [Contexts.Permissionless]: [],
         },
         'bsc',
       ),
@@ -85,6 +90,7 @@ export const validatorChainConfig = (
           [Contexts.ReleaseCandidate]: [
             '0x1a95b35fb809d57faf1117c1cc29a6c5df289df1',
           ],
+          [Contexts.Permissionless]: [],
         },
         'arbitrum',
       ),
@@ -98,6 +104,7 @@ export const validatorChainConfig = (
           [Contexts.ReleaseCandidate]: [
             '0x60e938bf280bbc21bacfd8bf435459d9003a8f98',
           ],
+          [Contexts.Permissionless]: [],
         },
         'optimism',
       ),
@@ -111,6 +118,7 @@ export const validatorChainConfig = (
           [Contexts.ReleaseCandidate]: [
             '0x0df7140811e309dc69638352545151ebb9d5e0fd',
           ],
+          [Contexts.Permissionless]: [],
         },
         'moonbeam',
       ),
@@ -124,6 +132,7 @@ export const validatorChainConfig = (
           [Contexts.ReleaseCandidate]: [
             '0x15f48e78092a4f79febface509cfd76467c6cdbb',
           ],
+          [Contexts.Permissionless]: [],
         },
         'gnosis',
       ),
@@ -141,6 +150,7 @@ export const validatorChainConfig = (
           [Contexts.ReleaseCandidate]: [
             '0x8cc7dbfb5de339e4133f3af059c927ec383ace38',
           ],
+          [Contexts.Permissionless]: [],
         },
         'solana',
       ),
@@ -158,8 +168,23 @@ export const validatorChainConfig = (
           [Contexts.ReleaseCandidate]: [
             '0xdaf2e5ddaf2532753dc78bb6fbb0a10204c888c1',
           ],
+          [Contexts.Permissionless]: [],
         },
         'nautilus',
+      ),
+    },
+    zkevm: {
+      interval: 5,
+      reorgPeriod: 1,
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Permissionless]: [
+            '0xdc38324fd59043c98dd8b46d2c2349dfc381506a',
+          ],
+        },
+        'zkevm' as CoreChainName,
       ),
     },
   };

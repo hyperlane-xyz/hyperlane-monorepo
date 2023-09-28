@@ -168,7 +168,28 @@ const releaseCandidate: RootAgentConfig = {
   },
 };
 
+const permissionless: RootAgentConfig = {
+  ...contextBase,
+  contextChainNames: {
+    validator: ['zkevm'],
+    relayer: [],
+    scraper: [],
+  },
+  environmentChainNames: ['zkevm'],
+  context: Contexts.Permissionless,
+  rolesWithKeys: [Role.Validator],
+  validators: {
+    docker: {
+      repo,
+      tag: 'ed7569d-20230725-171222',
+    },
+    connectionType: AgentConnectionType.HttpQuorum,
+    chains: validatorChainConfig(Contexts.Permissionless),
+  },
+};
+
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.Permissionless]: permissionless,
 };
