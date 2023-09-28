@@ -31,11 +31,11 @@ export function getRelayerCloudAgentKeys(
 
   const keys = [];
   keys.push(new AgentAwsKey(agentConfig, Role.Relayer));
-  const nonEthereumChains = agentConfig.contextChainNames[Role.Relayer].find(
-    (chainName) => chainMetadata[chainName].protocol !== ProtocolType.Ethereum,
-  );
+  const hasNonEthereumChains = !!agentConfig.contextChainNames[
+    Role.Relayer
+  ].find(isNotEthereumProtocolChain);
   // If there are any non-ethereum chains, we also want hex keys.
-  if (nonEthereumChains) {
+  if (hasNonEthereumChains) {
     keys.push(
       new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer),
     );
@@ -54,6 +54,13 @@ export function getCloudAgentKey(
   // The deployer is always GCP-based
   if (!!agentConfig.aws && role !== Role.Deployer) {
     return new AgentAwsKey(agentConfig, role, chainName, index);
+    // Non-evm Kathy is also always GCP-based but does not index by chain
+  } else if (
+    role === Role.Kathy &&
+    chainName &&
+    isNotEthereumProtocolChain(chainName)
+  ) {
+    return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, role);
   } else {
     return new AgentGCPKey(
       agentConfig.runEnv,
@@ -202,4 +209,9 @@ function addressesIdentifier(
   context: Contexts,
 ) {
   return `${context}-${environment}-key-addresses`;
+}
+
+function isNotEthereumProtocolChain(chainName: ChainName) {
+  if (!chainMetadata[chainName]) throw new Error(`Unknown chain ${chainName}`);
+  return chainMetadata[chainName].protocol !== ProtocolType.Ethereum;
 }
