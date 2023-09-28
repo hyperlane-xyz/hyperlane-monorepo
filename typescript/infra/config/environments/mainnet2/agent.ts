@@ -100,6 +100,18 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
         destinationDomain: [getDomainId(chainMetadata.nautilus)],
         recipientAddress: '*',
       },
+      // Similarly, temporarily not charging gas for Helloworld from Solana
+      {
+        originDomain: [getDomainId(chainMetadata.solana)],
+        senderAddress: [
+          // Hyperlane context
+          '4k1gruSdH1r57V9QQK4aunzfMYzLFfF83jdYkkEwyem6',
+          // Rc context
+          '3pPDp16iVTJFge2sm85Q61hW61UN5xNqeG24gqFhzLFV',
+        ],
+        destinationDomain: '*',
+        recipientAddress: '*',
+      },
     ],
   },
   {
@@ -159,7 +171,7 @@ const releaseCandidate: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '3b0685f-20230815-110725',
+      tag: '35fdc74-20230913-104940',
     },
     whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
