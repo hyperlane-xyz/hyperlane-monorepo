@@ -4,8 +4,8 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
-import {DomainRoutingHook} from "../../contracts/hooks/DomainRoutingHook.sol";
-import {FallbackDomainRoutingHook} from "../../contracts/hooks/FallbackDomainRoutingHook.sol";
+import {DomainRoutingHook} from "../../contracts/hooks/routing/DomainRoutingHook.sol";
+import {FallbackDomainRoutingHook} from "../../contracts/hooks/routing/FallbackDomainRoutingHook.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 

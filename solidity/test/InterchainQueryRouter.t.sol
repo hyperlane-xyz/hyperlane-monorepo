@@ -2,8 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import {InterchainQueryRouter} from "../contracts/middleware/InterchainQueryRouter.sol";
-import {IInterchainQueryRouter} from "../contracts/interfaces/middleware/IInterchainQueryRouter.sol";
+import {CallLib, InterchainQueryRouter} from "../contracts/middleware/InterchainQueryRouter.sol";
 import {MockHyperlaneEnvironment} from "../contracts/mock/MockHyperlaneEnvironment.sol";
 
 import {MockToken} from "../contracts/mock/MockToken.sol";
@@ -11,7 +10,6 @@ import {PausableHook} from "../contracts/hooks/PausableHook.sol";
 
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import "../contracts/test/TestRecipient.sol";
-import {CallLib} from "../contracts/libs/Call.sol";
 
 contract InterchainQueryRouterTest is Test {
     using TypeCasts for address;

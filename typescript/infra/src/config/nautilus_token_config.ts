@@ -1,5 +1,4 @@
-import { TokenType } from '@hyperlane-xyz/hyperlane-token';
-import { ChainMap } from '@hyperlane-xyz/sdk';
+import { ChainMap, TokenType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 interface NativeTokenConfig {

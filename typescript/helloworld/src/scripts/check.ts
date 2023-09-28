@@ -1,9 +1,7 @@
 import {
   HyperlaneCore,
-  HyperlaneIgp,
   MultiProvider,
   attachContractsMap,
-  createRouterConfigMap,
 } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldApp } from '../app/app';
@@ -27,13 +25,8 @@ async function check() {
   );
 
   const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
-  const igp = HyperlaneIgp.fromEnvironment('testnet', multiProvider);
   const app = new HelloWorldApp(core, contractsMap, multiProvider);
-  const config = createRouterConfigMap(
-    ownerAddress,
-    core.contractsMap,
-    igp.contractsMap,
-  );
+  const config = core.getRouterConfig(ownerAddress);
 
   console.info('Starting check');
   const helloWorldChecker = new HelloWorldChecker(multiProvider, app, config);

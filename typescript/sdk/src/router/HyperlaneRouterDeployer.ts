@@ -1,13 +1,12 @@
-import { ethers } from 'ethers';
-
 import {
-  IInterchainGasPaymaster__factory,
+  IPostDispatchHook__factory,
   Mailbox__factory,
   Router,
 } from '@hyperlane-xyz/core';
 import {
   Address,
   addressToBytes32,
+  formatMessage,
   objFilter,
   objMap,
   objMerge,
@@ -37,40 +36,46 @@ export abstract class HyperlaneRouterDeployer<
     for (const [local, config] of Object.entries(configMap)) {
       this.logger(`Checking config for ${local}...`);
       const signerOrProvider = this.multiProvider.getSignerOrProvider(local);
-      const localIgp = IInterchainGasPaymaster__factory.connect(
-        config.interchainGasPaymaster,
-        signerOrProvider,
-      );
       const localMailbox = Mailbox__factory.connect(
         config.mailbox,
         signerOrProvider,
       );
-      let localIsm;
-      if (
-        !config.interchainSecurityModule ||
-        config.interchainSecurityModule === ethers.constants.AddressZero
-      ) {
-        localIsm = await localMailbox.defaultIsm();
-      } else {
-        localIsm = config.interchainSecurityModule;
-      }
+
+      const localHook = IPostDispatchHook__factory.connect(
+        config.hook ?? (await localMailbox.defaultHook()),
+        signerOrProvider,
+      );
+
+      const deployer = await this.multiProvider.getSignerAddress(local);
 
       const remotes = Object.keys(configMap).filter((c) => c !== local);
       for (const remote of remotes) {
-        this.logger(`Checking origin ${remote}...`);
-        // Try to confirm that the IGP supports delivery to all remotes
+        const origin = this.multiProvider.getDomainId(local);
+        const destination = this.multiProvider.getDomainId(remote);
+        const message = formatMessage(
+          0,
+          0,
+          origin,
+          deployer,
+          destination,
+          deployer,
+          '',
+        );
+
+        // Try to confirm that the hook supports delivery to all remotes
+        this.logger(`Checking ${local} => ${remote} hook...`);
         try {
-          await localIgp.quoteGasPayment(
-            this.multiProvider.getDomainId(remote),
-            1,
-          );
+          await localHook.quoteDispatch('', message);
         } catch (e) {
           throw new Error(
-            `The specified or default IGP with address ${localIgp.address} on ` +
+            `The specified or default hook with address ${localHook.address} on ` +
               `${local} is not configured to deliver messages to ${remote}, ` +
               `did you mean to specify a different one?`,
           );
         }
+
+        const localIsm =
+          config.interchainSecurityModule ?? (await localMailbox.defaultIsm());
 
         // Try to confirm that the specified or default ISM can verify messages to all remotes
         const canVerify = await moduleCanCertainlyVerify(
@@ -80,8 +85,9 @@ export abstract class HyperlaneRouterDeployer<
           local,
         );
         if (!canVerify) {
+          const ismString = JSON.stringify(localIsm);
           throw new Error(
-            `The specified or default ISM with address ${localIsm} on ${local} ` +
+            `The specified or default ISM ${ismString} on ${local} ` +
               `cannot verify messages from ${remote}, did you forget to ` +
               `specify an ISM, or mean to specify a different one?`,
           );
@@ -90,14 +96,14 @@ export abstract class HyperlaneRouterDeployer<
     }
   }
 
-  async initConnectionClients(
+  async initMailboxClients(
     contractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
   ): Promise<void> {
     for (const chain of Object.keys(contractsMap)) {
       const contracts = contractsMap[chain];
       const config = configMap[chain];
-      await super.initConnectionClient(chain, this.router(contracts), config);
+      await super.initMailboxClient(chain, this.router(contracts), config);
     }
   }
 
@@ -198,7 +204,7 @@ export abstract class HyperlaneRouterDeployer<
       configMap,
       foreignDeployments,
     );
-    await this.initConnectionClients(deployedContractsMap, configMap);
+    await this.initMailboxClients(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
     this.logger(`Finished deploying router contracts for all chains.`);
 

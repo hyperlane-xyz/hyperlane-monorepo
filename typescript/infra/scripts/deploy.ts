@@ -1,4 +1,3 @@
-import { getAddress } from 'ethers/lib/utils';
 import path from 'path';
 
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
@@ -6,7 +5,6 @@ import {
   ChainMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
-  HyperlaneIgp,
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
   HyperlaneIsmFactoryDeployer,
@@ -22,7 +20,6 @@ import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
 import { TestRecipientDeployer } from '../src/deployment/testcontracts/testrecipient';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
-import { readJSON } from '../src/utils/utils';
 
 import {
   Modules,
@@ -105,10 +102,6 @@ async function main() {
   } else if (module === Modules.TEST_RECIPIENT) {
     deployer = new TestRecipientDeployer(multiProvider);
   } else if (module === Modules.TEST_QUERY_SENDER) {
-    const igp = HyperlaneIgp.fromEnvironment(
-      getAddresses(environment, Modules.INTERCHAIN_GAS_PAYMASTER),
-      multiProvider,
-    );
     // Get query router addresses
     const queryAddresses = getAddresses(
       environment,
@@ -117,7 +110,7 @@ async function main() {
     config = objMap(queryAddresses, (_c, conf) => ({
       queryRouterAddress: conf.router,
     }));
-    deployer = new TestQuerySenderDeployer(multiProvider, igp);
+    deployer = new TestQuerySenderDeployer(multiProvider);
   } else if (module === Modules.HELLO_WORLD) {
     config = await getRouterConfig(
       environment,
