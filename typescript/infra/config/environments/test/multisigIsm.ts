@@ -1,4 +1,5 @@
 import { ChainMap, ModuleType, MultisigIsmConfig } from '@hyperlane-xyz/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk/src';
 
 // the addresses here must line up with the e2e test's validator addresses
 // Validators are anvil accounts 4-6
@@ -8,18 +9,18 @@ export const chainToValidator: Record<string, string> = {
   test3: '0x976EA74026E726554dB657fA54763abd0C3a0aa9',
 };
 
-export const merkleRootMultisig = (validatorKey: string): MultisigIsmConfig => {
+export const merkleRootMultisig = (chain: ChainName): MultisigIsmConfig => {
   return {
     type: ModuleType.MERKLE_ROOT_MULTISIG,
-    validators: [chainToValidator[validatorKey]],
+    validators: [chainToValidator[chain]],
     threshold: 1,
   };
 };
 
-export const messageIdMultisig = (validatorKey: string): MultisigIsmConfig => {
+export const messageIdMultisig = (chain: ChainName): MultisigIsmConfig => {
   return {
     type: ModuleType.MESSAGE_ID_MULTISIG,
-    validators: [validatorKey],
+    validators: [chainToValidator[chain]],
     threshold: 1,
   };
 };

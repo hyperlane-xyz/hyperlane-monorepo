@@ -20,17 +20,6 @@ const chains = {
   test: testChains,
 };
 
-export const multisigIsm = (
-  env: DeployEnvironment,
-  chain: ChainName,
-  type: MultisigIsmConfig['type'],
-  context: Contexts,
-): MultisigIsmConfig => {
-  return context === Contexts.ReleaseCandidate
-    ? { ...rcMultisigIsmConfigs[chain], type }
-    : { ...defaultMultisigIsmConfigs[chain], type };
-};
-
 export const multisigIsms = (
   env: DeployEnvironment,
   local: ChainName,
