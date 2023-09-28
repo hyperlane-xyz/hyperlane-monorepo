@@ -3,12 +3,14 @@ forge coverage --report lcov
 
 if ! command -v lcov &>/dev/null; then
     echo "lcov is not installed. Installing..."
+    sudo apt-get update
     sudo apt-get install lcov
-else
-    echo "lcov is installed."
 fi
 
-EXCLUDE="*test* *mock* *node_modules* $(grep -r 'library' contracts -l)" # forge does not instrument libraries
+lcov --version
+
+# forge does not instrument libraries https://github.com/foundry-rs/foundry/issues/4854
+EXCLUDE="*test* *mock* *node_modules* $(grep -r 'library' contracts -l)"
 lcov --rc branch_coverage=1 \
     --output-file forge-pruned-lcov.info \
     --remove lcov.info $EXCLUDE    
