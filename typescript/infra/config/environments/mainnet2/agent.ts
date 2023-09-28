@@ -92,6 +92,14 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
         destinationDomain: '*',
         recipientAddress: '*',
       },
+      // Temporarily don't charge gas for the Solana -> Nautilus ZBC warp route,
+      // as IGP indexing in the agents is currently incompatible with the deployed IGP.
+      {
+        originDomain: [getDomainId(chainMetadata.solana)],
+        senderAddress: ['EJqwFjvVJSAxH8Ur2PYuMfdvoJeutjmH6GkoEFQ4MdSa'],
+        destinationDomain: [getDomainId(chainMetadata.nautilus)],
+        recipientAddress: '*',
+      },
     ],
   },
   {
