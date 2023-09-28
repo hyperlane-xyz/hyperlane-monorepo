@@ -53,6 +53,7 @@ describe('HelloWorld', async () => {
 
   async function quoteGasPayment() {
     const handleGasAmount = await local.HANDLE_GAS_AMOUNT();
+    // TODO: update once IGP is not hardcoded in core deployer
     const GAS_PRICE = 10;
     return handleGasAmount.mul(GAS_PRICE);
   }

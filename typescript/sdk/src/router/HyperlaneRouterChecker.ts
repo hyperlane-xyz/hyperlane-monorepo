@@ -29,7 +29,7 @@ export class HyperlaneRouterChecker<
   async checkMailboxClient(chain: ChainName): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
 
-    const checkConnectionClientProperty = async (
+    const checkMailboxClientProperty = async (
       property: keyof (MailboxClientConfig & OwnableConfig),
       violationType: ClientViolationType,
     ) => {
@@ -54,9 +54,9 @@ export class HyperlaneRouterChecker<
       }
     };
 
-    await checkConnectionClientProperty('mailbox', ClientViolationType.Mailbox);
-    await checkConnectionClientProperty('hook', ClientViolationType.Hook);
-    await checkConnectionClientProperty(
+    await checkMailboxClientProperty('mailbox', ClientViolationType.Mailbox);
+    await checkMailboxClientProperty('hook', ClientViolationType.Hook);
+    await checkMailboxClientProperty(
       'interchainSecurityModule',
       ClientViolationType.Hook,
     );
