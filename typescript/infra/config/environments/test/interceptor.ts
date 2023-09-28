@@ -5,7 +5,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { merkleRootMultisig } from './multisigIsm';
+import { chainToValidator, merkleRootMultisig } from './multisigIsm';
 import { owners } from './owners';
 
 export const merkleRoot: ChainMap<InterceptorConfig> = objMap(
@@ -15,7 +15,7 @@ export const merkleRoot: ChainMap<InterceptorConfig> = objMap(
       hook: {
         type: InterceptorType.HOOK,
       },
-      ism: merkleRootMultisig(chain),
+      ism: merkleRootMultisig(chainToValidator[chain]),
     };
     return config;
   },

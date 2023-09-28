@@ -58,7 +58,7 @@
     "deploy-igp": "ts-node scripts/deploy.ts -e test -m igp",
     "deploy-ism": "ts-node scripts/deploy.ts -e test -m ism",
     "deploy-helloworld": "ts-node scripts/deploy.ts -e test -m helloworld",
-    "deploy-hook": "ts-node scripts/deploy.ts -e testnet3 -m hook",
+    "deploy-hook": "ts-node scripts/deploy.ts -e test -m hook",
     "build": "tsc",
     "clean": "rm -rf ./dist ./cache",
     "check": "tsc --noEmit",

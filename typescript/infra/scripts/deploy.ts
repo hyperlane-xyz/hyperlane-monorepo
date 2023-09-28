@@ -13,7 +13,7 @@ import {
   LiquidityLayerDeployer,
   MerkleRootInterceptorDeployer,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
@@ -67,7 +67,7 @@ async function main() {
   } else if (module === Modules.CORE) {
     config = envConfig.core;
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.ISM_FACTORY),
+      getAddresses(environment, Modules.ISM_FACTORY)[environment],
       multiProvider,
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
@@ -80,10 +80,15 @@ async function main() {
       getAddresses(environment, Modules.ISM_FACTORY),
       multiProvider,
     );
+    const mailboxes: ChainMap<Address> = {};
+    for (const chain in getAddresses(environment, Modules.CORE)) {
+      mailboxes[chain] = getAddresses(environment, Modules.CORE)[chain].mailbox;
+    }
+
     deployer = new MerkleRootInterceptorDeployer(
       multiProvider,
       ismFactory,
-      '0xb7f8bc63bbcad18155201308c8f3540b07f84f5e',
+      mailboxes,
     );
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;

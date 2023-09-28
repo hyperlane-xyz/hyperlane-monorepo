@@ -8,7 +8,7 @@ import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultisigIsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
+import { ChainMap, ChainName } from '../types';
 
 import {
   MerkleRootHookFactories,
@@ -26,7 +26,7 @@ export class MerkleRootInterceptorDeployer extends HyperlaneDeployer<
   constructor(
     multiProvider: MultiProvider,
     readonly ismFactory: HyperlaneIsmFactory,
-    readonly mailbox: Address,
+    readonly mailboxes: ChainMap<Address>,
   ) {
     super(
       multiProvider,
@@ -58,7 +58,7 @@ export class MerkleRootInterceptorDeployer extends HyperlaneDeployer<
     const merkleTreeHook = await this.multiProvider.handleDeploy(
       chain,
       merkleTreeFactory,
-      [this.mailbox],
+      [this.mailboxes[chain]],
     );
     this.logger(`MerkleRootHook successfully deployed on ${chain}`);
     return {

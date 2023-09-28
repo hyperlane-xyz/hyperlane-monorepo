@@ -12,7 +12,7 @@ export const chainToValidator: Record<string, string> = {
 export const merkleRootMultisig = (chain: ChainName): MultisigIsmConfig => {
   return {
     type: ModuleType.MERKLE_ROOT_MULTISIG,
-    validators: [chainToValidator[chain]],
+    validators: [chain],
     threshold: 1,
   };
 };
@@ -20,7 +20,7 @@ export const merkleRootMultisig = (chain: ChainName): MultisigIsmConfig => {
 export const messageIdMultisig = (chain: ChainName): MultisigIsmConfig => {
   return {
     type: ModuleType.MESSAGE_ID_MULTISIG,
-    validators: [chainToValidator[chain]],
+    validators: [chain],
     threshold: 1,
   };
 };
