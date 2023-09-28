@@ -1,7 +1,8 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
-import { BigNumber, BigNumberish } from 'ethers';
+import { error } from 'console';
+import { BigNumber, BigNumberish, utils } from 'ethers';
 import { ethers } from 'hardhat';
 
 import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
@@ -24,6 +25,8 @@ import {
   ERC20,
   ERC20Test__factory,
   ERC20__factory,
+  FastHypERC20,
+  FastHypERC20Collateral,
   HypERC20,
   HypERC20Collateral,
   HypNative,
@@ -35,6 +38,7 @@ let localDomain: number;
 let remoteDomain: number;
 const totalSupply = 3000;
 const amount = 10;
+const fastFee = 1;
 
 const tokenMetadata = {
   name: 'HypERC20',
@@ -46,21 +50,24 @@ const tokenMetadata = {
 for (const variant of [
   TokenType.synthetic,
   TokenType.collateral,
+  TokenType.fastSynthetic,
+  TokenType.fastCollateral,
   TokenType.native,
 ]) {
   describe(`HypERC20${variant}`, async () => {
     let owner: SignerWithAddress;
     let recipient: SignerWithAddress;
+    let fastFiller: SignerWithAddress;
     let core: TestCoreApp;
     let deployer: HypERC20Deployer;
     let contracts: HyperlaneContractsMap<HypERC20Factories>;
     let localTokenConfig: TokenConfig;
     let local: HypERC20 | HypERC20Collateral | HypNative;
-    let remote: HypERC20;
+    let remote: HypERC20 | FastHypERC20;
     let interchainGasPayment: BigNumber;
 
     beforeEach(async () => {
-      [owner, recipient] = await ethers.getSigners();
+      [owner, recipient, fastFiller] = await ethers.getSigners();
       const multiProvider = MultiProvider.createTestMultiProvider({
         signer: owner,
       });
@@ -77,7 +84,10 @@ for (const variant of [
       );
 
       let erc20: ERC20 | undefined;
-      if (variant === TokenType.collateral) {
+      if (
+        variant === TokenType.collateral ||
+        variant === TokenType.fastCollateral
+      ) {
         erc20 = await new ERC20Test__factory(owner).deploy(
           tokenMetadata.name,
           tokenMetadata.symbol,
@@ -92,7 +102,10 @@ for (const variant of [
         localTokenConfig = {
           type: variant,
         };
-      } else if (variant === TokenType.synthetic) {
+      } else if (
+        variant === TokenType.synthetic ||
+        variant === TokenType.fastSynthetic
+      ) {
         localTokenConfig = { type: variant, ...tokenMetadata };
       }
 
@@ -100,7 +113,7 @@ for (const variant of [
         ...routerConfig[key],
         ...(key === localChain
           ? localTokenConfig
-          : { type: TokenType.synthetic }),
+          : { type: TokenType.fastSynthetic }),
         owner: owner.address,
       })) as ChainMap<TokenConfig & RouterConfig>;
 
@@ -114,7 +127,10 @@ for (const variant of [
         interchainGasPayment = interchainGasPayment.add(amount);
       }
 
-      if (variant === TokenType.collateral) {
+      if (
+        variant === TokenType.collateral ||
+        variant === TokenType.fastCollateral
+      ) {
         await erc20!.approve(local.address, amount);
       }
 
@@ -123,7 +139,9 @@ for (const variant of [
 
     it('should not be initializable again', async () => {
       const initializeTx =
-        variant === TokenType.collateral || variant === TokenType.native
+        variant === TokenType.collateral ||
+        variant === TokenType.native ||
+        variant === TokenType.fastCollateral
           ? (local as HypERC20Collateral).initialize(
               ethers.constants.AddressZero,
               ethers.constants.AddressZero,
@@ -140,7 +158,10 @@ for (const variant of [
       );
     });
 
-    if (variant === TokenType.synthetic) {
+    if (
+      variant === TokenType.synthetic ||
+      variant === TokenType.fastSynthetic
+    ) {
       it('should mint total supply to deployer', async () => {
         await expectBalance(local, recipient, 0);
         await expectBalance(local, owner, totalSupply);
@@ -160,7 +181,10 @@ for (const variant of [
     it('benchmark handle gas overhead', async () => {
       const localRaw = local.connect(ethers.provider);
       const mailboxAddress = core.contractsMap[localChain].mailbox.address;
-      if (variant === TokenType.collateral) {
+      if (
+        variant === TokenType.collateral ||
+        variant === TokenType.fastCollateral
+      ) {
         const tokenAddress = await (local as HypERC20Collateral).wrappedToken();
         const token = ERC20__factory.connect(tokenAddress, owner);
         await token.transfer(local.address, totalSupply);
@@ -174,12 +198,31 @@ for (const variant of [
           { value: interchainGasPayment },
         );
       }
-      const message = `${addressToBytes32(recipient.address)}${BigNumber.from(
-        amount,
-      )
-        .toHexString()
-        .slice(2)
-        .padStart(64, '0')}`;
+
+      let message: string;
+      if (
+        variant == TokenType.fastCollateral ||
+        variant === TokenType.fastSynthetic
+      ) {
+        const metadata: string = utils.defaultAbiCoder.encode(
+          ['uint256', 'uint256'],
+          [0, 0],
+        );
+        message = `${addressToBytes32(recipient.address)}${BigNumber.from(
+          amount,
+        )
+          .toHexString()
+          .slice(2)
+          .padStart(64, '0')}${metadata.slice(2)}`;
+      } else {
+        message = `${addressToBytes32(recipient.address)}${BigNumber.from(
+          amount,
+        )
+          .toHexString()
+          .slice(2)
+          .padStart(64, '0')}`;
+      }
+
       const handleGas = await localRaw.estimateGas.handle(
         remoteDomain,
         addressToBytes32(remote.address),
@@ -227,6 +270,129 @@ for (const variant of [
       await expectBalance(remote, owner, remoteOwner);
     });
 
+    if (
+      variant === TokenType.fastCollateral ||
+      variant === TokenType.fastSynthetic
+    ) {
+      it('should allow fast remote transfer from remote chain', async () => {
+        // First transfer tokens to the remote chain from the owner to owner.
+        const localOwner = await local.balanceOf(owner.address);
+        const localRecipient = await local.balanceOf(recipient.address);
+        const remoteOwner = await remote.balanceOf(owner.address);
+        const remoteRecipient = await remote.balanceOf(recipient.address);
+
+        await local.transferRemote(
+          remoteDomain,
+          addressToBytes32(owner.address),
+          amount,
+          {
+            value: interchainGasPayment,
+          },
+        );
+
+        let expectedLocal = localOwner.sub(amount);
+
+        await expectBalance(local, recipient, localRecipient);
+        await expectBalance(local, owner, expectedLocal);
+        await expectBalance(remote, recipient, remoteRecipient);
+        await expectBalance(remote, owner, remoteOwner);
+
+        await core.processMessages();
+
+        await expectBalance(local, recipient, localRecipient);
+        await expectBalance(local, owner, expectedLocal);
+        await expectBalance(remote, recipient, remoteRecipient);
+        await expectBalance(remote, owner, remoteOwner.add(amount));
+
+        // Transfer tokens back to the local chain from the remote chain, but now use the `fastTransferRemote` method.
+        const remoteInterchainGasPayment = await remote.quoteGasPayment(
+          localDomain,
+        );
+
+        await (remote as FastHypERC20).fastTransferRemote(
+          localDomain,
+          addressToBytes32(recipient.address),
+          amount,
+          fastFee,
+          {
+            value: remoteInterchainGasPayment,
+          },
+        );
+
+        await expectBalance(local, recipient, localRecipient);
+        await expectBalance(local, owner, expectedLocal);
+        await expectBalance(remote, recipient, remoteRecipient);
+        await expectBalance(remote, owner, remoteOwner);
+
+        // Transfer some wrapped tokens to the fast filler.
+        const token = await transferToFastFiller(
+          variant,
+          local,
+          owner,
+          fastFiller,
+          expectedLocal,
+        );
+
+        await token
+          .connect(fastFiller)
+          .approve(local.address, amount - fastFee);
+
+        // provide liquidity on the local chain and send amount to recipient
+        await (local as FastHypERC20Collateral)
+          .connect(fastFiller)
+          .fillFastTransfer(
+            recipient.address,
+            amount,
+            fastFee,
+            remoteDomain,
+            1,
+          );
+
+        await core.processMessages();
+
+        await expectBalance(
+          local,
+          recipient,
+          localRecipient.add(amount).sub(fastFee),
+        );
+        await expectBalance(local, owner, expectedLocal.sub(amount));
+        await expectBalance(remote, recipient, remoteRecipient);
+        await expectBalance(remote, owner, remoteOwner);
+        await expectBalance(token, fastFiller, amount + fastFee);
+      });
+
+      it('should credit full transfer amount to receiver if no one fills the transfer', async () => {
+        // First transfer tokens to the remote chain from the owner to owner.
+        const localOwner = await local.balanceOf(owner.address);
+        const localRecipient = await local.balanceOf(recipient.address);
+        const remoteOwner = await remote.balanceOf(owner.address);
+        const remoteRecipient = await remote.balanceOf(recipient.address);
+
+        await local.transferRemote(
+          remoteDomain,
+          addressToBytes32(owner.address),
+          amount,
+          {
+            value: interchainGasPayment,
+          },
+        );
+
+        let expectedLocal = localOwner.sub(amount);
+
+        await expectBalance(local, recipient, localRecipient);
+        await expectBalance(local, owner, expectedLocal);
+        await expectBalance(remote, recipient, remoteRecipient);
+        await expectBalance(remote, owner, remoteOwner);
+
+        await core.processMessages();
+
+        await expectBalance(local, recipient, localRecipient);
+        await expectBalance(local, owner, expectedLocal);
+        await expectBalance(remote, recipient, remoteRecipient);
+        await expectBalance(remote, owner, remoteOwner.add(amount));
+      });
+    }
+
     it('allows interchain gas payment for remote transfers', async () => {
       const interchainGasPaymaster = new InterchainGasPaymaster__factory()
         .attach(await local.interchainGasPaymaster())
@@ -245,8 +411,10 @@ for (const variant of [
       const revertReason = (): string => {
         switch (variant) {
           case TokenType.synthetic:
+          case TokenType.fastSynthetic:
             return 'ERC20: burn amount exceeds balance';
           case TokenType.collateral:
+          case TokenType.fastCollateral:
             return 'ERC20: insufficient allowance';
           case TokenType.native:
             return 'Native: amount exceeds msg.value';
@@ -291,4 +459,38 @@ const expectBalance = async (
   balance: BigNumberish,
 ) => {
   return expect(await token.balanceOf(signer.address)).to.eq(balance);
+};
+
+const transferToFastFiller = async (
+  variant: TokenType,
+  local: HypERC20 | HypERC20Collateral | HypNative,
+  owner: SignerWithAddress,
+  fastFiller: SignerWithAddress,
+  ownerBalance: BigNumber,
+) => {
+  if (variant == TokenType.fastCollateral) {
+    // Transfer some wrapped tokens to the fast filler.
+    const tokenAddress = await (local as FastHypERC20Collateral).wrappedToken();
+
+    const token = ERC20__factory.connect(tokenAddress, owner);
+    await token.transfer(fastFiller.address, amount);
+
+    await expectBalance(local, owner, ownerBalance.sub(amount));
+    await expectBalance(local, fastFiller, amount);
+
+    return token;
+  } else if (variant == TokenType.fastSynthetic) {
+    // Transfer some wrapped tokens to the fast filler.
+    const tokenAddress = (local as FastHypERC20).address;
+
+    const token = ERC20__factory.connect(tokenAddress, owner);
+    await token.transfer(fastFiller.address, amount);
+
+    await expectBalance(local, owner, ownerBalance.sub(amount));
+    await expectBalance(local, fastFiller, amount);
+
+    return token;
+  }
+
+  throw error('unsupported type');
 };

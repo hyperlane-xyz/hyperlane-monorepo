@@ -25,6 +25,7 @@ import {
   TokenMetadata,
   isCollateralConfig,
   isErc20Metadata,
+  isFastConfig,
   isNativeConfig,
   isSyntheticConfig,
   isTokenMetadata,
@@ -34,6 +35,8 @@ import { HypERC20Factories, HypERC721Factories } from './contracts';
 import {
   ERC20__factory,
   ERC721EnumerableUpgradeable__factory,
+  FastHypERC20Collateral__factory,
+  FastHypERC20__factory,
   HypERC20,
   HypERC20Collateral,
   HypERC20Collateral__factory,
@@ -75,11 +78,14 @@ export class HypERC20Deployer extends GasRouterDeployer<
 
   static gasOverheadDefault(config: TokenConfig): number {
     switch (config.type) {
+      case 'fastSynthetic':
+        return 64_000;
       case 'synthetic':
         return 64_000;
       case 'native':
         return 44_000;
       case 'collateral':
+      case 'fastCollateral':
       default:
         return 68_000;
     }
@@ -124,12 +130,23 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20CollateralConfig,
   ): Promise<HypERC20Collateral> {
-    const router = await this.deployContractFromFactory(
-      chain,
-      new HypERC20Collateral__factory(),
-      'HypERC20Collateral',
-      [config.token],
-    );
+    let router: HypERC20Collateral;
+    if (isFastConfig(config)) {
+      router = await this.deployContractFromFactory(
+        chain,
+        new FastHypERC20Collateral__factory(),
+        'FastHypERC20Collateral',
+        [config.token],
+      );
+    } else {
+      router = await this.deployContractFromFactory(
+        chain,
+        new HypERC20Collateral__factory(),
+        'HypERC20Collateral',
+        [config.token],
+      );
+    }
+
     await this.multiProvider.handleTx(
       chain,
       router.initialize(config.mailbox, config.interchainGasPaymaster),
@@ -168,12 +185,22 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20Config,
   ): Promise<HypERC20> {
-    const router = await this.deployContractFromFactory(
-      chain,
-      new HypERC20__factory(),
-      'HypERC20',
-      [config.decimals],
-    );
+    let router: HypERC20;
+    if (isFastConfig(config)) {
+      router = await this.deployContractFromFactory(
+        chain,
+        new FastHypERC20__factory(),
+        'FastHypERC20Collateral',
+        [config.decimals],
+      );
+    } else {
+      router = await this.deployContractFromFactory(
+        chain,
+        new HypERC20__factory(),
+        'HypERC20',
+        [config.decimals],
+      );
+    }
     await this.multiProvider.handleTx(
       chain,
       router.initialize(
