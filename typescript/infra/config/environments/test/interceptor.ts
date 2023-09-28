@@ -1,3 +1,5 @@
+import { BigNumber } from 'ethers';
+
 import {
   ChainMap,
   InterceptorConfig,
@@ -21,16 +23,34 @@ export const merkleRoot: ChainMap<InterceptorConfig> = objMap(
   },
 );
 
-// const mrConfig: ChainMap<InterceptorConfig> = {
-//   test1: {
-//     type: InterceptorType.HOOK,
-//     destinationDomain: BigNumber.from(10),
-//     destination: 'test2',
-//     nativeBridge: '0xa85233c63b9ee964add6f2cffe00fd84eb32338f',
-//   },
-//   test2: {
-//     type: InterceptorType.ISM,
-//     origin: 'test1',
-//     nativeBridge: '0x322813fd9a801c5507c9de605d63cea4f2ce6c44',
-//   },
-// };
+// test1 -> test2, test2 -> test3
+export const opStack: ChainMap<InterceptorConfig> = {
+  test1: {
+    hook: {
+      type: InterceptorType.HOOK,
+      nativeBridge: '0xa85233c63b9ee964add6f2cffe00fd84eb32338f',
+      destinationDomain: BigNumber.from(10),
+      destination: 'test2',
+    },
+  },
+  test2: {
+    hook: {
+      type: InterceptorType.HOOK,
+      nativeBridge: '0xa85233c63b9ee964add6f2cffe00fd84eb32338f',
+      destinationDomain: BigNumber.from(11),
+      destination: 'test3',
+    },
+    ism: {
+      type: InterceptorType.ISM,
+      origin: 'test1',
+      nativeBridge: '0x322813fd9a801c5507c9de605d63cea4f2ce6c44',
+    },
+  },
+  test3: {
+    ism: {
+      type: InterceptorType.ISM,
+      origin: 'test2',
+      nativeBridge: '0x322813fd9a801c5507c9de605d63cea4f2ce6c44',
+    },
+  },
+};

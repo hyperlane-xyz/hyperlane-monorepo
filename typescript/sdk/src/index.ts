@@ -115,7 +115,7 @@ export {
   InterceptorType,
   MerkleRootHookConfig,
   NoMetadataIsmConfig,
-  OpStackHookConfig,
+  OPStackHookConfig,
 } from './hook/types';
 export {
   HyperlaneIsmFactory,

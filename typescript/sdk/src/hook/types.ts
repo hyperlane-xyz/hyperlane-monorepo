@@ -10,7 +10,7 @@ export enum InterceptorType {
   ISM = 'ism',
 }
 
-export type OpStackHookConfig = {
+export type OPStackHookConfig = {
   type: InterceptorType.HOOK;
   nativeBridge: Address;
   remoteIsm?: Address;
@@ -27,12 +27,12 @@ export type MerkleRootInterceptorConfig = {
   ism: MultisigIsmConfig;
 };
 
-export type OpStackInterceptorConfig = {
-  hook: OpStackHookConfig;
-  ism: NoMetadataIsmConfig;
+export type OPStackInterceptorConfig = {
+  hook?: OPStackHookConfig;
+  ism?: NoMetadataIsmConfig;
 };
 
-export type HookConfig = OpStackHookConfig | MerkleRootHookConfig;
+export type HookConfig = OPStackHookConfig | MerkleRootHookConfig;
 
 export type NoMetadataIsmConfig = {
   type: InterceptorType.ISM;
@@ -40,4 +40,6 @@ export type NoMetadataIsmConfig = {
   nativeBridge: Address;
 };
 
-export type InterceptorConfig = MerkleRootInterceptorConfig;
+export type InterceptorConfig =
+  | MerkleRootInterceptorConfig
+  | OPStackInterceptorConfig;
