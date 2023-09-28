@@ -14,6 +14,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 abstract contract Router is MailboxClient, IMessageRecipient {
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
+    using Strings for uint32;
 
     // ============ Mutable Storage ============
     EnumerableMapExtended.UintToBytes32Map internal _routers;
@@ -132,7 +133,7 @@ abstract contract Router is MailboxClient, IMessageRecipient {
      * @param _domain The domain
      */
     function _unenrollRemoteRouter(uint32 _domain) internal virtual {
-        _routers.remove(_domain);
+        require(_routers.remove(_domain), _domainNotFoundError(_domain));
     }
 
     /**
@@ -159,14 +160,20 @@ abstract contract Router is MailboxClient, IMessageRecipient {
         returns (bytes32)
     {
         (bool contained, bytes32 _router) = _routers.tryGet(_domain);
-        require(
-            contained,
+        require(contained, _domainNotFoundError(_domain));
+        return _router;
+    }
+
+    function _domainNotFoundError(uint32 _domain)
+        internal
+        pure
+        returns (string memory)
+    {
+        return
             string.concat(
                 "No router enrolled for domain: ",
-                Strings.toString(_domain)
-            )
-        );
-        return _router;
+                _domain.toString()
+            );
     }
 
     function _dispatch(uint32 _destinationDomain, bytes memory _messageBody)
