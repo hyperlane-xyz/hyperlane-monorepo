@@ -59,7 +59,7 @@ export async function helloWorldRouterConfig(
     ...config,
     interchainSecurityModule:
       context === Contexts.Hyperlane
-        ? // TODO move back to `undefined` after these are verified
+        ? // TODO move back to `undefined` after these are verified and made the default ISMs
           mainnetHyperlaneDefaultIsmCache[chain]
         : routingIsm(environment, chain, context),
   }));
