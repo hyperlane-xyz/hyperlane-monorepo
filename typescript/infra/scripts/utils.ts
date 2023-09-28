@@ -40,12 +40,7 @@ import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { Role } from '../src/roles';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
-import {
-  assertContext,
-  assertRole,
-  readJSON,
-  readJSONAtPath,
-} from '../src/utils/utils';
+import { assertContext, assertRole, readJSON } from '../src/utils/utils';
 
 export enum Modules {
   ISM_FACTORY = 'ism',
@@ -345,8 +340,7 @@ export async function getRouterConfig(
         ? await multiProvider.getSignerAddress(chain)
         : owners[chain],
       mailbox: core.getContracts(chain).mailbox.address,
-      interchainGasPaymaster:
-        igp.getContracts(chain).defaultIsmInterchainGasPaymaster.address,
+      hook: igp.getContracts(chain).defaultIsmInterchainGasPaymaster.address,
     };
   }
   return config;

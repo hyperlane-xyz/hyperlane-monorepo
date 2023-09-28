@@ -9,7 +9,7 @@ import {MessageUtils} from "./IsmTestUtils.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 
 import {IMessageDispatcher} from "../../contracts/interfaces/hooks/IMessageDispatcher.sol";
-import {ERC5164Hook} from "../../contracts/hooks/ERC5164Hook.sol";
+import {ERC5164Hook} from "../../contracts/hooks/aggregation/ERC5164Hook.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {ERC5164Ism} from "../../contracts/isms/hook/ERC5164Ism.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";

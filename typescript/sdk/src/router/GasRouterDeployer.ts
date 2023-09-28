@@ -48,7 +48,9 @@ export abstract class GasRouterDeployer<
       this.logger(`Set destination gas on ${chain} for ${remoteChains}`);
       await this.multiProvider.handleTx(
         chain,
-        this.router(contracts).setDestinationGas(remoteConfigs),
+        this.router(contracts)['setDestinationGas((uint32,uint256)[])'](
+          remoteConfigs,
+        ),
       );
     }
   }

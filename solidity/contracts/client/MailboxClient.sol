@@ -98,19 +98,23 @@ abstract contract MailboxClient is OwnableUpgradeable {
         return "";
     }
 
-    function _msgValue(
-        uint32 /*_destinationDomain*/
-    ) internal view virtual returns (uint256) {
-        return msg.value;
-    }
-
     function _dispatch(
         uint32 _destinationDomain,
         bytes32 _recipient,
         bytes memory _messageBody
     ) internal virtual returns (bytes32) {
         return
-            mailbox.dispatch{value: _msgValue(_destinationDomain)}(
+            _dispatch(_destinationDomain, _recipient, msg.value, _messageBody);
+    }
+
+    function _dispatch(
+        uint32 _destinationDomain,
+        bytes32 _recipient,
+        uint256 _value,
+        bytes memory _messageBody
+    ) internal virtual returns (bytes32) {
+        return
+            mailbox.dispatch{value: _value}(
                 _destinationDomain,
                 _recipient,
                 _messageBody,

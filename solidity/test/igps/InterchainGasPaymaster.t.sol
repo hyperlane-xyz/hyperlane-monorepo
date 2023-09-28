@@ -3,12 +3,12 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {StandardHookMetadata} from "../../contracts/libs/hooks/StandardHookMetadata.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
-import {InterchainGasPaymaster} from "../../contracts/igps/InterchainGasPaymaster.sol";
-import {StorageGasOracle} from "../../contracts/igps/gas-oracles/StorageGasOracle.sol";
+import {InterchainGasPaymaster} from "../../contracts/hooks/igp/InterchainGasPaymaster.sol";
+import {StorageGasOracle} from "../../contracts/hooks/igp/StorageGasOracle.sol";
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 
 contract InterchainGasPaymasterTest is Test {

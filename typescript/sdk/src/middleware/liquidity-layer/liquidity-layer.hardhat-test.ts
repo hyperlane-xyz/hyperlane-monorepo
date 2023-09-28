@@ -21,7 +21,6 @@ import { Chains } from '../../consts/chains';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';
-import { deployTestIgpsAndGetRouterConfig } from '../../test/testUtils';
 import { ChainMap } from '../../types';
 
 import { LiquidityLayerApp } from './LiquidityLayerApp';
@@ -53,12 +52,9 @@ describe.skip('LiquidityLayerRouter', async () => {
 
   before(async () => {
     [signer] = await ethers.getSigners();
-
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-
-    const coreDeployer = new TestCoreDeployer(multiProvider);
-    const coreContractsMaps = await coreDeployer.deploy();
-    coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
+    coreApp = await new TestCoreDeployer(multiProvider).deployApp();
+    const routerConfig = coreApp.getRouterConfig(signer.address);
 
     const mockTokenF = new MockToken__factory(signer);
     mockToken = await mockTokenF.deploy();
@@ -72,11 +68,7 @@ describe.skip('LiquidityLayerRouter', async () => {
       signer,
     );
     messageTransmitter = await messageTransmitterF.deploy(mockToken.address);
-    const routerConfig = await deployTestIgpsAndGetRouterConfig(
-      multiProvider,
-      signer.address,
-      coreContractsMaps,
-    );
+
     config = objMap(routerConfig, (chain, config) => {
       return {
         ...config,
