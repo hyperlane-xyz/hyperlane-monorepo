@@ -422,9 +422,9 @@ struct PayForGasArgs {
     program_id: Pubkey,
     #[arg(long)]
     message_id: String,
-    #[arg(long, default_value_t = 13376)]
+    #[arg(long)]
     destination_domain: u32,
-    #[arg(long, default_value_t = 10000)]
+    #[arg(long)]
     gas: u64,
 }
 
