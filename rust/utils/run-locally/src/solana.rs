@@ -314,8 +314,10 @@ pub fn initiate_solana_hyperlane_transfer(
         sealevel_client(&solana_cli_tools_path, &solana_config_path)
             .cmd("igp")
             .cmd("pay-for-gas")
-            .cmd("GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
-            .cmd(message_id)
+            .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
+            .arg("message-id", message_id)
+            .arg("destination-domain", SOLANA_REMOTE_CHAIN_ID)
+            .arg("gas", "100000")
             .run()
             .join();
     }

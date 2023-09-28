@@ -50,6 +50,7 @@ const contextBase = {
 } as const;
 
 const bscNautilusWarpRoutes: Array<{ router: string }> = [
+  // ZBC
   {
     router: '0xC27980812E2E66491FD457D488509b7E04144b98',
   },
@@ -71,7 +72,7 @@ const bscNautilusWarpRoutes: Array<{ router: string }> = [
   },
   // POSE
   {
-    router: '0x807D2C6c3d64873Cc729dfC65fB717C3E05e682f',
+    router: '0x97a2D58d30A2c838946194494207F7Cf50c25815',
   },
 ];
 
@@ -88,6 +89,14 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
         originDomain: [getDomainId(chainMetadata.bsc)],
         senderAddress: bscNautilusWarpRoutes.map((r) => r.router),
         destinationDomain: '*',
+        recipientAddress: '*',
+      },
+      // Temporarily don't charge gas for the Solana -> Nautilus ZBC warp route,
+      // as IGP indexing in the agents is currently incompatible with the deployed IGP.
+      {
+        originDomain: [getDomainId(chainMetadata.solana)],
+        senderAddress: ['EJqwFjvVJSAxH8Ur2PYuMfdvoJeutjmH6GkoEFQ4MdSa'],
+        destinationDomain: [getDomainId(chainMetadata.nautilus)],
         recipientAddress: '*',
       },
     ],
