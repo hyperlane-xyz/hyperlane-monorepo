@@ -379,12 +379,19 @@ struct IgpCmd {
 
 #[derive(Subcommand)]
 enum IgpSubCmd {
+    DeployProgram(IgpDeployProgramArgs),
     Query(IgpQueryArgs),
     PayForGas(PayForGasArgs),
     GasOracleConfig(GasOracleConfigArgs),
     DestinationGasOverhead(DestinationGasOverheadArgs),
     TransferIgpOwnership(TransferIgpOwnership),
     TransferOverheadIgpOwnership(TransferIgpOwnership),
+}
+
+#[derive(Args)]
+struct IgpDeployProgramArgs {
+    #[arg(long)]
+    built_so_dir: PathBuf,
 }
 
 #[derive(Args)]

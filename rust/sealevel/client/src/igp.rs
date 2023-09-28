@@ -1,4 +1,16 @@
-use std::str::FromStr;
+use std::collections::HashMap;
+
+use crate::{
+    cmd_utils::{create_and_write_keypair, deploy_program},
+    read_core_program_ids, Context, GasOverheadSubCmd, GetSetCmd, IgpCmd, IgpSubCmd,
+};
+use hyperlane_sealevel_igp::accounts::{SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE};
+
+use std::{
+    fs::File,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use solana_sdk::{
     pubkey::Pubkey,
@@ -16,10 +28,28 @@ use hyperlane_sealevel_igp::{
     instruction::{GasOracleConfig, GasOverheadConfig},
 };
 
-use crate::{read_core_program_ids, Context, GasOverheadSubCmd, GetSetCmd, IgpCmd, IgpSubCmd};
+struct IgpArtifacts {
+    program_id: Pubkey,
+    default_igp_account: Pubkey,
+    default_overhead_igp_account: Pubkey,
+}
 
 pub(crate) fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
     match cmd.cmd {
+        IgpSubCmd::DeployProgram(deploy) => {
+            let environments_dir =
+                create_new_directory(&deploy.environments_dir, &deploy.environment);
+            let ism_dir = create_new_directory(&environments_dir, "igp");
+            let chain_dir = create_new_directory(&ism_dir, &deploy.chain);
+            let key_dir = create_new_directory(&chain_dir, "keys");
+
+            let ism_program_id = deploy_igp_program(&mut ctx, &deploy.built_so_dir, true, &key_dir);
+
+            write_json::<SingularProgramIdArtifact>(
+                &context_dir.join("program-ids.json"),
+                ism_program_id.into(),
+            );
+        }
         IgpSubCmd::Query(query) => {
             let (program_data_account_pda, _program_data_account_bump) =
                 Pubkey::find_program_address(igp_program_data_pda_seeds!(), &query.program_id);
@@ -215,4 +245,202 @@ pub(crate) fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                 .send_with_payer();
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn deploy_igp_program(
+    ctx: &mut Context,
+    built_so_dir: &Path,
+    use_existing_keys: bool,
+    key_dir: &Path,
+) -> Pubkey {
+    let (keypair, keypair_path) = create_and_write_keypair(
+        key_dir,
+        "hyperlane_sealevel_igp-keypair.json",
+        use_existing_keys,
+    );
+    let program_id = keypair.pubkey();
+
+    deploy_program(
+        ctx.payer_keypair_path(),
+        keypair_path.to_str().unwrap(),
+        built_so_dir
+            .join("hyperlane_sealevel_igp.so")
+            .to_str()
+            .unwrap(),
+        &ctx.client.url(),
+    );
+
+    println!("Deployed IGP at program ID {}", program_id);
+
+    let (program_data_account, _program_data_bump) = Pubkey::find_program_address(
+        hyperlane_sealevel_igp::igp_program_data_pda_seeds!(),
+        &program_id,
+    );
+
+    // Initialize the program data
+    let instruction =
+        hyperlane_sealevel_igp::instruction::init_instruction(program_id, ctx.payer_pubkey)
+            .unwrap();
+
+    ctx.new_txn()
+        .add_with_description(
+            instruction,
+            format!("Initializing IGP program data {}", program_data_account),
+        )
+        .send_with_payer();
+
+    program_id
+}
+
+fn init_and_configure_igp_account(
+    ctx: &mut Context,
+    program_id: Pubkey,
+    local_domain: u32,
+    remote_domains: Vec<u32>,
+    salt: H256,
+    gas_oracle_config_file: Option<PathBuf>,
+) -> Pubkey {
+    let mut gas_oracle_configs = gas_oracle_config_file
+        .as_deref()
+        .map(|p| {
+            let file = File::open(p).expect("Failed to open oracle config file");
+            serde_json::from_reader::<_, Vec<GasOracleConfig>>(file)
+                .expect("Failed to parse oracle config file")
+        })
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|c| c.domain != local_domain)
+        .map(|c| (c.domain, c))
+        .collect::<HashMap<_, _>>();
+
+    // Default
+    for &remote in &remote_domains {
+        gas_oracle_configs
+            .entry(remote)
+            .or_insert_with(|| GasOracleConfig {
+                domain: remote,
+                gas_oracle: Some(GasOracle::RemoteGasData(RemoteGasData {
+                    token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
+                    gas_price: 1,
+                    token_decimals: SOL_DECIMALS,
+                })),
+            });
+    }
+    let gas_oracle_configs = gas_oracle_configs.into_values().collect::<Vec<_>>();
+
+    // Initialize IGP with the given salt
+    let (igp_account, _igp_account_bump) =
+        Pubkey::find_program_address(hyperlane_sealevel_igp::igp_pda_seeds!(salt), &program_id);
+
+    let instruction = hyperlane_sealevel_igp::instruction::init_igp_instruction(
+        program_id,
+        ctx.payer_pubkey,
+        salt,
+        Some(ctx.payer_pubkey),
+        ctx.payer_pubkey,
+    )
+    .unwrap();
+
+    ctx.new_txn()
+        .add_with_description(
+            instruction,
+            format!("Initializing IGP account {}", igp_account),
+        )
+        .send_with_payer();
+
+    if !gas_oracle_configs.is_empty() {
+        // TODO: idempotency
+
+        let domains = gas_oracle_configs
+            .iter()
+            .map(|c| c.domain)
+            .collect::<Vec<_>>();
+        let instruction = hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
+            program_id,
+            igp_account,
+            ctx.payer_pubkey,
+            gas_oracle_configs,
+        )
+        .unwrap();
+
+        ctx.new_txn().add(instruction).send_with_payer();
+
+        println!("Set gas oracle for remote domains {domains:?}",);
+    } else {
+        println!("Skipping settings gas oracle config");
+    }
+
+    igp_account
+}
+
+fn init_overhead_igp_account(
+    ctx: &mut Context,
+    program_id: Pubkey,
+    inner_igp_account: Pubkey,
+    local_domain: u32,
+    _remote_domains: Vec<u32>,
+    salt: H256,
+    overhead_config_file: Option<PathBuf>,
+) -> Pubkey {
+    let overhead_configs = overhead_config_file
+        .as_deref()
+        .map(|p| {
+            let file = File::open(p).expect("Failed to open overhead config file");
+            serde_json::from_reader::<_, Vec<GasOverheadConfig>>(file)
+                .expect("Failed to parse overhead config file")
+        })
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|c| c.destination_domain != local_domain)
+        .map(|c| (c.destination_domain, c))
+        .collect::<HashMap<_, _>>() // dedup
+        .into_values()
+        .collect::<Vec<_>>();
+
+    let (overhead_igp_account, _) = Pubkey::find_program_address(
+        hyperlane_sealevel_igp::overhead_igp_pda_seeds!(salt),
+        &program_id,
+    );
+
+    let instruction = hyperlane_sealevel_igp::instruction::init_overhead_igp_instruction(
+        program_id,
+        ctx.payer_pubkey,
+        salt,
+        Some(ctx.payer_pubkey),
+        inner_igp_account,
+    )
+    .unwrap();
+
+    ctx.new_txn()
+        .add_with_description(
+            instruction,
+            format!("Initializing overhead IGP account {}", overhead_igp_account),
+        )
+        .send_with_payer();
+
+    if !overhead_configs.is_empty() {
+        // TODO: idempotency
+
+        let domains = overhead_configs
+            .iter()
+            .map(|c| c.destination_domain)
+            .collect::<Vec<_>>();
+
+        let instruction = hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
+            program_id,
+            overhead_igp_account,
+            ctx.payer_pubkey,
+            overhead_configs,
+        )
+        .unwrap();
+
+        ctx.new_txn().add(instruction).send_with_payer();
+
+        println!("Set gas overheads for remote domains {domains:?}",)
+    } else {
+        println!("Skipping setting gas overheads");
+    }
+
+    overhead_igp_account
 }
