@@ -39,21 +39,37 @@ export class HyperlaneIsmFactoryDeployer extends HyperlaneDeployer<
       'merkleRootMultisigIsmFactory',
       [],
     );
+    this.verificationInputs[chain].push({
+      name: 'StaticMerkleRootMultisigIsm',
+      address: await merkleRootMultisigIsmFactory.implementation(),
+    });
     const messageIdMultisigIsmFactory = await this.deployContract(
       chain,
       'messageIdMultisigIsmFactory',
       [],
     );
+    this.verificationInputs[chain].push({
+      name: 'StaticMessageIdMultisigIsm',
+      address: await merkleRootMultisigIsmFactory.implementation(),
+    });
     const aggregationIsmFactory = await this.deployContract(
       chain,
       'aggregationIsmFactory',
       [],
     );
+    this.verificationInputs[chain].push({
+      name: 'StaticAggregationIsm',
+      address: await aggregationIsmFactory.implementation(),
+    });
     const routingIsmFactory = await this.deployContract(
       chain,
       'routingIsmFactory',
       [],
     );
+    this.verificationInputs[chain].push({
+      name: 'DomaingRoutingIsm',
+      address: await routingIsmFactory.implementation(),
+    });
     return {
       merkleRootMultisigIsmFactory,
       messageIdMultisigIsmFactory,
