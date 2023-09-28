@@ -39,6 +39,14 @@ abstract contract Router is MailboxClient, IMessageRecipient {
     }
 
     /**
+     * @notice Unregister the domain
+     * @param _domain The domain of the remote Application Router
+     */
+    function unenrollRemoteRouter(uint32 _domain) external virtual onlyOwner {
+        _unenrollRemoteRouter(_domain);
+    }
+
+    /**
      * @notice Register the address of a Router contract for the same Application on a remote chain
      * @param _domain The domain of the remote Application Router
      * @param _router The address of the remote Application Router
@@ -53,7 +61,7 @@ abstract contract Router is MailboxClient, IMessageRecipient {
 
     /**
      * @notice Batch version of `enrollRemoteRouter`
-     * @param _domains The domaisn of the remote Application Routers
+     * @param _domains The domains of the remote Application Routers
      * @param _addresses The addresses of the remote Application Routers
      */
     function enrollRemoteRouters(
@@ -64,6 +72,21 @@ abstract contract Router is MailboxClient, IMessageRecipient {
         uint256 length = _domains.length;
         for (uint256 i = 0; i < length; i += 1) {
             _enrollRemoteRouter(_domains[i], _addresses[i]);
+        }
+    }
+
+    /**
+     * @notice Batch version of `unenrollRemoteRouter`
+     * @param _domains The domains of the remote Application Routers
+     */
+    function unenrollRemoteRouters(uint32[] calldata _domains)
+        external
+        virtual
+        onlyOwner
+    {
+        uint256 length = _domains.length;
+        for (uint256 i = 0; i < length; i += 1) {
+            _unenrollRemoteRouter(_domains[i]);
         }
     }
 
@@ -102,6 +125,14 @@ abstract contract Router is MailboxClient, IMessageRecipient {
         virtual
     {
         _routers.set(_domain, _address);
+    }
+
+    /**
+     * @notice Remove the router for a given domain
+     * @param _domain The domain
+     */
+    function _unenrollRemoteRouter(uint32 _domain) internal virtual {
+        _routers.remove(_domain);
     }
 
     /**
