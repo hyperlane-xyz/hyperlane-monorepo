@@ -24,7 +24,8 @@ use hyperlane_core::{Encode, HyperlaneMessage, H160, H256};
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_igp::{
     accounts::{
-        GasOracle, IgpAccount, InterchainGasPaymasterType, OverheadIgpAccount, RemoteGasData,
+        GasOracle, GasPaymentAccount, IgpAccount, InterchainGasPaymasterType, OverheadIgpAccount,
+        ProgramDataAccount as IgpProgramDataAccount, RemoteGasData,
     },
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
     instruction::{GasOracleConfig, GasOverheadConfig},
@@ -386,11 +387,22 @@ struct IgpCmd {
 
 #[derive(Subcommand)]
 enum IgpSubCmd {
+    Query(IgpQueryArgs),
     PayForGas(PayForGasArgs),
     GasOracleConfig(GasOracleConfigArgs),
     DestinationGasOverhead(DestinationGasOverheadArgs),
     TransferIgpOwnership(TransferIgpOwnership),
     TransferOverheadIgpOwnership(TransferIgpOwnership),
+}
+
+#[derive(Args)]
+struct IgpQueryArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    igp_account: Pubkey,
+    #[arg(long)]
+    gas_payment_account: Option<Pubkey>,
 }
 
 #[derive(Args)]
@@ -406,8 +418,14 @@ struct TransferIgpOwnership {
 
 #[derive(Args)]
 struct PayForGasArgs {
+    #[arg(long)]
     program_id: Pubkey,
+    #[arg(long)]
     message_id: String,
+    #[arg(long, default_value_t = 13376)]
+    destination_domain: u32,
+    #[arg(long, default_value_t = 10000)]
+    gas: u64,
 }
 
 #[derive(Args)]
@@ -1337,6 +1355,45 @@ fn process_multisig_ism_message_id_cmd(ctx: Context, cmd: MultisigIsmMessageIdCm
 
 fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
     match cmd.cmd {
+        IgpSubCmd::Query(query) => {
+            let (program_data_account_pda, _program_data_account_bump) =
+                Pubkey::find_program_address(igp_program_data_pda_seeds!(), &query.program_id);
+
+            let accounts = ctx
+                .client
+                .get_multiple_accounts_with_commitment(
+                    &[program_data_account_pda, query.igp_account],
+                    ctx.commitment,
+                )
+                .unwrap()
+                .value;
+
+            let igp_program_data =
+                IgpProgramDataAccount::fetch(&mut &accounts[0].as_ref().unwrap().data[..])
+                    .unwrap()
+                    .into_inner();
+
+            println!("IGP program data: {:?}", igp_program_data);
+
+            let igp = IgpAccount::fetch(&mut &accounts[1].as_ref().unwrap().data[..])
+                .unwrap()
+                .into_inner();
+
+            println!("IGP account: {:?}", igp);
+
+            if let Some(gas_payment_account_pubkey) = query.gas_payment_account {
+                let account = ctx
+                    .client
+                    .get_account_with_commitment(&gas_payment_account_pubkey, ctx.commitment)
+                    .unwrap()
+                    .value
+                    .unwrap();
+                let gas_payment_account = GasPaymentAccount::fetch(&mut &account.data[..])
+                    .unwrap()
+                    .into_inner();
+                println!("Gas payment account: {:?}", gas_payment_account);
+            }
+        }
         IgpSubCmd::PayForGas(payment_details) => {
             let unique_gas_payment_keypair = Keypair::new();
             let salt = H256::zero();
@@ -1357,8 +1414,8 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                     Some(overhead_igp_account),
                     unique_gas_payment_keypair.pubkey(),
                     H256::from_str(&payment_details.message_id).unwrap(),
-                    13376,
-                    100000,
+                    payment_details.destination_domain,
+                    payment_details.gas,
                 )
                 .unwrap();
 
