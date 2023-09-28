@@ -1,12 +1,19 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import "../Router.sol";
+import "../client/Router.sol";
 
 contract TestRouter is Router {
     event InitializeOverload();
 
     constructor(address _mailbox) Router(_mailbox) {}
+
+    function initialize(address _hook, address _interchainSecurityModule)
+        public
+        initializer
+    {
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, msg.sender);
+    }
 
     function _handle(
         uint32,

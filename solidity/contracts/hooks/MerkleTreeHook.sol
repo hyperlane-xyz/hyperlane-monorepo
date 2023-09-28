@@ -16,9 +16,9 @@ pragma solidity >=0.8.0;
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
-import {Indexed} from "../Indexed.sol";
-import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
-import {StandardHookMetadata} from "../libs/hooks/StandardHookMetadata.sol";
+import {Indexed} from "../libs/Indexed.sol";
+import {AbstractPostDispatchHook} from "./libs/AbstractPostDispatchHook.sol";
+import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 
 contract MerkleTreeHook is AbstractPostDispatchHook, MailboxClient, Indexed {
     using Message for bytes;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {AbstractPostDispatchHook} from "../hooks/AbstractPostDispatchHook.sol";
+import {AbstractPostDispatchHook} from "../hooks/libs/AbstractPostDispatchHook.sol";
 
 contract TestPostDispatchHook is AbstractPostDispatchHook {
     // ============ Public Storage ============

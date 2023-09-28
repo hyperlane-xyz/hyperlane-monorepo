@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {InterchainQueryRouter} from "../middleware/InterchainQueryRouter.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {CallLib} from "../libs/Call.sol";
+import {CallLib} from "../middleware/libs/Call.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 

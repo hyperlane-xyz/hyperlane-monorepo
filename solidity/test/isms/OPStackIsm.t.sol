@@ -5,8 +5,8 @@ import {Test} from "forge-std/Test.sol";
 
 import {LibBit} from "../../contracts/libs/LibBit.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
-import {StandardHookMetadata} from "../../contracts/libs/hooks/StandardHookMetadata.sol";
-import {StandardHookMetadata} from "../../contracts/libs/hooks/StandardHookMetadata.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
@@ -15,7 +15,8 @@ import {TestMultisigIsm} from "../../contracts/test/TestMultisigIsm.sol";
 import {OPStackIsm} from "../../contracts/isms/hook/OPStackIsm.sol";
 import {OPStackHook} from "../../contracts/hooks/OPStackHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
-import {NotCrossChainCall} from "../../contracts/isms/hook/crossChainEnabled/errors.sol";
+
+import {NotCrossChainCall} from "@openzeppelin/contracts/crosschain/errors.sol";
 
 import {AddressAliasHelper} from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
 import {ICrossDomainMessenger, IL2CrossDomainMessenger} from "../../contracts/interfaces/optimism/ICrossDomainMessenger.sol";
