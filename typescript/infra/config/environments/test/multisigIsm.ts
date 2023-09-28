@@ -11,7 +11,7 @@ export const chainToValidator: Record<string, string> = {
 export const merkleRootMultisig = (validatorKey: string): MultisigIsmConfig => {
   return {
     type: ModuleType.MERKLE_ROOT_MULTISIG,
-    validators: [validatorKey],
+    validators: [chainToValidator[validatorKey]],
     threshold: 1,
   };
 };

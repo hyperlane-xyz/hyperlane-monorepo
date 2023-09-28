@@ -66,7 +66,6 @@ async function main() {
     config = objMap(envConfig.core, (_chain) => true);
     deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
-    console.log(envConfig);
     config = envConfig.core;
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.ISM_FACTORY),
@@ -74,12 +73,10 @@ async function main() {
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.HOOK) {
-    // throw new Error('Hook deployment unimplemented');
     if (!envConfig.hooks) {
       throw new Error(`No hook config for ${environment}`);
     }
     config = envConfig.hooks;
-    console.log(config);
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.ISM_FACTORY),
       multiProvider,

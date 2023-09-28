@@ -132,8 +132,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     const signer = this.multiProvider.getSigner(chain);
     const multisigIsmFactory =
       this.getContracts(chain).merkleRootMultisigIsmFactory;
-
-    console.log('reachs factory');
     const address = await this.deployMOfNFactory(
       chain,
       multisigIsmFactory,
@@ -217,6 +215,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     threshold: number,
   ): Promise<Address> {
     const sorted = [...values].sort();
+
     const address = await factory.getAddress(sorted, threshold);
     const provider = this.multiProvider.getProvider(chain);
     const code = await provider.getCode(address);
