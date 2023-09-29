@@ -29,12 +29,12 @@ export type MerkleRootInterceptorConfig = {
 
 export type OpStackInterceptorConfig = {
   hook: OpStackHookConfig;
-  ism: NoMetadataIsmConfig;
+  ism: OPStackIsmConfig;
 };
 
 export type HookConfig = OpStackHookConfig | MerkleRootHookConfig;
 
-export type NoMetadataIsmConfig = {
+export type OPStackIsmConfig = {
   type: InterceptorType.ISM;
   origin: ChainName;
   nativeBridge: Address;

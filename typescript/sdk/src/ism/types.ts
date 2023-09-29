@@ -6,7 +6,7 @@ import {
 } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
-import { NoMetadataIsmConfig } from '../hook/types';
+import { OPStackIsmConfig } from '../hook/types';
 import { ChainMap } from '../types';
 
 export type DeployedIsm =
@@ -51,4 +51,4 @@ export type IsmConfig =
   | RoutingIsmConfig
   | MultisigIsmConfig
   | AggregationIsmConfig
-  | NoMetadataIsmConfig;
+  | OPStackIsmConfig;

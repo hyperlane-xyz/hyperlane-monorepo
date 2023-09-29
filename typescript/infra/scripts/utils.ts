@@ -39,7 +39,6 @@ import {
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { Role } from '../src/roles';
-import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 import { assertContext, assertRole, readJSON } from '../src/utils/utils';
 
 export enum Modules {
@@ -380,25 +379,4 @@ export function getValidatorsByChain(
     });
   }
   return validators;
-}
-
-export async function getHooksProvider(
-  multiProvider: MultiProvider,
-  environment: DeployEnvironment,
-): Promise<MultiProvider> {
-  const hooksProvider = new MultiProvider();
-  const hooksConfig = getEnvironmentConfig(environment).hooks;
-  if (!hooksConfig) {
-    return hooksProvider;
-  }
-  for (const chain of Object.keys(hooksConfig)) {
-    // need to use different url for two forks simultaneously
-    // need another rpc param
-    await useLocalProvider(multiProvider, chain);
-  }
-  const signer = await impersonateAccount(
-    '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-  );
-  hooksProvider.setSharedSigner(signer);
-  return hooksProvider;
 }
