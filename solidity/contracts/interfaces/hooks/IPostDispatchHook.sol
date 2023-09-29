@@ -25,7 +25,7 @@ interface IPostDispatchHook {
         returns (bool);
 
     /**
-     * @notice Post action afte a message is dispatched via the Mailbox
+     * @notice Post action after a message is dispatched via the Mailbox
      * @param metadata The metadata required for the hook
      * @param message The message passed from the Mailbox.dispatch() call
      */
@@ -34,10 +34,10 @@ interface IPostDispatchHook {
         payable;
 
     /**
-     * @notice Estimate the amount of gas consumed by the postDispatch call
+     * @notice Compute the payment required by the postDispatch call
      * @param metadata The metadata required for the hook
      * @param message The message passed from the Mailbox.dispatch() call
-     * @return Gas quote for the postDispatch call
+     * @return Quoted payment for the postDispatch call
      */
     function quoteDispatch(bytes calldata metadata, bytes calldata message)
         external

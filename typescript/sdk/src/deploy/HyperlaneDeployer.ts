@@ -2,8 +2,8 @@ import { Debugger, debug } from 'debug';
 import { Contract, ethers } from 'ethers';
 
 import {
-  HyperlaneConnectionClient,
   Mailbox,
+  MailboxClient,
   Mailbox__factory,
   Ownable,
   ProxyAdmin,
@@ -26,7 +26,7 @@ import {
   moduleMatchesConfig,
 } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ConnectionClientConfig } from '../router/types';
+import { MailboxClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
 import { UpgradeConfig, proxyAdmin } from './proxy';
@@ -151,52 +151,36 @@ export abstract class HyperlaneDeployer<
     }
   }
 
-  protected async initConnectionClient(
+  protected async initMailboxClient(
     local: ChainName,
-    connectionClient: HyperlaneConnectionClient,
-    config: ConnectionClientConfig,
+    client: MailboxClient,
+    config: MailboxClientConfig,
   ): Promise<void> {
-    this.logger(
-      `Initializing connection client (if not already) on ${local}...`,
-    );
-    await this.runIfOwner(local, connectionClient, async () => {
+    this.logger(`Initializing mailbox client (if not already) on ${local}...`);
+    await this.runIfOwner(local, client, async () => {
       const txOverrides = this.multiProvider.getTransactionOverrides(local);
-      // set mailbox if not already set (and configured)
-      if (config.mailbox !== (await connectionClient.mailbox())) {
-        this.logger(`Set mailbox on (${local})`);
+
+      // set hook if not already set (and configured)
+      if (config.hook && config.hook !== (await client.hook())) {
+        this.logger(`Set hook on ${local}`);
         await this.multiProvider.handleTx(
           local,
-          connectionClient.setMailbox(config.mailbox, txOverrides),
+          client.setHook(config.hook, txOverrides),
         );
       }
 
-      // set interchain gas paymaster if not already set (and configured)
-      if (
-        config.interchainGasPaymaster !==
-        (await connectionClient.interchainGasPaymaster())
-      ) {
-        this.logger(`Set interchain gas paymaster on ${local}`);
-        await this.multiProvider.handleTx(
-          local,
-          connectionClient.setInterchainGasPaymaster(
-            config.interchainGasPaymaster,
-            txOverrides,
-          ),
-        );
-      }
-
-      let currentIsm = await connectionClient.interchainSecurityModule();
+      let currentIsm = await client.interchainSecurityModule();
       // in case the above returns zero address, fetch the defaultISM from the mailbox
       if (currentIsm === ethers.constants.AddressZero) {
         const mailbox: Mailbox = Mailbox__factory.connect(
           config.mailbox,
-          connectionClient.signer,
+          client.signer,
         );
         currentIsm = await mailbox.defaultIsm();
       }
 
+      // set interchain security module if not already set (and configured)
       if (config.interchainSecurityModule) {
-        // set interchain security module if not already set (and configured)
         let configuredIsm: string;
         if (typeof config.interchainSecurityModule === 'string') {
           configuredIsm = config.interchainSecurityModule;
@@ -231,10 +215,7 @@ export abstract class HyperlaneDeployer<
 
           await this.multiProvider.handleTx(
             local,
-            connectionClient.setInterchainSecurityModule(
-              configuredIsm,
-              txOverrides,
-            ),
+            client.setInterchainSecurityModule(configuredIsm, txOverrides),
           );
         }
       }

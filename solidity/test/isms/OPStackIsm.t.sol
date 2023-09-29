@@ -5,8 +5,8 @@ import {Test} from "forge-std/Test.sol";
 
 import {LibBit} from "../../contracts/libs/LibBit.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
-import {GlobalHookMetadata} from "../../contracts/libs/hooks/GlobalHookMetadata.sol";
-import {GlobalHookMetadata} from "../../contracts/libs/hooks/GlobalHookMetadata.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
@@ -15,7 +15,8 @@ import {TestMultisigIsm} from "../../contracts/test/TestMultisigIsm.sol";
 import {OPStackIsm} from "../../contracts/isms/hook/OPStackIsm.sol";
 import {OPStackHook} from "../../contracts/hooks/OPStackHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
-import {NotCrossChainCall} from "../../contracts/isms/hook/crossChainEnabled/errors.sol";
+
+import {NotCrossChainCall} from "@openzeppelin/contracts/crosschain/errors.sol";
 
 import {AddressAliasHelper} from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
 import {ICrossDomainMessenger, IL2CrossDomainMessenger} from "../../contracts/interfaces/optimism/ICrossDomainMessenger.sol";
@@ -51,7 +52,7 @@ contract OPStackIsmTest is Test {
     bytes internal testMessage =
         abi.encodePacked("Hello from the other chain!");
     bytes internal testMetadata =
-        GlobalHookMetadata.formatMetadata(0, 0, address(this), "");
+        StandardHookMetadata.formatMetadata(0, 0, address(this), "");
 
     bytes internal encodedMessage;
     bytes32 internal messageId;
@@ -195,7 +196,7 @@ contract OPStackIsmTest is Test {
         vm.selectFork(mainnetFork);
 
         vm.deal(address(this), uint256(2**255 + 1));
-        bytes memory excessValueMetadata = GlobalHookMetadata.formatMetadata(
+        bytes memory excessValueMetadata = StandardHookMetadata.formatMetadata(
             uint256(2**255 + 1),
             DEFAULT_GAS_LIMIT,
             address(this),
@@ -203,7 +204,7 @@ contract OPStackIsmTest is Test {
         );
 
         l1Mailbox.updateLatestDispatchedId(messageId);
-        vm.expectRevert("OPStackHook: msgValue must less than 2 ** 255");
+        vm.expectRevert("OPStackHook: msgValue must be less than 2 ** 255");
         opHook.postDispatch(excessValueMetadata, encodedMessage);
     }
 

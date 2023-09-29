@@ -1,18 +1,23 @@
 import {
-  AbstractMessageIdAuthHook__factory,
-  AbstractMessageIdAuthorizedIsm__factory,
-  OPStackHook__factory,
-  OPStackIsm__factory,
+  MerkleTreeHook__factory,
+  StaticMerkleRootMultisigIsm__factory,
 } from '@hyperlane-xyz/core';
 
-export type HookFactories = {
-  hook: AbstractMessageIdAuthHook__factory;
-  ism: AbstractMessageIdAuthorizedIsm__factory;
+export const merkleRootHookFactories = {
+  hook: new MerkleTreeHook__factory(),
 };
 
-export const optimismHookFactories = {
-  hook: new OPStackHook__factory(),
-  ism: new OPStackIsm__factory(),
+export type MerkleRootHookFactories = typeof merkleRootHookFactories;
+export type MerkleRootIsmFactories = typeof merkleRootIsmFactories;
+
+export const merkleRootIsmFactories = {
+  ism: new StaticMerkleRootMultisigIsm__factory(),
 };
 
-export type OptimismHookFactories = typeof optimismHookFactories;
+export type MerkleRootInterceptorFactories = MerkleRootHookFactories &
+  MerkleRootIsmFactories;
+
+export type HookFactories = MerkleRootHookFactories;
+export type IsmFactories = MerkleRootIsmFactories;
+
+export type InterceptorFactories = HookFactories & IsmFactories;

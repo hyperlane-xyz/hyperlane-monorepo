@@ -1,0 +1,31 @@
+comment:
+  layout: "header, diff, flags, components"  # show component info in the PR comment
+  
+component_management:
+  default_rules:  # default rules that will be inherited by all components
+    statuses:
+      - type: project # in this case every component that doens't have a status defined will have a project type one
+        target: auto
+        branches:
+          - "!main"
+  individual_components:
+    - component_id: module_core
+      name: core
+      paths:
+        - solidity/contracts/Mailbox.sol
+    - component_id: module_hooks
+      name: hooks
+      paths:
+        - solidity/contracts/hooks/**
+    - component_id: module_isms
+      name: isms
+      paths:
+        - solidity/contracts/isms/**
+    - component_id: module_token
+      name: token
+      paths:
+        - solidity/contracts/token/**
+    - component_id: module_middlewares
+      name: middlewares
+      paths:
+        - solidity/contracts/middleware/**

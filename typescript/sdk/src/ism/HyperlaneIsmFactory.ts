@@ -9,6 +9,8 @@ import {
   IRoutingIsm__factory,
   StaticAggregationIsm__factory,
   StaticMOfNAddressSetFactory,
+  StaticMerkleRootMultisigIsm,
+  StaticMerkleRootMultisigIsm__factory,
 } from '@hyperlane-xyz/core';
 import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
 
@@ -122,6 +124,24 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     return IMultisigIsm__factory.connect(address, signer);
   }
 
+  public async deployMerkleRootMultisigIsm(
+    chain: ChainName,
+    config: MultisigIsmConfig,
+  ): Promise<StaticMerkleRootMultisigIsm> {
+    this.logger(`Deploying Merkle Root Multisig ISM to ${chain}`);
+    const signer = this.multiProvider.getSigner(chain);
+    const multisigIsmFactory =
+      this.getContracts(chain).merkleRootMultisigIsmFactory;
+    const address = await this.deployMOfNFactory(
+      chain,
+      multisigIsmFactory,
+      config.validators,
+      config.threshold,
+    );
+
+    return StaticMerkleRootMultisigIsm__factory.connect(address, signer);
+  }
+
   private async deployRoutingIsm(chain: ChainName, config: RoutingIsmConfig) {
     const signer = this.multiProvider.getSigner(chain);
     const routingIsmFactory = this.getContracts(chain).routingIsmFactory;
@@ -195,10 +215,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     threshold: number,
   ): Promise<Address> {
     const sorted = [...values].sort();
+
     const address = await factory.getAddress(sorted, threshold);
     const provider = this.multiProvider.getProvider(chain);
     const code = await provider.getCode(address);
-
     if (code === '0x') {
       this.logger(
         `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
@@ -324,6 +344,7 @@ export async function moduleCanCertainlyVerify(
       }
     }
   }
+  return false;
 }
 
 export async function moduleMatchesConfig(

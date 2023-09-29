@@ -13,13 +13,13 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
-import {GlobalHookMetadata} from "../../libs/hooks/GlobalHookMetadata.sol";
+import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
+import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
-import {AbstractPostDispatchHook} from "../AbstractPostDispatchHook.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 
 contract StaticAggregationHook is AbstractPostDispatchHook {
-    using GlobalHookMetadata for bytes;
+    using StandardHookMetadata for bytes;
 
     // ============ External functions ============
 

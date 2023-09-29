@@ -13,14 +13,14 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
-import {GlobalHookMetadata} from "../libs/hooks/GlobalHookMetadata.sol";
-import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
+import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
+import {AbstractPostDispatchHook} from "./libs/AbstractPostDispatchHook.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 
 contract PausableHook is AbstractPostDispatchHook, Ownable, Pausable {
-    using GlobalHookMetadata for bytes;
+    using StandardHookMetadata for bytes;
 
     // ============ External functions ============
 

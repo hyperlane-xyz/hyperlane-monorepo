@@ -1,4 +1,3 @@
-import { getAddress } from 'ethers/lib/utils';
 import path from 'path';
 
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
@@ -6,15 +5,15 @@ import {
   ChainMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
-  HyperlaneIgp,
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
   HyperlaneIsmFactoryDeployer,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
+  MerkleRootInterceptorDeployer,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import {
@@ -25,7 +24,6 @@ import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
 import { TestRecipientDeployer } from '../src/deployment/testcontracts/testrecipient';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
-import { readJSON } from '../src/utils/utils';
 
 import {
   Modules,
@@ -77,9 +75,24 @@ async function main() {
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.HOOK) {
-    throw new Error('Hook deployment unimplemented');
-    // config = envConfig.hooks;
-    // deployer = new HyperlaneHookDeployer(multiProvider);
+    if (!envConfig.hooks) {
+      throw new Error(`No hook config for ${environment}`);
+    }
+    config = envConfig.hooks;
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      getAddresses(environment, Modules.ISM_FACTORY),
+      multiProvider,
+    );
+    const mailboxes: ChainMap<Address> = {};
+    for (const chain in getAddresses(environment, Modules.CORE)) {
+      mailboxes[chain] = getAddresses(environment, Modules.CORE)[chain].mailbox;
+    }
+
+    deployer = new MerkleRootInterceptorDeployer(
+      multiProvider,
+      ismFactory,
+      mailboxes,
+    );
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
@@ -108,10 +121,6 @@ async function main() {
   } else if (module === Modules.TEST_RECIPIENT) {
     deployer = new TestRecipientDeployer(multiProvider);
   } else if (module === Modules.TEST_QUERY_SENDER) {
-    const igp = HyperlaneIgp.fromEnvironment(
-      getAddresses(environment, Modules.INTERCHAIN_GAS_PAYMASTER),
-      multiProvider,
-    );
     // Get query router addresses
     const queryAddresses = getAddresses(
       environment,
@@ -120,7 +129,7 @@ async function main() {
     config = objMap(queryAddresses, (_c, conf) => ({
       queryRouterAddress: conf.router,
     }));
-    deployer = new TestQuerySenderDeployer(multiProvider, igp);
+    deployer = new TestQuerySenderDeployer(multiProvider);
   } else if (module === Modules.HELLO_WORLD) {
     config = await getRouterConfig(
       environment,

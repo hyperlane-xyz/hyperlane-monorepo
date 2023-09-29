@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {InterchainGasPaymaster} from "../igps/InterchainGasPaymaster.sol";
+import {InterchainGasPaymaster} from "../hooks/igp/InterchainGasPaymaster.sol";
 
 contract TestInterchainGasPaymaster is InterchainGasPaymaster {
     uint256 public constant gasPrice = 1;

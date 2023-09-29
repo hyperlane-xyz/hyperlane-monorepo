@@ -6,7 +6,7 @@ import "forge-std/Test.sol";
 import {IMultisigIsm} from "../../contracts/interfaces/isms/IMultisigIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {StaticMerkleRootMultisigIsmFactory, StaticMessageIdMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMultisigIsm.sol";
-import {MerkleRootMultisigIsmMetadata} from "../../contracts/libs/isms/MerkleRootMultisigIsmMetadata.sol";
+import {MerkleRootMultisigIsmMetadata} from "../../contracts/isms/libs/MerkleRootMultisigIsmMetadata.sol";
 import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";
 import {StaticMOfNAddressSetFactory} from "../../contracts/libs/StaticMOfNAddressSetFactory.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
@@ -43,7 +43,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint32 domain = mailbox.localDomain();
         uint256[] memory keys = addValidators(m, n, seed);
         uint256[] memory signers = MOfNTestUtils.choose(m, keys, seed);
-        // bytes
+
         (bytes32 root, uint32 index) = merkleTreeHook.latestCheckpoint();
         bytes32 messageId = message.id();
         bytes32 digest = CheckpointLib.digest(

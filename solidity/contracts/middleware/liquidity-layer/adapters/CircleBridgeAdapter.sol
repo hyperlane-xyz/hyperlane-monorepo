@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {Router} from "../../../Router.sol";
+import {Router} from "../../../client/Router.sol";
 
 import {ITokenMessenger} from "../interfaces/circle/ITokenMessenger.sol";
 import {ICircleMessageTransmitter} from "../interfaces/circle/ICircleMessageTransmitter.sol";
@@ -61,6 +61,8 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         require(msg.sender == liquidityLayerRouter, "!liquidityLayerRouter");
         _;
     }
+
+    constructor(address _mailbox) Router(_mailbox) {}
 
     /**
      * @param _owner The new owner.

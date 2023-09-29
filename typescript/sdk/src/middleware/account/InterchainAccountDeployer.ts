@@ -24,30 +24,18 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
     super(multiProvider, interchainAccountFactories);
   }
 
-  async constructorArgs(chain: string, __: RouterConfig): Promise<[number]> {
-    const localDomain = this.multiProvider.getDomainId(chain);
-    return [localDomain];
+  async constructorArgs(_: string, config: RouterConfig): Promise<[string]> {
+    return [config.mailbox];
   }
 
   async initializeArgs(
     chain: string,
     config: RouterConfig,
-  ): Promise<
-    [
-      _mailbox: string,
-      _interchainGasPaymaster: string,
-      _interchainSecurityModule: string,
-      _owner: string,
-    ]
-  > {
+  ): Promise<[string, string, string]> {
     const owner = await this.multiProvider.getSignerAddress(chain);
-    if (typeof config.interchainSecurityModule === 'object') {
-      throw new Error('ISM as object unimplemented');
-    }
     return [
-      config.mailbox,
-      config.interchainGasPaymaster,
-      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      config.hook ?? ethers.constants.AddressZero,
+      config.interchainSecurityModule! as string, // deployed in deployContracts
       owner,
     ];
   }

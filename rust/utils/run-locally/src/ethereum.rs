@@ -48,6 +48,9 @@ pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
     log!("Deploying hyperlane core contracts...");
     yarn_infra.clone().cmd("deploy-core").run().join();
 
+    log!("Deploying hyperlane hook contracts...");
+    yarn_infra.clone().cmd("deploy-hook").run().join();
+
     log!("Deploying hyperlane igp contracts...");
     yarn_infra.cmd("deploy-igp").run().join();
 
