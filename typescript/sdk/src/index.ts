@@ -110,12 +110,13 @@ export {
 } from './gas/types';
 export { MerkleRootInterceptorDeployer } from './hook/MerkleRootInterceptorDeployer';
 export {
+  DomainRoutingHookConfig,
   HookConfig,
   InterceptorConfig,
   InterceptorType,
   MerkleRootHookConfig,
-  OPStackIsmConfig,
   OpStackHookConfig,
+  RoutingInterceptorConfig,
 } from './hook/types';
 export {
   HyperlaneIsmFactory,

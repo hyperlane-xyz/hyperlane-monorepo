@@ -76,6 +76,7 @@ async function main() {
       throw new Error(`No hook config for ${environment}`);
     }
     config = envConfig.interceptor;
+    console.log('hook config', JSON.stringify(config, null, 4));
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.ISM_FACTORY),
       multiProvider,

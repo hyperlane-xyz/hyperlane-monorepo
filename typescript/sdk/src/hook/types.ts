@@ -2,8 +2,8 @@ import { BigNumber } from 'ethers';
 
 import type { Address } from '@hyperlane-xyz/utils';
 
-import type { MultisigIsmConfig } from '../ism/types';
-import { ChainName } from '../types';
+import type { MultisigIsmConfig, RoutingIsmConfig } from '../ism/types';
+import { ChainMap, ChainName } from '../types';
 
 export enum InterceptorType {
   HOOK = 'hook',
@@ -27,17 +27,21 @@ export type MerkleRootInterceptorConfig = {
   ism: MultisigIsmConfig;
 };
 
-export type OpStackInterceptorConfig = {
-  hook: OpStackHookConfig;
-  ism: OPStackIsmConfig;
+export type DomainRoutingHookConfig = {
+  type: InterceptorType.HOOK;
+  domains: ChainMap<HookConfig>;
 };
 
-export type HookConfig = OpStackHookConfig | MerkleRootHookConfig;
-
-export type OPStackIsmConfig = {
-  type: InterceptorType.ISM;
-  origin: ChainName;
-  nativeBridge: Address;
+export type RoutingInterceptorConfig = {
+  hook: DomainRoutingHookConfig;
+  ism: RoutingIsmConfig;
 };
 
-export type InterceptorConfig = MerkleRootInterceptorConfig;
+export type HookConfig =
+  | OpStackHookConfig
+  | MerkleRootHookConfig
+  | DomainRoutingHookConfig;
+
+export type InterceptorConfig =
+  | MerkleRootInterceptorConfig
+  | RoutingInterceptorConfig;
