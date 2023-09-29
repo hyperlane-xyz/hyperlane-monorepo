@@ -50,7 +50,7 @@ export class HyperlaneIsmFactoryDeployer extends HyperlaneDeployer<
     );
     this.verificationInputs[chain].push({
       name: 'StaticMessageIdMultisigIsm',
-      address: await merkleRootMultisigIsmFactory.implementation(),
+      address: await messageIdMultisigIsmFactory.implementation(),
     });
     const aggregationIsmFactory = await this.deployContract(
       chain,
