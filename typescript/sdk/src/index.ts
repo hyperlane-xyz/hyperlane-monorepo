@@ -109,6 +109,7 @@ export {
   OverheadIgpConfig,
 } from './gas/types';
 export { MerkleRootInterceptorDeployer } from './hook/MerkleRootInterceptorDeployer';
+export { OPStackInterceptorDeployer } from './hook/OPStackInterceptorDeployer';
 export {
   HookConfig,
   InterceptorConfig,

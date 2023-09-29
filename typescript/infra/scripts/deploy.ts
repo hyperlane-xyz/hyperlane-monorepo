@@ -11,7 +11,7 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
-  MerkleRootInterceptorDeployer,
+  OPStackInterceptorDeployer,
 } from '@hyperlane-xyz/sdk';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
@@ -67,7 +67,7 @@ async function main() {
   } else if (module === Modules.CORE) {
     config = envConfig.core;
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.ISM_FACTORY)[environment],
+      getAddresses(environment, Modules.ISM_FACTORY),
       multiProvider,
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
@@ -85,7 +85,7 @@ async function main() {
       mailboxes[chain] = getAddresses(environment, Modules.CORE)[chain].mailbox;
     }
 
-    deployer = new MerkleRootInterceptorDeployer(
+    deployer = new OPStackInterceptorDeployer(
       multiProvider,
       ismFactory,
       mailboxes,

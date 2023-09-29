@@ -21,6 +21,8 @@ import {
   OPStackHookConfig,
   OPStackInterceptorConfig,
 } from './types';
+// TODO fix this
+import { getDestinationIsmConfig } from './utils';
 
 export class OPStackInterceptorDeployer extends HyperlaneDeployer<
   OPStackInterceptorConfig,
@@ -46,11 +48,15 @@ export class OPStackInterceptorDeployer extends HyperlaneDeployer<
   ): Promise<HyperlaneContracts<OPStackInterceptorFactories>> {
     let hookContracts, ismContracts;
     if (config.hook) {
+      const destinationConfig = getDestinationIsmConfig(
+        config.hook.destination,
+      );
+      // deploy ISM
+      ismContracts = await this.deployIsmContracts(chain, destinationConfig);
+
       hookContracts = await this.deployHookContracts(chain, config.hook);
     }
-    if (config.ism) {
-      ismContracts = await this.deployIsmContracts(chain, config.ism);
-    }
+
     return {
       ...hookContracts,
       ...ismContracts,
@@ -64,6 +70,7 @@ export class OPStackInterceptorDeployer extends HyperlaneDeployer<
     this.logger(`Deploying OPStackHook to ${chain}`);
     const hookFactory = new OPStackHook__factory();
     const remoteIsm = this.deployedContracts[config.destination].ism.address;
+    // TODO: use deployContract
     const hook = await this.multiProvider.handleDeploy(chain, hookFactory, [
       this.mailboxes[chain],
       config.destinationDomain,
@@ -80,11 +87,13 @@ export class OPStackInterceptorDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: NoMetadataIsmConfig,
   ): Promise<HyperlaneContracts<OPStackIsmFactories>> {
+    this.logger(`Deploying OPStackIsm to ${chain}`);
     const ismFactory = new OPStackIsm__factory();
     const ism = await this.multiProvider.handleDeploy(chain, ismFactory, [
       config.nativeBridge,
     ]);
 
+    this.logger(`OPStackIsm successfully deployed on ${chain}`);
     return {
       ism: ism,
     };
