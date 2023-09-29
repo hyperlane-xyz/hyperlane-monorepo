@@ -131,11 +131,11 @@ fn main() -> ExitCode {
 
     let config = Config::load();
 
-    // let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
-    // fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
+    let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
+    fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
     let checkpoints_dirs: Vec<DynPath> = (0..VALIDATOR_COUNT - 1)
         .map(|_| Box::new(tempdir().unwrap()) as DynPath)
-        // .chain([Box::new(solana_checkpoint_path) as DynPath])
+        .chain([Box::new(solana_checkpoint_path) as DynPath])
         .collect();
     let rocks_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
@@ -167,26 +167,26 @@ fn main() -> ExitCode {
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
         .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
-        // .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[3])
-        // .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
+        .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[3])
+        .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
-        // .hyp_env(
-        //     "GASPAYMENTENFORCEMENT",
-        //     r#"[{
-        //         "type": "minimum",
-        //         "payment": "1",
-        //         "matchingList": [
-        //             {
-        //                 "originDomain": ["13375","13376"],
-        //                 "destinationDomain": ["13375","13376"]
-        //             }
-        //         ]
-        //     },
-        //     {
-        //         "type": "none"
-        //     }]"#,
-        // )
+        .hyp_env(
+            "GASPAYMENTENFORCEMENT",
+            r#"[{
+                "type": "minimum",
+                "payment": "1",
+                "matchingList": [
+                    {
+                        "originDomain": ["13375","13376"],
+                        "destinationDomain": ["13375","13376"]
+                    }
+                ]
+            },
+            {
+                "type": "none"
+            }]"#,
+        )
         .arg(
             "chains.test1.connection.urls",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
@@ -195,8 +195,7 @@ fn main() -> ExitCode {
         .arg("defaultSigner.key", RELAYER_KEYS[2])
         .arg(
             "relayChains",
-            "test1,test2,test3",
-            // "test1,test2,test3,sealeveltest1,sealeveltest2",
+            "test1,test2,test3,sealeveltest1,sealeveltest2",
         );
 
     let base_validator_env = common_agent_env
@@ -217,7 +216,7 @@ fn main() -> ExitCode {
         .hyp_env("INTERVAL", "5")
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage");
 
-    let validator_envs = (0..VALIDATOR_COUNT - 1)
+    let validator_envs = (0..VALIDATOR_COUNT)
         .map(|i| {
             base_validator_env
                 .clone()
@@ -266,9 +265,9 @@ fn main() -> ExitCode {
     // Ready to run...
     //
 
-    // let (solana_path, solana_path_tempdir) = install_solana_cli_tools().join();
-    // state.data.push(Box::new(solana_path_tempdir));
-    // let solana_program_builder = build_solana_programs(solana_path.clone());
+    let (solana_path, solana_path_tempdir) = install_solana_cli_tools().join();
+    state.data.push(Box::new(solana_path_tempdir));
+    let solana_program_builder = build_solana_programs(solana_path.clone());
 
     // this task takes a long time in the CI so run it in parallel
     log!("Building rust...");
@@ -279,13 +278,13 @@ fn main() -> ExitCode {
         .arg("bin", "validator")
         .arg("bin", "scraper")
         .arg("bin", "init-db")
-        // .arg("bin", "hyperlane-sealevel-client")
+        .arg("bin", "hyperlane-sealevel-client")
         .filter_logs(|l| !l.contains("workspace-inheritance"))
         .run();
 
     let start_anvil = start_anvil(config.clone());
 
-    // let solana_program_path = solana_program_builder.join();
+    let solana_program_path = solana_program_builder.join();
 
     log!("Running postgres db...");
     let postgres = Program::new("docker")
@@ -300,15 +299,15 @@ fn main() -> ExitCode {
 
     build_rust.join();
 
-    // let solana_ledger_dir = tempdir().unwrap();
-    // let start_solana_validator = start_solana_test_validator(
-    //     solana_path.clone(),
-    //     solana_program_path,
-    //     solana_ledger_dir.as_ref().to_path_buf(),
-    // );
+    let solana_ledger_dir = tempdir().unwrap();
+    let start_solana_validator = start_solana_test_validator(
+        solana_path.clone(),
+        solana_program_path,
+        solana_ledger_dir.as_ref().to_path_buf(),
+    );
 
-    // let (solana_config_path, solana_validator) = start_solana_validator.join();
-    // state.push_agent(solana_validator);
+    let (solana_config_path, solana_validator) = start_solana_validator.join();
+    state.push_agent(solana_validator);
     state.push_agent(start_anvil.join());
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
@@ -337,9 +336,9 @@ fn main() -> ExitCode {
     }
 
     // Send some sealevel messages before spinning up the relayer, to test the backward indexing cursor
-    // for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-    //     initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
-    // }
+    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
+        initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    }
 
     state.push_agent(relayer_env.spawn("RLY"));
 
@@ -361,8 +360,9 @@ fn main() -> ExitCode {
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
-            // if termination_invariants_met(&config, &solana_path, &solana_config_path)
-            if termination_invariants_met(&config).unwrap_or(false) {
+            if termination_invariants_met(&config, &solana_path, &solana_config_path)
+                .unwrap_or(false)
+            {
                 // end condition reached successfully
                 break;
             } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {

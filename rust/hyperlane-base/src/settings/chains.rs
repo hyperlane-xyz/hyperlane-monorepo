@@ -157,8 +157,10 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_conf) => {
                 todo!("Fuel does not support merkle tree hooks yet")
             }
-            ChainConnectionConf::Sealevel(_conf) => {
-                todo!("Sealevel does not support merkle tree hooks yet")
+            ChainConnectionConf::Sealevel(conf) => {
+                h_sealevel::SealevelMailbox::new(conf, locator, None)
+                    .map(|m| Box::new(m) as Box<dyn MerkleTreeHook>)
+                    .map_err(Into::into)
             }
         }
         .context(ctx)
@@ -309,7 +311,10 @@ impl ChainConf {
                 .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => {
+                let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new());
+                Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
+            }
         }
         .context(ctx)
     }
