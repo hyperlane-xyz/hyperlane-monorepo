@@ -114,7 +114,7 @@ export {
   InterceptorConfig,
   InterceptorType,
   MerkleRootHookConfig,
-  NoMetadataIsmConfig,
+  OPStackIsmConfig,
   OpStackHookConfig,
 } from './hook/types';
 export {

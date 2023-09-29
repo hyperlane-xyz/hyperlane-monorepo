@@ -72,10 +72,10 @@ async function main() {
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.HOOK) {
-    if (!envConfig.hooks) {
+    if (!envConfig.interceptor) {
       throw new Error(`No hook config for ${environment}`);
     }
-    config = envConfig.hooks;
+    config = envConfig.interceptor;
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.ISM_FACTORY),
       multiProvider,
