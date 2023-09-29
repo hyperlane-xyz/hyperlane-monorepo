@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
+
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 // ============ Internal Imports ============
 import {AbstractRoutingIsm} from "./AbstractRoutingIsm.sol";
@@ -20,18 +22,10 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
     using TypeCasts for bytes32;
     using TypeCasts for address;
     using Address for address;
+    using Strings for uint32;
 
     // ============ Mutable Storage ============
     EnumerableMapExtended.UintToBytes32Map internal _modules;
-
-    // ============ Events ============
-
-    /**
-     * @notice Emitted when a module is set for a domain
-     * @param domain The origin domain.
-     * @param module The ISM to use.
-     */
-    event ModuleSet(uint32 indexed domain, address module);
 
     // ============ External Functions ============
 
@@ -75,18 +69,26 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
         _set(_domain, address(_module));
     }
 
+    /**
+     * @notice Removes the specified origin domain
+     * @param _domain The origin domain
+     */
+    function remove(uint32 _domain) external onlyOwner {
+        _remove(_domain);
+    }
+
     function domains() external view returns (uint256[] memory) {
         return _modules.keys();
     }
 
-    function modules(uint32 origin)
+    function module(uint32 origin)
         public
         view
         virtual
         returns (IInterchainSecurityModule)
     {
         (bool contained, bytes32 _module) = _modules.tryGet(origin);
-        require(contained, "No ISM found for origin domain");
+        require(contained, _originNotFoundError(origin));
         return IInterchainSecurityModule(_module.bytes32ToAddress());
     }
 
@@ -103,10 +105,26 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
         override
         returns (IInterchainSecurityModule)
     {
-        return modules(_message.origin());
+        return module(_message.origin());
     }
 
     // ============ Internal Functions ============
+
+    /**
+     * @notice Removes the specified origin domain's ISM
+     * @param _domain The origin domain
+     */
+    function _remove(uint32 _domain) internal {
+        require(_modules.remove(_domain), _originNotFoundError(_domain));
+    }
+
+    function _originNotFoundError(uint32 _origin)
+        internal
+        pure
+        returns (string memory)
+    {
+        return string.concat("No ISM found for origin: ", _origin.toString());
+    }
 
     /**
      * @notice Sets the ISM to be used for the specified origin domain
@@ -114,8 +132,7 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
      * @param _module The ISM to use to verify messages
      */
     function _set(uint32 _domain, address _module) internal {
-        require(_module.isContract(), "!contract");
+        require(_module.isContract(), "ISM must be a contract");
         _modules.set(_domain, _module.addressToBytes32());
-        emit ModuleSet(_domain, _module);
     }
 }

@@ -110,6 +110,17 @@ describe('Router', async () => {
     expect(await router.mustHaveRemoteRouter(origin)).to.equal(remoteBytes);
   });
 
+  it('owner can unenroll remote router', async () => {
+    const remote = nonOwner.address;
+    const remoteBytes = addressToBytes32(remote);
+    await expect(router.unenrollRemoteRouter(origin)).to.be.revertedWith(
+      `No router enrolled for domain: ${origin}`,
+    );
+    await router.enrollRemoteRouter(origin, remoteBytes);
+    await router.unenrollRemoteRouter(origin);
+    expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(false);
+  });
+
   it('owner can enroll remote router using batch function', async () => {
     const remote = nonOwner.address;
     const remoteBytes = addressToBytes32(nonOwner.address);
@@ -120,6 +131,17 @@ describe('Router', async () => {
     await router.enrollRemoteRouters([origin], [addressToBytes32(remote)]);
     expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(true);
     expect(await router.mustHaveRemoteRouter(origin)).to.equal(remoteBytes);
+  });
+
+  it('owner can unenroll remote router using batch function', async () => {
+    const remote = nonOwner.address;
+    const remoteBytes = addressToBytes32(remote);
+    await expect(router.unenrollRemoteRouters([origin])).to.be.revertedWith(
+      `No router enrolled for domain: ${origin}`,
+    );
+    await router.enrollRemoteRouter(origin, remoteBytes);
+    await router.unenrollRemoteRouters([origin]);
+    expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(false);
   });
 
   describe('#domains', () => {
