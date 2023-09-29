@@ -14,6 +14,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 abstract contract Router is MailboxClient, IMessageRecipient {
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
+    using Strings for uint32;
 
     // ============ Mutable Storage ============
     EnumerableMapExtended.UintToBytes32Map internal _routers;
@@ -39,6 +40,14 @@ abstract contract Router is MailboxClient, IMessageRecipient {
     }
 
     /**
+     * @notice Unregister the domain
+     * @param _domain The domain of the remote Application Router
+     */
+    function unenrollRemoteRouter(uint32 _domain) external virtual onlyOwner {
+        _unenrollRemoteRouter(_domain);
+    }
+
+    /**
      * @notice Register the address of a Router contract for the same Application on a remote chain
      * @param _domain The domain of the remote Application Router
      * @param _router The address of the remote Application Router
@@ -53,7 +62,7 @@ abstract contract Router is MailboxClient, IMessageRecipient {
 
     /**
      * @notice Batch version of `enrollRemoteRouter`
-     * @param _domains The domaisn of the remote Application Routers
+     * @param _domains The domains of the remote Application Routers
      * @param _addresses The addresses of the remote Application Routers
      */
     function enrollRemoteRouters(
@@ -64,6 +73,21 @@ abstract contract Router is MailboxClient, IMessageRecipient {
         uint256 length = _domains.length;
         for (uint256 i = 0; i < length; i += 1) {
             _enrollRemoteRouter(_domains[i], _addresses[i]);
+        }
+    }
+
+    /**
+     * @notice Batch version of `unenrollRemoteRouter`
+     * @param _domains The domains of the remote Application Routers
+     */
+    function unenrollRemoteRouters(uint32[] calldata _domains)
+        external
+        virtual
+        onlyOwner
+    {
+        uint256 length = _domains.length;
+        for (uint256 i = 0; i < length; i += 1) {
+            _unenrollRemoteRouter(_domains[i]);
         }
     }
 
@@ -105,6 +129,14 @@ abstract contract Router is MailboxClient, IMessageRecipient {
     }
 
     /**
+     * @notice Remove the router for a given domain
+     * @param _domain The domain
+     */
+    function _unenrollRemoteRouter(uint32 _domain) internal virtual {
+        require(_routers.remove(_domain), _domainNotFoundError(_domain));
+    }
+
+    /**
      * @notice Return true if the given domain / router is the address of a remote Application Router
      * @param _domain The domain of the potential remote Application Router
      * @param _address The address of the potential remote Application Router
@@ -128,14 +160,20 @@ abstract contract Router is MailboxClient, IMessageRecipient {
         returns (bytes32)
     {
         (bool contained, bytes32 _router) = _routers.tryGet(_domain);
-        require(
-            contained,
+        require(contained, _domainNotFoundError(_domain));
+        return _router;
+    }
+
+    function _domainNotFoundError(uint32 _domain)
+        internal
+        pure
+        returns (string memory)
+    {
+        return
             string.concat(
                 "No router enrolled for domain: ",
-                Strings.toString(_domain)
-            )
-        );
-        return _router;
+                _domain.toString()
+            );
     }
 
     function _dispatch(uint32 _destinationDomain, bytes memory _messageBody)
