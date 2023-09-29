@@ -67,6 +67,10 @@ export async function getHelloWorldMultiProtocolApp(
     hyperlaneEnvironmentsWithSealevel[sdkEnvName];
   const keys = await coreConfig.getKeys(keyContext, keyRole);
 
+  // Fetch all the keys, which is required to get the address for
+  // certain cloud keys
+  await Promise.all(Object.values(keys).map((key) => key.fetch()));
+
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
 
   const multiProtocolProvider =

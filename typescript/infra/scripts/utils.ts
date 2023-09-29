@@ -218,12 +218,9 @@ export async function getKeysForRole(
   }
 
   const keys = await promiseObjAll(
-    objMap(txConfigs, async (chain, _) => {
-      const key = getKeyForRole(environment, context, chain, role, index);
-      if (!key.privateKey)
-        throw new Error(`Key for ${chain} does not have private key`);
-      return key;
-    }),
+    objMap(txConfigs, async (chain, _) =>
+      getKeyForRole(environment, context, chain, role, index),
+    ),
   );
   return keys;
 }
@@ -236,7 +233,7 @@ export function getAddressesForKey(
 ) {
   const protocol = manager.getChainMetadata(chain).protocol;
   if (protocol === ProtocolType.Ethereum) {
-    return new Wallet(keys[chain]).address;
+    return keys[chain].address;
   } else if (protocol === ProtocolType.Sealevel) {
     return Keypair.fromSeed(
       Buffer.from(strip0x(keys[chain].privateKey), 'hex'),
