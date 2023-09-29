@@ -1,5 +1,6 @@
 import { Contexts } from '../../config/contexts';
 import { AgentAwsUser } from '../agents/aws';
+import { AgentGCPKey } from '../agents/gcp';
 import { AgentContextConfig } from '../config';
 import {
   HelloWorldKathyConfig,
@@ -25,6 +26,15 @@ export async function runHelloworldKathyHelmCommand(
     await awsUser.createIfNotExists();
     await awsUser.createKeyIfNotExists(agentConfig);
   }
+
+  // Also ensure a GCP key exists, which is used for non-EVM chains even if
+  // the agent config is AWS-based
+  const kathyKey = new AgentGCPKey(
+    agentConfig.runEnv,
+    agentConfig.context,
+    Role.Kathy,
+  );
+  await kathyKey.createIfNotExists();
 
   const values = getHelloworldKathyHelmValues(agentConfig, kathyConfig);
 
