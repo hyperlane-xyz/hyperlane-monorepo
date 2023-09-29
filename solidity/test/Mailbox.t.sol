@@ -9,6 +9,7 @@ import "../contracts/test/TestPostDispatchHook.sol";
 import "../contracts/test/TestIsm.sol";
 import "../contracts/test/TestRecipient.sol";
 import "../contracts/hooks/MerkleTreeHook.sol";
+import "../contracts/hooks/MappingHook.sol";
 
 import {StandardHookMetadata} from "../contracts/hooks/libs/StandardHookMetadata.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
@@ -22,11 +23,12 @@ contract MailboxTest is Test, Versioned {
     uint32 remoteDomain = 2;
     TestMailbox mailbox;
 
-    MerkleTreeHook merkleHook;
-
     TestPostDispatchHook defaultHook;
     TestPostDispatchHook overrideHook;
     TestPostDispatchHook requiredHook;
+
+    MerkleTreeHook merkleHook;
+    MappingHook mappingHook;
 
     TestIsm defaultIsm;
     TestRecipient recipient;
@@ -39,7 +41,6 @@ contract MailboxTest is Test, Versioned {
         recipient = new TestRecipient();
         recipientb32 = address(recipient).addressToBytes32();
         defaultHook = new TestPostDispatchHook();
-        merkleHook = new MerkleTreeHook(address(mailbox));
         requiredHook = new TestPostDispatchHook();
         overrideHook = new TestPostDispatchHook();
         defaultIsm = new TestIsm();
@@ -51,6 +52,13 @@ contract MailboxTest is Test, Versioned {
             address(defaultHook),
             address(requiredHook)
         );
+
+        // insert messages to hooks for expected gas usage
+        uint256 n = 2**10;
+        merkleHook = new MerkleTreeHook(address(mailbox));
+        mappingHook = new MappingHook(address(mailbox));
+        manyDispatchWithHook(merkleHook, n, msg.data);
+        manyDispatchWithHook(mappingHook, n, msg.data);
     }
 
     function test_localDomain() public {
@@ -265,18 +273,17 @@ contract MailboxTest is Test, Versioned {
             StandardHookMetadata.VARIANT,
             metadata
         );
-        bytes calldata defaultMetadata = metadata[0:0];
         uint256 quote;
-        uint32 nonce;
         bytes32 id;
+        uint256 nonce = mailbox.nonce();
+        uint256 start = nonce;
 
-        for (uint256 i = 0; i < n; i += 3) {
-            nonce = mailbox.nonce();
+        for (uint256 i = start; i < start + n; i += 3) {
             assertEq(nonce, i);
 
             // default hook and no metadata
             quote = mailbox.quoteDispatch(remoteDomain, recipientb32, body);
-            expectDispatch(requiredHook, defaultHook, defaultMetadata, body);
+            expectDispatch(requiredHook, defaultHook, metadata[0:0], body);
             id = mailbox.dispatch{value: quote}(
                 remoteDomain,
                 recipientb32,
@@ -326,24 +333,43 @@ contract MailboxTest is Test, Versioned {
         }
     }
 
-    // for instrumenting gas costs of merkleHook.postDispatch after several insertions
-    function test_100dispatch_withMerkleTreeHook(bytes calldata body) public {
-        uint256 quote = mailbox.quoteDispatch(
-            remoteDomain,
-            recipientb32,
-            body,
-            body[0:0],
-            merkleHook
-        );
-        for (uint256 i = 0; i < 100; i++) {
-            mailbox.dispatch{value: quote}(
-                remoteDomain,
-                recipientb32,
-                body,
-                body[0:0],
-                merkleHook
-            );
+    function dispatchWithHook(IPostDispatchHook hook, bytes calldata body)
+        internal
+    {
+        mailbox.dispatch(remoteDomain, recipientb32, body, body[0:0], hook);
+    }
+
+    function meterDispatchWithHook(IPostDispatchHook hook, bytes calldata body)
+        internal
+        returns (uint256)
+    {
+        uint256 before = gasleft();
+        dispatchWithHook(hook, body);
+        return before - gasleft();
+    }
+
+    function manyDispatchWithHook(
+        IPostDispatchHook hook,
+        uint256 n,
+        bytes calldata body
+    ) internal {
+        for (uint256 i = 0; i < n; i++) {
+            dispatchWithHook(hook, body);
         }
+    }
+
+    function test_gasMerkleHook(bytes calldata body) public {
+        dispatchWithHook(merkleHook, body);
+    }
+
+    function test_gasMappingHook(bytes calldata body) public {
+        dispatchWithHook(mappingHook, body);
+    }
+
+    function test_gasCompareHooks(bytes calldata body) public {
+        uint256 mappingGas = meterDispatchWithHook(mappingHook, body);
+        uint256 merkleGas = meterDispatchWithHook(merkleHook, body);
+        assertLt(merkleGas, mappingGas);
     }
 
     event ProcessId(bytes32 indexed messageId);
