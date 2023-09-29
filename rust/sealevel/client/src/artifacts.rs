@@ -54,6 +54,13 @@ pub(crate) fn read_json<T>(path: &Path) -> T
 where
     T: DeserializeOwned,
 {
-    let file = File::open(path).expect("Failed to open JSON file");
-    serde_json::from_reader(file).expect("Failed to read JSON file")
+    try_read_json(path).expect("Failed to read JSON from file")
+}
+
+pub(crate) fn try_read_json<T>(path: &Path) -> std::io::Result<T>
+where
+    T: DeserializeOwned,
+{
+    let file = File::open(path)?;
+    Ok(serde_json::from_reader(file)?)
 }

@@ -1,10 +1,13 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::{
-    cmd_utils::{create_and_write_keypair, deploy_program},
-    read_core_program_ids, Context, GasOverheadSubCmd, GetSetCmd, IgpCmd, IgpSubCmd,
+    artifacts::{read_json, try_read_json, write_json, SingularProgramIdArtifact},
+    cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
+    read_core_program_ids,
+    router::ChainMetadata,
+    Context, GasOverheadSubCmd, GetSetCmd, IgpCmd, IgpSubCmd,
 };
-use hyperlane_sealevel_igp::accounts::{SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE};
 
 use std::{
     fs::File,
@@ -28,13 +31,34 @@ use hyperlane_sealevel_igp::{
     instruction::{GasOracleConfig, GasOverheadConfig},
 };
 
-struct IgpArtifacts {
-    program_id: Pubkey,
-    default_igp_account: Pubkey,
-    default_overhead_igp_account: Pubkey,
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct IgpAccountsArtifacts {
+    salt: H256,
+    #[serde(default)]
+    #[serde(with = "crate::serde::serde_option_pubkey")]
+    igp_account: Option<Pubkey>,
+    #[serde(default)]
+    #[serde(with = "crate::serde::serde_option_pubkey")]
+    overhead_igp_account: Option<Pubkey>,
 }
 
-pub(crate) fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
+fn get_context_salt(context: Option<&String>) -> H256 {
+    context
+        .map(|c| {
+            if c == "default" {
+                H256::zero()
+            } else {
+                ethers::utils::keccak256(c.as_bytes()).into()
+            }
+        })
+        .unwrap_or_else(|| H256::zero())
+}
+
+fn get_context_dir_name(context: Option<&String>) -> &str {
+    context.map(|c| c.as_str()).unwrap_or("default")
+}
+
+pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
     match cmd.cmd {
         IgpSubCmd::DeployProgram(deploy) => {
             let environments_dir =
@@ -43,12 +67,77 @@ pub(crate) fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
             let chain_dir = create_new_directory(&ism_dir, &deploy.chain);
             let key_dir = create_new_directory(&chain_dir, "keys");
 
-            let ism_program_id = deploy_igp_program(&mut ctx, &deploy.built_so_dir, true, &key_dir);
+            let program_id = deploy_igp_program(&mut ctx, &deploy.built_so_dir, true, &key_dir);
 
             write_json::<SingularProgramIdArtifact>(
-                &context_dir.join("program-ids.json"),
-                ism_program_id.into(),
+                &chain_dir.join("program-ids.json"),
+                program_id.into(),
             );
+        }
+        IgpSubCmd::InitIgpAccount(init) => {
+            let environments_dir = create_new_directory(&init.environments_dir, &init.environment);
+            let ism_dir = create_new_directory(&environments_dir, "igp");
+            let chain_dir = create_new_directory(&ism_dir, &init.chain);
+            let context_dir =
+                create_new_directory(&chain_dir, get_context_dir_name(init.context.as_ref()));
+
+            let artifacts_path = context_dir.join("igp-accounts.json");
+
+            let existing_artifacts = try_read_json::<IgpAccountsArtifacts>(&artifacts_path).ok();
+
+            let salt = get_context_salt(init.context.as_ref());
+
+            let chain_configs =
+                read_json::<HashMap<String, ChainMetadata>>(&init.chain_config_file);
+
+            let igp_account = init_and_configure_igp_account(
+                &mut ctx,
+                init.program_id,
+                chain_configs.get(&init.chain).unwrap().domain_id(),
+                salt,
+                init.gas_oracle_config_file,
+            );
+
+            let artifacts = IgpAccountsArtifacts {
+                salt,
+                igp_account: Some(igp_account),
+                overhead_igp_account: existing_artifacts.and_then(|a| a.overhead_igp_account),
+            };
+
+            write_json(&artifacts_path, artifacts);
+        }
+        IgpSubCmd::InitOverheadIgpAccount(init) => {
+            let environments_dir = create_new_directory(&init.environments_dir, &init.environment);
+            let ism_dir = create_new_directory(&environments_dir, "igp");
+            let chain_dir = create_new_directory(&ism_dir, &init.chain);
+            let context_dir =
+                create_new_directory(&chain_dir, get_context_dir_name(init.context.as_ref()));
+
+            let artifacts_path = context_dir.join("igp-accounts.json");
+
+            let existing_artifacts = try_read_json::<IgpAccountsArtifacts>(&artifacts_path).ok();
+
+            let salt = get_context_salt(init.context.as_ref());
+
+            let chain_configs =
+                read_json::<HashMap<String, ChainMetadata>>(&init.chain_config_file);
+
+            let overhead_igp_account = init_and_configure_overhead_igp_account(
+                &mut ctx,
+                init.program_id,
+                init.inner_igp_account,
+                chain_configs.get(&init.chain).unwrap().domain_id(),
+                salt,
+                init.overhead_config_file,
+            );
+
+            let artifacts = IgpAccountsArtifacts {
+                salt,
+                igp_account: existing_artifacts.and_then(|a| a.igp_account),
+                overhead_igp_account: Some(overhead_igp_account),
+            };
+
+            write_json(&artifacts_path, artifacts);
         }
         IgpSubCmd::Query(query) => {
             let (program_data_account_pda, _program_data_account_bump) =
@@ -122,6 +211,34 @@ pub(crate) fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                 "Made a payment for message {} with gas payment data account {}",
                 payment_details.message_id, gas_payment_data_account
             );
+        }
+        IgpSubCmd::Claim(claim) => {
+            let igp_account = ctx
+                .client
+                .get_account_with_commitment(&claim.igp_account, ctx.commitment)
+                .unwrap()
+                .value
+                .unwrap();
+            let igp_account = IgpAccount::fetch(&mut &igp_account.data[..])
+                .unwrap()
+                .into_inner();
+
+            let ixn = hyperlane_sealevel_igp::instruction::claim_instruction(
+                claim.program_id,
+                claim.igp_account,
+                igp_account.beneficiary,
+            )
+            .unwrap();
+
+            ctx.new_txn()
+                .add_with_description(
+                    ixn,
+                    format!(
+                        "Claiming from IGP account {} to beneficiary {}",
+                        claim.igp_account, igp_account.beneficiary
+                    ),
+                )
+                .send_with_payer();
         }
         IgpSubCmd::GasOracleConfig(args) => {
             let core_program_ids =
@@ -297,11 +414,10 @@ fn init_and_configure_igp_account(
     ctx: &mut Context,
     program_id: Pubkey,
     local_domain: u32,
-    remote_domains: Vec<u32>,
     salt: H256,
     gas_oracle_config_file: Option<PathBuf>,
 ) -> Pubkey {
-    let mut gas_oracle_configs = gas_oracle_config_file
+    let gas_oracle_configs = gas_oracle_config_file
         .as_deref()
         .map(|p| {
             let file = File::open(p).expect("Failed to open oracle config file");
@@ -311,43 +427,39 @@ fn init_and_configure_igp_account(
         .unwrap_or_default()
         .into_iter()
         .filter(|c| c.domain != local_domain)
-        .map(|c| (c.domain, c))
-        .collect::<HashMap<_, _>>();
-
-    // Default
-    for &remote in &remote_domains {
-        gas_oracle_configs
-            .entry(remote)
-            .or_insert_with(|| GasOracleConfig {
-                domain: remote,
-                gas_oracle: Some(GasOracle::RemoteGasData(RemoteGasData {
-                    token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
-                    gas_price: 1,
-                    token_decimals: SOL_DECIMALS,
-                })),
-            });
-    }
-    let gas_oracle_configs = gas_oracle_configs.into_values().collect::<Vec<_>>();
+        .collect::<Vec<_>>();
 
     // Initialize IGP with the given salt
-    let (igp_account, _igp_account_bump) =
+    let (igp_account_pda, _igp_account_bump) =
         Pubkey::find_program_address(hyperlane_sealevel_igp::igp_pda_seeds!(salt), &program_id);
 
-    let instruction = hyperlane_sealevel_igp::instruction::init_igp_instruction(
-        program_id,
-        ctx.payer_pubkey,
-        salt,
-        Some(ctx.payer_pubkey),
-        ctx.payer_pubkey,
-    )
-    .unwrap();
-
-    ctx.new_txn()
-        .add_with_description(
-            instruction,
-            format!("Initializing IGP account {}", igp_account),
+    if let None = ctx
+        .client
+        .get_account_with_commitment(&igp_account_pda, ctx.commitment)
+        .unwrap()
+        .value
+    {
+        let instruction = hyperlane_sealevel_igp::instruction::init_igp_instruction(
+            program_id,
+            ctx.payer_pubkey,
+            salt,
+            Some(ctx.payer_pubkey),
+            ctx.payer_pubkey,
         )
-        .send_with_payer();
+        .unwrap();
+
+        ctx.new_txn()
+            .add_with_description(
+                instruction,
+                format!("Initializing IGP account {}", igp_account_pda),
+            )
+            .send_with_payer();
+    } else {
+        println!(
+            "IGP account {} already exists, not creating",
+            igp_account_pda
+        );
+    }
 
     if !gas_oracle_configs.is_empty() {
         // TODO: idempotency
@@ -358,7 +470,7 @@ fn init_and_configure_igp_account(
             .collect::<Vec<_>>();
         let instruction = hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
             program_id,
-            igp_account,
+            igp_account_pda,
             ctx.payer_pubkey,
             gas_oracle_configs,
         )
@@ -371,15 +483,14 @@ fn init_and_configure_igp_account(
         println!("Skipping settings gas oracle config");
     }
 
-    igp_account
+    igp_account_pda
 }
 
-fn init_overhead_igp_account(
+fn init_and_configure_overhead_igp_account(
     ctx: &mut Context,
     program_id: Pubkey,
     inner_igp_account: Pubkey,
     local_domain: u32,
-    _remote_domains: Vec<u32>,
     salt: H256,
     overhead_config_file: Option<PathBuf>,
 ) -> Pubkey {
@@ -403,21 +514,33 @@ fn init_overhead_igp_account(
         &program_id,
     );
 
-    let instruction = hyperlane_sealevel_igp::instruction::init_overhead_igp_instruction(
-        program_id,
-        ctx.payer_pubkey,
-        salt,
-        Some(ctx.payer_pubkey),
-        inner_igp_account,
-    )
-    .unwrap();
-
-    ctx.new_txn()
-        .add_with_description(
-            instruction,
-            format!("Initializing overhead IGP account {}", overhead_igp_account),
+    if let None = ctx
+        .client
+        .get_account_with_commitment(&overhead_igp_account, ctx.commitment)
+        .unwrap()
+        .value
+    {
+        let instruction = hyperlane_sealevel_igp::instruction::init_overhead_igp_instruction(
+            program_id,
+            ctx.payer_pubkey,
+            salt,
+            Some(ctx.payer_pubkey),
+            inner_igp_account,
         )
-        .send_with_payer();
+        .unwrap();
+
+        ctx.new_txn()
+            .add_with_description(
+                instruction,
+                format!("Initializing overhead IGP account {}", overhead_igp_account),
+            )
+            .send_with_payer();
+    } else {
+        println!(
+            "Overhead IGP account {} already exists, not creating",
+            overhead_igp_account
+        );
+    }
 
     if !overhead_configs.is_empty() {
         // TODO: idempotency

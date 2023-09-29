@@ -380,8 +380,11 @@ struct IgpCmd {
 #[derive(Subcommand)]
 enum IgpSubCmd {
     DeployProgram(IgpDeployProgramArgs),
+    InitIgpAccount(InitIgpAccountArgs),
+    InitOverheadIgpAccount(InitOverheadIgpAccountArgs),
     Query(IgpQueryArgs),
     PayForGas(PayForGasArgs),
+    Claim(ClaimArgs),
     GasOracleConfig(GasOracleConfigArgs),
     DestinationGasOverhead(DestinationGasOverheadArgs),
     TransferIgpOwnership(TransferIgpOwnership),
@@ -391,7 +394,51 @@ enum IgpSubCmd {
 #[derive(Args)]
 struct IgpDeployProgramArgs {
     #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
     built_so_dir: PathBuf,
+}
+
+#[derive(Args)]
+struct InitIgpAccountArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    chain_config_file: PathBuf,
+    #[arg(long)]
+    context: Option<String>,
+    #[arg(long)]
+    gas_oracle_config_file: Option<PathBuf>,
+}
+
+#[derive(Args)]
+struct InitOverheadIgpAccountArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    chain_config_file: PathBuf,
+    #[arg(long)]
+    inner_igp_account: Pubkey,
+    #[arg(long)]
+    context: Option<String>,
+    #[arg(long)]
+    overhead_config_file: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -425,6 +472,14 @@ struct PayForGasArgs {
     destination_domain: u32,
     #[arg(long)]
     gas: u64,
+}
+
+#[derive(Args)]
+struct ClaimArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    igp_account: Pubkey,
 }
 
 #[derive(Args)]
