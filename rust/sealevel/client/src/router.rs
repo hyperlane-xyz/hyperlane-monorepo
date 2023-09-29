@@ -155,13 +155,21 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
         );
 
         let program_id = existing_program_ids
-            .map(|existing_program_ids| {
-                existing_program_ids.get(&chain_config.name).map(|id| {
-                    println!("Recovered existing program id {}", id);
-                    *id
+            .and_then(|existing_program_ids| {
+                existing_program_ids.get(&chain_config.name).and_then(|id| {
+                    if let Some(_) = chain_config
+                        .client()
+                        .get_account_with_commitment(id, ctx.commitment)
+                        .unwrap()
+                        .value
+                    {
+                        println!("Recovered existing program id {}", id);
+                        Some(*id)
+                    } else {
+                        None
+                    }
                 })
             })
-            .flatten()
             .unwrap_or_else(|| {
                 let (keypair, keypair_path) = create_and_write_keypair(
                     key_dir,
