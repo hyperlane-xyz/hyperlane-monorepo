@@ -1,14 +1,15 @@
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
-use ethers::abi::Detokenize;
-use ethers::prelude::{NameOrAddress, TransactionReceipt};
-use ethers::types::Eip1559TransactionRequest;
+use ethers::{
+    abi::Detokenize,
+    prelude::{NameOrAddress, TransactionReceipt},
+    types::Eip1559TransactionRequest,
+};
 use ethers_contract::builders::ContractCall;
+use hyperlane_core::{
+    utils::fmt_bytes, ChainCommunicationError, ChainResult, KnownHyperlaneDomain, H256, U256,
+};
 use tracing::{error, info};
-
-use hyperlane_core::utils::fmt_bytes;
-use hyperlane_core::{ChainCommunicationError, ChainResult, KnownHyperlaneDomain, H256, U256};
 
 use crate::Middleware;
 
@@ -85,7 +86,7 @@ where
     };
     let Ok((max_fee, max_priority_fee)) = provider.estimate_eip1559_fees(None).await else {
         // Is not EIP 1559 chain
-        return Ok(tx.gas(gas_limit))
+        return Ok(tx.gas(gas_limit));
     };
     let max_priority_fee = if matches!(
         KnownHyperlaneDomain::try_from(domain),
