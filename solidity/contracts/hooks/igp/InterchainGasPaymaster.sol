@@ -30,7 +30,10 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 /**
  * @title InterchainGasPaymaster
  * @notice Manages payments on a source chain to cover gas costs of relaying
- * messages to destination chains.
+ * messages to destination chains and includes the gas overhead per destination
+ * @dev The intended use of this contract is to store overhead gas amounts for destination
+ * domains, e.g. Mailbox and/or ISM gas usage, such that users of this IGP are only required
+ * to specify the gas amount used by their own applications.
  */
 contract InterchainGasPaymaster is
     IInterchainGasPaymaster,
@@ -54,6 +57,9 @@ contract InterchainGasPaymaster is
     /// @notice Keyed by remote domain, the gas oracle to use for the domain.
     mapping(uint32 => IGasOracle) public gasOracles;
 
+    /// @notice Destination domain => overhead gas amount on that domain.
+    mapping(uint32 => uint256) public destinationGasOverhead;
+
     /// @notice The benficiary that can receive native tokens paid into this contract.
     address public beneficiary;
 
@@ -76,6 +82,18 @@ contract InterchainGasPaymaster is
         uint32 remoteDomain;
         address gasOracle;
     }
+
+    struct DomainConfig {
+        uint32 domain;
+        uint256 gasOverhead;
+    }
+
+    /**
+     * @notice Emitted when an entry in the destinationGasOverhead mapping is set.
+     * @param domain The destination domain.
+     * @param gasOverhead The gas overhead amount on that domain.
+     */
+    event DestinationGasOverheadSet(uint32 indexed domain, uint256 gasOverhead);
 
     // ============ External Functions ============
 
@@ -124,6 +142,20 @@ contract InterchainGasPaymaster is
         _setBeneficiary(_beneficiary);
     }
 
+    /**
+     * @notice Sets destination gas overheads for multiple domains.
+     * @dev Only callable by the owner.
+     * @param configs A list of destination domains and gas overheads.
+     */
+    function setDestinationGasOverheads(DomainConfig[] calldata configs)
+        external
+        onlyOwner
+    {
+        for (uint256 i; i < configs.length; i++) {
+            _setDestinationGasOverhead(configs[i]);
+        }
+    }
+
     // ============ Public Functions ============
 
     /**
@@ -142,9 +174,13 @@ contract InterchainGasPaymaster is
         uint256 _gasAmount,
         address _refundAddress
     ) public payable override {
-        uint256 _requiredPayment = quoteGasPayment(
+        uint256 _requiredGasAmount = destinationGasAmount(
             _destinationDomain,
             _gasAmount
+        );
+        uint256 _requiredPayment = quoteGasPayment(
+            _destinationDomain,
+            _requiredGasAmount
         );
         require(
             msg.value >= _requiredPayment,
@@ -159,7 +195,7 @@ contract InterchainGasPaymaster is
         emit GasPayment(
             _messageId,
             _destinationDomain,
-            _gasAmount,
+            _requiredGasAmount,
             _requiredPayment
         );
     }
@@ -167,10 +203,10 @@ contract InterchainGasPaymaster is
     /**
      * @notice Quotes the amount of native tokens to pay for interchain gas.
      * @param _destinationDomain The domain of the message's destination chain.
-     * @param _gasAmount The amount of destination gas to pay for.
+     * @param _totalGasAmount The amount of destination gas to pay for.
      * @return The amount of native tokens required to pay for interchain gas.
      */
-    function quoteGasPayment(uint32 _destinationDomain, uint256 _gasAmount)
+    function quoteGasPayment(uint32 _destinationDomain, uint256 _totalGasAmount)
         public
         view
         virtual
@@ -184,7 +220,7 @@ contract InterchainGasPaymaster is
         ) = getExchangeRateAndGasPrice(_destinationDomain);
 
         // The total cost quoted in destination chain's native token.
-        uint256 _destinationGasCost = _gasAmount * uint256(_gasPrice);
+        uint256 _destinationGasCost = _totalGasAmount * uint256(_gasPrice);
 
         // Convert to the local native token.
         return
@@ -216,6 +252,22 @@ contract InterchainGasPaymaster is
         );
 
         return _gasOracle.getExchangeRateAndGasPrice(_destinationDomain);
+    }
+
+    /**
+     * @notice Returns the stored destinationGasOverhead added to the _gasAmount.
+     * @dev If there is no stored destinationGasOverhead, 0 is used.
+     * @param _destinationDomain The domain of the message's destination chain.
+     * @param _gasAmount The amount of destination gas to pay for. This should not
+     * consider any gas that is accounted for in the stored destinationGasOverhead.
+     * @return The stored destinationGasOverhead added to the _gasAmount.
+     */
+    function destinationGasAmount(uint32 _destinationDomain, uint256 _gasAmount)
+        public
+        view
+        returns (uint256)
+    {
+        return destinationGasOverhead[_destinationDomain] + _gasAmount;
     }
 
     // ============ Internal Functions ============
@@ -258,5 +310,14 @@ contract InterchainGasPaymaster is
     function _setGasOracle(uint32 _remoteDomain, address _gasOracle) internal {
         gasOracles[_remoteDomain] = IGasOracle(_gasOracle);
         emit GasOracleSet(_remoteDomain, _gasOracle);
+    }
+
+    /**
+     * @notice Sets the destination gas overhead for a single domain.
+     * @param config The destination domain and gas overhead.
+     */
+    function _setDestinationGasOverhead(DomainConfig calldata config) internal {
+        destinationGasOverhead[config.domain] = config.gasOverhead;
+        emit DestinationGasOverheadSet(config.domain, config.gasOverhead);
     }
 }

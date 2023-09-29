@@ -24,6 +24,8 @@ contract InterchainGasPaymasterTest is Test {
     uint32 constant testOriginDomain = 22222;
     uint32 constant testDestinationDomain = 11111;
     uint256 constant testGasAmount = 300000;
+    uint256 constant testGasOverhead = 123000;
+    uint256 constant DEFAULT_GAS_USAGE = 69_420;
     uint128 constant TEST_EXCHANGE_RATE = 1e10; // 1.0 exchange rate (remote token has exact same value as local)
     uint128 constant TEST_GAS_PRICE = 150; // 150 wei gas price
     bytes constant testMessage = "hello world";
@@ -31,7 +33,7 @@ contract InterchainGasPaymasterTest is Test {
         0x6ae9a99190641b9ed0c07143340612dde0e9cb7deaa5fe07597858ae9ba5fd7f;
     address constant testRefundAddress = address(0xc0ffee);
     bytes testEncodedMessage;
-
+    address ALICE = address(0x1); // alice the adversary
     uint256 blockNumber;
 
     event GasPayment(
@@ -40,10 +42,9 @@ contract InterchainGasPaymasterTest is Test {
         uint256 gasAmount,
         uint256 payment
     );
-
     event GasOracleSet(uint32 indexed remoteDomain, address gasOracle);
-
     event BeneficiarySet(address beneficiary);
+    event DestinationGasOverheadSet(uint32 indexed domain, uint256 gasOverhead);
 
     function setUp() public {
         blockNumber = block.number;
@@ -70,6 +71,63 @@ contract InterchainGasPaymasterTest is Test {
     function testInitializeRevertsIfCalledTwice() public {
         vm.expectRevert("Initializable: contract is already initialized");
         igp.initialize(address(this), beneficiary);
+    }
+
+    function testDestinationGasAmount(uint128 _gasOverhead) public {
+        setTestDestinationGasOverhead(_gasOverhead);
+
+        assertEq(
+            igp.destinationGasAmount(testDestinationDomain, testGasAmount),
+            _gasOverhead + testGasAmount
+        );
+    }
+
+    function testDestinationGasAmountWhenOverheadNotSet() public {
+        assertEq(
+            igp.destinationGasAmount(testDestinationDomain, testGasAmount),
+            testGasAmount
+        );
+    }
+
+    function testSetDestinationGasAmounts() public {
+        InterchainGasPaymaster.DomainConfig[]
+            memory configs = new InterchainGasPaymaster.DomainConfig[](2);
+        configs[0] = InterchainGasPaymaster.DomainConfig(
+            testDestinationDomain,
+            testGasOverhead
+        );
+        configs[1] = InterchainGasPaymaster.DomainConfig(4321, 432100);
+
+        // Topic 0 = event signature
+        // Topic 1 = indexed domain
+        // Topic 2 = not set
+        // Data = gas amount
+        vm.expectEmit(true, true, false, true);
+        emit DestinationGasOverheadSet(
+            configs[0].domain,
+            configs[0].gasOverhead
+        );
+        vm.expectEmit(true, true, false, true);
+        emit DestinationGasOverheadSet(
+            configs[1].domain,
+            configs[1].gasOverhead
+        );
+
+        igp.setDestinationGasOverheads(configs);
+    }
+
+    function testSetDestinationGasAmountsNotOwner() public {
+        InterchainGasPaymaster.DomainConfig[]
+            memory configs = new InterchainGasPaymaster.DomainConfig[](2);
+        configs[0] = InterchainGasPaymaster.DomainConfig(
+            testDestinationDomain,
+            testGasOverhead
+        );
+        configs[1] = InterchainGasPaymaster.DomainConfig(4321, 432100);
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(ALICE);
+        igp.setDestinationGasOverheads(configs);
     }
 
     // ============ quoteDispatch ============
@@ -113,8 +171,10 @@ contract InterchainGasPaymasterTest is Test {
 
         uint256 _igpBalanceBefore = address(igp).balance;
         uint256 _refundAddressBalanceBefore = address(this).balance;
-        uint256 _quote = igp.quoteGasPayment(testDestinationDomain, 69_420);
-
+        uint256 _quote = igp.quoteGasPayment(
+            testDestinationDomain,
+            DEFAULT_GAS_USAGE
+        );
         uint256 _overpayment = 21000;
 
         igp.postDispatch{value: _quote + _overpayment}("", testEncodedMessage);
@@ -161,6 +221,58 @@ contract InterchainGasPaymasterTest is Test {
             _refundAddressBalanceAfter - _refundAddressBalanceBefore,
             _overpayment
         );
+    }
+
+    function testPostDispatch__withOverheadSet(uint256 _gasOverhead) public {
+        vm.assume(_gasOverhead < 2**128 - 1);
+        vm.deal(address(this), _gasOverhead + DEFAULT_GAS_USAGE);
+
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            1 // 1 wei gas price
+        );
+        setTestDestinationGasOverhead(_gasOverhead);
+
+        uint256 _igpBalanceBefore = address(igp).balance;
+        uint256 _quote = igp.quoteGasPayment(
+            testDestinationDomain,
+            igp.destinationGasAmount(testDestinationDomain, DEFAULT_GAS_USAGE)
+        );
+
+        igp.postDispatch{value: _quote}("", testEncodedMessage);
+        uint256 _igpBalanceAfter = address(igp).balance;
+        assertEq(_igpBalanceAfter - _igpBalanceBefore, _quote);
+    }
+
+    function testPostDispatch_customWithMetadataAndOverhead(
+        uint128 _gasOverhead
+    ) public {
+        vm.deal(address(this), _gasOverhead + testGasAmount);
+
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            1 // 1 wei gas price
+        );
+        setTestDestinationGasOverhead(_gasOverhead);
+
+        uint256 _igpBalanceBefore = address(igp).balance;
+        uint256 _quote = igp.quoteGasPayment(
+            testDestinationDomain,
+            igp.destinationGasAmount(testDestinationDomain, testGasAmount)
+        );
+
+        bytes memory metadata = StandardHookMetadata.formatMetadata(
+            0,
+            uint256(testGasAmount), // gas limit
+            testRefundAddress, // refund address
+            bytes("")
+        );
+        bytes memory message = _encodeTestMessage();
+        igp.postDispatch{value: _quote}(metadata, message);
+        uint256 _igpBalanceAfter = address(igp).balance;
+        assertEq(_igpBalanceAfter - _igpBalanceBefore, _quote);
     }
 
     // ============ payForGas ============
@@ -221,6 +333,47 @@ contract InterchainGasPaymasterTest is Test {
             testGasAmount,
             testRefundAddress
         );
+    }
+
+    function testPayForGas_withOverhead(
+        uint256 _gasAmount,
+        uint256 _gasOverhead
+    ) public {
+        vm.assume(_gasAmount < 2**128 - 1);
+        vm.assume(_gasOverhead < 2**128 - 1);
+        vm.deal(address(this), _gasAmount + _gasOverhead);
+
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            1 // 1 wei gas price
+        );
+        setTestDestinationGasOverhead(_gasOverhead);
+
+        uint256 _quote = igp.quoteGasPayment(
+            testDestinationDomain,
+            igp.destinationGasAmount(testDestinationDomain, _gasAmount)
+        );
+
+        uint256 _igpBalanceBefore = address(igp).balance;
+
+        vm.expectEmit(true, true, false, true);
+        emit GasPayment(
+            testMessageId,
+            testDestinationDomain,
+            _gasOverhead + _gasAmount,
+            _quote
+        );
+        igp.payForGas{value: _quote}(
+            testMessageId,
+            testDestinationDomain,
+            _gasAmount,
+            msg.sender
+        );
+
+        uint256 _igpBalanceAfter = address(igp).balance;
+
+        assertEq(_igpBalanceAfter - _igpBalanceBefore, _quote);
     }
 
     // ============ quoteGasPayment ============
@@ -385,6 +538,16 @@ contract InterchainGasPaymasterTest is Test {
     }
 
     // ============ Helper functions ============
+
+    function setTestDestinationGasOverhead(uint256 _gasOverhead) internal {
+        InterchainGasPaymaster.DomainConfig[]
+            memory configs = new InterchainGasPaymaster.DomainConfig[](1);
+        configs[0] = InterchainGasPaymaster.DomainConfig(
+            testDestinationDomain,
+            _gasOverhead
+        );
+        igp.setDestinationGasOverheads(configs);
+    }
 
     function setGasOracle(uint32 _remoteDomain, address _gasOracle) internal {
         InterchainGasPaymaster.GasOracleConfig[]
