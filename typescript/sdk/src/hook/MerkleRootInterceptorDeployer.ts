@@ -1,6 +1,5 @@
 import debug from 'debug';
 
-import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
@@ -54,13 +53,9 @@ export class MerkleRootInterceptorDeployer extends HyperlaneDeployer<
     _: MerkleRootHookConfig,
   ): Promise<HyperlaneContracts<MerkleRootHookFactories>> {
     this.logger(`Deploying MerkleRootHook to ${chain}`);
-    const merkleTreeFactory = new MerkleTreeHook__factory();
-    const merkleTreeHook = await this.multiProvider.handleDeploy(
-      chain,
-      merkleTreeFactory,
-      [this.mailboxes[chain]],
-    );
-    this.logger(`MerkleRootHook successfully deployed on ${chain}`);
+    const merkleTreeHook = await this.deployContract(chain, 'hook', [
+      this.mailboxes[chain],
+    ]);
     return {
       hook: merkleTreeHook,
     };
@@ -70,11 +65,11 @@ export class MerkleRootInterceptorDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: MultisigIsmConfig,
   ): Promise<HyperlaneContracts<MerkleRootIsmFactories>> {
+    this.logger(`Deploying MerkleRootMultisigIsm to ${chain}`);
     const ism = await this.ismFactory.deployMerkleRootMultisigIsm(
       chain,
       config,
     );
-
     return {
       ism: ism,
     };
