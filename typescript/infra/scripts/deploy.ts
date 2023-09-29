@@ -67,7 +67,7 @@ async function main() {
   } else if (module === Modules.CORE) {
     config = envConfig.core;
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.ISM_FACTORY)[environment],
+      getAddresses(environment, Modules.ISM_FACTORY),
       multiProvider,
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
