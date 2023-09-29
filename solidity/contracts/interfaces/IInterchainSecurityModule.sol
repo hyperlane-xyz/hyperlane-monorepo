@@ -10,7 +10,8 @@ interface IInterchainSecurityModule {
         MERKLE_ROOT_MULTISIG,
         MESSAGE_ID_MULTISIG,
         NULL, // used with relayer carrying no metadata
-        CCIP_READ
+        CCIP_READ,
+        OPTIMISTIC
     }
 
     /**
@@ -28,9 +29,10 @@ interface IInterchainSecurityModule {
      * @param _message Hyperlane encoded interchain message
      * @return True if the message was verified
      */
-    function verify(bytes calldata _metadata, bytes calldata _message)
-        external
-        returns (bool);
+    function verify(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) external returns (bool);
 }
 
 interface ISpecifiesInterchainSecurityModule {
