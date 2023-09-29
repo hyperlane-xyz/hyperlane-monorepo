@@ -23,6 +23,7 @@ import {
   error,
   log,
   retryAsync,
+  strip0x,
   timeout,
   warn,
 } from '@hyperlane-xyz/utils';
@@ -420,7 +421,13 @@ async function sendMessage(
   });
 
   const sendAndConfirmMsg = async () => {
-    const sender = keys[origin].address;
+    const originProtocol = app.metadata(origin).protocol;
+    const sender = keys[origin].addressForProtocol(originProtocol);
+    if (!sender) {
+      throw new Error(
+        `No sender address found for chain ${origin} and protocol ${originProtocol}`,
+      );
+    }
     const tx = await app.populateHelloWorldTx(
       origin,
       destination,
@@ -446,7 +453,7 @@ async function sendMessage(
       // that have not yet been ported over
       const connection = app.multiProvider.getSolanaWeb3Provider(origin);
       const payer = Keypair.fromSeed(
-        Buffer.from(keys[origin].privateKey, 'hex'),
+        Buffer.from(strip0x(keys[origin].privateKey), 'hex'),
       );
       tx.transaction.partialSign(payer);
       // Note, tx signature essentially tx means hash on sealevel

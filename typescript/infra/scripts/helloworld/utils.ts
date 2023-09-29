@@ -83,6 +83,7 @@ export async function getHelloWorldMultiProtocolApp(
     coreConfig.environment === 'testnet3' &&
     !multiProtocolProvider.getKnownChainNames().includes('solanadevnet')
   ) {
+    multiProvider.addChain(chainMetadata.solanadevnet);
     multiProtocolProvider.addChain(chainMetadata.solanadevnet);
     keys['solanadevnet'] = getKeyForRole(
       coreConfig.environment,
@@ -95,6 +96,7 @@ export async function getHelloWorldMultiProtocolApp(
     coreConfig.environment === 'mainnet2' &&
     !multiProtocolProvider.getKnownChainNames().includes('solana')
   ) {
+    multiProvider.addChain(chainMetadata.solana);
     multiProtocolProvider.addChain(chainMetadata.solana);
     keys['solana'] = getKeyForRole(
       coreConfig.environment,

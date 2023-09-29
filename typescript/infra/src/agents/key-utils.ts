@@ -43,6 +43,23 @@ export function getRelayerCloudAgentKeys(
   return keys;
 }
 
+export function getKathyCloudAgentKeys(
+  agentConfig: AgentContextConfig,
+): Array<CloudAgentKey> {
+  const gcpKey = new AgentGCPKey(
+    agentConfig.runEnv,
+    agentConfig.context,
+    Role.Kathy,
+  );
+  if (!agentConfig.aws) {
+    return [gcpKey];
+  }
+
+  // Return both GCP and AWS keys for Kathy even if the agentConfig is configured
+  // to use AWS. Non-Ethereum chains require GCP keys.
+  return [gcpKey, new AgentAwsKey(agentConfig, Role.Kathy)];
+}
+
 // If getting all keys for relayers or validators, it's recommended to use
 // `getRelayerCloudAgentKeys` or `getValidatorCloudAgentKeys` instead.
 export function getCloudAgentKey(
@@ -97,8 +114,12 @@ export function getAllCloudAgentKeys(
     keys.push(...getRelayerCloudAgentKeys(agentConfig));
   if ((agentConfig.rolesWithKeys ?? []).includes(Role.Validator))
     keys.push(...getValidatorCloudAgentKeys(agentConfig));
+  if ((agentConfig.rolesWithKeys ?? []).includes(Role.Kathy))
+    keys.push(...getKathyCloudAgentKeys(agentConfig));
+
   for (const role of agentConfig.rolesWithKeys) {
-    if (role == Role.Relayer || role == Role.Validator) continue;
+    if (role == Role.Relayer || role == Role.Validator || role == Role.Kathy)
+      continue;
     keys.push(getCloudAgentKey(agentConfig, role));
   }
   return keys;
