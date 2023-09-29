@@ -37,12 +37,7 @@ import { DeployEnvironment } from '../../src/config/environment';
 import { Role } from '../../src/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import {
-  getAddressesForKey,
-  getArgs,
-  getEnvironmentConfig,
-  withContext,
-} from '../utils';
+import { getArgs, getEnvironmentConfig, withContext } from '../utils';
 
 import { getHelloWorldMultiProtocolApp } from './utils';
 
@@ -425,7 +420,7 @@ async function sendMessage(
   });
 
   const sendAndConfirmMsg = async () => {
-    const sender = getAddressesForKey(keys, origin, multiProvider);
+    const sender = keys[origin].address;
     const tx = await app.populateHelloWorldTx(
       origin,
       destination,

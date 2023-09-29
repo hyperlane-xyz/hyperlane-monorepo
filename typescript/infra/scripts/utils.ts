@@ -1,5 +1,3 @@
-import { Keypair } from '@solana/web3.js';
-import { Wallet } from 'ethers';
 import path from 'path';
 import yargs from 'yargs';
 
@@ -8,7 +6,6 @@ import {
   AllChains,
   ChainMap,
   ChainMetadata,
-  ChainMetadataManager,
   ChainName,
   Chains,
   CoreConfig,
@@ -19,12 +16,7 @@ import {
   RouterConfig,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  objMap,
-  promiseObjAll,
-  strip0x,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
@@ -223,24 +215,6 @@ export async function getKeysForRole(
     ),
   );
   return keys;
-}
-
-// Note: this will only work for keystores that allow key's to be extracted.
-export function getAddressesForKey(
-  keys: ChainMap<CloudAgentKey>,
-  chain: ChainName,
-  manager: ChainMetadataManager<any>,
-) {
-  const protocol = manager.getChainMetadata(chain).protocol;
-  if (protocol === ProtocolType.Ethereum) {
-    return keys[chain].address;
-  } else if (protocol === ProtocolType.Sealevel) {
-    return Keypair.fromSeed(
-      Buffer.from(strip0x(keys[chain].privateKey), 'hex'),
-    ).publicKey.toBase58();
-  } else {
-    throw Error(`Protocol ${protocol} not supported`);
-  }
 }
 
 export function getContractAddressesSdkFilepath() {
