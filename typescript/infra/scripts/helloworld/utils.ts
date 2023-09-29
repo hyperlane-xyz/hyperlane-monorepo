@@ -24,6 +24,7 @@ import { EnvironmentConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { HelloWorldConfig } from '../../src/config/helloworld';
 import { Role } from '../../src/roles';
+import { getKeyForRole } from '../utils';
 
 export async function getHelloWorldApp(
   coreConfig: EnvironmentConfig,
@@ -78,8 +79,30 @@ export async function getHelloWorldMultiProtocolApp(
   // Hacking around infra code limitations, we may need to add solana manually
   // because the it's not in typescript/infra/config/environments/testnet3/chains.ts
   // Adding it there breaks many things
-  if (!multiProtocolProvider.getKnownChainNames().includes('solanadevnet')) {
+  if (
+    coreConfig.environment === 'testnet3' &&
+    !multiProtocolProvider.getKnownChainNames().includes('solanadevnet')
+  ) {
     multiProtocolProvider.addChain(chainMetadata.solanadevnet);
+    keys['solanadevnet'] = getKeyForRole(
+      coreConfig.environment,
+      context,
+      'solanadevnet',
+      keyRole,
+    );
+    await keys['solanadevnet'].fetch();
+  } else if (
+    coreConfig.environment === 'mainnet2' &&
+    !multiProtocolProvider.getKnownChainNames().includes('solana')
+  ) {
+    multiProtocolProvider.addChain(chainMetadata.solana);
+    keys['solana'] = getKeyForRole(
+      coreConfig.environment,
+      context,
+      'solana',
+      keyRole,
+    );
+    await keys['solana'].fetch();
   }
 
   const core = MultiProtocolCore.fromAddressesMap(

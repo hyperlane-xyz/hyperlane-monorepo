@@ -159,7 +159,7 @@ export function getAgentConfig(
   return agentConfig;
 }
 
-function getKeyForRole(
+export function getKeyForRole(
   environment: DeployEnvironment,
   context: Contexts,
   chain: ChainName,
