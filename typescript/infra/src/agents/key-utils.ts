@@ -51,17 +51,19 @@ export function getCloudAgentKey(
   chainName?: ChainName,
   index?: number,
 ): CloudAgentKey {
-  // The deployer is always GCP-based
-  if (!!agentConfig.aws && role !== Role.Deployer) {
-    return new AgentAwsKey(agentConfig, role, chainName, index);
-    // Non-evm Kathy is also always GCP-based but does not index by chain
-  } else if (
+  // Non-evm Kathy is always GCP-based but does not index by chain
+  if (
     role === Role.Kathy &&
     chainName &&
     isNotEthereumProtocolChain(chainName)
   ) {
     return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, role);
+  }
+  // Otherwise use an AWS key except for the deployer
+  else if (!!agentConfig.aws && role !== Role.Deployer) {
+    return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
+    // Fallback to GCP
     return new AgentGCPKey(
       agentConfig.runEnv,
       agentConfig.context,
