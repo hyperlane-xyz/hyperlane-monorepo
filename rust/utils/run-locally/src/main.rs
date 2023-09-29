@@ -343,9 +343,9 @@ fn main() -> ExitCode {
     state.push_agent(relayer_env.spawn("RLY"));
 
     // Send some sealevel messages after spinning up the relayer, to test the forward indexing cursor
-    // for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-    //     initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
-    // }
+    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
+        initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    }
 
     log!("Setup complete! Agents running in background...");
     log!("Ctrl+C to end execution...");
