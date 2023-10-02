@@ -27,20 +27,20 @@ export type MerkleRootInterceptorConfig = {
   ism: MultisigIsmConfig;
 };
 
-export type DomainRoutingHookConfig = {
+export type RoutingHookConfig = {
   type: InterceptorType.HOOK;
   domains: ChainMap<HookConfig>;
 };
 
 export type RoutingInterceptorConfig = {
-  hook: DomainRoutingHookConfig;
+  hook: RoutingHookConfig;
   ism: RoutingIsmConfig;
 };
 
 export type HookConfig =
   | OpStackHookConfig
   | MerkleRootHookConfig
-  | DomainRoutingHookConfig;
+  | RoutingHookConfig;
 
 export type InterceptorConfig =
   | MerkleRootInterceptorConfig
