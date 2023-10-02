@@ -157,11 +157,12 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
         let program_id = existing_program_ids
             .and_then(|existing_program_ids| {
                 existing_program_ids.get(&chain_config.name).and_then(|id| {
-                    if let Some(_) = chain_config
+                    if chain_config
                         .client()
                         .get_account_with_commitment(id, ctx.commitment)
                         .unwrap()
                         .value
+                        .is_some()
                     {
                         println!("Recovered existing program id {}", id);
                         Some(*id)
