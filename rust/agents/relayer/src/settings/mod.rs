@@ -544,7 +544,9 @@ impl FromRawConf<DeprecatedRawRelayerSettings> for RelayerSettings {
 
         let (Some(origin_chain_names), Some(destination_chain_names)) =
             (origin_chain_names, destination_chain_names)
-        else { return Err(err) };
+        else {
+            return Err(err);
+        };
 
         let chain_filter = origin_chain_names
             .iter()

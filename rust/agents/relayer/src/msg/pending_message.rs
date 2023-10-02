@@ -1,16 +1,16 @@
-use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    fmt::{Debug, Formatter},
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
-use hyperlane_base::db::HyperlaneRocksDB;
+use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, trace, warn};
-
-use hyperlane_base::CoreMetrics;
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
 
 use super::{
     gas_payment::GasPaymentEnforcer,
@@ -183,11 +183,10 @@ impl PendingOperation for PendingMessage {
                 .message_meets_gas_payment_requirement(&self.message, &tx_cost_estimate)
                 .await,
             "checking if message meets gas payment requirement"
-        )
-            else {
-                info!(?tx_cost_estimate, "Gas payment requirement not met yet");
-                return self.on_reprepare();
-            };
+        ) else {
+            info!(?tx_cost_estimate, "Gas payment requirement not met yet");
+            return self.on_reprepare();
+        };
 
         // Go ahead and attempt processing of message to destination chain.
         debug!(

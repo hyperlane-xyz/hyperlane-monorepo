@@ -3,10 +3,11 @@
 #![allow(clippy::assign_op_pattern)]
 #![allow(clippy::reversed_empty_ranges)]
 
-use crate::types::serialize;
 use borsh::{BorshDeserialize, BorshSerialize};
-use fixed_hash::{construct_fixed_hash, impl_fixed_hash_conversions};
+use fixed_hash::impl_fixed_hash_conversions;
 use uint::construct_uint;
+
+use crate::types::serialize;
 
 /// Error type for conversion.
 #[derive(Debug, PartialEq, Eq)]
@@ -32,29 +33,38 @@ construct_uint! {
     pub struct U512(8);
 }
 
-construct_fixed_hash! {
-    /// 128-bit hash type.
-    #[derive(BorshSerialize, BorshDeserialize)]
-    pub struct H128(16);
-}
+mod fixed_hashes {
+    // we can't change how they made the macro, so ignore the lint
+    #![allow(clippy::incorrect_clone_impl_on_copy_type)]
 
-construct_fixed_hash! {
-    /// 160-bit hash type.
-    #[derive(BorshSerialize, BorshDeserialize)]
-    pub struct H160(20);
-}
+    use borsh::{BorshDeserialize, BorshSerialize};
+    use fixed_hash::construct_fixed_hash;
 
-construct_fixed_hash! {
-    /// 256-bit hash type.
-    #[derive(BorshSerialize, BorshDeserialize)]
-    pub struct H256(32);
-}
+    construct_fixed_hash! {
+        /// 128-bit hash type.
+        #[derive(BorshSerialize, BorshDeserialize)]
+        pub struct H128(16);
+    }
 
-construct_fixed_hash! {
-    /// 512-bit hash type.
-    #[derive(BorshSerialize, BorshDeserialize)]
-    pub struct H512(64);
+    construct_fixed_hash! {
+        /// 160-bit hash type.
+        #[derive(BorshSerialize, BorshDeserialize)]
+        pub struct H160(20);
+    }
+
+    construct_fixed_hash! {
+        /// 256-bit hash type.
+        #[derive(BorshSerialize, BorshDeserialize)]
+        pub struct H256(32);
+    }
+
+    construct_fixed_hash! {
+        /// 512-bit hash type.
+        #[derive(BorshSerialize, BorshDeserialize)]
+        pub struct H512(64);
+    }
 }
+pub use fixed_hashes::*;
 
 #[cfg(feature = "ethers")]
 type EthersH160 = ethers_core::types::H160;

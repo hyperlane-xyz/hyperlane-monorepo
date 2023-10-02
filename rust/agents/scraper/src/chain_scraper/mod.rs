@@ -384,9 +384,9 @@ impl HyperlaneMessageStore for HyperlaneSqlDb {
     /// was dispatched.
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {
         let Some(tx_id) = self
-        .db
-        .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, nonce)
-        .await?
+            .db
+            .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, nonce)
+            .await?
         else {
             return Ok(None);
         };
