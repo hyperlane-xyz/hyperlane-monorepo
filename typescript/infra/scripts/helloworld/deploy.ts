@@ -3,7 +3,7 @@ import path from 'path';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   HyperlaneIsmFactory,
-  filterAddressesExcludeProtocol,
+  filterChainMapExcludeProtocol,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -68,7 +68,7 @@ async function main() {
   const configMapWithForeignDeployments = objMerge(
     configMap,
     objMap(
-      filterAddressesExcludeProtocol(
+      filterChainMapExcludeProtocol(
         deployer.cachedAddresses,
         ProtocolType.Ethereum,
         multiProvider,

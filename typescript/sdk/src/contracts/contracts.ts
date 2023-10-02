@@ -66,26 +66,25 @@ export function filterAddressesMap<F extends HyperlaneFactories>(
   );
 }
 
-export function filterAddressesToProtocol(
-  addresses: HyperlaneAddressesMap<any>,
+export function filterChainMapToProtocol(
+  contractsMap: ChainMap<any>,
   protocolType: ProtocolType,
-  // Note, MultiProviders are passable here
   metadataManager: ChainMetadataManager<any>,
-): HyperlaneAddressesMap<any> {
+): ChainMap<any> {
   return objFilter(
-    addresses,
+    contractsMap,
     (c, _addrs): _addrs is any =>
       metadataManager.tryGetChainMetadata(c)?.protocol === protocolType,
   );
 }
 
-export function filterAddressesExcludeProtocol(
-  addresses: HyperlaneAddressesMap<any>,
+export function filterChainMapExcludeProtocol(
+  contractsMap: ChainMap<any>,
   protocolType: ProtocolType,
   metadataManager: ChainMetadataManager<any>,
-): HyperlaneAddressesMap<any> {
+): ChainMap<any> {
   return objFilter(
-    addresses,
+    contractsMap,
     (c, _addrs): _addrs is any =>
       metadataManager.tryGetChainMetadata(c)?.protocol !== protocolType,
   );
@@ -122,7 +121,7 @@ export function attachContractsMapAndGetForeignDeployments<
   foreignDeployments: ChainMap<Address>;
 } {
   const contractsMap = attachContractsMap(
-    filterAddressesToProtocol(
+    filterChainMapToProtocol(
       addressesMap,
       ProtocolType.Ethereum,
       metadataManager,
@@ -131,7 +130,7 @@ export function attachContractsMapAndGetForeignDeployments<
   );
 
   const foreignDeployments = objMap(
-    filterAddressesExcludeProtocol(
+    filterChainMapExcludeProtocol(
       addressesMap,
       ProtocolType.Ethereum,
       metadataManager,
