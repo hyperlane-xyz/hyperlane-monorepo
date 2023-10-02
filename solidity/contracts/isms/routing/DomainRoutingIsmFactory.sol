@@ -33,9 +33,7 @@ abstract contract AbstractDomainRoutingIsmFactory {
         return _ism;
     }
 
-    // ============ Internal Functions ============
-
-    function implementation() internal view virtual returns (address);
+    function implementation() public view virtual returns (address);
 }
 
 /**
@@ -49,7 +47,7 @@ contract DomainRoutingIsmFactory is AbstractDomainRoutingIsmFactory {
         _implementation = address(new DomainRoutingIsm());
     }
 
-    function implementation() internal view override returns (address) {
+    function implementation() public view override returns (address) {
         return _implementation;
     }
 }
@@ -65,7 +63,7 @@ contract DefaultFallbackRoutingIsmFactory is AbstractDomainRoutingIsmFactory {
         _implementation = address(new DefaultFallbackRoutingIsm(mailbox));
     }
 
-    function implementation() internal view override returns (address) {
+    function implementation() public view override returns (address) {
         return _implementation;
     }
 }

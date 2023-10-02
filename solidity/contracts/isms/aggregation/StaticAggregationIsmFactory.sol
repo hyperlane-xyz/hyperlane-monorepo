@@ -2,9 +2,9 @@
 pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {StaticAggregationIsm} from "./StaticAggregationIsm.sol";
-import {StaticMOfNAddressSetFactory} from "../../libs/StaticMOfNAddressSetFactory.sol";
+import {StaticThresholdAddressSetFactory} from "../../libs/StaticAddressSetFactory.sol";
 
-contract StaticAggregationIsmFactory is StaticMOfNAddressSetFactory {
+contract StaticAggregationIsmFactory is StaticThresholdAddressSetFactory {
     function _deployImplementation()
         internal
         virtual
