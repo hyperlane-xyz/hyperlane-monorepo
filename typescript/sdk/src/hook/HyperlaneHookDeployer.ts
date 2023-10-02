@@ -1,11 +1,15 @@
 import debug from 'debug';
 
-import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
+import {
+  MerkleTreeHook__factory,
+  StaticAddressSetFactory,
+  StaticAddressSetFactory__factory,
+  StaticAggregationHook__factory,
+} from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -23,8 +27,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 > {
   constructor(
     multiProvider: MultiProvider,
-    readonly aggregationHookFactory: HyperlaneIsmFactory,
     readonly mailboxes: ChainMap<Address>,
+    readonly aggregationHookFactory?: ChainMap<Address>,
   ) {
     super(multiProvider, hookFactories, {
       logger: debug('hyperlane:HyperlaneHookDeployer'),
@@ -63,7 +67,60 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: AggregationHookConfig,
   ): Promise<HyperlaneContracts<AggregationHookFactory>> {
-    this.logger(`Deploying AggregationHook to ${chain} with config ${config}`);
-    throw new Error('Not implemented');
+    const signer = this.multiProvider.getSigner(chain);
+    this.logger(`Deploying AggregationHook to ${chain}`);
+    const addresses: Address[] = [];
+    for (const module of config.modules) {
+      addresses.push(
+        this.getDeployedAddress(await this.deployContracts(chain, module)),
+      );
+    }
+    if (!this.aggregationHookFactory || !this.aggregationHookFactory[chain]) {
+      throw new Error('No aggregation hook factory for chain');
+    }
+    const address = await this.deployAddressSetFactory(
+      chain,
+      StaticAddressSetFactory__factory.connect(
+        this.aggregationHookFactory[chain],
+        signer,
+      ),
+      addresses,
+    );
+    return {
+      aggregationHook: StaticAggregationHook__factory.connect(
+        address,
+        this.multiProvider.getProvider(chain),
+      ),
+    };
+  }
+
+  private async deployAddressSetFactory(
+    chain: ChainName,
+    factory: StaticAddressSetFactory,
+    values: Address[],
+  ): Promise<Address> {
+    const sorted = [...values].sort();
+    const address = await factory['getAddress(address[])'](sorted);
+    const provider = this.multiProvider.getProvider(chain);
+    const code = await provider.getCode(address);
+    if (code === '0x') {
+      this.logger(`Deploying new ${values.length} address set to ${chain}`);
+      const overrides = this.multiProvider.getTransactionOverrides(chain);
+      const hash = await factory['deploy(address[])'](sorted, overrides);
+      await this.multiProvider.handleTx(chain, hash);
+    } else {
+      this.logger(`Recovered ${values.length} address set on ${chain}`);
+    }
+    return address;
+  }
+
+  getDeployedAddress(
+    deployedContracts: HyperlaneContracts<HookFactories>,
+  ): Address {
+    if (deployedContracts.merkleTreeHook)
+      return deployedContracts.merkleTreeHook.address;
+    else if (deployedContracts.aggregationHook)
+      return deployedContracts.aggregationHook.address;
+    else throw new Error('No hook deployed');
   }
 }

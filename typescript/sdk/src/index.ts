@@ -108,8 +108,14 @@ export {
   IgpViolationType,
   OverheadIgpConfig,
 } from './gas/types';
+export { AggregationHookFactoryDeployer } from './hook/AggregationHookFactoryDeployer';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
-export { HookConfig, HookType, MerkleTreeHookConfig } from './hook/types';
+export {
+  AggregationHookConfig,
+  HookConfig,
+  HookType,
+  MerkleTreeHookConfig,
+} from './hook/types';
 export {
   HyperlaneIsmFactory,
   collectValidators,

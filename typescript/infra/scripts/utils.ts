@@ -20,6 +20,7 @@ import {
   collectValidators,
 } from '@hyperlane-xyz/sdk';
 import {
+  Address,
   ProtocolType,
   objMap,
   promiseObjAll,
@@ -45,6 +46,7 @@ export enum Modules {
   ISM_FACTORY = 'ism',
   CORE = 'core',
   HOOK = 'hook',
+  HOOK_FACTORY = 'hookfactory',
   INTERCHAIN_GAS_PAYMASTER = 'igp',
   INTERCHAIN_ACCOUNTS = 'ica',
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
@@ -292,6 +294,27 @@ export function getAddresses(environment: DeployEnvironment, module: Modules) {
   } else {
     return getInfraAddresses(environment, module);
   }
+}
+
+export function getMailboxAddresses(environment: DeployEnvironment) {
+  const mailboxes: ChainMap<Address> = {};
+  for (const chain in getAddresses(environment, Modules.CORE)) {
+    mailboxes[chain] = getAddresses(environment, Modules.CORE)[chain].mailbox;
+  }
+  return mailboxes;
+}
+
+export function getAggregationHookFactoryAddresses(
+  environment: DeployEnvironment,
+) {
+  const aggregationFactories: ChainMap<Address> = {};
+  for (const chain in getAddresses(environment, Modules.HOOK_FACTORY)) {
+    aggregationFactories[chain] = getAddresses(
+      environment,
+      Modules.HOOK_FACTORY,
+    )[chain].aggregationHookFactory;
+  }
+  return aggregationFactories;
 }
 
 export function getAgentConfigDirectory() {

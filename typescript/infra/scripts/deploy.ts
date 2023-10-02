@@ -2,6 +2,7 @@ import path from 'path';
 
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
+  AggregationHookFactoryDeployer,
   ChainMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
@@ -13,7 +14,7 @@ import {
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
 } from '@hyperlane-xyz/sdk';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
@@ -26,9 +27,11 @@ import {
   Modules,
   SDK_MODULES,
   getAddresses,
+  getAggregationHookFactoryAddresses,
   getArgs,
   getContractAddressesSdkFilepath,
   getEnvironmentConfig,
+  getMailboxAddresses,
   getModuleDirectory,
   getProxiedRouterConfig,
   getRouterConfig,
@@ -71,21 +74,19 @@ async function main() {
       multiProvider,
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
+  } else if (module === Modules.HOOK_FACTORY) {
+    config = objMap(envConfig.core, (_chain) => true);
+    deployer = new AggregationHookFactoryDeployer(multiProvider);
   } else if (module === Modules.HOOK) {
     if (!envConfig.hook) {
       throw new Error(`No hook config for ${environment}`);
     }
     config = envConfig.hook;
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.ISM_FACTORY),
+    deployer = new HyperlaneHookDeployer(
       multiProvider,
+      getMailboxAddresses(environment),
+      getAggregationHookFactoryAddresses(environment),
     );
-    const mailboxes: ChainMap<Address> = {};
-    for (const chain in getAddresses(environment, Modules.CORE)) {
-      mailboxes[chain] = getAddresses(environment, Modules.CORE)[chain].mailbox;
-    }
-
-    deployer = new HyperlaneHookDeployer(multiProvider, ismFactory, mailboxes);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
