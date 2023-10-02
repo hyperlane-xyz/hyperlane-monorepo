@@ -382,7 +382,7 @@ export async function moduleMatchesConfig(
       // Recursively check that the submodule for each configured
       // domain matches the submodule config.
       for (const [origin, subConfig] of Object.entries(config.domains)) {
-        const subModule = await routingIsm.modules(
+        const subModule = await routingIsm.module(
           multiProvider.getDomainId(origin),
         );
         const subModuleMatches = await moduleMatchesConfig(
