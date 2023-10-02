@@ -27,7 +27,7 @@ export const messageIdMultisig = (validatorKey: string): MultisigIsmConfig => {
 // the addresses here must line up with the e2e test's validator addresses
 export const multisigIsm: ChainMap<MultisigIsmConfig> = {
   // Validators are anvil accounts 4-6
-  test1: messageIdMultisig('test1'),
-  test2: merkleRootMultisig('test2'),
-  test3: messageIdMultisig('test3'),
+  test1: messageIdMultisig(chainToValidator['test1']),
+  test2: merkleRootMultisig(chainToValidator['test2']),
+  test3: messageIdMultisig(chainToValidator['test3']),
 };

@@ -1,22 +1,9 @@
-import type { Address } from '@hyperlane-xyz/utils';
-
-import { ChainName } from '../types';
-
-export enum HookContractType {
-  HOOK = 'hook',
-  ISM = 'ism',
+export enum HookType {
+  MERKLE_TREE_HOOK = 'merkleTreeHook',
 }
 
-export type MessageHookConfig = {
-  hookContractType: HookContractType.HOOK;
-  nativeBridge: Address;
-  remoteIsm?: Address;
-  destination: ChainName;
+export type MerkleTreeHookConfig = {
+  type: HookType.MERKLE_TREE_HOOK;
 };
 
-export type NoMetadataIsmConfig = {
-  hookContractType: HookContractType.ISM;
-  nativeBridge: Address;
-};
-
-export type HookConfig = MessageHookConfig | NoMetadataIsmConfig;
+export type HookConfig = MerkleTreeHookConfig;

@@ -195,10 +195,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     threshold: number,
   ): Promise<Address> {
     const sorted = [...values].sort();
+
     const address = await factory.getAddress(sorted, threshold);
     const provider = this.multiProvider.getProvider(chain);
     const code = await provider.getCode(address);
-
     if (code === '0x') {
       this.logger(
         `Deploying new ${threshold} of ${values.length} address set to ${chain}`,

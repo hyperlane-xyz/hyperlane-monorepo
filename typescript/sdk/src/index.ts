@@ -109,12 +109,7 @@ export {
   OverheadIgpConfig,
 } from './gas/types';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
-export {
-  HookConfig,
-  HookContractType,
-  MessageHookConfig,
-  NoMetadataIsmConfig,
-} from './hook/types';
+export { HookConfig, HookType, MerkleTreeHookConfig } from './hook/types';
 export {
   HyperlaneIsmFactory,
   collectValidators,
