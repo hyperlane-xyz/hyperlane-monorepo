@@ -54,7 +54,7 @@ contract TestIsm is IInterchainSecurityModule {
     }
 }
 
-library MOfNTestUtils {
+library ThresholdTestUtils {
     function choose(
         uint8 m,
         uint256[] memory choices,

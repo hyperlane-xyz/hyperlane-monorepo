@@ -7,7 +7,7 @@ import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 // ============ Internal Imports ============
 import {MetaProxy} from "./MetaProxy.sol";
 
-abstract contract StaticMOfNAddressSetFactory {
+abstract contract StaticThresholdAddressSetFactory {
     // ============ Immutables ============
     address public immutable implementation;
 
@@ -20,12 +20,12 @@ abstract contract StaticMOfNAddressSetFactory {
     function _deployImplementation() internal virtual returns (address);
 
     /**
-     * @notice Deploys a StaticMOfNAddressSet contract address for the given
+     * @notice Deploys a StaticThresholdAddressSet contract address for the given
      * values
      * @dev Consider sorting addresses to ensure contract reuse
      * @param _values An array of addresses
      * @param _threshold The threshold value to use
-     * @return set The contract address representing this StaticMOfNAddressSet
+     * @return set The contract address representing this StaticThresholdAddressSet
      */
     function deploy(address[] calldata _values, uint8 _threshold)
         public
@@ -43,12 +43,12 @@ abstract contract StaticMOfNAddressSetFactory {
     }
 
     /**
-     * @notice Returns the StaticMOfNAddressSet contract address for the given
+     * @notice Returns the StaticThresholdAddressSet contract address for the given
      * values
      * @dev Consider sorting addresses to ensure contract reuse
      * @param _values An array of addresses
      * @param _threshold The threshold value to use
-     * @return set The contract address representing this StaticMOfNAddressSet
+     * @return set The contract address representing this StaticThresholdAddressSet
      */
     function getAddress(address[] calldata _values, uint8 _threshold)
         external
@@ -63,11 +63,11 @@ abstract contract StaticMOfNAddressSetFactory {
     }
 
     /**
-     * @notice Returns the StaticMOfNAddressSet contract address for the given
+     * @notice Returns the StaticThresholdAddressSet contract address for the given
      * values
      * @param _salt The salt used in Create2
      * @param _bytecode The metaproxy bytecode used in Create2
-     * @return set The contract address representing this StaticMOfNAddressSet
+     * @return set The contract address representing this StaticThresholdAddressSet
      */
     function _getAddress(bytes32 _salt, bytes memory _bytecode)
         internal
@@ -97,24 +97,24 @@ abstract contract StaticMOfNAddressSetFactory {
     }
 }
 
-abstract contract StaticAddressSetFactory is StaticMOfNAddressSetFactory {
+abstract contract StaticAddressSetFactory is StaticThresholdAddressSetFactory {
     /**
-     * @notice Deploys a StaticNAddressSet contract address for the given
+     * @notice Deploys a StaticAddressSet contract address for the given
      * values
      * @dev Consider sorting addresses to ensure contract reuse
      * @param _values An array of addresses
-     * @return set The contract address representing this StaticNAddressSet
+     * @return set The contract address representing this StaticAddressSet
      */
     function deploy(address[] calldata _values) external returns (address) {
         return super.deploy(_values, uint8(_values.length));
     }
 
     /**
-     * @notice Returns the StaticNAddressSet contract address for the given
+     * @notice Returns the StaticAddressSet contract address for the given
      * values
      * @dev Consider sorting addresses to ensure contract reuse
      * @param _values An array of addresses
-     * @return set The contract address representing this StaticNAddressSet
+     * @return set The contract address representing this StaticAddressSet
      */
     function getAddress(address[] calldata _values)
         external

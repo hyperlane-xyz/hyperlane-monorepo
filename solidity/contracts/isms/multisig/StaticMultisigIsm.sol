@@ -5,7 +5,7 @@ import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
 import {AbstractMerkleRootMultisigIsm} from "./AbstractMerkleRootMultisigIsm.sol";
 import {AbstractMessageIdMultisigIsm} from "./AbstractMessageIdMultisigIsm.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
-import {StaticMOfNAddressSetFactory} from "../../libs/StaticAddressSetFactory.sol";
+import {StaticThresholdAddressSetFactory} from "../../libs/StaticAddressSetFactory.sol";
 
 /**
  * @title AbstractMetaProxyMultisigIsm
@@ -55,13 +55,15 @@ contract StaticMessageIdMultisigIsm is
 
 // solhint-enable no-empty-blocks
 
-contract StaticMerkleRootMultisigIsmFactory is StaticMOfNAddressSetFactory {
+contract StaticMerkleRootMultisigIsmFactory is
+    StaticThresholdAddressSetFactory
+{
     function _deployImplementation() internal override returns (address) {
         return address(new StaticMerkleRootMultisigIsm());
     }
 }
 
-contract StaticMessageIdMultisigIsmFactory is StaticMOfNAddressSetFactory {
+contract StaticMessageIdMultisigIsmFactory is StaticThresholdAddressSetFactory {
     function _deployImplementation() internal override returns (address) {
         return address(new StaticMessageIdMultisigIsm());
     }
