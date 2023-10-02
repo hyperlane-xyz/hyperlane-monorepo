@@ -324,7 +324,6 @@ export async function moduleCanCertainlyVerify(
       }
     }
   }
-  return false;
 }
 
 export async function moduleMatchesConfig(
