@@ -32,9 +32,9 @@ impl From<H256> for HexAndBase58ProgramIdArtifact {
     }
 }
 
-impl Into<Pubkey> for &HexAndBase58ProgramIdArtifact {
-    fn into(self) -> Pubkey {
-        Pubkey::from_str(&self.base58).unwrap()
+impl From<&HexAndBase58ProgramIdArtifact> for Pubkey {
+    fn from(val: &HexAndBase58ProgramIdArtifact) -> Self {
+        Pubkey::from_str(&val.base58).unwrap()
     }
 }
 

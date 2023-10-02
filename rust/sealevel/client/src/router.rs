@@ -428,7 +428,7 @@ fn configure_connection_client(
 
     let client = chain_config.client();
 
-    let actual_ism = deployer.get_interchain_security_module(&client, &program_id);
+    let actual_ism = deployer.get_interchain_security_module(&client, program_id);
     let expected_ism = router_config.connection_client.interchain_security_module();
 
     if actual_ism != expected_ism {
@@ -436,7 +436,7 @@ fn configure_connection_client(
             .add_with_description(
                 deployer.set_interchain_security_module_instruction(
                     &client,
-                    &program_id,
+                    program_id,
                     expected_ism,
                 ),
                 format!(
@@ -462,13 +462,13 @@ fn configure_owner(
 ) {
     let client = chain_config.client();
 
-    let actual_owner = deployer.get_owner(&client, &program_id);
+    let actual_owner = deployer.get_owner(&client, program_id);
     let expected_owner = Some(router_config.ownable.owner(ctx.payer_pubkey));
 
     if actual_owner != expected_owner {
         ctx.new_txn()
             .add_with_description(
-                deployer.set_owner_instruction(&client, &program_id, expected_owner),
+                deployer.set_owner_instruction(&client, program_id, expected_owner),
                 format!(
                     "Setting owner for chain: {} ({}) to {:?}",
                     chain_config.name,

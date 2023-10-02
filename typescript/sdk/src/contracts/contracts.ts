@@ -117,7 +117,10 @@ export function attachContractsMapAndGetForeignDeployments<
   addressesMap: HyperlaneAddressesMap<any>,
   factories: F,
   metadataManager: ChainMetadataManager<any>,
-) {
+): {
+  contractsMap: HyperlaneContractsMap<F>;
+  foreignDeployments: ChainMap<Address>;
+} {
   const contractsMap = attachContractsMap(
     filterAddressesToProtocol(
       addressesMap,
