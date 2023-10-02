@@ -13,6 +13,12 @@ import "../contracts/hooks/MerkleTreeHook.sol";
 import {StandardHookMetadata} from "../contracts/hooks/libs/StandardHookMetadata.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
+contract Empty {}
+
+contract EmptyFallback {
+    fallback() external {}
+}
+
 contract MailboxTest is Test, Versioned {
     using StandardHookMetadata for bytes;
     using TypeCasts for address;
@@ -78,7 +84,24 @@ contract MailboxTest is Test, Versioned {
         IInterchainSecurityModule ism = mailbox.recipientIsm(
             address(recipient)
         );
-        assertEq(address(mailbox.defaultIsm()), address(ism));
+        assertEq(address(defaultIsm), address(ism));
+
+        // check no ism function returns default
+        Empty empty = new Empty();
+        ism = mailbox.recipientIsm(address(empty));
+        assertEq(address(defaultIsm), address(ism));
+
+        // check empty fallback returns default
+        EmptyFallback emptyFallback = new EmptyFallback();
+        ism = mailbox.recipientIsm(address(emptyFallback));
+        assertEq(address(defaultIsm), address(ism));
+
+        // check zero address returns default
+        recipient.setInterchainSecurityModule(address(0));
+        ism = mailbox.recipientIsm(address(recipient));
+        assertEq(address(defaultIsm), address(ism));
+
+        // check recipient override is used
         TestIsm newIsm = new TestIsm();
         recipient.setInterchainSecurityModule(address(newIsm));
         ism = mailbox.recipientIsm(address(recipient));
