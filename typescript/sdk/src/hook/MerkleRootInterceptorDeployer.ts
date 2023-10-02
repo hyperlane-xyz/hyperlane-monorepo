@@ -1,18 +1,22 @@
 import debug from 'debug';
 
+import {
+  StaticMerkleRootMultisigIsm,
+  StaticMessageIdMultisigIsm,
+} from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { MultisigIsmConfig } from '../ism/types';
+import { ModuleType, MultisigIsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
 import {
   MerkleRootHookFactories,
   MerkleRootInterceptorFactories,
-  MerkleRootIsmFactories,
+  MultisigIsmFactories,
   merkleRootHookFactories,
   merkleRootIsmFactories,
 } from './contracts';
@@ -64,14 +68,22 @@ export class MerkleRootInterceptorDeployer extends HyperlaneDeployer<
   async deployIsmContracts(
     chain: ChainName,
     config: MultisigIsmConfig,
-  ): Promise<HyperlaneContracts<MerkleRootIsmFactories>> {
-    this.logger(`Deploying MerkleRootMultisigIsm to ${chain}`);
-    const ism = await this.ismFactory.deployMerkleRootMultisigIsm(
-      chain,
-      config,
-    );
-    return {
-      ism: ism,
-    };
+  ): Promise<HyperlaneContracts<MultisigIsmFactories>> {
+    const ism = await this.ismFactory.deploy(chain, config);
+    if (config.type === ModuleType.MERKLE_ROOT_MULTISIG) {
+      this.logger(`Deploying StaticMerkleRootMultisigIsm to ${chain}`);
+      return {
+        ism: ism as StaticMerkleRootMultisigIsm,
+      };
+    } else if (config.type === ModuleType.MESSAGE_ID_MULTISIG) {
+      this.logger(`Deploying StaticMessageIdMultisigIsm to ${chain}`);
+      return {
+        ism: ism as StaticMessageIdMultisigIsm,
+      };
+    } else {
+      throw new Error(
+        `Unexpected ISM type ${config.type} for MerkleRootInterceptorDeployer`,
+      );
+    }
   }
 }
