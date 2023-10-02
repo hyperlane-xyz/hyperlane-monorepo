@@ -4,7 +4,9 @@ import { ZHash } from './customZodTypes';
 
 export const HyperlaneDeploymentArtifactsSchema = z.object({
   mailbox: ZHash.describe('The address of the Mailbox contract.'),
-  merkleTree: ZHash.describe('The address of the Merkle Tree hook contract.'),
+  merkleTreeHook: ZHash.describe(
+    'The address of the Merkle Tree hook contract.',
+  ),
   interchainGasPaymaster: ZHash.describe(
     'The address of the Interchain Gas Paymaster (IGP) contract.',
   ),

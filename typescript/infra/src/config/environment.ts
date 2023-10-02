@@ -1,5 +1,4 @@
 import {
-  AgentConnectionType,
   BridgeAdapterConfig,
   ChainMap,
   ChainMetadata,
@@ -9,6 +8,7 @@ import {
   MerkleTreeHookConfig,
   MultiProvider,
   OverheadIgpConfig,
+  RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -44,7 +44,7 @@ export type EnvironmentConfig = {
   getMultiProvider: (
     context?: Contexts,
     role?: Role,
-    connectionType?: AgentConnectionType,
+    connectionType?: RpcConsensusType,
   ) => Promise<MultiProvider>;
   getKeys: (
     context?: Contexts,
