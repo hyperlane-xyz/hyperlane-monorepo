@@ -111,11 +111,9 @@ export {
 export { MerkleRootInterceptorDeployer } from './hook/MerkleRootInterceptorDeployer';
 export {
   HookConfig,
+  HookType,
   InterceptorConfig,
-  InterceptorType,
   MerkleRootHookConfig,
-  OPStackIsmConfig,
-  OpStackHookConfig,
 } from './hook/types';
 export {
   HyperlaneIsmFactory,
