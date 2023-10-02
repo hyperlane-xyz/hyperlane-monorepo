@@ -2,20 +2,20 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use eyre::Result;
-use tracing::{debug, error, trace};
-
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::{
     GasPaymentKey, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
     TxCostEstimate, TxOutcome, U256,
 };
-
-use crate::msg::gas_payment::policies::GasPaymentPolicyOnChainFeeQuoting;
-use crate::settings::{
-    matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
-};
+use tracing::{debug, error, trace};
 
 use self::policies::{GasPaymentPolicyMinimum, GasPaymentPolicyNone};
+use crate::{
+    msg::gas_payment::policies::GasPaymentPolicyOnChainFeeQuoting,
+    settings::{
+        matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
+    },
+};
 
 mod policies;
 
@@ -148,11 +148,10 @@ mod test {
         H256, U256,
     };
 
+    use super::GasPaymentEnforcer;
     use crate::settings::{
         matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
     };
-
-    use super::GasPaymentEnforcer;
 
     #[tokio::test]
     async fn test_empty_whitelist() {
@@ -195,7 +194,7 @@ mod test {
         test_utils::run_test_db(|db| async move {
             let hyperlane_db =
                 HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_no_match"), db);
-            let matching_list = serde_json::from_str(r#"[{"originDomain": 234}]"#).unwrap();
+            let matching_list = serde_json::from_str(r#"[{"origindomain": 234}]"#).unwrap();
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
                 vec![GasPaymentEnforcementConf {
@@ -339,7 +338,7 @@ mod test {
             let recipient_address = "0xbb000000000000000000000000000000000000bb";
 
             let matching_list = serde_json::from_str(
-                &format!(r#"[{{"senderAddress": "{sender_address}", "recipientAddress": "{recipient_address}"}}]"#)
+                &format!(r#"[{{"senderaddress": "{sender_address}", "recipientaddress": "{recipient_address}"}}]"#)
             ).unwrap();
 
             let enforcer = GasPaymentEnforcer::new(

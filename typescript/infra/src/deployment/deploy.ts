@@ -5,7 +5,7 @@ import {
   HyperlaneDeployer,
   HyperlaneDeploymentArtifacts,
   MultiProvider,
-  buildAgentConfigDeprecated,
+  buildAgentConfig,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 import { objMap, objMerge, promiseObjAll } from '@hyperlane-xyz/utils';
@@ -137,7 +137,7 @@ export async function writeAgentConfig(
       multiProvider.getProvider(chain).getBlockNumber(),
     ),
   );
-  const agentConfig = buildAgentConfigDeprecated(
+  const agentConfig = buildAgentConfig(
     multiProvider.getKnownChainNames(),
     multiProvider,
     addresses as ChainMap<HyperlaneDeploymentArtifacts>,

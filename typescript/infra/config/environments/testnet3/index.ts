@@ -1,4 +1,4 @@
-import { AgentConnectionType } from '@hyperlane-xyz/sdk';
+import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 
 import {
   getKeysForRole,
@@ -27,7 +27,7 @@ export const environment: EnvironmentConfig = {
   getMultiProvider: (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
-    connectionType?: AgentConnectionType,
+    connectionType?: RpcConsensusType,
   ) =>
     getMultiProviderForRole(
       testnetConfigs,

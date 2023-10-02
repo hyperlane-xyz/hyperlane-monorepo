@@ -4,6 +4,6 @@
     "rootDir": "./"
   },
   "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
-  "extends": "../../tsconfig.json",
+  "extends": "../tsconfig.json",
   "include": ["./index.ts", "./src/*.ts"]
 }

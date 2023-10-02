@@ -12,26 +12,27 @@
 //! - `E2E_KATHY_MESSAGES`: Number of kathy messages to dispatch. Defaults to 16 if CI mode is enabled.
 //! else false.
 
-use std::path::Path;
 use std::{
     fs,
+    path::Path,
     process::{Child, ExitCode},
     sync::atomic::{AtomicBool, Ordering},
     thread::sleep,
     time::{Duration, Instant},
 };
 
-use tempfile::tempdir;
-
 use logging::log;
 pub use metrics::fetch_metric;
 use program::Program;
+use tempfile::tempdir;
 
-use crate::config::Config;
-use crate::ethereum::start_anvil;
-use crate::invariants::{termination_invariants_met, SOL_MESSAGES_EXPECTED};
-use crate::solana::*;
-use crate::utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle};
+use crate::{
+    config::Config,
+    ethereum::start_anvil,
+    invariants::{termination_invariants_met, SOL_MESSAGES_EXPECTED},
+    solana::*,
+    utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle},
+};
 
 mod config;
 mod ethereum;
@@ -145,8 +146,8 @@ fn main() -> ExitCode {
 
     let common_agent_env = Program::default()
         .env("RUST_BACKTRACE", "full")
-        .hyp_env("TRACING_FMT", "compact")
-        .hyp_env("TRACING_LEVEL", "debug")
+        .hyp_env("LOG_FORMAT", "compact")
+        .hyp_env("LOG_LEVEL", "debug")
         .hyp_env("CHAINS_TEST1_INDEX_CHUNK", "1")
         .hyp_env("CHAINS_TEST2_INDEX_CHUNK", "1")
         .hyp_env("CHAINS_TEST3_INDEX_CHUNK", "1");
@@ -154,16 +155,16 @@ fn main() -> ExitCode {
     let relayer_env = common_agent_env
         .clone()
         .bin(concat_path(AGENT_BIN_PATH, "relayer"))
-        .hyp_env("CHAINS_TEST1_CONNECTION_TYPE", "httpFallback")
+        .hyp_env("CHAINS_TEST1_RPCCONSENSUSTYPE", "fallback")
         .hyp_env(
             "CHAINS_TEST2_CONNECTION_URLS",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
         // by setting this as a quorum provider we will cause nonce errors when delivering to test2
         // because the message will be sent to the node 3 times.
-        .hyp_env("CHAINS_TEST2_CONNECTION_TYPE", "httpQuorum")
-        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
-        .hyp_env("METRICS", "9092")
+        .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "quorum")
+        .hyp_env("CHAINS_TEST3_RPCCONSENSUSTYPE", "http://127.0.0.1:8545")
+        .hyp_env("METRICSPORT", "9092")
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
         .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
@@ -188,7 +189,7 @@ fn main() -> ExitCode {
             }]"#,
         )
         .arg(
-            "chains.test1.connection.urls",
+            "chains.test1.customRpcUrls",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
         // default is used for TEST3
@@ -202,17 +203,19 @@ fn main() -> ExitCode {
         .clone()
         .bin(concat_path(AGENT_BIN_PATH, "validator"))
         .hyp_env(
-            "CHAINS_TEST1_CONNECTION_URLS",
+            "CHAINS_TEST1_CUSTOMRPCURLS",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
-        .hyp_env("CHAINS_TEST1_CONNECTION_TYPE", "httpQuorum")
+        .hyp_env("CHAINS_TEST1_RPCCONSENSUSTYPE", "quorum")
         .hyp_env(
-            "CHAINS_TEST2_CONNECTION_URLS",
+            "CHAINS_TEST2_CUSTOMRPCURLS",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
-        .hyp_env("CHAINS_TEST2_CONNECTION_TYPE", "httpFallback")
-        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
-        .hyp_env("REORGPERIOD", "0")
+        .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "fallback")
+        .hyp_env("CHAINS_TEST3_CUSTOMRPCURLS", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST1_BLOCKS_REORGPERIOD", "0")
+        .hyp_env("CHAINS_TEST2_BLOCKS_REORGPERIOD", "0")
+        .hyp_env("CHAINS_TEST3_BLOCKS_REORGPERIOD", "0")
         .hyp_env("INTERVAL", "5")
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage");
 
@@ -220,7 +223,7 @@ fn main() -> ExitCode {
         .map(|i| {
             base_validator_env
                 .clone()
-                .hyp_env("METRICS", (9094 + i).to_string())
+                .hyp_env("METRICSPORT", (9094 + i).to_string())
                 .hyp_env("DB", validator_dbs[i].to_str().unwrap())
                 .hyp_env("ORIGINCHAINNAME", VALIDATOR_ORIGIN_CHAINS[i])
                 .hyp_env("VALIDATOR_KEY", VALIDATOR_KEYS[i])
@@ -233,14 +236,14 @@ fn main() -> ExitCode {
 
     let scraper_env = common_agent_env
         .bin(concat_path(AGENT_BIN_PATH, "scraper"))
-        .hyp_env("CHAINS_TEST1_CONNECTION_TYPE", "httpQuorum")
-        .hyp_env("CHAINS_TEST1_CONNECTION_URL", "http://127.0.0.1:8545")
-        .hyp_env("CHAINS_TEST2_CONNECTION_TYPE", "httpQuorum")
-        .hyp_env("CHAINS_TEST2_CONNECTION_URL", "http://127.0.0.1:8545")
-        .hyp_env("CHAINS_TEST3_CONNECTION_TYPE", "httpQuorum")
-        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST1_RPCCONSENSUSTYPE", "quorum")
+        .hyp_env("CHAINS_TEST1_CUSTOMRPCURLS", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "quorum")
+        .hyp_env("CHAINS_TEST2_CUSTOMRPCURLS", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST3_RPCCONSENSUSTYPE", "quorum")
+        .hyp_env("CHAINS_TEST3_CUSTOMRPCURLS", "http://127.0.0.1:8545")
         .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
-        .hyp_env("METRICS", "9093")
+        .hyp_env("METRICSPORT", "9093")
         .hyp_env(
             "DB",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",

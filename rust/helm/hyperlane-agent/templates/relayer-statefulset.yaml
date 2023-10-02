@@ -55,14 +55,7 @@ spec:
         - secretRef:
             name: {{ include "agent-common.fullname" . }}-relayer-secret
         env:
-{{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.relayer.config "agent_name" "relayer") | indent 10 }}
-{{- $relayerChainNames := list }}
-          {{- range .Values.hyperlane.relayerChains }}
-{{- include "agent-common.config-env-vars" (dict "config" .signer "agent_name" "base" "key_name_prefix" (printf "CHAINS_%s_SIGNER_" (.name | upper))) | indent 10 }}
-{{- $relayerChainNames = append $relayerChainNames .name }}
-          {{- end }}
-          - name: HYP_BASE_RELAYCHAINS
-            value: {{ $relayerChainNames | join "," }}
+          {{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.relayer.config) | nindent 10 }}
         resources:
           {{- toYaml .Values.hyperlane.relayer.resources | nindent 10 }}
         volumeMounts:

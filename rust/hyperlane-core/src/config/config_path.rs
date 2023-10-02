@@ -76,10 +76,10 @@ impl ConfigPath {
 
     /// Get the environment variable formatted path.
     pub fn env_name(&self) -> String {
-        ["HYP", "BASE"]
+        ["HYP"]
             .into_iter()
             .chain(self.0.iter().map(|s| s.as_str()))
-            .map(|s| s.to_uppercase())
+            .map(|s| s.to_case(Case::UpperFlat))
             .join("_")
     }
 

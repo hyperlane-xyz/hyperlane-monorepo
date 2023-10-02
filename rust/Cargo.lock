@@ -6065,6 +6065,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "config",
+ "convert_case 0.6.0",
  "derive-new",
  "derive_more",
  "enum_dispatch",
