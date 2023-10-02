@@ -394,11 +394,11 @@ impl PendingMessage {
             // wait 90s to 19.5min with a linear increase
             i if (12..24).contains(&i) => (i as u64 - 11) * 90,
             // wait 30min for the next 12 attempts
-            i if (24..36) => 60 * 30,
+            i if (24..36).contains(&i) => 60 * 30,
             // wait 60min for the next 12 attempts
-            i if (36..48) => 60 * 60,
+            i if (36..48).contains(&i) => 60 * 60,
             // wait 3h for the next 12 attempts,
-            i => 60 * 60 * 3,
+            _ => 60 * 60 * 3,
         }))
     }
 }
