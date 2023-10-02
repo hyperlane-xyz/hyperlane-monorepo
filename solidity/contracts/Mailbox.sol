@@ -392,20 +392,23 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
         view
         returns (IInterchainSecurityModule)
     {
-        // Use a default interchainSecurityModule if one is not specified by the
-        // recipient.
-        // This is useful for backwards compatibility and for convenience as
-        // recipients are not mandated to specify an ISM.
-        try
-            ISpecifiesInterchainSecurityModule(_recipient)
-                .interchainSecurityModule()
-        returns (IInterchainSecurityModule _val) {
-            // If the recipient specifies a zero address, use the default ISM.
-            if (address(_val) != address(0)) {
-                return _val;
+        // use low-level staticcall in case of revert or empty return data
+        (bool success, bytes memory returnData) = _recipient.staticcall(
+            abi.encodeCall(
+                ISpecifiesInterchainSecurityModule.interchainSecurityModule,
+                ()
+            )
+        );
+        // check if call was successful and returned data
+        if (success && returnData.length != 0) {
+            // check if returnData is a valid address
+            address ism = abi.decode(returnData, (address));
+            // check if the ISM is a contract
+            if (ism != address(0)) {
+                return IInterchainSecurityModule(ism);
             }
-            // solhint-disable-next-line no-empty-blocks
-        } catch {}
+        }
+        // Use the default if a valid one is not specified by the recipient.
         return defaultIsm;
     }
 

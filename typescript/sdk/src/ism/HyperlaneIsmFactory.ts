@@ -8,7 +8,7 @@ import {
   IMultisigIsm__factory,
   IRoutingIsm__factory,
   StaticAggregationIsm__factory,
-  StaticMOfNAddressSetFactory,
+  StaticThresholdAddressSetFactory,
 } from '@hyperlane-xyz/core';
 import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
 
@@ -112,7 +112,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
         ? this.getContracts(chain).merkleRootMultisigIsmFactory
         : this.getContracts(chain).messageIdMultisigIsmFactory;
 
-    const address = await this.deployMOfNFactory(
+    const address = await this.deployThresholdFactory(
       chain,
       multisigIsmFactory,
       config.validators,
@@ -179,7 +179,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     for (const module of config.modules) {
       addresses.push((await this.deploy(chain, module)).address);
     }
-    const address = await this.deployMOfNFactory(
+    const address = await this.deployThresholdFactory(
       chain,
       aggregationIsmFactory,
       addresses,
@@ -188,9 +188,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     return IAggregationIsm__factory.connect(address, signer);
   }
 
-  private async deployMOfNFactory(
+  private async deployThresholdFactory(
     chain: ChainName,
-    factory: StaticMOfNAddressSetFactory,
+    factory: StaticThresholdAddressSetFactory,
     values: Address[],
     threshold: number,
   ): Promise<Address> {
@@ -382,7 +382,7 @@ export async function moduleMatchesConfig(
       // Recursively check that the submodule for each configured
       // domain matches the submodule config.
       for (const [origin, subConfig] of Object.entries(config.domains)) {
-        const subModule = await routingIsm.modules(
+        const subModule = await routingIsm.module(
           multiProvider.getDomainId(origin),
         );
         const subModuleMatches = await moduleMatchesConfig(

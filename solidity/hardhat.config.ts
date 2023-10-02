@@ -13,10 +13,6 @@ module.exports = {
       {
         version: '0.8.19',
       },
-      {
-        // for @eth-optimism
-        version: '0.8.15',
-      },
     ],
     settings: {
       optimizer: {
