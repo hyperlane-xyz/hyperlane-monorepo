@@ -63,29 +63,6 @@ export function mulBigAndFixed(
   return fixedToBig(fixed.mulUnsafe(bigToFixed(big)), ceil);
 }
 
-/**
- * Converts a value with `fromDecimals` decimals to a value with `toDecimals` decimals.
- * Incurs a loss of precision when `fromDecimals` > `toDecimals`.
- * @param value The value to convert.
- * @param fromDecimals The number of decimals `value` has.
- * @param toDecimals The number of decimals to convert `value` to.
- * @returns `value` represented with `toDecimals` decimals.
- */
-export function convertDecimalValue(
-  value: BigNumber,
-  fromDecimals: number,
-  toDecimals: number,
-): BigNumber {
-  if (fromDecimals === toDecimals) {
-    return value;
-  } else if (fromDecimals > toDecimals) {
-    return value.div(10 ** (fromDecimals - toDecimals));
-  } else {
-    // if (fromDecimals < toDecimals)
-    return value.mul(10 ** (toDecimals - fromDecimals));
-  }
-}
-
 export function BigNumberMin(bn1: BigNumber, bn2: BigNumber) {
   return bn1.gte(bn2) ? bn2 : bn1;
 }

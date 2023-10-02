@@ -19,12 +19,6 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
         domain_hash(self.address(), self.domain().id())
     }
 
-    /// Return the incremental merkle tree in storage
-    ///
-    /// - `lag` is how far behind the current block to query, if not specified
-    ///   it will query at the latest block.
-    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle>;
-
     /// Gets the current leaf count of the merkle tree
     ///
     /// - `lag` is how far behind the current block to query, if not specified
@@ -33,12 +27,6 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
 
     /// Fetch the status of a message
     async fn delivered(&self, id: H256) -> ChainResult<bool>;
-
-    /// Get the latest checkpoint.
-    ///
-    /// - `lag` is how far behind the current block to query, if not specified
-    ///   it will query at the latest block.
-    async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint>;
 
     /// Fetch the current default interchain security module value
     async fn default_ism(&self) -> ChainResult<H256>;

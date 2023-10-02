@@ -8,8 +8,9 @@ use eyre::{eyre, Context, Result};
 use hyperlane_core::{
     AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
     HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, HyperlaneSigner, IndexMode,
-    InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox, MultisigIsm,
-    RoutingIsm, SequenceIndexer, ValidatorAnnounce, H256,
+    InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
+    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceIndexer,
+    ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -115,7 +116,7 @@ impl ChainConf {
 
     /// Try to convert the chain setting into a Mailbox contract
     pub async fn build_mailbox(&self, metrics: &CoreMetrics) -> Result<Box<dyn Mailbox>> {
-        let ctx = "Building provider";
+        let ctx = "Building mailbox";
         let locator = self.locator(self.addresses.mailbox);
 
         match &self.connection {
@@ -134,6 +135,31 @@ impl ChainConf {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
                 h_sealevel::SealevelMailbox::new(conf, locator, keypair)
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
+            }
+        }
+        .context(ctx)
+    }
+
+    /// Try to convert the chain setting into a Mailbox contract
+    pub async fn build_merkle_tree_hook(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn MerkleTreeHook>> {
+        let ctx = "Building merkle tree hook";
+        let locator = self.locator(self.addresses.mailbox);
+
+        match &self.connection {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(conf, &locator, metrics, h_eth::MerkleTreeHookBuilder {})
+                    .await
+            }
+            ChainConnectionConf::Fuel(_conf) => {
+                todo!("Fuel does not support merkle tree hooks yet")
+            }
+            ChainConnectionConf::Sealevel(conf) => {
+                h_sealevel::SealevelMailbox::new(conf, locator, None)
+                    .map(|m| Box::new(m) as Box<dyn MerkleTreeHook>)
                     .map_err(Into::into)
             }
         }
@@ -259,6 +285,35 @@ impl ChainConf {
                     h_sealevel::SealevelInterchainGasPaymasterIndexer::new(conf, locator).await?,
                 );
                 Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
+            }
+        }
+        .context(ctx)
+    }
+
+    /// Try to convert the chain settings into a merkle tree hook indexer
+    pub async fn build_merkle_tree_hook_indexer(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn SequenceIndexer<MerkleTreeInsertion>>> {
+        let ctx = "Building merkle tree hook indexer";
+        let locator = self.locator(self.addresses.mailbox);
+
+        match &self.connection {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(
+                    conf,
+                    &locator,
+                    metrics,
+                    h_eth::MerkleTreeHookIndexerBuilder {
+                        finality_blocks: self.finality_blocks,
+                    },
+                )
+                .await
+            }
+            ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => {
+                let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new());
+                Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
             }
         }
         .context(ctx)

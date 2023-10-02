@@ -34,7 +34,10 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MerkleRootMultisig metadata";
-        let highest_nonce = self.highest_known_nonce().await;
+        let Some(highest_nonce) = self.highest_known_nonce().await
+        else {
+            return Ok(None);
+        };
         let Some(quorum_checkpoint) = checkpoint_syncer
             .fetch_checkpoint_in_range(validators, threshold as usize, message.nonce, highest_nonce)
             .await

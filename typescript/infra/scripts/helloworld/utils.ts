@@ -17,7 +17,7 @@ import {
   igpFactories,
 } from '@hyperlane-xyz/sdk';
 import { hyperlaneEnvironmentsWithSealevel } from '@hyperlane-xyz/sdk/src';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { EnvironmentConfig } from '../../src/config';
@@ -74,20 +74,20 @@ export async function getHelloWorldMultiProtocolApp(
   if (!multiProtocolProvider.getKnownChainNames().includes('solanadevnet')) {
     multiProtocolProvider.addChain(chainMetadata.solanadevnet);
   }
-  // Add the helloWorld contract addresses to the metadata
-  const mpWithHelloWorld = multiProtocolProvider.extendChainMetadata(
-    helloworldConfig.addresses,
-  );
 
   const core = MultiProtocolCore.fromAddressesMap(
     hyperlaneEnvironmentsWithSealevel[sdkEnvName],
     multiProtocolProvider,
   );
 
-  // Extend the MP with mailbox addresses because the sealevel
-  // adapter needs that to function
-  const mpWithMailbox = mpWithHelloWorld.extendChainMetadata(core.chainMap);
-  const app = new HelloMultiProtocolApp(mpWithMailbox);
+  const routersAndMailboxes = objMerge(
+    core.chainMap,
+    helloworldConfig.addresses,
+  );
+  const app = new HelloMultiProtocolApp(
+    multiProtocolProvider,
+    routersAndMailboxes,
+  );
 
   // TODO we need a MultiProtocolIgp
   // Using an standard IGP for just evm chains for now

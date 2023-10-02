@@ -210,6 +210,7 @@ impl SealevelInterchainGasPaymasterIndexer {
 
         let igp_payment = InterchainGasPayment {
             message_id: gas_payment_account.message_id,
+            destination: gas_payment_account.destination_domain,
             payment: gas_payment_account.payment.into(),
             gas_amount: gas_payment_account.gas_amount.into(),
         };
@@ -264,7 +265,7 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
 
 #[async_trait]
 impl SequenceIndexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
-    #[instrument(level = "info", err, ret, skip(self))]
+    #[instrument(err, skip(self))]
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let program_data_account = self
             .rpc_client
@@ -283,11 +284,6 @@ impl SequenceIndexer<InterchainGasPayment> for SealevelInterchainGasPaymasterInd
             .try_into()
             .map_err(StrOrIntParseError::from)?;
         let tip = get_finalized_block_number(&self.rpc_client).await?;
-        info!(
-            ?payment_count,
-            ?tip,
-            "Fetched SealevelInterchainGasPaymasterIndexer sequence and tip"
-        );
         Ok((Some(payment_count), tip))
     }
 }

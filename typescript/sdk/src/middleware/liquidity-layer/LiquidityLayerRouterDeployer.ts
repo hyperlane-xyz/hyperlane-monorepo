@@ -61,28 +61,23 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     super(multiProvider, liquidityLayerFactories);
   }
 
-  async constructorArgs(_: string, __: LiquidityLayerConfig): Promise<[]> {
-    return [];
+  async constructorArgs(
+    _: string,
+    config: LiquidityLayerConfig,
+  ): Promise<[string]> {
+    return [config.mailbox];
   }
 
   async initializeArgs(
     chain: string,
     config: LiquidityLayerConfig,
-  ): Promise<
-    [
-      _mailbox: string,
-      _interchainGasPaymaster: string,
-      _interchainSecurityModule: string,
-      _owner: string,
-    ]
-  > {
+  ): Promise<[string, string, string]> {
     const owner = await this.multiProvider.getSignerAddress(chain);
     if (typeof config.interchainSecurityModule === 'object') {
       throw new Error('ISM as object unimplemented');
     }
     return [
-      config.mailbox,
-      config.interchainGasPaymaster,
+      config.hook ?? ethers.constants.AddressZero,
       config.interchainSecurityModule ?? ethers.constants.AddressZero,
       owner,
     ];
@@ -175,16 +170,12 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     owner: string,
     router: LiquidityLayerRouter,
   ): Promise<PortalAdapter> {
+    const mailbox = await router.mailbox();
     const portalAdapter = await this.deployContract(
       chain,
       'portalAdapter',
-      [],
-      [
-        this.multiProvider.getDomainId(chain),
-        owner,
-        adapterConfig.portalBridgeAddress,
-        router.address,
-      ],
+      [mailbox],
+      [owner, adapterConfig.portalBridgeAddress, router.address],
     );
 
     for (const {
@@ -233,10 +224,11 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     owner: string,
     router: LiquidityLayerRouter,
   ): Promise<CircleBridgeAdapter> {
+    const mailbox = await router.mailbox();
     const circleBridgeAdapter = await this.deployContract(
       chain,
       'circleBridgeAdapter',
-      [],
+      [mailbox],
       [
         owner,
         adapterConfig.tokenMessengerAddress,

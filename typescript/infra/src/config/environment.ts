@@ -4,8 +4,8 @@ import {
   ChainMetadata,
   ChainName,
   CoreConfig,
-  HookConfig,
   HyperlaneEnvironment,
+  InterceptorConfig,
   MultiProvider,
   OverheadIgpConfig,
   RpcConsensusType,
@@ -37,7 +37,7 @@ export type EnvironmentConfig = {
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
-  hooks: ChainMap<HookConfig>;
+  hooks?: ChainMap<InterceptorConfig>;
   igp: ChainMap<OverheadIgpConfig>;
   owners: ChainMap<Address>;
   infra: InfrastructureConfig;
@@ -63,7 +63,7 @@ export const deployEnvToSdkEnv: Record<
   DeployEnvironment,
   HyperlaneEnvironment
 > = {
+  test: 'testnet', // TODO: remove this
   mainnet2: 'mainnet',
   testnet3: 'testnet',
-  test: 'test',
 };

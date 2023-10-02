@@ -40,7 +40,7 @@ import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { Role } from '../src/roles';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
-import { assertContext, assertRole } from '../src/utils/utils';
+import { assertContext, assertRole, readJSON } from '../src/utils/utils';
 
 export enum Modules {
   ISM_FACTORY = 'ism',
@@ -278,6 +278,24 @@ export function getModuleDirectory(
   return path.join(getEnvironmentDirectory(environment), suffixFn());
 }
 
+export function getInfraAddresses(
+  environment: DeployEnvironment,
+  module: Modules,
+) {
+  return readJSON(getModuleDirectory(environment, module), 'addresses.json');
+}
+
+export function getAddresses(environment: DeployEnvironment, module: Modules) {
+  if (SDK_MODULES.includes(module) && environment !== 'test') {
+    return readJSON(
+      getContractAddressesSdkFilepath(),
+      `${deployEnvToSdkEnv[environment]}.json`,
+    );
+  } else {
+    return getInfraAddresses(environment, module);
+  }
+}
+
 export function getAgentConfigDirectory() {
   return path.join('../../', 'rust', 'config');
 }
@@ -323,8 +341,7 @@ export async function getRouterConfig(
         ? await multiProvider.getSignerAddress(chain)
         : owners[chain],
       mailbox: core.getContracts(chain).mailbox.address,
-      interchainGasPaymaster:
-        igp.getContracts(chain).defaultIsmInterchainGasPaymaster.address,
+      hook: igp.getContracts(chain).defaultIsmInterchainGasPaymaster.address,
     };
   }
   return config;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {Router} from "../../Router.sol";
+import {Router} from "../../client/Router.sol";
 
 import {ILiquidityLayerRouter} from "../../interfaces/ILiquidityLayerRouter.sol";
 import {ICircleMessageTransmitter} from "./interfaces/circle/ICircleMessageTransmitter.sol";
@@ -21,21 +21,20 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
 
     event LiquidityLayerAdapterSet(string indexed bridge, address adapter);
 
+    constructor(address _mailbox) Router(_mailbox) {}
+
     /**
      * @notice Initializes the Router contract with Hyperlane core contracts and the address of the interchain security module.
-     * @param _mailbox The address of the mailbox contract.
      * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
      * @param _interchainSecurityModule The address of the interchain security module contract.
      * @param _owner The address with owner privileges.
      */
     function initialize(
-        address _mailbox,
         address _interchainGasPaymaster,
         address _interchainSecurityModule,
         address _owner
     ) external initializer {
-        __HyperlaneConnectionClient_initialize(
-            _mailbox,
+        _MailboxClient_initialize(
             _interchainGasPaymaster,
             _interchainSecurityModule,
             _owner

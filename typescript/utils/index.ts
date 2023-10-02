@@ -5,6 +5,7 @@ export {
   addressToBytesEvm,
   addressToBytesSol,
   bytes32ToAddress,
+  bytesToProtocolAddress,
   capitalizeAddress,
   convertToProtocolAddress,
   ensure0x,
@@ -28,6 +29,7 @@ export {
   strip0x,
 } from './src/addresses';
 export {
+  convertDecimals,
   eqAmountApproximate,
   fromWei,
   fromWeiRounded,
@@ -48,7 +50,6 @@ export {
   BigNumberMax,
   BigNumberMin,
   bigToFixed,
-  convertDecimalValue,
   fixedToBig,
   isBigNumberish,
   isZeroish,
@@ -96,7 +97,6 @@ export {
   Address,
   AddressBytes32,
   CallData,
-  ChainCaip19Id,
   ChainCaip2Id,
   Checkpoint,
   Domain,
@@ -112,6 +112,7 @@ export {
   S3Checkpoint,
   S3CheckpointWithId,
   SignatureLike,
+  TokenCaip19Id,
 } from './src/types';
 export { assert } from './src/validation';
 export { BaseValidator, Validator } from './src/validator';

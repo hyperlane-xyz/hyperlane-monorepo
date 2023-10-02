@@ -10,6 +10,7 @@ export {
   chainIdToMetadata,
   chainMetadata,
   mainnetChainsMetadata,
+  solanaChainToClusterName,
   testnetChainsMetadata,
 } from './consts/chainMetadata';
 export {
@@ -59,7 +60,7 @@ export { TestCoreDeployer } from './core/TestCoreDeployer';
 export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter';
 export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter';
 export { ICoreAdapter } from './core/adapters/types';
-export { CoreFactories, coreFactories } from './core/contracts';
+export { CoreAddresses, CoreFactories, coreFactories } from './core/contracts';
 export { HyperlaneLifecyleEvent } from './core/events';
 export {
   CoreConfig,
@@ -87,6 +88,14 @@ export * as verificationUtils from './deploy/verify/utils';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
 export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer';
+export { SealevelOverheadIgpAdapter } from './gas/adapters/SealevelIgpAdapter';
+export {
+  SealevelInterchainGasPaymasterConfig,
+  SealevelInterchainGasPaymasterConfigSchema,
+  SealevelInterchainGasPaymasterType,
+  SealevelOverheadIgpData,
+  SealevelOverheadIgpDataSchema,
+} from './gas/adapters/serialization';
 export { IgpFactories, igpFactories } from './gas/contracts';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
@@ -99,12 +108,14 @@ export {
   IgpViolationType,
   OverheadIgpConfig,
 } from './gas/types';
-export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
+export { MerkleRootInterceptorDeployer } from './hook/MerkleRootInterceptorDeployer';
 export {
   HookConfig,
-  HookContractType,
-  MessageHookConfig,
+  InterceptorConfig,
+  InterceptorType,
+  MerkleRootHookConfig,
   NoMetadataIsmConfig,
+  OpStackHookConfig,
 } from './hook/types';
 export {
   HyperlaneIsmFactory,
@@ -116,6 +127,7 @@ export {
   DeployedIsm,
   IsmConfig,
   ModuleType,
+  MultisigConfig,
   MultisigIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
@@ -242,12 +254,12 @@ export {
 } from './router/adapters/SealevelRouterAdapter';
 export { IGasRouterAdapter, IRouterAdapter } from './router/adapters/types';
 export {
-  ConnectionClientConfig,
-  ConnectionClientViolation,
-  ConnectionClientViolationType,
+  ClientViolation as ConnectionClientViolation,
+  ClientViolationType as ConnectionClientViolationType,
   ForeignDeploymentConfig,
   GasConfig,
   GasRouterConfig,
+  MailboxClientConfig,
   OwnableConfig,
   ProxiedFactories,
   ProxiedRouterConfig,
@@ -256,21 +268,57 @@ export {
   proxiedFactories,
 } from './router/types';
 export {
-  SealevelAccountDataWrapper,
-  SealevelInstructionWrapper,
-  getSealevelAccountDataSchema,
-} from './sealevel/serialization';
+  EvmHypCollateralAdapter,
+  EvmHypSyntheticAdapter,
+  EvmNativeTokenAdapter,
+  EvmTokenAdapter,
+} from './token/adapters/EvmTokenAdapter';
+export {
+  IHypTokenAdapter,
+  ITokenAdapter,
+  TransferParams,
+  TransferRemoteParams,
+} from './token/adapters/ITokenAdapter';
+export {
+  SealevelHypCollateralAdapter,
+  SealevelHypNativeAdapter,
+  SealevelHypSyntheticAdapter,
+  SealevelHypTokenAdapter,
+  SealevelNativeTokenAdapter,
+  SealevelTokenAdapter,
+} from './token/adapters/SealevelTokenAdapter';
 export {
   SealevelHypTokenInstruction,
   SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
-} from './sealevel/tokenSerialization';
+} from './token/adapters/serialization';
 export {
-  createRouterConfigMap,
-  deployTestIgpsAndGetRouterConfig,
-} from './test/testUtils';
+  CollateralConfig,
+  ERC20Metadata,
+  ERC20RouterConfig,
+  ERC721RouterConfig,
+  HypERC20CollateralConfig,
+  HypERC20Config,
+  HypERC721CollateralConfig,
+  HypERC721Config,
+  HypNativeConfig,
+  MinimalTokenMetadata,
+  NativeConfig,
+  SyntheticConfig,
+  TokenConfig,
+  TokenMetadata,
+  TokenType,
+  isCollateralConfig,
+  isUriConfig,
+} from './token/config';
+export {
+  HypERC20Factories,
+  HypERC721Factories,
+  TokenFactories,
+} from './token/contracts';
+export { HypERC20Deployer, HypERC721Deployer } from './token/deploy';
 export {
   ChainMap,
   ChainName,
@@ -281,4 +329,9 @@ export {
 export { MultiGeneric } from './utils/MultiGeneric';
 export { filterByChains } from './utils/filter';
 export { multisigIsmVerificationCost } from './utils/ism';
+export {
+  SealevelAccountDataWrapper,
+  SealevelInstructionWrapper,
+  getSealevelAccountDataSchema,
+} from './utils/sealevelSerialization';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';

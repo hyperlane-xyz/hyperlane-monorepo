@@ -10,6 +10,7 @@ import {DefaultFallbackRoutingIsmFactory, DomainRoutingIsmFactory} from "../../c
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {MessageUtils, TestIsm} from "./IsmTestUtils.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
+import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 
 contract DomainRoutingIsmTest is Test {
     address private constant NON_OWNER =
@@ -99,7 +100,13 @@ contract DefaultFallbackRoutingIsmTest is DomainRoutingIsmTest {
     function setUp() public override {
         defaultIsm = deployTestIsm(bytes32(0));
         TestMailbox mailbox = new TestMailbox(1000);
-        mailbox.initialize(address(this), address(defaultIsm));
+        TestPostDispatchHook hook = new TestPostDispatchHook();
+        mailbox.initialize(
+            address(this),
+            address(defaultIsm),
+            address(hook),
+            address(hook)
+        );
 
         ism = new DefaultFallbackRoutingIsm(address(mailbox));
         ism.initialize(address(this));

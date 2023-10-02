@@ -5,7 +5,7 @@ import {AbstractRoutingIsm} from "./AbstractRoutingIsm.sol";
 import {IMailbox} from "../../interfaces/IMailbox.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../libs/Message.sol";
-import {InterchainAccountMessage} from "../../libs/middleware/InterchainAccountMessage.sol";
+import {InterchainAccountMessage} from "../../middleware/libs/InterchainAccountMessage.sol";
 
 /**
  * @title InterchainAccountIsm

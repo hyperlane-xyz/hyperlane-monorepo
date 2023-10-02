@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import "../Router.sol";
+import "../client/Router.sol";
 
 contract TestRouter is Router {
     event InitializeOverload();
 
-    function initialize(address _mailbox, address _interchainGasPaymaster)
-        external
+    constructor(address _mailbox) Router(_mailbox) {}
+
+    function initialize(address _hook, address _interchainSecurityModule)
+        public
         initializer
     {
-        __HyperlaneConnectionClient_initialize(
-            _mailbox,
-            _interchainGasPaymaster
-        );
-        emit InitializeOverload();
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, msg.sender);
     }
 
     function _handle(
@@ -39,23 +37,7 @@ contract TestRouter is Router {
         return _mustHaveRemoteRouter(_domain);
     }
 
-    function dispatch(uint32 _destination, bytes memory _msg) external {
+    function dispatch(uint32 _destination, bytes memory _msg) external payable {
         _dispatch(_destination, _msg);
-    }
-
-    function dispatchWithGas(
-        uint32 _destinationDomain,
-        bytes memory _messageBody,
-        uint256 _gasAmount,
-        uint256 _gasPayment,
-        address _gasPaymentRefundAddress
-    ) external payable {
-        _dispatchWithGas(
-            _destinationDomain,
-            _messageBody,
-            _gasAmount,
-            _gasPayment,
-            _gasPaymentRefundAddress
-        );
     }
 }

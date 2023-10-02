@@ -11,12 +11,13 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
-import { sleep } from './src/utils/utils';
+// import { Modules, getAddresses } from './scripts/utils';
+import { Modules, getAddresses, sleep } from './src/utils/utils';
 
 const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
   const coreContracts = core.getContracts(chain);
   const mailbox = coreContracts.mailbox;
-  const dispatched = await mailbox.count();
+  const dispatched = await mailbox.nonce();
   // TODO: Allow processed messages to be filtered by
   // origin, possibly sender and recipient.
   const processFilter = mailbox.filters.Process();
@@ -49,8 +50,14 @@ task('kathy', 'Dispatches random hyperlane messages')
       const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
       const [signer] = await hre.ethers.getSigners();
       const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-      const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
-      const igps = HyperlaneIgp.fromEnvironment(environment, multiProvider);
+      const core = HyperlaneCore.fromAddressesMap(
+        getAddresses(environment, Modules.CORE),
+        multiProvider,
+      );
+      const igps = HyperlaneIgp.fromAddressesMap(
+        getAddresses(environment, Modules.INTERCHAIN_GAS_PAYMASTER),
+        multiProvider,
+      );
 
       const randomElement = <T>(list: T[]) =>
         list[Math.floor(Math.random() * list.length)];
@@ -75,25 +82,30 @@ task('kathy', 'Dispatches random hyperlane messages')
         const remoteId = multiProvider.getDomainId(remote);
         const mailbox = core.getContracts(local).mailbox;
         const igp = igps.getContracts(local).interchainGasPaymaster;
-        await recipient.dispatchToSelf(
+        let tx = await recipient.dispatchToSelf(
           mailbox.address,
           igp.address,
           remoteId,
           '0x1234',
           {
-            value: interchainGasPayment,
             // Some behavior is dependent upon the previous block hash
             // so gas estimation may sometimes be incorrect. Just avoid
             // estimation to avoid this.
-            gasLimit: 150_000,
+            gasLimit: 250_000,
             gasPrice: 2_000_000_000,
           },
         );
         console.log(
           `send to ${recipient.address} on ${remote} via mailbox ${
             mailbox.address
-          } on ${local} with nonce ${(await mailbox.count()) - 1}`,
+          } on ${local} with nonce ${(await mailbox.nonce()) - 1}`,
         );
+        try {
+          await tx.wait();
+        } catch (e) {
+          console.log(`Transaction failed: ${tx.hash}`);
+          console.log(e);
+        }
         console.log(await chainSummary(core, local));
         console.log(await chainSummary(core, remote));
 

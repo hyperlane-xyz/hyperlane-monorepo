@@ -17,14 +17,15 @@ import { ICoreAdapter } from './adapters/types';
 import { CoreAddresses } from './contracts';
 
 export class MultiProtocolCore extends MultiProtocolApp<
-  CoreAddresses,
-  ICoreAdapter
+  ICoreAdapter,
+  CoreAddresses
 > {
   constructor(
-    public readonly multiProvider: MultiProtocolProvider<CoreAddresses>,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: ChainMap<CoreAddresses>,
     public readonly logger = debug('hyperlane:MultiProtocolCore'),
   ) {
-    super(multiProvider, logger);
+    super(multiProvider, addresses, logger);
   }
 
   static fromEnvironment<Env extends HyperlaneEnvironment>(
@@ -42,15 +43,15 @@ export class MultiProtocolCore extends MultiProtocolApp<
     addressesMap: ChainMap<CoreAddresses>,
     multiProvider: MultiProtocolProvider,
   ): MultiProtocolCore {
-    const mpWithAddresses = multiProvider
-      .intersect(Object.keys(addressesMap))
-      .result.extendChainMetadata(addressesMap);
-    return new MultiProtocolCore(mpWithAddresses);
+    return new MultiProtocolCore(
+      multiProvider.intersect(Object.keys(addressesMap)).result,
+      addressesMap,
+    );
   }
 
   override protocolToAdapter(
     protocol: ProtocolType,
-  ): AdapterClassType<CoreAddresses, ICoreAdapter> {
+  ): AdapterClassType<ICoreAdapter> {
     if (protocol === ProtocolType.Ethereum) return EvmCoreAdapter;
     if (protocol === ProtocolType.Sealevel) return SealevelCoreAdapter;
     throw new Error(`No adapter for protocol ${protocol}`);

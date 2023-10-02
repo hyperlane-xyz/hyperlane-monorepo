@@ -1,14 +1,17 @@
-import { Connection } from '@solana/web3.js';
+import { SystemProgram } from '@solana/web3.js';
 import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import yargs from 'yargs';
 
+import { ERC20__factory } from '@hyperlane-xyz/core';
 import {
-  ERC20__factory,
+  ChainMap,
+  ChainName,
+  MultiProtocolProvider,
+  MultiProvider,
   SealevelHypCollateralAdapter,
   TokenType,
-} from '@hyperlane-xyz/hyperlane-token';
-import { ChainMap, ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+} from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
   debug,
@@ -92,11 +95,15 @@ async function checkBalance(
             ethers.utils.formatUnits(collateralBalance, token.decimals),
           );
         } else {
-          const connection = new Connection(multiprovider.getRpcUrl(chain));
           const adapter = new SealevelHypCollateralAdapter(
-            connection,
-            token.hypCollateralAddress,
-            token.address,
+            chain,
+            MultiProtocolProvider.fromMultiProvider(multiprovider),
+            {
+              token: token.address,
+              warpRouter: token.hypCollateralAddress,
+              // Mailbox only required for transfers, using system as placeholder
+              mailbox: SystemProgram.programId.toBase58(),
+            },
             token.isSpl2022,
           );
           const collateralBalance = ethers.BigNumber.from(

@@ -2,12 +2,6 @@
 pragma solidity >=0.6.11;
 
 interface IValidatorAnnounce {
-    /// @notice Returns the local domain for validator announcements
-    function localDomain() external view returns (uint32);
-
-    /// @notice Returns the mailbox contract for validator announcements
-    function mailbox() external view returns (address);
-
     /// @notice Returns a list of validators that have made announcements
     function getAnnouncedValidators() external view returns (address[] memory);
 

@@ -378,11 +378,17 @@ fn main() -> ExitCode {
 
         // verify long-running tasks are still running
         for (name, child) in state.agents.iter_mut() {
-            if child.try_wait().unwrap().is_some() {
-                log!("Child process {} exited unexpectedly, shutting down", name);
-                failure_occurred = true;
-                SHUTDOWN.store(true, Ordering::Relaxed);
-                break;
+            if let Some(status) = child.try_wait().unwrap() {
+                if !status.success() {
+                    log!(
+                        "Child process {} exited unexpectedly, with code {}. Shutting down",
+                        name,
+                        status.code().unwrap()
+                    );
+                    failure_occurred = true;
+                    SHUTDOWN.store(true, Ordering::Relaxed);
+                    break;
+                }
             }
         }
 

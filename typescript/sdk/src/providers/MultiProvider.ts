@@ -1,6 +1,7 @@
 import { Debugger, debug } from 'debug';
 import {
   BigNumber,
+  ContractFactory,
   ContractReceipt,
   ContractTransaction,
   PopulatedTransaction,
@@ -264,30 +265,17 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   /**
    * Get a block explorer URL for given chain's address
    */
-  async tryGetExplorerAddressUrl(
+  override async tryGetExplorerAddressUrl(
     chainNameOrId: ChainName | number,
     address?: string,
   ): Promise<string | null> {
-    const baseUrl = this.tryGetExplorerUrl(chainNameOrId);
-    if (!baseUrl) return null;
-    if (address) return `${baseUrl}/address/${address}`;
+    if (address) return super.tryGetExplorerAddressUrl(chainNameOrId, address);
     const signer = this.tryGetSigner(chainNameOrId);
-    if (!signer) return null;
-    return `${baseUrl}/address/${await signer.getAddress()}`;
-  }
-
-  /**
-   * Get a block explorer URL for given chain's address
-   * @throws if chain's metadata, signer, or block explorer data has no been set
-   */
-  async getExplorerAddressUrl(
-    chainNameOrId: ChainName | number,
-    address?: string,
-  ): Promise<string> {
-    const url = await this.tryGetExplorerAddressUrl(chainNameOrId, address);
-    if (!url)
-      throw new Error(`Missing data for address url for ${chainNameOrId}`);
-    return url;
+    if (signer) {
+      const signerAddr = await signer.getAddress();
+      return super.tryGetExplorerAddressUrl(chainNameOrId, signerAddr);
+    }
+    return null;
   }
 
   /**
@@ -298,6 +286,22 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainName | number,
   ): Partial<providers.TransactionRequest> {
     return this.getChainMetadata(chainNameOrId)?.transactionOverrides ?? {};
+  }
+
+  /**
+   * Wait for deploy tx to be confirmed
+   * @throws if chain's metadata or signer has not been set or tx fails
+   */
+  async handleDeploy<F extends ContractFactory>(
+    chainNameOrId: ChainName | number,
+    factory: F,
+    params: Parameters<F['deploy']>,
+  ): Promise<Awaited<ReturnType<F['deploy']>>> {
+    const overrides = this.getTransactionOverrides(chainNameOrId);
+    const signer = this.getSigner(chainNameOrId);
+    const contract = await factory.connect(signer).deploy(...params, overrides);
+    await this.handleTx(chainNameOrId, contract.deployTransaction);
+    return contract as Awaited<ReturnType<F['deploy']>>;
   }
 
   /**

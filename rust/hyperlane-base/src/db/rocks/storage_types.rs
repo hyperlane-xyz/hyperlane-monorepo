@@ -31,9 +31,10 @@ impl Default for InterchainGasPaymentData {
 }
 
 impl InterchainGasPaymentData {
-    pub fn complete(self, message_id: H256) -> InterchainGasPayment {
+    pub fn complete(self, message_id: H256, destination: u32) -> InterchainGasPayment {
         InterchainGasPayment {
             message_id,
+            destination,
             payment: self.payment,
             gas_amount: self.gas_amount,
         }

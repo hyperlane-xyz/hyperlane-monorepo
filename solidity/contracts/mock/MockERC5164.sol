@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
 pragma solidity ^0.8.13;
 
-import {IMessageDispatcher} from "../hooks/ERC5164/interfaces/IMessageDispatcher.sol";
+import {IMessageDispatcher} from "../interfaces/hooks/IMessageDispatcher.sol";
 
 contract MockMessageDispatcher is IMessageDispatcher {
     function dispatchMessage(

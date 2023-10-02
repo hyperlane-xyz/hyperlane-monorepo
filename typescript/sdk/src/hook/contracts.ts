@@ -1,30 +1,23 @@
 import {
-  OptimismISM__factory,
-  OptimismMessageHook__factory,
-  TestRecipient__factory,
+  MerkleTreeHook__factory,
+  StaticMerkleRootMultisigIsm__factory,
 } from '@hyperlane-xyz/core';
 
-export const optimismMessageHookFactories = {
-  optimismMessageHook: new OptimismMessageHook__factory(),
+export const merkleRootHookFactories = {
+  hook: new MerkleTreeHook__factory(),
 };
 
-export const optimismIsmFactories = {
-  optimismISM: new OptimismISM__factory(),
+export type MerkleRootHookFactories = typeof merkleRootHookFactories;
+export type MerkleRootIsmFactories = typeof merkleRootIsmFactories;
+
+export const merkleRootIsmFactories = {
+  ism: new StaticMerkleRootMultisigIsm__factory(),
 };
 
-export const testRecipientFactories = {
-  testRecipient: new TestRecipient__factory(),
-};
+export type MerkleRootInterceptorFactories = MerkleRootHookFactories &
+  MerkleRootIsmFactories;
 
-export const hookFactories = {
-  ...optimismMessageHookFactories,
-  ...optimismIsmFactories,
-  ...testRecipientFactories,
-};
+export type HookFactories = MerkleRootHookFactories;
+export type IsmFactories = MerkleRootIsmFactories;
 
-export type MessageHookFactories = typeof optimismMessageHookFactories;
-export type NoMetadataIsmFactories = typeof optimismIsmFactories;
-export type TestRecipientFactories = typeof testRecipientFactories;
-export type HookFactories = Partial<MessageHookFactories> &
-  Partial<NoMetadataIsmFactories> &
-  Partial<TestRecipientFactories>;
+export type InterceptorFactories = HookFactories & IsmFactories;
