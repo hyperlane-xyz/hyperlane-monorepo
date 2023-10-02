@@ -1,9 +1,15 @@
 export enum HookType {
   MERKLE_TREE_HOOK = 'merkleTreeHook',
+  AGGREGATION = 'aggregation',
 }
 
 export type MerkleTreeHookConfig = {
   type: HookType.MERKLE_TREE_HOOK;
 };
 
-export type HookConfig = MerkleTreeHookConfig;
+export type AggregationHookConfig = {
+  type: HookType.AGGREGATION;
+  modules: Array<HookConfig>;
+};
+
+export type HookConfig = MerkleTreeHookConfig | AggregationHookConfig;
