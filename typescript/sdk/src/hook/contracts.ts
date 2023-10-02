@@ -4,7 +4,7 @@ import {
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
 
-export const merkleTreeHookFactories = {
+export const merkleTreeHookFactory = {
   merkleTreeHook: new MerkleTreeHook__factory(),
 };
 export const aggregationHookFactoryFactories = {
@@ -15,9 +15,9 @@ export type AggregationHookFactoryFactories =
 export const aggregationHookFactory = {
   aggregationHook: new StaticAggregationHook__factory(),
 };
-export const hookFactories = merkleTreeHookFactories;
-export type MerkleTreeHookFactory = typeof merkleTreeHookFactories;
 export type AggregationHookFactory = typeof aggregationHookFactory;
+export const hookFactories = merkleTreeHookFactory;
+export type MerkleTreeHookFactory = typeof merkleTreeHookFactory;
 
 export type HookFactories = Partial<
   MerkleTreeHookFactory & AggregationHookFactory

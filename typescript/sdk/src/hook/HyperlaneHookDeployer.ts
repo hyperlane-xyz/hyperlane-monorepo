@@ -36,7 +36,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     config: HookConfig,
   ): Promise<HyperlaneContracts<HookFactories>> {
     if (config.type === HookType.MERKLE_TREE_HOOK) {
-      return this.deployMerleTreeHook(chain, config);
+      return this.deployMerkleTreeHook(chain, config);
     } else if (config.type === HookType.AGGREGATION) {
       return this.deployAggregationHook(chain, config);
     } else {
@@ -44,7 +44,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     }
   }
 
-  async deployMerleTreeHook(
+  async deployMerkleTreeHook(
     chain: ChainName,
     _: HookConfig,
   ): Promise<HyperlaneContracts<MerkleTreeHookFactory>> {
