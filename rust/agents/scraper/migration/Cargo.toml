@@ -18,7 +18,7 @@ sea-orm.workspace = true
 sea-orm-migration.workspace = true
 serde.workspace = true
 time.workspace = true
-tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
+tokio = { workspace = true, features = ["rt", "process", "macros", "parking_lot"] }
 
 # bin-only deps
 tracing-subscriber.workspace = true

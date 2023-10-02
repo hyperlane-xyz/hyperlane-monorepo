@@ -189,8 +189,12 @@ impl BaseMetadataBuilder {
         for (&validator, validator_storage_locations) in validators.iter().zip(storage_locations) {
             for storage_location in validator_storage_locations.iter().rev() {
                 let Ok(config) = CheckpointSyncerConf::from_str(storage_location) else {
-                    debug!(?validator, ?storage_location, "Could not parse checkpoint syncer config for validator");
-                    continue
+                    debug!(
+                        ?validator,
+                        ?storage_location,
+                        "Could not parse checkpoint syncer config for validator"
+                    );
+                    continue;
                 };
 
                 // If this is a LocalStorage based checkpoint syncer and it's not
