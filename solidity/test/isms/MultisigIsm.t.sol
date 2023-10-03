@@ -8,13 +8,13 @@ import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {StaticMerkleRootMultisigIsmFactory, StaticMessageIdMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMultisigIsm.sol";
 import {MerkleRootMultisigIsmMetadata} from "../../contracts/isms/libs/MerkleRootMultisigIsmMetadata.sol";
 import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";
-import {StaticMOfNAddressSetFactory} from "../../contracts/libs/StaticMOfNAddressSetFactory.sol";
+import {StaticThresholdAddressSetFactory} from "../../contracts/libs/StaticAddressSetFactory.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MerkleTreeHook} from "../../contracts/hooks/MerkleTreeHook.sol";
 import {TestMerkleTreeHook} from "../../contracts/test/TestMerkleTreeHook.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {Message} from "../../contracts/libs/Message.sol";
-import {MOfNTestUtils} from "./IsmTestUtils.sol";
+import {ThresholdTestUtils} from "./IsmTestUtils.sol";
 
 /// @notice since we removed merkle tree from the mailbox, we need to include the MerkleTreeHook in the test
 abstract contract AbstractMultisigIsmTest is Test {
@@ -22,7 +22,7 @@ abstract contract AbstractMultisigIsmTest is Test {
     using TypeCasts for address;
 
     uint32 constant ORIGIN = 11;
-    StaticMOfNAddressSetFactory factory;
+    StaticThresholdAddressSetFactory factory;
     IMultisigIsm ism;
     TestMerkleTreeHook internal merkleTreeHook;
     TestPostDispatchHook internal noopHook;
@@ -42,7 +42,7 @@ abstract contract AbstractMultisigIsmTest is Test {
     ) internal returns (bytes memory) {
         uint32 domain = mailbox.localDomain();
         uint256[] memory keys = addValidators(m, n, seed);
-        uint256[] memory signers = MOfNTestUtils.choose(m, keys, seed);
+        uint256[] memory signers = ThresholdTestUtils.choose(m, keys, seed);
 
         (bytes32 root, uint32 index) = merkleTreeHook.latestCheckpoint();
         bytes32 messageId = message.id();
