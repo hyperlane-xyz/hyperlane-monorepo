@@ -4,10 +4,12 @@ use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
 
 use std::collections::HashMap;
-use std::{fs::File, io::Write, path::Path};
+use std::{fs::File, path::Path};
 
 use crate::{
+    artifacts::{read_json, write_json},
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
+    multisig_ism::deploy_multisig_ism_message_id,
     Context, CoreCmd, CoreDeploy, CoreSubCmd,
 };
 use hyperlane_core::H256;
@@ -21,7 +23,12 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let core_dir = create_new_directory(&chain_dir, "core");
             let key_dir = create_new_directory(&core_dir, "keys");
 
-            let ism_program_id = deploy_multisig_ism_message_id(&mut ctx, &core, &key_dir);
+            let ism_program_id = deploy_multisig_ism_message_id(
+                &mut ctx,
+                &core.built_so_dir,
+                core.use_existing_keys,
+                &key_dir,
+            );
 
             let mailbox_program_id = deploy_mailbox(&mut ctx, &core, &key_dir, ism_program_id);
 
@@ -42,43 +49,6 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             write_program_ids(&core_dir, program_ids);
         }
     }
-}
-
-fn deploy_multisig_ism_message_id(ctx: &mut Context, cmd: &CoreDeploy, key_dir: &Path) -> Pubkey {
-    let (keypair, keypair_path) = create_and_write_keypair(
-        key_dir,
-        "hyperlane_sealevel_multisig_ism_message_id-keypair.json",
-        cmd.use_existing_keys,
-    );
-    let program_id = keypair.pubkey();
-
-    deploy_program(
-        ctx.payer_keypair_path(),
-        keypair_path.to_str().unwrap(),
-        cmd.built_so_dir
-            .join("hyperlane_sealevel_multisig_ism_message_id.so")
-            .to_str()
-            .unwrap(),
-        &ctx.client.url(),
-    );
-
-    println!(
-        "Deployed Multisig ISM Message ID at program ID {}",
-        program_id
-    );
-
-    // Initialize
-    let instruction = hyperlane_sealevel_multisig_ism_message_id::instruction::init_instruction(
-        program_id,
-        ctx.payer_pubkey,
-    )
-    .unwrap();
-
-    ctx.new_txn().add(instruction).send_with_payer();
-
-    println!("Initialized Multisig ISM Message ID ");
-
-    program_id
 }
 
 fn deploy_mailbox(
@@ -325,55 +295,23 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct CoreProgramIds {
-    #[serde(with = "serde_pubkey")]
+pub struct CoreProgramIds {
+    #[serde(with = "crate::serde::serde_pubkey")]
     pub mailbox: Pubkey,
-    #[serde(with = "serde_pubkey")]
+    #[serde(with = "crate::serde::serde_pubkey")]
     pub validator_announce: Pubkey,
-    #[serde(with = "serde_pubkey")]
+    #[serde(with = "crate::serde::serde_pubkey")]
     pub multisig_ism_message_id: Pubkey,
-    #[serde(with = "serde_pubkey")]
+    #[serde(with = "crate::serde::serde_pubkey")]
     pub igp_program_id: Pubkey,
-    #[serde(with = "serde_pubkey")]
+    #[serde(with = "crate::serde::serde_pubkey")]
     pub overhead_igp_account: Pubkey,
-    #[serde(with = "serde_pubkey")]
+    #[serde(with = "crate::serde::serde_pubkey")]
     pub igp_account: Pubkey,
 }
 
-mod serde_pubkey {
-    use borsh::BorshDeserialize;
-    use serde::{Deserialize, Deserializer, Serializer};
-    use solana_sdk::pubkey::Pubkey;
-    use std::str::FromStr;
-
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum RawPubkey {
-        String(String),
-        Bytes(Vec<u8>),
-    }
-
-    pub fn serialize<S: Serializer>(k: &Pubkey, ser: S) -> Result<S::Ok, S::Error> {
-        ser.serialize_str(&k.to_string())
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Pubkey, D::Error> {
-        match RawPubkey::deserialize(de)? {
-            RawPubkey::String(s) => Pubkey::from_str(&s).map_err(serde::de::Error::custom),
-            RawPubkey::Bytes(b) => Pubkey::try_from_slice(&b).map_err(serde::de::Error::custom),
-        }
-    }
-}
-
 fn write_program_ids(core_dir: &Path, program_ids: CoreProgramIds) {
-    let json = serde_json::to_string_pretty(&program_ids).unwrap();
-    let path = core_dir.join("program-ids.json");
-
-    println!("Writing program IDs to {}:\n{}", path.display(), json);
-
-    let mut file = File::create(path).expect("Failed to create keypair file");
-    file.write_all(json.as_bytes())
-        .expect("Failed to write program IDs to file");
+    write_json(&core_dir.join("program-ids.json"), program_ids);
 }
 
 pub(crate) fn read_core_program_ids(
@@ -386,6 +324,5 @@ pub(crate) fn read_core_program_ids(
         .join(chain)
         .join("core")
         .join("program-ids.json");
-    let file = File::open(path).expect("Failed to open program IDs file");
-    serde_json::from_reader(file).expect("Failed to read program IDs file")
+    read_json(&path)
 }

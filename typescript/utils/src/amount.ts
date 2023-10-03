@@ -1,5 +1,6 @@
 import { formatUnits, parseUnits } from '@ethersproject/units';
 import BigNumber from 'bignumber.js';
+import { ethers } from 'ethers';
 
 const DEFAULT_MIN_ROUNDED_VALUE = 0.00001;
 const DEFAULT_DISPLAY_DECIMALS = 4;
@@ -115,5 +116,30 @@ export function convertDecimals(
   else {
     const difference = toDecimals - fromDecimals;
     return amount.times(new BigNumber(10).pow(difference));
+  }
+}
+
+/**
+ * Converts a value with `fromDecimals` decimals to a value with `toDecimals` decimals.
+ * Incurs a loss of precision when `fromDecimals` > `toDecimals`.
+ * @param fromDecimals The number of decimals `value` has.
+ * @param toDecimals The number of decimals to convert `value` to.
+ * @param value The value to convert.
+ * @returns `value` represented with `toDecimals` decimals.
+ */
+export function convertDecimalsEthersBigNumber(
+  fromDecimals: number,
+  toDecimals: number,
+  value: ethers.BigNumber,
+) {
+  if (fromDecimals === toDecimals) return value;
+  else if (fromDecimals > toDecimals) {
+    const difference = fromDecimals - toDecimals;
+    return value.div(ethers.BigNumber.from('10').pow(difference));
+  }
+  // fromDecimals < toDecimals
+  else {
+    const difference = toDecimals - fromDecimals;
+    return value.mul(ethers.BigNumber.from('10').pow(difference));
   }
 }

@@ -85,7 +85,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     if (!matches) {
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,
-        mailboxType: MailboxViolationType.DefaultIsm,
+        subType: MailboxViolationType.DefaultIsm,
         contract: mailbox,
         chain,
         actual: actualIsm,

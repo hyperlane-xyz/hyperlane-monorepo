@@ -11,8 +11,9 @@ import {
   MultiProtocolProvider,
   MultiProvider,
   attachContractsMap,
+  attachContractsMapAndGetForeignDeployments,
   chainMetadata,
-  filterAddressesToProtocol,
+  filterChainMapToProtocol,
   hyperlaneEnvironments,
   hyperlaneEnvironmentsWithSealevel,
   igpFactories,
@@ -39,15 +40,24 @@ export async function getHelloWorldApp(
     connectionType,
   );
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
-  const contracts = attachContractsMap(
-    helloworldConfig.addresses,
-    helloWorldFactories,
-  );
+
+  const { contractsMap, foreignDeployments } =
+    attachContractsMapAndGetForeignDeployments(
+      helloworldConfig.addresses,
+      helloWorldFactories,
+      multiProvider,
+    );
+
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[coreConfig.environment],
     multiProvider,
   );
-  return new HelloWorldApp(core, contracts, multiProvider);
+  return new HelloWorldApp(
+    core,
+    contractsMap,
+    multiProvider,
+    foreignDeployments,
+  );
 }
 
 export async function getHelloWorldMultiProtocolApp(
@@ -128,7 +138,7 @@ export async function getHelloWorldMultiProtocolApp(
   // TODO we need a MultiProtocolIgp
   // Using an standard IGP for just evm chains for now
   // Unfortunately this requires hacking surgically around certain addresses
-  const filteredAddresses = filterAddressesToProtocol(
+  const filteredAddresses = filterChainMapToProtocol(
     envAddresses,
     ProtocolType.Ethereum,
     multiProtocolProvider,
