@@ -51,9 +51,7 @@ impl HelloWorldDeployer {
     fn new() -> Self {
         Self {}
     }
-}
 
-impl HelloWorldDeployer {
     fn get_storage(&self, client: &RpcClient, program_id: &Pubkey) -> HelloWorldStorage {
         let (program_storage_account, _program_storage_bump) =
             Pubkey::find_program_address(program_storage_pda_seeds!(), program_id);
