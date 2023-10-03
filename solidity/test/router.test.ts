@@ -192,7 +192,7 @@ describe('Router', async () => {
     it('reverts on insufficient payment', async () => {
       await expect(
         router.dispatch(destination, body, { value: payment.sub(1) }),
-      ).to.be.revertedWith('insufficient interchain gas payment');
+      ).to.be.revertedWith('IGP: insufficient interchain gas payment');
     });
 
     it('reverts when dispatching a message to an unenrolled remote router', async () => {
