@@ -29,17 +29,18 @@ export {
   HyperlaneEnvironmentChain,
   hyperlaneContractAddresses,
   hyperlaneEnvironments,
-  hyperlaneEnvironmentsWithSealevel,
 } from './consts/environments';
 export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
 export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel';
 export {
   attachContracts,
   attachContractsMap,
+  attachContractsMapAndGetForeignDeployments,
   connectContracts,
   connectContractsMap,
   filterAddressesMap,
-  filterAddressesToProtocol,
+  filterChainMapExcludeProtocol,
+  filterChainMapToProtocol,
   filterOwnableContracts,
   serializeContracts,
   serializeContractsMap,
@@ -119,6 +120,7 @@ export {
 export {
   HyperlaneIsmFactory,
   collectValidators,
+  moduleCanCertainlyVerify,
 } from './ism/HyperlaneIsmFactory';
 export { HyperlaneIsmFactoryDeployer } from './ism/HyperlaneIsmFactoryDeployer';
 export {
@@ -253,6 +255,8 @@ export {
   ConnectionClientConfig,
   ConnectionClientViolation,
   ConnectionClientViolationType,
+  RouterViolation,
+  RouterViolationType,
   ForeignDeploymentConfig,
   GasConfig,
   GasRouterConfig,

@@ -51,8 +51,7 @@ const SOLANA_KEYPAIR: &str = "config/test-sealevel-keys/test_deployer-keypair.js
 const SOLANA_DEPLOYER_ACCOUNT: &str = "config/test-sealevel-keys/test_deployer-account.json";
 const SOLANA_WARPROUTE_TOKEN_CONFIG_FILE: &str =
     "sealevel/environments/local-e2e/warp-routes/testwarproute/token-config.json";
-const SOLANA_CHAIN_CONFIG_FILE: &str =
-    "sealevel/environments/local-e2e/warp-routes/chain-config.json";
+const SOLANA_CHAIN_CONFIG_FILE: &str = "sealevel/environments/local-e2e/chain-config.json";
 const SOLANA_ENVS_DIR: &str = "sealevel/environments";
 
 const SOLANA_ENV_NAME: &str = "local-e2e";

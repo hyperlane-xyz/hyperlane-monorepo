@@ -371,6 +371,12 @@ export async function moduleMatchesConfig(
     return eqAddress(moduleAddress, config);
   }
 
+  // If the module address is zero, it can't match any object-based config.
+  // The subsequent check of what moduleType it is will throw, so we fail here.
+  if (eqAddress(moduleAddress, ethers.constants.AddressZero)) {
+    return false;
+  }
+
   const provider = multiProvider.getProvider(chain);
   const module = IInterchainSecurityModule__factory.connect(
     moduleAddress,

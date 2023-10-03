@@ -30,6 +30,7 @@ export {
 } from './src/addresses';
 export {
   convertDecimals,
+  convertDecimalsEthersBigNumber,
   eqAmountApproximate,
   fromWei,
   fromWeiRounded,
@@ -44,7 +45,7 @@ export {
   sleep,
   timeout,
 } from './src/async';
-export { base58ToBuffer, bufferToBase58 } from './src/base58';
+export { base58ToBuffer, bufferToBase58, hexOrBase58ToHex } from './src/base58';
 export { fromBase64, toBase64 } from './src/base64';
 export {
   BigNumberMax,

@@ -661,6 +661,7 @@ where
             token_account,
             &Rent::get()?,
             owner_account,
+            system_program,
         )?;
 
         Ok(())
@@ -709,6 +710,7 @@ where
             token_account,
             &Rent::get()?,
             owner_account,
+            system_program,
         )?;
 
         Ok(())
@@ -849,6 +851,7 @@ where
             token_account,
             &Rent::get()?,
             owner_account,
+            system_program,
         )?;
 
         Ok(())

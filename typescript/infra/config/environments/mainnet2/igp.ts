@@ -7,7 +7,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { exclude, objMap } from '@hyperlane-xyz/utils';
 
-import { MainnetChains, supportedChainNames } from './chains';
+import {
+  MainnetChains,
+  ethereumChainNames,
+  supportedChainNames,
+} from './chains';
 import { core } from './core';
 import { owners } from './owners';
 
@@ -33,7 +37,8 @@ export const igp: ChainMap<OverheadIgpConfig> = objMap(
       beneficiary: KEY_FUNDER_ADDRESS,
       gasOracleType: getGasOracles(chain),
       overhead: Object.fromEntries(
-        exclude(chain, supportedChainNames).map((remote) => [
+        // Not setting overhead for non-Ethereum destination chains
+        exclude(chain, ethereumChainNames).map((remote) => [
           remote,
           multisigIsmVerificationCost(
             defaultMultisigIsmConfigs[remote].threshold,
