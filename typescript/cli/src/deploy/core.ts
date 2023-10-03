@@ -65,7 +65,7 @@ export async function runCoreDeploy({
   const artifacts = await runArtifactStep(selectedChains);
   const multisigConfig = await runIsmStep(selectedChains);
 
-  const deploymentParams = {
+  const deploymentParams: DeployParams = {
     local,
     remotes,
     signer,
@@ -143,7 +143,7 @@ interface DeployParams {
   signer: ethers.Signer;
   multiProvider: MultiProvider;
   artifacts?: HyperlaneContractsMap<any>;
-  multiSigConfig?: ChainMap<MultisigIsmConfig>;
+  multisigConfig?: ChainMap<MultisigIsmConfig>;
   outPath: string;
 }
 
@@ -183,7 +183,7 @@ async function executeDeploy({
   multiProvider,
   outPath,
   artifacts = {},
-  multiSigConfig = {},
+  multisigConfig = {},
 }: DeployParams) {
   logBlue('All systems ready, captain! Beginning deployment...');
 
@@ -214,7 +214,7 @@ async function executeDeploy({
     owner,
     selectedChains,
     selectedChains,
-    multiSigConfig,
+    multisigConfig,
   );
   const igpDeployer = new HyperlaneIgpDeployer(multiProvider);
   igpDeployer.cacheAddressesMap(artifacts);
@@ -233,7 +233,7 @@ async function executeDeploy({
   log(`Deploying core contracts to ${local}`);
   const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   coreDeployer.cacheAddressesMap(artifacts);
-  const coreConfig = buildCoreConfigMap(owner, local, remotes, multiSigConfig);
+  const coreConfig = buildCoreConfigMap(owner, local, remotes, multisigConfig);
   const coreContracts = await coreDeployer.deploy(coreConfig);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
   logGreen(`Core contracts deployed`);
@@ -244,7 +244,7 @@ async function executeDeploy({
     owner,
     remotes,
     selectedChains,
-    multiSigConfig,
+    multisigConfig,
   );
   const ismContracts: ChainMap<{ multisigIsm: DeployedIsm }> = {};
   for (const [ismChain, ismConfig] of Object.entries(ismConfigs)) {
