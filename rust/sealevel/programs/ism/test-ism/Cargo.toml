@@ -24,6 +24,3 @@ hyperlane-test-transaction-utils = { path = "../../../libraries/test-transaction
 
 [lib]
 crate-type = ["cdylib", "lib"]
-
-[profile.release]
-overflow-checks = true
