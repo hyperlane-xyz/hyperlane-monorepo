@@ -5,6 +5,7 @@ import {
   ChainMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
+  HyperlaneHookDeployer,
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
   HyperlaneIsmFactoryDeployer,
@@ -12,7 +13,7 @@ import {
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
@@ -71,9 +72,20 @@ async function main() {
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.HOOK) {
-    throw new Error('Hook deployment unimplemented');
-    // config = envConfig.hooks;
-    // deployer = new HyperlaneHookDeployer(multiProvider);
+    if (!envConfig.hook) {
+      throw new Error(`No hook config for ${environment}`);
+    }
+    config = envConfig.hook;
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      getAddresses(environment, Modules.ISM_FACTORY),
+      multiProvider,
+    );
+    const mailboxes: ChainMap<Address> = {};
+    for (const chain in getAddresses(environment, Modules.CORE)) {
+      mailboxes[chain] = getAddresses(environment, Modules.CORE)[chain].mailbox;
+    }
+
+    deployer = new HyperlaneHookDeployer(multiProvider, ismFactory, mailboxes);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);

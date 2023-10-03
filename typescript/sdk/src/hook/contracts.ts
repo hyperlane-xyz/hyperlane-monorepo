@@ -1,18 +1,9 @@
-import {
-  AbstractMessageIdAuthHook__factory,
-  AbstractMessageIdAuthorizedIsm__factory,
-  OPStackHook__factory,
-  OPStackIsm__factory,
-} from '@hyperlane-xyz/core';
+import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
 
-export type HookFactories = {
-  hook: AbstractMessageIdAuthHook__factory;
-  ism: AbstractMessageIdAuthorizedIsm__factory;
+export const merkleTreeHookFactory = {
+  merkleTreeHook: new MerkleTreeHook__factory(),
 };
+export const hookFactories = merkleTreeHookFactory;
+export type MerkleTreeHookFactory = typeof merkleTreeHookFactory;
 
-export const optimismHookFactories = {
-  hook: new OPStackHook__factory(),
-  ism: new OPStackIsm__factory(),
-};
-
-export type OptimismHookFactories = typeof optimismHookFactories;
+export type HookFactories = MerkleTreeHookFactory;

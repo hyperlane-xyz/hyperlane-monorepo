@@ -1,58 +1,27 @@
 import {
   AggregationIsmConfig,
-  ChainMap,
   ChainName,
   Chains,
   IsmConfig,
   ModuleType,
   MultisigIsmConfig,
   RoutingIsmConfig,
-  defaultMultisigIsmConfigs,
 } from '@hyperlane-xyz/sdk';
-import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../src/config';
 
 import { Contexts } from './contexts';
-import { supportedChainNames as mainnet2Chains } from './environments/mainnet2/chains';
 import { owners as mainnet2Owners } from './environments/mainnet2/owners';
-import { chainNames as testChains } from './environments/test/chains';
 import { owners as testOwners } from './environments/test/owners';
-import { supportedChainNames as testnet3Chains } from './environments/testnet3/chains';
 import { owners as testnet3Owners } from './environments/testnet3/owners';
-import { rcMultisigIsmConfigs } from './multisigIsm';
-
-const chains = {
-  mainnet2: mainnet2Chains,
-  testnet3: testnet3Chains,
-  test: testChains,
-};
+import { multisigIsms } from './multisigIsm';
 
 const owners = {
   testnet3: testnet3Owners,
   mainnet2: mainnet2Owners,
   test: testOwners,
 };
-
-export const multisigIsms = (
-  env: DeployEnvironment,
-  local: ChainName,
-  type: MultisigIsmConfig['type'],
-  context: Contexts,
-): ChainMap<MultisigIsmConfig> =>
-  objMap(
-    objFilter(
-      context === Contexts.ReleaseCandidate
-        ? rcMultisigIsmConfigs
-        : defaultMultisigIsmConfigs,
-      (chain, config): config is MultisigIsmConfig =>
-        chain !== local && chains[env].includes(chain),
-    ),
-    (_, config) => ({
-      ...config,
-      type,
-    }),
-  );
 
 /// Routing => Multisig ISM type
 export const routingIsm = (

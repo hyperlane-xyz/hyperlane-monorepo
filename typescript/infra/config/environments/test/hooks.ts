@@ -1,35 +1,16 @@
-import {
-  ChainMap,
-  HookConfig,
-  HookContractType,
-  MessageHookConfig,
-  NoMetadataIsmConfig,
-  filterByChains,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap } from '@hyperlane-xyz/sdk';
+import { MerkleTreeHookConfig } from '@hyperlane-xyz/sdk/dist/hook/types';
+import { HookType } from '@hyperlane-xyz/sdk/src/hook/types';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { owners } from './owners';
 
-const chainNameFilter = new Set(['test1', 'test2']);
-const filteredOwnersResult = filterByChains<string>(owners, chainNameFilter);
-
-export const hooks: ChainMap<HookConfig> = objMap(
-  filteredOwnersResult,
-  (chain) => {
-    if (chain === 'test1') {
-      const hookConfig: MessageHookConfig = {
-        hookContractType: HookContractType.HOOK,
-        nativeBridge: '0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1',
-        remoteIsm: '0x4c5859f0f772848b2d91f1d83e2fe57935348029', // dummy, remoteISM should be deployed first
-        destination: 'test2',
-      };
-      return hookConfig;
-    } else {
-      const ismConfig: NoMetadataIsmConfig = {
-        hookContractType: HookContractType.ISM,
-        nativeBridge: '0x4200000000000000000000000000000000000007',
-      };
-      return ismConfig;
-    }
+export const merkleTree: ChainMap<MerkleTreeHookConfig> = objMap(
+  owners,
+  (_, __) => {
+    const config: MerkleTreeHookConfig = {
+      type: HookType.MERKLE_TREE_HOOK,
+    };
+    return config;
   },
 );

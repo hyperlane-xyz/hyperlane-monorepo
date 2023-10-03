@@ -14,7 +14,6 @@ import { core } from './core';
 import { keyFunderConfig } from './funding';
 import { storageGasOracleConfig } from './gas-oracle';
 import { helloWorld } from './helloworld';
-import { hooks } from './hooks';
 import { igp } from './igp';
 import { infrastructure } from './infrastructure';
 import { bridgeAdapterConfigs } from './liquidityLayer';
@@ -46,7 +45,6 @@ export const environment: EnvironmentConfig = {
   igp,
   infra: infrastructure,
   helloWorld,
-  hooks,
   owners,
   keyFunderConfig,
   liquidityLayerConfig: {
