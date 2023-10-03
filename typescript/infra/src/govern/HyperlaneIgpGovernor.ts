@@ -53,22 +53,24 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
       case IgpViolationType.GasOracles: {
         const gasOraclesViolation = violation as IgpGasOraclesViolation;
 
-        const configs: InterchainGasPaymaster.GasOracleConfigStruct[] = [];
+        const configs: InterchainGasPaymaster.GasParamStruct[] = [];
         for (const [remote, expected] of Object.entries(
           gasOraclesViolation.expected,
         )) {
           const remoteId = this.checker.multiProvider.getDomainId(remote);
-
+          // TODO: fix
+          const currentGasOverhead =
+            gasOraclesViolation.contract.destinationGasLimit(remoteId, 0);
           configs.push({
             remoteDomain: remoteId,
-            gasOracle: expected,
+            config: { gasOracle: expected, gasOverhead: currentGasOverhead },
           });
         }
 
         this.pushCall(gasOraclesViolation.chain, {
           to: gasOraclesViolation.contract.address,
           data: gasOraclesViolation.contract.interface.encodeFunctionData(
-            'setGasOracles',
+            'setDestinationGasConfigs',
             [configs],
           ),
           description: `Setting ${Object.keys(gasOraclesViolation.expected)
