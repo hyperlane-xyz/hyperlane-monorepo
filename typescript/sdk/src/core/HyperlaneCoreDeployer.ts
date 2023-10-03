@@ -66,13 +66,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const defaultIsm = await this.deployIsm(chain, ismConfig);
 
     // deploy required hook
-    // const _merkleTreeHook = await this.deployMerkleTreeHook(
-    //   chain,
-    //   mailbox.address,
-    // );
-
-    console.log(
-      'Deploying merkle tree hook as neither the required nor the default hook',
+    const merkleTreeHook = await this.deployMerkleTreeHook(
+      chain,
+      mailbox.address,
     );
 
     // configure mailbox
@@ -82,8 +78,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         owner,
         defaultIsm,
         defaultHook,
-        defaultHook,
-        // merkleTreeHook.address,
+        merkleTreeHook.address,
       ),
     );
 
