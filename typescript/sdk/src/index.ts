@@ -106,7 +106,6 @@ export {
   IgpOverheadViolation,
   IgpViolation,
   IgpViolationType,
-  OverheadIgpConfig,
 } from './gas/types';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
 export { HookConfig, HookType, MerkleTreeHookConfig } from './hook/types';
