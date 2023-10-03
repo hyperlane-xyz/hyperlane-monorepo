@@ -5,6 +5,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 import { TestSendReceiver__factory } from '@hyperlane-xyz/core';
 import { ChainName, HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { Modules, getAddresses } from './scripts/utils';
 import { sleep } from './src/utils/utils';
@@ -42,7 +43,6 @@ task('kathy', 'Dispatches random hyperlane messages')
     ) => {
       const timeout = Number.parseInt(taskArgs.timeout);
       const environment = 'test';
-      const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
       const [signer] = await hre.ethers.getSigners();
       const multiProvider = MultiProvider.createTestMultiProvider({ signer });
       const core = HyperlaneCore.fromAddressesMap(
@@ -72,8 +72,13 @@ task('kathy', 'Dispatches random hyperlane messages')
         const remote: ChainName = randomElement(core.remoteChains(local));
         const remoteId = multiProvider.getDomainId(remote);
         const mailbox = core.getContracts(local).mailbox;
+        const quote = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
+          remoteId,
+          addressToBytes32(recipient.address),
+          '0x1234',
+        );
         await recipient.dispatchToSelf(mailbox.address, remoteId, '0x1234', {
-          value: interchainGasPayment,
+          value: quote,
         });
         console.log(
           `send to ${recipient.address} on ${remote} via mailbox ${

@@ -26,7 +26,7 @@ contract TestSendReceiver is IMessageRecipient {
             msg.sender
         );
         // TODO: handle topping up?
-        _mailbox.dispatch(
+        _mailbox.dispatch{value: msg.value}(
             _destinationDomain,
             address(this).addressToBytes32(),
             _messageBody,
