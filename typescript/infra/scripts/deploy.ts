@@ -161,6 +161,7 @@ async function main() {
   const agentConfigModules: Array<Modules> = [
     Modules.CORE,
     Modules.INTERCHAIN_GAS_PAYMASTER,
+    Modules.HOOK,
   ];
   // Don't write agent config in fork tests
   const agentConfig =

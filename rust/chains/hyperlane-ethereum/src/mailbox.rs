@@ -13,17 +13,15 @@ use ethers_contract::builders::ContractCall;
 use ethers_core::types::BlockNumber;
 use tracing::instrument;
 
-use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::{
-    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
-    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage,
-    SequenceIndexer, TxCostEstimate, TxOutcome, H160, H256, U256,
+    utils::fmt_bytes, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
+    HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceIndexer,
+    TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::contracts::i_mailbox::{IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI};
-use crate::contracts::merkle_tree_hook::MerkleTreeHook;
 use crate::trait_builder::BuildableWithProvider;
 use crate::tx::{fill_tx_gas_params, report_tx};
 use crate::EthereumProvider;
@@ -77,15 +75,6 @@ impl BuildableWithProvider for DeliveryIndexerBuilder {
             self.finality_blocks,
         ))
     }
-}
-
-// TODO: make this cache the required hook address at construction time
-async fn merkle_tree_hook<M: Middleware + 'static>(
-    contract: &Arc<EthereumMailboxInternal<M>>,
-    provider: &Arc<M>,
-) -> ChainResult<MerkleTreeHook<M>> {
-    let address = contract.required_hook().call().await?;
-    Ok(MerkleTreeHook::new(address, provider.clone()))
 }
 
 #[derive(Debug, Clone)]
@@ -262,12 +251,6 @@ where
             provider,
             arbitrum_node_interface,
         }
-    }
-
-    // TODO: make this cache the required hook address at construction time
-    pub async fn merkle_tree_hook(&self) -> ChainResult<MerkleTreeHook<M>> {
-        let address = self.contract.required_hook().call().await?;
-        Ok(MerkleTreeHook::new(address, self.provider.clone()))
     }
 
     /// Returns a ContractCall that processes the provided message.

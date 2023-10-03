@@ -77,6 +77,8 @@ pub struct CoreContractAddresses {
     pub interchain_gas_paymaster: H256,
     /// Address of the ValidatorAnnounce contract
     pub validator_announce: H256,
+    /// Address of the MerkleTreeHook contract
+    pub merkle_tree_hook: Option<H256>,
 }
 
 /// Indexing settings
@@ -141,13 +143,19 @@ impl ChainConf {
         .context(ctx)
     }
 
-    /// Try to convert the chain setting into a Mailbox contract
+    /// Try to convert the chain setting into a Merkle Tree Hook contract
     pub async fn build_merkle_tree_hook(
         &self,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn MerkleTreeHook>> {
         let ctx = "Building merkle tree hook";
-        let locator = self.locator(self.addresses.mailbox);
+        // TODO: if the merkle tree hook is set for sealevel, it's still a mailbox program
+        // that the connection is made to using the pda seeds, which will not be usable.
+        let address = self
+            .addresses
+            .merkle_tree_hook
+            .unwrap_or(self.addresses.mailbox);
+        let locator = self.locator(address);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
@@ -548,6 +556,13 @@ impl ChainConf {
             self.addresses.interchain_gas_paymaster,
             EthereumInterchainGasPaymasterAbi::fn_map_owned(),
         );
+        if let Some(address) = self.addresses.merkle_tree_hook {
+            register_contract(
+                "merkle_tree_hook",
+                address,
+                EthereumInterchainGasPaymasterAbi::fn_map_owned(),
+            );
+        }
 
         cfg
     }

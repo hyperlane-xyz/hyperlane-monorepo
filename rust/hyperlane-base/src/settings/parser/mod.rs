@@ -217,6 +217,11 @@ fn parse_chain(
         .get_key("validatorAnnounce")
         .parse_address_hash()
         .end();
+    let merkle_tree_hook = chain
+        .chain(&mut err)
+        .get_opt_key("merkleTreeHook")
+        .parse_address_hash()
+        .end();
 
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
 
@@ -263,6 +268,7 @@ fn parse_chain(
             mailbox,
             interchain_gas_paymaster,
             validator_announce,
+            merkle_tree_hook,
         },
         connection,
         metrics_conf: Default::default(),

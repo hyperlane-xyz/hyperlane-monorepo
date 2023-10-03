@@ -14,6 +14,7 @@ describe('Agent config', () => {
         mailbox: '0xmailbox',
         interchainGasPaymaster: '0xgas',
         validatorAnnounce: '0xannounce',
+        merkleTreeHook: '0xmerkle',
       },
     },
     { ethereum: 0 },

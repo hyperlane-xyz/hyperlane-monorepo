@@ -301,6 +301,7 @@ export function buildAgentConfig(
       mailbox: addresses[chain].mailbox,
       interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
       validatorAnnounce: addresses[chain].validatorAnnounce,
+      merkleTreeHook: addresses[chain].merkleTreeHook,
       index: {
         from: startBlocks[chain],
       },

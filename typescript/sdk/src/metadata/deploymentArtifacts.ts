@@ -13,6 +13,9 @@ export const HyperlaneDeploymentArtifactsSchema = z.object({
   interchainSecurityModule: ZHash.optional().describe(
     'The address of the Interchain Security Module (ISM) contract.',
   ),
+  merkleTreeHook: ZHash.optional().describe(
+    'The address of the Merkle Tree Hook contract.',
+  ),
 });
 
 export type HyperlaneDeploymentArtifacts = z.infer<

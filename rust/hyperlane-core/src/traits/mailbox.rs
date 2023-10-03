@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 
 use crate::{
-    accumulator::incremental::IncrementalMerkle, traits::TxOutcome, utils::domain_hash,
-    ChainResult, Checkpoint, HyperlaneContract, HyperlaneMessage, TxCostEstimate, H256, U256,
+    traits::TxOutcome, utils::domain_hash, ChainResult, HyperlaneContract, HyperlaneMessage,
+    TxCostEstimate, H256, U256,
 };
 
 /// Interface for the Mailbox chain contract. Allows abstraction over different
