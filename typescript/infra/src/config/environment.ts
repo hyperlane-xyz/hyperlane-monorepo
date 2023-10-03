@@ -37,7 +37,7 @@ export type EnvironmentConfig = {
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
-  hooks: ChainMap<HookConfig>;
+  hook?: ChainMap<HookConfig>;
   igp: ChainMap<IgpConfig>;
   owners: ChainMap<Address>;
   infra: InfrastructureConfig;
