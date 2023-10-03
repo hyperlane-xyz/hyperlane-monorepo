@@ -35,7 +35,11 @@ contract HypNativeScaledTest is Test {
     MockHyperlaneEnvironment environment;
 
     function setUp() public {
-        environment = new MockHyperlaneEnvironment(synthDomain, nativeDomain);
+        environment = new MockHyperlaneEnvironment(
+            synthDomain,
+            nativeDomain,
+            vm
+        );
 
         synth = new HypERC20(
             decimals,

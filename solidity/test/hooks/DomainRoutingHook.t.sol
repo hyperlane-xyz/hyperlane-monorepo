@@ -22,7 +22,8 @@ contract DomainRoutingHookTest is Test {
     function setUp() public virtual {
         address owner = address(this);
         uint32 origin = 0;
-        mailbox = new TestMailbox(origin);
+        vm.chainId(origin);
+        mailbox = new TestMailbox();
         hook = new DomainRoutingHook(address(mailbox), owner);
         noopHook = new TestPostDispatchHook();
     }
@@ -112,7 +113,8 @@ contract FallbackDomainRoutingHookTest is DomainRoutingHookTest {
     function setUp() public override {
         address owner = address(this);
         uint32 origin = 0;
-        mailbox = new TestMailbox(origin);
+        vm.chainId(origin);
+        mailbox = new TestMailbox();
         fallbackHook = new TestPostDispatchHook();
         noopHook = new TestPostDispatchHook();
         hook = new FallbackDomainRoutingHook(

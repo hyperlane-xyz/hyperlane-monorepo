@@ -10,11 +10,11 @@ import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 contract TestMailbox is Mailbox {
     using TypeCasts for bytes32;
 
-    constructor(uint32 _localDomain) Mailbox(_localDomain) {
+    constructor() Mailbox() {
         _transferOwnership(msg.sender);
     }
 
-    function testHandle(
+    function handle(
         uint32 _origin,
         bytes32 _sender,
         bytes32 _recipient,

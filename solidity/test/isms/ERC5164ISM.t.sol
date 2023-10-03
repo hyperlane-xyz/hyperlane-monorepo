@@ -58,7 +58,8 @@ contract ERC5164IsmTest is Test {
         dispatcher = new MockMessageDispatcher();
         executor = new MockMessageExecutor();
         testRecipient = new TestRecipient();
-        originMailbox = new TestMailbox(TEST1_DOMAIN);
+        vm.chainId(TEST1_DOMAIN);
+        originMailbox = new TestMailbox();
         ism = new ERC5164Ism(address(executor));
         hook = new ERC5164Hook(
             address(originMailbox),

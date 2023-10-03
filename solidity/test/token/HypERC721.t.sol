@@ -63,11 +63,13 @@ abstract contract HypTokenTest is Test, IERC721Receiver {
     function setUp() public virtual {
         noopHook = new TestPostDispatchHook();
 
-        localMailbox = new TestMailbox(ORIGIN);
+        vm.chainId(ORIGIN);
+        localMailbox = new TestMailbox();
         localMailbox.setDefaultHook(address(noopHook));
         localMailbox.setRequiredHook(address(noopHook));
 
-        remoteMailbox = new TestMailbox(DESTINATION);
+        vm.chainId(DESTINATION);
+        remoteMailbox = new TestMailbox();
 
         remoteToken = new HypERC721Collateral(
             address(remotePrimaryToken),

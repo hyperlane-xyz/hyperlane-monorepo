@@ -41,7 +41,11 @@ contract InterchainQueryRouterTest is Test {
         originDomain = 123;
         remoteDomain = 321;
 
-        environment = new MockHyperlaneEnvironment(originDomain, remoteDomain);
+        environment = new MockHyperlaneEnvironment(
+            originDomain,
+            remoteDomain,
+            vm
+        );
 
         recipient = new TestRecipient();
 

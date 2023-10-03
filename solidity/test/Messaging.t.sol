@@ -19,8 +19,10 @@ contract MessagingTest is Test {
     uint32 remoteDomain = 2;
 
     function setUp() public {
-        originMailbox = new MockMailbox(originDomain);
-        remoteMailbox = new MockMailbox(remoteDomain);
+        vm.chainId(originDomain);
+        originMailbox = new MockMailbox();
+        vm.chainId(remoteDomain);
+        remoteMailbox = new MockMailbox();
         originMailbox.addRemoteMailbox(remoteDomain, remoteMailbox);
 
         receiver = new TestRecipient();

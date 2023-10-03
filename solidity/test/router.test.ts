@@ -81,7 +81,7 @@ describe('Router', async () => {
     await router.enrollRemoteRouter(origin, sender);
     const recipient = addressToBytes32(router.address);
     // Does not revert.
-    await mailbox.testHandle(origin, sender, recipient, body);
+    await mailbox.handle(origin, sender, recipient, body);
   });
 
   it('rejects message from unenrolled mailbox', async () => {
@@ -94,7 +94,7 @@ describe('Router', async () => {
     const sender = addressToBytes32(nonOwner.address);
     const recipient = addressToBytes32(router.address);
     await expect(
-      mailbox.testHandle(origin, sender, recipient, body),
+      mailbox.handle(origin, sender, recipient, body),
     ).to.be.revertedWith(`No router enrolled for domain: ${origin}`);
   });
 

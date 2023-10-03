@@ -72,8 +72,10 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
     event RequiredHookSet(address indexed hook);
 
     // ============ Constructor ============
-    constructor(uint32 _localDomain) {
-        localDomain = _localDomain;
+    constructor() {
+        uint256 chainId = block.chainid;
+        require(chainId <= type(uint32).max, "Mailbox: chainId too high");
+        localDomain = uint32(chainId);
     }
 
     // ============ Initializers ============

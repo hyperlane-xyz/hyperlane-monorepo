@@ -4,8 +4,9 @@ pragma solidity ^0.8.13;
 import "./MockMailbox.sol";
 import "../test/TestInterchainGasPaymaster.sol";
 import "../test/TestMultisigIsm.sol";
-
 import {TypeCasts} from "../libs/TypeCasts.sol";
+
+import "forge-std/Test.sol";
 
 contract MockHyperlaneEnvironment {
     uint32 originDomain;
@@ -15,12 +16,18 @@ contract MockHyperlaneEnvironment {
     mapping(uint32 => TestInterchainGasPaymaster) public igps;
     mapping(uint32 => IInterchainSecurityModule) public isms;
 
-    constructor(uint32 _originDomain, uint32 _destinationDomain) {
+    constructor(
+        uint32 _originDomain,
+        uint32 _destinationDomain,
+        Vm vm
+    ) {
         originDomain = _originDomain;
         destinationDomain = _destinationDomain;
 
-        MockMailbox originMailbox = new MockMailbox(_originDomain);
-        MockMailbox destinationMailbox = new MockMailbox(_destinationDomain);
+        vm.chainId(_originDomain);
+        MockMailbox originMailbox = new MockMailbox();
+        vm.chainId(_destinationDomain);
+        MockMailbox destinationMailbox = new MockMailbox();
 
         originMailbox.addRemoteMailbox(_destinationDomain, destinationMailbox);
         destinationMailbox.addRemoteMailbox(_originDomain, originMailbox);

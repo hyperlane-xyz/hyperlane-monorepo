@@ -20,7 +20,8 @@ contract ValidatorAnnounceTest is Test {
     ValidatorAnnounce valAnnounce;
 
     function setUp() public {
-        mailbox = new MockMailbox(localDomain);
+        vm.chainId(localDomain);
+        mailbox = new MockMailbox();
         valAnnounce = new ValidatorAnnounce(address(mailbox));
     }
 

@@ -28,8 +28,10 @@ contract PortalAdapterTest is Test {
         token = new MockToken();
         recipient = new TestTokenRecipient();
 
-        MockMailbox originMailbox = new MockMailbox(originDomain);
-        MockMailbox destinationMailbox = new MockMailbox(destinationDomain);
+        vm.chainId(originDomain);
+        MockMailbox originMailbox = new MockMailbox();
+        vm.chainId(destinationDomain);
+        MockMailbox destinationMailbox = new MockMailbox();
 
         originAdapter = new PortalAdapter(address(originMailbox));
         destinationAdapter = new PortalAdapter(address(destinationMailbox));

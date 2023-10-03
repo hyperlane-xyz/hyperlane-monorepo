@@ -23,7 +23,8 @@ contract GasRouterTest is Test {
     TestGasRouter remoteRouter;
 
     function setUp() public {
-        originMailbox = new TestMailbox(originDomain);
+        vm.chainId(originDomain);
+        originMailbox = new TestMailbox();
         TestIsm ism = new TestIsm();
         TestInterchainGasPaymaster igp = new TestInterchainGasPaymaster();
         TestMerkleTreeHook _requiredHook = new TestMerkleTreeHook(
@@ -35,7 +36,8 @@ contract GasRouterTest is Test {
             address(igp),
             address(_requiredHook)
         );
-        remoteMailbox = new TestMailbox(remoteDomain);
+        vm.chainId(remoteDomain);
+        remoteMailbox = new TestMailbox();
         remoteMailbox.initialize(
             address(this),
             address(ism),

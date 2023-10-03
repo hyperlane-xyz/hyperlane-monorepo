@@ -93,7 +93,8 @@ contract OPStackIsmTest is Test {
         vm.selectFork(mainnetFork);
 
         l1Messenger = ICrossDomainMessenger(L1_MESSENGER_ADDRESS);
-        l1Mailbox = new TestMailbox(MAINNET_DOMAIN);
+        vm.chainId(MAINNET_DOMAIN);
+        l1Mailbox = new TestMailbox();
 
         opHook = new OPStackHook(
             address(l1Mailbox),

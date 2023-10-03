@@ -62,8 +62,10 @@ abstract contract HypTokenTest is Test {
     );
 
     function setUp() public virtual {
-        localMailbox = new TestMailbox(ORIGIN);
-        remoteMailbox = new TestMailbox(DESTINATION);
+        vm.chainId(ORIGIN);
+        localMailbox = new TestMailbox();
+        vm.chainId(DESTINATION);
+        remoteMailbox = new TestMailbox();
 
         primaryToken = new ERC20Test(NAME, SYMBOL, TOTAL_SUPPLY, DECIMALS);
 

@@ -35,7 +35,8 @@ contract MerkleTreeHookTest is Test {
     event InsertedIntoTree(bytes32 messageId, uint32 index);
 
     function setUp() public {
-        mailbox = new TestMailbox(ORIGIN);
+        vm.chainId(ORIGIN);
+        mailbox = new TestMailbox();
         hook = new TestMerkleTreeHook(address(mailbox));
 
         for (uint256 i = 0; i < MSG_COUNT; i++) {

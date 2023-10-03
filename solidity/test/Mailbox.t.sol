@@ -41,7 +41,8 @@ contract MailboxTest is Test, Versioned {
     address owner;
 
     function setUp() public {
-        mailbox = new TestMailbox(localDomain);
+        vm.chainId(localDomain);
+        mailbox = new TestMailbox();
         recipient = new TestRecipient();
         recipientb32 = address(recipient).addressToBytes32();
         defaultHook = new TestPostDispatchHook();

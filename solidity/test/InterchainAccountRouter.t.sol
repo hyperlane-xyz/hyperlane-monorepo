@@ -91,7 +91,7 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function setUp() public {
-        environment = new MockHyperlaneEnvironment(origin, destination);
+        environment = new MockHyperlaneEnvironment(origin, destination, vm);
 
         icaIsm = new InterchainAccountIsm(
             address(environment.mailboxes(destination))

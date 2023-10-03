@@ -46,7 +46,8 @@ contract LiquidityLayerRouterTest is Test {
 
         testEnvironment = new MockHyperlaneEnvironment(
             originDomain,
-            destinationDomain
+            destinationDomain,
+            vm
         );
 
         address originMailbox = address(

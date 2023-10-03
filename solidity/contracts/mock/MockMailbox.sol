@@ -21,7 +21,7 @@ contract MockMailbox is Mailbox {
     mapping(uint32 => MockMailbox) public remoteMailboxes;
     mapping(uint256 => bytes) public inboundMessages;
 
-    constructor(uint32 _domain) Mailbox(_domain) {
+    constructor() Mailbox() {
         TestIsm ism = new TestIsm();
         defaultIsm = ism;
 

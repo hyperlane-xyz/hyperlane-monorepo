@@ -105,7 +105,8 @@ contract DefaultFallbackRoutingIsmTest is DomainRoutingIsmTest {
 
     function setUp() public override {
         defaultIsm = deployTestIsm(bytes32(0));
-        TestMailbox mailbox = new TestMailbox(1000);
+        vm.chainId(1000);
+        TestMailbox mailbox = new TestMailbox();
         TestPostDispatchHook hook = new TestPostDispatchHook();
         mailbox.initialize(
             address(this),
