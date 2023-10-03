@@ -32,7 +32,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  * @notice Manages payments on a source chain to cover gas costs of relaying
  * messages to destination chains and includes the gas overhead per destination
  * @dev The intended use of this contract is to store overhead gas amounts for destination
- * domains, e.g. Mailbox and/or ISM gas usage, such that users of this IGP are only required
+ * domains, e.g. Mailbox and ISM gas usage, such that users of this IGP are only required
  * to specify the gas amount used by their own applications.
  */
 contract InterchainGasPaymaster is
@@ -50,15 +50,12 @@ contract InterchainGasPaymaster is
     /// @notice The scale of gas oracle token exchange rates.
     uint256 internal constant TOKEN_EXCHANGE_RATE_SCALE = 1e10;
     /// @notice default for user call if metadata not provided
-    uint256 internal immutable DEFAULT_GAS_USAGE = 69_420;
+    uint256 internal immutable DEFAULT_GAS_USAGE = 50_000;
 
     // ============ Public Storage ============
 
-    /// @notice Keyed by remote domain, the gas oracle to use for the domain.
-    mapping(uint32 => IGasOracle) public gasOracles;
-
-    /// @notice Destination domain => overhead gas amount on that domain.
-    mapping(uint32 => uint256) public destinationGasOverhead;
+    /// @notice Destination domain => gas oracle and overhead gas amount.
+    mapping(uint32 => DomainGasConfig) public destinationGasConfigs;
 
     /// @notice The benficiary that can receive native tokens paid into this contract.
     address public beneficiary;
@@ -69,8 +66,13 @@ contract InterchainGasPaymaster is
      * @notice Emitted when the gas oracle for a remote domain is set.
      * @param remoteDomain The remote domain.
      * @param gasOracle The gas oracle.
+     * @param gasOverhead The destination gas overhead.
      */
-    event GasOracleSet(uint32 indexed remoteDomain, address gasOracle);
+    event DestinationGasConfigSet(
+        uint32 remoteDomain,
+        address gasOracle,
+        uint96 gasOverhead
+    );
 
     /**
      * @notice Emitted when the beneficiary is set.
@@ -78,22 +80,15 @@ contract InterchainGasPaymaster is
      */
     event BeneficiarySet(address beneficiary);
 
-    struct GasOracleConfig {
+    struct DomainGasConfig {
+        IGasOracle gasOracle;
+        uint96 gasOverhead;
+    }
+
+    struct GasParam {
         uint32 remoteDomain;
-        address gasOracle;
+        DomainGasConfig config;
     }
-
-    struct DomainConfig {
-        uint32 domain;
-        uint256 gasOverhead;
-    }
-
-    /**
-     * @notice Emitted when an entry in the destinationGasOverhead mapping is set.
-     * @param domain The destination domain.
-     * @param gasOverhead The gas overhead amount on that domain.
-     */
-    event DestinationGasOverheadSet(uint32 indexed domain, uint256 gasOverhead);
 
     // ============ External Functions ============
 
@@ -117,20 +112,24 @@ contract InterchainGasPaymaster is
     function claim() external {
         // Transfer the entire balance to the beneficiary.
         (bool success, ) = beneficiary.call{value: address(this).balance}("");
-        require(success, "!transfer");
+        require(success, "IGP: claim failed");
     }
 
     /**
      * @notice Sets the gas oracles for remote domains specified in the config array.
      * @param _configs An array of configs including the remote domain and gas oracles to set.
      */
-    function setGasOracles(GasOracleConfig[] calldata _configs)
+    function setDestinationGasConfigs(GasParam[] calldata _configs)
         external
         onlyOwner
     {
         uint256 _len = _configs.length;
         for (uint256 i = 0; i < _len; i++) {
-            _setGasOracle(_configs[i].remoteDomain, _configs[i].gasOracle);
+            _setDestinationGasConfig(
+                _configs[i].remoteDomain,
+                _configs[i].config.gasOracle,
+                _configs[i].config.gasOverhead
+            );
         }
     }
 
@@ -142,20 +141,6 @@ contract InterchainGasPaymaster is
         _setBeneficiary(_beneficiary);
     }
 
-    /**
-     * @notice Sets destination gas overheads for multiple domains.
-     * @dev Only callable by the owner.
-     * @param configs A list of destination domains and gas overheads.
-     */
-    function setDestinationGasOverheads(DomainConfig[] calldata configs)
-        external
-        onlyOwner
-    {
-        for (uint256 i; i < configs.length; i++) {
-            _setDestinationGasOverhead(configs[i]);
-        }
-    }
-
     // ============ Public Functions ============
 
     /**
@@ -165,26 +150,22 @@ contract InterchainGasPaymaster is
      * Callers should be aware that this may present reentrancy issues.
      * @param _messageId The ID of the message to pay for.
      * @param _destinationDomain The domain of the message's destination chain.
-     * @param _gasAmount The amount of destination gas to pay for.
+     * @param _gasLimit The amount of destination gas to pay for.
      * @param _refundAddress The address to refund any overpayment to.
      */
     function payForGas(
         bytes32 _messageId,
         uint32 _destinationDomain,
-        uint256 _gasAmount,
+        uint256 _gasLimit,
         address _refundAddress
     ) public payable override {
-        uint256 _requiredGasAmount = destinationGasAmount(
-            _destinationDomain,
-            _gasAmount
-        );
         uint256 _requiredPayment = quoteGasPayment(
             _destinationDomain,
-            _requiredGasAmount
+            _gasLimit
         );
         require(
             msg.value >= _requiredPayment,
-            "insufficient interchain gas payment"
+            "IGP: insufficient interchain gas payment"
         );
         uint256 _overpayment = msg.value - _requiredPayment;
         if (_overpayment > 0) {
@@ -195,7 +176,7 @@ contract InterchainGasPaymaster is
         emit GasPayment(
             _messageId,
             _destinationDomain,
-            _requiredGasAmount,
+            _gasLimit,
             _requiredPayment
         );
     }
@@ -203,10 +184,10 @@ contract InterchainGasPaymaster is
     /**
      * @notice Quotes the amount of native tokens to pay for interchain gas.
      * @param _destinationDomain The domain of the message's destination chain.
-     * @param _totalGasAmount The amount of destination gas to pay for.
+     * @param _gasLimit The amount of destination gas to pay for.
      * @return The amount of native tokens required to pay for interchain gas.
      */
-    function quoteGasPayment(uint32 _destinationDomain, uint256 _totalGasAmount)
+    function quoteGasPayment(uint32 _destinationDomain, uint256 _gasLimit)
         public
         view
         virtual
@@ -220,7 +201,7 @@ contract InterchainGasPaymaster is
         ) = getExchangeRateAndGasPrice(_destinationDomain);
 
         // The total cost quoted in destination chain's native token.
-        uint256 _destinationGasCost = _totalGasAmount * uint256(_gasPrice);
+        uint256 _destinationGasCost = _gasLimit * uint256(_gasPrice);
 
         // Convert to the local native token.
         return
@@ -241,7 +222,8 @@ contract InterchainGasPaymaster is
         override
         returns (uint128 tokenExchangeRate, uint128 gasPrice)
     {
-        IGasOracle _gasOracle = gasOracles[_destinationDomain];
+        IGasOracle _gasOracle = destinationGasConfigs[_destinationDomain]
+            .gasOracle;
 
         require(
             address(_gasOracle) != address(0),
@@ -255,19 +237,22 @@ contract InterchainGasPaymaster is
     }
 
     /**
-     * @notice Returns the stored destinationGasOverhead added to the _gasAmount.
-     * @dev If there is no stored destinationGasOverhead, 0 is used.
+     * @notice Returns the stored destinationGasOverhead added to the _gasLimit.
+     * @dev If there is no stored destinationGasOverhead, 0 is used. This is useful in the case
+     *      the ISM deployer wants to subsidize the overhead gas cost. Then, can specify the gas oracle
+     *      they want to use with the destination domain, but set the overhead to 0.
      * @param _destinationDomain The domain of the message's destination chain.
-     * @param _gasAmount The amount of destination gas to pay for. This should not
-     * consider any gas that is accounted for in the stored destinationGasOverhead.
-     * @return The stored destinationGasOverhead added to the _gasAmount.
+     * @param _gasLimit The amount of destination gas to pay for. This is only for application gas usage as
+     *      the gas usage for the mailbox and the ISM is already accounted in the DomainGasConfig.gasOverhead
      */
-    function destinationGasAmount(uint32 _destinationDomain, uint256 _gasAmount)
+    function destinationGasLimit(uint32 _destinationDomain, uint256 _gasLimit)
         public
         view
         returns (uint256)
     {
-        return destinationGasOverhead[_destinationDomain] + _gasAmount;
+        return
+            uint256(destinationGasConfigs[_destinationDomain].gasOverhead) +
+            _gasLimit;
     }
 
     // ============ Internal Functions ============
@@ -277,9 +262,15 @@ contract InterchainGasPaymaster is
         internal
         override
     {
-        uint256 gasLimit = metadata.gasLimit(DEFAULT_GAS_USAGE);
-        address refundAddress = metadata.refundAddress(message.senderAddress());
-        payForGas(message.id(), message.destination(), gasLimit, refundAddress);
+        payForGas(
+            message.id(),
+            message.destination(),
+            destinationGasLimit(
+                message.destination(),
+                metadata.gasLimit(DEFAULT_GAS_USAGE)
+            ),
+            metadata.refundAddress(message.senderAddress())
+        );
     }
 
     /// @inheritdoc AbstractPostDispatchHook
@@ -289,8 +280,14 @@ contract InterchainGasPaymaster is
         override
         returns (uint256)
     {
-        uint256 gasLimit = metadata.gasLimit(DEFAULT_GAS_USAGE);
-        return quoteGasPayment(message.destination(), gasLimit);
+        return
+            quoteGasPayment(
+                message.destination(),
+                destinationGasLimit(
+                    message.destination(),
+                    metadata.gasLimit(DEFAULT_GAS_USAGE)
+                )
+            );
     }
 
     /**
@@ -303,21 +300,24 @@ contract InterchainGasPaymaster is
     }
 
     /**
-     * @notice Sets the gas oracle for a remote domain.
+     * @notice Sets the gas oracle and destination gas overhead for a remote domain.
      * @param _remoteDomain The remote domain.
      * @param _gasOracle The gas oracle.
+     * @param _gasOverhead The destination gas overhead.
      */
-    function _setGasOracle(uint32 _remoteDomain, address _gasOracle) internal {
-        gasOracles[_remoteDomain] = IGasOracle(_gasOracle);
-        emit GasOracleSet(_remoteDomain, _gasOracle);
-    }
-
-    /**
-     * @notice Sets the destination gas overhead for a single domain.
-     * @param config The destination domain and gas overhead.
-     */
-    function _setDestinationGasOverhead(DomainConfig calldata config) internal {
-        destinationGasOverhead[config.domain] = config.gasOverhead;
-        emit DestinationGasOverheadSet(config.domain, config.gasOverhead);
+    function _setDestinationGasConfig(
+        uint32 _remoteDomain,
+        IGasOracle _gasOracle,
+        uint96 _gasOverhead
+    ) internal {
+        destinationGasConfigs[_remoteDomain] = DomainGasConfig(
+            _gasOracle,
+            _gasOverhead
+        );
+        emit DestinationGasConfigSet(
+            _remoteDomain,
+            address(_gasOracle),
+            _gasOverhead
+        );
     }
 }

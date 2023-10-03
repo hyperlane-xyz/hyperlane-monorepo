@@ -85,13 +85,10 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
       case IgpViolationType.Overhead: {
         const overheadViolation = violation as IgpOverheadViolation;
         const configs: InterchainGasPaymaster.DomainConfigStruct[] =
-          Object.entries(violation.expected).map(
-            ([remote, gasOverhead]) =>
-              ({
-                domain: this.checker.multiProvider.getDomainId(remote),
-                gasOverhead: gasOverhead,
-              } as InterchainGasPaymaster.DomainConfigStruct),
-          );
+          Object.entries(violation.expected).map(([remote, gasOverhead]) => ({
+            domain: this.checker.multiProvider.getDomainId(remote),
+            gasOverhead: gasOverhead,
+          }));
 
         this.pushCall(violation.chain, {
           to: overheadViolation.contract.address,

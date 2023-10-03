@@ -44,49 +44,32 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       [owner, beneficiary],
     );
 
-    const gasOracleConfigsToSet: InterchainGasPaymaster.GasOracleConfigStruct[] =
-      [];
-
-    const oracleRemotes = Object.keys(config.gasOracleType);
-    for (const remote of oracleRemotes) {
+    const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
+    const remotes = Object.keys(config.gasOracleType);
+    for (const remote of remotes) {
       const remoteId = this.multiProvider.getDomainId(remote);
-      const currentGasOracle = await igp.gasOracles(remoteId);
-      if (!eqAddress(currentGasOracle, storageGasOracle.address)) {
-        gasOracleConfigsToSet.push({
+      const newGasOverhead = config.overhead[remote];
+
+      const currentGasConfig = await igp.destinationGasConfigs(remoteId);
+      if (
+        !eqAddress(currentGasConfig.gasOracle, storageGasOracle.address) ||
+        !currentGasConfig.gasOverhead.eq(newGasOverhead)
+      ) {
+        gasParamsToSet.push({
           remoteDomain: remoteId,
-          gasOracle: storageGasOracle.address,
+          config: {
+            gasOverhead: newGasOverhead,
+            gasOracle: storageGasOracle.address,
+          },
         });
       }
     }
 
-    if (gasOracleConfigsToSet.length > 0) {
+    if (gasParamsToSet.length > 0) {
       await this.runIfOwner(chain, igp, async () =>
         this.multiProvider.handleTx(
           chain,
-          igp.setGasOracles(gasOracleConfigsToSet),
-        ),
-      );
-    }
-
-    const configs: InterchainGasPaymaster.DomainConfigStruct[] = [];
-    const overheadRemotes = Object.keys(config.overhead);
-    for (const remote of overheadRemotes) {
-      const remoteDomain = this.multiProvider.getDomainId(remote);
-      const gasOverhead = config.overhead[remote];
-      const existingOverhead = await igp.destinationGasOverhead(remoteDomain);
-      if (!existingOverhead.eq(gasOverhead)) {
-        configs.push({ domain: remoteDomain, gasOverhead });
-      }
-    }
-
-    if (configs.length > 0) {
-      await this.runIfOwner(chain, igp, () =>
-        this.multiProvider.handleTx(
-          chain,
-          igp.setDestinationGasOverheads(
-            configs,
-            this.multiProvider.getTransactionOverrides(chain),
-          ),
+          igp.setDestinationGasConfigs(gasParamsToSet),
         ),
       );
     }
