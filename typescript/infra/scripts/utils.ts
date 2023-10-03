@@ -316,6 +316,8 @@ export async function getRouterConfig(
     core.chains().concat(igp.chains()),
   ).intersection;
 
+  console.log('multiProvider', Object.keys(multiProvider.signers));
+
   for (const chain of knownChains) {
     // MultiProvider signers are only used for Ethereum chains.
     const owner =
