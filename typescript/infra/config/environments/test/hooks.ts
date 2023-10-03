@@ -9,7 +9,7 @@ export const merkleTree: ChainMap<MerkleTreeHookConfig> = objMap(
   owners,
   (_, __) => {
     const config: MerkleTreeHookConfig = {
-      type: HookType.MERKLE_TREE_HOOK,
+      type: HookType.MERKLE_TREE,
     };
     return config;
   },

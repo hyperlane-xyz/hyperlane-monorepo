@@ -378,11 +378,7 @@ export function buildAgentConfigDeprecated(
     const chainConfig: AgentChainSetupBase = {
       name: chain,
       domain: metadata.chainId,
-      addresses: {
-        mailbox: addresses[chain].mailbox,
-        interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
-        validatorAnnounce: addresses[chain].validatorAnnounce,
-      },
+      addresses: addresses[chain],
       protocol: metadata.protocol,
       finalityBlocks: metadata.blocks?.reorgPeriod ?? 1,
     };
