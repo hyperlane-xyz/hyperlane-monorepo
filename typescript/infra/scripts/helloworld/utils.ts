@@ -13,7 +13,7 @@ import {
   attachContractsMap,
   attachContractsMapAndGetForeignDeployments,
   chainMetadata,
-  filterAddressesToProtocol,
+  filterChainMapToProtocol,
   hyperlaneEnvironments,
   igpFactories,
 } from '@hyperlane-xyz/sdk';
@@ -102,7 +102,7 @@ export async function getHelloWorldMultiProtocolApp(
   // Using an standard IGP for just evm chains for now
   // Unfortunately this requires hacking surgically around certain addresses
   const envAddresses = hyperlaneEnvironments[sdkEnvName];
-  const filteredAddresses = filterAddressesToProtocol(
+  const filteredAddresses = filterChainMapToProtocol(
     envAddresses,
     ProtocolType.Ethereum,
     multiProtocolProvider,

@@ -224,36 +224,12 @@ fn configure_multisig_ism_message_id(
         );
         let chain_config = chain_configs.get(&chain_name).unwrap();
 
-        let (domain_data_key, _domain_data_bump) = Pubkey::find_program_address(
-            domain_data_pda_seeds!(chain_config.domain_id()),
-            &program_id,
+        let matches = multisig_ism_config_matches_chain(
+            ctx,
+            program_id,
+            chain_config.domain_id(),
+            &multisig_ism_config,
         );
-
-        let domain_data_account = ctx
-            .client
-            .get_account_with_commitment(&domain_data_key, ctx.commitment)
-            .expect("Failed to get domain data account")
-            .value;
-
-        let matches = if let Some(domain_data_account) = domain_data_account {
-            let domain_data = DomainDataAccount::fetch(&mut &domain_data_account.data[..])
-                .unwrap()
-                .into_inner();
-            let expected_validator_set =
-                HashSet::<H160>::from_iter(multisig_ism_config.validators.iter().cloned());
-            let actual_validator_set = HashSet::<H160>::from_iter(
-                domain_data
-                    .validators_and_threshold
-                    .validators
-                    .iter()
-                    .cloned(),
-            );
-
-            expected_validator_set == actual_validator_set
-                && multisig_ism_config.threshold == domain_data.validators_and_threshold.threshold
-        } else {
-            false
-        };
 
         if matches {
             println!(
@@ -272,6 +248,42 @@ fn configure_multisig_ism_message_id(
                 multisig_ism_config.into(),
             );
         }
+    }
+}
+
+fn multisig_ism_config_matches_chain(
+    ctx: &mut Context,
+    program_id: Pubkey,
+    remote_domain: u32,
+    expected: &MultisigIsmConfig,
+) -> bool {
+    let (domain_data_key, _domain_data_bump) =
+        Pubkey::find_program_address(domain_data_pda_seeds!(remote_domain), &program_id);
+
+    let domain_data_account = ctx
+        .client
+        .get_account_with_commitment(&domain_data_key, ctx.commitment)
+        .expect("Failed to get domain data account")
+        .value;
+
+    if let Some(domain_data_account) = domain_data_account {
+        let domain_data = DomainDataAccount::fetch(&mut &domain_data_account.data[..])
+            .unwrap()
+            .into_inner();
+        let expected_validator_set =
+            HashSet::<H160>::from_iter(expected.validators.iter().cloned());
+        let actual_validator_set = HashSet::<H160>::from_iter(
+            domain_data
+                .validators_and_threshold
+                .validators
+                .iter()
+                .cloned(),
+        );
+
+        expected_validator_set == actual_validator_set
+            && expected.threshold == domain_data.validators_and_threshold.threshold
+    } else {
+        false
     }
 }
 

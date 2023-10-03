@@ -26,13 +26,13 @@ use crate::{
 pub struct OptionalConnectionClientConfig {
     #[serde(default)]
     #[serde(with = "crate::serde::serde_option_pubkey")]
-    pub mailbox: Option<Pubkey>,
+    mailbox: Option<Pubkey>,
     #[serde(default)]
     #[serde(with = "crate::serde::serde_option_pubkey")]
-    pub interchain_gas_paymaster: Option<Pubkey>,
+    interchain_gas_paymaster: Option<Pubkey>,
     #[serde(default)]
     #[serde(with = "crate::serde::serde_option_pubkey")]
-    pub interchain_security_module: Option<Pubkey>,
+    interchain_security_module: Option<Pubkey>,
 }
 
 impl OptionalConnectionClientConfig {
@@ -156,9 +156,16 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
 
         let program_id = existing_program_ids
             .and_then(|existing_program_ids| {
-                existing_program_ids.get(&chain_config.name).map(|id| {
-                    println!("Recovered existing program id {}", id);
-                    *id
+                existing_program_ids.get(&chain_config.name).and_then(|id| {
+                    chain_config
+                        .client()
+                        .get_account_with_commitment(id, ctx.commitment)
+                        .unwrap()
+                        .value
+                        .map(|_| {
+                            println!("Recovered existing program id {}", id);
+                            *id
+                        })
                 })
             })
             .unwrap_or_else(|| {
@@ -302,14 +309,18 @@ pub(crate) fn deploy_routers<
     // made directly to them, but the routers will be enrolled on the other chains.
     let foreign_deployments = app_configs
         .iter()
-        .map(|(chain_name, app_config)| (chain_name, app_config.router_config()))
-        .filter(|(_, router_config)| router_config.foreign_deployment.is_some())
-        .map(|(chain_name, router_config)| {
-            let chain_config = chain_configs.get(chain_name).unwrap();
-            (
-                chain_config.domain_id(),
-                hex_or_base58_to_h256(router_config.foreign_deployment.as_ref().unwrap()).unwrap(),
-            )
+        .filter_map(|(chain_name, app_config)| {
+            app_config
+                .router_config()
+                .foreign_deployment
+                .as_ref()
+                .map(|foreign_deployment| {
+                    let chain_config = chain_configs.get(chain_name).unwrap();
+                    (
+                        chain_config.domain_id(),
+                        hex_or_base58_to_h256(foreign_deployment).unwrap(),
+                    )
+                })
         })
         .collect::<HashMap<u32, H256>>();
 

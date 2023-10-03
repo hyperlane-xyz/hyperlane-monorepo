@@ -237,9 +237,10 @@ export abstract class HyperlaneAppChecker<
     assert(count === 0, `Found ${count} violations`);
   }
 
-  logViolationsTable() {
+  logViolationsTable(): void {
     const violations = this.violations;
     if (violations.length > 0) {
+      // eslint-disable-next-line no-console
       console.table(violations, [
         'chain',
         'remote',
@@ -251,6 +252,7 @@ export abstract class HyperlaneAppChecker<
         'description',
       ]);
     } else {
+      // eslint-disable-next-line no-console
       console.info(`${module} Checker found no violations`);
     }
   }

@@ -9,7 +9,9 @@ import {
   InterchainAccountChecker,
   InterchainQuery,
   InterchainQueryChecker,
+  filterChainMapToProtocol,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
@@ -70,8 +72,9 @@ async function check() {
     const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
     governor = new HyperlaneIgpGovernor(checker, config.owners);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    const routerConfig = await getProxiedRouterConfig(
-      environment,
+    const routerConfig = filterChainMapToProtocol(
+      await getProxiedRouterConfig(environment, multiProvider),
+      ProtocolType.Ethereum,
       multiProvider,
     );
     const ica = InterchainAccount.fromEnvironment(env, multiProvider);

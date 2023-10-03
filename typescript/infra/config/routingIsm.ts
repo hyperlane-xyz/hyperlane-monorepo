@@ -49,6 +49,7 @@ export const mainnetHyperlaneDefaultIsmCache: ChainMap<Address> = {
   celo: '0xAC0246a09f1FEaF4CEe32e43792eE12d6B277332',
   moonbeam: '0xB32d147334AF9C15A65716Ab254a2460307648D1',
   gnosis: '0xF6c174AcC399eD8407663387857f30f92B0db958',
+  solana: '6pHP4EeX2Xek24Be7PPTWCqcpmNEPENW1m9RnZSFSmA1',
 };
 
 // Intended to be the "entrypoint" ISM.
