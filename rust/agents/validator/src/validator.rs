@@ -11,8 +11,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Announcement, ChainResult, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, MerkleTreeHook,
-    TxOutcome, ValidatorAnnounce, H256, U256,
+    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
+    MerkleTreeHook, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
 use tokio::{task::JoinHandle, time::sleep};
@@ -31,6 +31,7 @@ pub struct Validator {
     core: HyperlaneAgentCore,
     db: HyperlaneRocksDB,
     message_sync: Arc<MessageContractSync>,
+    mailbox: Arc<dyn Mailbox>,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
     signer: SingletonSignerHandle,
@@ -60,6 +61,10 @@ impl BaseAgent for Validator {
         let core = settings.build_hyperlane_core(metrics.clone());
         let checkpoint_syncer = settings.checkpoint_syncer.build(None)?.into();
 
+        let mailbox = settings
+            .build_mailbox(&settings.origin_chain, &metrics)
+            .await?;
+
         let merkle_tree_hook = settings
             .build_merkle_tree_hook(&settings.origin_chain, &metrics)
             .await?;
@@ -84,6 +89,7 @@ impl BaseAgent for Validator {
             origin_chain: settings.origin_chain,
             core,
             db: msg_db,
+            mailbox: mailbox.into(),
             merkle_tree_hook: merkle_tree_hook.into(),
             message_sync,
             validator_announce: validator_announce.into(),
@@ -228,8 +234,8 @@ impl Validator {
         // Sign and post the validator announcement
         let announcement = Announcement {
             validator: self.signer.eth_address(),
-            mailbox_address: self.merkle_tree_hook.address(),
-            mailbox_domain: self.merkle_tree_hook.domain().id(),
+            mailbox_address: self.mailbox.address(),
+            mailbox_domain: self.mailbox.domain().id(),
             storage_location: self.checkpoint_syncer.announcement_location(),
         };
         let signed_announcement = self.signer.sign(announcement.clone()).await?;
