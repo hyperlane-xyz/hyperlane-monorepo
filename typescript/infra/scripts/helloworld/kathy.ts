@@ -5,13 +5,13 @@ import { format } from 'util';
 
 import { HelloMultiProtocolApp } from '@hyperlane-xyz/helloworld';
 import {
+  AgentConnectionType,
   ChainMap,
   ChainName,
   HyperlaneIgp,
   MultiProtocolCore,
   MultiProvider,
   ProviderType,
-  RpcConsensusType,
   TypedTransactionReceipt,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
@@ -125,11 +125,11 @@ function getKathyArgs() {
 
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', RpcConsensusType.Single)
+    .default('connection-type', AgentConnectionType.Http)
     .choices('connection-type', [
-      RpcConsensusType.Single,
-      RpcConsensusType.Quorum,
-      RpcConsensusType.Fallback,
+      AgentConnectionType.Http,
+      AgentConnectionType.HttpQuorum,
+      AgentConnectionType.HttpFallback,
     ])
     .demandOption('connection-type')
 

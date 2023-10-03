@@ -4,10 +4,16 @@
  */
 import { z } from 'zod';
 
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import { ChainMetadata, ChainMetadataSchema } from './chainMetadataTypes';
+import {
+  ChainMetadata,
+  ChainMetadataSchema,
+  RpcUrlSchema,
+} from './chainMetadataTypes';
 import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes';
 import {
   HyperlaneDeploymentArtifacts,
@@ -15,8 +21,14 @@ import {
 } from './deploymentArtifacts';
 import { MatchingListSchema } from './matchingList';
 
-export enum RpcConsensusType {
-  Single = 'single',
+export enum AgentConnectionType {
+  Http = 'http',
+  Ws = 'ws',
+  HttpQuorum = 'httpQuorum',
+  HttpFallback = 'httpFallback',
+}
+
+export enum AgentConsensusType {
   Fallback = 'fallback',
   Quorum = 'quorum',
 }
@@ -42,55 +54,52 @@ export enum AgentIndexMode {
   Sequence = 'sequence',
 }
 
-export enum AgentSignerKeyType {
-  Aws = 'aws',
-  Hex = 'hexKey',
-  Node = 'node',
-}
-
-const AgentSignerHexKeySchema = z
-  .object({
-    type: z.literal(AgentSignerKeyType.Hex).optional(),
-    key: ZHash,
-  })
-  .describe('A local hex key');
-const AgentSignerAwsKeySchema = z
-  .object({
-    type: z.literal(AgentSignerKeyType.Aws).optional(),
-    id: z.string().describe('The UUID identifying the AWS KMS key'),
-    region: z.string().describe('The AWS region'),
-  })
-  .describe(
-    'An AWS signer. Note that AWS credentials must be inserted into the env separately.',
-  );
-const AgentSignerNodeSchema = z
-  .object({
-    type: z.literal(AgentSignerKeyType.Node),
-  })
-  .describe('Assume the local node will sign on RPC calls automatically');
-
-const AgentSignerSchema = z.union([
-  AgentSignerHexKeySchema,
-  AgentSignerAwsKeySchema,
-  AgentSignerNodeSchema,
+export const AgentSignerSchema = z.union([
+  z
+    .object({
+      type: z.literal('hexKey').optional(),
+      key: ZHash,
+    })
+    .describe('A local hex key'),
+  z
+    .object({
+      type: z.literal('aws').optional(),
+      id: z.string().describe('The UUID identifying the AWS KMS key'),
+      region: z.string().describe('The AWS region'),
+    })
+    .describe(
+      'An AWS signer. Note that AWS credentials must be inserted into the env separately.',
+    ),
+  z
+    .object({
+      type: z.literal('node'),
+    })
+    .describe('Assume the local node will sign on RPC calls automatically'),
 ]);
 
-export type AgentSignerHexKey = z.infer<typeof AgentSignerHexKeySchema>;
-export type AgentSignerAwsKey = z.infer<typeof AgentSignerAwsKeySchema>;
-export type AgentSignerNode = z.infer<typeof AgentSignerNodeSchema>;
-export type AgentSigner = z.infer<typeof AgentSignerSchema>;
+export type AgentSignerV2 = z.infer<typeof AgentSignerSchema>;
 
 export const AgentChainMetadataSchema = ChainMetadataSchema.merge(
   HyperlaneDeploymentArtifactsSchema,
 ).extend({
   customRpcUrls: z
-    .string()
+    .record(
+      RpcUrlSchema.extend({
+        priority: ZNzUint.optional().describe(
+          'The priority of this RPC relative to the others defined. A larger value means it will be preferred. Only effects some AgentConsensusTypes.',
+        ),
+      }),
+    )
+    .refine((data) => Object.keys(data).length > 0, {
+      message:
+        'Must specify at least one RPC url if not using the default rpcUrls.',
+    })
     .optional()
     .describe(
-      'Specify a comma seperated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
+      'Specify a custom RPC endpoint configuration for this chain. If this is set, then none of the `rpcUrls` will be used for this chain. The key value can be any valid string.',
     ),
   rpcConsensusType: z
-    .nativeEnum(RpcConsensusType)
+    .nativeEnum(AgentConsensusType)
     .describe('The consensus type to use when multiple RPCs are configured.')
     .optional(),
   signer: AgentSignerSchema.optional().describe(
@@ -104,6 +113,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchema.merge(
       chunk: ZNzUint.optional().describe(
         'The number of blocks to index at a time.',
       ),
+      // TODO(2214): I think we can always interpret this from the ProtocolType
       mode: z
         .nativeEnum(AgentIndexMode)
         .optional()
@@ -139,7 +149,7 @@ export const AgentConfigSchema = z.object({
     'Default signer to use for any chains that have not defined their own.',
   ),
   defaultRpcConsensusType: z
-    .nativeEnum(RpcConsensusType)
+    .nativeEnum(AgentConsensusType)
     .describe(
       'The default consensus type to use for any chains that have not defined their own.',
     )
@@ -161,33 +171,30 @@ export const AgentConfigSchema = z.object({
 const CommaSeperatedChainList = z.string().regex(/^[a-z0-9]+(,[a-z0-9]+)*$/);
 const CommaSeperatedDomainList = z.string().regex(/^\d+(,\d+)*$/);
 
-export enum GasPaymentEnforcementPolicyType {
-  None = 'none',
-  Minimum = 'minimum',
-  OnChainFeeQuoting = 'onChainFeeQuoting',
-}
-
 const GasPaymentEnforcementBaseSchema = z.object({
   matchingList: MatchingListSchema.optional().describe(
     'An optional matching list, any message that matches will use this policy. By default all messages will match.',
   ),
 });
-const GasPaymentEnforcementSchema = z.union([
-  GasPaymentEnforcementBaseSchema.extend({
-    type: z.literal(GasPaymentEnforcementPolicyType.None).optional(),
-  }),
-  GasPaymentEnforcementBaseSchema.extend({
-    type: z.literal(GasPaymentEnforcementPolicyType.Minimum).optional(),
-    payment: ZUWei,
-  }),
-  GasPaymentEnforcementBaseSchema.extend({
-    type: z.literal(GasPaymentEnforcementPolicyType.OnChainFeeQuoting),
-    gasFraction: z
-      .string()
-      .regex(/^\d+ ?\/ ?[1-9]\d*$/)
-      .optional(),
-  }),
-]);
+const GasPaymentEnforcementSchema = z.array(
+  z.union([
+    GasPaymentEnforcementBaseSchema.extend({
+      type: z.literal('none').optional(),
+    }),
+    GasPaymentEnforcementBaseSchema.extend({
+      type: z.literal('minimum').optional(),
+      payment: ZUWei,
+    }),
+    GasPaymentEnforcementBaseSchema.extend({
+      type: z.literal('onChainFeeQuoting'),
+      gasFraction: z
+        .string()
+        .regex(/^\d+ ?\/ ?[1-9]\d*$/)
+        .optional(),
+    }),
+  ]),
+);
+
 export type GasPaymentEnforcement = z.infer<typeof GasPaymentEnforcementSchema>;
 
 export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
@@ -200,7 +207,7 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     'Comma seperated list of chains to relay messages between.',
   ),
   gasPaymentEnforcement: z
-    .union([z.array(GasPaymentEnforcementSchema), z.string().nonempty()])
+    .union([GasPaymentEnforcementSchema, z.string().nonempty()])
     .optional()
     .describe(
       'The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.',
@@ -285,32 +292,126 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
 
 export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;
 
-export type AgentConfig = z.infer<typeof AgentConfigSchema>;
+export type AgentConfigV2 = z.infer<typeof AgentConfigSchema>;
+
+/**
+ * Deprecated agent config shapes.
+ * See https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2215
+ */
+
+export interface AgentSigner {
+  key: string;
+  type: string;
+}
+
+export type AgentConnection =
+  | { type: AgentConnectionType.Http; url: string }
+  | { type: AgentConnectionType.Ws; url: string }
+  | { type: AgentConnectionType.HttpQuorum; urls: string }
+  | { type: AgentConnectionType.HttpFallback; urls: string };
+
+export interface AgentChainSetupBase {
+  name: ChainName;
+  domain: number;
+  signer?: AgentSigner;
+  finalityBlocks: number;
+  addresses: HyperlaneDeploymentArtifacts;
+  protocol: ProtocolType;
+  connection?: AgentConnection;
+  index?: { from: number };
+}
+
+export interface AgentChainSetup extends AgentChainSetupBase {
+  signer: AgentSigner;
+  connection: AgentConnection;
+}
+
+export interface AgentConfig {
+  chains: Partial<ChainMap<AgentChainSetupBase>>;
+  tracing?: {
+    level?: string;
+    fmt?: 'json';
+  };
+}
+
+/**
+ * Utilities for generating agent configs from metadata / artifacts.
+ */
+
+// Returns the new agent config shape that extends ChainMetadata
+export function buildAgentConfigNew(
+  chains: ChainName[],
+  multiProvider: MultiProvider,
+  addresses: ChainMap<HyperlaneDeploymentArtifacts>,
+  startBlocks: ChainMap<number>,
+): ChainMap<AgentChainMetadata> {
+  const configs: ChainMap<AgentChainMetadata> = {};
+  for (const chain of [...chains].sort()) {
+    const metadata: ChainMetadata = multiProvider.getChainMetadata(chain);
+    const config: AgentChainMetadata = {
+      ...metadata,
+      mailbox: addresses[chain].mailbox,
+      interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
+      validatorAnnounce: addresses[chain].validatorAnnounce,
+      index: {
+        from: startBlocks[chain],
+      },
+    };
+    configs[chain] = config;
+  }
+  return configs;
+}
+
+// Returns the current (but deprecated) agent config shape.
+export function buildAgentConfigDeprecated(
+  chains: ChainName[],
+  multiProvider: MultiProvider,
+  addresses: ChainMap<HyperlaneDeploymentArtifacts>,
+  startBlocks: ChainMap<number>,
+): AgentConfig {
+  const agentConfig: AgentConfig = {
+    chains: {},
+  };
+
+  for (const chain of [...chains].sort()) {
+    const metadata = multiProvider.getChainMetadata(chain);
+    const chainConfig: AgentChainSetupBase = {
+      name: chain,
+      domain: metadata.chainId,
+      addresses: {
+        mailbox: addresses[chain].mailbox,
+        interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
+        validatorAnnounce: addresses[chain].validatorAnnounce,
+      },
+      protocol: metadata.protocol,
+      finalityBlocks: metadata.blocks?.reorgPeriod ?? 1,
+    };
+
+    chainConfig.index = {
+      from: startBlocks[chain],
+    };
+
+    agentConfig.chains[chain] = chainConfig;
+  }
+  return agentConfig;
+}
+
+// TODO(2215): this eventually needs to to be replaced with just `AgentConfig2` (and that ident needs renaming)
+export type CombinedAgentConfig = AgentConfigV2['chains'] | AgentConfig;
 
 export function buildAgentConfig(
   chains: ChainName[],
   multiProvider: MultiProvider,
   addresses: ChainMap<HyperlaneDeploymentArtifacts>,
   startBlocks: ChainMap<number>,
-): AgentConfig {
-  const chainConfigs: ChainMap<AgentChainMetadata> = {};
-  for (const chain of [...chains].sort()) {
-    const metadata: ChainMetadata = multiProvider.getChainMetadata(chain);
-    const chainConfig: AgentChainMetadata = {
-      ...metadata,
-      mailbox: addresses[chain].mailbox,
-      interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
-      validatorAnnounce: addresses[chain].validatorAnnounce,
-      merkleTreeHook: addresses[chain].merkleTreeHook,
-      index: {
-        from: startBlocks[chain],
-      },
-    };
-    chainConfigs[chain] = chainConfig;
-  }
-
+): CombinedAgentConfig {
   return {
-    chains: chainConfigs,
-    defaultRpcConsensusType: RpcConsensusType.Fallback,
+    ...buildAgentConfigNew(chains, multiProvider, addresses, startBlocks),
+    ...buildAgentConfigDeprecated(
+      chains,
+      multiProvider,
+      addresses,
+      startBlocks,
+    ),
   };
 }

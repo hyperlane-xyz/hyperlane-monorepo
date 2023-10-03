@@ -1,8 +1,3 @@
-import {
-  AgentConfig,
-  ScraperConfig as ScraperAgentConfig,
-} from '@hyperlane-xyz/sdk';
-
 import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 
@@ -13,8 +8,7 @@ export interface BaseScraperConfig {
   __placeholder?: undefined;
 }
 
-// Ignore db which is added by helm
-export type ScraperConfig = Omit<ScraperAgentConfig, keyof AgentConfig | 'db'>;
+export type ScraperConfig = BaseScraperConfig;
 
 export interface HelmScraperValues extends HelmStatefulSetValues {
   config?: ScraperConfig;
@@ -28,9 +22,7 @@ export class ScraperConfigHelper extends AgentConfigHelper<ScraperConfig> {
   }
 
   async buildConfig(): Promise<ScraperConfig> {
-    return {
-      chainsToScrape: this.contextChainNames[Role.Scraper].join(','),
-    };
+    return {};
   }
 
   get role(): Role {

@@ -11,8 +11,8 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
-// import { Modules, getAddresses } from './scripts/utils';
-import { Modules, getAddresses, sleep } from './src/utils/utils';
+import { Modules, getAddresses } from './scripts/utils';
+import { sleep } from './src/utils/utils';
 
 const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
   const coreContracts = core.getContracts(chain);
@@ -82,16 +82,17 @@ task('kathy', 'Dispatches random hyperlane messages')
         const remoteId = multiProvider.getDomainId(remote);
         const mailbox = core.getContracts(local).mailbox;
         const igp = igps.getContracts(local).interchainGasPaymaster;
-        let tx = await recipient.dispatchToSelf(
+        await recipient.dispatchToSelf(
           mailbox.address,
           igp.address,
           remoteId,
           '0x1234',
           {
+            value: interchainGasPayment,
             // Some behavior is dependent upon the previous block hash
             // so gas estimation may sometimes be incorrect. Just avoid
             // estimation to avoid this.
-            gasLimit: 250_000,
+            gasLimit: 150_000,
             gasPrice: 2_000_000_000,
           },
         );
@@ -100,12 +101,6 @@ task('kathy', 'Dispatches random hyperlane messages')
             mailbox.address
           } on ${local} with nonce ${(await mailbox.nonce()) - 1}`,
         );
-        try {
-          await tx.wait();
-        } catch (e) {
-          console.log(`Transaction failed: ${tx.hash}`);
-          console.log(e);
-        }
         console.log(await chainSummary(core, local));
         console.log(await chainSummary(core, remote));
 

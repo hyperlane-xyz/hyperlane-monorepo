@@ -1,4 +1,4 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { AgentConnectionType } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../../../src/config';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
@@ -24,7 +24,7 @@ export const hyperlaneHelloworld: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: RpcConsensusType.Fallback,
+    connectionType: AgentConnectionType.HttpFallback,
   },
 };
 
@@ -43,7 +43,7 @@ export const releaseCandidateHelloworld: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: RpcConsensusType.Single,
+    connectionType: AgentConnectionType.Http,
   },
 };
 

@@ -25,7 +25,7 @@ const MatchingListElementSchema = z.object({
   recipientAddress: AddressSchema.optional(),
 });
 
-export const MatchingListSchema = z.array(MatchingListElementSchema);
+export const MatchingListSchema = z.array(MatchingListElementSchema).nonempty();
 
 export type MatchingListElement = z.infer<typeof MatchingListElementSchema>;
 export type MatchingList = z.infer<typeof MatchingListSchema>;

@@ -1,12 +1,12 @@
 import {
-  GasPaymentEnforcementPolicyType,
-  RpcConsensusType,
+  AgentConnectionType,
   chainMetadata,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import {
+  GasPaymentEnforcementPolicyType,
   RootAgentConfig,
   allAgentChainNames,
   routerMatchingList,
@@ -80,7 +80,7 @@ const hyperlane: RootAgentConfig = {
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
-    rpcConsensusType: RpcConsensusType.Fallback,
+    connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
       tag: '3b0685f-20230815-110725',
@@ -117,11 +117,11 @@ const hyperlane: RootAgentConfig = {
         tag: '3b0685f-20230815-110725',
       },
     },
-    rpcConsensusType: RpcConsensusType.Quorum,
+    connectionType: AgentConnectionType.HttpQuorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
   scraper: {
-    rpcConsensusType: RpcConsensusType.Fallback,
+    connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
       tag: 'aaddba7-20230620-154941',
@@ -134,7 +134,7 @@ const releaseCandidate: RootAgentConfig = {
   context: Contexts.ReleaseCandidate,
   rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
-    rpcConsensusType: RpcConsensusType.Fallback,
+    connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
       tag: '3b0685f-20230815-110725',
@@ -144,14 +144,14 @@ const releaseCandidate: RootAgentConfig = {
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1
     // fees which leads to wildly off predictions.
-    skipTransactionGasLimitFor: [chainMetadata.arbitrum.name],
+    skipTransactionGasLimitFor: [chainMetadata.arbitrum.chainId],
   },
   validators: {
     docker: {
       repo,
       tag: 'ed7569d-20230725-171222',
     },
-    rpcConsensusType: RpcConsensusType.Quorum,
+    connectionType: AgentConnectionType.HttpQuorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
 };

@@ -1,10 +1,10 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { AgentConnectionType } from '@hyperlane-xyz/sdk';
 
 import { DockerConfig } from './agent';
 
 export interface LiquidityLayerRelayerConfig {
   docker: DockerConfig;
   namespace: string;
-  connectionType: RpcConsensusType.Single | RpcConsensusType.Quorum;
+  connectionType: AgentConnectionType.Http | AgentConnectionType.HttpQuorum;
   prometheusPushGateway: string;
 }

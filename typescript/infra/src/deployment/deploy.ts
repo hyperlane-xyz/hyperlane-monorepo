@@ -5,10 +5,10 @@ import {
   HyperlaneDeployer,
   HyperlaneDeploymentArtifacts,
   MultiProvider,
-  buildAgentConfig,
+  buildAgentConfigDeprecated,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
-import { objMap, objMerge, promiseObjAll } from '@hyperlane-xyz/utils';
+import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { getAgentConfigDirectory } from '../../scripts/utils';
 import { DeployEnvironment } from '../config';
@@ -32,7 +32,7 @@ export async function deployWithArtifacts<Config>(
   fork?: ChainName,
   agentConfig?: {
     multiProvider: MultiProvider;
-    agentConfigModuleAddressPaths: string[];
+    addresses: string;
     environment: DeployEnvironment;
   },
 ) {
@@ -81,7 +81,7 @@ export async function postDeploy<Config>(
   },
   agentConfig?: {
     multiProvider: MultiProvider;
-    agentConfigModuleAddressPaths: string[];
+    addresses: string;
     environment: DeployEnvironment;
   },
 ) {
@@ -106,7 +106,7 @@ export async function postDeploy<Config>(
   }
   if (agentConfig) {
     await writeAgentConfig(
-      agentConfig.agentConfigModuleAddressPaths,
+      agentConfig.addresses,
       agentConfig.multiProvider,
       agentConfig.environment,
     );
@@ -114,20 +114,15 @@ export async function postDeploy<Config>(
 }
 
 export async function writeAgentConfig(
-  agentConfigModuleAddressPaths: string[],
+  addressesPath: string,
   multiProvider: MultiProvider,
   environment: DeployEnvironment,
 ) {
   let addresses: ChainMap<HyperlaneAddresses<any>> = {};
   try {
-    addresses = agentConfigModuleAddressPaths
-      .map(readJSONAtPath)
-      .reduce((acc, val) => objMerge(acc, val), {});
+    addresses = readJSONAtPath(addressesPath);
   } catch (e) {
-    console.error(
-      'Failed to load all required cached addresses, not writing agent config',
-    );
-    return;
+    console.error('Failed to load cached addresses');
   }
   // Write agent config indexing from the deployed or latest block numbers.
   // For non-net-new deployments, these changes will need to be
@@ -137,7 +132,7 @@ export async function writeAgentConfig(
       multiProvider.getProvider(chain).getBlockNumber(),
     ),
   );
-  const agentConfig = buildAgentConfig(
+  const agentConfig = buildAgentConfigDeprecated(
     multiProvider.getKnownChainNames(),
     multiProvider,
     addresses as ChainMap<HyperlaneDeploymentArtifacts>,

@@ -1,4 +1,4 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { AgentConnectionType } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { Role } from '../roles';
@@ -20,5 +20,5 @@ export interface KeyFunderConfig {
   contextsAndRolesToFund: ContextAndRolesMap;
   cyclesBetweenEthereumMessages?: number;
   prometheusPushGateway: string;
-  connectionType: RpcConsensusType.Single | RpcConsensusType.Quorum;
+  connectionType: AgentConnectionType.Http | AgentConnectionType.HttpQuorum;
 }

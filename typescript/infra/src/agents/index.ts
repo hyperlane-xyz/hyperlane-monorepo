@@ -1,6 +1,10 @@
 import fs from 'fs';
 
-import { ChainName, RpcConsensusType, chainMetadata } from '@hyperlane-xyz/sdk';
+import {
+  AgentConnectionType,
+  ChainName,
+  chainMetadata,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
@@ -116,18 +120,18 @@ export abstract class AgentHelmManager {
         chains: this.config.environmentChainNames.map((name) => ({
           name,
           disabled: !this.config.contextChainNames[this.role].includes(name),
-          rpcConsensusType: this.rpcConsensusType(name),
+          connection: { type: this.connectionType(name) },
         })),
       },
     };
   }
 
-  rpcConsensusType(chain: ChainName): RpcConsensusType {
+  connectionType(chain: ChainName): AgentConnectionType {
     if (chainMetadata[chain].protocol == ProtocolType.Sealevel) {
-      return RpcConsensusType.Single;
+      return AgentConnectionType.Http;
     }
 
-    return this.config.rpcConsensusType;
+    return this.config.connectionType;
   }
 
   async doesAgentReleaseExist() {
@@ -248,20 +252,9 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const helmValues = await super.helmValues();
-    const cfg = await this.config.buildConfig();
-
-    helmValues.hyperlane.chains.push({
-      name: cfg.originChainName,
-      blocks: { reorgPeriod: cfg.reorgPeriod },
-    });
-
     helmValues.hyperlane.validator = {
       enabled: true,
-      configs: cfg.validators.map((c) => ({
-        ...c,
-        originChainName: cfg.originChainName,
-        interval: cfg.interval,
-      })),
+      configs: await this.config.buildConfig(),
     };
 
     // The name of the helm release for agents is `hyperlane-agent`.

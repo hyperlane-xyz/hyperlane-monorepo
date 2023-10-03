@@ -1,6 +1,5 @@
 import {
-  GasPaymentEnforcementPolicyType,
-  RpcConsensusType,
+  AgentConnectionType,
   chainMetadata,
   getDomainId,
   hyperlaneEnvironments,
@@ -8,6 +7,7 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import {
+  GasPaymentEnforcementPolicyType,
   RootAgentConfig,
   allAgentChainNames,
   routerMatchingList,
@@ -71,7 +71,7 @@ const hyperlane: RootAgentConfig = {
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
-    rpcConsensusType: RpcConsensusType.Fallback,
+    connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
       tag: 'ed7569d-20230725-171222',
@@ -88,7 +88,7 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement,
   },
   validators: {
-    rpcConsensusType: RpcConsensusType.Fallback,
+    connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
       tag: 'ed7569d-20230725-171222',
@@ -104,7 +104,7 @@ const hyperlane: RootAgentConfig = {
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
   scraper: {
-    rpcConsensusType: RpcConsensusType.Fallback,
+    connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
       tag: 'aaddba7-20230620-154941',
@@ -117,7 +117,7 @@ const releaseCandidate: RootAgentConfig = {
   context: Contexts.ReleaseCandidate,
   rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
-    rpcConsensusType: RpcConsensusType.Fallback,
+    connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
       tag: 'c7c44b2-20230811-133851',
@@ -175,10 +175,10 @@ const releaseCandidate: RootAgentConfig = {
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1
     // fees which leads to wildly off predictions.
-    skipTransactionGasLimitFor: [chainMetadata.arbitrumgoerli.name],
+    skipTransactionGasLimitFor: [chainMetadata.arbitrumgoerli.chainId],
   },
   validators: {
-    rpcConsensusType: RpcConsensusType.Fallback,
+    connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
       tag: 'ed7569d-20230725-171222',

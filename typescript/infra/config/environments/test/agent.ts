@@ -1,9 +1,9 @@
+import { AgentConnectionType } from '@hyperlane-xyz/sdk';
+
 import {
   GasPaymentEnforcementPolicyType,
-  RpcConsensusType,
-} from '@hyperlane-xyz/sdk';
-
-import { RootAgentConfig } from '../../../src/config';
+  RootAgentConfig,
+} from '../../../src/config';
 import { ALL_KEY_ROLES } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
@@ -15,7 +15,7 @@ const roleBase = {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
     tag: '8852db3d88e87549269487da6da4ea5d67fdbfed',
   },
-  rpcConsensusType: RpcConsensusType.Single,
+  connectionType: AgentConnectionType.Http,
 } as const;
 
 const hyperlane: RootAgentConfig = {

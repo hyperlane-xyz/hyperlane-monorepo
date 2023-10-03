@@ -9,8 +9,6 @@ import { AllChains, ChainName, CoreChainName } from '@hyperlane-xyz/sdk';
 import { objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { DeployEnvironment } from '../config';
-import { deployEnvToSdkEnv } from '../config/environment';
 import { Role } from '../roles';
 
 export function sleep(ms: number) {
@@ -261,80 +259,4 @@ export function diagonalize<T>(array: Array<Array<T>>): Array<T> {
     }
   }
   return diagonalized;
-}
-
-/**
- * This is all copy-pasted from scripts/utils.ts to avoid a circular dependency
- * that arose from importing the above file into hardhat.config.ts. It caused
- * `yarn kathy` not to work. We should have a better solution before merging
- */
-
-export enum Modules {
-  ISM_FACTORY = 'ism',
-  CORE = 'core',
-  HOOK = 'hook',
-  INTERCHAIN_GAS_PAYMASTER = 'igp',
-  INTERCHAIN_ACCOUNTS = 'ica',
-  INTERCHAIN_QUERY_SYSTEM = 'iqs',
-  LIQUIDITY_LAYER = 'll',
-  TEST_QUERY_SENDER = 'testquerysender',
-  TEST_RECIPIENT = 'testrecipient',
-  HELLO_WORLD = 'helloworld',
-}
-
-export const SDK_MODULES = [
-  Modules.ISM_FACTORY,
-  Modules.CORE,
-  Modules.INTERCHAIN_GAS_PAYMASTER,
-  Modules.INTERCHAIN_ACCOUNTS,
-  Modules.INTERCHAIN_QUERY_SYSTEM,
-];
-
-export function getInfraAddresses(
-  environment: DeployEnvironment,
-  module: Modules,
-) {
-  return readJSON(getModuleDirectory(environment, module), 'addresses.json');
-}
-
-export function getAddresses(environment: DeployEnvironment, module: Modules) {
-  if (SDK_MODULES.includes(module) && environment !== 'test') {
-    return readJSON(
-      getContractAddressesSdkFilepath(),
-      `${deployEnvToSdkEnv[environment]}.json`,
-    );
-  } else {
-    return getInfraAddresses(environment, module);
-  }
-}
-
-export function getContractAddressesSdkFilepath() {
-  return path.join('../sdk/src/consts/environments');
-}
-
-export function getEnvironmentDirectory(environment: DeployEnvironment) {
-  return path.join('./config/environments/', environment);
-}
-
-export function getModuleDirectory(
-  environment: DeployEnvironment,
-  module: Modules,
-  context?: Contexts,
-) {
-  // for backwards compatibility with existing paths
-  const suffixFn = () => {
-    switch (module) {
-      case Modules.INTERCHAIN_ACCOUNTS:
-        return 'middleware/accounts';
-      case Modules.INTERCHAIN_QUERY_SYSTEM:
-        return 'middleware/queries';
-      case Modules.LIQUIDITY_LAYER:
-        return 'middleware/liquidity-layer';
-      case Modules.HELLO_WORLD:
-        return `helloworld/${context}`;
-      default:
-        return module;
-    }
-  };
-  return path.join(getEnvironmentDirectory(environment), suffixFn());
 }

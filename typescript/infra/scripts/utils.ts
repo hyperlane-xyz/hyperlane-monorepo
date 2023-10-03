@@ -4,6 +4,7 @@ import path from 'path';
 import yargs from 'yargs';
 
 import {
+  AgentConnectionType,
   AllChains,
   ChainMap,
   ChainMetadata,
@@ -16,7 +17,6 @@ import {
   MultiProvider,
   ProxiedRouterConfig,
   RouterConfig,
-  RpcConsensusType,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -184,8 +184,7 @@ export async function getMultiProviderForRole(
   context: Contexts,
   role: Role,
   index?: number,
-  // TODO: rename to consensusType?
-  connectionType?: RpcConsensusType,
+  connectionType?: AgentConnectionType,
 ): Promise<MultiProvider> {
   if (process.env.CI === 'true') {
     return new MultiProvider(); // use default RPCs

@@ -4,13 +4,13 @@ import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import {
+  AgentConnectionType,
   AllChains,
   ChainMap,
   ChainName,
   Chains,
   HyperlaneIgp,
   MultiProvider,
-  RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 import { error, log, warn } from '@hyperlane-xyz/utils';
 
@@ -191,10 +191,10 @@ async function main() {
 
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', RpcConsensusType.Single)
+    .default('connection-type', AgentConnectionType.Http)
     .choices('connection-type', [
-      RpcConsensusType.Single,
-      RpcConsensusType.Quorum,
+      AgentConnectionType.Http,
+      AgentConnectionType.HttpQuorum,
     ])
     .demandOption('connection-type')
 
