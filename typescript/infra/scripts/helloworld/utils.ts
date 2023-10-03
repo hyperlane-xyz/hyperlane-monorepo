@@ -15,7 +15,6 @@ import {
   chainMetadata,
   filterChainMapToProtocol,
   hyperlaneEnvironments,
-  hyperlaneEnvironmentsWithSealevel,
   igpFactories,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
@@ -74,8 +73,6 @@ export async function getHelloWorldMultiProtocolApp(
   );
   const sdkEnvName = deployEnvToSdkEnv[coreConfig.environment];
   const envAddresses = hyperlaneEnvironments[sdkEnvName];
-  const envAddressesWithSealevel =
-    hyperlaneEnvironmentsWithSealevel[sdkEnvName];
   const keys = await coreConfig.getKeys(keyContext, keyRole);
 
   // Fetch all the keys, which is required to get the address for
@@ -118,7 +115,7 @@ export async function getHelloWorldMultiProtocolApp(
   }
 
   const core = MultiProtocolCore.fromAddressesMap(
-    envAddressesWithSealevel,
+    envAddresses,
     multiProtocolProvider,
   );
 
