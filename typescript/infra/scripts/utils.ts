@@ -316,14 +316,27 @@ export async function getRouterConfig(
     core.chains().concat(igp.chains()),
   ).intersection;
 
-  console.log('multiProvider', Object.keys(multiProvider.signers));
-
   for (const chain of knownChains) {
+    // CI will not have signers for all known chains. To avoid failing, we
+    // default to the owner configured in the environment if we cannot get a
+    // signer address.
+    const getSignerAddress = (chain: ChainName) => {
+      const signer = multiProvider.tryGetSigner(chain);
+      if (!signer) {
+        const owner = owners[chain];
+        console.warn(
+          `Unable to get signer for chain, ${chain}, defaulting to configured owner ${owner}`,
+        );
+        return owner;
+      }
+      return signer.getAddress();
+    };
+
     // MultiProvider signers are only used for Ethereum chains.
     const owner =
       useMultiProviderOwners &&
       multiProvider.getChainMetadata(chain).protocol === ProtocolType.Ethereum
-        ? await multiProvider.getSignerAddress(chain)
+        ? await getSignerAddress(chain)
         : owners[chain];
     config[chain] = {
       owner: owner,
