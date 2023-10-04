@@ -138,7 +138,7 @@ pub fn output_signed_checkpoints() {
         for i in 1..=3 {
             let signed_checkpoint = signer
                 .sign(Checkpoint {
-                    mailbox_address: mailbox,
+                    merkle_tree_hook_address: mailbox,
                     mailbox_domain: 1000,
                     root: H256::repeat_byte(i + 1),
                     index: i as u32,
@@ -147,7 +147,7 @@ pub fn output_signed_checkpoints() {
                 .expect("!sign_with");
 
             test_cases.push(json!({
-                "mailbox": signed_checkpoint.value.mailbox_address,
+                "mailbox": signed_checkpoint.value.merkle_tree_hook_address,
                 "domain": signed_checkpoint.value.mailbox_domain,
                 "root": signed_checkpoint.value.root,
                 "index": signed_checkpoint.value.index,

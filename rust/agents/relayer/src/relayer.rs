@@ -198,12 +198,14 @@ impl BaseAgent for Relayer {
                 };
 
             for origin in &settings.origin_chains {
+                let db = dbs.get(origin).unwrap().clone();
                 let metadata_builder = BaseMetadataBuilder::new(
                     destination_chain_setup.clone(),
                     prover_syncs[origin].clone(),
                     validator_announces[origin].clone(),
                     settings.allow_local_checkpoint_syncers,
                     core.metrics.clone(),
+                    db,
                     5,
                 );
 

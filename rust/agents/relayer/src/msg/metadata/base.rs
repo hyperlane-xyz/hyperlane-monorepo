@@ -5,6 +5,7 @@ use backoff::Error as BackoffError;
 use backoff::{future::retry, ExponentialBackoff};
 use derive_new::new;
 use eyre::{Context, Result};
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::{
     settings::{ChainConf, CheckpointSyncerConf},
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
@@ -51,6 +52,7 @@ pub struct BaseMetadataBuilder {
     origin_validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
+    db: HyperlaneRocksDB,
     /// ISMs can be structured recursively. We keep track of the depth
     /// of the recursion to avoid infinite loops.
     #[new(default)]
@@ -157,6 +159,13 @@ impl BaseMetadataBuilder {
 
     pub async fn highest_known_nonce(&self) -> Option<u32> {
         self.origin_prover_sync.read().await.count().checked_sub(1)
+    }
+
+    pub async fn get_merkle_leaf_by_message_id(&self, message_id: H256) -> Result<Option<u32>> {
+        let merkle_leaf = self
+            .db
+            .retrieve_merkle_leaf_index_by_message_id(&message_id)?;
+        Ok(merkle_leaf)
     }
 
     pub async fn build_ism(&self, address: H256) -> Result<Box<dyn InterchainSecurityModule>> {

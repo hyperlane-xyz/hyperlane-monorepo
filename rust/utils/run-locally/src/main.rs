@@ -68,9 +68,7 @@ const VALIDATOR_KEYS: &[&str] = &[
 ];
 
 const VALIDATOR_ORIGIN_CHAINS: &[&str] = &[
-    "test1",
-    "test2",
-    "test3",
+    "test1", "test2", "test3",
     // "sealeveltest1"
 ];
 
@@ -198,10 +196,7 @@ fn main() -> ExitCode {
         )
         // default is used for TEST3
         .arg("defaultSigner.key", RELAYER_KEYS[2])
-        .arg(
-            "relayChains",
-            "test1,test2,test3",
-        );
+        .arg("relayChains", "test1,test2,test3");
 
     let base_validator_env = common_agent_env
         .clone()

@@ -220,7 +220,7 @@ where
             .call()
             .await?;
         Ok(Checkpoint {
-            mailbox_address: self.address(),
+            merkle_tree_hook_address: self.address(),
             mailbox_domain: self.domain.id(),
             root: root.into(),
             index,

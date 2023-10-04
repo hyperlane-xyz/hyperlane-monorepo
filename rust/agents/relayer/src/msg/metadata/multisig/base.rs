@@ -19,17 +19,19 @@ use crate::msg::metadata::MetadataBuilder;
 pub struct MultisigMetadata {
     checkpoint: Checkpoint,
     signatures: Vec<SignatureWithSigner>,
+    merkle_leaf_id: Option<u32>,
     message_id: Option<H256>,
     proof: Option<Proof>,
 }
 
 #[derive(Debug, Display, PartialEq, Eq, Clone)]
 pub enum MetadataToken {
-    CheckpointRoot,
+    MerkleRoot,
     CheckpointIndex,
-    CheckpointMailbox,
+    CheckpointMerkleTree,
     MessageId,
     MerkleProof,
+    MerkleIndex,
     Threshold,
     Signatures,
     Validators,
@@ -54,11 +56,14 @@ pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
         metadata: MultisigMetadata,
     ) -> Vec<u8> {
         let build_token = |token: &MetadataToken| match token {
-            MetadataToken::CheckpointRoot => metadata.checkpoint.root.to_fixed_bytes().into(),
+            MetadataToken::MerkleRoot => metadata.checkpoint.root.to_fixed_bytes().into(),
+            MetadataToken::MerkleIndex => metadata.merkle_leaf_id.unwrap().to_be_bytes().into(),
             MetadataToken::CheckpointIndex => metadata.checkpoint.index.to_be_bytes().into(),
-            MetadataToken::CheckpointMailbox => {
-                metadata.checkpoint.mailbox_address.to_fixed_bytes().into()
-            }
+            MetadataToken::CheckpointMerkleTree => metadata
+                .checkpoint
+                .merkle_tree_hook_address
+                .to_fixed_bytes()
+                .into(),
             MetadataToken::MessageId => metadata.message_id.unwrap().to_fixed_bytes().into(),
             MetadataToken::Threshold => Vec::from([threshold]),
             MetadataToken::MerkleProof => {

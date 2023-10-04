@@ -57,7 +57,7 @@ impl MerkleTreeHook for SealevelMailbox {
             )
         })?;
         let checkpoint = Checkpoint {
-            mailbox_address: self.program_id.to_bytes().into(),
+            merkle_tree_hook_address: self.program_id.to_bytes().into(),
             mailbox_domain: self.domain.id(),
             root,
             index,

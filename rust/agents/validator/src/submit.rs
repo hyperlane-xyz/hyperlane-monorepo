@@ -53,7 +53,7 @@ impl ValidatorSubmitter {
         Checkpoint {
             root: tree.root(),
             index: tree.index(),
-            mailbox_address: self.merkle_tree_hook.address(),
+            merkle_tree_hook_address: self.merkle_tree_hook.address(),
             mailbox_domain: self.merkle_tree_hook.domain().id(),
         }
     }

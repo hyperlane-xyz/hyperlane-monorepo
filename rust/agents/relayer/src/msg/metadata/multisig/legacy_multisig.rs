@@ -19,9 +19,9 @@ pub struct LegacyMultisigMetadataBuilder(BaseMetadataBuilder);
 impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
     fn token_layout(&self) -> Vec<MetadataToken> {
         vec![
-            MetadataToken::CheckpointRoot,
+            MetadataToken::MerkleRoot,
             MetadataToken::CheckpointIndex,
-            MetadataToken::CheckpointMailbox,
+            MetadataToken::CheckpointMerkleTree,
             MetadataToken::MerkleProof,
             MetadataToken::Threshold,
             MetadataToken::Signatures,
@@ -65,6 +65,7 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
         Ok(Some(MultisigMetadata::new(
             quorum_checkpoint.checkpoint,
             quorum_checkpoint.signatures,
+            None,
             None,
             Some(proof),
         )))

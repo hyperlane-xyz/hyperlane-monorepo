@@ -304,7 +304,11 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn SequenceIndexer<MerkleTreeInsertion>>> {
         let ctx = "Building merkle tree hook indexer";
-        let locator = self.locator(self.addresses.mailbox);
+        let address = self
+            .addresses
+            .merkle_tree_hook
+            .unwrap_or(self.addresses.mailbox);
+        let locator = self.locator(address);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {

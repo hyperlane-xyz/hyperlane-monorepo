@@ -20,8 +20,9 @@ pub struct MessageIdMultisigMetadataBuilder(BaseMetadataBuilder);
 impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
     fn token_layout(&self) -> Vec<MetadataToken> {
         vec![
-            MetadataToken::CheckpointMailbox,
-            MetadataToken::CheckpointRoot,
+            MetadataToken::CheckpointMerkleTree,
+            MetadataToken::MerkleRoot,
+            MetadataToken::MerkleIndex,
             MetadataToken::Signatures,
         ]
     }
@@ -50,10 +51,15 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
             );
             return Ok(None);
         }
+        let merkle_leaf_id = self
+            .get_merkle_leaf_by_message_id(message.id())
+            .await
+            .context(CTX)?;
 
         Ok(Some(MultisigMetadata::new(
             quorum_checkpoint.checkpoint.checkpoint,
             quorum_checkpoint.signatures,
+            merkle_leaf_id,
             None,
             None,
         )))

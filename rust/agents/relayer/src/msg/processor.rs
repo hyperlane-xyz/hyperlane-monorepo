@@ -255,6 +255,7 @@ mod test {
             Arc::new(MockValidatorAnnounceContract::default()),
             false,
             Arc::new(core_metrics),
+            db,
             5,
         )
     }
