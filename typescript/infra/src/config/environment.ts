@@ -7,8 +7,8 @@ import {
   CoreConfig,
   HookConfig,
   HyperlaneEnvironment,
+  IgpConfig,
   MultiProvider,
-  OverheadIgpConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -38,7 +38,7 @@ export type EnvironmentConfig = {
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
   hook?: ChainMap<HookConfig>;
-  igp: ChainMap<OverheadIgpConfig>;
+  igp: ChainMap<IgpConfig>;
   owners: ChainMap<Address>;
   infra: InfrastructureConfig;
   getMultiProvider: (

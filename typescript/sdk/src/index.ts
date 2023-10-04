@@ -106,7 +106,6 @@ export {
   IgpOverheadViolation,
   IgpViolation,
   IgpViolationType,
-  OverheadIgpConfig,
 } from './gas/types';
 export { AggregationHookFactoryDeployer } from './hook/AggregationHookFactoryDeployer';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';

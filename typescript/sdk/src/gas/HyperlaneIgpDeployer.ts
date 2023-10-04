@@ -3,13 +3,12 @@ import { ethers } from 'ethers';
 
 import {
   InterchainGasPaymaster,
-  OverheadIgp,
   ProxyAdmin,
   StorageGasOracle,
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
@@ -17,10 +16,10 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
 import { IgpFactories, igpFactories } from './contracts';
-import { IgpConfig, OverheadIgpConfig } from './types';
+import { IgpConfig } from './types';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
-  OverheadIgpConfig,
+  IgpConfig,
   IgpFactories
 > {
   constructor(multiProvider: MultiProvider) {
@@ -45,71 +44,36 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       [owner, beneficiary],
     );
 
-    const gasOracleConfigsToSet: InterchainGasPaymaster.GasOracleConfigStruct[] =
-      [];
-
+    const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
     const remotes = Object.keys(config.gasOracleType);
     for (const remote of remotes) {
       const remoteId = this.multiProvider.getDomainId(remote);
-      const currentGasOracle = await igp.gasOracles(remoteId);
-      if (!eqAddress(currentGasOracle, storageGasOracle.address)) {
-        gasOracleConfigsToSet.push({
+      const newGasOverhead = config.overhead[remote];
+
+      const currentGasConfig = await igp.destinationGasConfigs(remoteId);
+      if (
+        !eqAddress(currentGasConfig.gasOracle, storageGasOracle.address) ||
+        !currentGasConfig.gasOverhead.eq(newGasOverhead)
+      ) {
+        gasParamsToSet.push({
           remoteDomain: remoteId,
-          gasOracle: storageGasOracle.address,
+          config: {
+            gasOverhead: newGasOverhead,
+            gasOracle: storageGasOracle.address,
+          },
         });
       }
     }
 
-    if (gasOracleConfigsToSet.length > 0) {
+    if (gasParamsToSet.length > 0) {
       await this.runIfOwner(chain, igp, async () =>
         this.multiProvider.handleTx(
           chain,
-          igp.setGasOracles(gasOracleConfigsToSet),
+          igp.setDestinationGasConfigs(gasParamsToSet),
         ),
       );
     }
     return igp;
-  }
-
-  async deployOverheadIgp(
-    chain: ChainName,
-    interchainGasPaymasterAddress: Address,
-    config: OverheadIgpConfig,
-  ): Promise<OverheadIgp> {
-    const overheadInterchainGasPaymaster = await this.deployContract(
-      chain,
-      'defaultIsmInterchainGasPaymaster',
-      [interchainGasPaymasterAddress],
-    );
-
-    // Only set gas overhead configs if they differ from what's on chain
-    const configs: OverheadIgp.DomainConfigStruct[] = [];
-    const remotes = Object.keys(config.overhead);
-    for (const remote of remotes) {
-      const remoteDomain = this.multiProvider.getDomainId(remote);
-      const gasOverhead = config.overhead[remote];
-      const existingOverhead =
-        await overheadInterchainGasPaymaster.destinationGasOverhead(
-          remoteDomain,
-        );
-      if (!existingOverhead.eq(gasOverhead)) {
-        configs.push({ domain: remoteDomain, gasOverhead });
-      }
-    }
-
-    if (configs.length > 0) {
-      await this.runIfOwner(chain, overheadInterchainGasPaymaster, () =>
-        this.multiProvider.handleTx(
-          chain,
-          overheadInterchainGasPaymaster.setDestinationGasOverheads(
-            configs,
-            this.multiProvider.getTransactionOverrides(chain),
-          ),
-        ),
-      );
-    }
-
-    return overheadInterchainGasPaymaster;
   }
 
   async deployStorageGasOracle(chain: ChainName): Promise<StorageGasOracle> {
@@ -118,7 +82,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
   async deployContracts(
     chain: ChainName,
-    config: OverheadIgpConfig,
+    config: IgpConfig,
   ): Promise<HyperlaneContracts<IgpFactories>> {
     // NB: To share ProxyAdmins with HyperlaneCore, ensure the ProxyAdmin
     // is loaded into the contract cache.
@@ -152,13 +116,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       storageGasOracle,
       config,
     );
-    const overheadIgp = await this.deployOverheadIgp(
-      chain,
-      interchainGasPaymaster.address,
-      config,
-    );
     await this.transferOwnershipOfContracts(chain, config.owner, {
-      overheadIgp,
       interchainGasPaymaster,
     });
 
@@ -173,7 +131,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       timelockController,
       storageGasOracle,
       interchainGasPaymaster,
-      defaultIsmInterchainGasPaymaster: overheadIgp,
     };
   }
 }
