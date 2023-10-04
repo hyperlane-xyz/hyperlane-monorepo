@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { MockMailbox__factory, TestRecipient__factory } from '../types';
 
@@ -23,9 +23,9 @@ describe('MockMailbox', function () {
 
     const body = ethers.utils.toUtf8Bytes('This is a test message');
 
-    await originMailbox.dispatch(
+    await originMailbox['dispatch(uint32,bytes32,bytes)'](
       DESTINATION_DOMAIN,
-      utils.addressToBytes32(recipient.address),
+      addressToBytes32(recipient.address),
       body,
     );
     await destinationMailbox.processNextInboundMessage();

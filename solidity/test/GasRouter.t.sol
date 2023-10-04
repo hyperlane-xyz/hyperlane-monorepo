@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import "../contracts/test/TestGasRouter.sol";
 import "../contracts/test/TestMailbox.sol";
 import "../contracts/test/TestIsm.sol";
@@ -47,11 +46,8 @@ contract GasRouterTest is Test {
         // Same for origin and remote
         gasPrice = igp.gasPrice();
 
-        originRouter = new TestGasRouter();
-        remoteRouter = new TestGasRouter();
-
-        originRouter.initialize(address(originMailbox));
-        remoteRouter.initialize(address(remoteMailbox));
+        originRouter = new TestGasRouter(address(originMailbox));
+        remoteRouter = new TestGasRouter(address(remoteMailbox));
 
         originRouter.enrollRemoteRouter(
             remoteDomain,
@@ -68,20 +64,13 @@ contract GasRouterTest is Test {
         uint32 domain,
         uint256 gas
     ) public {
-        GasRouter.GasRouterConfig[]
-            memory gasConfigs = new GasRouter.GasRouterConfig[](1);
-        gasConfigs[0] = GasRouter.GasRouterConfig(domain, gas);
-        gasRouter.setDestinationGas(gasConfigs);
+        gasRouter.setDestinationGas(domain, gas);
     }
 
     function testSetDestinationGas(uint256 gas) public {
-        vm.expectEmit(true, false, false, true, address(remoteRouter));
-        emit DestinationGasSet(originDomain, gas);
         setDestinationGas(remoteRouter, originDomain, gas);
         assertEq(remoteRouter.destinationGas(originDomain), gas);
 
-        vm.expectEmit(true, false, false, true, address(originRouter));
-        emit DestinationGasSet(remoteDomain, gas);
         setDestinationGas(originRouter, remoteDomain, gas);
         assertEq(originRouter.destinationGas(remoteDomain), gas);
     }
@@ -104,24 +93,18 @@ contract GasRouterTest is Test {
         assert(passRefund);
     }
 
-    function testDispatchWithGas(uint256 gas) public {
+    function testDispatch(uint256 gas) public {
         vm.assume(gas > 0 && type(uint256).max / gas > gasPrice);
         vm.deal(address(this), gas * gasPrice);
 
         setDestinationGas(originRouter, remoteDomain, gas);
 
         uint256 requiredPayment = gas * gasPrice;
-        vm.expectRevert("insufficient interchain gas payment");
-        originRouter.dispatchWithGas{value: requiredPayment - 1}(
-            remoteDomain,
-            ""
-        );
+        vm.expectRevert("IGP: insufficient interchain gas payment");
+        originRouter.dispatch{value: requiredPayment - 1}(remoteDomain, "");
 
         vm.deal(address(this), requiredPayment + 1);
-        originRouter.dispatchWithGas{value: requiredPayment + 1}(
-            remoteDomain,
-            ""
-        );
+        originRouter.dispatch{value: requiredPayment + 1}(remoteDomain, "");
         assertEq(refund, 1);
 
         // Reset the IGP balance to avoid a balance overflow
@@ -132,9 +115,6 @@ contract GasRouterTest is Test {
         vm.expectRevert(
             "Address: unable to send value, recipient may have reverted"
         );
-        originRouter.dispatchWithGas{value: requiredPayment + 1}(
-            remoteDomain,
-            ""
-        );
+        originRouter.dispatch{value: requiredPayment + 1}(remoteDomain, "");
     }
 }

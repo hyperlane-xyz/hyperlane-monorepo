@@ -19,17 +19,14 @@ import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityMod
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.sol";
-import {CrossChainEnabledOptimism} from "./crossChainEnabled/optimism/CrossChainEnabledOptimism.sol";
 
 // ============ External Imports ============
-
-import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
+import {CrossChainEnabledOptimism} from "@openzeppelin/contracts/crosschain/optimism/CrossChainEnabledOptimism.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title OPStackIsm
  * @notice Uses the native Optimism bridge to verify interchain messages.
- * @dev V3 WIP
  */
 contract OPStackIsm is
     CrossChainEnabledOptimism,

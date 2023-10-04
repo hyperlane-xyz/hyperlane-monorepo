@@ -14,10 +14,10 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {AbstractMessageIdAuthHook} from "./AbstractMessageIdAuthHook.sol";
+import {AbstractMessageIdAuthHook} from "./libs/AbstractMessageIdAuthHook.sol";
+import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
-import {OPStackHookMetadata} from "../libs/hooks/OPStackHookMetadata.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 // ============ External Imports ============
@@ -26,11 +26,12 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title OPStackHook
- * @notice Message hook to inform the OPStackISM of messages published through
+ * @notice Message hook to inform the OPStackIsm of messages published through
  * the native OPStack bridge.
+ * @notice This works only for L1 -> L2 messages.
  */
 contract OPStackHook is AbstractMessageIdAuthHook {
-    using OPStackHookMetadata for bytes;
+    using StandardHookMetadata for bytes;
 
     // ============ Constants ============
 
@@ -48,20 +49,19 @@ contract OPStackHook is AbstractMessageIdAuthHook {
         address _mailbox,
         uint32 _destinationDomain,
         address _ism,
-        address _messenger
+        address _l1Messenger
     ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
         require(
-            Address.isContract(_messenger),
+            Address.isContract(_l1Messenger),
             "OPStackHook: invalid messenger"
         );
-        l1Messenger = ICrossDomainMessenger(_messenger);
+        l1Messenger = ICrossDomainMessenger(_l1Messenger);
     }
 
     // ============ External functions ============
 
-    /// @inheritdoc IPostDispatchHook
-    function quoteDispatch(bytes calldata, bytes calldata)
-        external
+    function _quoteDispatch(bytes calldata, bytes calldata)
+        internal
         pure
         override
         returns (uint256)
@@ -77,10 +77,10 @@ contract OPStackHook is AbstractMessageIdAuthHook {
         override
     {
         require(
-            metadata.msgValue() < 2**255,
-            "OPStackHook: msgValue must less than 2 ** 255"
+            metadata.msgValue(0) < 2**255,
+            "OPStackHook: msgValue must be less than 2 ** 255"
         );
-        l1Messenger.sendMessage{value: metadata.msgValue()}(
+        l1Messenger.sendMessage{value: metadata.msgValue(0)}(
             ism,
             payload,
             GAS_LIMIT

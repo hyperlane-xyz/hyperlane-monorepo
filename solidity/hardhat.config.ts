@@ -11,11 +11,7 @@ module.exports = {
   solidity: {
     compilers: [
       {
-        version: '0.8.17',
-      },
-      {
-        // for @eth-optimism
-        version: '0.8.15',
+        version: '0.8.19',
       },
     ],
     settings: {

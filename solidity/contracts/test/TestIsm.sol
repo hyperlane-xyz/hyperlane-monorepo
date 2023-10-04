@@ -6,7 +6,13 @@ import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule
 contract TestIsm is IInterchainSecurityModule {
     uint8 public moduleType = uint8(Types.NULL);
 
-    function verify(bytes calldata, bytes calldata) public pure returns (bool) {
-        return true;
+    bool verifyResult = true;
+
+    function setVerify(bool _verify) public {
+        verifyResult = _verify;
+    }
+
+    function verify(bytes calldata, bytes calldata) public view returns (bool) {
+        return verifyResult;
     }
 }

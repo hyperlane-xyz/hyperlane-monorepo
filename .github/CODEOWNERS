@@ -1,26 +1,26 @@
 # File extension owners
 
-*.sol @yorhodes @asaj @tkporter
+*.sol @yorhodes @tkporter @aroralanuk
 *.ts @yorhodes @jmrossy @nambrot
-*.rs @mattiecnvr @tkporter @asaj
-*.md @Skunkchain @asaj
+*.rs @mattiecnvr @tkporter @daniel-savu
+*.md @Skunkchain @nambrot @avious00
 
 # Package owners
 
 ## Contracts
-solidity/ @yorhodes @asaj @tkporter
+solidity/ @yorhodes @tkporter @aroralanuk
 
 ## Agents
-rust/ @mattiecnvr @tkporter @asaj
+rust/ @mattiecnvr @tkporter @daniel-savu
 
 ## SDK
 typescript/sdk @yorhodes @jmrossy
 
 ## Token
-typescript/token @yorhodes @jmrossy @tkporter
+typescript/token @yorhodes @jmrossy @tkporter @aroralanuk
 
 ## Hello World
 typescript/helloworld @yorhodes @nambrot
 
 ## Infra
-typescript/infra @tkporter @asaj @mattiecnvr
+typescript/infra @tkporter @nambrot @mattiecnvr

@@ -84,9 +84,17 @@ interface IMailbox {
         uint32 destinationDomain,
         bytes32 recipientAddress,
         bytes calldata body,
-        IPostDispatchHook customHook,
-        bytes calldata customHookMetadata
+        bytes calldata customHookMetadata,
+        IPostDispatchHook customHook
     ) external payable returns (bytes32 messageId);
+
+    function quoteDispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody,
+        bytes calldata customHookMetadata,
+        IPostDispatchHook customHook
+    ) external view returns (uint256 fee);
 
     function process(bytes calldata metadata, bytes calldata message)
         external

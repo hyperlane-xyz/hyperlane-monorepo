@@ -4,11 +4,13 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 
 import {StaticProtocolFee} from "../../contracts/hooks/StaticProtocolFee.sol";
 
 contract StaticProtocolFeeTest is Test {
     using TypeCasts for address;
+
     StaticProtocolFee internal fees;
 
     address internal alice = address(0x1); // alice the user
@@ -18,16 +20,19 @@ contract StaticProtocolFeeTest is Test {
     uint32 internal constant TEST_ORIGIN_DOMAIN = 1;
     uint32 internal constant TEST_DESTINATION_DOMAIN = 2;
 
+    uint256 internal constant MAX_FEE = 1e16;
+    uint256 internal constant FEE = 1e16;
+
     bytes internal testMessage;
 
     function setUp() public {
-        fees = new StaticProtocolFee(1e16, 1e15, bob, address(this));
+        fees = new StaticProtocolFee(MAX_FEE, FEE, bob, address(this));
 
         testMessage = _encodeTestMessage();
     }
 
     function testConstructor() public {
-        assertEq(fees.protocolFee(), 1e15);
+        assertEq(fees.protocolFee(), FEE);
     }
 
     function testSetProtocolFee(uint256 fee) public {
@@ -43,7 +48,7 @@ contract StaticProtocolFeeTest is Test {
         vm.expectRevert("Ownable: caller is not the owner");
         fees.setProtocolFee(fee);
 
-        assertEq(fees.protocolFee(), 1e15);
+        assertEq(fees.protocolFee(), FEE);
     }
 
     function testSetProtocolFee_revertWhen_exceedsMax(uint256 fee) public {
@@ -56,7 +61,7 @@ contract StaticProtocolFeeTest is Test {
         vm.expectRevert("StaticProtocolFee: exceeds max protocol fee");
         fees.setProtocolFee(fee);
 
-        assertEq(fees.protocolFee(), 1e15);
+        assertEq(fees.protocolFee(), FEE);
     }
 
     function testSetBeneficiary_revertWhen_notOwner() public {
@@ -68,7 +73,7 @@ contract StaticProtocolFeeTest is Test {
     }
 
     function testQuoteDispatch() public {
-        assertEq(fees.quoteDispatch("", testMessage), 1e15);
+        assertEq(fees.quoteDispatch("", testMessage), FEE);
     }
 
     function testFuzz_postDispatch_inusfficientFees(
@@ -106,6 +111,32 @@ contract StaticProtocolFeeTest is Test {
         fees.postDispatch{value: feeSent}("", testMessage);
 
         assertEq(alice.balance, aliceBalanceBefore - feeRequired);
+    }
+
+    function test_postDispatch_specifyRefundAddress(
+        uint256 feeRequired,
+        uint256 feeSent
+    ) public {
+        bytes memory metadata = StandardHookMetadata.formatMetadata(
+            0,
+            0,
+            bob,
+            ""
+        );
+
+        feeRequired = bound(feeRequired, 1, fees.MAX_PROTOCOL_FEE());
+        feeSent = bound(feeSent, feeRequired, 10 * feeRequired);
+        vm.deal(alice, feeSent);
+
+        fees.setProtocolFee(feeRequired);
+        uint256 aliceBalanceBefore = alice.balance;
+        uint256 bobBalanceBefore = bob.balance;
+        vm.prank(alice);
+
+        fees.postDispatch{value: feeSent}(metadata, testMessage);
+
+        assertEq(alice.balance, aliceBalanceBefore - feeSent);
+        assertEq(bob.balance, bobBalanceBefore + feeSent - feeRequired);
     }
 
     function testFuzz_collectProtocolFee(
