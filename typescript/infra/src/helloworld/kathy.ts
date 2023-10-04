@@ -5,7 +5,7 @@ import { AgentContextConfig } from '../config';
 import {
   HelloWorldKathyConfig,
   HelloWorldKathyRunMode,
-} from '../config/helloworld';
+} from '../config/helloworld/types';
 import { Role } from '../roles';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';

@@ -1,7 +1,7 @@
 import { AgentConnectionType } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../../../src/config';
-import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
+import { HelloWorldKathyRunMode } from '../../../src/config/helloworld/types';
 import { Contexts } from '../../contexts';
 
 import { environment } from './chains';

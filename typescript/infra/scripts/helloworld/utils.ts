@@ -22,7 +22,7 @@ import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../config/contexts';
 import { EnvironmentConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
-import { HelloWorldConfig } from '../../src/config/helloworld';
+import { HelloWorldConfig } from '../../src/config/helloworld/types';
 import { Role } from '../../src/roles';
 import { getKeyForRole } from '../utils';
 
@@ -124,7 +124,7 @@ export async function getHelloWorldMultiProtocolApp(
     (chain, addresses) => ({
       router: addresses.router,
       // @ts-ignore allow loosely typed chain name to index env addresses
-      mailbox: envAddressesWithSealevel[chain].mailbox,
+      mailbox: envAddresses[chain].mailbox,
     }),
   );
   const app = new HelloMultiProtocolApp(
