@@ -25,7 +25,7 @@ export type TestnetChains = keyof typeof testnetConfigs;
 export const supportedChainNames = Object.keys(
   testnetConfigs,
 ) as TestnetChains[];
-export const environment = 'testnet3';
+export const environment = 'testnet4';
 
 const validatorChainNames = [
   ...supportedChainNames,

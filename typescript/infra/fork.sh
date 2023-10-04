@@ -6,7 +6,7 @@ if [ -z "$ENVIRONMENT" ]; then
   exit 1
 fi
 
-if [ "$ENVIRONMENT" == "testnet3" ]; then
+if [ "$ENVIRONMENT" == "testnet4" ]; then
   FORK_CHAIN="goerli"
   RPC_URL="https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
 elif [ "$ENVIRONMENT" == "mainnet2" ]; then

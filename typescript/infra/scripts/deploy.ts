@@ -51,7 +51,7 @@ async function main() {
 
     // TODO: make this more generic
     const deployerAddress =
-      environment === 'testnet3'
+      environment === 'testnet4'
         ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
         : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 

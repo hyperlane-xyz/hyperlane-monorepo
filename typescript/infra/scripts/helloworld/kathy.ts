@@ -31,7 +31,7 @@ import { Contexts } from '../../config/contexts';
 import {
   hyperlaneHelloworld,
   releaseCandidateHelloworld,
-} from '../../config/environments/testnet3/helloworld';
+} from '../../config/environments/testnet4/helloworld';
 import { CloudAgentKey } from '../../src/agents/keys';
 import { DeployEnvironment } from '../../src/config/environment';
 import { Role } from '../../src/roles';

@@ -2,7 +2,7 @@ image:
   repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
   tag:
 abacus:
-  runEnv: testnet3
+  runEnv: testnet4
   # Used for fetching secrets
   chains: []
 externalSecrets:
