@@ -3,4 +3,3 @@ validatordb
 relayerdb
 kathydb
 config/test_config.json
-sealevel/environments/local-e2e

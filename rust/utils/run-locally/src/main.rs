@@ -51,10 +51,10 @@ const RELAYER_KEYS: &[&str] = &[
     "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
     // test3
     "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
-    // // sealeveltest1
-    // "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
-    // // sealeveltest2
-    // "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
+    // sealeveltest1
+    "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
+    // sealeveltest2
+    "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
 ];
 /// These private keys are from hardhat/anvil's testing accounts.
 /// These must be consistent with the ISM config for the test.
@@ -64,16 +64,14 @@ const VALIDATOR_KEYS: &[&str] = &[
     "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
     "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
     // sealevel
-    // "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
 ];
 
-const VALIDATOR_ORIGIN_CHAINS: &[&str] = &[
-    "test1", "test2", "test3",
-    // "sealeveltest1"
-];
+const VALIDATOR_ORIGIN_CHAINS: &[&str] = &["test1", "test2", "test3", "sealeveltest1"];
 
 const AGENT_BIN_PATH: &str = "target/debug";
 const INFRA_PATH: &str = "../typescript/infra";
+const TS_SDK_PATH: &str = "../typescript/sdk";
 const MONOREPO_ROOT_PATH: &str = "../";
 
 type DynPath = Box<dyn AsRef<Path>>;
@@ -170,8 +168,8 @@ fn main() -> ExitCode {
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
         .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
-        // .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[3])
-        // .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
+        .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[3])
+        .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env(
@@ -196,7 +194,10 @@ fn main() -> ExitCode {
         )
         // default is used for TEST3
         .arg("defaultSigner.key", RELAYER_KEYS[2])
-        .arg("relayChains", "test1,test2,test3");
+        .arg(
+            "relayChains",
+            "test1,test2,test3,sealeveltest1,sealeveltest2",
+        );
 
     let base_validator_env = common_agent_env
         .clone()
@@ -267,9 +268,9 @@ fn main() -> ExitCode {
     // Ready to run...
     //
 
-    // let (solana_path, solana_path_tempdir) = install_solana_cli_tools().join();
-    // state.data.push(Box::new(solana_path_tempdir));
-    // let solana_program_builder = build_solana_programs(solana_path.clone());
+    let (solana_path, solana_path_tempdir) = install_solana_cli_tools().join();
+    state.data.push(Box::new(solana_path_tempdir));
+    let solana_program_builder = build_solana_programs(solana_path.clone());
 
     // this task takes a long time in the CI so run it in parallel
     log!("Building rust...");
@@ -280,13 +281,13 @@ fn main() -> ExitCode {
         .arg("bin", "validator")
         .arg("bin", "scraper")
         .arg("bin", "init-db")
-        // .arg("bin", "hyperlane-sealevel-client")
+        .arg("bin", "hyperlane-sealevel-client")
         .filter_logs(|l| !l.contains("workspace-inheritance"))
         .run();
 
     let start_anvil = start_anvil(config.clone());
 
-    // let solana_program_path = solana_program_builder.join();
+    let solana_program_path = solana_program_builder.join();
 
     log!("Running postgres db...");
     let postgres = Program::new("docker")
@@ -301,15 +302,15 @@ fn main() -> ExitCode {
 
     build_rust.join();
 
-    // let solana_ledger_dir = tempdir().unwrap();
-    // let start_solana_validator = start_solana_test_validator(
-    //     solana_path.clone(),
-    //     solana_program_path,
-    //     solana_ledger_dir.as_ref().to_path_buf(),
-    // );
+    let solana_ledger_dir = tempdir().unwrap();
+    let start_solana_validator = start_solana_test_validator(
+        solana_path.clone(),
+        solana_program_path,
+        solana_ledger_dir.as_ref().to_path_buf(),
+    );
 
-    // let (solana_config_path, solana_validator) = start_solana_validator.join();
-    // state.push_agent(solana_validator);
+    let (solana_config_path, solana_validator) = start_solana_validator.join();
+    state.push_agent(solana_validator);
     state.push_agent(start_anvil.join());
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
@@ -338,16 +339,16 @@ fn main() -> ExitCode {
     }
 
     // Send some sealevel messages before spinning up the relayer, to test the backward indexing cursor
-    // for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-    //     initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
-    // }
+    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
+        initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    }
 
     state.push_agent(relayer_env.spawn("RLY"));
 
     // Send some sealevel messages after spinning up the relayer, to test the forward indexing cursor
-    // for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-    //     initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
-    // }
+    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
+        initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    }
 
     log!("Setup complete! Agents running in background...");
     log!("Ctrl+C to end execution...");
@@ -362,17 +363,17 @@ fn main() -> ExitCode {
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
-            // if termination_invariants_met(&config, &solana_path, &solana_config_path)
-            //     .unwrap_or(false)
-            // {
-            //     // end condition reached successfully
-            //     break;
-            // } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
-            //     // we ran out of time
-            //     log!("CI timeout reached before queues emptied");
-            //     failure_occurred = true;
-            //     break;
-            // }
+            if termination_invariants_met(&config, &solana_path, &solana_config_path)
+                .unwrap_or(false)
+            {
+                // end condition reached successfully
+                break;
+            } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
+                // we ran out of time
+                log!("CI timeout reached before queues emptied");
+                failure_occurred = true;
+                break;
+            }
         }
 
         // verify long-running tasks are still running
