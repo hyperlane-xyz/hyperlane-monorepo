@@ -53,6 +53,7 @@ export const Mainnets: Array<CoreChainName> = [
   Chains.optimism,
   Chains.polygon,
   Chains.gnosis,
+  Chains.solana,
 ];
 
 export const Testnets: Array<CoreChainName> = [
@@ -65,6 +66,7 @@ export const Testnets: Array<CoreChainName> = [
   Chains.mumbai,
   Chains.optimismgoerli,
   Chains.sepolia,
+  Chains.solanadevnet,
 ];
 
 export const TestChains: Array<CoreChainName> = [

@@ -3792,6 +3792,7 @@ dependencies = [
  "hex 0.4.3",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-hello-world",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-multisig-ism-message-id",
@@ -3821,6 +3822,26 @@ dependencies = [
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "solana-program",
+]
+
+[[package]]
+name = "hyperlane-sealevel-hello-world"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 0.9.3",
+ "hyperlane-core",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-test-utils",
+ "serializable-account-meta",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "spl-noop",
 ]
 
 [[package]]

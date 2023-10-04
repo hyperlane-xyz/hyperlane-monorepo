@@ -65,6 +65,13 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
       '0x15f48e78092a4f79febface509cfd76467c6cdbb', // abacus
     ],
   },
+  solana: {
+    type: ModuleType.LEGACY_MULTISIG,
+    threshold: 1,
+    validators: [
+      '0x8cc7dbfb5de339e4133f3af059c927ec383ace38', // abacus
+    ],
+  },
   // ----------------- Testnets -----------------
   alfajores: {
     type: ModuleType.LEGACY_MULTISIG,
@@ -110,5 +117,10 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     type: ModuleType.LEGACY_MULTISIG,
     threshold: 1,
     validators: ['0x6d13367c7cd713a4ea79a2552adf824bf1ecdd5e'],
+  },
+  solanadevnet: {
+    type: ModuleType.LEGACY_MULTISIG,
+    threshold: 1,
+    validators: ['0x21b9eff4d1a6d3122596c7fb80315bf094b6e5c2'],
   },
 };
