@@ -68,6 +68,25 @@ export const validatorChainConfig = (
         'mumbai',
       ),
     },
+    basegoerli: {
+      interval: 5,
+      reorgPeriod: chainMetadata.basegoerli.blocks!.reorgPeriod!,
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [
+            '0xbc748ee311f5f2d1975d61cdf531755ce8ce3066',
+            '0xc4233b2bfe5aec08964a94b403052abb3eafcf07',
+            '0x6b36286c19f5c10bdc139ea9ee7f82287303f61d',
+          ],
+          [Contexts.ReleaseCandidate]: [
+            '0x183f15924f3a464c54c9393e8d268eb44d2b208c',
+            '0x90ec2ea0229f921602f3aca97c5fd85849a2e85c',
+            '0x18cf2f76d604d6f6470d924678221fb556347fbd',
+          ],
+        },
+        'basegoerli',
+      ),
+    },
     bsctestnet: {
       interval: 5,
       reorgPeriod: chainMetadata.bsctestnet.blocks!.reorgPeriod!,
@@ -87,6 +106,25 @@ export const validatorChainConfig = (
         'bsctestnet',
       ),
     },
+    chiado: {
+      interval: 5,
+      reorgPeriod: chainMetadata.chiado.blocks!.reorgPeriod!,
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [
+            '0xbc748ee311f5f2d1975d61cdf531755ce8ce3066',
+            '0xc4233b2bfe5aec08964a94b403052abb3eafcf07',
+            '0x6b36286c19f5c10bdc139ea9ee7f82287303f61d',
+          ],
+          [Contexts.ReleaseCandidate]: [
+            '0x183f15924f3a464c54c9393e8d268eb44d2b208c',
+            '0x90ec2ea0229f921602f3aca97c5fd85849a2e85c',
+            '0x18cf2f76d604d6f6470d924678221fb556347fbd',
+          ],
+        },
+        'chiado',
+      ),
+    },
     goerli: {
       interval: 5,
       reorgPeriod: chainMetadata.goerli.blocks!.reorgPeriod!,
@@ -104,6 +142,44 @@ export const validatorChainConfig = (
           ],
         },
         'goerli',
+      ),
+    },
+    lineagoerli: {
+      interval: 5,
+      reorgPeriod: chainMetadata.lineagoerli.blocks!.reorgPeriod!,
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [
+            '0xbc748ee311f5f2d1975d61cdf531755ce8ce3066',
+            '0xc4233b2bfe5aec08964a94b403052abb3eafcf07',
+            '0x6b36286c19f5c10bdc139ea9ee7f82287303f61d',
+          ],
+          [Contexts.ReleaseCandidate]: [
+            '0x183f15924f3a464c54c9393e8d268eb44d2b208c',
+            '0x90ec2ea0229f921602f3aca97c5fd85849a2e85c',
+            '0x18cf2f76d604d6f6470d924678221fb556347fbd',
+          ],
+        },
+        'lineagoerli',
+      ),
+    },
+    scrollsepolia: {
+      interval: 5,
+      reorgPeriod: chainMetadata.scrollsepolia.blocks!.reorgPeriod!,
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [
+            '0xbc748ee311f5f2d1975d61cdf531755ce8ce3066',
+            '0xc4233b2bfe5aec08964a94b403052abb3eafcf07',
+            '0x6b36286c19f5c10bdc139ea9ee7f82287303f61d',
+          ],
+          [Contexts.ReleaseCandidate]: [
+            '0x183f15924f3a464c54c9393e8d268eb44d2b208c',
+            '0x90ec2ea0229f921602f3aca97c5fd85849a2e85c',
+            '0x18cf2f76d604d6f6470d924678221fb556347fbd',
+          ],
+        },
+        'scrollsepolia',
       ),
     },
     sepolia: {
@@ -180,6 +256,25 @@ export const validatorChainConfig = (
           ],
         },
         'arbitrumgoerli',
+      ),
+    },
+    polygonzkevmtestnet: {
+      interval: 5,
+      reorgPeriod: chainMetadata.polygonzkevmtestnet.blocks!.reorgPeriod!,
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [
+            '0xbc748ee311f5f2d1975d61cdf531755ce8ce3066',
+            '0xc4233b2bfe5aec08964a94b403052abb3eafcf07',
+            '0x6b36286c19f5c10bdc139ea9ee7f82287303f61d',
+          ],
+          [Contexts.ReleaseCandidate]: [
+            '0x183f15924f3a464c54c9393e8d268eb44d2b208c',
+            '0x90ec2ea0229f921602f3aca97c5fd85849a2e85c',
+            '0x18cf2f76d604d6f6470d924678221fb556347fbd',
+          ],
+        },
+        'polygonzkevmtestnet',
       ),
     },
     proteustestnet: {

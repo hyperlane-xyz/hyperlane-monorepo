@@ -4,7 +4,10 @@ import { AgentChainNames, Role } from '../../../src/roles';
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {
   alfajores: chainMetadata.alfajores,
+  basegoerli: chainMetadata.basegoerli,
   fuji: chainMetadata.fuji,
+  chiado: chainMetadata.chiado,
+  lineagoerli: chainMetadata.lineagoerli,
   mumbai: {
     ...chainMetadata.mumbai,
     transactionOverrides: {
@@ -14,6 +17,7 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
   },
   bsctestnet: chainMetadata.bsctestnet,
   goerli: chainMetadata.goerli,
+  scrollsepolia: chainMetadata.scrollsepolia,
   sepolia: chainMetadata.sepolia,
   moonbasealpha: chainMetadata.moonbasealpha,
   optimismgoerli: chainMetadata.optimismgoerli,
