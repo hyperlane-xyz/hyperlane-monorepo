@@ -6,10 +6,8 @@ metadata:
   labels:
     {{- include "agent-common.labels" . | nindent 4 }}
 data:
-{{ $index := 0 }}
-{{- range .Values.hyperlane.validator.configs }}
+{{- range $index, $config := .Values.hyperlane.validator.configs }}
   validator-{{ $index }}.env: |
-{{- include "agent-common.config-env-vars" (dict "config" . "agent_name" "validator" "format" "dot_env") | indent 4 }}
-{{ $index = add1 $index }}
+    {{- include "agent-common.config-env-vars" (dict "config" $config "format" "dot_env") | nindent 4 }}
 {{- end }}
 {{- end }}

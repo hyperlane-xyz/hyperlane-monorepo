@@ -13,7 +13,7 @@ import {
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
 } from '@hyperlane-xyz/sdk';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
@@ -76,16 +76,9 @@ async function main() {
       throw new Error(`No hook config for ${environment}`);
     }
     config = envConfig.hook;
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.ISM_FACTORY),
-      multiProvider,
-    );
-    const mailboxes: ChainMap<Address> = {};
-    for (const chain in getAddresses(environment, Modules.CORE)) {
-      mailboxes[chain] = getAddresses(environment, Modules.CORE)[chain].mailbox;
-    }
-
-    deployer = new HyperlaneHookDeployer(multiProvider, ismFactory, mailboxes);
+    const core = getAddresses(environment, Modules.CORE);
+    const mailboxes = objMap(core, (_, contracts) => contracts.mailbox);
+    deployer = new HyperlaneHookDeployer(multiProvider, mailboxes);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
@@ -162,7 +155,7 @@ async function main() {
   };
   // Don't write agent config in fork tests
   const agentConfig =
-    ['core', 'igp'].includes(module) && !fork
+    module === Modules.CORE && !fork
       ? {
           addresses,
           environment,

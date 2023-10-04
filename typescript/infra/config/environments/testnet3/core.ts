@@ -1,4 +1,4 @@
-import { ChainMap, CoreConfig } from '@hyperlane-xyz/sdk';
+import { ChainMap, CoreConfig, HookType } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { aggregationIsm } from '../../aggregationIsm';
@@ -11,5 +11,11 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   return {
     owner,
     defaultIsm,
+    defaultHook: {
+      type: HookType.INTERCHAIN_GAS_PAYMASTER,
+    },
+    requiredHook: {
+      type: HookType.MERKLE_TREE,
+    },
   };
 });
