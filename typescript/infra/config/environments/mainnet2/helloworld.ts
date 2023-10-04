@@ -1,7 +1,7 @@
 import { AgentConnectionType } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../../../src/config';
-import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
+import { HelloWorldKathyRunMode } from '../../../src/config/helloworld/types';
 import { Contexts } from '../../contexts';
 
 import { environment } from './chains';
@@ -13,7 +13,7 @@ export const hyperlane: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '4c598b9-20230503-205323',
+      tag: '25da8e0-20231004-135818',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -34,7 +34,7 @@ export const releaseCandidate: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '25f19b7-20230319-124624',
+      tag: '25da8e0-20231004-135818',
     },
     chainsToSkip: [],
     runEnv: environment,
