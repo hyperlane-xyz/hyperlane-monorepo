@@ -161,7 +161,7 @@ impl HyperlaneRocksDB {
             return Ok(false);
         }
         // even if double insertions are ok, store the leaf by `leaf_index` (guaranteed to be unique)
-        // rather than by `message_id` (not guaranteed to be unique), so that leaves can be retrieved
+        // rather than by `message_id` (not guaranteed to be recurring), so that leaves can be retrieved
         // based on insertion order.
         self.store_merkle_tree_insertion_by_leaf_index(&insertion.index(), insertion)?;
 
