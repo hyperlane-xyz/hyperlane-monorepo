@@ -14,15 +14,27 @@ contract RouterTest is Test {
     TestInterchainGasPaymaster igp;
     TestMultisigIsm ism;
 
+    uint32 localDomain = 1000;
     uint32 origin = 1;
     uint32 destination = 2;
     uint32 destinationWithoutRouter = 3;
     bytes body = "0xdeadbeef";
 
     event InitializeOverload();
+    event Dispatch(
+        address indexed sender,
+        uint32 indexed destination,
+        bytes32 indexed recipient,
+        bytes message
+    );
+    event GasPayment(
+        bytes32 indexed messageId,
+        uint256 gasAmount,
+        uint256 payment
+    );
 
     function setUp() public {
-        mailbox = new TestMailbox(1000);
+        mailbox = new TestMailbox(localDomain);
         igp = new TestInterchainGasPaymaster(address(this));
         router = new TestRouter();
         ism = new TestMultisigIsm();
@@ -108,6 +120,7 @@ contract RouterTest is Test {
             )
         );
         router.mustHaveRemoteRouter(origin);
+
         uint32[] memory domains = new uint32[](1);
         domains[0] = origin;
         bytes32[] memory addresses = new bytes32[](1);
@@ -130,5 +143,112 @@ contract RouterTest is Test {
         router.enrollRemoteRouters(domains, addresses);
         assertEq(router.domains()[0], domains[0]);
         assertEq(router.domains()[1], domains[1]);
+    }
+
+    function formatMessage(
+        uint8 _version,
+        uint32 _nonce,
+        uint32 _originDomain,
+        bytes32 _sender,
+        uint32 _destinationDomain,
+        bytes32 _recipient,
+        bytes memory _messageBody
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                _version,
+                _nonce,
+                _originDomain,
+                _sender,
+                _destinationDomain,
+                _recipient,
+                _messageBody
+            );
+    }
+
+    function testDispatch() public {
+        router.initialize(address(mailbox), address(igp));
+        mailbox.initialize(address(this), address(ism));
+        router.enrollRemoteRouter(
+            destination,
+            TypeCasts.addressToBytes32(address(1))
+        );
+        vm.expectEmit(true, true, true, true, address(mailbox));
+        bytes memory message = formatMessage(
+            mailbox.VERSION(),
+            mailbox.count(),
+            localDomain,
+            TypeCasts.addressToBytes32(address(router)),
+            destination,
+            TypeCasts.addressToBytes32(address(1)),
+            body
+        );
+        emit Dispatch(
+            address(router),
+            destination,
+            TypeCasts.addressToBytes32(address(1)),
+            message
+        );
+        router.dispatch(destination, body);
+
+        vm.expectRevert(
+            bytes(
+                "No router enrolled for domain. Did you specify the right domain ID?"
+            )
+        );
+        router.dispatch(destinationWithoutRouter, body);
+    }
+
+    function testDispatchWithGas() public {
+        router.initialize(address(mailbox), address(igp));
+        mailbox.initialize(address(this), address(ism));
+        router.enrollRemoteRouter(
+            destination,
+            TypeCasts.addressToBytes32(address(1))
+        );
+        bytes memory message = formatMessage(
+            mailbox.VERSION(),
+            mailbox.count(),
+            localDomain,
+            TypeCasts.addressToBytes32(address(router)),
+            destination,
+            TypeCasts.addressToBytes32(address(1)),
+            body
+        );
+        bytes32 messageId = keccak256(message);
+        uint256 gasAmount = 4321;
+        uint256 gasPayment = 43210;
+        address gasPaymentRefundAddress = address(this);
+        vm.expectEmit(true, true, true, true, address(mailbox));
+        emit Dispatch(
+            address(router),
+            destination,
+            TypeCasts.addressToBytes32(address(1)),
+            message
+        );
+
+        vm.expectEmit(true, true, true, true, address(igp));
+        emit GasPayment(messageId, gasAmount, gasPayment);
+
+        router.dispatchWithGas{value: gasPayment}(
+            destination,
+            body,
+            gasAmount,
+            gasPayment,
+            gasPaymentRefundAddress
+        );
+
+        vm.expectRevert(
+            bytes(
+                "No router enrolled for domain. Did you specify the right domain ID?"
+            )
+        );
+        router.dispatchWithGas(
+            destinationWithoutRouter,
+            body,
+            gasAmount,
+            gasPayment,
+            gasPaymentRefundAddress
+        );
     }
 }
