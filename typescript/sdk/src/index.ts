@@ -115,6 +115,7 @@ export {
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
+  ProtocolFeeHookConfig,
 } from './hook/types';
 export {
   HyperlaneIsmFactory,

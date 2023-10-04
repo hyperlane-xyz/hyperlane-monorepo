@@ -1,6 +1,9 @@
 import debug from 'debug';
 
-import { StaticAggregationHook__factory } from '@hyperlane-xyz/core';
+import {
+  StaticAggregationHook__factory,
+  StaticProtocolFee,
+} from '@hyperlane-xyz/core';
 import { objMerge } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
@@ -18,6 +21,7 @@ import {
   HookConfig,
   HookType,
   IgpHookConfig,
+  ProtocolFeeHookConfig,
 } from './types';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
@@ -52,9 +56,24 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       return this.deployIgp(chain, config, coreAddresses) as any;
     } else if (config.type === HookType.AGGREGATION) {
       return this.deployAggregation(chain, config, coreAddresses);
+    } else if (config.type === HookType.PROTOCOL_FEE) {
+      const hook = await this.deployProtocolFee(chain, config);
+      return { [config.type]: hook } as any;
     }
 
     throw new Error(`Unexpected hook type: ${JSON.stringify(config)}`);
+  }
+
+  async deployProtocolFee(
+    chain: ChainName,
+    config: ProtocolFeeHookConfig,
+  ): Promise<StaticProtocolFee> {
+    return this.deployContract(chain, HookType.PROTOCOL_FEE, [
+      config.maxProtocolFee,
+      config.protocolFee,
+      config.beneficiary,
+      config.owner,
+    ]);
   }
 
   async deployIgp(
