@@ -13,6 +13,7 @@ use hyperlane_base::agent_main;
 
 use crate::relayer::Relayer;
 
+mod error;
 mod merkle_tree;
 mod msg;
 mod processor;
