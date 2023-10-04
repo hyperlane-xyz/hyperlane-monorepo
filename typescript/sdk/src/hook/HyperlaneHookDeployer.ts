@@ -23,6 +23,7 @@ import {
 } from './contracts';
 import {
   AggregationHookConfig,
+  FallbackRoutingHookConfig,
   HookConfig,
   HookType,
   IgpHookConfig,
@@ -79,6 +80,21 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     this.logger(`Deploying InterchainGasPaymaster to ${chain}`);
     const deployer = new HyperlaneIgpDeployer(this.multiProvider);
     return await deployer.deployContracts(chain, config);
+  }
+
+  async deployFallbackRoutingHook(
+    chain: ChainName,
+    _: FallbackRoutingHookConfig,
+  ): Promise<HyperlaneContracts<MerkleTreeHookFactory>> {
+    this.logger(`Deploying FallbackDomainRoutingHook to ${chain}`);
+    const merkleTreeHook = await this.multiProvider.handleDeploy(
+      chain,
+      new MerkleTreeHook__factory(),
+      [this.mailboxes[chain]],
+    );
+    return {
+      merkleTreeHook: merkleTreeHook,
+    };
   }
 
   async deployAggregationHook(

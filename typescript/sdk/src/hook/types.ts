@@ -1,3 +1,5 @@
+import { Address } from '@hyperlane-xyz/utils';
+
 import { IgpConfig } from '../gas/types';
 
 export enum HookType {
@@ -13,6 +15,11 @@ export type MerkleTreeHookConfig = {
 export type AggregationHookConfig = {
   type: HookType.AGGREGATION;
   modules: Array<HookConfig>;
+};
+
+export type FallbackRoutingHookConfig = {
+  owner: Address;
+  fallback: Address;
 };
 
 export type IgpHookConfig = IgpConfig & {
