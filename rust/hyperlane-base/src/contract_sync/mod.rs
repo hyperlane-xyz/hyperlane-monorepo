@@ -105,7 +105,6 @@ where
             chunk_size: index_settings.chunk_size,
             mode: index_settings.mode,
         };
-        println!("~~~ rate limited cursor config: {:?}", index_settings);
         Box::new(
             RateLimitedContractSyncCursor::new(
                 Arc::new(self.indexer.clone()),

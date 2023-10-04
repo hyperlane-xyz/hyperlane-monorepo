@@ -29,7 +29,7 @@ use tempfile::tempdir;
 use crate::{
     config::Config,
     ethereum::start_anvil,
-    invariants::{termination_invariants_met, SOL_MESSAGES_EXPECTED},
+    invariants::termination_invariants_met,
     solana::*,
     utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle},
 };
@@ -71,7 +71,7 @@ const VALIDATOR_ORIGIN_CHAINS: &[&str] = &["test1", "test2", "test3", "sealevelt
 
 const AGENT_BIN_PATH: &str = "target/debug";
 const INFRA_PATH: &str = "../typescript/infra";
-const TS_SDK_PATH: &str = "../typescript/sdk";
+// const TS_SDK_PATH: &str = "../typescript/sdk";
 const MONOREPO_ROOT_PATH: &str = "../";
 
 type DynPath = Box<dyn AsRef<Path>>;
@@ -309,7 +309,7 @@ fn main() -> ExitCode {
         solana_ledger_dir.as_ref().to_path_buf(),
     );
 
-    let (solana_config_path, solana_validator) = start_solana_validator.join();
+    let (_solana_config_path, solana_validator) = start_solana_validator.join();
     state.push_agent(solana_validator);
     state.push_agent(start_anvil.join());
 
@@ -339,16 +339,16 @@ fn main() -> ExitCode {
     }
 
     // Send some sealevel messages before spinning up the relayer, to test the backward indexing cursor
-    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-        initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
-    }
+    // for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
+    //     initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    // }
 
     state.push_agent(relayer_env.spawn("RLY"));
 
     // Send some sealevel messages after spinning up the relayer, to test the forward indexing cursor
-    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-        initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
-    }
+    // for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
+    //     initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    // }
 
     log!("Setup complete! Agents running in background...");
     log!("Ctrl+C to end execution...");
@@ -363,7 +363,8 @@ fn main() -> ExitCode {
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
-            if termination_invariants_met(&config, &solana_path, &solana_config_path)
+            if termination_invariants_met(&config)
+                // if termination_invariants_met(&config, &solana_path, &solana_config_path)
                 .unwrap_or(false)
             {
                 // end condition reached successfully

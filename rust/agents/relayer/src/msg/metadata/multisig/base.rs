@@ -59,15 +59,11 @@ pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
         let build_token = |token: &MetadataToken| -> Result<Vec<u8>> {
             match token {
                 MetadataToken::MerkleRoot => Ok(metadata.checkpoint.root.to_fixed_bytes().into()),
-                MetadataToken::MerkleIndex => {
-                    if let Some(merkle_leaf_id) = metadata.merkle_leaf_id {
-                        println!("~~~ found merkle leaf id metadata");
-                        Ok(merkle_leaf_id.to_be_bytes().into())
-                    } else {
-                        println!("~~~ failed to get merkle leaf id metadata");
-                        Err(RelayerError::MetadataFetchingError.into())
-                    }
-                }
+                MetadataToken::MerkleIndex => Ok(metadata
+                    .merkle_leaf_id
+                    .ok_or(RelayerError::MetadataFetchingError)?
+                    .to_be_bytes()
+                    .into()),
                 MetadataToken::CheckpointIndex => {
                     Ok(metadata.checkpoint.index.to_be_bytes().into())
                 }
