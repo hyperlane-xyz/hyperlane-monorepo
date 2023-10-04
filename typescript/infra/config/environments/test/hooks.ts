@@ -6,6 +6,7 @@ import {
 import { HookType } from '@hyperlane-xyz/sdk/src/hook/types';
 import { objMap } from '@hyperlane-xyz/utils';
 
+import { igp } from './igp';
 import { owners } from './owners';
 
 export const merkleTree: ChainMap<MerkleTreeHookConfig> = objMap(
@@ -23,7 +24,7 @@ export const aggregation: ChainMap<AggregationHookConfig> = objMap(
   (chain, __) => {
     const config: AggregationHookConfig = {
       type: HookType.AGGREGATION,
-      modules: [merkleTree[chain]],
+      modules: [{ type: HookType.IGP, ...igp[chain] }, merkleTree[chain]],
     };
     return config;
   },

@@ -4,6 +4,8 @@ import {
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
 
+import { IgpFactories } from '../gas/contracts';
+
 export const merkleTreeHookFactory = {
   merkleTreeHook: new MerkleTreeHook__factory(),
 };
@@ -20,5 +22,5 @@ export const hookFactories = merkleTreeHookFactory;
 export type MerkleTreeHookFactory = typeof merkleTreeHookFactory;
 
 export type HookFactories = Partial<
-  MerkleTreeHookFactory & AggregationHookFactory
+  MerkleTreeHookFactory & AggregationHookFactory & IgpFactories
 >;

@@ -10,6 +10,8 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer';
+import { IgpFactories } from '../gas/contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -19,7 +21,12 @@ import {
   MerkleTreeHookFactory,
   hookFactories,
 } from './contracts';
-import { AggregationHookConfig, HookConfig, HookType } from './types';
+import {
+  AggregationHookConfig,
+  HookConfig,
+  HookType,
+  IgpHookConfig,
+} from './types';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
   HookConfig,
@@ -43,6 +50,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       return this.deployMerkleTreeHook(chain, config);
     } else if (config.type === HookType.AGGREGATION) {
       return this.deployAggregationHook(chain, config);
+    } else if (config.type === HookType.IGP) {
+      return this.deployIgpHook(chain, config);
     } else {
       throw new Error(`Unsupported hook type: ${config}`);
     }
@@ -61,6 +70,15 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     return {
       merkleTreeHook: merkleTreeHook,
     };
+  }
+
+  async deployIgpHook(
+    chain: ChainName,
+    config: IgpHookConfig,
+  ): Promise<HyperlaneContracts<IgpFactories>> {
+    this.logger(`Deploying InterchainGasPaymaster to ${chain}`);
+    const deployer = new HyperlaneIgpDeployer(this.multiProvider);
+    return await deployer.deployContracts(chain, config);
   }
 
   async deployAggregationHook(
@@ -121,6 +139,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       return deployedContracts.merkleTreeHook.address;
     else if (deployedContracts.aggregationHook)
       return deployedContracts.aggregationHook.address;
+    else if (deployedContracts.interchainGasPaymaster)
+      return deployedContracts.interchainGasPaymaster.address;
     else throw new Error('No hook deployed');
   }
 }

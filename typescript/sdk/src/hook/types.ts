@@ -1,6 +1,9 @@
+import { IgpConfig } from '../gas/types';
+
 export enum HookType {
   MERKLE_TREE_HOOK = 'merkleTreeHook',
   AGGREGATION = 'aggregation',
+  IGP = 'igp',
 }
 
 export type MerkleTreeHookConfig = {
@@ -12,4 +15,11 @@ export type AggregationHookConfig = {
   modules: Array<HookConfig>;
 };
 
-export type HookConfig = MerkleTreeHookConfig | AggregationHookConfig;
+export type IgpHookConfig = IgpConfig & {
+  type: HookType.IGP;
+};
+
+export type HookConfig =
+  | MerkleTreeHookConfig
+  | AggregationHookConfig
+  | IgpHookConfig;
