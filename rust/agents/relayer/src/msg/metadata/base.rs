@@ -18,7 +18,6 @@ use hyperlane_core::{
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
-use crate::error::RelayerError;
 use crate::{
     merkle_tree::builder::{MerkleTreeBuilder, MerkleTreeBuilderError},
     msg::metadata::{
@@ -30,6 +29,14 @@ use crate::{
         RoutingIsmMetadataBuilder,
     },
 };
+
+#[derive(Debug, thiserror::Error)]
+pub enum MetadataBuilderError {
+    #[error("Unknown or invalid module type ({0})")]
+    UnsupportedModuleType(ModuleType),
+    #[error("Exceeded max depth when building metadata ({0})")]
+    MaxDepthExceeded(u32),
+}
 
 #[async_trait]
 pub trait MetadataBuilder: Send + Sync {
@@ -86,7 +93,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
             ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(base)),
             ModuleType::Null => Box::new(NullMetadataBuilder::new()),
             ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(base)),
-            _ => return Err(RelayerError::UnsupportedModuleType(module_type).into()),
+            _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         metadata_builder
             .build(ism_address, message)
@@ -113,7 +120,7 @@ impl BaseMetadataBuilder {
         let mut cloned = self.clone();
         cloned.depth += 1;
         if cloned.depth > cloned.max_depth {
-            Err(RelayerError::MaxDepthExceeded(cloned.depth).into())
+            Err(MetadataBuilderError::MaxDepthExceeded(cloned.depth).into())
         } else {
             Ok(cloned)
         }
@@ -154,7 +161,7 @@ impl BaseMetadataBuilder {
         self.origin_prover_sync.read().await.count().checked_sub(1)
     }
 
-    pub async fn get_merkle_leaf_by_message_id(&self, message_id: H256) -> Result<Option<u32>> {
+    pub async fn get_merkle_leaf_id_by_message_id(&self, message_id: H256) -> Result<Option<u32>> {
         let merkle_leaf = self
             .db
             .retrieve_merkle_leaf_index_by_message_id(&message_id)?;

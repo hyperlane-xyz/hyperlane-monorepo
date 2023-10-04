@@ -56,7 +56,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         };
 
         let merkle_leaf_id = self
-            .get_merkle_leaf_by_message_id(message.id())
+            .get_merkle_leaf_id_by_message_id(message.id())
             .await
             .context(CTX)?;
 

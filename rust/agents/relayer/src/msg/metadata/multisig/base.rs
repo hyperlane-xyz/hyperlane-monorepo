@@ -12,7 +12,6 @@ use hyperlane_core::{Checkpoint, HyperlaneMessage, SignatureWithSigner, H256};
 use strum::Display;
 use tracing::{debug, info};
 
-use crate::error::RelayerError;
 use crate::msg::metadata::BaseMetadataBuilder;
 use crate::msg::metadata::MetadataBuilder;
 
@@ -61,7 +60,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
                 MetadataToken::MerkleRoot => Ok(metadata.checkpoint.root.to_fixed_bytes().into()),
                 MetadataToken::MerkleIndex => Ok(metadata
                     .merkle_leaf_id
-                    .ok_or(RelayerError::MetadataFetchingError)?
+                    .ok_or(eyre::eyre!("Failed to fetch metadata"))?
                     .to_be_bytes()
                     .into()),
                 MetadataToken::CheckpointIndex => {

@@ -57,8 +57,6 @@ impl ProcessorExt for MerkleTreeProcessor {
 
             // Increase the leaf index to move on to the next leaf
             self.leaf_index += 1;
-            // No need to explicitly send the merkle tree to the submitter, since it's
-            // behind a shared Arc.
         } else {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -93,7 +91,11 @@ pub struct MerkleTreeProcessorMetrics {
 impl MerkleTreeProcessorMetrics {
     pub fn new() -> Self {
         Self {
-            max_leaf_index_gauge: IntGauge::new("max_leaf_index_gauge", "help string").unwrap(),
+            max_leaf_index_gauge: IntGauge::new(
+                "max_leaf_index_gauge",
+                "The max merkle tree leaf index",
+            )
+            .unwrap(),
         }
     }
 }

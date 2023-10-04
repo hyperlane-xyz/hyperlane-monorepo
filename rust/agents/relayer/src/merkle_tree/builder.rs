@@ -81,15 +81,10 @@ impl MerkleTreeBuilder {
         message_nonce: u32,
         root_index: u32,
     ) -> Result<Option<Proof>, MerkleTreeBuilderError> {
-        let Some(message_id) = self
-            .db
-            .retrieve_message_id_by_nonce(&message_nonce)?
-        else {
-            return Ok(None);
-        };
         let Some(leaf_index) = self
             .db
-            .retrieve_merkle_leaf_index_by_message_id(&message_id)?
+            .retrieve_message_id_by_nonce(&message_nonce)?
+            .and_then(|message_id| self.db.retrieve_merkle_leaf_index_by_message_id(&message_id).ok().flatten())
         else {
             return Ok(None);
         };
@@ -106,7 +101,7 @@ impl MerkleTreeBuilder {
     pub async fn ingest_message_id(&mut self, message_id: H256) -> Result<()> {
         const CTX: &str = "When ingesting message id";
         debug!(?message_id, "Ingesting leaf");
-        self.prover.ingest(message_id).expect("!tree full");
+        self.prover.ingest(message_id).expect("tree full");
         self.incremental.ingest(message_id);
         match self.prover.root().eq(&self.incremental.root()) {
             true => Ok(()),
