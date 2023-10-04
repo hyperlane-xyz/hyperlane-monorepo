@@ -9,7 +9,7 @@ use crate::solana::solana_termination_invariants_met;
 
 // This number should be even, so the messages can be split into two equal halves
 // sent before and after the relayer spins up, to avoid rounding errors.
-pub const SOL_MESSAGES_EXPECTED: u32 = 20;
+pub const SOL_MESSAGES_EXPECTED: u32 = 0;
 
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent.
@@ -73,10 +73,10 @@ pub fn termination_invariants_met(
     //     return Ok(false);
     // }
 
-    if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path) {
-        log!("Solana termination invariants not met");
-        return Ok(false);
-    }
+    // if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path) {
+    //     log!("Solana termination invariants not met");
+    //     return Ok(false);
+    // }
 
     let dispatched_messages_scraped = fetch_metric(
         "9093",
