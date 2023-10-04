@@ -1,7 +1,7 @@
 import {
   ChainMap,
   GasOracleContractType,
-  OverheadIgpConfig,
+  IgpConfig,
   defaultMultisigIsmConfigs,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
@@ -24,24 +24,21 @@ function getGasOracles(local: MainnetChains) {
   );
 }
 
-export const igp: ChainMap<OverheadIgpConfig> = objMap(
-  owners,
-  (chain, owner) => {
-    return {
-      owner,
-      oracleKey: DEPLOYER_ADDRESS,
-      beneficiary: KEY_FUNDER_ADDRESS,
-      gasOracleType: getGasOracles(chain),
-      overhead: Object.fromEntries(
-        exclude(chain, supportedChainNames).map((remote) => [
-          remote,
-          multisigIsmVerificationCost(
-            defaultMultisigIsmConfigs[remote].threshold,
-            defaultMultisigIsmConfigs[remote].validators.length,
-          ),
-        ]),
-      ),
-      upgrade: core[chain].upgrade,
-    };
-  },
-);
+export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, owner) => {
+  return {
+    owner,
+    oracleKey: DEPLOYER_ADDRESS,
+    beneficiary: KEY_FUNDER_ADDRESS,
+    gasOracleType: getGasOracles(chain),
+    overhead: Object.fromEntries(
+      exclude(chain, supportedChainNames).map((remote) => [
+        remote,
+        multisigIsmVerificationCost(
+          defaultMultisigIsmConfigs[remote].threshold,
+          defaultMultisigIsmConfigs[remote].validators.length,
+        ),
+      ]),
+    ),
+    upgrade: core[chain].upgrade,
+  };
+});

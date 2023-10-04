@@ -100,7 +100,7 @@ contract GasRouterTest is Test {
         setDestinationGas(originRouter, remoteDomain, gas);
 
         uint256 requiredPayment = gas * gasPrice;
-        vm.expectRevert("insufficient interchain gas payment");
+        vm.expectRevert("IGP: insufficient interchain gas payment");
         originRouter.dispatch{value: requiredPayment - 1}(remoteDomain, "");
 
         vm.deal(address(this), requiredPayment + 1);

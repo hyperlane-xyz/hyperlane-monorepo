@@ -4,10 +4,10 @@ import {
   ChainMetadata,
   ChainName,
   CoreConfig,
+  HookConfig,
   HyperlaneEnvironment,
-  MerkleTreeHookConfig,
+  IgpConfig,
   MultiProvider,
-  OverheadIgpConfig,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
@@ -38,8 +38,8 @@ export type EnvironmentConfig = {
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
-  hook?: ChainMap<MerkleTreeHookConfig>;
-  igp: ChainMap<OverheadIgpConfig>;
+  hook?: ChainMap<HookConfig>;
+  igp: ChainMap<IgpConfig>;
   owners: ChainMap<Address>;
   infra: InfrastructureConfig;
   getMultiProvider: (
