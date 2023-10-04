@@ -282,7 +282,7 @@ pub fn start_solana_test_validator(
 }
 
 #[apply(as_task)]
-pub fn initiate_solana_hyperlane_transfer(
+pub fn _initiate_solana_hyperlane_transfer(
     solana_cli_tools_path: PathBuf,
     solana_config_path: PathBuf,
 ) {
@@ -309,7 +309,7 @@ pub fn initiate_solana_hyperlane_transfer(
         .run_with_output()
         .join();
 
-    let message_id = get_message_id_from_logs(output);
+    let message_id = _get_message_id_from_logs(output);
     if let Some(message_id) = message_id {
         sealevel_client(&solana_cli_tools_path, &solana_config_path)
             .cmd("igp")
@@ -321,7 +321,7 @@ pub fn initiate_solana_hyperlane_transfer(
     }
 }
 
-fn get_message_id_from_logs(logs: Vec<String>) -> Option<String> {
+fn _get_message_id_from_logs(logs: Vec<String>) -> Option<String> {
     let message_id_regex = Regex::new(r"Dispatched message to \d+, ID 0x([0-9a-fA-F]+)").unwrap();
     for log in logs {
         // Use the regular expression to capture the ID
@@ -335,7 +335,7 @@ fn get_message_id_from_logs(logs: Vec<String>) -> Option<String> {
     None
 }
 
-pub fn solana_termination_invariants_met(
+pub fn _solana_termination_invariants_met(
     solana_cli_tools_path: &Path,
     solana_config_path: &Path,
 ) -> bool {

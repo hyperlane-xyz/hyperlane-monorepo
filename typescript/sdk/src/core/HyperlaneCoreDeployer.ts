@@ -1,16 +1,13 @@
 import debug from 'debug';
 
-import {
-  Mailbox,
-  MerkleTreeHook,
-  MerkleTreeHook__factory,
-  TestInterchainGasPaymaster__factory,
-  ValidatorAnnounce,
-} from '@hyperlane-xyz/core';
-import { Address } from '@hyperlane-xyz/utils';
+import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types';
+import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer';
+import { HookFactories } from '../hook/contracts';
+import { HookConfig } from '../hook/types';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
@@ -24,10 +21,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreFactories
 > {
   startingBlockNumbers: ChainMap<number | undefined> = {};
+  deployedHooks: HyperlaneContractsMap<HookFactories> = {};
 
   constructor(
     multiProvider: MultiProvider,
     readonly ismFactory: HyperlaneIsmFactory,
+    readonly hookDeployer = new HyperlaneHookDeployer(multiProvider, {}),
   ) {
     super(multiProvider, coreFactories, {
       logger: debug('hyperlane:CoreDeployer'),
@@ -37,10 +36,8 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
   async deployMailbox(
     chain: ChainName,
-    ismConfig: IsmConfig,
     proxyAdmin: Address,
-    defaultHook: Address,
-    owner: Address,
+    config: CoreConfig,
   ): Promise<Mailbox> {
     const cachedMailbox = this.readCache(
       chain,
@@ -62,24 +59,22 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       [domain],
     );
 
-    // deploy default ISM
-    const defaultIsm = await this.deployIsm(chain, ismConfig);
-
-    // deploy required hook
-    const merkleTreeHook = await this.deployMerkleTreeHook(
+    const defaultIsm = await this.deployIsm(chain, config.defaultIsm);
+    const defaultHook = await this.deployHook(
       chain,
+      config.defaultHook,
+      mailbox.address,
+    );
+    const requiredHook = await this.deployHook(
+      chain,
+      config.requiredHook,
       mailbox.address,
     );
 
     // configure mailbox
     await this.multiProvider.handleTx(
       chain,
-      mailbox.initialize(
-        owner,
-        defaultIsm,
-        defaultHook,
-        merkleTreeHook.address,
-      ),
+      mailbox.initialize(config.owner, defaultIsm, defaultHook, requiredHook),
     );
 
     return mailbox;
@@ -97,21 +92,26 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     return validatorAnnounce;
   }
 
-  async deployIsm(chain: ChainName, config: IsmConfig): Promise<Address> {
-    this.logger(`Deploying new ISM to ${chain}`);
-    const ism = await this.ismFactory.deploy(chain, config);
-    return ism.address;
+  async deployHook(
+    chain: ChainName,
+    config: HookConfig,
+    mailbox: Address,
+  ): Promise<Address> {
+    const hooks = await this.hookDeployer.deployContracts(
+      chain,
+      config,
+      mailbox,
+    );
+    this.deployedHooks[chain] = {
+      ...hooks,
+      ...this.deployedHooks[chain],
+    };
+    return hooks[config.type].address;
   }
 
-  async deployMerkleTreeHook(
-    chain: ChainName,
-    mailboxAddress: string,
-  ): Promise<MerkleTreeHook> {
-    this.logger(`Deploying Merkle Tree Hook to ${chain}`);
-    const merkleTreeFactory = new MerkleTreeHook__factory();
-    return this.multiProvider.handleDeploy(chain, merkleTreeFactory, [
-      mailboxAddress,
-    ]);
+  async deployIsm(chain: ChainName, config: IsmConfig): Promise<Address> {
+    const ism = await this.ismFactory.deploy(chain, config);
+    return ism.address;
   }
 
   async deployContracts(
@@ -125,24 +125,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
-    // TODO: deploy using default hook config
-    const igp = await this.multiProvider.handleDeploy(
-      chain,
-      new TestInterchainGasPaymaster__factory(),
-      [],
-    );
+    const mailbox = await this.deployMailbox(chain, proxyAdmin.address, config);
 
-    const mailbox = await this.deployMailbox(
-      chain,
-      config.defaultIsm,
-      proxyAdmin.address,
-      igp.address,
-      config.owner,
-    );
-
-    this.startingBlockNumbers[chain] = (
-      await mailbox.deployedBlock()
-    ).toNumber();
+    const deployedBlock = await mailbox.deployedBlock();
+    this.startingBlockNumbers[chain] = deployedBlock.toNumber();
 
     const validatorAnnounce = await this.deployValidatorAnnounce(
       chain,
@@ -167,5 +153,16 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       proxyAdmin,
       validatorAnnounce,
     };
+  }
+
+  async deploy(
+    configMap: ChainMap<CoreConfig>,
+  ): Promise<HyperlaneContractsMap<CoreFactories>> {
+    const contractsMap = await super.deploy(configMap);
+    this.deployedContracts = objMap(contractsMap, (chain, core) => ({
+      ...core,
+      ...this.deployedHooks[chain],
+    }));
+    return contractsMap;
   }
 }

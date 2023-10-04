@@ -27,11 +27,9 @@ import {
   Modules,
   SDK_MODULES,
   getAddresses,
-  getAggregationHookFactoryAddresses,
   getArgs,
   getContractAddressesSdkFilepath,
   getEnvironmentConfig,
-  getMailboxAddresses,
   getModuleDirectory,
   getProxiedRouterConfig,
   getRouterConfig,
@@ -82,11 +80,9 @@ async function main() {
       throw new Error(`No hook config for ${environment}`);
     }
     config = envConfig.hook;
-    deployer = new HyperlaneHookDeployer(
-      multiProvider,
-      getMailboxAddresses(environment),
-      getAggregationHookFactoryAddresses(environment),
-    );
+    const core = getAddresses(environment, Modules.CORE);
+    const mailboxes = objMap(core, (_, contracts) => contracts.mailbox);
+    deployer = new HyperlaneHookDeployer(multiProvider, mailboxes);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
@@ -163,7 +159,7 @@ async function main() {
   };
   // Don't write agent config in fork tests
   const agentConfig =
-    ['core', 'igp'].includes(module) && !fork
+    module === Modules.CORE && !fork
       ? {
           addresses,
           environment,

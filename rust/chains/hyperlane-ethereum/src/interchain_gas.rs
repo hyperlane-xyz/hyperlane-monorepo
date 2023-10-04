@@ -97,6 +97,8 @@ where
             .query_with_meta()
             .await?;
 
+        println!("found gas payment events: {:?}", events);
+
         Ok(events
             .into_iter()
             .map(|(log, log_meta)| {

@@ -34,7 +34,7 @@ pub fn get_multisig_ism_test_data() -> MultisigIsmTestData {
 
     let checkpoint = CheckpointWithMessageId {
         checkpoint: Checkpoint {
-            mailbox_address: H256::from_str(
+            merkle_tree_hook_address: H256::from_str(
                 "0xabababababababababababababababababababababababababababababababab",
             )
             .unwrap(),

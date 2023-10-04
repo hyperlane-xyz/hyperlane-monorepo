@@ -188,7 +188,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     return IAggregationIsm__factory.connect(address, signer);
   }
 
-  private async deployThresholdFactory(
+  async deployThresholdFactory(
     chain: ChainName,
     factory: StaticThresholdAddressSetFactory,
     values: Address[],

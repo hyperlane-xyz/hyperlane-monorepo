@@ -1,22 +1,22 @@
 import { IgpConfig } from '../gas/types';
 
 export enum HookType {
-  MERKLE_TREE_HOOK = 'merkleTreeHook',
+  MERKLE_TREE = 'merkleTreeHook',
+  INTERCHAIN_GAS_PAYMASTER = 'interchainGasPaymaster',
   AGGREGATION = 'aggregation',
-  IGP = 'igp',
 }
 
 export type MerkleTreeHookConfig = {
-  type: HookType.MERKLE_TREE_HOOK;
+  type: HookType.MERKLE_TREE;
 };
 
 export type AggregationHookConfig = {
   type: HookType.AGGREGATION;
-  modules: Array<HookConfig>;
+  modules: HookConfig[];
 };
 
 export type IgpHookConfig = IgpConfig & {
-  type: HookType.IGP;
+  type: HookType.INTERCHAIN_GAS_PAYMASTER;
 };
 
 export type HookConfig =

@@ -1,9 +1,7 @@
 use std::env;
 
 use config::{ConfigError, Map, Source, Value, ValueKind};
-use convert_case::Case;
-
-use crate::settings::loader::split_and_recase_key;
+use itertools::Itertools;
 
 #[must_use]
 #[derive(Clone, Debug, Default)]
@@ -20,11 +18,6 @@ pub struct Environment {
     /// Consider a nested configuration such as `redis.password`, a separator of `_` would allow
     /// an environment key of `REDIS_PASSWORD` to match. Defaults to `_`.
     separator: Option<String>,
-
-    /// What casing to use for the keys in the environment. By default it will not mutate the key
-    /// value. Case conversion will be performed after the prefix has been removed on each of the
-    /// seperated path components individually.
-    casing: Option<Case>,
 
     /// Ignore empty env values (treat as unset).
     ignore_empty: bool,
@@ -51,14 +44,9 @@ impl Environment {
         self
     }
 
-    pub fn casing(mut self, casing: Case) -> Self {
-        self.casing = Some(casing);
-        self
-    }
-
     pub fn source<'a, I, S>(mut self, source: I) -> Self
     where
-        I: IntoIterator<Item = &'a (S, S)>,
+        I: IntoIterator<Item = (S, S)>,
         S: AsRef<str> + 'a,
     {
         self.source = Some(
@@ -98,7 +86,7 @@ impl Source for Environment {
                 return None;
             }
 
-            let key = split_and_recase_key(separator, self.casing, key);
+            let key = key.split(separator).join(".");
             Some((key, Value::new(Some(&uri), ValueKind::String(value))))
         };
 
@@ -138,17 +126,16 @@ mod test {
     #[test]
     fn default_case() {
         let mut config = Environment::default()
-            .source(ENVS)
+            .source(ENVS.iter().cloned())
             .prefix("PRE__")
             .separator("__")
-            .casing(Case::Camel)
             .collect()
             .unwrap();
 
-        assert_env!(config, "key.a", "value-a");
+        assert_env!(config, "KEY.A", "value-a");
         assert_env!(config, "key.b", "");
-        assert_env!(config, "key.c.partA", "value c a");
-        assert_env!(config, "key.cPartB", "value c b");
+        assert_env!(config, "KEY.C.PART_A", "value c a");
+        assert_env!(config, "KEY.C_PART_B", "value c b");
 
         assert!(config.is_empty());
     }
@@ -156,18 +143,17 @@ mod test {
     #[test]
     fn ignore_empty() {
         let mut config = Environment::default()
-            .source(ENVS)
+            .source(ENVS.iter().cloned())
             .ignore_empty(true)
-            .source(ENVS)
+            .source(ENVS.iter().cloned())
             .prefix("PRE__")
             .separator("__")
-            .casing(Case::Snake)
             .collect()
             .unwrap();
 
-        assert_env!(config, "key.a", "value-a");
-        assert_env!(config, "key.c.part_a", "value c a");
-        assert_env!(config, "key.c_part_b", "value c b");
+        assert_env!(config, "KEY.A", "value-a");
+        assert_env!(config, "KEY.C.PART_A", "value c a");
+        assert_env!(config, "KEY.C_PART_B", "value c b");
 
         assert!(config.is_empty());
     }

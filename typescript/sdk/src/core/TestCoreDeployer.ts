@@ -6,6 +6,7 @@ import {
 
 import { TestChains } from '../consts/chains';
 import { HyperlaneContracts } from '../contracts/types';
+import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { testCoreConfig } from '../test/testUtils';
@@ -25,7 +26,8 @@ const testCoreFactories = {
 export class TestCoreDeployer extends HyperlaneCoreDeployer {
   constructor(public readonly multiProvider: MultiProvider) {
     const ismFactory = new HyperlaneIsmFactory({}, multiProvider);
-    super(multiProvider, ismFactory);
+    const hookDeployer = new HyperlaneHookDeployer(multiProvider, {});
+    super(multiProvider, ismFactory, hookDeployer);
   }
 
   // deploy a test ISM instead of a real ISM

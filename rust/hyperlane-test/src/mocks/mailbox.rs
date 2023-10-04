@@ -72,14 +72,6 @@ impl Mailbox for MockMailboxContract {
         self._count(maybe_lag)
     }
 
-    async fn tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        self._tree(maybe_lag)
-    }
-
-    async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        self._latest_checkpoint(maybe_lag)
-    }
-
     async fn default_ism(&self) -> ChainResult<H256> {
         self._default_ism()
     }

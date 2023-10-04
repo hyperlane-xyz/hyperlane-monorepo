@@ -18,9 +18,9 @@ import {
 import { KmsEthersSigner } from 'aws-kms-ethers-signer';
 import { ethers } from 'ethers';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { AgentSignerKeyType, ChainName } from '@hyperlane-xyz/sdk';
 
-import { AgentContextConfig, AwsKeyConfig, KeyType } from '../../config/agent';
+import { AgentContextConfig, AwsKeyConfig } from '../../config/agent';
 import { Role } from '../../roles';
 import { getEthereumAddress, sleep } from '../../utils/utils';
 import { keyIdentifier } from '../agent';
@@ -81,7 +81,7 @@ export class AgentAwsKey extends CloudAgentKey {
 
   get keyConfig(): AwsKeyConfig {
     return {
-      type: KeyType.Aws,
+      type: AgentSignerKeyType.Aws,
       id: this.identifier,
       region: this.region,
     };

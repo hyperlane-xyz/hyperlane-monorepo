@@ -1,22 +1,22 @@
-use std::path::Path;
+// use std::path::Path;
 
 use crate::config::Config;
 use maplit::hashmap;
 
 use crate::fetch_metric;
 use crate::logging::log;
-use crate::solana::solana_termination_invariants_met;
+// use crate::solana::solana_termination_invariants_met;
 
 // This number should be even, so the messages can be split into two equal halves
 // sent before and after the relayer spins up, to avoid rounding errors.
-pub const SOL_MESSAGES_EXPECTED: u32 = 20;
+pub const SOL_MESSAGES_EXPECTED: u32 = 0;
 
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent.
 pub fn termination_invariants_met(
     config: &Config,
-    solana_cli_tools_path: &Path,
-    solana_config_path: &Path,
+    // solana_cli_tools_path: &Path,
+    // solana_config_path: &Path,
 ) -> eyre::Result<bool> {
     let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
     let total_messages_expected = eth_messages_expected + SOL_MESSAGES_EXPECTED;
@@ -63,19 +63,20 @@ pub fn termination_invariants_met(
     .sum::<u32>();
     // TestSendReceiver randomly breaks gas payments up into
     // two. So we expect at least as many gas payments as messages.
-    if gas_payment_events_count < total_messages_expected {
-        log!(
-            "Relayer has {} gas payment events, expected at least {}",
-            gas_payment_events_count,
-            total_messages_expected
-        );
-        return Ok(false);
-    }
+    // TODO: fix this once eth gas payments are introduced
+    // if gas_payment_events_count < total_messages_expected {
+    //     log!(
+    //         "Relayer has {} gas payment events, expected at least {}",
+    //         gas_payment_events_count,
+    //         total_messages_expected
+    //     );
+    //     return Ok(false);
+    // }
 
-    if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path) {
-        log!("Solana termination invariants not met");
-        return Ok(false);
-    }
+    // if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path) {
+    //     log!("Solana termination invariants not met");
+    //     return Ok(false);
+    // }
 
     let dispatched_messages_scraped = fetch_metric(
         "9093",

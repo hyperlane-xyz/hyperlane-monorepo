@@ -5,7 +5,7 @@
     "noUnusedLocals": false,
   },
   "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
-  "extends": "../../tsconfig.json",
+  "extends": "../tsconfig.json",
   "include": [
     "./*.ts",
     "./config/**/*.ts",

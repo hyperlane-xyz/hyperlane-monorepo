@@ -22,8 +22,7 @@ use serde::{
 /// - wildcard "*"
 /// - single value in decimal or hex (must start with `0x`) format
 /// - list of values in decimal or hex format
-#[derive(Debug, Deserialize, Default, Clone)]
-#[serde(transparent)]
+#[derive(Debug, Default, Clone)]
 pub struct MatchingList(Option<Vec<ListElement>>);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -60,6 +59,55 @@ impl<T: Debug> Display for Filter<T> {
                 write!(f, "]")
             }
         }
+    }
+}
+
+struct MatchingListVisitor;
+impl<'de> Visitor<'de> for MatchingListVisitor {
+    type Value = MatchingList;
+
+    fn expecting(&self, fmt: &mut Formatter) -> fmt::Result {
+        write!(fmt, "an optional list of matching rules")
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(MatchingList(None))
+    }
+
+    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let list: Vec<ListElement> = deserializer.deserialize_seq(MatchingListArrayVisitor)?;
+        Ok(if list.is_empty() {
+            // this allows for empty matching lists to be treated as if no matching list was set
+            MatchingList(None)
+        } else {
+            MatchingList(Some(list))
+        })
+    }
+}
+
+struct MatchingListArrayVisitor;
+impl<'de> Visitor<'de> for MatchingListArrayVisitor {
+    type Value = Vec<ListElement>;
+
+    fn expecting(&self, fmt: &mut Formatter) -> fmt::Result {
+        write!(fmt, "a list of matching rules")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let mut rules = seq.size_hint().map(Vec::with_capacity).unwrap_or_default();
+        while let Some(rule) = seq.next_element::<ListElement>()? {
+            rules.push(rule);
+        }
+        Ok(rules)
     }
 }
 
@@ -145,6 +193,15 @@ impl<'de> Visitor<'de> for FilterVisitor<H256> {
     }
 }
 
+impl<'de> Deserialize<'de> for MatchingList {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        d.deserialize_option(MatchingListVisitor)
+    }
+}
+
 impl<'de> Deserialize<'de> for Filter<u32> {
     fn deserialize<D>(d: D) -> Result<Self, D::Error>
     where
@@ -166,13 +223,13 @@ impl<'de> Deserialize<'de> for Filter<H256> {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
 struct ListElement {
-    #[serde(default, rename = "originDomain")]
+    #[serde(default, rename = "origindomain")]
     origin_domain: Filter<u32>,
-    #[serde(default, rename = "senderAddress")]
+    #[serde(default, rename = "senderaddress")]
     sender_address: Filter<H256>,
-    #[serde(default, rename = "destinationDomain")]
+    #[serde(default, rename = "destinationdomain")]
     destination_domain: Filter<u32>,
-    #[serde(default, rename = "recipientAddress")]
+    #[serde(default, rename = "recipientaddress")]
     recipient_address: Filter<H256>,
 }
 
@@ -266,7 +323,7 @@ mod test {
 
     #[test]
     fn basic_config() {
-        let list: MatchingList = serde_json::from_str(r#"[{"originDomain": "*", "senderAddress": "*", "destinationDomain": "*", "recipientAddress": "*"}, {}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"origindomain": "*", "senderaddress": "*", "destinationdomain": "*", "recipientaddress": "*"}, {}]"#).unwrap();
         assert!(list.0.is_some());
         assert_eq!(list.0.as_ref().unwrap().len(), 2);
         let elem = &list.0.as_ref().unwrap()[0];
@@ -307,7 +364,7 @@ mod test {
 
     #[test]
     fn config_with_address() {
-        let list: MatchingList = serde_json::from_str(r#"[{"senderAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "recipientAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"senderaddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "recipientaddress": "0x9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
         assert!(list.0.is_some());
         assert_eq!(list.0.as_ref().unwrap().len(), 1);
         let elem = &list.0.as_ref().unwrap()[0];
@@ -361,7 +418,7 @@ mod test {
     #[test]
     fn config_with_multiple_domains() {
         let whitelist: MatchingList =
-            serde_json::from_str(r#"[{"destinationDomain": ["13372", "13373"]}]"#).unwrap();
+            serde_json::from_str(r#"[{"destinationdomain": ["13372", "13373"]}]"#).unwrap();
         assert!(whitelist.0.is_some());
         assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
         let elem = &whitelist.0.as_ref().unwrap()[0];
@@ -369,6 +426,12 @@ mod test {
         assert_eq!(elem.recipient_address, Wildcard);
         assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(elem.sender_address, Wildcard);
+    }
+
+    #[test]
+    fn config_with_empty_list_is_none() {
+        let whitelist: MatchingList = serde_json::from_str(r#"[]"#).unwrap();
+        assert!(whitelist.0.is_none());
     }
 
     #[test]
@@ -388,7 +451,7 @@ mod test {
     #[test]
     fn supports_base58() {
         serde_json::from_str::<MatchingList>(
-            r#"[{"originDomain":1399811151,"senderAddress":"DdTMkk9nuqH5LnD56HLkPiKMV3yB3BNEYSQfgmJHa5i7","destinationDomain":11155111,"recipientAddress":"0x6AD4DEBA8A147d000C09de6465267a9047d1c217"}]"#,
+            r#"[{"origindomain":1399811151,"senderaddress":"DdTMkk9nuqH5LnD56HLkPiKMV3yB3BNEYSQfgmJHa5i7","destinationdomain":11155111,"recipientaddress":"0x6AD4DEBA8A147d000C09de6465267a9047d1c217"}]"#,
         ).unwrap();
     }
 }
