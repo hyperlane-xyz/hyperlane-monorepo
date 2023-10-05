@@ -221,7 +221,7 @@ where
             .await?;
         Ok(Checkpoint {
             merkle_tree_hook_address: self.address(),
-            mailbox_domain: self.domain.id(),
+            merkle_tree_hook_domain: self.domain.id(),
             root: root.into(),
             index,
         })

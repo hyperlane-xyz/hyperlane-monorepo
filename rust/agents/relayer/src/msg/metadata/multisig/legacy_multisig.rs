@@ -19,9 +19,9 @@ pub struct LegacyMultisigMetadataBuilder(BaseMetadataBuilder);
 impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
     fn token_layout(&self) -> Vec<MetadataToken> {
         vec![
-            MetadataToken::MerkleRoot,
+            MetadataToken::CheckpointMerkleRoot,
             MetadataToken::CheckpointIndex,
-            MetadataToken::CheckpointMerkleTree,
+            MetadataToken::CheckpointMerkleTreeHook,
             MetadataToken::MerkleProof,
             MetadataToken::Threshold,
             MetadataToken::Signatures,

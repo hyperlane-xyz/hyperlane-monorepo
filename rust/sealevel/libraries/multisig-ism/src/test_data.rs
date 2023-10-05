@@ -38,7 +38,7 @@ pub fn get_multisig_ism_test_data() -> MultisigIsmTestData {
                 "0xabababababababababababababababababababababababababababababababab",
             )
             .unwrap(),
-            mailbox_domain: ORIGIN_DOMAIN,
+            merkle_tree_hook_domain: ORIGIN_DOMAIN,
             root: H256::from_str(
                 "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
             )

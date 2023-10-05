@@ -59,9 +59,6 @@ pub enum MerkleTreeBuilderError {
     /// DB Error
     #[error("{0}")]
     DbError(#[from] DbError),
-    /// Some other error occured.
-    #[error("Failed to build the merkle tree: {0}")]
-    Other(String),
 }
 
 impl MerkleTreeBuilder {
@@ -81,16 +78,19 @@ impl MerkleTreeBuilder {
         message_nonce: u32,
         root_index: u32,
     ) -> Result<Option<Proof>, MerkleTreeBuilderError> {
-        let Some(leaf_index) = self
-            .db
+        self.db
             .retrieve_message_id_by_nonce(&message_nonce)?
-            .and_then(|message_id| self.db.retrieve_merkle_leaf_index_by_message_id(&message_id).ok().flatten())
-        else {
-            return Ok(None);
-        };
-        self.prover
-            .prove_against_previous(leaf_index as usize, root_index as usize)
-            .map(Option::from)
+            .and_then(|message_id| {
+                self.db
+                    .retrieve_merkle_leaf_index_by_message_id(&message_id)
+                    .ok()
+                    .flatten()
+            })
+            .map(|leaf_index| {
+                self.prover
+                    .prove_against_previous(leaf_index as usize, root_index as usize)
+            })
+            .transpose()
             .map_err(Into::into)
     }
 

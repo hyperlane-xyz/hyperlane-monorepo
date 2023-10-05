@@ -1,8 +1,6 @@
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
-use backoff::Error as BackoffError;
-use backoff::{future::retry, ExponentialBackoff};
 use derive_new::new;
 use eyre::{Context, Result};
 use hyperlane_base::db::HyperlaneRocksDB;
@@ -19,7 +17,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
 use crate::{
-    merkle_tree::builder::{MerkleTreeBuilder, MerkleTreeBuilderError},
+    merkle_tree::builder::MerkleTreeBuilder,
     msg::metadata::{
         multisig::{
             LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
@@ -102,15 +100,6 @@ impl MetadataBuilder for BaseMetadataBuilder {
     }
 }
 
-fn constant_backoff() -> ExponentialBackoff {
-    ExponentialBackoff {
-        initial_interval: std::time::Duration::from_secs(1),
-        multiplier: 1.0,
-        max_elapsed_time: None,
-        ..ExponentialBackoff::default()
-    }
-}
-
 impl BaseMetadataBuilder {
     pub fn domain(&self) -> &HyperlaneDomain {
         &self.destination_chain_setup.domain
@@ -128,33 +117,25 @@ impl BaseMetadataBuilder {
 
     pub async fn get_proof(&self, nonce: u32, checkpoint: Checkpoint) -> Result<Option<Proof>> {
         const CTX: &str = "When fetching message proof";
-        let proof = retry(constant_backoff(), || async {
-            self.origin_prover_sync
-                .read()
-                .await
-                .get_proof(nonce, checkpoint.index)
-                .context(CTX)
-                // If no proof is found, `get_proof(...)` returns `Ok(None)`,
-                // so errors should break the retry loop.
-                .map_err(BackoffError::permanent)?
-                .ok_or(MerkleTreeBuilderError::Other("No proof found in DB".into()))
-                .context(CTX)
-                // Transient errors are retried
-                .map_err(BackoffError::transient)
-        })
-        .await?;
-        // checkpoint may be fraudulent if the root does not
-        // match the canonical root at the checkpoint's index
-        if proof.root() != checkpoint.root {
-            info!(
-                ?checkpoint,
-                canonical_root = ?proof.root(),
-                "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
-            );
-            Ok(None)
-        } else {
-            Ok(Some(proof))
-        }
+        let proof = self.origin_prover_sync
+            .read()
+            .await
+            .get_proof(nonce, checkpoint.index)
+            .context(CTX)?
+            .and_then(|proof| {
+                // checkpoint may be fraudulent if the root does not
+                // match the canonical root at the checkpoint's index
+                if proof.root() == checkpoint.root {
+                    return Some(proof)
+                }
+                info!(
+                    ?checkpoint,
+                    canonical_root = ?proof.root(),
+                    "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
+                );
+                None
+            });
+        Ok(proof)
     }
 
     pub async fn highest_known_nonce(&self) -> Option<u32> {
