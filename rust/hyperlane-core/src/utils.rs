@@ -225,4 +225,15 @@ macro_rules! many_to_one {
     }
 }
 
+#[macro_export]
+macro_rules! unwrap_or_none_result {
+    ($variable_name:ident, $e:expr $(, $else_e:expr)?) => {
+        let Some($variable_name) = $e
+        else {
+            $($else_e)?
+            return Ok(None);
+        };
+    };
+}
+
 pub(crate) use many_to_one;

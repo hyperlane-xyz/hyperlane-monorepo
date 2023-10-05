@@ -6,7 +6,7 @@ use derive_new::new;
 
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
-use hyperlane_core::{HyperlaneMessage, H256};
+use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
 
 use crate::msg::metadata::BaseMetadataBuilder;
 
@@ -37,31 +37,25 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching LegacyMultisig metadata";
-        let Some(highest_nonce) = self.highest_known_nonce().await
-        else {
-            return Ok(None);
-        };
-        let Some(quorum_checkpoint) = checkpoint_syncer
-            .legacy_fetch_checkpoint_in_range(
-                validators,
-                threshold as usize,
-                message.nonce,
-                highest_nonce,
-            )
-            .await
-            .context(CTX)?
-        else {
-            return Ok(None);
-        };
-
-        let Some(proof) = self
-            .get_proof(message.nonce, quorum_checkpoint.checkpoint)
-            .await
-            .context(CTX)?
-        else {
-            return Ok(None);
-        };
-
+        unwrap_or_none_result!(highest_nonce, self.highest_known_nonce().await);
+        unwrap_or_none_result!(
+            quorum_checkpoint,
+            checkpoint_syncer
+                .legacy_fetch_checkpoint_in_range(
+                    validators,
+                    threshold as usize,
+                    message.nonce,
+                    highest_nonce,
+                )
+                .await
+                .context(CTX)?
+        );
+        unwrap_or_none_result!(
+            proof,
+            self.get_proof(message.nonce, quorum_checkpoint.checkpoint)
+                .await
+                .context(CTX)?
+        );
         Ok(Some(MultisigMetadata::new(
             quorum_checkpoint.checkpoint,
             quorum_checkpoint.signatures,

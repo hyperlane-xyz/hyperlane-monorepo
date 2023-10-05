@@ -6,7 +6,7 @@ use derive_new::new;
 
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
-use hyperlane_core::{HyperlaneMessage, H256};
+use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
 use tracing::warn;
 
 use crate::msg::metadata::BaseMetadataBuilder;
@@ -35,13 +35,13 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MessageIdMultisig metadata";
-        let Some(quorum_checkpoint) = checkpoint_syncer
-            .fetch_checkpoint(validators, threshold as usize, message.nonce)
-            .await
-            .context(CTX)?
-        else {
-            return Ok(None);
-        };
+        unwrap_or_none_result!(
+            quorum_checkpoint,
+            checkpoint_syncer
+                .fetch_checkpoint(validators, threshold as usize, message.nonce)
+                .await
+                .context(CTX)?
+        );
 
         if quorum_checkpoint.checkpoint.message_id != message.id() {
             warn!(
@@ -51,18 +51,18 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
             );
             return Ok(None);
         }
-        let merkle_leaf_id = self
-            .get_merkle_leaf_id_by_message_id(message.id())
-            .await
-            .context(CTX)?;
-        if merkle_leaf_id.is_none() {
-            return Ok(None);
-        }
+
+        unwrap_or_none_result!(
+            merkle_leaf_id,
+            self.get_merkle_leaf_id_by_message_id(message.id())
+                .await
+                .context(CTX)?
+        );
 
         Ok(Some(MultisigMetadata::new(
             quorum_checkpoint.checkpoint.checkpoint,
             quorum_checkpoint.signatures,
-            merkle_leaf_id,
+            Some(merkle_leaf_id),
             None,
             None,
         )))
