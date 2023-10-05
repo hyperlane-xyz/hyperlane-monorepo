@@ -20,7 +20,6 @@ import {
   collectValidators,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
   ProtocolType,
   objMap,
   promiseObjAll,
@@ -294,14 +293,6 @@ export function getAddresses(environment: DeployEnvironment, module: Modules) {
   } else {
     return getInfraAddresses(environment, module);
   }
-}
-
-export function getMailboxAddresses(environment: DeployEnvironment) {
-  const mailboxes: ChainMap<Address> = {};
-  for (const chain in getAddresses(environment, Modules.CORE)) {
-    mailboxes[chain] = getAddresses(environment, Modules.CORE)[chain].mailbox;
-  }
-  return mailboxes;
 }
 
 export function getAgentConfigDirectory() {

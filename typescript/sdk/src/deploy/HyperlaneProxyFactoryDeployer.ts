@@ -24,7 +24,7 @@ export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
   async deployContracts(
     chain: ChainName,
   ): Promise<HyperlaneContracts<ProxyFactoryFactories>> {
-    let contracts: any = {};
+    const contracts: any = {};
     for (const factoryName of Object.keys(
       this.factories,
     ) as (keyof ProxyFactoryFactories)[]) {

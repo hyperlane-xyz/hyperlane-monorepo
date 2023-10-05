@@ -84,7 +84,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     config: AggregationHookConfig,
     coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
-    let aggregatedHooks: string[] = [];
+    const aggregatedHooks: string[] = [];
     let hooks: any = {};
     for (const hookConfig of config.hooks) {
       const subhooks = await this.deployContracts(
@@ -92,9 +92,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         hookConfig,
         coreAddresses,
       );
-      // TODO: handle nesting
-      hooks = { ...hooks, ...subhooks };
-      aggregatedHooks.push(hooks[hookConfig.type].address);
+      aggregatedHooks.push(subhooks[hookConfig.type].address);
+      hooks = objMerge(hooks, subhooks);
     }
     const address = await this.ismFactory.deployStaticAddressSet(
       chain,
