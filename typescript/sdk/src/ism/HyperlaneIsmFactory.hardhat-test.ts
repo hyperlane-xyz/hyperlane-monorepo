@@ -4,6 +4,7 @@ import { ethers } from 'hardhat';
 import { error } from '@hyperlane-xyz/utils';
 
 import { TestChains } from '../consts/chains';
+import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { randomAddress, randomInt } from '../test/testUtils';
 
@@ -11,7 +12,6 @@ import {
   HyperlaneIsmFactory,
   moduleMatchesConfig,
 } from './HyperlaneIsmFactory';
-import { HyperlaneIsmFactoryDeployer } from './HyperlaneIsmFactoryDeployer';
 import {
   AggregationIsmConfig,
   IsmConfig,
@@ -79,8 +79,8 @@ describe('HyperlaneIsmFactory', async () => {
 
     const multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
-    const deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
-    const contracts = await deployer.deploy([chain]);
+    const deployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    const contracts = await deployer.deploy({ [chain]: {} });
     factory = new HyperlaneIsmFactory(contracts, multiProvider);
   });
 

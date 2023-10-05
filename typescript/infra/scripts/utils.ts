@@ -43,10 +43,9 @@ import { Role } from '../src/roles';
 import { assertContext, assertRole, readJSON } from '../src/utils/utils';
 
 export enum Modules {
-  ISM_FACTORY = 'ism',
+  PROXY_FACTORY = 'proxyfactory',
   CORE = 'core',
   HOOK = 'hook',
-  HOOK_FACTORY = 'hookfactory',
   INTERCHAIN_GAS_PAYMASTER = 'igp',
   INTERCHAIN_ACCOUNTS = 'ica',
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
@@ -57,7 +56,7 @@ export enum Modules {
 }
 
 export const SDK_MODULES = [
-  Modules.ISM_FACTORY,
+  Modules.PROXY_FACTORY,
   Modules.CORE,
   Modules.INTERCHAIN_GAS_PAYMASTER,
   Modules.INTERCHAIN_ACCOUNTS,
@@ -305,19 +304,6 @@ export function getMailboxAddresses(environment: DeployEnvironment) {
   return mailboxes;
 }
 
-export function getAggregationHookFactoryAddresses(
-  environment: DeployEnvironment,
-) {
-  const aggregationFactories: ChainMap<Address> = {};
-  for (const chain in getAddresses(environment, Modules.HOOK_FACTORY)) {
-    aggregationFactories[chain] = getAddresses(
-      environment,
-      Modules.HOOK_FACTORY,
-    )[chain].aggregationHookFactory;
-  }
-  return aggregationFactories;
-}
-
 export function getAgentConfigDirectory() {
   return path.join('../../', 'rust', 'config');
 }
@@ -346,6 +332,7 @@ export async function getRouterConfig(
     deployEnvToSdkEnv[environment],
     multiProvider,
   );
+  // TODO: replace this with core.getRouterConfig
   const igp = HyperlaneIgp.fromEnvironment(
     deployEnvToSdkEnv[environment],
     multiProvider,

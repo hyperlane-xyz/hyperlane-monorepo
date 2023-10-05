@@ -1,19 +1,18 @@
 import debug from 'debug';
 
 import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { Address, objMerge } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts/types';
+import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer';
-import { HookFactories } from '../hook/contracts';
 import { HookConfig } from '../hook/types';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import { CoreFactories, coreFactories } from './contracts';
+import { CoreAddresses, CoreFactories, coreFactories } from './contracts';
 import { CoreConfig } from './types';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
@@ -21,36 +20,28 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreFactories
 > {
   startingBlockNumbers: ChainMap<number | undefined> = {};
-  deployedHooks: HyperlaneContractsMap<HookFactories> = {};
+  hookDeployer: HyperlaneHookDeployer;
 
   constructor(
     multiProvider: MultiProvider,
     readonly ismFactory: HyperlaneIsmFactory,
-    readonly hookDeployer = new HyperlaneHookDeployer(multiProvider, {}),
   ) {
     super(multiProvider, coreFactories, {
       logger: debug('hyperlane:CoreDeployer'),
       chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
     });
+    this.hookDeployer = new HyperlaneHookDeployer(
+      multiProvider,
+      {},
+      ismFactory,
+    );
   }
 
   async deployMailbox(
     chain: ChainName,
-    proxyAdmin: Address,
     config: CoreConfig,
+    proxyAdmin: Address,
   ): Promise<Mailbox> {
-    const cachedMailbox = this.readCache(
-      chain,
-      this.factories.mailbox,
-      'mailbox',
-    );
-
-    if (cachedMailbox) {
-      // let checker/governor handle cached mailbox default ISM configuration
-      // TODO: check if config matches AND deployer is owner?
-      return cachedMailbox;
-    }
-
     const domain = this.multiProvider.getDomainId(chain);
     const mailbox = await this.deployProxiedContract(
       chain,
@@ -60,15 +51,17 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     );
 
     const defaultIsm = await this.deployIsm(chain, config.defaultIsm);
+
+    const hookAddresses = { mailbox: mailbox.address, proxyAdmin };
     const defaultHook = await this.deployHook(
       chain,
       config.defaultHook,
-      mailbox.address,
+      hookAddresses,
     );
     const requiredHook = await this.deployHook(
       chain,
       config.requiredHook,
-      mailbox.address,
+      hookAddresses,
     );
 
     // configure mailbox
@@ -95,17 +88,17 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   async deployHook(
     chain: ChainName,
     config: HookConfig,
-    mailbox: Address,
+    coreAddresses: Partial<CoreAddresses>,
   ): Promise<Address> {
     const hooks = await this.hookDeployer.deployContracts(
       chain,
       config,
-      mailbox,
+      coreAddresses,
     );
-    this.deployedHooks[chain] = {
-      ...hooks,
-      ...this.deployedHooks[chain],
-    };
+    this.deployedContracts[chain] = objMerge(
+      hooks,
+      this.deployedContracts[chain],
+    );
     return hooks[config.type].address;
   }
 
@@ -125,8 +118,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
-    const mailbox = await this.deployMailbox(chain, proxyAdmin.address, config);
+    const mailbox = await this.deployMailbox(chain, config, proxyAdmin.address);
 
+    // TODO: remove once agents fetch deployedBlock from mailbox
     const deployedBlock = await mailbox.deployedBlock();
     this.startingBlockNumbers[chain] = deployedBlock.toNumber();
 
@@ -153,16 +147,5 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       proxyAdmin,
       validatorAnnounce,
     };
-  }
-
-  async deploy(
-    configMap: ChainMap<CoreConfig>,
-  ): Promise<HyperlaneContractsMap<CoreFactories>> {
-    const contractsMap = await super.deploy(configMap);
-    this.deployedContracts = objMap(contractsMap, (chain, core) => ({
-      ...core,
-      ...this.deployedHooks[chain],
-    }));
-    return contractsMap;
   }
 }

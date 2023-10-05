@@ -14,9 +14,9 @@ import {
   chainMetadata,
   filterAddressesToProtocol,
   hyperlaneEnvironments,
+  hyperlaneEnvironmentsWithSealevel,
   igpFactories,
 } from '@hyperlane-xyz/sdk';
-import { hyperlaneEnvironmentsWithSealevel } from '@hyperlane-xyz/sdk/src';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';

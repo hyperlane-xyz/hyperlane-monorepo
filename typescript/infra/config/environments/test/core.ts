@@ -8,6 +8,7 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { aggregationIsm } from './aggregationIsm';
+import { igp } from './igp';
 import { chainToValidator } from './multisigIsm';
 import { owners } from './owners';
 
@@ -26,8 +27,18 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     owner,
     defaultIsm,
     defaultHook: {
-      type: HookType.INTERCHAIN_GAS_PAYMASTER,
+      type: HookType.AGGREGATION,
+      hooks: [
+        {
+          type: HookType.MERKLE_TREE,
+        },
+        {
+          type: HookType.INTERCHAIN_GAS_PAYMASTER,
+          ...igp[local],
+        },
+      ],
     },
+    // TODO: configure fee hook
     requiredHook: {
       type: HookType.MERKLE_TREE,
     },

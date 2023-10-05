@@ -13,7 +13,12 @@ import {
   TransparentUpgradeableProxy,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import { Address, eqAddress, runWithTimeout } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  eqAddress,
+  objMerge,
+  runWithTimeout,
+} from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneAddressesMap,
@@ -94,9 +99,10 @@ export abstract class HyperlaneDeployer<
         .getProvider(chain)
         .getBlockNumber();
       await runWithTimeout(this.chainTimeoutMs, async () => {
-        this.deployedContracts[chain] = await this.deployContracts(
-          chain,
-          configMap[chain],
+        const contracts = await this.deployContracts(chain, configMap[chain]);
+        this.deployedContracts[chain] = objMerge(
+          this.deployedContracts[chain],
+          contracts,
         );
       });
     }
@@ -398,7 +404,7 @@ export abstract class HyperlaneDeployer<
     );
   }
 
-  protected writeCache<K extends keyof Factories>(
+  writeCache<K extends keyof Factories>(
     chain: ChainName,
     contractName: K,
     address: Address,
@@ -409,7 +415,7 @@ export abstract class HyperlaneDeployer<
     this.cachedAddresses[chain][contractName] = address;
   }
 
-  protected readCache<F extends ethers.ContractFactory>(
+  readCache<F extends ethers.ContractFactory>(
     chain: ChainName,
     factory: F,
     contractName: string,

@@ -1,16 +1,24 @@
 import debug from 'debug';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { StaticAggregationHook__factory } from '@hyperlane-xyz/core';
+import { objMerge } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
+import { CoreAddresses } from '../core/contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer';
+import { IgpFactories } from '../gas/contracts';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
 import { HookFactories, hookFactories } from './contracts';
-import { HookConfig, HookType } from './types';
+import {
+  AggregationHookConfig,
+  HookConfig,
+  HookType,
+  IgpHookConfig,
+} from './types';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
   HookConfig,
@@ -18,7 +26,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 > {
   constructor(
     multiProvider: MultiProvider,
-    readonly mailboxes: ChainMap<Address>,
+    readonly core: ChainMap<Partial<CoreAddresses>>,
     readonly ismFactory: HyperlaneIsmFactory,
     readonly igpDeployer = new HyperlaneIgpDeployer(multiProvider),
   ) {
@@ -30,30 +38,73 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
   async deployContracts(
     chain: ChainName,
     config: HookConfig,
-    mailbox = this.mailboxes[chain],
+    coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
-    let deployedHooks: any = {};
+    // other simple hooks can go here
     if (config.type === HookType.MERKLE_TREE) {
-      const hook = await this.deployContract(chain, config.type, [mailbox]);
-      deployedHooks = { [config.type]: hook };
-    } else if (config.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
-      // TODO: share timelock/proxyadmin with core
-      await this.igpDeployer.deployContracts(chain, config);
-    } else if (config.type === HookType.AGGREGATION) {
-      for (const hookConfig of config.modules) {
-        deployedHooks[hookConfig.type] = await this.deployContracts(
-          chain,
-          hookConfig,
-          mailbox,
-        );
+      const mailbox = coreAddresses.mailbox;
+      if (!mailbox) {
+        throw new Error(`Mailbox address is required for ${config.type}`);
       }
-      const aggregationHookFactory =
-        this.ismFactory.getContracts(chain).aggregationHookFactory;
-      this.ismFactory.deployThresholdFactory();
-    } else {
-      throw new Error(`Unexpected hook type: ${JSON.stringify(config)}`);
+      const hook = await this.deployContract(chain, config.type, [mailbox]);
+      return { [config.type]: hook } as any;
+    } else if (config.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
+      return this.deployIgp(chain, config, coreAddresses) as any;
+    } else if (config.type === HookType.AGGREGATION) {
+      return this.deployAggregation(chain, config, coreAddresses);
     }
 
-    return deployedHooks;
+    throw new Error(`Unexpected hook type: ${JSON.stringify(config)}`);
+  }
+
+  async deployIgp(
+    chain: ChainName,
+    config: IgpHookConfig,
+    coreAddresses = this.core[chain],
+  ): Promise<HyperlaneContracts<IgpFactories>> {
+    if (coreAddresses.proxyAdmin) {
+      this.igpDeployer.writeCache(
+        chain,
+        'proxyAdmin',
+        coreAddresses.proxyAdmin,
+      );
+    }
+    // TODO: share timelock controller with core ?
+    // this.igpDeployer.writeCache(chain, 'timelockController', coreAddresses.timelockController);
+    const igpContracts = await this.igpDeployer.deployContracts(chain, config);
+    this.deployedContracts[chain] = objMerge(
+      this.deployedContracts[chain],
+      igpContracts,
+    );
+    return igpContracts;
+  }
+
+  async deployAggregation(
+    chain: ChainName,
+    config: AggregationHookConfig,
+    coreAddresses = this.core[chain],
+  ): Promise<HyperlaneContracts<HookFactories>> {
+    let aggregatedHooks: string[] = [];
+    let hooks: any = {};
+    for (const hookConfig of config.hooks) {
+      const subhooks = await this.deployContracts(
+        chain,
+        hookConfig,
+        coreAddresses,
+      );
+      // TODO: handle nesting
+      hooks = { ...hooks, ...subhooks };
+      aggregatedHooks.push(hooks[hookConfig.type].address);
+    }
+    const address = await this.ismFactory.deployStaticAddressSet(
+      chain,
+      this.ismFactory.getContracts(chain).aggregationHookFactory,
+      aggregatedHooks,
+    );
+    hooks[HookType.AGGREGATION] = StaticAggregationHook__factory.connect(
+      address,
+      this.multiProvider.getSignerOrProvider(chain),
+    );
+    return hooks;
   }
 }

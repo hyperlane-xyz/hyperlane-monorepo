@@ -7,6 +7,7 @@ import {
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
   IRoutingIsm__factory,
+  StaticAddressSetFactory,
   StaticAggregationIsm__factory,
   StaticThresholdAddressSetFactory,
 } from '@hyperlane-xyz/core';
@@ -22,7 +23,7 @@ import { HyperlaneAddressesMap, HyperlaneContracts } from '../contracts/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import { IsmFactoryFactories, ismFactoryFactories } from './contracts';
+import { FactoryFactories, factoryFactories } from './contracts';
 import {
   AggregationIsmConfig,
   DeployedIsm,
@@ -32,7 +33,7 @@ import {
   RoutingIsmConfig,
 } from './types';
 
-export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
+export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
   static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
@@ -50,7 +51,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
   ): HyperlaneIsmFactory {
     const helper = appFromAddressesMapHelper(
       addressesMap,
-      ismFactoryFactories,
+      factoryFactories,
       multiProvider,
     );
     return new HyperlaneIsmFactory(
@@ -112,7 +113,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
         ? this.getContracts(chain).merkleRootMultisigIsmFactory
         : this.getContracts(chain).messageIdMultisigIsmFactory;
 
-    const address = await this.deployThresholdFactory(
+    const address = await this.deployStaticAddressSet(
       chain,
       multisigIsmFactory,
       config.validators,
@@ -179,7 +180,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     for (const module of config.modules) {
       addresses.push((await this.deploy(chain, module)).address);
     }
-    const address = await this.deployThresholdFactory(
+    const address = await this.deployStaticAddressSet(
       chain,
       aggregationIsmFactory,
       addresses,
@@ -188,24 +189,31 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     return IAggregationIsm__factory.connect(address, signer);
   }
 
-  async deployThresholdFactory(
+  async deployStaticAddressSet(
     chain: ChainName,
-    factory: StaticThresholdAddressSetFactory,
+    factory: StaticThresholdAddressSetFactory | StaticAddressSetFactory,
     values: Address[],
-    threshold: number,
+    threshold = values.length,
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const address = await factory.getAddress(sorted, threshold);
-    const provider = this.multiProvider.getProvider(chain);
-    const code = await provider.getCode(address);
+    const address = await factory['getAddress(address[],uint8)'](
+      sorted,
+      threshold,
+    );
+    const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       this.logger(
         `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
       );
       const overrides = this.multiProvider.getTransactionOverrides(chain);
-      const hash = await factory.deploy(sorted, threshold, overrides);
+      const hash = await factory['deploy(address[],uint8)'](
+        sorted,
+        threshold,
+        overrides,
+      );
       await this.multiProvider.handleTx(chain, hash);
+      // TODO: add proxy verification artifact?
     } else {
       this.logger(
         `Recovered ${threshold} of ${values.length} address set on ${chain}`,
@@ -331,7 +339,7 @@ export async function moduleMatchesConfig(
   moduleAddress: Address,
   config: IsmConfig,
   multiProvider: MultiProvider,
-  contracts: HyperlaneContracts<IsmFactoryFactories>,
+  contracts: HyperlaneContracts<FactoryFactories>,
   _origin?: ChainName,
 ): Promise<boolean> {
   if (typeof config === 'string') {
