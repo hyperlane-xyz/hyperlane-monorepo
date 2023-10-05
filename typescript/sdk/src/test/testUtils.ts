@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
@@ -66,10 +66,14 @@ export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
           ),
         },
         defaultHook: {
-          type: HookType.INTERCHAIN_GAS_PAYMASTER,
+          type: HookType.MERKLE_TREE,
         },
         requiredHook: {
-          type: HookType.MERKLE_TREE,
+          type: HookType.PROTOCOL_FEE,
+          maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'), // 1 gwei of native token
+          protocolFee: BigNumber.from(1), // 1 wei
+          beneficiary: nonZeroAddress,
+          owner: nonZeroAddress,
         },
       },
     ]),

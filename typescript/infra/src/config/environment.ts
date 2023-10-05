@@ -4,7 +4,6 @@ import {
   ChainMetadata,
   ChainName,
   CoreConfig,
-  HookConfig,
   HyperlaneEnvironment,
   IgpConfig,
   MultiProvider,
@@ -38,7 +37,6 @@ export type EnvironmentConfig = {
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
-  hook?: ChainMap<HookConfig>;
   igp: ChainMap<IgpConfig>;
   owners: ChainMap<Address>;
   infra: InfrastructureConfig;

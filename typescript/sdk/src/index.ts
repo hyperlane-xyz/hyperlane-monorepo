@@ -73,6 +73,7 @@ export {
 } from './core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
+export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer';
 export {
   CheckerViolation,
   OwnerViolation,
@@ -108,12 +109,18 @@ export {
   IgpViolationType,
 } from './gas/types';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
-export { HookConfig, HookType, MerkleTreeHookConfig } from './hook/types';
+export {
+  AggregationHookConfig,
+  HookConfig,
+  HookType,
+  IgpHookConfig,
+  MerkleTreeHookConfig,
+  ProtocolFeeHookConfig,
+} from './hook/types';
 export {
   HyperlaneIsmFactory,
   collectValidators,
 } from './ism/HyperlaneIsmFactory';
-export { HyperlaneIsmFactoryDeployer } from './ism/HyperlaneIsmFactoryDeployer';
 export {
   AggregationIsmConfig,
   DeployedIsm,
@@ -135,19 +142,18 @@ export {
   AgentLogFormat,
   AgentLogLevel,
   AgentSigner,
-  AgentSignerKeyType,
-  AgentSignerHexKey,
   AgentSignerAwsKey,
+  AgentSignerHexKey,
+  AgentSignerKeyType,
   AgentSignerNode,
-  buildAgentConfig,
-  RpcConsensusType,
-  ValidatorConfig,
   GasPaymentEnforcement,
-  RelayerConfig,
   GasPaymentEnforcementPolicyType,
+  RelayerConfig,
+  RpcConsensusType,
   ScraperConfig,
+  ValidatorConfig,
+  buildAgentConfig,
 } from './metadata/agentConfig';
-export { MatchingList } from './metadata/matchingList';
 export {
   ChainMetadata,
   ChainMetadataSchema,
@@ -162,6 +168,7 @@ export {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
 } from './metadata/deploymentArtifacts';
+export { MatchingList } from './metadata/matchingList';
 export { InterchainAccount } from './middleware/account/InterchainAccount';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker';
 export {
