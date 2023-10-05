@@ -15,7 +15,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
-import { helloWorldRouterConfig } from '../src/config/helloworld';
+import { helloWorldRouterConfig } from '../src/config/helloworld/config';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
 import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
 import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor';

@@ -17,13 +17,14 @@ import {
   hyperlaneEnvironments,
   igpFactories,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { EnvironmentConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
-import { HelloWorldConfig } from '../../src/config/helloworld';
+import { HelloWorldConfig } from '../../src/config/helloworld/types';
 import { Role } from '../../src/roles';
+import { getKeyForRole } from '../utils';
 
 export async function getHelloWorldApp(
   coreConfig: EnvironmentConfig,
@@ -71,7 +72,12 @@ export async function getHelloWorldMultiProtocolApp(
     connectionType,
   );
   const sdkEnvName = deployEnvToSdkEnv[coreConfig.environment];
+  const envAddresses = hyperlaneEnvironments[sdkEnvName];
   const keys = await coreConfig.getKeys(keyContext, keyRole);
+
+  // Fetch all the keys, which is required to get the address for
+  // certain cloud keys
+  await Promise.all(Object.values(keys).map((key) => key.fetch()));
 
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
 
@@ -80,18 +86,46 @@ export async function getHelloWorldMultiProtocolApp(
   // Hacking around infra code limitations, we may need to add solana manually
   // because the it's not in typescript/infra/config/environments/testnet3/chains.ts
   // Adding it there breaks many things
-  if (!multiProtocolProvider.getKnownChainNames().includes('solanadevnet')) {
+  if (
+    coreConfig.environment === 'testnet3' &&
+    !multiProtocolProvider.getKnownChainNames().includes('solanadevnet')
+  ) {
+    multiProvider.addChain(chainMetadata.solanadevnet);
     multiProtocolProvider.addChain(chainMetadata.solanadevnet);
+    keys['solanadevnet'] = getKeyForRole(
+      coreConfig.environment,
+      context,
+      'solanadevnet',
+      keyRole,
+    );
+    await keys['solanadevnet'].fetch();
+  } else if (
+    coreConfig.environment === 'mainnet2' &&
+    !multiProtocolProvider.getKnownChainNames().includes('solana')
+  ) {
+    multiProvider.addChain(chainMetadata.solana);
+    multiProtocolProvider.addChain(chainMetadata.solana);
+    keys['solana'] = getKeyForRole(
+      coreConfig.environment,
+      context,
+      'solana',
+      keyRole,
+    );
+    await keys['solana'].fetch();
   }
 
   const core = MultiProtocolCore.fromAddressesMap(
-    hyperlaneEnvironments[sdkEnvName],
+    envAddresses,
     multiProtocolProvider,
   );
 
-  const routersAndMailboxes = objMerge(
-    core.chainMap,
+  const routersAndMailboxes = objMap(
     helloworldConfig.addresses,
+    (chain, addresses) => ({
+      router: addresses.router,
+      // @ts-ignore allow loosely typed chain name to index env addresses
+      mailbox: envAddresses[chain].mailbox,
+    }),
   );
   const app = new HelloMultiProtocolApp(
     multiProtocolProvider,
@@ -101,7 +135,6 @@ export async function getHelloWorldMultiProtocolApp(
   // TODO we need a MultiProtocolIgp
   // Using an standard IGP for just evm chains for now
   // Unfortunately this requires hacking surgically around certain addresses
-  const envAddresses = hyperlaneEnvironments[sdkEnvName];
   const filteredAddresses = filterChainMapToProtocol(
     envAddresses,
     ProtocolType.Ethereum,
