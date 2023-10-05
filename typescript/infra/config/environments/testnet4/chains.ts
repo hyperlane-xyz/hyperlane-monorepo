@@ -22,6 +22,7 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
   moonbasealpha: chainMetadata.moonbasealpha,
   optimismgoerli: chainMetadata.optimismgoerli,
   arbitrumgoerli: chainMetadata.arbitrumgoerli,
+  polygonzkevmtestnet: chainMetadata.polygonzkevmtestnet,
 };
 
 // "Blessed" chains that we want core contracts for.
