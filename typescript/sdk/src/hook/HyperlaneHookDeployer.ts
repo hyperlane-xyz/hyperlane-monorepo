@@ -4,15 +4,10 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import {
-  HookFactories,
-  MerkleTreeHookFactory,
-  hookFactories,
-} from './contracts';
+import { HookFactories, hookFactories } from './contracts';
 import { HookConfig, HookType } from './types';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
@@ -21,7 +16,6 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 > {
   constructor(
     multiProvider: MultiProvider,
-    readonly ismFactory: HyperlaneIsmFactory,
     readonly mailboxes: ChainMap<Address>,
   ) {
     super(multiProvider, hookFactories, {
@@ -32,24 +26,16 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
   async deployContracts(
     chain: ChainName,
     config: HookConfig,
+    mailbox = this.mailboxes[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
-    if (config.type === HookType.MERKLE_TREE_HOOK) {
-      return this.deployMerkleTreeHook(chain, config);
+    if (config.type === HookType.MERKLE_TREE) {
+      const hook = await this.deployContract(chain, config.type, [mailbox]);
+      return { [config.type]: hook } as any;
+    } else if (config.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
+      const hook = await this.deployContract(chain, config.type, []);
+      return { [config.type]: hook } as any;
     } else {
-      throw new Error(`Unsupported hook type: ${config.type}`);
+      throw new Error(`Unexpected hook type: ${JSON.stringify(config)}`);
     }
-  }
-
-  async deployMerkleTreeHook(
-    chain: ChainName,
-    _: HookConfig,
-  ): Promise<HyperlaneContracts<MerkleTreeHookFactory>> {
-    this.logger(`Deploying MerkleTreeHook to ${chain}`);
-    const merkleTreeHook = await this.deployContract(chain, 'merkleTreeHook', [
-      this.mailboxes[chain],
-    ]);
-    return {
-      merkleTreeHook: merkleTreeHook,
-    };
   }
 }

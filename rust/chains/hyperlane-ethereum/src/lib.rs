@@ -12,8 +12,8 @@ use ethers::prelude::{abi, Lazy, Middleware};
 pub use self::{
     aggregation_ism::*, ccip_read_ism::*, config::*, config::*, interchain_gas::*,
     interchain_gas::*, interchain_security_module::*, interchain_security_module::*, mailbox::*,
-    mailbox::*, multisig_ism::*, provider::*, routing_ism::*, rpc_clients::*, signers::*,
-    singleton_signer::*, trait_builder::*, validator_announce::*,
+    mailbox::*, merkle_tree_hook::*, multisig_ism::*, provider::*, routing_ism::*, rpc_clients::*,
+    signers::*, singleton_signer::*, trait_builder::*, validator_announce::*,
 };
 
 #[cfg(not(doctest))]
@@ -37,6 +37,10 @@ mod interchain_gas;
 /// interchain_security_module abi
 #[cfg(not(doctest))]
 mod interchain_security_module;
+
+/// Merkle tree hook abi
+#[cfg(not(doctest))]
+mod merkle_tree_hook;
 
 /// MultisigIsm abi
 #[cfg(not(doctest))]

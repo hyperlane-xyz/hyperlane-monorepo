@@ -1,8 +1,11 @@
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
+use backoff::Error as BackoffError;
+use backoff::{future::retry, ExponentialBackoff};
 use derive_new::new;
 use eyre::{Context, Result};
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::{
     settings::{ChainConf, CheckpointSyncerConf},
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
@@ -16,7 +19,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
 use crate::{
-    merkle_tree_builder::MerkleTreeBuilder,
+    merkle_tree::builder::{MerkleTreeBuilder, MerkleTreeBuilderError},
     msg::metadata::{
         multisig::{
             LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
@@ -49,6 +52,7 @@ pub struct BaseMetadataBuilder {
     origin_validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
+    db: HyperlaneRocksDB,
     /// ISMs can be structured recursively. We keep track of the depth
     /// of the recursion to avoid infinite loops.
     #[new(default)]
@@ -98,6 +102,15 @@ impl MetadataBuilder for BaseMetadataBuilder {
     }
 }
 
+fn constant_backoff() -> ExponentialBackoff {
+    ExponentialBackoff {
+        initial_interval: std::time::Duration::from_secs(1),
+        multiplier: 1.0,
+        max_elapsed_time: None,
+        ..ExponentialBackoff::default()
+    }
+}
+
 impl BaseMetadataBuilder {
     pub fn domain(&self) -> &HyperlaneDomain {
         &self.destination_chain_setup.domain
@@ -115,13 +128,21 @@ impl BaseMetadataBuilder {
 
     pub async fn get_proof(&self, nonce: u32, checkpoint: Checkpoint) -> Result<Option<Proof>> {
         const CTX: &str = "When fetching message proof";
-        let proof = self
-            .origin_prover_sync
-            .read()
-            .await
-            .get_proof(nonce, checkpoint.index)
-            .context(CTX)?;
-
+        let proof = retry(constant_backoff(), || async {
+            self.origin_prover_sync
+                .read()
+                .await
+                .get_proof(nonce, checkpoint.index)
+                .context(CTX)
+                // If no proof is found, `get_proof(...)` returns `Ok(None)`,
+                // so errors should break the retry loop.
+                .map_err(BackoffError::permanent)?
+                .ok_or(MerkleTreeBuilderError::Other("No proof found in DB".into()))
+                .context(CTX)
+                // Transient errors are retried
+                .map_err(BackoffError::transient)
+        })
+        .await?;
         // checkpoint may be fraudulent if the root does not
         // match the canonical root at the checkpoint's index
         if proof.root() != checkpoint.root {
@@ -136,8 +157,15 @@ impl BaseMetadataBuilder {
         }
     }
 
-    pub async fn highest_known_nonce(&self) -> u32 {
-        self.origin_prover_sync.read().await.count() - 1
+    pub async fn highest_known_nonce(&self) -> Option<u32> {
+        self.origin_prover_sync.read().await.count().checked_sub(1)
+    }
+
+    pub async fn get_merkle_leaf_id_by_message_id(&self, message_id: H256) -> Result<Option<u32>> {
+        let merkle_leaf = self
+            .db
+            .retrieve_merkle_leaf_index_by_message_id(&message_id)?;
+        Ok(merkle_leaf)
     }
 
     pub async fn build_ism(&self, address: H256) -> Result<Box<dyn InterchainSecurityModule>> {

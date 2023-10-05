@@ -1,9 +1,14 @@
-import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
+import {
+  MerkleTreeHook__factory,
+  TestInterchainGasPaymaster__factory,
+} from '@hyperlane-xyz/core';
 
-export const merkleTreeHookFactory = {
-  merkleTreeHook: new MerkleTreeHook__factory(),
+import { HookType } from './types';
+
+export const hookFactories = {
+  [HookType.MERKLE_TREE]: new MerkleTreeHook__factory(),
+  [HookType.INTERCHAIN_GAS_PAYMASTER]:
+    new TestInterchainGasPaymaster__factory(),
 };
-export const hookFactories = merkleTreeHookFactory;
-export type MerkleTreeHookFactory = typeof merkleTreeHookFactory;
 
-export type HookFactories = MerkleTreeHookFactory;
+export type HookFactories = typeof hookFactories;

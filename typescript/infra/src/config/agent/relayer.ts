@@ -1,78 +1,35 @@
 import { BigNumberish } from 'ethers';
 
-import { ChainMap, chainMetadata } from '@hyperlane-xyz/sdk';
+import {
+  AgentConfig,
+  AgentSignerKeyType,
+  ChainMap,
+  MatchingList,
+  chainMetadata,
+} from '@hyperlane-xyz/sdk';
+import { GasPaymentEnforcement } from '@hyperlane-xyz/sdk';
+import { RelayerConfig as RelayerAgentConfig } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { AgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 
-import {
-  AgentConfigHelper,
-  KeyConfig,
-  KeyType,
-  RootAgentConfig,
-} from './agent';
+import { AgentConfigHelper, KeyConfig, RootAgentConfig } from './agent';
 
-export type MatchingList = MatchingListElement[];
-
-export interface MatchingListElement {
-  originDomain?: '*' | number | number[];
-  senderAddress?: '*' | string | string[];
-  destinationDomain?: '*' | number | number[];
-  recipientAddress?: '*' | string | string[];
-}
-
-export enum GasPaymentEnforcementPolicyType {
-  None = 'none',
-  Minimum = 'minimum',
-  MeetsEstimatedCost = 'meetsEstimatedCost',
-  OnChainFeeQuoting = 'onChainFeeQuoting',
-}
-
-export type GasPaymentEnforcementPolicy =
-  | {
-      type: GasPaymentEnforcementPolicyType.None;
-    }
-  | {
-      type: GasPaymentEnforcementPolicyType.Minimum;
-      payment: string; // An integer string, may be 0x-prefixed
-    }
-  | {
-      type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting;
-      gasfraction?: string; // An optional string of "numerator / denominator", e.g. "1 / 2"
-    };
-
-export type GasPaymentEnforcementConfig = GasPaymentEnforcementPolicy & {
-  matchingList?: MatchingList;
-};
+export { GasPaymentEnforcement as GasPaymentEnforcementConfig } from '@hyperlane-xyz/sdk';
 
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
-  gasPaymentEnforcement: GasPaymentEnforcementConfig[];
+  gasPaymentEnforcement: GasPaymentEnforcement[];
   whitelist?: MatchingList;
   blacklist?: MatchingList;
   transactionGasLimit?: BigNumberish;
-  skipTransactionGasLimitFor?: number[];
+  skipTransactionGasLimitFor?: string[];
 }
 
-// Full relayer agent config for a single chain
-export interface RelayerConfig
-  extends Omit<
-    BaseRelayerConfig,
-    | 'whitelist'
-    | 'blacklist'
-    | 'skipTransactionGasLimitFor'
-    | 'transactionGasLimit'
-    | 'gasPaymentEnforcement'
-  > {
-  relayChains: string;
-  gasPaymentEnforcement: string;
-  whitelist?: string;
-  blacklist?: string;
-  transactionGasLimit?: string;
-  skipTransactionGasLimitFor?: string;
-}
+// Full relayer-specific agent config for a single chain
+export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
 
 // See rust/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.relayer` in the values file.
@@ -140,7 +97,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
           const chain = chainMetadata[name];
           // Sealevel chains always use hex keys
           if (chain?.protocol == ProtocolType.Sealevel) {
-            return [name, { type: KeyType.Hex }];
+            return [name, { type: AgentSignerKeyType.Hex }];
           } else {
             return [name, awsKey];
           }
@@ -150,7 +107,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       return Object.fromEntries(
         this.contextChainNames[Role.Relayer].map((name) => [
           name,
-          { type: KeyType.Hex },
+          { type: AgentSignerKeyType.Hex },
         ]),
       );
     }
@@ -175,9 +132,12 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 }
 
 // Create a matching list for the given router addresses
-export function routerMatchingList(routers: ChainMap<{ router: string }>) {
+export function routerMatchingList(
+  routers: ChainMap<{ router: string }>,
+): MatchingList {
   const chains = Object.keys(routers);
 
+  // matching list must have at least one element so bypass and check before returning
   const matchingList: MatchingList = [];
 
   for (const source of chains) {
@@ -194,5 +154,6 @@ export function routerMatchingList(routers: ChainMap<{ router: string }>) {
       });
     }
   }
+
   return matchingList;
 }

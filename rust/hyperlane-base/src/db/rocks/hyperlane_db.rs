@@ -10,7 +10,7 @@ use tracing::{debug, instrument, trace};
 use hyperlane_core::{
     GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneMessageStore,
     HyperlaneWatermarkedLogStore, InterchainGasExpenditure, InterchainGasPayment,
-    InterchainGasPaymentMeta, LogMeta, H256,
+    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, H256,
 };
 
 use super::{
@@ -30,6 +30,8 @@ const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
 const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
     "pending_message_retry_count_for_message_id_";
+const MERKLE_TREE_INSERTION: &str = "merkle_tree_insertion_";
+const MERKLE_LEAF_INDEX_BY_MESSAGE_ID: &str = "merkle_leaf_index_by_message_id_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 
 type DbResult<T> = std::result::Result<T, DbError>;
@@ -152,6 +154,22 @@ impl HyperlaneRocksDB {
         Ok(true)
     }
 
+    /// Store the merkle tree insertion event, and also store a mapping from message_id to leaf_index
+    pub fn process_tree_insertion(&self, insertion: &MerkleTreeInsertion) -> DbResult<bool> {
+        if let Ok(Some(_)) = self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index()) {
+            debug!(insertion=?insertion, "Tree insertion already stored in db");
+            return Ok(false);
+        }
+        // even if double insertions are ok, store the leaf by `leaf_index` (guaranteed to be unique)
+        // rather than by `message_id` (not guaranteed to be recurring), so that leaves can be retrieved
+        // based on insertion order.
+        self.store_merkle_tree_insertion_by_leaf_index(&insertion.index(), insertion)?;
+
+        self.store_merkle_leaf_index_by_message_id(&insertion.message_id(), &insertion.index())?;
+        // Return true to indicate the tree insertion was processed
+        Ok(true)
+    }
+
     /// Processes the gas expenditure and store the total expenditure for the
     /// message.
     pub fn process_gas_expenditure(&self, expenditure: InterchainGasExpenditure) -> DbResult<()> {
@@ -254,6 +272,21 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
 }
 
 #[async_trait]
+impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
+    /// Store every tree insertion event
+    #[instrument(skip_all)]
+    async fn store_logs(&self, leaves: &[(MerkleTreeInsertion, LogMeta)]) -> Result<u32> {
+        let mut insertions = 0;
+        for (insertion, _meta) in leaves {
+            if self.process_tree_insertion(insertion)? {
+                insertions += 1;
+            }
+        }
+        Ok(insertions)
+    }
+}
+
+#[async_trait]
 impl HyperlaneMessageStore for HyperlaneRocksDB {
     /// Gets a message by nonce.
     async fn retrieve_message_by_nonce(&self, nonce: u32) -> Result<Option<HyperlaneMessage>> {
@@ -324,6 +357,20 @@ make_store_and_retrieve!(
     pub,
     pending_message_retry_count_by_message_id,
     PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID,
+    H256,
+    u32
+);
+make_store_and_retrieve!(
+    pub,
+    merkle_tree_insertion_by_leaf_index,
+    MERKLE_TREE_INSERTION,
+    u32,
+    MerkleTreeInsertion
+);
+make_store_and_retrieve!(
+    pub,
+    merkle_leaf_index_by_message_id,
+    MERKLE_LEAF_INDEX_BY_MESSAGE_ID,
     H256,
     u32
 );

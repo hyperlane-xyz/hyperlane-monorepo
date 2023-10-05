@@ -60,6 +60,12 @@ export type RpcUrl = z.infer<typeof RpcUrlSchema>;
  * Specified as a Zod schema
  */
 export const ChainMetadataSchema = z.object({
+  name: z
+    .string()
+    .regex(/^[a-z][a-z0-9]*$/)
+    .describe(
+      'The unique string identifier of the chain, used as the key in ChainMap dictionaries.',
+    ),
   protocol: z
     .nativeEnum(ProtocolType)
     .describe(
@@ -71,12 +77,6 @@ export const ChainMetadataSchema = z.object({
   domainId: ZNzUint.optional().describe(
     'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value if present, but otherwise fallback to `chainId`.',
   ),
-  name: z
-    .string()
-    .regex(/^[a-z][a-z0-9]*$/)
-    .describe(
-      'The unique string identifier of the chain, used as the key in ChainMap dictionaries.',
-    ),
   displayName: z
     .string()
     .optional()
