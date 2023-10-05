@@ -54,7 +54,7 @@ impl ValidatorSubmitter {
             root: tree.root(),
             index: tree.index(),
             merkle_tree_hook_address: self.merkle_tree_hook.address(),
-            mailbox_domain: self.merkle_tree_hook.domain().id(),
+            merkle_tree_hook_domain: self.merkle_tree_hook.domain().id(),
         }
     }
 
