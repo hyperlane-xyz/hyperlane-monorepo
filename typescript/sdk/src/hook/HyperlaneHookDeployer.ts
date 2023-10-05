@@ -88,8 +88,6 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         coreAddresses.proxyAdmin,
       );
     }
-    // TODO: share timelock controller with core ?
-    // this.igpDeployer.writeCache(chain, 'timelockController', coreAddresses.timelockController);
     const igpContracts = await this.igpDeployer.deployContracts(chain, config);
     this.deployedContracts[chain] = objMerge(
       this.deployedContracts[chain],
