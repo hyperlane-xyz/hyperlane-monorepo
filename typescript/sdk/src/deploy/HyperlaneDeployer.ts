@@ -13,12 +13,7 @@ import {
   TransparentUpgradeableProxy,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import {
-  Address,
-  eqAddress,
-  objMerge,
-  runWithTimeout,
-} from '@hyperlane-xyz/utils';
+import { Address, eqAddress, runWithTimeout } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneAddressesMap,
@@ -100,13 +95,20 @@ export abstract class HyperlaneDeployer<
         .getBlockNumber();
       await runWithTimeout(this.chainTimeoutMs, async () => {
         const contracts = await this.deployContracts(chain, configMap[chain]);
-        this.deployedContracts[chain] = objMerge(
-          this.deployedContracts[chain],
-          contracts,
-        );
+        this.addDeployedContracts(chain, contracts);
       });
     }
     return this.deployedContracts;
+  }
+
+  protected addDeployedContracts(
+    chain: ChainName,
+    contracts: HyperlaneContracts<any>,
+  ) {
+    this.deployedContracts[chain] = {
+      ...this.deployedContracts[chain],
+      ...contracts,
+    };
   }
 
   protected async runIf<T>(

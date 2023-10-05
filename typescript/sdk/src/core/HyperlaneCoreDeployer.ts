@@ -1,7 +1,7 @@
 import debug from 'debug';
 
 import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
-import { Address, objMerge } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
@@ -42,6 +42,18 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     config: CoreConfig,
     proxyAdmin: Address,
   ): Promise<Mailbox> {
+    const cachedMailbox = this.readCache(
+      chain,
+      this.factories.mailbox,
+      'mailbox',
+    );
+
+    if (cachedMailbox) {
+      // let checker/governor handle cached mailbox default ISM configuration
+      // TODO: check if config matches AND deployer is owner?
+      return cachedMailbox;
+    }
+
     const domain = this.multiProvider.getDomainId(chain);
     const mailbox = await this.deployProxiedContract(
       chain,
@@ -95,10 +107,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       config,
       coreAddresses,
     );
-    this.deployedContracts[chain] = objMerge(
-      hooks,
-      this.deployedContracts[chain],
-    );
+    this.addDeployedContracts(chain, hooks);
     return hooks[config.type].address;
   }
 

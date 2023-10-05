@@ -4,7 +4,6 @@ import {
   StaticAggregationHook__factory,
   StaticProtocolFee,
 } from '@hyperlane-xyz/core';
-import { objMerge } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { CoreAddresses } from '../core/contracts';
@@ -89,10 +88,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       );
     }
     const igpContracts = await this.igpDeployer.deployContracts(chain, config);
-    this.deployedContracts[chain] = objMerge(
-      this.deployedContracts[chain],
-      igpContracts,
-    );
+    this.addDeployedContracts(chain, igpContracts);
     return igpContracts;
   }
 
@@ -110,7 +106,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         coreAddresses,
       );
       aggregatedHooks.push(subhooks[hookConfig.type].address);
-      hooks = objMerge(hooks, subhooks);
+      hooks = { ...hooks, ...subhooks };
     }
     const address = await this.ismFactory.deployStaticAddressSet(
       chain,
