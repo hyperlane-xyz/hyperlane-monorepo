@@ -51,13 +51,13 @@ This workflow is useful for testing local changes against cloud resources. It is
 Example of fetching env from pod:
 
 ```bash
-kubectl exec fuji-hyperlane-agent-validator-0 --namespace testnet4 -c agent -- printenv > ./config/validator.fuji.env
+kubectl exec fuji-hyperlane-agent-validator-0 --namespace testnet3 -c agent -- printenv > ./config/validator.fuji.env
 ```
 
 Copy directory (rocks DB) from pod to local:
 
 ```bash
-kubectl cp testnet4/fuji-hyperlane-agent-validator-0:/usr/share/hyperlane /tmp/fuji-validator-db
+kubectl cp testnet3/fuji-hyperlane-agent-validator-0:/usr/share/hyperlane /tmp/fuji-validator-db
 ```
 
 Configure additional env variables appropriately:
