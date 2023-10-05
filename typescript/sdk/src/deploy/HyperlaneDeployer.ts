@@ -83,6 +83,7 @@ export abstract class HyperlaneDeployer<
     ).intersection;
 
     this.logger(`Start deploy to ${targetChains}`);
+    // await Promise.allSettled(targetChains.map(async (chain) => {
     for (const chain of targetChains) {
       const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
         chain,
@@ -98,6 +99,7 @@ export abstract class HyperlaneDeployer<
         this.addDeployedContracts(chain, contracts);
       });
     }
+    // ));
     return this.deployedContracts;
   }
 
@@ -264,10 +266,17 @@ export abstract class HyperlaneDeployer<
       contract,
       factory.bytecode,
     );
-    this.verificationInputs[chain] = this.verificationInputs[chain] || [];
-    this.verificationInputs[chain].push(verificationInput);
+    this.addVerificationArtifact(chain, verificationInput);
 
     return contract;
+  }
+
+  protected addVerificationArtifact(
+    chain: ChainName,
+    artifact: ContractVerificationInput,
+  ) {
+    this.verificationInputs[chain] = this.verificationInputs[chain] || [];
+    this.verificationInputs[chain].push(artifact);
   }
 
   async deployContract<K extends keyof Factories>(

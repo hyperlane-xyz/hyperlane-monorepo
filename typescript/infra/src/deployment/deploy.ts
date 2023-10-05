@@ -84,12 +84,15 @@ export async function postDeploy<Config>(
     environment: DeployEnvironment;
   },
 ) {
+  console.log(JSON.stringify(cache));
   if (cache.write) {
     const deployedAddresses = serializeContractsMap(deployer.deployedContracts);
-    console.log(deployedAddresses);
+    const cachedAddresses = deployer.cachedAddresses;
+    const addresses = { ...cachedAddresses, ...deployedAddresses };
+    console.log(addresses);
 
     // cache addresses of deployed contracts
-    writeMergedJSONAtPath(cache.addresses, deployedAddresses);
+    writeMergedJSONAtPath(cache.addresses, addresses);
 
     let savedVerification = {};
     try {

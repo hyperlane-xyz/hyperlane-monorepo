@@ -38,6 +38,11 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     });
   }
 
+  cacheAddressesMap(addressesMap: ChainMap<CoreAddresses>): void {
+    this.igpDeployer.cacheAddressesMap(addressesMap);
+    super.cacheAddressesMap(addressesMap);
+  }
+
   async deployContracts(
     chain: ChainName,
     config: HookConfig,

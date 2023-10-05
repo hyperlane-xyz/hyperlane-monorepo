@@ -191,6 +191,7 @@ export async function getMultiProviderForRole(
   if (process.env.CI === 'true') {
     return new MultiProvider(); // use default RPCs
   }
+  console.log({ txConfigs });
 
   const multiProvider = new MultiProvider(txConfigs);
   await promiseObjAll(

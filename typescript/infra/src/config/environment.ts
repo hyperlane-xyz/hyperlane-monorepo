@@ -24,7 +24,7 @@ import { InfrastructureConfig } from './infrastructure';
 import { LiquidityLayerRelayerConfig } from './middleware';
 
 // TODO: fix this?
-export const EnvironmentNames = ['test', 'testnet3', 'mainnet2'];
+export const EnvironmentNames = ['test', 'testnet4', 'mainnet2'];
 export type DeployEnvironment = keyof typeof environments;
 export type EnvironmentChain<E extends DeployEnvironment> = Extract<
   keyof typeof environments[E],

@@ -6,8 +6,8 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
   alfajores: chainMetadata.alfajores,
   basegoerli: chainMetadata.basegoerli,
   fuji: chainMetadata.fuji,
-  chiado: chainMetadata.chiado,
-  lineagoerli: chainMetadata.lineagoerli,
+  // chiado: chainMetadata.chiado,
+  // lineagoerli: chainMetadata.lineagoerli,
   mumbai: {
     ...chainMetadata.mumbai,
     transactionOverrides: {
