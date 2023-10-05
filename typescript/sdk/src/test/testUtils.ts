@@ -74,7 +74,7 @@ export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
           protocolFee: BigNumber.from(1), // 1 wei
           beneficiary: nonZeroAddress,
           owner: nonZeroAddress,
-        }
+        },
       },
     ]),
   );

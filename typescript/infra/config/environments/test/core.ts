@@ -1,3 +1,5 @@
+import { BigNumber, ethers } from 'ethers';
+
 import {
   AggregationHookConfig,
   ChainMap,
@@ -8,10 +10,9 @@ import {
   ModuleType,
   RoutingIsmConfig,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolFeeHookConfig } from '@hyperlane-xyz/sdk/src/hook/types';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { ProtocolFeeHookConfig } from '@hyperlane-xyz/sdk/src/hook/types';
-import { BigNumber, ethers } from 'ethers';
 import { aggregationIsm } from './aggregationIsm';
 import { igp } from './igp';
 import { chainToValidator } from './multisigIsm';
@@ -54,6 +55,6 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     owner,
     defaultIsm,
     defaultHook,
-    requiredHook
+    requiredHook,
   };
 });

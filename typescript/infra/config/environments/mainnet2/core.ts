@@ -1,3 +1,5 @@
+import { BigNumber, ethers } from 'ethers';
+
 import {
   AggregationHookConfig,
   ChainMap,
@@ -12,7 +14,6 @@ import { objMap } from '@hyperlane-xyz/utils';
 import { aggregationIsm } from '../../aggregationIsm';
 import { Contexts } from '../../contexts';
 
-import { BigNumber, ethers } from 'ethers';
 import { igp } from './igp';
 import { owners } from './owners';
 
@@ -59,6 +60,6 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     owner,
     defaultIsm,
     defaultHook,
-    requiredHook
+    requiredHook,
   };
 });

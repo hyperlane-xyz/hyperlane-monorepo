@@ -1,3 +1,5 @@
+import { BigNumber, ethers } from 'ethers';
+
 import {
   AggregationHookConfig,
   ChainMap,
@@ -5,14 +7,13 @@ import {
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
-  ProtocolFeeHookConfig
+  ProtocolFeeHookConfig,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { aggregationIsm } from '../../aggregationIsm';
 import { Contexts } from '../../contexts';
 
-import { BigNumber, ethers } from 'ethers';
 import { igp } from './igp';
 import { owners } from './owners';
 
