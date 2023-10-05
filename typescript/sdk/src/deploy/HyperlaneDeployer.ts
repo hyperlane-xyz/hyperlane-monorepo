@@ -94,13 +94,21 @@ export abstract class HyperlaneDeployer<
         .getProvider(chain)
         .getBlockNumber();
       await runWithTimeout(this.chainTimeoutMs, async () => {
-        this.deployedContracts[chain] = await this.deployContracts(
-          chain,
-          configMap[chain],
-        );
+        const contracts = await this.deployContracts(chain, configMap[chain]);
+        this.addDeployedContracts(chain, contracts);
       });
     }
     return this.deployedContracts;
+  }
+
+  protected addDeployedContracts(
+    chain: ChainName,
+    contracts: HyperlaneContracts<any>,
+  ) {
+    this.deployedContracts[chain] = {
+      ...this.deployedContracts[chain],
+      ...contracts,
+    };
   }
 
   protected async runIf<T>(
@@ -398,7 +406,7 @@ export abstract class HyperlaneDeployer<
     );
   }
 
-  protected writeCache<K extends keyof Factories>(
+  writeCache<K extends keyof Factories>(
     chain: ChainName,
     contractName: K,
     address: Address,
@@ -409,7 +417,7 @@ export abstract class HyperlaneDeployer<
     this.cachedAddresses[chain][contractName] = address;
   }
 
-  protected readCache<F extends ethers.ContractFactory>(
+  readCache<F extends ethers.ContractFactory>(
     chain: ChainName,
     factory: F,
     contractName: string,
