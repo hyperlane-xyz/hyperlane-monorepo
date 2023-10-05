@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use std::vec;
 
 use eyre::Result;
+use hyperlane_core::MerkleTreeHook;
 use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::instrument;
@@ -12,7 +13,7 @@ use tracing::{debug, info};
 use hyperlane_base::{db::HyperlaneRocksDB, CheckpointSyncer, CoreMetrics};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointWithMessageId,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSignerExt, Mailbox,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSignerExt,
 };
 use hyperlane_ethereum::SingletonSignerHandle;
 
@@ -21,7 +22,7 @@ pub(crate) struct ValidatorSubmitter {
     interval: Duration,
     reorg_period: Option<NonZeroU64>,
     signer: SingletonSignerHandle,
-    mailbox: Arc<dyn Mailbox>,
+    merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     message_db: HyperlaneRocksDB,
     metrics: ValidatorSubmitterMetrics,
@@ -31,7 +32,7 @@ impl ValidatorSubmitter {
     pub(crate) fn new(
         interval: Duration,
         reorg_period: u64,
-        mailbox: Arc<dyn Mailbox>,
+        merkle_tree_hook: Arc<dyn MerkleTreeHook>,
         signer: SingletonSignerHandle,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
         message_db: HyperlaneRocksDB,
@@ -40,7 +41,7 @@ impl ValidatorSubmitter {
         Self {
             reorg_period: NonZeroU64::new(reorg_period),
             interval,
-            mailbox,
+            merkle_tree_hook,
             signer,
             checkpoint_syncer,
             message_db,
@@ -52,12 +53,12 @@ impl ValidatorSubmitter {
         Checkpoint {
             root: tree.root(),
             index: tree.index(),
-            mailbox_address: self.mailbox.address(),
-            mailbox_domain: self.mailbox.domain().id(),
+            merkle_tree_hook_address: self.merkle_tree_hook.address(),
+            mailbox_domain: self.merkle_tree_hook.domain().id(),
         }
     }
 
-    #[instrument(err, skip(self, tree), fields(domain=%self.mailbox.domain()))]
+    #[instrument(err, skip(self, tree), fields(domain=%self.merkle_tree_hook.domain()))]
     pub(crate) async fn checkpoint_submitter(
         self,
         mut tree: IncrementalMerkle,
@@ -72,7 +73,10 @@ impl ValidatorSubmitter {
                 c
             } else {
                 // lag by reorg period to match message indexing
-                let latest_checkpoint = self.mailbox.latest_checkpoint(self.reorg_period).await?;
+                let latest_checkpoint = self
+                    .merkle_tree_hook
+                    .latest_checkpoint(self.reorg_period)
+                    .await?;
                 self.metrics
                     .latest_checkpoint_observed
                     .set(latest_checkpoint.index as i64);
@@ -177,7 +181,10 @@ impl ValidatorSubmitter {
 
         loop {
             // Check the latest checkpoint
-            let latest_checkpoint = self.mailbox.latest_checkpoint(self.reorg_period).await?;
+            let latest_checkpoint = self
+                .merkle_tree_hook
+                .latest_checkpoint(self.reorg_period)
+                .await?;
 
             self.metrics
                 .legacy_latest_checkpoint_observed

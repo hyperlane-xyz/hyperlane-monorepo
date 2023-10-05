@@ -55,14 +55,7 @@ spec:
         - secretRef:
             name: {{ include "agent-common.fullname" . }}-scraper3-secret
         env:
-{{- $scraperChainNames := list }}
-{{- range .Values.hyperlane.chains }}
-{{- if not .disabled }}
-{{- $scraperChainNames = append $scraperChainNames .name }}
-{{- end }}
-{{- end }}
-          - name: HYP_SCRAPER_CHAINSTOSCRAPE
-            value: {{ $scraperChainNames | join "," }}
+        {{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.scraper.config) | nindent 8 }}
         resources:
           {{- toYaml .Values.hyperlane.scraper.resources | nindent 10 }}
         ports: 

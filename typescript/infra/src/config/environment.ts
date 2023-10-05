@@ -1,14 +1,13 @@
 import {
-  AgentConnectionType,
   BridgeAdapterConfig,
   ChainMap,
   ChainMetadata,
   ChainName,
   CoreConfig,
-  HookConfig,
   HyperlaneEnvironment,
   IgpConfig,
   MultiProvider,
+  RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -24,7 +23,8 @@ import { HelloWorldConfig } from './helloworld';
 import { InfrastructureConfig } from './infrastructure';
 import { LiquidityLayerRelayerConfig } from './middleware';
 
-export const EnvironmentNames = Object.keys(environments);
+// TODO: fix this?
+export const EnvironmentNames = ['test', 'testnet3', 'mainnet2'];
 export type DeployEnvironment = keyof typeof environments;
 export type EnvironmentChain<E extends DeployEnvironment> = Extract<
   keyof typeof environments[E],
@@ -37,14 +37,13 @@ export type EnvironmentConfig = {
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
-  hook?: ChainMap<HookConfig>;
   igp: ChainMap<IgpConfig>;
   owners: ChainMap<Address>;
   infra: InfrastructureConfig;
   getMultiProvider: (
     context?: Contexts,
     role?: Role,
-    connectionType?: AgentConnectionType,
+    connectionType?: RpcConsensusType,
   ) => Promise<MultiProvider>;
   getKeys: (
     context?: Contexts,

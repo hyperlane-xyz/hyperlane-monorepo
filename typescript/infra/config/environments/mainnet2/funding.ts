@@ -1,4 +1,4 @@
-import { AgentConnectionType } from '@hyperlane-xyz/sdk';
+import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 
 import { KeyFunderConfig } from '../../../src/config/funding';
 import { Role } from '../../../src/roles';
@@ -23,5 +23,5 @@ export const keyFunderConfig: KeyFunderConfig = {
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  connectionType: AgentConnectionType.Http,
+  connectionType: RpcConsensusType.Single,
 };

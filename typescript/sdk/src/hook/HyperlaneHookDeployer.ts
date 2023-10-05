@@ -1,19 +1,27 @@
 import debug from 'debug';
 
-import { Address } from '@hyperlane-xyz/utils';
+import {
+  StaticAggregationHook__factory,
+  StaticProtocolFee,
+} from '@hyperlane-xyz/core';
 
 import { HyperlaneContracts } from '../contracts/types';
+import { CoreAddresses } from '../core/contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer';
+import { IgpFactories } from '../gas/contracts';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
+import { HookFactories, hookFactories } from './contracts';
 import {
-  HookFactories,
-  MerkleTreeHookFactory,
-  hookFactories,
-} from './contracts';
-import { HookConfig, HookType } from './types';
+  AggregationHookConfig,
+  HookConfig,
+  HookType,
+  IgpHookConfig,
+  ProtocolFeeHookConfig,
+} from './types';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
   HookConfig,
@@ -21,35 +29,94 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 > {
   constructor(
     multiProvider: MultiProvider,
+    readonly core: ChainMap<Partial<CoreAddresses>>,
     readonly ismFactory: HyperlaneIsmFactory,
-    readonly mailboxes: ChainMap<Address>,
+    readonly igpDeployer = new HyperlaneIgpDeployer(multiProvider),
   ) {
     super(multiProvider, hookFactories, {
-      logger: debug('hyperlane:HyperlaneHookDeployer'),
+      logger: debug('hyperlane:HookDeployer'),
     });
   }
 
   async deployContracts(
     chain: ChainName,
     config: HookConfig,
+    coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
-    if (config.type === HookType.MERKLE_TREE_HOOK) {
-      return this.deployMerkleTreeHook(chain, config);
-    } else {
-      throw new Error(`Unsupported hook type: ${config.type}`);
+    // other simple hooks can go here
+    if (config.type === HookType.MERKLE_TREE) {
+      const mailbox = coreAddresses.mailbox;
+      if (!mailbox) {
+        throw new Error(`Mailbox address is required for ${config.type}`);
+      }
+      const hook = await this.deployContract(chain, config.type, [mailbox]);
+      return { [config.type]: hook } as any;
+    } else if (config.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
+      return this.deployIgp(chain, config, coreAddresses) as any;
+    } else if (config.type === HookType.AGGREGATION) {
+      return this.deployAggregation(chain, config, coreAddresses);
+    } else if (config.type === HookType.PROTOCOL_FEE) {
+      const hook = await this.deployProtocolFee(chain, config);
+      return { [config.type]: hook } as any;
     }
+
+    throw new Error(`Unexpected hook type: ${JSON.stringify(config)}`);
   }
 
-  async deployMerkleTreeHook(
+  async deployProtocolFee(
     chain: ChainName,
-    _: HookConfig,
-  ): Promise<HyperlaneContracts<MerkleTreeHookFactory>> {
-    this.logger(`Deploying MerkleTreeHook to ${chain}`);
-    const merkleTreeHook = await this.deployContract(chain, 'merkleTreeHook', [
-      this.mailboxes[chain],
+    config: ProtocolFeeHookConfig,
+  ): Promise<StaticProtocolFee> {
+    return this.deployContract(chain, HookType.PROTOCOL_FEE, [
+      config.maxProtocolFee,
+      config.protocolFee,
+      config.beneficiary,
+      config.owner,
     ]);
-    return {
-      merkleTreeHook: merkleTreeHook,
-    };
+  }
+
+  async deployIgp(
+    chain: ChainName,
+    config: IgpHookConfig,
+    coreAddresses = this.core[chain],
+  ): Promise<HyperlaneContracts<IgpFactories>> {
+    if (coreAddresses.proxyAdmin) {
+      this.igpDeployer.writeCache(
+        chain,
+        'proxyAdmin',
+        coreAddresses.proxyAdmin,
+      );
+    }
+    const igpContracts = await this.igpDeployer.deployContracts(chain, config);
+    this.addDeployedContracts(chain, igpContracts);
+    return igpContracts;
+  }
+
+  async deployAggregation(
+    chain: ChainName,
+    config: AggregationHookConfig,
+    coreAddresses = this.core[chain],
+  ): Promise<HyperlaneContracts<HookFactories>> {
+    const aggregatedHooks: string[] = [];
+    let hooks: any = {};
+    for (const hookConfig of config.hooks) {
+      const subhooks = await this.deployContracts(
+        chain,
+        hookConfig,
+        coreAddresses,
+      );
+      aggregatedHooks.push(subhooks[hookConfig.type].address);
+      hooks = { ...hooks, ...subhooks };
+    }
+    const address = await this.ismFactory.deployStaticAddressSet(
+      chain,
+      this.ismFactory.getContracts(chain).aggregationHookFactory,
+      aggregatedHooks,
+    );
+    hooks[HookType.AGGREGATION] = StaticAggregationHook__factory.connect(
+      address,
+      this.multiProvider.getSignerOrProvider(chain),
+    );
+    return hooks;
   }
 }

@@ -13,8 +13,9 @@ use hyperlane_base::agent_main;
 
 use crate::relayer::Relayer;
 
-mod merkle_tree_builder;
+mod merkle_tree;
 mod msg;
+mod processor;
 mod prover;
 mod relayer;
 mod settings;

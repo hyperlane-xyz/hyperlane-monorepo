@@ -5,15 +5,14 @@ import {
   ChainMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
-  HyperlaneHookDeployer,
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
-  HyperlaneIsmFactoryDeployer,
+  HyperlaneProxyFactoryDeployer,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
 } from '@hyperlane-xyz/sdk';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
@@ -61,31 +60,16 @@ async function main() {
 
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
-  if (module === Modules.ISM_FACTORY) {
+  if (module === Modules.PROXY_FACTORY) {
     config = objMap(envConfig.core, (_chain) => true);
-    deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
+    deployer = new HyperlaneProxyFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
     config = envConfig.core;
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.ISM_FACTORY),
+      getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
-  } else if (module === Modules.HOOK) {
-    if (!envConfig.hook) {
-      throw new Error(`No hook config for ${environment}`);
-    }
-    config = envConfig.hook;
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.ISM_FACTORY),
-      multiProvider,
-    );
-    const mailboxes: ChainMap<Address> = {};
-    for (const chain in getAddresses(environment, Modules.CORE)) {
-      mailboxes[chain] = getAddresses(environment, Modules.CORE)[chain].mailbox;
-    }
-
-    deployer = new HyperlaneHookDeployer(multiProvider, ismFactory, mailboxes);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
@@ -130,7 +114,7 @@ async function main() {
       true, // use deployer as owner
     );
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.ISM_FACTORY),
+      getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,
     );
     deployer = new HelloWorldDeployer(multiProvider, ismFactory);
@@ -162,7 +146,7 @@ async function main() {
   };
   // Don't write agent config in fork tests
   const agentConfig =
-    ['core', 'igp'].includes(module) && !fork
+    module === Modules.CORE && !fork
       ? {
           addresses,
           environment,

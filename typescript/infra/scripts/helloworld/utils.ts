@@ -4,19 +4,19 @@ import {
   helloWorldFactories,
 } from '@hyperlane-xyz/helloworld';
 import {
-  AgentConnectionType,
   HyperlaneCore,
   HyperlaneIgp,
   MultiProtocolCore,
   MultiProtocolProvider,
   MultiProvider,
+  RpcConsensusType,
   attachContractsMap,
   chainMetadata,
   filterAddressesToProtocol,
   hyperlaneEnvironments,
+  hyperlaneEnvironmentsWithSealevel,
   igpFactories,
 } from '@hyperlane-xyz/sdk';
-import { hyperlaneEnvironmentsWithSealevel } from '@hyperlane-xyz/sdk/src';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
@@ -30,7 +30,7 @@ export async function getHelloWorldApp(
   context: Contexts,
   keyRole: Role,
   keyContext: Contexts = context,
-  connectionType: AgentConnectionType = AgentConnectionType.Http,
+  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ) {
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
@@ -54,7 +54,7 @@ export async function getHelloWorldMultiProtocolApp(
   context: Contexts,
   keyRole: Role,
   keyContext: Contexts = context,
-  connectionType: AgentConnectionType = AgentConnectionType.Http,
+  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ) {
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,

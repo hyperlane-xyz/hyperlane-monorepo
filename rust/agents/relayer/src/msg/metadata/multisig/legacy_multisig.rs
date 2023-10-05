@@ -19,9 +19,9 @@ pub struct LegacyMultisigMetadataBuilder(BaseMetadataBuilder);
 impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
     fn token_layout(&self) -> Vec<MetadataToken> {
         vec![
-            MetadataToken::CheckpointRoot,
+            MetadataToken::MerkleRoot,
             MetadataToken::CheckpointIndex,
-            MetadataToken::CheckpointMailbox,
+            MetadataToken::CheckpointMerkleTree,
             MetadataToken::MerkleProof,
             MetadataToken::Threshold,
             MetadataToken::Signatures,
@@ -37,7 +37,10 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching LegacyMultisig metadata";
-        let highest_nonce = self.highest_known_nonce().await;
+        let Some(highest_nonce) = self.highest_known_nonce().await
+        else {
+            return Ok(None);
+        };
         let Some(quorum_checkpoint) = checkpoint_syncer
             .legacy_fetch_checkpoint_in_range(
                 validators,
@@ -62,6 +65,7 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
         Ok(Some(MultisigMetadata::new(
             quorum_checkpoint.checkpoint,
             quorum_checkpoint.signatures,
+            None,
             None,
             Some(proof),
         )))

@@ -18,10 +18,11 @@ pub struct MerkleRootMultisigMetadataBuilder(BaseMetadataBuilder);
 impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
     fn token_layout(&self) -> Vec<MetadataToken> {
         vec![
-            MetadataToken::CheckpointMailbox,
-            MetadataToken::CheckpointIndex,
+            MetadataToken::CheckpointMerkleTree,
+            MetadataToken::MerkleIndex,
             MetadataToken::MessageId,
             MetadataToken::MerkleProof,
+            MetadataToken::CheckpointIndex,
             MetadataToken::Signatures,
         ]
     }
@@ -34,7 +35,10 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MerkleRootMultisig metadata";
-        let highest_nonce = self.highest_known_nonce().await;
+        let Some(highest_nonce) = self.highest_known_nonce().await
+        else {
+            return Ok(None);
+        };
         let Some(quorum_checkpoint) = checkpoint_syncer
             .fetch_checkpoint_in_range(validators, threshold as usize, message.nonce, highest_nonce)
             .await
@@ -51,9 +55,15 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             return Ok(None);
         };
 
+        let merkle_leaf_id = self
+            .get_merkle_leaf_id_by_message_id(message.id())
+            .await
+            .context(CTX)?;
+
         Ok(Some(MultisigMetadata::new(
             quorum_checkpoint.checkpoint.checkpoint,
             quorum_checkpoint.signatures,
+            merkle_leaf_id,
             Some(quorum_checkpoint.checkpoint.message_id),
             Some(proof),
         )))
