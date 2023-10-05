@@ -42,7 +42,8 @@ import { Role } from '../src/roles';
 import { assertContext, assertRole, readJSON } from '../src/utils/utils';
 
 export enum Modules {
-  PROXY_FACTORY = 'proxyfactory',
+  // TODO: change
+  PROXY_FACTORY = 'ism',
   CORE = 'core',
   HOOK = 'hook',
   INTERCHAIN_GAS_PAYMASTER = 'igp',

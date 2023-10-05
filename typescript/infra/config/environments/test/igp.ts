@@ -20,19 +20,20 @@ function getGasOracles(local: TestChains) {
 }
 
 export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, owner) => {
+  const overhead = Object.fromEntries(
+    exclude(chain, chainNames).map((remote) => [
+      remote,
+      multisigIsmVerificationCost(
+        multisigIsm[remote].threshold,
+        multisigIsm[remote].validators.length,
+      ),
+    ]),
+  );
   return {
     owner,
     oracleKey: owner,
     beneficiary: owner,
     gasOracleType: getGasOracles(chain),
-    overhead: Object.fromEntries(
-      exclude(chain, chainNames).map((remote) => [
-        remote,
-        multisigIsmVerificationCost(
-          multisigIsm[remote].threshold,
-          multisigIsm[remote].validators.length,
-        ),
-      ]),
-    ),
+    overhead,
   };
 });

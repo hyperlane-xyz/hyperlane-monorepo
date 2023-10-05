@@ -1,7 +1,10 @@
 import {
+  AggregationHookConfig,
   ChainMap,
   CoreConfig,
   HookType,
+  IgpHookConfig,
+  MerkleTreeHookConfig,
   ModuleType,
   RoutingIsmConfig,
 } from '@hyperlane-xyz/sdk';
@@ -23,24 +26,25 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     ),
   };
 
+  const merkleHook: MerkleTreeHookConfig = {
+    type: HookType.MERKLE_TREE,
+  };
+
+  const igpHook: IgpHookConfig = {
+    type: HookType.INTERCHAIN_GAS_PAYMASTER,
+    ...igp[local],
+  };
+
+  const defaultHook: AggregationHookConfig = {
+    type: HookType.AGGREGATION,
+    hooks: [merkleHook, igpHook],
+  };
+
   return {
     owner,
     defaultIsm,
-    defaultHook: {
-      type: HookType.AGGREGATION,
-      hooks: [
-        {
-          type: HookType.MERKLE_TREE,
-        },
-        {
-          type: HookType.INTERCHAIN_GAS_PAYMASTER,
-          ...igp[local],
-        },
-      ],
-    },
+    defaultHook,
     // TODO: configure fee hook
-    requiredHook: {
-      type: HookType.MERKLE_TREE,
-    },
+    requiredHook: merkleHook,
   };
 });
