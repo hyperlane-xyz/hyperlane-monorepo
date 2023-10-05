@@ -10,6 +10,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
+import { ProtocolFeeHookConfig } from '@hyperlane-xyz/sdk/src/hook/types';
+import { BigNumber, ethers } from 'ethers';
 import { aggregationIsm } from './aggregationIsm';
 import { igp } from './igp';
 import { chainToValidator } from './multisigIsm';
@@ -40,11 +42,18 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     hooks: [merkleHook, igpHook],
   };
 
+  const requiredHook: ProtocolFeeHookConfig = {
+    type: HookType.PROTOCOL_FEE,
+    maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'), // 1 gwei of native token
+    protocolFee: BigNumber.from(1), // 1 wei
+    beneficiary: owner,
+    owner,
+  };
+
   return {
     owner,
     defaultIsm,
     defaultHook,
-    // TODO: configure fee hook
-    requiredHook: merkleHook,
+    requiredHook
   };
 });
