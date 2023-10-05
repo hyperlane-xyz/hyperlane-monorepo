@@ -182,14 +182,6 @@ const DOMAINS: &[RawDomain] = &[
         is_test_net: true,
         is_deprecated: false,
     },
-    RawDomain {
-        name: "zksync2testnet",
-        token: "ETH",
-        domain: 280,
-        chain_id: 280,
-        is_test_net: true,
-        is_deprecated: false,
-    },
 ];
 
 #[derive(DeriveMigrationName)]

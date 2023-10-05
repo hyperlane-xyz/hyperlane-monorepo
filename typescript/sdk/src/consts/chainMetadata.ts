@@ -135,6 +135,33 @@ export const avalanche: ChainMetadata = {
     'https://safe-transaction-avalanche.safe.global/',
 };
 
+export const basegoerli: ChainMetadata = {
+  chainId: 84531,
+  domainId: 84531,
+  name: Chains.basegoerli,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Base Goerli',
+  nativeToken: etherToken,
+  rpcUrls: [
+    { http: 'https://base-goerli.publicnode.com' },
+    { http: 'https://goerli.base.org' },
+  ],
+  blockExplorers: [
+    {
+      name: 'BaseScan',
+      url: 'https://goerli.basescan.org',
+      apiUrl: 'https://api-goerli.basescan.org/api',
+      family: ExplorerFamily.Etherscan,
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 3,
+  },
+  isTestnet: true,
+};
+
 export const bsc: ChainMetadata = {
   chainId: 56,
   domainId: 56,
@@ -184,6 +211,30 @@ export const bsctestnet: ChainMetadata = {
     confirmations: 1,
     reorgPeriod: 9,
     estimateBlockTime: 3,
+  },
+  isTestnet: true,
+};
+
+export const chiado: ChainMetadata = {
+  chainId: 10200,
+  domainId: 10200,
+  name: Chains.chiado,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Chiado',
+  nativeToken: xDaiToken,
+  rpcUrls: [{ http: 'https://gnosis-chiado.publicnode.com' }],
+  blockExplorers: [
+    {
+      name: 'GnosisScan',
+      url: 'https://gnosis-chiado.blockscout.com',
+      apiUrl: 'https://gnosis-chiado.blockscout.com/api',
+      family: ExplorerFamily.Blockscout,
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 14,
+    estimateBlockTime: 5,
   },
   isTestnet: true,
 };
@@ -309,6 +360,30 @@ export const goerli: ChainMetadata = {
   isTestnet: true,
 };
 
+export const lineagoerli: ChainMetadata = {
+  chainId: 59140,
+  domainId: 59140,
+  name: Chains.lineagoerli,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Linea Goerli',
+  nativeToken: etherToken,
+  rpcUrls: [{ http: 'https://rpc.goerli.linea.build' }],
+  blockExplorers: [
+    {
+      name: 'Linea Explorer',
+      url: 'https://explorer.goerli.linea.build/',
+      apiUrl: 'https://explorer.goerli.linea.build/api',
+      family: ExplorerFamily.Blockscout,
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 2,
+    estimateBlockTime: 12,
+  },
+  isTestnet: true,
+};
+
 export const sepolia: ChainMetadata = {
   chainId: 11155111,
   domainId: 11155111,
@@ -329,6 +404,33 @@ export const sepolia: ChainMetadata = {
     confirmations: 1,
     reorgPeriod: 2,
     estimateBlockTime: 13,
+  },
+  isTestnet: true,
+};
+
+export const scrollsepolia: ChainMetadata = {
+  chainId: 534351,
+  domainId: 534351,
+  name: Chains.scrollsepolia,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Scroll Sepolia',
+  nativeToken: etherToken,
+  rpcUrls: [
+    { http: 'https://sepolia-rpc.scroll.io' },
+    { http: 'https://scroll-public.scroll-testnet.quiknode.pro' },
+  ],
+  blockExplorers: [
+    {
+      name: 'Scroll Explorer',
+      url: 'https://sepolia-blockscout.scroll.io',
+      apiUrl: 'https://sepolia-blockscout.scroll.io/api',
+      family: ExplorerFamily.Blockscout,
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 3,
   },
   isTestnet: true,
 };
@@ -728,6 +830,30 @@ export const solanadevnet: ChainMetadata = {
   isTestnet: true,
 };
 
+export const polygonzkevmtestnet: ChainMetadata = {
+  protocol: ProtocolType.Ethereum,
+  chainId: 1442,
+  domainId: 1442,
+  name: Chains.polygonzkevmtestnet,
+  displayName: 'Polygon zkEVM Testnet',
+  nativeToken: etherToken,
+  rpcUrls: [{ http: 'https://rpc.public.zkevm-test.net' }],
+  blockExplorers: [
+    {
+      name: 'PolygonScan',
+      url: 'https://testnet-zkevm.polygonscan.com/',
+      apiUrl: 'https://api-testnet-zkevm.polygonscan.com/api',
+      family: ExplorerFamily.Etherscan,
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 3,
+  },
+  isTestnet: true,
+};
+
 /**
  * Collection maps
  *
@@ -739,12 +865,16 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   arbitrum,
   arbitrumgoerli,
   avalanche,
+  basegoerli,
   bsc,
   bsctestnet,
+  chiado,
   celo,
   ethereum,
   fuji,
   goerli,
+  lineagoerli,
+  scrollsepolia,
   sepolia,
   moonbasealpha,
   moonbeam,
@@ -752,6 +882,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   optimism,
   optimismgoerli,
   polygon,
+  polygonzkevmtestnet,
   gnosis,
   proteustestnet,
   test1,

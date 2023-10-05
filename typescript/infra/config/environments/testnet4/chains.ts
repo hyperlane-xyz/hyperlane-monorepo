@@ -4,7 +4,10 @@ import { AgentChainNames, Role } from '../../../src/roles';
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {
   alfajores: chainMetadata.alfajores,
+  basegoerli: chainMetadata.basegoerli,
   fuji: chainMetadata.fuji,
+  chiado: chainMetadata.chiado,
+  lineagoerli: chainMetadata.lineagoerli,
   mumbai: {
     ...chainMetadata.mumbai,
     transactionOverrides: {
@@ -14,10 +17,12 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
   },
   bsctestnet: chainMetadata.bsctestnet,
   goerli: chainMetadata.goerli,
+  scrollsepolia: chainMetadata.scrollsepolia,
   sepolia: chainMetadata.sepolia,
   moonbasealpha: chainMetadata.moonbasealpha,
   optimismgoerli: chainMetadata.optimismgoerli,
   arbitrumgoerli: chainMetadata.arbitrumgoerli,
+  polygonzkevmtestnet: chainMetadata.polygonzkevmtestnet,
 };
 
 // "Blessed" chains that we want core contracts for.
@@ -25,7 +30,7 @@ export type TestnetChains = keyof typeof testnetConfigs;
 export const supportedChainNames = Object.keys(
   testnetConfigs,
 ) as TestnetChains[];
-export const environment = 'testnet3';
+export const environment = 'testnet4';
 
 const validatorChainNames = [
   ...supportedChainNames,

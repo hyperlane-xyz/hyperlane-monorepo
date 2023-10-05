@@ -54,6 +54,7 @@ pub enum KnownHyperlaneDomain {
 
     Polygon = 137,
     Mumbai = 80001,
+    PolygonZkEvmTestnet = 1442,
 
     Avalanche = 43114,
     Fuji = 43113,
@@ -76,8 +77,7 @@ pub enum KnownHyperlaneDomain {
     MoonbaseAlpha = 1287,
 
     Gnosis = 100,
-
-    Zksync2Testnet = 280,
+    Chiado = 10200,
 
     // -- Local test chains --
     /// Test1 local chain
@@ -94,6 +94,11 @@ pub enum KnownHyperlaneDomain {
     SealevelTest1 = 13375,
     /// Sealevel local chain 1
     SealevelTest2 = 13376,
+
+    // -- v3 testnets --
+    LineaGoerli = 59140,
+    BaseGoerli = 84531,
+    ScrollSepolia = 534351,
 }
 
 #[derive(Clone)]
@@ -182,12 +187,11 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             Mainnet: [
                 Ethereum, Avalanche, Arbitrum, Polygon, Optimism, BinanceSmartChain, Celo,
-                Moonbeam,
-                Gnosis
+                Moonbeam, Gnosis
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
-                Alfajores, MoonbaseAlpha, Zksync2Testnet, Sepolia
+                Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia, Chiado
             ],
             LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2],
         })
@@ -200,7 +204,7 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainProtocol::Ethereum: [
                 Ethereum, Goerli, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
                 Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
-                Alfajores, Moonbeam, MoonbaseAlpha, Zksync2Testnet, Test1, Test2, Test3
+                Alfajores, Moonbeam, MoonbaseAlpha, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia, Chiado, Test1, Test2, Test3
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],

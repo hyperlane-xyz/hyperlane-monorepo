@@ -18,7 +18,7 @@ import { igp } from './igp';
 import { owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
-  const defaultIsm = aggregationIsm('testnet3', local, Contexts.Hyperlane);
+  const defaultIsm = aggregationIsm('testnet4', local, Contexts.Hyperlane);
 
   const merkleHook: MerkleTreeHookConfig = {
     type: HookType.MERKLE_TREE,

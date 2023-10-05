@@ -64,5 +64,5 @@ export const deployEnvToSdkEnv: Record<
 > = {
   test: 'testnet', // TODO: remove this
   mainnet2: 'mainnet',
-  testnet3: 'testnet',
+  testnet4: 'testnet',
 };
