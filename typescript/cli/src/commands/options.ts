@@ -9,13 +9,13 @@ export const keyCommandOption: Options = {
 
 export const chainsCommandOption: Options = {
   type: 'string',
-  description: 'A path to a JSON or YAML file with chain configs.',
+  description: 'A path to a JSON or YAML file with chain configs',
   default: './configs/chain-config.yaml',
 };
 
 export const outDirCommandOption: Options = {
   type: 'string',
-  description: 'A folder name output artifacts into.',
+  description: 'A folder name output artifacts into',
   default: './artifacts',
 };
 
@@ -38,3 +38,10 @@ export const outputFileOption = (defaultPath: string): Options => ({
   description: 'Output file path',
   default: defaultPath,
 });
+
+export const skipConfirmationOption: Options = {
+  type: 'boolean',
+  alias: 'y',
+  description: 'Skip confirmation prompts',
+  default: false,
+};

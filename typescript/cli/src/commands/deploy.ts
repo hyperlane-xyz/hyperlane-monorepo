@@ -9,6 +9,7 @@ import {
   coreArtifactsOption,
   keyCommandOption,
   outDirCommandOption,
+  skipConfirmationOption,
 } from './options.js';
 
 /**
@@ -37,6 +38,22 @@ const coreCommand: CommandModule = {
       key: keyCommandOption,
       chains: chainsCommandOption,
       out: outDirCommandOption,
+      artifacts: coreArtifactsOption,
+      ism: {
+        type: 'string',
+        description:
+          'A path to a JSON or YAML file with ISM configs (e.g. Multisig)',
+      },
+      origin: {
+        type: 'string',
+        description: 'Name of chain to which contracts will be deployed',
+      },
+      remotes: {
+        type: 'string',
+        description:
+          'Comma separated list of chain names to which origin will be connected',
+      },
+      yes: skipConfirmationOption,
     }),
   handler: async (argv: any) => {
     logGray('Hyperlane permissionless core deployment');
@@ -44,7 +61,23 @@ const coreCommand: CommandModule = {
     const key: string = argv.key || process.env.HYP_KEY;
     const chainConfigPath: string = argv.chains;
     const outPath: string = argv.out;
-    await runCoreDeploy({ key, chainConfigPath, outPath });
+    const origin: string | undefined = argv.origin;
+    const remotes: string[] | undefined = argv.remotes
+      ? argv.remotes.split(',').map((r: string) => r.trim())
+      : undefined;
+    const artifactsPath: string = argv.artifacts;
+    const ismConfigPath: string = argv.ism;
+    const skipConfirmation: boolean = argv.yes;
+    await runCoreDeploy({
+      key,
+      chainConfigPath,
+      artifactsPath,
+      ismConfigPath,
+      outPath,
+      origin,
+      remotes,
+      skipConfirmation,
+    });
     process.exit(0);
   },
 };

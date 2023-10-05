@@ -15,19 +15,18 @@ import { log, logBlue } from '../logger.js';
 // a new chain in the list
 const NEW_CHAIN_MARKER = '__new__';
 
-export async function runLocalAndRemotesSelectionStep(
+export async function runOriginAndRemotesSelectionStep(
   customChains: ChainMap<ChainMetadata>,
 ) {
-  const local = await runSingleChainSelectionStep(
+  const origin = await runSingleChainSelectionStep(
     customChains,
-    'Select local chain (the chain to which you will deploy now)',
+    'Select origin chain (the chain to which you will deploy now)',
   );
   const remotes = await runMultiChainSelectionStep(
     customChains,
-    'Select remote chains the local will send messages to',
+    'Select remote chains the origin will send messages to',
   );
-  const selectedChains = [local, ...remotes];
-  return { local, remotes, selectedChains };
+  return { origin, remotes };
 }
 
 export async function runSingleChainSelectionStep(
@@ -35,13 +34,13 @@ export async function runSingleChainSelectionStep(
   message = 'Select chain',
 ) {
   const choices = getChainChoices(customChains);
-  const local = (await select({
+  const origin = (await select({
     message,
     choices,
     pageSize: 20,
   })) as string;
-  handleNewChain([local]);
-  return local;
+  handleNewChain([origin]);
+  return origin;
 }
 
 export async function runMultiChainSelectionStep(

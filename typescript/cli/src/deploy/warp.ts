@@ -170,7 +170,7 @@ async function runBuildConfigStep({
   return {
     configMap,
     metadata: baseMetadata,
-    local: baseChainName,
+    origin: baseChainName,
     remotes: synthetics.map(({ chainName }) => chainName),
     isNft: !!isNft,
   };
@@ -180,7 +180,7 @@ interface DeployParams {
   configMap: ChainMap<TokenConfig & RouterConfig>;
   isNft: boolean;
   metadata: MinimalTokenMetadata;
-  local: ChainName;
+  origin: ChainName;
   remotes: ChainName[];
   signer: ethers.Signer;
   multiProvider: MultiProvider;
@@ -190,17 +190,17 @@ interface DeployParams {
 async function runDeployPlanStep({
   configMap,
   isNft,
-  local,
+  origin,
   remotes,
   signer,
 }: DeployParams) {
   const address = await signer.getAddress();
-  const baseToken = configMap[local];
+  const baseToken = configMap[origin];
   const baseName = getTokenName(baseToken);
   logBlue('\n', 'Deployment plan:');
   logGray('===============:');
   log(`Transaction signer and owner of new contracts will be ${address}`);
-  log(`Deploying a warp route with a base of ${baseName} token on ${local}`);
+  log(`Deploying a warp route with a base of ${baseName} token on ${origin}`);
   log(`Connecting it to new synthetic tokens on ${remotes.join(', ')}`);
   log(`Using token standard ${isNft ? 'ERC721' : 'ERC20'}`);
 
@@ -299,18 +299,18 @@ function writeTokenDeploymentArtifacts(
 function writeWarpUiTokenConfig(
   filePath: string,
   contracts: HyperlaneContractsMap<TokenFactories>,
-  { configMap, isNft, metadata, local, multiProvider }: DeployParams,
+  { configMap, isNft, metadata, origin, multiProvider }: DeployParams,
 ) {
-  const baseConfig = configMap[local];
+  const baseConfig = configMap[origin];
   const hypTokenAddr =
-    contracts[local]?.router?.address || configMap[local]?.foreignDeployment;
+    contracts[origin]?.router?.address || configMap[origin]?.foreignDeployment;
   if (!hypTokenAddr) {
     throw Error(
       'No base Hyperlane token address deployed and no foreign deployment specified',
     );
   }
   const commonFields = {
-    chainId: multiProvider.getChainId(local),
+    chainId: multiProvider.getChainId(origin),
     name: metadata.name,
     symbol: metadata.symbol,
     decimals: metadata.decimals,

@@ -57,7 +57,7 @@ export async function sendTestTransfer({
     wei.toString(),
   );
   await runPreflightChecks({
-    local: origin,
+    origin,
     remotes: [destination],
     multiProvider,
     signer,

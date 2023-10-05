@@ -40,7 +40,7 @@ export async function sendTestMessage({
     : undefined;
 
   await runPreflightChecks({
-    local: origin,
+    origin,
     remotes: [destination],
     multiProvider,
     signer,
