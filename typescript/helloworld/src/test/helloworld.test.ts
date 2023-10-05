@@ -9,6 +9,7 @@ import {
   TestCoreApp,
   TestCoreDeployer,
 } from '@hyperlane-xyz/sdk';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { HelloWorldConfig } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
@@ -51,17 +52,21 @@ describe('HelloWorld', async () => {
     expect(await remote.received()).to.equal(0);
   });
 
-  async function quoteGasPayment() {
-    const handleGasAmount = await local.HANDLE_GAS_AMOUNT();
-    // TODO: update once IGP is not hardcoded in core deployer
-    const GAS_PRICE = 10;
-    return handleGasAmount.mul(GAS_PRICE);
+  async function quoteGasPayment(body: string) {
+    return coreApp
+      .getContracts(localChain)
+      .mailbox['quoteDispatch(uint32,bytes32,bytes)'](
+        remoteDomain,
+        addressToBytes32(remote.address),
+        Buffer.from(body),
+      );
   }
 
   it('sends a message', async () => {
+    const body = 'Hello';
     await expect(
-      local.sendHelloWorld(remoteDomain, 'Hello', {
-        value: await quoteGasPayment(),
+      local.sendHelloWorld(remoteDomain, body, {
+        value: await quoteGasPayment(body),
       }),
     ).to.emit(local, 'SentHelloWorld');
     // The sent counts are correct
@@ -72,16 +77,18 @@ describe('HelloWorld', async () => {
   });
 
   it('reverts if there is insufficient payment', async () => {
+    const body = 'Hello';
     await expect(
-      local.sendHelloWorld(remoteDomain, 'Hello', {
-        value: 0,
+      local.sendHelloWorld(remoteDomain, body, {
+        value: (await quoteGasPayment(body)).sub(1),
       }),
     ).to.be.revertedWith('insufficient interchain gas payment');
   });
 
   it('handles a message', async () => {
-    await local.sendHelloWorld(remoteDomain, 'World', {
-      value: await quoteGasPayment(),
+    const body = 'World';
+    await local.sendHelloWorld(remoteDomain, body, {
+      value: await quoteGasPayment(body),
     });
     // Mock processing of the message by Hyperlane
     await coreApp.processOutboundMessages(localChain);

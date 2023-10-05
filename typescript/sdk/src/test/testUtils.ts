@@ -66,7 +66,7 @@ export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
           ),
         },
         defaultHook: {
-          type: HookType.MERKLE_TREE,
+          type: HookType.INTERCHAIN_GAS_PAYMASTER,
         },
         requiredHook: {
           type: HookType.MERKLE_TREE,
