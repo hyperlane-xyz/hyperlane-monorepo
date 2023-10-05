@@ -27,11 +27,6 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     await this.checkBytecodes(chain);
     await this.checkOverheadInterchainGasPaymaster(chain);
     await this.checkInterchainGasPaymaster(chain);
-
-    const config = this.configMap[chain];
-    if (config.upgrade) {
-      await this.checkUpgrade(chain, config.upgrade);
-    }
   }
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
@@ -40,11 +35,6 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     const ownableOverrides: Record<string, string> = {
       storageGasOracle: config.oracleKey,
     };
-    if (config.upgrade) {
-      const timelockController =
-        this.app.getAddresses(chain).timelockController;
-      ownableOverrides['proxyAdmin'] = timelockController;
-    }
     await super.checkOwnership(chain, config.owner, ownableOverrides);
   }
 
