@@ -22,7 +22,7 @@ Hyperlane is an interchain messaging protocol that allows applications to commun
 
 Developers can use Hyperlane to share state between blockchains, allowing them to build interchain applications that live natively across multiple chains.
 
-To read more about interchain applications, how the protocol works, and how to integrate with Hyperlane, please see the [documentation](https://docs.hyperlane.xyz/).
+To read more about interchain applications, how the protocol works, and how to integrate with Hyperlane, please see the [documentation](https://docs.hyperlane.xyz).
 
 ## Working on Hyperlane
 

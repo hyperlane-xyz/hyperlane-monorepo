@@ -15,7 +15,7 @@ import {
 
 import { Contexts } from '../../config/contexts';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
-import { helloWorldRouterConfig } from '../../src/config/helloworld';
+import { helloWorldRouterConfig } from '../../src/config/helloworld/config';
 import { Role } from '../../src/roles';
 import { readJSON, writeJSON } from '../../src/utils/utils';
 import {
