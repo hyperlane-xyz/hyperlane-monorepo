@@ -108,11 +108,11 @@ const desiredBalancePerChain: ChainMap<string> = {
   optimismgoerli: '0.5',
   arbitrumgoerli: '0.5',
   gnosis: '0.1',
-  basegoerli: '0.2',
-  scrollsepolia: '0.5',
-  lineagoerli: '1',
-  polygonzkevmtestnet: '1',
-  chiado: '2',
+  basegoerli: '0.05',
+  scrollsepolia: '0.05',
+  lineagoerli: '0.1',
+  polygonzkevmtestnet: '0.01',
+  chiado: '0.0001',
 
   // unused
   test1: '0',

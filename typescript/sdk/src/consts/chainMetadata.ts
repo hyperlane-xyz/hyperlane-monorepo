@@ -836,7 +836,7 @@ export const polygonzkevmtestnet: ChainMetadata = {
   domainId: 1442,
   name: Chains.polygonzkevmtestnet,
   displayName: 'Polygon zkEVM Testnet',
-  nativeToken: maticToken,
+  nativeToken: etherToken,
   rpcUrls: [{ http: 'https://rpc.public.zkevm-test.net' }],
   blockExplorers: [
     {
