@@ -19,6 +19,8 @@ use crate::trait_builder::BuildableWithProvider;
 use crate::tx::call_with_lag;
 use crate::EthereumProvider;
 
+// We don't need the reverse of this impl, so it's ok to disable the clippy lint
+#[allow(clippy::from_over_into)]
 impl Into<IncrementalMerkle> for Tree {
     fn into(self) -> IncrementalMerkle {
         let branch = self
