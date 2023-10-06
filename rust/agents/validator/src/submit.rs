@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
-use eyre::Result;
+use eyre::{Result, bail};
 use hyperlane_core::MerkleTreeHook;
 use prometheus::IntGauge;
 use tokio::time::sleep;
@@ -84,12 +84,12 @@ impl ValidatorSubmitter {
             };
 
             // ingest available messages from DB
-            while let Some(message) = self
+            while let Some(insertion) = self
                 .message_db
-                .retrieve_message_by_nonce(tree.count() as u32)?
+                .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))?
             {
-                debug!(index = message.nonce, "Ingesting leaf to tree");
-                let message_id = message.id();
+                debug!(index = insertion.index(), queue_length = checkpoint_queue.len(), "Ingesting leaf to tree");
+                let message_id = insertion.message_id();
                 tree.ingest(message_id);
 
                 let checkpoint = self.checkpoint(&tree);
@@ -98,6 +98,14 @@ impl ValidatorSubmitter {
                     checkpoint,
                     message_id,
                 });
+
+                if checkpoint.index == correctness_checkpoint.index {
+                    // We got to the right height, now lets compare whether we got the right tree
+                    if checkpoint.root != correctness_checkpoint.root {
+                        // Bad news, bail
+                        bail!("Incorrect tree root, something went wrong");
+                    }
+                }
 
                 // compare against every queued checkpoint to prevent ingesting past target
                 if checkpoint == correctness_checkpoint {
