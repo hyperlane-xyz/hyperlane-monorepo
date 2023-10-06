@@ -424,8 +424,6 @@ async function sendMessage(
 
   const sendAndConfirmMsg = async () => {
     const sender = getAddressesForKey(keys, origin, multiProvider);
-
-    log('Sender address', { sender });
     const tx = await app.populateHelloWorldTx(
       origin,
       destination,
