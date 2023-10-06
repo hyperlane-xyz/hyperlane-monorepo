@@ -130,7 +130,7 @@ mod test {
                     .into();
             let message = Checkpoint {
                 merkle_tree_hook_address: H256::repeat_byte(2),
-                merkle_tree_hook_domain: 5,
+                mailbox_domain: 5,
                 root: H256::repeat_byte(1),
                 index: 123,
             };

@@ -233,7 +233,7 @@ where
         let (root, index) = call.call().await?;
         Ok(Checkpoint {
             merkle_tree_hook_address: self.address(),
-            merkle_tree_hook_domain: self.domain.id(),
+            mailbox_domain: self.domain.id(),
             root: root.into(),
             index,
         })

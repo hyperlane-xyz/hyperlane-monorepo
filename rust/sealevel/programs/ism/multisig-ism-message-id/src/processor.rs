@@ -247,7 +247,7 @@ fn verify(
         CheckpointWithMessageId {
             checkpoint: Checkpoint {
                 merkle_tree_hook_address: metadata.origin_merkle_tree_hook,
-                merkle_tree_hook_domain: message.origin,
+                mailbox_domain: message.origin,
                 root: metadata.merkle_root,
                 index: message.nonce,
             },

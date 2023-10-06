@@ -12,7 +12,7 @@ pub struct Checkpoint {
     /// The merkle tree hook address
     pub merkle_tree_hook_address: H256,
     /// The merkle tree hook chain
-    pub merkle_tree_hook_domain: u32,
+    pub mailbox_domain: u32,
     /// The checkpointed root
     pub root: H256,
     /// The index of the checkpoint
@@ -39,7 +39,7 @@ impl Signable for Checkpoint {
             Keccak256::new()
                 .chain(domain_hash(
                     self.merkle_tree_hook_address,
-                    self.merkle_tree_hook_domain,
+                    self.mailbox_domain,
                 ))
                 .chain(self.root)
                 .chain(self.index.to_be_bytes())
@@ -59,7 +59,7 @@ impl Signable for CheckpointWithMessageId {
             Keccak256::new()
                 .chain(domain_hash(
                     self.merkle_tree_hook_address,
-                    self.merkle_tree_hook_domain,
+                    self.mailbox_domain,
                 ))
                 .chain(self.root)
                 .chain(self.index.to_be_bytes())
