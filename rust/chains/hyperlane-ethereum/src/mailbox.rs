@@ -10,7 +10,6 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
-use ethers_core::types::BlockNumber;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -23,7 +22,7 @@ use hyperlane_core::{
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::contracts::i_mailbox::{IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI};
 use crate::trait_builder::BuildableWithProvider;
-use crate::tx::{fill_tx_gas_params, report_tx};
+use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
 use crate::EthereumProvider;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
@@ -301,17 +300,7 @@ where
 {
     #[instrument(skip(self))]
     async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let mut call = self.contract.nonce();
-        if let Some(lag) = maybe_lag {
-            let fixed_block_number: BlockNumber = self
-                .provider
-                .get_block_number()
-                .await
-                .map_err(ChainCommunicationError::from_other)?
-                .saturating_sub(lag.get().into())
-                .into();
-            call = call.block(fixed_block_number);
-        };
+        let call = call_with_lag(self.contract.nonce(), &self.provider, maybe_lag).await?;
         let nonce = call.call().await?;
         Ok(nonce)
     }
