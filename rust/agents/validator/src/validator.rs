@@ -12,7 +12,7 @@ use hyperlane_base::{
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Announcement, ChainResult, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
- TxOutcome, ValidatorAnnounce, H256, U256, MerkleTreeInsertion, MerkleTreeHook,
+    MerkleTreeHook, MerkleTreeInsertion, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
 use tokio::{task::JoinHandle, time::sleep};
@@ -151,16 +151,9 @@ impl Validator {
         let index_settings =
             self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
         let contract_sync = self.merkle_tree_hook_sync.clone();
-        let cursor = contract_sync
-            .rate_limited_cursor(index_settings)
-            .await;
-        tokio::spawn(async move {
-            contract_sync
-                .clone()
-                .sync("merkle_tree_hook", cursor)
-                .await
-        })
-        .instrument(info_span!("MerkleTreeHookSyncer"))
+        let cursor = contract_sync.rate_limited_cursor(index_settings).await;
+        tokio::spawn(async move { contract_sync.clone().sync("merkle_tree_hook", cursor).await })
+            .instrument(info_span!("MerkleTreeHookSyncer"))
     }
 
     async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<Result<()>>>> {

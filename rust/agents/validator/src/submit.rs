@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
-use eyre::{Result, bail};
+use eyre::{bail, Result};
 use hyperlane_core::MerkleTreeHook;
 use prometheus::IntGauge;
 use tokio::time::sleep;
@@ -88,7 +88,11 @@ impl ValidatorSubmitter {
                 .message_db
                 .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))?
             {
-                debug!(index = insertion.index(), queue_length = checkpoint_queue.len(), "Ingesting leaf to tree");
+                debug!(
+                    index = insertion.index(),
+                    queue_length = checkpoint_queue.len(),
+                    "Ingesting leaf to tree"
+                );
                 let message_id = insertion.message_id();
                 tree.ingest(message_id);
 
