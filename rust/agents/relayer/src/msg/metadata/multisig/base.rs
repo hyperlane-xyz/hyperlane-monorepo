@@ -19,19 +19,19 @@ use crate::msg::metadata::MetadataBuilder;
 pub struct MultisigMetadata {
     checkpoint: Checkpoint,
     signatures: Vec<SignatureWithSigner>,
-    merkle_leaf_id: Option<u32>,
+    merkle_leaf_index: Option<u32>,
     message_id: Option<H256>,
     proof: Option<Proof>,
 }
 
 #[derive(Debug, Display, PartialEq, Eq, Clone)]
 pub enum MetadataToken {
-    MerkleRoot,
+    CheckpointMerkleRoot,
     CheckpointIndex,
-    CheckpointMerkleTree,
+    CheckpointMerkleTreeHook,
     MessageId,
     MerkleProof,
-    MerkleIndex,
+    MessageMerkleLeafIndex,
     Threshold,
     Signatures,
     Validators,
@@ -57,16 +57,18 @@ pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
     ) -> Result<Vec<u8>> {
         let build_token = |token: &MetadataToken| -> Result<Vec<u8>> {
             match token {
-                MetadataToken::MerkleRoot => Ok(metadata.checkpoint.root.to_fixed_bytes().into()),
-                MetadataToken::MerkleIndex => Ok(metadata
-                    .merkle_leaf_id
+                MetadataToken::CheckpointMerkleRoot => {
+                    Ok(metadata.checkpoint.root.to_fixed_bytes().into())
+                }
+                MetadataToken::MessageMerkleLeafIndex => Ok(metadata
+                    .merkle_leaf_index
                     .ok_or(eyre::eyre!("Failed to fetch metadata"))?
                     .to_be_bytes()
                     .into()),
                 MetadataToken::CheckpointIndex => {
                     Ok(metadata.checkpoint.index.to_be_bytes().into())
                 }
-                MetadataToken::CheckpointMerkleTree => Ok(metadata
+                MetadataToken::CheckpointMerkleTreeHook => Ok(metadata
                     .checkpoint
                     .merkle_tree_hook_address
                     .to_fixed_bytes()

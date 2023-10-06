@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::prelude::Middleware;
-use ethers_core::types::BlockNumber;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use tracing::instrument;
 
@@ -15,9 +14,27 @@ use hyperlane_core::{
     MerkleTreeInsertion, SequenceIndexer, H256,
 };
 
-use crate::contracts::merkle_tree_hook::MerkleTreeHook as MerkleTreeHookContract;
+use crate::contracts::merkle_tree_hook::{MerkleTreeHook as MerkleTreeHookContract, Tree};
 use crate::trait_builder::BuildableWithProvider;
+use crate::tx::call_with_lag;
 use crate::EthereumProvider;
+
+// We don't need the reverse of this impl, so it's ok to disable the clippy lint
+#[allow(clippy::from_over_into)]
+impl Into<IncrementalMerkle> for Tree {
+    fn into(self) -> IncrementalMerkle {
+        let branch = self
+            .branch
+            .iter()
+            .map(|v| v.into())
+            .collect::<Vec<_>>()
+            // we're iterating over a fixed-size array and want to collect into a
+            // fixed-size array of the same size (32), so this is safe
+            .try_into()
+            .unwrap();
+        IncrementalMerkle::new(branch, self.count.as_usize())
+    }
+}
 
 pub struct MerkleTreeHookBuilder {}
 
@@ -203,22 +220,10 @@ where
 {
     #[instrument(skip(self))]
     async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
+        let call =
+            call_with_lag(self.contract.latest_checkpoint(), &self.provider, maybe_lag).await?;
 
-        let fixed_block_number: BlockNumber = self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .saturating_sub(lag)
-            .into();
-
-        let (root, index) = self
-            .contract
-            .latest_checkpoint()
-            .block(fixed_block_number)
-            .call()
-            .await?;
+        let (root, index) = call.call().await?;
         Ok(Checkpoint {
             merkle_tree_hook_address: self.address(),
             mailbox_domain: self.domain.id(),
@@ -230,53 +235,15 @@ where
     #[instrument(skip(self))]
     #[allow(clippy::needless_range_loop)]
     async fn tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
+        let call = call_with_lag(self.contract.tree(), &self.provider, maybe_lag).await?;
 
-        let fixed_block_number: BlockNumber = self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .saturating_sub(lag)
-            .into();
-
-        // TODO: implement From<Tree> for IncrementalMerkle
-        let raw_tree = self
-            .contract
-            .tree()
-            .block(fixed_block_number)
-            .call()
-            .await?;
-        let branch = raw_tree
-            .branch
-            .iter()
-            .map(|v| v.into())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-
-        let tree = IncrementalMerkle::new(branch, raw_tree.count.as_usize());
-
-        Ok(tree)
+        Ok(call.call().await?.into())
     }
 
     #[instrument(skip(self))]
     async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
-        let fixed_block_number: BlockNumber = self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .saturating_sub(lag)
-            .into();
-
-        let count = self
-            .contract
-            .count()
-            .block(fixed_block_number)
-            .call()
-            .await?;
+        let call = call_with_lag(self.contract.count(), &self.provider, maybe_lag).await?;
+        let count = call.call().await?;
         Ok(count)
     }
 }
