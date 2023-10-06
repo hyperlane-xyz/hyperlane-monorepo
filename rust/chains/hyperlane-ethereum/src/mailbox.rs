@@ -301,21 +301,18 @@ where
 {
     #[instrument(skip(self))]
     async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
-        let fixed_block_number: BlockNumber = self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .saturating_sub(lag)
-            .into();
-
-        let nonce = self
-            .contract
-            .nonce()
-            .block(fixed_block_number)
-            .call()
-            .await?;
+        let mut call = self.contract.nonce();
+        if let Some(lag) = maybe_lag {
+            let fixed_block_number: BlockNumber = self
+                .provider
+                .get_block_number()
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+                .saturating_sub(lag.get().into())
+                .into();
+            call = call.block(fixed_block_number);
+        };
+        let nonce = call.call().await?;
         Ok(nonce)
     }
 

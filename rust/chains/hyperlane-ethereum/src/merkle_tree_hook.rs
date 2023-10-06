@@ -15,9 +15,24 @@ use hyperlane_core::{
     MerkleTreeInsertion, SequenceIndexer, H256,
 };
 
-use crate::contracts::merkle_tree_hook::MerkleTreeHook as MerkleTreeHookContract;
+use crate::contracts::merkle_tree_hook::{MerkleTreeHook as MerkleTreeHookContract, Tree};
 use crate::trait_builder::BuildableWithProvider;
 use crate::EthereumProvider;
+
+impl Into<IncrementalMerkle> for Tree {
+    fn into(self) -> IncrementalMerkle {
+        let branch = self
+            .branch
+            .iter()
+            .map(|v| v.into())
+            .collect::<Vec<_>>()
+            // we're iterating over a fixed-size array and want to collect into a
+            // fixed-size array of the same size (32), so this is safe
+            .try_into()
+            .unwrap();
+        IncrementalMerkle::new(branch, self.count.as_usize())
+    }
+}
 
 pub struct MerkleTreeHookBuilder {}
 
@@ -203,22 +218,19 @@ where
 {
     #[instrument(skip(self))]
     async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
+        let mut call = self.contract.latest_checkpoint();
+        if let Some(lag) = maybe_lag {
+            let fixed_block_number: BlockNumber = self
+                .provider
+                .get_block_number()
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+                .saturating_sub(lag.get().into())
+                .into();
+            call = call.block(fixed_block_number);
+        };
 
-        let fixed_block_number: BlockNumber = self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .saturating_sub(lag)
-            .into();
-
-        let (root, index) = self
-            .contract
-            .latest_checkpoint()
-            .block(fixed_block_number)
-            .call()
-            .await?;
+        let (root, index) = call.call().await?;
         Ok(Checkpoint {
             merkle_tree_hook_address: self.address(),
             merkle_tree_hook_domain: self.domain.id(),
@@ -230,53 +242,35 @@ where
     #[instrument(skip(self))]
     #[allow(clippy::needless_range_loop)]
     async fn tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
+        let mut call = self.contract.tree();
+        if let Some(lag) = maybe_lag {
+            let fixed_block_number: BlockNumber = self
+                .provider
+                .get_block_number()
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+                .saturating_sub(lag.get().into())
+                .into();
+            call = call.block(fixed_block_number);
+        };
 
-        let fixed_block_number: BlockNumber = self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .saturating_sub(lag)
-            .into();
-
-        // TODO: implement From<Tree> for IncrementalMerkle
-        let raw_tree = self
-            .contract
-            .tree()
-            .block(fixed_block_number)
-            .call()
-            .await?;
-        let branch = raw_tree
-            .branch
-            .iter()
-            .map(|v| v.into())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-
-        let tree = IncrementalMerkle::new(branch, raw_tree.count.as_usize());
-
-        Ok(tree)
+        Ok(call.call().await?.into())
     }
 
     #[instrument(skip(self))]
     async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let lag = maybe_lag.map(|v| v.get()).unwrap_or(0).into();
-        let fixed_block_number: BlockNumber = self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .saturating_sub(lag)
-            .into();
-
-        let count = self
-            .contract
-            .count()
-            .block(fixed_block_number)
-            .call()
-            .await?;
+        let mut call = self.contract.count();
+        if let Some(lag) = maybe_lag {
+            let fixed_block_number: BlockNumber = self
+                .provider
+                .get_block_number()
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+                .saturating_sub(lag.get().into())
+                .into();
+            call = call.block(fixed_block_number);
+        };
+        let count = call.call().await?;
         Ok(count)
     }
 }

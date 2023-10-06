@@ -225,11 +225,11 @@ impl ForwardMessageSyncCursor {
                 .retrieve_dispatched_block_number(self.cursor.sync_state.next_sequence)
                 .await
             {
-                info!(next_block = block_number, "Fast forwarding next block");
+                debug!(next_block = block_number, "Fast forwarding next block");
                 // It's possible that eth_getLogs dropped logs from this block, therefore we cannot do block_number + 1.
                 self.cursor.sync_state.next_block = block_number;
             }
-            info!(
+            debug!(
                 next_nonce = self.cursor.sync_state.next_sequence + 1,
                 "Fast forwarding next nonce"
             );
