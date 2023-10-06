@@ -21,7 +21,7 @@ for i in "anvil1 anvil2" "anvil2 anvil1"
 do
     set -- $i
     echo "Deploying contracts to $1"
-    node ./dist/cli.js deploy core \
+    yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
       --chains ./examples/anvil-chains.yaml \
       --origin $1 --remotes $2 \
       --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
