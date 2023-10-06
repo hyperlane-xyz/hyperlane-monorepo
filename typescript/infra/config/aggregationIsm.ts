@@ -14,11 +14,11 @@ import { DeployEnvironment } from '../src/config';
 import { Contexts } from './contexts';
 import { owners as mainnet2Owners } from './environments/mainnet2/owners';
 import { owners as testOwners } from './environments/test/owners';
-import { owners as testnet3Owners } from './environments/testnet3/owners';
+import { owners as testnet4Owners } from './environments/testnet4/owners';
 import { multisigIsms } from './multisigIsm';
 
 const owners = {
-  testnet3: testnet3Owners,
+  testnet4: testnet4Owners,
   mainnet2: mainnet2Owners,
   test: testOwners,
 };

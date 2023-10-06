@@ -5,10 +5,9 @@ import {
   ChainMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
-  HyperlaneHookDeployer,
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
-  HyperlaneIsmFactoryDeployer,
+  HyperlaneProxyFactoryDeployer,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
@@ -51,7 +50,7 @@ async function main() {
 
     // TODO: make this more generic
     const deployerAddress =
-      environment === 'testnet3'
+      environment === 'testnet4'
         ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
         : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
@@ -61,24 +60,16 @@ async function main() {
 
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
-  if (module === Modules.ISM_FACTORY) {
+  if (module === Modules.PROXY_FACTORY) {
     config = objMap(envConfig.core, (_chain) => true);
-    deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
+    deployer = new HyperlaneProxyFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
     config = envConfig.core;
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.ISM_FACTORY),
+      getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
-  } else if (module === Modules.HOOK) {
-    if (!envConfig.hook) {
-      throw new Error(`No hook config for ${environment}`);
-    }
-    config = envConfig.hook;
-    const core = getAddresses(environment, Modules.CORE);
-    const mailboxes = objMap(core, (_, contracts) => contracts.mailbox);
-    deployer = new HyperlaneHookDeployer(multiProvider, mailboxes);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
@@ -123,7 +114,7 @@ async function main() {
       true, // use deployer as owner
     );
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.ISM_FACTORY),
+      getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,
     );
     deployer = new HelloWorldDeployer(multiProvider, ismFactory);

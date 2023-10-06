@@ -9,7 +9,6 @@ export async function runKeyFunderHelmCommand(
   keyFunderConfig: KeyFunderConfig,
 ) {
   const values = getKeyFunderHelmValues(agentConfig, keyFunderConfig);
-
   if (helmCommand === HelmCommand.InstallOrUpgrade) {
     // Delete secrets to avoid them being stale
     try {
@@ -45,7 +44,7 @@ function getKeyFunderHelmValues(
     hyperlane: {
       runEnv: agentConfig.runEnv,
       // Only used for fetching RPC urls as env vars
-      chains: agentConfig.contextChainNames,
+      chains: agentConfig.contextChainNames.relayer, // temporary hack
       contextFundingFrom: keyFunderConfig.contextFundingFrom,
       contextsAndRolesToFund: keyFunderConfig.contextsAndRolesToFund,
       connectionType: keyFunderConfig.connectionType,

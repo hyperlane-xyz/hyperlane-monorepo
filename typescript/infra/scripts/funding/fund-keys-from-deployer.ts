@@ -108,6 +108,12 @@ const desiredBalancePerChain: ChainMap<string> = {
   optimismgoerli: '0.5',
   arbitrumgoerli: '0.5',
   gnosis: '0.1',
+  basegoerli: '0.05',
+  scrollsepolia: '0.05',
+  lineagoerli: '0.1',
+  polygonzkevmtestnet: '0.01',
+  chiado: '0.0001',
+
   // unused
   test1: '0',
   test2: '0',
@@ -169,7 +175,7 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
 // context provided in --contexts-and-roles, which requires the appropriate credentials.
 //
 // Example usage:
-//   ts-node ./scripts/funding/fund-keys-from-deployer.ts -e testnet3 --context hyperlane --contexts-and-roles rc=relayer
+//   ts-node ./scripts/funding/fund-keys-from-deployer.ts -e testnet4 --context hyperlane --contexts-and-roles rc=relayer
 async function main() {
   const { environment, ...argv } = await getArgs()
     .string('f')

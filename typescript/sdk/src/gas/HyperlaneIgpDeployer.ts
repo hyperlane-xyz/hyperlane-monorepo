@@ -1,12 +1,9 @@
 import debug from 'debug';
-import { ethers } from 'ethers';
 
 import {
   InterchainGasPaymaster,
   ProxyAdmin,
   StorageGasOracle,
-  TimelockController,
-  TimelockController__factory,
 } from '@hyperlane-xyz/core';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
@@ -87,27 +84,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     // NB: To share ProxyAdmins with HyperlaneCore, ensure the ProxyAdmin
     // is loaded into the contract cache.
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
-    let timelockController: TimelockController;
-    if (config.upgrade) {
-      timelockController = await this.deployTimelock(
-        chain,
-        config.upgrade.timelock,
-      );
-      await this.transferOwnershipOfContracts(
-        chain,
-        timelockController.address,
-        { proxyAdmin },
-      );
-    } else {
-      // mock this for consistent serialization
-      timelockController = TimelockController__factory.connect(
-        ethers.constants.AddressZero,
-        this.multiProvider.getProvider(chain),
-      );
-      await this.transferOwnershipOfContracts(chain, config.owner, {
-        proxyAdmin,
-      });
-    }
 
     const storageGasOracle = await this.deployStorageGasOracle(chain);
     const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
@@ -128,7 +104,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     return {
       proxyAdmin,
-      timelockController,
       storageGasOracle,
       interchainGasPaymaster,
     };

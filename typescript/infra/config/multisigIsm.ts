@@ -11,12 +11,12 @@ import { DeployEnvironment } from '../src/config';
 import { Contexts } from './contexts';
 import { supportedChainNames as mainnet2Chains } from './environments/mainnet2/chains';
 import { chainNames as testChains } from './environments/test/chains';
-import { supportedChainNames as testnet3Chains } from './environments/testnet3/chains';
+import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains';
 import { rcMultisigIsmConfigs } from './rcMultisigIsmConfigs';
 
 const chains = {
   mainnet2: mainnet2Chains,
-  testnet3: testnet3Chains,
+  testnet4: testnet4Chains,
   test: testChains,
 };
 

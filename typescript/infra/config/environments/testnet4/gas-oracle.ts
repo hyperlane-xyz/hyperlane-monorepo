@@ -27,6 +27,11 @@ const gasPrices: ChainMap<BigNumber> = {
   moonbasealpha: ethers.utils.parseUnits('5', 'gwei'),
   optimismgoerli: ethers.utils.parseUnits('0.5', 'gwei'),
   arbitrumgoerli: ethers.utils.parseUnits('0.5', 'gwei'),
+  basegoerli: ethers.utils.parseUnits('0.2', 'gwei'),
+  scrollsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
+  lineagoerli: ethers.utils.parseUnits('1', 'gwei'),
+  polygonzkevmtestnet: ethers.utils.parseUnits('1', 'gwei'),
+  chiado: ethers.utils.parseUnits('2', 'gwei'),
 };
 
 // Used to categorize rarity of testnet tokens & approximate exchange rates.
@@ -55,6 +60,11 @@ const chainTokenRarity: ChainMap<Rarity> = {
   moonbasealpha: Rarity.Common,
   optimismgoerli: Rarity.Mythic,
   arbitrumgoerli: Rarity.Mythic,
+  basegoerli: Rarity.Mythic,
+  scrollsepolia: Rarity.Rare,
+  lineagoerli: Rarity.Rare,
+  polygonzkevmtestnet: Rarity.Common,
+  chiado: Rarity.Common,
 };
 
 // Gets the "value" of a testnet chain

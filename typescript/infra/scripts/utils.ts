@@ -42,7 +42,8 @@ import { Role } from '../src/roles';
 import { assertContext, assertRole, readJSON } from '../src/utils/utils';
 
 export enum Modules {
-  ISM_FACTORY = 'ism',
+  // TODO: change
+  PROXY_FACTORY = 'ism',
   CORE = 'core',
   HOOK = 'hook',
   INTERCHAIN_GAS_PAYMASTER = 'igp',
@@ -55,7 +56,7 @@ export enum Modules {
 }
 
 export const SDK_MODULES = [
-  Modules.ISM_FACTORY,
+  Modules.PROXY_FACTORY,
   Modules.CORE,
   Modules.INTERCHAIN_GAS_PAYMASTER,
   Modules.INTERCHAIN_ACCOUNTS,
@@ -323,6 +324,7 @@ export async function getRouterConfig(
     deployEnvToSdkEnv[environment],
     multiProvider,
   );
+  // TODO: replace this with core.getRouterConfig
   const igp = HyperlaneIgp.fromEnvironment(
     deployEnvToSdkEnv[environment],
     multiProvider,

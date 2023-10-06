@@ -14,9 +14,9 @@ import {
   chainMetadata,
   filterAddressesToProtocol,
   hyperlaneEnvironments,
+  hyperlaneEnvironmentsWithSealevel,
   igpFactories,
 } from '@hyperlane-xyz/sdk';
-import { hyperlaneEnvironmentsWithSealevel } from '@hyperlane-xyz/sdk/src';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
@@ -69,7 +69,7 @@ export async function getHelloWorldMultiProtocolApp(
   const multiProtocolProvider =
     MultiProtocolProvider.fromMultiProvider(multiProvider);
   // Hacking around infra code limitations, we may need to add solana manually
-  // because the it's not in typescript/infra/config/environments/testnet3/chains.ts
+  // because the it's not in typescript/infra/config/environments/testnet4/chains.ts
   // Adding it there breaks many things
   if (!multiProtocolProvider.getKnownChainNames().includes('solanadevnet')) {
     multiProtocolProvider.addChain(chainMetadata.solanadevnet);

@@ -7,27 +7,18 @@ import {
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
-  ModuleType,
-  RoutingIsmConfig,
+  ProtocolFeeHookConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolFeeHookConfig } from '@hyperlane-xyz/sdk/src/hook/types';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { aggregationIsm } from './aggregationIsm';
+import { aggregationIsm } from '../../aggregationIsm';
+import { Contexts } from '../../contexts';
+
 import { igp } from './igp';
-import { chainToValidator } from './multisigIsm';
 import { owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
-  const defaultIsm: RoutingIsmConfig = {
-    type: ModuleType.ROUTING,
-    owner,
-    domains: Object.fromEntries(
-      Object.entries(chainToValidator)
-        .filter(([chain, _]) => chain !== local)
-        .map(([chain, validatorKey]) => [chain, aggregationIsm(validatorKey)]),
-    ),
-  };
+  const defaultIsm = aggregationIsm('testnet4', local, Contexts.Hyperlane);
 
   const merkleHook: MerkleTreeHookConfig = {
     type: HookType.MERKLE_TREE,

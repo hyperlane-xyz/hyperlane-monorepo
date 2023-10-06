@@ -80,9 +80,9 @@ describe('HelloWorld', async () => {
     const body = 'Hello';
     await expect(
       local.sendHelloWorld(remoteDomain, body, {
-        value: (await quoteGasPayment(body)).sub(1),
+        value: 0,
       }),
-    ).to.be.revertedWith('insufficient interchain gas payment');
+    ).to.be.revertedWith('StaticProtocolFee: insufficient protocol fee');
   });
 
   it('handles a message', async () => {

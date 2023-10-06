@@ -297,6 +297,10 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
 
         /// INTERACTIONS ///
         uint256 requiredValue = requiredHook.quoteDispatch(metadata, message);
+        // if underpaying, defer to required hook's reverting behavior
+        if (msg.value < requiredValue) {
+            requiredValue = msg.value;
+        }
         requiredHook.postDispatch{value: requiredValue}(metadata, message);
         hook.postDispatch{value: msg.value - requiredValue}(metadata, message);
 
