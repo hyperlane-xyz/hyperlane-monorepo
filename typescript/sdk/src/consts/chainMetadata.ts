@@ -391,7 +391,11 @@ export const sepolia: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Sepolia',
   nativeToken: etherToken,
-  rpcUrls: [{ http: 'https://endpoints.omniatech.io/v1/eth/sepolia/public' }],
+  rpcUrls: [
+    { http: 'https://ethereum-sepolia.blockpi.network/v1/rpc/public' },
+    { http: 'https://eth-sepolia.g.alchemy.com/v2/demo' },
+    { http: 'https://rpc.sepolia.org' },
+  ],
   blockExplorers: [
     {
       name: 'Etherscan',

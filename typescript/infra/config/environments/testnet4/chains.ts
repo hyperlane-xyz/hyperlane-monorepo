@@ -32,8 +32,8 @@ export const environment = 'testnet4';
 
 const validatorChainNames = [
   ...supportedChainNames,
-  chainMetadata.solanadevnet.name,
-  chainMetadata.proteustestnet.name,
+  // chainMetadata.solanadevnet.name,
+  // chainMetadata.proteustestnet.name,
 ];
 
 const relayerChainNames = validatorChainNames;

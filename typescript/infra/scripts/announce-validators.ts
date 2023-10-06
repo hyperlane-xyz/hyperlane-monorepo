@@ -27,11 +27,13 @@ function getArgs() {
     .string('location')
     .check(({ context, chain, location }) => {
       const isSet = [!!context, !!chain, !!location];
-      if (isSet[0] != isSet[1] && isSet[1] == isSet[2]) {
-        return true;
-      } else {
-        throw new Error('Must specify context OR chain and location');
-      }
+      console.log(isSet);
+      // if (isSet[0] != isSet[1] && isSet[1] == isSet[2]) {
+      //   return true;
+      // } else {
+      //   throw new Error('Must specify context OR chain and location');
+      // }
+      return true;
     }).argv;
 }
 
@@ -52,6 +54,7 @@ async function main() {
   const chains: ChainName[] = [];
   if (location) {
     chains.push(chain!);
+
     if (location.startsWith('s3://')) {
       const validator = await S3Validator.fromStorageLocation(location);
       announcements.push({
