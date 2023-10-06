@@ -1,38 +1,35 @@
 {
   "basegoerli": {
-    "router": "0x04438ef7622f5412f82915F59caD4f704C61eA48"
+    "router": "0x086E902d2f99BcCEAa28B31747eC6Dc5fd43B1bE"
   },
   "arbitrumgoerli": {
-    "router": "0xA3bAaC7d60d10abA54cC2Ffb4b63469810C5aDc0"
+    "router": "0xFd1e3710347659703962934d2381970ae0022227"
   },
   "optimismgoerli": {
-    "router": "0x7Dc5cE596995af8e5D568563038109B9bCA7F7c6"
+    "router": "0x372Cf98E673C235C1abD78DEAA61480e6fe55e46"
   },
   "scrollsepolia": {
-    "router": "0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C"
+    "router": "0x66b71A4e18FbE09a6977A6520B47fEDdffA82a1c"
   },
   "alfajores": {
-    "router": "0x39e08602570237433673B1340Da17105cA098EE7"
+    "router": "0xD0Ef694E96Bb695DC829f71956227eD141e3089F"
   },
   "polygonzkevmtestnet": {
-    "router": "0xEe421285728284000ec6c6C55C6F9161faeFfa99"
-  },
-  "sepolia": {
-    "router": "0x73A7bDa325Ad8E5F591179C4ccA61b0CeF70d05C"
+    "router": "0x783c4a0bB6663359281aD4a637D5af68F83ae213"
   },
   "fuji": {
-    "router": "0x6F7A1B7868f14a2f4c36cc561d910aE7958bc8D8"
+    "router": "0x0B1C1B54f45e02552331D3106e71f5e0b573D5D4"
   },
   "bsctestnet": {
-    "router": "0x90230E8cf53f4F9aFC2A9777eB0093C0B1C81b59"
+    "router": "0xd0e07a58BC91a686235E542350E63211C7A34c17"
   },
   "goerli": {
-    "router": "0xA5F234545270cea8f31A8760b8b7ABcaA3654951"
+    "router": "0x33AA9cFBC7E222B3eC231EcAa58dd846cC393C28"
   },
   "moonbasealpha": {
-    "router": "0x893b57DE7E3dd885F827c74E74F3099C1c250c52"
+    "router": "0x3Ce607F6FcE5Dfb9821f33504d86E04A4CD0C75f"
   },
   "mumbai": {
-    "router": "0xBEadC848cAB77875d066466b9F3509f069a0a4F5"
+    "router": "0x04980C17e2CE26578C82f81207e706e4505FaE3B"
   }
 }

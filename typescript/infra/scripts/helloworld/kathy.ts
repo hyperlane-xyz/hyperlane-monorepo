@@ -424,6 +424,8 @@ async function sendMessage(
 
   const sendAndConfirmMsg = async () => {
     const sender = getAddressesForKey(keys, origin, multiProvider);
+
+    log('Sender address', { sender });
     const tx = await app.populateHelloWorldTx(
       origin,
       destination,
@@ -431,7 +433,6 @@ async function sendMessage(
       value,
       sender,
     );
-    log('eth tx: ', tx);
 
     let txReceipt: TypedTransactionReceipt;
     if (tx.type == ProviderType.EthersV5) {

@@ -187,7 +187,8 @@ export abstract class HyperlaneRouterDeployer<
     // Only deploy on chains that don't have foreign deployments.
     const configMapToDeploy = objFilter(
       configMap,
-      (_chainName, config): config is Config => !config.foreignDeployment,
+      (_chainName, config): config is Config =>
+        !config.foreignDeployment && _chainName !== 'sepolia',
     );
 
     // Create a map of chains that have foreign deployments.

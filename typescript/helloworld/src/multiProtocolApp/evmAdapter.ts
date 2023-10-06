@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import {
   ChainName,
@@ -37,7 +37,10 @@ export class EvmHelloWorldAdapter
       this.chainName,
     );
 
-    const quote = await contract.callStatic.quoteDispatch(toDomain, message);
+    const quote = await contract.callStatic.quoteDispatch(
+      toDomain,
+      ethers.utils.toUtf8Bytes(message),
+    );
     // apply gas buffer due to https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/634
     const estimated = await contract.estimateGas.sendHelloWorld(
       toDomain,
