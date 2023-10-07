@@ -7,6 +7,7 @@ use derive_new::new;
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
+use tracing::debug;
 
 use crate::msg::metadata::BaseMetadataBuilder;
 
@@ -35,7 +36,11 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MerkleRootMultisig metadata";
-        unwrap_or_none_result!(highest_nonce, self.highest_known_nonce().await);
+        unwrap_or_none_result!(
+            highest_leaf_index,
+            self.highest_known_leaf_index().await,
+            debug!("Couldn't get highest known leaf index")
+        );
         unwrap_or_none_result!(
             quorum_checkpoint,
             checkpoint_syncer
@@ -43,10 +48,11 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                     validators,
                     threshold as usize,
                     message.nonce,
-                    highest_nonce
+                    highest_leaf_index
                 )
                 .await
-                .context(CTX)?
+                .context(CTX)?,
+            debug!("Couldn't get checkpoint in range")
         );
         unwrap_or_none_result!(
             proof,
@@ -58,7 +64,8 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             merkle_leaf_id,
             self.get_merkle_leaf_id_by_message_id(message.id())
                 .await
-                .context(CTX)?
+                .context(CTX)?,
+            debug!("Couldn't get merkle proof")
         );
         Ok(Some(MultisigMetadata::new(
             quorum_checkpoint.checkpoint.checkpoint,
