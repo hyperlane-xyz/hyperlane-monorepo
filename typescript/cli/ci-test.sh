@@ -29,7 +29,7 @@ yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
 
-ARTIFACT_FILE=`find /tmp/artifacts/core-deployment* -type f -exec ls -t1 {} + | head -1`
+ARTIFACT_FILE=`find /tmp/core-deployment* -type f -exec ls -t1 {} + | head -1`
 
 echo "Deploying contracts to anvil2"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
