@@ -91,7 +91,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '072f8ff-20231005-231200',
+      tag: '10ccf7e-20231006-223743',
     },
     chainDockerOverrides: {
       [chainMetadata.solanadevnet.name]: {
@@ -107,7 +107,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '072f8ff-20231005-231200',
+      tag: '10ccf7e-20231006-223743',
     },
   },
 };
