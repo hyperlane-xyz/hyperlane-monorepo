@@ -260,8 +260,8 @@ async function executeDeploy({
   log(`Deploying ISMs`);
   const ismConfigs = buildIsmConfigMap(
     owner,
-    remotes,
     selectedChains,
+    remotes,
     multisigConfig,
   );
   const ismContracts: ChainMap<{ multisigIsm: DeployedIsm }> = {};
@@ -368,6 +368,8 @@ function buildTestRecipientConfigMap(
   return Object.fromEntries(
     chains.map((chain) => {
       const interchainSecurityModule =
+        // TODO revisit assumption that multisigIsm is always the ISM
+        addressesMap[chain].multisigIsm ??
         addressesMap[chain].interchainSecurityModule ??
         ethers.constants.AddressZero;
       return [chain, { interchainSecurityModule }];
