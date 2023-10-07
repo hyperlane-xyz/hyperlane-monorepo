@@ -2,7 +2,7 @@
 # Typically not written by hand but generated as JSON by the deploy command
 # Consists of a map of chain names to contract names to addresses
 ---
-mychainname:
+anvil1:
   storageGasOracle: '0xD9A9966E7dA9a7f0032bF449FB12696a638E673C'
   validatorAnnounce: '0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524'
   proxyAdmin: '0x90f9a2E9eCe93516d65FdaB726a3c62F5960a1b9'
