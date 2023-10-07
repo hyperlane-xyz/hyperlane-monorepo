@@ -22,7 +22,7 @@ echo "{}" > ./empty-artifacts.json
 echo "Deploying contracts to anvil1"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
     --chains ./examples/anvil-chains.yaml \
-    --artifacts ./empty-artifacts.yaml \
+    --artifacts ./empty-artifacts.json \
     --ism ./examples/multisig-ism.yaml \
     --origin anvil1 --remotes anvil2 \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
