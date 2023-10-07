@@ -108,6 +108,13 @@ abstract contract Router is MailboxClient, IMessageRecipient {
     }
 
     // ============ Virtual functions ============
+
+    /**
+     * @notice Handles a message from a remote router.
+     * @param _origin The domain of the origin of the message.
+     * @param _sender The sender of the message.
+     * @param _message The message body.
+     */
     function _handle(
         uint32 _origin,
         bytes32 _sender,
