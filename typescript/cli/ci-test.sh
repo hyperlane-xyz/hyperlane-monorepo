@@ -23,17 +23,19 @@ echo "Deploying contracts to anvil1"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
     --chains ./examples/anvil-chains.yaml \
     --artifacts /tmp/empty-artifacts.json \
+    --out /tmp \
     --ism ./examples/multisig-ism.yaml \
     --origin anvil1 --remotes anvil2 \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
 
-ARTIFACT_FILE=`find ./artifacts/core-deployment* -type f -exec ls -t1 {} + | head -1`
+ARTIFACT_FILE=`find /tmp/artifacts/core-deployment* -type f -exec ls -t1 {} + | head -1`
 
 echo "Deploying contracts to anvil2"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
     --chains ./examples/anvil-chains.yaml \
     --artifacts $ARTIFACT_FILE \
+     --out /tmp \
     --ism ./examples/multisig-ism.yaml \
     --origin anvil2 --remotes anvil1 \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
