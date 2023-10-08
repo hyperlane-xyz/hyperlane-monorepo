@@ -1,3 +1,5 @@
+import { input } from '@inquirer/prompts';
+import select from '@inquirer/select';
 import fs from 'fs';
 import path from 'path';
 import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
@@ -144,4 +146,33 @@ export function prepNewArtifactsFiles(
     logBlue(`${file.description} will be written to ${filePath}`);
   }
   return newPaths;
+}
+
+export async function runFileSelectionStep(
+  folderPath: string,
+  description: string,
+  pattern?: string,
+) {
+  let filenames = fs.readdirSync(folderPath);
+  if (pattern) {
+    filenames = filenames.filter((f) => f.includes(pattern));
+  }
+
+  let filename = (await select({
+    message: `Select ${description} file`,
+    choices: [
+      ...filenames.map((f) => ({ name: f, value: f })),
+      { name: '(Other file)', value: null },
+    ],
+    pageSize: 20,
+  })) as string;
+
+  if (filename) return path.join(folderPath, filename);
+
+  filename = await input({
+    message: `Enter ${description} filepath`,
+  });
+
+  if (filename) return filename;
+  else throw new Error(`No filepath entered ${description}`);
 }

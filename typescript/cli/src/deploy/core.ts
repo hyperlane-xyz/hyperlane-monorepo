@@ -1,4 +1,4 @@
-import { confirm, input } from '@inquirer/prompts';
+import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import {
@@ -38,7 +38,11 @@ import {
   sdkContractAddressesMap,
 } from '../context.js';
 import { runOriginAndRemotesSelectionStep } from '../utils/chains.js';
-import { prepNewArtifactsFiles, writeJson } from '../utils/files.js';
+import {
+  prepNewArtifactsFiles,
+  runFileSelectionStep,
+  writeJson,
+} from '../utils/files.js';
 
 import {
   TestRecipientConfig,
@@ -112,9 +116,11 @@ async function runArtifactStep(
     });
     if (!isResume) return undefined;
 
-    artifactsPath = await input({
-      message: 'Enter filepath with existing contract artifacts (addresses)',
-    });
+    artifactsPath = await runFileSelectionStep(
+      './artifacts',
+      'contract artifacts',
+      'core-deployment',
+    );
   }
   const artifacts = readDeploymentArtifacts(artifactsPath);
   const artifactChains = Object.keys(artifacts).filter((c) =>
@@ -140,9 +146,11 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
       'Note, only Multisig ISM configs are currently supported in the CLI',
       'Example config: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/cli/typescript/cli/examples/multisig-ism.yaml',
     );
-    ismConfigPath = await input({
-      message: 'Enter filepath for the multisig config',
-    });
+    ismConfigPath = await runFileSelectionStep(
+      './configs',
+      'ISM config',
+      'ism',
+    );
   }
   const configs = readMultisigConfig(ismConfigPath);
   const multisigConfigChains = Object.keys(configs).filter((c) =>
@@ -186,7 +194,7 @@ async function runDeployPlanStep({
     const numRequired = numContracts - Object.keys(chainArtifacts).length;
     log(`${chain} will require ${numRequired} of ${numContracts}`);
   }
-  log('The interchain security module will be a Multisig.');
+  log('The default interchain security module will be a Multisig.');
   if (skipConfirmation) return;
   const isConfirmed = await confirm({
     message: 'Is this deployment plan correct?',
