@@ -1,6 +1,6 @@
 import { CommandModule, Options } from 'yargs';
 
-import { log } from '../logger.js';
+import { log } from '../../logger.js';
 import { sendTestMessage } from '../send/message.js';
 import { sendTestTransfer } from '../send/transfer.js';
 

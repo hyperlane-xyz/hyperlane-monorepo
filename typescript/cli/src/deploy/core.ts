@@ -28,6 +28,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
+import { log, logBlue, logGray, logGreen } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_BALANCE } from '../consts.js';
@@ -36,7 +37,6 @@ import {
   getMergedContractAddresses,
   sdkContractAddressesMap,
 } from '../context.js';
-import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { runOriginAndRemotesSelectionStep } from '../utils/chains.js';
 import { prepNewArtifactsFiles, writeJson } from '../utils/files.js';
 

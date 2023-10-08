@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import { TokenType } from '@hyperlane-xyz/hyperlane-token';
 
-import { errorRed, logBlue, logGreen } from '../logger.js';
+import { errorRed, logBlue, logGreen } from '../../logger.js';
 import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,

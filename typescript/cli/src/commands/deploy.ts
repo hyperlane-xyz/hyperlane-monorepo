@@ -1,8 +1,8 @@
 import { CommandModule } from 'yargs';
 
+import { log, logGray } from '../../logger.js';
 import { runCoreDeploy } from '../deploy/core.js';
 import { runWarpDeploy } from '../deploy/warp.js';
-import { log, logGray } from '../logger.js';
 
 import {
   chainsCommandOption,

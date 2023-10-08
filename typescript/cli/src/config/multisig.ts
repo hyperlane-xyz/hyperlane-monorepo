@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { ChainMap, ModuleType, MultisigIsmConfig } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { errorRed, log, logBlue, logGreen } from '../logger.js';
+import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 

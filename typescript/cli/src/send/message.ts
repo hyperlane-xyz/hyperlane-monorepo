@@ -9,11 +9,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
+import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { MINIMUM_TEST_SEND_BALANCE } from '../consts.js';
 import { getDeployerContext, getMergedContractAddresses } from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
-import { errorRed, log, logBlue, logGreen } from '../logger.js';
 
 const GAS_AMOUNT = 300_000;
 

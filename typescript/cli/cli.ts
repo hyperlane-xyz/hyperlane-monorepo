@@ -2,13 +2,13 @@
 import chalk from 'chalk';
 import yargs from 'yargs';
 
+import { errorRed } from './logger.js';
 import { chainsCommand } from './src/commands/chains.js';
 import { configCommand } from './src/commands/config.js';
 import { deployCommand } from './src/commands/deploy.js';
 import { sendCommand } from './src/commands/send.js';
-import './src/logger.js';
-import { errorRed } from './src/logger.js';
 
+// From yargs code:
 const MISSING_PARAMS_ERROR = 'Not enough non-option arguments';
 
 console.log(chalk.blue('Hyperlane'), chalk.magentaBright('CLI'));

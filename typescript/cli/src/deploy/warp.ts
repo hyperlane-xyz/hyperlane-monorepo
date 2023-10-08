@@ -21,11 +21,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
+import { log, logBlue, logGray, logGreen } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { WarpRouteConfig, readWarpRouteConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_BALANCE } from '../consts.js';
 import { getDeployerContext, getMergedContractAddresses } from '../context.js';
-import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { prepNewArtifactsFiles, writeJson } from '../utils/files.js';
 
 import { MinimalTokenMetadata, WarpUITokenConfig } from './types.js';

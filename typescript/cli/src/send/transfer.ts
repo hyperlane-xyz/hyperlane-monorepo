@@ -14,11 +14,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, timeout } from '@hyperlane-xyz/utils';
 
+import { logBlue, logGreen } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { MINIMUM_TEST_SEND_BALANCE } from '../consts.js';
 import { getDeployerContext, getMergedContractAddresses } from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
-import { logBlue, logGreen } from '../logger.js';
 import { assertTokenBalance } from '../utils/balances.js';
 
 // TODO improve the UX here by making params optional and
