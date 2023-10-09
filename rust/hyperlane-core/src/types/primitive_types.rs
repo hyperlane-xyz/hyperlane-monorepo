@@ -153,6 +153,7 @@ impl_fixed_uint_conversions!(ethers_core::types::U512, U256);
 #[cfg(feature = "ethers")]
 impl_fixed_uint_conversions!(ethers_core::types::U512, U128);
 
+#[cfg(feature = "float")]
 macro_rules! impl_f64_conversions {
     ($ty:ty) => {
         impl $ty {
@@ -200,8 +201,11 @@ macro_rules! impl_f64_conversions {
     };
 }
 
+#[cfg(feature = "float")]
 impl_f64_conversions!(U128);
+#[cfg(feature = "float")]
 impl_f64_conversions!(U256);
+#[cfg(feature = "float")]
 impl_f64_conversions!(U512);
 
 #[cfg(feature = "ethers")]
