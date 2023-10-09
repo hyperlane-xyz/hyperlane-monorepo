@@ -97,21 +97,23 @@ const warpCommand: CommandModule = {
       config: {
         type: 'string',
         description: 'A path to a JSON or YAML file with a warp config.',
-        default: './configs/warp-tokens.yaml',
       },
+      yes: skipConfirmationOption,
     }),
   handler: async (argv: any) => {
     const key: string = argv.key || process.env.HYP_KEY;
     const chainConfigPath: string = argv.chains;
-    const warpConfigPath: string = argv.config;
-    const coreArtifactsPath: string = argv.core;
+    const warpConfigPath: string | undefined = argv.config;
+    const coreArtifactsPath: string | undefined = argv.core;
     const outPath: string = argv.out;
+    const skipConfirmation: boolean = argv.yes;
     await runWarpDeploy({
       key,
       chainConfigPath,
       warpConfigPath,
       coreArtifactsPath,
       outPath,
+      skipConfirmation,
     });
     process.exit(0);
   },

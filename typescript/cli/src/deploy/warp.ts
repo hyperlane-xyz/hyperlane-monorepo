@@ -26,7 +26,11 @@ import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { WarpRouteConfig, readWarpRouteConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_BALANCE } from '../consts.js';
 import { getDeployerContext, getMergedContractAddresses } from '../context.js';
-import { prepNewArtifactsFiles, writeJson } from '../utils/files.js';
+import {
+  prepNewArtifactsFiles,
+  runFileSelectionStep,
+  writeJson,
+} from '../utils/files.js';
 
 import { MinimalTokenMetadata, WarpUITokenConfig } from './types.js';
 import { runPreflightChecks } from './utils.js';
@@ -37,16 +41,26 @@ export async function runWarpDeploy({
   warpConfigPath,
   coreArtifactsPath,
   outPath,
+  skipConfirmation,
 }: {
   key: string;
   chainConfigPath: string;
-  warpConfigPath: string;
-  coreArtifactsPath: string;
+  warpConfigPath?: string;
+  coreArtifactsPath?: string;
   outPath: string;
+  skipConfirmation: boolean;
 }) {
   const { multiProvider, signer } = getDeployerContext(key, chainConfigPath);
 
+  if (!warpConfigPath) {
+    warpConfigPath = await runFileSelectionStep(
+      './configs',
+      'Warp config',
+      'warp',
+    );
+  }
   const warpRouteConfig = readWarpRouteConfig(warpConfigPath);
+
   const artifacts = coreArtifactsPath
     ? readDeploymentArtifacts(coreArtifactsPath)
     : undefined;
@@ -63,6 +77,7 @@ export async function runWarpDeploy({
     signer,
     multiProvider,
     outPath,
+    skipConfirmation,
   };
 
   await runDeployPlanStep(deploymentParams);
@@ -185,6 +200,7 @@ interface DeployParams {
   signer: ethers.Signer;
   multiProvider: MultiProvider;
   outPath: string;
+  skipConfirmation: boolean;
 }
 
 async function runDeployPlanStep({
@@ -193,16 +209,19 @@ async function runDeployPlanStep({
   origin,
   remotes,
   signer,
+  skipConfirmation,
 }: DeployParams) {
   const address = await signer.getAddress();
   const baseToken = configMap[origin];
   const baseName = getTokenName(baseToken);
-  logBlue('\n', 'Deployment plan:');
+  logBlue('\nDeployment plan:');
   logGray('===============:');
   log(`Transaction signer and owner of new contracts will be ${address}`);
   log(`Deploying a warp route with a base of ${baseName} token on ${origin}`);
   log(`Connecting it to new synthetic tokens on ${remotes.join(', ')}`);
   log(`Using token standard ${isNft ? 'ERC721' : 'ERC20'}`);
+
+  if (skipConfirmation) return;
 
   const isConfirmed = await confirm({
     message: 'Is this deployment plan correct?',

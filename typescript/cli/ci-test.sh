@@ -41,16 +41,19 @@ yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
 
+ARTIFACT_FILE=`find /tmp/core-deployment* -type f -exec ls -t1 {} + | head -1`
+
+echo "Deploying warp routes"
+yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
+    --chains ./examples/anvil-chains.yaml \
+    --core $ARTIFACT_FILE \
+    --config ./examples/warp-tokens.yaml \
+    --out /tmp \
+    --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+    --yes
+
 kill $ANVIL_1_PID
 kill $ANVIL_2_PID
-
-# echo "Deploying warp routes"
-# yarn hyperlane --local "anvil1" --remotes "anvil2" \
-#   --chains ./examples/anvil-chains.yaml \
-#   --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-
-# kill $ANVIL_1_PID
-# kill $ANVIL_2_PID
 
 # anvil --chain-id 31337 -p 8545 --block-time 1 --state /tmp/anvil1/state > /dev/null &
 # ANVIL_1_PID=$!
