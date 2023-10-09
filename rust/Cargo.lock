@@ -3687,7 +3687,6 @@ dependencies = [
  "ethers-providers",
  "eyre",
  "fixed-hash 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "getrandom 0.2.10",
  "hex 0.4.3",
  "itertools 0.11.0",
  "num 0.4.1",
