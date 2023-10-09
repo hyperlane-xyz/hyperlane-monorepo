@@ -24,6 +24,7 @@ ethers-core = { workspace = true, optional = true }
 ethers-providers = { workspace = true, optional = true }
 eyre.workspace = true
 fixed-hash.workspace = true
+getrandom.workspace = true
 hex.workspace = true
 itertools.workspace = true
 num = { workspace = true, features = ["serde"] }
