@@ -24,7 +24,7 @@ import {
 import { DeployEnvironment } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
-import { AgentRole, Role } from '../../src/roles';
+import { ALL_AGENT_ROLES, AgentRole, Role } from '../../src/roles';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
   assertContext,
@@ -409,7 +409,11 @@ class ContextFunder {
           key.context,
           key.environment,
         ).contextChainNames;
-        for (const chain of chains[role as AgentRole]) {
+        const roleToLookup = ALL_AGENT_ROLES.includes(role as AgentRole)
+          ? role
+          : Role.Relayer;
+        const chainsPicked = chains[roleToLookup as AgentRole];
+        for (const chain of chainsPicked) {
           chainKeys[chain].push(key);
         }
       }
