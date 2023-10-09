@@ -74,7 +74,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7ddf8e8-20231007-034110',
+      tag: 'cfaf553-20231009-174623',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -91,7 +91,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '10ccf7e-20231006-223743',
+      tag: 'cfaf553-20231009-174623',
     },
     chainDockerOverrides: {
       [chainMetadata.solanadevnet.name]: {
@@ -107,7 +107,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '10ccf7e-20231006-223743',
+      tag: 'cfaf553-20231009-174623',
     },
   },
 };
@@ -120,7 +120,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '072f8ff-20231005-231200',
+      tag: 'cfaf553-20231009-174623',
     },
     whitelist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -181,7 +181,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '072f8ff-20231005-231200',
+      tag: 'cfaf553-20231009-174623',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },

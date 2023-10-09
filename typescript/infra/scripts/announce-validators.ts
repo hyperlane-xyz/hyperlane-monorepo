@@ -27,12 +27,11 @@ function getArgs() {
     .string('location')
     .check(({ context, chain, location }) => {
       const isSet = [!!context, !!chain, !!location];
-      console.log(isSet);
-      // if (isSet[0] != isSet[1] && isSet[1] == isSet[2]) {
-      //   return true;
-      // } else {
-      //   throw new Error('Must specify context OR chain and location');
-      // }
+      if (isSet[1] == isSet[2]) {
+        return true;
+      } else {
+        throw new Error('Must specify chain and location');
+      }
       return true;
     }).argv;
 }
