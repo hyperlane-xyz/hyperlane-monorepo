@@ -144,12 +144,13 @@ async function executeDelivery({
   });
 
   const txResponse = await connectedSigner.sendTransaction(transferTx);
-  const receipt = await multiProvider.handleTx(origin, txResponse);
+  const txReceipt = await multiProvider.handleTx(origin, txResponse);
 
-  const message = core.getDispatchedMessages(receipt)[0];
+  const message = core.getDispatchedMessages(txReceipt)[0];
   logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
   logBlue(`Message ID: ${message.id}`);
-  await core.waitForMessageProcessed(receipt, 5000);
+  // Max wait 10 minutes
+  await core.waitForMessageProcessed(txReceipt, 10000, 60);
   logGreen(`Transfer sent to destination chain!`);
 }
 

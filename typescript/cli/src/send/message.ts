@@ -79,7 +79,7 @@ async function executeDelivery({
   const destinationDomain = multiProvider.getDomainId(destination);
   const signerAddress = await signer.getAddress();
 
-  let messageReceipt: ethers.ContractReceipt;
+  let txReceipt: ethers.ContractReceipt;
   try {
     const recipient = mergedContractAddrs[destination].testRecipient;
     if (!recipient) {
@@ -92,8 +92,8 @@ async function executeDelivery({
       addressToBytes32(recipient),
       '0x48656c6c6f21', // Hello!
     );
-    messageReceipt = await multiProvider.handleTx(origin, messageTx);
-    const message = core.getDispatchedMessages(messageReceipt)[0];
+    txReceipt = await multiProvider.handleTx(origin, messageTx);
+    const message = core.getDispatchedMessages(txReceipt)[0];
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
     logBlue(`Message ID: ${message.id}`);
 
@@ -118,6 +118,7 @@ async function executeDelivery({
     throw e;
   }
   log('Waiting for message delivery on destination chain...');
-  await core.waitForMessageProcessed(messageReceipt, 5000);
+  // Max wait 10 minutes
+  await core.waitForMessageProcessed(txReceipt, 10000, 60);
   logGreen('Message was delivered!');
 }
