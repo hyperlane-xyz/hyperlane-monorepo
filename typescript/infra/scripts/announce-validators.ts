@@ -30,9 +30,10 @@ function getArgs() {
       if (isSet[1] == isSet[2]) {
         return true;
       } else {
-        throw new Error('Must specify chain and location');
+        throw new Error(
+          'Must set either both or neither of chain and location',
+        );
       }
-      return true;
     }).argv;
 }
 

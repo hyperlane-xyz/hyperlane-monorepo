@@ -409,6 +409,7 @@ class ContextFunder {
           key.context,
           key.environment,
         ).contextChainNames;
+        // If the role is not a relayer, we need to look up the chains for Kathy, so we'll fallback to the relayer
         const roleToLookup = ALL_AGENT_ROLES.includes(role as AgentRole)
           ? role
           : Role.Relayer;

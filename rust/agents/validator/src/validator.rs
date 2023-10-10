@@ -129,7 +129,7 @@ impl BaseAgent for Validator {
                     sleep(self.interval).await;
                 }
                 Ok(_) => {
-                    tasks.push(self.run_message_sync().await);
+                    tasks.push(self.run_merkle_tree_hook_sync().await);
                     for checkpoint_sync_task in self.run_checkpoint_submitters().await {
                         tasks.push(checkpoint_sync_task);
                     }
@@ -147,7 +147,7 @@ impl BaseAgent for Validator {
 }
 
 impl Validator {
-    async fn run_message_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    async fn run_merkle_tree_hook_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let index_settings =
             self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
         let contract_sync = self.merkle_tree_hook_sync.clone();

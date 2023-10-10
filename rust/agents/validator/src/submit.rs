@@ -7,8 +7,8 @@ use eyre::{bail, Result};
 use hyperlane_core::MerkleTreeHook;
 use prometheus::IntGauge;
 use tokio::time::sleep;
-use tracing::instrument;
 use tracing::{debug, info};
+use tracing::{error, instrument};
 
 use hyperlane_base::{db::HyperlaneRocksDB, CheckpointSyncer, CoreMetrics};
 use hyperlane_core::{
@@ -107,6 +107,11 @@ impl ValidatorSubmitter {
                     // We got to the right height, now lets compare whether we got the right tree
                     if checkpoint.root != correctness_checkpoint.root {
                         // Bad news, bail
+                        error!(
+                            ?checkpoint,
+                            ?correctness_checkpoint,
+                            "Incorrect tree root, something went wrong"
+                        );
                         bail!("Incorrect tree root, something went wrong");
                     }
                 }
