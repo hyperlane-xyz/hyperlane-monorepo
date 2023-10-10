@@ -9,7 +9,6 @@ import {
   TestCoreApp,
   TestCoreDeployer,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { HelloWorldConfig } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
