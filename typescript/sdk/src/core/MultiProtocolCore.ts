@@ -36,7 +36,6 @@ export class MultiProtocolCore extends MultiProtocolApp<
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
-    // @ts-ignore
     return MultiProtocolCore.fromAddressesMap(envAddresses, multiProvider);
   }
 

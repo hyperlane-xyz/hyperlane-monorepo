@@ -37,7 +37,6 @@ export class ChainMetadataManager<MetaExt = {}> {
     > = defaultChainMetadata as ChainMap<ChainMetadata<MetaExt>>,
     options: ChainMetadataManagerOptions = {},
   ) {
-    console.log({ chainMetadata });
     Object.entries(chainMetadata).forEach(([key, cm]) => {
       if (key !== cm.name)
         throw new Error(
@@ -101,7 +100,6 @@ export class ChainMetadataManager<MetaExt = {}> {
   getChainMetadata(chainNameOrId: ChainName | number): ChainMetadata<MetaExt> {
     const chainMetadata = this.tryGetChainMetadata(chainNameOrId);
     if (!chainMetadata) {
-      console.log(this.metadata);
       throw new Error(`No chain metadata set for ${chainNameOrId}`);
     }
     return chainMetadata;

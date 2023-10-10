@@ -83,7 +83,6 @@ export abstract class HyperlaneDeployer<
     ).intersection;
 
     this.logger(`Start deploy to ${targetChains}`);
-    // await Promise.allSettled(targetChains.map(async (chain) => {
     for (const chain of targetChains) {
       const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
         chain,
@@ -99,7 +98,6 @@ export abstract class HyperlaneDeployer<
         this.addDeployedContracts(chain, contracts);
       });
     }
-    // ));
     return this.deployedContracts;
   }
 
