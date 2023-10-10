@@ -26,6 +26,7 @@ export async function sendTestMessage({
   origin,
   destination,
   timeoutSec,
+  skipWaitForDelivery,
 }: {
   key: string;
   chainConfigPath: string;
@@ -33,9 +34,10 @@ export async function sendTestMessage({
   origin: ChainName;
   destination: ChainName;
   timeoutSec: number;
+  skipWaitForDelivery: boolean;
 }) {
   const { signer, multiProvider } = getDeployerContext(key, chainConfigPath);
-  const artifacts = coreArtifactsPath
+  const coreArtifacts = coreArtifactsPath
     ? readDeploymentArtifacts(coreArtifactsPath)
     : undefined;
 
@@ -48,7 +50,14 @@ export async function sendTestMessage({
   });
 
   await timeout(
-    executeDelivery({ origin, destination, multiProvider, signer, artifacts }),
+    executeDelivery({
+      origin,
+      destination,
+      multiProvider,
+      signer,
+      coreArtifacts,
+      skipWaitForDelivery,
+    }),
     timeoutSec * 1000,
     'Timed out waiting for messages to be delivered',
   );
@@ -59,15 +68,17 @@ async function executeDelivery({
   destination,
   multiProvider,
   signer,
-  artifacts,
+  coreArtifacts,
+  skipWaitForDelivery,
 }: {
   origin: ChainName;
   destination: ChainName;
   multiProvider: MultiProvider;
   signer: ethers.Signer;
-  artifacts?: HyperlaneContractsMap<any>;
+  coreArtifacts?: HyperlaneContractsMap<any>;
+  skipWaitForDelivery: boolean;
 }) {
-  const mergedContractAddrs = getMergedContractAddresses(artifacts);
+  const mergedContractAddrs = getMergedContractAddresses(coreArtifacts);
   const core = HyperlaneCore.fromAddressesMap(
     mergedContractAddrs,
     multiProvider,
@@ -117,6 +128,9 @@ async function executeDelivery({
     );
     throw e;
   }
+
+  if (skipWaitForDelivery) return;
+
   log('Waiting for message delivery on destination chain...');
   // Max wait 10 minutes
   await core.waitForMessageProcessed(txReceipt, 10000, 60);

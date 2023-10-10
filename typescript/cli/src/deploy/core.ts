@@ -456,7 +456,7 @@ async function writeAgentConfig(
   ) as ChainMap<HyperlaneDeploymentArtifacts>;
 
   const agentConfig = buildAgentConfig(
-    [origin],
+    Object.keys(filteredAddressesMap),
     multiProvider,
     filteredAddressesMap,
     startBlocks,

@@ -1,5 +1,7 @@
 import { CommandModule, Options } from 'yargs';
 
+import { TokenType } from '@hyperlane-xyz/hyperlane-token';
+
 import { log } from '../../logger.js';
 import { sendTestMessage } from '../send/message.js';
 import { sendTestTransfer } from '../send/transfer.js';
@@ -47,6 +49,11 @@ const messageOptions: { [k: string]: Options } = {
     description: 'Timeout in seconds',
     default: 5 * 60,
   },
+  quick: {
+    type: 'boolean',
+    description: 'Skip wait for message to be delivered',
+    default: false,
+  },
 };
 
 const messageCommand: CommandModule = {
@@ -60,6 +67,7 @@ const messageCommand: CommandModule = {
     const origin: string = argv.origin;
     const destination: string = argv.destination;
     const timeoutSec: number = argv.timeout;
+    const skipWaitForDelivery: boolean = argv.quick;
     await sendTestMessage({
       key,
       chainConfigPath,
@@ -67,6 +75,7 @@ const messageCommand: CommandModule = {
       origin,
       destination,
       timeoutSec,
+      skipWaitForDelivery,
     });
     process.exit(0);
   },
@@ -86,6 +95,12 @@ const transferCommand: CommandModule = {
         description: 'The address of the token router contract',
         demandOption: true,
       },
+      type: {
+        type: 'string',
+        description: 'Warp token type (native of collateral)',
+        default: TokenType.collateral,
+        choices: [TokenType.collateral, TokenType.native],
+      },
       wei: {
         type: 'string',
         description: 'Amount in wei to send',
@@ -104,8 +119,10 @@ const transferCommand: CommandModule = {
     const destination: string = argv.destination;
     const timeoutSec: number = argv.timeout;
     const routerAddress: string = argv.router;
+    const tokenType: TokenType = argv.type;
     const wei: string = argv.wei;
     const recipient: string | undefined = argv.recipient;
+    const skipWaitForDelivery: boolean = argv.quick;
     await sendTestTransfer({
       key,
       chainConfigPath,
@@ -113,9 +130,11 @@ const transferCommand: CommandModule = {
       origin,
       destination,
       routerAddress,
+      tokenType,
       wei,
       recipient,
       timeoutSec,
+      skipWaitForDelivery,
     });
     process.exit(0);
   },

@@ -1,9 +1,10 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import {
   ERC20__factory,
   EvmHypCollateralAdapter,
   HypERC20Collateral__factory,
+  TokenType,
 } from '@hyperlane-xyz/hyperlane-token';
 import {
   ChainName,
@@ -14,12 +15,12 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, timeout } from '@hyperlane-xyz/utils';
 
-import { logBlue, logGreen } from '../../logger.js';
+import { log, logBlue, logGreen } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { MINIMUM_TEST_SEND_BALANCE } from '../consts.js';
 import { getDeployerContext, getMergedContractAddresses } from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
-import { assertTokenBalance } from '../utils/balances.js';
+import { assertNativeBalances, assertTokenBalance } from '../utils/balances.js';
 
 // TODO improve the UX here by making params optional and
 // prompting for missing values
@@ -30,9 +31,11 @@ export async function sendTestTransfer({
   origin,
   destination,
   routerAddress,
+  tokenType,
   wei,
   recipient,
   timeoutSec,
+  skipWaitForDelivery,
 }: {
   key: string;
   chainConfigPath: string;
@@ -40,22 +43,33 @@ export async function sendTestTransfer({
   origin: ChainName;
   destination: ChainName;
   routerAddress: Address;
+  tokenType: TokenType;
   wei: string;
   recipient?: string;
   timeoutSec: number;
+  skipWaitForDelivery: boolean;
 }) {
   const { signer, multiProvider } = getDeployerContext(key, chainConfigPath);
   const artifacts = coreArtifactsPath
     ? readDeploymentArtifacts(coreArtifactsPath)
     : undefined;
 
-  await assertTokenBalance(
-    multiProvider,
-    signer,
-    origin,
-    routerAddress,
-    wei.toString(),
-  );
+  if (tokenType === TokenType.collateral) {
+    await assertTokenBalance(
+      multiProvider,
+      signer,
+      origin,
+      routerAddress,
+      wei.toString(),
+    );
+  } else if (tokenType === TokenType.native) {
+    await assertNativeBalances(multiProvider, signer, [origin], wei.toString());
+  } else {
+    throw new Error(
+      'Only collateral and native token types are currently supported in the CLI. For synthetic transfers, try the Warp UI.',
+    );
+  }
+
   await runPreflightChecks({
     origin,
     remotes: [destination],
@@ -69,11 +83,13 @@ export async function sendTestTransfer({
       origin,
       destination,
       routerAddress,
+      tokenType,
       wei,
       recipient,
       signer,
       multiProvider,
       artifacts,
+      skipWaitForDelivery,
     }),
     timeoutSec * 1000,
     'Timed out waiting for messages to be delivered',
@@ -84,20 +100,24 @@ async function executeDelivery({
   origin,
   destination,
   routerAddress,
+  tokenType,
   wei,
   recipient,
   multiProvider,
   signer,
   artifacts,
+  skipWaitForDelivery,
 }: {
   origin: ChainName;
   destination: ChainName;
   routerAddress: Address;
+  tokenType: TokenType;
   wei: string;
   recipient?: string;
   multiProvider: MultiProvider;
   signer: ethers.Signer;
   artifacts?: HyperlaneContractsMap<any>;
+  skipWaitForDelivery: boolean;
 }) {
   const signerAddress = await signer.getAddress();
   recipient ||= signerAddress;
@@ -111,21 +131,15 @@ async function executeDelivery({
 
   const provider = multiProvider.getProvider(origin);
   const connectedSigner = signer.connect(provider);
-  const wrappedToken = await getWrappedToken(routerAddress, provider);
-  if (wrappedToken) {
+
+  if (tokenType === TokenType.collateral) {
+    const wrappedToken = await getWrappedToken(routerAddress, provider);
     const token = ERC20__factory.connect(wrappedToken, connectedSigner);
     const approval = await token.allowance(signerAddress, routerAddress);
     if (approval.lt(wei)) {
       const approveTx = await token.approve(routerAddress, wei);
       await approveTx.wait();
     }
-  } else {
-    // TODO finish support for other types
-    // See code in warp UI for an example
-    // Requires gas handling
-    throw new Error(
-      'Sorry, only HypERC20Collateral transfers are currently supported in the CLI',
-    );
   }
 
   // TODO move next section into MultiProtocolTokenApp when it exists
@@ -136,11 +150,15 @@ async function executeDelivery({
   );
   const destinationDomain = multiProvider.getDomainId(destination);
   const gasPayment = await adapter.quoteGasPayment(destinationDomain);
+  const txValue =
+    tokenType === TokenType.native
+      ? BigNumber.from(gasPayment).add(wei).toString()
+      : gasPayment;
   const transferTx = await adapter.populateTransferRemoteTx({
     weiAmountOrId: wei,
     destination: destinationDomain,
     recipient,
-    txValue: gasPayment,
+    txValue,
   });
 
   const txResponse = await connectedSigner.sendTransaction(transferTx);
@@ -149,6 +167,9 @@ async function executeDelivery({
   const message = core.getDispatchedMessages(txReceipt)[0];
   logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
   logBlue(`Message ID: ${message.id}`);
+
+  if (skipWaitForDelivery) return;
+
   // Max wait 10 minutes
   await core.waitForMessageProcessed(txReceipt, 10000, 60);
   logGreen(`Transfer sent to destination chain!`);
@@ -157,14 +178,16 @@ async function executeDelivery({
 async function getWrappedToken(
   address: Address,
   provider: ethers.providers.Provider,
-): Promise<Address | null> {
+): Promise<Address> {
   try {
     const contract = HypERC20Collateral__factory.connect(address, provider);
     const wrappedToken = await contract.wrappedToken();
     if (ethers.utils.isAddress(wrappedToken)) return wrappedToken;
-    else return null;
+    else throw new Error('Invalid wrapped token address');
   } catch (error) {
-    // Token isn't a HypERC20Collateral
-    return null;
+    log('Error getting wrapped token', error);
+    throw new Error(
+      `Could not get wrapped token from router address ${address}`,
+    );
   }
 }
