@@ -1,7 +1,7 @@
-use std::cmp::Ordering;
-use std::fmt::Debug;
-use std::ops::RangeInclusive;
 use std::{
+    cmp::Ordering,
+    fmt::Debug,
+    ops::RangeInclusive,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -9,14 +9,13 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-use tokio::time::sleep;
-use tracing::{debug, warn};
-
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage,
     HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta,
     SequenceIndexer,
 };
+use tokio::time::sleep;
+use tracing::{debug, warn};
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
 
@@ -231,10 +230,9 @@ impl ForwardMessageSyncCursor {
             self.cursor.sync_state.next_sequence += 1;
         }
 
-        let (Some(mailbox_count), tip) = self.cursor.indexer.sequence_and_tip().await?
-            else {
-                return Ok(None);
-            };
+        let (Some(mailbox_count), tip) = self.cursor.indexer.sequence_and_tip().await? else {
+            return Ok(None);
+        };
         let cursor_count = self.cursor.sync_state.next_sequence;
         Ok(match cursor_count.cmp(&mailbox_count) {
             Ordering::Equal => {

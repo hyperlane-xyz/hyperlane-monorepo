@@ -95,8 +95,8 @@ export function invertKeysAndValues(data: any) {
 }
 
 // Returns an object with the keys as values from an array and value set to true
-export function arrayToObject(keys: Array<string | number>, val = true) {
-  return keys.reduce<Record<string | number, boolean>>((result, k) => {
+export function arrayToObject(keys: Array<string>, val = true) {
+  return keys.reduce<Record<string, boolean>>((result, k) => {
     result[k] = val;
     return result;
   }, {});

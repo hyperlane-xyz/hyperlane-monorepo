@@ -13,7 +13,12 @@ import {
   TransparentUpgradeableProxy,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import { Address, eqAddress, runWithTimeout } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  eqAddress,
+  runWithTimeout,
+} from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneAddressesMap,
@@ -77,8 +82,14 @@ export abstract class HyperlaneDeployer<
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
     const configChains = Object.keys(configMap);
+    const ethereumConfigChains = configChains.filter(
+      (chain) =>
+        this.multiProvider.getChainMetadata(chain).protocol ===
+        ProtocolType.Ethereum,
+    );
+
     const targetChains = this.multiProvider.intersect(
-      configChains,
+      ethereumConfigChains,
       true,
     ).intersection;
 

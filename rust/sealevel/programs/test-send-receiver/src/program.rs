@@ -5,9 +5,7 @@ use account_utils::{create_pda_account, AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_mailbox::{
     instruction::{InboxProcess, Instruction as MailboxInstruction, OutboxDispatch},
-    mailbox_message_dispatch_authority_pda_seeds,
-    mailbox_process_authority_pda_seeds,
-    // mailbox_inbox_pda_seeds
+    mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
 };
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,

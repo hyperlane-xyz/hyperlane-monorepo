@@ -253,7 +253,9 @@ impl FromRawConf<DeprecatedRawValidatorSettings> for ValidatorSettings {
             .ok_or_else(|| eyre!("Missing `originchainname`"))
             .take_err(&mut err, || cwp + "originchainname")
             .map(|s| s.to_ascii_lowercase())
-        else { return Err(err) };
+        else {
+            return Err(err);
+        };
 
         let db = raw
             .db

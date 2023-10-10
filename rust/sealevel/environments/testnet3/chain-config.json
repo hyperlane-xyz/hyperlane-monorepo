@@ -1,0 +1,335 @@
+{
+  "alfajores": {
+    "chainId": 44787,
+    "domainId": 44787,
+    "name": "alfajores",
+    "protocol": "ethereum",
+    "displayName": "Alfajores",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "CELO",
+      "symbol": "CELO"
+    },
+    "rpcUrls": [
+      {
+        "http": "https://alfajores-forno.celo-testnet.org"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "CeloScan",
+        "url": "https://alfajores.celoscan.io",
+        "apiUrl": "https://api-alfajores.celoscan.io/api",
+        "family": "etherscan"
+      },
+      {
+        "name": "Blockscout",
+        "url": "https://explorer.celo.org/alfajores",
+        "apiUrl": "https://explorer.celo.org/alfajores/api",
+        "family": "blockscout"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "reorgPeriod": 0,
+      "estimateBlockTime": 5
+    },
+    "isTestnet": true
+  },
+  "fuji": {
+    "chainId": 43113,
+    "domainId": 43113,
+    "name": "fuji",
+    "protocol": "ethereum",
+    "displayName": "Fuji",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Avalanche",
+      "symbol": "AVAX"
+    },
+    "rpcUrls": [
+      {
+        "http": "https://api.avax-test.network/ext/bc/C/rpc",
+        "pagination": {
+          "maxBlockRange": 2048
+        }
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "SnowTrace",
+        "url": "https://testnet.snowtrace.io",
+        "apiUrl": "https://api-testnet.snowtrace.io/api",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 3,
+      "reorgPeriod": 3,
+      "estimateBlockTime": 2
+    },
+    "isTestnet": true
+  },
+  "mumbai": {
+    "chainId": 80001,
+    "domainId": 80001,
+    "name": "mumbai",
+    "protocol": "ethereum",
+    "displayName": "Mumbai",
+    "nativeToken": {
+      "name": "MATIC",
+      "symbol": "MATIC",
+      "decimals": 18
+    },
+    "rpcUrls": [
+      {
+        "http": "https://rpc.ankr.com/polygon_mumbai",
+        "pagination": {
+          "maxBlockRange": 10000,
+          "minBlockNumber": 22900000
+        }
+      },
+      {
+        "http": "https://matic-mumbai.chainstacklabs.com"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "PolygonScan",
+        "url": "https://mumbai.polygonscan.com",
+        "apiUrl": "https://api-testnet.polygonscan.com/api",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 3,
+      "reorgPeriod": 32,
+      "estimateBlockTime": 5
+    },
+    "isTestnet": true
+  },
+  "bsctestnet": {
+    "chainId": 97,
+    "domainId": 97,
+    "name": "bsctestnet",
+    "protocol": "ethereum",
+    "displayName": "BSC Testnet",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "BNB",
+      "symbol": "BNB"
+    },
+    "rpcUrls": [
+      {
+        "http": "https://data-seed-prebsc-1-s3.binance.org:8545"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "BscScan",
+        "url": "https://testnet.bscscan.com",
+        "apiUrl": "https://api-testnet.bscscan.com/api",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "reorgPeriod": 9,
+      "estimateBlockTime": 3
+    },
+    "isTestnet": true
+  },
+  "goerli": {
+    "chainId": 5,
+    "domainId": 5,
+    "name": "goerli",
+    "protocol": "ethereum",
+    "displayName": "Goerli",
+    "nativeToken": {
+      "name": "Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    },
+    "rpcUrls": [
+      {
+        "http": "https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
+      },
+      {
+        "http": "https://rpc.ankr.com/eth_goerli"
+      },
+      {
+        "http": "https://eth-goerli.public.blastapi.io"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "Etherscan",
+        "url": "https://goerli.etherscan.io",
+        "apiUrl": "https://api-goerli.etherscan.io/api",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "reorgPeriod": 2,
+      "estimateBlockTime": 13
+    },
+    "isTestnet": true
+  },
+  "moonbasealpha": {
+    "chainId": 1287,
+    "domainId": 1287,
+    "name": "moonbasealpha",
+    "protocol": "ethereum",
+    "displayName": "Moonbase Alpha",
+    "displayNameShort": "Moonbase",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "DEV",
+      "symbol": "DEV"
+    },
+    "rpcUrls": [
+      {
+        "http": "https://rpc.api.moonbase.moonbeam.network"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "MoonScan",
+        "url": "https://moonbase.moonscan.io",
+        "apiUrl": "https://api-moonbase.moonscan.io/api",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "reorgPeriod": 1,
+      "estimateBlockTime": 12
+    },
+    "isTestnet": true
+  },
+  "optimismgoerli": {
+    "chainId": 420,
+    "domainId": 420,
+    "name": "optimismgoerli",
+    "protocol": "ethereum",
+    "displayName": "Optimism Goerli",
+    "displayNameShort": "Opt. Goerli",
+    "nativeToken": {
+      "name": "Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    },
+    "rpcUrls": [
+      {
+        "http": "https://goerli.optimism.io"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "Etherscan",
+        "url": "https://goerli-optimism.etherscan.io",
+        "apiUrl": "https://api-goerli-optimism.etherscan.io/api",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "reorgPeriod": 1,
+      "estimateBlockTime": 3
+    },
+    "isTestnet": true
+  },
+  "arbitrumgoerli": {
+    "chainId": 421613,
+    "domainId": 421613,
+    "name": "arbitrumgoerli",
+    "protocol": "ethereum",
+    "displayName": "Arbitrum Goerli",
+    "displayNameShort": "Arb. Goerli",
+    "nativeToken": {
+      "name": "Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    },
+    "rpcUrls": [
+      {
+        "http": "https://goerli-rollup.arbitrum.io/rpc"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "Arbiscan",
+        "url": "https://goerli.arbiscan.io",
+        "apiUrl": "https://api-goerli.arbiscan.io/api",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "reorgPeriod": 1,
+      "estimateBlockTime": 3
+    },
+    "isTestnet": true
+  },
+  "sepolia": {
+    "chainId": 11155111,
+    "domainId": 11155111,
+    "name": "sepolia",
+    "protocol": "ethereum",
+    "displayName": "Sepolia",
+    "nativeToken": {
+      "name": "Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    },
+    "rpcUrls": [
+      {
+        "http": "https://endpoints.omniatech.io/v1/eth/sepolia/public"
+      },
+      {
+        "http": "https://rpc.sepolia.org"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "Etherscan",
+        "url": "https://sepolia.etherscan.io",
+        "apiUrl": "https://api-sepolia.etherscan.io/api",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "reorgPeriod": 2,
+      "estimateBlockTime": 13
+    },
+    "isTestnet": true
+  },
+  "solanadevnet": {
+    "chainId": 1399811151,
+    "name": "solanadevnet",
+    "rpcUrls": [
+      {
+        "http": "https://api.devnet.solana.com"
+      }
+    ]
+  },
+  "proteustestnet": {
+    "chainId": 88002,
+    "domainId": 88002,
+    "name": "proteustestnet",
+    "protocol": "ethereum",
+    "displayName": "Proteus Testnet",
+    "nativeToken": {
+      "name": "Zebec",
+      "symbol": "ZBC",
+      "decimals": 18
+    },
+    "rpcUrls": [
+      {
+        "http": "https://api.proteus.nautchain.xyz/solana"
+      }
+    ]
+  }
+}

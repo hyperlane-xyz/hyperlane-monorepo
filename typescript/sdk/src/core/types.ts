@@ -25,8 +25,8 @@ export enum MailboxViolationType {
 
 export interface MailboxViolation extends CheckerViolation {
   type: CoreViolationType.Mailbox;
+  subType: MailboxViolationType;
   contract: Mailbox;
-  mailboxType: MailboxViolationType;
 }
 
 export interface MailboxMultisigIsmViolation extends MailboxViolation {
