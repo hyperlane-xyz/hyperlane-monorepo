@@ -78,7 +78,7 @@ pub struct CoreContractAddresses {
     /// Address of the ValidatorAnnounce contract
     pub validator_announce: H256,
     /// Address of the MerkleTreeHook contract
-    pub merkle_tree_hook: Option<H256>,
+    pub merkle_tree_hook: H256,
 }
 
 /// Indexing settings
@@ -150,11 +150,7 @@ impl ChainConf {
         let ctx = "Building merkle tree hook";
         // TODO: if the merkle tree hook is set for sealevel, it's still a mailbox program
         // that the connection is made to using the pda seeds, which will not be usable.
-        let address = self
-            .addresses
-            .merkle_tree_hook
-            .unwrap_or(self.addresses.mailbox);
-        let locator = self.locator(address);
+        let locator = self.locator(self.addresses.merkle_tree_hook);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
@@ -303,11 +299,7 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn SequenceIndexer<MerkleTreeInsertion>>> {
         let ctx = "Building merkle tree hook indexer";
-        let address = self
-            .addresses
-            .merkle_tree_hook
-            .unwrap_or(self.addresses.mailbox);
-        let locator = self.locator(address);
+        let locator = self.locator(self.addresses.merkle_tree_hook);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
@@ -559,13 +551,11 @@ impl ChainConf {
             self.addresses.interchain_gas_paymaster,
             EthereumInterchainGasPaymasterAbi::fn_map_owned(),
         );
-        if let Some(address) = self.addresses.merkle_tree_hook {
-            register_contract(
-                "merkle_tree_hook",
-                address,
-                EthereumInterchainGasPaymasterAbi::fn_map_owned(),
-            );
-        }
+        register_contract(
+            "merkle_tree_hook",
+            self.addresses.merkle_tree_hook,
+            EthereumInterchainGasPaymasterAbi::fn_map_owned(),
+        );
 
         cfg
     }

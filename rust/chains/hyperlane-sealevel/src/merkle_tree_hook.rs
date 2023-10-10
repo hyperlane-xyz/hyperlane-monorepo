@@ -8,7 +8,7 @@ use hyperlane_core::{
 };
 use hyperlane_sealevel_mailbox::accounts::OutboxAccount;
 use solana_sdk::commitment_config::CommitmentConfig;
-use tracing::instrument;
+use tracing::{debug, instrument};
 
 use crate::SealevelMailbox;
 
@@ -85,10 +85,12 @@ impl Indexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
         &self,
         _range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(MerkleTreeInsertion, LogMeta)>> {
+        debug!("sealevel indexer not implemented for merkle tree hook");
         Ok(vec![])
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        debug!("sealevel indexer not implemented for merkle tree hook");
         Ok(0)
     }
 }
@@ -96,6 +98,7 @@ impl Indexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
 #[async_trait]
 impl SequenceIndexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        debug!("sealevel indexer not implemented for merkle tree hook");
         Ok((None, 0))
     }
 }
