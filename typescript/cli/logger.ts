@@ -36,6 +36,13 @@ debug.enable(
   otherNamespaces ? `${otherNamespaces},${hypNamespaces}` : `${hypNamespaces}`,
 );
 
+// Change Debug's output format to remove prefixes + postfixes
+function formatArgs(this: debug.Debugger, args: any[]) {
+  args.push(debug.humanize(this.diff));
+  args.pop();
+}
+debug.formatArgs = formatArgs;
+
 // Colored logs directly to console
 export const logBlue = (...args: any) => console.log(chalk.blue(...args));
 export const logPink = (...args: any) =>
