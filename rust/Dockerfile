@@ -39,9 +39,8 @@ RUN apt-get update && \
     apt-get install -y \
         openssl \
         ca-certificates \
-        tini
-RUN apt-get install -y libssl3
-RUN rm -rf /var/lib/apt/lists/*
+        tini && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY config ./config
