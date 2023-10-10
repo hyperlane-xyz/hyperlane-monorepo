@@ -7,8 +7,6 @@ module hp_router::router {
   use aptos_std::simple_map::{Self, SimpleMap};
   use aptos_std::type_info::{Self, TypeInfo};
 
-  use hp_igps::igps;
-  use hp_mailbox::mailbox;
   use hp_library::msg_utils;
   use hp_library::h256;
   use hp_router::events::{Self, EnrollRemoteRouterEvent};
@@ -24,6 +22,7 @@ module hp_router::router {
   const ERROR_INVALID_TYPE_PARAM: u64 = 5;
   const ERROR_ROUTER_ALREADY_INITED: u64 = 6;
   const ERROR_DUPLICATED_TYPEINFO: u64 = 7;
+  const ERROR_DUPLICATED_PACKAGE: u64 = 8;
   
   //
   // Constants
@@ -35,6 +34,7 @@ module hp_router::router {
   //
 
   struct RouterRegistry has key {
+    package_map: SimpleMap<address, vector<u8>>,
     router_state_map: SimpleMap<TypeInfo, RouterState>,
     local_domain: u32,
   }
@@ -50,6 +50,9 @@ module hp_router::router {
 
   fun init_module(account: &signer) {
     move_to<RouterRegistry>(account, RouterRegistry {
+      // map (package_addy => module_name)
+      package_map: simple_map::create<address, vector<u8>>(),
+      // map (package_addy::module_name => RouterState)
       router_state_map: simple_map::create<TypeInfo, RouterState>(),
       local_domain: APTOS_TESTNET_DOMAIN
     });
@@ -69,6 +72,10 @@ module hp_router::router {
       routers: simple_map::create<u32, vector<u8>>(),
       enroll_router_events: account::new_event_handle<EnrollRemoteRouterEvent>(account)
     });
+
+    // add package
+    assert_package_is_not_exist<T>(registry);
+    simple_map::add(&mut registry.package_map, type_address<T>(), module_name<T>());
 
     RouterCap<T> {}
   }
@@ -125,60 +132,6 @@ module hp_router::router {
   }
 
   /**
-   * @notice Dispatches a message to an enrolled router via the local router's Mailbox
-   * and pays for it to be relayed to the destination.
-   */
-  public fun dispatch_with_gas<T>(
-    account: &signer,
-    dest_domain: u32,
-    message_body: vector<u8>,
-    gas_amount: u256,
-    cap: &RouterCap<T>
-  ) acquires RouterRegistry {
-    let message_id = dispatch<T>(dest_domain, message_body, cap);
-    igps::pay_for_gas(
-      account,
-      message_id,
-      dest_domain,
-      gas_amount
-    );
-  }
-
-  /**
-   * @notice Handles an incoming message
-   */
-  public fun handle<T>(
-    message: vector<u8>,
-    metadata: vector<u8>,
-    _cap: &RouterCap<T>
-  ) acquires RouterRegistry {
-    let src_domain = msg_utils::origin_domain(&message);
-    let sender_addr = msg_utils::sender(&message);
-    assert_router_should_be_enrolled<T>(src_domain, sender_addr);
-    mailbox::inbox_process(
-      message,
-      metadata
-    );
-  }
-
-  /**
-   * @notice Dispatches a message to an enrolled router via the provided Mailbox.
-   */ 
-  public fun dispatch<T>(
-    dest_domain: u32,
-    message_body: vector<u8>,
-    _cap: &RouterCap<T>
-  ): vector<u8> acquires RouterRegistry {
-    let recipient: vector<u8> = must_have_remote_router<T>(dest_domain);
-    mailbox::outbox_dispatch(
-      get_type_address<T>(),
-      dest_domain,
-      h256::from_bytes(&recipient),
-      message_body
-    )
-  }
-
-  /**
    * Internal function to enroll remote router
    */
   fun internal_enroll_remote_router(
@@ -203,7 +156,7 @@ module hp_router::router {
   }
 
   /// Check and return remote router address
-  fun must_have_remote_router<T>(domain: u32): vector<u8> acquires RouterRegistry {
+  public fun must_have_remote_router<T>(domain: u32): vector<u8> acquires RouterRegistry {
     let registry = borrow_global<RouterRegistry>(@hp_router);
     let state = simple_map::borrow(&registry.router_state_map, &type_info::type_of<T>());
     assert!(simple_map::contains_key(&state.routers, &domain), ERROR_NO_ROUTER_ENROLLED);
@@ -211,8 +164,13 @@ module hp_router::router {
   }
 
   /// Get address of type T
-  fun get_type_address<T>(): address {
+  public fun type_address<T>(): address {
     type_info::account_address(&type_info::type_of<T>())
+  }
+
+  /// Get module name of type T
+  public fun module_name<T>(): vector<u8> {
+    type_info::module_name(&type_info::type_of<T>())
   }
 
   //
@@ -233,7 +191,7 @@ module hp_router::router {
 
   /// Check type address
   inline fun assert_type_and_account_same_address<T>(account_address: address) {
-    assert!(get_type_address<T>() == account_address, ERROR_INVALID_TYPE_PARAM);
+    assert!(type_address<T>() == account_address, ERROR_INVALID_TYPE_PARAM);
   }
 
   /// Check if router already exists
@@ -245,6 +203,11 @@ module hp_router::router {
   /// Check if type is already exist
   inline fun assert_type_is_not_exist<T>(registry: &RouterRegistry) {
     assert!(!simple_map::contains_key(&registry.router_state_map, &type_info::type_of<T>()), ERROR_DUPLICATED_TYPEINFO);
+  }
+
+  /// Check if package is already exist
+  inline fun assert_package_is_not_exist<T>(registry: &RouterRegistry) {
+    assert!(!simple_map::contains_key(&registry.package_map, &type_address<T>()), ERROR_DUPLICATED_PACKAGE);
   }
 
   /// Check domain and router address
@@ -270,6 +233,18 @@ module hp_router::router {
     let router_state = simple_map::borrow(&registry.router_state_map, &type_info::type_of<T>());
     simple_map::keys(&router_state.routers)
   }
+
+  #[view]
+  public fun fetch_module_name(package_addr: address): vector<u8> acquires RouterRegistry {
+    let registry = borrow_global<RouterRegistry>(@hp_router);
+    if (!simple_map::contains_key(&registry.package_map, &package_addr)) {
+      vector::empty<u8>()
+    } else {
+      let package_module_name = simple_map::borrow(&registry.package_map, &package_addr);
+      *package_module_name
+    }
+  }
+
 
   #[test_only]
   public fun init_for_test(account: &signer) {

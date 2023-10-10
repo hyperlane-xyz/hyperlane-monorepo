@@ -3,6 +3,7 @@ module examples::hello_world {
   use std::vector;
   use hp_router::router;
   use hp_library::msg_utils;
+  use hp_mailbox::mailbox;
 
   // Constants
 
@@ -36,7 +37,7 @@ module examples::hello_world {
   ) acquires State {
     let state = borrow_global<State>(@examples);
 
-    router::dispatch<HelloWorld>(
+    mailbox::dispatch<HelloWorld>(
       dest_domain,
       message,
       &state.cap
@@ -51,7 +52,7 @@ module examples::hello_world {
   ) acquires State {
     let state = borrow_global<State>(@examples);
 
-    router::dispatch_with_gas<HelloWorld>(
+    mailbox::dispatch_with_gas<HelloWorld>(
       account,
       dest_domain,
       message,
@@ -68,7 +69,7 @@ module examples::hello_world {
   ) acquires State {
     let state = borrow_global_mut<State>(@examples);
 
-    router::handle<HelloWorld>(
+    mailbox::handle_message<HelloWorld>(
       message,
       metadata,
       &state.cap

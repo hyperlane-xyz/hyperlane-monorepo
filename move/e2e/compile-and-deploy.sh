@@ -45,8 +45,8 @@ fund_and_publish "library" $LN1_LIBRARY_ADDRESS "../e2e/aptos-test-keys/localnet
 fund_and_publish "validator-announce" $LN1_VALIDATOR_ANNOUNCE_ADDRESS "../e2e/aptos-test-keys/localnet1/validator-announce-keypair.json" "$LN1_ADDRESS_MATHING"
 fund_and_publish "isms" $LN1_ISMS_ADDRESS "../e2e/aptos-test-keys/localnet1/isms-keypair.json" "$LN1_ADDRESS_MATHING"
 fund_and_publish "igps" $LN1_IGPS_ADDRESS "../e2e/aptos-test-keys/localnet1/igps-keypair.json" "$LN1_ADDRESS_MATHING"
-fund_and_publish "mailbox" $LN1_MAILBOX_ADDRESS "../e2e/aptos-test-keys/localnet1/mailbox-keypair.json" "$LN1_ADDRESS_MATHING"
 fund_and_publish "router" $LN1_ROUTER_ADDRESS "../e2e/aptos-test-keys/localnet1/router-keypair.json" "$LN1_ADDRESS_MATHING"
+fund_and_publish "mailbox" $LN1_MAILBOX_ADDRESS "../e2e/aptos-test-keys/localnet1/mailbox-keypair.json" "$LN1_ADDRESS_MATHING"
 fund_and_publish "examples" $LN1_EXAMPLES_ADDRESS "../e2e/aptos-test-keys/localnet1/examples-keypair.json" "$LN1_ADDRESS_MATHING"
 
 LN2_ADDRESS_MATHING="--named-addresses hp_library=$LN2_LIBRARY_ADDRESS,hp_validator=$LN2_VALIDATOR_ANNOUNCE_ADDRESS,hp_isms=$LN2_ISMS_ADDRESS,hp_igps=$LN2_IGPS_ADDRESS,hp_mailbox=$LN2_MAILBOX_ADDRESS,hp_router=$LN2_ROUTER_ADDRESS,examples=$LN2_EXAMPLES_ADDRESS"
@@ -55,8 +55,8 @@ fund_and_publish "library" $LN2_LIBRARY_ADDRESS "../e2e/aptos-test-keys/localnet
 fund_and_publish "validator-announce" $LN2_VALIDATOR_ANNOUNCE_ADDRESS "../e2e/aptos-test-keys/localnet2/validator-announce-keypair.json" "$LN2_ADDRESS_MATHING"
 fund_and_publish "isms" $LN2_ISMS_ADDRESS "../e2e/aptos-test-keys/localnet2/isms-keypair.json" "$LN2_ADDRESS_MATHING"
 fund_and_publish "igps" $LN2_IGPS_ADDRESS "../e2e/aptos-test-keys/localnet2/igps-keypair.json" "$LN2_ADDRESS_MATHING"
-fund_and_publish "mailbox" $LN2_MAILBOX_ADDRESS "../e2e/aptos-test-keys/localnet2/mailbox-keypair.json" "$LN2_ADDRESS_MATHING"
 fund_and_publish "router" $LN2_ROUTER_ADDRESS "../e2e/aptos-test-keys/localnet2/router-keypair.json" "$LN2_ADDRESS_MATHING"
+fund_and_publish "mailbox" $LN2_MAILBOX_ADDRESS "../e2e/aptos-test-keys/localnet2/mailbox-keypair.json" "$LN2_ADDRESS_MATHING"
 fund_and_publish "examples" $LN2_EXAMPLES_ADDRESS "../e2e/aptos-test-keys/localnet2/examples-keypair.json" "$LN2_ADDRESS_MATHING"
 
 ################# Fund signers ####################

@@ -16,10 +16,4 @@ subdir = "aptos-move/framework/aptos-framework"
 [dependencies.HyperlaneLibrary]
 local = "../library"
 
-[dependencies.HyperlaneMailBox]
-local = "../mailbox"
-
-[dependencies.HyperlaneIGP]
-local = "../igps"
-
 [dev-dependencies]

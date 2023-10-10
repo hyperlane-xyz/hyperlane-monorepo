@@ -3,6 +3,7 @@
 use std::ops::RangeInclusive;
 use std::{collections::HashMap, num::NonZeroU64, str::FromStr as _};
 
+use aptos_sdk::move_types::identifier::Identifier;
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::SequenceIndexer;
@@ -73,6 +74,22 @@ impl AptosMailbox {
             package_address,
             aptos_client,
         })
+    }
+
+    async fn fetch_module_name(&self, package_addy: &AccountAddress) -> ChainResult<Vec<u8>> {
+        let view_response = utils::send_view_request(
+            &self.aptos_client,
+            self.package_address.to_hex_literal(),
+            "mailbox".to_string(),
+            "recipient_module_name".to_string(),
+            vec![],
+            vec![serde_json::json!(hex::encode(package_addy.as_slice()))],
+        )
+        .await?;
+
+        let module_name = serde_json::from_str::<String>(&view_response[0].to_string()).unwrap();
+        let module_name_bytes = hex::decode(module_name.to_string().trim_start_matches("0x")).unwrap();
+        Ok(module_name_bytes)
     }
 }
 
@@ -216,16 +233,19 @@ impl Mailbox for AptosMailbox {
 
         let mut signer_account = convert_keypair_to_aptos_account(&self.aptos_client, payer).await;
 
-        let payload = utils::make_aptos_payload(
-            recipient,
-            "hello_world",
-            "handle_message",
+        let recipient_module_name = self.fetch_module_name(&recipient).await.unwrap();
+        let payload = TransactionPayload::EntryFunction(EntryFunction::new(
+            ModuleId::new(
+                recipient,
+                Identifier::from_utf8(recipient_module_name).unwrap(),
+            ),
+            ident_str!("handle_message").to_owned(),
             vec![],
             vec![
                 bcs::to_bytes(&encoded_message).unwrap(),
                 bcs::to_bytes(&metadata.to_vec()).unwrap(),
             ],
-        );
+        ));
 
         let response =
             send_aptos_transaction(&self.aptos_client, &mut signer_account, payload.clone())
@@ -266,17 +286,19 @@ impl Mailbox for AptosMailbox {
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
 
         let mut signer_account = convert_keypair_to_aptos_account(&self.aptos_client, payer).await;
-
-        let payload = utils::make_aptos_payload(
-            recipient,
-            "hello_world",
-            "handle_message",
+        let recipient_module_name = self.fetch_module_name(&recipient).await.unwrap();
+        let payload = TransactionPayload::EntryFunction(EntryFunction::new(
+            ModuleId::new(
+                recipient,
+                Identifier::from_utf8(recipient_module_name).unwrap(),
+            ),
+            ident_str!("handle_message").to_owned(),
             vec![],
             vec![
                 bcs::to_bytes(&encoded_message).unwrap(),
                 bcs::to_bytes(&metadata.to_vec()).unwrap(),
             ],
-        );
+        ));
 
         let response =
             simulate_aptos_transaction(&self.aptos_client, &mut signer_account, payload.clone())

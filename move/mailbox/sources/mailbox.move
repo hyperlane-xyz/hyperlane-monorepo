@@ -14,6 +14,8 @@ module hp_mailbox::mailbox {
   use hp_library::h256::{Self, H256};
   use hp_library::merkle_tree::{Self, MerkleTree};
   use hp_isms::multisig_ism;
+  use hp_router::router::{Self, RouterCap};
+  use hp_igps::igps;
 
   //
   // Constants
@@ -81,10 +83,65 @@ module hp_mailbox::mailbox {
     state.local_domain = domain;
   }
 
+  /**
+   * @notice Dispatches a message to an enrolled router via the provided Mailbox.
+   */ 
+  public fun dispatch<T>(
+    dest_domain: u32,
+    message_body: vector<u8>,
+    _cap: &RouterCap<T>
+  ): vector<u8> acquires MailBoxState {
+    let recipient: vector<u8> = router::must_have_remote_router<T>(dest_domain);
+    outbox_dispatch(
+      router::type_address<T>(),
+      dest_domain,
+      h256::from_bytes(&recipient),
+      message_body
+    )
+  }
+
+  /**
+   * @notice Dispatches a message to an enrolled router via the local router's Mailbox
+   * and pays for it to be relayed to the destination.
+   */
+  public fun dispatch_with_gas<T>(
+    account: &signer,
+    dest_domain: u32,
+    message_body: vector<u8>,
+    gas_amount: u256,
+    cap: &RouterCap<T>
+  ) acquires MailBoxState {
+    let message_id = dispatch<T>(dest_domain, message_body, cap);
+    igps::pay_for_gas(
+      account,
+      message_id,
+      dest_domain,
+      gas_amount
+    );
+  }
+
+  /**
+   * @notice Handles an incoming message
+   */
+  public fun handle_message<T>(
+    message: vector<u8>,
+    metadata: vector<u8>,
+    _cap: &RouterCap<T>
+  ) acquires MailBoxState {
+    let src_domain = msg_utils::origin_domain(&message);
+    let sender_addr = msg_utils::sender(&message);
+    router::assert_router_should_be_enrolled<T>(src_domain, sender_addr);
+    inbox_process(
+      message,
+      metadata
+    );
+  }
+
+
   /// Attempts to deliver `message` to its recipient. Verifies
   /// `message` via the recipient's ISM using the provided `metadata`.
   ///! `message` should be in a specific format
-  public fun inbox_process(
+  fun inbox_process(
     message: vector<u8>,
     metadata: vector<u8>
   ) acquires MailBoxState {
@@ -115,7 +172,7 @@ module hp_mailbox::mailbox {
   }
 
   /// Dispatches a message to the destination domain & recipient.
-  public fun outbox_dispatch(
+  fun outbox_dispatch(
     sender_address: address,
     destination_domain: u32,
     _recipient: H256, // package::module
@@ -183,6 +240,12 @@ module hp_mailbox::mailbox {
   #[view]
   public fun get_default_ism(): address {
     @hp_isms
+  }
+
+  #[view]
+  /// Returns module_name of recipient package
+  public fun recipient_module_name(recipient: address): vector<u8> {
+    router::fetch_module_name(recipient)
   }
 
   #[view]

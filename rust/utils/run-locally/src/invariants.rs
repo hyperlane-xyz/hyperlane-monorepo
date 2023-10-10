@@ -49,7 +49,6 @@ pub fn termination_invariants_met(
 
     // TODO!
     return Ok(true);
-    println!("jlog termination_invariants_met here1");
 
     let gas_payment_events_count = fetch_metric(
         "9092",
@@ -80,8 +79,6 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    println!("jlog termination_invariants_met here2");
-
     /*if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path) {
         log!("Solana termination invariants not met");
         return Ok(false);
@@ -103,8 +100,6 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    println!("jlog termination_invariants_met here3");
-
     let gas_payments_scraped = fetch_metric(
         "9093",
         "hyperlane_contract_sync_stored_events",
@@ -124,8 +119,6 @@ pub fn termination_invariants_met(
         );
         return Ok(false);
     }
-
-    println!("jlog termination_invariants_met here4");
 
     let delivered_messages_scraped = fetch_metric(
         "9093",
