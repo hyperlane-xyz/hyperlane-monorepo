@@ -133,9 +133,6 @@ jobs:
       - name: Install Foundry
         uses: onbjerg/foundry-toolchain@v1
 
-      - name: Configure libssl
-        run: ln -s /usr/lib/x86_64-linux-gnu/libssl.so.3 /usr/local/lib64/libssl.so.3 && sudo ldconfig
-
       - uses: actions/cache@v3
         with:
           path: ./*
