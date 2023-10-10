@@ -309,6 +309,12 @@
       "address": "0x73A7bDa325Ad8E5F591179C4ccA61b0CeF70d05C",
       "constructorArguments": "00000000000000000000000033abaf6708be03bdf0595da0745a7111b01db8c70000000000000000000000006f2756380fd49228ae25aa7f2817993cb74ecc56",
       "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xE14FE2a74Ba1E1bD0EE14B780e58fCcc3c95C013",
+      "constructorArguments": "00000000000000000000000033abaf6708be03bdf0595da0745a7111b01db8c70000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
     }
   ],
   "basegoerli": [

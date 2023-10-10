@@ -113,7 +113,6 @@ async function main() {
       console.info(`No announcement for storageLocation ${storageLocation}`);
     }
     const chain = chains[i];
-    if (chain == 'sepolia') continue;
     const contracts = core.getContracts(chain);
     const validatorAnnounce = contracts.validatorAnnounce;
     const address = announcement.value.validator;

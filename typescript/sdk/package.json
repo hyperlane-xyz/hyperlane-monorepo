@@ -1,10 +1,10 @@
 {
   "name": "@hyperlane-xyz/sdk",
   "description": "The official SDK for the Hyperlane Network",
-  "version": "1.5.0",
+  "version": "1.5.4-beta0",
   "dependencies": {
-    "@hyperlane-xyz/core": "1.5.0",
-    "@hyperlane-xyz/utils": "1.5.0",
+    "@hyperlane-xyz/core": "1.5.4-beta0",
+    "@hyperlane-xyz/utils": "1.5.4-beta0",
     "@solana/spl-token": "^0.3.8",
     "@solana/web3.js": "^1.78.0",
     "@types/coingecko-api": "^1.0.10",
@@ -58,5 +58,6 @@
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts'",
     "test:hardhat": "hardhat test $(find ./src -name \"*.hardhat-test.ts\")"
   },
-  "types": "dist/index.d.ts"
+  "types": "dist/index.d.ts",
+  "stableVersion": "1.5.0"
 }
