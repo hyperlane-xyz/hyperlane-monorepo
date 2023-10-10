@@ -126,7 +126,6 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MailboxBuilder {})
                     .await
             }
-
             ChainConnectionConf::Fuel(conf) => {
                 let wallet = self.fuel_signer().await.context(ctx)?;
                 hyperlane_fuel::FuelMailbox::new(conf, locator, wallet)

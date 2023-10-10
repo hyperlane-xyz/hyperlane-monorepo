@@ -9,9 +9,9 @@ use crate::{utils::domain_hash, Signable, Signature, SignedType, H160, H256};
 /// An Hyperlane checkpoint
 #[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
 pub struct Checkpoint {
-    /// The mailbox address
+    /// The merkle tree hook address
     pub merkle_tree_hook_address: H256,
-    /// The mailbox chain
+    /// The mailbox / merkle tree hook domain
     pub mailbox_domain: u32,
     /// The checkpointed root
     pub root: H256,
