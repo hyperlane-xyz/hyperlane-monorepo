@@ -1,10 +1,11 @@
-import { Contract } from 'ethers';
+import { Contract, ethers } from 'ethers';
 
 import { Ownable } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
   ValueOf,
+  hexOrBase58ToHex,
   objFilter,
   objMap,
   pick,
@@ -65,16 +66,27 @@ export function filterAddressesMap<F extends HyperlaneFactories>(
   );
 }
 
-export function filterAddressesToProtocol(
-  addresses: HyperlaneAddressesMap<any>,
+export function filterChainMapToProtocol(
+  contractsMap: ChainMap<any>,
   protocolType: ProtocolType,
-  // Note, MultiProviders are passable here
   metadataManager: ChainMetadataManager<any>,
-): HyperlaneAddressesMap<any> {
+): ChainMap<any> {
   return objFilter(
-    addresses,
+    contractsMap,
     (c, _addrs): _addrs is any =>
       metadataManager.tryGetChainMetadata(c)?.protocol === protocolType,
+  );
+}
+
+export function filterChainMapExcludeProtocol(
+  contractsMap: ChainMap<any>,
+  protocolType: ProtocolType,
+  metadataManager: ChainMetadataManager<any>,
+): ChainMap<any> {
+  return objFilter(
+    contractsMap,
+    (c, _addrs): _addrs is any =>
+      metadataManager.tryGetChainMetadata(c)?.protocol !== protocolType,
   );
 }
 
@@ -96,6 +108,40 @@ export function attachContractsMap<F extends HyperlaneFactories>(
   return objMap(filteredAddressesMap, (_, addresses) =>
     attachContracts(addresses, factories),
   ) as HyperlaneContractsMap<F>;
+}
+
+export function attachContractsMapAndGetForeignDeployments<
+  F extends HyperlaneFactories,
+>(
+  addressesMap: HyperlaneAddressesMap<any>,
+  factories: F,
+  metadataManager: ChainMetadataManager<any>,
+): {
+  contractsMap: HyperlaneContractsMap<F>;
+  foreignDeployments: ChainMap<Address>;
+} {
+  const contractsMap = attachContractsMap(
+    filterChainMapToProtocol(
+      addressesMap,
+      ProtocolType.Ethereum,
+      metadataManager,
+    ),
+    factories,
+  );
+
+  const foreignDeployments = objMap(
+    filterChainMapExcludeProtocol(
+      addressesMap,
+      ProtocolType.Ethereum,
+      metadataManager,
+    ),
+    (_, addresses) => hexOrBase58ToHex(addresses.router),
+  );
+
+  return {
+    contractsMap,
+    foreignDeployments,
+  };
 }
 
 export function connectContracts<F extends HyperlaneFactories>(
@@ -143,9 +189,31 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
   contractsMap: HyperlaneContractsMap<F>;
   multiProvider: MultiProvider;
 } {
+  // Hack to accommodate non-Ethereum artifacts, while still retaining their
+  // presence in the addressesMap so that they are included in the list of chains
+  // on the MultiProvider (needed for getting metadata). A non-Ethereum-style address
+  // from another execution environment will cause Ethers to throw if we try to attach
+  // it, so we just replace it with the zero address.
+  const addressesMapWithEthereumizedAddresses = objMap(
+    addressesMap,
+    (chain, addresses) => {
+      const metadata = multiProvider.getChainMetadata(chain);
+      if (metadata.protocol === ProtocolType.Ethereum) {
+        return addresses;
+      }
+      return objMap(
+        addresses,
+        (_key, _address) => ethers.constants.AddressZero,
+      );
+    },
+  );
+
   // Attaches contracts for each chain for which we have a complete set of
   // addresses
-  const contractsMap = attachContractsMap(addressesMap, factories);
+  const contractsMap = attachContractsMap(
+    addressesMapWithEthereumizedAddresses,
+    factories,
+  );
 
   // Filters out providers for chains for which we don't have a complete set
   // of addresses

@@ -1,0 +1,42 @@
+{
+  "sepolia": {
+    "hex": "0x0000000000000000000000006ad4deba8a147d000c09de6465267a9047d1c217",
+    "base58": "1111111111112VKnX2KMsqSTDw9YoXRsZJTwTcUW"
+  },
+  "goerli": {
+    "hex": "0x00000000000000000000000003e9531ae74e8f0f96de26788a22d35bdad24185",
+    "base58": "1111111111114AKBbRbDjAP93LQgmXJPvfVU7SC"
+  },
+  "solanadevnet": {
+    "hex": "0xbba2f483e642449d0a39efe5f9603f7c559423acebd3c854d07560ccd0439228",
+    "base58": "DdTMkk9nuqH5LnD56HLkPiKMV3yB3BNEYSQfgmJHa5i7"
+  },
+  "optimismgoerli": {
+    "hex": "0x000000000000000000000000057d38d184d74192b96840d8fbb37e584ddb569a",
+    "base58": "1111111111115SFp65pWdvPTRK5fmHa3sc4Eq6Z"
+  },
+  "fuji": {
+    "hex": "0x000000000000000000000000ac003fcdd0ee223664f2a000b5a59d082745700b",
+    "base58": "1111111111113Pz2bmxxVNgkKkZPpxgouHiZAjTx"
+  },
+  "moonbasealpha": {
+    "hex": "0x000000000000000000000000e9d6317a10860340f035f3d09052d9d376855be8",
+    "base58": "1111111111114Fx2onL6wvVgGmyjgzGhy48HzCZM"
+  },
+  "arbitrumgoerli": {
+    "hex": "0x000000000000000000000000aaf1bf6f2bfae290ea8615066fd167e396a2f578",
+    "base58": "1111111111113P8WPEsejkHP1Zysy1xXafVFFnaT"
+  },
+  "bsctestnet": {
+    "hex": "0x000000000000000000000000d259b0e793535325786675542ab296c451535c27",
+    "base58": "1111111111113vyKMMTb6aSQDhDLqEvqcPBcTtRC"
+  },
+  "alfajores": {
+    "hex": "0x00000000000000000000000040adcb03f3c58170b4751c4140636fc6085ff475",
+    "base58": "111111111111uGFbQYrmpk8K5cfeu9x438LAGiQ"
+  },
+  "mumbai": {
+    "hex": "0x000000000000000000000000ab0892029c3e7dd4c0235590dc296e618a7b4d03",
+    "base58": "1111111111113PCgiXuWFu2FmvhykJp51x5y5jyC"
+  }
+}

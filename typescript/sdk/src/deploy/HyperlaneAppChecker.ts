@@ -3,6 +3,7 @@ import { keccak256 } from 'ethers/lib/utils';
 import { Ownable, TimelockController } from '@hyperlane-xyz/core';
 import {
   Address,
+  ProtocolType,
   assert,
   eqAddress,
   objMap,
@@ -49,7 +50,11 @@ export abstract class HyperlaneAppChecker<
 
   async check(): Promise<void[]> {
     Object.keys(this.configMap)
-      .filter((_) => !this.app.chains().includes(_))
+      .filter(
+        (chain) =>
+          this.multiProvider.getChainMetadata(chain).protocol ===
+            ProtocolType.Ethereum && !this.app.chains().includes(chain),
+      )
       .forEach((chain: string) =>
         this.addViolation({
           type: ViolationType.NotDeployed,
@@ -60,6 +65,7 @@ export abstract class HyperlaneAppChecker<
       );
 
     return Promise.all(
+      // this.app.chains() will only return Ethereum chains that can be interacted with.
       this.app.chains().map((chain) => this.checkChain(chain)),
     );
   }
@@ -229,5 +235,25 @@ export abstract class HyperlaneAppChecker<
   expectEmpty(): void {
     const count = this.violations.length;
     assert(count === 0, `Found ${count} violations`);
+  }
+
+  logViolationsTable(): void {
+    const violations = this.violations;
+    if (violations.length > 0) {
+      // eslint-disable-next-line no-console
+      console.table(violations, [
+        'chain',
+        'remote',
+        'name',
+        'type',
+        'subType',
+        'actual',
+        'expected',
+        'description',
+      ]);
+    } else {
+      // eslint-disable-next-line no-console
+      console.info(`${module} Checker found no violations`);
+    }
   }
 }
