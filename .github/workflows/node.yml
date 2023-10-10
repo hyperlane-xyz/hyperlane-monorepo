@@ -132,9 +132,12 @@ jobs:
 
       - name: Install Foundry
         uses: onbjerg/foundry-toolchain@v1
-
+   
       - name: Install libssl
-        run: sudo apt-get install -y libssl3
+        run: sudo apt-get install -y libssl3-dev
+
+      - name: Configure libssl
+        run: ln -s libssl.so.3 libssl.so && sudo ldconfig
 
       - uses: actions/cache@v3
         with:
