@@ -84,7 +84,7 @@ ANVIL_1_PID=$!
 anvil --chain-id 31338 -p 8555 --block-time 1 --state /tmp/anvil2/state > /dev/null &
 ANVIL_2_PID=$!
 
-AGENT_CONFIG_FILE=`find /tmp/agent-config* -type f -exec ls -t1 {} + | head -1`
+AGENT_CONFIG_FILE=`ls -t1 /tmp | grep agent-config | head -1`
 
 for i in "anvil1 8545 ANVIL1" "anvil2 8555 ANVIL2"
 do
