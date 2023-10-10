@@ -1,0 +1,32 @@
+{
+  "chains": {
+    "aptoslocalnet1": {
+      "name": "aptoslocalnet1",
+      "domain": 14411,
+      "addresses": {
+        "mailbox": "0x476307c25c54b76b331a4e3422ae293ada422f5455efed1553cf4de1222a108f",
+        "interchainGasPaymaster": "0xc5cb1f1ce6951226e9c46ce8d42eda1ac9774a0fef91e2910939119ef0c95568",
+        "validatorAnnounce": "0xa4a4eb4bab83650ba62cabe9ce429ad021b29c12f2fbf808768838255c7e191d"
+      },
+      "protocol": "aptos",
+      "finalityBlocks": 0,
+      "index": {
+        "from": 0
+      }
+    },
+    "aptoslocalnet2": {
+      "name": "aptoslocalnet2",
+      "domain": 14412,
+      "addresses": {
+        "mailbox": "0xd338e68ca12527e77cab474ee8ec91ffa4e6512ced9ae8f47e28c5c7c4804b78",
+        "interchainGasPaymaster": "0xea7d568d0705450331a8f09fd1c823faec91f4ef1c7e6ed4b12c0c53d0c08bc8",
+        "validatorAnnounce": "0xce1f65297828eaa6e460724a869317154f05cdde26619c0e5c0ca23aac3f69c7"
+      },
+      "protocol": "aptos",
+      "finalityBlocks": 3,
+      "index": {
+        "from": 0
+      }
+    }
+  }
+}
