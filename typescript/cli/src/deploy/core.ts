@@ -179,8 +179,8 @@ async function runDeployPlanStep({
   skipConfirmation,
 }: DeployParams) {
   const address = await signer.getAddress();
-  logBlue('\nDeployment plan:');
-  logGray('===============:');
+  logBlue('\nDeployment plan');
+  logGray('===============');
   log(`Transaction signer and owner of new contracts will be ${address}`);
   log(`Deploying to ${origin} and connecting it to ${remotes.join(', ')}`);
   const numContracts = Object.keys(

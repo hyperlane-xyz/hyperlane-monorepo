@@ -214,8 +214,8 @@ async function runDeployPlanStep({
   const address = await signer.getAddress();
   const baseToken = configMap[origin];
   const baseName = getTokenName(baseToken);
-  logBlue('\nDeployment plan:');
-  logGray('===============:');
+  logBlue('\nDeployment plan');
+  logGray('===============');
   log(`Transaction signer and owner of new contracts will be ${address}`);
   log(`Deploying a warp route with a base of ${baseName} token on ${origin}`);
   log(`Connecting it to new synthetic tokens on ${remotes.join(', ')}`);

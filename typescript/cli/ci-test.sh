@@ -106,6 +106,9 @@ done
 
 sleep 10
 
+# TODO remove, print names of all files
+find /tmp/.
+
 for i in "anvil1 8545" "anvil2 8555"
 do
     set -- $i
