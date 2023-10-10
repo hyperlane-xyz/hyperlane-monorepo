@@ -8,7 +8,7 @@ import {
   buildAgentConfig,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
-import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { objMap, objMerge, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { getAgentConfigDirectory } from '../../scripts/utils';
 import { DeployEnvironment } from '../config';
@@ -85,11 +85,14 @@ export async function postDeploy<Config>(
   },
 ) {
   if (cache.write) {
+    // TODO: dedupe deployedContracts with cachedAddresses
     const deployedAddresses = serializeContractsMap(deployer.deployedContracts);
-    console.log(deployedAddresses);
+    const cachedAddresses = deployer.cachedAddresses;
+    const addresses = objMerge(deployedAddresses, cachedAddresses);
+    console.log(addresses);
 
     // cache addresses of deployed contracts
-    writeMergedJSONAtPath(cache.addresses, deployedAddresses);
+    writeMergedJSONAtPath(cache.addresses, addresses);
 
     let savedVerification = {};
     try {

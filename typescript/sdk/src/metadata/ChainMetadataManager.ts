@@ -99,8 +99,9 @@ export class ChainMetadataManager<MetaExt = {}> {
    */
   getChainMetadata(chainNameOrId: ChainName | number): ChainMetadata<MetaExt> {
     const chainMetadata = this.tryGetChainMetadata(chainNameOrId);
-    if (!chainMetadata)
+    if (!chainMetadata) {
       throw new Error(`No chain metadata set for ${chainNameOrId}`);
+    }
     return chainMetadata;
   }
 

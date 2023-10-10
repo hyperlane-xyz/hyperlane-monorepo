@@ -35,8 +35,10 @@ export const infrastructure: InfrastructureConfig = {
     accessibleGCPSecretPrefixes: [
       'hyperlane-testnet-',
       'testnet-',
+      'hyperlane-testnet3-',
+      'rc-testnet3-',
+      'testnet3-',
       'hyperlane-testnet4-',
-      'flowcarbon-testnet4-',
       'rc-testnet4-',
       'testnet4-',
     ],

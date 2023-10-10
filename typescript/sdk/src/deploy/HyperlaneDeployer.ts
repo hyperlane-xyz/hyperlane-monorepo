@@ -264,10 +264,17 @@ export abstract class HyperlaneDeployer<
       contract,
       factory.bytecode,
     );
-    this.verificationInputs[chain] = this.verificationInputs[chain] || [];
-    this.verificationInputs[chain].push(verificationInput);
+    this.addVerificationArtifact(chain, verificationInput);
 
     return contract;
+  }
+
+  protected addVerificationArtifact(
+    chain: ChainName,
+    artifact: ContractVerificationInput,
+  ) {
+    this.verificationInputs[chain] = this.verificationInputs[chain] || [];
+    this.verificationInputs[chain].push(artifact);
   }
 
   async deployContract<K extends keyof Factories>(
