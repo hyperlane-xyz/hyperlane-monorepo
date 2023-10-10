@@ -38,10 +38,10 @@ FROM ubuntu:20.04
 RUN apt-get update && \
     apt-get install -y \
         openssl \
-        libssl3 \
         ca-certificates \
-        tini && \
-    rm -rf /var/lib/apt/lists/*
+        tini
+RUN apt-get install -y libssl3
+RUN rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY config ./config
