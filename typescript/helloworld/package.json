@@ -1,10 +1,10 @@
 {
   "name": "@hyperlane-xyz/helloworld",
   "description": "A basic skeleton of an Hyperlane app",
-  "version": "1.5.0",
+  "version": "1.5.7-beta1",
   "dependencies": {
-    "@hyperlane-xyz/core": "1.5.0",
-    "@hyperlane-xyz/sdk": "1.5.0",
+    "@hyperlane-xyz/core": "1.5.7-beta1",
+    "@hyperlane-xyz/sdk": "1.5.7-beta1",
     "@openzeppelin/contracts-upgradeable": "^4.8.0",
     "ethers": "^5.7.2"
   },
@@ -66,5 +66,6 @@
     "lodash": "^4.17.21",
     "async": "^2.6.4",
     "undici": "^5.11"
-  }
+  },
+  "stableVersion": "1.5.0"
 }
