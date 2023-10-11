@@ -104,7 +104,7 @@ do
       gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator &
 done
 
-sleep 10
+sleep 20
 
 # TODO remove, print names of all files
 find /tmp/.
