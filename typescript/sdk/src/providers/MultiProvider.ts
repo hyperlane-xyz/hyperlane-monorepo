@@ -399,4 +399,19 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     }
     return mp;
   }
+
+  /**
+   * Check if a contract has been deployed to a given address
+   * @param chainNameOrId chain name or id
+   * @param address contract address
+   * @returns whether contract has been deployed
+   */
+  async checkContractDeployed(
+    chainNameOrId: ChainName | number,
+    address: string,
+  ): Promise<boolean> {
+    const provider = this.getProvider(chainNameOrId);
+    const code = await provider.getCode(address);
+    return code !== '0x';
+  }
 }
