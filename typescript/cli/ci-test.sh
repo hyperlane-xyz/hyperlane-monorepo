@@ -101,7 +101,8 @@ do
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE=localStorage \
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_PATH=/data/${1}/validator \
       -e HYP_BASE_TRACING_LEVEL=info -e HYP_BASE_TRACING_FMT=pretty \
-      gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator > /dev/null &
+      -log-driver none --detach \
+      gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator
 done
 
 echo "Validator running, sleeping to let it sync"
@@ -111,6 +112,7 @@ echo "Done sleeping"
 # TODO remove, print names of all files
 # find /tmp/.
 
+echo "Killing validator docker containers"
 docker ps -aq | xargs docker stop | xargs docker rm
 
 echo "===Core artifacts:"
@@ -173,7 +175,8 @@ do
       -e HYP_RELAYER_GASPAYMENTENFORCEMENT='[{"type":"none"}]' \
       -e HYP_BASE_CHAINS_${3}_SIGNER_TYPE=hexKey \
       -e HYP_BASE_CHAINS_${3}_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
-      gcr.io/abacus-labs-dev/hyperlane-agent:main ./relayer &
+      -log-driver none --detach \
+      gcr.io/abacus-labs-dev/hyperlane-agent:main ./relayer
 done
 
 sleep 5
