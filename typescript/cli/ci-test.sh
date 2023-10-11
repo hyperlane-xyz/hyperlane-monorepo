@@ -101,8 +101,9 @@ do
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE=localStorage \
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_PATH=/data/${1}/validator \
       -e HYP_BASE_TRACING_LEVEL=info -e HYP_BASE_TRACING_FMT=pretty \
-      -log-driver none --detach \
-      gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator
+      -log-driver none \
+      gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator \
+      &> /dev/null &
 done
 
 echo "Validator running, sleeping to let it sync"
@@ -175,8 +176,9 @@ do
       -e HYP_RELAYER_GASPAYMENTENFORCEMENT='[{"type":"none"}]' \
       -e HYP_BASE_CHAINS_${3}_SIGNER_TYPE=hexKey \
       -e HYP_BASE_CHAINS_${3}_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
-      -log-driver none --detach \
-      gcr.io/abacus-labs-dev/hyperlane-agent:main ./relayer
+      -log-driver none \
+      gcr.io/abacus-labs-dev/hyperlane-agent:main ./relayer \
+       &> /dev/null &
 done
 
 sleep 5
