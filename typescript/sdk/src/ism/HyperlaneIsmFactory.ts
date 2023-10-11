@@ -34,6 +34,8 @@ import {
 } from './types';
 
 export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
+  public deployedIsms: ChainMap<any> = {};
+
   static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
@@ -66,15 +68,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     config: IsmConfig,
     origin?: ChainName,
   ): Promise<DeployedIsm> {
+    let contract: DeployedIsm;
     if (typeof config === 'string') {
       // TODO: return the appropriate ISM type
       return IInterchainSecurityModule__factory.connect(
         config,
         this.multiProvider.getSignerOrProvider(chain),
       );
-    }
-
-    if (
+    } else if (
       config.type === ModuleType.MERKLE_ROOT_MULTISIG ||
       config.type === ModuleType.MESSAGE_ID_MULTISIG
     ) {
@@ -90,20 +91,37 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
           );
           break;
       }
-      return this.deployMultisigIsm(chain, config);
+      contract = await this.deployMultisigIsm(chain, config);
     } else if (config.type === ModuleType.ROUTING) {
       this.logger(
         `Deploying Routing ISM to ${chain} for verifying ${Object.keys(
           config.domains,
         )}`,
       );
-      return this.deployRoutingIsm(chain, config);
+      contract = await this.deployRoutingIsm(chain, config);
     } else if (config.type === ModuleType.AGGREGATION) {
       this.logger(`Deploying Aggregation ISM to ${chain}`);
-      return this.deployAggregationIsm(chain, config);
+      contract = await this.deployAggregationIsm(chain, config, origin);
     } else {
       throw new Error(`Unsupported ISM type`);
     }
+
+    const name = ModuleType[config.type];
+
+    if (!this.deployedIsms[chain]) {
+      this.deployedIsms[chain] = {};
+    }
+
+    if (origin) {
+      if (!this.deployedIsms[chain][origin]) {
+        this.deployedIsms[chain][origin] = {};
+      }
+      this.deployedIsms[chain][origin][name] = contract;
+    } else {
+      this.deployedIsms[chain][name] = contract;
+    }
+
+    return contract;
   }
 
   private async deployMultisigIsm(chain: ChainName, config: MultisigIsmConfig) {
@@ -172,13 +190,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
   private async deployAggregationIsm(
     chain: ChainName,
     config: AggregationIsmConfig,
+    origin?: ChainName,
   ) {
     const signer = this.multiProvider.getSigner(chain);
     const aggregationIsmFactory =
       this.getContracts(chain).aggregationIsmFactory;
     const addresses: Address[] = [];
     for (const module of config.modules) {
-      addresses.push((await this.deploy(chain, module)).address);
+      addresses.push((await this.deploy(chain, module, origin)).address);
     }
     const address = await this.deployStaticAddressSet(
       chain,

@@ -1,10 +1,6 @@
 import debug from 'debug';
 
-import {
-  IInterchainSecurityModule__factory,
-  Mailbox,
-  ValidatorAnnounce,
-} from '@hyperlane-xyz/core';
+import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
@@ -117,18 +113,8 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   }
 
   async deployIsm(chain: ChainName, config: IsmConfig): Promise<Address> {
-    const key = 'defaultIsm';
-    if (this.cachedAddresses[chain][key]) {
-      this.addDeployedContracts(chain, {
-        [key]: IInterchainSecurityModule__factory.connect(
-          this.cachedAddresses[chain][key],
-          this.multiProvider.getSignerOrProvider(chain),
-        ),
-      });
-      return this.cachedAddresses[chain][key];
-    }
     const ism = await this.ismFactory.deploy(chain, config);
-    this.addDeployedContracts(chain, { [key]: ism });
+    this.addDeployedContracts(chain, this.ismFactory.deployedIsms);
     return ism.address;
   }
 

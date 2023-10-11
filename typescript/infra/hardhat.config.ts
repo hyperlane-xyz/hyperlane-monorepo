@@ -45,10 +45,9 @@ task('kathy', 'Dispatches random hyperlane messages')
       const environment = 'test';
       const [signer] = await hre.ethers.getSigners();
       const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-      const core = HyperlaneCore.fromAddressesMap(
-        getAddresses(environment, Modules.CORE),
-        multiProvider,
-      );
+      const addresses = getAddresses(environment, Modules.CORE);
+      console.log(addresses);
+      const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
 
       const randomElement = <T>(list: T[]) =>
         list[Math.floor(Math.random() * list.length)];
