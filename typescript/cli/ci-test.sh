@@ -109,7 +109,7 @@ sleep 15
 echo "Done sleeping"
 
 # TODO remove, print names of all files
-find /tmp/.
+# find /tmp/.
 
 echo "===Core artifacts:"
 cat $CORE_ARTIFACTS_FILE 
