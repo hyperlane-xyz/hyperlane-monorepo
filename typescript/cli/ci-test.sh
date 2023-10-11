@@ -109,13 +109,23 @@ sleep 15
 echo "Done sleeping"
 
 # TODO remove, print names of all files
-# find /tmp/.
+find /tmp/.
+
+echo "===Core artifacts:"
+cat $CORE_ARTIFACTS_FILE 
+
+echo "===announcement:"
+cat /tmp/anvil1/validator/announcement.json
 
 echo "Announcing validator on anvil1"
 VALIDATOR_ANNOUNCE_ADDRESS=`cat $CORE_ARTIFACTS_FILE | jq -r ".anvil1.validatorAnnounce"`
+echo "Validator announce address: $VALIDATOR_ANNOUNCE_ADDRESS"
 VALIDATOR=`cat /tmp/anvil1/validator/announcement.json | jq -r '.value.validator'`
+echo "Validator: $VALIDATOR"
 STORAGE_LOCATION=`cat /tmp/anvil1/validator/announcement.json | jq -r '.value.storage_location'`
+echo "Storage location: $STORAGE_LOCATION"
 SIGNATURE=`cat /tmp/anvil1/validator/announcement.json | jq -r '.serialized_signature'`
+echo "Signature: $SIGNATURE"
 cast send $VALIDATOR_ANNOUNCE_ADDRESS  \
     "announce(address, string calldata, bytes calldata)(bool)" \
     $VALIDATOR $STORAGE_LOCATION $SIGNATURE --rpc-url http://127.0.0.1:8545 \
