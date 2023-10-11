@@ -60,6 +60,10 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send message \
     --core $CORE_ARTIFACTS_FILE \
     --quick \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+    | tee /tmp/message1
+
+MESSAGE1_ID=`cat /tmp/message1 | grep "Message ID" | grep -oP '0x[0-9a-f]+'`
+echo "Message 1 ID: $MESSAGE1_ID"
 
 WARP_ARTIFACTS_FILE=`find /tmp/warp-deployment* -type f -exec ls -t1 {} + | head -1`
 ANVIL1_ROUTER=`cat $WARP_ARTIFACTS_FILE | jq -r ".anvil1.router"`
@@ -73,7 +77,11 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
     --router $ANVIL1_ROUTER \
     --type native \
     --quick \
-    --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+    --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+    | tee /tmp/message2
+
+MESSAGE2_ID=`cat /tmp/message2 | grep "Message ID" | grep -oP '0x[0-9a-f]+'`
+echo "Message 2 ID: $MESSAGE2_ID"
 
 kill $ANVIL_1_PID
 kill $ANVIL_2_PID
@@ -102,8 +110,7 @@ do
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_PATH=/data/${1}/validator \
       -e HYP_BASE_TRACING_LEVEL=info -e HYP_BASE_TRACING_FMT=pretty \
       -log-driver none \
-      gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator \
-      &> /dev/null &
+      gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator > /dev/null 2>&1 &
 done
 
 echo "Validator running, sleeping to let it sync"
