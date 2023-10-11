@@ -104,7 +104,9 @@ do
       gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator &
 done
 
-sleep 20
+echo "Validator running, sleeping to let it sync"
+sleep 15
+echo "Done sleeping"
 
 # TODO remove, print names of all files
 find /tmp/.
