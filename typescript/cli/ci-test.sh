@@ -109,21 +109,41 @@ sleep 15
 echo "Done sleeping"
 
 # TODO remove, print names of all files
-find /tmp/.
+# find /tmp/.
 
-for i in "anvil1 8545" "anvil2 8555"
-do
-    set -- $i
-    echo "Announcing validator on $1"
-    VALIDATOR_ANNOUNCE_ADDRESS=`cat $CORE_ARTIFACTS_FILE | jq -r ".$1.validatorAnnounce"`
-    VALIDATOR=`cat /tmp/$1/validator/announcement.json | jq -r '.value.validator'`
-    STORAGE_LOCATION=`cat /tmp/$1/validator/announcement.json | jq -r '.value.storage_location'`
-    SIGNATURE=`cat /tmp/$1/validator/announcement.json | jq -r '.serialized_signature'`
-    cast send $VALIDATOR_ANNOUNCE_ADDRESS  \
-      "announce(address, string calldata, bytes calldata)(bool)" \
-      $VALIDATOR $STORAGE_LOCATION $SIGNATURE --rpc-url http://127.0.0.1:$2 \
-      --private-key 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
-done
+echo "Announcing validator on anvil1"
+VALIDATOR_ANNOUNCE_ADDRESS=`cat $CORE_ARTIFACTS_FILE | jq -r ".anvil1.validatorAnnounce"`
+VALIDATOR=`cat /tmp/anvil1/validator/announcement.json | jq -r '.value.validator'`
+STORAGE_LOCATION=`cat /tmp/anvil1/validator/announcement.json | jq -r '.value.storage_location'`
+SIGNATURE=`cat /tmp/anvil1/validator/announcement.json | jq -r '.serialized_signature'`
+cast send $VALIDATOR_ANNOUNCE_ADDRESS  \
+    "announce(address, string calldata, bytes calldata)(bool)" \
+    $VALIDATOR $STORAGE_LOCATION $SIGNATURE --rpc-url http://127.0.0.1:8545 \
+    --private-key 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+
+echo "Announcing validator on anvil2"
+VALIDATOR_ANNOUNCE_ADDRESS=`cat $CORE_ARTIFACTS_FILE | jq -r ".anvil2.validatorAnnounce"`
+VALIDATOR=`cat /tmp/anvil2/validator/announcement.json | jq -r '.value.validator'`
+STORAGE_LOCATION=`cat /tmp/anvil2/validator/announcement.json | jq -r '.value.storage_location'`
+SIGNATURE=`cat /tmp/anvil2/validator/announcement.json | jq -r '.serialized_signature'`
+cast send $VALIDATOR_ANNOUNCE_ADDRESS  \
+    "announce(address, string calldata, bytes calldata)(bool)" \
+    $VALIDATOR $STORAGE_LOCATION $SIGNATURE --rpc-url http://127.0.0.1:8555 \
+    --private-key 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+
+# for i in "anvil1 8545" "anvil2 8555"
+# do
+#     set -- $i
+#     echo "Announcing validator on $1"
+#     VALIDATOR_ANNOUNCE_ADDRESS=`cat $CORE_ARTIFACTS_FILE | jq -r ".$1.validatorAnnounce"`
+#     VALIDATOR=`cat /tmp/$1/validator/announcement.json | jq -r '.value.validator'`
+#     STORAGE_LOCATION=`cat /tmp/$1/validator/announcement.json | jq -r '.value.storage_location'`
+#     SIGNATURE=`cat /tmp/$1/validator/announcement.json | jq -r '.serialized_signature'`
+#     cast send $VALIDATOR_ANNOUNCE_ADDRESS  \
+#       "announce(address, string calldata, bytes calldata)(bool)" \
+#       $VALIDATOR $STORAGE_LOCATION $SIGNATURE --rpc-url http://127.0.0.1:$2 \
+#       --private-key 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+# done
 
 for i in "anvil1 anvil2 ANVIL2" "anvil2 anvil1 ANVIL1"
 do
