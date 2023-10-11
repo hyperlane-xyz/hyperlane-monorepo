@@ -495,7 +495,8 @@ async function sendMessage(
   });
 
   await timeout(
-    core.waitForMessagesProcessed(origin, destination, receipt, 5000, 36),
+    // Will check for up to 12 minutes
+    core.waitForMessagesProcessed(origin, destination, receipt, 5000, 144),
     messageReceiptTimeout,
     'Timeout waiting for message to be received',
   );
