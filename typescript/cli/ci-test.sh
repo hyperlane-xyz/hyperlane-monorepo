@@ -101,8 +101,7 @@ do
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE=localStorage \
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_PATH=/data/${1}/validator \
       -e HYP_BASE_TRACING_LEVEL=info -e HYP_BASE_TRACING_FMT=pretty \
-      gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator \
-      --log-driver=none &
+      gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator > /dev/null &
 done
 
 echo "Validator running, sleeping to let it sync"
@@ -178,7 +177,7 @@ do
 done
 
 sleep 5
-echo "Done running relayer
+echo "Done running relayer"
 
 docker ps -aq | xargs docker stop | xargs docker rm
 kill $ANVIL_1_PID
