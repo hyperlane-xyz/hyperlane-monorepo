@@ -11,7 +11,7 @@ use crate::utils::{as_task, AgentHandles, TaskHandle};
 use crate::{INFRA_PATH, MONOREPO_ROOT_PATH};
 
 #[apply(as_task)]
-pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
+pub fn start_anvil_and_deploy(config: Arc<Config>) -> AgentHandles {
     log!("Installing typescript dependencies...");
     let yarn_monorepo = Program::new("yarn").working_dir(MONOREPO_ROOT_PATH);
     yarn_monorepo.clone().cmd("install").run().join();

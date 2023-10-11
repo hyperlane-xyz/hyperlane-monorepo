@@ -1,10 +1,17 @@
 import '@nomiclabs/hardhat-etherscan';
 import '@nomiclabs/hardhat-waffle';
+import { ethers } from 'hardhat';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 import { TestSendReceiver__factory } from '@hyperlane-xyz/core';
-import { ChainName, HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  HookType,
+  HyperlaneCore,
+  ModuleType,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { Modules, getAddresses } from './scripts/utils';
@@ -35,20 +42,35 @@ task('kathy', 'Dispatches random hyperlane messages')
     '0',
   )
   .addParam('timeout', 'Time to wait between messages in ms.', '5000')
+  .addParam(
+    'hook',
+    'Hook to call in postDispatch',
+    HookType.AGGREGATION.toString(),
+  )
+  .addParam('ism', 'ISM to verify messages', ModuleType.AGGREGATION.toString())
   .addFlag('mineforever', 'Mine forever after sending messages')
   .setAction(
     async (
-      taskArgs: { messages: string; timeout: string; mineforever: boolean },
+      taskArgs: {
+        messages: string;
+        timeout: string;
+        mineforever: boolean;
+        hook: HookType;
+        ism: ModuleType;
+      },
       hre: HardhatRuntimeEnvironment,
     ) => {
       const timeout = Number.parseInt(taskArgs.timeout);
       const environment = 'test';
       const [signer] = await hre.ethers.getSigners();
       const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-      const core = HyperlaneCore.fromAddressesMap(
-        getAddresses(environment, Modules.CORE),
-        multiProvider,
-      );
+      const addresses = getAddresses(environment, Modules.CORE);
+      console.log('addresses', addresses);
+      console.log('taskargs', taskArgs);
+      const hook = addresses['test1'][taskArgs.hook];
+      const ism = addresses['test1'][taskArgs.ism];
+      console.log('hook and ism address', { hook, ism });
+      const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
 
       const randomElement = <T>(list: T[]) =>
         list[Math.floor(Math.random() * list.length)];
@@ -77,9 +99,16 @@ task('kathy', 'Dispatches random hyperlane messages')
           addressToBytes32(recipient.address),
           '0x1234',
         );
-        await recipient.dispatchToSelf(mailbox.address, remoteId, '0x1234', {
-          value: quote,
-        });
+        await recipient['dispatchToSelf(address,uint32,bytes,address,address)'](
+          mailbox.address,
+          remoteId,
+          '0x1234',
+          hook,
+          ism,
+          {
+            value: quote,
+          },
+        );
         console.log(
           `send to ${recipient.address} on ${remote} via mailbox ${
             mailbox.address

@@ -28,7 +28,7 @@ use tempfile::tempdir;
 
 use crate::{
     config::Config,
-    ethereum::start_anvil,
+    ethereum::start_anvil_and_deploy,
     invariants::termination_invariants_met,
     solana::*,
     utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle},
@@ -285,7 +285,7 @@ fn main() -> ExitCode {
         .filter_logs(|l| !l.contains("workspace-inheritance"))
         .run();
 
-    let start_anvil = start_anvil(config.clone());
+    let start_anvil = start_anvil_and_deploy(config.clone());
 
     let solana_program_path = solana_program_builder.join();
 
@@ -329,6 +329,8 @@ fn main() -> ExitCode {
         .working_dir(INFRA_PATH)
         .cmd("kathy")
         .arg("messages", (config.kathy_messages / 2).to_string())
+        .arg("hook")
+        .arg("ism")
         .arg("timeout", "1000");
     kathy_env.clone().run().join();
 
