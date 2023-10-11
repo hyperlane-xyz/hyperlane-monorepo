@@ -118,9 +118,6 @@ const hyperlane: RootAgentConfig = {
       [chainMetadata.solanadevnet.name]: {
         tag: '79bad9d-20230706-190752',
       },
-      [chainMetadata.proteustestnet.name]: {
-        tag: 'c7c44b2-20230811-133851',
-      },
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
