@@ -2,7 +2,7 @@
 
 *.sol @yorhodes @tkporter @aroralanuk
 *.ts @yorhodes @jmrossy @nambrot
-*.rs @mattiecnvr @tkporter @daniel-savu
+*.rs @tkporter @daniel-savu
 *.md @Skunkchain @nambrot @avious00
 
 # Package owners
@@ -11,7 +11,7 @@
 solidity/ @yorhodes @tkporter @aroralanuk
 
 ## Agents
-rust/ @mattiecnvr @tkporter @daniel-savu
+rust/ @tkporter @daniel-savu
 
 ## SDK
 typescript/sdk @yorhodes @jmrossy
@@ -26,4 +26,4 @@ typescript/helloworld @yorhodes @nambrot
 typescript/cli @jmrossy @asaj
 
 ## Infra
-typescript/infra @tkporter @nambrot @mattiecnvr
+typescript/infra @tkporter @nambrot
