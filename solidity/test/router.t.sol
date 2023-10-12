@@ -22,17 +22,11 @@ contract RouterTest is Test {
     uint32 destinationWithoutRouter = 3;
     bytes body = "0xdeadbeef";
 
-    event InitializeOverload();
     event Dispatch(
         address indexed sender,
         uint32 indexed destination,
         bytes32 indexed recipient,
         bytes message
-    );
-    event GasPayment(
-        bytes32 indexed messageId,
-        uint256 gasAmount,
-        uint256 payment
     );
 
     function setUp() public {
@@ -59,7 +53,7 @@ contract RouterTest is Test {
         vm.expectRevert(
             bytes("Initializable: contract is already initialized")
         );
-        router.initialize(address(mailbox), address(igp));
+        router.initialize(address(igp), address(ism));
     }
 
     function testEnrolledMailboxAndRouter() public {
