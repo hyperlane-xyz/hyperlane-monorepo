@@ -12,7 +12,10 @@ import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { MINIMUM_TEST_SEND_BALANCE } from '../consts.js';
-import { getDeployerContext, getMergedContractAddresses } from '../context.js';
+import {
+  getContextWithSigner,
+  getMergedContractAddresses,
+} from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
 
 const GAS_AMOUNT = 300_000;
@@ -36,7 +39,7 @@ export async function sendTestMessage({
   timeoutSec: number;
   skipWaitForDelivery: boolean;
 }) {
-  const { signer, multiProvider } = getDeployerContext(key, chainConfigPath);
+  const { signer, multiProvider } = getContextWithSigner(key, chainConfigPath);
   const coreArtifacts = coreArtifactsPath
     ? readDeploymentArtifacts(coreArtifactsPath)
     : undefined;

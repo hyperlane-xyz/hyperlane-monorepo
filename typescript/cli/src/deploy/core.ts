@@ -33,7 +33,7 @@ import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_BALANCE } from '../consts.js';
 import {
-  getDeployerContext,
+  getContextWithSigner,
   getMergedContractAddresses,
   sdkContractAddressesMap,
 } from '../context.js';
@@ -69,7 +69,7 @@ export async function runCoreDeploy({
   remotes?: string[];
   skipConfirmation: boolean;
 }) {
-  const { customChains, multiProvider, signer } = getDeployerContext(
+  const { customChains, multiProvider, signer } = getContextWithSigner(
     key,
     chainConfigPath,
   );

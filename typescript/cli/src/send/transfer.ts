@@ -18,7 +18,10 @@ import { Address, timeout } from '@hyperlane-xyz/utils';
 import { log, logBlue, logGreen } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { MINIMUM_TEST_SEND_BALANCE } from '../consts.js';
-import { getDeployerContext, getMergedContractAddresses } from '../context.js';
+import {
+  getContextWithSigner,
+  getMergedContractAddresses,
+} from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
 import { assertNativeBalances, assertTokenBalance } from '../utils/balances.js';
 
@@ -49,7 +52,7 @@ export async function sendTestTransfer({
   timeoutSec: number;
   skipWaitForDelivery: boolean;
 }) {
-  const { signer, multiProvider } = getDeployerContext(key, chainConfigPath);
+  const { signer, multiProvider } = getContextWithSigner(key, chainConfigPath);
   const artifacts = coreArtifactsPath
     ? readDeploymentArtifacts(coreArtifactsPath)
     : undefined;

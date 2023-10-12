@@ -7,6 +7,7 @@ import { chainsCommand } from './src/commands/chains.js';
 import { configCommand } from './src/commands/config.js';
 import { deployCommand } from './src/commands/deploy.js';
 import { sendCommand } from './src/commands/send.js';
+import { statusCommand } from './src/commands/status.js';
 
 // From yargs code:
 const MISSING_PARAMS_ERROR = 'Not enough non-option arguments';
@@ -22,6 +23,7 @@ try {
     .command(configCommand)
     .command(deployCommand)
     .command(sendCommand)
+    .command(statusCommand)
     .demandCommand()
     .strict()
     .help()

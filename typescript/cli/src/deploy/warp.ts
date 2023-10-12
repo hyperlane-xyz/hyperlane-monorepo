@@ -25,7 +25,10 @@ import { log, logBlue, logGray, logGreen } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { WarpRouteConfig, readWarpRouteConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_BALANCE } from '../consts.js';
-import { getDeployerContext, getMergedContractAddresses } from '../context.js';
+import {
+  getContextWithSigner,
+  getMergedContractAddresses,
+} from '../context.js';
 import {
   prepNewArtifactsFiles,
   runFileSelectionStep,
@@ -50,7 +53,7 @@ export async function runWarpDeploy({
   outPath: string;
   skipConfirmation: boolean;
 }) {
-  const { multiProvider, signer } = getDeployerContext(key, chainConfigPath);
+  const { multiProvider, signer } = getContextWithSigner(key, chainConfigPath);
 
   if (!warpConfigPath) {
     warpConfigPath = await runFileSelectionStep(

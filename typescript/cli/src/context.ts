@@ -27,7 +27,13 @@ export function getMergedContractAddresses(
   ) as HyperlaneContractsMap<any>;
 }
 
-export function getDeployerContext(key: string, chainConfigPath: string) {
+export function getContext(chainConfigPath: string) {
+  const customChains = readChainConfigIfExists(chainConfigPath);
+  const multiProvider = getMultiProvider(customChains);
+  return { customChains, multiProvider };
+}
+
+export function getContextWithSigner(key: string, chainConfigPath: string) {
   const signer = keyToSigner(key);
   const customChains = readChainConfigIfExists(chainConfigPath);
   const multiProvider = getMultiProvider(customChains, signer);
