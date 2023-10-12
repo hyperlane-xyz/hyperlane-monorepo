@@ -108,7 +108,7 @@ do
       -e HYP_VALIDATOR_VALIDATOR_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6 \
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE=localStorage \
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_PATH=/data/${1}/validator \
-      -e HYP_BASE_TRACING_LEVEL=info -e HYP_BASE_TRACING_FMT=pretty \
+      -e HYP_BASE_TRACING_LEVEL=warn -e HYP_BASE_TRACING_FMT=pretty \
       gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator &
 done
 
@@ -116,56 +116,11 @@ echo "Validator running, sleeping to let it sync"
 sleep 15
 echo "Done sleeping"
 
-# TODO remove, print names of all files
-# find /tmp/.
-
-# echo "Killing validator docker containers"
-# docker ps -aq | xargs docker stop | xargs docker rm
-
-echo "===Core artifacts:"
+echo "Core artifacts:"
 cat $CORE_ARTIFACTS_FILE 
 
-echo "===announcement:"
+echo "Validator Announcement:"
 cat /tmp/anvil1/validator/announcement.json
-
-
-# echo "Announcing validator on anvil1"
-# VALIDATOR_ANNOUNCE_ADDRESS=`cat $CORE_ARTIFACTS_FILE | jq -r ".anvil1.validatorAnnounce"`
-# echo "Validator announce address: $VALIDATOR_ANNOUNCE_ADDRESS"
-# VALIDATOR=`cat /tmp/anvil1/validator/announcement.json | jq -r '.value.validator'`
-# echo "Validator: $VALIDATOR"
-# STORAGE_LOCATION=`cat /tmp/anvil1/validator/announcement.json | jq -r '.value.storage_location'`
-# echo "Storage location: $STORAGE_LOCATION"
-# SIGNATURE=`cat /tmp/anvil1/validator/announcement.json | jq -r '.serialized_signature'`
-# echo "Signature: $SIGNATURE"
-# cast send $VALIDATOR_ANNOUNCE_ADDRESS  \
-#     "announce(address, string calldata, bytes calldata)(bool)" \
-#     $VALIDATOR $STORAGE_LOCATION $SIGNATURE --rpc-url http://127.0.0.1:8545 \
-#     --private-key 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
-
-# echo "Announcing validator on anvil2"
-# VALIDATOR_ANNOUNCE_ADDRESS=`cat $CORE_ARTIFACTS_FILE | jq -r ".anvil2.validatorAnnounce"`
-# VALIDATOR=`cat /tmp/anvil2/validator/announcement.json | jq -r '.value.validator'`
-# STORAGE_LOCATION=`cat /tmp/anvil2/validator/announcement.json | jq -r '.value.storage_location'`
-# SIGNATURE=`cat /tmp/anvil2/validator/announcement.json | jq -r '.serialized_signature'`
-# cast send $VALIDATOR_ANNOUNCE_ADDRESS  \
-#     "announce(address, string calldata, bytes calldata)(bool)" \
-#     $VALIDATOR $STORAGE_LOCATION $SIGNATURE --rpc-url http://127.0.0.1:8555 \
-#     --private-key 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
-
-# for i in "anvil1 8545" "anvil2 8555"
-# do
-#     set -- $i
-#     echo "Announcing validator on $1"
-#     VALIDATOR_ANNOUNCE_ADDRESS=`cat $CORE_ARTIFACTS_FILE | jq -r ".$1.validatorAnnounce"`
-#     VALIDATOR=`cat /tmp/$1/validator/announcement.json | jq -r '.value.validator'`
-#     STORAGE_LOCATION=`cat /tmp/$1/validator/announcement.json | jq -r '.value.storage_location'`
-#     SIGNATURE=`cat /tmp/$1/validator/announcement.json | jq -r '.serialized_signature'`
-#     cast send $VALIDATOR_ANNOUNCE_ADDRESS  \
-#       "announce(address, string calldata, bytes calldata)(bool)" \
-#       $VALIDATOR $STORAGE_LOCATION $SIGNATURE --rpc-url http://127.0.0.1:$2 \
-#       --private-key 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
-# done
 
 for i in "anvil1 anvil2 ANVIL2" "anvil2 anvil1 ANVIL1"
 do
@@ -176,7 +131,7 @@ do
       -e CONFIG_FILES=/data/${AGENT_CONFIG_FILE} \
       -e HYP_BASE_CHAINS_ANVIL1_CONNECTION_URL=http://127.0.0.1:8545 \
       -e HYP_BASE_CHAINS_ANVIL2_CONNECTION_URL=http://127.0.0.1:8555 \
-      -e HYP_BASE_TRACING_LEVEL=info -e HYP_BASE_TRACING_FMT=pretty \
+      -e HYP_BASE_TRACING_LEVEL=warn -e HYP_BASE_TRACING_FMT=pretty \
       -e HYP_RELAYER_ORIGINCHAINNAME=$1 -e HYP_RELAYER_DESTINATIONCHAINNAMES=$2 \
       -e HYP_RELAYER_ALLOWLOCALCHECKPOINTSYNCERS=true -e HYP_RELAYER_DB=/data/$1/relayer \
       -e HYP_RELAYER_GASPAYMENTENFORCEMENT='[{"type":"none"}]' \
