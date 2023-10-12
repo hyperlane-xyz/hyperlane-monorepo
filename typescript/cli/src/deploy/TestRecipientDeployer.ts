@@ -44,7 +44,9 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
       const ism = await testRecipient.interchainSecurityModule();
       this.logger(`Found ISM for on ${chain}: ${ism}`);
       if (!eqAddress(ism, config.interchainSecurityModule)) {
-        this.logger(`Current ISM does not match config. Updating.`);
+        this.logger(
+          `Current ISM does not match config. Updating to ${config.interchainSecurityModule}`,
+        );
         const tx = testRecipient.setInterchainSecurityModule(
           config.interchainSecurityModule,
         );
