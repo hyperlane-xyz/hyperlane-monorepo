@@ -187,7 +187,25 @@ do
 done
 
 sleep 5
-echo "Done running relayer"
+echo "Done running relayer, checking message delivery statuses"
+
+for i in "1 $MESSAGE1_ID" "2 $MESSAGE2_ID"
+do
+    set -- $i
+    echo "Checking delivery status of $1"
+    yarn workspace @hyperlane-xyz/cli run hyperlane status \
+        --id $2 \
+        --destination anvil2 \
+        --chains ./examples/anvil-chains.yaml \
+        --core $CORE_ARTIFACTS_FILE \
+        | tee /tmp/message-status-$1
+    if ! grep -q "$1 was delivered" /tmp/message-status-$1; then
+        echo "ERROR: Message $1 was not delivered"
+        exit 1
+    else
+        echo "Message $1 was delivered!"
+    fi
+done
 
 docker ps -aq | xargs docker stop | xargs docker rm
 kill $ANVIL_1_PID
