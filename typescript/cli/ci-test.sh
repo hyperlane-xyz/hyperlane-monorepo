@@ -147,7 +147,7 @@ echo "Done running relayer, checking message delivery statuses"
 for i in "1 $MESSAGE1_ID" "2 $MESSAGE2_ID"
 do
     set -- $i
-    echo "Checking delivery status of $1"
+    echo "Checking delivery status of $1: $2"
     yarn workspace @hyperlane-xyz/cli run hyperlane status \
         --id $2 \
         --destination anvil2 \
