@@ -109,8 +109,7 @@ do
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE=localStorage \
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_PATH=/data/${1}/validator \
       -e HYP_BASE_TRACING_LEVEL=info -e HYP_BASE_TRACING_FMT=pretty \
-      -log-driver none \
-      gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator > /dev/null 2>&1 &
+      gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator &
 done
 
 echo "Validator running, sleeping to let it sync"
