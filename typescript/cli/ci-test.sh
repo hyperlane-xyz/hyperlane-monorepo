@@ -154,7 +154,7 @@ do
         --chains ./examples/anvil-chains.yaml \
         --core $CORE_ARTIFACTS_FILE \
         | tee /tmp/message-status-$1
-    if ! grep -q "$1 was delivered" /tmp/message-status-$1; then
+    if ! grep -q "$2 was delivered" /tmp/message-status-$1; then
         echo "ERROR: Message $1 was not delivered"
         exit 1
     else
