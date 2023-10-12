@@ -285,7 +285,6 @@ async function executeDeploy({
   const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   coreDeployer.cacheAddressesMap(artifacts);
   const coreConfig = buildCoreConfigMap(owner, origin, defaultIsms);
-  console.log('===coreConfig', coreConfig);
   const coreContracts = await coreDeployer.deploy(coreConfig);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
   logGreen('Core contracts deployed');
