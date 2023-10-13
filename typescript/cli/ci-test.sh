@@ -122,24 +122,22 @@ cat $CORE_ARTIFACTS_FILE
 echo "Validator Announcement:"
 cat /tmp/anvil1/validator/announcement.json
 
-for i in "anvil1 anvil2 ANVIL2" "anvil2 anvil1 ANVIL1"
-do
-    set -- $i
-    echo "Running relayer on $1"
-    docker run \
-      --mount type=bind,source="/tmp",target=/data --net=host \
-      -e CONFIG_FILES=/data/${AGENT_CONFIG_FILE} \
-      -e HYP_BASE_CHAINS_ANVIL1_CONNECTION_URL=http://127.0.0.1:8545 \
-      -e HYP_BASE_CHAINS_ANVIL2_CONNECTION_URL=http://127.0.0.1:8555 \
-      -e HYP_BASE_TRACING_LEVEL=warn -e HYP_BASE_TRACING_FMT=pretty \
-      -e HYP_RELAYER_ORIGINCHAINNAME=$1 -e HYP_RELAYER_DESTINATIONCHAINNAMES=$2 \
-      -e HYP_RELAYER_ALLOWLOCALCHECKPOINTSYNCERS=true -e HYP_RELAYER_DB=/data/$1/relayer \
-      -e HYP_RELAYER_GASPAYMENTENFORCEMENT='[{"type":"none"}]' \
-      -e HYP_BASE_CHAINS_${3}_SIGNER_TYPE=hexKey \
-      -e HYP_BASE_CHAINS_${3}_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
-      -log-driver none \
-      gcr.io/abacus-labs-dev/hyperlane-agent:main ./relayer &
-done
+
+echo "Running relayer on $1"
+docker run \
+    --mount type=bind,source="/tmp",target=/data --net=host \
+    -e CONFIG_FILES=/data/${AGENT_CONFIG_FILE} \
+    -e HYP_BASE_CHAINS_ANVIL1_CONNECTION_URL=http://127.0.0.1:8545 \
+    -e HYP_BASE_CHAINS_ANVIL2_CONNECTION_URL=http://127.0.0.1:8555 \
+    -e HYP_BASE_TRACING_LEVEL=warn -e HYP_BASE_TRACING_FMT=pretty \
+    -e HYP_RELAYER_RELAYCHAINS=anvil1,anvil2 \
+    -e HYP_RELAYER_ALLOWLOCALCHECKPOINTSYNCERS=true -e HYP_RELAYER_DB=/data/relayer \
+    -e HYP_RELAYER_GASPAYMENTENFORCEMENT='[{"type":"none"}]' \
+    -e HYP_BASE_CHAINS_ANVIL1_SIGNER_TYPE=hexKey \
+    -e HYP_BASE_CHAINS_ANVIL1_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
+    -e HYP_BASE_CHAINS_ANVIL2_SIGNER_TYPE=hexKey \
+    -e HYP_BASE_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
+    gcr.io/abacus-labs-dev/hyperlane-agent:main ./relayer &
 
 sleep 5
 echo "Done running relayer, checking message delivery statuses"
