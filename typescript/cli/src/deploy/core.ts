@@ -232,21 +232,16 @@ async function executeDeploy({
     artifacts,
     ismFactoryContracts,
   );
-  logGreen(`ISM factory contracts deployed`);
+  logGreen('ISM factory contracts deployed');
 
   // 2. Deploy IGPs to all deployable chains.
-  log(`Deploying IGP contracts`);
-  const igpConfig = buildIgpConfigMap(
-    owner,
-    selectedChains,
-    selectedChains,
-    multisigConfig,
-  );
+  log('Deploying IGP contracts');
+  const igpConfig = buildIgpConfigMap(owner, selectedChains, multisigConfig);
   const igpDeployer = new HyperlaneIgpDeployer(multiProvider);
   igpDeployer.cacheAddressesMap(artifacts);
   const igpContracts = await igpDeployer.deploy(igpConfig);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, igpContracts);
-  logGreen(`IGP contracts deployed`);
+  logGreen('IGP contracts deployed');
 
   // Build an IsmFactory that covers all chains so that we can
   // use it to deploy ISMs to remote chains.
@@ -257,25 +252,24 @@ async function executeDeploy({
 
   // 3. Deploy ISM contracts to remote deployable chains
   log('Deploying ISMs');
-  const ismConfigs = buildIsmConfigMap(
-    owner,
-    selectedChains,
-    remotes,
-    multisigConfig,
-  );
   const ismContracts: ChainMap<{ multisigIsm: DeployedIsm }> = {};
   const defaultIsms: ChainMap<Address> = {};
-  for (const [ismChain, ismConfig] of Object.entries(ismConfigs)) {
-    if (artifacts[ismChain].multisigIsm) {
-      log(`ISM contract recovered, skipping ISM deployment to ${ismChain}`);
-      defaultIsms[ismChain] = artifacts[ismChain].multisigIsm;
+  for (const ismOrigin of selectedChains) {
+    if (artifacts[ismOrigin].multisigIsm) {
+      log(`ISM contract recovered, skipping ISM deployment to ${ismOrigin}`);
+      defaultIsms[ismOrigin] = artifacts[ismOrigin].multisigIsm;
       continue;
     }
-    log(`Deploying ISM to ${ismChain}`);
-    ismContracts[ismChain] = {
-      multisigIsm: await ismFactory.deploy(ismChain, ismConfig),
+    log(`Deploying ISM to ${ismOrigin}`);
+    const ismConfig = buildIsmConfig(
+      owner,
+      selectedChains.filter((r) => r !== ismOrigin),
+      multisigConfig,
+    );
+    ismContracts[ismOrigin] = {
+      multisigIsm: await ismFactory.deploy(ismOrigin, ismConfig),
     };
-    defaultIsms[ismChain] = ismContracts[ismChain].multisigIsm.address;
+    defaultIsms[ismOrigin] = ismContracts[ismOrigin].multisigIsm.address;
   }
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, ismContracts);
   logGreen('ISM contracts deployed');
@@ -305,7 +299,7 @@ async function executeDeploy({
     artifacts,
     testRecipients,
   );
-  logGreen(`Test recipient contracts deployed`);
+  logGreen('Test recipient contracts deployed');
 
   log('Writing agent configs');
   await writeAgentConfig(
@@ -340,22 +334,6 @@ function buildIsmConfig(
   };
 }
 
-function buildIsmConfigMap(
-  owner: Address,
-  chains: ChainName[],
-  remotes: ChainName[],
-  multisigIsmConfigs: ChainMap<MultisigIsmConfig>,
-): ChainMap<RoutingIsmConfig> {
-  return chains.reduce<ChainMap<RoutingIsmConfig>>((config, chain) => {
-    config[chain] = buildIsmConfig(
-      owner,
-      remotes.filter((r) => r !== chain),
-      multisigIsmConfigs,
-    );
-    return config;
-  }, {});
-}
-
 function buildCoreConfigMap(
   owner: Address,
   origin: ChainName,
@@ -373,26 +351,22 @@ function buildTestRecipientConfigMap(
   chains: ChainName[],
   addressesMap: HyperlaneAddressesMap<any>,
 ): ChainMap<TestRecipientConfig> {
-  return Object.fromEntries(
-    chains.map((chain) => {
-      const interchainSecurityModule =
-        // TODO revisit assumption that multisigIsm is always the ISM
-        addressesMap[chain].multisigIsm ??
-        addressesMap[chain].interchainSecurityModule ??
-        ethers.constants.AddressZero;
-      if (interchainSecurityModule === ethers.constants.AddressZero) {
-        logRed(
-          'Error: No ISM provided to the TestRecipient, deploying with zero address',
-        );
-      }
-      return [chain, { interchainSecurityModule }];
-    }),
-  );
+  return chains.reduce<ChainMap<TestRecipientConfig>>((config, chain) => {
+    const interchainSecurityModule =
+      // TODO revisit assumption that multisigIsm is always the ISM
+      addressesMap[chain].multisigIsm ??
+      addressesMap[chain].interchainSecurityModule ??
+      ethers.constants.AddressZero;
+    if (interchainSecurityModule === ethers.constants.AddressZero) {
+      logRed('Error: No ISM for TestRecipient, deploying with zero address');
+    }
+    config[chain] = { interchainSecurityModule };
+    return config;
+  }, {});
 }
 
 function buildIgpConfigMap(
   owner: Address,
-  deployChains: ChainName[],
   selectedChains: ChainName[],
   multisigIsmConfigs: ChainMap<MultisigIsmConfig>,
 ): ChainMap<OverheadIgpConfig> {
@@ -401,7 +375,7 @@ function buildIgpConfigMap(
     multisigIsmConfigs,
   );
   const configMap: ChainMap<OverheadIgpConfig> = {};
-  for (const origin of deployChains) {
+  for (const origin of selectedChains) {
     const overhead: ChainMap<number> = {};
     const gasOracleType: ChainMap<GasOracleContractType> = {};
     for (const remote of selectedChains) {
