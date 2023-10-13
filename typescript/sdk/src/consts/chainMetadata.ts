@@ -198,7 +198,11 @@ export const bsctestnet: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'BSC Testnet',
   nativeToken: bnbToken,
-  rpcUrls: [{ http: 'https://data-seed-prebsc-1-s3.binance.org:8545' }],
+  rpcUrls: [
+    { http: 'https://bsc-testnet.publicnode.com' },
+    { http: 'https://bsc-testnet.public.blastapi.io' },
+    { http: 'https://bsc-testnet.blockpi.network/v1/rpc/public' },
+  ],
   blockExplorers: [
     {
       name: 'BscScan',
