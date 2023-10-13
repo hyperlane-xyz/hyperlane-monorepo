@@ -51,7 +51,7 @@ fn get_context_salt(context: Option<&String>) -> H256 {
                 ethers::utils::keccak256(c.as_bytes()).into()
             }
         })
-        .unwrap_or_else(|| H256::zero())
+        .unwrap_or_else(H256::zero)
 }
 
 fn get_context_dir_name(context: Option<&String>) -> &str {
@@ -433,11 +433,12 @@ fn init_and_configure_igp_account(
     let (igp_account_pda, _igp_account_bump) =
         Pubkey::find_program_address(hyperlane_sealevel_igp::igp_pda_seeds!(salt), &program_id);
 
-    if let None = ctx
+    if ctx
         .client
         .get_account_with_commitment(&igp_account_pda, ctx.commitment)
         .unwrap()
         .value
+        .is_none()
     {
         let instruction = hyperlane_sealevel_igp::instruction::init_igp_instruction(
             program_id,
@@ -514,11 +515,12 @@ fn init_and_configure_overhead_igp_account(
         &program_id,
     );
 
-    if let None = ctx
+    if ctx
         .client
         .get_account_with_commitment(&overhead_igp_account, ctx.commitment)
         .unwrap()
         .value
+        .is_none()
     {
         let instruction = hyperlane_sealevel_igp::instruction::init_overhead_igp_instruction(
             program_id,
