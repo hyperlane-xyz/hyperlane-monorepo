@@ -1,5 +1,3 @@
-import { Keypair } from '@solana/web3.js';
-import { Wallet } from 'ethers';
 import path from 'path';
 import yargs from 'yargs';
 
@@ -7,7 +5,6 @@ import {
   AllChains,
   ChainMap,
   ChainMetadata,
-  ChainMetadataManager,
   ChainName,
   Chains,
   CoreConfig,
@@ -19,12 +16,7 @@ import {
   RpcConsensusType,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  objMap,
-  promiseObjAll,
-  strip0x,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
@@ -167,7 +159,7 @@ export function getAgentConfig(
   return agentConfig;
 }
 
-function getKeyForRole(
+export function getKeyForRole(
   environment: DeployEnvironment,
   context: Contexts,
   chain: ChainName,
@@ -191,7 +183,6 @@ export async function getMultiProviderForRole(
   if (process.env.CI === 'true') {
     return new MultiProvider(); // use default RPCs
   }
-
   const multiProvider = new MultiProvider(txConfigs);
   await promiseObjAll(
     objMap(txConfigs, async (chain, _) => {
@@ -202,6 +193,7 @@ export async function getMultiProviderForRole(
       multiProvider.setSigner(chain, signer);
     }),
   );
+
   return multiProvider;
 }
 
@@ -219,32 +211,11 @@ export async function getKeysForRole(
   }
 
   const keys = await promiseObjAll(
-    objMap(txConfigs, async (chain, _) => {
-      const key = getKeyForRole(environment, context, chain, role, index);
-      if (!key.privateKey)
-        throw new Error(`Key for ${chain} does not have private key`);
-      return key;
-    }),
+    objMap(txConfigs, async (chain, _) =>
+      getKeyForRole(environment, context, chain, role, index),
+    ),
   );
   return keys;
-}
-
-// Note: this will only work for keystores that allow key's to be extracted.
-export function getAddressesForKey(
-  keys: ChainMap<CloudAgentKey>,
-  chain: ChainName,
-  manager: ChainMetadataManager<any>,
-) {
-  const protocol = manager.getChainMetadata(chain).protocol;
-  if (protocol === ProtocolType.Ethereum) {
-    return new Wallet(keys[chain]).address;
-  } else if (protocol === ProtocolType.Sealevel) {
-    return Keypair.fromSeed(
-      Buffer.from(strip0x(keys[chain].privateKey), 'hex'),
-    ).publicKey.toBase58();
-  } else {
-    throw Error(`Protocol ${protocol} not supported`);
-  }
 }
 
 export function getContractAddressesSdkFilepath() {
@@ -337,10 +308,29 @@ export async function getRouterConfig(
   ).intersection;
 
   for (const chain of knownChains) {
+    // CI will not have signers for all known chains. To avoid failing, we
+    // default to the owner configured in the environment if we cannot get a
+    // signer address.
+    const getSignerAddress = (chain: ChainName) => {
+      const signer = multiProvider.tryGetSigner(chain);
+      if (!signer) {
+        const owner = owners[chain];
+        console.warn(
+          `Unable to get signer for chain, ${chain}, defaulting to configured owner ${owner}`,
+        );
+        return owner;
+      }
+      return signer.getAddress();
+    };
+
+    // MultiProvider signers are only used for Ethereum chains.
+    const owner =
+      useMultiProviderOwners &&
+      multiProvider.getChainMetadata(chain).protocol === ProtocolType.Ethereum
+        ? await getSignerAddress(chain)
+        : owners[chain];
     config[chain] = {
-      owner: useMultiProviderOwners
-        ? await multiProvider.getSignerAddress(chain)
-        : owners[chain],
+      owner: owner,
       mailbox: core.getContracts(chain).mailbox.address,
       hook: igp.getContracts(chain).interchainGasPaymaster.address,
     };

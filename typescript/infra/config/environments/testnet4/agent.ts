@@ -57,7 +57,28 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
     // all messages between interchain query routers.
     // This whitelist will become more strict with
     // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
-    matchingList: interchainQueriesMatchingList,
+    matchingList: [
+      ...interchainQueriesMatchingList,
+      {
+        originDomain: [getDomainId(chainMetadata.solanadevnet)],
+        senderAddress: [
+          // hyperlane context helloworld router on solanadevnet
+          'CXQX54kdkU5GqdRJjCmHpwHfEMgFb5SeBmMWntP2Ds7J',
+        ],
+        destinationDomain: '*',
+        recipientAddress: '*',
+      },
+      {
+        originDomain: [getDomainId(chainMetadata.bsctestnet)],
+        senderAddress: [
+          // testnet ZBC warp route on bsctestnet, which pays
+          // an IGP that isn't indexed by the relayer at the moment
+          '0x31b5234A896FbC4b3e2F7237592D054716762131',
+        ],
+        destinationDomain: '*',
+        recipientAddress: '*',
+      },
+    ],
   },
   // Default policy is OnChainFeeQuoting
   {
@@ -74,7 +95,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ed7569d-20230725-171222',
+      tag: '35fdc74-20230913-104940',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -94,12 +115,9 @@ const hyperlane: RootAgentConfig = {
       tag: 'ed7569d-20230725-171222',
     },
     chainDockerOverrides: {
-      [chainMetadata.solanadevnet.name]: {
-        tag: '79bad9d-20230706-190752',
-      },
-      [chainMetadata.proteustestnet.name]: {
-        tag: 'c7c44b2-20230811-133851',
-      },
+      // [chainMetadata.solanadevnet.name]: {
+      //   tag: '79bad9d-20230706-190752',
+      // },
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -120,56 +138,28 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c7c44b2-20230811-133851',
+      tag: '892cc5d-20230908-162614',
     },
-    whitelist: [
-      ...releaseCandidateHelloworldMatchingList,
-      // Whitelist all traffic to solanadevnet
-      {
-        originDomain: '*',
-        senderAddress: '*',
-        destinationDomain: [
-          getDomainId(chainMetadata.solanadevnet),
-          getDomainId(chainMetadata.proteustestnet),
-        ],
-        recipientAddress: '*',
-      },
-      // Whitelist all traffic from solanadevnet to fuji
-      {
-        originDomain: [
-          getDomainId(chainMetadata.solanadevnet),
-          getDomainId(chainMetadata.proteustestnet),
-        ],
-        senderAddress: '*',
-        destinationDomain: [getDomainId(chainMetadata.bsctestnet)],
-        recipientAddress: '*',
-      },
-    ],
+    whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement: [
       // Don't require gas payments from solanadevnet
-      {
-        type: GasPaymentEnforcementPolicyType.None,
-        matchingList: [
-          {
-            originDomain: [getDomainId(chainMetadata.solanadevnet)],
-            senderAddress: '*',
-            destinationDomain: [
-              getDomainId(chainMetadata.bsctestnet),
-              getDomainId(chainMetadata.proteustestnet),
-            ],
-            recipientAddress: '*',
-          },
-          {
-            originDomain: [getDomainId(chainMetadata.bsctestnet)],
-            senderAddress: '*',
-            destinationDomain: [
-              getDomainId(chainMetadata.solanadevnet),
-              getDomainId(chainMetadata.proteustestnet),
-            ],
-            recipientAddress: '*',
-          },
-        ],
-      },
+      // {
+      //   type: GasPaymentEnforcementPolicyType.None,
+      //   matchingList: [
+      //     {
+      //       originDomain: [getDomainId(chainMetadata.solanadevnet)],
+      //       senderAddress: '*',
+      //       destinationDomain: '*',
+      //       recipientAddress: '*',
+      //     },
+      //     {
+      //       originDomain: '*',
+      //       senderAddress: '*',
+      //       destinationDomain: [getDomainId(chainMetadata.solanadevnet)],
+      //       recipientAddress: '*',
+      //     },
+      //   ],
+      // },
       ...gasPaymentEnforcement,
     ],
     transactionGasLimit: 750000,

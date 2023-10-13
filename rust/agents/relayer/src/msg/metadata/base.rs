@@ -76,9 +76,14 @@ impl MetadataBuilder for BaseMetadataBuilder {
         ism_address: H256,
         message: &HyperlaneMessage,
     ) -> Result<Option<Vec<u8>>> {
-        const CTX: &str = "When fetching module type";
-        let ism = self.build_ism(ism_address).await.context(CTX)?;
-        let module_type = ism.module_type().await.context(CTX)?;
+        let ism = self
+            .build_ism(ism_address)
+            .await
+            .context("When building ISM")?;
+        let module_type = ism
+            .module_type()
+            .await
+            .context("When fetching module type")?;
         let base = self.clone_with_incremented_depth()?;
 
         let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
@@ -96,7 +101,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
         metadata_builder
             .build(ism_address, message)
             .await
-            .context(CTX)
+            .context("When building metadata")
     }
 }
 
@@ -193,8 +198,12 @@ impl BaseMetadataBuilder {
         for (&validator, validator_storage_locations) in validators.iter().zip(storage_locations) {
             for storage_location in validator_storage_locations.iter().rev() {
                 let Ok(config) = CheckpointSyncerConf::from_str(storage_location) else {
-                    debug!(?validator, ?storage_location, "Could not parse checkpoint syncer config for validator");
-                    continue
+                    debug!(
+                        ?validator,
+                        ?storage_location,
+                        "Could not parse checkpoint syncer config for validator"
+                    );
+                    continue;
                 };
 
                 // If this is a LocalStorage based checkpoint syncer and it's not

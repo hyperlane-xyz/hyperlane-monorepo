@@ -26,6 +26,7 @@ pub(crate) struct Context {
     payer_keypair: Option<PayerKeypair>,
     pub commitment: CommitmentConfig,
     pub initial_instructions: RefCell<Vec<InstructionWithDescription>>,
+    pub require_tx_approval: bool,
 }
 
 pub(crate) struct InstructionWithDescription {
@@ -58,6 +59,7 @@ impl Context {
         payer_keypair: Option<PayerKeypair>,
         commitment: CommitmentConfig,
         initial_instructions: RefCell<Vec<InstructionWithDescription>>,
+        require_tx_approval: bool,
     ) -> Self {
         Self {
             client,
@@ -65,6 +67,7 @@ impl Context {
             payer_keypair,
             commitment,
             initial_instructions,
+            require_tx_approval,
         }
     }
 
@@ -181,6 +184,13 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             wait_for_user_confirmation();
 
             return None;
+        }
+
+        // Print the tx as an indication for what's about to happen
+        self.pretty_print_transaction();
+
+        if self.ctx.require_tx_approval {
+            wait_for_user_confirmation();
         }
 
         let client = self.client.unwrap_or(&self.ctx.client);

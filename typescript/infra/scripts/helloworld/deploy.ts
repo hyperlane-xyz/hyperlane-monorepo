@@ -1,29 +1,55 @@
 import path from 'path';
 
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
-import { serializeContractsMap } from '@hyperlane-xyz/sdk';
+import {
+  HyperlaneIsmFactory,
+  filterChainMapExcludeProtocol,
+  serializeContractsMap,
+} from '@hyperlane-xyz/sdk';
+import {
+  ProtocolType,
+  hexOrBase58ToHex,
+  objMap,
+  objMerge,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
+import { helloWorldRouterConfig } from '../../src/config/helloworld/config';
 import { Role } from '../../src/roles';
 import { readJSON, writeJSON } from '../../src/utils/utils';
 import {
-  getArgs,
   getEnvironmentConfig,
   getEnvironmentDirectory,
-  getRouterConfig,
+  getArgs as getRootArgs,
   withContext,
 } from '../utils';
 
+function getArgs() {
+  return withContext(getRootArgs())
+    .boolean('govern')
+    .default('govern', false)
+    .alias('g', 'govern').argv;
+}
+
 async function main() {
-  const { environment, context } = await withContext(getArgs()).argv;
+  const { environment, context } = await getArgs();
   const coreConfig = getEnvironmentConfig(environment);
   // Always deploy from the hyperlane deployer
   const multiProvider = await coreConfig.getMultiProvider(
     Contexts.Hyperlane,
     Role.Deployer,
   );
-  const configMap = await getRouterConfig(environment, multiProvider, true);
-  const deployer = new HelloWorldDeployer(multiProvider);
+  const configMap = await helloWorldRouterConfig(
+    environment,
+    context,
+    multiProvider,
+  );
+  const ismFactory = HyperlaneIsmFactory.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider,
+  );
+  const deployer = new HelloWorldDeployer(multiProvider, ismFactory);
   const dir = path.join(
     getEnvironmentDirectory(environment),
     'helloworld',
@@ -39,18 +65,32 @@ async function main() {
     console.info(`Could not load previous deployment, file may not exist`);
   }
 
+  const configMapWithForeignDeployments = objMerge(
+    configMap,
+    objMap(
+      filterChainMapExcludeProtocol(
+        deployer.cachedAddresses,
+        ProtocolType.Ethereum,
+        multiProvider,
+      ),
+      (_chain, addresses) => ({
+        foreignDeployment: hexOrBase58ToHex(addresses.router),
+      }),
+    ),
+  );
+
   try {
-    await deployer.deploy(configMap);
+    await deployer.deploy(configMapWithForeignDeployments);
   } catch (e) {
     console.error(`Encountered error during deploy`);
     console.error(e);
   }
 
-  writeJSON(
-    dir,
-    'addresses.json',
-    serializeContractsMap(deployer.deployedContracts),
-  );
+  writeJSON(dir, 'addresses.json', {
+    // To include foreign deployments that may be present in the addresses.json already
+    ...deployer.cachedAddresses,
+    ...serializeContractsMap(deployer.deployedContracts),
+  });
   writeJSON(
     dir,
     'verification.json',
