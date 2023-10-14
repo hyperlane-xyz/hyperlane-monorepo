@@ -1,18 +1,20 @@
+#!/usr/bin/env bash
+
+# Optional cleanup for previous runs, useful when running locally
+pkill -f anvil
+docker ps -aq | xargs docker stop | xargs docker rm
+rm -rf /tmp/anvil*
+rm -rf /tmp/relayer
+
+# Setup directories for anvil chains
 for CHAIN in anvil1 anvil2
 do
-    mkdir /tmp/$CHAIN \
-    /tmp/$CHAIN/state \
-    /tmp/$CHAIN/validator \
-    /tmp/$CHAIN/relayer && \
-    chmod 777 /tmp/$CHAIN -R
+    mkdir -p /tmp/$CHAIN /tmp/$CHAIN/state  /tmp/$CHAIN/validator /tmp/relayer
+    chmod -R 777 /tmp/relayer /tmp/$CHAIN
 done
 
-anvil --chain-id 31337 -p 8545 --state /tmp/anvil1/state > /dev/null &
-ANVIL_1_PID=$!
-
-anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state > /dev/null &
-ANVIL_2_PID=$!
-
+anvil --chain-id 31337 -p 8545 --state /tmp/anvil1/state --block-time 1 > /dev/null &
+anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state --block-time 1 > /dev/null &
 sleep 1
 
 set -e
@@ -29,24 +31,28 @@ yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
 
-CORE_ARTIFACTS_FILE=`find /tmp/core-deployment* -type f -exec ls -t1 {} + | head -1`
+CORE_ARTIFACTS_PATH=`find /tmp/core-deployment* -type f -exec ls -t1 {} + | head -1`
 
 echo "Deploying contracts to anvil2"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
     --chains ./examples/anvil-chains.yaml \
-    --artifacts $CORE_ARTIFACTS_FILE \
+    --artifacts $CORE_ARTIFACTS_PATH \
     --out /tmp \
     --ism ./examples/multisig-ism.yaml \
     --origin anvil2 --remotes anvil1 \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
 
-CORE_ARTIFACTS_FILE=`find /tmp/core-deployment* -type f -exec ls -t1 {} + | head -1`
+CORE_ARTIFACTS_PATH=`find /tmp/core-deployment* -type f -exec ls -t1 {} + | head -1`
+echo "Core artifacts:"
+cat $CORE_ARTIFACTS_PATH
+
+AGENT_CONFIG_FILENAME=`ls -t1 /tmp | grep agent-config | head -1`
 
 echo "Deploying warp routes"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
     --chains ./examples/anvil-chains.yaml \
-    --core $CORE_ARTIFACTS_FILE \
+    --core $CORE_ARTIFACTS_PATH \
     --config ./examples/warp-tokens.yaml \
     --out /tmp \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
@@ -57,7 +63,7 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send message \
     --origin anvil1 \
     --destination anvil2 \
     --chains ./examples/anvil-chains.yaml \
-    --core $CORE_ARTIFACTS_FILE \
+    --core $CORE_ARTIFACTS_PATH \
     --quick \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     | tee /tmp/message1
@@ -73,7 +79,7 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
     --origin anvil1 \
     --destination anvil2 \
     --chains ./examples/anvil-chains.yaml \
-    --core $CORE_ARTIFACTS_FILE \
+    --core $CORE_ARTIFACTS_PATH \
     --router $ANVIL1_ROUTER \
     --type native \
     --quick \
@@ -83,32 +89,27 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
 MESSAGE2_ID=`cat /tmp/message2 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
 echo "Message 2 ID: $MESSAGE2_ID"
 
-kill $ANVIL_1_PID
-kill $ANVIL_2_PID
-
-anvil --chain-id 31337 -p 8545 --block-time 1 --state /tmp/anvil1/state > /dev/null &
-ANVIL_1_PID=$!
-
-anvil --chain-id 31338 -p 8555 --block-time 1 --state /tmp/anvil2/state > /dev/null &
-ANVIL_2_PID=$!
-
-AGENT_CONFIG_FILE=`ls -t1 /tmp | grep agent-config | head -1`
+if [[ $OSTYPE == 'darwin'* ]]; then
+    # Required because the -net=host driver only works on linux
+    DOCKER_CONNECTION_URL="http://host.docker.internal"
+else
+    DOCKER_CONNECTION_URL="http://127.0.0.1"
+fi
 
 for i in "anvil1 8545 ANVIL1" "anvil2 8555 ANVIL2"
 do
     set -- $i
     echo "Running validator on $1"
-    # Won't work on anything but linux due to -net=host
     docker run \
       --mount type=bind,source="/tmp",target=/data --net=host \
-      -e CONFIG_FILES=/data/${AGENT_CONFIG_FILE} -e HYP_VALIDATOR_ORIGINCHAINNAME=$1 \
+      -e CONFIG_FILES=/data/${AGENT_CONFIG_FILENAME} -e HYP_VALIDATOR_ORIGINCHAINNAME=$1 \
       -e HYP_VALIDATOR_REORGPERIOD=0 -e HYP_VALIDATOR_INTERVAL=1 \
-      -e HYP_BASE_CHAINS_${3}_CONNECTION_URL=http://127.0.0.1:${2} \
+      -e HYP_BASE_CHAINS_${3}_CONNECTION_URL=${DOCKER_CONNECTION_URL}:${2} \
       -e HYP_VALIDATOR_VALIDATOR_TYPE=hexKey \
       -e HYP_VALIDATOR_VALIDATOR_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6 \
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE=localStorage \
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_PATH=/data/${1}/validator \
-      -e HYP_BASE_TRACING_LEVEL=warn -e HYP_BASE_TRACING_FMT=pretty \
+      -e HYP_BASE_TRACING_LEVEL=debug -e HYP_BASE_TRACING_FMT=compact \
       gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator &
 done
 
@@ -116,20 +117,18 @@ echo "Validator running, sleeping to let it sync"
 sleep 15
 echo "Done sleeping"
 
-echo "Core artifacts:"
-cat $CORE_ARTIFACTS_FILE 
-
 echo "Validator Announcement:"
 cat /tmp/anvil1/validator/announcement.json
 
-
-echo "Running relayer on $1"
+echo "Running relayer"
+# Won't work on anything but linux due to -net=host
+# Replace CONNECTION_URL with host.docker.internal on mac
 docker run \
     --mount type=bind,source="/tmp",target=/data --net=host \
-    -e CONFIG_FILES=/data/${AGENT_CONFIG_FILE} \
-    -e HYP_BASE_CHAINS_ANVIL1_CONNECTION_URL=http://127.0.0.1:8545 \
-    -e HYP_BASE_CHAINS_ANVIL2_CONNECTION_URL=http://127.0.0.1:8555 \
-    -e HYP_BASE_TRACING_LEVEL=warn -e HYP_BASE_TRACING_FMT=pretty \
+    -e CONFIG_FILES=/data/${AGENT_CONFIG_FILENAME} \
+    -e HYP_BASE_CHAINS_ANVIL1_CONNECTION_URL=${DOCKER_CONNECTION_URL}:8545 \
+    -e HYP_BASE_CHAINS_ANVIL2_CONNECTION_URL=${DOCKER_CONNECTION_URL}:8555 \
+    -e HYP_BASE_TRACING_LEVEL=debug -e HYP_BASE_TRACING_FMT=compact \
     -e HYP_RELAYER_RELAYCHAINS=anvil1,anvil2 \
     -e HYP_RELAYER_ALLOWLOCALCHECKPOINTSYNCERS=true -e HYP_RELAYER_DB=/data/relayer \
     -e HYP_RELAYER_GASPAYMENTENFORCEMENT='[{"type":"none"}]' \
@@ -150,7 +149,7 @@ do
         --id $2 \
         --destination anvil2 \
         --chains ./examples/anvil-chains.yaml \
-        --core $CORE_ARTIFACTS_FILE \
+        --core $CORE_ARTIFACTS_PATH \
         | tee /tmp/message-status-$1
     if ! grep -q "$2 was delivered" /tmp/message-status-$1; then
         echo "ERROR: Message $1 was not delivered"
@@ -161,5 +160,4 @@ do
 done
 
 docker ps -aq | xargs docker stop | xargs docker rm
-kill $ANVIL_1_PID
-kill $ANVIL_2_PID
+pkill -f anvil
