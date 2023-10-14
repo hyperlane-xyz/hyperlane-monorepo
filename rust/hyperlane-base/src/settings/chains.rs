@@ -292,7 +292,7 @@ impl ChainConf {
                     conf.clone(),
                     locator,
                     signer,
-                    "mailbox_process".to_string(), // TODO: is this correct for?
+                    "mailbox_process".to_string(),
                 ));
                 Ok(indexer as Box<dyn SequenceIndexer<H256>>)
             }

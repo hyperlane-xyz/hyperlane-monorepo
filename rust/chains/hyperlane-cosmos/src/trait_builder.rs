@@ -29,9 +29,12 @@ pub struct RawConnectionConf {
 /// An error type when parsing a connection configuration.
 #[derive(thiserror::Error, Debug)]
 pub enum ConnectionConfError {
-    /// Missing `url` for connection configuration
-    #[error("Missing `url` for connection configuration")]
-    MissingConnectionUrl,
+    /// Missing `rpc_url` for connection configuration
+    #[error("Missing `rpc_url` for connection configuration")]
+    MissingConnectionRpcUrl,
+    /// Missing `grpc_url` for connection configuration
+    #[error("Missing `grpc_url` for connection configuration")]
+    MissingConnectionGrpcUrl,
     /// Missing `chainId` for connection configuration
     #[error("Missing `chainId` for connection configuration")]
     MissingChainId,
@@ -58,11 +61,11 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
             .into_config_result(|| cwp.join("chainId"))?;
         let rpc_url = raw
             .rpc_url
-            .ok_or(MissingConnectionUrl)
+            .ok_or(MissingConnectionRpcUrl)
             .into_config_result(|| cwp.join("rpc_url"))?;
         let grpc_url = raw
             .grpc_url
-            .ok_or(MissingConnectionUrl)
+            .ok_or(MissingConnectionGrpcUrl)
             .into_config_result(|| cwp.join("grpc_url"))?;
         let prefix = raw
             .prefix
