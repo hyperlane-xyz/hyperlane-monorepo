@@ -356,14 +356,14 @@ impl MultisigCheckpointSyncer {
                         }
                     }
                 } else {
-                    info!(
+                    debug!(
                         validator = format!("{:#x}", validator),
                         index = index,
                         "Unable to find signed checkpoint"
                     );
                 }
             } else {
-                info!(%validator, "Unable to find checkpoint syncer");
+                debug!(%validator, "Unable to find checkpoint syncer");
                 continue;
             }
         }

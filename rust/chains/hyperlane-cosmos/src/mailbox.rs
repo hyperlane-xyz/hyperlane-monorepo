@@ -16,6 +16,7 @@ use async_trait::async_trait;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
 
+use crate::binary::h256_to_h512;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, utils::fmt_bytes, ChainResult, Checkpoint,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
@@ -25,7 +26,6 @@ use hyperlane_core::{
     ContractLocator, Decode, MessageIndexer, RawHyperlaneMessage, SequenceIndexer, H512,
 };
 use tracing::{info, instrument, warn};
-use crate::binary::h256_to_h512;
 
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {
@@ -116,7 +116,7 @@ impl Mailbox for CosmosMailbox {
         let data = self.provider.wasm_query(payload, lag).await;
 
         if let Err(e) = data {
-            println!("error: {:?}", e);
+            warn!("error: {:?}", e);
             return Ok(0);
         }
 
@@ -223,7 +223,9 @@ impl Mailbox for CosmosMailbox {
             .wasm_send(process_message, tx_gas_limit)
             .await?;
         Ok(TxOutcome {
-            transaction_id: h256_to_h512(H256::from_slice(hex::decode(response.txhash).unwrap().as_slice())),
+            transaction_id: h256_to_h512(H256::from_slice(
+                hex::decode(response.txhash).unwrap().as_slice(),
+            )),
             executed: response.code == 0,
             gas_used: U256::from(response.gas_used),
             gas_price: U256::from(response.gas_wanted),
@@ -242,9 +244,6 @@ impl Mailbox for CosmosMailbox {
                 metadata: hex::encode(metadata),
             },
         };
-
-        println!("process_message: {:?}", process_message);
-        println!("metadata: {:?}", metadata);
 
         let response: SimulateResponse = self.provider.wasm_simulate(process_message).await?;
         let result = TxCostEstimate {

@@ -115,48 +115,51 @@ impl WasmIndexer for CosmosWasmIndexer {
 
         let mut result: Vec<(T, LogMeta)> = vec![];
         let tx_results = block_result.txs_results;
-        if let Some(tx_results) = tx_results {
-            let addr = self.get_contract_addr()?;
 
-            for (idx, tx) in tx_results.iter().enumerate() {
-                let tx_hash = tx_hash[idx];
-                if tx.code.is_err() {
-                    debug!("tx {:?} has failed. skip!", tx_hash);
+        if tx_results.is_none() {
+            return Ok(result);
+        }
+
+        let addr = self.get_contract_addr()?;
+
+        for (idx, tx) in tx_results.unwrap().iter().enumerate() {
+            let tx_hash = tx_hash[idx];
+            if tx.code.is_err() {
+                debug!("tx {:?} has failed. skip!", tx_hash);
+                continue;
+            }
+
+            let mut available = false;
+
+            let mut parse_result: Vec<(T, LogMeta)> = vec![];
+
+            let logs = serde_json::from_str::<Vec<Events>>(&tx.log)?;
+            let logs = logs.first().unwrap();
+
+            for (log_idx, event) in logs.events.clone().into_iter().enumerate() {
+                if event.typ.as_str().starts_with(Self::WASM_TYPE)
+                    && event.attributes[0].value == addr
+                {
+                    available = true;
+                } else if event.typ.as_str() != self.event_type {
                     continue;
                 }
 
-                let mut available = false;
+                let msg = parser(event.attributes.clone());
+                let meta = LogMeta {
+                    address: bech32_decode(addr.clone()),
+                    block_number: block_number as u64,
+                    block_hash: H256::from_slice(block.block_id.hash.as_bytes()),
+                    transaction_id: h256_to_h512(tx_hash),
+                    transaction_index: idx as u64,
+                    log_index: U256::from(log_idx),
+                };
 
-                let mut parse_result: Vec<(T, LogMeta)> = vec![];
+                parse_result.push((msg, meta));
+            }
 
-                let logs = serde_json::from_str::<Vec<Events>>(&tx.log)?;
-                let logs = logs.first().unwrap();
-
-                for (log_idx, event) in logs.events.clone().into_iter().enumerate() {
-                    if event.typ.as_str().starts_with(Self::WASM_TYPE)
-                        && event.attributes[0].value == addr
-                    {
-                        available = true;
-                    } else if event.typ.as_str() != self.event_type {
-                        continue;
-                    }
-
-                    let msg = parser(event.attributes.clone());
-                    let meta = LogMeta {
-                        address: bech32_decode(addr.clone()),
-                        block_number: block_number as u64,
-                        block_hash: H256::from_slice(block.block_id.hash.as_bytes()),
-                        transaction_id: h256_to_h512(tx_hash),
-                        transaction_index: idx as u64,
-                        log_index: U256::from(log_idx),
-                    };
-
-                    parse_result.push((msg, meta));
-                }
-
-                if available {
-                    result.extend(parse_result);
-                }
+            if available {
+                result.extend(parse_result);
             }
         }
 
