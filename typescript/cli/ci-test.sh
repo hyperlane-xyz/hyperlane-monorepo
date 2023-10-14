@@ -13,6 +13,7 @@ do
     chmod -R 777 /tmp/relayer /tmp/$CHAIN
 done
 
+# Optional: remove the --block-time 1 to speedup tests for local runs
 anvil --chain-id 31337 -p 8545 --state /tmp/anvil1/state --block-time 1 > /dev/null &
 anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state --block-time 1 > /dev/null &
 sleep 1
@@ -110,7 +111,7 @@ do
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE=localStorage \
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_PATH=/data/${1}/validator \
       -e HYP_BASE_TRACING_LEVEL=debug -e HYP_BASE_TRACING_FMT=compact \
-      gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator &
+      gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator > /tmp/${1}/validator-logs.txt &
 done
 
 echo "Validator running, sleeping to let it sync"
@@ -136,7 +137,7 @@ docker run \
     -e HYP_BASE_CHAINS_ANVIL1_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
     -e HYP_BASE_CHAINS_ANVIL2_SIGNER_TYPE=hexKey \
     -e HYP_BASE_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
-    gcr.io/abacus-labs-dev/hyperlane-agent:main ./relayer &
+    gcr.io/abacus-labs-dev/hyperlane-agent:main ./relayer > /tmp/relayer/relayer-logs.txt &
 
 sleep 5
 echo "Done running relayer, checking message delivery statuses"
