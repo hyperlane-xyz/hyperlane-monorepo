@@ -1,0 +1,20 @@
+# A config for a multisig Interchain Security Module (ISM)
+# Schema: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/sdk/src/ism/types.ts
+#
+# Valid module types:
+#   routing
+#   aggregation
+#   legacy_multisig
+#   merkle_root_multisig
+#   message_id_multisig
+---
+anvil1:
+  type: 'legacy_multisig' # TODO: update for v3
+  threshold: 1 # Number: Signatures required to approve a message
+  validators: # Array: List of validator addresses
+    - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
+anvil2:
+  type: 'legacy_multisig' # TODO: update for v3
+  threshold: 1
+  validators:
+    - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'

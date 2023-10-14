@@ -17,7 +17,7 @@ export const ProtocolSmallestUnit = {
 export type Domain = number;
 export type Address = string;
 export type AddressBytes32 = string;
-export type ChainCaip2Id = `${string}:${string}`; // e.g. ethereum:1 or solana:mainnet-beta
+export type ChainCaip2Id = `${string}:${string}`; // e.g. ethereum:1 or sealevel:1399811149
 export type TokenCaip19Id = `${string}:${string}/${string}:${string}`; // e.g. ethereum:1/erc20:0x6b175474e89094c44da98b954eedeac495271d0f
 export type HexString = string;
 
