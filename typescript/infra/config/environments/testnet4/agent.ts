@@ -2,10 +2,7 @@ import {
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
-  getDomainId,
-  hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
 
 import {
   RootAgentConfig,
@@ -24,20 +21,6 @@ const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
 );
 
-const interchainQueryRouters = objMap(
-  hyperlaneEnvironments.testnet,
-  (_, addresses) => {
-    return {
-      // @ts-ignore moonbasealpha has no interchain query router
-      router: addresses.interchainQueryRouter,
-    };
-  },
-);
-
-const interchainQueriesMatchingList = routerMatchingList(
-  interchainQueryRouters,
-);
-
 const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
 const contextBase = {
@@ -51,35 +34,6 @@ const contextBase = {
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
-  {
-    type: GasPaymentEnforcementPolicyType.None,
-    // To continue relaying interchain query callbacks, we whitelist
-    // all messages between interchain query routers.
-    // This whitelist will become more strict with
-    // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
-    matchingList: [
-      ...interchainQueriesMatchingList,
-      {
-        originDomain: [getDomainId(chainMetadata.solanadevnet)],
-        senderAddress: [
-          // hyperlane context helloworld router on solanadevnet
-          'CXQX54kdkU5GqdRJjCmHpwHfEMgFb5SeBmMWntP2Ds7J',
-        ],
-        destinationDomain: '*',
-        recipientAddress: '*',
-      },
-      {
-        originDomain: [getDomainId(chainMetadata.bsctestnet)],
-        senderAddress: [
-          // testnet ZBC warp route on bsctestnet, which pays
-          // an IGP that isn't indexed by the relayer at the moment
-          '0x31b5234A896FbC4b3e2F7237592D054716762131',
-        ],
-        destinationDomain: '*',
-        recipientAddress: '*',
-      },
-    ],
-  },
   // Default policy is OnChainFeeQuoting
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
@@ -114,11 +68,6 @@ const hyperlane: RootAgentConfig = {
       repo,
       tag: 'ed7569d-20230725-171222',
     },
-    chainDockerOverrides: {
-      // [chainMetadata.solanadevnet.name]: {
-      //   tag: '79bad9d-20230706-190752',
-      // },
-    },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
   scraper: {
@@ -141,27 +90,7 @@ const releaseCandidate: RootAgentConfig = {
       tag: '892cc5d-20230908-162614',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
-    gasPaymentEnforcement: [
-      // Don't require gas payments from solanadevnet
-      // {
-      //   type: GasPaymentEnforcementPolicyType.None,
-      //   matchingList: [
-      //     {
-      //       originDomain: [getDomainId(chainMetadata.solanadevnet)],
-      //       senderAddress: '*',
-      //       destinationDomain: '*',
-      //       recipientAddress: '*',
-      //     },
-      //     {
-      //       originDomain: '*',
-      //       senderAddress: '*',
-      //       destinationDomain: [getDomainId(chainMetadata.solanadevnet)],
-      //       recipientAddress: '*',
-      //     },
-      //   ],
-      // },
-      ...gasPaymentEnforcement,
-    ],
+    gasPaymentEnforcement,
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1
     // fees which leads to wildly off predictions.

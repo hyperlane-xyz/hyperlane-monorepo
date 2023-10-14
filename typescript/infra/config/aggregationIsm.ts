@@ -1,7 +1,3 @@
-// Aggregation (1/2)
-// |              |
-// |              |
-// v              v
 import {
   AggregationIsmConfig,
   ChainName,
