@@ -72,6 +72,9 @@ export async function createMultisigConfig({
       result[chain] = lastConfig;
       continue;
     }
+    // TODO consider using default and not offering options here
+    // legacy_multisig is being deprecated in v3
+    // Default should probably be aggregation(message_id, merkle_root)
     const moduleType = await select({
       message: 'Select multisig type',
       choices: [

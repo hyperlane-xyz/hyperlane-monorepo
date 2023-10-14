@@ -258,6 +258,7 @@ async function executeDeploy(params: DeployParams) {
   logBlue(`Warp UI token config is in ${tokenConfigPath}`);
 }
 
+// TODO move into token classes in the SDK
 async function fetchBaseTokenMetadata(
   base: WarpRouteConfig['base'],
   multiProvider: MultiProvider,

@@ -111,6 +111,7 @@ async function executeDelivery({
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
     logBlue(`Message ID: ${message.id}`);
 
+    // TODO requires update for v3
     const value = await igp.quoteGasPaymentForDefaultIsmIgp(
       origin,
       destination,

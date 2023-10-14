@@ -5,8 +5,10 @@
 #   native
 #   collateral
 #   synthetic
-#   syntheticUri
 #   collateralUri
+#   syntheticUri
+#   fastCollateral
+#   fastSynthetic
 ---
 base:
   chainName: anvil1

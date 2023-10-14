@@ -24,6 +24,7 @@ export const testRecipientFactories = {
   testRecipient: new TestRecipient__factory(),
 };
 
+// TODO move this and related configs to the SDK
 export class TestRecipientDeployer extends HyperlaneDeployer<
   TestRecipientConfig,
   typeof testRecipientFactories

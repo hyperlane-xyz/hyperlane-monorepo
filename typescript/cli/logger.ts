@@ -26,7 +26,7 @@ export function createLogger(namespace: string, isError = false) {
   return isError ? error.extend(namespace) : logger.extend(namespace);
 }
 
-// Ensure hyperlane logging is enabled
+// Ensure hyperlane logging is enabled by forcing inclusion of hyperlane namespace
 const activeNamespaces = debug.disable();
 const otherNamespaces = activeNamespaces
   .split(',')
