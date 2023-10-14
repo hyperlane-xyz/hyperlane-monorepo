@@ -23,6 +23,7 @@ use types::*;
 use utils::*;
 
 use crate::cosmos::link::link_networks;
+use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
 use crate::AGENT_BIN_PATH;
@@ -75,51 +76,6 @@ fn make_target() -> String {
     };
 
     format!("{}-{}", os, arch)
-}
-
-pub enum CLISource {
-    Local { path: String },
-    Remote { url: String, version: String },
-}
-
-impl Default for CLISource {
-    fn default() -> Self {
-        Self::Remote {
-            url: OSMOSIS_CLI_GIT.to_string(),
-            version: OSMOSIS_CLI_VERSION.to_string(),
-        }
-    }
-}
-
-impl CLISource {
-    fn install_remote(dir: Option<PathBuf>, git: String, version: String) -> PathBuf {
-        let target = make_target();
-
-        let dir_path = match dir {
-            Some(path) => path,
-            None => tempdir().unwrap().into_path(),
-        };
-        let dir_path = dir_path.to_str().unwrap();
-
-        let release_name = format!("osmosisd-{version}-{target}");
-        let release_comp = format!("{release_name}.tar.gz");
-
-        log!("Downloading Osmosis CLI v{}", version);
-        let uri = format!("{git}/releases/download/v{version}/{release_comp}");
-        download(&release_comp, &uri, dir_path);
-
-        log!("Uncompressing Osmosis release");
-        unzip(&release_comp, dir_path);
-
-        concat_path(dir_path, "osmosisd")
-    }
-
-    pub fn install(self, dir: Option<PathBuf>) -> PathBuf {
-        match self {
-            CLISource::Local { path } => path.into(),
-            CLISource::Remote { url, version } => Self::install_remote(dir, url, version),
-        }
-    }
 }
 
 pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, PathBuf> {

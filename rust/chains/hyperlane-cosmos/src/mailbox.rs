@@ -2,7 +2,6 @@ use std::fmt::{Debug, Formatter};
 use std::io::Cursor;
 use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
-use std::str::FromStr;
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::payloads::general::EventAttribute;
@@ -18,13 +17,11 @@ use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
 
 use crate::binary::h256_to_h512;
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, utils::fmt_bytes, ChainResult, Checkpoint,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
+    utils::fmt_bytes, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
+    H256, U256,
 };
-use hyperlane_core::{
-    ContractLocator, Decode, MessageIndexer, RawHyperlaneMessage, SequenceIndexer, H512,
-};
+use hyperlane_core::{ContractLocator, Decode, RawHyperlaneMessage, SequenceIndexer};
 use tracing::{info, instrument, warn};
 
 /// A reference to a Mailbox contract on some Cosmos chain
@@ -78,34 +75,34 @@ impl Debug for CosmosMailbox {
 
 #[async_trait]
 impl Mailbox for CosmosMailbox {
-    #[instrument(level = "debug", err, ret, skip(self))]
-    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        let payload = mailbox::MerkleTreeRequest {
-            merkle_tree: general::EmptyStruct {},
-        };
+    // #[instrument(level = "debug", err, ret, skip(self))]
+    // async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
+    //     let payload = mailbox::MerkleTreeRequest {
+    //         merkle_tree: general::EmptyStruct {},
+    //     };
 
-        let data = self.provider.wasm_query(payload, lag).await?;
-        let response: mailbox::MerkleTreeResponse = serde_json::from_slice(&data)?;
+    //     let data = self.provider.wasm_query(payload, lag).await?;
+    //     let response: mailbox::MerkleTreeResponse = serde_json::from_slice(&data)?;
 
-        let branch = response
-            .branch
-            .iter()
-            .map(|b| {
-                if b.is_empty() {
-                    "0000000000000000000000000000000000000000000000000000000000000000"
-                } else {
-                    b
-                }
-            })
-            .map(H256::from_str)
-            .collect::<Result<Vec<H256>, _>>()
-            .expect("fail to parse tree branch");
+    //     let branch = response
+    //         .branch
+    //         .iter()
+    //         .map(|b| {
+    //             if b.is_empty() {
+    //                 "0000000000000000000000000000000000000000000000000000000000000000"
+    //             } else {
+    //                 b
+    //             }
+    //         })
+    //         .map(H256::from_str)
+    //         .collect::<Result<Vec<H256>, _>>()
+    //         .expect("fail to parse tree branch");
 
-        Ok(IncrementalMerkle {
-            branch: branch.try_into().unwrap(),
-            count: response.count as usize,
-        })
-    }
+    //     Ok(IncrementalMerkle {
+    //         branch: branch.try_into().unwrap(),
+    //         count: response.count as usize,
+    //     })
+    // }
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
@@ -150,22 +147,22 @@ impl Mailbox for CosmosMailbox {
         Ok(delivered)
     }
 
-    #[instrument(level = "debug", err, ret, skip(self))]
-    async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        let payload = mailbox::CheckPointRequest {
-            check_point: general::EmptyStruct {},
-        };
+    // #[instrument(level = "debug", err, ret, skip(self))]
+    // async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
+    //     let payload = mailbox::CheckPointRequest {
+    //         check_point: general::EmptyStruct {},
+    //     };
 
-        let data = self.provider.wasm_query(payload, None).await?;
-        let response: mailbox::CheckPointResponse = serde_json::from_slice(&data)?;
+    //     let data = self.provider.wasm_query(payload, None).await?;
+    //     let response: mailbox::CheckPointResponse = serde_json::from_slice(&data)?;
 
-        Ok(Checkpoint {
-            mailbox_address: self.address,
-            mailbox_domain: self.domain.id(),
-            root: response.root.parse().unwrap(),
-            index: response.count,
-        })
-    }
+    //     Ok(Checkpoint {
+    //         mailbox_address: self.address,
+    //         mailbox_domain: self.domain.id(),
+    //         root: response.root.parse().unwrap(),
+    //         index: response.count,
+    //     })
+    // }
 
     #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
@@ -318,16 +315,6 @@ impl CosmosMailboxIndexer {
 }
 
 #[async_trait]
-impl MessageIndexer for CosmosMailboxIndexer {
-    #[instrument(err, skip(self))]
-    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
-        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
-        let count = self.count(None).await?;
-        Ok((count, tip))
-    }
-}
-
-#[async_trait]
 impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
     async fn fetch_logs(
         &self,
@@ -373,9 +360,18 @@ impl Indexer<H256> for CosmosMailboxIndexer {
 
 #[async_trait]
 impl SequenceIndexer<H256> for CosmosMailboxIndexer {
-    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
-        // TODO: implement when sealevel scraper support is implemented
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        // TODO: implement when cosmos scraper support is implemented
         info!("Message delivery indexing not implemented");
-        Ok((1, 1))
+        Ok((Some(1), 1))
+    }
+}
+
+#[async_trait]
+impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        // TODO: implement when cosmos scraper support is implemented
+        info!("Message delivery indexing not implemented");
+        Ok((Some(1), 1))
     }
 }
