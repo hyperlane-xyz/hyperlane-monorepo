@@ -78,6 +78,7 @@ impl CosmosInterchainGasPaymasterIndexer {
                 message_id: H256::zero(),
                 payment: U256::zero(),
                 gas_amount: U256::zero(),
+                destination: 0,
             };
 
             for attr in attrs {
@@ -90,6 +91,7 @@ impl CosmosInterchainGasPaymasterIndexer {
                     }
                     "payment" => res.payment = value.parse().unwrap(),
                     "gas_amount" => res.gas_amount = value.parse().unwrap(),
+                    "dest_domain" => res.destination = value.parse().unwrap(),
                     _ => {}
                 }
             }
@@ -145,18 +147,18 @@ impl Indexer<H256> for CosmosInterchainGasPaymasterIndexer {
 
 #[async_trait]
 impl SequenceIndexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
-    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when sealevel scraper support is implemented
         info!("Message delivery indexing not implemented");
-        Ok((1, 1))
+        Ok((Some(1), 1))
     }
 }
 
 #[async_trait]
 impl SequenceIndexer<H256> for CosmosInterchainGasPaymasterIndexer {
-    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when sealevel scraper support is implemented
         info!("Message delivery indexing not implemented");
-        Ok((1, 1))
+        Ok((Some(1), 1))
     }
 }
