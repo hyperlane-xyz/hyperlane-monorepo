@@ -2,9 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::general::EmptyStruct;
 
-const TREE_DEPTH: usize = 32;
 // Requests
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CountRequest {
     pub count: EmptyStruct,
@@ -36,11 +34,6 @@ pub struct DeliveredRequestInner {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct MerkleTreeRequest {
-    pub merkle_tree: EmptyStruct,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 pub struct ProcessMessageRequest {
     pub process: ProcessMessageRequestInner,
 }
@@ -51,13 +44,7 @@ pub struct ProcessMessageRequestInner {
     pub message: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct CheckPointRequest {
-    pub check_point: EmptyStruct,
-}
-
 // Responses
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CountResponse {
     pub count: u32,
@@ -71,16 +58,4 @@ pub struct DefaultIsmResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DeliveredResponse {
     pub delivered: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct MerkleTreeResponse {
-    pub branch: [String; TREE_DEPTH],
-    pub count: u32,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct CheckPointResponse {
-    pub root: String,
-    pub count: u32,
 }

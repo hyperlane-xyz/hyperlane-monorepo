@@ -257,6 +257,55 @@ fn parse_chain(
             .into_iter()
             .next()
             .map(|url| ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf { url })),
+        HyperlaneDomainProtocol::Cosmos => {
+            // ----- only for cosmos -----
+            let mut local_err = ConfigParsingError::default();
+
+            let grpc_url = chain
+                .chain(&mut local_err)
+                .get_key("grpcUrls")
+                .parse_string()
+                .end()
+                .or_else(|| {
+                    local_err.push(
+                        &chain.cwp + "grpc_urls",
+                        eyre!("Missing grpc definitions for chain"),
+                    );
+                    None
+                });
+
+            let chain_id = chain
+                .chain(&mut local_err)
+                .get_key("chainId")
+                .parse_string()
+                .end()
+                .or_else(|| {
+                    local_err.push(&chain.cwp + "chain_id", eyre!("Missing chain id for chain"));
+                    None
+                });
+
+            let prefix = chain
+                .chain(&mut err)
+                .get_key("prefix")
+                .parse_string()
+                .end()
+                .or_else(|| {
+                    local_err.push(&chain.cwp + "prefix", eyre!("Missing prefix for chain"));
+                    None
+                });
+
+            if !local_err.is_ok() {
+                err.merge(local_err);
+                None
+            } else {
+                Some(ChainConnectionConf::Cosmos(h_cosmos::ConnectionConf::new(
+                    grpc_url.unwrap().to_string(),
+                    rpcs.first().unwrap().to_string(),
+                    chain_id.unwrap().to_string(),
+                    prefix.unwrap().to_string(),
+                )))
+            }
+        }
     };
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce]);

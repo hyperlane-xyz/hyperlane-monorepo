@@ -75,35 +75,6 @@ impl Debug for CosmosMailbox {
 
 #[async_trait]
 impl Mailbox for CosmosMailbox {
-    // #[instrument(level = "debug", err, ret, skip(self))]
-    // async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-    //     let payload = mailbox::MerkleTreeRequest {
-    //         merkle_tree: general::EmptyStruct {},
-    //     };
-
-    //     let data = self.provider.wasm_query(payload, lag).await?;
-    //     let response: mailbox::MerkleTreeResponse = serde_json::from_slice(&data)?;
-
-    //     let branch = response
-    //         .branch
-    //         .iter()
-    //         .map(|b| {
-    //             if b.is_empty() {
-    //                 "0000000000000000000000000000000000000000000000000000000000000000"
-    //             } else {
-    //                 b
-    //             }
-    //         })
-    //         .map(H256::from_str)
-    //         .collect::<Result<Vec<H256>, _>>()
-    //         .expect("fail to parse tree branch");
-
-    //     Ok(IncrementalMerkle {
-    //         branch: branch.try_into().unwrap(),
-    //         count: response.count as usize,
-    //     })
-    // }
-
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
         let payload = mailbox::CountRequest {
