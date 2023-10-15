@@ -555,8 +555,15 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support aggregation ISM yet")).context(ctx)
             }
-            ChainConnectionConf::Cosmos(_) => {
-                Err(eyre!("Cosmos does not support aggregation ISM yet")).context(ctx)
+            ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                let ism = Box::new(h_cosmos::CosmosAggregationIsm::new(
+                    conf.clone(),
+                    locator.clone(),
+                    signer.unwrap().clone(),
+                ));
+
+                Ok(ism as Box<dyn AggregationIsm>)
             }
         }
         .context(ctx)
