@@ -3,8 +3,11 @@ use std::fmt::{Debug, Formatter};
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 use elliptic_curve::consts::U32;
-use ethers_core::k256::ecdsa::recoverable::Signature as RecoverableSignature;
-use ethers_core::k256::{ecdsa::Signature as K256Signature, PublicKey as K256PublicKey};
+#[cfg(feature = "ethers")]
+use ethers_core::k256::{
+    ecdsa::recoverable::Signature as RecoverableSignature, ecdsa::Signature as K256Signature,
+    PublicKey as K256PublicKey,
+};
 use generic_array::GenericArray;
 
 use serde::{
