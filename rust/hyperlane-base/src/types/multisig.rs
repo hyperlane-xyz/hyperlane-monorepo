@@ -4,7 +4,7 @@ use std::sync::Arc;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_cosmos::verify::pub_to_binary_addr;
-use tracing::{debug, info, instrument, trace, warn};
+use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithMessageId, H160, H256};
 

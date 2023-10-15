@@ -10,8 +10,10 @@ use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
-    run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-    MessageContractSync, SignerConf, WatermarkContractSync,
+    run_all,
+    settings::SignerConf,
+    BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    WatermarkContractSync,
 };
 
 use hyperlane_core::{
@@ -20,8 +22,6 @@ use hyperlane_core::{
     H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
-use tokio::{task::JoinHandle, time::sleep};
-use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use crate::{
     settings::ValidatorSettings,
