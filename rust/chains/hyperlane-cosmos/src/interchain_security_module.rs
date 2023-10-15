@@ -57,8 +57,10 @@ fn ism_type_to_module_type(ism_type: hpl_interface::ism::ISMType) -> ModuleType 
         hpl_interface::ism::ISMType::Routing => ModuleType::Routing,
         hpl_interface::ism::ISMType::Aggregation => ModuleType::Aggregation,
         hpl_interface::ism::ISMType::LegacyMultisig => ModuleType::MessageIdMultisig,
-        hpl_interface::ism::ISMType::Multisig => ModuleType::MessageIdMultisig,
-        hpl_interface::ism::ISMType::Owned => ModuleType::MessageIdMultisig,
+        hpl_interface::ism::ISMType::MerkleRootMultisig => ModuleType::MerkleRootMultisig,
+        hpl_interface::ism::ISMType::MessageIdMultisig => ModuleType::MessageIdMultisig,
+        hpl_interface::ism::ISMType::Null => ModuleType::Null,
+        hpl_interface::ism::ISMType::CcipRead => ModuleType::CcipRead,
         _ => ModuleType::Null,
     }
 }

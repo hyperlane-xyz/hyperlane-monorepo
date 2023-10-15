@@ -1,8 +1,7 @@
-use ethers::{prelude::Selector, types::Chain};
+use ethers::prelude::Selector;
 use std::collections::HashMap;
 
 use eyre::{eyre, Context, Result};
-use serde::Deserialize;
 
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
@@ -184,7 +183,16 @@ impl ChainConf {
                     .map(|m| Box::new(m) as Box<dyn MerkleTreeHook>)
                     .map_err(Into::into)
             }
-            ChainConnectionConf::Cosmos(conf) => todo!(),
+            ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?.unwrap();
+                let hook = h_cosmos::CosmosMerkleTreeHook::new(
+                    conf.clone(),
+                    locator.clone(),
+                    signer.clone(),
+                );
+
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
         }
         .context(ctx)
     }
@@ -220,7 +228,7 @@ impl ChainConf {
                     conf.clone(),
                     locator,
                     signer.clone(),
-                    "mailbox_dispatch".to_string(), // TODO: is this correct for?
+                    "mailbox_dispatch".to_string(),
                 ));
                 Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
             }
@@ -373,6 +381,13 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => {
                 let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new());
+                Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
+            }
+            ChainConnectionConf::Cosmos(conf) => {
+                let indexer = Box::new(h_cosmos::CosmosMerkleeTreeHookIndexer::new(
+                    conf.clone(),
+                    locator,
+                ));
                 Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
             }
         }
