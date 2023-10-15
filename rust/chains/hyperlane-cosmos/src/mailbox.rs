@@ -118,23 +118,6 @@ impl Mailbox for CosmosMailbox {
         Ok(delivered)
     }
 
-    // #[instrument(level = "debug", err, ret, skip(self))]
-    // async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-    //     let payload = mailbox::CheckPointRequest {
-    //         check_point: general::EmptyStruct {},
-    //     };
-
-    //     let data = self.provider.wasm_query(payload, None).await?;
-    //     let response: mailbox::CheckPointResponse = serde_json::from_slice(&data)?;
-
-    //     Ok(Checkpoint {
-    //         mailbox_address: self.address,
-    //         mailbox_domain: self.domain.id(),
-    //         root: response.root.parse().unwrap(),
-    //         index: response.count,
-    //     })
-    // }
-
     #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
         let payload = mailbox::DefaultIsmRequest {
