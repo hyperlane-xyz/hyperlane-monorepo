@@ -8,12 +8,14 @@ pub mod grpc;
 /// cosmos rpc provider
 pub mod rpc;
 
+/// A reference to a Cosmos chain
 #[derive(Debug)]
 pub struct CosmosProvider {
     domain: HyperlaneDomain,
 }
 
 impl CosmosProvider {
+    /// Create a reference to a Cosmos chain
     pub fn new(domain: HyperlaneDomain) -> Self {
         Self { domain }
     }
