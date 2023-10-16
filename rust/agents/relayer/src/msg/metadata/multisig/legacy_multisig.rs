@@ -37,7 +37,7 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching LegacyMultisig metadata";
-        unwrap_or_none_result!(highest_nonce, self.highest_known_nonce().await);
+        unwrap_or_none_result!(highest_leaf_index, self.highest_known_leaf_index().await);
         unwrap_or_none_result!(
             quorum_checkpoint,
             checkpoint_syncer
@@ -45,7 +45,7 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
                     validators,
                     threshold as usize,
                     message.nonce,
-                    highest_nonce,
+                    highest_leaf_index,
                 )
                 .await
                 .context(CTX)?
