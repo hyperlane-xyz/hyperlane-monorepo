@@ -4,18 +4,28 @@ use super::general::EmptyStruct;
 
 // Requests
 #[derive(Serialize, Deserialize, Debug)]
+pub struct GeneralMailboxQuery<T> {
+    pub mailbox: T,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct CountRequest {
     pub count: EmptyStruct,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ISMSpecifierRequest {
-    pub interchain_security_module: Vec<()>,
+pub struct NonceRequest {
+    pub nonce: EmptyStruct,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ISMSpecifierResponse {
-    pub ism: Option<String>,
+pub struct RecipientIsmRequest {
+    pub recipient_ism: RecipientIsmRequestInner,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RecipientIsmRequestInner {
+    pub recipient_addr: String, // hexbinary
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -51,6 +61,11 @@ pub struct CountResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct NonceResponse {
+    pub nonce: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct DefaultIsmResponse {
     pub default_ism: String, // hexbineary
 }
@@ -58,4 +73,9 @@ pub struct DefaultIsmResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DeliveredResponse {
     pub delivered: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RecipientIsmResponse {
+    pub ism: String,
 }

@@ -3874,9 +3874,9 @@ dependencies = [
 
 [[package]]
 name = "hpl-interface"
-version = "0.0.1"
+version = "0.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0602bdd62a179a66f7ed16e3e3a76b7c72cccf87437dcd0d8bc79f978fd13c2d"
+checksum = "7ce374f1f3bf048eacfff71e74ecf4700ef4e6d26085c9b3d89f5bb19bdf1ff5"
 dependencies = [
  "bech32 0.9.1",
  "cosmwasm-schema",
@@ -3885,17 +3885,20 @@ dependencies = [
  "cw-storage-plus",
  "cw2",
  "cw20",
+ "cw20-base",
+ "ripemd",
  "schemars",
  "serde",
+ "sha2 0.10.8",
  "sha3 0.10.8",
  "thiserror",
 ]
 
 [[package]]
 name = "hpl-interface"
-version = "0.0.2"
+version = "0.0.6-rc0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ce374f1f3bf048eacfff71e74ecf4700ef4e6d26085c9b3d89f5bb19bdf1ff5"
+checksum = "38ee99a46cbcd112d634b544f3a4009ba7afb3de656218db18708d56aeec3996"
 dependencies = [
  "bech32 0.9.1",
  "cosmwasm-schema",
@@ -6889,10 +6892,11 @@ dependencies = [
 name = "run-locally"
 version = "0.1.0"
 dependencies = [
+ "cosmwasm-schema",
  "ctrlc",
  "eyre",
  "hex 0.4.3",
- "hpl-interface 0.0.1",
+ "hpl-interface 0.0.6-rc0",
  "hyperlane-core",
  "k256 0.13.1",
  "macro_rules_attribute",

@@ -194,7 +194,6 @@ impl OsmosisCLI {
 
             ret.insert(name, code_id);
         }
-
         serde_json::from_str(&serde_json::to_string(&ret).unwrap()).unwrap()
     }
 
