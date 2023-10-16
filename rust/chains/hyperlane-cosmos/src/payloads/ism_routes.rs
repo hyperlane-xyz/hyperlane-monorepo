@@ -28,7 +28,7 @@ pub struct QueryRoutingIsmRouteResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QueryIsmGeneralRequest<T> {
-    pub i_s_m: T,
+    pub ism: T,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -82,7 +82,7 @@ impl InterchainSecurityModule for CosmosInterchainSecurityModule {
 
         let data = self
             .provider
-            .wasm_query(QueryIsmGeneralRequest { i_s_m: query }, None)
+            .wasm_query(QueryIsmGeneralRequest { ism: query }, None)
             .await?;
 
         // Handle both the ISMType response and the ModuleTypeResponse response.

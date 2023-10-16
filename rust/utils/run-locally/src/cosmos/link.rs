@@ -81,7 +81,7 @@ fn link_network(
         linker,
         &network.deployments.mailbox,
         core::mailbox::ExecuteMsg::SetDefaultIsm {
-            ism: network.deployments.ism_routing.clone(),
+            ism: network.deployments.ism_multisig.clone(),
         },
         vec![],
     );

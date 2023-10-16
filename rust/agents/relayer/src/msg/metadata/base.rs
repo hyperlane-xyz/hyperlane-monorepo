@@ -81,6 +81,10 @@ impl MetadataBuilder for BaseMetadataBuilder {
         let module_type = ism.module_type().await.context(CTX)?;
         let base = self.clone_with_incremented_depth()?;
 
+        println!("ism_address: {:?}", ism_address);
+        println!("message: {:?}", message);
+        println!("module_type: {:?}", module_type);
+
         let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
             ModuleType::LegacyMultisig => Box::new(LegacyMultisigMetadataBuilder::new(base)),
             ModuleType::MerkleRootMultisig => {
