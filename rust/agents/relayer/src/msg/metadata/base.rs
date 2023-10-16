@@ -187,6 +187,7 @@ impl BaseMetadataBuilder {
             .origin_validator_announce
             .get_announced_storage_locations(validators)
             .await?;
+        println!("storage_locations: {:?}", storage_locations);
 
         // Only use the most recently announced location for now.
         let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();

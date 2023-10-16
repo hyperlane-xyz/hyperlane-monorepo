@@ -114,7 +114,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
   async deployIsm(chain: ChainName, config: IsmConfig): Promise<Address> {
     const ism = await this.ismFactory.deploy(chain, config);
-    this.addDeployedContracts(chain, this.ismFactory.deployedIsms);
+    this.addDeployedContracts(chain, this.ismFactory.deployedIsms[chain]);
     return ism.address;
   }
 

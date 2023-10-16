@@ -4,7 +4,13 @@ import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 import { TestSendReceiver__factory } from '@hyperlane-xyz/core';
-import { ChainName, HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  HookType,
+  HyperlaneCore,
+  ModuleType,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { Modules, getAddresses } from './scripts/utils';
@@ -36,9 +42,25 @@ task('kathy', 'Dispatches random hyperlane messages')
   )
   .addParam('timeout', 'Time to wait between messages in ms.', '5000')
   .addFlag('mineforever', 'Mine forever after sending messages')
+  .addParam(
+    'hook',
+    'Hook to call in postDispatch',
+    HookType.AGGREGATION.toString(),
+  )
+  .addParam(
+    'ism',
+    'ISM to verify messages',
+    ModuleType[ModuleType.AGGREGATION].toString(),
+  )
   .setAction(
     async (
-      taskArgs: { messages: string; timeout: string; mineforever: boolean },
+      taskArgs: {
+        messages: string;
+        timeout: string;
+        mineforever: boolean;
+        hook: HookType;
+        ism: ModuleType;
+      },
       hre: HardhatRuntimeEnvironment,
     ) => {
       const timeout = Number.parseInt(taskArgs.timeout);
@@ -46,7 +68,6 @@ task('kathy', 'Dispatches random hyperlane messages')
       const [signer] = await hre.ethers.getSigners();
       const multiProvider = MultiProvider.createTestMultiProvider({ signer });
       const addresses = getAddresses(environment, Modules.CORE);
-      console.log(addresses);
       const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
 
       const randomElement = <T>(list: T[]) =>
@@ -70,13 +91,31 @@ task('kathy', 'Dispatches random hyperlane messages')
         // Random remote chain
         const remote: ChainName = randomElement(core.remoteChains(local));
         const remoteId = multiProvider.getDomainId(remote);
-        const mailbox = core.getContracts(local).mailbox;
+        let isms = addresses[local][remote];
+        // console.log("isms", isms);
+        // console.log("addresses", addresses);
+        const hook = addresses[local][taskArgs.hook];
+        const ism = isms[taskArgs.ism];
+        console.log(
+          'hook and ism address',
+          { hook, ism },
+          ModuleType[taskArgs.ism],
+          taskArgs.hook,
+        );
+        const contracts = core.getContracts(local);
+        const mailbox = contracts.mailbox;
         const quote = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
           remoteId,
           addressToBytes32(recipient.address),
           '0x1234',
         );
-        await recipient.dispatchToSelf(mailbox.address, remoteId, '0x1234', {
+
+        const receipt1 = await recipient[
+          'setInterchainSecurityModule(address)'
+        ](ism);
+        const receipt2 = await recipient[
+          'dispatchToSelf(address,uint32,bytes,address)'
+        ](mailbox.address, remoteId, '0x1234', hook, {
           value: quote,
         });
         console.log(

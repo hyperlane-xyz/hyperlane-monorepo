@@ -6,11 +6,18 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
+import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
+import {MailboxClient} from "../client/MailboxClient.sol";
 
-contract TestSendReceiver is IMessageRecipient {
+contract TestSendReceiver is
+    IMessageRecipient,
+    ISpecifiesInterchainSecurityModule
+{
     using TypeCasts for address;
+    IInterchainSecurityModule public interchainSecurityModule;
 
     uint256 public constant HANDLE_GAS_AMOUNT = 50_000;
 
@@ -34,6 +41,26 @@ contract TestSendReceiver is IMessageRecipient {
         );
     }
 
+    function dispatchToSelf(
+        IMailbox _mailbox,
+        uint32 _destinationDomain,
+        bytes calldata _messageBody,
+        IPostDispatchHook hook
+    ) external payable {
+        bytes memory hookMetadata = StandardHookMetadata.formatMetadata(
+            HANDLE_GAS_AMOUNT,
+            msg.sender
+        );
+        // TODO: handle topping up?
+        _mailbox.dispatch{value: msg.value}(
+            _destinationDomain,
+            address(this).addressToBytes32(),
+            _messageBody,
+            hookMetadata,
+            hook
+        );
+    }
+
     function handle(
         uint32,
         bytes32,
@@ -47,5 +74,9 @@ contract TestSendReceiver is IMessageRecipient {
 
     function previousBlockHash() internal view returns (bytes32) {
         return blockhash(block.number - 1);
+    }
+
+    function setInterchainSecurityModule(address _ism) external {
+        interchainSecurityModule = IInterchainSecurityModule(_ism);
     }
 }

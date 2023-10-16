@@ -33,8 +33,10 @@ export function serializeContractsMap<F extends HyperlaneFactories>(
 
 export function serializeContracts<F extends HyperlaneFactories>(
   contracts: HyperlaneContracts<F>,
-): HyperlaneAddresses<F> {
-  return objMap(contracts, (_, contract) => contract.address);
+): any {
+  return objMap(contracts, (_, contract) =>
+    contract.address ? contract.address : serializeContracts(contract),
+  );
 }
 
 function getFactory<F extends HyperlaneFactories>(
@@ -81,7 +83,8 @@ export function filterAddressesToProtocol(
 export function attachContracts<F extends HyperlaneFactories>(
   addresses: HyperlaneAddresses<F>,
   factories: F,
-): HyperlaneContracts<F> {
+): any {
+  // ): HyperlaneContracts<F> {
   return objMap(addresses, (key, address: Address) => {
     const factory = getFactory(key, factories);
     return factory.attach(address) as Awaited<ReturnType<ValueOf<F>['deploy']>>;

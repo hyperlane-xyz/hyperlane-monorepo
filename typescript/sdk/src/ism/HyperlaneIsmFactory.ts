@@ -112,10 +112,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
       this.deployedIsms[chain] = {};
     }
 
+    if (!!origin && !this.deployedIsms[chain][origin]) {
+      this.deployedIsms[chain][origin] = {};
+    }
+
     if (origin) {
-      if (!this.deployedIsms[chain][origin]) {
-        this.deployedIsms[chain][origin] = {};
-      }
       this.deployedIsms[chain][origin][name] = contract;
     } else {
       this.deployedIsms[chain][name] = contract;
