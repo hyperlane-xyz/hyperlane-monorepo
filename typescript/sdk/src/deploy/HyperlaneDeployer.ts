@@ -104,11 +104,33 @@ export abstract class HyperlaneDeployer<
   protected addDeployedContracts(
     chain: ChainName,
     contracts: HyperlaneContracts<any>,
-  ) {
+    verificationInputs?: ContractVerificationInput[],
+  ): void {
     this.deployedContracts[chain] = {
       ...this.deployedContracts[chain],
       ...contracts,
     };
+    if (verificationInputs)
+      this.addVerificationArtifacts(chain, verificationInputs);
+  }
+
+  protected addVerificationArtifacts(
+    chain: ChainName,
+    artifacts: ContractVerificationInput[],
+  ): void {
+    this.verificationInputs[chain] = this.verificationInputs[chain] || [];
+    // check for duplicates
+    artifacts.forEach((input) => {
+      if (
+        this.verificationInputs[chain].find(
+          (_) => _.name === input.name && _.address === input.address,
+        )
+      ) {
+        this.logger(`Skipping duplicate verification input ${input.name}`);
+      } else {
+        this.verificationInputs[chain].push(input);
+      }
+    });
   }
 
   protected async runIf<T>(
@@ -264,17 +286,9 @@ export abstract class HyperlaneDeployer<
       contract,
       factory.bytecode,
     );
-    this.addVerificationArtifact(chain, verificationInput);
+    this.addVerificationArtifacts(chain, [verificationInput]);
 
     return contract;
-  }
-
-  protected addVerificationArtifact(
-    chain: ChainName,
-    artifact: ContractVerificationInput,
-  ) {
-    this.verificationInputs[chain] = this.verificationInputs[chain] || [];
-    this.verificationInputs[chain].push(artifact);
   }
 
   async deployContract<K extends keyof Factories>(
