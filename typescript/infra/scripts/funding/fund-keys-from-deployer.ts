@@ -24,7 +24,7 @@ import {
 import { DeployEnvironment } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
-import { AgentRole, Role } from '../../src/roles';
+import { ALL_AGENT_ROLES, AgentRole, Role } from '../../src/roles';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
   assertContext,
@@ -37,13 +37,18 @@ type L2Chain =
   | Chains.optimism
   | Chains.optimismgoerli
   | Chains.arbitrum
-  | Chains.arbitrumgoerli;
+  | Chains.arbitrumgoerli
+  | Chains.scrollsepolia
+  | Chains.basegoerli
+  | Chains.polygonzkevmtestnet;
 
 const L2Chains: ChainName[] = [
   Chains.optimism,
   Chains.optimismgoerli,
   Chains.arbitrum,
   Chains.arbitrumgoerli,
+  Chains.scrollsepolia,
+  Chains.basegoerli,
 ];
 
 const L2ToL1: ChainMap<ChainName> = {
@@ -51,6 +56,9 @@ const L2ToL1: ChainMap<ChainName> = {
   arbitrumgoerli: 'goerli',
   optimism: 'ethereum',
   arbitrum: 'ethereum',
+  scrollsepolia: 'sepolia',
+  basegoerli: 'goerli',
+  polygonzktestnet: 'goerli',
 };
 
 // Missing types declaration for bufio
@@ -110,9 +118,7 @@ const desiredBalancePerChain: ChainMap<string> = {
   gnosis: '0.1',
   basegoerli: '0.05',
   scrollsepolia: '0.05',
-  lineagoerli: '0.1',
   polygonzkevmtestnet: '0.01',
-  chiado: '0.0001',
 
   // unused
   test1: '0',
@@ -155,6 +161,9 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   optimismgoerli: '1',
   arbitrumgoerli: '1',
   gnosis: '5',
+  basegoerli: '0.1',
+  scrollsepolia: '0.1',
+  polygonzkevmtestnet: '0.1',
   // unused
   test1: '0',
   test2: '0',
@@ -409,7 +418,12 @@ class ContextFunder {
           key.context,
           key.environment,
         ).contextChainNames;
-        for (const chain of chains[role as AgentRole]) {
+        // If the role is not a relayer, we need to look up the chains for Kathy, so we'll fallback to the relayer
+        const roleToLookup = ALL_AGENT_ROLES.includes(role as AgentRole)
+          ? role
+          : Role.Relayer;
+        const chainsPicked = chains[roleToLookup as AgentRole];
+        for (const chain of chainsPicked) {
           chainKeys[chain].push(key);
         }
       }

@@ -7,7 +7,7 @@ Expand the name of the chart.
 
 {{/*
 Create a default fully qualified app name.
-We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
+We truncate at 63 chars - 11 because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
 {{- define "agent-common.fullname" -}}
@@ -49,7 +49,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 Selector labels
 */}}
 {{- define "agent-common.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "agent-common.name" . }}
+app.kubernetes.io/name: {{ include "agent-common.name" . | trunc 63 | trimSuffix "-"}}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 

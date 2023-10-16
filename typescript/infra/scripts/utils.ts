@@ -332,7 +332,7 @@ export async function getRouterConfig(
     config[chain] = {
       owner: owner,
       mailbox: core.getContracts(chain).mailbox.address,
-      hook: igp.getContracts(chain).interchainGasPaymaster.address,
+      // hook: igp.getContracts(chain).interchainGasPaymaster.address,
     };
   }
   return config;

@@ -68,44 +68,44 @@ export const validatorChainConfig = (
         'fuji',
       ),
     },
-    chiado: {
-      interval: 5,
-      reorgPeriod: chainMetadata.chiado.blocks!.reorgPeriod!,
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0x12b1d1354441b900e0a36659ae54c3a9d5d22c57',
-            '0x06c3757a4b7a912828e523bb8a5f980ddc297356',
-            '0x0874967a145d70b799ebe9ed861ab7c93faef95a',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0x7572ffd8af1abc02cc1d234ac750d387fd6768a0',
-            '0x31b37a32657cf2915d434b409ee86978058fa91c',
-            '0x32495780512fce64a45aca55ccc02202e9018dc5',
-          ],
-        },
-        'chiado',
-      ),
-    },
-    lineagoerli: {
-      interval: 5,
-      reorgPeriod: chainMetadata.lineagoerli.blocks!.reorgPeriod!,
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0xd767ea1206b8295d7e1267ddd00e56d34f278db6',
-            '0x4a5d7085ca93c22fbc994dd97857c98fcc745674',
-            '0x8327779c3c31fa1ffc7f0c9ffae33e4d804bbd8f',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0x52e2c6db923124e646011d172dea644e1cafe583',
-            '0x48d540e94ff1acb886df6bfed2b7a92568639364',
-            '0xe99e3acc543a535b8eeae98f3d6f39015efe0cd0',
-          ],
-        },
-        'lineagoerli',
-      ),
-    },
+    // chiado: {
+    //   interval: 5,
+    //   reorgPeriod: chainMetadata.chiado.blocks!.reorgPeriod!,
+    //   validators: validatorsConfig(
+    //     {
+    //       [Contexts.Hyperlane]: [
+    //         '0x12b1d1354441b900e0a36659ae54c3a9d5d22c57',
+    //         '0x06c3757a4b7a912828e523bb8a5f980ddc297356',
+    //         '0x0874967a145d70b799ebe9ed861ab7c93faef95a',
+    //       ],
+    //       [Contexts.ReleaseCandidate]: [
+    //         '0x7572ffd8af1abc02cc1d234ac750d387fd6768a0',
+    //         '0x31b37a32657cf2915d434b409ee86978058fa91c',
+    //         '0x32495780512fce64a45aca55ccc02202e9018dc5',
+    //       ],
+    //     },
+    //     'chiado',
+    //   ),
+    // },
+    // lineagoerli: {
+    //   interval: 5,
+    //   reorgPeriod: chainMetadata.lineagoerli.blocks!.reorgPeriod!,
+    //   validators: validatorsConfig(
+    //     {
+    //       [Contexts.Hyperlane]: [
+    //         '0xd767ea1206b8295d7e1267ddd00e56d34f278db6',
+    //         '0x4a5d7085ca93c22fbc994dd97857c98fcc745674',
+    //         '0x8327779c3c31fa1ffc7f0c9ffae33e4d804bbd8f',
+    //       ],
+    //       [Contexts.ReleaseCandidate]: [
+    //         '0x52e2c6db923124e646011d172dea644e1cafe583',
+    //         '0x48d540e94ff1acb886df6bfed2b7a92568639364',
+    //         '0xe99e3acc543a535b8eeae98f3d6f39015efe0cd0',
+    //       ],
+    //     },
+    //     'lineagoerli',
+    //   ),
+    // },
     mumbai: {
       interval: 5,
       reorgPeriod: chainMetadata.mumbai.blocks!.reorgPeriod!,

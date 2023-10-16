@@ -143,7 +143,7 @@ impl BaseMetadataBuilder {
         Ok(proof)
     }
 
-    pub async fn highest_known_nonce(&self) -> Option<u32> {
+    pub async fn highest_known_leaf_index(&self) -> Option<u32> {
         self.origin_prover_sync.read().await.count().checked_sub(1)
     }
 

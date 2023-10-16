@@ -49,7 +49,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '35fdc74-20230913-104940',
+      tag: 'cfaf553-20231009-174623',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -66,7 +66,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ed7569d-20230725-171222',
+      tag: 'cfaf553-20231009-174623',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -74,7 +74,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'aaddba7-20230620-154941',
+      tag: 'cfaf553-20231009-174623',
     },
   },
 };
@@ -87,7 +87,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '892cc5d-20230908-162614',
+      tag: 'cfaf553-20231009-174623',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
@@ -100,7 +100,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ed7569d-20230725-171222',
+      tag: 'cfaf553-20231009-174623',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },

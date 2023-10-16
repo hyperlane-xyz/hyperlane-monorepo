@@ -7,7 +7,7 @@ use derive_new::new;
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
-use tracing::warn;
+use tracing::{debug, trace, warn};
 
 use crate::msg::metadata::BaseMetadataBuilder;
 
@@ -36,11 +36,22 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MessageIdMultisig metadata";
         unwrap_or_none_result!(
+            leaf_index,
+            self.get_merkle_leaf_id_by_message_id(message.id())
+                .await
+                .context(CTX)?,
+            debug!(
+                ?message,
+                "No merkle leaf found for message id, must have not been enqueued in the tree"
+            )
+        );
+        unwrap_or_none_result!(
             quorum_checkpoint,
             checkpoint_syncer
-                .fetch_checkpoint(validators, threshold as usize, message.nonce)
+                .fetch_checkpoint(validators, threshold as usize, leaf_index)
                 .await
-                .context(CTX)?
+                .context(CTX)?,
+            trace!("No quorum checkpoint found")
         );
 
         if quorum_checkpoint.checkpoint.message_id != message.id() {

@@ -63,9 +63,9 @@ kubectl cp testnet3/fuji-hyperlane-agent-validator-0:/usr/share/hyperlane /tmp/f
 Configure additional env variables appropriately:
 
 ```bash
-HYP_BASE_DB=/tmp/fuji-validator-db
+HYP_DB=/tmp/fuji-validator-db
 CONFIG_FILES=./config/testnet_config.json
-HYP_BASE_TRACING_FMT=pretty
+HYP_TRACING_FMT=pretty
 DATABASE_URL=<READ_REPLICA_POSTGRES_URL> # for scraper
 ```
 

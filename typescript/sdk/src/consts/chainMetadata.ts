@@ -198,7 +198,11 @@ export const bsctestnet: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'BSC Testnet',
   nativeToken: bnbToken,
-  rpcUrls: [{ http: 'https://data-seed-prebsc-1-s3.binance.org:8545' }],
+  rpcUrls: [
+    { http: 'https://bsc-testnet.publicnode.com' },
+    { http: 'https://bsc-testnet.public.blastapi.io' },
+    { http: 'https://bsc-testnet.blockpi.network/v1/rpc/public' },
+  ],
   blockExplorers: [
     {
       name: 'BscScan',
@@ -394,7 +398,11 @@ export const sepolia: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Sepolia',
   nativeToken: etherToken,
-  rpcUrls: [{ http: 'https://endpoints.omniatech.io/v1/eth/sepolia/public' }],
+  rpcUrls: [
+    { http: 'https://ethereum-sepolia.blockpi.network/v1/rpc/public' },
+    { http: 'https://eth-sepolia.g.alchemy.com/v2/demo' },
+    { http: 'https://rpc.sepolia.org' },
+  ],
   blockExplorers: [
     {
       name: 'Etherscan',

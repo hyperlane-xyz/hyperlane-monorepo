@@ -245,7 +245,7 @@ macro_rules! unwrap_or_none_result {
     ($variable_name:ident, $e:expr $(, $else_e:expr)?) => {
         let Some($variable_name) = $e
         else {
-            $($else_e)?
+            $($else_e;)?
             return Ok(None);
         };
     };

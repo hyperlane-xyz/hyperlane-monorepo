@@ -43,8 +43,11 @@ export const environment = 'testnet4';
 export const ethereumChainNames = Object.keys(
   ethereumTestnetConfigs,
 ) as TestnetChains[];
-
-const validatorChainNames = supportedChainNames;
+const validatorChainNames = [
+  ...supportedChainNames,
+  // chainMetadata.solanadevnet.name,
+  // chainMetadata.proteustestnet.name,
+];
 const relayerChainNames = validatorChainNames;
 
 export const agentChainNames: AgentChainNames = {
