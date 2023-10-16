@@ -9,7 +9,7 @@ import {
   hyperlaneContractAddresses,
 } from '@hyperlane-xyz/sdk';
 
-import { log, logBlue, logGray } from '../../logger.js';
+import { log, logBlue, logGray, logTable } from '../../logger.js';
 
 /**
  * Parent command
@@ -33,13 +33,21 @@ const listCommand: CommandModule = {
   command: 'list',
   describe: 'List all core chains included in the Hyperlane SDK',
   handler: () => {
+    const serializer = (chains: string[]) =>
+      chains.reduce<any>((result, chain) => {
+        result[chain] = {
+          'Display Name': chainMetadata[chain].displayName,
+          'Chain Id': chainMetadata[chain].chainId,
+        };
+        return result;
+      }, {});
+
     logBlue('Hyperlane core mainnet chains:');
     logGray('------------------------------');
-    log(Mainnets.map((chain) => chainMetadata[chain].displayName).join(', '));
-    log('');
-    logBlue('Hyperlane core testnet chains:');
+    logTable(serializer(Mainnets));
+    logBlue('\nHyperlane core testnet chains:');
     logGray('------------------------------');
-    log(Testnets.map((chain) => chainMetadata[chain].displayName).join(', '));
+    logTable(serializer(Testnets));
   },
 };
 

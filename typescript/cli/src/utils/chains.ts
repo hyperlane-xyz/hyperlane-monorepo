@@ -15,32 +15,18 @@ import { log, logBlue } from '../../logger.js';
 // a new chain in the list
 const NEW_CHAIN_MARKER = '__new__';
 
-export async function runOriginAndRemotesSelectionStep(
-  customChains: ChainMap<ChainMetadata>,
-) {
-  const origin = await runSingleChainSelectionStep(
-    customChains,
-    'Select origin chain (the chain to which you will deploy now)',
-  );
-  const remotes = await runMultiChainSelectionStep(
-    customChains,
-    'Select remote chains the origin will send messages to',
-  );
-  return { origin, remotes };
-}
-
 export async function runSingleChainSelectionStep(
   customChains: ChainMap<ChainMetadata>,
   message = 'Select chain',
 ) {
   const choices = getChainChoices(customChains);
-  const origin = (await select({
+  const chain = (await select({
     message,
     choices,
     pageSize: 20,
   })) as string;
-  handleNewChain([origin]);
-  return origin;
+  handleNewChain([chain]);
+  return chain;
 }
 
 export async function runMultiChainSelectionStep(
@@ -48,14 +34,14 @@ export async function runMultiChainSelectionStep(
   message = 'Select chains',
 ) {
   const choices = getChainChoices(customChains);
-  const remotes = (await checkbox({
+  const chains = (await checkbox({
     message,
     choices,
     pageSize: 20,
   })) as string[];
-  handleNewChain(remotes);
-  if (!remotes?.length) throw new Error('No remote chains selected');
-  return remotes;
+  handleNewChain(chains);
+  if (!chains?.length) throw new Error('No chains selected');
+  return chains;
 }
 
 function getChainChoices(customChains: ChainMap<ChainMetadata>) {
