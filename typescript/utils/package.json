@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "1.5.4-beta0",
+  "version": "1.5.8",
   "dependencies": {
     "@solana/web3.js": "^1.78.0",
     "bignumber.js": "^9.1.1",
@@ -32,6 +32,5 @@
   "types": "dist/index.d.ts",
   "files": [
     "/dist"
-  ],
-  "stableVersion": "1.5.3"
+  ]
 }
