@@ -4,6 +4,11 @@ use super::general::EmptyStruct;
 
 const TREE_DEPTH: usize = 32;
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MerkleTreeGenericRequest<T> {
+    pub merkle_hook: T,
+}
+
 // --------- Requests ---------
 
 #[derive(Serialize, Deserialize, Debug)]

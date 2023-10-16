@@ -6,6 +6,12 @@ use hyperlane_core::{
 
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
+    payloads::{
+        general::EmptyStruct,
+        ism_routes::{
+            QueryIsmGeneralRequest, QueryIsmModuleTypeRequest, QueryIsmModuleTypeResponse,
+        },
+    },
     ConnectionConf, CosmosProvider, Signer,
 };
 
@@ -70,17 +76,22 @@ impl InterchainSecurityModule for CosmosInterchainSecurityModule {
     /// Returns the module type of the ISM compliant with the corresponding
     /// metadata offchain fetching and onchain formatting standard.
     async fn module_type(&self) -> ChainResult<ModuleType> {
-        let query = hpl_interface::ism::ISMQueryMsg::ModuleType {};
+        let query = QueryIsmModuleTypeRequest {
+            module_type: EmptyStruct {},
+        };
 
-        let data = self.provider.wasm_query(query, None).await?;
+        let data = self
+            .provider
+            .wasm_query(QueryIsmGeneralRequest { i_s_m: query }, None)
+            .await?;
 
         // Handle both the ISMType response and the ModuleTypeResponse response.
-        let ismtype_response = serde_json::from_slice::<hpl_interface::ism::ISMType>(&data);
+        let ismtype_response = serde_json::from_slice::<QueryIsmModuleTypeResponse>(&data);
         let moduletye_response =
             serde_json::from_slice::<hpl_interface::ism::ModuleTypeResponse>(&data);
 
         Ok(match (ismtype_response, moduletye_response) {
-            (Ok(v), _) => ism_type_to_module_type(v),
+            (Ok(v), _) => ism_type_to_module_type(v.typ),
             (_, Ok(v)) => ism_type_to_module_type(v.typ),
             _ => ModuleType::Null,
         })

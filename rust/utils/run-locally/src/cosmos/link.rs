@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use hpl_interface::ism;
+use hpl_interface::{core, ism};
 
 use super::{cli::OsmosisCLI, crypto::KeyPair, CosmosNetwork};
 
@@ -54,6 +54,44 @@ fn link_network(
             },
         },
         vec![],
+    );
+
+    cli.wasm_execute(
+        &network.launch_resp.endpoint,
+        linker,
+        &network.deployments.mailbox,
+        core::mailbox::ExecuteMsg::SetDefaultHook {
+            hook: network.deployments.mock_hook.clone(),
+        },
+        vec![],
+    );
+
+    cli.wasm_execute(
+        &network.launch_resp.endpoint,
+        linker,
+        &network.deployments.mailbox,
+        core::mailbox::ExecuteMsg::SetRequiredHook {
+            hook: network.deployments.mock_hook.clone(),
+        },
+        vec![],
+    );
+
+    cli.wasm_execute(
+        &network.launch_resp.endpoint,
+        linker,
+        &network.deployments.mailbox,
+        core::mailbox::ExecuteMsg::SetDefaultIsm {
+            ism: network.deployments.ism_routing.clone(),
+        },
+        vec![],
+    );
+
+    cli.bank_send(
+        &network.launch_resp.endpoint,
+        linker,
+        &validator_addr,
+        "osmo1l83956lgpak5sun7ggupls7rk7p5cr95499jdf",
+        "10000000uosmo",
     );
 
     // TODO

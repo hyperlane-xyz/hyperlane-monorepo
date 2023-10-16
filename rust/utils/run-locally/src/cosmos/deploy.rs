@@ -157,7 +157,6 @@ pub fn deploy_cw_hyperlane(
         igp::oracle::InstantiateMsg {},
         "hpl_test_mock_hook",
     );
-
     Deployments {
         hook_merkle,
         hook_routing,

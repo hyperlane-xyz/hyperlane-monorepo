@@ -92,8 +92,7 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
             announce: AnnouncementRequestInner {
                 validator: hex::encode(announcement.value.validator),
                 storage_location: announcement.value.storage_location,
-                signature: base64::engine::general_purpose::STANDARD
-                    .encode(announcement.signature.to_vec()),
+                signature: hex::encode(announcement.signature.to_vec()),
             },
         };
 

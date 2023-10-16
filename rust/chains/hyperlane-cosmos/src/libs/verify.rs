@@ -80,13 +80,35 @@ pub fn pub_to_addr(pub_key: Vec<u8>, prefix: &str) -> ChainResult<String> {
 
 /// encode H256 to bech32 address
 pub fn priv_to_binary_addr(priv_key: Vec<u8>) -> ChainResult<H160> {
-    let sha_hash = sha256_digest(SigningKey::from_slice(priv_key.as_slice())
-                                     .unwrap()
-                                     .public_key()
-                                     .to_bytes())?;
+    let sha_hash = sha256_digest(
+        SigningKey::from_slice(priv_key.as_slice())
+            .unwrap()
+            .public_key()
+            .to_bytes(),
+    )?;
     let rip_hash = ripemd160_digest(sha_hash)?;
 
     Ok(H160::from_slice(rip_hash.as_slice()))
+}
+
+/// encode H256 to bech32 address
+pub fn priv_to_addr_string(priv_key: Vec<u8>) -> ChainResult<String> {
+    let sha_hash = sha256_digest(
+        SigningKey::from_slice(priv_key.as_slice())
+            .unwrap()
+            .public_key()
+            .to_bytes(),
+    )?;
+    let rip_hash = ripemd160_digest(sha_hash)?;
+
+    let addr =
+        bech32::encode("osmo", rip_hash.to_base32(), bech32::Variant::Bech32).map_err(|_| {
+            ChainCommunicationError::ParseError {
+                msg: "bech32".to_string(),
+            }
+        })?;
+
+    Ok(addr)
 }
 
 /// encode H256 to bech32 address

@@ -115,6 +115,7 @@ pub struct AgentConfig {
     pub mailbox: String,
     pub interchain_gas_paymaster: String,
     pub validator_announce: String,
+    pub merkle_tree_hook: String,
     pub protocol: String,
     pub finality_blocks: u32,
     pub chain_id: String,
@@ -145,6 +146,7 @@ impl AgentConfig {
             mailbox: to_hex_addr(&network.deployments.mailbox),
             interchain_gas_paymaster: to_hex_addr(&network.deployments.igp),
             validator_announce: to_hex_addr(&network.deployments.va),
+            merkle_tree_hook: to_hex_addr(&network.deployments.hook_merkle),
             protocol: "cosmos".to_string(),
             finality_blocks: 1,
             chain_id: format!("cosmos-test-{}", network.domain),
@@ -161,7 +163,10 @@ impl AgentConfig {
                 key: format!("0x{}", hex::encode(validator.priv_key.to_bytes())),
                 prefix: "osmo".to_string(),
             },
-            index: AgentConfigIndex { from: 1, chunk: 10 },
+            index: AgentConfigIndex {
+                from: 1,
+                chunk: 100,
+            },
         }
     }
 }

@@ -7,7 +7,9 @@ use hyperlane_core::{
 
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
-    payloads::ism_routes::{IsmRouteRequest, IsmRouteRequestInner, IsmRouteRespnose},
+    payloads::ism_routes::{
+        IsmRouteRequest, IsmRouteRequestInner, IsmRouteRespnose, QueryRoutingIsmGeneralRequest,
+    },
     signers::Signer,
     verify::bech32_decode,
     ConnectionConf, CosmosProvider,
@@ -59,7 +61,15 @@ impl RoutingIsm for CosmosRoutingIsm {
             },
         };
 
-        let data = self.provider.wasm_query(payload, None).await?;
+        let data = self
+            .provider
+            .wasm_query(
+                QueryRoutingIsmGeneralRequest {
+                    routing_ism: payload,
+                },
+                None,
+            )
+            .await?;
         let response: IsmRouteRespnose = serde_json::from_slice(&data)?;
 
         Ok(bech32_decode(response.ism))

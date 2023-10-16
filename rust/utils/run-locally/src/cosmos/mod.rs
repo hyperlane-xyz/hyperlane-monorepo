@@ -325,10 +325,10 @@ fn run_locally() {
             (
                 launch_cosmos_node(CosmosConfig {
                     node_port_base: port_start + (i * 10),
-                    chain_id: format!("local-node-{}", i),
+                    chain_id: format!("cosmos-test-{}", i + 26657),
                     ..default_config.clone()
                 }),
-                format!("local-node-{}", i),
+                format!("cosmos-test-{}", i + 26657),
                 domain_start + i,
             )
         })
@@ -458,10 +458,13 @@ fn run_locally() {
                         .unwrap()
                         .into(),
                     msg_body: b"hello".into(),
-                    hook: None,
+                    hook: Some(node.deployments.mock_hook.clone()),
                     metadata: None,
                 }),
-                vec![],
+                vec![Coin {
+                    denom: "uosmo".to_string(),
+                    amount: 510_000.to_string(),
+                }],
             );
         }
     }

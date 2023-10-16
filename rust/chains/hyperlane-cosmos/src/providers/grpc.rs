@@ -311,6 +311,8 @@ impl WasmProvider for WasmGrpcProvider {
             funds: vec![],
         };
 
+        println!("simulate msg: {:?}", serde_json::to_string(&payload)?);
+
         let response = self
             .simulate_raw_tx(vec![msg.to_any().unwrap()], None)
             .await?;
