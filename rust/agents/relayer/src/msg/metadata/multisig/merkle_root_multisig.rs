@@ -36,11 +36,14 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MerkleRootMultisig metadata";
+
+        println!("{}", CTX);
         unwrap_or_none_result!(
             highest_leaf_index,
             self.highest_known_leaf_index().await,
             debug!("Couldn't get highest known leaf index")
         );
+        println!("highest_leaf_index: {:?}", highest_leaf_index);
         unwrap_or_none_result!(
             leaf_index,
             self.get_merkle_leaf_id_by_message_id(message.id())
@@ -67,6 +70,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                 highest_leaf_index, "Couldn't get checkpoint in range"
             )
         );
+        println!("quorum_checkpoint: {:?}", quorum_checkpoint);
         unwrap_or_none_result!(
             proof,
             self.get_proof(leaf_index, quorum_checkpoint.checkpoint.checkpoint)

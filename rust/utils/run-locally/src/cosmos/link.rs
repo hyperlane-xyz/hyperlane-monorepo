@@ -61,7 +61,7 @@ fn link_network(
         linker,
         &network.deployments.mailbox,
         core::mailbox::ExecuteMsg::SetDefaultHook {
-            hook: network.deployments.mock_hook.clone(),
+            hook: network.deployments.hook_merkle.clone(),
         },
         vec![],
     );
@@ -71,7 +71,7 @@ fn link_network(
         linker,
         &network.deployments.mailbox,
         core::mailbox::ExecuteMsg::SetRequiredHook {
-            hook: network.deployments.mock_hook.clone(),
+            hook: network.deployments.hook_merkle.clone(),
         },
         vec![],
     );
@@ -81,7 +81,7 @@ fn link_network(
         linker,
         &network.deployments.mailbox,
         core::mailbox::ExecuteMsg::SetDefaultIsm {
-            ism: network.deployments.ism_multisig.clone(),
+            ism: network.deployments.ism_routing.clone(),
         },
         vec![],
     );

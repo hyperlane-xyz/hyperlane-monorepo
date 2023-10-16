@@ -157,6 +157,16 @@ pub fn deploy_cw_hyperlane(
         igp::oracle::InstantiateMsg {},
         "hpl_test_mock_hook",
     );
+
+    let mock_ism = cli.wasm_init(
+        &endpoint,
+        &deployer,
+        Some(deployer_addr),
+        codes.hpl_test_mock_ism,
+        igp::oracle::InstantiateMsg {},
+        "hpl_test_mock_ism",
+    );
+
     Deployments {
         hook_merkle,
         hook_routing,
@@ -167,6 +177,7 @@ pub fn deploy_cw_hyperlane(
         mailbox,
         mock_receiver,
         mock_hook,
+        mock_ism,
         va,
     }
 }

@@ -67,6 +67,7 @@ pub struct Deployments {
     pub mailbox: String,
     pub mock_receiver: String,
     pub mock_hook: String,
+    pub mock_ism: String,
     pub va: String,
 }
 
