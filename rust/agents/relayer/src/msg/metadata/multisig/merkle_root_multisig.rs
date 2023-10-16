@@ -36,11 +36,14 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MerkleRootMultisig metadata";
+
+        println!("{}", CTX);
         unwrap_or_none_result!(
             highest_leaf_index,
             self.highest_known_leaf_index().await,
             debug!("Couldn't get highest known leaf index")
         );
+        println!("highest_leaf_index: {:?}", highest_leaf_index);
         unwrap_or_none_result!(
             quorum_checkpoint,
             checkpoint_syncer
@@ -54,12 +57,14 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                 .context(CTX)?,
             debug!("Couldn't get checkpoint in range")
         );
+        println!("quorum_checkpoint: {:?}", quorum_checkpoint);
         unwrap_or_none_result!(
             proof,
             self.get_proof(message.nonce, quorum_checkpoint.checkpoint.checkpoint)
                 .await
                 .context(CTX)?
         );
+        println!("proof: {:?}", proof);
         unwrap_or_none_result!(
             merkle_leaf_id,
             self.get_merkle_leaf_id_by_message_id(message.id())
@@ -67,6 +72,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                 .context(CTX)?,
             debug!("Couldn't get merkle proof")
         );
+        println!("merkle_leaf_id: {:?}", merkle_leaf_id);
         Ok(Some(MultisigMetadata::new(
             quorum_checkpoint.checkpoint.checkpoint,
             quorum_checkpoint.signatures,

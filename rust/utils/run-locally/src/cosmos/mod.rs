@@ -224,10 +224,11 @@ fn launch_cosmos_validator(
     debug: bool,
 ) -> AgentHandles {
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
-    let validator_base = tempdir().unwrap();
+    let validator_base = tempdir().expect("Failed to create a temp dir").into_path();
     let validator_base_db = concat_path(&validator_base, "db");
-    fs::create_dir_all(&validator_base).unwrap();
+
     fs::create_dir_all(&validator_base_db).unwrap();
+    println!("Validator DB: {:?}", validator_base_db);
 
     let checkpoint_path = concat_path(&validator_base, "checkpoint");
     let signature_path = concat_path(&validator_base, "signature");

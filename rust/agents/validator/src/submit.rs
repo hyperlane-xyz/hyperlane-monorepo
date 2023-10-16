@@ -83,6 +83,14 @@ impl ValidatorSubmitter {
                 latest_checkpoint
             };
 
+            println!("tree_count: {:?}", tree.count());
+            println!("correctness_checkpoint: {:?}", correctness_checkpoint);
+            let restest = self
+                .message_db
+                .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))?;
+
+            println!("restest: {:?}", restest);
+
             // ingest available messages from DB
             while let Some(insertion) = self
                 .message_db

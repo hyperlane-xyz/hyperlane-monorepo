@@ -79,8 +79,8 @@ impl Debug for CosmosMailbox {
 impl Mailbox for CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let payload = mailbox::CountRequest {
-            count: general::EmptyStruct {},
+        let payload = mailbox::NonceRequest {
+            nonce: general::EmptyStruct {},
         };
 
         let data = self
@@ -93,8 +93,8 @@ impl Mailbox for CosmosMailbox {
             return Ok(0);
         }
 
-        let response: mailbox::CountResponse = serde_json::from_slice(&data?)?;
-        Ok(response.count)
+        let response: mailbox::NonceResponse = serde_json::from_slice(&data?)?;
+        Ok(response.nonce)
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
@@ -267,17 +267,17 @@ impl CosmosMailboxIndexer {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let payload = mailbox::CountRequest {
-            count: general::EmptyStruct {},
+        let payload = mailbox::NonceRequest {
+            nonce: general::EmptyStruct {},
         };
 
         let data = self
             .provider
             .wasm_query(GeneralMailboxQuery { mailbox: payload }, lag)
             .await?;
-        let response: mailbox::CountResponse = serde_json::from_slice(&data)?;
+        let response: mailbox::NonceResponse = serde_json::from_slice(&data)?;
 
-        Ok(response.count)
+        Ok(response.nonce)
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]

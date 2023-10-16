@@ -70,10 +70,18 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
         let payload = merkle_tree_hook::MerkleTreeRequest {
-            merkle_tree: general::EmptyStruct {},
+            tree: general::EmptyStruct {},
         };
 
-        let data = self.provider.wasm_query(payload, lag).await?;
+        let data = self
+            .provider
+            .wasm_query(
+                merkle_tree_hook::MerkleTreeGenericRequest {
+                    merkle_hook: payload,
+                },
+                lag,
+            )
+            .await?;
         let response: merkle_tree_hook::MerkleTreeResponse = serde_json::from_slice(&data)?;
 
         let branch = response
@@ -84,10 +92,11 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             .collect::<Result<Vec<H256>, _>>()
             .expect("fail to parse tree branch");
 
-        Ok(IncrementalMerkle {
-            branch: branch.try_into().unwrap(),
-            count: response.count as usize,
-        })
+        let branch_res: [H256; 32] = branch
+            .try_into()
+            .expect("fail to convert tree branch to array");
+
+        Ok(IncrementalMerkle::new(branch_res, response.count as usize))
     }
 
     /// Gets the current leaf count of the merkle tree
@@ -117,7 +126,15 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             check_point: general::EmptyStruct {},
         };
 
-        let data = self.provider.wasm_query(payload, None).await?;
+        let data = self
+            .provider
+            .wasm_query(
+                merkle_tree_hook::MerkleTreeGenericRequest {
+                    merkle_hook: payload,
+                },
+                None,
+            )
+            .await?;
         let response: merkle_tree_hook::CheckPointResponse = serde_json::from_slice(&data)?;
 
         Ok(Checkpoint {

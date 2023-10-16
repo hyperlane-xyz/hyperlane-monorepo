@@ -238,7 +238,7 @@ impl Validator {
 
                 priv_to_binary_addr(key.0.as_slice().to_vec())?
             }
-            // SignerConf::HexKey { key } => priv_to_binary_addr(key.0.as_slice().to_vec())?, //self.signer.eth_address(),
+            SignerConf::HexKey { key } => priv_to_binary_addr(key.0.as_slice().to_vec())?, //self.signer.eth_address(),
             _ => self.signer.eth_address(),
         };
 

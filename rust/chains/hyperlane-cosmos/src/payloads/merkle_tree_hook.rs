@@ -13,7 +13,7 @@ pub struct MerkleTreeGenericRequest<T> {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MerkleTreeRequest {
-    pub merkle_tree: EmptyStruct,
+    pub tree: EmptyStruct,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
