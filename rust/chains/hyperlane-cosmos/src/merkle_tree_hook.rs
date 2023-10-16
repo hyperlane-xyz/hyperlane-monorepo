@@ -97,7 +97,15 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             count: general::EmptyStruct {},
         };
 
-        let data = self.provider.wasm_query(payload, lag).await?;
+        let data = self
+            .provider
+            .wasm_query(
+                merkle_tree_hook::MerkleTreeGenericRequest {
+                    merkle_hook: payload,
+                },
+                lag,
+            )
+            .await?;
         let response: merkle_tree_hook::MerkleTreeCountResponse = serde_json::from_slice(&data)?;
 
         Ok(response.count)

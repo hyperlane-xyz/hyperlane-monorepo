@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
 use futures_util::future::ready;
-use hyperlane_cosmos::verify::priv_to_binary_addr;
+use hyperlane_cosmos::verify::{priv_to_addr_string, priv_to_binary_addr};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
@@ -229,7 +229,13 @@ impl Validator {
 
     async fn announce(&self) -> Result<()> {
         let address = match self.raw_signer {
-            SignerConf::CosmosKey { key, .. } => priv_to_binary_addr(key.0.as_slice().to_vec())?,
+            SignerConf::CosmosKey { key, .. } => {
+                let addr = priv_to_addr_string(key.0.as_slice().to_vec())?;
+                info!("Announcing validator with Cosmos key: {}", addr);
+
+                priv_to_binary_addr(key.0.as_slice().to_vec())?
+            }
+            // SignerConf::HexKey { key } => priv_to_binary_addr(key.0.as_slice().to_vec())?, //self.signer.eth_address(),
             _ => self.signer.eth_address(),
         };
 

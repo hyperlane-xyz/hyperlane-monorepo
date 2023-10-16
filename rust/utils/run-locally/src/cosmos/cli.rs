@@ -320,6 +320,30 @@ impl OsmosisCLI {
         output
     }
 
+    pub fn bank_send(
+        &self,
+        endpoint: &OsmosisEndpoint,
+        sender: &str,
+        sender_addr: &str,
+        addr: &str,
+        funds: &str,
+    ) {
+        let mut cmd = self
+            .cli()
+            .cmd("tx")
+            .cmd("bank")
+            .cmd("send")
+            .cmd(sender_addr)
+            .cmd(addr)
+            .cmd(funds)
+            .arg("from", sender);
+
+        cmd = self.add_gas(cmd);
+        cmd = endpoint.add_rpc(cmd);
+
+        cmd.run().join();
+    }
+
     fn add_genesis_accs(&self) {
         for name in default_keys().into_iter().map(|(name, _)| name) {
             self.cli()

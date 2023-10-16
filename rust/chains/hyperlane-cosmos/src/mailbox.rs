@@ -24,7 +24,7 @@ use hyperlane_core::{
     H256, U256,
 };
 use hyperlane_core::{ContractLocator, Decode, RawHyperlaneMessage, SequenceIndexer};
-use tracing::{info, instrument, warn};
+use tracing::{instrument, warn};
 
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {
@@ -290,6 +290,7 @@ impl CosmosMailboxIndexer {
             .provider
             .wasm_query(GeneralMailboxQuery { mailbox: payload }, lag)
             .await?;
+
         let response: mailbox::NonceResponse = serde_json::from_slice(&data)?;
 
         Ok(response.nonce)
@@ -306,8 +307,13 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
         let parser = self.get_parser();
 
         for block_number in range {
-            let logs = self.indexer.get_event_log(block_number, parser).await?;
-            result.extend(logs);
+            let logs = self.indexer.get_event_log(block_number, parser).await;
+
+            if let Err(e) = logs {
+                warn!("error: {:?}", e);
+                continue;
+            }
+            result.extend(logs.unwrap());
         }
 
         Ok(result)
