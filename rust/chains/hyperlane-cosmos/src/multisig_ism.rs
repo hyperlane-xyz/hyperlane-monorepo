@@ -1,5 +1,6 @@
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
+    payloads::ism_routes::QueryIsmGeneralRequest,
     signers::Signer,
     ConnectionConf, CosmosProvider,
 };
@@ -68,7 +69,10 @@ impl MultisigIsm for CosmosMultisigIsm {
             },
         };
 
-        let data = self.provider.wasm_query(payload, None).await?;
+        let data = self
+            .provider
+            .wasm_query(QueryIsmGeneralRequest { ism: payload }, None)
+            .await?;
         let response: multisig_ism::VerifyInfoResponse = serde_json::from_slice(&data)?;
 
         let validators: Vec<H256> = response

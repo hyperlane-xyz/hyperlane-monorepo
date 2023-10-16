@@ -83,6 +83,10 @@ impl MetadataBuilder for BaseMetadataBuilder {
             .context("When fetching module type")?;
         let base = self.clone_with_incremented_depth()?;
 
+        println!("ism_address: {:?}", ism_address);
+        println!("message: {:?}", message);
+        println!("module_type: {:?}", module_type);
+
         let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
             ModuleType::MerkleRootMultisig => {
                 Box::new(MerkleRootMultisigMetadataBuilder::new(base))
