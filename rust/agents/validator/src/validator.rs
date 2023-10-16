@@ -7,12 +7,12 @@ use futures_util::future::ready;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-    MessageContractSync,
+    WatermarkContractSync,
 };
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Announcement, ChainResult, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
-    MerkleTreeHook, TxOutcome, ValidatorAnnounce, H256, U256,
+    MerkleTreeHook, MerkleTreeInsertion, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
 use tokio::{task::JoinHandle, time::sleep};
@@ -30,7 +30,7 @@ pub struct Validator {
     #[as_ref]
     core: HyperlaneAgentCore,
     db: HyperlaneRocksDB,
-    message_sync: Arc<MessageContractSync>,
+    merkle_tree_hook_sync: Arc<WatermarkContractSync<MerkleTreeInsertion>>,
     mailbox: Arc<dyn Mailbox>,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
@@ -75,8 +75,8 @@ impl BaseAgent for Validator {
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
-        let message_sync = settings
-            .build_message_indexer(
+        let merkle_tree_hook_sync = settings
+            .build_merkle_tree_hook_indexer(
                 &settings.origin_chain,
                 &metrics,
                 &contract_sync_metrics,
@@ -91,7 +91,7 @@ impl BaseAgent for Validator {
             db: msg_db,
             mailbox: mailbox.into(),
             merkle_tree_hook: merkle_tree_hook.into(),
-            message_sync,
+            merkle_tree_hook_sync,
             validator_announce: validator_announce.into(),
             signer,
             signer_instance: Some(Box::new(signer_instance)),
@@ -129,7 +129,7 @@ impl BaseAgent for Validator {
                     sleep(self.interval).await;
                 }
                 Ok(_) => {
-                    tasks.push(self.run_message_sync().await);
+                    tasks.push(self.run_merkle_tree_hook_sync().await);
                     for checkpoint_sync_task in self.run_checkpoint_submitters().await {
                         tasks.push(checkpoint_sync_task);
                     }
@@ -147,20 +147,13 @@ impl BaseAgent for Validator {
 }
 
 impl Validator {
-    async fn run_message_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    async fn run_merkle_tree_hook_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let index_settings =
             self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
-        let contract_sync = self.message_sync.clone();
-        let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings)
-            .await;
-        tokio::spawn(async move {
-            contract_sync
-                .clone()
-                .sync("dispatched_messages", cursor)
-                .await
-        })
-        .instrument(info_span!("MailboxMessageSyncer"))
+        let contract_sync = self.merkle_tree_hook_sync.clone();
+        let cursor = contract_sync.rate_limited_cursor(index_settings).await;
+        tokio::spawn(async move { contract_sync.clone().sync("merkle_tree_hook", cursor).await })
+            .instrument(info_span!("MerkleTreeHookSyncer"))
     }
 
     async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<Result<()>>>> {
