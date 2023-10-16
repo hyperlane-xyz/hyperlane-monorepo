@@ -263,12 +263,12 @@ fn parse_chain(
 
             let grpc_url = chain
                 .chain(&mut local_err)
-                .get_key("grpcUrls")
+                .get_key("grpcUrl")
                 .parse_string()
                 .end()
                 .or_else(|| {
                     local_err.push(
-                        &chain.cwp + "grpc_urls",
+                        &chain.cwp + "grpc_url",
                         eyre!("Missing grpc definitions for chain"),
                     );
                     None
@@ -407,11 +407,28 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .unwrap_or_default();
             err.into_result(SignerConf::Aws { id, region })
         }};
+        (cosmosKey) => {{
+            let key = signer
+                .chain(&mut err)
+                .get_key("key")
+                .parse_private_key()
+                .unwrap_or_default();
+            let prefix = signer
+                .chain(&mut err)
+                .get_key("prefix")
+                .parse_string()
+                .unwrap_or_default();
+            err.into_result(SignerConf::CosmosKey {
+                key,
+                prefix: prefix.to_string(),
+            })
+        }};
     }
 
     match signer_type {
         Some("hexKey") => parse_signer!(hexKey),
         Some("aws") => parse_signer!(aws),
+        Some("cosmosKey") => parse_signer!(cosmosKey),
         Some(t) => {
             Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| &signer.cwp + "type")
         }

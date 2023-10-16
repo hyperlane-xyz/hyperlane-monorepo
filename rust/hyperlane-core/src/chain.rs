@@ -99,11 +99,9 @@ pub enum KnownHyperlaneDomain {
     LineaGoerli = 59140,
     BaseGoerli = 84531,
     ScrollSepolia = 534351,
-    
+
     /// Cosmos local chains
-    #[cfg_attr(feature = "strum", strum(serialize = "cosmos-test-26657"))]
     CosmosTest26657 = 26657,
-    #[cfg_attr(feature = "strum", strum(serialize = "cosmos-test-26658"))]
     CosmosTest26658 = 26658,
 }
 
@@ -306,7 +304,7 @@ impl HyperlaneDomain {
     ) -> Result<Self, HyperlaneDomainConfigError> {
         let name = name.to_ascii_lowercase();
         if let Ok(domain) = KnownHyperlaneDomain::try_from(domain_id) {
-            if name == domain.as_str() {
+            if name == domain.as_str().to_ascii_lowercase() {
                 Ok(HyperlaneDomain::Known(domain))
             } else {
                 Err(HyperlaneDomainConfigError::UnknownDomainName(name))

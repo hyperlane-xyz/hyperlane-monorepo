@@ -5,7 +5,9 @@ use std::ops::RangeInclusive;
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::payloads::general::EventAttribute;
-use crate::payloads::mailbox::{ProcessMessageRequest, ProcessMessageRequestInner};
+use crate::payloads::mailbox::{
+    GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
+};
 use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
 use crate::CosmosProvider;
@@ -81,7 +83,10 @@ impl Mailbox for CosmosMailbox {
             count: general::EmptyStruct {},
         };
 
-        let data = self.provider.wasm_query(payload, lag).await;
+        let data = self
+            .provider
+            .wasm_query(GeneralMailboxQuery { mailbox: payload }, lag)
+            .await;
 
         if let Err(e) = data {
             warn!("error: {:?}", e);
@@ -99,7 +104,11 @@ impl Mailbox for CosmosMailbox {
             message_delivered: mailbox::DeliveredRequestInner { id },
         };
 
-        let delivered = match self.provider.wasm_query(payload, None).await {
+        let delivered = match self
+            .provider
+            .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
+            .await
+        {
             Ok(v) => {
                 let response: mailbox::DeliveredResponse = serde_json::from_slice(&v)?;
 
@@ -124,7 +133,10 @@ impl Mailbox for CosmosMailbox {
             default_ism: general::EmptyStruct {},
         };
 
-        let data = self.provider.wasm_query(payload, None).await?;
+        let data = self
+            .provider
+            .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
+            .await?;
         let response: mailbox::DefaultIsmResponse = serde_json::from_slice(&data)?;
 
         // convert Hex to H256
@@ -136,22 +148,20 @@ impl Mailbox for CosmosMailbox {
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         let address = verify::digest_to_addr(recipient, &self.signer.prefix)?;
 
-        let payload = mailbox::ISMSpecifierRequest {
-            interchain_security_module: vec![],
+        let payload = mailbox::RecipientIsmRequest {
+            recipient_ism: mailbox::RecipientIsmRequestInner {
+                recipient_addr: address,
+            },
         };
 
-        let data = self.provider.wasm_query_to(address, payload, None).await?;
-
-        let response: mailbox::ISMSpecifierResponse = serde_json::from_slice(&data)?;
+        let data = self
+            .provider
+            .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
+            .await?;
+        let response: mailbox::RecipientIsmResponse = serde_json::from_slice(&data)?;
 
         // convert Hex to H256
-        let default_ism = self.default_ism().await?;
-        let ism = response
-            .ism
-            .map(hex::decode)
-            .transpose()?
-            .map(|v| H256::from_slice(&v))
-            .unwrap_or(default_ism);
+        let ism = verify::bech32_decode(response.ism);
         Ok(ism)
     }
 
@@ -261,10 +271,28 @@ impl CosmosMailboxIndexer {
             count: general::EmptyStruct {},
         };
 
-        let data = self.provider.wasm_query(payload, lag).await?;
+        let data = self
+            .provider
+            .wasm_query(GeneralMailboxQuery { mailbox: payload }, lag)
+            .await?;
         let response: mailbox::CountResponse = serde_json::from_slice(&data)?;
 
         Ok(response.count)
+    }
+
+    #[instrument(level = "debug", err, ret, skip(self))]
+    async fn nonce(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
+        let payload = mailbox::NonceRequest {
+            nonce: general::EmptyStruct {},
+        };
+
+        let data = self
+            .provider
+            .wasm_query(GeneralMailboxQuery { mailbox: payload }, lag)
+            .await?;
+        let response: mailbox::NonceResponse = serde_json::from_slice(&data)?;
+
+        Ok(response.nonce)
     }
 }
 
@@ -316,8 +344,14 @@ impl Indexer<H256> for CosmosMailboxIndexer {
 impl SequenceIndexer<H256> for CosmosMailboxIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when cosmos scraper support is implemented
-        info!("Message delivery indexing not implemented");
-        Ok((Some(1), 1))
+        let tip = self.indexer.latest_block_height().await?;
+
+        let sequence = match NonZeroU64::new(tip as u64) {
+            None => None,
+            Some(n) => Some(self.nonce(Some(n)).await?),
+        };
+
+        Ok((sequence, tip))
     }
 }
 
@@ -325,7 +359,13 @@ impl SequenceIndexer<H256> for CosmosMailboxIndexer {
 impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when cosmos scraper support is implemented
-        info!("Message delivery indexing not implemented");
-        Ok((Some(1), 1))
+        let tip = self.indexer.latest_block_height().await?;
+
+        let sequence = match NonZeroU64::new(tip as u64) {
+            None => None,
+            Some(n) => Some(self.nonce(Some(n)).await?),
+        };
+
+        Ok((sequence, tip))
     }
 }

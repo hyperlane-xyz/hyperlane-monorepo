@@ -28,3 +28,4 @@ macro_rules_attribute.workspace = true
 regex.workspace = true
 hyperlane-core = { path = "../../hyperlane-core" }
 hpl-interface.workspace = true
+cosmwasm-schema.workspace = true

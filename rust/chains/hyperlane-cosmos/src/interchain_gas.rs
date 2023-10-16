@@ -149,8 +149,8 @@ impl Indexer<H256> for CosmosInterchainGasPaymasterIndexer {
 impl SequenceIndexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when sealevel scraper support is implemented
-        info!("Message delivery indexing not implemented");
-        Ok((Some(1), 1))
+        let tip = self.indexer.latest_block_height().await?;
+        Ok((None, tip))
     }
 }
 
@@ -158,7 +158,7 @@ impl SequenceIndexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndex
 impl SequenceIndexer<H256> for CosmosInterchainGasPaymasterIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when sealevel scraper support is implemented
-        info!("Message delivery indexing not implemented");
-        Ok((Some(1), 1))
+        let tip = self.indexer.latest_block_height().await?;
+        Ok((None, tip))
     }
 }

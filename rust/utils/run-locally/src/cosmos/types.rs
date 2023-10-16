@@ -43,29 +43,30 @@ pub struct Coin {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Codes {
-    pub hpl_hub: u64,
-    pub hpl_igp_core: u64,
-    pub hpl_igp_gas_oracle: u64,
+    pub hpl_hook_merkle: u64,
+    pub hpl_hook_routing: u64,
+    pub hpl_igp: u64,
+    pub hpl_igp_oracle: u64,
     pub hpl_ism_multisig: u64,
     pub hpl_ism_routing: u64,
     pub hpl_test_mock_ism: u64,
+    pub hpl_test_mock_hook: u64,
     pub hpl_test_mock_msg_receiver: u64,
-    pub hpl_token_cw20: u64,
-    pub hpl_token_native: u64,
     pub hpl_mailbox: u64,
-    pub hpl_multicall: u64,
     pub hpl_validator_announce: u64,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Deployments {
+    pub hook_merkle: String,
+    pub hook_routing: String,
     pub igp: String,
     pub igp_oracle: String,
     pub ism_routing: String,
     pub ism_multisig: String,
-    pub hub: String,
     pub mailbox: String,
     pub mock_receiver: String,
+    pub mock_hook: String,
     pub va: String,
 }
 
@@ -88,16 +89,8 @@ pub struct AgentConfigAddrs {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
-pub struct AgentConfigConn {
-    pub rpc_url: String,
-    pub grpc_url: String,
-    pub chain_id: String,
-    pub prefix: String,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct AgentConfigSigner {
-    #[serde(rename = "type")]
+    #[serde(rename = "signerType")]
     pub typ: String,
     pub key: String,
     pub prefix: String,
@@ -110,13 +103,24 @@ pub struct AgentConfigIndex {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct AgentUrl {
+    pub http: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentConfig {
     pub name: String,
-    pub domain: u32,
-    pub addresses: AgentConfigAddrs,
+    pub domain_id: u32,
+    pub mailbox: String,
+    pub interchain_gas_paymaster: String,
+    pub validator_announce: String,
     pub protocol: String,
     pub finality_blocks: u32,
-    pub connection: AgentConfigConn,
+    pub chain_id: String,
+    pub rpc_urls: Vec<AgentUrl>,
+    pub grpc_url: String,
+    pub prefix: String,
     pub signer: AgentConfigSigner,
     pub index: AgentConfigIndex,
 }
@@ -136,29 +140,25 @@ impl AgentConfig {
         let validator = cli.get_keypair(validator);
 
         AgentConfig {
-            name: format!("cosmos-test-{}", network.domain),
-            domain: network.domain,
-            addresses: AgentConfigAddrs {
-                mailbox: to_hex_addr(&network.deployments.mailbox),
-                interchain_gas_paymaster: to_hex_addr(&network.deployments.igp),
-                validator_announce: to_hex_addr(&network.deployments.va),
-            },
+            name: format!("cosmostest{}", network.domain),
+            domain_id: network.domain,
+            mailbox: to_hex_addr(&network.deployments.mailbox),
+            interchain_gas_paymaster: to_hex_addr(&network.deployments.igp),
+            validator_announce: to_hex_addr(&network.deployments.va),
             protocol: "cosmos".to_string(),
             finality_blocks: 1,
-            connection: AgentConfigConn {
-                rpc_url: network
-                    .launch_resp
-                    .endpoint
-                    .rpc_addr
-                    .to_string()
-                    .replace("tcp", "http"),
-                grpc_url: format!("http://{}", network.launch_resp.endpoint.grpc_addr),
-                chain_id: network.chain_id.to_string(),
-                prefix: "osmo".to_string(),
-            },
+            chain_id: format!("cosmos-test-{}", network.domain),
+            rpc_urls: vec![AgentUrl {
+                http: format!(
+                    "http://{}",
+                    network.launch_resp.endpoint.rpc_addr.replace("tcp://", "")
+                ),
+            }],
+            grpc_url: format!("http://{}", network.launch_resp.endpoint.grpc_addr),
+            prefix: "osmo".to_string(),
             signer: AgentConfigSigner {
                 typ: "cosmosKey".to_string(),
-                key: hex::encode(validator.priv_key.to_bytes()),
+                key: format!("0x{}", hex::encode(validator.priv_key.to_bytes())),
                 prefix: "osmo".to_string(),
             },
             index: AgentConfigIndex { from: 1, chunk: 10 },

@@ -4,8 +4,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use std::{env, fs};
 
-use hpl_interface::mailbox;
-use hpl_interface::types::bech32_decode;
+use hpl_interface::{core, types::bech32_decode};
 use macro_rules_attribute::apply;
 use tempfile::tempdir;
 
@@ -58,7 +57,7 @@ fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
 }
 const CW_HYPERLANE_GIT: &str = "https://github.com/many-things/cw-hyperlane";
 
-const CW_HYPERLANE_VERSION: &str = "0.0.5";
+const CW_HYPERLANE_VERSION: &str = "0.0.6-rc0";
 
 fn make_target() -> String {
     let os = if cfg!(target_os = "linux") {
@@ -88,7 +87,7 @@ pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, Path
         let dir_path = dir_path.to_str().unwrap();
 
         let release_name = format!("cw-hyperlane-v{CW_HYPERLANE_VERSION}");
-        let release_comp = format!("{release_name}.tar.gz");
+        let release_comp = format!("{release_name}.zip");
 
         log!("Downloading cw-hyperlane v{}", CW_HYPERLANE_VERSION);
         let uri =
@@ -98,6 +97,8 @@ pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, Path
         log!("Uncompressing cw-hyperlane release");
         unzip(&release_comp, dir_path);
     }
+
+    log!("Installing cw-hyperlane in Path: {:?}", dir_path);
 
     // make contract_name => path map
     fs::read_dir(dir_path)
@@ -225,6 +226,7 @@ fn launch_cosmos_validator(
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
     let validator_base = tempdir().unwrap();
     let validator_base_db = concat_path(&validator_base, "db");
+    fs::create_dir_all(&validator_base).unwrap();
     fs::create_dir_all(&validator_base_db).unwrap();
 
     let checkpoint_path = concat_path(&validator_base, "checkpoint");
@@ -243,7 +245,7 @@ fn launch_cosmos_validator(
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
         .hyp_env("REORGPERIOD", "1")
         .hyp_env("DB", validator_base_db.to_str().unwrap())
-        .hyp_env("METRICS", agent_config.domain.to_string())
+        .hyp_env("METRICS", agent_config.domain_id.to_string())
         .hyp_env("VALIDATOR_KEY", agent_config.signer.key)
         .hyp_env("VALIDATOR_TYPE", agent_config.signer.typ)
         .hyp_env("VALIDATOR_PREFIX", "osmo1")
@@ -297,8 +299,9 @@ fn run_locally() {
             .unwrap_or_default(),
     );
 
-    let (osmosisd, codes) = install_cosmos(None, cli_src, None, code_src);
+    let codes_dir = PathBuf::from("/Users/eric/many-things/mitosis/cw-hyperlane/artifacts/actual");
 
+    let (osmosisd, codes) = install_cosmos(None, cli_src, Some(codes_dir), code_src);
     let addr_base = "tcp://0.0.0.0";
     let default_config = CosmosConfig {
         cli_path: osmosisd.clone(),
@@ -395,7 +398,7 @@ fn run_locally() {
             .iter()
             .map(|v| {
                 (
-                    format!("cosmos-test-{}", v.domain),
+                    format!("cosmostest{}", v.domain),
                     AgentConfig::new(osmosisd.clone(), validator, v),
                 )
             })
@@ -449,13 +452,15 @@ fn run_locally() {
                 &node.launch_resp.endpoint,
                 linker,
                 &node.deployments.mailbox,
-                mailbox::ExecuteMsg::Dispatch {
+                core::mailbox::ExecuteMsg::Dispatch(core::mailbox::DispatchMsg {
                     dest_domain: target.domain,
                     recipient_addr: bech32_decode(&target.deployments.mock_receiver)
                         .unwrap()
                         .into(),
                     msg_body: b"hello".into(),
-                },
+                    hook: None,
+                    metadata: None,
+                }),
                 vec![],
             );
         }
