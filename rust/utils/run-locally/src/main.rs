@@ -137,7 +137,7 @@ fn main() -> ExitCode {
 
     // let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
     // fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
-    let checkpoints_dirs: Vec<DynPath> = (0..VALIDATOR_COUNT - 1)
+    let checkpoints_dirs: Vec<DynPath> = (0..VALIDATOR_COUNT)
         .map(|_| Box::new(tempdir().unwrap()) as DynPath)
         // .chain([Box::new(solana_checkpoint_path) as DynPath])
         .collect();
@@ -264,7 +264,7 @@ fn main() -> ExitCode {
             .join(", ")
     );
     log!("Relayer DB in {}", relayer_db.display());
-    (0..3).for_each(|i| {
+    (0..VALIDATOR_COUNT).for_each(|i| {
         log!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
     });
 
