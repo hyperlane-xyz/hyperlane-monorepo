@@ -117,7 +117,6 @@ pub fn deploy_cw_hyperlane(
         codes.hpl_hook_routing,
         hook::routing::InstantiateMsg {
             owner: deployer_addr.clone(),
-            mailbox: mailbox.to_string(),
         },
         "hpl_hook_routing",
     );

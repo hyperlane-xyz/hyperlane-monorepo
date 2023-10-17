@@ -142,6 +142,8 @@ impl HyperlaneRocksDB {
             debug!(insertion=?insertion, "Tree insertion already stored in db");
             return Ok(false);
         }
+
+        println!("process_tree_insertion: {:?}", insertion);
         // even if double insertions are ok, store the leaf by `leaf_index` (guaranteed to be unique)
         // rather than by `message_id` (not guaranteed to be recurring), so that leaves can be retrieved
         // based on insertion order.

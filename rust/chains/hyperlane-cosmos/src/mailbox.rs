@@ -247,8 +247,8 @@ impl CosmosMailboxIndexer {
         }
     }
 
-    fn get_parser(&self) -> fn(attrs: Vec<EventAttribute>) -> HyperlaneMessage {
-        |attrs: Vec<EventAttribute>| -> HyperlaneMessage {
+    fn get_parser(&self) -> fn(attrs: Vec<EventAttribute>) -> Option<HyperlaneMessage> {
+        |attrs: Vec<EventAttribute>| -> Option<HyperlaneMessage> {
             let mut res = HyperlaneMessage::default();
 
             for attr in attrs {
@@ -261,7 +261,7 @@ impl CosmosMailboxIndexer {
                 }
             }
 
-            res
+            Some(res)
         }
     }
 
@@ -328,7 +328,7 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
 impl Indexer<H256> for CosmosMailboxIndexer {
     async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
         let mut result: Vec<(HyperlaneMessage, LogMeta)> = vec![];
-        let parser: fn(Vec<EventAttribute>) -> HyperlaneMessage = self.get_parser();
+        let parser: fn(Vec<EventAttribute>) -> Option<HyperlaneMessage> = self.get_parser();
 
         for block_number in range {
             let logs = self.indexer.get_event_log(block_number, parser).await?;

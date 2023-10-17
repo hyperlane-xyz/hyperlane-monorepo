@@ -72,8 +72,8 @@ impl CosmosInterchainGasPaymasterIndexer {
         }
     }
 
-    fn get_parser(&self) -> fn(attrs: Vec<EventAttribute>) -> InterchainGasPayment {
-        |attrs: Vec<EventAttribute>| -> InterchainGasPayment {
+    fn get_parser(&self) -> fn(attrs: Vec<EventAttribute>) -> Option<InterchainGasPayment> {
+        |attrs: Vec<EventAttribute>| -> Option<InterchainGasPayment> {
             let mut res = InterchainGasPayment {
                 message_id: H256::zero(),
                 payment: U256::zero(),
@@ -96,7 +96,7 @@ impl CosmosInterchainGasPaymasterIndexer {
                 }
             }
 
-            res
+            Some(res)
         }
     }
 }

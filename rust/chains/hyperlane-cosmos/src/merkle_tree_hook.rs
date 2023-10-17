@@ -132,7 +132,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
                 merkle_tree_hook::MerkleTreeGenericRequest {
                     merkle_hook: payload,
                 },
-                None,
+                lag,
             )
             .await?;
         let response: merkle_tree_hook::CheckPointResponse = serde_json::from_slice(&data)?;
@@ -148,7 +148,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
 
 // ------------------ Indexer ------------------
 
-const EVENT_TYPE: &str = "post_dispatch";
+const EVENT_TYPE: &str = "hpl_hook_merkle::post_dispatch";
 
 #[derive(Debug)]
 /// A reference to a MerkleTreeHookIndexer contract on some Cosmos chain
@@ -169,10 +169,11 @@ impl CosmosMerkleeTreeHookIndexer {
     }
 
     /// Get the parser for the indexer
-    fn get_parser(&self) -> fn(attrs: Vec<EventAttribute>) -> MerkleTreeInsertion {
-        |attrs: Vec<EventAttribute>| -> MerkleTreeInsertion {
+    fn get_parser(&self) -> fn(attrs: Vec<EventAttribute>) -> Option<MerkleTreeInsertion> {
+        |attrs: Vec<EventAttribute>| -> Option<MerkleTreeInsertion> {
             let mut message_id = H256::zero();
             let mut leaf_index: u32 = 0;
+            let mut attr_count = 0;
 
             for attr in attrs {
                 let key = attr.key.as_str();
@@ -180,14 +181,22 @@ impl CosmosMerkleeTreeHookIndexer {
 
                 match key {
                     "message_id" => {
-                        message_id = H256::from_slice(hex::decode(value).unwrap().as_slice())
+                        message_id = H256::from_slice(hex::decode(value).unwrap().as_slice());
+                        attr_count += 1;
                     }
-                    "leaf_index" => leaf_index = value.parse().unwrap(),
+                    "index" => {
+                        leaf_index = value.parse().unwrap();
+                        attr_count += 1;
+                    }
                     _ => {}
                 }
             }
 
-            MerkleTreeInsertion::new(leaf_index, message_id)
+            if attr_count != 2 {
+                return None;
+            }
+
+            Some(MerkleTreeInsertion::new(leaf_index, message_id))
         }
     }
 }
