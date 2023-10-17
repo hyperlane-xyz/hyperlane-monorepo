@@ -2,9 +2,10 @@ import {
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
+  getDomainId,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { ProtocolType, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import {
   RootAgentConfig,
@@ -23,13 +24,14 @@ const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
 );
 
-const interchainQueryRouters = objMap(
-  hyperlaneEnvironments.mainnet,
-  (_, addresses) => {
+const interchainQueryRouters = objFilter(
+  objMap(hyperlaneEnvironments.mainnet, (_, addresses) => {
     return {
       router: addresses.interchainQueryRouter,
     };
-  },
+  }),
+  (chain, _addresses): _addresses is { router: string } =>
+    chainMetadata[chain].protocol === ProtocolType.Ethereum,
 );
 
 const interchainQueriesMatchingList = routerMatchingList(
@@ -48,6 +50,33 @@ const contextBase = {
   },
 } as const;
 
+const bscNautilusWarpRoutes: Array<{ router: string }> = [
+  // ZBC
+  {
+    router: '0xC27980812E2E66491FD457D488509b7E04144b98',
+  },
+  // ETH
+  {
+    router: '0x2a6822dc5639b3fe70de6b65b9ff872e554162fa',
+  },
+  // USDC
+  {
+    router: '0x6937a62f93a56D2AE9392Fa1649b830ca37F3ea4',
+  },
+  // BTC
+  {
+    router: '0xB3545006A532E8C23ebC4e33d5ab2232Cafc35Ad',
+  },
+  // USDT
+  {
+    router: '0xb7d36720a16A1F9Cfc1f7910Ac49f03965401a36',
+  },
+  // POSE
+  {
+    router: '0x97a2D58d30A2c838946194494207F7Cf50c25815',
+  },
+];
+
 const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -55,25 +84,40 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
     // all messages between interchain query routers.
     // This whitelist will become more strict with
     // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
-    matchingList: interchainQueriesMatchingList,
+    matchingList: [
+      ...interchainQueriesMatchingList,
+      {
+        originDomain: [getDomainId(chainMetadata.bsc)],
+        senderAddress: bscNautilusWarpRoutes.map((r) => r.router),
+        destinationDomain: '*',
+        recipientAddress: '*',
+      },
+      // Temporarily don't charge gas for the Solana -> Nautilus ZBC warp route,
+      // as IGP indexing in the agents is currently incompatible with the deployed IGP.
+      {
+        originDomain: [getDomainId(chainMetadata.solana)],
+        senderAddress: ['EJqwFjvVJSAxH8Ur2PYuMfdvoJeutjmH6GkoEFQ4MdSa'],
+        destinationDomain: [getDomainId(chainMetadata.nautilus)],
+        recipientAddress: '*',
+      },
+      // Similarly, temporarily not charging gas for Helloworld from Solana
+      {
+        originDomain: [getDomainId(chainMetadata.solana)],
+        senderAddress: [
+          // Hyperlane context
+          '4k1gruSdH1r57V9QQK4aunzfMYzLFfF83jdYkkEwyem6',
+          // Rc context
+          '3pPDp16iVTJFge2sm85Q61hW61UN5xNqeG24gqFhzLFV',
+        ],
+        destinationDomain: '*',
+        recipientAddress: '*',
+      },
+    ],
   },
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
   },
 ];
-
-const nautilusZbcWarpRouteMatchingList = routerMatchingList({
-  bsc: {
-    router: '0xC27980812E2E66491FD457D488509b7E04144b98',
-  },
-  nautilus: {
-    router: '0x4501bBE6e731A4bC5c60C03A77435b2f6d5e9Fe7',
-  },
-  solana: {
-    router:
-      '0xc5ba229fa2822fe65ac2bd0a93d8371d75292c3415dd381923c1088a3308528b',
-  },
-});
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
@@ -83,7 +127,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3b0685f-20230815-110725',
+      tag: '35fdc74-20230913-104940',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -92,17 +136,7 @@ const hyperlane: RootAgentConfig = {
         recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
       },
     ],
-    gasPaymentEnforcement: [
-      // Don't require gas payments for ZBC bridging.
-      // In practice, gas payments are forced to still occur due to on-chain fee quoting.
-      // We need this because the IGP that's paid on BSC isn't the "canonical" one (it's from a PI deployment),
-      // and because the Solana warp route does not yet have an IGP configured.
-      {
-        type: GasPaymentEnforcementPolicyType.None,
-        matchingList: nautilusZbcWarpRouteMatchingList,
-      },
-      ...gasPaymentEnforcement,
-    ],
+    gasPaymentEnforcement,
   },
   validators: {
     docker: {
@@ -137,7 +171,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3b0685f-20230815-110725',
+      tag: '35fdc74-20230913-104940',
     },
     whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,

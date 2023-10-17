@@ -11,14 +11,14 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { aggregationIsm } from '../../aggregationIsm';
 import { Contexts } from '../../contexts';
+import { routingIsm } from '../../routingIsm';
 
 import { igp } from './igp';
 import { owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
-  const defaultIsm = aggregationIsm('testnet4', local, Contexts.Hyperlane);
+  const defaultIsm = routingIsm('testnet4', local, Contexts.Hyperlane);
 
   const merkleHook: MerkleTreeHookConfig = {
     type: HookType.MERKLE_TREE,

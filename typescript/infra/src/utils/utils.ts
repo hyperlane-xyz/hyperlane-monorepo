@@ -5,7 +5,12 @@ import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 
-import { AllChains, ChainName, CoreChainName } from '@hyperlane-xyz/sdk';
+import {
+  AllChains,
+  ChainName,
+  CoreChainName,
+  chainMetadata,
+} from '@hyperlane-xyz/sdk';
 import { objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
@@ -259,4 +264,12 @@ export function diagonalize<T>(array: Array<Array<T>>): Array<T> {
     }
   }
   return diagonalized;
+}
+
+export function mustGetChainNativeTokenDecimals(chain: ChainName): number {
+  const metadata = chainMetadata[chain];
+  if (!metadata.nativeToken) {
+    throw new Error(`No native token for chain ${chain}`);
+  }
+  return metadata.nativeToken.decimals;
 }

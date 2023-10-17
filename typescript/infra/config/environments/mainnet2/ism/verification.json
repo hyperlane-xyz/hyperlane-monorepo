@@ -29,6 +29,12 @@
       "address": "0x1079056da3EC7D55521F27e1E094015C0d39Cc65",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "DomainRoutingIsm",
+      "address": "0x870aeae147917c0b87ba55613d977026d3019018",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "ethereum": [
@@ -59,6 +65,12 @@
     {
       "name": "MessageIdMultisigIsmFactory",
       "address": "0x60305F347C369E31782B3bc42D08dC2c7F218807",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "DomainRoutingIsm",
+      "address": "0x2f14526ec4a7ec292e792ebf836fea303ce038fa",
       "constructorArguments": "",
       "isProxy": false
     }
@@ -93,6 +105,12 @@
       "address": "0x6f82eC078317aAbE2ae5200f09d4550987A1bF28",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "DomainRoutingIsm",
+      "address": "0x5d6945e61a2d67f5a8e93873eaf60c9ee1313314",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "polygon": [
@@ -123,6 +141,12 @@
     {
       "name": "MessageIdMultisigIsmFactory",
       "address": "0x720663C310D3Db506F28a8F65c39Af37BFBe0248",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "DomainRoutingIsm",
+      "address": "0x3c8d4e08ea1ad7644dcfc23e0fe708eb6a1f7ad7",
       "constructorArguments": "",
       "isProxy": false
     }
@@ -157,6 +181,12 @@
       "address": "0xcf14426dF1D973A656e20c3AcD2B9E18C3C05793",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "DomainRoutingIsm",
+      "address": "0xae16de9c4e403c2ed47c8be6e32e58dbcc2551e2",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "arbitrum": [
@@ -187,6 +217,12 @@
     {
       "name": "MessageIdMultisigIsmFactory",
       "address": "0x9D7B7245C6dAEBD5543080C91523e0702fC27024",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "DomainRoutingIsm",
+      "address": "0x0bf2518aADbAb4E16b16Ba21231CE8B17E3c8843",
       "constructorArguments": "",
       "isProxy": false
     }
@@ -221,6 +257,12 @@
       "address": "0x3A7Ff7b700681A2655377cFDc88eE2031cf270E1",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "DomainRoutingIsm",
+      "address": "0x0ca4d54b91f2d8b728117ef3fb1ce7b52017d335",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "moonbeam": [
@@ -253,6 +295,12 @@
       "address": "0x147F8C69f0FCF571c03093dE4180718FaecbA31E",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "DomainRoutingIsm",
+      "address": "0x96b595b97bb5106518ac830c59b2d7cd32f2a150",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "gnosis": [
@@ -283,6 +331,12 @@
     {
       "name": "MessageIdMultisigIsmFactory",
       "address": "0xC4275763D7b621eb732847957012F1fb35C90BB8",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "DomainRoutingIsm",
+      "address": "0x2f134de027e88142aaad486572cc91c1f81214bf",
       "constructorArguments": "",
       "isProxy": false
     }
