@@ -33,6 +33,14 @@ import {
 } from '../../src/utils/utils';
 import { getAgentConfig, getArgs, getEnvironmentConfig } from '../utils';
 
+import * as L1ETHGateway from './utils/L1ETHGateway.json';
+import * as L1MessageQueue from './utils/L1MessageQueue.json';
+import * as L1ScrollMessenger from './utils/l1ScrollMessenger.json';
+
+const scrollL1EthGatewayAddress = '0x8A54A2347Da2562917304141ab67324615e9866d';
+const scrollL1ScrollMessengerAddress =
+  '0x50c7d3e7f7c656493D1D76aaa1a836CedfCBB16A';
+
 type L2Chain =
   | Chains.optimism
   | Chains.optimismgoerli
@@ -626,10 +634,12 @@ class ContextFunder {
       ),
     });
     let tx;
-    if (l2Chain.includes('optimism')) {
+    if (l2Chain.includes('optimism') || l2Chain.includes('base')) {
       tx = await this.bridgeToOptimism(l2Chain, amount, to);
     } else if (l2Chain.includes('arbitrum')) {
       tx = await this.bridgeToArbitrum(l2Chain, amount);
+    } else if (l2Chain.includes('scroll')) {
+      tx = await this.bridgeToScroll(l2Chain, amount);
     } else {
       throw new Error(`${l2Chain} is not an L2`);
     }
@@ -665,6 +675,43 @@ class ContextFunder {
       l1Signer: this.multiProvider.getSigner(l1Chain),
       overrides: this.multiProvider.getTransactionOverrides(l1Chain),
     });
+  }
+
+  private async bridgeToScroll(l2Chain: L2Chain, amount: BigNumber) {
+    const l1Chain = L2ToL1[l2Chain];
+    const l1ChainSigner = this.multiProvider.getSigner(l1Chain);
+    const l2ChainSigner = this.multiProvider.getSigner(l2Chain);
+    const l1EthGateway = new ethers.Contract(
+      scrollL1EthGatewayAddress,
+      L1ETHGateway.abi,
+      l1ChainSigner,
+    );
+    const l1ScrollMessenger = new ethers.Contract(
+      scrollL1ScrollMessengerAddress,
+      L1ScrollMessenger.abi,
+      l1ChainSigner,
+    );
+    const l2GasLimit = BigNumber.from('50000'); // l2 gas amount for the transfer and an empty callback calls
+    console.log(l1EthGateway);
+    const l1MessageQueueAddress = await l1ScrollMessenger.messageQueue();
+    const l1MessageQueue = new ethers.Contract(
+      l1MessageQueueAddress,
+      L1MessageQueue.abi,
+      l1ChainSigner,
+    );
+    const gasQuote = await l1MessageQueue.estimateCrossDomainMessageFee(
+      l2GasLimit,
+    );
+    const totalAmount = amount.add(gasQuote);
+    const l2ChainAddress = await l2ChainSigner.getAddress();
+    return l1EthGateway['depositETH(address,uint256,uint256)'](
+      l2ChainAddress,
+      amount,
+      l2GasLimit,
+      {
+        value: totalAmount,
+      },
+    );
   }
 
   private async updateWalletBalanceGauge(chain: ChainName) {
