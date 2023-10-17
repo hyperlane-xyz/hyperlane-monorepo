@@ -154,7 +154,7 @@ export function connectContracts<F extends HyperlaneFactories>(
     if (!contract.connect) {
       return undefined;
     }
-    return contract.connect(connection) as typeof contract;
+    return contract.connect(connection);
   });
   return Object.fromEntries(
     Object.entries(connectedContracts).filter(([_, contract]) => !!contract),

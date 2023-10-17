@@ -34,6 +34,9 @@ import {
 } from './types';
 
 export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
+  // The shape of this object is `ChainMap<Address | ChainMap<Address>`,
+  // although `any` is use here because that type breaks a lot of signatures.
+  // TODO: fix this in the next refactoring
   public deployedIsms: ChainMap<any> = {};
 
   static fromEnvironment<Env extends HyperlaneEnvironment>(
@@ -109,17 +112,18 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     }
 
     const moduleType = ModuleType[config.type];
-
     if (!this.deployedIsms[chain]) {
       this.deployedIsms[chain] = {};
     }
-
     if (origin) {
+      // if we're deploying network-specific contracts (e.g. ISMs), store them as sub-entry
+      // under that network's key (`origin`)
       if (!this.deployedIsms[chain][origin]) {
         this.deployedIsms[chain][origin] = {};
       }
       this.deployedIsms[chain][origin][moduleType] = contract;
     } else {
+      // otherwise store the entry directly
       this.deployedIsms[chain][moduleType] = contract;
     }
 

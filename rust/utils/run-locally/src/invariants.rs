@@ -23,6 +23,10 @@ pub fn termination_invariants_met(
 
     let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
+    if lengths.iter().sum::<u32>() != ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
+        log!("Relayer queues not empty. Lengths: {:?}", lengths);
+        return Ok(false);
+    };
 
     // Also ensure the counter is as expected (total number of messages), summed
     // across all mailboxes.
@@ -30,10 +34,6 @@ pub fn termination_invariants_met(
         fetch_metric("9092", "hyperlane_messages_processed_count", &hashmap! {})?
             .iter()
             .sum::<u32>();
-    if lengths.iter().sum::<u32>() != ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
-        log!("Relayer queues not empty. Lengths: {:?}", lengths);
-        return Ok(false);
-    };
     if msg_processed_count != total_messages_expected {
         log!(
             "Relayer has {} processed messages, expected {}",

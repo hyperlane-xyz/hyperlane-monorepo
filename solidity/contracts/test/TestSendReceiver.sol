@@ -12,12 +12,8 @@ import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 
-contract TestSendReceiver is
-    IMessageRecipient,
-    ISpecifiesInterchainSecurityModule
-{
+contract TestSendReceiver is IMessageRecipient {
     using TypeCasts for address;
-    IInterchainSecurityModule public interchainSecurityModule;
 
     uint256 public constant HANDLE_GAS_AMOUNT = 50_000;
 
@@ -74,9 +70,5 @@ contract TestSendReceiver is
 
     function previousBlockHash() internal view returns (bytes32) {
         return blockhash(block.number - 1);
-    }
-
-    function setInterchainSecurityModule(address _ism) external {
-        interchainSecurityModule = IInterchainSecurityModule(_ism);
     }
 }
