@@ -3856,7 +3856,6 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cli@workspace:typescript/cli"
   dependencies:
-    "@hyperlane-xyz/hyperlane-token": 1.5.8
     "@hyperlane-xyz/sdk": 1.5.8
     "@inquirer/prompts": ^3.0.0
     "@types/node": ^18.14.5

@@ -5,7 +5,7 @@ import {HypERC20} from "./HypERC20.sol";
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FastTokenRouter} from "./libs/FastTokenRouter.sol";
-import {Message} from "./libs/Message.sol";
+import {Message} from "../libs/Message.sol";
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
@@ -15,7 +15,19 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
 contract FastHypERC20 is FastTokenRouter, HypERC20 {
-    constructor(uint8 __decimals) HypERC20(__decimals) {}
+    constructor(uint8 __decimals, address _mailbox)
+        HypERC20(__decimals, _mailbox)
+    {}
+
+    function balanceOf(address _account)
+        public
+        view
+        virtual
+        override(HypERC20, TokenRouter)
+        returns (uint256)
+    {
+        return HypERC20.balanceOf(_account);
+    }
 
     /**
      * @dev delegates transfer logic to `_transferTo`.

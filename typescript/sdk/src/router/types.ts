@@ -80,15 +80,3 @@ export interface RouterViolation extends CheckerViolation {
   expected: string;
   description?: string;
 }
-
-export enum RouterViolationType {
-  EnrolledRouter = 'EnrolledRouter',
-}
-
-export interface RouterViolation extends CheckerViolation {
-  type: RouterViolationType.EnrolledRouter;
-  remoteChain: string;
-  contract: Router;
-  actual: string;
-  expected: string;
-}
