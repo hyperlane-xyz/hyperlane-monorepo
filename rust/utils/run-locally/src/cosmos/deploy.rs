@@ -20,6 +20,11 @@ pub struct TestMockMsgReceiverInstantiateMsg {
     pub hrp: String,
 }
 
+#[cw_serde]
+pub struct IGPOracleInstantiateMsg {
+    pub owner: String,
+}
+
 const PREFIX: &str = "osmo";
 
 #[apply(as_task)]
@@ -66,7 +71,9 @@ pub fn deploy_cw_hyperlane(
         &deployer,
         Some(deployer_addr),
         codes.hpl_igp_oracle,
-        igp::oracle::InstantiateMsg {},
+        IGPOracleInstantiateMsg {
+            owner: deployer_addr.clone(),
+        },
         "hpl_igp_gas_oracle",
     );
 

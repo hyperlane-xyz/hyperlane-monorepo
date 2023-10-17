@@ -7,7 +7,7 @@ use hyperlane_core::{
     GasPaymentKey, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
     TxCostEstimate, TxOutcome, U256,
 };
-use tracing::{debug, error, trace};
+use tracing::{debug, error, info, trace};
 
 use self::policies::{GasPaymentPolicyMinimum, GasPaymentPolicyNone};
 use crate::{
@@ -86,6 +86,7 @@ impl GasPaymentEnforcer {
             .db
             .retrieve_gas_payment_by_gas_payment_key(gas_payment_key)?;
         let current_expenditure = self.db.retrieve_gas_expenditure_by_message_id(msg_id)?;
+
         for (policy, whitelist) in &self.policies {
             if !whitelist.msg_matches(message, true) {
                 trace!(

@@ -4,6 +4,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use std::{env, fs};
 
+use cosmwasm_schema::cw_serde;
 use hpl_interface::{core, types::bech32_decode};
 use macro_rules_attribute::apply;
 use tempfile::tempdir;
@@ -75,6 +76,20 @@ fn make_target() -> String {
     };
 
     format!("{}-{}", os, arch)
+}
+
+#[cw_serde]
+pub struct MockDispatch {
+    pub dispatch: MockDispatchInner,
+}
+
+#[cw_serde]
+pub struct MockDispatchInner {
+    pub dest_domain: u32,
+    pub recipient_addr: String,
+    pub msg_body: String,
+    pub hook: Option<String>,
+    pub metadata: String,
 }
 
 pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, PathBuf> {
@@ -274,6 +289,7 @@ fn launch_cosmos_relayer(
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
+        .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]")
         .spawn("RLY");
 
     relayer
@@ -449,22 +465,26 @@ fn run_locally() {
                 node.launch_resp.home_path.to_str().unwrap(),
             );
 
+            let msg_body: &[u8; 5] = b"hello";
+
             cli.wasm_execute(
                 &node.launch_resp.endpoint,
                 linker,
                 &node.deployments.mailbox,
-                core::mailbox::ExecuteMsg::Dispatch(core::mailbox::DispatchMsg {
-                    dest_domain: target.domain,
-                    recipient_addr: bech32_decode(&target.deployments.mock_receiver)
-                        .unwrap()
-                        .into(),
-                    msg_body: b"hello".into(),
-                    hook: Some(node.deployments.mock_hook.clone()),
-                    metadata: None,
-                }),
+                MockDispatch {
+                    dispatch: MockDispatchInner {
+                        dest_domain: target.domain,
+                        recipient_addr: hex::encode(
+                            bech32_decode(&target.deployments.mock_receiver).unwrap(),
+                        ),
+                        msg_body: hex::encode(msg_body),
+                        hook: None,
+                        metadata: "".to_string(),
+                    },
+                },
                 vec![Coin {
                     denom: "uosmo".to_string(),
-                    amount: 510_000.to_string(),
+                    amount: 25_000_000.to_string(),
                 }],
             );
         }
