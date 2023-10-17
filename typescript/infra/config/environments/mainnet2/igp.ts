@@ -7,7 +7,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { exclude, objMap } from '@hyperlane-xyz/utils';
 
-import { MainnetChains, supportedChainNames } from './chains';
+import {
+  MainnetChains,
+  ethereumChainNames,
+  supportedChainNames,
+} from './chains';
 import { owners } from './owners';
 
 // TODO: make this generic
@@ -23,22 +27,19 @@ function getGasOracles(local: MainnetChains) {
   );
 }
 
-export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, owner) => {
-  const overhead = Object.fromEntries(
-    exclude(chain, supportedChainNames).map((remote) => [
+export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, owner) => ({
+  owner,
+  oracleKey: DEPLOYER_ADDRESS,
+  beneficiary: KEY_FUNDER_ADDRESS,
+  gasOracleType: getGasOracles(chain),
+  overhead: Object.fromEntries(
+    // Not setting overhead for non-Ethereum destination chains
+    exclude(chain, ethereumChainNames).map((remote) => [
       remote,
       multisigIsmVerificationCost(
         defaultMultisigIsmConfigs[remote].threshold,
         defaultMultisigIsmConfigs[remote].validators.length,
       ),
     ]),
-  );
-
-  return {
-    owner,
-    oracleKey: DEPLOYER_ADDRESS,
-    beneficiary: KEY_FUNDER_ADDRESS,
-    gasOracleType: getGasOracles(chain),
-    overhead,
-  };
-});
+  ),
+}));

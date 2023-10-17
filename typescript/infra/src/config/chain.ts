@@ -53,7 +53,6 @@ export async function fetchProvider(
             // and are ordered randomly for each RPC.
             priority: index,
           };
-          console.log('fallbackProviderConfig', fallbackProviderConfig);
           return fallbackProviderConfig;
         }),
         1, // a single provider is "quorum", but failure will cause failover to the next provider
