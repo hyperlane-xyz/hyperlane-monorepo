@@ -2,7 +2,22 @@ use borsh::BorshDeserialize;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle as MerkleTree, HyperlaneMessage, H256,
 };
-
+use hyperlane_sealevel_mailbox::{
+    accounts::{Inbox, InboxAccount, Outbox},
+    error::Error as MailboxError,
+    instruction::{Instruction as MailboxInstruction, OutboxDispatch},
+    mailbox_dispatched_message_pda_seeds,
+};
+use hyperlane_sealevel_test_ism::{program::TestIsmError, test_client::TestIsmTestClient};
+use hyperlane_sealevel_test_send_receiver::{
+    program::{HandleMode, IsmReturnDataMode, TestSendReceiverError},
+    test_client::TestSendReceiverTestClient,
+};
+use hyperlane_test_utils::{
+    assert_transaction_error, clone_keypair, get_process_account_metas, get_recipient_ism,
+    initialize_mailbox, mailbox_id, new_funded_keypair, process, process_instruction,
+    process_with_accounts,
+};
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
@@ -15,25 +30,6 @@ use solana_sdk::{
     signature::Signer,
     signer::keypair::Keypair,
     transaction::{Transaction, TransactionError},
-};
-
-use hyperlane_sealevel_mailbox::{
-    accounts::{Inbox, InboxAccount, Outbox},
-    error::Error as MailboxError,
-    instruction::{Instruction as MailboxInstruction, OutboxDispatch},
-    mailbox_dispatched_message_pda_seeds,
-};
-
-use hyperlane_sealevel_test_ism::{program::TestIsmError, test_client::TestIsmTestClient};
-use hyperlane_sealevel_test_send_receiver::{
-    program::{HandleMode, IsmReturnDataMode, TestSendReceiverError},
-    test_client::TestSendReceiverTestClient,
-};
-
-use hyperlane_test_utils::{
-    assert_transaction_error, clone_keypair, get_process_account_metas, get_recipient_ism,
-    initialize_mailbox, mailbox_id, new_funded_keypair, process, process_instruction,
-    process_with_accounts,
 };
 
 use crate::utils::{
@@ -463,10 +459,10 @@ async fn test_get_recipient_ism_when_specified() {
 
     let recipient_id = test_send_receiver.id();
 
-    let ism = Some(Pubkey::new_unique());
+    let ism = Pubkey::new_unique();
 
     test_send_receiver
-        .set_ism(ism, IsmReturnDataMode::EncodeOption)
+        .set_ism(Some(ism), IsmReturnDataMode::EncodeOption)
         .await
         .unwrap();
 
@@ -474,7 +470,7 @@ async fn test_get_recipient_ism_when_specified() {
         get_recipient_ism(&mut banks_client, &payer, &mailbox_accounts, recipient_id)
             .await
             .unwrap();
-    assert_eq!(recipient_ism, ism.unwrap());
+    assert_eq!(recipient_ism, ism);
 }
 
 #[tokio::test]

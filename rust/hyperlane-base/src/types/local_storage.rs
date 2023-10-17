@@ -2,9 +2,8 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use eyre::{Context, Result};
-use prometheus::IntGauge;
-
 use hyperlane_core::{SignedAnnouncement, SignedCheckpoint, SignedCheckpointWithMessageId};
+use prometheus::IntGauge;
 
 use crate::traits::CheckpointSyncer;
 
@@ -87,7 +86,7 @@ impl CheckpointSyncer for LocalStorage {
 
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
         let Ok(data) = tokio::fs::read(self.checkpoint_file_path(index)).await else {
-            return Ok(None)
+            return Ok(None);
         };
         let checkpoint = serde_json::from_slice(&data)?;
         Ok(Some(checkpoint))

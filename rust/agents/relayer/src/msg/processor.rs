@@ -390,7 +390,7 @@ mod test {
             .await;
 
             // Set some retry counts. This should update HyperlaneDB entries too.
-            let msg_retries_to_set = vec![3, 0, 10];
+            let msg_retries_to_set = [3, 0, 10];
             pending_messages
                 .into_iter()
                 .enumerate()

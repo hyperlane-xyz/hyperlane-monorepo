@@ -20,32 +20,26 @@ use solana_sdk::{
 };
 
 use account_utils::DiscriminatorEncode;
-use hyperlane_core::{Encode, HyperlaneMessage, H160, H256};
+use hyperlane_core::{H160, H256};
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_igp::{
     accounts::{
-        GasOracle, IgpAccount, InterchainGasPaymasterType, OverheadIgpAccount, RemoteGasData,
+        GasOracle, GasPaymentAccount, IgpAccount, InterchainGasPaymasterType, OverheadIgpAccount,
+        ProgramDataAccount as IgpProgramDataAccount, RemoteGasData,
     },
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
     instruction::{GasOracleConfig, GasOverheadConfig},
 };
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
-    instruction::{InboxProcess, Instruction as MailboxInstruction, OutboxDispatch, VERSION},
+    instruction::{Instruction as MailboxInstruction, OutboxDispatch},
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_processed_message_pda_seeds, spl_noop,
 };
-use hyperlane_sealevel_multisig_ism_message_id::{
-    access_control_pda_seeds as multisig_ism_message_id_access_control_pda_seeds,
-    accounts::AccessControlAccount,
-    domain_data_pda_seeds as multisig_ism_message_id_domain_data_pda_seeds,
-    instruction::{
-        Domained, Instruction as MultisigIsmMessageIdInstruction, ValidatorsAndThreshold,
-    },
-};
+
 use hyperlane_sealevel_token::{
-    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin,
+    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
     spl_associated_token_account::get_associated_token_address_with_program_id, spl_token_2022,
 };
 use hyperlane_sealevel_token_collateral::{
@@ -56,9 +50,7 @@ use hyperlane_sealevel_token_lib::{
     hyperlane_token_pda_seeds,
     instruction::{Instruction as HtInstruction, TransferRemote as HtTransferRemote},
 };
-use hyperlane_sealevel_token_native::{
-    hyperlane_token_native_collateral_pda_seeds, plugin::NativePlugin,
-};
+use hyperlane_sealevel_token_native::hyperlane_token_native_collateral_pda_seeds;
 use hyperlane_sealevel_validator_announce::{
     accounts::ValidatorStorageLocationsAccount,
     instruction::{
@@ -68,14 +60,22 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
+use warp_route::parse_token_account_data;
 
-use crate::warp_route::process_warp_route_cmd;
-pub(crate) use crate::{context::*, core::*};
-
+mod artifacts;
 mod cmd_utils;
 mod context;
 mod r#core;
+mod helloworld;
+mod multisig_ism;
+mod router;
+mod serde;
 mod warp_route;
+
+use crate::helloworld::process_helloworld_cmd;
+use crate::multisig_ism::process_multisig_ism_message_id_cmd;
+use crate::warp_route::process_warp_route_cmd;
+pub(crate) use crate::{context::*, core::*};
 
 // Note: from solana_program_runtime::compute_budget
 const DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT: u32 = 200_000;
@@ -99,6 +99,8 @@ struct Cli {
     heap_size: Option<u32>,
     #[arg(long, short = 'C')]
     config: Option<String>,
+    #[arg(long, default_value_t = false)]
+    require_tx_approval: bool,
 }
 
 #[derive(Subcommand)]
@@ -110,6 +112,7 @@ enum HyperlaneSealevelCmd {
     ValidatorAnnounce(ValidatorAnnounceCmd),
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
     WarpRoute(WarpRouteCmd),
+    HelloWorld(HelloWorldCmd),
 }
 
 #[derive(Args)]
@@ -194,9 +197,9 @@ enum MailboxSubCmd {
     Init(Init),
     Query(Query),
     Send(Outbox),
-    Receive(Inbox),
     Delivered(Delivered),
     TransferOwnership(TransferOwnership),
+    SetDefaultIsm(SetDefaultIsm),
 }
 
 const MAILBOX_PROG_ID: Pubkey = pubkey!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1");
@@ -219,6 +222,14 @@ struct Init {
 struct Query {
     #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     program_id: Pubkey,
+}
+
+#[derive(Args)]
+struct SetDefaultIsm {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    #[arg(long, short)]
+    default_ism: Pubkey,
 }
 
 #[derive(Args)]
@@ -259,32 +270,6 @@ struct Delivered {
     message_id: H256,
 }
 
-// Actual content depends on which ISM is used.
-struct ExampleMetadata {
-    pub root: H256,
-    pub index: u32,
-    pub leaf_index: u32,
-    // pub proof: [H256; 32],
-    pub signatures: Vec<H256>,
-}
-impl Encode for ExampleMetadata {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        writer.write_all(self.root.as_ref())?;
-        writer.write_all(&self.index.to_be_bytes())?;
-        writer.write_all(&self.leaf_index.to_be_bytes())?;
-        // for hash in self.proof {
-        //     writer.write_all(hash.as_ref())?;
-        // }
-        for signature in &self.signatures {
-            writer.write_all(signature.as_ref())?;
-        }
-        Ok(32 + 4 + 4 + (32 * 32) + (self.signatures.len() * 32))
-    }
-}
-
 #[derive(Args)]
 struct TokenCmd {
     #[command(subcommand)]
@@ -297,10 +282,12 @@ enum TokenSubCmd {
     TransferRemote(TokenTransferRemote),
     EnrollRemoteRouter(TokenEnrollRemoteRouter),
     TransferOwnership(TransferOwnership),
+    SetInterchainSecurityModule(SetInterchainSecurityModule),
+    Igp(Igp),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-enum TokenType {
+pub enum TokenType {
     Native,
     Synthetic,
     Collateral,
@@ -337,12 +324,53 @@ struct TokenEnrollRemoteRouter {
 }
 
 #[derive(Args)]
+struct SetInterchainSecurityModule {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    #[arg(long, short)]
+    ism: Option<Pubkey>,
+}
+
+#[derive(Args)]
 struct TransferOwnership {
     #[arg(long, short)]
     program_id: Pubkey,
     // To avoid accidentally transferring ownership to None,
     // only support transferring to other Pubkeys for now.
     new_owner: Pubkey,
+}
+
+#[derive(Args)]
+struct Igp {
+    #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
+    program_id: Pubkey,
+    #[command(subcommand)]
+    cmd: GetSetCmd<GetIgpArgs, SetIgpArgs>,
+}
+
+#[derive(Subcommand)]
+enum GetSetCmd<G: Args, S: Args> {
+    Get(G),
+    Set(S),
+}
+
+#[derive(Args)]
+struct SetIgpArgs {
+    igp_program: Pubkey,
+    #[arg(value_enum)]
+    igp_type: IgpType,
+    igp_account: Pubkey,
+}
+
+#[derive(Args)]
+struct GetIgpArgs {
+    token_type: TokenType,
+}
+
+#[derive(ValueEnum, Clone)]
+enum IgpType {
+    Igp,
+    OverheadIgp,
 }
 
 #[derive(Args)]
@@ -353,11 +381,22 @@ struct IgpCmd {
 
 #[derive(Subcommand)]
 enum IgpSubCmd {
+    Query(IgpQueryArgs),
     PayForGas(PayForGasArgs),
     GasOracleConfig(GasOracleConfigArgs),
     DestinationGasOverhead(DestinationGasOverheadArgs),
     TransferIgpOwnership(TransferIgpOwnership),
     TransferOverheadIgpOwnership(TransferIgpOwnership),
+}
+
+#[derive(Args)]
+struct IgpQueryArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    igp_account: Pubkey,
+    #[arg(long)]
+    gas_payment_account: Option<Pubkey>,
 }
 
 #[derive(Args)]
@@ -373,8 +412,14 @@ struct TransferIgpOwnership {
 
 #[derive(Args)]
 struct PayForGasArgs {
+    #[arg(long)]
     program_id: Pubkey,
+    #[arg(long)]
     message_id: String,
+    #[arg(long)]
+    destination_domain: u32,
+    #[arg(long)]
+    gas: u64,
 }
 
 #[derive(Args)]
@@ -388,13 +433,7 @@ struct GasOracleConfigArgs {
     #[arg(long)]
     remote_domain: u32,
     #[command(subcommand)]
-    cmd: GasOracleSubCmd,
-}
-
-#[derive(Subcommand)]
-enum GasOracleSubCmd {
-    Set(SetGasOracleArgs),
-    Get,
+    cmd: GetSetCmd<GetGasOracleArgs, SetGasOracleArgs>,
 }
 
 #[derive(Args)]
@@ -406,6 +445,9 @@ struct SetGasOracleArgs {
     #[arg(long)]
     token_decimals: u8,
 }
+
+#[derive(Args)]
+struct GetGasOracleArgs;
 
 #[derive(Args)]
 struct DestinationGasOverheadArgs {
@@ -483,16 +525,50 @@ struct MultisigIsmMessageIdCmd {
 
 #[derive(Subcommand)]
 enum MultisigIsmMessageIdSubCmd {
+    Deploy(MultisigIsmMessageIdDeploy),
     Init(MultisigIsmMessageIdInit),
     SetValidatorsAndThreshold(MultisigIsmMessageIdSetValidatorsAndThreshold),
-    Query(MultisigIsmMessageIdInit),
+    Query(MultisigIsmMessageIdQuery),
     TransferOwnership(TransferOwnership),
+    Configure(MultisigIsmMessageIdConfigure),
+}
+
+#[derive(Args)]
+struct MultisigIsmMessageIdDeploy {
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+    #[arg(long)]
+    built_so_dir: PathBuf,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    context: String,
+}
+
+#[derive(Args)]
+struct MultisigIsmMessageIdConfigure {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    multisig_config_file: PathBuf,
+    #[arg(long)]
+    chain_config_file: PathBuf,
 }
 
 #[derive(Args)]
 struct MultisigIsmMessageIdInit {
     #[arg(long, short, default_value_t = MULTISIG_ISM_MESSAGE_ID_PROG_ID)]
     program_id: Pubkey,
+}
+
+#[derive(Args)]
+struct MultisigIsmMessageIdQuery {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    #[arg(long, value_delimiter = ',')]
+    domains: Option<Vec<u32>>,
 }
 
 #[derive(Args)]
@@ -505,6 +581,40 @@ struct MultisigIsmMessageIdSetValidatorsAndThreshold {
     validators: Vec<H160>,
     #[arg(long)]
     threshold: u8,
+}
+
+#[derive(Args)]
+pub(crate) struct HelloWorldCmd {
+    #[command(subcommand)]
+    cmd: HelloWorldSubCmd,
+}
+
+#[derive(Subcommand)]
+pub(crate) enum HelloWorldSubCmd {
+    Deploy(HelloWorldDeploy),
+    Query(HelloWorldQuery),
+}
+
+#[derive(Args)]
+pub(crate) struct HelloWorldDeploy {
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+    #[arg(long)]
+    built_so_dir: PathBuf,
+    #[arg(long)]
+    config_file: PathBuf,
+    #[arg(long)]
+    chain_config_file: PathBuf,
+    #[arg(long)]
+    context: String,
+}
+
+#[derive(Args)]
+pub(crate) struct HelloWorldQuery {
+    #[arg(long)]
+    program_id: Pubkey,
 }
 
 fn main() {
@@ -569,6 +679,7 @@ fn main() {
         payer_keypair,
         commitment,
         instructions.into(),
+        cli.require_tx_approval,
     );
     match cli.cmd {
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
@@ -579,6 +690,7 @@ fn main() {
         }
         HyperlaneSealevelCmd::Core(cmd) => process_core_cmd(ctx, cmd),
         HyperlaneSealevelCmd::WarpRoute(cmd) => process_warp_route_cmd(ctx, cmd),
+        HyperlaneSealevelCmd::HelloWorld(cmd) => process_helloworld_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Igp(cmd) => process_igp_cmd(ctx, cmd),
     }
 }
@@ -642,7 +754,6 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 destination_domain: outbox.destination,
                 recipient: H256(outbox.recipient.to_bytes()),
                 message_body: outbox.message.into(),
-                // message_body: std::iter::repeat(0x41).take(outbox.message_len).collect(),
             });
             let outbox_instruction = Instruction {
                 program_id: outbox.program_id,
@@ -654,50 +765,6 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 ],
             };
             ctx.new_txn().add(outbox_instruction).send_with_payer();
-        }
-        MailboxSubCmd::Receive(inbox) => {
-            // TODO this probably needs some love
-
-            let (inbox_account, _inbox_bump) =
-                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &inbox.program_id);
-            let hyperlane_message = HyperlaneMessage {
-                version: VERSION,
-                nonce: inbox.nonce,
-                origin: inbox.origin,
-                sender: H256::repeat_byte(123),
-                destination: inbox.local_domain,
-                recipient: H256::from(inbox.recipient.to_bytes()),
-                body: inbox.message.bytes().collect(),
-            };
-            let mut encoded_message = vec![];
-            hyperlane_message.write_to(&mut encoded_message).unwrap();
-            let metadata = ExampleMetadata {
-                root: Default::default(),
-                index: 1,
-                leaf_index: 0,
-                // proof: Default::default(),
-                signatures: vec![],
-            };
-            let mut encoded_metadata = vec![];
-            metadata.write_to(&mut encoded_metadata).unwrap();
-
-            let ixn = MailboxInstruction::InboxProcess(InboxProcess {
-                metadata: encoded_metadata,
-                message: encoded_message,
-            });
-            let inbox_instruction = Instruction {
-                program_id: inbox.program_id,
-                data: ixn.into_instruction_data().unwrap(),
-                accounts: vec![
-                    AccountMeta::new(inbox_account, false),
-                    AccountMeta::new_readonly(spl_noop::id(), false),
-                    AccountMeta::new_readonly(inbox.ism, false),
-                    AccountMeta::new_readonly(inbox.recipient, false),
-                    // Note: we would have to provide ism accounts and recipient accounts here if
-                    // they were to use other accounts.
-                ],
-            };
-            ctx.new_txn().add(inbox_instruction).send_with_payer();
         }
         MailboxSubCmd::Delivered(delivered) => {
             let (processed_message_account_key, _processed_message_account_bump) =
@@ -728,6 +795,20 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 .add_with_description(
                     instruction,
                     format!("Transfer ownership to {}", transfer_ownership.new_owner),
+                )
+                .send_with_payer();
+        }
+        MailboxSubCmd::SetDefaultIsm(set_default_ism) => {
+            let instruction = hyperlane_sealevel_mailbox::instruction::set_default_ism_instruction(
+                set_default_ism.program_id,
+                ctx.payer_pubkey,
+                set_default_ism.default_ism,
+            )
+            .unwrap();
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!("Setting default ISM to {}", set_default_ism.default_ism),
                 )
                 .send_with_payer();
         }
@@ -785,32 +866,7 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
             );
             if let Some(info) = &accounts[0] {
                 println!("{:#?}", info);
-
-                match query.token_type {
-                    TokenType::Native => {
-                        match HyperlaneTokenAccount::<NativePlugin>::fetch(&mut info.data.as_ref())
-                        {
-                            Ok(token) => println!("{:#?}", token.into_inner()),
-                            Err(err) => println!("Failed to deserialize account data: {}", err),
-                        }
-                    }
-                    TokenType::Synthetic => {
-                        match HyperlaneTokenAccount::<SyntheticPlugin>::fetch(
-                            &mut info.data.as_ref(),
-                        ) {
-                            Ok(token) => println!("{:#?}", token.into_inner()),
-                            Err(err) => println!("Failed to deserialize account data: {}", err),
-                        }
-                    }
-                    TokenType::Collateral => {
-                        match HyperlaneTokenAccount::<CollateralPlugin>::fetch(
-                            &mut info.data.as_ref(),
-                        ) {
-                            Ok(token) => println!("{:#?}", token.into_inner()),
-                            Err(err) => println!("Failed to deserialize account data: {}", err),
-                        }
-                    }
-                }
+                parse_token_account_data(query.token_type, &mut info.data.as_ref());
             } else {
                 println!("Not yet created?");
             }
@@ -1108,6 +1164,59 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
                 )
                 .send_with_payer();
         }
+        TokenSubCmd::SetInterchainSecurityModule(set_ism) => {
+            let instruction =
+                hyperlane_sealevel_token_lib::instruction::set_interchain_security_module_instruction(
+                    set_ism.program_id,
+                    ctx.payer_pubkey,
+                    set_ism.ism
+                )
+                .unwrap();
+
+            ctx.new_txn()
+                .add_with_description(instruction, format!("Set ISM to {:?}", set_ism.ism))
+                .send_with_payer();
+        }
+        TokenSubCmd::Igp(args) => match args.cmd {
+            GetSetCmd::Set(set_args) => {
+                let igp_type: InterchainGasPaymasterType = match set_args.igp_type {
+                    IgpType::Igp => InterchainGasPaymasterType::Igp(set_args.igp_account),
+                    IgpType::OverheadIgp => {
+                        InterchainGasPaymasterType::OverheadIgp(set_args.igp_account)
+                    }
+                };
+                let instruction = hyperlane_sealevel_token_lib::instruction::set_igp_instruction(
+                    args.program_id,
+                    ctx.payer_pubkey,
+                    Some((set_args.igp_program, igp_type.clone())),
+                )
+                .unwrap();
+
+                ctx.new_txn()
+                    .add_with_description(
+                        instruction,
+                        format!(
+                            "Set IGP of {} to program {}, type {:?}",
+                            args.program_id, set_args.igp_program, igp_type
+                        ),
+                    )
+                    .send_with_payer();
+            }
+            GetSetCmd::Get(get_args) => {
+                let (token_account, _token_bump) =
+                    Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &args.program_id);
+                let token_account = ctx
+                    .client
+                    .get_account_with_commitment(&token_account, ctx.commitment)
+                    .unwrap()
+                    .value
+                    .expect(
+                        "Token account not found. Make sure you are connected to the right RPC.",
+                    );
+
+                parse_token_account_data(get_args.token_type, &mut &token_account.data[..]);
+            }
+        },
     }
 }
 
@@ -1205,93 +1314,47 @@ fn process_validator_announce_cmd(ctx: Context, cmd: ValidatorAnnounceCmd) {
     }
 }
 
-fn process_multisig_ism_message_id_cmd(ctx: Context, cmd: MultisigIsmMessageIdCmd) {
+fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
     match cmd.cmd {
-        MultisigIsmMessageIdSubCmd::Init(init) => {
-            let init_instruction =
-                hyperlane_sealevel_multisig_ism_message_id::instruction::init_instruction(
-                    init.program_id,
-                    ctx.payer_pubkey,
-                )
-                .unwrap();
-            ctx.new_txn().add(init_instruction).send_with_payer();
-        }
-        MultisigIsmMessageIdSubCmd::SetValidatorsAndThreshold(set_config) => {
-            let (access_control_pda_key, _access_control_pda_bump) = Pubkey::find_program_address(
-                multisig_ism_message_id_access_control_pda_seeds!(),
-                &set_config.program_id,
-            );
-
-            let (domain_data_pda_key, _domain_data_pda_bump) = Pubkey::find_program_address(
-                multisig_ism_message_id_domain_data_pda_seeds!(set_config.domain),
-                &set_config.program_id,
-            );
-
-            let ixn = MultisigIsmMessageIdInstruction::SetValidatorsAndThreshold(Domained {
-                domain: set_config.domain,
-                data: ValidatorsAndThreshold {
-                    validators: set_config.validators,
-                    threshold: set_config.threshold,
-                },
-            });
-
-            // Accounts:
-            // 0. `[signer]` The access control owner and payer of the domain PDA.
-            // 1. `[]` The access control PDA account.
-            // 2. `[writable]` The PDA relating to the provided domain.
-            // 3. `[executable]` OPTIONAL - The system program account. Required if creating the domain PDA.
-            let accounts = vec![
-                AccountMeta::new(ctx.payer_pubkey, true),
-                AccountMeta::new_readonly(access_control_pda_key, false),
-                AccountMeta::new(domain_data_pda_key, false),
-                AccountMeta::new_readonly(system_program::id(), false),
-            ];
-
-            let set_instruction = Instruction {
-                program_id: set_config.program_id,
-                data: ixn.encode().unwrap(),
-                accounts,
-            };
-            ctx.new_txn().add(set_instruction).send_with_payer();
-        }
-        MultisigIsmMessageIdSubCmd::Query(query) => {
-            let (access_control_pda_key, _access_control_pda_bump) = Pubkey::find_program_address(
-                multisig_ism_message_id_access_control_pda_seeds!(),
-                &query.program_id,
-            );
+        IgpSubCmd::Query(query) => {
+            let (program_data_account_pda, _program_data_account_bump) =
+                Pubkey::find_program_address(igp_program_data_pda_seeds!(), &query.program_id);
 
             let accounts = ctx
                 .client
-                .get_multiple_accounts_with_commitment(&[access_control_pda_key], ctx.commitment)
+                .get_multiple_accounts_with_commitment(
+                    &[program_data_account_pda, query.igp_account],
+                    ctx.commitment,
+                )
                 .unwrap()
                 .value;
-            let access_control =
-                AccessControlAccount::fetch(&mut &accounts[0].as_ref().unwrap().data[..])
+
+            let igp_program_data =
+                IgpProgramDataAccount::fetch(&mut &accounts[0].as_ref().unwrap().data[..])
                     .unwrap()
                     .into_inner();
-            println!("Access control: {:#?}", access_control);
-        }
-        MultisigIsmMessageIdSubCmd::TransferOwnership(transfer_ownership) => {
-            let instruction =
-                hyperlane_sealevel_multisig_ism_message_id::instruction::transfer_ownership_instruction(
-                    transfer_ownership.program_id,
-                    ctx.payer_pubkey,
-                    Some(transfer_ownership.new_owner),
-                )
-                .unwrap();
 
-            ctx.new_txn()
-                .add_with_description(
-                    instruction,
-                    format!("Transfer ownership to {}", transfer_ownership.new_owner),
-                )
-                .send_with_payer();
-        }
-    }
-}
+            println!("IGP program data: {:?}", igp_program_data);
 
-fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
-    match cmd.cmd {
+            let igp = IgpAccount::fetch(&mut &accounts[1].as_ref().unwrap().data[..])
+                .unwrap()
+                .into_inner();
+
+            println!("IGP account: {:?}", igp);
+
+            if let Some(gas_payment_account_pubkey) = query.gas_payment_account {
+                let account = ctx
+                    .client
+                    .get_account_with_commitment(&gas_payment_account_pubkey, ctx.commitment)
+                    .unwrap()
+                    .value
+                    .unwrap();
+                let gas_payment_account = GasPaymentAccount::fetch(&mut &account.data[..])
+                    .unwrap()
+                    .into_inner();
+                println!("Gas payment account: {:?}", gas_payment_account);
+            }
+        }
         IgpSubCmd::PayForGas(payment_details) => {
             let unique_gas_payment_keypair = Keypair::new();
             let salt = H256::zero();
@@ -1312,8 +1375,8 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                     Some(overhead_igp_account),
                     unique_gas_payment_keypair.pubkey(),
                     H256::from_str(&payment_details.message_id).unwrap(),
-                    13376,
-                    100000,
+                    payment_details.destination_domain,
+                    payment_details.gas,
                 )
                 .unwrap();
 
@@ -1330,7 +1393,7 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
             let core_program_ids =
                 read_core_program_ids(&args.environments_dir, &args.environment, &args.chain_name);
             match args.cmd {
-                GasOracleSubCmd::Set(set_args) => {
+                GetSetCmd::Set(set_args) => {
                     let remote_gas_data = RemoteGasData {
                         token_exchange_rate: set_args.token_exchange_rate,
                         gas_price: set_args.gas_price,
@@ -1351,8 +1414,7 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                     ctx.new_txn().add(instruction).send_with_payer();
                     println!("Set gas oracle for remote domain {:?}", args.remote_domain);
                 }
-                GasOracleSubCmd::Get => {
-                    // Read the gas oracle config
+                GetSetCmd::Get(_) => {
                     let igp_account = ctx
                         .client
                         .get_account_with_commitment(&core_program_ids.igp_account, ctx.commitment)

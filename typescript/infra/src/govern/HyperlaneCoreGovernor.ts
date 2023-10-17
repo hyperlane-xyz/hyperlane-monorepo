@@ -25,7 +25,7 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
   }
 
   protected async handleMailboxViolation(violation: MailboxViolation) {
-    switch (violation.mailboxType) {
+    switch (violation.subType) {
       case MailboxViolationType.DefaultIsm: {
         let ismAddress: string;
         if (typeof violation.expected === 'object') {

@@ -9,7 +9,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { StatCounts } from '../app/types';
 import { HelloWorld, HelloWorld__factory } from '../types';
 
 import { IHelloWorldAdapter } from './types';
@@ -61,22 +60,11 @@ export class EvmHelloWorldAdapter
     return { transaction: tx, type: ProviderType.EthersV5 };
   }
 
-  async channelStats(
-    destination: ChainName,
-    destinationMailbox: Address,
-  ): Promise<StatCounts> {
-    const originDomain = this.multiProvider.getDomainId(this.chainName);
+  async sentStat(destination: ChainName): Promise<number> {
     const destinationDomain = this.multiProvider.getDomainId(destination);
     const originContract = this.getConnectedContract();
     const sent = await originContract.sentTo(destinationDomain);
-    const destinationProvider =
-      this.multiProvider.getEthersV5Provider(destination);
-    const destinationContract = HelloWorld__factory.connect(
-      destinationMailbox,
-      destinationProvider,
-    );
-    const received = await destinationContract.sentTo(originDomain);
-    return { sent: sent.toNumber(), received: received.toNumber() };
+    return sent.toNumber();
   }
 
   override getConnectedContract(): HelloWorld {

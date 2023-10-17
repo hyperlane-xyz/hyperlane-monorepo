@@ -19,7 +19,7 @@ import { Role } from '../roles';
 import { RootAgentConfig } from './agent';
 import { KeyFunderConfig } from './funding';
 import { AllStorageGasOracleConfigs } from './gas-oracle';
-import { HelloWorldConfig } from './helloworld';
+import { HelloWorldConfig } from './helloworld/types';
 import { InfrastructureConfig } from './infrastructure';
 import { LiquidityLayerRelayerConfig } from './middleware';
 

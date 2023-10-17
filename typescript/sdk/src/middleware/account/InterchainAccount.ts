@@ -1,10 +1,14 @@
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../../consts/environments';
-import { appFromAddressesMapHelper } from '../../contracts/contracts';
+import {
+  appFromAddressesMapHelper,
+  filterChainMapToProtocol,
+} from '../../contracts/contracts';
 import {
   HyperlaneAddressesMap,
   HyperlaneContracts,
@@ -32,7 +36,13 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
-    return InterchainAccount.fromAddressesMap(envAddresses, multiProvider);
+    // Filter out non-EVM chains, as interchain accounts are EVM only at the moment.
+    const ethAddresses = filterChainMapToProtocol(
+      envAddresses,
+      ProtocolType.Ethereum,
+      multiProvider,
+    );
+    return InterchainAccount.fromAddressesMap(ethAddresses, multiProvider);
   }
 
   static fromAddressesMap(
