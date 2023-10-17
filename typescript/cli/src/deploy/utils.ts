@@ -25,7 +25,29 @@ export async function runPreflightChecks({
   if (!origin || !remotes?.length) throw new Error('Invalid chain selection');
   if (remotes.includes(origin))
     throw new Error('Origin and remotes must be distinct');
-  for (const chain of [origin, ...remotes]) {
+  return runPreflightChecksForChains({
+    chains: [origin, ...remotes],
+    signer,
+    multiProvider,
+    minBalanceWei,
+  });
+}
+
+export async function runPreflightChecksForChains({
+  chains,
+  signer,
+  multiProvider,
+  minBalanceWei,
+}: {
+  chains: ChainName[];
+  signer: ethers.Signer;
+  multiProvider: MultiProvider;
+  minBalanceWei: string;
+}) {
+  log('Running pre-flight checks...');
+
+  if (!chains?.length) throw new Error('Empty chain selection');
+  for (const chain of chains) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
     if (!metadata) throw new Error(`No chain config found for ${chain}`);
     if (metadata.protocol !== ProtocolType.Ethereum)
@@ -36,11 +58,6 @@ export async function runPreflightChecks({
   assertSigner(signer);
   logGreen('Signer is valid ✅');
 
-  await assertNativeBalances(
-    multiProvider,
-    signer,
-    [origin, ...remotes],
-    minBalanceWei,
-  );
+  await assertNativeBalances(multiProvider, signer, chains, minBalanceWei);
   logGreen('Balances are sufficient ✅');
 }

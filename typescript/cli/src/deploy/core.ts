@@ -37,7 +37,7 @@ import {
   getMergedContractAddresses,
   sdkContractAddressesMap,
 } from '../context.js';
-import { runOriginAndRemotesSelectionStep } from '../utils/chains.js';
+import { runMultiChainSelectionStep } from '../utils/chains.js';
 import {
   prepNewArtifactsFiles,
   runFileSelectionStep,
@@ -48,25 +48,23 @@ import {
   TestRecipientConfig,
   TestRecipientDeployer,
 } from './TestRecipientDeployer.js';
-import { runPreflightChecks } from './utils.js';
+import { runPreflightChecksForChains } from './utils.js';
 
 export async function runCoreDeploy({
   key,
   chainConfigPath,
+  chains,
   ismConfigPath,
   artifactsPath,
   outPath,
-  origin,
-  remotes,
   skipConfirmation,
 }: {
   key: string;
   chainConfigPath: string;
-  ismConfigPath: string;
+  chains?: ChainName[];
+  ismConfigPath?: string;
   artifactsPath?: string;
   outPath: string;
-  origin?: string;
-  remotes?: string[];
   skipConfirmation: boolean;
 }) {
   const { customChains, multiProvider, signer } = getContextWithSigner(
@@ -74,18 +72,17 @@ export async function runCoreDeploy({
     chainConfigPath,
   );
 
-  if (!origin || !remotes?.length) {
-    ({ origin, remotes } = await runOriginAndRemotesSelectionStep(
+  if (!chains?.length) {
+    chains = await runMultiChainSelectionStep(
       customChains,
-    ));
+      'Select chains to which core contacts will be deployed',
+    );
   }
-  const selectedChains = [origin, ...remotes];
-  const artifacts = await runArtifactStep(selectedChains, artifactsPath);
-  const multisigConfig = await runIsmStep(selectedChains, ismConfigPath);
+  const artifacts = await runArtifactStep(chains, artifactsPath);
+  const multisigConfig = await runIsmStep(chains, ismConfigPath);
 
   const deploymentParams: DeployParams = {
-    origin,
-    remotes,
+    chains,
     signer,
     multiProvider,
     artifacts,
@@ -95,7 +92,7 @@ export async function runCoreDeploy({
   };
 
   await runDeployPlanStep(deploymentParams);
-  await runPreflightChecks({
+  await runPreflightChecksForChains({
     ...deploymentParams,
     minBalanceWei: MINIMUM_CORE_DEPLOY_BALANCE,
   });
@@ -161,8 +158,7 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
 }
 
 interface DeployParams {
-  origin: string;
-  remotes: string[];
+  chains: string[];
   signer: ethers.Signer;
   multiProvider: MultiProvider;
   artifacts?: HyperlaneContractsMap<any>;
@@ -172,8 +168,7 @@ interface DeployParams {
 }
 
 async function runDeployPlanStep({
-  origin,
-  remotes,
+  chains,
   signer,
   artifacts,
   skipConfirmation,
@@ -182,14 +177,14 @@ async function runDeployPlanStep({
   logBlue('\nDeployment plan');
   logGray('===============');
   log(`Transaction signer and owner of new contracts will be ${address}`);
-  log(`Deploying to ${origin} and connecting it to ${remotes.join(', ')}`);
+  log(`Deploying to ${chains.join(', ')}`);
   const numContracts = Object.keys(
     Object.values(sdkContractAddressesMap)[0],
   ).length;
   log(`There are ${numContracts} contracts for each chain`);
   if (artifacts)
     log('But contracts with an address in the artifacts file will be skipped');
-  for (const chain of [origin, ...remotes]) {
+  for (const chain of chains) {
     const chainArtifacts = artifacts?.[chain] || {};
     const numRequired = numContracts - Object.keys(chainArtifacts).length;
     log(`${chain} will require ${numRequired} of ${numContracts}`);
@@ -203,8 +198,7 @@ async function runDeployPlanStep({
 }
 
 async function executeDeploy({
-  origin,
-  remotes,
+  chains,
   signer,
   multiProvider,
   outPath,
@@ -219,14 +213,13 @@ async function executeDeploy({
   ]);
 
   const owner = await signer.getAddress();
-  const selectedChains = [origin, ...remotes];
   const mergedContractAddrs = getMergedContractAddresses(artifacts);
 
   // 1. Deploy ISM factories to all deployable chains that don't have them.
   log('Deploying ISM factory contracts');
   const ismFactoryDeployer = new HyperlaneIsmFactoryDeployer(multiProvider);
   ismFactoryDeployer.cacheAddressesMap(mergedContractAddrs);
-  const ismFactoryContracts = await ismFactoryDeployer.deploy(selectedChains);
+  const ismFactoryContracts = await ismFactoryDeployer.deploy(chains);
   artifacts = writeMergedAddresses(
     contractsFilePath,
     artifacts,
@@ -236,7 +229,7 @@ async function executeDeploy({
 
   // 2. Deploy IGPs to all deployable chains.
   log('Deploying IGP contracts');
-  const igpConfig = buildIgpConfigMap(owner, selectedChains, multisigConfig);
+  const igpConfig = buildIgpConfigMap(owner, chains, multisigConfig);
   const igpDeployer = new HyperlaneIgpDeployer(multiProvider);
   igpDeployer.cacheAddressesMap(artifacts);
   const igpContracts = await igpDeployer.deploy(igpConfig);
@@ -254,7 +247,7 @@ async function executeDeploy({
   log('Deploying ISMs');
   const ismContracts: ChainMap<{ multisigIsm: DeployedIsm }> = {};
   const defaultIsms: ChainMap<Address> = {};
-  for (const ismOrigin of selectedChains) {
+  for (const ismOrigin of chains) {
     if (artifacts[ismOrigin].multisigIsm) {
       log(`ISM contract recovered, skipping ISM deployment to ${ismOrigin}`);
       defaultIsms[ismOrigin] = artifacts[ismOrigin].multisigIsm;
@@ -263,7 +256,7 @@ async function executeDeploy({
     log(`Deploying ISM to ${ismOrigin}`);
     const ismConfig = buildIsmConfig(
       owner,
-      selectedChains.filter((r) => r !== ismOrigin),
+      chains.filter((r) => r !== ismOrigin),
       multisigConfig,
     );
     ismContracts[ismOrigin] = {
@@ -274,21 +267,19 @@ async function executeDeploy({
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, ismContracts);
   logGreen('ISM contracts deployed');
 
-  // 4. Deploy core contracts to origin chain
-  log(`Deploying core contracts to ${origin}`);
+  // 4. Deploy core contracts to chains
+  log(`Deploying core contracts to ${chains.join(', ')}`);
   const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   coreDeployer.cacheAddressesMap(artifacts);
-  const coreConfig = buildCoreConfigMap(owner, origin, defaultIsms);
-  const coreContracts = await coreDeployer.deploy(coreConfig);
+  const coreConfigs = buildCoreConfigMap(owner, chains, defaultIsms);
+  console.log('===coreconfigs', coreConfigs); //TODO remove
+  const coreContracts = await coreDeployer.deploy(coreConfigs);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
   logGreen('Core contracts deployed');
 
   // 5. Deploy TestRecipients to all deployable chains
   log('Deploying test recipient contracts');
-  const testRecipientConfig = buildTestRecipientConfigMap(
-    selectedChains,
-    artifacts,
-  );
+  const testRecipientConfig = buildTestRecipientConfigMap(chains, artifacts);
   const testRecipientDeployer = new TestRecipientDeployer(multiProvider);
   testRecipientDeployer.cacheAddressesMap(artifacts);
   const testRecipients = await testRecipientDeployer.deploy(
@@ -302,13 +293,7 @@ async function executeDeploy({
   logGreen('Test recipient contracts deployed');
 
   log('Writing agent configs');
-  await writeAgentConfig(
-    agentFilePath,
-    artifacts,
-    origin,
-    remotes,
-    multiProvider,
-  );
+  await writeAgentConfig(agentFilePath, artifacts, chains, multiProvider);
   logGreen('Agent configs written');
 
   logBlue('Deployment is complete!');
@@ -336,15 +321,16 @@ function buildIsmConfig(
 
 function buildCoreConfigMap(
   owner: Address,
-  origin: ChainName,
+  chains: ChainName[],
   defaultIsms: ChainMap<Address>,
 ): ChainMap<CoreConfig> {
-  const configMap: ChainMap<CoreConfig> = {};
-  configMap[origin] = {
-    owner,
-    defaultIsm: defaultIsms[origin],
-  };
-  return configMap;
+  return chains.reduce<ChainMap<CoreConfig>>((config, chain) => {
+    config[chain] = {
+      owner,
+      defaultIsm: defaultIsms[chain],
+    };
+    return config;
+  }, {});
 }
 
 function buildTestRecipientConfigMap(
@@ -367,7 +353,7 @@ function buildTestRecipientConfigMap(
 
 function buildIgpConfigMap(
   owner: Address,
-  selectedChains: ChainName[],
+  chains: ChainName[],
   multisigIsmConfigs: ChainMap<MultisigIsmConfig>,
 ): ChainMap<OverheadIgpConfig> {
   const mergedMultisigIsmConfig: ChainMap<MultisigIsmConfig> = objMerge(
@@ -375,18 +361,18 @@ function buildIgpConfigMap(
     multisigIsmConfigs,
   );
   const configMap: ChainMap<OverheadIgpConfig> = {};
-  for (const origin of selectedChains) {
+  for (const chain of chains) {
     const overhead: ChainMap<number> = {};
     const gasOracleType: ChainMap<GasOracleContractType> = {};
-    for (const remote of selectedChains) {
-      if (origin === remote) continue;
+    for (const remote of chains) {
+      if (chain === remote) continue;
       overhead[remote] = multisigIsmVerificationCost(
         mergedMultisigIsmConfig[remote].threshold,
         mergedMultisigIsmConfig[remote].validators.length,
       );
       gasOracleType[remote] = GasOracleContractType.StorageGasOracle;
     }
-    configMap[origin] = {
+    configMap[chain] = {
       owner,
       beneficiary: owner,
       gasOracleType,
@@ -411,15 +397,17 @@ function writeMergedAddresses(
 async function writeAgentConfig(
   filePath: string,
   artifacts: HyperlaneAddressesMap<any>,
-  origin: ChainName,
-  remotes: ChainName[],
+  chains: ChainName[],
   multiProvider: MultiProvider,
 ) {
-  const selectedChains = [origin, ...remotes];
   const startBlocks: ChainMap<number> = { ...agentStartBlocks };
-  startBlocks[origin] = await multiProvider
-    .getProvider(origin)
-    .getBlockNumber();
+
+  for (const chain of chains) {
+    if (startBlocks[chain]) continue;
+    startBlocks[chain] = await multiProvider
+      .getProvider(chain)
+      .getBlockNumber();
+  }
 
   const mergedAddressesMap: HyperlaneAddressesMap<any> = objMerge(
     sdkContractAddressesMap,
@@ -428,12 +416,13 @@ async function writeAgentConfig(
   const filteredAddressesMap = objFilter(
     mergedAddressesMap,
     (chain, v): v is HyperlaneAddresses<any> =>
-      selectedChains.includes(chain) &&
+      chains.includes(chain) &&
       !!v.mailbox &&
       !!v.interchainGasPaymaster &&
       !!v.validatorAnnounce,
   ) as ChainMap<HyperlaneDeploymentArtifacts>;
 
+  // TODO for v3 only build new agent config schema
   const agentConfig = buildAgentConfig(
     Object.keys(filteredAddressesMap),
     multiProvider,
