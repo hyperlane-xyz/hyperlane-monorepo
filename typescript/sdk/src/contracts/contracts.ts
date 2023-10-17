@@ -83,8 +83,7 @@ export function filterAddressesToProtocol(
 export function attachContracts<F extends HyperlaneFactories>(
   addresses: HyperlaneAddresses<F>,
   factories: F,
-): any {
-  // ): HyperlaneContracts<F> {
+): HyperlaneContracts<F> {
   return objMap(addresses, (key, address: Address) => {
     const factory = getFactory(key, factories);
     return factory.attach(address) as Awaited<ReturnType<ValueOf<F>['deploy']>>;

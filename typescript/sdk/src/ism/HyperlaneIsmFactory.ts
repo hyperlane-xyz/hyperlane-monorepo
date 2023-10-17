@@ -106,7 +106,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
       throw new Error(`Unsupported ISM type`);
     }
 
-    const name = ModuleType[config.type];
+    const moduleType = ModuleType[config.type];
 
     if (!this.deployedIsms[chain]) {
       this.deployedIsms[chain] = {};
@@ -117,9 +117,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     }
 
     if (origin) {
-      this.deployedIsms[chain][origin][name] = contract;
+      this.deployedIsms[chain][origin][moduleType] = contract;
     } else {
-      this.deployedIsms[chain][name] = contract;
+      this.deployedIsms[chain][moduleType] = contract;
     }
 
     return contract;
