@@ -137,7 +137,7 @@ fn main() -> ExitCode {
 
     // let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
     // fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
-    let checkpoints_dirs: Vec<DynPath> = (0..VALIDATOR_COUNT)
+    let checkpoints_dirs: Vec<DynPath> = (0..VALIDATOR_COUNT - 1)
         .map(|_| Box::new(tempdir().unwrap()) as DynPath)
         // .chain([Box::new(solana_checkpoint_path) as DynPath])
         .collect();

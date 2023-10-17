@@ -75,7 +75,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
         config,
         this.multiProvider.getSignerOrProvider(chain),
       );
-    } else if (
+    }
+
+    if (
       config.type === ModuleType.MERKLE_ROOT_MULTISIG ||
       config.type === ModuleType.MESSAGE_ID_MULTISIG
     ) {
@@ -112,11 +114,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
       this.deployedIsms[chain] = {};
     }
 
-    if (!!origin && !this.deployedIsms[chain][origin]) {
-      this.deployedIsms[chain][origin] = {};
-    }
-
-    if (origin) {
+    if (!!origin) {
+      if (!this.deployedIsms[chain][origin]) {
+        this.deployedIsms[chain][origin] = {};
+      }
       this.deployedIsms[chain][origin][moduleType] = contract;
     } else {
       this.deployedIsms[chain][moduleType] = contract;
