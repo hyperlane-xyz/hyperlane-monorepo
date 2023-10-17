@@ -2,7 +2,7 @@ import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 import { z } from 'zod';
 
-import { TokenType } from '@hyperlane-xyz/hyperlane-token';
+import { TokenType } from '@hyperlane-xyz/sdk';
 
 import { errorRed, logBlue, logGreen } from '../../logger.js';
 import {

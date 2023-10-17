@@ -1,22 +1,19 @@
 import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
-import {
-  ERC20__factory,
-  ERC721__factory,
-  HypERC20Deployer,
-  HypERC721Deployer,
-  TokenConfig,
-  TokenFactories,
-  TokenType,
-} from '@hyperlane-xyz/hyperlane-token';
+import { ERC20__factory, ERC721__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
   ConnectionClientConfig,
+  HypERC20Deployer,
+  HypERC721Deployer,
   HyperlaneContractsMap,
   MultiProvider,
   RouterConfig,
+  TokenConfig,
+  TokenFactories,
+  TokenType,
   chainMetadata as defaultChainMetadata,
 } from '@hyperlane-xyz/sdk';
 import { Address, objMap } from '@hyperlane-xyz/utils';

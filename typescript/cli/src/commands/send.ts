@@ -1,6 +1,6 @@
 import { CommandModule, Options } from 'yargs';
 
-import { TokenType } from '@hyperlane-xyz/hyperlane-token';
+import { TokenType } from '@hyperlane-xyz/sdk';
 
 import { log } from '../../logger.js';
 import { sendTestMessage } from '../send/message.js';

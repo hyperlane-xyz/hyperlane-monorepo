@@ -3936,20 +3936,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/hyperlane-token@npm:1.5.8":
-  version: 1.5.8
-  resolution: "@hyperlane-xyz/hyperlane-token@npm:1.5.8"
-  dependencies:
-    "@hyperlane-xyz/core": 1.5.8
-    "@hyperlane-xyz/sdk": 1.5.8
-    "@hyperlane-xyz/utils": 1.5.8
-    "@openzeppelin/contracts-upgradeable": ^4.8.0
-    "@solana/spl-token": ^0.3.8
-    ethers: ^5.7.2
-  checksum: 0c50b17c67134fd5095c740ab4199243779dc4a92f7c9e9ffa7f051457049ada75e5f70933c71ce76953766a361ba1f01ffdb7bead318038ec254c5072d4ea5f
-  languageName: node
-  linkType: hard
-
 "@hyperlane-xyz/infra@workspace:typescript/infra":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/infra@workspace:typescript/infra"
@@ -3963,7 +3949,6 @@ __metadata:
     "@ethersproject/hardware-wallets": ^5.7.0
     "@ethersproject/providers": ^5.7.2
     "@hyperlane-xyz/helloworld": 1.5.8
-    "@hyperlane-xyz/hyperlane-token": 1.5.8
     "@hyperlane-xyz/sdk": 1.5.8
     "@hyperlane-xyz/utils": 1.5.8
     "@nomiclabs/hardhat-ethers": ^2.2.1

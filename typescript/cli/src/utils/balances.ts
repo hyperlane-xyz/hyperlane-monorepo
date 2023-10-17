@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { ERC20__factory } from '@hyperlane-xyz/hyperlane-token';
+import { ERC20__factory } from '@hyperlane-xyz/core';
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 

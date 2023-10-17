@@ -2,16 +2,16 @@ import { BigNumber, ethers } from 'ethers';
 
 import {
   ERC20__factory,
-  EvmHypCollateralAdapter,
   HypERC20Collateral__factory,
-  TokenType,
-} from '@hyperlane-xyz/hyperlane-token';
+} from '@hyperlane-xyz/core';
 import {
   ChainName,
+  EvmHypCollateralAdapter,
   HyperlaneContractsMap,
   HyperlaneCore,
   MultiProtocolProvider,
   MultiProvider,
+  TokenType,
 } from '@hyperlane-xyz/sdk';
 import { Address, timeout } from '@hyperlane-xyz/utils';
 

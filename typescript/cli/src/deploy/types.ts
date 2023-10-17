@@ -1,4 +1,4 @@
-import type { ERC20Metadata, TokenType } from '@hyperlane-xyz/hyperlane-token';
+import type { ERC20Metadata, TokenType } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
 export type MinimalTokenMetadata = Omit<ERC20Metadata, 'totalSupply'>;
