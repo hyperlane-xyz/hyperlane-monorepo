@@ -179,8 +179,11 @@ impl OsmosisCLI {
             let cmd = self.add_gas(cmd);
             let cmd = endpoint.add_rpc(cmd);
 
+            let raw_output = cmd.run_with_output().join();
+            println!("wasm store code res: {:?}", raw_output);
+
             let wasm_store_tx_resp: TxResponse =
-                serde_json::from_str(cmd.run_with_output().join().first().unwrap()).unwrap();
+                serde_json::from_str(raw_output.first().unwrap()).unwrap();
 
             let store_code_log = wasm_store_tx_resp.logs.first().unwrap();
             let store_code_evt = store_code_log
@@ -276,7 +279,12 @@ impl OsmosisCLI {
             );
         }
 
-        let output = serde_json::from_str(cmd.run_with_output().join().first().unwrap());
+        let run_result = cmd.run_with_output().join();
+
+        println!("wasm execute res: {:?}", run_result);
+
+        let output: Result<TxResponse, serde_json::Error> =
+            serde_json::from_str(run_result.first().unwrap());
 
         output.unwrap()
     }
