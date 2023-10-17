@@ -38,6 +38,7 @@
     "ethereum-waffle": "^3.4.4",
     "ethers": "^5.7.2",
     "hardhat": "^2.16.1",
+    "mocha": "^10.2.0",
     "prettier": "^2.8.8",
     "ts-node": "^10.9.1",
     "typescript": "^5.1.6"
@@ -58,7 +59,7 @@
     "deploy-igp": "ts-node scripts/deploy.ts -e test -m igp",
     "deploy-ism": "ts-node scripts/deploy.ts -e test -m ism",
     "deploy-helloworld": "ts-node scripts/deploy.ts -e test -m helloworld",
-    "deploy-hook": "ts-node scripts/deploy.ts -e testnet3 -m hook",
+    "deploy-hook": "ts-node scripts/deploy.ts -e test -m hook",
     "build": "tsc",
     "clean": "rm -rf ./dist ./cache",
     "check": "tsc --noEmit",
@@ -66,6 +67,6 @@
     "announce": "hardhat announce --network localhost",
     "node": "hardhat node",
     "prettier": "prettier --write *.ts ./src ./config ./scripts ./test",
-    "test": "hardhat test"
+    "test": "mocha --config ../sdk/.mocharc.json test/agents.test.ts"
   }
 }

@@ -7,9 +7,9 @@ use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_base::settings::IndexSettings;
 use hyperlane_core::{
-    BlockInfo, Delivery, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
-    HyperlaneMessageStore, HyperlaneProvider, HyperlaneWatermarkedLogStore, InterchainGasPayment,
-    LogMeta, H256,
+    unwrap_or_none_result, BlockInfo, Delivery, HyperlaneDomain, HyperlaneLogStore,
+    HyperlaneMessage, HyperlaneMessageStore, HyperlaneProvider, HyperlaneWatermarkedLogStore,
+    InterchainGasPayment, LogMeta, H256,
 };
 use itertools::Itertools;
 use tracing::trace;
@@ -383,18 +383,13 @@ impl HyperlaneMessageStore for HyperlaneSqlDb {
     /// Retrieves the block number at which the message with the provided nonce
     /// was dispatched.
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {
-        let Some(tx_id) = self
-            .db
-            .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, nonce)
-            .await?
-        else {
-            return Ok(None);
-        };
-
-        let Some(block_id) = self.db.retrieve_block_id(tx_id).await? else {
-            return Ok(None);
-        };
-
+        unwrap_or_none_result!(
+            tx_id,
+            self.db
+                .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, nonce)
+                .await?
+        );
+        unwrap_or_none_result!(block_id, self.db.retrieve_block_id(tx_id).await?);
         Ok(self.db.retrieve_block_number(block_id).await?)
     }
 }

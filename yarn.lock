@@ -2583,11 +2583,11 @@ __metadata:
   linkType: hard
 
 "@babel/runtime@npm:^7.22.6":
-  version: 7.22.10
-  resolution: "@babel/runtime@npm:7.22.10"
+  version: 7.23.1
+  resolution: "@babel/runtime@npm:7.23.1"
   dependencies:
     regenerator-runtime: ^0.14.0
-  checksum: 524d41517e68953dbc73a4f3616b8475e5813f64e28ba89ff5fca2c044d535c2ea1a3f310df1e5bb06162e1f0b401b5c4af73fe6e2519ca2450d9d8c44cf268d
+  checksum: 0cd0d43e6e7dc7f9152fda8c8312b08321cda2f56ef53d6c22ebdd773abdc6f5d0a69008de90aa41908d00e2c1facb24715ff121274e689305c858355ff02c70
   languageName: node
   linkType: hard
 
@@ -3937,40 +3937,19 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/hyperlane-token@1.5.8, @hyperlane-xyz/hyperlane-token@workspace:typescript/token":
-  version: 0.0.0-use.local
-  resolution: "@hyperlane-xyz/hyperlane-token@workspace:typescript/token"
+"@hyperlane-xyz/hyperlane-token@npm:1.5.8":
+  version: 1.5.8
+  resolution: "@hyperlane-xyz/hyperlane-token@npm:1.5.8"
   dependencies:
     "@hyperlane-xyz/core": 1.5.8
     "@hyperlane-xyz/sdk": 1.5.8
     "@hyperlane-xyz/utils": 1.5.8
-    "@nomiclabs/hardhat-ethers": ^2.2.1
-    "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts-upgradeable": ^4.8.0
     "@solana/spl-token": ^0.3.8
-    "@trivago/prettier-plugin-sort-imports": ^4.2.0
-    "@typechain/ethers-v5": 10.0.0
-    "@typechain/hardhat": ^6.0.0
-    "@types/mocha": ^9.1.0
-    "@typescript-eslint/eslint-plugin": ^5.62.0
-    "@typescript-eslint/parser": ^5.62.0
-    chai: ^4.3.0
-    eslint: ^8.43.0
-    eslint-config-prettier: ^8.8.0
-    ethereum-waffle: ^3.4.4
     ethers: ^5.7.2
-    hardhat: ^2.16.1
-    hardhat-gas-reporter: ^1.0.9
-    prettier: ^2.8.8
-    prettier-plugin-solidity: ^1.0.0-beta.5
-    solhint: ^3.3.2
-    solhint-plugin-prettier: ^0.0.5
-    solidity-coverage: ^0.8.3
-    ts-node: ^10.9.1
-    typechain: 8.0.0
-    typescript: ^5.1.6
-  languageName: unknown
-  linkType: soft
+  checksum: 0c50b17c67134fd5095c740ab4199243779dc4a92f7c9e9ffa7f051457049ada75e5f70933c71ce76953766a361ba1f01ffdb7bead318038ec254c5072d4ea5f
+  languageName: node
+  linkType: hard
 
 "@hyperlane-xyz/infra@workspace:typescript/infra":
   version: 0.0.0-use.local
@@ -4006,6 +3985,7 @@ __metadata:
     ethereum-waffle: ^3.4.4
     ethers: ^5.7.2
     hardhat: ^2.16.1
+    mocha: ^10.2.0
     prettier: ^2.8.8
     prom-client: ^14.0.1
     prompts: ^2.4.2
@@ -4038,6 +4018,7 @@ __metadata:
     "@hyperlane-xyz/utils": 1.5.8
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
+    "@solana/spl-token": ^0.3.8
     "@solana/web3.js": ^1.78.0
     "@types/coingecko-api": ^1.0.10
     "@types/debug": ^4.1.7
@@ -4449,10 +4430,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@noble/hashes@npm:1.3.1, @noble/hashes@npm:^1.3.0, @noble/hashes@npm:^1.3.1, @noble/hashes@npm:~1.3.0":
+"@noble/hashes@npm:1.3.1, @noble/hashes@npm:^1.3.0, @noble/hashes@npm:~1.3.0":
   version: 1.3.1
   resolution: "@noble/hashes@npm:1.3.1"
   checksum: 7fdefc0f7a0c1ec27acc6ff88841793e3f93ec4ce6b8a6a12bfc0dd70ae6b7c4c82fe305fdfeda1735d5ad4a9eebe761e6693b3d355689c559e91242f4bc95b1
+  languageName: node
+  linkType: hard
+
+"@noble/hashes@npm:^1.3.1":
+  version: 1.3.2
+  resolution: "@noble/hashes@npm:1.3.2"
+  checksum: fe23536b436539d13f90e4b9be843cc63b1b17666a07634a2b1259dded6f490be3d050249e6af98076ea8f2ea0d56f578773c2197f2aa0eeaa5fba5bc18ba474
   languageName: node
   linkType: hard
 
@@ -5324,8 +5312,8 @@ __metadata:
   linkType: hard
 
 "@solana/web3.js@npm:^1.32.0":
-  version: 1.78.4
-  resolution: "@solana/web3.js@npm:1.78.4"
+  version: 1.78.5
+  resolution: "@solana/web3.js@npm:1.78.5"
   dependencies:
     "@babel/runtime": ^7.22.6
     "@noble/curves": ^1.0.0
@@ -5342,7 +5330,7 @@ __metadata:
     node-fetch: ^2.6.12
     rpc-websockets: ^7.5.1
     superstruct: ^0.14.2
-  checksum: e1c44c6cbec87cdfd4d6d23b4241b746e14ed3a9ca73d596693758d91ac825cecf579345da3b0b7bb5e54b6794791bc0eac02cadf11f1ec79e859b6536f26f11
+  checksum: 66fe4ddcc073d0c539e23a2aae3ba23c081a11f5ebc8216dd18e0c6770f20e419c635a50529faa59baeec9722cd521a3502abc7cdf3b3d5f31b32066e0415c24
   languageName: node
   linkType: hard
 
@@ -14460,7 +14448,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"mocha@npm:^10.0.0":
+"mocha@npm:^10.0.0, mocha@npm:^10.2.0":
   version: 10.2.0
   resolution: "mocha@npm:10.2.0"
   dependencies:
@@ -14874,8 +14862,8 @@ __metadata:
   linkType: hard
 
 "node-fetch@npm:^2.6.12":
-  version: 2.6.13
-  resolution: "node-fetch@npm:2.6.13"
+  version: 2.7.0
+  resolution: "node-fetch@npm:2.7.0"
   dependencies:
     whatwg-url: ^5.0.0
   peerDependencies:
@@ -14883,7 +14871,7 @@ __metadata:
   peerDependenciesMeta:
     encoding:
       optional: true
-  checksum: 055845ae5b4796c78c7053564745345025cf959563b3568b43c385f67d311779e6b00e5fef6ed1b79f86ba4048e4b4b722e1aa948305521b9353eb7e788912c9
+  checksum: d76d2f5edb451a3f05b15115ec89fc6be39de37c6089f1b6368df03b91e1633fd379a7e01b7ab05089a25034b2023d959b47e59759cb38d88341b2459e89d6e5
   languageName: node
   linkType: hard
 

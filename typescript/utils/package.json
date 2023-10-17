@@ -32,5 +32,6 @@
   "types": "dist/index.d.ts",
   "files": [
     "/dist"
-  ]
+  ],
+  "stableVersion": "1.5.0"
 }

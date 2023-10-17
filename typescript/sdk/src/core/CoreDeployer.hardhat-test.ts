@@ -5,8 +5,8 @@ import sinon from 'sinon';
 
 import { TestChains } from '../consts/chains';
 import { HyperlaneContractsMap } from '../contracts/types';
+import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { HyperlaneIsmFactoryDeployer } from '../ism/HyperlaneIsmFactoryDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { testCoreConfig } from '../test/testUtils';
 import { ChainMap } from '../types';
@@ -27,8 +27,11 @@ describe('core', async () => {
   before(async () => {
     const [signer] = await ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    const ismFactoryDeployer = new HyperlaneIsmFactoryDeployer(multiProvider);
-    const ismFactories = await ismFactoryDeployer.deploy(TestChains);
+    const proxyFactoryDeployer = new HyperlaneProxyFactoryDeployer(
+      multiProvider,
+    );
+    coreConfig = testCoreConfig(TestChains);
+    const ismFactories = await proxyFactoryDeployer.deploy(coreConfig);
     ismFactory = new HyperlaneIsmFactory(ismFactories, multiProvider);
   });
 
@@ -36,7 +39,6 @@ describe('core', async () => {
     const [signer] = await ethers.getSigners();
     // This is kind of awkward and really these tests shouldn't live here
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    coreConfig = testCoreConfig(TestChains);
   });
 
   it('deploys', async () => {

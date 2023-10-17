@@ -1,3 +1,0 @@
-@openzeppelin=../../node_modules/@openzeppelin
-@hyperlane-xyz=../../node_modules/@hyperlane-xyz
-forge-std/=lib/forge-std/src/

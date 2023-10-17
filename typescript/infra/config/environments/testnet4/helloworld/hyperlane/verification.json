@@ -1,0 +1,434 @@
+{
+  "alfajores": [
+    {
+      "name": "HelloWorld",
+      "address": "0x921D3A71386d3Ab8f3AD4eC91ce1556D5FC26859",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x477D860f8F41bC69dDD32821F2Bf2C2Af0243F16",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x76bDE8069b3467A459262192509Ad5c00AcbdaF0",
+      "constructorArguments": "000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e590000000000000000000000001246529eddca523afe5c6b9414299633d2e16697",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x39e08602570237433673B1340Da17105cA098EE7",
+      "constructorArguments": "000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e590000000000000000000000001246529eddca523afe5c6b9414299633d2e16697",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x0231C1A2CfDbC2d2FA8363c3eC60c85a458088aE",
+      "constructorArguments": "000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e590000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xb58F3D0CA2B26803eA6a64696989102cE301Fd23",
+      "constructorArguments": "000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e590000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xD0Ef694E96Bb695DC829f71956227eD141e3089F",
+      "constructorArguments": "000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e590000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
+  "fuji": [
+    {
+      "name": "HelloWorld",
+      "address": "0x1C847335D123632fC7D662AB87Ac7872aCD920f2",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x5da3b8d6F73dF6003A490072106730218c475AAd",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xE04b1D70d487eFCa454EEBf3821E42Dd41e66609",
+      "constructorArguments": "0000000000000000000000005b6cff85442b851a8e6eabd2a4e4507b5135b3b00000000000000000000000006895d3916b94b386faa6ec9276756e16dae7480e",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x6F7A1B7868f14a2f4c36cc561d910aE7958bc8D8",
+      "constructorArguments": "0000000000000000000000005b6cff85442b851a8e6eabd2a4e4507b5135b3b00000000000000000000000006895d3916b94b386faa6ec9276756e16dae7480e",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x0B1C1B54f45e02552331D3106e71f5e0b573D5D4",
+      "constructorArguments": "0000000000000000000000005b6cff85442b851a8e6eabd2a4e4507b5135b3b00000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
+  "mumbai": [
+    {
+      "name": "HelloWorld",
+      "address": "0x854fd51C04408ad84DA3838A4fF7282522F7866E",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x1A4d8a5eD6C93Af828655e15C44eeE2c2851F0D6",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x79B6151129780f5A80DFEF7c1E967b21A9674A7D",
+      "constructorArguments": "0000000000000000000000002d1889fe5b092cd988972261434f7e5f260411150000000000000000000000008ab67caf605c6ee83cbfefb0d8d67fdd3bf7b591",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xBEadC848cAB77875d066466b9F3509f069a0a4F5",
+      "constructorArguments": "0000000000000000000000002d1889fe5b092cd988972261434f7e5f260411150000000000000000000000008ab67caf605c6ee83cbfefb0d8d67fdd3bf7b591",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x04980C17e2CE26578C82f81207e706e4505FaE3B",
+      "constructorArguments": "0000000000000000000000002d1889fe5b092cd988972261434f7e5f260411150000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "HelloWorld",
+      "address": "0x5447A1679f1Ce836A241c50ae1FC915d3DbA9c23",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xE09BF59dCA6e622efC33f6fbd8EF85dE45233388",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x5b297d6BBE080B66E6acece8d378F70F02c0Bc41",
+      "constructorArguments": "00000000000000000000000089280d0b68a246b276a910a518531e2a861ceb650000000000000000000000000dd20e410bdb95404f71c5a4e7fa67b892a5f949",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x90230E8cf53f4F9aFC2A9777eB0093C0B1C81b59",
+      "constructorArguments": "00000000000000000000000089280d0b68a246b276a910a518531e2a861ceb650000000000000000000000000dd20e410bdb95404f71c5a4e7fa67b892a5f949",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xd0e07a58BC91a686235E542350E63211C7A34c17",
+      "constructorArguments": "00000000000000000000000089280d0b68a246b276a910a518531e2a861ceb650000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
+  "goerli": [
+    {
+      "name": "HelloWorld",
+      "address": "0x0637A1360Ea44602DAe5c4ba515c2BCb6C762fbc",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x405BFdEcB33230b4Ad93C29ba4499b776CfBa189",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xBF5b89eBdF86560F872603e2063f17b78dFbae02",
+      "constructorArguments": "000000000000000000000000c4796aabce2a9d774ce4603f5db5fb1605791dbd0000000000000000000000000cd26594ea6c6526927c0f5225ac09f6288e7140",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xA5F234545270cea8f31A8760b8b7ABcaA3654951",
+      "constructorArguments": "000000000000000000000000c4796aabce2a9d774ce4603f5db5fb1605791dbd0000000000000000000000000cd26594ea6c6526927c0f5225ac09f6288e7140",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x33AA9cFBC7E222B3eC231EcAa58dd846cC393C28",
+      "constructorArguments": "000000000000000000000000c4796aabce2a9d774ce4603f5db5fb1605791dbd0000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
+  "moonbasealpha": [
+    {
+      "name": "HelloWorld",
+      "address": "0xE81De1d727Ba319185a86D92E8Eb4e41046CE6B7",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x89e02C3C7b97bCBa63279E10E2a44e6cEF69E6B2",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x36a53DDa7626e5eb62e59a0192Af07b67AF434D8",
+      "constructorArguments": "00000000000000000000000076189acfa212298d7022624a4633411ee0d2f26f00000000000000000000000092f05669a354a032a84fcfabfd13bee1abc5bfd0",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x893b57DE7E3dd885F827c74E74F3099C1c250c52",
+      "constructorArguments": "00000000000000000000000076189acfa212298d7022624a4633411ee0d2f26f00000000000000000000000092f05669a354a032a84fcfabfd13bee1abc5bfd0",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x3Ce607F6FcE5Dfb9821f33504d86E04A4CD0C75f",
+      "constructorArguments": "00000000000000000000000076189acfa212298d7022624a4633411ee0d2f26f0000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
+  "optimismgoerli": [
+    {
+      "name": "HelloWorld",
+      "address": "0xa76A3E719E5ff7159a29B8876272052b89B3589F",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x3582d1238cBC812165981E4fFaB0E8D9a4518910",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x050500E43Fa7F245f3012527DE29d22176c594c7",
+      "constructorArguments": "000000000000000000000000b5f021728ea6223e3948db2da61d612307945ea200000000000000000000000002a7661273528eff3d78cbe7cbd1a717b28b89fc",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x7Dc5cE596995af8e5D568563038109B9bCA7F7c6",
+      "constructorArguments": "000000000000000000000000b5f021728ea6223e3948db2da61d612307945ea200000000000000000000000002a7661273528eff3d78cbe7cbd1a717b28b89fc",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xe7B2e23A9A77556736DBB040A8a5159a80Db73D5",
+      "constructorArguments": "000000000000000000000000b5f021728ea6223e3948db2da61d612307945ea20000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x138e726C327E9dd0779104B8d42331757CAeeB9F",
+      "constructorArguments": "000000000000000000000000b5f021728ea6223e3948db2da61d612307945ea20000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x372Cf98E673C235C1abD78DEAA61480e6fe55e46",
+      "constructorArguments": "000000000000000000000000b5f021728ea6223e3948db2da61d612307945ea20000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
+  "arbitrumgoerli": [
+    {
+      "name": "HelloWorld",
+      "address": "0xa76A3E719E5ff7159a29B8876272052b89B3589F",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x339B46496D60b1b6B42e9715DeD8B3D2154dA0Bb",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xB8D70C9352AA59f5EB138e045117841910c107a3",
+      "constructorArguments": "00000000000000000000000013dabc0351407d5aaa0a50003a166a73b4febfdc00000000000000000000000076189acfa212298d7022624a4633411ee0d2f26f",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xA3bAaC7d60d10abA54cC2Ffb4b63469810C5aDc0",
+      "constructorArguments": "00000000000000000000000013dabc0351407d5aaa0a50003a166a73b4febfdc00000000000000000000000076189acfa212298d7022624a4633411ee0d2f26f",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x9C63cE44d595cfd97215fcb97d58CFD07a9D6BD7",
+      "constructorArguments": "00000000000000000000000013dabc0351407d5aaa0a50003a166a73b4febfdc0000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x22C7d91A4533536FE6006EFA46074E2Df8f82e82",
+      "constructorArguments": "00000000000000000000000013dabc0351407d5aaa0a50003a166a73b4febfdc0000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xFd1e3710347659703962934d2381970ae0022227",
+      "constructorArguments": "00000000000000000000000013dabc0351407d5aaa0a50003a166a73b4febfdc0000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
+  "sepolia": [
+    {
+      "name": "Router",
+      "address": "0x5d56B8a669F50193b54319442c6EEE5edD662381",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f987d7edcb5890cb321437d8145e3d51131298b6",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x8FF62Cd16C689C6541A284c0e2389D4371255Bc2",
+      "constructorArguments": "00000000000000000000000033abaf6708be03bdf0595da0745a7111b01db8c70000000000000000000000006f2756380fd49228ae25aa7f2817993cb74ecc56",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x73A7bDa325Ad8E5F591179C4ccA61b0CeF70d05C",
+      "constructorArguments": "00000000000000000000000033abaf6708be03bdf0595da0745a7111b01db8c70000000000000000000000006f2756380fd49228ae25aa7f2817993cb74ecc56",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xE14FE2a74Ba1E1bD0EE14B780e58fCcc3c95C013",
+      "constructorArguments": "00000000000000000000000033abaf6708be03bdf0595da0745a7111b01db8c70000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
+  "basegoerli": [
+    {
+      "name": "Router",
+      "address": "0xeAEfB1458b032e75de3e9A3a480d005c426FB1c5",
+      "constructorArguments": "00000000000000000000000058483b754abb1e8947be63d6b95df75b8249543a00000000000000000000000028b02b97a850872c4d33c3e024fab6499ad96564",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xae7a78916Ba4c507aCB2F0e474ace545Ff4bF841",
+      "constructorArguments": "00000000000000000000000058483b754abb1e8947be63d6b95df75b8249543a00000000000000000000000028b02b97a850872c4d33c3e024fab6499ad96564",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x04438ef7622f5412f82915F59caD4f704C61eA48",
+      "constructorArguments": "00000000000000000000000058483b754abb1e8947be63d6b95df75b8249543a00000000000000000000000028b02b97a850872c4d33c3e024fab6499ad96564",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xb94F96D398eA5BAB5CA528EE9Fdc19afaA825818",
+      "constructorArguments": "00000000000000000000000058483b754abb1e8947be63d6b95df75b8249543a0000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x51A0a100e7BC63Ea7821A3a023B6F17fb94FF011",
+      "constructorArguments": "00000000000000000000000058483b754abb1e8947be63d6b95df75b8249543a0000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x086E902d2f99BcCEAa28B31747eC6Dc5fd43B1bE",
+      "constructorArguments": "00000000000000000000000058483b754abb1e8947be63d6b95df75b8249543a0000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
+  "scrollsepolia": [
+    {
+      "name": "Router",
+      "address": "0x433f7d6d0cB9eb8FF2902Ad01C1BEd6C09934a33",
+      "constructorArguments": "0000000000000000000000003c5154a193d6e2955650f9305c8d80c18c814a6800000000000000000000000086fb9f1c124fb20ff130c41a79a432f770f67afd",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xEe421285728284000ec6c6C55C6F9161faeFfa99",
+      "constructorArguments": "0000000000000000000000003c5154a193d6e2955650f9305c8d80c18c814a6800000000000000000000000086fb9f1c124fb20ff130c41a79a432f770f67afd",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C",
+      "constructorArguments": "0000000000000000000000003c5154a193d6e2955650f9305c8d80c18c814a6800000000000000000000000086fb9f1c124fb20ff130c41a79a432f770f67afd",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x783c4a0bB6663359281aD4a637D5af68F83ae213",
+      "constructorArguments": "0000000000000000000000003c5154a193d6e2955650f9305c8d80c18c814a680000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xeAEfB1458b032e75de3e9A3a480d005c426FB1c5",
+      "constructorArguments": "0000000000000000000000003c5154a193d6e2955650f9305c8d80c18c814a680000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x66b71A4e18FbE09a6977A6520B47fEDdffA82a1c",
+      "constructorArguments": "0000000000000000000000003c5154a193d6e2955650f9305c8d80c18c814a680000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
+  "polygonzkevmtestnet": [
+    {
+      "name": "Router",
+      "address": "0xD0680F80F4f947968206806C2598Cbc5b6FE5b03",
+      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f8000000000000000000000000ad34a66bf6db18e858f6b686557075568c6e031c",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x433f7d6d0cB9eb8FF2902Ad01C1BEd6C09934a33",
+      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f8000000000000000000000000ad34a66bf6db18e858f6b686557075568c6e031c",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xEe421285728284000ec6c6C55C6F9161faeFfa99",
+      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f8000000000000000000000000ad34a66bf6db18e858f6b686557075568c6e031c",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C",
+      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f80000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9",
+      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f80000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x783c4a0bB6663359281aD4a637D5af68F83ae213",
+      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f80000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ]
+}

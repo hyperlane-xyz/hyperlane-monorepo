@@ -1,3 +1,4 @@
+import { ConnectionClientViolation } from '..';
 import { ethers } from 'ethers';
 
 import { addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
@@ -13,9 +14,9 @@ import { ChainMap, ChainName } from '../types';
 
 import { RouterApp } from './RouterApps';
 import {
-  ConnectionClientConfig,
-  ConnectionClientViolation,
-  ConnectionClientViolationType,
+  ClientViolation,
+  ClientViolationType,
+  MailboxClientConfig,
   OwnableConfig,
   RouterConfig,
   RouterViolation,
@@ -37,17 +38,17 @@ export class HyperlaneRouterChecker<
   }
 
   async checkChain(chain: ChainName): Promise<void> {
-    await this.checkHyperlaneConnectionClient(chain);
+    await this.checkMailboxClient(chain);
     await this.checkEnrolledRouters(chain);
     await super.checkOwnership(chain, this.configMap[chain].owner);
   }
 
-  async checkHyperlaneConnectionClient(chain: ChainName): Promise<void> {
+  async checkMailboxClient(chain: ChainName): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
 
-    const checkConnectionClientProperty = async (
-      property: keyof (ConnectionClientConfig & OwnableConfig),
-      violationType: ConnectionClientViolationType,
+    const checkMailboxClientProperty = async (
+      property: keyof (MailboxClientConfig & OwnableConfig),
+      violationType: ClientViolationType,
     ) => {
       const actual = await router[property]();
       const value = this.configMap[chain][property];
@@ -93,7 +94,7 @@ export class HyperlaneRouterChecker<
           ? value
           : ethers.constants.AddressZero;
       if (!eqAddress(actual, expected)) {
-        const violation: ConnectionClientViolation = {
+        const violation: ClientViolation = {
           chain,
           type: violationType,
           contract: router,
@@ -104,17 +105,11 @@ export class HyperlaneRouterChecker<
       }
     };
 
-    await checkConnectionClientProperty(
-      'mailbox',
-      ConnectionClientViolationType.Mailbox,
-    );
-    await checkConnectionClientProperty(
-      'interchainGasPaymaster',
-      ConnectionClientViolationType.InterchainGasPaymaster,
-    );
-    await checkConnectionClientProperty(
+    await checkMailboxClientProperty('mailbox', ClientViolationType.Mailbox);
+    await checkMailboxClientProperty('hook', ClientViolationType.Hook);
+    await checkMailboxClientProperty(
       'interchainSecurityModule',
-      ConnectionClientViolationType.InterchainSecurityModule,
+      ClientViolationType.Hook,
     );
   }
 

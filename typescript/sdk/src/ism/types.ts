@@ -3,6 +3,8 @@ import {
   IInterchainSecurityModule,
   IMultisigIsm,
   IRoutingIsm,
+  StaticMerkleRootMultisigIsm,
+  StaticMessageIdMultisigIsm,
 } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
@@ -12,24 +14,26 @@ export type DeployedIsm =
   | IInterchainSecurityModule
   | IMultisigIsm
   | IAggregationIsm
-  | IRoutingIsm;
+  | IRoutingIsm
+  | StaticMessageIdMultisigIsm
+  | StaticMerkleRootMultisigIsm;
 
 export enum ModuleType {
   UNUSED,
   ROUTING,
   AGGREGATION,
-  LEGACY_MULTISIG,
+  LEGACY_MULTISIG, // DEPRECATED
   MERKLE_ROOT_MULTISIG,
   MESSAGE_ID_MULTISIG,
 }
 
-export type MultisigIsmConfig = {
-  type:
-    | ModuleType.LEGACY_MULTISIG
-    | ModuleType.MERKLE_ROOT_MULTISIG
-    | ModuleType.MESSAGE_ID_MULTISIG;
+export type MultisigConfig = {
   validators: Array<Address>;
   threshold: number;
+};
+
+export type MultisigIsmConfig = MultisigConfig & {
+  type: ModuleType.MERKLE_ROOT_MULTISIG | ModuleType.MESSAGE_ID_MULTISIG;
 };
 
 export type RoutingIsmConfig = {

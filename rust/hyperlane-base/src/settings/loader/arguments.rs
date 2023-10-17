@@ -1,9 +1,8 @@
 use std::ffi::{OsStr, OsString};
 
 use config::{ConfigError, Map, Source, Value, ValueKind};
-use convert_case::Case;
-
-use crate::settings::loader::split_and_recase_key;
+use hyperlane_core::unwrap_or_none_result;
+use itertools::Itertools;
 
 /// A source for loading configuration from command line arguments.
 ///
@@ -24,10 +23,6 @@ pub struct CommandLineArguments {
     /// Ignore empty env values (treat as unset).
     ignore_empty: bool,
 
-    /// What casing to use for the keys in the environment. By default it will not mutate the key
-    /// value.
-    casing: Option<Case>,
-
     /// Alternate source for the environment. This can be used when you want to
     /// test your own code using this source, without the need to change the
     /// actual system environment variables.
@@ -43,11 +38,6 @@ impl CommandLineArguments {
 
     pub fn ignore_empty(mut self, ignore: bool) -> Self {
         self.ignore_empty = ignore;
-        self
-    }
-
-    pub fn casing(mut self, casing: Case) -> Self {
-        self.casing = Some(casing);
         self
     }
 
@@ -87,7 +77,7 @@ impl Source for CommandLineArguments {
                 continue;
             }
 
-            let key = split_and_recase_key(separator, self.casing, key);
+            let key = key.split(separator).join(".");
             m.insert(key, Value::new(Some(&uri), ValueKind::String(value)));
         }
 
@@ -165,9 +155,7 @@ impl Iterator for ArgumentParser {
 impl ArgumentParser {
     #[inline(never)]
     fn find_next_kv_pair(&mut self) -> Result<Option<(String, String, PairKind, usize)>, Error> {
-        let Some(idx) = self.index_of_next_key() else {
-            return Ok(None);
-        };
+        unwrap_or_none_result!(idx, self.index_of_next_key());
         // full term without leading '--'
         let term = &os_to_str(&self.0[idx])?[2..];
         if term.is_empty() {

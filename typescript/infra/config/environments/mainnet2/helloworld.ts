@@ -1,4 +1,4 @@
-import { AgentConnectionType } from '@hyperlane-xyz/sdk';
+import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../../../src/config';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld/types';
@@ -13,7 +13,7 @@ export const hyperlane: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '01dcf5d-20231010-145824',
+      tag: '9a8d85c-20231013-213905',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -24,7 +24,7 @@ export const hyperlane: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: AgentConnectionType.HttpFallback,
+    connectionType: RpcConsensusType.Fallback,
     cyclesBetweenEthereumMessages: 3, // Skip 3 cycles of Ethereum, i.e. send/receive Ethereum messages every 32 hours.
   },
 };
@@ -34,7 +34,7 @@ export const releaseCandidate: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '01dcf5d-20231010-145824',
+      tag: '9a8d85c-20231013-213905',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -44,7 +44,7 @@ export const releaseCandidate: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: AgentConnectionType.Http,
+    connectionType: RpcConsensusType.Single,
   },
 };
 

@@ -12,11 +12,7 @@ const DomainSchema = z.union([
   z.array(ZNzUint).nonempty(),
 ]);
 
-const AddressSchema = z.union([
-  z.literal('*'),
-  ZHash,
-  z.array(ZHash).nonempty(),
-]);
+const AddressSchema = z.union([z.literal('*'), ZHash, z.array(ZHash)]);
 
 const MatchingListElementSchema = z.object({
   originDomain: DomainSchema.optional(),
@@ -25,7 +21,7 @@ const MatchingListElementSchema = z.object({
   recipientAddress: AddressSchema.optional(),
 });
 
-export const MatchingListSchema = z.array(MatchingListElementSchema).nonempty();
+export const MatchingListSchema = z.array(MatchingListElementSchema);
 
 export type MatchingListElement = z.infer<typeof MatchingListElementSchema>;
 export type MatchingList = z.infer<typeof MatchingListSchema>;

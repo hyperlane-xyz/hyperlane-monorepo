@@ -1,5 +1,6 @@
 import {
-  AgentConnectionType,
+  GasPaymentEnforcementPolicyType,
+  RpcConsensusType,
   chainMetadata,
   getDomainId,
   hyperlaneEnvironments,
@@ -7,7 +8,6 @@ import {
 import { ProtocolType, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import {
-  GasPaymentEnforcementPolicyType,
   RootAgentConfig,
   allAgentChainNames,
   routerMatchingList,
@@ -124,7 +124,7 @@ const hyperlane: RootAgentConfig = {
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
-    connectionType: AgentConnectionType.HttpFallback,
+    rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
       tag: '35fdc74-20230913-104940',
@@ -151,11 +151,11 @@ const hyperlane: RootAgentConfig = {
         tag: '3b0685f-20230815-110725',
       },
     },
-    connectionType: AgentConnectionType.HttpQuorum,
+    rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
   scraper: {
-    connectionType: AgentConnectionType.HttpFallback,
+    rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
       tag: 'aaddba7-20230620-154941',
@@ -168,7 +168,7 @@ const releaseCandidate: RootAgentConfig = {
   context: Contexts.ReleaseCandidate,
   rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
-    connectionType: AgentConnectionType.HttpFallback,
+    rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
       tag: '35fdc74-20230913-104940',
@@ -178,14 +178,14 @@ const releaseCandidate: RootAgentConfig = {
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1
     // fees which leads to wildly off predictions.
-    skipTransactionGasLimitFor: [chainMetadata.arbitrum.chainId],
+    skipTransactionGasLimitFor: [chainMetadata.arbitrum.name],
   },
   validators: {
     docker: {
       repo,
       tag: 'ed7569d-20230725-171222',
     },
-    connectionType: AgentConnectionType.HttpQuorum,
+    rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
 };

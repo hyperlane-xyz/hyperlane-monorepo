@@ -5,8 +5,8 @@ import "forge-std/Test.sol";
 
 import {IAggregationIsm} from "../../contracts/interfaces/isms/IAggregationIsm.sol";
 import {StaticAggregationIsmFactory} from "../../contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
-import {AggregationIsmMetadata} from "../../contracts/libs/isms/AggregationIsmMetadata.sol";
-import {TestIsm, MOfNTestUtils} from "./IsmTestUtils.sol";
+import {AggregationIsmMetadata} from "../../contracts/isms/libs/AggregationIsmMetadata.sol";
+import {TestIsm, ThresholdTestUtils} from "./IsmTestUtils.sol";
 
 contract AggregationIsmTest is Test {
     StaticAggregationIsmFactory factory;
@@ -38,7 +38,7 @@ contract AggregationIsmTest is Test {
         returns (bytes memory)
     {
         (address[] memory choices, ) = ism.modulesAndThreshold("");
-        address[] memory chosen = MOfNTestUtils.choose(m, choices, seed);
+        address[] memory chosen = ThresholdTestUtils.choose(m, choices, seed);
         bytes memory offsets;
         uint32 start = 8 * uint32(choices.length);
         bytes memory metametadata;

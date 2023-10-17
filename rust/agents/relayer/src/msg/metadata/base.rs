@@ -3,6 +3,7 @@ use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::{
     settings::{ChainConf, CheckpointSyncerConf},
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
@@ -16,7 +17,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
 use crate::{
-    merkle_tree_builder::MerkleTreeBuilder,
+    merkle_tree::builder::MerkleTreeBuilder,
     msg::metadata::{
         multisig::{
             LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
@@ -49,6 +50,7 @@ pub struct BaseMetadataBuilder {
     origin_validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
+    db: HyperlaneRocksDB,
     /// ISMs can be structured recursively. We keep track of the depth
     /// of the recursion to avoid infinite loops.
     #[new(default)]
@@ -120,29 +122,36 @@ impl BaseMetadataBuilder {
 
     pub async fn get_proof(&self, nonce: u32, checkpoint: Checkpoint) -> Result<Option<Proof>> {
         const CTX: &str = "When fetching message proof";
-        let proof = self
-            .origin_prover_sync
+        let proof = self.origin_prover_sync
             .read()
             .await
             .get_proof(nonce, checkpoint.index)
-            .context(CTX)?;
-
-        // checkpoint may be fraudulent if the root does not
-        // match the canonical root at the checkpoint's index
-        if proof.root() != checkpoint.root {
-            info!(
-                ?checkpoint,
-                canonical_root = ?proof.root(),
-                "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
-            );
-            Ok(None)
-        } else {
-            Ok(Some(proof))
-        }
+            .context(CTX)?
+            .and_then(|proof| {
+                // checkpoint may be fraudulent if the root does not
+                // match the canonical root at the checkpoint's index
+                if proof.root() == checkpoint.root {
+                    return Some(proof)
+                }
+                info!(
+                    ?checkpoint,
+                    canonical_root = ?proof.root(),
+                    "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
+                );
+                None
+            });
+        Ok(proof)
     }
 
-    pub async fn highest_known_nonce(&self) -> u32 {
-        self.origin_prover_sync.read().await.count() - 1
+    pub async fn highest_known_leaf_index(&self) -> Option<u32> {
+        self.origin_prover_sync.read().await.count().checked_sub(1)
+    }
+
+    pub async fn get_merkle_leaf_id_by_message_id(&self, message_id: H256) -> Result<Option<u32>> {
+        let merkle_leaf = self
+            .db
+            .retrieve_merkle_leaf_index_by_message_id(&message_id)?;
+        Ok(merkle_leaf)
     }
 
     pub async fn build_ism(&self, address: H256) -> Result<Box<dyn InterchainSecurityModule>> {

@@ -5,13 +5,12 @@ use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
 use fuels::prelude::{Bech32ContractId, WalletUnlocked};
-use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use tracing::instrument;
 
 use hyperlane_core::{
-    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
-    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
+    utils::fmt_bytes, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::{
@@ -82,36 +81,8 @@ impl Mailbox for FuelMailbox {
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
-    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        todo!()
-    }
-
-    #[instrument(level = "debug", err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         todo!()
-    }
-
-    #[instrument(level = "debug", err, ret, skip(self))]
-    async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        assert!(
-            lag.is_none(),
-            "Fuel does not support querying point-in-time"
-        );
-        let (root, index) = self
-            .contract
-            .methods()
-            .latest_checkpoint()
-            .simulate()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .value;
-
-        Ok(Checkpoint {
-            mailbox_address: self.address(),
-            mailbox_domain: self.domain.id(),
-            root: root.into_h256(),
-            index,
-        })
     }
 
     #[instrument(err, ret, skip(self))]

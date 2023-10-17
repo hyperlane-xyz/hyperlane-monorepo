@@ -3,39 +3,34 @@ pragma solidity ^0.8.0;
 
 import {Versioned} from "../upgrade/Versioned.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
+import {Message} from "../libs/Message.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
+import {Mailbox} from "../Mailbox.sol";
+import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
-contract MockMailbox is Versioned {
-    using TypeCasts for address;
-    using TypeCasts for bytes32;
-    // Domain of chain on which the contract is deployed
+import {TestIsm} from "../test/TestIsm.sol";
+import {TestPostDispatchHook} from "../test/TestPostDispatchHook.sol";
 
-    // ============ Constants ============
-    uint32 public immutable localDomain;
-    uint256 public constant MAX_MESSAGE_BODY_BYTES = 2 * 2**10;
+contract MockMailbox is Mailbox {
+    using Message for bytes;
 
-    uint32 public outboundNonce = 0;
     uint32 public inboundUnprocessedNonce = 0;
     uint32 public inboundProcessedNonce = 0;
-    IInterchainSecurityModule public defaultIsm;
+
     mapping(uint32 => MockMailbox) public remoteMailboxes;
-    mapping(uint256 => MockMessage) public inboundMessages;
+    mapping(uint256 => bytes) public inboundMessages;
 
-    struct MockMessage {
-        uint32 nonce;
-        uint32 origin;
-        address sender;
-        address recipient;
-        bytes body;
-    }
+    constructor(uint32 _domain) Mailbox(_domain) {
+        TestIsm ism = new TestIsm();
+        defaultIsm = ism;
 
-    constructor(uint32 _domain) {
-        localDomain = _domain;
-    }
+        TestPostDispatchHook hook = new TestPostDispatchHook();
+        defaultHook = hook;
+        requiredHook = hook;
 
-    function setDefaultIsm(IInterchainSecurityModule _module) external {
-        defaultIsm = _module;
+        _transferOwnership(msg.sender);
+        _disableInitializers();
     }
 
     function addRemoteMailbox(uint32 _domain, MockMailbox _mailbox) external {
@@ -43,92 +38,43 @@ contract MockMailbox is Versioned {
     }
 
     function dispatch(
-        uint32 _destinationDomain,
-        bytes32 _recipientAddress,
-        bytes calldata _messageBody
-    ) external returns (bytes32) {
-        require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
-        MockMailbox _destinationMailbox = remoteMailboxes[_destinationDomain];
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody,
+        bytes calldata metadata,
+        IPostDispatchHook hook
+    ) public payable override returns (bytes32) {
+        bytes memory message = _buildMessage(
+            destinationDomain,
+            recipientAddress,
+            messageBody
+        );
+        bytes32 id = super.dispatch(
+            destinationDomain,
+            recipientAddress,
+            messageBody,
+            metadata,
+            hook
+        );
+
+        MockMailbox _destinationMailbox = remoteMailboxes[destinationDomain];
         require(
             address(_destinationMailbox) != address(0),
             "Missing remote mailbox"
         );
-        _destinationMailbox.addInboundMessage(
-            outboundNonce,
-            localDomain,
-            msg.sender,
-            _recipientAddress.bytes32ToAddress(),
-            _messageBody
-        );
-        outboundNonce++;
-        return bytes32(0);
+        _destinationMailbox.addInboundMessage(message);
+
+        return id;
     }
 
-    function addInboundMessage(
-        uint32 _nonce,
-        uint32 _origin,
-        address _sender,
-        address _recipient,
-        bytes calldata _body
-    ) external {
-        inboundMessages[inboundUnprocessedNonce] = MockMessage(
-            _nonce,
-            _origin,
-            _sender,
-            _recipient,
-            _body
-        );
+    function addInboundMessage(bytes calldata message) external {
+        inboundMessages[inboundUnprocessedNonce] = message;
         inboundUnprocessedNonce++;
     }
 
     function processNextInboundMessage() public {
-        MockMessage memory _message = inboundMessages[inboundProcessedNonce];
-        address _recipient = _message.recipient;
-        IInterchainSecurityModule _ism = _recipientIsm(_recipient);
-        if (address(_ism) != address(0)) {
-            // Do not pass any metadata because we expect to
-            // be using TestIsms
-            require(_ism.verify("", _encode(_message)), "ISM verify failed");
-        }
-
-        IMessageRecipient(_message.recipient).handle(
-            _message.origin,
-            _message.sender.addressToBytes32(),
-            _message.body
-        );
+        bytes memory _message = inboundMessages[inboundProcessedNonce];
+        Mailbox(address(this)).process("", _message);
         inboundProcessedNonce++;
-    }
-
-    function _encode(MockMessage memory _message)
-        private
-        view
-        returns (bytes memory)
-    {
-        return
-            abi.encodePacked(
-                VERSION,
-                _message.nonce,
-                _message.origin,
-                TypeCasts.addressToBytes32(_message.sender),
-                localDomain,
-                TypeCasts.addressToBytes32(_message.recipient),
-                _message.body
-            );
-    }
-
-    function _recipientIsm(address _recipient)
-        private
-        view
-        returns (IInterchainSecurityModule)
-    {
-        try
-            ISpecifiesInterchainSecurityModule(_recipient)
-                .interchainSecurityModule()
-        returns (IInterchainSecurityModule _val) {
-            if (address(_val) != address(0)) {
-                return _val;
-            }
-        } catch {}
-        return defaultIsm;
     }
 }

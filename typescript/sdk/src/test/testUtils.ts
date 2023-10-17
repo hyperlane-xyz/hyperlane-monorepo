@@ -1,9 +1,5 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
-import {
-  TestInterchainGasPaymaster,
-  TestInterchainGasPaymaster__factory,
-} from '@hyperlane-xyz/core';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
@@ -17,8 +13,8 @@ import {
   CoinGeckoSimpleInterface,
   CoinGeckoSimplePriceParams,
 } from '../gas/token-prices';
+import { HookType } from '../hook/types';
 import { ModuleType, MultisigIsmConfig } from '../ism/types';
-import { MultiProvider } from '../providers/MultiProvider';
 import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
@@ -41,27 +37,6 @@ export function createRouterConfigMap(
       mailbox: contracts.mailbox.address,
       interchainGasPaymaster:
         igpContracts[chain].interchainGasPaymaster.address,
-    };
-  });
-}
-
-export async function deployTestIgpsAndGetRouterConfig(
-  multiProvider: MultiProvider,
-  owner: Address,
-  coreContracts: HyperlaneContractsMap<CoreFactories>,
-): Promise<ChainMap<RouterConfig>> {
-  const igps: ChainMap<TestInterchainGasPaymaster> = {};
-  for (const chain of multiProvider.getKnownChainNames()) {
-    const factory = new TestInterchainGasPaymaster__factory(
-      multiProvider.getSigner(chain),
-    );
-    igps[chain] = await factory.deploy(owner);
-  }
-  return objMap(coreContracts, (chain, contracts) => {
-    return {
-      owner,
-      mailbox: contracts.mailbox.address,
-      interchainGasPaymaster: igps[chain].address,
     };
   });
 }
@@ -89,6 +64,16 @@ export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
               .filter((c) => c !== local)
               .map((remote) => [remote, multisigIsm]),
           ),
+        },
+        defaultHook: {
+          type: HookType.MERKLE_TREE,
+        },
+        requiredHook: {
+          type: HookType.PROTOCOL_FEE,
+          maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'), // 1 gwei of native token
+          protocolFee: BigNumber.from(1), // 1 wei
+          beneficiary: nonZeroAddress,
+          owner: nonZeroAddress,
         },
       },
     ]),

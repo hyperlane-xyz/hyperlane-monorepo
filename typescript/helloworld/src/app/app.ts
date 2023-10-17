@@ -49,10 +49,11 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     );
     const gasLimit = estimated.mul(12).div(10);
 
+    const quote = await sender.quoteDispatch(toDomain, message);
     const tx = await sender.sendHelloWorld(toDomain, message, {
       ...transactionOverrides,
       gasLimit,
-      value,
+      value: value.add(quote),
     });
     debug('Sending hello message', {
       from,

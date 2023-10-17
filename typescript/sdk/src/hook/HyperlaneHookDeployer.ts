@@ -1,168 +1,127 @@
 import debug from 'debug';
 
 import {
-  OptimismISM,
-  OptimismISM__factory,
-  OptimismMessageHook,
-  OptimismMessageHook__factory,
-  TestRecipient,
-  TestRecipient__factory,
+  StaticAggregationHook__factory,
+  StaticProtocolFee,
 } from '@hyperlane-xyz/core';
-import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts/types';
+import { HyperlaneContracts } from '../contracts/types';
+import { CoreAddresses } from '../core/contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer';
+import { IgpFactories } from '../gas/contracts';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import { isHookConfig, isISMConfig } from './config';
 import { HookFactories, hookFactories } from './contracts';
-import { HookConfig } from './types';
+import {
+  AggregationHookConfig,
+  HookConfig,
+  HookType,
+  IgpHookConfig,
+  ProtocolFeeHookConfig,
+} from './types';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
   HookConfig,
   HookFactories
 > {
-  constructor(multiProvider: MultiProvider) {
+  constructor(
+    multiProvider: MultiProvider,
+    readonly core: ChainMap<Partial<CoreAddresses>>,
+    readonly ismFactory: HyperlaneIsmFactory,
+    readonly igpDeployer = new HyperlaneIgpDeployer(multiProvider),
+  ) {
     super(multiProvider, hookFactories, {
       logger: debug('hyperlane:HookDeployer'),
     });
   }
 
-  async deploy(
-    configMap: ChainMap<HookConfig>,
-  ): Promise<HyperlaneContractsMap<HookFactories>> {
-    let ismContracts: HyperlaneContracts<HookFactories> | undefined;
-    let hookContracts: HyperlaneContracts<HookFactories> | undefined;
-
-    // Process ISM configs first
-    for (const [chain, config] of Object.entries(configMap)) {
-      if (isISMConfig(config)) {
-        ismContracts = await this.deployContracts(chain, config);
-      }
-    }
-
-    // Ensure ISM contracts have been deployed
-    if (!ismContracts || !ismContracts?.optimismISM) {
-      throw new Error('ISM contracts not deployed');
-    }
-
-    // Then process hook configs
-    for (const [chain, config] of Object.entries(configMap)) {
-      if (isHookConfig(config)) {
-        config.remoteIsm = ismContracts.optimismISM.address;
-        this.logger(`Remote ISM address set as ${config.remoteIsm}`);
-        hookContracts = await this.deployContracts(chain, config);
-      }
-    }
-
-    // Ensure hook contracts have been deployed
-    if (!hookContracts || !hookContracts?.optimismMessageHook) {
-      throw new Error('Hook contracts not deployed');
-    }
-
-    const hookAddress = hookContracts.optimismMessageHook.address;
-
-    this.logger(`Setting hook address ${hookAddress} for OptimismISM`);
-    await ismContracts.optimismISM.setOptimismHook(hookAddress);
-
-    const deployedContractMap: HyperlaneContractsMap<HookFactories> = {
-      optimismISM: ismContracts.optimismISM,
-      testRecipient: ismContracts.testRecipient,
-      optimismMessageHook: hookContracts.optimismMessageHook,
-    };
-
-    return deployedContractMap;
+  cacheAddressesMap(addressesMap: ChainMap<CoreAddresses>): void {
+    this.igpDeployer.cacheAddressesMap(addressesMap);
+    super.cacheAddressesMap(addressesMap);
   }
 
   async deployContracts(
     chain: ChainName,
-    hookConfig: HookConfig,
+    config: HookConfig,
+    coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
-    let optimismISM, optimismMessageHook, testRecipient;
-    this.logger(`Deploying ${hookConfig.hookContractType} on ${chain}`);
-    if (isISMConfig(hookConfig)) {
-      optimismISM = await this.deployOptimismISM(
-        chain,
-        hookConfig.nativeBridge,
-      );
-      testRecipient = await this.deployTestRecipient(
-        chain,
-        optimismISM.address,
-      );
-      this.logger(
-        `Deployed test recipient on ${chain} at ${addressToBytes32(
-          testRecipient.address,
-        )}`,
-      );
-
-      return {
-        optimismISM,
-        testRecipient,
-      };
-    } else if (isHookConfig(hookConfig)) {
-      optimismMessageHook = await this.deployOptimismMessageHook(
-        chain,
-        hookConfig.destinationDomain,
-        hookConfig.nativeBridge,
-        hookConfig.remoteIsm,
-      );
-      return {
-        optimismMessageHook,
-      };
+    // other simple hooks can go here
+    if (config.type === HookType.MERKLE_TREE) {
+      const mailbox = coreAddresses.mailbox;
+      if (!mailbox) {
+        throw new Error(`Mailbox address is required for ${config.type}`);
+      }
+      const hook = await this.deployContract(chain, config.type, [mailbox]);
+      return { [config.type]: hook } as any;
+    } else if (config.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
+      return this.deployIgp(chain, config, coreAddresses) as any;
+    } else if (config.type === HookType.AGGREGATION) {
+      return this.deployAggregation(chain, config, coreAddresses);
+    } else if (config.type === HookType.PROTOCOL_FEE) {
+      const hook = await this.deployProtocolFee(chain, config);
+      return { [config.type]: hook } as any;
     }
-    return {};
+
+    throw new Error(`Unexpected hook type: ${JSON.stringify(config)}`);
   }
 
-  async deployOptimismISM(
+  async deployProtocolFee(
     chain: ChainName,
-    nativeBridge: Address,
-  ): Promise<OptimismISM> {
-    const signer = this.multiProvider.getSigner(chain);
-
-    const optimismISM = await new OptimismISM__factory(signer).deploy(
-      nativeBridge,
-    );
-
-    await this.multiProvider.handleTx(chain, optimismISM.deployTransaction);
-
-    this.logger(`Deployed OptimismISM on ${chain} at ${optimismISM.address}`);
-    return optimismISM;
+    config: ProtocolFeeHookConfig,
+  ): Promise<StaticProtocolFee> {
+    return this.deployContract(chain, HookType.PROTOCOL_FEE, [
+      config.maxProtocolFee,
+      config.protocolFee,
+      config.beneficiary,
+      config.owner,
+    ]);
   }
 
-  async deployTestRecipient(
+  async deployIgp(
     chain: ChainName,
-    ism: Address,
-  ): Promise<TestRecipient> {
-    const signer = this.multiProvider.getSigner(chain);
-
-    const testRecipient = await new TestRecipient__factory(signer).deploy();
-
-    await this.multiProvider.handleTx(chain, testRecipient.deployTransaction);
-
-    await testRecipient.setInterchainSecurityModule(ism);
-    return testRecipient;
+    config: IgpHookConfig,
+    coreAddresses = this.core[chain],
+  ): Promise<HyperlaneContracts<IgpFactories>> {
+    if (coreAddresses.proxyAdmin) {
+      this.igpDeployer.writeCache(
+        chain,
+        'proxyAdmin',
+        coreAddresses.proxyAdmin,
+      );
+    }
+    const igpContracts = await this.igpDeployer.deployContracts(chain, config);
+    this.addDeployedContracts(chain, igpContracts);
+    return igpContracts;
   }
 
-  async deployOptimismMessageHook(
+  async deployAggregation(
     chain: ChainName,
-    destinationDomain: number,
-    nativeBridge: Address,
-    optimismISM: Address,
-  ): Promise<OptimismMessageHook> {
-    const signer = this.multiProvider.getSigner(chain);
-
-    const optimismMessageHook = await new OptimismMessageHook__factory(
-      signer,
-    ).deploy(destinationDomain, nativeBridge, optimismISM);
-
-    await this.multiProvider.handleTx(
+    config: AggregationHookConfig,
+    coreAddresses = this.core[chain],
+  ): Promise<HyperlaneContracts<HookFactories>> {
+    const aggregatedHooks: string[] = [];
+    let hooks: any = {};
+    for (const hookConfig of config.hooks) {
+      const subhooks = await this.deployContracts(
+        chain,
+        hookConfig,
+        coreAddresses,
+      );
+      aggregatedHooks.push(subhooks[hookConfig.type].address);
+      hooks = { ...hooks, ...subhooks };
+    }
+    const address = await this.ismFactory.deployStaticAddressSet(
       chain,
-      optimismMessageHook.deployTransaction,
+      this.ismFactory.getContracts(chain).aggregationHookFactory,
+      aggregatedHooks,
     );
-    this.logger(
-      `Deployed OptimismMessageHook on ${chain} at ${optimismMessageHook.address}`,
+    hooks[HookType.AGGREGATION] = StaticAggregationHook__factory.connect(
+      address,
+      this.multiProvider.getSignerOrProvider(chain),
     );
-    return optimismMessageHook;
+    return hooks;
   }
 }

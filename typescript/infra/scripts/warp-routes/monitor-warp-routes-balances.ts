@@ -3,16 +3,14 @@ import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import yargs from 'yargs';
 
-import {
-  ERC20__factory,
-  SealevelHypCollateralAdapter,
-  TokenType,
-} from '@hyperlane-xyz/hyperlane-token';
+import { ERC20__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
   MultiProtocolProvider,
   MultiProvider,
+  SealevelHypCollateralAdapter,
+  TokenType,
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,

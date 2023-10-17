@@ -8,14 +8,6 @@ export const chainToValidator: Record<string, string> = {
   test3: '0x976EA74026E726554dB657fA54763abd0C3a0aa9',
 };
 
-export const legacyMultisig = (validatorKey: string): MultisigIsmConfig => {
-  return {
-    type: ModuleType.LEGACY_MULTISIG,
-    validators: [chainToValidator[validatorKey]],
-    threshold: 1,
-  };
-};
-
 export const merkleRootMultisig = (validatorKey: string): MultisigIsmConfig => {
   return {
     type: ModuleType.MERKLE_ROOT_MULTISIG,
@@ -35,7 +27,7 @@ export const messageIdMultisig = (validatorKey: string): MultisigIsmConfig => {
 // the addresses here must line up with the e2e test's validator addresses
 export const multisigIsm: ChainMap<MultisigIsmConfig> = {
   // Validators are anvil accounts 4-6
-  test1: legacyMultisig('test1'),
-  test2: merkleRootMultisig('test2'),
-  test3: messageIdMultisig('test3'),
+  test1: messageIdMultisig(chainToValidator['test1']),
+  test2: merkleRootMultisig(chainToValidator['test2']),
+  test3: messageIdMultisig(chainToValidator['test3']),
 };

@@ -2,7 +2,6 @@ import path from 'path';
 import yargs from 'yargs';
 
 import {
-  AgentConnectionType,
   AllChains,
   ChainMap,
   ChainMetadata,
@@ -14,6 +13,7 @@ import {
   MultiProvider,
   ProxiedRouterConfig,
   RouterConfig,
+  RpcConsensusType,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
@@ -31,11 +31,11 @@ import {
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { Role } from '../src/roles';
-import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
-import { assertContext, assertRole } from '../src/utils/utils';
+import { assertContext, assertRole, readJSON } from '../src/utils/utils';
 
 export enum Modules {
-  ISM_FACTORY = 'ism',
+  // TODO: change
+  PROXY_FACTORY = 'ism',
   CORE = 'core',
   HOOK = 'hook',
   INTERCHAIN_GAS_PAYMASTER = 'igp',
@@ -48,7 +48,7 @@ export enum Modules {
 }
 
 export const SDK_MODULES = [
-  Modules.ISM_FACTORY,
+  Modules.PROXY_FACTORY,
   Modules.CORE,
   Modules.INTERCHAIN_GAS_PAYMASTER,
   Modules.INTERCHAIN_ACCOUNTS,
@@ -177,7 +177,8 @@ export async function getMultiProviderForRole(
   context: Contexts,
   role: Role,
   index?: number,
-  connectionType?: AgentConnectionType,
+  // TODO: rename to consensusType?
+  connectionType?: RpcConsensusType,
 ): Promise<MultiProvider> {
   if (process.env.CI === 'true') {
     return new MultiProvider(); // use default RPCs
@@ -248,6 +249,24 @@ export function getModuleDirectory(
   return path.join(getEnvironmentDirectory(environment), suffixFn());
 }
 
+export function getInfraAddresses(
+  environment: DeployEnvironment,
+  module: Modules,
+) {
+  return readJSON(getModuleDirectory(environment, module), 'addresses.json');
+}
+
+export function getAddresses(environment: DeployEnvironment, module: Modules) {
+  if (SDK_MODULES.includes(module) && environment !== 'test') {
+    return readJSON(
+      getContractAddressesSdkFilepath(),
+      `${deployEnvToSdkEnv[environment]}.json`,
+    );
+  } else {
+    return getInfraAddresses(environment, module);
+  }
+}
+
 export function getAgentConfigDirectory() {
   return path.join('../../', 'rust', 'config');
 }
@@ -276,6 +295,7 @@ export async function getRouterConfig(
     deployEnvToSdkEnv[environment],
     multiProvider,
   );
+  // TODO: replace this with core.getRouterConfig
   const igp = HyperlaneIgp.fromEnvironment(
     deployEnvToSdkEnv[environment],
     multiProvider,
@@ -312,8 +332,7 @@ export async function getRouterConfig(
     config[chain] = {
       owner: owner,
       mailbox: core.getContracts(chain).mailbox.address,
-      interchainGasPaymaster:
-        igp.getContracts(chain).defaultIsmInterchainGasPaymaster.address,
+      // hook: igp.getContracts(chain).interchainGasPaymaster.address,
     };
   }
   return config;
@@ -352,25 +371,4 @@ export function getValidatorsByChain(
     });
   }
   return validators;
-}
-
-export async function getHooksProvider(
-  multiProvider: MultiProvider,
-  environment: DeployEnvironment,
-): Promise<MultiProvider> {
-  const hooksProvider = new MultiProvider();
-  const hooksConfig = getEnvironmentConfig(environment).hooks;
-  if (!hooksConfig) {
-    return hooksProvider;
-  }
-  for (const chain of Object.keys(hooksConfig)) {
-    // need to use different url for two forks simultaneously
-    // need another rpc param
-    await useLocalProvider(multiProvider, chain);
-  }
-  const signer = await impersonateAccount(
-    '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-  );
-  hooksProvider.setSharedSigner(signer);
-  return hooksProvider;
 }

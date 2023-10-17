@@ -22,7 +22,7 @@ export abstract class ProxiedRouterChecker<
   }
 
   async checkChain(chain: ChainName): Promise<void> {
-    await super.checkHyperlaneConnectionClient(chain);
+    await super.checkMailboxClient(chain);
     await super.checkEnrolledRouters(chain);
     await this.checkProxiedContracts(chain);
     await this.checkOwnership(chain);

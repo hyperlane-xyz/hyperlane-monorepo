@@ -1,10 +1,9 @@
-import { ModuleType, MultisigIsmConfig } from '../ism/types';
+import { MultisigConfig } from '../ism/types';
 import { ChainMap } from '../types';
 
-export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
+export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
   // ----------------- Mainnets -----------------
   celo: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 4,
     validators: [
       '0x1f20274b1210046769d48174c2f0e7c25ca7d5c5', // abacus
@@ -16,7 +15,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   ethereum: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 4,
     validators: [
       '0x4c327ccb881a7542be77500b2833dc84c839e7b7', // abacus
@@ -28,7 +26,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   avalanche: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 4,
     validators: [
       '0xa7aa52623fe3d78c343008c95894be669e218b8d', // abacus
@@ -40,7 +37,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   polygon: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 4,
     validators: [
       '0x59a001c3451e7f9f3b4759ea215382c1e9aa5fc1', // abacus
@@ -52,7 +48,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   bsc: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 4,
     validators: [
       '0xcc84b1eb711e5076b2755cf4ad1d2b42c458a45e', // abacus
@@ -64,7 +59,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   arbitrum: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 4,
     validators: [
       '0xbcb815f38d481a5eba4d7ac4c9e74d9d0fc2a7e7', // abacus
@@ -76,7 +70,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   optimism: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 4,
     validators: [
       '0x9f2296d5cfc6b5176adc7716c7596898ded13d35', // abacus
@@ -88,7 +81,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   moonbeam: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 3,
     validators: [
       '0x237243d32d10e3bdbbf8dbcccc98ad44c1c172ea', // abacus
@@ -98,7 +90,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   gnosis: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 3,
     validators: [
       '0xd0529ec8df08d0d63c0f023786bfa81e4bb51fd6', // abacus
@@ -108,7 +99,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   solana: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 2,
     validators: [
       '0x3cd1a081f38874bbb075bf10b62adcb858db864c', // abacus
@@ -118,84 +108,124 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
   },
   // ----------------- Testnets -----------------
   alfajores: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 2,
     validators: [
-      '0xe6072396568e73ce6803b12b7e04164e839f1e54',
-      '0x9f177f51289b22515f41f95872e1511391b8e105',
-      '0x15f77400845eb1c971ad08de050861d5508cad6c',
+      '0x2233a5ce12f814bd64c9cdd73410bb8693124d40',
+      '0xba279f965489d90f90490e3c49e860e0b43c2ae6',
+      '0x86485dcec5f7bb8478dd251676372d054dea6653',
+    ],
+  },
+  basegoerli: {
+    threshold: 2,
+    validators: [
+      '0xf6eddda696dcd3bf10f7ce8a02db31ef2e775a03',
+      '0x5a7d05cebf5db4dde9b2fedcefa76fb58fa05071',
+      '0x9260a6c7d54cbcbed28f8668679cd1fa3a203b25',
     ],
   },
   fuji: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 2,
     validators: [
-      '0x9fa19ead5ec76e437948b35e227511b106293c40',
-      '0x227e7d6507762ece0c94678f8c103eff9d682476',
-      '0x2379e43740e4aa4fde48cf4f00a3106df1d8420d',
+      '0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e',
+      '0x895ae30bc83ff1493b9cf7781b0b813d23659857',
+      '0x43e915573d9f1383cbf482049e4a012290759e7f',
+    ],
+  },
+  chiado: {
+    threshold: 2,
+    validators: [
+      '0x06c3757a4b7a912828e523bb8a5f980ddc297356',
+      '0x0874967a145d70b799ebe9ed861ab7c93faef95a',
+      '0xd767ea1206b8295d7e1267ddd00e56d34f278db6',
+    ],
+  },
+  lineagoerli: {
+    threshold: 2,
+    validators: [
+      '0xd767ea1206b8295d7e1267ddd00e56d34f278db6',
+      '0x4a5d7085ca93c22fbc994dd97857c98fcc745674',
+      '0x8327779c3c31fa1ffc7f0c9ffae33e4d804bbd8f',
     ],
   },
   mumbai: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 2,
     validators: [
-      '0x0a664ea799447da6b15645cf8b9e82072a68343f',
-      '0x6ae6f12929a960aba24ba74ea310e3d37d0ac045',
-      '0x51f70c047cd73bc7873273707501568857a619c4',
+      '0xebc301013b6cd2548e347c28d2dc43ec20c068f2',
+      '0x315db9868fc8813b221b1694f8760ece39f45447',
+      '0x17517c98358c5937c5d9ee47ce1f5b4c2b7fc9f5',
     ],
   },
   bsctestnet: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 2,
     validators: [
-      '0x23338c8714976dd4a57eaeff17cbd26d7e275c08',
-      '0x85a618d7450ebc37e0d682371f08dac94eec7a76',
-      '0x95b76562e4ba1791a27ba4236801271c9115b141',
+      '0x242d8a855a8c932dec51f7999ae7d1e48b10c95e',
+      '0xf620f5e3d25a3ae848fec74bccae5de3edcd8796',
+      '0x1f030345963c54ff8229720dd3a711c15c554aeb',
     ],
   },
   goerli: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 2,
     validators: [
-      '0xf43fbd072fd38e1121d4b3b0b8a35116bbb01ea9',
-      '0xa33020552a21f35e75bd385c6ab95c3dfa82d930',
-      '0x0bba4043ff242f8bf3f39bafa8930a84d644d947',
+      '0x05a9b5efe9f61f9142453d8e9f61565f333c6768',
+      '0x43a96c7dfbd8187c95013d6ee8665650cbdb2673',
+      '0x7940a12c050e24e1839c21ecb12f65afd84e8c5b',
+    ],
+  },
+  scrollsepolia: {
+    threshold: 2,
+    validators: [
+      '0xbe18dbd758afb367180260b524e6d4bcd1cb6d05',
+      '0x9a11ed23ae962974018ab45bc133caabff7b3271',
+      '0x7867bea3c9761fe64e6d124b171f91fd5dd79644',
     ],
   },
   sepolia: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 2,
     validators: [
-      '0xbc748ee311f5f2d1975d61cdf531755ce8ce3066',
-      '0xc4233b2bfe5aec08964a94b403052abb3eafcf07',
-      '0x6b36286c19f5c10bdc139ea9ee7f82287303f61d',
+      '0xb22b65f202558adf86a8bb2847b76ae1036686a5',
+      '0x469f0940684d147defc44f3647146cb90dd0bc8e',
+      '0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83',
     ],
   },
   moonbasealpha: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 2,
     validators: [
-      '0x890c2aeac157c3f067f3e42b8afc797939c59a32',
-      '0x1b06d6fe69b972ed7420c83599d5a5c0fc185904',
-      '0xe70b85206a968a99a597581f0fa09c99e7681093',
+      '0x521877064bd7ac7500d300f162c8c47c256a2f9c',
+      '0xbc1c70f58ae0459d4b8a013245420a893837d568',
+      '0x01e42c2c44af81dda1ac16fec76fea2a7a54a44c',
     ],
   },
   optimismgoerli: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 2,
     validators: [
-      '0xbb8d77eefbecc55db6e5a19b0fc3dc290776f189',
-      '0x69792508b4ddaa3ca52241ccfcd1e0b119a1ee65',
-      '0x11ddb46c6b653e0cdd7ad5bee32ae316e18f8453',
+      '0x79e58546e2faca865c6732ad5f6c4951051c4d67',
+      '0x7bbfe1bb7146aad7df309c637987d856179ebbc1',
+      '0xf3d2fb4d53c2bb6a88cec040e0d87430fcee4e40',
     ],
   },
   arbitrumgoerli: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 2,
     validators: [
-      '0xce798fa21e323f6b24d9838a10ffecdefdfc4f30',
-      '0xa792d39dca4426927e0f00c1618d61c9cb41779d',
-      '0xdf181fcc11dfac5d01467e4547101a856dd5aa04',
+      '0x071c8d135845ae5a2cb73f98d681d519014c0a8b',
+      '0x1bcf03360989f15cbeb174c188288f2c6d2760d7',
+      '0xc1590eaaeaf380e7859564c5ebcdcc87e8369e0d',
+    ],
+  },
+
+  polygonzkevmtestnet: {
+    threshold: 2,
+    validators: [
+      '0x3f06b725bc9648917eb11c414e9f8d76fd959550',
+      '0x27bfc57679d9dd4ab2e870f5ed7ec0b339a0b636',
+      '0xd476548222f43206d0abaa30e46e28670aa7859c',
+    ],
+  },
+  solanadevnet: {
+    threshold: 2,
+    validators: [
+      '0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43',
+      '0x9c20a149dfa09ea9f77f5a7ca09ed44f9c025133',
+      '0x967c5ecdf2625ae86580bd203b630abaaf85cd62',
     ],
   },
   solanadevnet: {

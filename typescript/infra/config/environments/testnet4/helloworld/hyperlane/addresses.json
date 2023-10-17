@@ -1,0 +1,38 @@
+{
+  "basegoerli": {
+    "router": "0x086E902d2f99BcCEAa28B31747eC6Dc5fd43B1bE"
+  },
+  "arbitrumgoerli": {
+    "router": "0xFd1e3710347659703962934d2381970ae0022227"
+  },
+  "optimismgoerli": {
+    "router": "0x372Cf98E673C235C1abD78DEAA61480e6fe55e46"
+  },
+  "scrollsepolia": {
+    "router": "0x66b71A4e18FbE09a6977A6520B47fEDdffA82a1c"
+  },
+  "alfajores": {
+    "router": "0xD0Ef694E96Bb695DC829f71956227eD141e3089F"
+  },
+  "polygonzkevmtestnet": {
+    "router": "0x783c4a0bB6663359281aD4a637D5af68F83ae213"
+  },
+  "sepolia": {
+    "router": "0xE14FE2a74Ba1E1bD0EE14B780e58fCcc3c95C013"
+  },
+  "fuji": {
+    "router": "0x0B1C1B54f45e02552331D3106e71f5e0b573D5D4"
+  },
+  "bsctestnet": {
+    "router": "0xd0e07a58BC91a686235E542350E63211C7A34c17"
+  },
+  "goerli": {
+    "router": "0x33AA9cFBC7E222B3eC231EcAa58dd846cC393C28"
+  },
+  "moonbasealpha": {
+    "router": "0x3Ce607F6FcE5Dfb9821f33504d86E04A4CD0C75f"
+  },
+  "mumbai": {
+    "router": "0x04980C17e2CE26578C82f81207e706e4505FaE3B"
+  }
+}

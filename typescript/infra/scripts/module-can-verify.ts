@@ -1,5 +1,5 @@
 import { HyperlaneCore, moduleCanCertainlyVerify } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { mainnetHyperlaneDefaultIsmCache } from '../config/routingIsm';
 import { deployEnvToSdkEnv } from '../src/config/environment';
@@ -31,7 +31,7 @@ async function main() {
     }
 
     let ismToCheck = '';
-    if (environment === 'testnet3') {
+    if (environment === 'testnet4') {
       ismToCheck = await core.getContracts(local).mailbox.defaultIsm();
     } else if (environment === 'mainnet2') {
       ismToCheck = mainnetHyperlaneDefaultIsmCache[local]!;

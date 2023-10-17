@@ -2,7 +2,7 @@ use std::{collections::BTreeSet, fs::read_to_string, path::Path};
 
 use config::{Config, FileFormat};
 use eyre::Context;
-use hyperlane_base::settings::{deprecated_parser::DeprecatedRawSettings, Settings};
+use hyperlane_base::settings::{parser::RawAgentConf, Settings};
 use hyperlane_core::{config::*, KnownHyperlaneDomain};
 use walkdir::WalkDir;
 
@@ -71,11 +71,11 @@ fn hyperlane_settings() -> Vec<Settings> {
         .zip(files.iter())
         // Filter out config files that can't be parsed as json (e.g. env files)
         .filter_map(|(p, f)| {
-            let raw: DeprecatedRawSettings = Config::builder()
+            let raw: RawAgentConf = Config::builder()
                 .add_source(config::File::from_str(f.as_str(), FileFormat::Json))
                 .build()
                 .ok()?
-                .try_deserialize::<DeprecatedRawSettings>()
+                .try_deserialize::<RawAgentConf>()
                 .unwrap_or_else(|e| {
                     panic!("!cfg({}): {:?}: {}", p, e, f);
                 });

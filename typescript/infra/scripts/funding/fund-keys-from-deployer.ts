@@ -4,13 +4,13 @@ import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import {
-  AgentConnectionType,
   AllChains,
   ChainMap,
   ChainName,
   Chains,
   HyperlaneIgp,
   MultiProvider,
+  RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 import { error, log, warn } from '@hyperlane-xyz/utils';
 
@@ -24,7 +24,7 @@ import {
 import { DeployEnvironment } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
-import { AgentRole, Role } from '../../src/roles';
+import { ALL_AGENT_ROLES, AgentRole, Role } from '../../src/roles';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
   assertContext,
@@ -37,13 +37,18 @@ type L2Chain =
   | Chains.optimism
   | Chains.optimismgoerli
   | Chains.arbitrum
-  | Chains.arbitrumgoerli;
+  | Chains.arbitrumgoerli
+  | Chains.scrollsepolia
+  | Chains.basegoerli
+  | Chains.polygonzkevmtestnet;
 
 const L2Chains: ChainName[] = [
   Chains.optimism,
   Chains.optimismgoerli,
   Chains.arbitrum,
   Chains.arbitrumgoerli,
+  Chains.scrollsepolia,
+  Chains.basegoerli,
 ];
 
 const L2ToL1: ChainMap<ChainName> = {
@@ -51,6 +56,9 @@ const L2ToL1: ChainMap<ChainName> = {
   arbitrumgoerli: 'goerli',
   optimism: 'ethereum',
   arbitrum: 'ethereum',
+  scrollsepolia: 'sepolia',
+  basegoerli: 'goerli',
+  polygonzktestnet: 'goerli',
 };
 
 // Missing types declaration for bufio
@@ -108,6 +116,10 @@ const desiredBalancePerChain: ChainMap<string> = {
   optimismgoerli: '0.5',
   arbitrumgoerli: '0.5',
   gnosis: '0.1',
+  basegoerli: '0.05',
+  scrollsepolia: '0.05',
+  polygonzkevmtestnet: '0.01',
+
   // unused
   test1: '0',
   test2: '0',
@@ -149,6 +161,9 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   optimismgoerli: '1',
   arbitrumgoerli: '1',
   gnosis: '5',
+  basegoerli: '0.1',
+  scrollsepolia: '0.1',
+  polygonzkevmtestnet: '0.1',
   // unused
   test1: '0',
   test2: '0',
@@ -169,7 +184,7 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
 // context provided in --contexts-and-roles, which requires the appropriate credentials.
 //
 // Example usage:
-//   ts-node ./scripts/funding/fund-keys-from-deployer.ts -e testnet3 --context hyperlane --contexts-and-roles rc=relayer
+//   ts-node ./scripts/funding/fund-keys-from-deployer.ts -e testnet4 --context hyperlane --contexts-and-roles rc=relayer
 async function main() {
   const { environment, ...argv } = await getArgs()
     .string('f')
@@ -191,10 +206,10 @@ async function main() {
 
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', AgentConnectionType.Http)
+    .default('connection-type', RpcConsensusType.Single)
     .choices('connection-type', [
-      AgentConnectionType.Http,
-      AgentConnectionType.HttpQuorum,
+      RpcConsensusType.Single,
+      RpcConsensusType.Quorum,
     ])
     .demandOption('connection-type')
 
@@ -403,7 +418,12 @@ class ContextFunder {
           key.context,
           key.environment,
         ).contextChainNames;
-        for (const chain of chains[role as AgentRole]) {
+        // If the role is not a relayer, we need to look up the chains for Kathy, so we'll fallback to the relayer
+        const roleToLookup = ALL_AGENT_ROLES.includes(role as AgentRole)
+          ? role
+          : Role.Relayer;
+        const chainsPicked = chains[roleToLookup as AgentRole];
+        for (const chain of chainsPicked) {
           chainKeys[chain].push(key);
         }
       }

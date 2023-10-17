@@ -19,17 +19,19 @@ use crate::msg::metadata::MetadataBuilder;
 pub struct MultisigMetadata {
     checkpoint: Checkpoint,
     signatures: Vec<SignatureWithSigner>,
+    merkle_leaf_index: Option<u32>,
     message_id: Option<H256>,
     proof: Option<Proof>,
 }
 
 #[derive(Debug, Display, PartialEq, Eq, Clone)]
 pub enum MetadataToken {
-    CheckpointRoot,
+    CheckpointMerkleRoot,
     CheckpointIndex,
-    CheckpointMailbox,
+    CheckpointMerkleTreeHook,
     MessageId,
     MerkleProof,
+    MessageMerkleLeafIndex,
     Threshold,
     Signatures,
     Validators,
@@ -52,40 +54,55 @@ pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
         validators: &[H256],
         threshold: u8,
         metadata: MultisigMetadata,
-    ) -> Vec<u8> {
-        let build_token = |token: &MetadataToken| match token {
-            MetadataToken::CheckpointRoot => metadata.checkpoint.root.to_fixed_bytes().into(),
-            MetadataToken::CheckpointIndex => metadata.checkpoint.index.to_be_bytes().into(),
-            MetadataToken::CheckpointMailbox => {
-                metadata.checkpoint.mailbox_address.to_fixed_bytes().into()
-            }
-            MetadataToken::MessageId => metadata.message_id.unwrap().to_fixed_bytes().into(),
-            MetadataToken::Threshold => Vec::from([threshold]),
-            MetadataToken::MerkleProof => {
-                let proof_tokens: Vec<Token> = metadata
-                    .proof
-                    .unwrap()
-                    .path
-                    .iter()
-                    .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
-                    .collect();
-                ethers::abi::encode(&proof_tokens)
-            }
-            MetadataToken::Validators => {
-                let validator_tokens: Vec<Token> = validators
-                    .iter()
-                    .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
-                    .collect();
-                ethers::abi::encode(&[Token::FixedArray(validator_tokens)])
-            }
-            MetadataToken::Signatures => {
-                let ordered_signatures = order_signatures(validators, &metadata.signatures);
-                let threshold_signatures = &ordered_signatures[..threshold as usize];
-                threshold_signatures.concat()
+    ) -> Result<Vec<u8>> {
+        let build_token = |token: &MetadataToken| -> Result<Vec<u8>> {
+            match token {
+                MetadataToken::CheckpointMerkleRoot => {
+                    Ok(metadata.checkpoint.root.to_fixed_bytes().into())
+                }
+                MetadataToken::MessageMerkleLeafIndex => Ok(metadata
+                    .merkle_leaf_index
+                    .ok_or(eyre::eyre!("Failed to fetch metadata"))?
+                    .to_be_bytes()
+                    .into()),
+                MetadataToken::CheckpointIndex => {
+                    Ok(metadata.checkpoint.index.to_be_bytes().into())
+                }
+                MetadataToken::CheckpointMerkleTreeHook => Ok(metadata
+                    .checkpoint
+                    .merkle_tree_hook_address
+                    .to_fixed_bytes()
+                    .into()),
+                MetadataToken::MessageId => {
+                    Ok(metadata.message_id.unwrap().to_fixed_bytes().into())
+                }
+                MetadataToken::Threshold => Ok(Vec::from([threshold])),
+                MetadataToken::MerkleProof => {
+                    let proof_tokens: Vec<Token> = metadata
+                        .proof
+                        .unwrap()
+                        .path
+                        .iter()
+                        .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
+                        .collect();
+                    Ok(ethers::abi::encode(&proof_tokens))
+                }
+                MetadataToken::Validators => {
+                    let validator_tokens: Vec<Token> = validators
+                        .iter()
+                        .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
+                        .collect();
+                    Ok(ethers::abi::encode(&[Token::FixedArray(validator_tokens)]))
+                }
+                MetadataToken::Signatures => {
+                    let ordered_signatures = order_signatures(validators, &metadata.signatures);
+                    let threshold_signatures = &ordered_signatures[..threshold as usize];
+                    Ok(threshold_signatures.concat())
+                }
             }
         };
-
-        self.token_layout().iter().flat_map(build_token).collect()
+        let metas: Result<Vec<Vec<u8>>> = self.token_layout().iter().map(build_token).collect();
+        Ok(metas?.into_iter().flatten().collect())
     }
 }
 
@@ -126,7 +143,11 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .context(CTX)?
         {
             debug!(?message, ?metadata.checkpoint, "Found checkpoint with quorum");
-            Ok(Some(self.format_metadata(&validators, threshold, metadata)))
+            Ok(Some(self.format_metadata(
+                &validators,
+                threshold,
+                metadata,
+            )?))
         } else {
             info!(
                 ?message, ?validators, threshold, ism=%multisig_ism.address(),

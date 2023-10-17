@@ -62,7 +62,7 @@ export { TestCoreDeployer } from './core/TestCoreDeployer';
 export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter';
 export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter';
 export { ICoreAdapter } from './core/adapters/types';
-export { CoreFactories, coreFactories } from './core/contracts';
+export { CoreAddresses, CoreFactories, coreFactories } from './core/contracts';
 export { HyperlaneLifecyleEvent } from './core/events';
 export {
   CoreConfig,
@@ -75,6 +75,7 @@ export {
 } from './core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
+export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer';
 export {
   CheckerViolation,
   OwnerViolation,
@@ -108,26 +109,27 @@ export {
   IgpOverheadViolation,
   IgpViolation,
   IgpViolationType,
-  OverheadIgpConfig,
 } from './gas/types';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
 export {
+  AggregationHookConfig,
   HookConfig,
-  HookContractType,
-  MessageHookConfig,
-  NoMetadataIsmConfig,
+  HookType,
+  IgpHookConfig,
+  MerkleTreeHookConfig,
+  ProtocolFeeHookConfig,
 } from './hook/types';
 export {
   HyperlaneIsmFactory,
   collectValidators,
   moduleCanCertainlyVerify,
 } from './ism/HyperlaneIsmFactory';
-export { HyperlaneIsmFactoryDeployer } from './ism/HyperlaneIsmFactoryDeployer';
 export {
   AggregationIsmConfig,
   DeployedIsm,
   IsmConfig,
   ModuleType,
+  MultisigConfig,
   MultisigIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
@@ -138,21 +140,22 @@ export {
 export {
   AgentChainMetadata,
   AgentChainMetadataSchema,
-  AgentChainSetup,
-  AgentChainSetupBase,
   AgentConfig,
   AgentConfigSchema,
-  AgentConfigV2,
-  AgentConnection,
-  AgentConnectionType,
   AgentLogFormat,
   AgentLogLevel,
   AgentSigner,
-  AgentSignerSchema,
-  AgentSignerV2,
+  AgentSignerAwsKey,
+  AgentSignerHexKey,
+  AgentSignerKeyType,
+  AgentSignerNode,
+  GasPaymentEnforcement,
+  GasPaymentEnforcementPolicyType,
+  RelayerConfig,
+  RpcConsensusType,
+  ScraperConfig,
+  ValidatorConfig,
   buildAgentConfig,
-  buildAgentConfigDeprecated,
-  buildAgentConfigNew,
 } from './metadata/agentConfig';
 export {
   ChainMetadata,
@@ -168,6 +171,7 @@ export {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
 } from './metadata/deploymentArtifacts';
+export { MatchingList } from './metadata/matchingList';
 export { InterchainAccount } from './middleware/account/InterchainAccount';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker';
 export {
@@ -252,25 +256,74 @@ export {
 } from './router/adapters/SealevelRouterAdapter';
 export { IGasRouterAdapter, IRouterAdapter } from './router/adapters/types';
 export {
-  ConnectionClientConfig,
-  ConnectionClientViolation,
-  ConnectionClientViolationType,
-  RouterViolation,
-  RouterViolationType,
+  MailboxClientConfig as ConnectionClientConfig,
+  ClientViolation as ConnectionClientViolation,
+  ClientViolationType as ConnectionClientViolationType,
   ForeignDeploymentConfig,
   GasConfig,
   GasRouterConfig,
+  MailboxClientConfig,
   OwnableConfig,
   ProxiedFactories,
   ProxiedRouterConfig,
   RouterAddress,
   RouterConfig,
+  RouterViolation,
+  RouterViolationType,
   proxiedFactories,
 } from './router/types';
 export {
-  createRouterConfigMap,
-  deployTestIgpsAndGetRouterConfig,
-} from './test/testUtils';
+  EvmHypCollateralAdapter,
+  EvmHypSyntheticAdapter,
+  EvmNativeTokenAdapter,
+  EvmTokenAdapter,
+} from './token/adapters/EvmTokenAdapter';
+export {
+  IHypTokenAdapter,
+  ITokenAdapter,
+  TransferParams,
+  TransferRemoteParams,
+} from './token/adapters/ITokenAdapter';
+export {
+  SealevelHypCollateralAdapter,
+  SealevelHypNativeAdapter,
+  SealevelHypSyntheticAdapter,
+  SealevelHypTokenAdapter,
+  SealevelNativeTokenAdapter,
+  SealevelTokenAdapter,
+} from './token/adapters/SealevelTokenAdapter';
+export {
+  SealevelHypTokenInstruction,
+  SealevelHyperlaneTokenData,
+  SealevelHyperlaneTokenDataSchema,
+  SealevelTransferRemoteInstruction,
+  SealevelTransferRemoteSchema,
+} from './token/adapters/serialization';
+export {
+  CollateralConfig,
+  ERC20Metadata,
+  ERC20RouterConfig,
+  ERC721RouterConfig,
+  HypERC20CollateralConfig,
+  HypERC20Config,
+  HypERC721CollateralConfig,
+  HypERC721Config,
+  HypNativeConfig,
+  MinimalTokenMetadata,
+  NativeConfig,
+  SyntheticConfig,
+  TokenConfig,
+  TokenMetadata,
+  TokenType,
+  isCollateralConfig,
+  isUriConfig,
+} from './token/config';
+export {
+  HypERC20Factories,
+  HypERC721Factories,
+  TokenFactories,
+} from './token/contracts';
+export { HypERC20Deployer, HypERC721Deployer } from './token/deploy';
 export {
   ChainMap,
   ChainName,

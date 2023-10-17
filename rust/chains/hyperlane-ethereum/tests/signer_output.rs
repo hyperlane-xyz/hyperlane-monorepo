@@ -125,7 +125,8 @@ pub fn output_domain_hashes() {
 /// Outputs signed checkpoint test cases in /vector/signedCheckpoint.json
 #[test]
 pub fn output_signed_checkpoints() {
-    let mailbox = H256::from(H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
+    let merkle_tree_hook_address =
+        H256::from(H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
     let t = async {
         let signer: Signers = "1111111111111111111111111111111111111111111111111111111111111111"
             .parse::<ethers::signers::LocalWallet>()
@@ -138,7 +139,7 @@ pub fn output_signed_checkpoints() {
         for i in 1..=3 {
             let signed_checkpoint = signer
                 .sign(Checkpoint {
-                    mailbox_address: mailbox,
+                    merkle_tree_hook_address,
                     mailbox_domain: 1000,
                     root: H256::repeat_byte(i + 1),
                     index: i as u32,
@@ -147,7 +148,7 @@ pub fn output_signed_checkpoints() {
                 .expect("!sign_with");
 
             test_cases.push(json!({
-                "mailbox": signed_checkpoint.value.mailbox_address,
+                "merkle_tree_hook": signed_checkpoint.value.merkle_tree_hook_address,
                 "domain": signed_checkpoint.value.mailbox_domain,
                 "root": signed_checkpoint.value.root,
                 "index": signed_checkpoint.value.index,

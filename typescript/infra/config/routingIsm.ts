@@ -2,19 +2,11 @@ import {
   AggregationIsmConfig,
   ChainMap,
   ChainName,
-  Chains,
   IsmConfig,
   ModuleType,
-  MultisigIsmConfig,
   RoutingIsmConfig,
-  defaultMultisigIsmConfigs,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  arrayToObject,
-  objFilter,
-  objMap,
-} from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../src/config';
 
@@ -23,18 +15,18 @@ import { supportedChainNames as mainnet2Chains } from './environments/mainnet2/c
 import { owners as mainnet2Owners } from './environments/mainnet2/owners';
 import { chainNames as testChains } from './environments/test/chains';
 import { owners as testOwners } from './environments/test/owners';
-import { supportedChainNames as testnet3Chains } from './environments/testnet3/chains';
-import { owners as testnet3Owners } from './environments/testnet3/owners';
-import { rcMultisigIsmConfigs } from './multisigIsm';
+import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains';
+import { owners as testnet4Owners } from './environments/testnet4/owners';
+import { multisigIsm } from './multisigIsm';
 
 const chains = {
   mainnet2: mainnet2Chains,
-  testnet3: testnet3Chains,
+  testnet4: testnet4Chains,
   test: testChains,
 };
 
 const owners = {
-  testnet3: testnet3Owners,
+  testnet4: testnet4Owners,
   mainnet2: mainnet2Owners,
   test: testOwners,
 };
@@ -84,10 +76,6 @@ export const routingIsm = (
   };
 };
 
-// Aggregation (1/2)
-// |              |
-// |              |
-// v              v
 // Merkle Root    Message ID
 export const aggregationIsm = (
   remote: ChainName,
@@ -103,42 +91,6 @@ export const aggregationIsm = (
     threshold: 1,
   };
 };
-
-export const multisigIsm = (
-  remote: ChainName,
-  type: MultisigIsmConfig['type'],
-  context: Contexts,
-): MultisigIsmConfig => {
-  const configs =
-    context === Contexts.ReleaseCandidate
-      ? rcMultisigIsmConfigs
-      : defaultMultisigIsmConfigs;
-
-  return {
-    ...configs[remote],
-    type,
-  };
-};
-
-export const multisigIsms = (
-  env: DeployEnvironment,
-  local: ChainName,
-  type: MultisigIsmConfig['type'],
-  context: Contexts,
-): ChainMap<MultisigIsmConfig> =>
-  objMap(
-    objFilter(
-      context === Contexts.ReleaseCandidate
-        ? rcMultisigIsmConfigs
-        : defaultMultisigIsmConfigs,
-      (chain, config): config is MultisigIsmConfig =>
-        chain !== local && chains[env].includes(chain),
-    ),
-    (_, config) => ({
-      ...config,
-      type,
-    }),
-  );
 
 const replacerEnum = (key: string, value: any) => {
   if (key === 'type') {

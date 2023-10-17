@@ -4,19 +4,16 @@ import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 import { TestSendReceiver__factory } from '@hyperlane-xyz/core';
-import {
-  ChainName,
-  HyperlaneCore,
-  HyperlaneIgp,
-  MultiProvider,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
+import { Modules, getAddresses } from './scripts/utils';
 import { sleep } from './src/utils/utils';
 
 const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
   const coreContracts = core.getContracts(chain);
   const mailbox = coreContracts.mailbox;
-  const dispatched = await mailbox.count();
+  const dispatched = await mailbox.nonce();
   // TODO: Allow processed messages to be filtered by
   // origin, possibly sender and recipient.
   const processFilter = mailbox.filters.Process();
@@ -46,11 +43,12 @@ task('kathy', 'Dispatches random hyperlane messages')
     ) => {
       const timeout = Number.parseInt(taskArgs.timeout);
       const environment = 'test';
-      const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
       const [signer] = await hre.ethers.getSigners();
       const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-      const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
-      const igps = HyperlaneIgp.fromEnvironment(environment, multiProvider);
+      const core = HyperlaneCore.fromAddressesMap(
+        getAddresses(environment, Modules.CORE),
+        multiProvider,
+      );
 
       const randomElement = <T>(list: T[]) =>
         list[Math.floor(Math.random() * list.length)];
@@ -74,25 +72,18 @@ task('kathy', 'Dispatches random hyperlane messages')
         const remote: ChainName = randomElement(core.remoteChains(local));
         const remoteId = multiProvider.getDomainId(remote);
         const mailbox = core.getContracts(local).mailbox;
-        const igp = igps.getContracts(local).interchainGasPaymaster;
-        await recipient.dispatchToSelf(
-          mailbox.address,
-          igp.address,
+        const quote = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
           remoteId,
+          addressToBytes32(recipient.address),
           '0x1234',
-          {
-            value: interchainGasPayment,
-            // Some behavior is dependent upon the previous block hash
-            // so gas estimation may sometimes be incorrect. Just avoid
-            // estimation to avoid this.
-            gasLimit: 150_000,
-            gasPrice: 2_000_000_000,
-          },
         );
+        await recipient.dispatchToSelf(mailbox.address, remoteId, '0x1234', {
+          value: quote,
+        });
         console.log(
           `send to ${recipient.address} on ${remote} via mailbox ${
             mailbox.address
-          } on ${local} with nonce ${(await mailbox.count()) - 1}`,
+          } on ${local} with nonce ${(await mailbox.nonce()) - 1}`,
         );
         console.log(await chainSummary(core, local));
         console.log(await chainSummary(core, remote));

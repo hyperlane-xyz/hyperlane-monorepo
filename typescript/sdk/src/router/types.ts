@@ -1,5 +1,5 @@
 import {
-  HyperlaneConnectionClient,
+  MailboxClient,
   ProxyAdmin__factory,
   Router,
   TimelockController__factory,
@@ -23,7 +23,7 @@ export type ForeignDeploymentConfig = {
   foreignDeployment?: Address;
 };
 
-export type RouterConfig = ConnectionClientConfig &
+export type RouterConfig = MailboxClientConfig &
   OwnableConfig &
   ForeignDeploymentConfig;
 
@@ -45,21 +45,37 @@ export const proxiedFactories: ProxiedFactories = {
   timelockController: new TimelockController__factory(),
 };
 
-export type ConnectionClientConfig = {
+// TODO: merge with kunal's hook deployer
+type HookConfig = Address;
+
+export type MailboxClientConfig = {
   mailbox: Address;
-  interchainGasPaymaster: Address;
-  interchainSecurityModule?: Address | IsmConfig;
+  hook?: HookConfig;
+  interchainSecurityModule?: IsmConfig;
 };
 
-export enum ConnectionClientViolationType {
-  InterchainSecurityModule = 'ConnectionClientIsm',
-  Mailbox = 'ConnectionClientMailbox',
-  InterchainGasPaymaster = 'ConnectionClientIgp',
+export enum ClientViolationType {
+  InterchainSecurityModule = 'ClientIsm',
+  Mailbox = 'ClientMailbox',
+  Hook = 'ClientHook',
 }
 
-export interface ConnectionClientViolation extends CheckerViolation {
-  type: ConnectionClientViolationType;
-  contract: HyperlaneConnectionClient;
+export interface ClientViolation extends CheckerViolation {
+  type: ClientViolationType;
+  contract: MailboxClient;
+  actual: string;
+  expected: string;
+  description?: string;
+}
+
+export enum RouterViolationType {
+  EnrolledRouter = 'EnrolledRouter',
+}
+
+export interface RouterViolation extends CheckerViolation {
+  type: RouterViolationType.EnrolledRouter;
+  remoteChain: string;
+  contract: Router;
   actual: string;
   expected: string;
   description?: string;

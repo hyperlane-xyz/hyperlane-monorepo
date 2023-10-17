@@ -17,7 +17,7 @@ library MessageUtils {
         uint32 _destinationDomain,
         bytes32 _recipient,
         bytes memory _messageBody
-    ) private pure returns (bytes memory) {
+    ) public pure returns (bytes memory) {
         return
             abi.encodePacked(
                 _version,
@@ -54,7 +54,7 @@ contract TestIsm is IInterchainSecurityModule {
     }
 }
 
-library MOfNTestUtils {
+library ThresholdTestUtils {
     function choose(
         uint8 m,
         uint256[] memory choices,

@@ -48,11 +48,17 @@ export class AgentCli {
       }
     }
 
-    await Promise.all(
-      Object.values(managers).map((m) =>
-        m.runHelmCommand(command, this.dryRun),
-      ),
-    );
+    if (this.dryRun) {
+      for (const m of Object.values(managers)) {
+        void m.helmValues().then((v) => {
+          console.log(JSON.stringify(v, null, 2));
+        });
+      }
+    }
+
+    for (const m of Object.values(managers)) {
+      await m.runHelmCommand(command, this.dryRun);
+    }
   }
 
   protected async init(

@@ -47,8 +47,8 @@
   "scripts": {
     "build": "hardhat compile && tsc",
     "lint": "solhint contracts/**/*.sol",
-    "clean": "hardhat clean && rm -rf ./dist ./cache ./types",
-    "coverage": "hardhat coverage && forge coverage --report lcov",
+    "clean": "hardhat clean && rm -rf ./dist ./cache ./types ./coverage",
+    "coverage": "./coverage.sh",
     "docs": "forge doc",
     "prettier": "prettier --write ./contracts ./test",
     "test": "hardhat test && forge test -vvv",
@@ -56,5 +56,6 @@
     "gas-ci": "yarn gas --check --tolerance 2 || (echo 'Manually update gas snapshot' && exit 1)",
     "slither": "slither ."
   },
-  "types": "dist/index.d.ts"
+  "types": "dist/index.d.ts",
+  "stableVersion": "1.5.0"
 }

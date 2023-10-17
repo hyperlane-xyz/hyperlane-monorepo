@@ -5,11 +5,7 @@ export {
   CheckpointSyncerType,
   ValidatorBaseChainConfigMap,
 } from './validator';
-export {
-  RelayerConfigHelper,
-  GasPaymentEnforcementPolicyType,
-  routerMatchingList,
-} from './relayer';
+export { RelayerConfigHelper, routerMatchingList } from './relayer';
 export { ScraperConfigHelper } from './scraper';
 
 export * from './agent';

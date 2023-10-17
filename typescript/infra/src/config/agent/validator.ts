@@ -1,15 +1,16 @@
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  AgentConfig,
+  AgentSignerKeyType,
+  ValidatorConfig as AgentValidatorConfig,
+  ChainMap,
+  ChainName,
+} from '@hyperlane-xyz/sdk';
 
 import { ValidatorAgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 
-import {
-  AgentConfigHelper,
-  KeyConfig,
-  KeyType,
-  RootAgentConfig,
-} from './agent';
+import { AgentConfigHelper, KeyConfig, RootAgentConfig } from './agent';
 
 // Validator agents for each chain.
 export type ValidatorBaseChainConfigMap = ChainMap<ValidatorBaseChainConfig>;
@@ -17,7 +18,7 @@ export type ValidatorBaseChainConfigMap = ChainMap<ValidatorBaseChainConfig>;
 export interface ValidatorBaseChainConfig {
   // How frequently to check for new checkpoints
   interval: number;
-  // The reorg_period in blocks
+  // The reorg_period in blocks; overrides chain metadata
   reorgPeriod: number;
   // Individual validator agents
   validators: Array<ValidatorBaseConfig>;
@@ -30,17 +31,24 @@ export interface ValidatorBaseConfig {
   checkpointSyncer: CheckpointSyncerConfig;
 }
 
-// Full config for a single validator
 export interface ValidatorConfig {
   interval: number;
   reorgPeriod: number;
   originChainName: ChainName;
-  checkpointSyncer: CheckpointSyncerConfig;
-  validator: KeyConfig;
+  validators: Array<{
+    checkpointSyncer: CheckpointSyncerConfig;
+    validator: KeyConfig;
+  }>;
 }
 
 export interface HelmValidatorValues extends HelmStatefulSetValues {
-  configs?: ValidatorConfig[];
+  configs?: Array<
+    // only keep configs specific to the validator agent and then replace
+    // the validator signing key with the version helm needs.
+    Omit<AgentValidatorConfig, keyof AgentConfig | 'validator'> & {
+      validator: KeyConfig;
+    }
+  >;
 }
 
 export type CheckpointSyncerConfig =
@@ -64,9 +72,7 @@ export interface S3CheckpointSyncerConfig {
   region: string;
 }
 
-export class ValidatorConfigHelper extends AgentConfigHelper<
-  Array<ValidatorConfig>
-> {
+export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
   readonly #validatorsConfig: ValidatorBaseChainConfigMap;
 
   constructor(
@@ -79,12 +85,17 @@ export class ValidatorConfigHelper extends AgentConfigHelper<
     this.#validatorsConfig = agentConfig.validators.chains;
   }
 
-  async buildConfig(): Promise<Array<ValidatorConfig>> {
-    return Promise.all(
-      this.#chainConfig.validators.map(async (val, i) =>
-        this.#configForValidator(val, i),
+  async buildConfig(): Promise<ValidatorConfig> {
+    return {
+      interval: this.#chainConfig.interval,
+      reorgPeriod: this.#chainConfig.reorgPeriod,
+      originChainName: this.chainName!,
+      validators: await Promise.all(
+        this.#chainConfig.validators.map((val, i) =>
+          this.#configForValidator(val, i),
+        ),
       ),
-    );
+    };
   }
 
   get validators(): ValidatorBaseConfig[] {
@@ -98,8 +109,8 @@ export class ValidatorConfigHelper extends AgentConfigHelper<
   async #configForValidator(
     cfg: ValidatorBaseConfig,
     idx: number,
-  ): Promise<ValidatorConfig> {
-    let validator: KeyConfig = { type: KeyType.Hex };
+  ): Promise<ValidatorConfig['validators'][number]> {
+    let validator: KeyConfig = { type: AgentSignerKeyType.Hex };
     if (cfg.checkpointSyncer.type == CheckpointSyncerType.S3) {
       const awsUser = new ValidatorAgentAwsUser(
         this.runEnv,
@@ -121,10 +132,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<
     }
 
     return {
-      interval: this.#chainConfig.interval,
-      reorgPeriod: this.#chainConfig.reorgPeriod,
       checkpointSyncer: cfg.checkpointSyncer,
-      originChainName: this.chainName!,
       validator,
     };
   }

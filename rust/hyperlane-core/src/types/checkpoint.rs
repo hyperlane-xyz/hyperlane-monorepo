@@ -9,9 +9,9 @@ use crate::{utils::domain_hash, Signable, Signature, SignedType, H160, H256};
 /// An Hyperlane checkpoint
 #[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
 pub struct Checkpoint {
-    /// The mailbox address
-    pub mailbox_address: H256,
-    /// The mailbox chain
+    /// The merkle tree hook address
+    pub merkle_tree_hook_address: H256,
+    /// The mailbox / merkle tree hook domain
     pub mailbox_domain: u32,
     /// The checkpointed root
     pub root: H256,
@@ -37,7 +37,10 @@ impl Signable for Checkpoint {
         // domain_hash(mailbox_address, mailbox_domain) || root || index (as u32)
         H256::from_slice(
             Keccak256::new()
-                .chain(domain_hash(self.mailbox_address, self.mailbox_domain))
+                .chain(domain_hash(
+                    self.merkle_tree_hook_address,
+                    self.mailbox_domain,
+                ))
                 .chain(self.root)
                 .chain(self.index.to_be_bytes())
                 .finalize()
@@ -54,7 +57,10 @@ impl Signable for CheckpointWithMessageId {
         // domain_hash(mailbox_address, mailbox_domain) || root || index (as u32) || message_id
         H256::from_slice(
             Keccak256::new()
-                .chain(domain_hash(self.mailbox_address, self.mailbox_domain))
+                .chain(domain_hash(
+                    self.merkle_tree_hook_address,
+                    self.mailbox_domain,
+                ))
                 .chain(self.root)
                 .chain(self.index.to_be_bytes())
                 .chain(self.message_id)

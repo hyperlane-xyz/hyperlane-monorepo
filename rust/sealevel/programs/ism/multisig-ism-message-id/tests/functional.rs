@@ -419,7 +419,7 @@ async fn test_ism_verify() {
     // A valid verify instruction with a quorum
     let verify_instruction = VerifyInstruction {
         metadata: MultisigIsmMessageIdMetadata {
-            origin_mailbox: checkpoint.mailbox_address,
+            origin_merkle_tree_hook: checkpoint.merkle_tree_hook_address,
             merkle_root: checkpoint.root,
             validator_signatures: vec![
                 EcdsaSignature::from_bytes(&signatures[0]).unwrap(),

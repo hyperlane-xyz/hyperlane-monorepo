@@ -4,12 +4,12 @@ import {
   helloWorldFactories,
 } from '@hyperlane-xyz/helloworld';
 import {
-  AgentConnectionType,
   HyperlaneCore,
   HyperlaneIgp,
   MultiProtocolCore,
   MultiProtocolProvider,
   MultiProvider,
+  RpcConsensusType,
   attachContractsMap,
   attachContractsMapAndGetForeignDeployments,
   chainMetadata,
@@ -31,7 +31,7 @@ export async function getHelloWorldApp(
   context: Contexts,
   keyRole: Role,
   keyContext: Contexts = context,
-  connectionType: AgentConnectionType = AgentConnectionType.Http,
+  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ) {
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
@@ -64,7 +64,7 @@ export async function getHelloWorldMultiProtocolApp(
   context: Contexts,
   keyRole: Role,
   keyContext: Contexts = context,
-  connectionType: AgentConnectionType = AgentConnectionType.Http,
+  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ) {
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
@@ -84,22 +84,24 @@ export async function getHelloWorldMultiProtocolApp(
   const multiProtocolProvider =
     MultiProtocolProvider.fromMultiProvider(multiProvider);
   // Hacking around infra code limitations, we may need to add solana manually
-  // because the it's not in typescript/infra/config/environments/testnet3/chains.ts
+  // because the it's not in typescript/infra/config/environments/testnet4/chains.ts
   // Adding it there breaks many things
+  // if (
+  //   coreConfig.environment === 'testnet3' &&
+  //   !multiProtocolProvider.getKnownChainNames().includes('solanadevnet')
+  // ) {
+  //   multiProvider.addChain(chainMetadata.solanadevnet);
+  //   multiProtocolProvider.addChain(chainMetadata.solanadevnet);
+  //   keys['solanadevnet'] = getKeyForRole(
+  //     coreConfig.environment,
+  //     context,
+  //     'solanadevnet',
+  //     keyRole,
+  //   );
+  //   await keys['solanadevnet'].fetch();
+  // } else
+
   if (
-    coreConfig.environment === 'testnet3' &&
-    !multiProtocolProvider.getKnownChainNames().includes('solanadevnet')
-  ) {
-    multiProvider.addChain(chainMetadata.solanadevnet);
-    multiProtocolProvider.addChain(chainMetadata.solanadevnet);
-    keys['solanadevnet'] = getKeyForRole(
-      coreConfig.environment,
-      context,
-      'solanadevnet',
-      keyRole,
-    );
-    await keys['solanadevnet'].fetch();
-  } else if (
     coreConfig.environment === 'mainnet2' &&
     !multiProtocolProvider.getKnownChainNames().includes('solana')
   ) {
