@@ -75,6 +75,8 @@ const INFRA_PATH: &str = "../typescript/infra";
 // const TS_SDK_PATH: &str = "../typescript/sdk";
 const MONOREPO_ROOT_PATH: &str = "../";
 
+const ZERO_MERKLE_INSERTION_KATHY_MESSAGES: u32 = 10;
+
 type DynPath = Box<dyn AsRef<Path>>;
 
 static RUN_LOG_WATCHERS: AtomicBool = AtomicBool::new(true);
@@ -133,11 +135,11 @@ fn main() -> ExitCode {
 
     let config = Config::load();
 
-    let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
-    fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
+    // let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
+    // fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
     let checkpoints_dirs: Vec<DynPath> = (0..VALIDATOR_COUNT)
         .map(|_| Box::new(tempdir().unwrap()) as DynPath)
-        .chain([Box::new(solana_checkpoint_path) as DynPath])
+        // .chain([Box::new(solana_checkpoint_path) as DynPath])
         .collect();
     let rocks_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
@@ -221,7 +223,7 @@ fn main() -> ExitCode {
         .hyp_env("INTERVAL", "5")
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage");
 
-    let validator_envs = (0..VALIDATOR_COUNT - 1)
+    let validator_envs = (0..VALIDATOR_COUNT)
         .map(|i| {
             base_validator_env
                 .clone()
@@ -327,25 +329,46 @@ fn main() -> ExitCode {
     state.push_agent(scraper_env.spawn("SCR"));
 
     // Send half the kathy messages before starting the rest of the agents
-    let kathy_env = Program::new("yarn")
+    let kathy_env_single_insertion = Program::new("yarn")
         .working_dir(INFRA_PATH)
         .cmd("kathy")
-        .arg("messages", (config.kathy_messages / 2).to_string())
+        .arg("messages", (config.kathy_messages / 4).to_string())
+        .arg("timeout", "1000");
+    kathy_env_single_insertion.clone().run().join();
+
+    let kathy_env_zero_insertion = Program::new("yarn")
+        .working_dir(INFRA_PATH)
+        .cmd("kathy")
+        .arg(
+            "messages",
+            (ZERO_MERKLE_INSERTION_KATHY_MESSAGES / 2).to_string(),
+        )
         .arg("timeout", "1000")
-        .arg("hook", "merkleTreeHook");
-    // .arg("ism", "MESSAGE_ID_MULTISIG");
-    kathy_env.clone().run().join();
+        // replacing the `aggregationHook` with the `interchainGasPaymaster` means there
+        // is no more `merkleTreeHook`, causing zero merkle insertions to occur.
+        .arg("default-hook", "interchainGasPaymaster");
+    kathy_env_zero_insertion.clone().run().join();
+
+    let kathy_env_double_insertion = Program::new("yarn")
+        .working_dir(INFRA_PATH)
+        .cmd("kathy")
+        .arg("messages", (config.kathy_messages / 4).to_string())
+        .arg("timeout", "1000")
+        // replacing the `protocolFees` required hook with the `merkleTreeHook`
+        // will cause double insertions to occur, which should be handled correctly
+        .arg("required-hook", "merkleTreeHook");
+    kathy_env_double_insertion.clone().run().join();
+
+    // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
+    // for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
+    //     initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    // }
 
     // spawn the rest of the validators
     for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {
         let validator = validator_env.spawn(make_static(format!("VL{}", 1 + i)));
         state.push_agent(validator);
     }
-
-    // Send some sealevel messages before spinning up the relayer, to test the backward indexing cursor
-    // for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-    //     initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
-    // }
 
     state.push_agent(relayer_env.spawn("RLY"));
 
@@ -358,7 +381,9 @@ fn main() -> ExitCode {
     log!("Ctrl+C to end execution...");
 
     // Send half the kathy messages after the relayer comes up
-    state.push_agent(kathy_env.flag("mineforever").spawn("KTY"));
+    kathy_env_double_insertion.clone().run().join();
+    kathy_env_zero_insertion.clone().run().join();
+    state.push_agent(kathy_env_single_insertion.flag("mineforever").spawn("KTY"));
 
     let loop_start = Instant::now();
     // give things a chance to fully start.

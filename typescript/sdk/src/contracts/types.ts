@@ -18,20 +18,12 @@ export type HyperlaneContracts<F extends HyperlaneFactories> = {
 
 export type HyperlaneContractsMap<F extends HyperlaneFactories> = ChainMap<
   HyperlaneContracts<F>
-  // HyperlaneContracts<F> | ChainMap<HyperlaneContracts<F>>
 >;
 
 export type HyperlaneAddresses<F extends HyperlaneFactories> = {
   [P in keyof F]: Address;
 };
 
-// export type NestedHyperlaneAddresses<F extends HyperlaneFactories> = {
-//   [P in keyof F]: Address | NestedHyperlaneAddresses<F>;
-// };
-
-// export type NestedHyperlaneAddresses<F extends HyperlaneFactories> = HyperlaneAddresses<F> | ChainMap<HyperlaneAddresses<F>>;
-
 export type HyperlaneAddressesMap<F extends HyperlaneFactories> = ChainMap<
-  // HyperlaneAddresses<F> | ChainMap<HyperlaneAddresses<F>>
   HyperlaneAddresses<F>
 >;
