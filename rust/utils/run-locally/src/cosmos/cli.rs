@@ -281,12 +281,13 @@ impl OsmosisCLI {
         output.unwrap()
     }
 
-    pub fn wasm_query<T: serde::ser::Serialize, U: serde::de::DeserializeOwned>(
+    pub fn wasm_query<T: serde::ser::Serialize>(
+        // U: serde::de::DeserializeOwned>(
         &self,
         endpoint: &OsmosisEndpoint,
         contract: &str,
         query_msg: T,
-    ) -> U {
+    ) {
         let mut cmd = self
             .cli()
             .cmd("query")
@@ -300,9 +301,11 @@ impl OsmosisCLI {
 
         let output = cmd.run_with_output().join();
         let output = output.first().unwrap();
-        let output: CliWasmQueryResponse<U> = serde_json::from_str(output).unwrap();
 
-        output.data
+        println!("output: {:?}", output);
+        // let output: CliWasmQueryResponse<U> = serde_json::from_str(output).unwrap();
+
+        // output.data
     }
 
     pub fn query_balance(&self, endpoint: &OsmosisEndpoint, addr: &str) -> BalanceResponse {

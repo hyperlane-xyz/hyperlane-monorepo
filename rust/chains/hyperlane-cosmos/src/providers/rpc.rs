@@ -22,7 +22,7 @@ pub trait WasmIndexer: Send + Sync {
     async fn get_event_log<T>(
         &self,
         block_number: u32,
-        parser: fn(Vec<EventAttribute>) -> T,
+        parser: fn(Vec<EventAttribute>) -> Option<T>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
         T: Send + Sync;
@@ -87,7 +87,7 @@ impl WasmIndexer for CosmosWasmIndexer {
     async fn get_event_log<T>(
         &self,
         block_number: u32,
-        parser: fn(Vec<EventAttribute>) -> T,
+        parser: fn(Vec<EventAttribute>) -> Option<T>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
         T: Send + Sync,
@@ -145,17 +145,18 @@ impl WasmIndexer for CosmosWasmIndexer {
                     continue;
                 }
 
-                let msg = parser(event.attributes.clone());
-                let meta = LogMeta {
-                    address: bech32_decode(addr.clone()),
-                    block_number: block_number as u64,
-                    block_hash: H256::from_slice(block.block_id.hash.as_bytes()),
-                    transaction_id: h256_to_h512(tx_hash),
-                    transaction_index: idx as u64,
-                    log_index: U256::from(log_idx),
-                };
+                if let Some(msg) = parser(event.attributes.clone()) {
+                    let meta = LogMeta {
+                        address: bech32_decode(addr.clone()),
+                        block_number: block_number as u64,
+                        block_hash: H256::from_slice(block.block_id.hash.as_bytes()),
+                        transaction_id: h256_to_h512(tx_hash),
+                        transaction_index: idx as u64,
+                        log_index: U256::from(log_idx),
+                    };
 
-                parse_result.push((msg, meta));
+                    parse_result.push((msg, meta));
+                }
             }
 
             if available {

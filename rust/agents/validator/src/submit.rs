@@ -1,10 +1,11 @@
 use std::num::NonZeroU64;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
 use eyre::{bail, Result};
-use hyperlane_core::MerkleTreeHook;
+use hyperlane_core::{MerkleTreeHook, H256};
 use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::{debug, info};
@@ -83,13 +84,9 @@ impl ValidatorSubmitter {
                 latest_checkpoint
             };
 
-            println!("tree_count: {:?}", tree.count());
-            println!("correctness_checkpoint: {:?}", correctness_checkpoint);
             let restest = self
                 .message_db
                 .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))?;
-
-            println!("restest: {:?}", restest);
 
             // ingest available messages from DB
             while let Some(insertion) = self
