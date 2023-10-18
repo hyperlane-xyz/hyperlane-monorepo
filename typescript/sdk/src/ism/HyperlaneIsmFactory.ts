@@ -214,6 +214,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     return IAggregationIsm__factory.connect(address, signer);
   }
 
+  // private async deployOpStackIsm(chain: ChainName, config: OpStackIsmConfig) {
+  //   const signer = this.multiProvider.getSigner(chain);
+  // }
+
   async deployStaticAddressSet(
     chain: ChainName,
     factory: StaticThresholdAddressSetFactory | StaticAddressSetFactory,

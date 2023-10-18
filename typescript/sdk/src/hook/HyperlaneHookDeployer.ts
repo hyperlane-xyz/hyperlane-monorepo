@@ -20,6 +20,7 @@ import {
   HookConfig,
   HookType,
   IgpHookConfig,
+  OpStackHookConfig,
   ProtocolFeeHookConfig,
 } from './types';
 
@@ -63,6 +64,9 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     } else if (config.type === HookType.PROTOCOL_FEE) {
       const hook = await this.deployProtocolFee(chain, config);
       return { [config.type]: hook } as any;
+    } else if (config.type === HookType.OP_STACK) {
+      const hooks = this.deployOpStack(chain, config);
+      return { [config.type]: hooks } as any;
     }
 
     throw new Error(`Unexpected hook type: ${JSON.stringify(config)}`);
@@ -122,6 +126,27 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       address,
       this.multiProvider.getSignerOrProvider(chain),
     );
+    return hooks;
+  }
+
+  async deployOpStack(
+    chain: ChainName,
+    config: OpStackHookConfig,
+    coreAddresses = this.core[chain],
+  ): Promise<HyperlaneContracts<HookFactories>[HookType.OP_STACK]> {
+    const mailbox = coreAddresses.mailbox;
+    if (!mailbox) {
+      throw new Error(`Mailbox address is required for ${config.type}`);
+    }
+    // deploy opstackIsm
+    // const opstackIsm = await this.ismFactory.deploy(config.destinationChain, // ismConfig);
+
+    const hooks = await this.deployContract(chain, HookType.OP_STACK, [
+      mailbox,
+      config.destinationDomain,
+      mailbox,
+      config.nativeBridge,
+    ]);
     return hooks;
   }
 }
