@@ -130,18 +130,11 @@ export abstract class HyperlaneDeployer<
     artifacts: ContractVerificationInput[],
   ): void {
     this.verificationInputs[chain] = this.verificationInputs[chain] || [];
-    // check for duplicates
-    artifacts.forEach((input) => {
-      if (
-        this.verificationInputs[chain].find(
-          (_) => _.name === input.name && _.address === input.address,
-        )
-      ) {
-        this.logger(`Skipping duplicate verification input ${input.name}`);
-      } else {
-        this.verificationInputs[chain].push(input);
-      }
+    artifacts.forEach((artifact) => {
+      this.verificationInputs[chain].push(artifact);
     });
+
+    // TODO: deduplicate
   }
 
   protected async runIf<T>(
