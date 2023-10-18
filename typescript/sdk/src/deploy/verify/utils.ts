@@ -40,7 +40,8 @@ export function getContractVerificationInput(
   contract: ethers.Contract,
   bytecode: string,
   isProxy?: boolean,
+  constructorArgs?: string,
 ): ContractVerificationInput {
-  const args = getConstructorArguments(contract, bytecode);
+  const args = constructorArgs ?? getConstructorArguments(contract, bytecode);
   return buildVerificationInput(name, contract.address, args, isProxy);
 }

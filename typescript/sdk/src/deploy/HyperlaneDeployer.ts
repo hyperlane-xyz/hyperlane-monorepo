@@ -18,6 +18,7 @@ import {
   ProtocolType,
   eqAddress,
   runWithTimeout,
+  strip0x,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -266,6 +267,17 @@ export abstract class HyperlaneDeployer<
   ): Promise<ReturnType<F['deploy']>> {
     const cachedContract = this.readCache(chain, factory, contractName);
     if (cachedContract) {
+      const encodedConstructorArgs = strip0x(
+        factory.interface.encodeDeploy(constructorArgs),
+      );
+      const verificationInput = getContractVerificationInput(
+        contractName,
+        cachedContract,
+        factory.bytecode,
+        false,
+        encodedConstructorArgs,
+      );
+      this.addVerificationArtifact(chain, verificationInput);
       return cachedContract;
     }
 
