@@ -34,9 +34,12 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { MailboxClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
-import { UpgradeConfig, proxyAdmin } from './proxy';
+import { UpgradeConfig, proxyAdmin, proxyImplementation } from './proxy';
 import { ContractVerificationInput } from './verify/types';
-import { getContractVerificationInput } from './verify/utils';
+import {
+  buildVerificationInput,
+  getContractVerificationInput,
+} from './verify/utils';
 
 export interface DeployerOptions {
   logger?: Debugger;
@@ -303,13 +306,13 @@ export abstract class HyperlaneDeployer<
       Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
     >,
   ): Promise<HyperlaneContracts<Factories>[K]> {
-    const contract = (await this.deployContractFromFactory(
+    const contract = await this.deployContractFromFactory(
       chain,
       this.factories[contractName],
       contractName.toString(),
       constructorArgs,
       initializeArgs,
-    )) as HyperlaneContracts<Factories>[K];
+    );
     this.writeCache(chain, contractName, contract.address);
     return contract;
   }
@@ -338,7 +341,7 @@ export abstract class HyperlaneDeployer<
           chain,
           proxy.changeAdmin(admin, txOverrides),
         ),
-      (proxyAdmin) =>
+      (proxyAdmin: ProxyAdmin) =>
         this.multiProvider.handleTx(
           chain,
           proxyAdmin.changeProxyAdmin(proxy.address, admin, txOverrides),
@@ -476,12 +479,28 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<Factories[K]['deploy']>,
     initializeArgs?: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
   ): Promise<HyperlaneContracts<Factories>[K]> {
+    const factory = this.factories[contractName];
     const cachedContract = this.readCache(
       chain,
-      this.factories[contractName],
+      factory,
       contractName.toString(),
     );
     if (cachedContract) {
+      const encodedConstructorArgs = strip0x(
+        factory.interface.encodeDeploy(constructorArgs),
+      );
+      const provider = this.multiProvider.getProvider(chain);
+      const implementation = await proxyImplementation(
+        provider,
+        cachedContract.address,
+      );
+      this.addVerificationArtifacts(chain, [
+        buildVerificationInput(
+          contractName.toString(),
+          implementation,
+          encodedConstructorArgs,
+        ),
+      ]);
       return cachedContract;
     }
 

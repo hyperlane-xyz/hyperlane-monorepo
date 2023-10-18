@@ -98,6 +98,7 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
       this.logger(`Failed to parse response from ${responseText}`, e);
     }
     if (result.message === 'NOTOK') {
+      console.log(JSON.stringify(result));
       switch (result.result) {
         case ExplorerApiErrors.VERIFICATION_PENDING:
           await sleep(5000); // wait 5 seconds
@@ -109,11 +110,8 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
           this.logger(`Proxy verification failed, try manually?`);
           return;
         default:
-          this.logger(
-            `Verification failed for some unknown reason on ${chain}`,
-            result,
-          );
-          throw new Error(`Verification failed: ${result.result}`);
+          this.logger(`Failed on ${chain} with unknown: ${result.result}`);
+          throw new Error('Verification failed');
       }
     }
 
