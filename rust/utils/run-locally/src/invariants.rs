@@ -3,8 +3,8 @@
 use crate::config::Config;
 use maplit::hashmap;
 
-use crate::fetch_metric;
 use crate::logging::log;
+use crate::{fetch_metric, ZERO_MERKLE_INSERTION_KATHY_MESSAGES};
 // use crate::solana::solana_termination_invariants_met;
 
 // This number should be even, so the messages can be split into two equal halves
@@ -23,7 +23,7 @@ pub fn termination_invariants_met(
 
     let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
-    if lengths.iter().any(|n| *n != 0) {
+    if lengths.iter().sum::<u32>() != ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
         log!("Relayer queues not empty. Lengths: {:?}", lengths);
         return Ok(false);
     };
@@ -84,7 +84,7 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
-    if dispatched_messages_scraped != eth_messages_expected {
+    if dispatched_messages_scraped != eth_messages_expected + ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
         log!(
             "Scraper has scraped {} dispatched messages, expected {}",
             dispatched_messages_scraped,
