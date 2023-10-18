@@ -58,7 +58,7 @@ fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
 }
 const CW_HYPERLANE_GIT: &str = "https://github.com/many-things/cw-hyperlane";
 
-const CW_HYPERLANE_VERSION: &str = "0.0.6-rc0";
+const CW_HYPERLANE_VERSION: &str = "0.0.6-rc3";
 
 fn make_target() -> String {
     let os = if cfg!(target_os = "linux") {
@@ -99,7 +99,7 @@ pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, Path
     };
 
     if !local {
-        let dir_path = dir_path.to_str().unwrap();
+        let dir_path_str = dir_path.to_str().unwrap();
 
         let release_name = format!("cw-hyperlane-v{CW_HYPERLANE_VERSION}");
         let release_comp = format!("{release_name}.zip");
@@ -107,10 +107,10 @@ pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, Path
         log!("Downloading cw-hyperlane v{}", CW_HYPERLANE_VERSION);
         let uri =
             format!("{CW_HYPERLANE_GIT}/releases/download/v{CW_HYPERLANE_VERSION}/{release_comp}");
-        download(&release_comp, &uri, dir_path);
+        download(&release_comp, &uri, dir_path_str);
 
         log!("Uncompressing cw-hyperlane release");
-        unzip(&release_comp, dir_path);
+        unzip(&release_comp, dir_path_str);
     }
 
     log!("Installing cw-hyperlane in Path: {:?}", dir_path);
@@ -140,7 +140,7 @@ pub fn install_cosmos(
             version: OSMOSIS_CLI_VERSION.to_string(),
         })
         .install(cli_dir);
-    let codes = install_codes(codes_dir, true);
+    let codes = install_codes(codes_dir, false);
 
     (osmosisd, codes)
 }
@@ -216,7 +216,6 @@ fn launch_cosmos_node(config: CosmosConfig) -> CosmosResp {
         Some(v) => v,
         None => tempdir().unwrap().into_path(),
     };
-
     let cli = OsmosisCLI::new(config.cli_path, home_path.to_str().unwrap());
 
     cli.init(&config.moniker, &config.chain_id);
@@ -316,9 +315,7 @@ fn run_locally() {
             .unwrap_or_default(),
     );
 
-    let codes_dir = PathBuf::from("/Users/eric/many-things/mitosis/cw-hyperlane/artifacts/actual");
-
-    let (osmosisd, codes) = install_cosmos(None, cli_src, Some(codes_dir), code_src);
+    let (osmosisd, codes) = install_cosmos(None, cli_src, None, code_src);
     let addr_base = "tcp://0.0.0.0";
     let default_config = CosmosConfig {
         cli_path: osmosisd.clone(),
