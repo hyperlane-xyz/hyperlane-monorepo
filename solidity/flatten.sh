@@ -1,3 +1,5 @@
+LICENSE="// SPDX-License-Identifier: MIT OR Apache-2.0"
+
 rm -rf flattened
 mkdir -p flattened
 
@@ -8,12 +10,12 @@ yarn hardhat flatten > flattened/flattened.sol
 grep -vE "// SPDX.*" flattened/flattened.sol > flattened/delicensed.sol
 
 # add license
-LICENSE="// SPDX-License-Identifier: MIT OR Apache-2.0"
 echo "$LICENSE" | cat - flattened/delicensed.sol > flattened/licensed.sol
 
 # compile
 solc flattened/licensed.sol
 
+# TODO: automate this?
 if [ $? -ne 0 ]; then
     echo "Remove @openzeppelin/../ICrossDomainMessenger and replace Optimism_Bridge with ICrossDomainMessenger"
     echo "Then try compiling again with solc flattened/licensed.sol"
