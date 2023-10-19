@@ -87,5 +87,3 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     requiredHook,
   };
 });
-
-console.log(JSON.stringify(core));

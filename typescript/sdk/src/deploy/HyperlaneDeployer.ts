@@ -34,12 +34,9 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { MailboxClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
-import { UpgradeConfig, proxyAdmin, proxyImplementation } from './proxy';
+import { UpgradeConfig, proxyAdmin } from './proxy';
 import { ContractVerificationInput } from './verify/types';
-import {
-  buildVerificationInput,
-  getContractVerificationInput,
-} from './verify/utils';
+import { getContractVerificationInput } from './verify/utils';
 
 export interface DeployerOptions {
   logger?: Debugger;
@@ -479,28 +476,12 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<Factories[K]['deploy']>,
     initializeArgs?: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
   ): Promise<HyperlaneContracts<Factories>[K]> {
-    const factory = this.factories[contractName];
     const cachedContract = this.readCache(
       chain,
-      factory,
+      this.factories[contractName],
       contractName.toString(),
     );
     if (cachedContract) {
-      const encodedConstructorArgs = strip0x(
-        factory.interface.encodeDeploy(constructorArgs),
-      );
-      const provider = this.multiProvider.getProvider(chain);
-      const implementation = await proxyImplementation(
-        provider,
-        cachedContract.address,
-      );
-      this.addVerificationArtifacts(chain, [
-        buildVerificationInput(
-          contractName.toString(),
-          implementation,
-          encodedConstructorArgs,
-        ),
-      ]);
       return cachedContract;
     }
 
