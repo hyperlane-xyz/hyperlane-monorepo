@@ -139,11 +139,11 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
             // We persist the block number in the bytecode now too, so we have to strip it
             .replaceAll(
               /(00000000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})81565/g,
-              (match, offset) => (match.length % 2 === 0 ? '' : '0'),
+              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
             )
             .replaceAll(
               /(0000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})6118123373/g,
-              (match, offset) => (match.length % 2 === 0 ? '' : '0'),
+              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
             ),
       );
     }
