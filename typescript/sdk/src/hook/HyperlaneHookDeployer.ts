@@ -2,6 +2,8 @@ import debug from 'debug';
 
 import {
   IL1CrossDomainMessenger__factory,
+  OPStackHook,
+  OPStackIsm,
   StaticAggregationHook__factory,
   StaticProtocolFee,
 } from '@hyperlane-xyz/core';
@@ -136,7 +138,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: OpStackHookConfig,
     coreAddresses = this.core[chain],
-  ): Promise<HyperlaneContracts<HookFactories>[HookType.OP_STACK]> {
+  ): Promise<OPStackHook> {
     const mailbox = coreAddresses.mailbox;
     if (!mailbox) {
       throw new Error(`Mailbox address is required for ${config.type}`);
@@ -155,14 +157,19 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     const opstackIsm = await this.ismFactory.deploy(
       config.destinationChain,
       ismConfig,
+      chain,
     );
     // deploy opstack hook
-    const hooks = await this.deployContract(chain, HookType.OP_STACK, [
+    const hook = await this.deployContract(chain, HookType.OP_STACK, [
       mailbox,
       config.destinationDomain,
       opstackIsm.address,
       config.nativeBridge,
     ]);
-    return hooks;
+    await this.multiProvider.handleTx(
+      chain,
+      (opstackIsm as OPStackIsm).setAuthorizedHook(hook.address),
+    );
+    return hook;
   }
 }

@@ -10,7 +10,7 @@ export enum HookType {
   INTERCHAIN_GAS_PAYMASTER = 'interchainGasPaymaster',
   AGGREGATION = 'aggregationHook',
   PROTOCOL_FEE = 'protocolFee',
-  OP_STACK = 'opStack',
+  OP_STACK = 'opStackHook',
 }
 
 export type MerkleTreeHookConfig = {

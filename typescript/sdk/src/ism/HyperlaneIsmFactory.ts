@@ -110,7 +110,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
       this.logger(`Deploying Aggregation ISM to ${chain}`);
       contract = await this.deployAggregationIsm(chain, config, origin);
     } else if (config.type === ModuleType.OP_STACK) {
-      this.logger(`Deploying Aggregation ISM to ${chain}`);
+      this.logger(`Deploying Op Stack ISM to ${chain} for verifying ${origin}`);
       contract = await this.deployOpStackIsm(chain, config);
     } else {
       throw new Error(`Unsupported ISM type`);
@@ -220,13 +220,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
   }
 
   private async deployOpStackIsm(chain: ChainName, config: OpStackIsmConfig) {
-    const signer = this.multiProvider.getSigner(chain);
-    const overrides = this.multiProvider.getTransactionOverrides(chain);
-
     const deployedIsm = await this.multiProvider.handleDeploy(
       chain,
-      new OPStackIsm__factory(signer),
-      [config.nativeBridge, overrides],
+      new OPStackIsm__factory(),
+      [config.nativeBridge],
     );
     return deployedIsm;
   }
