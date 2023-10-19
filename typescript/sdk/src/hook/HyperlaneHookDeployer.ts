@@ -1,6 +1,8 @@
 import debug from 'debug';
 
 import {
+  DomainRoutingHook,
+  FallbackDomainRoutingHook,
   IL1CrossDomainMessenger__factory,
   OPStackHook,
   OPStackIsm,
@@ -27,6 +29,7 @@ import {
   IgpHookConfig,
   OpStackHookConfig,
   ProtocolFeeHookConfig,
+  RoutingHookConfig,
 } from './types';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
@@ -55,7 +58,9 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
     // other simple hooks can go here
-    if (config.type === HookType.MERKLE_TREE) {
+    if (typeof config === 'string') {
+      throw new Error(`Unexpected hook config: ${config}`);
+    } else if (config.type === HookType.MERKLE_TREE) {
       const mailbox = coreAddresses.mailbox;
       if (!mailbox) {
         throw new Error(`Mailbox address is required for ${config.type}`);
@@ -70,8 +75,14 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       const hook = await this.deployProtocolFee(chain, config);
       return { [config.type]: hook } as any;
     } else if (config.type === HookType.OP_STACK) {
-      const hooks = this.deployOpStack(chain, config);
+      const hooks = await this.deployOpStack(chain, config);
       return { [config.type]: hooks } as any;
+    } else if (
+      config.type === HookType.ROUTING ||
+      config.type === HookType.FALLBACK_ROUTING
+    ) {
+      const hook = await this.deployRouting(chain, config, coreAddresses);
+      return { [config.type]: hook } as any;
     }
 
     throw new Error(`Unexpected hook type: ${JSON.stringify(config)}`);
@@ -176,5 +187,60 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       (opstackIsm as OPStackIsm).setAuthorizedHook(hook.address),
     );
     return hook;
+  }
+
+  async deployRouting(
+    chain: ChainName,
+    config: RoutingHookConfig,
+    coreAddresses = this.core[chain],
+  ): Promise<DomainRoutingHook> {
+    const mailbox = coreAddresses?.mailbox;
+    if (!mailbox) {
+      throw new Error(`Mailbox address is required for ${config.type}`);
+    }
+
+    let routingHook: DomainRoutingHook | FallbackDomainRoutingHook;
+    switch (config.type) {
+      case HookType.ROUTING:
+        routingHook = await this.deployContract(chain, HookType.ROUTING, [
+          mailbox,
+          config.owner,
+        ]);
+        break;
+      case HookType.FALLBACK_ROUTING:
+        routingHook = await this.deployContract(
+          chain,
+          HookType.FALLBACK_ROUTING,
+          [mailbox, config.owner, config.fallback],
+        );
+    }
+
+    const routingConfigs: DomainRoutingHook.HookConfigStruct[] = [];
+    for (const [dest, hookConfig] of Object.entries(config.domains)) {
+      const destDomain = this.multiProvider.getDomainId(dest);
+      if (typeof hookConfig === 'string') {
+        routingConfigs.push({
+          destination: destDomain,
+          hook: hookConfig,
+        });
+      } else {
+        const hook = await this.deployContracts(
+          chain,
+          hookConfig,
+          coreAddresses,
+        );
+        routingConfigs.push({
+          destination: destDomain,
+          hook: hook[hookConfig.type].address,
+        });
+      }
+    }
+
+    await this.multiProvider.handleTx(
+      chain,
+      routingHook.setHooks(routingConfigs),
+    );
+
+    return routingHook;
   }
 }

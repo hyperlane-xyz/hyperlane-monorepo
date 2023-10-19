@@ -112,12 +112,15 @@ export {
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
 export {
   AggregationHookConfig,
+  DomainRoutingHookConfig,
+  FallbackRoutingHookConfig,
   HookConfig,
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
   OpStackHookConfig,
   ProtocolFeeHookConfig,
+  RoutingHookConfig,
 } from './hook/types';
 export {
   HyperlaneIsmFactory,
