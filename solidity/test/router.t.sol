@@ -56,148 +56,112 @@ contract RouterTest is Test {
         router.initialize(address(igp), address(ism));
     }
 
-    function testEnrolledMailboxAndRouter() public {
-        bytes32 sender = TypeCasts.addressToBytes32(address(1));
+    function testEnrolledMailboxAndRouter(bytes32 sender) public {
         bytes32 recipient = TypeCasts.addressToBytes32(address(router));
         router.enrollRemoteRouter(origin, sender);
         mailbox.testHandle(origin, sender, recipient, body);
     }
 
-    function testUnenrolledMailbox() public {
+    function testUnenrolledMailbox(bytes32 sender) public {
         vm.expectRevert(bytes("MailboxClient: sender not mailbox"));
-        router.handle(origin, TypeCasts.addressToBytes32(address(1)), body);
+        router.handle(origin, sender, body);
     }
 
-    function testUnenrolledRouter() public {
-        bytes32 sender = TypeCasts.addressToBytes32(address(1));
+    function testUnenrolledRouter(bytes32 sender) public {
         bytes32 recipient = TypeCasts.addressToBytes32(address(router));
         vm.expectRevert(bytes("No router enrolled for domain: 1"));
         mailbox.testHandle(origin, sender, recipient, body);
     }
 
-    function testOwnerEnrollRouter() public {
-        bytes32 remote = TypeCasts.addressToBytes32(address(1));
-        assertEq(router.isRemoteRouter(origin, remote), false);
+    function testOwnerEnrollRouter(bytes32 remoteRouter) public {
+        vm.assume(remoteRouter != bytes32(0));
+        assertEq(router.isRemoteRouter(origin, remoteRouter), false);
         vm.expectRevert(bytes("No router enrolled for domain: 1"));
         router.mustHaveRemoteRouter(origin);
-        router.enrollRemoteRouter(origin, remote);
-        assertEq(router.isRemoteRouter(1, remote), true);
-        assertEq(router.mustHaveRemoteRouter(1), remote);
+        router.enrollRemoteRouter(origin, remoteRouter);
+        assertEq(router.isRemoteRouter(origin, remoteRouter), true);
+        assertEq(router.mustHaveRemoteRouter(origin), remoteRouter);
     }
 
-    function testOwnerUnenrollRouter() public {
-        bytes32 remote = TypeCasts.addressToBytes32(address(1));
-        assertEq(router.isRemoteRouter(origin, remote), false);
+    function testOwnerUnenrollRouter(bytes32 remoteRouter) public {
+        vm.assume(remoteRouter != bytes32(0));
+        assertEq(router.isRemoteRouter(origin, remoteRouter), false);
         vm.expectRevert(bytes("No router enrolled for domain: 1"));
         router.unenrollRemoteRouter(origin);
-        router.enrollRemoteRouter(origin, remote);
+        router.enrollRemoteRouter(origin, remoteRouter);
         router.unenrollRemoteRouter(origin);
-        assertEq(router.isRemoteRouter(origin, remote), false);
+        assertEq(router.isRemoteRouter(origin, remoteRouter), false);
     }
 
-    function testNotOwnerEnrollRouter() public {
-        vm.prank(address(1));
-        bytes32 remote = TypeCasts.addressToBytes32(address(1));
+    function testNotOwnerEnrollRouter(address notOwner, bytes32 remoteRouter)
+        public
+    {
+        vm.prank(notOwner);
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
-        router.enrollRemoteRouter(origin, remote);
+        router.enrollRemoteRouter(origin, remoteRouter);
     }
 
-    function testOwnerBatchEnrollRouter() public {
-        bytes32 remote = TypeCasts.addressToBytes32(address(1));
-        assertEq(router.isRemoteRouter(origin, remote), false);
+    function testOwnerBatchEnrollRouter(bytes32 remoteRouter) public {
+        vm.assume(remoteRouter != bytes32(0));
+        assertEq(router.isRemoteRouter(origin, remoteRouter), false);
         vm.expectRevert(bytes("No router enrolled for domain: 1"));
         router.mustHaveRemoteRouter(origin);
         uint32[] memory domains = new uint32[](1);
         domains[0] = origin;
         bytes32[] memory addresses = new bytes32[](1);
-        addresses[0] = remote;
+        addresses[0] = remoteRouter;
         router.enrollRemoteRouters(domains, addresses);
-        assertEq(router.isRemoteRouter(origin, remote), true);
-        assertEq(router.mustHaveRemoteRouter(origin), remote);
+        assertEq(router.isRemoteRouter(origin, remoteRouter), true);
+        assertEq(router.mustHaveRemoteRouter(origin), remoteRouter);
     }
 
-    function testOwnerBatchUnenrollRouter() public {
-        bytes32 remote = TypeCasts.addressToBytes32(address(1));
-        assertEq(router.isRemoteRouter(origin, remote), false);
+    function testOwnerBatchUnenrollRouter(bytes32 remoteRouter) public {
+        vm.assume(remoteRouter != bytes32(0));
+        assertEq(router.isRemoteRouter(origin, remoteRouter), false);
         vm.expectRevert(bytes("No router enrolled for domain: 1"));
         router.mustHaveRemoteRouter(origin);
         uint32[] memory domains = new uint32[](1);
         domains[0] = origin;
         bytes32[] memory addresses = new bytes32[](1);
-        addresses[0] = remote;
+        addresses[0] = remoteRouter;
         router.enrollRemoteRouters(domains, addresses);
         router.unenrollRemoteRouters(domains);
-        assertEq(router.isRemoteRouter(origin, remote), false);
+        assertEq(router.isRemoteRouter(origin, remoteRouter), false);
     }
 
-    function testReturnDomains() public {
-        bytes32 remote = TypeCasts.addressToBytes32(address(1));
+    function testReturnDomains(bytes32 remoteRouter) public {
         uint32[] memory domains = new uint32[](2);
         domains[0] = origin;
         domains[1] = destination;
         bytes32[] memory addresses = new bytes32[](2);
-        addresses[0] = remote;
-        addresses[1] = remote;
+        addresses[0] = remoteRouter;
+        addresses[1] = remoteRouter;
         router.enrollRemoteRouters(domains, addresses);
         assertEq(router.domains()[0], domains[0]);
         assertEq(router.domains()[1], domains[1]);
     }
 
-    function formatMessage(
-        uint8 _version,
-        uint32 _nonce,
-        uint32 _originDomain,
-        bytes32 _sender,
-        uint32 _destinationDomain,
-        bytes32 _recipient,
-        bytes memory _messageBody
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encodePacked(
-                _version,
-                _nonce,
-                _originDomain,
-                _sender,
-                _destinationDomain,
-                _recipient,
-                _messageBody
-            );
-    }
-
-    function testDispatch() public {
-        bytes32 recipient = TypeCasts.addressToBytes32(address(router));
-        router.enrollRemoteRouter(
-            destination,
-            TypeCasts.addressToBytes32(address(1))
-        );
-        uint256 fee = mailbox.quoteDispatch(destination, recipient, body);
+    function testDispatch(bytes32 remoteRouter) public {
+        vm.assume(remoteRouter != bytes32(0));
+        router.enrollRemoteRouter(destination, remoteRouter);
+        uint256 fee = mailbox.quoteDispatch(destination, remoteRouter, body);
         vm.expectEmit(true, true, true, true, address(mailbox));
-        bytes memory message = formatMessage(
-            mailbox.VERSION(),
-            mailbox.nonce(),
-            localDomain,
-            TypeCasts.addressToBytes32(address(router)),
+        vm.prank(address(router));
+        bytes memory message = mailbox.buildOutboundMessage(
             destination,
-            TypeCasts.addressToBytes32(address(1)),
+            remoteRouter,
             body
         );
-        emit Dispatch(
-            address(router),
-            destination,
-            TypeCasts.addressToBytes32(address(1)),
-            message
-        );
+        emit Dispatch(address(router), destination, remoteRouter, message);
         router.dispatch{value: fee}(destination, body);
 
         vm.expectRevert(bytes("No router enrolled for domain: 3"));
         router.dispatch(destinationWithoutRouter, body);
     }
 
-    function testDispatchInsufficientPayment() public {
-        router.enrollRemoteRouter(
-            destination,
-            TypeCasts.addressToBytes32(address(1))
-        );
+    function testDispatchInsufficientPayment(bytes32 remoteRouter) public {
+        vm.assume(remoteRouter != bytes32(0));
+        router.enrollRemoteRouter(destination, remoteRouter);
         vm.expectRevert(bytes("IGP: insufficient interchain gas payment"));
         router.dispatch(destination, body);
     }
