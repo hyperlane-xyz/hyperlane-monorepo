@@ -7,6 +7,7 @@ import {
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
   IRoutingIsm__factory,
+  OPStackIsm__factory,
   StaticAddressSetFactory,
   StaticAggregationIsm__factory,
   StaticThresholdAddressSetFactory,
@@ -30,6 +31,7 @@ import {
   IsmConfig,
   ModuleType,
   MultisigIsmConfig,
+  OpStackIsmConfig,
   RoutingIsmConfig,
 } from './types';
 
@@ -107,6 +109,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     } else if (config.type === ModuleType.AGGREGATION) {
       this.logger(`Deploying Aggregation ISM to ${chain}`);
       contract = await this.deployAggregationIsm(chain, config, origin);
+    } else if (config.type === ModuleType.OP_STACK) {
+      this.logger(`Deploying Aggregation ISM to ${chain}`);
+      contract = await this.deployOpStackIsm(chain, config);
     } else {
       throw new Error(`Unsupported ISM type`);
     }
@@ -214,9 +219,17 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     return IAggregationIsm__factory.connect(address, signer);
   }
 
-  // private async deployOpStackIsm(chain: ChainName, config: OpStackIsmConfig) {
-  //   const signer = this.multiProvider.getSigner(chain);
-  // }
+  private async deployOpStackIsm(chain: ChainName, config: OpStackIsmConfig) {
+    const signer = this.multiProvider.getSigner(chain);
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
+
+    const deployedIsm = await this.multiProvider.handleDeploy(
+      chain,
+      new OPStackIsm__factory(signer),
+      [config.nativeBridge, overrides],
+    );
+    return deployedIsm;
+  }
 
   async deployStaticAddressSet(
     chain: ChainName,
@@ -359,6 +372,10 @@ export async function moduleCanCertainlyVerify(
         }
         return verified >= destModule.threshold;
       }
+      case ModuleType.OP_STACK:
+        return destModule.nativeBridge !== ethers.constants.AddressZero;
+      default:
+        throw new Error(`Unsupported module type: ${(destModule as any).type}`);
     }
   }
 }

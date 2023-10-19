@@ -3,6 +3,7 @@ import {
   IInterchainSecurityModule,
   IMultisigIsm,
   IRoutingIsm,
+  OPStackIsm,
   StaticMerkleRootMultisigIsm,
   StaticMessageIdMultisigIsm,
 } from '@hyperlane-xyz/core';
@@ -16,7 +17,8 @@ export type DeployedIsm =
   | IAggregationIsm
   | IRoutingIsm
   | StaticMessageIdMultisigIsm
-  | StaticMerkleRootMultisigIsm;
+  | StaticMerkleRootMultisigIsm
+  | OPStackIsm;
 
 export enum ModuleType {
   UNUSED,
@@ -25,6 +27,7 @@ export enum ModuleType {
   LEGACY_MULTISIG, // DEPRECATED
   MERKLE_ROOT_MULTISIG,
   MESSAGE_ID_MULTISIG,
+  OP_STACK,
 }
 
 export type MultisigConfig = {
@@ -48,8 +51,14 @@ export type AggregationIsmConfig = {
   threshold: number;
 };
 
+export type OpStackIsmConfig = {
+  type: ModuleType.OP_STACK;
+  nativeBridge: Address;
+};
+
 export type IsmConfig =
   | Address
   | RoutingIsmConfig
   | MultisigIsmConfig
-  | AggregationIsmConfig;
+  | AggregationIsmConfig
+  | OpStackIsmConfig;

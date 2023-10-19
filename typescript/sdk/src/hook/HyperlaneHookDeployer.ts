@@ -1,9 +1,11 @@
 import debug from 'debug';
 
 import {
+  IL1CrossDomainMessenger__factory,
   StaticAggregationHook__factory,
   StaticProtocolFee,
 } from '@hyperlane-xyz/core';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { CoreAddresses } from '../core/contracts';
@@ -11,6 +13,7 @@ import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer';
 import { IgpFactories } from '../gas/contracts';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
+import { ModuleType, OpStackIsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -138,13 +141,26 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     if (!mailbox) {
       throw new Error(`Mailbox address is required for ${config.type}`);
     }
-    // deploy opstackIsm
-    // const opstackIsm = await this.ismFactory.deploy(config.destinationChain, // ismConfig);
-
+    // fetch l2 messenger address from l1 messenger
+    const l1Messenger = IL1CrossDomainMessenger__factory.connect(
+      config.nativeBridge,
+      this.multiProvider.getSignerOrProvider(chain),
+    );
+    const l2Messenger: Address = await l1Messenger.OTHER_MESSENGER();
+    // deploy opstack ism
+    const ismConfig: OpStackIsmConfig = {
+      type: ModuleType.OP_STACK,
+      nativeBridge: l2Messenger,
+    };
+    const opstackIsm = await this.ismFactory.deploy(
+      config.destinationChain,
+      ismConfig,
+    );
+    // deploy opstack hook
     const hooks = await this.deployContract(chain, HookType.OP_STACK, [
       mailbox,
       config.destinationDomain,
-      mailbox,
+      opstackIsm.address,
       config.nativeBridge,
     ]);
     return hooks;

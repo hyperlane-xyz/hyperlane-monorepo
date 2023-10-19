@@ -116,6 +116,7 @@ export {
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
+  OpStackHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types';
 export {
