@@ -18,7 +18,6 @@ import {
   ProtocolType,
   eqAddress,
   runWithTimeout,
-  strip0x,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -35,9 +34,14 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { MailboxClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
-import { UpgradeConfig, proxyAdmin } from './proxy';
+import {
+  UpgradeConfig,
+  isProxy,
+  proxyAdmin,
+  proxyImplementation,
+} from './proxy';
 import { ContractVerificationInput } from './verify/types';
-import { getContractVerificationInput } from './verify/utils';
+import { buildVerificationInput, getContractVerificationInput } from './verify/utils';
 
 export interface DeployerOptions {
   logger?: Debugger;
@@ -267,32 +271,58 @@ export abstract class HyperlaneDeployer<
   ): Promise<ReturnType<F['deploy']>> {
     const cachedContract = this.readCache(chain, factory, contractName);
     if (cachedContract) {
-      const encodedConstructorArgs = strip0x(
-        factory.interface.encodeDeploy(constructorArgs),
+      const provider = this.multiProvider.getProvider(chain);
+
+      let recoveredInputs: ContractVerificationInput[] = [];
+      let implementation: string;
+      if (await isProxy(provider, cachedContract.address)) {
+        const admin = await proxyAdmin(provider, cachedContract.address);
+        implementation = await proxyImplementation(
+          provider,
+          cachedContract.address,
+        );
+        const proxyArgs = this.proxyConstructorArgs(
+          cachedContract.attach(implementation),
+          admin,
+          initializeArgs,
+        );
+        const encodedProxyConstructorArgs =
+          TransparentUpgradeableProxy__factory.createInterface().encodeDeploy(
+            proxyArgs,
+          );
+        recoveredInputs.push(
+          buildVerificationInput(
+            'TransparentUpgradeableProxy',
+            cachedContract.address,
+            encodedProxyConstructorArgs,
+          ),
+        );
+      } else {
+        implementation = cachedContract.address;
+      }
+      const encodedConstructorArgs =
+        factory.interface.encodeDeploy(constructorArgs);
+      recoveredInputs.push(
+        buildVerificationInput(
+          contractName,
+          implementation,
+          encodedConstructorArgs,
+        ),
       );
-      const verificationInput = getContractVerificationInput(
-        contractName,
-        cachedContract,
-        factory.bytecode,
-        false,
-        encodedConstructorArgs,
-      );
-      this.addVerificationArtifact(chain, verificationInput);
+      this.addVerificationArtifacts(chain, recoveredInputs);
       return cachedContract;
     }
 
-    const signer = this.multiProvider.getSigner(chain);
-    const overrides = this.multiProvider.getTransactionOverrides(chain);
-
     this.logger(`Deploy ${contractName} on ${chain}`);
-    const contract = await (factory
-      .connect(signer)
-      .deploy(...constructorArgs, overrides) as ReturnType<F['deploy']>);
-
-    await this.multiProvider.handleTx(chain, contract.deployTransaction);
+    const contract = await this.multiProvider.handleDeploy(
+      chain,
+      factory,
+      constructorArgs,
+    );
 
     if (initializeArgs) {
       this.logger(`Initialize ${contractName} on ${chain}`);
+      const overrides = this.multiProvider.getTransactionOverrides(chain);
       const initTx = await contract.initialize(...initializeArgs, overrides);
       await this.multiProvider.handleTx(chain, initTx);
     }
@@ -397,25 +427,32 @@ export abstract class HyperlaneDeployer<
     );
   }
 
-  protected async deployProxy<C extends ethers.Contract>(
-    chain: ChainName,
+  protected proxyConstructorArgs<C extends ethers.Contract>(
     implementation: C,
     proxyAdmin: string,
     initializeArgs?: Parameters<C['initialize']>,
-  ): Promise<C> {
+  ): [string, string, string] {
     const initData = initializeArgs
       ? implementation.interface.encodeFunctionData(
           'initialize',
           initializeArgs,
         )
       : '0x';
+    return [implementation.address, proxyAdmin, initData];
+  }
 
+  protected async deployProxy<C extends ethers.Contract>(
+    chain: ChainName,
+    implementation: C,
+    proxyAdmin: string,
+    initializeArgs?: Parameters<C['initialize']>,
+  ): Promise<C> {
     this.logger(`Deploying transparent upgradable proxy`);
-    const constructorArgs: [string, string, string] = [
-      implementation.address,
+    const constructorArgs = this.proxyConstructorArgs(
+      implementation,
       proxyAdmin,
-      initData,
-    ];
+      initializeArgs,
+    );
     const proxy = await this.deployContractFromFactory(
       chain,
       new TransparentUpgradeableProxy__factory(),
@@ -488,15 +525,6 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<Factories[K]['deploy']>,
     initializeArgs?: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
   ): Promise<HyperlaneContracts<Factories>[K]> {
-    const cachedContract = this.readCache(
-      chain,
-      this.factories[contractName],
-      contractName.toString(),
-    );
-    if (cachedContract) {
-      return cachedContract;
-    }
-
     // Try to initialize the implementation even though it may not be necessary
     const implementation = await this.deployContract(
       chain,
@@ -504,6 +532,16 @@ export abstract class HyperlaneDeployer<
       constructorArgs,
       initializeArgs,
     );
+
+    // if implementation was recoverd as a proxy, return it
+    if (
+      await isProxy(
+        this.multiProvider.getProvider(chain),
+        implementation.address,
+      )
+    ) {
+      return implementation;
+    }
 
     // Initialize the proxy the same way
     const contract = await this.deployProxy(
