@@ -1,4 +1,4 @@
-use std::{fmt::Debug, marker::PhantomData, sync::Arc};
+use std::{fmt::Debug, marker::PhantomData, sync::Arc, time::Duration};
 
 use cursor::*;
 use derive_new::new;
@@ -60,6 +60,8 @@ where
         loop {
             indexed_height.set(cursor.latest_block() as i64);
             let Ok((action, eta)) = cursor.next_action().await else {
+                debug!("No next action returned in the sync. Sleeping for 10s.");
+                sleep(Duration::from_secs(10)).await;
                 continue;
             };
             match action {
