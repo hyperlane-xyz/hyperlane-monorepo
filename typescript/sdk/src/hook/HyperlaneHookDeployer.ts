@@ -102,7 +102,12 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       );
     }
     const igpContracts = await this.igpDeployer.deployContracts(chain, config);
-    this.addDeployedContracts(chain, igpContracts);
+    // bubbling up addresses and verification input artifacts
+    this.addDeployedContracts(
+      chain,
+      igpContracts,
+      this.igpDeployer.verificationInputs[chain],
+    );
     return igpContracts;
   }
 
