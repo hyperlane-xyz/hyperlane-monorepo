@@ -102,14 +102,14 @@
     "aggregationHookFactory": "0x160C28C92cA453570aD7C031972b58d5Dd128F72",
     "routingIsmFactory": "0x3603458990BfEb30f99E61B58427d196814D8ce1",
     "proxyAdmin": "0x97Bbc6bBaFa5Ce3b2FA966c121Af63bD09e940f8",
-    "mailbox": "0x33AbaF6708be03Bdf0595DA0745A7111b01dB8c7",
-    "validatorAnnounce": "0x71B1BF7C99BEef0545eAFf441372cb6413d9367c",
     "defaultIsm": "0x97FE534674A0fA312b730C946A8A8AC9DcF90100",
-    "merkleTreeHook": "0xa5075B2AcA697944273d67B57a3340a0730632A3",
     "storageGasOracle": "0x71775B071F77F1ce52Ece810ce084451a3045FFe",
     "interchainGasPaymaster": "0x6f2756380FD49228ae25Aa7F2817993cB74Ecc56",
     "aggregationHook": "0xe3147d5618f5e2e100690B50ec923009a4cde14A",
-    "protocolFee": "0x13AC3349Cb159fE86A22cf42DdA803D9f7309DB5"
+    "protocolFee": "0x13AC3349Cb159fE86A22cf42DdA803D9f7309DB5",
+    "mailbox": "0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766",
+    "merkleTreeHook": "0x4917a9746A7B6E0A57159cCb7F5a6744247f2d0d",
+    "validatorAnnounce": "0xE6105C59480a1B7DD3E4f28153aFdbE12F4CfCD9"
   },
   "fuji": {
     "merkleRootMultisigIsmFactory": "0x93F50Ac4E5663DAAb03508008d592f6260964f62",
