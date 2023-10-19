@@ -108,7 +108,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       config,
       coreAddresses,
     );
-    this.addDeployedContracts(chain, hooks);
+    this.addDeployedContracts(
+      chain,
+      hooks,
+      this.hookDeployer.verificationInputs[chain],
+    );
     return hooks[config.type].address;
   }
 
