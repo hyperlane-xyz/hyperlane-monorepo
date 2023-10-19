@@ -244,7 +244,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
      * @param _id The message ID to check.
      * @return The account that processed the message.
      */
-    function processor(bytes32 _id) external view override returns (address) {
+    function processor(bytes32 _id) external view returns (address) {
         return deliveries[_id].processor;
     }
 
@@ -253,7 +253,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
      * @param _id The message ID to check.
      * @return The number of the block that the message was processed at.
      */
-    function processedAt(bytes32 _id) external view override returns (uint48) {
+    function processedAt(bytes32 _id) external view returns (uint48) {
         return deliveries[_id].blockNumber;
     }
 

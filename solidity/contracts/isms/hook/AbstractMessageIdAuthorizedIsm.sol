@@ -83,14 +83,16 @@ abstract contract AbstractMessageIdAuthorizedIsm is
         bytes calldata message
     ) external returns (bool) {
         bytes32 messageId = message.id();
-
+        // protecting against non-mailbox front running of verify()
+        require(
+            _checkInflight(messageId),
+            "AbstractMessageIdAuthorizedIsm: message not in flight in the mailbox"
+        );
         // check for the first bit (used for verification)
-        // rest 255 bits contains the msg.value passed from the hook
         bool verified = verifiedMessages[messageId].isBitSet(
             VERIFIED_MASK_INDEX
         );
-        // protecting against non-mailbox front running of verify()
-        _checkDelivered(messageId);
+        // rest 255 bits contains the msg.value passed from the hook
         if (verified) {
             payable(message.recipientAddress()).sendValue(
                 verifiedMessages[messageId].clearBit(VERIFIED_MASK_INDEX)
@@ -117,13 +119,13 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     function _isAuthorized() internal view virtual returns (bool);
 
     /**
-     * @notice returns if the message has been delivered by the mailbox
+     * @notice returns if the message has is in process of being delivered by the mailbox
      * @dev to protect against front running of verify() which would mean
      * the actual message won't be delivered
-     * @param messageId Hyperlane Id of the message.
+     * @param messageId Hyperlane id of the message.
      * @return true if the message has been delivered
      */
-    function _checkDelivered(bytes32 messageId) internal view returns (bool) {
-        return mailbox.processor(messageId) != address(0);
+    function _checkInflight(bytes32 messageId) internal view returns (bool) {
+        return mailbox.delivered(messageId);
     }
 }

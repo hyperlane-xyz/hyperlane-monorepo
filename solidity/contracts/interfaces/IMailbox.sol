@@ -104,14 +104,4 @@ interface IMailbox {
         external
         view
         returns (IInterchainSecurityModule module);
-
-    function processor(bytes32 _messageId)
-        external
-        view
-        returns (address _processor);
-
-    function processedAt(bytes32 _messageId)
-        external
-        view
-        returns (uint48 _processedAt);
 }
