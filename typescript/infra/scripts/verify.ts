@@ -37,8 +37,8 @@ async function main() {
   const compilerOptions: CompilerOptions = {
     codeformat: 'solidity-single-file',
     compilerversion: 'v0.8.19+commit.7dd6d404',
-    optimizationUsed: '1',
-    runs: '999999',
+    optimizationUsed: '0',
+    runs: '200',
   };
 
   const versionRegex = /v(\d.\d.\d+)\+commit.\w+/;
