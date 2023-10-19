@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::thread::sleep;
@@ -282,7 +281,7 @@ pub fn start_solana_test_validator(
 }
 
 #[apply(as_task)]
-pub fn _initiate_solana_hyperlane_transfer(
+pub fn initiate_solana_hyperlane_transfer(
     solana_cli_tools_path: PathBuf,
     solana_config_path: PathBuf,
 ) {

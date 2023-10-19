@@ -19,6 +19,7 @@ solana-client.workspace = true
 solana-sdk.workspace = true
 solana-transaction-status.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
 url.workspace = true
