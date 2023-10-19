@@ -24,6 +24,7 @@ export enum CoreViolationType {
 
 export enum MailboxViolationType {
   DefaultIsm = 'DefaultIsm',
+  NotProxied = 'NotProxied',
 }
 
 export interface MailboxViolation extends CheckerViolation {
