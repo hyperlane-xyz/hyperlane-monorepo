@@ -28,6 +28,7 @@ contract ERC5164IsmTest is Test {
     ERC5164Hook internal hook;
     ERC5164Ism internal ism;
     TestMailbox internal originMailbox;
+    TestMailbox internal remoteMailbox;
     TestRecipient internal testRecipient;
 
     uint32 internal constant TEST1_DOMAIN = 1;
@@ -59,7 +60,8 @@ contract ERC5164IsmTest is Test {
         executor = new MockMessageExecutor();
         testRecipient = new TestRecipient();
         originMailbox = new TestMailbox(TEST1_DOMAIN);
-        ism = new ERC5164Ism(address(executor));
+        remoteMailbox = new TestMailbox(TEST2_DOMAIN);
+        ism = new ERC5164Ism(address(remoteMailbox), address(executor));
         hook = new ERC5164Hook(
             address(originMailbox),
             TEST2_DOMAIN,
@@ -75,7 +77,7 @@ contract ERC5164IsmTest is Test {
 
     function test_constructor() public {
         vm.expectRevert("ERC5164Ism: invalid executor");
-        ism = new ERC5164Ism(alice);
+        ism = new ERC5164Ism(address(remoteMailbox), alice);
 
         vm.expectRevert("MailboxClient: invalid mailbox");
         hook = new ERC5164Hook(

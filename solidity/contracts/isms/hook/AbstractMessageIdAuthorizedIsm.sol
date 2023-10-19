@@ -19,6 +19,7 @@ import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityMod
 import {LibBit} from "../../libs/LibBit.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
 
 // ============ External Imports ============
 
@@ -32,7 +33,8 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  */
 abstract contract AbstractMessageIdAuthorizedIsm is
     IInterchainSecurityModule,
-    Initializable
+    Initializable,
+    MailboxClient
 {
     using Address for address payable;
     using LibBit for uint256;
@@ -46,7 +48,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     /// @dev the first bit is reserved for verification and the rest 255 bits are for the msg.value
     mapping(bytes32 => uint256) public verifiedMessages;
     /// @notice Index of verification bit in verifiedMessages
-    uint256 public constant MASK_INDEX = 255;
+    uint256 public constant VERIFIED_MASK_INDEX = 255;
     /// @notice Address for the authorized hook
     address public authorizedHook;
 
@@ -54,6 +56,10 @@ abstract contract AbstractMessageIdAuthorizedIsm is
 
     /// @notice Emitted when a message is received from the external bridge
     event ReceivedMessage(bytes32 indexed messageId);
+
+    // ============ Constructor ============
+
+    constructor(address _mailbox) MailboxClient(_mailbox) {}
 
     // ============ Initializer ============
 
@@ -79,11 +85,15 @@ abstract contract AbstractMessageIdAuthorizedIsm is
         bytes32 messageId = message.id();
 
         // check for the first bit (used for verification)
-        bool verified = verifiedMessages[messageId].isBitSet(MASK_INDEX);
         // rest 255 bits contains the msg.value passed from the hook
+        bool verified = verifiedMessages[messageId].isBitSet(
+            VERIFIED_MASK_INDEX
+        );
+        // protecting against non-mailbox front running of verify()
+        _checkDelivered(messageId);
         if (verified) {
             payable(message.recipientAddress()).sendValue(
-                verifiedMessages[messageId].clearBit(MASK_INDEX)
+                verifiedMessages[messageId].clearBit(VERIFIED_MASK_INDEX)
             );
         }
         return verified;
@@ -100,9 +110,20 @@ abstract contract AbstractMessageIdAuthorizedIsm is
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
 
-        verifiedMessages[messageId] = msg.value.setBit(MASK_INDEX);
+        verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
         emit ReceivedMessage(messageId);
     }
 
     function _isAuthorized() internal view virtual returns (bool);
+
+    /**
+     * @notice returns if the message has been delivered by the mailbox
+     * @dev to protect against front running of verify() which would mean
+     * the actual message won't be delivered
+     * @param messageId Hyperlane Id of the message.
+     * @return true if the message has been delivered
+     */
+    function _checkDelivered(bytes32 messageId) internal view returns (bool) {
+        return mailbox.processor(messageId) != address(0);
+    }
 }

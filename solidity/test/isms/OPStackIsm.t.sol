@@ -45,6 +45,7 @@ contract OPStackIsmTest is Test {
     ICrossDomainMessenger internal l1Messenger;
     IL2CrossDomainMessenger internal l2Messenger;
     TestMailbox internal l1Mailbox;
+    TestMailbox internal l2Mailbox;
     OPStackIsm internal opISM;
     OPStackHook internal opHook;
 
@@ -108,8 +109,10 @@ contract OPStackIsmTest is Test {
     function deployOPStackIsm() public {
         vm.selectFork(optimismFork);
 
+        l2Mailbox = new TestMailbox(OPTIMISM_DOMAIN);
+
         l2Messenger = IL2CrossDomainMessenger(L2_MESSENGER_ADDRESS);
-        opISM = new OPStackIsm(L2_MESSENGER_ADDRESS);
+        opISM = new OPStackIsm(L2_MESSENGER_ADDRESS, address(l2Mailbox));
 
         vm.makePersistent(address(opISM));
     }

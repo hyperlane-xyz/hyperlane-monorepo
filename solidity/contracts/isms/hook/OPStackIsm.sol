@@ -39,7 +39,10 @@ contract OPStackIsm is
 
     // ============ Constructor ============
 
-    constructor(address _l2Messenger) CrossChainEnabledOptimism(_l2Messenger) {
+    constructor(address _l2Messenger, address _mailbox)
+        CrossChainEnabledOptimism(_l2Messenger)
+        AbstractMessageIdAuthorizedIsm(_mailbox)
+    {
         require(
             Address.isContract(_l2Messenger),
             "OPStackIsm: invalid L2Messenger"
