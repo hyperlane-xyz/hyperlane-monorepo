@@ -58,9 +58,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
     // other simple hooks can go here
-    if (typeof config === 'string') {
-      throw new Error(`Unexpected hook config: ${config}`);
-    } else if (config.type === HookType.MERKLE_TREE) {
+    if (config.type === HookType.MERKLE_TREE) {
       const mailbox = coreAddresses.mailbox;
       if (!mailbox) {
         throw new Error(`Mailbox address is required for ${config.type}`);
@@ -201,18 +199,28 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 
     let routingHook: DomainRoutingHook | FallbackDomainRoutingHook;
     switch (config.type) {
-      case HookType.ROUTING:
+      case HookType.ROUTING: {
         routingHook = await this.deployContract(chain, HookType.ROUTING, [
           mailbox,
           config.owner,
         ]);
         break;
-      case HookType.FALLBACK_ROUTING:
+      }
+      case HookType.FALLBACK_ROUTING: {
+        const fallbackHook = await this.deployContracts(
+          chain,
+          config.fallback,
+          coreAddresses,
+        );
         routingHook = await this.deployContract(
           chain,
           HookType.FALLBACK_ROUTING,
-          [mailbox, config.owner, config.fallback],
+          [mailbox, config.owner, fallbackHook[config.fallback.type].address],
         );
+        break;
+      }
+      default:
+        throw new Error(`Unexpected hook type: ${config}`);
     }
 
     const routingConfigs: DomainRoutingHook.HookConfigStruct[] = [];

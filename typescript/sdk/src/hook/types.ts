@@ -52,7 +52,7 @@ export type DomainRoutingHookConfig = {
 export type FallbackRoutingHookConfig = {
   type: HookType.FALLBACK_ROUTING;
   owner: Address;
-  fallback: Address;
+  fallback: HookConfig;
   domains: ChainMap<HookConfig>;
 };
 
@@ -61,7 +61,6 @@ export type RoutingHookConfig =
   | FallbackRoutingHookConfig;
 
 export type HookConfig =
-  | Address
   | MerkleTreeHookConfig
   | AggregationHookConfig
   | IgpHookConfig
