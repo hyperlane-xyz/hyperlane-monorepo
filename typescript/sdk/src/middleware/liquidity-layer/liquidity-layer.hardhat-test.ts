@@ -20,6 +20,8 @@ import { chainMetadata } from '../../consts/chainMetadata';
 import { Chains } from '../../consts/chains';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
+import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer';
+import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap } from '../../types';
 
@@ -53,7 +55,12 @@ describe.skip('LiquidityLayerRouter', async () => {
   before(async () => {
     [signer] = await ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    coreApp = await new TestCoreDeployer(multiProvider).deployApp();
+    const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    const ismFactory = new HyperlaneIsmFactory(
+      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => {})),
+      multiProvider,
+    );
+    coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
     const routerConfig = coreApp.getRouterConfig(signer.address);
 
     const mockTokenF = new MockToken__factory(signer);
