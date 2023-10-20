@@ -73,11 +73,14 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     const hookAddresses = { mailbox: mailbox.address, proxyAdmin };
 
+    this.logger('Deploying default hook');
     const defaultHook = await this.deployHook(
       chain,
       config.defaultHook,
       hookAddresses,
     );
+
+    this.logger('Deploying required hook');
     const requiredHook = await this.deployHook(
       chain,
       config.requiredHook,
@@ -93,9 +96,33 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     } catch (e: any) {
       if (!e.message.includes('already initialized')) {
         throw e;
-      } else {
-        this.logger('Mailbox already initialized');
       }
+
+      this.logger('Mailbox already initialized');
+
+      await this.configureHook(
+        chain,
+        mailbox,
+        defaultHook,
+        (m) => m.defaultHook(),
+        (m, h) => m.populateTransaction.setDefaultHook(h),
+      );
+
+      await this.configureHook(
+        chain,
+        mailbox,
+        requiredHook,
+        (m) => m.requiredHook(),
+        (m, h) => m.populateTransaction.setRequiredHook(h),
+      );
+
+      await this.configureIsm(
+        chain,
+        mailbox,
+        defaultIsm,
+        (m) => m.defaultIsm(),
+        (m, ism) => m.populateTransaction.setDefaultIsm(ism),
+      );
     }
 
     return mailbox;
