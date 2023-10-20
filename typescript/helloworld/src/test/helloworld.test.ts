@@ -5,6 +5,8 @@ import { ethers } from 'hardhat';
 import {
   ChainMap,
   Chains,
+  HyperlaneIsmFactory,
+  HyperlaneProxyFactoryDeployer,
   MultiProvider,
   TestCoreApp,
   TestCoreDeployer,
@@ -30,7 +32,12 @@ describe('HelloWorld', async () => {
   before(async () => {
     [signer] = await ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    coreApp = await new TestCoreDeployer(multiProvider).deployApp();
+    const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    const ismFactory = new HyperlaneIsmFactory(
+      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
+      multiProvider,
+    );
+    coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
     config = coreApp.getRouterConfig(signer.address);
 
     localDomain = multiProvider.getDomainId(localChain);

@@ -7,7 +7,10 @@ import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer';
 import { HookConfig } from '../hook/types';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
+import {
+  HyperlaneIsmFactory,
+  moduleMatchesConfig,
+} from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -55,9 +58,21 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       [domain],
     );
 
-    const defaultIsm = await this.deployIsm(chain, config.defaultIsm);
+    let defaultIsm = await mailbox.defaultIsm();
+    const matches = await moduleMatchesConfig(
+      chain,
+      defaultIsm,
+      config.defaultIsm,
+      this.multiProvider,
+      this.ismFactory.getContracts(chain),
+    );
+    if (!matches) {
+      this.logger('Deploying default ISM');
+      defaultIsm = await this.deployIsm(chain, config.defaultIsm);
+    }
 
     const hookAddresses = { mailbox: mailbox.address, proxyAdmin };
+
     const defaultHook = await this.deployHook(
       chain,
       config.defaultHook,

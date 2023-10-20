@@ -303,13 +303,13 @@ export abstract class HyperlaneDeployer<
       Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
     >,
   ): Promise<HyperlaneContracts<Factories>[K]> {
-    const contract = (await this.deployContractFromFactory(
+    const contract = await this.deployContractFromFactory(
       chain,
       this.factories[contractName],
       contractName.toString(),
       constructorArgs,
       initializeArgs,
-    )) as HyperlaneContracts<Factories>[K];
+    );
     this.writeCache(chain, contractName, contract.address);
     return contract;
   }
@@ -338,7 +338,7 @@ export abstract class HyperlaneDeployer<
           chain,
           proxy.changeAdmin(admin, txOverrides),
         ),
-      (proxyAdmin) =>
+      (proxyAdmin: ProxyAdmin) =>
         this.multiProvider.handleTx(
           chain,
           proxyAdmin.changeProxyAdmin(proxy.address, admin, txOverrides),
