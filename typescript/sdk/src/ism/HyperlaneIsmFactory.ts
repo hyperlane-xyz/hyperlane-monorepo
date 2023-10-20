@@ -331,9 +331,6 @@ export async function moduleCanCertainlyVerify(
           }
         }
         return verified >= threshold;
-      } else if (moduleType === ModuleType.TEST_ISM) {
-        const testIsm = TestIsm__factory.connect(destModule, provider);
-        return await testIsm['verify(bytes,bytes)'](message, '0x');
       } else {
         throw new Error(`Unsupported module type: ${moduleType}`);
       }
@@ -368,6 +365,10 @@ export async function moduleCanCertainlyVerify(
           }
         }
         return verified >= destModule.threshold;
+      }
+      case ModuleType.TEST_ISM: {
+        const testIsm = TestIsm__factory.connect(destModule, provider);
+        return await testIsm['verify(bytes,bytes)'](message, '0x');
       }
     }
   }
