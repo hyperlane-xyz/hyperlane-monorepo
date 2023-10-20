@@ -367,8 +367,7 @@ export async function moduleCanCertainlyVerify(
         return verified >= destModule.threshold;
       }
       case ModuleType.TEST_ISM: {
-        const testIsm = TestIsm__factory.connect(destModule, provider);
-        return await testIsm['verify(bytes,bytes)'](message, '0x');
+        return true;
       }
     }
   }
