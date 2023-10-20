@@ -10,6 +10,7 @@ import {
   StaticAddressSetFactory,
   StaticAggregationIsm__factory,
   StaticThresholdAddressSetFactory,
+  TestIsm__factory,
   TestMultisigIsm__factory,
 } from '@hyperlane-xyz/core';
 import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
@@ -330,6 +331,9 @@ export async function moduleCanCertainlyVerify(
           }
         }
         return verified >= threshold;
+      } else if (moduleType === ModuleType.TEST_ISM) {
+        const testIsm = TestIsm__factory.connect(destModule, provider);
+        return await testIsm['verify(bytes,bytes)'](message, '0x');
       } else {
         throw new Error(`Unsupported module type: ${moduleType}`);
       }
