@@ -8,6 +8,8 @@ import { TestMailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { Chains } from '../consts/chains';
+import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 
 import { TestCoreApp } from './TestCoreApp';
@@ -27,7 +29,13 @@ describe('TestCoreDeployer', async () => {
     const [signer] = await ethers.getSigners();
 
     const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    const deployer = new TestCoreDeployer(multiProvider);
+
+    const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    const ismFactory = new HyperlaneIsmFactory(
+      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => {})),
+      multiProvider,
+    );
+    const deployer = new TestCoreDeployer(multiProvider, ismFactory);
     testCoreApp = await deployer.deployApp();
 
     const recipient = await new TestRecipient__factory(signer).deploy();

@@ -10,6 +10,7 @@ import {
   StaticAddressSetFactory,
   StaticAggregationIsm__factory,
   StaticThresholdAddressSetFactory,
+  TestMultisigIsm__factory,
 } from '@hyperlane-xyz/core';
 import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
 
@@ -107,6 +108,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     } else if (config.type === ModuleType.AGGREGATION) {
       this.logger(`Deploying Aggregation ISM to ${chain}`);
       contract = await this.deployAggregationIsm(chain, config, origin);
+    } else if (config.type === ModuleType.TEST_ISM) {
+      contract = await this.deployTestIsm(chain);
     } else {
       throw new Error(`Unsupported ISM type`);
     }
@@ -212,6 +215,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
       config.threshold,
     );
     return IAggregationIsm__factory.connect(address, signer);
+  }
+
+  private async deployTestIsm(chain: ChainName) {
+    const signer = this.multiProvider.getSigner(chain);
+    const factory = new TestMultisigIsm__factory(signer);
+    const contract = await factory.deploy();
+    return contract;
   }
 
   async deployStaticAddressSet(
@@ -513,6 +523,9 @@ export function collectValidators(
     aggregatedValidators.forEach((set) => {
       validators = validators.concat([...set]);
     });
+  } else if (config.type === ModuleType.TEST_ISM) {
+    // This is just a TestISM
+    return new Set([]);
   } else {
     throw new Error('Unsupported ModuleType');
   }
