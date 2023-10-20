@@ -4,6 +4,7 @@ import {
   AggregationHookConfig,
   ChainMap,
   CoreConfig,
+  FallbackRoutingHookConfig,
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
@@ -29,9 +30,20 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     ...igp[local],
   };
 
-  const defaultHook: AggregationHookConfig = {
+  const aggregationHook: AggregationHookConfig = {
     type: HookType.AGGREGATION,
     hooks: [merkleHook, igpHook],
+  };
+
+  const defaultHook: FallbackRoutingHookConfig = {
+    type: HookType.FALLBACK_ROUTING,
+    owner,
+    fallback: merkleHook,
+    domains: Object.fromEntries(
+      Object.entries(owners)
+        .filter(([chain, _]) => chain !== local)
+        .map(([chain, _]) => [chain, aggregationHook]),
+    ),
   };
 
   const requiredHook: ProtocolFeeHookConfig = {
