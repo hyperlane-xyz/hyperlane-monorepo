@@ -54,7 +54,7 @@ export type MainnetChains = keyof typeof mainnetConfigs;
 export const supportedChainNames = Object.keys(
   mainnetConfigs,
 ) as MainnetChains[];
-export const environment = 'mainnet2';
+export const environment = 'mainnet3';
 
 export const ethereumChainNames = Object.keys(
   ethereumMainnetConfigs,

@@ -102,7 +102,7 @@ export async function getHelloWorldMultiProtocolApp(
   // } else
 
   if (
-    coreConfig.environment === 'mainnet2' &&
+    coreConfig.environment === 'mainnet3' &&
     !multiProtocolProvider.getKnownChainNames().includes('solana')
   ) {
     multiProvider.addChain(chainMetadata.solana);

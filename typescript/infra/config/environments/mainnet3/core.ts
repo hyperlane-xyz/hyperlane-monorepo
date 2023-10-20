@@ -18,7 +18,7 @@ import { igp } from './igp';
 import { owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
-  const defaultIsm = routingIsm('mainnet2', local, Contexts.Hyperlane);
+  const defaultIsm = routingIsm('mainnet3', local, Contexts.Hyperlane);
 
   let upgrade: CoreConfig['upgrade'];
   if (local === 'arbitrum') {

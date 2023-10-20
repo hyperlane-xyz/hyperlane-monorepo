@@ -12,22 +12,22 @@ import { DeployEnvironment } from '../src/config';
 
 import { aggregationIsm } from './aggregationIsm';
 import { Contexts } from './contexts';
-import { supportedChainNames as mainnet2Chains } from './environments/mainnet2/chains';
-import { owners as mainnet2Owners } from './environments/mainnet2/owners';
+import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/chains';
+import { owners as mainnet3Owners } from './environments/mainnet3/owners';
 import { chainNames as testChains } from './environments/test/chains';
 import { owners as testOwners } from './environments/test/owners';
 import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains';
 import { owners as testnet4Owners } from './environments/testnet4/owners';
 
 const chains = {
-  mainnet2: mainnet2Chains,
+  mainnet3: mainnet3Chains,
   testnet4: testnet4Chains,
   test: testChains,
 };
 
 const owners = {
   testnet4: testnet4Owners,
-  mainnet2: mainnet2Owners,
+  mainnet3: mainnet3Owners,
   test: testOwners,
 };
 
@@ -55,7 +55,7 @@ export const routingIsm = (
   local: ChainName,
   context: Contexts,
 ): RoutingIsmConfig | string => {
-  if (environment === 'mainnet2' && context === Contexts.Hyperlane) {
+  if (environment === 'mainnet3' && context === Contexts.Hyperlane) {
     return mainnetHyperlaneDefaultIsmCache[local];
   }
 

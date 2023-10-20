@@ -375,11 +375,11 @@ mod test {
 
     #[test]
     fn test_verify_validator_signed_announcement() {
-        // Announcement from https://hyperlane-mainnet2-ethereum-validator-0.s3.us-east-1.amazonaws.com/announcement.json
+        // Announcement from https://hyperlane-mainnet3-ethereum-validator-0.s3.us-east-1.amazonaws.com/announcement.json
 
         let announce_instruction = AnnounceInstruction {
             validator: H160::from_str("0x4c327ccb881a7542be77500b2833dc84c839e7b7").unwrap(),
-            storage_location: "s3://hyperlane-mainnet2-ethereum-validator-0/us-east-1".to_owned(),
+            storage_location: "s3://hyperlane-mainnet3-ethereum-validator-0/us-east-1".to_owned(),
             // The `serialized_signature` component of the announcement,
             // which is the 65-byte serialized ECDSA signature
             signature: hex::decode("20ac937917284eaa3d67287278fc51875874241fffab5eb5fd8ae899a7074c5679be15f0bdb5b4f7594cefc5cba17df59b68ba3c55836053a23307db5a95610d1b").unwrap(),
