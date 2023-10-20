@@ -3,8 +3,10 @@ import { BigNumber, ethers } from 'ethers';
 import {
   AggregationHookConfig,
   ChainMap,
+  Chains,
   CoreConfig,
   FallbackRoutingHookConfig,
+  HookConfig,
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
@@ -15,6 +17,7 @@ import { objMap } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../contexts';
 import { routingIsm } from '../../routingIsm';
 
+import { baseHookConfig, opHookConfig } from './hooks';
 import { igp } from './igp';
 import { owners } from './owners';
 
@@ -35,15 +38,21 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     hooks: [merkleHook, igpHook],
   };
 
+  const domains = Object.fromEntries(
+    Object.entries(owners)
+      .filter(([chain, _]) => chain !== local)
+      .map(([chain, _]) => [chain, aggregationHook as HookConfig]),
+  );
+  if (local === Chains.goerli) {
+    domains[Chains.optimismgoerli] = opHookConfig;
+    domains[Chains.basegoerli] = baseHookConfig;
+  }
+
   const defaultHook: FallbackRoutingHookConfig = {
     type: HookType.FALLBACK_ROUTING,
     owner,
     fallback: merkleHook,
-    domains: Object.fromEntries(
-      Object.entries(owners)
-        .filter(([chain, _]) => chain !== local)
-        .map(([chain, _]) => [chain, aggregationHook]),
-    ),
+    domains: domains,
   };
 
   const requiredHook: ProtocolFeeHookConfig = {
