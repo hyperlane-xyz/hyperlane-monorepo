@@ -6,6 +6,7 @@ members = [
     "chains/hyperlane-ethereum",
     "chains/hyperlane-fuel",
     "chains/hyperlane-sealevel",
+    "ethers/client",
     "ethers-prometheus",
     "hyperlane-base",
     "hyperlane-core",

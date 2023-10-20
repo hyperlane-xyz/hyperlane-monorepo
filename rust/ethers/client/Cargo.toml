@@ -1,0 +1,18 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-ethers-client"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+pretty_env_logger.workspace = true
+clap = { workspace = true, features = ["derive"] }
+
+ethers = "1.0.2"
+ethers-solc = "1.0.2"
+eyre = "0.3.7"
+tokio = { version = "1", features = ["full"] }
+serde_json = "1.0.89"
+serde = "1.0.149"
