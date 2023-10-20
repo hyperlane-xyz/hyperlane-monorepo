@@ -32,7 +32,7 @@ describe('TestCoreDeployer', async () => {
 
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(
-      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => {})),
+      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
       multiProvider,
     );
     const deployer = new TestCoreDeployer(multiProvider, ismFactory);

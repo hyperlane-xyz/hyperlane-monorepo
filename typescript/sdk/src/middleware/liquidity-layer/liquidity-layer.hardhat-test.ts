@@ -57,7 +57,7 @@ describe.skip('LiquidityLayerRouter', async () => {
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(
-      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => {})),
+      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
       multiProvider,
     );
     coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
