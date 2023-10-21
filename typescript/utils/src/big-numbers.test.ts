@@ -18,7 +18,7 @@ describe('utils', () => {
       { expect: false, context: 'undefined', case: undefined },
       { expect: false, context: 'null', case: null },
       { expect: true, context: 'decimal', case: 123.123 },
-      { expect: true, context: 'integer', case: 123 },
+      { expect: true, context: 'integer', case: 300_000 },
       { expect: true, context: 'hex 0', case: 0x00 },
       { expect: true, context: 'hex 0', case: 0x000 },
       {
