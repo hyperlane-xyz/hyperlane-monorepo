@@ -1,8 +1,13 @@
 import BigNumber from 'bignumber.js';
 import { FixedNumber } from 'ethers';
 
+/**
+ * Check if a value is bigNumberish (e.g. valid numbers, bigNumber).
+ * @param value The value to check.
+ * @returns true/false.
+ */
 export function isBigNumberish(
-  value: string | number | BigNumber | undefined,
+  value: BigNumber.Value | undefined | null,
 ): boolean {
   try {
     const val = BigNumber(value!);
@@ -12,8 +17,12 @@ export function isBigNumberish(
   }
 }
 
-// If a value (e.g. hex string or number) is zeroish (0, 0x0, 0x00, etc.)
-export function isZeroish(value: string | number | BigNumber): boolean {
+/**
+ * Check if a value (e.g. hex string or number) is zeroish (0, 0x0, 0x00, etc.).
+ * @param value The value to check.
+ * @returns true/false.
+ */
+export function isZeroish(value: BigNumber.Value): boolean {
   try {
     return BigNumber(value).isZero();
   } catch (error) {
@@ -46,21 +55,21 @@ export function fixedToBig(fixed: FixedNumber, ceil = false): BigNumber {
  * @param big The BigNumber to multiply.
  * @param fixed The FixedNumber to multiply.
  * @param ceil If true, the ceiling of the product is used. Otherwise, the floor is used.
- * @returns The BigNumber product.
+ * @returns The BigNumber product in string type.
  */
 export function mulBigAndFixed(
   big: BigNumber,
   fixed: FixedNumber,
   ceil = false,
-): BigNumber {
+): string {
   // Converts big to a FixedNumber, multiplies it by fixed, and converts the product back
   // to a BigNumber.
-  return fixedToBig(fixed.mulUnsafe(bigToFixed(big)), ceil);
+  return fixedToBig(fixed.mulUnsafe(bigToFixed(big)), ceil).toString();
 }
 
-export function BigNumberMin(bn1: BigNumber, bn2: BigNumber) {
+export function BigNumberMin(bn1: BigNumber, bn2: BigNumber): BigNumber {
   return bn1.gte(bn2) ? bn2 : bn1;
 }
-export function BigNumberMax(bn1: BigNumber, bn2: BigNumber) {
+export function BigNumberMax(bn1: BigNumber, bn2: BigNumber): BigNumber {
   return bn1.lte(bn2) ? bn2 : bn1;
 }

@@ -88,7 +88,7 @@ describe('utils', () => {
       const fixed = FixedNumber.from('1.2345');
       const product = mulBigAndFixed(big, fixed);
 
-      expect(product.toNumber()).to.equal(1234);
+      expect(product).to.equal((1234).toString());
     });
 
     it('gets the ceilinged product of a BigNumber and FixedNumber', () => {
@@ -96,7 +96,7 @@ describe('utils', () => {
       const fixed = FixedNumber.from('1.2345');
       const product = mulBigAndFixed(big, fixed, true);
 
-      expect(product.toNumber()).to.equal(1235);
+      expect(product).to.equal((1235).toString());
     });
   });
 });
