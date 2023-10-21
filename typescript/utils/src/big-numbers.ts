@@ -35,7 +35,7 @@ export function isZeroish(value: BigNumber.Value): boolean {
  * @param big The BigNumber to convert.
  * @returns A FixedNumber representation of a BigNumber.
  */
-export function bigToFixed(big: BigNumber): FixedNumber {
+export function bigToFixed(big: BigNumber.Value): FixedNumber {
   return FixedNumber.from(big.toString());
 }
 
@@ -58,7 +58,7 @@ export function fixedToBig(fixed: FixedNumber, ceil = false): BigNumber {
  * @returns The BigNumber product in string type.
  */
 export function mulBigAndFixed(
-  big: BigNumber,
+  big: BigNumber.Value,
   fixed: FixedNumber,
   ceil = false,
 ): string {
@@ -67,9 +67,28 @@ export function mulBigAndFixed(
   return fixedToBig(fixed.mulUnsafe(bigToFixed(big)), ceil).toString();
 }
 
-export function BigNumberMin(bn1: BigNumber, bn2: BigNumber): BigNumber {
-  return bn1.gte(bn2) ? bn2 : bn1;
+/**
+ * Return the smaller in the given two BigNumbers.
+ * @param bn1 The BigNumber to compare.
+ * @param bn2 The BigNumber to compare.
+ * @returns The smaller BigNumber in string type.
+ */
+export function BigNumberMin(
+  bn1: BigNumber.Value,
+  bn2: BigNumber.Value,
+): string {
+  return BigNumber(bn1).gte(bn2) ? bn2.toString() : bn1.toString();
 }
-export function BigNumberMax(bn1: BigNumber, bn2: BigNumber): BigNumber {
-  return bn1.lte(bn2) ? bn2 : bn1;
+
+/**
+ * Return the bigger in the given two BigNumbers.
+ * @param bn1 The BigNumber to compare.
+ * @param bn2 The BigNumber to compare.
+ * @returns The bigger BigNumber in string type.
+ */
+export function BigNumberMax(
+  bn1: BigNumber.Value,
+  bn2: BigNumber.Value,
+): string {
+  return BigNumber(bn1).lte(bn2) ? bn2.toString() : bn1.toString();
 }
