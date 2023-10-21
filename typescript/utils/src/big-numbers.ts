@@ -1,26 +1,21 @@
-import { BigNumber, BigNumberish, FixedNumber, constants } from 'ethers';
+import BigNumber from 'bignumber.js';
+import { FixedNumber } from 'ethers';
 
-import { isNullish } from './typeof';
-
-export function isBigNumberish(value: any): value is BigNumberish {
+export function isBigNumberish(
+  value: string | number | BigNumber | undefined,
+): boolean {
   try {
-    if (isNullish(value)) return false;
-    return BigNumber.from(value)._isBigNumber;
+    const val = BigNumber(value!);
+    return !val.isNaN() && val.isFinite() && BigNumber.isBigNumber(val);
   } catch (error) {
     return false;
   }
 }
 
 // If a value (e.g. hex string or number) is zeroish (0, 0x0, 0x00, etc.)
-export function isZeroish(value: BigNumberish) {
+export function isZeroish(value: string | number | BigNumber): boolean {
   try {
-    if (
-      !value ||
-      value === constants.HashZero ||
-      value === constants.AddressZero
-    )
-      return true;
-    return BigNumber.from(value).isZero();
+    return BigNumber(value).isZero();
   } catch (error) {
     return false;
   }
@@ -43,7 +38,7 @@ export function bigToFixed(big: BigNumber): FixedNumber {
  */
 export function fixedToBig(fixed: FixedNumber, ceil = false): BigNumber {
   const fixedAsInteger = ceil ? fixed.ceiling() : fixed.floor();
-  return BigNumber.from(fixedAsInteger.toFormat('fixed256x0').toString());
+  return BigNumber(fixedAsInteger.toFormat('fixed256x0').toString());
 }
 
 /**
