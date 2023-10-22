@@ -10,7 +10,8 @@ interface IInterchainSecurityModule {
         MERKLE_ROOT_MULTISIG,
         MESSAGE_ID_MULTISIG,
         NULL, // used with relayer carrying no metadata
-        CCIP_READ
+        CCIP_READ,
+        OPTIMISTIC
     }
 
     /**

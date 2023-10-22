@@ -9,28 +9,38 @@ import {IOptimisticIsm} from "../../interfaces/isms/IOptimisticIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 
 // import {StaticMOfNAddressSetFactory} from "../../libs/StaticMOfNAddressSetFactory.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
 
 contract OptimisticISM is Ownable, IOptimisticIsm {
-    event SetSubmodule(IInterchainSecurityModule indexed submodule);
-    event SetFraudWindow(uint64 indexed fraudWindow);
-
-    uint8 public constant override moduleType = uint8(Types.OPTIMISTIC);
-
-    /// @notice The number of seconds after which a message is considered non-fraudulent
-    uint64 public fraudWindow;
-
-    IInterchainSecurityModule internal _submodule;
 
     struct MessageCheck {
         uint64 timestamp;
         address checkingSubmodule;
     }
 
-    address[] public watchers;
+    /// @inheritdoc IInterchainSecurityModule
+    uint8 public constant override moduleType = uint8(Types.OPTIMISTIC);
 
-    mapping(address => bool) public fraudulantSubmodules;
+    /// @notice The number of seconds after which a message is considered non-fraudulent
+    uint64 public fraudWindow;
+
+    /// @notice The current submodule responsible for verifying messages
+    IInterchainSecurityModule internal _submodule;
+
+    /// @notice The set of watchers responsible for marking submodules as fraudulent
+    address[] public watchers;
+    
+    /// @notice The number of watchers that must mark a submodule as fraudulent
+    uint256 public threshold;
+
+    /// @notice The set of submodules that have been marked as fraudulent
+    mapping(address => address[]) public fraudulantSubmodules;
+
+    /// @notice The set of messages that have been pre-verified
     mapping(bytes32 => MessageCheck) public messages;
 
+    /// @notice ensures only watchers can call a function
     modifier onlyWatchers() {
         bool isWatcher = false;
         for (uint256 i = 0; i < watchers.length; i++) {
@@ -39,16 +49,22 @@ contract OptimisticISM is Ownable, IOptimisticIsm {
                 break;
             }
         }
-        require(isWatcher, "OptimisticISM: caller is not a watcher");
+        if(!isWatcher) {
+            revert OnlyWatcherError();
+        }
         _;
     }
 
-    constructor(IInterchainSecurityModule submodule, uint64 _fraudWindow)
+    constructor(IInterchainSecurityModule initSubmodule, uint64 _fraudWindow, uint256 _threshold, address[] memory _watchers)
         Ownable()
     {
-        _setSubmodule(submodule);
+        _setSubmodule(initSubmodule);
         _setFraudWindow(_fraudWindow);
+        _addWatchers(_watchers);
+        _setThreshold(_threshold);
     }
+
+    // ============ EXTERNAL ============
 
     function preVerify(bytes calldata _metadata, bytes calldata _message)
         external
@@ -70,7 +86,7 @@ contract OptimisticISM is Ownable, IOptimisticIsm {
 
     /**
      * @inheritdoc IInterchainSecurityModule
-     * @dev Reverts when paused, otherwise returns `true`.
+     * @dev
      */
     function verify(bytes calldata _metadata, bytes calldata _message)
         external
@@ -104,20 +120,35 @@ contract OptimisticISM is Ownable, IOptimisticIsm {
         return true;
     }
 
-    function addWatcher(address watcher) external onlyOwner {
-        watchers.push(watcher);
-    }
-
-    function markFraudulent(address _submodule) external onlyWatchers {
-        fraudulantSubmodules[_submodule] = true;
-    }
-
     function submodule(bytes calldata _message)
         external
         view
         returns (IInterchainSecurityModule)
     {
         return _submodule;
+    }
+
+    function getMessage(bytes32 id)
+        external
+        view
+        returns (MessageCheck memory)
+    {
+        return messages[id];
+    }
+
+    // ============ AUTHORIZED ============
+
+    function addWatchers(address[] calldata _watchers) external onlyOwner {
+        _addWatchers(_watchers);
+    }
+
+    function setThreshold(uint256 _threshold) external onlyOwner {
+        _setThreshold(_threshold);
+    }
+
+    function markFraudulent(IInterchainSecurityModule _submodule) external onlyWatchers {
+        fraudulantSubmodules[address(_submodule)].push(msg.sender);
+        emit FraudulentISM(_submodule, msg.sender);
     }
 
     function setSubmodule(IInterchainSecurityModule newSubmodule)
@@ -129,12 +160,13 @@ contract OptimisticISM is Ownable, IOptimisticIsm {
         _setSubmodule(newSubmodule);
     }
 
-    function getMessage(bytes32 id)
-        external
-        view
-        returns (MessageCheck memory)
-    {
-        return messages[id];
+    // ============ INTERNAL ============
+
+    function _addWatchers(address[] memory _watchers) internal {
+        for (uint256 i = 0; i < _watchers.length; i++) {
+            watchers.push(_watchers[i]);
+            emit WatcherAdded(_watchers[i]);
+        }
     }
 
     function _setSubmodule(IInterchainSecurityModule newSubmodule) internal {
@@ -147,16 +179,26 @@ contract OptimisticISM is Ownable, IOptimisticIsm {
         emit SetFraudWindow(_fraudWindow);
     }
 
+    function _setThreshold(uint256 _threshold) internal {
+        
+        if(_threshold > watchers.length){
+            revert ThresholdTooLarge();
+        }
+
+        threshold = _threshold;
+        emit ThresholdSet(_threshold);
+    }
+
     function _isFraudulentSubmodule(address module)
         internal
         view
         returns (bool)
     {
-        console2.log(
-            "checking submodule fraudulence",
-            module,
-            fraudulantSubmodules[module]
-        );
-        return fraudulantSubmodules[module];
+        // iterate thru submodules and see how many watchers say the submodule is fraudulent
+        uint256 count = fraudulantSubmodules[module].length;
+        if(count >= threshold){
+            return true;
+        }
+        return false;
     }
 }
