@@ -131,7 +131,7 @@
       "domain": 1399811151,
       "addresses": {
         "mailbox": "4v25Dz9RccqUrTzmfHzJMsjd1iVoNrWzeJ4o6GYuJrVn",
-        "interchainGasPaymaster": "7hMPEGdgBQFsjEz3aaNwZp8WMFHs615zAM3erXBDJuJR",
+        "interchainGasPaymaster": "Gh1B2JLZAY188CAYnWPup8TvGDxHNVWbVVKZi6wh75xZ",
         "validatorAnnounce": "CMHKvdq4CopDf7qXnDCaTybS15QekQeRt4oUB219yxsp"
       },
       "protocol": "sealevel",
