@@ -6,7 +6,16 @@
         "token": "wzbcJyhGhQDLTV1S99apZiiBdE4jmYfbw99saMMdP59",
         "splTokenProgram": "token",
         "interchainSecurityModule": "9k74DkJvS2x9QhG4XfnKsLkqaCDyVfaj8s6FyJyhAeEP",
-        "owner": "EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3"
+        "owner": "EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3",
+        "interchainGasPaymaster": "2HnezHeMqrMweTjsmtoXu7YFU9y69yrkTEdZ2xyn2s3o"
+    },
+    "bsc": {
+        "type": "collateral",
+        "decimals": 9,
+        "token": "0x37a56cdcD83Dce2868f721De58cB3830C44C6303",
+        "name": "Zebec",
+        "symbol": "ZBC",
+        "foreignDeployment": "0xC27980812E2E66491FD457D488509b7E04144b98"
     },
     "nautilus": {
         "type": "native",

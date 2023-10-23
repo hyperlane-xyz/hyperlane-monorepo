@@ -239,14 +239,17 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
 fn wait_for_user_confirmation() {
     println!("Continue? [y/n] then press Enter");
     let mut input = [0u8; 1];
-    std::io::stdin().read_exact(&mut input).unwrap();
-    match input[0] {
-        b'y' => {
-            println!("Continuing...");
+    loop {
+        std::io::stdin().read_exact(&mut input).unwrap();
+        match input[0] {
+            b'y' => {
+                println!("Continuing...");
+                break;
+            }
+            b'n' => {
+                panic!("User requested exit");
+            }
+            _ => {}
         }
-        b'n' => {
-            panic!("User requested exit");
-        }
-        _ => {}
     }
 }

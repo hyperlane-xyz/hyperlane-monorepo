@@ -1,5 +1,9 @@
 [
     {
+        "destinationDomain": 56,
+        "gasOverhead": 159736
+    },
+    {
         "destinationDomain": 22222,
         "gasOverhead": 159736
     }

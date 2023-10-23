@@ -20,7 +20,7 @@ use hyperlane_sealevel_token_lib::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
     instruction::{
-        enroll_remote_routers_instruction, set_destination_gas_configs,
+        enroll_remote_routers_instruction, set_destination_gas_configs, set_igp_instruction,
         set_interchain_security_module_instruction, transfer_ownership_instruction, Init,
     },
 };
@@ -433,6 +433,27 @@ impl ConnectionClient for WarpRouteDeployer {
 
         set_interchain_security_module_instruction(*program_id, token_data.owner.unwrap(), ism)
             .unwrap()
+    }
+
+    fn get_interchain_gas_paymaster(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+    ) -> Option<(Pubkey, InterchainGasPaymasterType)> {
+        let token_data = get_token_data::<()>(client, program_id);
+
+        token_data.interchain_gas_paymaster
+    }
+
+    fn set_interchain_gas_paymaster_instruction(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+        igp_config: Option<(Pubkey, InterchainGasPaymasterType)>,
+    ) -> Option<Instruction> {
+        let token_data = get_token_data::<()>(client, program_id);
+
+        Some(set_igp_instruction(*program_id, token_data.owner.unwrap(), igp_config).unwrap())
     }
 }
 

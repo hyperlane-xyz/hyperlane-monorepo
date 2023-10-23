@@ -10,6 +10,7 @@ use hyperlane_sealevel_hello_world::{
     },
     program_storage_pda_seeds,
 };
+use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use serde::{Deserialize, Serialize};
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 
@@ -179,6 +180,26 @@ impl ConnectionClient for HelloWorldDeployer {
 
         set_interchain_security_module_instruction(*program_id, storage.owner.unwrap(), ism)
             .unwrap()
+    }
+
+    fn get_interchain_gas_paymaster(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+    ) -> Option<(Pubkey, InterchainGasPaymasterType)> {
+        let storage = self.get_storage(client, program_id);
+
+        storage.igp
+    }
+
+    fn set_interchain_gas_paymaster_instruction(
+        &self,
+        _client: &RpcClient,
+        _program_id: &Pubkey,
+        _igp_config: Option<(Pubkey, InterchainGasPaymasterType)>,
+    ) -> Option<Instruction> {
+        // There is no way to set the IGP on HelloWorld
+        None
     }
 }
 
