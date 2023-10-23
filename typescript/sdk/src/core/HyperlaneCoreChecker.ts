@@ -118,11 +118,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         chain,
         'Mailbox implementation',
         implementation,
-        [
-          BytecodeHash.MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH,
-          BytecodeHash.MAILBOX_WITHOUT_LOCAL_DOMAIN_NONZERO_PAUSE_BYTE_CODE_HASH,
-          BytecodeHash.V3_MAILBOX_BYTECODE_HASH,
-        ],
+        [BytecodeHash.V3_MAILBOX_BYTECODE_HASH],
         (bytecode) =>
           // This is obviously super janky but basically we are searching
           //  for the ocurrences of localDomain in the bytecode and remove
