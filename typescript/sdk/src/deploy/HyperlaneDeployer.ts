@@ -234,8 +234,7 @@ export abstract class HyperlaneDeployer<
     setHook: (contract: C, hook: Address) => Promise<ContractTransaction>,
   ): Promise<void> {
     const configuredHook = await getHook(contract);
-    const matches = targetHook !== configuredHook;
-    if (!matches) {
+    if (targetHook !== configuredHook) {
       await this.runIfOwner(chain, contract, async () => {
         this.logger(`Set hook on ${chain}`);
         await this.multiProvider.handleTx(chain, setHook(contract, targetHook));
@@ -423,7 +422,6 @@ export abstract class HyperlaneDeployer<
       return implementation;
     }
 
-    this.logger(`Deploying transparent upgradable proxy`);
     const constructorArgs = proxyConstructorArgs(
       implementation,
       proxyAdmin,
@@ -554,16 +552,6 @@ export abstract class HyperlaneDeployer<
       constructorArgs,
       initializeArgs,
     );
-
-    // if implementation was recoverd as a proxy, return it
-    if (
-      await isProxy(
-        this.multiProvider.getProvider(chain),
-        implementation.address,
-      )
-    ) {
-      return implementation;
-    }
 
     // Initialize the proxy the same way
     const contract = await this.deployProxy(
