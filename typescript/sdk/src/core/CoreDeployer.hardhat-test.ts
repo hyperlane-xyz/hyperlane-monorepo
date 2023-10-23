@@ -9,6 +9,7 @@ import { TestChains } from '../consts/chains';
 import { HyperlaneContractsMap } from '../contracts/types';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
+import { AggregationIsmConfig, ModuleType } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { testCoreConfig } from '../test/testUtils';
 import { ChainMap } from '../types';
@@ -45,6 +46,10 @@ describe('core', async () => {
   });
 
   describe('idempotency', () => {
+    beforeEach(async () => {
+      contracts = await deployer.deploy(coreConfig);
+    });
+
     it('rotates default and required hooks and recovers artifacts', async () => {
       const getHooks = async (
         contracts: HyperlaneContractsMap<CoreFactories>,
@@ -78,6 +83,35 @@ describe('core', async () => {
       );
 
       // number of set hook transactions
+      const numTransactions = 2 * TestChains.length;
+      const nonceAfter = await signer.getTransactionCount();
+      expect(nonceAfter).to.equal(nonceBefore + numTransactions);
+    });
+
+    it('rotates default ISMs', async () => {
+      const testIsm = await contracts.test1.mailbox.defaultIsm();
+
+      const updatedConfig: ChainMap<CoreConfig> = objMap(
+        coreConfig,
+        (_, config) => {
+          const ismConfig: AggregationIsmConfig = {
+            type: ModuleType.AGGREGATION,
+            modules: [testIsm, testIsm],
+            threshold: 2,
+          };
+          return {
+            ...config,
+            defaultIsm: ismConfig,
+          };
+        },
+      );
+
+      const [signer] = await ethers.getSigners();
+      const nonceBefore = await signer.getTransactionCount();
+
+      await deployer.deploy(updatedConfig);
+
+      // one aggregation ISM deploy and one set ISM transaction per chain
       const numTransactions = 2 * TestChains.length;
       const nonceAfter = await signer.getTransactionCount();
       expect(nonceAfter).to.equal(nonceBefore + numTransactions);
