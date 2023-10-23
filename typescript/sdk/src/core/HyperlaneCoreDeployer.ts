@@ -7,7 +7,10 @@ import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer';
 import { HookConfig } from '../hook/types';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
+import {
+  HyperlaneIsmFactory,
+  moduleMatchesConfig,
+} from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -29,6 +32,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     super(multiProvider, coreFactories, {
       logger: debug('hyperlane:CoreDeployer'),
       chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
+      ismFactory,
     });
     this.hookDeployer = new HyperlaneHookDeployer(
       multiProvider,
@@ -55,14 +59,29 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       [domain],
     );
 
-    const defaultIsm = await this.deployIsm(chain, config.defaultIsm);
+    let defaultIsm = await mailbox.defaultIsm();
+    const matches = await moduleMatchesConfig(
+      chain,
+      defaultIsm,
+      config.defaultIsm,
+      this.multiProvider,
+      this.ismFactory.getContracts(chain),
+    );
+    if (!matches) {
+      this.logger('Deploying default ISM');
+      defaultIsm = await this.deployIsm(chain, config.defaultIsm);
+    }
 
     const hookAddresses = { mailbox: mailbox.address, proxyAdmin };
+
+    this.logger('Deploying default hook');
     const defaultHook = await this.deployHook(
       chain,
       config.defaultHook,
       hookAddresses,
     );
+
+    this.logger('Deploying required hook');
     const requiredHook = await this.deployHook(
       chain,
       config.requiredHook,
@@ -78,9 +97,35 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     } catch (e: any) {
       if (!e.message.includes('already initialized')) {
         throw e;
-      } else {
-        this.logger('Mailbox already initialized');
       }
+
+      this.logger('Mailbox already initialized');
+
+      await this.configureHook(
+        chain,
+        mailbox,
+        defaultHook,
+        (_mailbox) => _mailbox.defaultHook(),
+        (_mailbox, _hook) => _mailbox.populateTransaction.setDefaultHook(_hook),
+      );
+
+      await this.configureHook(
+        chain,
+        mailbox,
+        requiredHook,
+        (_mailbox) => _mailbox.requiredHook(),
+        (_mailbox, _hook) =>
+          _mailbox.populateTransaction.setRequiredHook(_hook),
+      );
+
+      await this.configureIsm(
+        chain,
+        mailbox,
+        defaultIsm,
+        (_mailbox) => _mailbox.defaultIsm(),
+        (_mailbox, _module) =>
+          _mailbox.populateTransaction.setDefaultIsm(_module),
+      );
     }
 
     return mailbox;

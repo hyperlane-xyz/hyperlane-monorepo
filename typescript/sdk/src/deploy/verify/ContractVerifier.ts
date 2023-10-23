@@ -27,6 +27,7 @@ enum ExplorerApiErrors {
   ALREADY_VERIFIED_ALT = 'Already Verified',
   VERIFICATION_PENDING = 'Pending in queue',
   PROXY_FAILED = 'A corresponding implementation contract was unfortunately not detected for the proxy address.',
+  BYTECODE_MISMATCH = 'Fail - Unable to verify. Compiled contract deployment bytecode does NOT match the transaction deployment bytecode.',
 }
 
 export class ContractVerifier extends MultiGeneric<VerificationInput> {
@@ -106,7 +107,12 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
         case ExplorerApiErrors.ALREADY_VERIFIED_ALT:
           return;
         case ExplorerApiErrors.PROXY_FAILED:
-          this.logger(`Proxy verification failed, try manually?`);
+          this.logger(`Proxy verification failed for, try manually?`);
+          return;
+        case ExplorerApiErrors.BYTECODE_MISMATCH:
+          this.logger(
+            `Compiled bytecode does not match deployed bytecode, check constructor arguments?`,
+          );
           return;
         default:
           this.logger(
@@ -233,7 +239,13 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     }
 
     if (await this.isAlreadyVerified(chain, input)) {
-      this.logger(`Contract ${input.name} already verified on ${chain}`);
+      const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
+        chain,
+        input.address,
+      );
+      this.logger(
+        `Contract ${input.name} already verified on ${chain} at ${addressUrl}#code`,
+      );
       // There is a rate limit of 5 requests per second
       await sleep(200);
       return;
