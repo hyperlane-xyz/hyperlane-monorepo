@@ -27,7 +27,7 @@ import { LiquidityLayerRelayerConfig } from './middleware';
 export const EnvironmentNames = Object.keys(environments);
 export type DeployEnvironment = keyof typeof environments;
 export type EnvironmentChain<E extends DeployEnvironment> = Extract<
-  keyof typeof environments[E],
+  keyof (typeof environments)[E],
   ChainName
 >;
 

@@ -122,6 +122,25 @@ jobs:
       - name: infra
         run: yarn workspace @hyperlane-xyz/infra run test
 
+  test-cli:
+    runs-on: ubuntu-latest
+    needs: [yarn-build]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: onbjerg/foundry-toolchain@v1
+
+      - uses: actions/cache@v3
+        with:
+          path: ./*
+          key: ${{ github.sha }}
+
+      - name: test
+        run: ./typescript/cli/ci-test.sh
+
   test-env:
     runs-on: ubuntu-latest
     needs: [yarn-build]

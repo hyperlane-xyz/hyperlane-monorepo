@@ -1,10 +1,10 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "1.5.1",
+  "version": "1.5.8",
   "dependencies": {
     "@eth-optimism/contracts": "^0.6.0",
-    "@hyperlane-xyz/utils": "1.5.1",
+    "@hyperlane-xyz/utils": "1.5.8",
     "@openzeppelin/contracts": "^4.8.0",
     "@openzeppelin/contracts-upgradeable": "^4.8.0"
   },
@@ -18,7 +18,7 @@
     "ethers": "^5.7.2",
     "hardhat": "^2.16.1",
     "hardhat-gas-reporter": "^1.0.9",
-    "prettier": "^2.4.1",
+    "prettier": "^2.8.8",
     "prettier-plugin-solidity": "^1.0.0-beta.5",
     "solhint": "^3.3.2",
     "solhint-plugin-prettier": "^0.0.5",

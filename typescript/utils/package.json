@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "1.5.1",
+  "version": "1.5.8",
   "dependencies": {
     "@solana/web3.js": "^1.78.0",
     "bignumber.js": "^9.1.1",
@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "chai": "^4.3.0",
-    "prettier": "^2.4.1",
+    "prettier": "^2.8.8",
     "typescript": "^5.1.6"
   },
   "homepage": "https://www.hyperlane.xyz",

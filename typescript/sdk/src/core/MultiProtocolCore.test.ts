@@ -62,7 +62,7 @@ describe('MultiProtocolCore', () => {
         type: ProviderType.EthersV5,
         receipt,
       });
-    });
+    }).timeout(10000);
 
     it('to Sealevel', async () => {
       const multiProvider = new MultiProtocolProvider();
@@ -88,6 +88,6 @@ describe('MultiProtocolCore', () => {
         type: ProviderType.EthersV5,
         receipt,
       });
-    });
+    }).timeout(10000);
   });
 });

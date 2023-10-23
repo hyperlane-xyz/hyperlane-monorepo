@@ -42,11 +42,7 @@ export const ethereumChainNames = Object.keys(
 
 export const environment = 'testnet3';
 
-const validatorChainNames = [
-  ...supportedChainNames,
-  chainMetadata.proteustestnet.name,
-];
-
+const validatorChainNames = supportedChainNames;
 const relayerChainNames = validatorChainNames;
 
 export const agentChainNames: AgentChainNames = {

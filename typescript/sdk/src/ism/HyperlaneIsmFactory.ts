@@ -33,6 +33,7 @@ import {
   RoutingIsmConfig,
 } from './types';
 
+// TODO this should handle cached addresses like the other deployers
 export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
   static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
