@@ -487,7 +487,6 @@ struct SetIgpBeneficiaryArgs {
     program_id: Pubkey,
     #[arg(long)]
     igp_account: Pubkey,
-    #[arg(long)]
     new_beneficiary: Pubkey,
 }
 
