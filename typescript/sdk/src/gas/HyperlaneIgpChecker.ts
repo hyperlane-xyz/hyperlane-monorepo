@@ -1,4 +1,4 @@
-import { BigNumber, ethers, utils as ethersUtils } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -54,25 +54,25 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       chain,
       'InterchainGasPaymaster implementation',
       implementation,
-      [
-        BytecodeHash.INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
-        BytecodeHash.OWNER_INITIALIZABLE_INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
-      ],
+      [BytecodeHash.INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH],
     );
 
     await this.checkBytecode(
       chain,
-      'InterchainGasPaymaster',
+      'InterchainGasPaymaster proxy',
       contracts.interchainGasPaymaster.address,
-      [BytecodeHash.OVERHEAD_IGP_BYTECODE_HASH],
+      [BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH],
       (bytecode) =>
-        // Remove the address of the wrapped IGP from the bytecode
-        bytecode.replaceAll(
-          ethersUtils.defaultAbiCoder
-            .encode(['address'], [contracts.interchainGasPaymaster.address])
-            .slice(2),
-          '',
-        ),
+        bytecode
+          // We persist the block number in the bytecode now too, so we have to strip it
+          .replaceAll(
+            /(00000000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})81565/g,
+            (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+          )
+          .replaceAll(
+            /(0000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})6118123373/g,
+            (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+          ),
     );
   }
 
