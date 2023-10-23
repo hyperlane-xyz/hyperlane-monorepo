@@ -5,7 +5,7 @@ import {
   IRoutingIsm,
   StaticMerkleRootMultisigIsm,
   StaticMessageIdMultisigIsm,
-  TestMultisigIsm,
+  TestIsm,
 } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
@@ -18,7 +18,7 @@ export type DeployedIsm =
   | IRoutingIsm
   | StaticMessageIdMultisigIsm
   | StaticMerkleRootMultisigIsm
-  | TestMultisigIsm;
+  | TestIsm;
 
 export enum ModuleType {
   UNUSED,
@@ -27,7 +27,7 @@ export enum ModuleType {
   LEGACY_MULTISIG, // DEPRECATED
   MERKLE_ROOT_MULTISIG,
   MESSAGE_ID_MULTISIG,
-  TEST_ISM,
+  NULL,
 }
 
 export type MultisigConfig = {
@@ -39,8 +39,8 @@ export type MultisigIsmConfig = MultisigConfig & {
   type: ModuleType.MERKLE_ROOT_MULTISIG | ModuleType.MESSAGE_ID_MULTISIG;
 };
 
-export type TestMultisigIsmConfig = MultisigConfig & {
-  type: ModuleType.TEST_ISM;
+export type TestIsmConfig = {
+  type: ModuleType.NULL;
 };
 
 export type RoutingIsmConfig = {
@@ -60,4 +60,4 @@ export type IsmConfig =
   | RoutingIsmConfig
   | MultisigIsmConfig
   | AggregationIsmConfig
-  | TestMultisigIsmConfig;
+  | TestIsmConfig;

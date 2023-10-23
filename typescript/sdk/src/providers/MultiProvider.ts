@@ -369,9 +369,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async sendTransaction(
     chainNameOrId: ChainName | number,
-    tx: PopulatedTransaction,
+    tx: PopulatedTransaction | Promise<PopulatedTransaction>,
   ): Promise<ContractReceipt> {
-    const txReq = await this.prepareTx(chainNameOrId, tx);
+    const txReq = await this.prepareTx(chainNameOrId, await tx);
     const signer = this.getSigner(chainNameOrId);
     const response = await signer.sendTransaction(txReq);
     this.logger(`Sent tx ${response.hash}`);
