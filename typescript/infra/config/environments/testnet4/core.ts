@@ -2,6 +2,7 @@ import { BigNumber, ethers } from 'ethers';
 
 import {
   AggregationHookConfig,
+  AggregationIsmConfig,
   ChainMap,
   Chains,
   CoreConfig,
@@ -10,19 +11,56 @@ import {
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
+  ModuleType,
+  MultisigConfig,
+  MultisigIsmConfig,
   ProtocolFeeHookConfig,
+  RoutingIsmConfig,
+  defaultMultisigIsmConfigs,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../contexts';
-import { routingIsm } from '../../routingIsm';
-
+import { supportedChainNames } from './chains';
 import { baseHookConfig, opHookConfig } from './hooks';
 import { igp } from './igp';
 import { owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
-  const defaultIsm = routingIsm('testnet4', local, Contexts.Hyperlane);
+  const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
+    supportedChainNames
+      .filter((chain) => chain !== local)
+      .map((origin) => [origin, defaultMultisigIsmConfigs[origin]]),
+  );
+
+  const messageIdRouting: RoutingIsmConfig = {
+    type: ModuleType.ROUTING,
+    domains: objMap(
+      originMultisigs,
+      (_, multisig): MultisigIsmConfig => ({
+        type: ModuleType.MESSAGE_ID_MULTISIG,
+        ...multisig,
+      }),
+    ),
+    owner,
+  };
+
+  const merkleRootRouting: RoutingIsmConfig = {
+    type: ModuleType.ROUTING,
+    domains: objMap(
+      originMultisigs,
+      (_, multisig): MultisigIsmConfig => ({
+        type: ModuleType.MERKLE_ROOT_MULTISIG,
+        ...multisig,
+      }),
+    ),
+    owner,
+  };
+
+  const defaultIsm: AggregationIsmConfig = {
+    type: ModuleType.AGGREGATION,
+    modules: [messageIdRouting, merkleRootRouting],
+    threshold: 1,
+  };
 
   const merkleHook: MerkleTreeHookConfig = {
     type: HookType.MERKLE_TREE,

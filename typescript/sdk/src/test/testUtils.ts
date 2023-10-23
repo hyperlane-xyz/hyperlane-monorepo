@@ -14,7 +14,7 @@ import {
   CoinGeckoSimplePriceParams,
 } from '../gas/token-prices';
 import { HookType } from '../hook/types';
-import { ModuleType, MultisigIsmConfig } from '../ism/types';
+import { ModuleType, TestMultisigIsmConfig } from '../ism/types';
 import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
@@ -45,8 +45,8 @@ const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
 // dummy config as TestInbox and TestOutbox do not use deployed ISM
 export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
-  const multisigIsm: MultisigIsmConfig = {
-    type: ModuleType.MERKLE_ROOT_MULTISIG,
+  const multisigIsm: TestMultisigIsmConfig = {
+    type: ModuleType.TEST_ISM,
     validators: [nonZeroAddress],
     threshold: 1,
   };

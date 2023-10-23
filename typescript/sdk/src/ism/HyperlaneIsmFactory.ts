@@ -11,6 +11,7 @@ import {
   StaticAddressSetFactory,
   StaticAggregationIsm__factory,
   StaticThresholdAddressSetFactory,
+  TestMultisigIsm__factory,
 } from '@hyperlane-xyz/core';
 import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
 
@@ -112,6 +113,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     } else if (config.type === ModuleType.OP_STACK) {
       this.logger(`Deploying Op Stack ISM to ${chain} for verifying ${origin}`);
       contract = await this.deployOpStackIsm(chain, config);
+    } else if (config.type === ModuleType.TEST_ISM) {
+      contract = await this.deployTestIsm(chain);
     } else {
       throw new Error(`Unsupported ISM type`);
     }
@@ -226,6 +229,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
       [config.nativeBridge],
     );
     return deployedIsm;
+  }
+
+  private async deployTestIsm(chain: ChainName) {
+    const signer = this.multiProvider.getSigner(chain);
+    const factory = new TestMultisigIsm__factory(signer);
+    const contract = await factory.deploy();
+    return contract;
   }
 
   async deployStaticAddressSet(
@@ -371,6 +381,9 @@ export async function moduleCanCertainlyVerify(
       }
       case ModuleType.OP_STACK:
         return destModule.nativeBridge !== ethers.constants.AddressZero;
+      case ModuleType.TEST_ISM: {
+        return true;
+      }
       default:
         throw new Error(`Unsupported module type: ${(destModule as any).type}`);
     }
@@ -531,6 +544,9 @@ export function collectValidators(
     aggregatedValidators.forEach((set) => {
       validators = validators.concat([...set]);
     });
+  } else if (config.type === ModuleType.TEST_ISM) {
+    // This is just a TestISM
+    return new Set([]);
   } else {
     throw new Error('Unsupported ModuleType');
   }
