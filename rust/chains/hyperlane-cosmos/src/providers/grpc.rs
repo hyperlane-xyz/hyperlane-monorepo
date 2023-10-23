@@ -18,6 +18,7 @@ use cosmrs::proto::cosmwasm::wasm::v1::{
 };
 use cosmrs::proto::traits::Message;
 
+use cosmrs::tendermint::chain;
 use cosmrs::tx::{self, Fee, MessageExt, SignDoc, SignerInfo};
 use cosmrs::{Amount, Coin};
 use hyperlane_core::{
@@ -236,7 +237,9 @@ impl WasmProvider for WasmGrpcProvider {
         let private_key = SigningKey::from_slice(&self.signer.private_key).unwrap();
         let public_key = private_key.public_key();
 
-        let tx_body = tx::Body::new(msgs, "", 900u16);
+        let tx_body = tx::Body::new(msgs, "", 9000000u32);
+        println!("account info: {:?}", account_info);
+        println!("network: {:?}", self.conf.get_chain_id().parse::<chain::Id>().unwrap());
         let signer_info = SignerInfo::single_direct(Some(public_key), account_info.sequence);
 
         let gas_limit: u64 = gas_limit
@@ -283,7 +286,7 @@ impl WasmProvider for WasmGrpcProvider {
 
         let tx_req = BroadcastTxRequest {
             tx_bytes: self.generate_raw_tx(msgs, gas_limit).await?,
-            mode: BroadcastMode::Block as i32,
+            mode: BroadcastMode::Sync as i32,
         };
 
         let tx_res = client

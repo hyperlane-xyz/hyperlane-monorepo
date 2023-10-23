@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 pub struct EmptyStruct {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Events {
+pub struct Log {
+    pub msg_index: u64,
     pub events: Vec<Event>,
 }
 
