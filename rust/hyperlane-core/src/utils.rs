@@ -1,4 +1,4 @@
-use std::{str::FromStr, time::Duration};
+use std::str::FromStr;
 
 use eyre::Result;
 use sha3::{digest::Update, Digest, Keccak256};

@@ -374,3 +374,29 @@ pub fn claim_instruction(
 
     Ok(instruction)
 }
+
+/// Gets an instruction to claim funds from an IGP to the beneficiary.
+pub fn set_beneficiary_instruction(
+    program_id: Pubkey,
+    igp: Pubkey,
+    igp_owner: Pubkey,
+    new_beneficiary: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::SetIgpBeneficiary(new_beneficiary);
+
+    // Accounts:
+    // 0. [] The IGP.
+    // 1. [signer] The owner of the IGP account.
+    let accounts = vec![
+        AccountMeta::new(igp, false),
+        AccountMeta::new(igp_owner, true),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.try_to_vec()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}

@@ -389,6 +389,7 @@ enum IgpSubCmd {
     Query(IgpQueryArgs),
     PayForGas(PayForGasArgs),
     Claim(ClaimArgs),
+    SetIgpBeneficiary(SetIgpBeneficiaryArgs),
     GasOracleConfig(GasOracleConfigArgs),
     DestinationGasOverhead(DestinationGasOverheadArgs),
     TransferIgpOwnership(TransferIgpOwnership),
@@ -478,6 +479,16 @@ struct ClaimArgs {
     program_id: Pubkey,
     #[arg(long)]
     igp_account: Pubkey,
+}
+
+#[derive(Args)]
+struct SetIgpBeneficiaryArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    igp_account: Pubkey,
+    #[arg(long)]
+    new_beneficiary: Pubkey,
 }
 
 #[derive(Args)]

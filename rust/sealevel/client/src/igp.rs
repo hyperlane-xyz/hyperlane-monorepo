@@ -244,6 +244,35 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 )
                 .send_with_payer();
         }
+        IgpSubCmd::SetIgpBeneficiary(set_beneficiary) => {
+            let igp_account = ctx
+                .client
+                .get_account_with_commitment(&set_beneficiary.igp_account, ctx.commitment)
+                .unwrap()
+                .value
+                .unwrap();
+            let igp_account = IgpAccount::fetch(&mut &igp_account.data[..])
+                .unwrap()
+                .into_inner();
+
+            let ixn = hyperlane_sealevel_igp::instruction::set_beneficiary_instruction(
+                set_beneficiary.program_id,
+                set_beneficiary.igp_account,
+                igp_account.owner.unwrap(),
+                set_beneficiary.new_beneficiary,
+            )
+            .unwrap();
+
+            ctx.new_txn()
+                .add_with_description(
+                    ixn,
+                    format!(
+                        "Change beneficiary of IGP account {} to beneficiary {}",
+                        set_beneficiary.igp_account, set_beneficiary.new_beneficiary
+                    ),
+                )
+                .send_with_payer();
+        }
         IgpSubCmd::GasOracleConfig(args) => {
             let core_program_ids = read_core_program_ids(
                 &args.env_args.environments_dir,
