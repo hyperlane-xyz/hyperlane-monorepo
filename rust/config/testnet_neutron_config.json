@@ -3,7 +3,7 @@
     "neutrontestnet": {
       "name": "neutrontestnet",
       "domainId": "33333",
-      "chainId": "33333",
+      "chainId": "duality-devnet",
       "mailbox": "0x18c61fdf28726ca8f59bbd1b155cc6183529ecb5a1b90e8eda639126e89a8f63",
       "interchainGasPaymaster": "0x3330bb92241cbb94548a2e2826ab16ca506296ea466810996e87e6c201dd1fba",
       "validatorAnnounce": "0x6cae9336ed52d45fbec37e82b50c73d9c03aa717f3c60cc1a12366ed6f0b6756",

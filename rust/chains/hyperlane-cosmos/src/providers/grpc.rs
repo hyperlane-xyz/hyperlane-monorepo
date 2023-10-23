@@ -238,8 +238,6 @@ impl WasmProvider for WasmGrpcProvider {
         let public_key = private_key.public_key();
 
         let tx_body = tx::Body::new(msgs, "", 9000000u32);
-        println!("account info: {:?}", account_info);
-        println!("network: {:?}", self.conf.get_chain_id().parse::<chain::Id>().unwrap());
         let signer_info = SignerInfo::single_direct(Some(public_key), account_info.sequence);
 
         let gas_limit: u64 = gas_limit
@@ -249,8 +247,7 @@ impl WasmProvider for WasmGrpcProvider {
         let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
             Coin::new(
                 Amount::from((gas_limit as f32 * DEFAULT_GAS_PRICE) as u64),
-                "token"
-                // format!("u{}", self.signer.prefix.clone()).as_str(),
+                "token", // format!("u{}", self.signer.prefix.clone()).as_str(),
             )
             .unwrap(),
             gas_limit,
