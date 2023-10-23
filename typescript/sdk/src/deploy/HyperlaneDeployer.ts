@@ -1,5 +1,5 @@
 import { Debugger, debug } from 'debug';
-import { Contract, ContractTransaction, ethers } from 'ethers';
+import { Contract, PopulatedTransaction, ethers } from 'ethers';
 
 import {
   MailboxClient,
@@ -199,7 +199,7 @@ export abstract class HyperlaneDeployer<
     contract: C,
     config: IsmConfig,
     getIsm: (contract: C) => Promise<Address>,
-    setIsm: (contract: C, ism: Address) => Promise<ContractTransaction>,
+    setIsm: (contract: C, ism: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
     if (this.options?.ismFactory === undefined) {
       throw new Error('No ISM factory provided');
@@ -218,10 +218,13 @@ export abstract class HyperlaneDeployer<
       await this.runIfOwner(chain, contract, async () => {
         const targetIsm = await ismFactory.deploy(chain, config);
         this.logger(`Set ISM on ${chain}`);
-        await this.multiProvider.handleTx(
+        await this.multiProvider.sendTransaction(
           chain,
           setIsm(contract, targetIsm.address),
         );
+        if (targetIsm.address !== (await getIsm(contract))) {
+          throw new Error(`Set ISM failed on ${chain}`);
+        }
       });
     }
   }
@@ -231,13 +234,19 @@ export abstract class HyperlaneDeployer<
     contract: C,
     targetHook: Address,
     getHook: (contract: C) => Promise<Address>,
-    setHook: (contract: C, hook: Address) => Promise<ContractTransaction>,
+    setHook: (contract: C, hook: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
     const configuredHook = await getHook(contract);
     if (targetHook !== configuredHook) {
       await this.runIfOwner(chain, contract, async () => {
         this.logger(`Set hook on ${chain}`);
-        await this.multiProvider.handleTx(chain, setHook(contract, targetHook));
+        await this.multiProvider.sendTransaction(
+          chain,
+          setHook(contract, targetHook),
+        );
+        if (targetHook !== (await getHook(contract))) {
+          throw new Error(`Set hook failed on ${chain}`);
+        }
       });
     }
   }
@@ -253,8 +262,8 @@ export abstract class HyperlaneDeployer<
         local,
         client,
         config.hook,
-        (c) => c.hook(),
-        (c, h) => c.setHook(h),
+        (_client) => _client.hook(),
+        (_client, _hook) => _client.populateTransaction.setHook(_hook),
       );
     }
 
@@ -263,8 +272,9 @@ export abstract class HyperlaneDeployer<
         local,
         client,
         config.interchainSecurityModule,
-        (c) => c.interchainSecurityModule(),
-        (c, ism) => c.setInterchainSecurityModule(ism),
+        (_client) => _client.interchainSecurityModule(),
+        (_client, _module) =>
+          _client.populateTransaction.setInterchainSecurityModule(_module),
       );
     }
 

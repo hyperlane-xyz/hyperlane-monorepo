@@ -105,24 +105,26 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         chain,
         mailbox,
         defaultHook,
-        (m) => m.defaultHook(),
-        (m, h) => m.setDefaultHook(h),
+        (_mailbox) => _mailbox.defaultHook(),
+        (_mailbox, _hook) => _mailbox.populateTransaction.setDefaultHook(_hook),
       );
 
       await this.configureHook(
         chain,
         mailbox,
         requiredHook,
-        (m) => m.requiredHook(),
-        (m, h) => m.setRequiredHook(h),
+        (_mailbox) => _mailbox.requiredHook(),
+        (_mailbox, _hook) =>
+          _mailbox.populateTransaction.setRequiredHook(_hook),
       );
 
       await this.configureIsm(
         chain,
         mailbox,
         defaultIsm,
-        (m) => m.defaultIsm(),
-        (m, ism) => m.setDefaultIsm(ism),
+        (_mailbox) => _mailbox.defaultIsm(),
+        (_mailbox, _module) =>
+          _mailbox.populateTransaction.setDefaultIsm(_module),
       );
     }
 
