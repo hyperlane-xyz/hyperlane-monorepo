@@ -180,9 +180,10 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       opstackIsm.address,
       config.nativeBridge,
     ]);
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
     await this.multiProvider.handleTx(
       chain,
-      (opstackIsm as OPStackIsm).setAuthorizedHook(hook.address),
+      (opstackIsm as OPStackIsm).setAuthorizedHook(hook.address, overrides),
     );
     return hook;
   }
