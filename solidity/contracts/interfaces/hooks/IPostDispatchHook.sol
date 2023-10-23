@@ -30,7 +30,7 @@ interface IPostDispatchHook {
     /**
      * @notice Returns an enum that represents the type of hook
      */
-    function moduleType() external view returns (uint8);
+    function hookType() external view returns (uint8);
 
     /**
      * @notice Returns whether the hook supports metadata

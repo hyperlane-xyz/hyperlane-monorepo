@@ -345,6 +345,22 @@ contract OPStackIsmTest is Test {
         assertEq(address(testRecipient).balance, _msgValue);
     }
 
+    function testFork_verify_tooMuchValue() public {
+        deployAll();
+
+        uint256 _msgValue = 2**255 + 1;
+
+        vm.expectEmit(false, false, false, false, address(l2Messenger));
+        emit FailedRelayedMessage(messageId);
+        orchestrateRelayMessage(_msgValue, messageId);
+
+        bool verified = opISM.verify(new bytes(0), encodedMessage);
+        assertFalse(verified);
+
+        assertEq(address(opISM).balance, 0);
+        assertEq(address(testRecipient).balance, 0);
+    }
+
     // sending over invalid message
     function testFork_verify_RevertWhen_HyperlaneInvalidMessage() public {
         deployAll();
@@ -513,6 +529,10 @@ contract OPStackIsmTest is Test {
         );
         uint256 versionedNonce = encodeVersionedNonce(nonce + 1, version);
 
+        vm.deal(
+            AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS),
+            2**256 - 1
+        );
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage{value: _msgValue}(
             versionedNonce,

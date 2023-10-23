@@ -45,7 +45,7 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
     // ============ External Functions ============
 
     /// @inheritdoc IPostDispatchHook
-    function moduleType() external pure virtual override returns (uint8) {
+    function hookType() external pure virtual override returns (uint8) {
         return uint8(IPostDispatchHook.Types.ROUTING);
     }
 

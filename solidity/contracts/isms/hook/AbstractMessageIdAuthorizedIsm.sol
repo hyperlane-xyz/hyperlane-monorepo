@@ -18,7 +18,6 @@ pragma solidity >=0.8.0;
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {LibBit} from "../../libs/LibBit.sol";
 import {Message} from "../../libs/Message.sol";
-import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 // ============ External Imports ============
 
@@ -47,7 +46,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     mapping(bytes32 => uint256) public verifiedMessages;
     /// @notice Index of verification bit in verifiedMessages
     uint256 public constant VERIFIED_MASK_INDEX = 255;
-    /// @notice Left padded address for the authorized hook
+    /// @notice address for the authorized hook
     bytes32 public authorizedHook;
 
     // ============ Events ============
@@ -59,7 +58,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
 
     function setAuthorizedHook(bytes32 _hook) external initializer {
         require(
-            TypeCasts.bytes32ToAddress(_hook) != address(0),
+            _hook != bytes32(0),
             "AbstractMessageIdAuthorizedIsm: invalid authorized hook"
         );
         authorizedHook = _hook;
@@ -87,8 +86,10 @@ abstract contract AbstractMessageIdAuthorizedIsm is
             uint256 _msgValue = verifiedMessages[messageId].clearBit(
                 VERIFIED_MASK_INDEX
             );
-            verifiedMessages[messageId] -= _msgValue;
-            payable(message.recipientAddress()).sendValue(_msgValue);
+            if (_msgValue > 0) {
+                verifiedMessages[messageId] -= _msgValue;
+                payable(message.recipientAddress()).sendValue(_msgValue);
+            }
         }
         return verified;
     }
@@ -102,6 +103,10 @@ abstract contract AbstractMessageIdAuthorizedIsm is
         require(
             _isAuthorized(),
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
+        );
+        require(
+            msg.value < 2**VERIFIED_MASK_INDEX,
+            "AbstractMessageIdAuthorizedIsm: msg.value must be less than 2^255"
         );
 
         verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
