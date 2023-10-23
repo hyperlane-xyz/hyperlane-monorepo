@@ -125,8 +125,8 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 &deploy.warp_route_name,
                 deploy.token_config_file,
                 deploy.chain_config_file,
-                deploy.environments_dir,
-                &deploy.environment,
+                deploy.env_args.environments_dir,
+                &deploy.env_args.environment,
                 deploy.built_so_dir,
             );
         }

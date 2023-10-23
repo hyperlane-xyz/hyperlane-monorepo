@@ -114,6 +114,14 @@ enum HyperlaneSealevelCmd {
 }
 
 #[derive(Args)]
+struct EnvironmentArgs {
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+}
+
+#[derive(Args)]
 pub(crate) struct WarpRouteCmd {
     #[command(subcommand)]
     cmd: WarpRouteSubCmd,
@@ -127,10 +135,8 @@ pub(crate) enum WarpRouteSubCmd {
 
 #[derive(Args)]
 pub(crate) struct WarpRouteDeploy {
-    #[arg(long)]
-    environment: String,
-    #[arg(long)]
-    environments_dir: PathBuf,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
     built_so_dir: PathBuf,
     #[arg(long)]
@@ -166,8 +172,8 @@ enum CoreSubCmd {
 struct CoreDeploy {
     #[arg(long)]
     local_domain: u32,
-    #[arg(long)]
-    environment: String,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
     gas_oracle_config_file: Option<PathBuf>,
     #[arg(long)]
@@ -176,8 +182,6 @@ struct CoreDeploy {
     chain: String,
     #[arg(long)]
     use_existing_keys: bool,
-    #[arg(long)]
-    environments_dir: PathBuf,
     #[arg(long, num_args = 1.., value_delimiter = ',')]
     remote_domains: Vec<u32>,
     #[arg(long)]
@@ -393,10 +397,8 @@ enum IgpSubCmd {
 
 #[derive(Args)]
 struct IgpDeployProgramArgs {
-    #[arg(long)]
-    environment: String,
-    #[arg(long)]
-    environments_dir: PathBuf,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
     chain: String,
     #[arg(long)]
@@ -407,10 +409,8 @@ struct IgpDeployProgramArgs {
 struct InitIgpAccountArgs {
     #[arg(long)]
     program_id: Pubkey,
-    #[arg(long)]
-    environment: String,
-    #[arg(long)]
-    environments_dir: PathBuf,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
     chain: String,
     #[arg(long)]
@@ -425,10 +425,8 @@ struct InitIgpAccountArgs {
 struct InitOverheadIgpAccountArgs {
     #[arg(long)]
     program_id: Pubkey,
-    #[arg(long)]
-    environment: String,
-    #[arg(long)]
-    environments_dir: PathBuf,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
     chain: String,
     #[arg(long)]
@@ -484,10 +482,8 @@ struct ClaimArgs {
 
 #[derive(Args)]
 struct GasOracleConfigArgs {
-    #[arg(long)]
-    environment: String,
-    #[arg(long)]
-    environments_dir: PathBuf,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
     chain_name: String,
     #[arg(long)]
@@ -511,10 +507,8 @@ struct GetGasOracleArgs;
 
 #[derive(Args)]
 struct DestinationGasOverheadArgs {
-    #[arg(long)]
-    environment: String,
-    #[arg(long)]
-    environments_dir: PathBuf,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
     chain_name: String,
     #[arg(long)]
@@ -595,10 +589,8 @@ enum MultisigIsmMessageIdSubCmd {
 
 #[derive(Args)]
 struct MultisigIsmMessageIdDeploy {
-    #[arg(long)]
-    environment: String,
-    #[arg(long)]
-    environments_dir: PathBuf,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
     built_so_dir: PathBuf,
     #[arg(long)]
@@ -657,10 +649,8 @@ pub(crate) enum HelloWorldSubCmd {
 
 #[derive(Args)]
 pub(crate) struct HelloWorldDeploy {
-    #[arg(long)]
-    environment: String,
-    #[arg(long)]
-    environments_dir: PathBuf,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
     built_so_dir: PathBuf,
     #[arg(long)]

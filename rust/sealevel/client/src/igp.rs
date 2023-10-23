@@ -61,8 +61,10 @@ fn get_context_dir_name(context: Option<&String>) -> &str {
 pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
     match cmd.cmd {
         IgpSubCmd::DeployProgram(deploy) => {
-            let environments_dir =
-                create_new_directory(&deploy.environments_dir, &deploy.environment);
+            let environments_dir = create_new_directory(
+                &deploy.env_args.environments_dir,
+                &deploy.env_args.environment,
+            );
             let ism_dir = create_new_directory(&environments_dir, "igp");
             let chain_dir = create_new_directory(&ism_dir, &deploy.chain);
             let key_dir = create_new_directory(&chain_dir, "keys");
@@ -75,7 +77,8 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
             );
         }
         IgpSubCmd::InitIgpAccount(init) => {
-            let environments_dir = create_new_directory(&init.environments_dir, &init.environment);
+            let environments_dir =
+                create_new_directory(&init.env_args.environments_dir, &init.env_args.environment);
             let ism_dir = create_new_directory(&environments_dir, "igp");
             let chain_dir = create_new_directory(&ism_dir, &init.chain);
             let context_dir =
@@ -107,7 +110,8 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
             write_json(&artifacts_path, artifacts);
         }
         IgpSubCmd::InitOverheadIgpAccount(init) => {
-            let environments_dir = create_new_directory(&init.environments_dir, &init.environment);
+            let environments_dir =
+                create_new_directory(&init.env_args.environments_dir, &init.env_args.environment);
             let ism_dir = create_new_directory(&environments_dir, "igp");
             let chain_dir = create_new_directory(&ism_dir, &init.chain);
             let context_dir =
@@ -241,8 +245,11 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 .send_with_payer();
         }
         IgpSubCmd::GasOracleConfig(args) => {
-            let core_program_ids =
-                read_core_program_ids(&args.environments_dir, &args.environment, &args.chain_name);
+            let core_program_ids = read_core_program_ids(
+                &args.env_args.environments_dir,
+                &args.env_args.environment,
+                &args.chain_name,
+            );
             match args.cmd {
                 GetSetCmd::Set(set_args) => {
                     let remote_gas_data = RemoteGasData {
@@ -287,8 +294,11 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
             }
         }
         IgpSubCmd::DestinationGasOverhead(args) => {
-            let core_program_ids =
-                read_core_program_ids(&args.environments_dir, &args.environment, &args.chain_name);
+            let core_program_ids = read_core_program_ids(
+                &args.env_args.environments_dir,
+                &args.env_args.environment,
+                &args.chain_name,
+            );
             match args.cmd {
                 GasOverheadSubCmd::Get => {
                     // Read the gas overhead config

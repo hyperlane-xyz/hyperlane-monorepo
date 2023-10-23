@@ -18,7 +18,8 @@ use hyperlane_sealevel_igp::accounts::{SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE};
 pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
     match cmd.cmd {
         CoreSubCmd::Deploy(core) => {
-            let environments_dir = create_new_directory(&core.environments_dir, &core.environment);
+            let environments_dir =
+                create_new_directory(&core.env_args.environments_dir, &core.env_args.environment);
             let chain_dir = create_new_directory(&environments_dir, &core.chain);
             let core_dir = create_new_directory(&chain_dir, "core");
             let key_dir = create_new_directory(&core_dir, "keys");

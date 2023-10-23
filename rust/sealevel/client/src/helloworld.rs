@@ -190,8 +190,8 @@ fn deploy_helloworld(ctx: &mut Context, deploy: HelloWorldDeploy) {
         &deploy.context,
         deploy.config_file,
         deploy.chain_config_file,
-        deploy.environments_dir,
-        &deploy.environment,
+        deploy.env_args.environments_dir,
+        &deploy.env_args.environment,
         deploy.built_so_dir,
     )
 }
