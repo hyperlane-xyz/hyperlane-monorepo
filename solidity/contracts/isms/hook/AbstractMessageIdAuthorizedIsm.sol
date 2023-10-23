@@ -46,9 +46,9 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     /// @dev the first bit is reserved for verification and the rest 255 bits are for the msg.value
     mapping(bytes32 => uint256) public verifiedMessages;
     /// @notice Index of verification bit in verifiedMessages
-    uint256 public constant MASK_INDEX = 255;
-    /// @notice Address for the authorized hook
-    address public authorizedHook;
+    uint256 public constant VERIFIED_MASK_INDEX = 255;
+    /// @notice Left padded address for the authorized hook
+    bytes32 public authorizedHook;
 
     // ============ Events ============
 
@@ -57,9 +57,9 @@ abstract contract AbstractMessageIdAuthorizedIsm is
 
     // ============ Initializer ============
 
-    function setAuthorizedHook(address _hook) external initializer {
+    function setAuthorizedHook(bytes32 _hook) external initializer {
         require(
-            _hook != address(0),
+            TypeCasts.bytes32ToAddress(_hook) != address(0),
             "AbstractMessageIdAuthorizedIsm: invalid authorized hook"
         );
         authorizedHook = _hook;
@@ -79,12 +79,16 @@ abstract contract AbstractMessageIdAuthorizedIsm is
         bytes32 messageId = message.id();
 
         // check for the first bit (used for verification)
-        bool verified = verifiedMessages[messageId].isBitSet(MASK_INDEX);
+        bool verified = verifiedMessages[messageId].isBitSet(
+            VERIFIED_MASK_INDEX
+        );
         // rest 255 bits contains the msg.value passed from the hook
         if (verified) {
-            payable(message.recipientAddress()).sendValue(
-                verifiedMessages[messageId].clearBit(MASK_INDEX)
+            uint256 _msgValue = verifiedMessages[messageId].clearBit(
+                VERIFIED_MASK_INDEX
             );
+            verifiedMessages[messageId] -= _msgValue;
+            payable(message.recipientAddress()).sendValue(_msgValue);
         }
         return verified;
     }
@@ -94,13 +98,17 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      * @dev Only callable by the authorized hook.
      * @param messageId Hyperlane Id of the message.
      */
-    function verifyMessageId(bytes32 messageId) external payable virtual {
+    function verifyMessageId(bytes32 messageId, address from)
+        external
+        payable
+        virtual
+    {
         require(
             _isAuthorized(),
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
 
-        verifiedMessages[messageId] = msg.value.setBit(MASK_INDEX);
+        verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
         emit ReceivedMessage(messageId);
     }
 

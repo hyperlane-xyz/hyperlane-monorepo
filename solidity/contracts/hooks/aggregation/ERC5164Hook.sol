@@ -33,7 +33,7 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
     constructor(
         address _mailbox,
         uint32 _destinationDomain,
-        address _ism,
+        bytes32 _ism,
         address _dispatcher
     ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
         require(
@@ -43,13 +43,22 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
         dispatcher = IMessageDispatcher(_dispatcher);
     }
 
+    // ============ External Functions ============
+
+    /// @inheritdoc IPostDispatchHook
+    function moduleType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.Types.ERC_5164);
+    }
+
+    // ============ Internal Functions ============
+
     function _quoteDispatch(bytes calldata, bytes calldata)
         internal
         pure
         override
         returns (uint256)
     {
-        revert("not implemented");
+        return 0; // EIP-5164 doesn't enforce a gas abstraction
     }
 
     function _sendMessageId(
@@ -58,6 +67,10 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
         bytes memory payload
     ) internal override {
         require(msg.value == 0, "ERC5164Hook: no value allowed");
-        dispatcher.dispatchMessage(destinationDomain, ism, payload);
+        dispatcher.dispatchMessage(
+            destinationDomain,
+            TypeCasts.bytes32ToAddress(ism),
+            payload
+        );
     }
 }

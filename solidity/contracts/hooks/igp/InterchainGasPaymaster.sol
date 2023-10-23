@@ -92,6 +92,11 @@ contract InterchainGasPaymaster is
 
     // ============ External Functions ============
 
+    /// @inheritdoc IPostDispatchHook
+    function moduleType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.Types.IGP);
+    }
+
     /**
      * @param _owner The owner of the contract.
      * @param _beneficiary The beneficiary.

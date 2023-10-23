@@ -35,8 +35,8 @@ abstract contract AbstractMessageIdAuthHook is
 
     // ============ Constants ============
 
-    // address for ISM to verify messages
-    address public immutable ism;
+    // left-padded address for ISM to verify messages
+    bytes32 public immutable ism;
     // Domain of chain on which the ISM is deployed
     uint32 public immutable destinationDomain;
 
@@ -45,9 +45,12 @@ abstract contract AbstractMessageIdAuthHook is
     constructor(
         address _mailbox,
         uint32 _destinationDomain,
-        address _ism
+        bytes32 _ism
     ) MailboxClient(_mailbox) {
-        require(_ism != address(0), "AbstractMessageIdAuthHook: invalid ISM");
+        require(
+            TypeCasts.bytes32ToAddress(_ism) != address(0),
+            "AbstractMessageIdAuthHook: invalid ISM"
+        );
         require(
             _destinationDomain != 0,
             "AbstractMessageIdAuthHook: invalid destination domain"

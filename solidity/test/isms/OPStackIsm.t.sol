@@ -98,7 +98,7 @@ contract OPStackIsmTest is Test {
         opHook = new OPStackHook(
             address(l1Mailbox),
             OPTIMISM_DOMAIN,
-            address(opISM),
+            TypeCasts.addressToBytes32(address(opISM)),
             L1_MESSENGER_ADDRESS
         );
 
@@ -120,7 +120,7 @@ contract OPStackIsmTest is Test {
 
         vm.selectFork(optimismFork);
 
-        opISM.setAuthorizedHook(address(opHook));
+        opISM.setAuthorizedHook(TypeCasts.addressToBytes32(address(opHook)));
         // for sending value
         vm.deal(
             AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS),
@@ -300,25 +300,7 @@ contract OPStackIsmTest is Test {
 
         vm.selectFork(optimismFork);
 
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
-
-        (uint240 nonce, uint16 version) = decodeVersionedNonce(
-            l2Messenger.messageNonce()
-        );
-        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, version);
-
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
-        l2Messenger.relayMessage(
-            versionedNonce,
-            address(opHook),
-            address(opISM),
-            0,
-            DEFAULT_GAS_LIMIT,
-            encodedHookData
-        );
+        orchestrateRelayMessage(0, messageId);
 
         bool verified = opISM.verify(new bytes(0), encodedMessage);
         assertTrue(verified);
@@ -329,27 +311,7 @@ contract OPStackIsmTest is Test {
         _msgValue = bound(_msgValue, 0, 2**254);
         deployAll();
 
-        vm.selectFork(optimismFork);
-
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
-
-        (uint240 nonce, uint16 version) = decodeVersionedNonce(
-            l2Messenger.messageNonce()
-        );
-        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, version);
-
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
-        l2Messenger.relayMessage{value: _msgValue}(
-            versionedNonce,
-            address(opHook),
-            address(opISM),
-            _msgValue,
-            DEFAULT_GAS_LIMIT,
-            encodedHookData
-        );
+        orchestrateRelayMessage(_msgValue, messageId);
 
         bool verified = opISM.verify(new bytes(0), encodedMessage);
         assertTrue(verified);
@@ -358,31 +320,36 @@ contract OPStackIsmTest is Test {
         assertEq(address(testRecipient).balance, _msgValue);
     }
 
+    /// forge-config: default.fuzz.runs = 10
+    function testFork_verify_valueAlreadyClaimed(uint256 _msgValue) public {
+        _msgValue = bound(_msgValue, 0, 2**254);
+        deployAll();
+
+        orchestrateRelayMessage(_msgValue, messageId);
+
+        bool verified = opISM.verify(new bytes(0), encodedMessage);
+        assertTrue(verified);
+
+        assertEq(address(opISM).balance, 0);
+        assertEq(address(testRecipient).balance, _msgValue);
+
+        // send more value to the ISM
+        vm.deal(address(opISM), _msgValue);
+
+        verified = opISM.verify(new bytes(0), encodedMessage);
+        // verified still true
+        assertTrue(verified);
+
+        assertEq(address(opISM).balance, _msgValue);
+        // value which was already sent
+        assertEq(address(testRecipient).balance, _msgValue);
+    }
+
     // sending over invalid message
     function testFork_verify_RevertWhen_HyperlaneInvalidMessage() public {
         deployAll();
 
-        vm.selectFork(optimismFork);
-
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
-
-        (uint240 nonce, uint16 version) = decodeVersionedNonce(
-            l2Messenger.messageNonce()
-        );
-        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, version);
-
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
-        l2Messenger.relayMessage(
-            versionedNonce,
-            address(opHook),
-            address(opISM),
-            0,
-            DEFAULT_GAS_LIMIT,
-            encodedHookData
-        );
+        orchestrateRelayMessage(0, messageId);
 
         bytes memory invalidMessage = MessageUtils.formatMessage(
             HYPERLANE_VERSION,
@@ -412,26 +379,7 @@ contract OPStackIsmTest is Test {
             testMessage
         );
         bytes32 _messageId = Message.id(invalidMessage);
-
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (_messageId)
-        );
-
-        (uint240 nonce, uint16 version) = decodeVersionedNonce(
-            l2Messenger.messageNonce()
-        );
-        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, version);
-
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
-        l2Messenger.relayMessage(
-            versionedNonce,
-            address(opHook),
-            address(opISM),
-            0,
-            DEFAULT_GAS_LIMIT,
-            encodedHookData
-        );
+        orchestrateRelayMessage(0, _messageId);
 
         bool verified = opISM.verify(new bytes(0), encodedMessage);
         assertFalse(verified);
@@ -548,5 +496,31 @@ contract OPStackIsmTest is Test {
             version := shr(240, _nonce)
         }
         return (nonce, version);
+    }
+
+    function orchestrateRelayMessage(uint256 _msgValue, bytes32 _messageId)
+        internal
+    {
+        vm.selectFork(optimismFork);
+
+        bytes memory encodedHookData = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.verifyMessageId,
+            (_messageId)
+        );
+
+        (uint240 nonce, uint16 version) = decodeVersionedNonce(
+            l2Messenger.messageNonce()
+        );
+        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, version);
+
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
+        l2Messenger.relayMessage{value: _msgValue}(
+            versionedNonce,
+            address(opHook),
+            address(opISM),
+            _msgValue,
+            DEFAULT_GAS_LIMIT,
+            encodedHookData
+        );
     }
 }

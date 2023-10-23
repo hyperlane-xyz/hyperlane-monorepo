@@ -63,10 +63,10 @@ contract ERC5164IsmTest is Test {
         hook = new ERC5164Hook(
             address(originMailbox),
             TEST2_DOMAIN,
-            address(ism),
+            address(ism).addressToBytes32(),
             address(dispatcher)
         );
-        ism.setAuthorizedHook(address(hook));
+        ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
     }
 
     ///////////////////////////////////////////////////////////////////
@@ -81,7 +81,7 @@ contract ERC5164IsmTest is Test {
         hook = new ERC5164Hook(
             address(0),
             0,
-            address(ism),
+            address(ism).addressToBytes32(),
             address(dispatcher)
         );
 
@@ -91,7 +91,7 @@ contract ERC5164IsmTest is Test {
         hook = new ERC5164Hook(
             address(originMailbox),
             0,
-            address(ism),
+            address(ism).addressToBytes32(),
             address(dispatcher)
         );
 
@@ -99,7 +99,7 @@ contract ERC5164IsmTest is Test {
         hook = new ERC5164Hook(
             address(originMailbox),
             TEST2_DOMAIN,
-            address(0),
+            address(0).addressToBytes32(),
             address(dispatcher)
         );
 
@@ -107,7 +107,7 @@ contract ERC5164IsmTest is Test {
         hook = new ERC5164Hook(
             address(originMailbox),
             TEST2_DOMAIN,
-            address(ism),
+            address(ism).addressToBytes32(),
             address(0)
         );
     }

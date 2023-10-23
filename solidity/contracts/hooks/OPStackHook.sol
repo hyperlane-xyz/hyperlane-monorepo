@@ -48,7 +48,7 @@ contract OPStackHook is AbstractMessageIdAuthHook {
     constructor(
         address _mailbox,
         uint32 _destinationDomain,
-        address _ism,
+        bytes32 _ism,
         address _l1Messenger
     ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
         require(
@@ -59,6 +59,11 @@ contract OPStackHook is AbstractMessageIdAuthHook {
     }
 
     // ============ External functions ============
+
+    /// @inheritdoc IPostDispatchHook
+    function moduleType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.Types.OP_STACK);
+    }
 
     function _quoteDispatch(bytes calldata, bytes calldata)
         internal
@@ -81,7 +86,7 @@ contract OPStackHook is AbstractMessageIdAuthHook {
             "OPStackHook: msgValue must be less than 2 ** 255"
         );
         l1Messenger.sendMessage{value: metadata.msgValue(0)}(
-            ism,
+            TypeCasts.bytes32ToAddress(ism),
             payload,
             GAS_LIMIT
         );
