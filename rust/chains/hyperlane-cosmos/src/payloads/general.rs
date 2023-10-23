@@ -19,5 +19,5 @@ pub struct Event {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EventAttribute {
     pub key: String,
-    pub value: String,
+    pub value: Option<String>,
 }
