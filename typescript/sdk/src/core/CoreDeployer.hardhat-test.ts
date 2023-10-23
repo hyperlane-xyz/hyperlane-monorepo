@@ -33,10 +33,7 @@ describe('core', async () => {
     const proxyFactoryDeployer = new HyperlaneProxyFactoryDeployer(
       multiProvider,
     );
-    coreConfig = objMap(testCoreConfig(TestChains), (_, config) => ({
-      ...config,
-      owner: signer.address,
-    }));
+    coreConfig = testCoreConfig(TestChains, signer.address);
     const ismFactories = await proxyFactoryDeployer.deploy(coreConfig);
     ismFactory = new HyperlaneIsmFactory(ismFactories, multiProvider);
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
@@ -48,7 +45,7 @@ describe('core', async () => {
   });
 
   describe('idempotency', () => {
-    it('rotates default and required hooks', async () => {
+    it('rotates default and required hooks and recovers artifacts', async () => {
       const getHooks = async (
         contracts: HyperlaneContractsMap<CoreFactories>,
       ) =>
@@ -66,16 +63,24 @@ describe('core', async () => {
         defaultHook: config.requiredHook,
         requiredHook: config.defaultHook,
       }));
+
+      const [signer] = await ethers.getSigners();
+      const nonceBefore = await signer.getTransactionCount();
+
       const updatedContracts = await deployer.deploy(updatedConfig);
 
       const hooksAfter = await getHooks(updatedContracts);
-
       expect(hooksBefore).to.deep.equal(
         objMap(hooksAfter, (_, res) => ({
           required: res.default,
           default: res.required,
         })),
       );
+
+      // number of set hook transactions
+      const numTransactions = 2 * TestChains.length;
+      const nonceAfter = await signer.getTransactionCount();
+      expect(nonceAfter).to.equal(nonceBefore + numTransactions);
     });
   });
 

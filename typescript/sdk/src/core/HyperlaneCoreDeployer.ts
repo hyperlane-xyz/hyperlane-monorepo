@@ -32,7 +32,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     super(multiProvider, coreFactories, {
       logger: debug('hyperlane:CoreDeployer'),
       chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
-      ismFactory: ismFactory,
+      ismFactory,
     });
     this.hookDeployer = new HyperlaneHookDeployer(
       multiProvider,
