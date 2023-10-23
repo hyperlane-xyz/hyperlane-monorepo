@@ -51,10 +51,10 @@ contract FallbackDomainRoutingHook is DomainRoutingHook {
         override
         returns (IPostDispatchHook)
     {
-        IPostDispatchHook hook = hooks[message.destination()];
-        if (address(hook) == address(0)) {
-            hook = fallbackHook;
+        IPostDispatchHook _hook = hooks[message.destination()];
+        if (address(_hook) == address(0)) {
+            _hook = fallbackHook;
         }
-        return hook;
+        return _hook;
     }
 }
