@@ -433,9 +433,9 @@ export const scrollsepolia: ChainMetadata = {
   blockExplorers: [
     {
       name: 'Scroll Explorer',
-      url: 'https://sepolia-blockscout.scroll.io',
-      apiUrl: 'https://sepolia-blockscout.scroll.io/api',
-      family: ExplorerFamily.Blockscout,
+      url: 'https://sepolia.scrollscan.dev/',
+      apiUrl: 'https://api-sepolia.scrollscan.com/api',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {

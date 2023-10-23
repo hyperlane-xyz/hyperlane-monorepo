@@ -37,6 +37,17 @@ export async function proxyAdmin(
   return ethers.utils.getAddress(storageValue.slice(26));
 }
 
+export function proxyConstructorArgs<C extends ethers.Contract>(
+  implementation: C,
+  proxyAdmin: string,
+  initializeArgs?: Parameters<C['initialize']>,
+): [string, string, string] {
+  const initData = initializeArgs
+    ? implementation.interface.encodeFunctionData('initialize', initializeArgs)
+    : '0x';
+  return [implementation.address, proxyAdmin, initData];
+}
+
 export async function isProxy(
   provider: ethers.providers.Provider,
   proxy: Address,
