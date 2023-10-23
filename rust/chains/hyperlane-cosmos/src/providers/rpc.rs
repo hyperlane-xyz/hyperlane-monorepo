@@ -1,5 +1,5 @@
 use crate::binary::h256_to_h512;
-use crate::payloads::general::{EventAttribute, Events};
+use crate::payloads::general::{EventAttribute, Log};
 use async_trait::async_trait;
 use cosmrs::rpc::client::{Client, CompatMode, HttpClient};
 use cosmrs::tendermint::hash::Algorithm;
@@ -73,7 +73,9 @@ impl CosmosWasmIndexer {
 impl WasmIndexer for CosmosWasmIndexer {
     fn get_client(&self) -> ChainResult<HttpClient> {
         Ok(HttpClient::builder(self.get_conn_url()?.parse()?)
-            .compat_mode(CompatMode::V0_34)
+            // indexing fails unless this is commented out. I assume the decoding in `CompatMode::V0_34`
+            // is incompatible with the current data format.
+            // .compat_mode(CompatMode::V0_34)
             .build()?)
     }
 
@@ -133,7 +135,7 @@ impl WasmIndexer for CosmosWasmIndexer {
 
             let mut parse_result: Vec<(T, LogMeta)> = vec![];
 
-            let logs = serde_json::from_str::<Vec<Events>>(&tx.log)?;
+            let logs = serde_json::from_str::<Vec<Log>>(&tx.log)?;
             let logs = logs.first().unwrap();
 
             for (log_idx, event) in logs.events.clone().into_iter().enumerate() {

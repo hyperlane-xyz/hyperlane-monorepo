@@ -15,10 +15,18 @@ pub(crate) fn sed(from: &str, to: &str, file: &str) {
         .join();
 }
 
-pub(crate) fn unzip(output: &str, dir: &str) {
+pub(crate) fn untar(output: &str, dir: &str) {
     Program::new("tar")
         .flag("extract")
         .arg("file", output)
+        .working_dir(dir)
+        .run()
+        .join();
+}
+
+pub(crate) fn unzip(output: &str, dir: &str) {
+    Program::new("unzip")
+        .cmd(output)
         .working_dir(dir)
         .run()
         .join();

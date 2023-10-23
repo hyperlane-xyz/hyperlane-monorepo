@@ -89,7 +89,7 @@ pub struct AgentConfigAddrs {
     pub validator_announce: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct AgentConfigSigner {
     #[serde(rename = "signerType")]
     pub typ: String,
@@ -97,18 +97,18 @@ pub struct AgentConfigSigner {
     pub prefix: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct AgentConfigIndex {
     pub from: u32,
     pub chunk: u32,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct AgentUrl {
     pub http: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConfig {
     pub name: String,
@@ -127,7 +127,7 @@ pub struct AgentConfig {
     pub index: AgentConfigIndex,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct AgentConfigOut {
     pub chains: BTreeMap<String, AgentConfig>,
 }

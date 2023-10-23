@@ -1,0 +1,31 @@
+{
+  "chains": {
+    "neutrontestnet": {
+      "name": "neutrontestnet",
+      "domainId": "33333",
+      "chainId": "33333",
+      "mailbox": "0x18c61fdf28726ca8f59bbd1b155cc6183529ecb5a1b90e8eda639126e89a8f63",
+      "interchainGasPaymaster": "0x3330bb92241cbb94548a2e2826ab16ca506296ea466810996e87e6c201dd1fba",
+      "validatorAnnounce": "0x6cae9336ed52d45fbec37e82b50c73d9c03aa717f3c60cc1a12366ed6f0b6756",
+      "merkleTreeHook": "0xab6224bc74a9c3a27bd894bc690923c9c272bb9db6056483c6f99ea0330d30b5",
+      "protocol": "cosmos",
+      "finalityBlocks": 1,
+      "rpcUrls": [
+        {
+          "http": "http://54.149.31.83:26657"
+        }
+      ],
+      "grpcUrl": "http://52.43.22.152:9090",
+      "prefix": "osmo",
+      "signer": {
+        "signerType": "cosmosKey",
+        "key": "0xac30d9f8ba63095774e7c853e23b02768031aa5076576113bbc9f4f07f4d12c5",
+        "prefix": "dual"
+      },
+      "index": {
+        "from": 1,
+        "chunk": 100
+      }
+    }
+  }
+}

@@ -5,7 +5,7 @@ use tempfile::tempdir;
 use crate::{
     cosmos::{
         make_target,
-        utils::{download, unzip},
+        utils::{download, untar},
     },
     logging::log,
     utils::concat_path,
@@ -72,7 +72,7 @@ impl CodeSource {
         download(&release_comp, &uri, dir_path);
 
         log!("Uncompressing cw-hyperlane release");
-        unzip(&release_comp, dir_path);
+        untar(&release_comp, dir_path);
 
         // make contract_name => path map
         fs::read_dir(concat_path(dir_path, release_name))
@@ -138,7 +138,7 @@ impl CLISource {
         download(&release_comp, &uri, dir_path);
 
         log!("Uncompressing Osmosis release");
-        unzip(&release_comp, dir_path);
+        untar(&release_comp, dir_path);
 
         concat_path(dir_path, "osmosisd")
     }
