@@ -74,7 +74,7 @@
     "validatorAnnounce": "0x3726EE36a2A9e11a40d1ffD7D9A1A16e0154cDA0",
     "merkleTreeHook": "0x221FA9CBaFcd6c1C3d206571Cf4427703e023FFa",
     "storageGasOracle": "0x8356113754C7aCa297Db3089b89F87CC125499fb",
-    "interchainGasPaymaster": "0x1246529edDcA523AfE5c6b9414299633d2E16697",
+    "interchainGasPaymaster": "0x44769b0f4a6f01339e131a691cc2eebbb519d297",
     "aggregationHook": "0xdBabD76358897E68E4964647C1fb8Bf524f5EFdB",
     "protocolFee": "0xC9D50584F08Bf6cCD1004d14c7062044b45E3b48",
     "defaultIsm": "0xFBb1D475d2275D4643B6ba9Dae16f2F5465F9436"
