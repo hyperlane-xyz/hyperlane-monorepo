@@ -58,32 +58,31 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
     // other simple hooks can go here
+    let hook;
     if (config.type === HookType.MERKLE_TREE) {
       const mailbox = coreAddresses.mailbox;
       if (!mailbox) {
         throw new Error(`Mailbox address is required for ${config.type}`);
       }
-      const hook = await this.deployContract(chain, config.type, [mailbox]);
+      hook = await this.deployContract(chain, config.type, [mailbox]);
       return { [config.type]: hook } as any;
     } else if (config.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
       return this.deployIgp(chain, config, coreAddresses) as any;
     } else if (config.type === HookType.AGGREGATION) {
-      return this.deployAggregation(chain, config, coreAddresses);
+      return this.deployAggregation(chain, config, coreAddresses); // deploy from factory
     } else if (config.type === HookType.PROTOCOL_FEE) {
-      const hook = await this.deployProtocolFee(chain, config);
-      return { [config.type]: hook } as any;
+      hook = await this.deployProtocolFee(chain, config);
     } else if (config.type === HookType.OP_STACK) {
-      const hooks = await this.deployOpStack(chain, config);
-      return { [config.type]: hooks } as any;
+      hook = await this.deployOpStack(chain, config, coreAddresses);
     } else if (
       config.type === HookType.ROUTING ||
       config.type === HookType.FALLBACK_ROUTING
     ) {
-      const hook = await this.deployRouting(chain, config, coreAddresses);
-      return { [config.type]: hook } as any;
+      hook = await this.deployRouting(chain, config, coreAddresses);
     }
-
-    throw new Error(`Unexpected hook type: ${JSON.stringify(config)}`);
+    const deployedContracts = { [config.type]: hook } as any;
+    this.addDeployedContracts(chain, deployedContracts);
+    return deployedContracts;
   }
 
   async deployProtocolFee(
@@ -145,6 +144,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       address,
       this.multiProvider.getSignerOrProvider(chain),
     );
+    this.addDeployedContracts(chain, hooks);
     return hooks;
   }
 
