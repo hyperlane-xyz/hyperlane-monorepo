@@ -9,6 +9,8 @@ import {MessageUtils} from "./IsmTestUtils.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 
 import {IMessageDispatcher} from "../../contracts/interfaces/hooks/IMessageDispatcher.sol";
+import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
+import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {ERC5164Hook} from "../../contracts/hooks/aggregation/ERC5164Hook.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {ERC5164Ism} from "../../contracts/isms/hook/ERC5164Ism.sol";
@@ -130,6 +132,11 @@ contract ERC5164IsmTest is Test {
         );
 
         hook.postDispatch(bytes(""), encodedMessage);
+    }
+
+    function testTypes() public {
+        assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.ID_AUTH_ISM));
+        assertEq(ism.moduleType(), uint8(IInterchainSecurityModule.Types.NULL));
     }
 
     function test_postDispatch_RevertWhen_ChainIDNotSupported() public {

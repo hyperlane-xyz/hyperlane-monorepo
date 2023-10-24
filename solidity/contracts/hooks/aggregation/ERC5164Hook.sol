@@ -43,13 +43,6 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
         dispatcher = IMessageDispatcher(_dispatcher);
     }
 
-    // ============ External Functions ============
-
-    /// @inheritdoc IPostDispatchHook
-    function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.ERC_5164);
-    }
-
     // ============ Internal Functions ============
 
     function _quoteDispatch(bytes calldata, bytes calldata)

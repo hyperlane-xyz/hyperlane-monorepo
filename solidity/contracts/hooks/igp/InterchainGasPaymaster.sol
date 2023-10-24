@@ -94,7 +94,7 @@ contract InterchainGasPaymaster is
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.IGP);
+        return uint8(IPostDispatchHook.Types.INTERCHAIN_GAS_PAYMASTER);
     }
 
     /**

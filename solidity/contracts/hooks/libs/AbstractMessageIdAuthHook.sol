@@ -14,6 +14,7 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
+import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
@@ -54,6 +55,11 @@ abstract contract AbstractMessageIdAuthHook is
         );
         ism = _ism;
         destinationDomain = _destinationDomain;
+    }
+
+    /// @inheritdoc IPostDispatchHook
+    function hookType() external pure returns (uint8) {
+        return uint8(IPostDispatchHook.Types.ID_AUTH_ISM);
     }
 
     // ============ Internal functions ============

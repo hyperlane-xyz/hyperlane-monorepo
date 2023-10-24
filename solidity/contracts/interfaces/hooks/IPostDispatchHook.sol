@@ -19,10 +19,9 @@ interface IPostDispatchHook {
         ROUTING,
         AGGREGATION,
         MERKLE_TREE,
-        ERC_5164,
+        INTERCHAIN_GAS_PAYMASTER,
         FALLBACK_ROUTING,
-        IGP,
-        OP_STACK,
+        ID_AUTH_ISM,
         PAUSABLE,
         PROTOCOL_FEE
     }
