@@ -11,7 +11,6 @@ import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/Abstract
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MessageUtils} from "./IsmTestUtils.sol";
-import {TestMultisigIsm} from "../../contracts/test/TestMultisigIsm.sol";
 import {OPStackIsm} from "../../contracts/isms/hook/OPStackIsm.sol";
 import {OPStackHook} from "../../contracts/hooks/OPStackHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
