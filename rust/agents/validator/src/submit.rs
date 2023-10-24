@@ -128,7 +128,7 @@ impl ValidatorSubmitter {
     ) -> Result<()> {
         // This should never be called with a tree that is ahead of the correctness checkpoint.
         assert!(
-            tree_exceeds_checkpoint(correctness_checkpoint, tree),
+            !tree_exceeds_checkpoint(correctness_checkpoint, tree),
             "tree (count: {}) is ahead of correctness checkpoint {:?}",
             tree.count(),
             correctness_checkpoint,
