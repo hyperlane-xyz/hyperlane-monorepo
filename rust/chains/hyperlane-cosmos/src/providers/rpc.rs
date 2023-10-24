@@ -152,6 +152,7 @@ impl WasmIndexer for CosmosWasmIndexer {
                        block_hashs: HashMap<u64, H256>|
          -> Vec<(T, LogMeta)> {
             let mut result: Vec<(T, LogMeta)> = vec![];
+            let target_type = format!("{}-{}", Self::WASM_TYPE, self.event_type);
 
             // Get BlockHash from block_search
             let client = self.get_client().unwrap();
@@ -165,9 +166,7 @@ impl WasmIndexer for CosmosWasmIndexer {
                 let mut parse_result: Vec<(T, LogMeta)> = vec![];
 
                 for (log_idx, event) in tx.tx_result.events.clone().into_iter().enumerate() {
-                    if event.kind.as_str().starts_with(Self::WASM_TYPE)
-                        && event.attributes[0].value == contract_address
-                    {
+                    if event.kind.as_str() == target_type {
                         if let Some(msg) = parser(event.attributes.clone()) {
                             let meta = LogMeta {
                                 address: bech32_decode(contract_address.clone()),
