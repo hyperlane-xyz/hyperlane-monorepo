@@ -17,7 +17,7 @@ import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer';
 import { IgpFactories } from '../gas/contracts';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { ModuleType, OpStackIsmConfig } from '../ism/types';
+import { IsmType, OpStackIsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -165,7 +165,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     const l2Messenger: Address = await l1Messenger.OTHER_MESSENGER();
     // deploy opstack ism
     const ismConfig: OpStackIsmConfig = {
-      type: ModuleType.OP_STACK,
+      type: IsmType.OP_STACK,
       nativeBridge: l2Messenger,
     };
     const opstackIsm = await this.ismFactory.deploy(

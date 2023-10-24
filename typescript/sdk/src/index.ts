@@ -131,6 +131,7 @@ export {
   AggregationIsmConfig,
   DeployedIsm,
   IsmConfig,
+  IsmType,
   ModuleType,
   MultisigConfig,
   MultisigIsmConfig,

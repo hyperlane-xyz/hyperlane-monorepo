@@ -1,4 +1,4 @@
-import { AllChains, ModuleType } from '@hyperlane-xyz/sdk';
+import { AllChains, IsmType } from '@hyperlane-xyz/sdk';
 
 import { multisigIsms } from '../config/multisigIsm';
 
@@ -16,7 +16,7 @@ async function main() {
   const config = multisigIsms(
     args.environment,
     args.local,
-    ModuleType.MESSAGE_ID_MULTISIG,
+    IsmType.MESSAGE_ID_MULTISIG,
     args.context,
   );
 

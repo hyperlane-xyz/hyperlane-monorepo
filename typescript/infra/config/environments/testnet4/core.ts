@@ -10,8 +10,8 @@ import {
   HookConfig,
   HookType,
   IgpHookConfig,
+  IsmType,
   MerkleTreeHookConfig,
-  ModuleType,
   MultisigConfig,
   MultisigIsmConfig,
   ProtocolFeeHookConfig,
@@ -33,11 +33,11 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   );
 
   const messageIdRouting: RoutingIsmConfig = {
-    type: ModuleType.ROUTING,
+    type: IsmType.ROUTING,
     domains: objMap(
       originMultisigs,
       (_, multisig): MultisigIsmConfig => ({
-        type: ModuleType.MESSAGE_ID_MULTISIG,
+        type: IsmType.MESSAGE_ID_MULTISIG,
         ...multisig,
       }),
     ),
@@ -45,11 +45,11 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   };
 
   const merkleRootRouting: RoutingIsmConfig = {
-    type: ModuleType.ROUTING,
+    type: IsmType.ROUTING,
     domains: objMap(
       originMultisigs,
       (_, multisig): MultisigIsmConfig => ({
-        type: ModuleType.MERKLE_ROOT_MULTISIG,
+        type: IsmType.MERKLE_ROOT_MULTISIG,
         ...multisig,
       }),
     ),
@@ -57,7 +57,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   };
 
   const defaultIsm: AggregationIsmConfig = {
-    type: ModuleType.AGGREGATION,
+    type: IsmType.AGGREGATION,
     modules: [messageIdRouting, merkleRootRouting],
     threshold: 1,
   };
