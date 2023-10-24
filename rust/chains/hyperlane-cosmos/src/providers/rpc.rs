@@ -131,13 +131,15 @@ impl WasmIndexer for CosmosWasmIndexer {
         let block_hash: HashMap<u64, H256> = block_hash_vec.into_iter().collect();
 
         // Page starts from 1
-        let query = Query::from(EventType::Tx)
-            .and_gte("block.height", *range.start() as u64)
-            .and_lte("block.height", *range.end() as u64)
+        let query = Query::default()
+            .and_gte("tx.height", *range.start() as u64)
+            .and_lte("tx.height", *range.end() as u64)
             .and_eq(
                 format!("{}-{}._contract_address", Self::WASM_TYPE, self.event_type),
                 contract_address.clone(),
             );
+
+        println!("Query: {:?}", query.to_string());
 
         let tx_search_result = client
             .tx_search(query.clone(), false, 1, 30, Order::Ascending)
