@@ -119,6 +119,8 @@ impl ValidatorSubmitter {
                     .latest_checkpoint_processed
                     .set(correctness_checkpoint.index as i64);
             }
+
+            sleep(self.interval).await;
         }
 
         // TODO: remove this once validator is tolerant of tasks exiting.
@@ -157,7 +159,7 @@ impl ValidatorSubmitter {
                 let message_id = insertion.message_id();
                 tree.ingest(message_id);
 
-                let checkpoint = self.checkpoint(&tree);
+                let checkpoint = self.checkpoint(tree);
 
                 checkpoint_queue.push(CheckpointWithMessageId {
                     checkpoint,
@@ -165,7 +167,7 @@ impl ValidatorSubmitter {
                 });
             } else {
                 // If we haven't yet indexed the next merkle tree insertion but know that
-                // it will soon exist (because the correctness checkpoint), wait a bit and
+                // it will soon exist (because we know the correctness checkpoint), wait a bit and
                 // try again.
                 sleep(Duration::from_millis(100)).await
             }
@@ -173,7 +175,7 @@ impl ValidatorSubmitter {
 
         // At this point we know that correctness_checkpoint.index == tree.index().
 
-        let checkpoint = self.checkpoint(&tree);
+        let checkpoint = self.checkpoint(tree);
 
         if checkpoint == *correctness_checkpoint {
             debug!(index = checkpoint.index, "Reached tree consistency");
