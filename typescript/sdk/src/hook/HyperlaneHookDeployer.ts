@@ -118,6 +118,9 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       aggregatedHooks.push(subhooks[hookConfig.type].address);
       hooks = { ...hooks, ...subhooks };
     }
+    this.logger(
+      `Deploying aggregation hook of ${config.hooks.map((h) => h.type)}`,
+    );
     const address = await this.ismFactory.deployStaticAddressSet(
       chain,
       this.ismFactory.getContracts(chain).aggregationHookFactory,
