@@ -10,9 +10,9 @@ use hyperlane_base::{
     WatermarkContractSync,
 };
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, Announcement, ChainResult, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, TxOutcome, ValidatorAnnounce, H256, U256,
+    Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
+    HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, TxOutcome, ValidatorAnnounce,
+    H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
 use tokio::{task::JoinHandle, time::sleep};
@@ -167,7 +167,6 @@ impl Validator {
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
         );
 
-        let empty_tree = IncrementalMerkle::default();
         let reorg_period = NonZeroU64::new(self.reorg_period);
         let tip_tree = self
             .merkle_tree_hook
@@ -187,14 +186,14 @@ impl Validator {
         tasks.push(
             tokio::spawn(async move {
                 backfill_submitter
-                    .checkpoint_submitter(empty_tree, Some(backfill_target))
+                    .backfill_checkpoint_submitter(backfill_target)
                     .await
             })
             .instrument(info_span!("BackfillCheckpointSubmitter")),
         );
 
         tasks.push(
-            tokio::spawn(async move { submitter.checkpoint_submitter(tip_tree, None).await })
+            tokio::spawn(async move { submitter.checkpoint_submitter(tip_tree).await })
                 .instrument(info_span!("TipCheckpointSubmitter")),
         );
         tasks.push(
