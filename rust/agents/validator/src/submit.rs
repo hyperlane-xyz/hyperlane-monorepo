@@ -98,10 +98,7 @@ impl ValidatorSubmitter {
             //
             // In this case, we just sleep a bit until we fetch a new latest checkpoint
             // that at least meets the tree.
-            //
-            // tree.index() will panic if the tree is empty, so we use tree.count() instead
-            // and convert the latest_checkpoint.index to a count by adding 1.
-            if latest_checkpoint.index + 1 < tree.count() as u32 {
+            if !checkpoint_exceeds_tree(&latest_checkpoint, &tree) {
                 debug!(
                     ?latest_checkpoint,
                     tree_count = tree.count(),
@@ -130,11 +127,8 @@ impl ValidatorSubmitter {
         correctness_checkpoint: &Checkpoint,
     ) -> Result<()> {
         // This should never be called with a tree that is ahead of the correctness checkpoint.
-        //
-        // tree.index() will panic if the tree is empty, so we use tree.count() instead
-        // and convert the correctness_checkpoint.index to a count by adding 1.
         assert!(
-            correctness_checkpoint.index + 1 >= tree.count() as u32,
+            !checkpoint_exceeds_tree(correctness_checkpoint, &tree),
             "tree (count: {}) is ahead of correctness checkpoint {:?}",
             tree.count(),
             correctness_checkpoint,
@@ -321,6 +315,13 @@ impl ValidatorSubmitter {
             sleep(self.interval).await;
         }
     }
+}
+
+/// Returns whether the checkpoint's index exceeds that of the tree.
+fn checkpoint_exceeds_tree(checkpoint: &Checkpoint, tree: &IncrementalMerkle) -> bool {
+    // tree.index() will panic if the tree is empty, so we use tree.count() instead
+    // and convert the correctness_checkpoint.index to a count by adding 1.
+    checkpoint.index + 1 > tree.count() as u32
 }
 
 #[derive(Clone)]
