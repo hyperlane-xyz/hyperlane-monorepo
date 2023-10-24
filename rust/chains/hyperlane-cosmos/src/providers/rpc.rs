@@ -1,7 +1,7 @@
 use crate::binary::h256_to_h512;
 use crate::payloads::general::{EventAttribute, Log};
 use async_trait::async_trait;
-use cosmrs::rpc::client::{Client, CompatMode, HttpClient};
+use cosmrs::rpc::client::{Client, HttpClient};
 use cosmrs::tendermint::hash::Algorithm;
 use cosmrs::tendermint::Hash;
 use hyperlane_core::{ChainResult, ContractLocator, HyperlaneDomain, LogMeta, H256, U256};
@@ -140,7 +140,7 @@ impl WasmIndexer for CosmosWasmIndexer {
 
             for (log_idx, event) in logs.events.clone().into_iter().enumerate() {
                 if event.typ.as_str().starts_with(Self::WASM_TYPE)
-                    && event.attributes[0].value == addr
+                    && event.attributes[0].value == Some(addr.clone())
                 {
                     available = true;
                 } else if event.typ.as_str() != self.event_type {
