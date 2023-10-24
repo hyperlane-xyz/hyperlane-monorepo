@@ -118,7 +118,7 @@ impl ValidatorSubmitter {
 
                 // compare against every queued checkpoint to prevent ingesting past target
                 if checkpoint == correctness_checkpoint {
-                    debug!(index = checkpoint.index, "Reached tree consistency");
+                    info!(index = checkpoint.index, "Reached tree consistency");
 
                     // drain and sign all checkpoints in the queue
                     for queued_checkpoint in checkpoint_queue.drain(..) {

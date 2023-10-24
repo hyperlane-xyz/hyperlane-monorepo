@@ -174,6 +174,9 @@ impl Validator {
             .tree(reorg_period)
             .await
             .expect("failed to get merkle tree");
+        // This function is only called after we have already checked that the
+        // merkle tree hook has count > 0, but we assert to be extra sure this is
+        // the case.
         assert!(tip_tree.count() > 0, "merkle tree is empty");
         let backfill_target = submitter.checkpoint(&tip_tree);
 

@@ -229,7 +229,7 @@ mod test {
         ChainConf {
             domain: domain.clone(),
             signer: Default::default(),
-            finality_blocks: Default::default(),
+            reorg_period: Default::default(),
             addresses: Default::default(),
             connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf::Http {
                 url: "http://example.com".parse().unwrap(),
