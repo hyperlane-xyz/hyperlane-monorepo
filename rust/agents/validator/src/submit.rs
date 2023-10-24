@@ -209,7 +209,7 @@ impl ValidatorSubmitter {
         Ok(())
     }
 
-    // Signs and submits any previously unsubmitted checkpoints.
+    /// Signs and submits any previously unsubmitted checkpoints.
     async fn sign_and_submit_checkpoints(
         &self,
         checkpoints: Vec<CheckpointWithMessageId>,
