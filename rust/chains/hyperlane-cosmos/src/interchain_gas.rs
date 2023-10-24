@@ -82,7 +82,7 @@ impl CosmosInterchainGasPaymasterIndexer {
 
             for attr in attrs {
                 let key = attr.key.as_str();
-                let value = attr.value?;
+                let value = attr.value;
                 let value = value.as_str();
 
                 match key {
