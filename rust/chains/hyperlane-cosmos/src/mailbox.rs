@@ -4,7 +4,6 @@ use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
-use crate::payloads::general::EventAttribute;
 use crate::payloads::mailbox::{
     GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
 };
@@ -16,6 +15,7 @@ use async_trait::async_trait;
 
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
+use cosmrs::tendermint::abci::EventAttribute;
 
 use crate::binary::h256_to_h512;
 use hyperlane_core::{
@@ -303,18 +303,8 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let mut result: Vec<(HyperlaneMessage, LogMeta)> = vec![];
         let parser = self.get_parser();
-
-        for block_number in range {
-            let logs = self.indexer.get_event_log(block_number, parser).await;
-
-            if let Err(e) = logs {
-                warn!("error: {:?}", e);
-                continue;
-            }
-            result.extend(logs.unwrap());
-        }
+        let mut result = self.indexer.get_range_event_logs(range, parser).await?;
 
         Ok(result)
     }
@@ -327,13 +317,8 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
 #[async_trait]
 impl Indexer<H256> for CosmosMailboxIndexer {
     async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
-        let mut result: Vec<(HyperlaneMessage, LogMeta)> = vec![];
         let parser: fn(Vec<EventAttribute>) -> Option<HyperlaneMessage> = self.get_parser();
-
-        for block_number in range {
-            let logs = self.indexer.get_event_log(block_number, parser).await?;
-            result.extend(logs);
-        }
+        let result = self.indexer.get_range_event_logs(range, parser).await?;
 
         Ok(result
             .into_iter()

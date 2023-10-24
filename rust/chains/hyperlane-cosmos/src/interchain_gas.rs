@@ -1,14 +1,13 @@
 use async_trait::async_trait;
+use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, Indexer,
     InterchainGasPaymaster, SequenceIndexer, U256,
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, InterchainGasPayment, LogMeta, H256};
 use std::ops::RangeInclusive;
-use tracing::info;
 
 use crate::grpc::WasmGrpcProvider;
-use crate::payloads::general::EventAttribute;
 use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
 use crate::signers::Signer;
 use crate::{ConnectionConf, CosmosProvider};
@@ -107,14 +106,8 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        let mut result: Vec<(InterchainGasPayment, LogMeta)> = vec![];
         let parser = self.get_parser();
-
-        for block_number in range {
-            let logs = self.indexer.get_event_log(block_number, parser).await?;
-            result.extend(logs);
-        }
-
+        let result = self.indexer.get_range_event_logs(range, parser).await?;
         Ok(result)
     }
 
@@ -126,13 +119,8 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
 #[async_trait]
 impl Indexer<H256> for CosmosInterchainGasPaymasterIndexer {
     async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
-        let mut result: Vec<(InterchainGasPayment, LogMeta)> = vec![];
         let parser = self.get_parser();
-
-        for block_number in range {
-            let logs = self.indexer.get_event_log(block_number, parser).await?;
-            result.extend(logs);
-        }
+        let result = self.indexer.get_range_event_logs(range, parser).await?;
 
         Ok(result
             .into_iter()
