@@ -1,11 +1,14 @@
+use std::collections::HashMap;
+use std::ops::RangeInclusive;
+
 use crate::binary::h256_to_h512;
-use crate::payloads::general::{EventAttribute, Events};
 use async_trait::async_trait;
 use cosmrs::rpc::client::{Client, CompatMode, HttpClient};
-use cosmrs::tendermint::hash::Algorithm;
-use cosmrs::tendermint::Hash;
+use cosmrs::rpc::endpoint::tx;
+use cosmrs::rpc::query::{EventType, Query};
+use cosmrs::rpc::Order;
+use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{ChainResult, ContractLocator, HyperlaneDomain, LogMeta, H256, U256};
-use sha256::digest;
 use tracing::debug;
 
 use crate::verify::{self, bech32_decode};
@@ -18,10 +21,10 @@ pub trait WasmIndexer: Send + Sync {
     fn get_client(&self) -> ChainResult<HttpClient>;
     /// get latest block height
     async fn latest_block_height(&self) -> ChainResult<u32>;
-    /// get event log
-    async fn get_event_log<T>(
+    /// get range event logs
+    async fn get_range_event_logs<T>(
         &self,
-        block_number: u32,
+        range: RangeInclusive<u32>,
         parser: fn(Vec<EventAttribute>) -> Option<T>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
@@ -84,84 +87,115 @@ impl WasmIndexer for CosmosWasmIndexer {
         Ok(result.block.header.height.value() as u32)
     }
 
-    async fn get_event_log<T>(
+    async fn get_range_event_logs<T>(
         &self,
-        block_number: u32,
+        range: RangeInclusive<u32>,
         parser: fn(Vec<EventAttribute>) -> Option<T>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
         T: Send + Sync,
     {
         let client = self.get_client()?;
+        let contract_address = self.get_contract_addr()?;
 
-        let block = client.block(block_number).await?;
-        let block_result = client.block_results(block_number).await?;
+        let block_step: u32 = 100;
+        let mut block_hash_vec: Vec<(u64, H256)> = vec![];
+        let block_query: Query = format!(
+            "block.height >= {} AND block.height <= {}",
+            range.start(),
+            range.end(),
+        )
+        .parse()
+        .unwrap();
+        let total_block_count = range.end() - range.start() + 1;
+        let last_block_page = total_block_count / 100 + (total_block_count % 100 != 0) as u32;
 
-        let tx_hash: Vec<H256> = block
-            .block
-            .data
-            .into_iter()
-            .map(|tx| {
-                H256::from_slice(
-                    Hash::from_bytes(
-                        Algorithm::Sha256,
-                        hex::decode(digest(tx.as_slice())).unwrap().as_slice(),
-                    )
-                    .unwrap()
-                    .as_bytes(),
-                )
-            })
-            .collect();
+        for _ in 1..=last_block_page {
+            let blocks = client
+                .block_search(block_query.clone(), 1, block_step as u8, Order::Ascending)
+                .await?;
 
-        let mut result: Vec<(T, LogMeta)> = vec![];
-        let tx_results = block_result.txs_results;
-
-        if tx_results.is_none() {
-            return Ok(result);
+            block_hash_vec.extend(
+                blocks
+                    .blocks
+                    .iter()
+                    .map(|b| {
+                        (
+                            b.block.header.height.value(),
+                            H256::from_slice(b.block_id.hash.as_bytes()),
+                        )
+                    })
+                    .collect::<Vec<(u64, H256)>>(),
+            );
         }
+        let block_hash: HashMap<u64, H256> = block_hash_vec.into_iter().collect();
 
-        let addr = self.get_contract_addr()?;
+        // Page starts from 1
+        let query = Query::from(EventType::Tx)
+            .and_gte("block.height", *range.start() as u64)
+            .and_lte("block.height", *range.end() as u64)
+            .and_eq(
+                format!("{}-{}._contract_address", Self::WASM_TYPE, self.event_type),
+                contract_address.clone(),
+            );
 
-        for (idx, tx) in tx_results.unwrap().iter().enumerate() {
-            let tx_hash = tx_hash[idx];
-            if tx.code.is_err() {
-                debug!("tx {:?} has failed. skip!", tx_hash);
-                continue;
-            }
+        let tx_search_result = client
+            .tx_search(query.clone(), false, 1, 30, Order::Ascending)
+            .await?;
 
-            let mut available = false;
+        let total_count = tx_search_result.total_count;
+        let last_page = total_count / 30 + (total_count % 30 != 0) as u32;
 
-            let mut parse_result: Vec<(T, LogMeta)> = vec![];
+        let handler = |txs: Vec<tx::Response>,
+                       block_hashs: HashMap<u64, H256>|
+         -> Vec<(T, LogMeta)> {
+            let mut result: Vec<(T, LogMeta)> = vec![];
 
-            let logs = serde_json::from_str::<Vec<Events>>(&tx.log)?;
-            let logs = logs.first().unwrap();
+            // Get BlockHash from block_search
+            let client = self.get_client().unwrap();
 
-            for (log_idx, event) in logs.events.clone().into_iter().enumerate() {
-                if event.typ.as_str().starts_with(Self::WASM_TYPE)
-                    && event.attributes[0].value == addr
-                {
-                    available = true;
-                } else if event.typ.as_str() != self.event_type {
+            for tx in txs {
+                if tx.tx_result.code.is_err() {
+                    debug!("tx {:?} has failed. skip!", tx.hash);
                     continue;
                 }
 
-                if let Some(msg) = parser(event.attributes.clone()) {
-                    let meta = LogMeta {
-                        address: bech32_decode(addr.clone()),
-                        block_number: block_number as u64,
-                        block_hash: H256::from_slice(block.block_id.hash.as_bytes()),
-                        transaction_id: h256_to_h512(tx_hash),
-                        transaction_index: idx as u64,
-                        log_index: U256::from(log_idx),
-                    };
+                let mut parse_result: Vec<(T, LogMeta)> = vec![];
 
-                    parse_result.push((msg, meta));
+                for (log_idx, event) in tx.tx_result.events.clone().into_iter().enumerate() {
+                    if event.kind.as_str().starts_with(Self::WASM_TYPE)
+                        && event.attributes[0].value == contract_address
+                    {
+                        if let Some(msg) = parser(event.attributes.clone()) {
+                            let meta = LogMeta {
+                                address: bech32_decode(contract_address.clone()),
+                                block_number: tx.height.value(),
+                                block_hash: block_hashs[&tx.height.value()],
+                                transaction_id: h256_to_h512(H256::from_slice(tx.hash.as_bytes())),
+                                transaction_index: tx.index as u64,
+                                log_index: U256::from(log_idx),
+                            };
+
+                            parse_result.push((msg, meta));
+                        }
+                    }
                 }
-            }
 
-            if available {
                 result.extend(parse_result);
             }
+
+            result
+        };
+
+        let mut result = handler(tx_search_result.txs, block_hash.clone());
+
+        for page in 2..=last_page {
+            println!("page: {}", page);
+            let tx_search_result = client
+                .tx_search(query.clone(), false, page, 30, Order::Ascending)
+                .await?;
+
+            result.extend(handler(tx_search_result.txs, block_hash.clone()));
         }
 
         Ok(result)
