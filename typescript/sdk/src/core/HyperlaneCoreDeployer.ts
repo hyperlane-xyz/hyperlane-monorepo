@@ -32,6 +32,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     super(multiProvider, coreFactories, {
       logger: debug('hyperlane:CoreDeployer'),
       chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
+      ismFactory,
     });
     this.hookDeployer = new HyperlaneHookDeployer(
       multiProvider,
@@ -73,11 +74,14 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     const hookAddresses = { mailbox: mailbox.address, proxyAdmin };
 
+    this.logger('Deploying default hook');
     const defaultHook = await this.deployHook(
       chain,
       config.defaultHook,
       hookAddresses,
     );
+
+    this.logger('Deploying required hook');
     const requiredHook = await this.deployHook(
       chain,
       config.requiredHook,
@@ -93,9 +97,35 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     } catch (e: any) {
       if (!e.message.includes('already initialized')) {
         throw e;
-      } else {
-        this.logger('Mailbox already initialized');
       }
+
+      this.logger('Mailbox already initialized');
+
+      await this.configureHook(
+        chain,
+        mailbox,
+        defaultHook,
+        (_mailbox) => _mailbox.defaultHook(),
+        (_mailbox, _hook) => _mailbox.populateTransaction.setDefaultHook(_hook),
+      );
+
+      await this.configureHook(
+        chain,
+        mailbox,
+        requiredHook,
+        (_mailbox) => _mailbox.requiredHook(),
+        (_mailbox, _hook) =>
+          _mailbox.populateTransaction.setRequiredHook(_hook),
+      );
+
+      await this.configureIsm(
+        chain,
+        mailbox,
+        defaultIsm,
+        (_mailbox) => _mailbox.defaultIsm(),
+        (_mailbox, _module) =>
+          _mailbox.populateTransaction.setDefaultIsm(_module),
+      );
     }
 
     return mailbox;

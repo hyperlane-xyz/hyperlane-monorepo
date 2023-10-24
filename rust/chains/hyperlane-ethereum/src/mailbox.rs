@@ -35,7 +35,7 @@ where
 }
 
 pub struct SequenceIndexerBuilder {
-    pub finality_blocks: u32,
+    pub reorg_period: u32,
 }
 
 #[async_trait]
@@ -50,13 +50,13 @@ impl BuildableWithProvider for SequenceIndexerBuilder {
         Box::new(EthereumMailboxIndexer::new(
             Arc::new(provider),
             locator,
-            self.finality_blocks,
+            self.reorg_period,
         ))
     }
 }
 
 pub struct DeliveryIndexerBuilder {
-    pub finality_blocks: u32,
+    pub reorg_period: u32,
 }
 
 #[async_trait]
@@ -71,7 +71,7 @@ impl BuildableWithProvider for DeliveryIndexerBuilder {
         Box::new(EthereumMailboxIndexer::new(
             Arc::new(provider),
             locator,
-            self.finality_blocks,
+            self.reorg_period,
         ))
     }
 }
@@ -84,7 +84,7 @@ where
 {
     contract: Arc<EthereumMailboxInternal<M>>,
     provider: Arc<M>,
-    finality_blocks: u32,
+    reorg_period: u32,
 }
 
 impl<M> EthereumMailboxIndexer<M>
@@ -92,7 +92,7 @@ where
     M: Middleware + 'static,
 {
     /// Create new EthereumMailboxIndexer
-    pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
+    pub fn new(provider: Arc<M>, locator: &ContractLocator, reorg_period: u32) -> Self {
         let contract = Arc::new(EthereumMailboxInternal::new(
             locator.address,
             provider.clone(),
@@ -100,7 +100,7 @@ where
         Self {
             contract,
             provider,
-            finality_blocks,
+            reorg_period,
         }
     }
 
@@ -112,7 +112,7 @@ where
             .await
             .map_err(ChainCommunicationError::from_other)?
             .as_u32()
-            .saturating_sub(self.finality_blocks))
+            .saturating_sub(self.reorg_period))
     }
 }
 

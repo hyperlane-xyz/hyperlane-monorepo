@@ -6,7 +6,6 @@ import {
   OPStackIsm,
   StaticMerkleRootMultisigIsm,
   StaticMessageIdMultisigIsm,
-  TestMultisigIsm,
 } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
@@ -19,9 +18,9 @@ export type DeployedIsm =
   | IRoutingIsm
   | StaticMessageIdMultisigIsm
   | StaticMerkleRootMultisigIsm
-  | OPStackIsm
-  | TestMultisigIsm;
+  | OPStackIsm;
 
+// this enum should match the
 export enum ModuleType {
   UNUSED,
   ROUTING,
@@ -29,7 +28,15 @@ export enum ModuleType {
   LEGACY_MULTISIG, // DEPRECATED
   MERKLE_ROOT_MULTISIG,
   MESSAGE_ID_MULTISIG,
+  NULL,
+}
+
+export enum IsmType {
   OP_STACK,
+  ROUTING,
+  AGGREGATION,
+  MERKLE_ROOT_MULTISIG,
+  MESSAGE_ID_MULTISIG,
   TEST_ISM,
 }
 
@@ -39,27 +46,27 @@ export type MultisigConfig = {
 };
 
 export type MultisigIsmConfig = MultisigConfig & {
-  type: ModuleType.MERKLE_ROOT_MULTISIG | ModuleType.MESSAGE_ID_MULTISIG;
+  type: IsmType.MERKLE_ROOT_MULTISIG | IsmType.MESSAGE_ID_MULTISIG;
 };
 
-export type TestMultisigIsmConfig = MultisigConfig & {
-  type: ModuleType.TEST_ISM;
+export type TestIsmConfig = {
+  type: IsmType.TEST_ISM;
 };
 
 export type RoutingIsmConfig = {
-  type: ModuleType.ROUTING;
+  type: IsmType.ROUTING;
   owner: Address;
   domains: ChainMap<IsmConfig>;
 };
 
 export type AggregationIsmConfig = {
-  type: ModuleType.AGGREGATION;
+  type: IsmType.AGGREGATION;
   modules: Array<IsmConfig>;
   threshold: number;
 };
 
 export type OpStackIsmConfig = {
-  type: ModuleType.OP_STACK;
+  type: IsmType.OP_STACK;
   nativeBridge: Address;
 };
 
@@ -69,4 +76,4 @@ export type IsmConfig =
   | MultisigIsmConfig
   | AggregationIsmConfig
   | OpStackIsmConfig
-  | TestMultisigIsmConfig;
+  | TestIsmConfig;

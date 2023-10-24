@@ -125,10 +125,10 @@ fn parse_chain(
         .and_then(parse_signer)
         .end();
 
-    let finality_blocks = chain
+    let reorg_period = chain
         .chain(&mut err)
         .get_opt_key("blocks")
-        .get_key("confirmations")
+        .get_key("reorgPeriod")
         .parse_u32()
         .unwrap_or(1);
 
@@ -263,7 +263,7 @@ fn parse_chain(
     err.into_result(ChainConf {
         domain,
         signer,
-        finality_blocks,
+        reorg_period,
         addresses: CoreContractAddresses {
             mailbox,
             interchain_gas_paymaster,
