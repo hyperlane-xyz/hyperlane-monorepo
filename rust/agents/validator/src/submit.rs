@@ -90,11 +90,8 @@ impl ValidatorSubmitter {
 
             // This can only happen if target_checkpoint is None and the latest checkpoint
             // fetched from onchain has an index that is behind the tree's index.
-            // The initial tree parameter, which is sometimes constructed from an onchain
-            // call to MerkleTreeHook.tree(), may have an index that is ahead of the latest checkpoint
-            // due to the call being made against a block later than the latest_checkpoint() call.
-            // This ideally shouldn't happen, but RPC providers are unreliable and sometimes make
-            // calls against inconsistent block tips.
+            // This may occur e.g. if RPC providers are unreliable and make calls against
+            // inconsistent block tips.
             //
             // In this case, we just sleep a bit until we fetch a new latest checkpoint
             // that at least meets the tree.
