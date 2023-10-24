@@ -59,7 +59,7 @@ impl ValidatorSubmitter {
     }
 
     /// Submits signed checkpoints.
-    /// If a target checkpoint is provided, the provided tree must not be behind it, and
+    /// If a target checkpoint is provided, it must not be bethind the provided tree, and
     /// the submitter will only submit checkpoints until it reaches the target checkpoint.
     /// If a target checkpoint is not provided, the submitter will submit checkpoints indefinitely.
     #[instrument(err, skip(self, tree), fields(domain=%self.merkle_tree_hook.domain()))]
