@@ -1,10 +1,8 @@
 import { Debugger, debug } from 'debug';
-import { Contract, ethers } from 'ethers';
+import { Contract, PopulatedTransaction, ethers } from 'ethers';
 
 import {
-  Mailbox,
   MailboxClient,
-  Mailbox__factory,
   Ownable,
   ProxyAdmin,
   ProxyAdmin__factory,
@@ -30,13 +28,23 @@ import {
   HyperlaneIsmFactory,
   moduleMatchesConfig,
 } from '../ism/HyperlaneIsmFactory';
+import { IsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { MailboxClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
-import { UpgradeConfig, proxyAdmin } from './proxy';
+import {
+  UpgradeConfig,
+  isProxy,
+  proxyAdmin,
+  proxyConstructorArgs,
+  proxyImplementation,
+} from './proxy';
 import { ContractVerificationInput } from './verify/types';
-import { getContractVerificationInput } from './verify/utils';
+import {
+  buildVerificationInput,
+  getContractVerificationInput,
+} from './verify/utils';
 
 export interface DeployerOptions {
   logger?: Debugger;
@@ -60,6 +68,7 @@ export abstract class HyperlaneDeployer<
     protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
     protected readonly options?: DeployerOptions,
+    protected readonly recoverVerificationInputs = false,
   ) {
     this.logger = options?.logger ?? debug('hyperlane:deployer');
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
@@ -185,75 +194,90 @@ export abstract class HyperlaneDeployer<
     }
   }
 
+  protected async configureIsm<C extends Ownable>(
+    chain: ChainName,
+    contract: C,
+    config: IsmConfig,
+    getIsm: (contract: C) => Promise<Address>,
+    setIsm: (contract: C, ism: Address) => Promise<PopulatedTransaction>,
+  ): Promise<void> {
+    if (this.options?.ismFactory === undefined) {
+      throw new Error('No ISM factory provided');
+    }
+    const ismFactory = this.options.ismFactory;
+
+    const configuredIsm = await getIsm(contract);
+    const matches = await moduleMatchesConfig(
+      chain,
+      configuredIsm,
+      config,
+      this.multiProvider,
+      ismFactory.getContracts(chain),
+    );
+    if (!matches) {
+      await this.runIfOwner(chain, contract, async () => {
+        const targetIsm = await ismFactory.deploy(chain, config);
+        this.logger(`Set ISM on ${chain}`);
+        await this.multiProvider.sendTransaction(
+          chain,
+          setIsm(contract, targetIsm.address),
+        );
+        if (targetIsm.address !== (await getIsm(contract))) {
+          throw new Error(`Set ISM failed on ${chain}`);
+        }
+      });
+    }
+  }
+
+  protected async configureHook<C extends Ownable>(
+    chain: ChainName,
+    contract: C,
+    targetHook: Address,
+    getHook: (contract: C) => Promise<Address>,
+    setHook: (contract: C, hook: Address) => Promise<PopulatedTransaction>,
+  ): Promise<void> {
+    const configuredHook = await getHook(contract);
+    if (targetHook !== configuredHook) {
+      await this.runIfOwner(chain, contract, async () => {
+        this.logger(`Set hook on ${chain}`);
+        await this.multiProvider.sendTransaction(
+          chain,
+          setHook(contract, targetHook),
+        );
+        if (targetHook !== (await getHook(contract))) {
+          throw new Error(`Set hook failed on ${chain}`);
+        }
+      });
+    }
+  }
+
   protected async initMailboxClient(
     local: ChainName,
     client: MailboxClient,
     config: MailboxClientConfig,
   ): Promise<void> {
     this.logger(`Initializing mailbox client (if not already) on ${local}...`);
-    await this.runIfOwner(local, client, async () => {
-      const txOverrides = this.multiProvider.getTransactionOverrides(local);
+    if (config.hook) {
+      await this.configureHook(
+        local,
+        client,
+        config.hook,
+        (_client) => _client.hook(),
+        (_client, _hook) => _client.populateTransaction.setHook(_hook),
+      );
+    }
 
-      // set hook if not already set (and configured)
-      if (config.hook && config.hook !== (await client.hook())) {
-        this.logger(`Set hook on ${local}`);
-        await this.multiProvider.handleTx(
-          local,
-          client.setHook(config.hook, txOverrides),
-        );
-      }
+    if (config.interchainSecurityModule) {
+      await this.configureIsm(
+        local,
+        client,
+        config.interchainSecurityModule,
+        (_client) => _client.interchainSecurityModule(),
+        (_client, _module) =>
+          _client.populateTransaction.setInterchainSecurityModule(_module),
+      );
+    }
 
-      let currentIsm = await client.interchainSecurityModule();
-      // in case the above returns zero address, fetch the defaultISM from the mailbox
-      if (currentIsm === ethers.constants.AddressZero) {
-        const mailbox: Mailbox = Mailbox__factory.connect(
-          config.mailbox,
-          client.signer,
-        );
-        currentIsm = await mailbox.defaultIsm();
-      }
-
-      // set interchain security module if not already set (and configured)
-      if (config.interchainSecurityModule) {
-        let configuredIsm: string;
-        if (typeof config.interchainSecurityModule === 'string') {
-          configuredIsm = config.interchainSecurityModule;
-        } else if (this.options?.ismFactory) {
-          const matches = await moduleMatchesConfig(
-            local,
-            currentIsm,
-            config.interchainSecurityModule,
-            this.multiProvider,
-            this.options.ismFactory.chainMap[local],
-          );
-          if (matches) {
-            // when the ISM recursively matches the IsmConfig, we don't need to deploy a new ISM
-            this.logger(
-              `ISM matches config for chain ${local}, skipping deploy`,
-            );
-            return;
-          }
-          const ism = await this.options.ismFactory.deploy(
-            local,
-            config.interchainSecurityModule,
-          );
-          configuredIsm = ism.address;
-        } else {
-          throw new Error('No ISM factory provided');
-        }
-
-        if (!eqAddress(currentIsm, configuredIsm)) {
-          this.logger(
-            `Set interchain security module on ${local} at ${configuredIsm}`,
-          );
-
-          await this.multiProvider.handleTx(
-            local,
-            client.setInterchainSecurityModule(configuredIsm, txOverrides),
-          );
-        }
-      }
-    });
     this.logger(`Connection client on ${local} initialized...`);
   }
 
@@ -266,21 +290,29 @@ export abstract class HyperlaneDeployer<
   ): Promise<ReturnType<F['deploy']>> {
     const cachedContract = this.readCache(chain, factory, contractName);
     if (cachedContract) {
+      if (this.recoverVerificationInputs) {
+        const recoveredInputs = await this.recoverVerificationArtifacts(
+          chain,
+          contractName,
+          cachedContract,
+          constructorArgs,
+          initializeArgs,
+        );
+        this.addVerificationArtifacts(chain, recoveredInputs);
+      }
       return cachedContract;
     }
 
-    const signer = this.multiProvider.getSigner(chain);
-    const overrides = this.multiProvider.getTransactionOverrides(chain);
-
     this.logger(`Deploy ${contractName} on ${chain}`);
-    const contract = await (factory
-      .connect(signer)
-      .deploy(...constructorArgs, overrides) as ReturnType<F['deploy']>);
-
-    await this.multiProvider.handleTx(chain, contract.deployTransaction);
+    const contract = await this.multiProvider.handleDeploy(
+      chain,
+      factory,
+      constructorArgs,
+    );
 
     if (initializeArgs) {
       this.logger(`Initialize ${contractName} on ${chain}`);
+      const overrides = this.multiProvider.getTransactionOverrides(chain);
       const initTx = await contract.initialize(...initializeArgs, overrides);
       await this.multiProvider.handleTx(chain, initTx);
     }
@@ -391,19 +423,20 @@ export abstract class HyperlaneDeployer<
     proxyAdmin: string,
     initializeArgs?: Parameters<C['initialize']>,
   ): Promise<C> {
-    const initData = initializeArgs
-      ? implementation.interface.encodeFunctionData(
-          'initialize',
-          initializeArgs,
-        )
-      : '0x';
-
-    this.logger(`Deploying transparent upgradable proxy`);
-    const constructorArgs: [string, string, string] = [
+    const isProxied = await isProxy(
+      this.multiProvider.getProvider(chain),
       implementation.address,
+    );
+    if (isProxied) {
+      // if the implementation is already a proxy, do not deploy a new proxy
+      return implementation;
+    }
+
+    const constructorArgs = proxyConstructorArgs(
+      implementation,
       proxyAdmin,
-      initData,
-    ];
+      initializeArgs,
+    );
     const proxy = await this.deployContractFromFactory(
       chain,
       new TransparentUpgradeableProxy__factory(),
@@ -465,6 +498,52 @@ export abstract class HyperlaneDeployer<
     return undefined;
   }
 
+  async recoverVerificationArtifacts<C extends ethers.Contract>(
+    chain: ChainName,
+    contractName: string,
+    cachedContract: C,
+    constructorArgs: Parameters<C['deploy']>,
+    initializeArgs?: Parameters<C['initialize']>,
+  ): Promise<ContractVerificationInput[]> {
+    const provider = this.multiProvider.getProvider(chain);
+    const isProxied = await isProxy(provider, cachedContract.address);
+
+    let implementation: string;
+    if (isProxied) {
+      implementation = await proxyImplementation(
+        provider,
+        cachedContract.address,
+      );
+    } else {
+      implementation = cachedContract.address;
+    }
+
+    const implementationInput = buildVerificationInput(
+      contractName,
+      implementation,
+      cachedContract.interface.encodeDeploy(constructorArgs),
+    );
+
+    if (!isProxied) {
+      return [implementationInput];
+    }
+
+    const admin = await proxyAdmin(provider, cachedContract.address);
+    const proxyArgs = proxyConstructorArgs(
+      cachedContract.attach(implementation),
+      admin,
+      initializeArgs,
+    );
+    const proxyInput = buildVerificationInput(
+      'TransparentUpgradeableProxy',
+      cachedContract.address,
+      TransparentUpgradeableProxy__factory.createInterface().encodeDeploy(
+        proxyArgs,
+      ),
+    );
+    return [implementationInput, proxyInput];
+  }
+
   /**
    * Deploys the Implementation and Proxy for a given contract
    *
@@ -476,15 +555,6 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<Factories[K]['deploy']>,
     initializeArgs?: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
   ): Promise<HyperlaneContracts<Factories>[K]> {
-    const cachedContract = this.readCache(
-      chain,
-      this.factories[contractName],
-      contractName.toString(),
-    );
-    if (cachedContract) {
-      return cachedContract;
-    }
-
     // Try to initialize the implementation even though it may not be necessary
     const implementation = await this.deployContract(
       chain,
