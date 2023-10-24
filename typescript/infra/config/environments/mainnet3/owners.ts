@@ -11,7 +11,11 @@ const safes: ChainMap<Address> = {
   optimism: '0xb523CFAf45AACF472859f8B793CB0BFDB16bD257',
   moonbeam: '0xF0cb1f968Df01fc789762fddBfA704AE0F952197',
   gnosis: '0x36b0AA0e7d04e7b825D7E409FEa3c9A3d57E4C22',
-  solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
+  // solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
+  // TODO: create gnosis safes here
+  base: '',
+  scroll: '',
+  polygonzkevm: '',
 };
 
 // export const owners = safes;
