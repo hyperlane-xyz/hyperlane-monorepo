@@ -10,6 +10,7 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
     },
   },
   avalanche: chainMetadata.avalanche,
+  base: chainMetadata.base,
   polygon: {
     ...chainMetadata.polygon,
     blocks: {
@@ -22,6 +23,8 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
       // gasPrice: 50 * 10 ** 9, // 50 gwei
     },
   },
+  polygonzkevm: chainMetadata.polygonzkevm,
+  scroll: chainMetadata.scroll,
   celo: chainMetadata.celo,
   arbitrum: chainMetadata.arbitrum,
   optimism: chainMetadata.optimism,
@@ -41,13 +44,13 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
 };
 
 // Blessed non-Ethereum chains.
-export const nonEthereumMainnetConfigs: ChainMap<ChainMetadata> = {
-  solana: chainMetadata.solana,
-};
+// export const nonEthereumMainnetConfigs: ChainMap<ChainMetadata> = {
+//   solana: chainMetadata.solana,
+// };
 
 export const mainnetConfigs: ChainMap<ChainMetadata> = {
   ...ethereumMainnetConfigs,
-  ...nonEthereumMainnetConfigs,
+  // ...nonEthereumMainnetConfigs,
 };
 
 export type MainnetChains = keyof typeof mainnetConfigs;
@@ -62,8 +65,8 @@ export const ethereumChainNames = Object.keys(
 
 const validatorChainNames = [
   ...supportedChainNames,
-  chainMetadata.solana.name,
-  chainMetadata.nautilus.name,
+  // chainMetadata.solana.name,
+  // chainMetadata.nautilus.name,
 ];
 
 const relayerChainNames = validatorChainNames;

@@ -20,20 +20,6 @@ import { owners } from './owners';
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const defaultIsm = routingIsm('mainnet3', local, Contexts.Hyperlane);
 
-  let upgrade: CoreConfig['upgrade'];
-  if (local === 'arbitrum') {
-    upgrade = {
-      timelock: {
-        // 7 days in seconds
-        delay: 7 * 24 * 60 * 60,
-        roles: {
-          proposer: owner,
-          executor: owner,
-        },
-      },
-    };
-  }
-
   const merkleHook: MerkleTreeHookConfig = {
     type: HookType.MERKLE_TREE,
   };

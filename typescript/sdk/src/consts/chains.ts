@@ -54,17 +54,17 @@ export const AllDeprecatedChains = Object.keys(DeprecatedChains) as string[];
 export const Mainnets: Array<CoreChainName> = [
   Chains.arbitrum,
   Chains.avalanche,
-  Chains.base,
   Chains.bsc,
   Chains.celo,
   Chains.ethereum,
   Chains.moonbeam,
   Chains.optimism,
   Chains.polygon,
-  Chains.polygonzkevm,
   Chains.gnosis,
+  Chains.base,
   Chains.scroll,
-  Chains.solana,
+  Chains.polygonzkevm,
+  // Chains.solana,
 ];
 
 export const Testnets: Array<CoreChainName> = [
