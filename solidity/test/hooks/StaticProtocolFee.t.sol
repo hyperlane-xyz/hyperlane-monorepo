@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
 import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
+import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
 import {StaticProtocolFee} from "../../contracts/hooks/StaticProtocolFee.sol";
 
@@ -33,6 +34,10 @@ contract StaticProtocolFeeTest is Test {
 
     function testConstructor() public {
         assertEq(fees.protocolFee(), FEE);
+    }
+
+    function testHookType() public {
+        assertEq(fees.hookType(), uint8(IPostDispatchHook.Types.PROTOCOL_FEE));
     }
 
     function testSetProtocolFee(uint256 fee) public {

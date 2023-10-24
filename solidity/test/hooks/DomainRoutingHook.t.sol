@@ -8,6 +8,7 @@ import {DomainRoutingHook} from "../../contracts/hooks/routing/DomainRoutingHook
 import {FallbackDomainRoutingHook} from "../../contracts/hooks/routing/FallbackDomainRoutingHook.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
+import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
@@ -104,6 +105,10 @@ contract DomainRoutingHookTest is Test {
         vm.expectRevert();
         hook.postDispatch(metadata, testMessage);
     }
+
+    function testHookType() public virtual {
+        assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.ROUTING));
+    }
 }
 
 contract FallbackDomainRoutingHookTest is DomainRoutingHookTest {
@@ -161,5 +166,12 @@ contract FallbackDomainRoutingHookTest is DomainRoutingHookTest {
             abi.encodeCall(fallbackHook.postDispatch, (metadata, testMessage))
         );
         hook.postDispatch(metadata, testMessage);
+    }
+
+    function testHookType() public override {
+        assertEq(
+            hook.hookType(),
+            uint8(IPostDispatchHook.Types.FALLBACK_ROUTING)
+        );
     }
 }
