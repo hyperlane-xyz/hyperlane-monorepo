@@ -23,6 +23,11 @@ contract StaticAggregationHook is AbstractPostDispatchHook {
 
     // ============ External functions ============
 
+    /// @inheritdoc IPostDispatchHook
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.Types.AGGREGATION);
+    }
+
     /// @inheritdoc AbstractPostDispatchHook
     function _postDispatch(bytes calldata metadata, bytes calldata message)
         internal
