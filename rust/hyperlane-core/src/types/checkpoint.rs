@@ -84,22 +84,13 @@ pub struct SignedCheckpointWithSigner<T: Signable> {
     pub signed_checkpoint: SignedType<T>,
 }
 
-/// A signature and its signer.
-#[derive(Clone, Debug)]
-pub struct SignatureWithSigner {
-    /// The signature
-    pub signature: Signature,
-    /// The signer of the signature
-    pub signer: H160,
-}
-
 /// A checkpoint and multiple signatures
 #[derive(Clone, Debug)]
 pub struct MultisigSignedCheckpoint<T> {
     /// The checkpoint
     pub checkpoint: T,
-    /// Signatures over the checkpoint. No ordering guarantees.
-    pub signatures: Vec<SignatureWithSigner>,
+    /// Signatures over the checkpoint
+    pub signatures: Vec<Signature>,
 }
 
 /// Error types for MultisigSignedCheckpoint
@@ -138,10 +129,7 @@ impl<T: Signable + Eq + Copy> TryFrom<&Vec<SignedCheckpointWithSigner<T>>>
 
         let signatures = signed_checkpoints
             .iter()
-            .map(|c: &SignedCheckpointWithSigner<T>| SignatureWithSigner {
-                signature: c.signed_checkpoint.signature,
-                signer: c.signer,
-            })
+            .map(|c: &SignedCheckpointWithSigner<T>| c.signed_checkpoint.signature)
             .collect();
 
         Ok(MultisigSignedCheckpoint {
