@@ -128,6 +128,7 @@ impl ValidatorSubmitter {
     }
 
     /// Submits signed checkpoints relating to the given tree until the correctness checkpoint (inclusive).
+    /// Only submits the signed checkpoints once the correctness checkpoint is reached.
     async fn submit_checkpoints_until_correctness_checkpoint(
         &self,
         tree: &mut IncrementalMerkle,
