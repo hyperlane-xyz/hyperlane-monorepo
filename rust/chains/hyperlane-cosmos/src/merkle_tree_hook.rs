@@ -1,17 +1,18 @@
 use std::{fmt::Debug, num::NonZeroU64, ops::RangeInclusive, str::FromStr};
 
 use async_trait::async_trait;
+use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainResult, Checkpoint, ContractLocator,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, LogMeta,
     MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer, H256,
 };
-use tracing::{info, instrument};
+use tracing::instrument;
 
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
     payloads::{
-        general::{self, EventAttribute},
+        general::{self},
         merkle_tree_hook,
     },
     rpc::{CosmosWasmIndexer, WasmIndexer},
@@ -209,13 +210,8 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleeTreeHookIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(MerkleTreeInsertion, LogMeta)>> {
-        let mut result: Vec<(MerkleTreeInsertion, LogMeta)> = vec![];
         let parser = self.get_parser();
-
-        for block_number in range {
-            let logs = self.indexer.get_event_log(block_number, parser).await?;
-            result.extend(logs);
-        }
+        let result = self.indexer.get_range_event_logs(range, parser).await?;
 
         Ok(result)
     }
