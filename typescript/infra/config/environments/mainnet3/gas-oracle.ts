@@ -45,6 +45,9 @@ const gasPrices: ChainMap<BigNumber> = {
   // Arbitrarily chosen as gas prices aren't really a thing
   // in Solana.
   solana: ethers.BigNumber.from('28'),
+  base: ethers.utils.parseUnits('1', 'gwei'),
+  scroll: ethers.utils.parseUnits('1', 'gwei'),
+  polygonzkevm: ethers.utils.parseUnits('2', 'gwei'),
 };
 
 // Accurate from coingecko as of Mar 9, 2023.
@@ -71,6 +74,15 @@ const tokenUsdPrices: ChainMap<BigNumber> = {
   gnosis: ethers.utils.parseUnits('1.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/solana
   solana: ethers.utils.parseUnits('18.85', TOKEN_EXCHANGE_RATE_DECIMALS),
+  // https://www.coingecko.com/en/coins/ethereum
+  base: ethers.utils.parseUnits('1619.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  // https://www.coingecko.com/en/coins/ethereum
+  scroll: ethers.utils.parseUnits('1619.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  // https://www.coingecko.com/en/coins/ethereum
+  polygonzkevm: ethers.utils.parseUnits(
+    '1619.00',
+    TOKEN_EXCHANGE_RATE_DECIMALS,
+  ),
 };
 
 // Gets the exchange rate of the remote quoted in local tokens
