@@ -58,33 +58,92 @@ impl ValidatorSubmitter {
         }
     }
 
-    #[instrument(err, skip(self, tree), fields(domain=%self.merkle_tree_hook.domain()))]
-    pub(crate) async fn checkpoint_submitter(
+    /// Submits signed checkpoints from index 0 until the target checkpoint (inclusive).
+    /// Runs idly forever once the target checkpoint is reached to avoid exiting the task.
+    #[instrument(err, skip(self), fields(domain=%self.merkle_tree_hook.domain()))]
+    pub(crate) async fn backfill_checkpoint_submitter(
         self,
-        mut tree: IncrementalMerkle,
-        target_checkpoint: Option<Checkpoint>,
+        target_checkpoint: Checkpoint,
     ) -> Result<()> {
+        let mut tree = IncrementalMerkle::default();
+        self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
+            .await?;
+
+        info!(
+            ?target_checkpoint,
+            "Backfill checkpoint submitter successfully reached target checkpoint"
+        );
+
+        // TODO: remove this once validator is tolerant of tasks exiting.
+        loop {
+            sleep(Duration::from_secs(u64::MAX)).await;
+        }
+    }
+
+    /// Submits signed checkpoints indefinitely, starting from the `tree`.
+    #[instrument(err, skip(self, tree), fields(domain=%self.merkle_tree_hook.domain()))]
+    pub(crate) async fn checkpoint_submitter(self, mut tree: IncrementalMerkle) -> Result<()> {
+        loop {
+            // Lag by reorg period because this is our correctness checkpoint.
+            let latest_checkpoint = self
+                .merkle_tree_hook
+                .latest_checkpoint(self.reorg_period)
+                .await?;
+            self.metrics
+                .latest_checkpoint_observed
+                .set(latest_checkpoint.index as i64);
+
+            // This may occur e.g. if RPC providers are unreliable and make calls against
+            // inconsistent block tips.
+            //
+            // In this case, we just sleep a bit until we fetch a new latest checkpoint
+            // that at least meets the tree.
+            if tree_exceeds_checkpoint(&latest_checkpoint, &tree) {
+                debug!(
+                    ?latest_checkpoint,
+                    tree_count = tree.count(),
+                    "Latest checkpoint is behind tree, sleeping briefly"
+                );
+                sleep(self.interval).await;
+                continue;
+            }
+
+            self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
+                .await?;
+
+            self.metrics
+                .latest_checkpoint_processed
+                .set(latest_checkpoint.index as i64);
+
+            sleep(self.interval).await;
+        }
+    }
+
+    /// Submits signed checkpoints relating to the given tree until the correctness checkpoint (inclusive).
+    /// Only submits the signed checkpoints once the correctness checkpoint is reached.
+    async fn submit_checkpoints_until_correctness_checkpoint(
+        &self,
+        tree: &mut IncrementalMerkle,
+        correctness_checkpoint: &Checkpoint,
+    ) -> Result<()> {
+        // This should never be called with a tree that is ahead of the correctness checkpoint.
+        assert!(
+            !tree_exceeds_checkpoint(correctness_checkpoint, tree),
+            "tree (count: {}) is ahead of correctness checkpoint {:?}",
+            tree.count(),
+            correctness_checkpoint,
+        );
+
+        // All intermediate checkpoints will be stored here and signed once the correctness
+        // checkpoint is reached.
         let mut checkpoint_queue = vec![];
 
-        let mut reached_target = false;
-
-        while !reached_target {
-            let correctness_checkpoint = if let Some(c) = target_checkpoint {
-                c
-            } else {
-                // lag by reorg period to match message indexing
-                let latest_checkpoint = self
-                    .merkle_tree_hook
-                    .latest_checkpoint(self.reorg_period)
-                    .await?;
-                self.metrics
-                    .latest_checkpoint_observed
-                    .set(latest_checkpoint.index as i64);
-                latest_checkpoint
-            };
-
-            // ingest available messages from DB
-            while let Some(insertion) = self
+        // If the correctness checkpoint is ahead of the tree, we need to ingest more messages.
+        //
+        // tree.index() will panic if the tree is empty, so we use tree.count() instead
+        // and convert the correctness_checkpoint.index to a count by adding 1.
+        while correctness_checkpoint.index + 1 > tree.count() as u32 {
+            if let Some(insertion) = self
                 .message_db
                 .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))?
             {
@@ -96,76 +155,85 @@ impl ValidatorSubmitter {
                 let message_id = insertion.message_id();
                 tree.ingest(message_id);
 
-                let checkpoint = self.checkpoint(&tree);
+                let checkpoint = self.checkpoint(tree);
 
                 checkpoint_queue.push(CheckpointWithMessageId {
                     checkpoint,
                     message_id,
                 });
+            } else {
+                // If we haven't yet indexed the next merkle tree insertion but know that
+                // it will soon exist (because we know the correctness checkpoint), wait a bit and
+                // try again.
+                sleep(Duration::from_millis(100)).await
+            }
+        }
 
-                if checkpoint.index == correctness_checkpoint.index {
-                    // We got to the right height, now lets compare whether we got the right tree
-                    if checkpoint.root != correctness_checkpoint.root {
-                        // Bad news, bail
-                        error!(
-                            ?checkpoint,
-                            ?correctness_checkpoint,
-                            "Incorrect tree root, something went wrong"
-                        );
-                        bail!("Incorrect tree root, something went wrong");
-                    }
-                }
+        // At this point we know that correctness_checkpoint.index == tree.index().
+        assert_eq!(
+            correctness_checkpoint.index,
+            tree.index(),
+            "correctness checkpoint index {} != tree index {}",
+            correctness_checkpoint.index,
+            tree.index(),
+        );
 
-                // compare against every queued checkpoint to prevent ingesting past target
-                if checkpoint == correctness_checkpoint {
-                    debug!(index = checkpoint.index, "Reached tree consistency");
+        let checkpoint = self.checkpoint(tree);
 
-                    // drain and sign all checkpoints in the queue
-                    for queued_checkpoint in checkpoint_queue.drain(..) {
-                        let existing = self
-                            .checkpoint_syncer
-                            .fetch_checkpoint(queued_checkpoint.index)
-                            .await?;
-                        if existing.is_some() {
-                            debug!(
-                                index = queued_checkpoint.index,
-                                "Checkpoint already submitted"
-                            );
-                            continue;
-                        }
+        // If the tree's checkpoint doesn't match the correctness checkpoint, something went wrong
+        // and we bail loudly.
+        if checkpoint != *correctness_checkpoint {
+            error!(
+                ?checkpoint,
+                ?correctness_checkpoint,
+                "Incorrect tree root, something went wrong"
+            );
+            bail!("Incorrect tree root, something went wrong");
+        }
 
-                        let signed_checkpoint = self.signer.sign(queued_checkpoint).await?;
-                        self.checkpoint_syncer
-                            .write_checkpoint(&signed_checkpoint)
-                            .await?;
-                        debug!(
-                            index = queued_checkpoint.index,
-                            "Signed and submitted checkpoint"
-                        );
+        debug!(index = checkpoint.index, "Reached tree consistency");
 
-                        // small sleep before signing next checkpoint to avoid rate limiting
-                        sleep(Duration::from_millis(100)).await;
-                    }
+        self.sign_and_submit_checkpoints(checkpoint_queue).await?;
 
-                    info!(index = checkpoint.index, "Signed all queued checkpoints");
+        info!(
+            index = checkpoint.index,
+            "Signed all queued checkpoints until index"
+        );
 
-                    self.metrics
-                        .latest_checkpoint_processed
-                        .set(checkpoint.index as i64);
+        Ok(())
+    }
 
-                    // break out of submitter loop if target checkpoint is reached
-                    reached_target = target_checkpoint.is_some();
-                    break;
-                }
+    /// Signs and submits any previously unsubmitted checkpoints.
+    async fn sign_and_submit_checkpoints(
+        &self,
+        checkpoints: Vec<CheckpointWithMessageId>,
+    ) -> Result<()> {
+        for queued_checkpoint in checkpoints {
+            let existing = self
+                .checkpoint_syncer
+                .fetch_checkpoint(queued_checkpoint.index)
+                .await?;
+            if existing.is_some() {
+                debug!(
+                    index = queued_checkpoint.index,
+                    "Checkpoint already submitted"
+                );
+                continue;
             }
 
-            sleep(self.interval).await;
-        }
+            let signed_checkpoint = self.signer.sign(queued_checkpoint).await?;
+            self.checkpoint_syncer
+                .write_checkpoint(&signed_checkpoint)
+                .await?;
+            debug!(
+                index = queued_checkpoint.index,
+                "Signed and submitted checkpoint"
+            );
 
-        // TODO: remove this once validator is tolerant of tasks exiting
-        loop {
-            sleep(Duration::from_secs(u64::MAX)).await;
+            // small sleep before signing next checkpoint to avoid rate limiting
+            sleep(Duration::from_millis(100)).await;
         }
+        Ok(())
     }
 
     pub(crate) async fn legacy_checkpoint_submitter(self) -> Result<()> {
@@ -247,6 +315,13 @@ impl ValidatorSubmitter {
             sleep(self.interval).await;
         }
     }
+}
+
+/// Returns whether the tree exceeds the checkpoint.
+fn tree_exceeds_checkpoint(checkpoint: &Checkpoint, tree: &IncrementalMerkle) -> bool {
+    // tree.index() will panic if the tree is empty, so we use tree.count() instead
+    // and convert the correctness_checkpoint.index to a count by adding 1.
+    checkpoint.index + 1 < tree.count() as u32
 }
 
 #[derive(Clone)]

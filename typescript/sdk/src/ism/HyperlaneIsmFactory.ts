@@ -10,6 +10,7 @@ import {
   StaticAddressSetFactory,
   StaticAggregationIsm__factory,
   StaticThresholdAddressSetFactory,
+  TestIsm__factory,
 } from '@hyperlane-xyz/core';
 import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
 
@@ -107,6 +108,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     } else if (config.type === ModuleType.AGGREGATION) {
       this.logger(`Deploying Aggregation ISM to ${chain}`);
       contract = await this.deployAggregationIsm(chain, config, origin);
+    } else if (config.type === ModuleType.NULL) {
+      this.logger(`Deploying Test ISM to ${chain}`);
+      contract = await this.multiProvider.handleDeploy(
+        chain,
+        new TestIsm__factory(),
+        [],
+      );
     } else {
       throw new Error(`Unsupported ISM type`);
     }
@@ -355,6 +363,9 @@ export async function moduleCanCertainlyVerify(
         }
         return verified >= destModule.threshold;
       }
+      case ModuleType.NULL: {
+        return true;
+      }
     }
   }
 }
@@ -472,6 +483,11 @@ export async function moduleMatchesConfig(
       }
       break;
     }
+    case ModuleType.NULL: {
+      // This is just a TestISM
+      matches = true;
+      break;
+    }
     default: {
       throw new Error('Unsupported ModuleType');
     }
@@ -513,6 +529,9 @@ export function collectValidators(
     aggregatedValidators.forEach((set) => {
       validators = validators.concat([...set]);
     });
+  } else if (config.type === ModuleType.NULL) {
+    // This is just a TestISM
+    return new Set([]);
   } else {
     throw new Error('Unsupported ModuleType');
   }
