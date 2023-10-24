@@ -1,7 +1,7 @@
 import { ChainMap } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
-export const owners: ChainMap<Address> = {
+const safes: ChainMap<Address> = {
   celo: '0x1DE69322B55AC7E0999F8e7738a1428C8b130E4d',
   ethereum: '0x12C5AB61Fe17dF9c65739DBa73dF294708f78d23',
   avalanche: '0xDF9B28B76877f1b1B4B8a11526Eb7D8D7C49f4f3',
@@ -13,3 +13,9 @@ export const owners: ChainMap<Address> = {
   gnosis: '0x36b0AA0e7d04e7b825D7E409FEa3c9A3d57E4C22',
   solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
 };
+
+// export const owners = safes;
+
+// temporarily keep ownership on deployer key
+const deployer = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+export const owners = objMap(safes, (_, __) => deployer);

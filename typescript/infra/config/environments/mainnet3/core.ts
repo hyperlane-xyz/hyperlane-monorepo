@@ -51,7 +51,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const requiredHook: ProtocolFeeHookConfig = {
     type: HookType.PROTOCOL_FEE,
     maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'), // 1 gwei of native token
-    protocolFee: BigNumber.from(1), // 1 wei
+    protocolFee: BigNumber.from(0), // 0 wei
     beneficiary: owner,
     owner,
   };
