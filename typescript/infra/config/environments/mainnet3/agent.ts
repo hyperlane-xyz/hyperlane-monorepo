@@ -5,20 +5,16 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { RootAgentConfig, allAgentChainNames } from '../../../src/config';
-import {
-  GasPaymentEnforcementConfig,
-  routerMatchingList,
-} from '../../../src/config/agent/relayer';
+import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
 import { agentChainNames, environment } from './chains';
-import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
 
-const releaseCandidateHelloworldMatchingList = routerMatchingList(
-  helloWorld[Contexts.ReleaseCandidate].addresses,
-);
+// const releaseCandidateHelloworldMatchingList = routerMatchingList(
+//   helloWorld[Contexts.ReleaseCandidate].addresses,
+// );
 
 const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
@@ -62,7 +58,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '65ac90a-20231020-192310',
+      tag: '2e1db12-20231025-013013',
     },
   },
 };
@@ -77,7 +73,7 @@ const releaseCandidate: RootAgentConfig = {
       repo,
       tag: '35fdc74-20230913-104940',
     },
-    whitelist: releaseCandidateHelloworldMatchingList,
+    // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1
