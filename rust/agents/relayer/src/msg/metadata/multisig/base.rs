@@ -53,10 +53,9 @@ pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
                 MetadataToken::CheckpointMerkleRoot => {
                     Ok(metadata.checkpoint.root.to_fixed_bytes().into())
                 }
-                MetadataToken::MessageMerkleLeafIndex => Ok(metadata
-                    .merkle_leaf_index
-                    .to_be_bytes()
-                    .into()),
+                MetadataToken::MessageMerkleLeafIndex => {
+                    Ok(metadata.merkle_leaf_index.to_be_bytes().into())
+                }
                 MetadataToken::CheckpointIndex => {
                     Ok(metadata.checkpoint.index.to_be_bytes().into())
                 }

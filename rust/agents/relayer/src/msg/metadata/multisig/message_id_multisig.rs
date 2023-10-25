@@ -23,7 +23,7 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
             MetadataToken::CheckpointMerkleTreeHook,
             MetadataToken::CheckpointMerkleRoot,
             MetadataToken::CheckpointIndex,
-            MetadataToken::Signatures
+            MetadataToken::Signatures,
         ]
     }
 
@@ -59,8 +59,7 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         if quorum_checkpoint.checkpoint.message_id != message_id {
             warn!(
                 "Quorum checkpoint message id {} does not match message id {}",
-                quorum_checkpoint.checkpoint.message_id,
-                message_id
+                quorum_checkpoint.checkpoint.message_id, message_id
             );
             if quorum_checkpoint.checkpoint.index != leaf_index {
                 warn!(
