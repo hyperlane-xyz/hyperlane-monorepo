@@ -7,10 +7,11 @@ import {
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
   IRoutingIsm__factory,
+  OPStackIsm__factory,
   StaticAddressSetFactory,
   StaticAggregationIsm__factory,
   StaticThresholdAddressSetFactory,
-  TestIsm__factory,
+  TestMultisigIsm__factory,
 } from '@hyperlane-xyz/core';
 import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
 
@@ -29,9 +30,12 @@ import {
   AggregationIsmConfig,
   DeployedIsm,
   IsmConfig,
+  IsmType,
   ModuleType,
   MultisigIsmConfig,
+  OpStackIsmConfig,
   RoutingIsmConfig,
+  ismTypeToModuleType,
 } from './types';
 
 export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
@@ -48,6 +52,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
+    /// @ts-ignore
     return HyperlaneIsmFactory.fromAddressesMap(envAddresses, multiProvider);
   }
 
@@ -82,44 +87,47 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     }
 
     if (
-      config.type === ModuleType.MERKLE_ROOT_MULTISIG ||
-      config.type === ModuleType.MESSAGE_ID_MULTISIG
+      config.type === IsmType.MERKLE_ROOT_MULTISIG ||
+      config.type === IsmType.MESSAGE_ID_MULTISIG
     ) {
       switch (config.type) {
-        case ModuleType.MERKLE_ROOT_MULTISIG:
+        case IsmType.MERKLE_ROOT_MULTISIG:
           this.logger(
             `Deploying Merkle Root Multisig ISM to ${chain} for verifying ${origin}`,
           );
           break;
-        case ModuleType.MESSAGE_ID_MULTISIG:
+        case IsmType.MESSAGE_ID_MULTISIG:
           this.logger(
             `Deploying Message ID Multisig ISM to ${chain} for verifying ${origin}`,
           );
           break;
       }
       contract = await this.deployMultisigIsm(chain, config);
-    } else if (config.type === ModuleType.ROUTING) {
+    } else if (config.type === IsmType.ROUTING) {
       this.logger(
         `Deploying Routing ISM to ${chain} for verifying ${Object.keys(
           config.domains,
         )}`,
       );
       contract = await this.deployRoutingIsm(chain, config);
-    } else if (config.type === ModuleType.AGGREGATION) {
+    } else if (config.type === IsmType.AGGREGATION) {
       this.logger(`Deploying Aggregation ISM to ${chain}`);
       contract = await this.deployAggregationIsm(chain, config, origin);
-    } else if (config.type === ModuleType.NULL) {
+    } else if (config.type === IsmType.OP_STACK) {
+      this.logger(`Deploying Op Stack ISM to ${chain} for verifying ${origin}`);
+      contract = await this.deployOpStackIsm(chain, config);
+    } else if (config.type === IsmType.TEST_ISM) {
       this.logger(`Deploying Test ISM to ${chain}`);
       contract = await this.multiProvider.handleDeploy(
         chain,
-        new TestIsm__factory(),
+        new TestMultisigIsm__factory(),
         [],
       );
     } else {
       throw new Error(`Unsupported ISM type`);
     }
 
-    const moduleType = ModuleType[config.type];
+    const ismType = config.type;
     if (!this.deployedIsms[chain]) {
       this.deployedIsms[chain] = {};
     }
@@ -129,10 +137,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
       if (!this.deployedIsms[chain][origin]) {
         this.deployedIsms[chain][origin] = {};
       }
-      this.deployedIsms[chain][origin][moduleType] = contract;
+      this.deployedIsms[chain][origin][ismType] = contract;
     } else {
       // otherwise store the entry directly
-      this.deployedIsms[chain][moduleType] = contract;
+      this.deployedIsms[chain][ismType] = contract;
     }
 
     return contract;
@@ -141,7 +149,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
   private async deployMultisigIsm(chain: ChainName, config: MultisigIsmConfig) {
     const signer = this.multiProvider.getSigner(chain);
     const multisigIsmFactory =
-      config.type === ModuleType.MERKLE_ROOT_MULTISIG
+      config.type === IsmType.MERKLE_ROOT_MULTISIG
         ? this.getContracts(chain).merkleRootMultisigIsmFactory
         : this.getContracts(chain).messageIdMultisigIsmFactory;
 
@@ -220,6 +228,15 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
       config.threshold,
     );
     return IAggregationIsm__factory.connect(address, signer);
+  }
+
+  private async deployOpStackIsm(chain: ChainName, config: OpStackIsmConfig) {
+    const deployedIsm = await this.multiProvider.handleDeploy(
+      chain,
+      new OPStackIsm__factory(),
+      [config.nativeBridge],
+    );
+    return deployedIsm;
   }
 
   async deployStaticAddressSet(
@@ -338,17 +355,19 @@ export async function moduleCanCertainlyVerify(
   } else {
     // destModule is an IsmConfig
     switch (destModule.type) {
-      case ModuleType.MERKLE_ROOT_MULTISIG:
-      case ModuleType.MESSAGE_ID_MULTISIG:
+      case IsmType.MERKLE_ROOT_MULTISIG:
+      case IsmType.MESSAGE_ID_MULTISIG:
         return destModule.threshold > 0;
-      case ModuleType.ROUTING:
-        return moduleCanCertainlyVerify(
+      case IsmType.ROUTING: {
+        const checking = moduleCanCertainlyVerify(
           destModule.domains[destination],
           multiProvider,
           origin,
           destination,
         );
-      case ModuleType.AGGREGATION: {
+        return checking;
+      }
+      case IsmType.AGGREGATION: {
         let verified = 0;
         for (const subModule of destModule.modules) {
           const canVerify = await moduleCanCertainlyVerify(
@@ -363,9 +382,13 @@ export async function moduleCanCertainlyVerify(
         }
         return verified >= destModule.threshold;
       }
-      case ModuleType.NULL: {
+      case IsmType.OP_STACK:
+        return destModule.nativeBridge !== ethers.constants.AddressZero;
+      case IsmType.TEST_ISM: {
         return true;
       }
+      default:
+        throw new Error(`Unsupported module type: ${(destModule as any).type}`);
     }
   }
 }
@@ -394,10 +417,10 @@ export async function moduleMatchesConfig(
     provider,
   );
   const actualType = await module.moduleType();
-  if (actualType !== config.type) return false;
+  if (actualType !== ismTypeToModuleType(config.type)) return false;
   let matches = true;
   switch (config.type) {
-    case ModuleType.MERKLE_ROOT_MULTISIG: {
+    case IsmType.MERKLE_ROOT_MULTISIG: {
       // A MerkleRootMultisigIsm matches if validators and threshold match the config
       const expectedAddress =
         await contracts.merkleRootMultisigIsmFactory.getAddress(
@@ -407,7 +430,7 @@ export async function moduleMatchesConfig(
       matches = eqAddress(expectedAddress, module.address);
       break;
     }
-    case ModuleType.MESSAGE_ID_MULTISIG: {
+    case IsmType.MESSAGE_ID_MULTISIG: {
       // A MessageIdMultisigIsm matches if validators and threshold match the config
       const expectedAddress =
         await contracts.messageIdMultisigIsmFactory.getAddress(
@@ -417,7 +440,7 @@ export async function moduleMatchesConfig(
       matches = eqAddress(expectedAddress, module.address);
       break;
     }
-    case ModuleType.ROUTING: {
+    case IsmType.ROUTING: {
       // A RoutingIsm matches if:
       //   1. The set of domains in the config equals those on-chain
       //   2. The modules for each domain match the config
@@ -447,7 +470,7 @@ export async function moduleMatchesConfig(
       }
       break;
     }
-    case ModuleType.AGGREGATION: {
+    case IsmType.AGGREGATION: {
       // An AggregationIsm matches if:
       //   1. The threshold matches the config
       //   2. There is a bijection between on and off-chain configured modules
@@ -483,7 +506,7 @@ export async function moduleMatchesConfig(
       }
       break;
     }
-    case ModuleType.NULL: {
+    case IsmType.TEST_ISM: {
       // This is just a TestISM
       matches = true;
       break;
@@ -510,11 +533,11 @@ export function collectValidators(
 
   let validators: string[] = [];
   if (
-    config.type === ModuleType.MERKLE_ROOT_MULTISIG ||
-    config.type === ModuleType.MESSAGE_ID_MULTISIG
+    config.type === IsmType.MERKLE_ROOT_MULTISIG ||
+    config.type === IsmType.MESSAGE_ID_MULTISIG
   ) {
     validators = config.validators;
-  } else if (config.type === ModuleType.ROUTING) {
+  } else if (config.type === IsmType.ROUTING) {
     if (Object.keys(config.domains).includes(origin)) {
       const domainValidators = collectValidators(
         origin,
@@ -522,14 +545,14 @@ export function collectValidators(
       );
       validators = [...domainValidators];
     }
-  } else if (config.type === ModuleType.AGGREGATION) {
+  } else if (config.type === IsmType.AGGREGATION) {
     const aggregatedValidators = config.modules.map((c) =>
       collectValidators(origin, c),
     );
     aggregatedValidators.forEach((set) => {
       validators = validators.concat([...set]);
     });
-  } else if (config.type === ModuleType.NULL) {
+  } else if (config.type === IsmType.TEST_ISM) {
     // This is just a TestISM
     return new Set([]);
   } else {

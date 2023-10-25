@@ -3,7 +3,7 @@ import {
   ChainMap,
   ChainName,
   IsmConfig,
-  ModuleType,
+  IsmType,
   RoutingIsmConfig,
 } from '@hyperlane-xyz/sdk';
 
@@ -52,7 +52,7 @@ export const routingIsm = (
   );
 
   return {
-    type: ModuleType.ROUTING,
+    type: IsmType.ROUTING,
     domains: aggregationIsms,
     owner: owners[environment][local],
   };
@@ -61,15 +61,13 @@ export const routingIsm = (
 const replacerEnum = (key: string, value: any) => {
   if (key === 'type') {
     switch (value) {
-      case ModuleType.AGGREGATION:
+      case IsmType.AGGREGATION:
         return 'AGGREGATION';
-      case ModuleType.ROUTING:
+      case IsmType.ROUTING:
         return 'ROUTING';
-      case ModuleType.MERKLE_ROOT_MULTISIG:
+      case IsmType.MERKLE_ROOT_MULTISIG:
         return 'MERKLE_ROOT_MULTISIG';
-      case ModuleType.LEGACY_MULTISIG:
-        return 'LEGACY_MULTISIG';
-      case ModuleType.MESSAGE_ID_MULTISIG:
+      case IsmType.MESSAGE_ID_MULTISIG:
         return 'MESSAGE_ID_MULTISIG';
       default:
         return value;

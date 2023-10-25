@@ -480,10 +480,7 @@ export const scrollsepolia: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Scroll Sepolia',
   nativeToken: etherToken,
-  rpcUrls: [
-    { http: 'https://sepolia-rpc.scroll.io' },
-    { http: 'https://scroll-public.scroll-testnet.quiknode.pro' },
-  ],
+  rpcUrls: [{ http: 'https://sepolia-rpc.scroll.io' }],
   blockExplorers: [
     {
       name: 'Scroll Explorer',
