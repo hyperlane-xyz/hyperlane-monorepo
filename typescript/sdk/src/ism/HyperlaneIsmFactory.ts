@@ -11,7 +11,7 @@ import {
   StaticAddressSetFactory,
   StaticAggregationIsm__factory,
   StaticThresholdAddressSetFactory,
-  TestMultisigIsm__factory,
+  TestIsm__factory,
 } from '@hyperlane-xyz/core';
 import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
 
@@ -120,7 +120,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
       this.logger(`Deploying Test ISM to ${chain}`);
       contract = await this.multiProvider.handleDeploy(
         chain,
-        new TestMultisigIsm__factory(),
+        new TestIsm__factory(),
         [],
       );
     } else {

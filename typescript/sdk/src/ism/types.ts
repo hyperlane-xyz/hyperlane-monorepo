@@ -6,6 +6,7 @@ import {
   OPStackIsm,
   StaticMerkleRootMultisigIsm,
   StaticMessageIdMultisigIsm,
+  TestIsm,
 } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
@@ -18,7 +19,8 @@ export type DeployedIsm =
   | IRoutingIsm
   | StaticMessageIdMultisigIsm
   | StaticMerkleRootMultisigIsm
-  | OPStackIsm;
+  | OPStackIsm
+  | TestIsm;
 
 // this enum should match the IInterchainSecurityModule.sol enum
 // meant for the relayer
