@@ -1,6 +1,6 @@
 use std::num::NonZeroU64;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::vec;
 
 use eyre::{bail, Result};
@@ -83,6 +83,23 @@ impl ValidatorSubmitter {
     /// Submits signed checkpoints indefinitely, starting from the `tree`.
     #[instrument(err, skip(self, tree), fields(domain=%self.merkle_tree_hook.domain()))]
     pub(crate) async fn checkpoint_submitter(self, mut tree: IncrementalMerkle) -> Result<()> {
+        // How often to log checkpoint info - once every minute
+        let checkpoint_info_log_period = Duration::from_secs(60);
+        // The instant in which we last logged checkpoint info, if at all
+        let mut latest_checkpoint_info_log: Option<Instant> = None;
+        // Returns whether checkpoint info should be logged based off the
+        // checkpoint_info_log_period having elapsed since the last log.
+        // Sets latest_checkpoint_info_log to the current instant if true.
+        let mut should_log_checkpoint_info = || {
+            if let Some(instant) = latest_checkpoint_info_log {
+                if instant.elapsed() < checkpoint_info_log_period {
+                    return false;
+                }
+            }
+            latest_checkpoint_info_log = Some(Instant::now());
+            true
+        };
+
         loop {
             // Lag by reorg period because this is our correctness checkpoint.
             let latest_checkpoint = self
@@ -92,6 +109,14 @@ impl ValidatorSubmitter {
             self.metrics
                 .latest_checkpoint_observed
                 .set(latest_checkpoint.index as i64);
+
+            if should_log_checkpoint_info() {
+                info!(
+                    ?latest_checkpoint,
+                    tree_count = tree.count(),
+                    "Latest checkpoint"
+                );
+            }
 
             // This may occur e.g. if RPC providers are unreliable and make calls against
             // inconsistent block tips.
