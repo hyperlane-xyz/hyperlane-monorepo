@@ -16,10 +16,7 @@ export function fromWei(
 ): string {
   if (!value) return (0).toString();
   const valueString = value.toString().trim();
-  const flooredValue = new BigNumber(valueString).toFixed(
-    0,
-    BigNumber.ROUND_FLOOR,
-  );
+  const flooredValue = BigNumber(valueString).toFixed(0, BigNumber.ROUND_FLOOR);
   return parseFloat(formatUnits(flooredValue, decimals)).toString();
 }
 
@@ -36,8 +33,8 @@ export function fromWeiRounded(
   roundDownIfSmall = true,
 ): string {
   if (!value) return '0';
-  const flooredValue = new BigNumber(value).toFixed(0, BigNumber.ROUND_FLOOR);
-  const amount = new BigNumber(formatUnits(flooredValue, decimals));
+  const flooredValue = BigNumber(value).toFixed(0, BigNumber.ROUND_FLOOR);
+  const amount = BigNumber(formatUnits(flooredValue, decimals));
   if (amount.isZero()) return '0';
 
   // If amount is less than min value
@@ -59,11 +56,11 @@ export function toWei(
   value: BigNumber.Value | null | undefined,
   decimals = DEFAULT_TOKEN_DECIMALS,
 ): string {
-  if (!value) return new BigNumber(0).toString();
+  if (!value) return BigNumber(0).toString();
   // First convert to a BigNumber, and then call `toString` with the
   // explicit radix 10 such that the result is formatted as a base-10 string
   // and not in scientific notation.
-  const valueBN = new BigNumber(value);
+  const valueBN = BigNumber(value);
   const valueString = valueBN.toString(10).trim();
   const components = valueString.split('.');
   if (components.length === 1) {
@@ -89,7 +86,7 @@ export function tryParseAmount(
 ): BigNumber | null {
   try {
     if (!value) return null;
-    const parsed = new BigNumber(value);
+    const parsed = BigNumber(value);
     if (!parsed || parsed.isNaN() || !parsed.isFinite()) return null;
     else return parsed;
   } catch (error) {
@@ -126,19 +123,19 @@ export function convertDecimals(
   toDecimals: number,
   value: BigNumber.Value,
 ): string {
-  const amount = new BigNumber(value);
+  const amount = BigNumber(value);
 
   if (fromDecimals === toDecimals) return amount.toString();
   else if (fromDecimals > toDecimals) {
     const difference = fromDecimals - toDecimals;
     return amount
-      .div(new BigNumber(10).pow(difference))
+      .div(BigNumber(10).pow(difference))
       .integerValue(BigNumber.ROUND_FLOOR)
       .toString();
   }
   // fromDecimals < toDecimals
   else {
     const difference = toDecimals - fromDecimals;
-    return amount.times(new BigNumber(10).pow(difference)).toString();
+    return amount.times(BigNumber(10).pow(difference)).toString();
   }
 }
