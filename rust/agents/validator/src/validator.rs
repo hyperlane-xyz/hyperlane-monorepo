@@ -179,7 +179,6 @@ impl Validator {
         assert!(tip_tree.count() > 0, "merkle tree is empty");
         let backfill_target = submitter.checkpoint(&tip_tree);
 
-        let legacy_submitter = submitter.clone();
         let backfill_submitter = submitter.clone();
 
         let mut tasks = vec![];
@@ -195,10 +194,6 @@ impl Validator {
         tasks.push(
             tokio::spawn(async move { submitter.checkpoint_submitter(tip_tree).await })
                 .instrument(info_span!("TipCheckpointSubmitter")),
-        );
-        tasks.push(
-            tokio::spawn(async move { legacy_submitter.legacy_checkpoint_submitter().await })
-                .instrument(info_span!("LegacyCheckpointSubmitter")),
         );
 
         tasks

@@ -75,10 +75,8 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             debug!(leaf_index, checkpoint=?quorum_checkpoint, "Couldn't get proof")
         );
         Ok(Some(MultisigMetadata::new(
-            quorum_checkpoint.checkpoint.checkpoint,
-            quorum_checkpoint.signatures,
-            Some(leaf_index),
-            Some(quorum_checkpoint.checkpoint.message_id),
+            quorum_checkpoint,
+            leaf_index,
             Some(proof),
         )))
     }
