@@ -3,6 +3,8 @@ import { expect } from 'chai';
 import { FixedNumber } from 'ethers';
 
 import {
+  BigNumberMax,
+  BigNumberMin,
   bigToFixed,
   fixedToBig,
   isBigNumberish,
@@ -97,6 +99,22 @@ describe('utils', () => {
       const product = mulBigAndFixed(big, fixed, true);
 
       expect(product).to.equal((1235).toString());
+    });
+  });
+
+  describe('BigNumberMin', () => {
+    it('gets the min between the two BigNumber', () => {
+      const big = BigNumber('1000');
+      const bigger = BigNumber('10000');
+      expect(BigNumberMin(big, bigger)).to.equal(big.toString());
+    });
+  });
+
+  describe('BigNumberMax', () => {
+    it('gets the max between the two BigNumber', () => {
+      const big = BigNumber('1000');
+      const bigger = BigNumber('10000');
+      expect(BigNumberMax(big, bigger)).to.equal(bigger.toString());
     });
   });
 });
