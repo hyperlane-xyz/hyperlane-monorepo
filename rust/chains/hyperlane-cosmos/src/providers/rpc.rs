@@ -150,7 +150,7 @@ impl WasmIndexer for CosmosWasmIndexer {
         let last_page = total_count / 30 + (total_count % 30 != 0) as u32;
 
         let handler = |txs: Vec<tx::Response>,
-                       block_hashs: HashMap<u64, H256>|
+                       block_hashs: &HashMap<u64, H256>|
          -> Vec<(T, LogMeta)> {
             let mut result: Vec<(T, LogMeta)> = vec![];
             let target_type = format!("{}-{}", Self::WASM_TYPE, self.event_type);
@@ -189,7 +189,7 @@ impl WasmIndexer for CosmosWasmIndexer {
             result
         };
 
-        let mut result = handler(tx_search_result.txs, block_hash.clone());
+        let mut result = handler(tx_search_result.txs, &block_hash);
 
         for page in 2..=last_page {
             debug!(page, "Making tx search RPC");
@@ -198,7 +198,7 @@ impl WasmIndexer for CosmosWasmIndexer {
                 .tx_search(query.clone(), false, page, 30, Order::Ascending)
                 .await?;
 
-            result.extend(handler(tx_search_result.txs, block_hash.clone()));
+            result.extend(handler(tx_search_result.txs, &block_hash));
         }
 
         Ok(result)
