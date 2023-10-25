@@ -46,14 +46,14 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '65ac90a-20231020-192310',
+      tag: '2e1db12-20231025-013013',
     },
     gasPaymentEnforcement,
   },
   validators: {
     docker: {
       repo,
-      tag: '65ac90a-20231020-192310',
+      tag: '2e1db12-20231025-013013',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
