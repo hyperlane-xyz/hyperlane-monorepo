@@ -35,6 +35,7 @@ import {
   MultisigIsmConfig,
   OpStackIsmConfig,
   RoutingIsmConfig,
+  ismTypeToModuleType,
 } from './types';
 
 export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
@@ -51,6 +52,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
+    /// @ts-ignore
     return HyperlaneIsmFactory.fromAddressesMap(envAddresses, multiProvider);
   }
 
@@ -125,7 +127,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
       throw new Error(`Unsupported ISM type`);
     }
 
-    const moduleType = ModuleType[config.type];
+    const ismType = config.type;
     if (!this.deployedIsms[chain]) {
       this.deployedIsms[chain] = {};
     }
@@ -135,10 +137,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
       if (!this.deployedIsms[chain][origin]) {
         this.deployedIsms[chain][origin] = {};
       }
-      this.deployedIsms[chain][origin][moduleType] = contract;
+      this.deployedIsms[chain][origin][ismType] = contract;
     } else {
       // otherwise store the entry directly
-      this.deployedIsms[chain][moduleType] = contract;
+      this.deployedIsms[chain][ismType] = contract;
     }
 
     return contract;
@@ -356,13 +358,15 @@ export async function moduleCanCertainlyVerify(
       case IsmType.MERKLE_ROOT_MULTISIG:
       case IsmType.MESSAGE_ID_MULTISIG:
         return destModule.threshold > 0;
-      case IsmType.ROUTING:
-        return moduleCanCertainlyVerify(
+      case IsmType.ROUTING: {
+        const checking = moduleCanCertainlyVerify(
           destModule.domains[destination],
           multiProvider,
           origin,
           destination,
         );
+        return checking;
+      }
       case IsmType.AGGREGATION: {
         let verified = 0;
         for (const subModule of destModule.modules) {
@@ -413,7 +417,7 @@ export async function moduleMatchesConfig(
     provider,
   );
   const actualType = await module.moduleType();
-  if (actualType !== config.type) return false;
+  if (actualType !== ismTypeToModuleType(config.type)) return false;
   let matches = true;
   switch (config.type) {
     case IsmType.MERKLE_ROOT_MULTISIG: {

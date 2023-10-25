@@ -6,7 +6,7 @@ import { ethereumTestnetConfigs } from './chains';
 
 export const opHookConfig: OpStackHookConfig = {
   type: HookType.OP_STACK,
-  nativeBridge: '0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1',
+  nativeBridge: '0xDa2332D0a7608919Cd331B1304Cd179129a90495',
   destinationDomain: BigNumber.from(
     ethereumTestnetConfigs.optimismgoerli.chainId,
   ),

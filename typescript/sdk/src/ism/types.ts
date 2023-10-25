@@ -20,7 +20,8 @@ export type DeployedIsm =
   | StaticMerkleRootMultisigIsm
   | OPStackIsm;
 
-// this enum should match the
+// this enum should match the IInterchainSecurityModule.sol enum
+// meant for the relayer
 export enum ModuleType {
   UNUSED,
   ROUTING,
@@ -31,13 +32,33 @@ export enum ModuleType {
   NULL,
 }
 
+// this enum can be adjusted as per deployments necessary
+// meant for the deployer and checker
 export enum IsmType {
-  OP_STACK,
-  ROUTING,
-  AGGREGATION,
-  MERKLE_ROOT_MULTISIG,
-  MESSAGE_ID_MULTISIG,
-  TEST_ISM,
+  OP_STACK = 'opStackIsm',
+  ROUTING = 'domainRoutingIsm',
+  AGGREGATION = 'staticAggregationIsm',
+  MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
+  MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm',
+  TEST_ISM = 'testIsm',
+}
+
+// mapping betweent the two enums
+export function ismTypeToModuleType(ismType: IsmType): ModuleType {
+  switch (ismType) {
+    case IsmType.OP_STACK:
+      return ModuleType.NULL;
+    case IsmType.ROUTING:
+      return ModuleType.ROUTING;
+    case IsmType.AGGREGATION:
+      return ModuleType.AGGREGATION;
+    case IsmType.MERKLE_ROOT_MULTISIG:
+      return ModuleType.MERKLE_ROOT_MULTISIG;
+    case IsmType.MESSAGE_ID_MULTISIG:
+      return ModuleType.MESSAGE_ID_MULTISIG;
+    case IsmType.TEST_ISM:
+      return ModuleType.NULL;
+  }
 }
 
 export type MultisigConfig = {

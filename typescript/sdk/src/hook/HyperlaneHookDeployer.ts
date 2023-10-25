@@ -89,6 +89,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: ProtocolFeeHookConfig,
   ): Promise<StaticProtocolFee> {
+    this.logger('Deploying StaticProtocolFeeHook for %s', chain);
     return this.deployContract(chain, HookType.PROTOCOL_FEE, [
       config.maxProtocolFee,
       config.protocolFee,
@@ -102,6 +103,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     config: IgpHookConfig,
     coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<IgpFactories>> {
+    this.logger('Deploying IGP as hook for %s', chain);
     if (coreAddresses.proxyAdmin) {
       this.igpDeployer.writeCache(
         chain,
@@ -124,6 +126,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     config: AggregationHookConfig,
     coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
+    this.logger('Deploying AggregationHook for %s', chain);
     const aggregatedHooks: string[] = [];
     let hooks: any = {};
     for (const hookConfig of config.hooks) {
@@ -153,6 +156,11 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     config: OpStackHookConfig,
     coreAddresses = this.core[chain],
   ): Promise<OPStackHook> {
+    this.logger(
+      'Deploying OPStackHook for %s to %s',
+      chain,
+      config.destinationChain,
+    );
     const mailbox = coreAddresses.mailbox;
     if (!mailbox) {
       throw new Error(`Mailbox address is required for ${config.type}`);
@@ -201,6 +209,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     let routingHook: DomainRoutingHook | FallbackDomainRoutingHook;
     switch (config.type) {
       case HookType.ROUTING: {
+        this.logger('Deploying DomainRoutingHook for %s', chain);
         routingHook = await this.deployContract(chain, HookType.ROUTING, [
           mailbox,
           config.owner,
@@ -208,6 +217,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         break;
       }
       case HookType.FALLBACK_ROUTING: {
+        this.logger('Deploying FallbackDomainRoutingHook for %s', chain);
         const fallbackHook = await this.deployContracts(
           chain,
           config.fallback,

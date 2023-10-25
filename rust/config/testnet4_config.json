@@ -50,8 +50,55 @@
       "aggregationHook": "0xdBabD76358897E68E4964647C1fb8Bf524f5EFdB",
       "protocolFee": "0xC9D50584F08Bf6cCD1004d14c7062044b45E3b48",
       "defaultIsm": "0xFBb1D475d2275D4643B6ba9Dae16f2F5465F9436",
+      "basegoerli": {
+        "MERKLE_ROOT_MULTISIG": "0x79c7799a9E686Ed93EEa208B67a2D7E93852F182",
+        "LEGACY_MULTISIG": "0x2c940Cfe1Fa2bdf2F2746ba52acDf2f0106c3cf1"
+      },
+      "fuji": {
+        "MERKLE_ROOT_MULTISIG": "0x3c9eD95aD9a3613a7c036F44fB6745052861f74C",
+        "LEGACY_MULTISIG": "0x8d3cf154259E3aF61BA8F62410d9D0E644c6A19f"
+      },
+      "mumbai": {
+        "MERKLE_ROOT_MULTISIG": "0x3e844a5dA9247756F0182D652680065502BCB078",
+        "LEGACY_MULTISIG": "0x5aABB6B06112FC5Bb9f7e1BC8Ec17c06B01fb6Ed"
+      },
+      "bsctestnet": {
+        "MERKLE_ROOT_MULTISIG": "0x6b6bEF043905810994a60Cd08F7CdF5BB798f19c",
+        "LEGACY_MULTISIG": "0xf75B0F727f1dea2FA491caD2Faf8f3B04B705294"
+      },
+      "goerli": {
+        "MERKLE_ROOT_MULTISIG": "0x2aEEc24F5997D7C19833Bf9f520b1e6c0Ef1Eda5",
+        "LEGACY_MULTISIG": "0x62f6EfC5a7A978821a5111261902b0A218ABF99F"
+      },
+      "scrollsepolia": {
+        "MERKLE_ROOT_MULTISIG": "0x0caB24DBBDcA1E1bc27dd33481c09d9b306AE4a1",
+        "LEGACY_MULTISIG": "0xf8afa14F1cd8600d802C5a82A4406ca83629FC23"
+      },
+      "sepolia": {
+        "MERKLE_ROOT_MULTISIG": "0x2183183bdc371c67302097DC60952e6E99484720",
+        "LEGACY_MULTISIG": "0x631749C86E90Cea9cF3Fb7686eBb6E80EfC9064c"
+      },
+      "moonbasealpha": {
+        "MERKLE_ROOT_MULTISIG": "0x4A0eFE3CCE8DEDAD4faC8A8521F920F5C2f553fC",
+        "LEGACY_MULTISIG": "0x19eeB6f283aBAb2A9A70a11C2a8972D416aA2af9"
+      },
+      "optimismgoerli": {
+        "MERKLE_ROOT_MULTISIG": "0x5E81d0bc59A632f319C75E339874209a29A0D9D2",
+        "LEGACY_MULTISIG": "0x533fb8cAb191B7094C545A191Ac770deBb1B8EEc"
+      },
+      "arbitrumgoerli": {
+        "MERKLE_ROOT_MULTISIG": "0xf32f54Ec925AFf962ad164f94E7437E288901015",
+        "LEGACY_MULTISIG": "0x6BbF423f3742cB6594f9B9D844e780381aa4Ad91"
+      },
+      "polygonzkevmtestnet": {
+        "MERKLE_ROOT_MULTISIG": "0xe48BDf85C269603AcB79444D874bb80DFDd93FC5",
+        "LEGACY_MULTISIG": "0x17B141F3278624B9882e275B8D1aC6a310afCCbe"
+      },
+      "ROUTING": "0x2b5D84351aA22d860CE206EB79089F9bE8050890",
+      "AGGREGATION": "0x6f36a2dCC2eE58eB6b4B43330788Baa350F952EC",
+      "fallbackRoutingHook": "0xE1386148385275A27D29fC39Bd58a969CD5dCAF0",
       "index": {
-        "from": 20232734
+        "from": 20566929
       }
     },
     "arbitrumgoerli": {
@@ -100,7 +147,7 @@
       "aggregationHook": "0xf852EB6b98d84A4296754043a56759a0Ae0E06df",
       "protocolFee": "0x0358ba0D90ED2d90fB8cBb610F27C274D8077a0B",
       "index": {
-        "from": 45685526
+        "from": 50669378
       }
     },
     "basegoerli": {
@@ -150,8 +197,56 @@
       "interchainGasPaymaster": "0x28B02B97a850872C4D33C3E024fab6499ad96564",
       "aggregationHook": "0x168e606fE4A9c8d7F83a3aAA132E831f153e4bAa",
       "protocolFee": "0xEe421285728284000ec6c6C55C6F9161faeFfa99",
+      "alfajores": {
+        "MERKLE_ROOT_MULTISIG": "0xCc44a0dB101E08CB0C13f928aa8d4686042dA576",
+        "LEGACY_MULTISIG": "0xf113Ea1a825505840451A09113A9bb53908ED8f1"
+      },
+      "fuji": {
+        "MERKLE_ROOT_MULTISIG": "0x27F351ae5f5C0A58ea18aEAD9c1Dc07a53401721",
+        "LEGACY_MULTISIG": "0xefde4A00A72ef1eb08FFAd3475bCbCd6D336cA4f"
+      },
+      "mumbai": {
+        "MERKLE_ROOT_MULTISIG": "0x8Ce0Eda893a1727D171A55515D11420f1841549c",
+        "LEGACY_MULTISIG": "0x8FEc8D3efEe43Fd096F53b851c60E465A04384C7"
+      },
+      "bsctestnet": {
+        "MERKLE_ROOT_MULTISIG": "0x4E7EAcA5D2d3B01005cFb0528d3c52cfF09BCA36",
+        "LEGACY_MULTISIG": "0x3eE9CA0355ae566A8776B41b8D5f96A996d6144e"
+      },
+      "goerli": {
+        "MERKLE_ROOT_MULTISIG": "0x56B5ea2D5318E4BbeF3C3Dd05B850C415b36d10f",
+        "LEGACY_MULTISIG": "0x7BCD0cb097d3aaCE747E4735Ff5406505259e096",
+        "UNUSED": "0xb3D796584fDeBE2321894eeF31e0C3ec52169C61"
+      },
+      "scrollsepolia": {
+        "MERKLE_ROOT_MULTISIG": "0xD5161cD144Ca3C88F87A1db8228D33708c5938Cc",
+        "LEGACY_MULTISIG": "0xEc5b9b4dc7088B450aa74994EBf65d569d027716"
+      },
+      "sepolia": {
+        "MERKLE_ROOT_MULTISIG": "0x4d7C3c7592A874b8e1d6396646fC45005874beC9",
+        "LEGACY_MULTISIG": "0x173C1626542165A5F1B5cE20c0026e5E23ef19Ad"
+      },
+      "moonbasealpha": {
+        "MERKLE_ROOT_MULTISIG": "0xC2A3802E2f6150a4d633b5328c6C01797177D2C0",
+        "LEGACY_MULTISIG": "0x31C77b1C9AD838ed75AAb535fe4fDca1b5dEfFfD"
+      },
+      "optimismgoerli": {
+        "MERKLE_ROOT_MULTISIG": "0x75e1ad301B0E96f82d5a87D0Eb95cF1A250bf071",
+        "LEGACY_MULTISIG": "0xB98cE9298891Be9371F9b7fE021beaDBaD1189DD"
+      },
+      "arbitrumgoerli": {
+        "MERKLE_ROOT_MULTISIG": "0x19b34FDb98F4A6F41e803225bf4E258b7eC55876",
+        "LEGACY_MULTISIG": "0x93db3fA75bA99a040e6D5d3474350A0564E6E722"
+      },
+      "polygonzkevmtestnet": {
+        "MERKLE_ROOT_MULTISIG": "0x2c1bF9f9FE80D41Db769050Fb096be9aB41327Bc",
+        "LEGACY_MULTISIG": "0x8B2069eaa894995141F1879dDB612E05874F0116"
+      },
+      "ROUTING": "0xD8d1b8e26fDBB8e39a0712569bBaA893f6a582A8",
+      "AGGREGATION": "0xAC11C0A4DB40cB2E79b1700EF1Db05A499E89D45",
+      "fallbackRoutingHook": "0x4Ece7b15ba5dCA2708dCE2812016683193102b9F",
       "index": {
-        "from": 10676791
+        "from": 11512279
       }
     },
     "bsctestnet": {
@@ -167,7 +262,13 @@
       },
       "rpcUrls": [
         {
-          "http": "https://data-seed-prebsc-1-s3.binance.org:8545"
+          "http": "https://bsc-testnet.publicnode.com"
+        },
+        {
+          "http": "https://bsc-testnet.public.blastapi.io"
+        },
+        {
+          "http": "https://bsc-testnet.blockpi.network/v1/rpc/public"
         }
       ],
       "blockExplorers": [
@@ -198,8 +299,55 @@
       "mailbox": "0xF9F6F5646F478d5ab4e20B0F910C92F1CCC9Cc6D",
       "merkleTreeHook": "0xc6cbF39A747f5E28d1bDc8D9dfDAb2960Abd5A8f",
       "validatorAnnounce": "0xf09701B0a93210113D175461b6135a96773B5465",
+      "alfajores": {
+        "MERKLE_ROOT_MULTISIG": "0x352b56D019C85B1e7Db163c08876f0E4060e0EC0",
+        "LEGACY_MULTISIG": "0xc9764347811A0DDB36180273ADB6226E25e8134f"
+      },
+      "basegoerli": {
+        "MERKLE_ROOT_MULTISIG": "0x32e4C6C49e9a568Da17f87ee80A9542B5c3cE0bf",
+        "LEGACY_MULTISIG": "0x55eC2978E6c63DbF4AD2670d36539737d0341c76"
+      },
+      "fuji": {
+        "MERKLE_ROOT_MULTISIG": "0x4E368F65Ef1F765acf149052A5ad656AB4ecFeaf",
+        "LEGACY_MULTISIG": "0xB751c8366708A8cAa8E55580A6aE2CCAeD97Ca76"
+      },
+      "mumbai": {
+        "MERKLE_ROOT_MULTISIG": "0x13999996CbA4E3BB793726e6Ed66B6DD0b8c19A6",
+        "LEGACY_MULTISIG": "0x6Bc6514ace1edf23cea6477d3fEDA7954571940C"
+      },
+      "goerli": {
+        "MERKLE_ROOT_MULTISIG": "0xD953CC38fb2FF4CDE97739A024cd7D87e398Dcaf",
+        "LEGACY_MULTISIG": "0x16D1B0F3B3279c2793337FE8AfCC804c639C6627"
+      },
+      "scrollsepolia": {
+        "MERKLE_ROOT_MULTISIG": "0xcc7e00D24249D7BCF0aD2c79f6D90951C80CB47B",
+        "LEGACY_MULTISIG": "0x0521e8571a72445B8a5F758ffF2707d055C0b53F"
+      },
+      "sepolia": {
+        "MERKLE_ROOT_MULTISIG": "0x16A3e41135b1339B925c6e49E64CEEadA5bAdBb7",
+        "LEGACY_MULTISIG": "0x5AE613e0D9aEF132f7034d6eF36b418ac9dE1f2E"
+      },
+      "moonbasealpha": {
+        "MERKLE_ROOT_MULTISIG": "0x6e37E41e7E4682d0dF68E34606f3254D89B7cDD0",
+        "LEGACY_MULTISIG": "0x8FEA7B15d7BCA0E09cb5B3BEB1dE71738A4a92B5"
+      },
+      "optimismgoerli": {
+        "MERKLE_ROOT_MULTISIG": "0xE61fF63Ff2000Da24B72f1C29209554E8Ba79171",
+        "LEGACY_MULTISIG": "0x363Fa03085A7D089245d0b637D7FfCF5A1aacb7F"
+      },
+      "arbitrumgoerli": {
+        "MERKLE_ROOT_MULTISIG": "0x91aB65A54DaE3B71f8cE31A20B42e4f337126ffF",
+        "LEGACY_MULTISIG": "0x32241E9d721E0D61c82BFF037C8A6e33D6cB8F18"
+      },
+      "polygonzkevmtestnet": {
+        "MERKLE_ROOT_MULTISIG": "0xdFf1FE7F04c03A8788a728E3fcAe8A50eEAd6e11",
+        "LEGACY_MULTISIG": "0x6528cB0B4f9065bB4562096963a6C98BC619da7e"
+      },
+      "ROUTING": "0x5a052832973d0A988cb553C46F5CfAcA4E078c92",
+      "AGGREGATION": "0x16c328B3976e5624D8AC38E362574e694676Ac6b",
+      "fallbackRoutingHook": "0xc278DDe83018F0e8c624b208e6D9E6251d263B1d",
       "index": {
-        "from": 33950052
+        "from": 34506952
       }
     },
     "fuji": {
@@ -249,8 +397,55 @@
       "interchainGasPaymaster": "0x6895d3916B94b386fAA6ec9276756e16dAe7480E",
       "aggregationHook": "0x8E9b4006171c6B75111823e7545Ee5400CEce0B3",
       "protocolFee": "0xEbA64c8a9b4a61a9210d5fe7E4375380999C821b",
+      "alfajores": {
+        "MERKLE_ROOT_MULTISIG": "0xd8325468566964245FAdf15Ef0BD3587B598b3bc",
+        "LEGACY_MULTISIG": "0x04cB6d0616b0059751F2CFc0Ea7dde62d959CEEC"
+      },
+      "basegoerli": {
+        "MERKLE_ROOT_MULTISIG": "0x0f56E6D62ddc37cbe2e4a8FA31dCA994c67c2A3d",
+        "LEGACY_MULTISIG": "0x8F2e9a004d3F0e8E1CEbE52375b44D79fB6Ff6ea"
+      },
+      "mumbai": {
+        "MERKLE_ROOT_MULTISIG": "0x5C38d0d8686aAb40F81Ff5D9929bFD01f9C38899",
+        "LEGACY_MULTISIG": "0x4509Ee247C37738DC067b22fc84be9b8d7c18e83"
+      },
+      "bsctestnet": {
+        "MERKLE_ROOT_MULTISIG": "0xA62d029c16354F5845AC3c2728C8027645f16517",
+        "LEGACY_MULTISIG": "0xb7FFc29CF7be4a969282AE3E171c953D43212C30"
+      },
+      "goerli": {
+        "MERKLE_ROOT_MULTISIG": "0x1b50E9729155D3F7e3eE886003818D1Fa80920Fd",
+        "LEGACY_MULTISIG": "0x4D57430F0cb764A9835521acad3653199b039327"
+      },
+      "scrollsepolia": {
+        "MERKLE_ROOT_MULTISIG": "0xA90541C64f3eDc22a47Bc28D7cfdfE17F573A434",
+        "LEGACY_MULTISIG": "0xc1440Dbb7FeE4179D85d9dAD598A4E78cc5E222B"
+      },
+      "sepolia": {
+        "MERKLE_ROOT_MULTISIG": "0xE5dd4fDE4c99DCeB5F753B6F536E99523dA6EE06",
+        "LEGACY_MULTISIG": "0x4Bd1319ABc8Bf7633198A1f0e529158D91cfDa9F"
+      },
+      "moonbasealpha": {
+        "MERKLE_ROOT_MULTISIG": "0x40D79400513cf7fccaE4d110d3B74c23B08337B6",
+        "LEGACY_MULTISIG": "0x0a2cD3A4D324A322821A829A1211a8483214ef2a"
+      },
+      "optimismgoerli": {
+        "MERKLE_ROOT_MULTISIG": "0x33b1A7480EC6dB39bE5919d695d06776E3bD7fA9",
+        "LEGACY_MULTISIG": "0x807AEb2b851Cc843Ae3d4D6f931cAEA893698823"
+      },
+      "arbitrumgoerli": {
+        "MERKLE_ROOT_MULTISIG": "0x247Dd2058D239ADC1348674BFA929F952Af331a0",
+        "LEGACY_MULTISIG": "0xD6e42987D0533cED33fcC9003B708bC56896C7Fe"
+      },
+      "polygonzkevmtestnet": {
+        "MERKLE_ROOT_MULTISIG": "0xD02753F38198DEB05924e503867f0e7bEC04d500",
+        "LEGACY_MULTISIG": "0x1A28Bc9F1D65661C4338bc374D4f133cB5763c50"
+      },
+      "ROUTING": "0xd914570ea19385334e8DAcf5F1794f75895010dF",
+      "AGGREGATION": "0x39202263246c48eb80879870e9c547Bc787cdfC6",
+      "fallbackRoutingHook": "0x50897eDCb3f1bB2A90f20DA5a8dF0e5c57A146e3",
       "index": {
-        "from": 26504985
+        "from": 27090437
       }
     },
     "goerli": {
@@ -303,8 +498,56 @@
       "merkleTreeHook": "0x28c294C61D3dE053462d2Cfa5d5f8c8D70605A59",
       "mailbox": "0x49cfd6Ef774AcAb14814D699e3F7eE36Fdfba932",
       "validatorAnnounce": "0x3c182AD9cA8A71bc107Ef440C2667E8360e1158E",
+      "alfajores": {
+        "MERKLE_ROOT_MULTISIG": "0x4683D18bD896acf67bC022f2dc0Cf9913E83a8C2",
+        "LEGACY_MULTISIG": "0xA09db9436C89376FbDCC731c61f3e96194d77549"
+      },
+      "basegoerli": {
+        "MERKLE_ROOT_MULTISIG": "0x6EF750Fef341239fa0Fd7c9081508590A9527C69",
+        "LEGACY_MULTISIG": "0x8BB1F2bc7dd305440Dfe4E91c003510ef14044Ba"
+      },
+      "fuji": {
+        "MERKLE_ROOT_MULTISIG": "0x44B0757b1C9512cff0C51089c7D5094C47D9316E",
+        "LEGACY_MULTISIG": "0xf3C288C5a4E17DCE46d06257B36ec7f4A82C1aF9"
+      },
+      "mumbai": {
+        "MERKLE_ROOT_MULTISIG": "0x374A6953e95ADdC76c2d87cC7B89C3227DAf1Fd9",
+        "LEGACY_MULTISIG": "0x5d05c8152667f73e219CBb37531425C09e894de2"
+      },
+      "bsctestnet": {
+        "MERKLE_ROOT_MULTISIG": "0x72a6Fcd41b68e6FAE71A5d0F21e574F3e6Ec5B9D",
+        "LEGACY_MULTISIG": "0x0F7C158d6afea27987f655A2d464E16fAe2aD8c7"
+      },
+      "scrollsepolia": {
+        "MERKLE_ROOT_MULTISIG": "0x89c32A1Ca1Ae39886b18B0466dA5C97a6e031ca2",
+        "LEGACY_MULTISIG": "0x050798aFB2EF5A847f6A77764F19D207086bdDD3"
+      },
+      "sepolia": {
+        "MERKLE_ROOT_MULTISIG": "0xf45819C46A54cdD816DC8c9EE580712e76eaAc0C",
+        "LEGACY_MULTISIG": "0xD22fddaB4595a7C0f78Fa3d20cc9485b19Ee861d"
+      },
+      "moonbasealpha": {
+        "MERKLE_ROOT_MULTISIG": "0x9B04e5971738c427c1b0660e89859BD4164B0d67",
+        "LEGACY_MULTISIG": "0xD3Ad23079611e2cc306E8a60ddFdAD250512d43F"
+      },
+      "optimismgoerli": {
+        "MERKLE_ROOT_MULTISIG": "0x432B0ad68cbA0DFf644F30CC8b3275663Cb692E8",
+        "LEGACY_MULTISIG": "0xA50e98B2d52d4c9B242bD86f1B5C54D7E33190a6"
+      },
+      "arbitrumgoerli": {
+        "MERKLE_ROOT_MULTISIG": "0x07733788489efD7F10533ab889144A7C67F6d9EF",
+        "LEGACY_MULTISIG": "0x44D117A356AfFE5C67D4A53b3eC1Ded1260Bd20d"
+      },
+      "polygonzkevmtestnet": {
+        "MERKLE_ROOT_MULTISIG": "0x070eDaC389b85aEe38507339Cd80aeBd95b1cb22",
+        "LEGACY_MULTISIG": "0x5c7e4Eb938DB4f1dE746aBb01eC1228EC38Ed3bd"
+      },
+      "ROUTING": "0x656cC76A0D05bC3F40c11DEBe0fF6EEEDabB856e",
+      "AGGREGATION": "0x595e45990F67A9795cE4FEB0b6ba4684c6258cD0",
+      "fallbackRoutingHook": "0xef03445b281273e2B1EE1BD570C20c089fA0322c",
+      "opStackHook": "0xA3753809A93E33E500E168c51C771f23F555e345",
       "index": {
-        "from": 9816044
+        "from": 9927312
       }
     },
     "moonbasealpha": {
@@ -353,7 +596,7 @@
       "protocolFee": "0xe2A73F106902983452713F24Bd019F6eb8712986",
       "validatorAnnounce": "0x07543860AE9E72aBcF2Bae9827b23621A64Fa416",
       "index": {
-        "from": 5241351
+        "from": 5355188
       }
     },
     "mumbai": {
@@ -394,7 +637,7 @@
       },
       "isTestnet": true,
       "transactionOverrides": {
-        "maxFeePerGas": 70000000000,
+        "maxFeePerGas": 150000000000,
         "maxPriorityFeePerGas": 40000000000
       },
       "merkleRootMultisigIsmFactory": "0xda0780ed3eE577EfE0B856E00f983bF231603307",
@@ -411,8 +654,55 @@
       "protocolFee": "0x244d1F7e30Be144A87602905baBF86630e8f39DC",
       "mailbox": "0x2d1889fe5B092CD988972261434F7E5f26041115",
       "validatorAnnounce": "0x99303EFF09332cDd93E8BC8b2F07b2416e4501e5",
+      "alfajores": {
+        "MERKLE_ROOT_MULTISIG": "0x2ab7f5DeC6f8Ef411315487c23a0FD1955824274",
+        "LEGACY_MULTISIG": "0x46c3f1a2734568Ab4582E5e990Be37e9A90c8d5C"
+      },
+      "basegoerli": {
+        "MERKLE_ROOT_MULTISIG": "0xcA58F63034D79d00742153636f40975616996569",
+        "LEGACY_MULTISIG": "0x256578935Ea39D5B6eD49722C20D6c7734c17442"
+      },
+      "fuji": {
+        "MERKLE_ROOT_MULTISIG": "0xbd3Cd908B44b1AB4A5c9A2E2Abc567dbd3265BaF",
+        "LEGACY_MULTISIG": "0xB24FadDB99664D85755a4ee5402Cce2f936e2A85"
+      },
+      "bsctestnet": {
+        "MERKLE_ROOT_MULTISIG": "0x20fC9FF58AA29FB015195735Cb87999D1169acA7",
+        "LEGACY_MULTISIG": "0x1A445E9f7f5E6230A11a960E1d77af94ec1Dc70B"
+      },
+      "goerli": {
+        "MERKLE_ROOT_MULTISIG": "0x94AfA49591B42C681CaFcBA9C1deb6d394dd358c",
+        "LEGACY_MULTISIG": "0x0025156297d59772cc3836EB15BcEb7b65bF2Ac0"
+      },
+      "scrollsepolia": {
+        "MERKLE_ROOT_MULTISIG": "0xf90Ad611612d3D7f45C1EB525e2f487373286717",
+        "LEGACY_MULTISIG": "0x00a20F2637437151cBDB5DD8e80672458bcCAE68"
+      },
+      "sepolia": {
+        "MERKLE_ROOT_MULTISIG": "0x4234b78713bB6623b123CdBC4E163F497643D2b1",
+        "LEGACY_MULTISIG": "0x22A56d69B838897dacA4f87d6cC9c602de6bFaDC"
+      },
+      "moonbasealpha": {
+        "MERKLE_ROOT_MULTISIG": "0xDbb5fc87d9CA83dE79E111acFb96882A70AE490c",
+        "LEGACY_MULTISIG": "0xe32F2c4129FeA483c55241Ab11413e0E9F38c716"
+      },
+      "optimismgoerli": {
+        "MERKLE_ROOT_MULTISIG": "0xeD282a84F9cd27A827fF07D6894FE9dc63a64D63",
+        "LEGACY_MULTISIG": "0x45B1784587aCE88E534588e8d43E1A3282ecBA8b"
+      },
+      "arbitrumgoerli": {
+        "MERKLE_ROOT_MULTISIG": "0x75204D086D263d475A6390b476126B2BeB6c37A7",
+        "LEGACY_MULTISIG": "0x1004f5636f3348bbAae626cAf5b6578f2f7e0425"
+      },
+      "polygonzkevmtestnet": {
+        "MERKLE_ROOT_MULTISIG": "0xBae6ED82c61C1aa9a0df9741193aE5a8eE84fB28",
+        "LEGACY_MULTISIG": "0x2487E9d66E62B3de58C246b3e1d588f41b39d433"
+      },
+      "ROUTING": "0xBAad51c021e4bb94b9a10b1fC82b773Ca9e35D30",
+      "AGGREGATION": "0xE794ff773fcd25ad43749CbCAE8e69f7f64810EF",
+      "fallbackRoutingHook": "0xFA005A892EbDACFcc3f1EF0111A7406c779c3647",
       "index": {
-        "from": 40880088
+        "from": 41618135
       }
     },
     "optimismgoerli": {
@@ -461,7 +751,7 @@
       "aggregationHook": "0x1C8A2588b8038BF9B7b1b60dD0EdF5b995A45599",
       "protocolFee": "0x962e30F6A3ECDA85c7fa1FcF38cD04efA991Ee20",
       "index": {
-        "from": 15559566
+        "from": 16395052
       }
     },
     "polygonzkevmtestnet": {
@@ -509,7 +799,7 @@
       "aggregationHook": "0x0Fd2C6F0Ad45e766660b9fDebCF36a2AD69536D1",
       "protocolFee": "0xddf4C3e791caCaFd26D7fb275549739B38ae6e75",
       "index": {
-        "from": 2847250
+        "from": 3019086
       }
     },
     "scrollsepolia": {
@@ -526,17 +816,14 @@
       "rpcUrls": [
         {
           "http": "https://sepolia-rpc.scroll.io"
-        },
-        {
-          "http": "https://scroll-public.scroll-testnet.quiknode.pro"
         }
       ],
       "blockExplorers": [
         {
           "name": "Scroll Explorer",
-          "url": "https://sepolia-blockscout.scroll.io",
-          "apiUrl": "https://sepolia-blockscout.scroll.io/api",
-          "family": "blockscout"
+          "url": "https://sepolia.scrollscan.dev/",
+          "apiUrl": "https://api-sepolia.scrollscan.com/api",
+          "family": "etherscan"
         }
       ],
       "blocks": {
@@ -545,6 +832,9 @@
         "estimateBlockTime": 3
       },
       "isTestnet": true,
+      "transactionOverrides": {
+        "gasLimit": 5000000
+      },
       "merkleRootMultisigIsmFactory": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
       "messageIdMultisigIsmFactory": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
       "aggregationIsmFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
@@ -559,8 +849,66 @@
       "interchainGasPaymaster": "0x86fb9F1c124fB20ff130C41a79a432F770f67AFD",
       "aggregationHook": "0x7b63Aa270335F8896717c2A809205F4b650E4268",
       "protocolFee": "0x5821f3B6eE05F3dC62b43B74AB1C8F8E6904b1C8",
+      "alfajores": {
+        "MERKLE_ROOT_MULTISIG": "0xd9cbF08CaC905F78d961A72716Ef8EeD3aB7e5Eb",
+        "LEGACY_MULTISIG": "0xdC87a06493FaDE515c623464BE3F1580E5d8EC9A",
+        "MESSAGE_ID_MULTISIG": "0xd9cbF08CaC905F78d961A72716Ef8EeD3aB7e5Eb"
+      },
+      "basegoerli": {
+        "MERKLE_ROOT_MULTISIG": "0xCC7DfEB63bbE762D46C9bb1B27D680b226A94b23",
+        "LEGACY_MULTISIG": "0xE38a0156e2968d336D43efEC716De54cF243974A",
+        "MESSAGE_ID_MULTISIG": "0xCC7DfEB63bbE762D46C9bb1B27D680b226A94b23"
+      },
+      "fuji": {
+        "MERKLE_ROOT_MULTISIG": "0x6479E7a0f62db3E4cfC16dfa4960953572cE4d91",
+        "LEGACY_MULTISIG": "0x8671d101e6A5430D856234811e493CbB3e08f00b",
+        "MESSAGE_ID_MULTISIG": "0x6479E7a0f62db3E4cfC16dfa4960953572cE4d91"
+      },
+      "mumbai": {
+        "MERKLE_ROOT_MULTISIG": "0xf449003Fdb780bEFac5F946CfC12172dc1e732DF",
+        "LEGACY_MULTISIG": "0x8838412195Eec3B10Ad78aE3e05d7b3f29d93A4B",
+        "MESSAGE_ID_MULTISIG": "0xf449003Fdb780bEFac5F946CfC12172dc1e732DF"
+      },
+      "bsctestnet": {
+        "MERKLE_ROOT_MULTISIG": "0x3074E40aA0C52d83FbB9Be642946f5fadA2212bf",
+        "LEGACY_MULTISIG": "0xB766e93CFf3B16cBfA698955E71f27a0bE0BD42e",
+        "MESSAGE_ID_MULTISIG": "0x3074E40aA0C52d83FbB9Be642946f5fadA2212bf"
+      },
+      "goerli": {
+        "MERKLE_ROOT_MULTISIG": "0xf98a3dfCC6384b6f19F3cdfD992552CA876261f3",
+        "LEGACY_MULTISIG": "0xde5013E6Ace9c9Da898f98Fafd1a85547f5B893b",
+        "MESSAGE_ID_MULTISIG": "0xf98a3dfCC6384b6f19F3cdfD992552CA876261f3"
+      },
+      "sepolia": {
+        "MERKLE_ROOT_MULTISIG": "0xD3a84669f2F1896a1E9f77c7Dfe93F32EFf0Ea4E",
+        "LEGACY_MULTISIG": "0x4a072E0EB5AE0087A080F7b24E56d140E2aDd3f1",
+        "MESSAGE_ID_MULTISIG": "0xD3a84669f2F1896a1E9f77c7Dfe93F32EFf0Ea4E"
+      },
+      "moonbasealpha": {
+        "MERKLE_ROOT_MULTISIG": "0x47D285b171B5E2FDDf387EBdDcBeC58b188445De",
+        "LEGACY_MULTISIG": "0x3C1FA7196AAEAd718e741014B5Af7D46068335e3",
+        "MESSAGE_ID_MULTISIG": "0x47D285b171B5E2FDDf387EBdDcBeC58b188445De"
+      },
+      "optimismgoerli": {
+        "MERKLE_ROOT_MULTISIG": "0xef317A77273BE269a2d9861F3e10808126608f4A",
+        "LEGACY_MULTISIG": "0x21c9A0085c58E08693bC9Bf106066B8b23c51A19",
+        "MESSAGE_ID_MULTISIG": "0xef317A77273BE269a2d9861F3e10808126608f4A"
+      },
+      "arbitrumgoerli": {
+        "MERKLE_ROOT_MULTISIG": "0x6a3D436940697D2e1b351b366816121E9d291dDd",
+        "LEGACY_MULTISIG": "0xc144381ccfEc30F40f32FC18C45dD5CC20510aCd",
+        "MESSAGE_ID_MULTISIG": "0x6a3D436940697D2e1b351b366816121E9d291dDd"
+      },
+      "polygonzkevmtestnet": {
+        "MERKLE_ROOT_MULTISIG": "0x6B4374a792DbC69c0EfAdb076190D137df7145F9",
+        "LEGACY_MULTISIG": "0xD9b48cD1F0B98FaEBafa5BEB1A78bdaCd5731d08",
+        "MESSAGE_ID_MULTISIG": "0x6B4374a792DbC69c0EfAdb076190D137df7145F9"
+      },
+      "ROUTING": "0x30861DDAEFa5F85DAB234F4f67a0bFF0a5E02C48",
+      "AGGREGATION": "0x5861Baf9aa7eC91e88585aB3bd8e3183B0768437",
+      "fallbackRoutingHook": "0x7c115c16E34c74afdb88bd268EaB19bC705891FE",
       "index": {
-        "from": 1345368
+        "from": 1846115
       }
     },
     "sepolia": {
@@ -576,7 +924,13 @@
       },
       "rpcUrls": [
         {
-          "http": "https://endpoints.omniatech.io/v1/eth/sepolia/public"
+          "http": "https://ethereum-sepolia.blockpi.network/v1/rpc/public"
+        },
+        {
+          "http": "https://eth-sepolia.g.alchemy.com/v2/demo"
+        },
+        {
+          "http": "https://rpc.sepolia.org"
         }
       ],
       "blockExplorers": [
@@ -593,6 +947,9 @@
         "estimateBlockTime": 13
       },
       "isTestnet": true,
+      "transactionOverrides": {
+        "gasLimit": 1000000
+      },
       "merkleRootMultisigIsmFactory": "0x0a71AcC99967829eE305a285750017C4916Ca269",
       "messageIdMultisigIsmFactory": "0xFEb9585b2f948c1eD74034205a7439261a9d27DD",
       "aggregationIsmFactory": "0xC83e12EF2627ACE445C298e6eC418684918a6002",
@@ -607,8 +964,9 @@
       "mailbox": "0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766",
       "merkleTreeHook": "0x4917a9746A7B6E0A57159cCb7F5a6744247f2d0d",
       "validatorAnnounce": "0xE6105C59480a1B7DD3E4f28153aFdbE12F4CfCD9",
+      "fallbackRoutingHook": "0x7CE74319699165430fC651F6b99406eEbee95493",
       "index": {
-        "from": 4432735
+        "from": 4558491
       }
     }
   },
