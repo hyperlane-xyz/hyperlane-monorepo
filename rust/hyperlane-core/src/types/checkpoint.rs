@@ -45,7 +45,8 @@ impl Signable for CheckpointWithMessageId {
                 .chain(self.index.to_be_bytes())
                 .chain(self.message_id)
                 .finalize()
-                .as_slice())
+                .as_slice(),
+        )
     }
 }
 
