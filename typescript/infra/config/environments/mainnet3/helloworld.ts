@@ -13,7 +13,7 @@ export const hyperlane: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '2e1db12-20231025-013013',
+      tag: 'bbe8928-20231025-215311',
     },
     chainsToSkip: [],
     runEnv: environment,
