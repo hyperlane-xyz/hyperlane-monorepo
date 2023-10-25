@@ -246,7 +246,7 @@ impl WasmProvider for WasmGrpcProvider {
         let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
             Coin::new(
                 Amount::from((gas_limit as f32 * DEFAULT_GAS_PRICE) as u64),
-                format!("u{}", self.signer.prefix.clone()).as_str(),
+                self.conf.get_canonical_asset().as_str(),
             )
             .unwrap(),
             gas_limit,

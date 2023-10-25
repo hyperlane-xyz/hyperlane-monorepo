@@ -232,8 +232,8 @@ impl Validator {
 
     async fn announce(&self) -> Result<()> {
         let address = match self.raw_signer {
-            SignerConf::CosmosKey { key, .. } => {
-                let addr = priv_to_addr_string(key.0.as_slice().to_vec())?;
+            SignerConf::CosmosKey { key, prefix } => {
+                let addr = priv_to_addr_string(prefix.clone(), key.0.as_slice().to_vec())?;
                 info!("Announcing validator with Cosmos key: {}", addr);
 
                 priv_to_binary_addr(key.0.as_slice().to_vec())?
