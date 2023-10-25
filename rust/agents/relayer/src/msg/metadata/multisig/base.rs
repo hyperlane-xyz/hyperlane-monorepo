@@ -1,25 +1,26 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
+use derive_more::{AsRef, Deref};
 use derive_new::new;
 use ethers::abi::Token;
 
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::accumulator::merkle::Proof;
-use hyperlane_core::{Checkpoint, HyperlaneMessage, Signature, H256};
+use hyperlane_core::{HyperlaneMessage, MultisigSignedCheckpoint, H256};
 use strum::Display;
 use tracing::{debug, info};
 
 use crate::msg::metadata::BaseMetadataBuilder;
 use crate::msg::metadata::MetadataBuilder;
 
-#[derive(new)]
+#[derive(new, AsRef, Deref)]
 pub struct MultisigMetadata {
-    checkpoint: Checkpoint,
-    signatures: Vec<Signature>,
-    merkle_leaf_index: Option<u32>,
-    message_id: Option<H256>,
+    #[deref]
+    quorum_checkpoint: MultisigSignedCheckpoint,
+    merkle_leaf_index: u32,
+    // optional because it's only used for MerkleRootMultisig
     proof: Option<Proof>,
 }
 
@@ -54,7 +55,6 @@ pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
                 }
                 MetadataToken::MessageMerkleLeafIndex => Ok(metadata
                     .merkle_leaf_index
-                    .ok_or(eyre::eyre!("Failed to fetch metadata"))?
                     .to_be_bytes()
                     .into()),
                 MetadataToken::CheckpointIndex => {
@@ -66,7 +66,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
                     .to_fixed_bytes()
                     .into()),
                 MetadataToken::MessageId => {
-                    Ok(metadata.message_id.unwrap().to_fixed_bytes().into())
+                    Ok(metadata.checkpoint.message_id.to_fixed_bytes().into())
                 }
                 MetadataToken::MerkleProof => {
                     let proof_tokens: Vec<Token> = metadata
@@ -127,7 +127,6 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .await
             .context(CTX)?
         {
-            // TODO: assert ordering?
             debug!(?message, ?metadata.checkpoint, "Found checkpoint with quorum");
             Ok(Some(self.format_metadata(metadata)?))
         } else {

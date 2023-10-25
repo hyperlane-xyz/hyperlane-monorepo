@@ -1,13 +1,11 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use derive_new::new;
 use eyre::Result;
 use tracing::{debug, instrument, trace};
 
-use hyperlane_core::{
-    CheckpointWithMessageId, MultisigSignedCheckpoint, SignedCheckpointWithSigner, H160, H256,
-};
+use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithMessageId, H160, H256};
 
 use crate::CheckpointSyncer;
 
@@ -39,7 +37,7 @@ impl MultisigCheckpointSyncer {
         threshold: usize,
         minimum_index: u32,
         maximum_index: u32,
-    ) -> Result<Option<MultisigSignedCheckpoint<CheckpointWithMessageId>>> {
+    ) -> Result<Option<MultisigSignedCheckpoint>> {
         // Get the latest_index from each validator's checkpoint syncer.
         let mut latest_indices = Vec::with_capacity(validators.len());
         for validator in validators {
@@ -92,6 +90,7 @@ impl MultisigCheckpointSyncer {
     }
 
     /// Fetches a MultisigSignedCheckpointWithMessageId if there is a quorum.
+    /// Validators must reflect the onchain ordering of the set
     /// Returns Ok(None) if there is no quorum.
     #[instrument(err, skip(self))]
     pub async fn fetch_checkpoint(
@@ -99,14 +98,12 @@ impl MultisigCheckpointSyncer {
         validators: &[H256],
         threshold: usize,
         index: u32,
-    ) -> Result<Option<MultisigSignedCheckpoint<CheckpointWithMessageId>>> {
+    ) -> Result<Option<MultisigSignedCheckpoint>> {
         // Keeps track of signed validator checkpoints for a particular root.
         // In practice, it's likely that validators will all sign the same root for a
         // particular index, but we'd like to be robust to this not being the case
-        let mut signed_checkpoints_per_root: HashMap<
-            H256,
-            Vec<SignedCheckpointWithSigner<CheckpointWithMessageId>>,
-        > = HashMap::new();
+        let mut signed_checkpoints_per_root: HashMap<H256, Vec<SignedCheckpointWithMessageId>> =
+            HashMap::new();
 
         for validator in validators.iter() {
             let addr = H160::from(*validator);
@@ -126,7 +123,7 @@ impl MultisigCheckpointSyncer {
                         );
                         continue;
                     }
-                    // Ensure that the signature is actually by the validator
+                    // Ensure that the signature is actually by the validator at the current index
                     let signer = signed_checkpoint.recover()?;
                     if H256::from(signer) != *validator {
                         debug!(
@@ -137,25 +134,13 @@ impl MultisigCheckpointSyncer {
                         continue;
                     }
 
-                    // Insert the SignedCheckpointWithSigner into signed_checkpoints_per_root
-                    let signed_checkpoint_with_signer =
-                        SignedCheckpointWithSigner::<CheckpointWithMessageId> {
-                            signer,
-                            signed_checkpoint,
-                        };
-                    let root = signed_checkpoint_with_signer.signed_checkpoint.value.root;
+                    // Push the signed checkpoint into the hashmap
+                    let root = signed_checkpoint.value.root;
+                    let signed_checkpoints = signed_checkpoints_per_root.entry(root).or_default();
+                    signed_checkpoints.push(signed_checkpoint);
 
-                    let signature_count = match signed_checkpoints_per_root.entry(root) {
-                        Entry::Occupied(mut entry) => {
-                            let vec = entry.get_mut();
-                            vec.push(signed_checkpoint_with_signer);
-                            vec.len()
-                        }
-                        Entry::Vacant(entry) => {
-                            entry.insert(vec![signed_checkpoint_with_signer]);
-                            1 // length of 1
-                        }
-                    };
+                    // Count the number of signatures for this signed checkpoint
+                    let signature_count = signed_checkpoints.len();
                     debug!(
                         validator = format!("{:#x}", validator),
                         index = index,
@@ -163,16 +148,12 @@ impl MultisigCheckpointSyncer {
                         signature_count = signature_count,
                         "Found signed checkpoint"
                     );
+
                     // If we've hit a quorum, create a MultisigSignedCheckpoint
                     if signature_count >= threshold {
-                        if let Some(signed_checkpoints) = signed_checkpoints_per_root.get(&root) {
-                            let checkpoint =
-                                MultisigSignedCheckpoint::<CheckpointWithMessageId>::try_from(
-                                    signed_checkpoints,
-                                )?;
-                            debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
-                            return Ok(Some(checkpoint));
-                        }
+                        let checkpoint: MultisigSignedCheckpoint = signed_checkpoints.try_into()?;
+                        debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
+                        return Ok(Some(checkpoint));
                     }
                 } else {
                     debug!(
