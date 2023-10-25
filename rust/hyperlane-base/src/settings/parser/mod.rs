@@ -294,6 +294,13 @@ fn parse_chain(
                     None
                 });
 
+            let canoncial_asset = chain
+                .chain(&mut err)
+                .get_key("canonicalAsset")
+                .parse_string()
+                .end()
+                .or_else(|| format!("u{}", prefix));
+
             if !local_err.is_ok() {
                 err.merge(local_err);
                 None
@@ -303,6 +310,7 @@ fn parse_chain(
                     rpcs.first().unwrap().to_string(),
                     chain_id.unwrap().to_string(),
                     prefix.unwrap().to_string(),
+                    canoncial_asset.unwrap().to_string(),
                 )))
             }
         }

@@ -92,7 +92,7 @@ pub fn priv_to_binary_addr(priv_key: Vec<u8>) -> ChainResult<H160> {
 }
 
 /// encode H256 to bech32 address
-pub fn priv_to_addr_string(priv_key: Vec<u8>) -> ChainResult<String> {
+pub fn priv_to_addr_string(prefix: String, priv_key: Vec<u8>) -> ChainResult<String> {
     let sha_hash = sha256_digest(
         SigningKey::from_slice(priv_key.as_slice())
             .unwrap()
@@ -102,7 +102,7 @@ pub fn priv_to_addr_string(priv_key: Vec<u8>) -> ChainResult<String> {
     let rip_hash = ripemd160_digest(sha_hash)?;
 
     let addr =
-        bech32::encode("osmo", rip_hash.to_base32(), bech32::Variant::Bech32).map_err(|_| {
+        bech32::encode(&prefix, rip_hash.to_base32(), bech32::Variant::Bech32).map_err(|_| {
             ChainCommunicationError::ParseError {
                 msg: "bech32".to_string(),
             }

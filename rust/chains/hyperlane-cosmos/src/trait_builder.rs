@@ -9,6 +9,8 @@ pub struct ConnectionConf {
     chain_id: String,
     /// The prefix for the account address
     prefix: String,
+    /// Canoncial Assets Denom
+    canonical_asset: String,
 }
 
 /// An error type when parsing a connection configuration.
@@ -52,13 +54,25 @@ impl ConnectionConf {
         self.prefix.clone()
     }
 
+    /// Get the asset
+    pub fn get_canonical_asset(&self) -> String {
+        self.canonical_asset.clone()
+    }
+
     /// Create a new connection configuration
-    pub fn new(grpc_url: String, rpc_url: String, chain_id: String, prefix: String) -> Self {
+    pub fn new(
+        grpc_url: String,
+        rpc_url: String,
+        chain_id: String,
+        prefix: String,
+        canonical_asset: String,
+    ) -> Self {
         Self {
             grpc_url,
             rpc_url,
             chain_id,
             prefix,
+            canonical_asset,
         }
     }
 }
