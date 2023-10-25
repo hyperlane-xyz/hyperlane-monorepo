@@ -10,6 +10,7 @@ import {
   StaticAddressSetFactory,
   StaticAggregationIsm__factory,
   StaticThresholdAddressSetFactory,
+  TestIsm__factory,
 } from '@hyperlane-xyz/core';
 import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
 
@@ -34,6 +35,11 @@ import {
 } from './types';
 
 export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
+  // The shape of this object is `ChainMap<Address | ChainMap<Address>`,
+  // although `any` is use here because that type breaks a lot of signatures.
+  // TODO: fix this in the next refactoring
+  public deployedIsms: ChainMap<any> = {};
+
   static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
@@ -66,6 +72,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     config: IsmConfig,
     origin?: ChainName,
   ): Promise<DeployedIsm> {
+    let contract: DeployedIsm;
     if (typeof config === 'string') {
       // TODO: return the appropriate ISM type
       return IInterchainSecurityModule__factory.connect(
@@ -90,20 +97,45 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
           );
           break;
       }
-      return this.deployMultisigIsm(chain, config);
+      contract = await this.deployMultisigIsm(chain, config);
     } else if (config.type === ModuleType.ROUTING) {
       this.logger(
         `Deploying Routing ISM to ${chain} for verifying ${Object.keys(
           config.domains,
         )}`,
       );
-      return this.deployRoutingIsm(chain, config);
+      contract = await this.deployRoutingIsm(chain, config);
     } else if (config.type === ModuleType.AGGREGATION) {
       this.logger(`Deploying Aggregation ISM to ${chain}`);
-      return this.deployAggregationIsm(chain, config);
+      contract = await this.deployAggregationIsm(chain, config, origin);
+    } else if (config.type === ModuleType.NULL) {
+      this.logger(`Deploying Test ISM to ${chain}`);
+      contract = await this.multiProvider.handleDeploy(
+        chain,
+        new TestIsm__factory(),
+        [],
+      );
     } else {
       throw new Error(`Unsupported ISM type`);
     }
+
+    const moduleType = ModuleType[config.type];
+    if (!this.deployedIsms[chain]) {
+      this.deployedIsms[chain] = {};
+    }
+    if (origin) {
+      // if we're deploying network-specific contracts (e.g. ISMs), store them as sub-entry
+      // under that network's key (`origin`)
+      if (!this.deployedIsms[chain][origin]) {
+        this.deployedIsms[chain][origin] = {};
+      }
+      this.deployedIsms[chain][origin][moduleType] = contract;
+    } else {
+      // otherwise store the entry directly
+      this.deployedIsms[chain][moduleType] = contract;
+    }
+
+    return contract;
   }
 
   private async deployMultisigIsm(chain: ChainName, config: MultisigIsmConfig) {
@@ -172,13 +204,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
   private async deployAggregationIsm(
     chain: ChainName,
     config: AggregationIsmConfig,
+    origin?: ChainName,
   ) {
     const signer = this.multiProvider.getSigner(chain);
     const aggregationIsmFactory =
       this.getContracts(chain).aggregationIsmFactory;
     const addresses: Address[] = [];
     for (const module of config.modules) {
-      addresses.push((await this.deploy(chain, module)).address);
+      addresses.push((await this.deploy(chain, module, origin)).address);
     }
     const address = await this.deployStaticAddressSet(
       chain,
@@ -330,6 +363,9 @@ export async function moduleCanCertainlyVerify(
         }
         return verified >= destModule.threshold;
       }
+      case ModuleType.NULL: {
+        return true;
+      }
     }
   }
 }
@@ -344,6 +380,12 @@ export async function moduleMatchesConfig(
 ): Promise<boolean> {
   if (typeof config === 'string') {
     return eqAddress(moduleAddress, config);
+  }
+
+  // If the module address is zero, it can't match any object-based config.
+  // The subsequent check of what moduleType it is will throw, so we fail here.
+  if (eqAddress(moduleAddress, ethers.constants.AddressZero)) {
+    return false;
   }
 
   const provider = multiProvider.getProvider(chain);
@@ -441,6 +483,11 @@ export async function moduleMatchesConfig(
       }
       break;
     }
+    case ModuleType.NULL: {
+      // This is just a TestISM
+      matches = true;
+      break;
+    }
     default: {
       throw new Error('Unsupported ModuleType');
     }
@@ -482,6 +529,9 @@ export function collectValidators(
     aggregatedValidators.forEach((set) => {
       validators = validators.concat([...set]);
     });
+  } else if (config.type === ModuleType.NULL) {
+    // This is just a TestISM
+    return new Set([]);
   } else {
     throw new Error('Unsupported ModuleType');
   }

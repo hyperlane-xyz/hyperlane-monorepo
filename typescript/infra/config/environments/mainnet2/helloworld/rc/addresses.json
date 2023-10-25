@@ -25,5 +25,8 @@
   },
   "moonbeam": {
     "router": "0x3eB9eE2CFC8DCB6F58B5869D33336CFcBf1dC354"
+  },
+  "solana": {
+    "router": "3pPDp16iVTJFge2sm85Q61hW61UN5xNqeG24gqFhzLFV"
   }
 }

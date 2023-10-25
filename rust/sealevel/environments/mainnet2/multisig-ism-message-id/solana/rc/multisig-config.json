@@ -1,0 +1,65 @@
+{
+  "celo": {
+    "type": 3,
+    "threshold": 1,
+    "validators": [
+      "0xe7a82e210f512f8e9900d6bc2acbf7981c63e66e"
+    ]
+  },
+  "ethereum": {
+    "type": 3,
+    "threshold": 1,
+    "validators": [
+      "0xaea1adb1c687b061e5b60b9da84cb69e7b5fab44"
+    ]
+  },
+  "avalanche": {
+    "type": 3,
+    "threshold": 1,
+    "validators": [
+      "0x706976391e23dea28152e0207936bd942aba01ce"
+    ]
+  },
+  "polygon": {
+    "type": 3,
+    "threshold": 1,
+    "validators": [
+      "0xef372f6ff7775989b3ac884506ee31c79638c989"
+    ]
+  },
+  "bsc": {
+    "type": 3,
+    "threshold": 1,
+    "validators": [
+      "0x0823081031a4a6f97c6083775c191d17ca96d0ab"
+    ]
+  },
+  "arbitrum": {
+    "type": 3,
+    "threshold": 1,
+    "validators": [
+      "0x1a95b35fb809d57faf1117c1cc29a6c5df289df1"
+    ]
+  },
+  "optimism": {
+    "type": 3,
+    "threshold": 1,
+    "validators": [
+      "0x60e938bf280bbc21bacfd8bf435459d9003a8f98"
+    ]
+  },
+  "moonbeam": {
+    "type": 3,
+    "threshold": 1,
+    "validators": [
+      "0x0df7140811e309dc69638352545151ebb9d5e0fd"
+    ]
+  },
+  "gnosis": {
+    "type": 3,
+    "threshold": 1,
+    "validators": [
+      "0x15f48e78092a4f79febface509cfd76467c6cdbb"
+    ]
+  }
+}

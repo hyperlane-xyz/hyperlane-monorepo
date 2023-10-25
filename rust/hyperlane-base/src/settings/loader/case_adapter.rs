@@ -36,14 +36,14 @@ fn recase_pair(key: String, mut val: Value, case: Case) -> (String, Value) {
                 .drain()
                 .map(|(k, v)| recase_pair(k, v, case))
                 .collect_vec();
-            table.extend(tmp.into_iter());
+            table.extend(tmp);
         }
         ValueKind::Array(ary) => {
             let tmp = ary
                 .drain(..)
                 .map(|v| recase_pair(String::new(), v, case).1)
                 .collect_vec();
-            ary.extend(tmp.into_iter())
+            ary.extend(tmp)
         }
         _ => {}
     }

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:experimental
 
-FROM rust:1.71.1 as builder
+FROM rust:1.72.1 as builder
 WORKDIR /usr/src
 
 # 1a: Prepare for static linking
@@ -34,7 +34,7 @@ RUN \
     cp /usr/src/target/release/scraper /release
 
 ## 2: Copy the binaries to release image
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 RUN apt-get update && \
     apt-get install -y \
         openssl \

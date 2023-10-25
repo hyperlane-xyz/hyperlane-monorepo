@@ -3,6 +3,8 @@ import { providers } from 'ethers';
 import {
   ERC20__factory,
   ERC721EnumerableUpgradeable__factory,
+  FastHypERC20Collateral__factory,
+  FastHypERC20__factory,
   HypERC20,
   HypERC20Collateral,
   HypERC20Collateral__factory,
@@ -39,6 +41,7 @@ import {
   TokenMetadata,
   isCollateralConfig,
   isErc20Metadata,
+  isFastConfig,
   isNativeConfig,
   isSyntheticConfig,
   isTokenMetadata,
@@ -72,11 +75,14 @@ export class HypERC20Deployer extends GasRouterDeployer<
 
   static gasOverheadDefault(config: TokenConfig): number {
     switch (config.type) {
+      case 'fastSynthetic':
+        return 64_000;
       case 'synthetic':
         return 64_000;
       case 'native':
         return 44_000;
       case 'collateral':
+      case 'fastCollateral':
       default:
         return 68_000;
     }
@@ -121,12 +127,16 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20CollateralConfig,
   ): Promise<HypERC20Collateral> {
-    return this.deployContractFromFactory(
-      chain,
-      new HypERC20Collateral__factory(),
-      'HypERC20Collateral',
-      [config.token, config.mailbox],
-    );
+    const isFast = isFastConfig(config);
+    const factory = isFast
+      ? new FastHypERC20Collateral__factory()
+      : new HypERC20Collateral__factory();
+    const name = isFast ? 'FastHypERC20Collateral' : 'HypERC20Collateral';
+
+    return this.deployContractFromFactory(chain, factory, name, [
+      config.token,
+      config.mailbox,
+    ]);
   }
 
   protected async deployNative(
@@ -156,12 +166,17 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20Config,
   ): Promise<HypERC20> {
-    const router = await this.deployContractFromFactory(
-      chain,
-      new HypERC20__factory(),
-      'HypERC20',
-      [config.decimals, config.mailbox],
-    );
+    const isFast = isFastConfig(config);
+    const factory = isFast
+      ? new FastHypERC20__factory()
+      : new HypERC20__factory();
+    const name = isFast ? 'FastHypERC20' : 'HypERC20';
+
+    const router = await this.deployContractFromFactory(chain, factory, name, [
+      config.decimals,
+      config.mailbox,
+    ]);
+
     await this.multiProvider.handleTx(
       chain,
       router.initialize(config.totalSupply, config.name, config.symbol),

@@ -25,5 +25,8 @@
   },
   "gnosis": {
     "router": "0x26f32245fCF5Ad53159E875d5Cae62aEcf19c2d4"
+  },
+  "solana": {
+    "router": "4k1gruSdH1r57V9QQK4aunzfMYzLFfF83jdYkkEwyem6"
   }
 }

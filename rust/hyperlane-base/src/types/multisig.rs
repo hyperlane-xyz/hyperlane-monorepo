@@ -367,6 +367,7 @@ impl MultisigCheckpointSyncer {
                 continue;
             }
         }
+        debug!("No quorum checkpoint found for message");
         Ok(None)
     }
 }

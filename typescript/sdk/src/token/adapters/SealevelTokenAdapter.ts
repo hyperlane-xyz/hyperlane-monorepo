@@ -6,6 +6,7 @@ import {
 } from '@solana/spl-token';
 import {
   AccountMeta,
+  ComputeBudgetProgram,
   Keypair,
   PublicKey,
   SystemProgram,
@@ -153,6 +154,14 @@ export class SealevelTokenAdapter
   }
 }
 
+// The compute limit to set for the transfer remote instruction.
+// This is typically around ~160k, but can be higher depending on
+// the index in the merkle tree, which can result in more moderately
+// more expensive merkle tree insertion.
+// Because a higher compute limit doesn't increase the fee for a transaction,
+// we generously request 1M units.
+const TRANSFER_REMOTE_COMPUTE_LIMIT = 1_000_000;
+
 export abstract class SealevelHypTokenAdapter
   extends SealevelTokenAdapter
   implements IHypTokenAdapter
@@ -271,15 +280,24 @@ export abstract class SealevelHypTokenAdapter
       ]),
     });
 
+    const setComputeLimitInstruction = ComputeBudgetProgram.setComputeUnitLimit(
+      {
+        units: TRANSFER_REMOTE_COMPUTE_LIMIT,
+      },
+    );
+
     const recentBlockhash = (
       await this.getProvider().getLatestBlockhash('finalized')
     ).blockhash;
+
     // @ts-ignore Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
     const tx = new Transaction({
       feePayer: fromWalletPubKey,
       blockhash: recentBlockhash,
       recentBlockhash,
-    }).add(transferRemoteInstruction);
+    })
+      .add(setComputeLimitInstruction)
+      .add(transferRemoteInstruction);
     tx.partialSign(randomWallet);
     return tx;
   }
