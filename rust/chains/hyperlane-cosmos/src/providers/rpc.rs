@@ -5,7 +5,7 @@ use crate::binary::h256_to_h512;
 use async_trait::async_trait;
 use cosmrs::rpc::client::{Client, CompatMode, HttpClient};
 use cosmrs::rpc::endpoint::tx;
-use cosmrs::rpc::query::{EventType, Query};
+use cosmrs::rpc::query::Query;
 use cosmrs::rpc::Order;
 use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{ChainResult, ContractLocator, HyperlaneDomain, LogMeta, H256, U256};
@@ -108,7 +108,8 @@ impl WasmIndexer for CosmosWasmIndexer {
         .parse()
         .unwrap();
         let total_block_count = range.end() - range.start() + 1;
-        let last_block_page = total_block_count / 100 + (total_block_count % 100 != 0) as u32;
+        let last_block_page =
+            total_block_count / block_step + (total_block_count % block_step != 0) as u32;
 
         for _ in 1..=last_block_page {
             let blocks = client
@@ -139,7 +140,7 @@ impl WasmIndexer for CosmosWasmIndexer {
                 contract_address.clone(),
             );
 
-        println!("Query: {:?}", query.to_string());
+        debug!("Query: {:?}", query.to_string());
 
         let tx_search_result = client
             .tx_search(query.clone(), false, 1, 30, Order::Ascending)
@@ -159,7 +160,7 @@ impl WasmIndexer for CosmosWasmIndexer {
 
             for tx in txs {
                 if tx.tx_result.code.is_err() {
-                    debug!("tx {:?} has failed. skip!", tx.hash);
+                    debug!(tx_hash=?tx.hash, "Indexed tx has failed, skipping");
                     continue;
                 }
 
@@ -191,7 +192,8 @@ impl WasmIndexer for CosmosWasmIndexer {
         let mut result = handler(tx_search_result.txs, block_hash.clone());
 
         for page in 2..=last_page {
-            println!("page: {}", page);
+            debug!(page, "Making tx search RPC");
+
             let tx_search_result = client
                 .tx_search(query.clone(), false, page, 30, Order::Ascending)
                 .await?;
