@@ -4,6 +4,8 @@ pragma solidity >=0.8.0;
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 
+import {console2} from "forge-std/console2.sol";
+
 // ============ Internal Imports ============
 import {MetaProxy} from "./MetaProxy.sol";
 
@@ -31,10 +33,12 @@ abstract contract StaticMOfNAddressSetFactory {
         external
         returns (address)
     {
+        console2.log("deploy");
         (bytes32 _salt, bytes memory _bytecode) = _saltAndBytecode(
             _values,
             _threshold
         );
+        console2.log("salt");
         address _set = _getAddress(_salt, _bytecode);
         if (!Address.isContract(_set)) {
             _set = Create2.deploy(0, _salt, _bytecode);

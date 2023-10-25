@@ -3,16 +3,19 @@ pragma solidity >=0.8.0;
 
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {console2} from "forge-std/console2.sol";
 // ============ Internal Imports ============
 import {IOptimisticIsm} from "../../interfaces/isms/IOptimisticIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {StaticOptimisticWatchersFactory} from "./StaticOptimisticWatchersFactory.sol";
+import {StaticOptimisticWatchers} from "./StaticOptimisticWatchers.sol";
 
 // import {StaticMOfNAddressSetFactory} from "../../libs/StaticMOfNAddressSetFactory.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+// import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 
-contract OptimisticISM is Ownable, IOptimisticIsm {
+contract OptimisticISM is Ownable, Initializable, StaticOptimisticWatchersFactory, IOptimisticIsm {
 
     struct MessageCheck {
         uint64 timestamp;
@@ -28,9 +31,6 @@ contract OptimisticISM is Ownable, IOptimisticIsm {
     /// @notice The current submodule responsible for verifying messages
     IInterchainSecurityModule internal _submodule;
 
-    /// @notice The set of watchers responsible for marking submodules as fraudulent
-    address[] public watchers;
-    
     /// @notice The number of watchers that must mark a submodule as fraudulent
     uint256 public threshold;
 
@@ -40,9 +40,13 @@ contract OptimisticISM is Ownable, IOptimisticIsm {
     /// @notice The set of messages that have been pre-verified
     mapping(bytes32 => MessageCheck) public messages;
 
+    /// @notice The set of watchers responsible for marking submodules as fraudulent
+    address public currentWatchers;
+
     /// @notice ensures only watchers can call a function
     modifier onlyWatchers() {
         bool isWatcher = false;
+        (address[] memory watchers, uint8 m) = StaticOptimisticWatchers(currentWatchers).watchersAndThreshold(bytes(""));
         for (uint256 i = 0; i < watchers.length; i++) {
             if (watchers[i] == msg.sender) {
                 isWatcher = true;
@@ -55,13 +59,11 @@ contract OptimisticISM is Ownable, IOptimisticIsm {
         _;
     }
 
-    constructor(IInterchainSecurityModule initSubmodule, uint64 _fraudWindow, uint256 _threshold, address[] memory _watchers)
+    constructor(IInterchainSecurityModule initSubmodule, uint64 _fraudWindow)
         Ownable()
     {
         _setSubmodule(initSubmodule);
         _setFraudWindow(_fraudWindow);
-        _addWatchers(_watchers);
-        _setThreshold(_threshold);
     }
 
     // ============ EXTERNAL ============
@@ -72,9 +74,7 @@ contract OptimisticISM is Ownable, IOptimisticIsm {
     {
         // load current checking submodule
         IInterchainSecurityModule checkingSubmodule = _submodule;
-
-        bool isVerified = checkingSubmodule.verify(_metadata, _message);
-        if (!isVerified) {
+        if (!checkingSubmodule.verify(_metadata, _message)) {
             return false;
         }
         messages[keccak256(abi.encode(_metadata, _message))] = MessageCheck({
@@ -86,34 +86,17 @@ contract OptimisticISM is Ownable, IOptimisticIsm {
 
     /**
      * @inheritdoc IInterchainSecurityModule
-     * @dev
+     * @dev Called as part of message delivery
      */
     function verify(bytes calldata _metadata, bytes calldata _message)
         external
         view
         returns (bool)
-    {
-        // load message
-        MessageCheck memory message = messages[
-            keccak256(abi.encode(_metadata, _message))
-        ];
+    {   
+        bytes32 txId = keccak256(abi.encode(_metadata, _message));
+        MessageCheck memory message = messages[txId];
 
-        // The message has been pre-verified
-        if (message.timestamp == 0) {
-            console2.log("message not pre-verified");
-            return false;
-        }
-
-        // The submodule used to pre-verify the message has not been flagged as compromised by m-of-n watchers
-        if (_isFraudulentSubmodule(message.checkingSubmodule)) {
-            console2.log("fraudulent submodule");
-            return false;
-        }
-
-        console2.log("message timestamp ", message.timestamp);
-        // The fraud window has elapsed
-        if (uint64(block.timestamp) < message.timestamp) {
-            console2.log("fraud window not passed");
+        if(message.timestamp == 0 || uint64(block.timestamp) < message.timestamp || _isFraudulentSubmodule(message.checkingSubmodule)){
             return false;
         }
 
@@ -137,36 +120,57 @@ contract OptimisticISM is Ownable, IOptimisticIsm {
     }
 
     // ============ AUTHORIZED ============
-
-    function addWatchers(address[] calldata _watchers) external onlyOwner {
-        _addWatchers(_watchers);
+    /// @notice Initializes the OptimisticISM with a set of watchers
+    function initialize(address[] memory _watchers, uint8 _threshold) external initializer onlyOwner{
+        currentWatchers = _newStaticMofN(_watchers, _threshold);
     }
 
-    function setThreshold(uint256 _threshold) external onlyOwner {
-        _setThreshold(_threshold);
+    /// @notice Creates a new static M-of-N watcher set
+    function setNewStaticNofMWatchers(address[] memory watchers, uint8 m) external onlyOwner {
+        currentWatchers = _newStaticMofN(watchers, m);
     }
+    
+    /// @notice Marks a submodule as fraudulent
+    /// @dev only callable by watchers only per submodule
+    /// @param _fraudulantSubmodule The submodule to mark as fraudulent
+    function markFraudulent(IInterchainSecurityModule _fraudulantSubmodule) external onlyWatchers {
+        // check watcher hasn't already flagged submodule as fraudulent
+        uint256 currentFradulantCount = fraudulantSubmodules[address(_fraudulantSubmodule)].length;
+        for(uint256 i = 0; i < currentFradulantCount; i++) {
+            if (fraudulantSubmodules[address(_submodule)][i] == msg.sender) {
+                revert AlreadyMarkedFraudulent();
+            }
+        }
 
-    function markFraudulent(IInterchainSecurityModule _submodule) external onlyWatchers {
         fraudulantSubmodules[address(_submodule)].push(msg.sender);
         emit FraudulentISM(_submodule, msg.sender);
     }
-
+    
+    /// @notice Sets the current verifying submodule
+    /// @param newSubmodule The submodule to set as the current submodule
     function setSubmodule(IInterchainSecurityModule newSubmodule)
         external
         onlyOwner
     {
-        //todo: do we need a check to see if the submodule is within a list of submoduiels?
+        if(newSubmodule.moduleType() != uint8(Types.OPTIMISTIC)){
+            revert InvalidSubmodule();
+        }
 
         _setSubmodule(newSubmodule);
     }
 
     // ============ INTERNAL ============
 
-    function _addWatchers(address[] memory _watchers) internal {
-        for (uint256 i = 0; i < _watchers.length; i++) {
-            watchers.push(_watchers[i]);
-            emit WatcherAdded(_watchers[i]);
+    function _newStaticMofN(address[] memory _watchers, uint8 _threshold) internal returns (address){
+        if(_threshold == 0){
+            revert NonZeroThreshold();
         }
+        if(_watchers.length < _threshold){
+            revert ThresholdTooLarge();
+        }
+        address newWatchers = this.deploy(_watchers, _threshold);
+        emit NewStaticOptimisticWatchers(StaticOptimisticWatchers(newWatchers));
+        return newWatchers;
     }
 
     function _setSubmodule(IInterchainSecurityModule newSubmodule) internal {
@@ -179,24 +183,14 @@ contract OptimisticISM is Ownable, IOptimisticIsm {
         emit SetFraudWindow(_fraudWindow);
     }
 
-    function _setThreshold(uint256 _threshold) internal {
-        
-        if(_threshold > watchers.length){
-            revert ThresholdTooLarge();
-        }
-
-        threshold = _threshold;
-        emit ThresholdSet(_threshold);
-    }
-
     function _isFraudulentSubmodule(address module)
         internal
         view
         returns (bool)
     {
-        // iterate thru submodules and see how many watchers say the submodule is fraudulent
+        (, uint8 m) = StaticOptimisticWatchers(currentWatchers).watchersAndThreshold(bytes(""));
         uint256 count = fraudulantSubmodules[module].length;
-        if(count >= threshold){
+        if(count >= m){
             return true;
         }
         return false;
