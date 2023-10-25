@@ -25,13 +25,14 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
 };
 
 // Blessed non-Ethereum chains.
-// export const nonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
-//   solanadevnet: chainMetadata.solanadevnet,
-// };
+export const nonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
+  // solanadevnet: chainMetadata.solanadevnet,
+  neutrontestnet: chainMetadata.neutrontestnet,
+};
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {
   ...ethereumTestnetConfigs,
-  // ...nonEthereumTestnetConfigs,
+  ...nonEthereumTestnetConfigs,
 };
 
 export type TestnetChains = keyof typeof testnetConfigs;
@@ -43,11 +44,7 @@ export const environment = 'testnet4';
 export const ethereumChainNames = Object.keys(
   ethereumTestnetConfigs,
 ) as TestnetChains[];
-const validatorChainNames = [
-  ...supportedChainNames,
-  // chainMetadata.solanadevnet.name,
-  // chainMetadata.proteustestnet.name,
-];
+const validatorChainNames = supportedChainNames;
 const relayerChainNames = validatorChainNames;
 
 export const agentChainNames: AgentChainNames = {

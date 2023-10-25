@@ -1005,6 +1005,27 @@ export const polygonzkevm: ChainMetadata = {
   },
 };
 
+export const neutrontestnet: ChainMetadata = {
+  protocol: ProtocolType.Cosmos,
+  domainId: 33333,
+  chainId: 33333,
+  name: Chains.neutrontestnet,
+  displayName: 'Neutron Testnet',
+  displayNameShort: 'Neutron Testnet',
+  nativeToken: {
+    name: 'Neutron',
+    symbol: 'NTRN',
+    decimals: 6,
+  },
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 0,
+    estimateBlockTime: 3,
+  },
+  rpcUrls: [{ http: 'http://54.149.31.83:26657' }],
+  isTestnet: true,
+};
+
 /**
  * Collection maps
  *
@@ -1048,6 +1069,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   solanatestnet,
   solanadevnet,
   nautilus,
+  neutrontestnet,
 };
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<

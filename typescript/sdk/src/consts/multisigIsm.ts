@@ -226,4 +226,12 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
       '0x967c5ecdf2625ae86580bd203b630abaaf85cd62',
     ],
   },
+  neutrontestnet: {
+    threshold: 2,
+    validators: [
+      '0x5d2a99d67cd294a821de4fb25da6901ea8f89814',
+      '0xb57486243ce3bb3c38c50a582b8bbd20cb393589',
+      '0x661faee997654d14ead4ae48035883f05c3150cf',
+    ],
+  },
 };

@@ -96,25 +96,52 @@ export function getValidatorCloudAgentKeys(
 ): Array<CloudAgentKey> {
   // For each chainName, create validatorCount keys
   if (!agentConfig.validators) return [];
+
   const validators = agentConfig.validators;
   return agentConfig.contextChainNames[Role.Validator]
     .filter((chainName) => !!validators.chains[chainName])
     .flatMap((chainName) =>
-      validators.chains[chainName].validators.map((_, index) =>
-        getCloudAgentKey(agentConfig, Role.Validator, chainName, index),
-      ),
-    );
+      validators.chains[chainName].validators.map((_, index) => {
+        const validatorKeys = [];
+
+        // If AWS is enabled, we want to use AWS keys for the validator signing key
+        // that actually signs checkpoints.
+        if (agentConfig.aws) {
+          validatorKeys.push(
+            new AgentAwsKey(agentConfig, Role.Validator, chainName, index),
+          );
+        }
+
+        // If the chain is not an EVM chain, we also want to use GCP keys for
+        // self-announcing. This key won't actually sign checkpoints, just the self-announcement tx.
+        // We also want to use a GCP key if AWS is not enabled.
+        if (isNotEthereumProtocolChain(chainName) || !agentConfig.aws) {
+          validatorKeys.push(
+            new AgentGCPKey(
+              agentConfig.runEnv,
+              agentConfig.context,
+              Role.Validator,
+              chainName,
+              index,
+            ),
+          );
+        }
+
+        return validatorKeys;
+      }),
+    )
+    .flat();
 }
 
 export function getAllCloudAgentKeys(
   agentConfig: RootAgentConfig,
 ): Array<CloudAgentKey> {
   const keys = [];
-  if ((agentConfig.rolesWithKeys ?? []).includes(Role.Relayer))
+  if (agentConfig.rolesWithKeys.includes(Role.Relayer))
     keys.push(...getRelayerCloudAgentKeys(agentConfig));
-  if ((agentConfig.rolesWithKeys ?? []).includes(Role.Validator))
+  if (agentConfig.rolesWithKeys.includes(Role.Validator))
     keys.push(...getValidatorCloudAgentKeys(agentConfig));
-  if ((agentConfig.rolesWithKeys ?? []).includes(Role.Kathy))
+  if (agentConfig.rolesWithKeys.includes(Role.Kathy))
     keys.push(...getKathyCloudAgentKeys(agentConfig));
 
   for (const role of agentConfig.rolesWithKeys) {
