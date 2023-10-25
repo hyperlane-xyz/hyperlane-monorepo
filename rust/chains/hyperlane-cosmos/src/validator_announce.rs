@@ -101,6 +101,8 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
             .wasm_send(announce_request, tx_gas_limit)
             .await?;
 
+        println!("response: {:?}", response);
+
         Ok(TxOutcome {
             transaction_id: H256::from_slice(hex::decode(response.txhash).unwrap().as_slice())
                 .into(),

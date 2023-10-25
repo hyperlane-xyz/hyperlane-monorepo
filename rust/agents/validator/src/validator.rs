@@ -28,6 +28,8 @@ use crate::{
     submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
 };
 
+use hyperlane_core::Signable;
+
 /// A validator agent
 #[derive(Debug, AsRef)]
 pub struct Validator {
@@ -45,7 +47,6 @@ pub struct Validator {
     reorg_period: u64,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
-    raw_signer: SignerConf,
 }
 
 #[async_trait]
@@ -104,7 +105,6 @@ impl BaseAgent for Validator {
             reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
-            raw_signer: settings.validator.clone(),
         })
     }
 
@@ -231,25 +231,21 @@ impl Validator {
     }
 
     async fn announce(&self) -> Result<()> {
-        let address = match self.raw_signer {
-            SignerConf::CosmosKey { key, .. } => {
-                let addr = priv_to_addr_string(key.0.as_slice().to_vec())?;
-                info!("Announcing validator with Cosmos key: {}", addr);
-
-                priv_to_binary_addr(key.0.as_slice().to_vec())?
-            }
-            SignerConf::HexKey { key } => priv_to_binary_addr(key.0.as_slice().to_vec())?, //self.signer.eth_address(),
-            _ => self.signer.eth_address(),
-        };
+        // The validator address is always formatted in the Ethereum address style, regardless
+        // of what execution environment is being used.
+        let validator_address = self.signer.eth_address();
 
         // Sign and post the validator announcement
         let announcement = Announcement {
-            validator: address,
+            validator: validator_address,
             mailbox_address: self.mailbox.address(),
             mailbox_domain: self.mailbox.domain().id(),
             storage_location: self.checkpoint_syncer.announcement_location(),
         };
         let signed_announcement = self.signer.sign(announcement.clone()).await?;
+        warn!(?announcement, ?signed_announcement, eth_signed_message_hash=?announcement.eth_signed_message_hash(), signing_hash=?announcement.signing_hash(), "announcement");
+        warn!(validator_address=?validator_address, "validator_address");
+
         self.checkpoint_syncer
             .write_announcement(&signed_announcement)
             .await?;
@@ -258,7 +254,7 @@ impl Validator {
         // the main validator submit loop. This is to avoid a situation in
         // which the validator is signing checkpoints but has not announced
         // their locations, which makes them functionally unusable.
-        let validators: [H256; 1] = [address.into()];
+        let validators: [H256; 1] = [validator_address.into()];
         loop {
             info!("Checking for validator announcement");
             if let Some(locations) = self

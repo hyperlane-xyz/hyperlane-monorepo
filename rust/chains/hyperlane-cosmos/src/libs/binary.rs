@@ -1,6 +1,5 @@
-use std::cmp;
 use hyperlane_core::{H256, H512};
-
+use std::cmp;
 
 pub fn h256_to_h512(v: H256) -> H512 {
     let mut result: [u8; 64] = [0; 64];
