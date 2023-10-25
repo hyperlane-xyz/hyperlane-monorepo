@@ -19,4 +19,5 @@ pub struct Event {
 pub struct EventAttribute {
     pub key: String,
     pub value: String,
+    pub index: bool,
 }
