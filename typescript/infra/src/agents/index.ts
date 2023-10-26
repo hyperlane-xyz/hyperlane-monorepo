@@ -113,17 +113,24 @@ export abstract class AgentHelmManager {
         runEnv: this.environment,
         context: this.context,
         aws: !!this.config.aws,
-        chains: this.config.environmentChainNames.map((name) => ({
-          name,
-          disabled: !this.config.contextChainNames[this.role].includes(name),
-          rpcConsensusType: this.rpcConsensusType(name),
-        })),
+        chains: this.config.environmentChainNames.map((chain) => {
+          const reorgPeriod = chainMetadata[chain].blocks?.reorgPeriod;
+          if (reorgPeriod === undefined) {
+            throw new Error(`No reorg period found for chain ${chain}`);
+          }
+          return {
+            name: chain,
+            disabled: !this.config.contextChainNames[this.role].includes(chain),
+            rpcConsensusType: this.rpcConsensusType(chain),
+            blocks: { reorgPeriod },
+          };
+        }),
       },
     };
   }
 
   rpcConsensusType(chain: ChainName): RpcConsensusType {
-    if (chainMetadata[chain].protocol == ProtocolType.Sealevel) {
+    if (chainMetadata[chain].protocol !== ProtocolType.Ethereum) {
       return RpcConsensusType.Single;
     }
 
@@ -249,11 +256,6 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
   async helmValues(): Promise<HelmRootAgentValues> {
     const helmValues = await super.helmValues();
     const cfg = await this.config.buildConfig();
-
-    helmValues.hyperlane.chains.push({
-      name: cfg.originChainName,
-      blocks: { reorgPeriod: cfg.reorgPeriod },
-    });
 
     helmValues.hyperlane.validator = {
       enabled: true,

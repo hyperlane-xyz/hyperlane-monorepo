@@ -33,7 +33,6 @@ export interface ValidatorBaseConfig {
 
 export interface ValidatorConfig {
   interval: number;
-  reorgPeriod: number;
   originChainName: ChainName;
   validators: Array<{
     checkpointSyncer: CheckpointSyncerConfig;
@@ -88,7 +87,6 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
   async buildConfig(): Promise<ValidatorConfig> {
     return {
       interval: this.#chainConfig.interval,
-      reorgPeriod: this.#chainConfig.reorgPeriod,
       originChainName: this.chainName!,
       validators: await Promise.all(
         this.#chainConfig.validators.map((val, i) =>
@@ -123,8 +121,9 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       await awsUser.createIfNotExists();
       await awsUser.createBucketIfNotExists();
 
-      if (this.aws)
+      if (this.aws) {
         validator = (await awsUser.createKeyIfNotExists(this)).keyConfig;
+      }
     } else {
       console.warn(
         `Validator ${cfg.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,

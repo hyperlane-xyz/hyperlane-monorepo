@@ -7,6 +7,7 @@ import {
 import { EnvironmentConfig, RootAgentConfig } from '../../src/config';
 import { Role } from '../../src/roles';
 import { HelmCommand } from '../../src/utils/helm';
+import { sleep } from '../../src/utils/utils';
 import {
   assertCorrectKubeContext,
   getArgs,
@@ -33,6 +34,7 @@ export class AgentCli {
       switch (role) {
         case Role.Validator:
           for (const chain of this.agentConfig.contextChainNames[role]) {
+            if (chain !== 'neutrontestnet') continue;
             const key = `${role}-${chain}`;
             managers[key] = new ValidatorHelmManager(this.agentConfig, chain);
           }
@@ -49,11 +51,10 @@ export class AgentCli {
     }
 
     if (this.dryRun) {
-      for (const m of Object.values(managers)) {
-        void m.helmValues().then((v) => {
-          console.log(JSON.stringify(v, null, 2));
-        });
-      }
+      const values = await Promise.all(
+        Object.values(managers).map(async (m) => m.helmValues()),
+      );
+      console.log('Dry run values:\n', JSON.stringify(values, null, 2));
     }
 
     for (const m of Object.values(managers)) {

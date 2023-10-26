@@ -96,11 +96,11 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       return Object.fromEntries(
         this.contextChainNames[Role.Relayer].map((name) => {
           const chain = chainMetadata[name];
-          // Sealevel chains always use hex keys
-          if (chain?.protocol == ProtocolType.Sealevel) {
-            return [name, { type: AgentSignerKeyType.Hex }];
-          } else {
+          if (chain?.protocol === ProtocolType.Ethereum) {
             return [name, awsKey];
+          } else {
+            // Non-ethereum chains always use hex keys
+            return [name, { type: AgentSignerKeyType.Hex }];
           }
         }),
       );
