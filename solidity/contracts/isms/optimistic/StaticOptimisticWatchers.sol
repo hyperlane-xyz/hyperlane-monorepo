@@ -23,7 +23,7 @@ contract StaticOptimisticWatchers {
      */
     function watchersAndThreshold(bytes calldata)
         public
-        view
+        pure
         returns (address[] memory, uint8)
     {
         return abi.decode(MetaProxy.metadata(), (address[], uint8));

@@ -4,18 +4,18 @@ pragma solidity >=0.8.0;
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {console2} from "forge-std/console2.sol";
 // ============ Internal Imports ============
 import {IOptimisticIsm} from "../../interfaces/isms/IOptimisticIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {StaticOptimisticWatchersFactory} from "./StaticOptimisticWatchersFactory.sol";
 import {StaticOptimisticWatchers} from "./StaticOptimisticWatchers.sol";
+import {Message} from "../../libs/Message.sol";
 
-// import {StaticMOfNAddressSetFactory} from "../../libs/StaticMOfNAddressSetFactory.sol";
-// import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-
-
+/// @notice An OptimisticISM is an ISM that uses a set of watchers to mark submodules as fraudulent.
+/// If a message is verified by a submodule that is marked as fraudulent within a fraud window,
+/// the message is considered fraudulent, otherwise it is considered valid and can be delivered.
 contract OptimisticISM is Ownable, Initializable, StaticOptimisticWatchersFactory, IOptimisticIsm {
+    using Message for bytes;
 
     struct MessageCheck {
         uint64 timestamp;
@@ -54,20 +54,27 @@ contract OptimisticISM is Ownable, Initializable, StaticOptimisticWatchersFactor
             }
         }
         if(!isWatcher) {
-            revert OnlyWatcherError();
+            revert OnlyWatcher();
         }
         _;
     }
 
-    constructor(IInterchainSecurityModule initSubmodule, uint64 _fraudWindow)
+    // ============ CONSTRUCTOR ============
+
+    constructor(IInterchainSecurityModule initSubmodule, uint64 _fraudWindow, address _currentWatchers)
         Ownable()
     {
         _setSubmodule(initSubmodule);
         _setFraudWindow(_fraudWindow);
+        currentWatchers = _currentWatchers;
     }
 
     // ============ EXTERNAL ============
-
+    
+    /**
+     * @inheritdoc IOptimisticIsm
+     * @dev Called as part of message delivery
+     */
     function preVerify(bytes calldata _metadata, bytes calldata _message)
         external
         returns (bool)
@@ -77,10 +84,11 @@ contract OptimisticISM is Ownable, Initializable, StaticOptimisticWatchersFactor
         if (!checkingSubmodule.verify(_metadata, _message)) {
             return false;
         }
-        messages[keccak256(abi.encode(_metadata, _message))] = MessageCheck({
-            timestamp: uint64(block.timestamp) + fraudWindow,
+        messages[_message.id()] = MessageCheck({
+            timestamp: uint64(block.timestamp),
             checkingSubmodule: address(checkingSubmodule)
         });
+        emit PreVerified(_message.id());
         return true;
     }
 
@@ -88,22 +96,22 @@ contract OptimisticISM is Ownable, Initializable, StaticOptimisticWatchersFactor
      * @inheritdoc IInterchainSecurityModule
      * @dev Called as part of message delivery
      */
-    function verify(bytes calldata _metadata, bytes calldata _message)
+    function verify(bytes calldata, bytes calldata _message)
         external
         view
         returns (bool)
     {   
-        bytes32 txId = keccak256(abi.encode(_metadata, _message));
-        MessageCheck memory message = messages[txId];
+        
+        MessageCheck memory message = messages[_message.id()];
 
-        if(message.timestamp == 0 || uint64(block.timestamp) < message.timestamp || _isFraudulentSubmodule(message.checkingSubmodule)){
+        if(message.timestamp == 0 ||  _isFraudWindowExpired(message.timestamp) || _isFraudulentSubmodule(message.checkingSubmodule)){
             return false;
         }
-
         return true;
     }
 
-    function submodule(bytes calldata _message)
+    /// @inheritdoc IOptimisticIsm
+    function submodule(bytes calldata)
         external
         view
         returns (IInterchainSecurityModule)
@@ -111,6 +119,8 @@ contract OptimisticISM is Ownable, Initializable, StaticOptimisticWatchersFactor
         return _submodule;
     }
 
+    /// @notice Getter for messages passing thru this OptimisticISM
+    /// @param id The id of the message (Message.id())
     function getMessage(bytes32 id)
         external
         view
@@ -120,19 +130,11 @@ contract OptimisticISM is Ownable, Initializable, StaticOptimisticWatchersFactor
     }
 
     // ============ AUTHORIZED ============
-    /// @notice Initializes the OptimisticISM with a set of watchers
-    function initialize(address[] memory _watchers, uint8 _threshold) external initializer onlyOwner{
-        currentWatchers = _newStaticMofN(_watchers, _threshold);
-    }
 
-    /// @notice Creates a new static M-of-N watcher set
-    function setNewStaticNofMWatchers(address[] memory watchers, uint8 m) external onlyOwner {
-        currentWatchers = _newStaticMofN(watchers, m);
-    }
-    
-    /// @notice Marks a submodule as fraudulent
-    /// @dev only callable by watchers only per submodule
-    /// @param _fraudulantSubmodule The submodule to mark as fraudulent
+    /**
+     * @inheritdoc IOptimisticIsm
+     * @dev only callable by watchers only per submodule
+     */
     function markFraudulent(IInterchainSecurityModule _fraudulantSubmodule) external onlyWatchers {
         // check watcher hasn't already flagged submodule as fraudulent
         uint256 currentFradulantCount = fraudulantSubmodules[address(_fraudulantSubmodule)].length;
@@ -144,6 +146,13 @@ contract OptimisticISM is Ownable, Initializable, StaticOptimisticWatchersFactor
 
         fraudulantSubmodules[address(_submodule)].push(msg.sender);
         emit FraudulentISM(_submodule, msg.sender);
+    }
+
+    /// @notice Sets the current fraud window
+    /// @dev all existing messages are checked against the new fraud window
+    /// @param _fraudWindow The fraud window to set
+    function setFraudWindow(uint64 _fraudWindow) external onlyOwner {
+        _setFraudWindow(_fraudWindow);
     }
     
     /// @notice Sets the current verifying submodule
@@ -159,18 +168,17 @@ contract OptimisticISM is Ownable, Initializable, StaticOptimisticWatchersFactor
         _setSubmodule(newSubmodule);
     }
 
-    // ============ INTERNAL ============
+    /// @notice convenience function to check if a message is outside the fraud window
+    /// @param id The id of the message (Message id())
+    function messageFraudWindowExpired(bytes32 id) external view returns (bool){
+        return _isFraudWindowExpired(messages[id].timestamp);
+    }
 
-    function _newStaticMofN(address[] memory _watchers, uint8 _threshold) internal returns (address){
-        if(_threshold == 0){
-            revert NonZeroThreshold();
-        }
-        if(_watchers.length < _threshold){
-            revert ThresholdTooLarge();
-        }
-        address newWatchers = this.deploy(_watchers, _threshold);
-        emit NewStaticOptimisticWatchers(StaticOptimisticWatchers(newWatchers));
-        return newWatchers;
+    // ============ INTERNAL ============
+    
+    /// @notice returns true if the timestamp passed is outside the fraud window, i.e. optimistically safe
+    function _isFraudWindowExpired(uint64 messageTimestamp) internal view returns (bool){
+        return messageTimestamp + fraudWindow  > uint64(block.timestamp);
     }
 
     function _setSubmodule(IInterchainSecurityModule newSubmodule) internal {
