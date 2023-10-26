@@ -4,8 +4,14 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { BaseCwAdapter } from '../../app/MultiProtocolApp';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
+import { ERC20Metadata } from '../config';
 
-import { ITokenAdapter, TransferParams } from './ITokenAdapter';
+import {
+  IHypTokenAdapter,
+  ITokenAdapter,
+  TransferParams,
+  TransferRemoteParams,
+} from './ITokenAdapter';
 
 // Interacts with IBC denom tokens
 export class NativeTokenAdapter extends BaseCwAdapter implements ITokenAdapter {
@@ -67,8 +73,7 @@ type BalanceResponse = {
 
 // https://github.com/CosmWasm/cw-plus/blob/main/packages/cw20/README.md
 // Interacts with CW20/721 contracts
-export class Cw20TokenAdapter extends BaseCwAdapter implements ITokenAdapter {
-  // public readonly contract: CW20QueryClient;
+export class CW20TokenAdapter extends BaseCwAdapter implements ITokenAdapter {
   public readonly contractAddress: string;
 
   constructor(
@@ -133,5 +138,47 @@ export class Cw20TokenAdapter extends BaseCwAdapter implements ITokenAdapter {
         },
       },
     };
+  }
+}
+
+export class WarpCW20TokenAdapter
+  extends CW20TokenAdapter
+  implements IHypTokenAdapter
+{
+  getDomains(): Promise<number[]> {
+    throw new Error('Method not implemented.');
+  }
+  getRouterAddress(domain: number): Promise<Buffer> {
+    throw new Error('Method not implemented.');
+  }
+  getAllRouters(): Promise<{ domain: number; address: Buffer }[]> {
+    throw new Error('Method not implemented.');
+  }
+  quoteGasPayment(destination: number): Promise<string> {
+    throw new Error('Method not implemented.');
+  }
+  populateTransferRemoteTx(TransferParams: TransferRemoteParams): unknown {
+    throw new Error('Method not implemented.');
+  }
+}
+
+export class WarpNativeTokenAdapter
+  extends NativeTokenAdapter
+  implements IHypTokenAdapter
+{
+  getDomains(): Promise<number[]> {
+    throw new Error('Method not implemented.');
+  }
+  getRouterAddress(domain: number): Promise<Buffer> {
+    throw new Error('Method not implemented.');
+  }
+  getAllRouters(): Promise<{ domain: number; address: Buffer }[]> {
+    throw new Error('Method not implemented.');
+  }
+  quoteGasPayment(destination: number): Promise<string> {
+    throw new Error('Method not implemented.');
+  }
+  populateTransferRemoteTx(TransferParams: TransferRemoteParams): unknown {
+    throw new Error('Method not implemented.');
   }
 }
