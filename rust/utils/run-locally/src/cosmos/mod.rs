@@ -140,7 +140,7 @@ pub fn install_cosmos(
             version: OSMOSIS_CLI_VERSION.to_string(),
         })
         .install(cli_dir);
-    let codes = install_codes(codes_dir, false);
+    let codes = install_codes(codes_dir, true);
 
     (osmosisd, codes)
 }
@@ -315,7 +315,10 @@ fn run_locally() {
             .unwrap_or_default(),
     );
 
-    let (osmosisd, codes) = install_cosmos(None, cli_src, None, code_src);
+    let path_buf =
+        PathBuf::from("/Users/eric/many-things/mitosis/cw-hyperlane/artifacts/dist/wasm");
+
+    let (osmosisd, codes) = install_cosmos(None, cli_src, Some(path_buf), code_src);
     let addr_base = "tcp://0.0.0.0";
     let default_config = CosmosConfig {
         cli_path: osmosisd.clone(),

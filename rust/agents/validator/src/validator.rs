@@ -19,7 +19,7 @@ use hyperlane_base::{
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Announcement, ChainResult, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, TxOutcome, ValidatorAnnounce, H256, U256,
+    MerkleTreeHook, MerkleTreeInsertion, Signable, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
 
@@ -231,16 +231,7 @@ impl Validator {
     }
 
     async fn announce(&self) -> Result<()> {
-        let address = match self.raw_signer {
-            SignerConf::CosmosKey { key, prefix } => {
-                let addr = priv_to_addr_string(prefix.clone(), key.0.as_slice().to_vec())?;
-                info!("Announcing validator with Cosmos key: {}", addr);
-
-                priv_to_binary_addr(key.0.as_slice().to_vec())?
-            }
-            SignerConf::HexKey { key } => priv_to_binary_addr(key.0.as_slice().to_vec())?, //self.signer.eth_address(),
-            _ => self.signer.eth_address(),
-        };
+        let address = self.signer.eth_address();
 
         // Sign and post the validator announcement
         let announcement = Announcement {

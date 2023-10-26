@@ -12,7 +12,6 @@ use super::{
 #[cw_serde]
 pub struct IsmMultisigInstantiateMsg {
     pub owner: String,
-    pub hrp: String,
 }
 
 #[cw_serde]
@@ -24,6 +23,9 @@ pub struct TestMockMsgReceiverInstantiateMsg {
 pub struct IGPOracleInstantiateMsg {
     pub owner: String,
 }
+
+#[cw_serde]
+pub struct EmptyMsg {}
 
 const PREFIX: &str = "osmo";
 
@@ -59,7 +61,6 @@ pub fn deploy_cw_hyperlane(
         igp::core::InstantiateMsg {
             owner: deployer_addr.clone(),
             gas_token: "uosmo".to_string(),
-            mailbox: mailbox.to_string(),
             beneficiary: deployer_addr.clone(),
             hrp: PREFIX.to_string(),
         },
@@ -98,7 +99,6 @@ pub fn deploy_cw_hyperlane(
         codes.hpl_ism_multisig,
         IsmMultisigInstantiateMsg {
             owner: deployer_addr.clone(),
-            hrp: PREFIX.to_string(),
         },
         "hpl_ism_multisig",
     );
@@ -160,7 +160,7 @@ pub fn deploy_cw_hyperlane(
         &deployer,
         Some(deployer_addr),
         codes.hpl_test_mock_hook,
-        igp::oracle::InstantiateMsg {},
+        EmptyMsg {},
         "hpl_test_mock_hook",
     );
 
@@ -169,7 +169,7 @@ pub fn deploy_cw_hyperlane(
         &deployer,
         Some(deployer_addr),
         codes.hpl_test_mock_ism,
-        igp::oracle::InstantiateMsg {},
+        EmptyMsg {},
         "hpl_test_mock_ism",
     );
 
