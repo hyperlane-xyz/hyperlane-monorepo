@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use derive_new::new;
 use eyre::Result;
-use hyperlane_cosmos::verify::pub_to_binary_addr;
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithMessageId, H160, H256};
@@ -126,15 +125,7 @@ impl MultisigCheckpointSyncer {
                     }
 
                     // Ensure that the signature is actually by the validator
-                    let domain =
-                        KnownHyperlaneDomain::try_from(signed_checkpoint.value.mailbox_domain)?;
-
-                    let signer = match domain.domain_protocol() {
-                        HyperlaneDomainProtocol::Cosmos => {
-                            pub_to_binary_addr(signed_checkpoint.recover_pubkey()?.to_vec())?
-                        }
-                        _ => signed_checkpoint.recover()?,
-                    };
+                    let signer = signed_checkpoint.recover()?;
 
                     if H256::from(signer) != *validator {
                         debug!(
