@@ -77,7 +77,9 @@ impl CosmosWasmIndexer {
 impl WasmIndexer for CosmosWasmIndexer {
     fn get_client(&self) -> ChainResult<HttpClient> {
         Ok(HttpClient::builder(self.get_conn_url()?.parse()?)
-            .compat_mode(CompatMode::V0_34)
+            // indexing fails unless this is commented out. I assume the decoding in `CompatMode::V0_34`
+            // is incompatible with the current data format.
+            // .compat_mode(CompatMode::V0_34)
             .build()?)
     }
 
