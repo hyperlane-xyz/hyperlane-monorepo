@@ -86,6 +86,7 @@ impl CodeSource {
             .collect()
     }
 
+    #[allow(dead_code)]
     pub fn install(self, dir: Option<PathBuf>) -> BTreeMap<String, PathBuf> {
         match self {
             CodeSource::Local { path } => Self::install_local(path),

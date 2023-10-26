@@ -4090,6 +4090,7 @@ dependencies = [
  "rusoto_sts",
  "serde",
  "serde_json",
+ "solana-sdk",
  "static_assertions",
  "tempfile",
  "thiserror",

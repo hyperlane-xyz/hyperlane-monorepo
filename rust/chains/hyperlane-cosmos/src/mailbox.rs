@@ -305,7 +305,7 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
         let parser = self.get_parser();
-        let mut result = self.indexer.get_range_event_logs(range, parser).await?;
+        let result = self.indexer.get_range_event_logs(range, parser).await?;
 
         Ok(result)
     }

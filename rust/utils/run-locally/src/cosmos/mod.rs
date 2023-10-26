@@ -5,7 +5,7 @@ use std::time::Duration;
 use std::{env, fs};
 
 use cosmwasm_schema::cw_serde;
-use hpl_interface::{core, types::bech32_decode};
+use hpl_interface::types::bech32_decode;
 use macro_rules_attribute::apply;
 use tempfile::tempdir;
 
@@ -132,7 +132,7 @@ pub fn install_cosmos(
     cli_dir: Option<PathBuf>,
     cli_src: Option<CLISource>,
     codes_dir: Option<PathBuf>,
-    codes_src: Option<CodeSource>,
+    _codes_src: Option<CodeSource>,
 ) -> (PathBuf, BTreeMap<String, PathBuf>) {
     let osmosisd = cli_src
         .unwrap_or(CLISource::Remote {

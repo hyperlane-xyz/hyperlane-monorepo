@@ -7,7 +7,6 @@ use std::{fs::OpenOptions, io::Write, str::FromStr};
 use hex::FromHex;
 use serde_json::{json, Value};
 
-use ethers::signers::Signer;
 use hyperlane_core::{
     accumulator::{
         merkle::{merkle_root_from_branch, MerkleTree},
@@ -15,7 +14,7 @@ use hyperlane_core::{
     },
     test_utils,
     utils::domain_hash,
-    Checkpoint, HyperlaneMessage, HyperlaneSignerExt, H160, H256,
+    HyperlaneMessage, H160, H256,
 };
 
 /// Output proof to /vector/message.json

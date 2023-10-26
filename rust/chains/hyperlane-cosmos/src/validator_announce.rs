@@ -115,11 +115,8 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
     }
 
     async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
-        let out = self
-            .announce(announcement, None)
-            .await
-            .expect("failed to announce");
-
-        None
+        // TODO: check user balance. For now, just try announcing and
+        // allow the announce attempt to fail if there are not enough tokens.
+        Some(0u64.into())
     }
 }
