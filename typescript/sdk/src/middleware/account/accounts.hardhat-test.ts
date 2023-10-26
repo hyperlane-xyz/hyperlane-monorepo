@@ -11,6 +11,8 @@ import { Chains } from '../../consts/chains';
 import { HyperlaneContractsMap } from '../../contracts/types';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
+import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer';
+import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterConfig } from '../../router/types';
 import { ChainMap } from '../../types';
@@ -35,7 +37,12 @@ describe.skip('InterchainAccounts', async () => {
   before(async () => {
     [signer] = await ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    coreApp = await new TestCoreDeployer(multiProvider).deployApp();
+    const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    const ismFactory = new HyperlaneIsmFactory(
+      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
+      multiProvider,
+    );
+    coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
     config = coreApp.getRouterConfig(signer.address);
   });
 

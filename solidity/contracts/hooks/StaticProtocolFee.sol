@@ -17,6 +17,7 @@ pragma solidity >=0.8.0;
 import {Message} from "../libs/Message.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 import {AbstractPostDispatchHook} from "./libs/AbstractPostDispatchHook.sol";
+import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -58,6 +59,11 @@ contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
     }
 
     // ============ External Functions ============
+
+    /// @inheritdoc IPostDispatchHook
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.Types.PROTOCOL_FEE);
+    }
 
     /**
      * @notice Sets the protocol fee.

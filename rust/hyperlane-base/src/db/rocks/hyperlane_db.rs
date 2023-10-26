@@ -1,10 +1,6 @@
-use std::future::Future;
-use std::time::Duration;
-
 use async_trait::async_trait;
 use eyre::Result;
 use paste::paste;
-use tokio::time::sleep;
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
@@ -105,20 +101,6 @@ impl HyperlaneRocksDB {
         match id {
             None => Ok(None),
             Some(id) => self.retrieve_message_by_id(&id),
-        }
-    }
-
-    // TODO(james): this is a quick-fix for the prover_sync and I don't like it
-    /// poll db ever 100 milliseconds waiting for a leaf.
-    pub fn wait_for_message_nonce(&self, nonce: u32) -> impl Future<Output = DbResult<H256>> {
-        let slf = self.clone();
-        async move {
-            loop {
-                if let Some(id) = slf.retrieve_message_id_by_nonce(&nonce)? {
-                    return Ok(id);
-                }
-                sleep(Duration::from_millis(100)).await
-            }
         }
     }
 

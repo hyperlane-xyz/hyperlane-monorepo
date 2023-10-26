@@ -17,7 +17,6 @@ use hyperlane_core::{
     utils::domain_hash,
     Checkpoint, HyperlaneMessage, HyperlaneSignerExt, H160, H256,
 };
-use hyperlane_ethereum::Signers;
 
 /// Output proof to /vector/message.json
 #[test]
@@ -120,59 +119,4 @@ pub fn output_domain_hashes() {
 
     file.write_all(json.as_bytes())
         .expect("Failed to write to file");
-}
-
-/// Outputs signed checkpoint test cases in /vector/signedCheckpoint.json
-#[test]
-pub fn output_signed_checkpoints() {
-    let merkle_tree_hook_address =
-        H256::from(H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
-    let t = async {
-        let signer: Signers = "1111111111111111111111111111111111111111111111111111111111111111"
-            .parse::<ethers::signers::LocalWallet>()
-            .unwrap()
-            .into();
-
-        let mut test_cases: Vec<Value> = Vec::new();
-
-        // test suite
-        for i in 1..=3 {
-            let signed_checkpoint = signer
-                .sign(Checkpoint {
-                    merkle_tree_hook_address,
-                    mailbox_domain: 1000,
-                    root: H256::repeat_byte(i + 1),
-                    index: i as u32,
-                })
-                .await
-                .expect("!sign_with");
-
-            test_cases.push(json!({
-                "merkle_tree_hook": signed_checkpoint.value.merkle_tree_hook_address,
-                "domain": signed_checkpoint.value.mailbox_domain,
-                "root": signed_checkpoint.value.root,
-                "index": signed_checkpoint.value.index,
-                "signature": signed_checkpoint.signature,
-                "signer": signer.address(),
-            }))
-        }
-
-        let json = json!(test_cases).to_string();
-
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(test_utils::find_vector("signedCheckpoint.json"))
-            .expect("Failed to open/create file");
-
-        file.write_all(json.as_bytes())
-            .expect("Failed to write to file");
-    };
-
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(t)
 }

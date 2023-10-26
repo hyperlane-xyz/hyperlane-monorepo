@@ -24,8 +24,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
-import { StatCounts } from '../app/types';
-
 import { IHelloWorldAdapter } from './types';
 
 export class SealevelHelloWorldAdapter
@@ -164,21 +162,20 @@ export class SealevelHelloWorldAdapter
     );
   }
 
-  async channelStats(_destination: ChainName): Promise<StatCounts> {
+  async sentStat(destination: ChainName): Promise<number> {
+    const destinationDomain = this.multiProvider.getDomainId(destination);
     const data = await this.getAccountInfo();
-    return { sent: data.sent, received: data.received };
+    return Number(data.sent_to.get(destinationDomain) || 0);
   }
 
   async getAccountInfo(): Promise<HelloWorldData> {
     const address = this.addresses.router;
     const connection = this.getProvider();
 
-    const msgRecipientPda = this.deriveMessageRecipientPda(address);
-    const accountInfo = await connection.getAccountInfo(msgRecipientPda);
+    const pda = this.deriveProgramStoragePDA(address);
+    const accountInfo = await connection.getAccountInfo(pda);
     if (!accountInfo)
-      throw new Error(
-        `No account info found for ${msgRecipientPda.toBase58()}}`,
-      );
+      throw new Error(`No account info found for ${pda.toBase58()}}`);
 
     const accountData = deserializeUnchecked(
       HelloWorldDataSchema,

@@ -1,0 +1,32 @@
+{
+  "solanadevnet": {
+    "interchainSecurityModule": "2NE6Y1rXp1Kpp6vBNqDHYL7HNk7iqh8BKmvCoZtUcZLn"
+  },
+  "alfajores": {
+    "foreignDeployment": "0x40Adcb03F3C58170b4751c4140636FC6085Ff475"
+  },
+  "fuji": {
+    "foreignDeployment": "0xAc003FcDD0EE223664F2A000B5A59D082745700b"
+  },
+  "mumbai": {
+    "foreignDeployment": "0xaB0892029C3E7dD4c0235590dc296E618A7b4d03"
+  },
+  "bsctestnet": {
+    "foreignDeployment": "0xd259b0e793535325786675542aB296c451535c27"
+  },
+  "goerli": {
+    "foreignDeployment": "0x03e9531ae74e8F0f96DE26788a22d35bdaD24185"
+  },
+  "moonbasealpha": {
+    "foreignDeployment": "0xE9D6317a10860340f035f3d09052D9d376855bE8"
+  },
+  "optimismgoerli": {
+    "foreignDeployment": "0x057d38d184d74192B96840D8FbB37e584dDb569A"
+  },
+  "arbitrumgoerli": {
+    "foreignDeployment": "0xaAF1BF6f2BfaE290ea8615066fd167e396a2f578"
+  },
+  "sepolia": {
+    "foreignDeployment": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217"
+  }
+}

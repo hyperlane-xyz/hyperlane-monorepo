@@ -270,7 +270,10 @@ export const celo: ChainMetadata = {
     reorgPeriod: 0,
     estimateBlockTime: 5,
   },
-  gnosisSafeTransactionServiceUrl: 'https://safe-transaction-celo.safe.global/',
+  // The official Gnosis safe URL `https://safe-transaction-celo.safe.global` doesn't work well
+  // with delegates on a multisig created with the old unofficial Celo tooling.
+  gnosisSafeTransactionServiceUrl:
+    'https://mainnet-tx-svc.celo-safe-prod.celo-networks-dev.org/',
 };
 
 export const ethereum: ChainMetadata = {
@@ -430,9 +433,9 @@ export const scrollsepolia: ChainMetadata = {
   blockExplorers: [
     {
       name: 'Scroll Explorer',
-      url: 'https://sepolia-blockscout.scroll.io',
-      apiUrl: 'https://sepolia-blockscout.scroll.io/api',
-      family: ExplorerFamily.Blockscout,
+      url: 'https://sepolia.scrollscan.dev/',
+      apiUrl: 'https://api-sepolia.scrollscan.com/api',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {

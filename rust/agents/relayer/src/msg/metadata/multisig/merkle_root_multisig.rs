@@ -42,36 +42,41 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             debug!("Couldn't get highest known leaf index")
         );
         unwrap_or_none_result!(
+            leaf_index,
+            self.get_merkle_leaf_id_by_message_id(message.id())
+                .await
+                .context(CTX)?,
+            debug!(
+                ?message,
+                "No merkle leaf found for message id, must have not been enqueued in the tree"
+            )
+        );
+        unwrap_or_none_result!(
             quorum_checkpoint,
             checkpoint_syncer
                 .fetch_checkpoint_in_range(
                     validators,
                     threshold as usize,
-                    message.nonce,
+                    leaf_index,
                     highest_leaf_index
                 )
                 .await
                 .context(CTX)?,
-            debug!("Couldn't get checkpoint in range")
+            debug!(
+                leaf_index,
+                highest_leaf_index, "Couldn't get checkpoint in range"
+            )
         );
         unwrap_or_none_result!(
             proof,
-            self.get_proof(message.nonce, quorum_checkpoint.checkpoint.checkpoint)
-                .await
-                .context(CTX)?
-        );
-        unwrap_or_none_result!(
-            merkle_leaf_id,
-            self.get_merkle_leaf_id_by_message_id(message.id())
+            self.get_proof(leaf_index, quorum_checkpoint.checkpoint.checkpoint)
                 .await
                 .context(CTX)?,
-            debug!("Couldn't get merkle proof")
+            debug!(leaf_index, checkpoint=?quorum_checkpoint, "Couldn't get proof")
         );
         Ok(Some(MultisigMetadata::new(
-            quorum_checkpoint.checkpoint.checkpoint,
-            quorum_checkpoint.signatures,
-            Some(merkle_leaf_id),
-            Some(quorum_checkpoint.checkpoint.message_id),
+            quorum_checkpoint,
+            leaf_index,
             Some(proof),
         )))
     }

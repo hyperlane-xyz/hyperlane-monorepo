@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "agent-common.fullname" . }}-validator
+  name: {{ include "validator.fullname" . }}
   labels:
     {{- include "agent-common.labels" . | nindent 4 }}
     app.kubernetes.io/component: validator
@@ -12,7 +12,7 @@ spec:
       {{- include "agent-common.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: validator
   replicas: {{ len .Values.hyperlane.validator.configs }}
-  serviceName: {{ include "agent-common.fullname" . }}-validator
+  serviceName: {{ include "validator.fullname" . }}
   template:
     metadata:
       annotations:
@@ -58,7 +58,7 @@ spec:
         - secretRef:
             name: {{ include "agent-common.fullname" . }}-secret
         - secretRef:
-            name: {{ include "agent-common.fullname" . }}-validator-secret
+            name: {{ include "validator.fullname" . }}-secret
         env:
           - name: REPLICA_NAME
             valueFrom:
@@ -79,10 +79,10 @@ spec:
       volumes:
       - name: config-env-vars
         configMap:
-          name: {{ include "agent-common.fullname" . }}-validator
+          name: {{ include "validator.fullname" . }}
       - name: secret-env-vars
         secret:
-          secretName: {{ include "agent-common.fullname" . }}-validator-secret
+          secretName: {{ include "validator.fullname" . }}-secret
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
