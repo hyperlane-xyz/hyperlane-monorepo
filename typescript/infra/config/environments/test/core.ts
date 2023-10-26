@@ -13,9 +13,8 @@ import {
 import { ProtocolFeeHookConfig } from '@hyperlane-xyz/sdk/src/hook/types';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { aggregationIsm } from './aggregationIsm';
 import { igp } from './igp';
-import { chainToValidator } from './multisigIsm';
+import { chainToValidator, merkleRootMultisig } from './multisigIsm';
 import { owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
@@ -25,7 +24,10 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     domains: Object.fromEntries(
       Object.entries(chainToValidator)
         .filter(([chain, _]) => chain !== local)
-        .map(([chain, validatorKey]) => [chain, aggregationIsm(validatorKey)]),
+        .map(([chain, validatorKey]) => [
+          chain,
+          merkleRootMultisig(validatorKey),
+        ]),
     ),
   };
 
