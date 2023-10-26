@@ -25,14 +25,11 @@ contract OptimisticISM is Ownable, Initializable, StaticOptimisticWatchersFactor
     /// @inheritdoc IInterchainSecurityModule
     uint8 public constant override moduleType = uint8(Types.OPTIMISTIC);
 
-    /// @notice The number of seconds after which a message is considered non-fraudulent
+    /// @notice The number of seconds after which a message is considered non-fraudulent (expired window)
     uint64 public fraudWindow;
 
     /// @notice The current submodule responsible for verifying messages
     IInterchainSecurityModule internal _submodule;
-
-    /// @notice The number of watchers that must mark a submodule as fraudulent
-    uint256 public threshold;
 
     /// @notice The set of submodules that have been marked as fraudulent
     mapping(address => address[]) public fraudulantSubmodules;
@@ -79,7 +76,6 @@ contract OptimisticISM is Ownable, Initializable, StaticOptimisticWatchersFactor
         external
         returns (bool)
     {
-        // load current checking submodule
         IInterchainSecurityModule checkingSubmodule = _submodule;
         if (!checkingSubmodule.verify(_metadata, _message)) {
             return false;
@@ -100,8 +96,7 @@ contract OptimisticISM is Ownable, Initializable, StaticOptimisticWatchersFactor
         external
         view
         returns (bool)
-    {   
-        
+    {           
         MessageCheck memory message = messages[_message.id()];
 
         if(message.timestamp == 0 ||  _isFraudWindowExpired(message.timestamp) || _isFraudulentSubmodule(message.checkingSubmodule)){
