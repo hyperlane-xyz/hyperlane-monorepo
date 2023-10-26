@@ -80,6 +80,7 @@ export class CW20TokenAdapter extends BaseCwAdapter implements ITokenAdapter {
     chainName: string,
     multiProvider: MultiProtocolProvider,
     addresses: { token: Address },
+    public readonly ibcDenom: string,
   ) {
     super(chainName, multiProvider, addresses);
     this.contractAddress = addresses.token;
@@ -148,17 +149,43 @@ export class WarpCW20TokenAdapter
   getDomains(): Promise<number[]> {
     throw new Error('Method not implemented.');
   }
+
   getRouterAddress(domain: number): Promise<Buffer> {
     throw new Error('Method not implemented.');
   }
+
   getAllRouters(): Promise<{ domain: number; address: Buffer }[]> {
     throw new Error('Method not implemented.');
   }
+
   quoteGasPayment(destination: number): Promise<string> {
     throw new Error('Method not implemented.');
   }
-  populateTransferRemoteTx(TransferParams: TransferRemoteParams): unknown {
-    throw new Error('Method not implemented.');
+
+  populateTransferRemoteTx({
+    destination,
+    recipient,
+    weiAmountOrId,
+    txValue,
+  }: TransferRemoteParams): ExecuteInstruction {
+    return {
+      contractAddress: this.contractAddress,
+      msg: {
+        transfer_remote: {
+          dest_domain: destination,
+          recipient,
+          amount: weiAmountOrId.toString(),
+        },
+      },
+      funds: txValue
+        ? [
+            {
+              amount: txValue.toString(),
+              denom: this.ibcDenom,
+            },
+          ]
+        : [],
+    };
   }
 }
 
@@ -166,19 +193,47 @@ export class WarpNativeTokenAdapter
   extends NativeTokenAdapter
   implements IHypTokenAdapter
 {
+  public readonly contractAddress = this.addresses.token;
+
   getDomains(): Promise<number[]> {
     throw new Error('Method not implemented.');
   }
+
   getRouterAddress(domain: number): Promise<Buffer> {
     throw new Error('Method not implemented.');
   }
+
   getAllRouters(): Promise<{ domain: number; address: Buffer }[]> {
     throw new Error('Method not implemented.');
   }
+
   quoteGasPayment(destination: number): Promise<string> {
     throw new Error('Method not implemented.');
   }
-  populateTransferRemoteTx(TransferParams: TransferRemoteParams): unknown {
-    throw new Error('Method not implemented.');
+
+  populateTransferRemoteTx({
+    destination,
+    recipient,
+    weiAmountOrId,
+    txValue,
+  }: TransferRemoteParams): ExecuteInstruction {
+    return {
+      contractAddress: this.contractAddress,
+      msg: {
+        transfer_remote: {
+          dest_domain: destination,
+          recipient,
+          amount: weiAmountOrId.toString(),
+        },
+      },
+      funds: txValue
+        ? [
+            {
+              amount: txValue.toString(),
+              denom: this.ibcDenom,
+            },
+          ]
+        : [],
+    };
   }
 }
