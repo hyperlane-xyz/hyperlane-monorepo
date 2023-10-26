@@ -1,0 +1,32 @@
+{
+  "chains": {
+    "neutrontestnet": {
+      "name": "neutrontestnet",
+      "domainId": "33333",
+      "chainId": "duality-devnet",
+      "mailbox": "0xe9bf873ddcf065cd10fb6c060a8d6ff3ad7b2e6d7cdc77b93355781b4c6ea380",
+      "interchainGasPaymaster": "0xf1b66d6a2023c6f6d474a11255078fd2003e8ac0a30cbd5eb65c27afe1c30b38",
+      "validatorAnnounce": "0x3780ebcee9dadae3aebf7845d27d6cbdde30147f20e9fe264afcf476d70ba93b",
+      "merkleTreeHook": "0xa07bb16f1a99aff63a2c4a6a51d214a60e80c8f24cbd7ba4369ff836a31c9697",
+      "protocol": "cosmos",
+      "finalityBlocks": 1,
+      "rpcUrls": [
+        {
+          "http": "http://54.149.31.83:26657"
+        }
+      ],
+      "grpcUrl": "http://52.43.22.152:9090",
+      "canonicalAsset": "token",
+      "prefix": "dual",
+      "signer": {
+        "signerType": "cosmosKey",
+        "key": "0xac30d9f8ba63095774e7c853e23b02768031aa5076576113bbc9f4f07f4d12c5",
+        "prefix": "dual"
+      },
+      "index": {
+        "from": 1,
+        "chunk": 1000
+      }
+    }
+  }
+}
