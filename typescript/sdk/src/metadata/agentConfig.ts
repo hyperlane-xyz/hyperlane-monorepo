@@ -46,6 +46,7 @@ export enum AgentSignerKeyType {
   Aws = 'aws',
   Hex = 'hexKey',
   Node = 'node',
+  Cosmos = 'cosmosKey',
 }
 
 const AgentSignerHexKeySchema = z
@@ -63,6 +64,13 @@ const AgentSignerAwsKeySchema = z
   .describe(
     'An AWS signer. Note that AWS credentials must be inserted into the env separately.',
   );
+const AgentSignerCosmosKeySchema = z
+  .object({
+    type: z.literal(AgentSignerKeyType.Cosmos),
+    prefix: z.string().describe('The prefix for the cosmos address'),
+    key: ZHash,
+  })
+  .describe('Cosmos key');
 const AgentSignerNodeSchema = z
   .object({
     type: z.literal(AgentSignerKeyType.Node),
@@ -72,11 +80,13 @@ const AgentSignerNodeSchema = z
 const AgentSignerSchema = z.union([
   AgentSignerHexKeySchema,
   AgentSignerAwsKeySchema,
+  AgentSignerCosmosKeySchema,
   AgentSignerNodeSchema,
 ]);
 
 export type AgentSignerHexKey = z.infer<typeof AgentSignerHexKeySchema>;
 export type AgentSignerAwsKey = z.infer<typeof AgentSignerAwsKeySchema>;
+export type AgentSignerCosmosKey = z.infer<typeof AgentSignerNodeSchema>;
 export type AgentSignerNode = z.infer<typeof AgentSignerNodeSchema>;
 export type AgentSigner = z.infer<typeof AgentSignerSchema>;
 

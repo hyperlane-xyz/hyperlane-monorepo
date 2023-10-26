@@ -114,7 +114,8 @@ export abstract class AgentHelmManager {
         context: this.context,
         aws: !!this.config.aws,
         chains: this.config.environmentChainNames.map((chain) => {
-          const reorgPeriod = chainMetadata[chain].blocks?.reorgPeriod;
+          const metadata = chainMetadata[chain];
+          const reorgPeriod = metadata.blocks?.reorgPeriod;
           if (reorgPeriod === undefined) {
             throw new Error(`No reorg period found for chain ${chain}`);
           }
@@ -122,6 +123,7 @@ export abstract class AgentHelmManager {
             name: chain,
             disabled: !this.config.contextChainNames[this.role].includes(chain),
             rpcConsensusType: this.rpcConsensusType(chain),
+            protocol: metadata.protocol,
             blocks: { reorgPeriod },
           };
         }),

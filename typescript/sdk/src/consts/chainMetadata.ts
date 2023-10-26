@@ -1024,6 +1024,7 @@ export const neutrontestnet: ChainMetadata = {
   },
   rpcUrls: [{ http: 'http://54.149.31.83:26657' }],
   isTestnet: true,
+  prefix: 'dual',
 };
 
 /**

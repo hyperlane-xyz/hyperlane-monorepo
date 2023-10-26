@@ -170,6 +170,11 @@ export const ChainMetadataSchemaObject = z.object({
     .boolean()
     .optional()
     .describe('Whether the chain is considered a testnet or a mainnet.'),
+  // TODO we should have a better policy for protocol-specific configurations
+  prefix: z
+    .string()
+    .optional()
+    .describe('The prefix for a Cosmos address, e.g. osmo'),
 });
 
 // Add refinements to the object schema to conditionally validate certain fields

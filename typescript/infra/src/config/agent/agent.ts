@@ -94,7 +94,11 @@ interface AgentRoleConfig {
 export type AwsKeyConfig = Required<AgentSignerAwsKey>;
 // only require specifying that it's the "hex" type for helm since the hex key will be pulled from secrets.
 export type HexKeyConfig = { type: AgentSignerKeyType.Hex };
-export type KeyConfig = AwsKeyConfig | HexKeyConfig;
+export type CosmosKeyConfig = {
+  type: AgentSignerKeyType.Cosmos;
+  prefix: string;
+};
+export type KeyConfig = AwsKeyConfig | HexKeyConfig | CosmosKeyConfig;
 
 interface IndexingConfig {
   from: number;

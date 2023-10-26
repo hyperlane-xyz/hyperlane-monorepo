@@ -4,9 +4,11 @@ import {
   ValidatorConfig as AgentValidatorConfig,
   ChainMap,
   ChainName,
+  chainMetadata,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ValidatorAgentAwsUser } from '../../agents/aws';
+import { AgentAwsUser, ValidatorAgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 
@@ -36,7 +38,10 @@ export interface ValidatorConfig {
   originChainName: ChainName;
   validators: Array<{
     checkpointSyncer: CheckpointSyncerConfig;
+    // The key that signs checkpoints
     validator: KeyConfig;
+    // The key that signs txs (e.g. self-announcements)
+    chainSigner: KeyConfig | undefined;
   }>;
 }
 
@@ -108,7 +113,12 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     cfg: ValidatorBaseConfig,
     idx: number,
   ): Promise<ValidatorConfig['validators'][number]> {
+    const metadata = chainMetadata[this.chainName];
+    const protocol = metadata.protocol;
+
     let validator: KeyConfig = { type: AgentSignerKeyType.Hex };
+    let chainSigner: KeyConfig | undefined = undefined;
+
     if (cfg.checkpointSyncer.type == CheckpointSyncerType.S3) {
       const awsUser = new ValidatorAgentAwsUser(
         this.runEnv,
@@ -123,6 +133,28 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
 
       if (this.aws) {
         validator = (await awsUser.createKeyIfNotExists(this)).keyConfig;
+
+        switch (protocol) {
+          case ProtocolType.Ethereum:
+            chainSigner = validator;
+            break;
+          case ProtocolType.CosmWasm:
+            if (metadata.prefix === undefined) {
+              throw new Error(
+                `Prefix for cosmos chain ${this.chainName} is undefined`,
+              );
+            }
+            chainSigner = {
+              type: AgentSignerKeyType.Cosmos,
+              prefix: metadata.prefix,
+            };
+            break;
+          // No self-announcement on Sealevel
+          case ProtocolType.Sealevel:
+          default:
+            chainSigner = undefined;
+            break;
+        }
       }
     } else {
       console.warn(
@@ -133,6 +165,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     return {
       checkpointSyncer: cfg.checkpointSyncer,
       validator,
+      chainSigner,
     };
   }
 
