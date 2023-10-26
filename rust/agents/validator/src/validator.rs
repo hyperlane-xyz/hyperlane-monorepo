@@ -4,15 +4,13 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
 use futures_util::future::ready;
-use hyperlane_cosmos::verify::{priv_to_addr_string, priv_to_binary_addr};
+
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
-    run_all,
-    settings::SignerConf,
-    BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     WatermarkContractSync,
 };
 
@@ -45,7 +43,6 @@ pub struct Validator {
     reorg_period: u64,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
-    raw_signer: SignerConf,
 }
 
 #[async_trait]
@@ -104,7 +101,6 @@ impl BaseAgent for Validator {
             reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
-            raw_signer: settings.validator.clone(),
         })
     }
 
@@ -287,7 +283,7 @@ impl Validator {
                         warn!(
                             tokens_needed=%balance_delta,
                             eth_validator_address=?announcement.validator,
-                            chain_signer=?chain_signer.address(),
+                            chain_signer=?chain_signer.address_string(),
                             "Please send tokens to your chain signer address to announce",
                         );
                     } else {

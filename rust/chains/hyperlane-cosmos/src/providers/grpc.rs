@@ -18,7 +18,6 @@ use cosmrs::proto::cosmwasm::wasm::v1::{
 };
 use cosmrs::proto::traits::Message;
 
-use cosmrs::tendermint::chain;
 use cosmrs::tx::{self, Fee, MessageExt, SignDoc, SignerInfo};
 use cosmrs::{Amount, Coin};
 use hyperlane_core::{
@@ -26,7 +25,6 @@ use hyperlane_core::{
 };
 use serde::Serialize;
 use std::num::NonZeroU64;
-use std::str::FromStr;
 
 use crate::verify;
 use crate::{signers::Signer, ConnectionConf};
@@ -90,7 +88,7 @@ pub trait WasmProvider: Send + Sync {
 /// Cosmwasm GRPC Provider
 pub struct WasmGrpcProvider {
     conf: ConnectionConf,
-    domain: HyperlaneDomain,
+    _domain: HyperlaneDomain,
     address: H256,
     signer: Signer,
 }
@@ -100,7 +98,7 @@ impl WasmGrpcProvider {
     pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
         Self {
             conf,
-            domain: locator.domain.clone(),
+            _domain: locator.domain.clone(),
             address: locator.address,
             signer,
         }
@@ -231,6 +229,7 @@ impl WasmProvider for WasmGrpcProvider {
         let mut client = TxServiceClient::connect(self.get_conn_url()?).await?;
 
         let tx_bytes = self.generate_raw_tx(msgs, gas_limit).await?;
+        #[allow(deprecated)]
         let sim_req = tonic::Request::new(SimulateRequest { tx: None, tx_bytes });
         let mut sim_res = client
             .simulate(sim_req)

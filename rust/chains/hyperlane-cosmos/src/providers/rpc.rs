@@ -1,22 +1,12 @@
 use std::ops::RangeInclusive;
 
 use crate::binary::h256_to_h512;
-<<<<<<< HEAD
-=======
-use crate::payloads::general::{EventAttribute, Log};
->>>>>>> 495408873 (wip: run validator on duality-testnet)
 use async_trait::async_trait;
-<<<<<<< HEAD
 use cosmrs::rpc::client::{Client, CompatMode, HttpClient};
 use cosmrs::rpc::endpoint::tx;
 use cosmrs::rpc::query::Query;
 use cosmrs::rpc::Order;
 use cosmrs::tendermint::abci::EventAttribute;
-=======
-use cosmrs::rpc::client::{Client, HttpClient};
-use cosmrs::tendermint::hash::Algorithm;
-use cosmrs::tendermint::Hash;
->>>>>>> 58b3d462d (include rpc diff in fix)
 use hyperlane_core::{ChainResult, ContractLocator, HyperlaneDomain, LogMeta, H256, U256};
 use tracing::debug;
 
@@ -54,7 +44,7 @@ pub trait WasmIndexer: Send + Sync {
 /// Cosmwasm RPC Provider
 pub struct CosmosWasmIndexer {
     conf: ConnectionConf,
-    domain: HyperlaneDomain,
+    _domain: HyperlaneDomain,
     address: H256,
     event_type: String,
 }
@@ -66,7 +56,7 @@ impl CosmosWasmIndexer {
     pub fn new(conf: ConnectionConf, locator: ContractLocator, event_type: String) -> Self {
         Self {
             conf,
-            domain: locator.domain.clone(),
+            _domain: locator.domain.clone(),
             address: locator.address,
             event_type,
         }
