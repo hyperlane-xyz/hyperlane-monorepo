@@ -67,7 +67,7 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
         let vss = validators
             .iter()
             .map(|v| h256_to_h160(*v))
-            .map(|v| v.to_string())
+            .map(|v| hex::encode(v.as_bytes()))
             .collect::<Vec<String>>();
 
         let payload = GetAnnounceStorageLocationsRequest {
