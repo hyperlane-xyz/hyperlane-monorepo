@@ -280,6 +280,13 @@ export {
   proxiedFactories,
 } from './router/types';
 export {
+  CW20Metadata,
+  CwHypNativeTokenAdapter,
+  CwHypTokenAdapter,
+  CwNativeTokenAdapter,
+  CwTokenAdapter,
+} from './token/adapters/CosmWasmTokenAdapter';
+export {
   EvmHypCollateralAdapter,
   EvmHypSyntheticAdapter,
   EvmNativeTokenAdapter,

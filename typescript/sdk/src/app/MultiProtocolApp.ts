@@ -1,4 +1,3 @@
-import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { PublicKey } from '@solana/web3.js';
 import debug from 'debug';
 
@@ -12,6 +11,7 @@ import {
 import { ChainMetadata } from '../metadata/chainMetadataTypes';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
 import {
+  CosmJsWasmProvider,
   EthersV5Provider,
   SolanaWeb3Provider,
   TypedProvider,
@@ -50,11 +50,11 @@ export class BaseEvmAdapter extends BaseAppAdapter {
   }
 }
 
-export class BaseCwAdapter extends BaseAppAdapter {
+export class BaseCosmWasmAdapter extends BaseAppAdapter {
   public readonly protocol: ProtocolType = ProtocolType.Cosmos;
 
-  public getProvider(): CosmWasmClient {
-    throw new Error('Method not implemented.');
+  public getProvider(): CosmJsWasmProvider['provider'] {
+    return this.multiProvider.getCosmJsWasmProvider(this.chainName);
   }
 }
 

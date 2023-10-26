@@ -54,6 +54,7 @@ export class MultiProtocolCore extends MultiProtocolApp<
   ): AdapterClassType<ICoreAdapter> {
     if (protocol === ProtocolType.Ethereum) return EvmCoreAdapter;
     if (protocol === ProtocolType.Sealevel) return SealevelCoreAdapter;
+    // TODO cosmos core adapter here
     throw new Error(`No adapter for protocol ${protocol}`);
   }
 

@@ -224,6 +224,7 @@ export class ChainMetadataManager<MetaExt = {}> {
     ) {
       url.searchParams.set('cluster', solanaChainToClusterName[metadata.name]);
     }
+    // TODO cosmos support here
     return url.toString();
   }
 

@@ -2,7 +2,7 @@ import { ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
 
 import { Address } from '@hyperlane-xyz/utils';
 
-import { BaseCwAdapter } from '../../app/MultiProtocolApp';
+import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import { ERC20Metadata } from '../config';
 
@@ -14,18 +14,21 @@ import {
 } from './ITokenAdapter';
 
 // Interacts with IBC denom tokens
-export class NativeTokenAdapter extends BaseCwAdapter implements ITokenAdapter {
+export class CwNativeTokenAdapter
+  extends BaseCosmWasmAdapter
+  implements ITokenAdapter
+{
   constructor(
     chainName: string,
     multiProvider: MultiProtocolProvider,
-    addresses: any,
     public readonly ibcDenom: string,
   ) {
-    super(chainName, multiProvider, addresses);
+    super(chainName, multiProvider, {});
   }
 
   async getBalance(address: Address): Promise<string> {
-    const balance = await this.getProvider().getBalance(address, this.ibcDenom);
+    const provider = await this.getProvider();
+    const balance = await provider.getBalance(address, this.ibcDenom);
     return balance.amount;
   }
 
@@ -73,7 +76,10 @@ type BalanceResponse = {
 
 // https://github.com/CosmWasm/cw-plus/blob/main/packages/cw20/README.md
 // Interacts with CW20/721 contracts
-export class CW20TokenAdapter extends BaseCwAdapter implements ITokenAdapter {
+export class CwTokenAdapter
+  extends BaseCosmWasmAdapter
+  implements ITokenAdapter
+{
   public readonly contractAddress: string;
 
   constructor(
@@ -87,20 +93,26 @@ export class CW20TokenAdapter extends BaseCwAdapter implements ITokenAdapter {
   }
 
   async getBalance(address: Address): Promise<string> {
-    const balanceResponse: BalanceResponse =
-      await this.getProvider().queryContractSmart(this.contractAddress, {
+    const provider = await this.getProvider();
+    const balanceResponse: BalanceResponse = await provider.queryContractSmart(
+      this.contractAddress,
+      {
         balance: {
           address,
         },
-      });
+      },
+    );
     return balanceResponse.balance;
   }
 
   async getMetadata(): Promise<CW20Metadata> {
-    const tokenInfo: TokenInfoResponse =
-      await this.getProvider().queryContractSmart(this.contractAddress, {
+    const provider = await this.getProvider();
+    const tokenInfo: TokenInfoResponse = await provider.queryContractSmart(
+      this.contractAddress,
+      {
         token_info: {},
-      });
+      },
+    );
     return {
       ...tokenInfo,
       totalSupply: tokenInfo.total_supply,
@@ -142,15 +154,15 @@ export class CW20TokenAdapter extends BaseCwAdapter implements ITokenAdapter {
   }
 }
 
-export class WarpCW20TokenAdapter
-  extends CW20TokenAdapter
+export class CwHypTokenAdapter
+  extends CwTokenAdapter
   implements IHypTokenAdapter
 {
   getDomains(): Promise<number[]> {
     throw new Error('Method not implemented.');
   }
 
-  getRouterAddress(domain: number): Promise<Buffer> {
+  getRouterAddress(_domain: number): Promise<Buffer> {
     throw new Error('Method not implemented.');
   }
 
@@ -158,7 +170,7 @@ export class WarpCW20TokenAdapter
     throw new Error('Method not implemented.');
   }
 
-  quoteGasPayment(destination: number): Promise<string> {
+  quoteGasPayment(_destination: number): Promise<string> {
     throw new Error('Method not implemented.');
   }
 
@@ -189,8 +201,8 @@ export class WarpCW20TokenAdapter
   }
 }
 
-export class WarpNativeTokenAdapter
-  extends NativeTokenAdapter
+export class CwHypNativeTokenAdapter
+  extends CwNativeTokenAdapter
   implements IHypTokenAdapter
 {
   public readonly contractAddress = this.addresses.token;
@@ -199,7 +211,7 @@ export class WarpNativeTokenAdapter
     throw new Error('Method not implemented.');
   }
 
-  getRouterAddress(domain: number): Promise<Buffer> {
+  getRouterAddress(_domain: number): Promise<Buffer> {
     throw new Error('Method not implemented.');
   }
 
@@ -207,7 +219,7 @@ export class WarpNativeTokenAdapter
     throw new Error('Method not implemented.');
   }
 
-  quoteGasPayment(destination: number): Promise<string> {
+  quoteGasPayment(_destination: number): Promise<string> {
     throw new Error('Method not implemented.');
   }
 
