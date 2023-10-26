@@ -49,6 +49,15 @@ export class BaseEvmAdapter extends BaseAppAdapter {
   }
 }
 
+export class BaseCwAdapter extends BaseAppAdapter {
+  public readonly protocol: ProtocolType = ProtocolType.Cosmos;
+
+  public getProvider(): EthersV5Provider['provider'] {
+    throw new Error('Method not implemented.');
+    // return this.multiProvider.getEthersV5Provider(this.chainName);
+  }
+}
+
 export class BaseSealevelAdapter extends BaseAppAdapter {
   public readonly protocol: ProtocolType = ProtocolType.Sealevel;
 
