@@ -121,8 +121,17 @@ impl WasmProvider for WasmGrpcProvider {
         let mut client = ServiceClient::connect(self.get_conn_url()?).await?;
         let request = tonic::Request::new(GetLatestBlockRequest {});
 
-        let response = client.get_latest_block(request).await.unwrap().into_inner();
-        let height = response.block.unwrap().header.unwrap().height;
+        let response = client
+            .get_latest_block(request)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+        let height = response
+            .block
+            .ok_or_else(|| ChainCommunicationError::from_other_str("block not present"))?
+            .header
+            .ok_or_else(|| ChainCommunicationError::from_other_str("header not present"))?
+            .height;
 
         Ok(height as u64)
     }
@@ -147,13 +156,11 @@ impl WasmProvider for WasmGrpcProvider {
                 .insert("x-cosmos-block-height", height.into());
         }
 
-        let result = client.smart_contract_state(request).await;
-
-        if let Err(e) = result {
-            return Err(ChainCommunicationError::InvalidRequest { msg: e.to_string() });
-        }
-
-        let response = result.unwrap().into_inner();
+        let response = client
+            .smart_contract_state(request)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
 
         // TODO: handle query to specific block number
         Ok(response.data)
@@ -183,13 +190,11 @@ impl WasmProvider for WasmGrpcProvider {
                 .insert("x-cosmos-block-height", height.into());
         }
 
-        let result = client.smart_contract_state(request).await;
-
-        if let Err(e) = result {
-            return Err(ChainCommunicationError::InvalidRequest { msg: e.to_string() });
-        }
-
-        let response = result.unwrap().into_inner();
+        let response = client
+            .smart_contract_state(request)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
 
         // TODO: handle query to specific block number
         Ok(response.data)
@@ -199,9 +204,19 @@ impl WasmProvider for WasmGrpcProvider {
         let mut client = QueryAccountClient::connect(self.get_conn_url()?).await?;
 
         let request = tonic::Request::new(QueryAccountRequest { address: account });
-        let response = client.account(request).await.unwrap().into_inner();
+        let response = client
+            .account(request)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
 
-        let account = BaseAccount::decode(response.account.unwrap().value.as_slice())?;
+        let account = BaseAccount::decode(
+            response
+                .account
+                .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
+                .value
+                .as_slice(),
+        )?;
         Ok(account)
     }
 
@@ -217,7 +232,11 @@ impl WasmProvider for WasmGrpcProvider {
 
         let tx_bytes = self.generate_raw_tx(msgs, gas_limit).await?;
         let sim_req = tonic::Request::new(SimulateRequest { tx: None, tx_bytes });
-        let mut sim_res = client.simulate(sim_req).await.unwrap().into_inner();
+        let mut sim_res = client
+            .simulate(sim_req)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
 
         // apply gas adjustment
         sim_res.gas_info.as_mut().map(|v| {
@@ -240,16 +259,13 @@ impl WasmProvider for WasmGrpcProvider {
         let tx_body = tx::Body::new(msgs, "", 9000000u32);
         let signer_info = SignerInfo::single_direct(Some(public_key), account_info.sequence);
 
-        let gas_limit: u64 = gas_limit
-            .unwrap_or(U256::from_str("100000").unwrap())
-            .as_u64();
+        let gas_limit: u64 = gas_limit.unwrap_or(U256::from(100000u64)).as_u64();
 
         let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
             Coin::new(
                 Amount::from((gas_limit as f32 * DEFAULT_GAS_PRICE) as u64),
                 self.conf.get_canonical_asset().as_str(),
-            )
-            .unwrap(),
+            )?,
             gas_limit,
         ));
 
@@ -257,14 +273,13 @@ impl WasmProvider for WasmGrpcProvider {
         let sign_doc = SignDoc::new(
             &tx_body,
             &auth_info,
-            &self.conf.get_chain_id().parse().unwrap(),
+            &self.conf.get_chain_id().parse()?,
             account_info.account_number,
-        )
-        .unwrap();
+        )?;
 
-        let tx_signed = sign_doc.sign(&private_key).unwrap();
+        let tx_signed = sign_doc.sign(&private_key)?;
 
-        Ok(tx_signed.to_bytes().unwrap())
+        Ok(tx_signed.to_bytes()?)
     }
 
     async fn wasm_send<T>(&self, payload: T, gas_limit: Option<U256>) -> ChainResult<TxResponse>
@@ -280,7 +295,7 @@ impl WasmProvider for WasmGrpcProvider {
             funds: vec![],
         }
         .to_any()
-        .unwrap()];
+        .map_err(ChainCommunicationError::from_other)?];
 
         let tx_req = BroadcastTxRequest {
             tx_bytes: self.generate_raw_tx(msgs, gas_limit).await?,
@@ -293,7 +308,7 @@ impl WasmProvider for WasmGrpcProvider {
             .unwrap()
             .into_inner()
             .tx_response
-            .unwrap();
+            .ok_or_else(|| ChainCommunicationError::from_other_str("Empty tx_response"))?;
         if tx_res.code != 0 {
             println!("TX_ERROR: {}", tx_res.raw_log);
         }
@@ -313,7 +328,10 @@ impl WasmProvider for WasmGrpcProvider {
         };
 
         let response = self
-            .simulate_raw_tx(vec![msg.to_any().unwrap()], None)
+            .simulate_raw_tx(
+                vec![msg.to_any().map_err(ChainCommunicationError::from_other)?],
+                None,
+            )
             .await?;
 
         Ok(response)

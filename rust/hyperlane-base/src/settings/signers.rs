@@ -48,9 +48,15 @@ impl SignerConf {
     }
 }
 
+/// A signer for a chain.
+pub trait ChainSigner: Send {
+    /// The address of the signer, formatted in the chain's own address format.
+    fn address(&self) -> String;
+}
+
 /// Builder trait for signers
 #[async_trait]
-pub trait BuildableWithSignerConf: Sized {
+pub trait BuildableWithSignerConf: Sized + ChainSigner {
     /// Build a signer from a conf
     async fn build(conf: &SignerConf) -> Result<Self, Report>;
 }
@@ -80,14 +86,17 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 let signer = AwsSigner::new(client, id, 0).await?;
                 hyperlane_ethereum::Signers::Aws(signer)
             }
-            SignerConf::CosmosKey { key, .. } => hyperlane_ethereum::Signers::Local(
-                LocalWallet::from(ethers::core::k256::ecdsa::SigningKey::from(
-                    ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())
-                        .context("Invalid ethereum signer key")?,
-                )),
-            ),
+            SignerConf::CosmosKey { key, .. } => {
+                bail!("cosmosKey signer is not supported by Ethereum")
+            }
             SignerConf::Node => bail!("Node signer"),
         })
+    }
+}
+
+impl ChainSigner for hyperlane_ethereum::Signers {
+    fn address(&self) -> String {
+        self.address().to_string()
     }
 }
 
@@ -104,6 +113,12 @@ impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
             SignerConf::CosmosKey { .. } => bail!("Cosmos signer is not supported by fuel"),
             SignerConf::Node => bail!("Node signer is not supported by fuel"),
         })
+    }
+}
+
+impl ChainSigner for fuels::prelude::WalletUnlocked {
+    fn address(&self) -> String {
+        self.address().to_string()
     }
 }
 
@@ -124,6 +139,12 @@ impl BuildableWithSignerConf for Keypair {
     }
 }
 
+impl ChainSigner for Keypair {
+    fn address(&self) -> String {
+        solana_sdk::signer::Signer::pubkey(self).to_string()
+    }
+}
+
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
@@ -135,5 +156,11 @@ impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
             }
             SignerConf::Node => bail!("Node signer is not supported by cosmos"),
         })
+    }
+}
+
+impl ChainSigner for hyperlane_cosmos::Signer {
+    fn address(&self) -> String {
+        self.address()
     }
 }
