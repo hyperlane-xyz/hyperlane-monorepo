@@ -1,9 +1,10 @@
+use ::core::panic;
 use std::path::Path;
 
 use cosmwasm_schema::cw_serde;
 use hpl_interface::{
-    core, igp,
-    ism::{self, multisig},
+    core,
+    ism::{self},
 };
 
 use super::{cli::OsmosisCLI, crypto::KeyPair, CosmosNetwork};
@@ -67,6 +68,22 @@ pub struct MockQuoteDispatch {
     pub message: String,
 }
 
+#[cw_serde]
+pub struct GeneralIsmValidatorMessage {
+    pub enroll_validator: EnrollValidatorMsg,
+}
+
+#[cw_serde]
+pub struct EnrollValidatorMsg {
+    pub set: EnrollValidatorSet,
+}
+
+#[cw_serde]
+pub struct EnrollValidatorSet {
+    pub domain: u32,
+    pub validator: String,
+}
+
 fn link_network(
     cli: &OsmosisCLI,
     network: &CosmosNetwork,
@@ -87,15 +104,24 @@ fn link_network(
     // hook routing
 
     // link src chain
+    let public_key = validator.priv_key.verifying_key().to_encoded_point(false);
+    let public_key = public_key.as_bytes();
+
+    let hash = hpl_interface::types::keccak256_hash(&public_key[1..]);
+
+    let mut bytes = [0u8; 20];
+    bytes.copy_from_slice(&hash.as_slice()[12..]);
+
     cli.wasm_execute(
         &network.launch_resp.endpoint,
         linker,
         &network.deployments.ism_multisig,
-        ism::multisig::ExecuteMsg::EnrollValidator {
-            set: ism::multisig::ValidatorSet {
-                domain: target_domain,
-                validator: validator_addr.clone(),
-                validator_pubkey: validator_pubkey.clone().into(),
+        GeneralIsmValidatorMessage {
+            enroll_validator: EnrollValidatorMsg {
+                set: EnrollValidatorSet {
+                    domain: target_domain,
+                    validator: hex::encode(bytes).to_string(),
+                },
             },
         },
         vec![],

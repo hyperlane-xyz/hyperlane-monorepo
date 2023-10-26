@@ -1,11 +1,10 @@
-use std::collections::HashMap;
 use std::ops::RangeInclusive;
 
 use crate::binary::h256_to_h512;
 use async_trait::async_trait;
 use cosmrs::rpc::client::{Client, CompatMode, HttpClient};
 use cosmrs::rpc::endpoint::tx;
-use cosmrs::rpc::query::{EventType, Query};
+use cosmrs::rpc::query::Query;
 use cosmrs::rpc::Order;
 use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{ChainResult, ContractLocator, HyperlaneDomain, LogMeta, H256, U256};
@@ -13,6 +12,8 @@ use tracing::debug;
 
 use crate::verify::{self, bech32_decode};
 use crate::ConnectionConf;
+
+const PAGINATION_LIMIT: u8 = 100;
 
 #[async_trait]
 /// Trait for wasm indexer. Use rpc provider
@@ -100,38 +101,6 @@ impl WasmIndexer for CosmosWasmIndexer {
         let client = self.get_client()?;
         let contract_address = self.get_contract_addr()?;
 
-        let block_step: u32 = 100;
-        let mut block_hash_vec: Vec<(u64, H256)> = vec![];
-        let block_query: Query = format!(
-            "block.height >= {} AND block.height <= {}",
-            range.start(),
-            range.end(),
-        )
-        .parse()
-        .unwrap();
-        let total_block_count = range.end() - range.start() + 1;
-        let last_block_page = total_block_count / 100 + (total_block_count % 100 != 0) as u32;
-
-        for _ in 1..=last_block_page {
-            let blocks = client
-                .block_search(block_query.clone(), 1, block_step as u8, Order::Ascending)
-                .await?;
-
-            block_hash_vec.extend(
-                blocks
-                    .blocks
-                    .iter()
-                    .map(|b| {
-                        (
-                            b.block.header.height.value(),
-                            H256::from_slice(b.block_id.hash.as_bytes()),
-                        )
-                    })
-                    .collect::<Vec<(u64, H256)>>(),
-            );
-        }
-        let block_hash: HashMap<u64, H256> = block_hash_vec.into_iter().collect();
-
         // Page starts from 1
         let query = Query::default()
             .and_gte("tx.height", *range.start() as u64)
@@ -141,18 +110,17 @@ impl WasmIndexer for CosmosWasmIndexer {
                 contract_address.clone(),
             );
 
-        println!("Query: {:?}", query.to_string());
+        debug!("Query: {:?}", query.to_string());
 
         let tx_search_result = client
-            .tx_search(query.clone(), false, 1, 30, Order::Ascending)
+            .tx_search(query.clone(), false, 1, PAGINATION_LIMIT, Order::Ascending)
             .await?;
 
         let total_count = tx_search_result.total_count;
-        let last_page = total_count / 30 + (total_count % 30 != 0) as u32;
+        let last_page = total_count / PAGINATION_LIMIT as u32
+            + (total_count % PAGINATION_LIMIT as u32 != 0) as u32;
 
-        let handler = |txs: Vec<tx::Response>,
-                       block_hashs: HashMap<u64, H256>|
-         -> Vec<(T, LogMeta)> {
+        let handler = |txs: Vec<tx::Response>| -> Vec<(T, LogMeta)> {
             let mut result: Vec<(T, LogMeta)> = vec![];
             let target_type = format!("{}-{}", Self::WASM_TYPE, self.event_type);
 
@@ -161,7 +129,7 @@ impl WasmIndexer for CosmosWasmIndexer {
 
             for tx in txs {
                 if tx.tx_result.code.is_err() {
-                    debug!("tx {:?} has failed. skip!", tx.hash);
+                    debug!(tx_hash=?tx.hash, "Indexed tx has failed, skipping");
                     continue;
                 }
 
@@ -173,7 +141,8 @@ impl WasmIndexer for CosmosWasmIndexer {
                             let meta = LogMeta {
                                 address: bech32_decode(contract_address.clone()),
                                 block_number: tx.height.value(),
-                                block_hash: block_hashs[&tx.height.value()],
+                                // FIXME: block_hash is not available in tx_search
+                                block_hash: H256::zero(),
                                 transaction_id: h256_to_h512(H256::from_slice(tx.hash.as_bytes())),
                                 transaction_index: tx.index as u64,
                                 log_index: U256::from(log_idx),
@@ -190,15 +159,22 @@ impl WasmIndexer for CosmosWasmIndexer {
             result
         };
 
-        let mut result = handler(tx_search_result.txs, block_hash.clone());
+        let mut result = handler(tx_search_result.txs);
 
         for page in 2..=last_page {
-            println!("page: {}", page);
+            debug!(page, "Making tx search RPC");
+
             let tx_search_result = client
-                .tx_search(query.clone(), false, page, 30, Order::Ascending)
+                .tx_search(
+                    query.clone(),
+                    false,
+                    page,
+                    PAGINATION_LIMIT,
+                    Order::Ascending,
+                )
                 .await?;
 
-            result.extend(handler(tx_search_result.txs, block_hash.clone()));
+            result.extend(handler(tx_search_result.txs));
         }
 
         Ok(result)

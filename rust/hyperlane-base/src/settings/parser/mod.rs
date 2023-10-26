@@ -294,6 +294,23 @@ fn parse_chain(
                     None
                 });
 
+            let canonical_asset = if let Some(asset) = chain
+                .chain(&mut err)
+                .get_opt_key("canonicalAsset")
+                .parse_string()
+                .end()
+            {
+                Some(asset.to_string())
+            } else if let Some(hrp) = prefix {
+                Some(format!("u{}", hrp))
+            } else {
+                local_err.push(
+                    &chain.cwp + "canonical_asset",
+                    eyre!("Missing canonical asset for chain"),
+                );
+                None
+            };
+
             if !local_err.is_ok() {
                 err.merge(local_err);
                 None
@@ -303,6 +320,7 @@ fn parse_chain(
                     rpcs.first().unwrap().to_string(),
                     chain_id.unwrap().to_string(),
                     prefix.unwrap().to_string(),
+                    canonical_asset.unwrap(),
                 )))
             }
         }

@@ -6,7 +6,6 @@
 #![allow(unused_variables)]
 
 mod aggregation_ism;
-mod contracts;
 mod interchain_gas;
 mod interchain_security_module;
 mod libs;

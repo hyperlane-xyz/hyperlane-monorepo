@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 
-use base64::Engine;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
@@ -8,6 +7,7 @@ use hyperlane_core::{
 };
 
 use crate::{
+    binary::h256_to_h160,
     grpc::{WasmGrpcProvider, WasmProvider},
     payloads::validator_announce::{
         self, AnnouncementRequest, AnnouncementRequestInner, GetAnnounceStorageLocationsRequest,
@@ -64,7 +64,11 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-        let vss = validators.iter().map(hex::encode).collect::<Vec<String>>();
+        let vss = validators
+            .iter()
+            .map(|v| h256_to_h160(*v))
+            .map(|v| hex::encode(v.as_bytes()))
+            .collect::<Vec<String>>();
 
         let payload = GetAnnounceStorageLocationsRequest {
             get_announce_storage_locations: GetAnnounceStorageLocationsRequestInner {
