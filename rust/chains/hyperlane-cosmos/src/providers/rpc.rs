@@ -2,7 +2,7 @@ use std::ops::RangeInclusive;
 
 use crate::binary::h256_to_h512;
 use async_trait::async_trait;
-use cosmrs::rpc::client::{Client, CompatMode, HttpClient};
+use cosmrs::rpc::client::{Client, HttpClient};
 use cosmrs::rpc::endpoint::tx;
 use cosmrs::rpc::query::Query;
 use cosmrs::rpc::Order;
@@ -44,7 +44,7 @@ pub trait WasmIndexer: Send + Sync {
 /// Cosmwasm RPC Provider
 pub struct CosmosWasmIndexer {
     conf: ConnectionConf,
-    domain: HyperlaneDomain,
+    _domain: HyperlaneDomain,
     address: H256,
     event_type: String,
 }
@@ -56,7 +56,7 @@ impl CosmosWasmIndexer {
     pub fn new(conf: ConnectionConf, locator: ContractLocator, event_type: String) -> Self {
         Self {
             conf,
-            domain: locator.domain.clone(),
+            _domain: locator.domain.clone(),
             address: locator.address,
             event_type,
         }

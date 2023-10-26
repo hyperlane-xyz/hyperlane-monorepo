@@ -1,4 +1,3 @@
-use ::core::panic;
 use std::path::Path;
 
 use cosmwasm_schema::cw_serde;
@@ -93,7 +92,7 @@ fn link_network(
     target_domain: u32,
 ) {
     let validator_addr = validator.addr(hrp);
-    let validator_pubkey = validator.pub_key_to_binary();
+    let _validator_pubkey = validator.pub_key_to_binary();
 
     let dest_domain = if network.domain == 26657 {
         26658

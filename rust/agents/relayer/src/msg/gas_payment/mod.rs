@@ -7,7 +7,7 @@ use hyperlane_core::{
     GasPaymentKey, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
     TxCostEstimate, TxOutcome, U256,
 };
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, trace};
 
 use self::policies::{GasPaymentPolicyMinimum, GasPaymentPolicyNone};
 use crate::{

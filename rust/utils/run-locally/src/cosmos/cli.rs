@@ -3,7 +3,6 @@ use std::{collections::BTreeMap, io::Write, path::PathBuf, process::Stdio};
 use k256::ecdsa::SigningKey;
 
 use crate::{
-    cosmos::types::CliWasmQueryResponse,
     program::Program,
     utils::{concat_path, AgentHandles, TaskHandle},
 };

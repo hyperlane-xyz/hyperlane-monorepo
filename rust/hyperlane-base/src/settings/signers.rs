@@ -51,7 +51,7 @@ impl SignerConf {
 /// A signer for a chain.
 pub trait ChainSigner: Send {
     /// The address of the signer, formatted in the chain's own address format.
-    fn address(&self) -> String;
+    fn address_string(&self) -> String;
 }
 
 /// Builder trait for signers
@@ -86,7 +86,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 let signer = AwsSigner::new(client, id, 0).await?;
                 hyperlane_ethereum::Signers::Aws(signer)
             }
-            SignerConf::CosmosKey { key, .. } => {
+            SignerConf::CosmosKey { .. } => {
                 bail!("cosmosKey signer is not supported by Ethereum")
             }
             SignerConf::Node => bail!("Node signer"),
@@ -95,8 +95,8 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
 }
 
 impl ChainSigner for hyperlane_ethereum::Signers {
-    fn address(&self) -> String {
-        self.address().to_string()
+    fn address_string(&self) -> String {
+        ethers::signers::Signer::address(self).to_string()
     }
 }
 
@@ -117,7 +117,7 @@ impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
 }
 
 impl ChainSigner for fuels::prelude::WalletUnlocked {
-    fn address(&self) -> String {
+    fn address_string(&self) -> String {
         self.address().to_string()
     }
 }
@@ -140,7 +140,7 @@ impl BuildableWithSignerConf for Keypair {
 }
 
 impl ChainSigner for Keypair {
-    fn address(&self) -> String {
+    fn address_string(&self) -> String {
         solana_sdk::signer::Signer::pubkey(self).to_string()
     }
 }
@@ -160,7 +160,7 @@ impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
 }
 
 impl ChainSigner for hyperlane_cosmos::Signer {
-    fn address(&self) -> String {
+    fn address_string(&self) -> String {
         self.address()
     }
 }
