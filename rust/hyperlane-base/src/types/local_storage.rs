@@ -62,6 +62,14 @@ impl CheckpointSyncer for LocalStorage {
         }
     }
 
+    async fn write_latest_index(&self, index: u32) -> Result<()> {
+        let path = self.latest_index_file_path();
+        tokio::fs::write(&path, index.to_string())
+            .await
+            .with_context(|| format!("Writing index to {path:?}"))?;
+        Ok(())
+    }
+
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
         let Ok(data) = tokio::fs::read(self.checkpoint_file_path(index)).await else {
             return Ok(None);

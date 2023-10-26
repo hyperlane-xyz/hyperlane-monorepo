@@ -10,6 +10,8 @@ use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
 pub trait CheckpointSyncer: Debug + Send + Sync {
     /// Read the highest index of this Syncer
     async fn latest_index(&self) -> Result<Option<u32>>;
+    /// Writes the highest index of this Syncer
+    async fn write_latest_index(&self, index: u32) -> Result<()>;
     /// Attempt to fetch the signed (checkpoint, messageId) tuple at this index
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>>;
     /// Write the signed (checkpoint, messageId) tuple to this syncer

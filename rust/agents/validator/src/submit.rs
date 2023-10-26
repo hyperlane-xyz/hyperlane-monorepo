@@ -136,6 +136,10 @@ impl ValidatorSubmitter {
             self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
                 .await?;
 
+            self.checkpoint_syncer
+                .write_latest_index(latest_checkpoint.index)
+                .await?;
+
             self.metrics
                 .latest_checkpoint_processed
                 .set(latest_checkpoint.index as i64);
