@@ -40,6 +40,7 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
     function balanceOf(address _account)
         public
         view
+        virtual
         override(TokenRouter, ERC20Upgradeable)
         returns (uint256)
     {
@@ -67,7 +68,7 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
         address _recipient,
         uint256 _amount,
         bytes calldata // no metadata
-    ) internal override {
+    ) internal virtual override {
         _mint(_recipient, _amount);
     }
 }

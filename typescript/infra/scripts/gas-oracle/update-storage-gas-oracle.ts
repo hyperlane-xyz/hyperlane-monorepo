@@ -1,4 +1,5 @@
-import { ChainName, HyperlaneIgp } from '@hyperlane-xyz/sdk';
+import { ChainName, HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { RemoteGasData, StorageGasOracleConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
@@ -38,8 +39,16 @@ async function main() {
   );
 
   for (const chain of igp.chains()) {
+    if (
+      multiProvider.getChainMetadata(chain).protocol !== ProtocolType.Ethereum
+    ) {
+      console.log(`Skipping ${chain} because it is not an Ethereum chain`);
+      continue;
+    }
+
     await setStorageGasOracleValues(
       igp,
+      multiProvider,
       storageGasOracleConfig[chain],
       chain,
       args.dryRun,
@@ -50,6 +59,9 @@ async function main() {
 
 async function setStorageGasOracleValues(
   igp: HyperlaneIgp,
+  // This multiProvider is used instead of the one on the IGP because the IGP's
+  // multiprovider will have filtered out non-Ethereum chains.
+  multiProvider: MultiProvider,
   localStorageGasOracleConfig: StorageGasOracleConfig,
   local: ChainName,
   dryRun: boolean,
@@ -61,7 +73,7 @@ async function setStorageGasOracleValues(
 
   for (const remote in localStorageGasOracleConfig) {
     const desiredGasData = localStorageGasOracleConfig[remote]!;
-    const remoteId = igp.multiProvider.getDomainId(remote);
+    const remoteId = multiProvider.getDomainId(remote);
 
     const existingGasData: RemoteGasData = await storageGasOracle.remoteGasData(
       remoteId,
@@ -92,7 +104,7 @@ async function setStorageGasOracleValues(
     console.log(`Updating ${configsToSet.length} configs on local ${local}:`);
     console.log(
       configsToSet
-        .map((config) => prettyRemoteGasDataConfig(igp.multiProvider, config))
+        .map((config) => prettyRemoteGasDataConfig(multiProvider, config))
         .join('\n\t--\n'),
     );
 

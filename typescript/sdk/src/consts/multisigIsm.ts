@@ -98,6 +98,14 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
       '0xa18580444eaeb1c5957e7b66a6bf84b6519f904d', // staked
     ],
   },
+  solana: {
+    threshold: 2,
+    validators: [
+      '0x3cd1a081f38874bbb075bf10b62adcb858db864c', // abacus
+      '0x2b0c45f6111ae1c1684d4287792e3bd6ebd1abcc', // ZKV
+      '0x7b9ec253a8ba38994457eb9dbe386938d545351a', // everstake
+    ],
+  },
   // ----------------- Testnets -----------------
   alfajores: {
     threshold: 2,
@@ -210,6 +218,14 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
       '0x3f06b725bc9648917eb11c414e9f8d76fd959550',
       '0x27bfc57679d9dd4ab2e870f5ed7ec0b339a0b636',
       '0xd476548222f43206d0abaa30e46e28670aa7859c',
+    ],
+  },
+  solanadevnet: {
+    threshold: 2,
+    validators: [
+      '0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43',
+      '0x9c20a149dfa09ea9f77f5a7ca09ed44f9c025133',
+      '0x967c5ecdf2625ae86580bd203b630abaaf85cd62',
     ],
   },
 };

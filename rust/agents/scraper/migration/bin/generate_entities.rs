@@ -1,18 +1,13 @@
-use std::path::Path;
-use std::process::Stdio;
-use std::time::Duration;
-
-use tokio::fs::remove_dir_all;
-use tokio::process::Command;
-use tokio::time::sleep;
+use std::{path::Path, process::Stdio, time::Duration};
 
 use common::*;
+use tokio::{fs::remove_dir_all, process::Command, time::sleep};
 
 mod common;
 
 const RAW_DB_PATH: &str = "./agents/scraper/src/db/generated";
 const DOCKER_NAME: &str = "scraper-entity-generator";
-const CLI_VERSION: &str = "0.11.1";
+const CLI_VERSION: &str = "0.12.3";
 
 struct PostgresDockerContainer;
 
@@ -58,7 +53,7 @@ impl Drop for PostgresDockerContainer {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), DbErr> {
     assert_eq!(
         std::env::current_dir().unwrap().file_name().unwrap(),

@@ -4,12 +4,23 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use num_derive::FromPrimitive;
+use serde::{Deserialize, Serialize};
 
 use crate::{ChainResult, HyperlaneContract, HyperlaneMessage, U256};
 
 /// Enumeration of all known module types
 #[derive(
-    FromPrimitive, Clone, Debug, Default, Copy, PartialEq, Eq, BorshDeserialize, BorshSerialize,
+    FromPrimitive,
+    Clone,
+    Debug,
+    Default,
+    Copy,
+    PartialEq,
+    Eq,
+    BorshDeserialize,
+    BorshSerialize,
+    Serialize,
+    Deserialize,
 )]
 #[cfg_attr(feature = "strum", derive(strum::Display))]
 pub enum ModuleType {
@@ -20,7 +31,7 @@ pub enum ModuleType {
     Routing,
     /// Aggregation ISM (aggregates multiple ISMs)
     Aggregation,
-    /// Legacy ISM (validators in calldata, set commitment in storage)
+    /// Legacy ISM (DEPRECATED)
     LegacyMultisig,
     /// Merkle Proof ISM (batching and censorship resistance)
     MerkleRootMultisig,

@@ -29,10 +29,14 @@ export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
       this.factories,
     ) as (keyof ProxyFactoryFactories)[]) {
       const factory = await this.deployContract(chain, factoryName, []);
-      this.addVerificationArtifact(chain, {
-        name: proxyFactoryImplementations[factoryName],
-        address: await factory.implementation(),
-      });
+      this.addVerificationArtifacts(chain, [
+        {
+          name: proxyFactoryImplementations[factoryName],
+          address: await factory.implementation(),
+          constructorArguments: '',
+          isProxy: true,
+        },
+      ]);
       contracts[factoryName] = factory;
     }
     return contracts as HyperlaneContracts<ProxyFactoryFactories>;

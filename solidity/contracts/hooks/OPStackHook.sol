@@ -48,7 +48,7 @@ contract OPStackHook is AbstractMessageIdAuthHook {
     constructor(
         address _mailbox,
         uint32 _destinationDomain,
-        address _ism,
+        bytes32 _ism,
         address _l1Messenger
     ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
         require(
@@ -58,8 +58,7 @@ contract OPStackHook is AbstractMessageIdAuthHook {
         l1Messenger = ICrossDomainMessenger(_l1Messenger);
     }
 
-    // ============ External functions ============
-
+    // ============ Internal functions ============
     function _quoteDispatch(bytes calldata, bytes calldata)
         internal
         pure
@@ -68,8 +67,6 @@ contract OPStackHook is AbstractMessageIdAuthHook {
     {
         return 0; // gas subsidized by the L2
     }
-
-    // ============ Internal functions ============
 
     /// @inheritdoc AbstractMessageIdAuthHook
     function _sendMessageId(bytes calldata metadata, bytes memory payload)
@@ -81,7 +78,7 @@ contract OPStackHook is AbstractMessageIdAuthHook {
             "OPStackHook: msgValue must be less than 2 ** 255"
         );
         l1Messenger.sendMessage{value: metadata.msgValue(0)}(
-            ism,
+            TypeCasts.bytes32ToAddress(ism),
             payload,
             GAS_LIMIT
         );

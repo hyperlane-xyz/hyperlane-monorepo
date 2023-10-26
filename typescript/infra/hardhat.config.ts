@@ -3,12 +3,49 @@ import '@nomiclabs/hardhat-waffle';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
-import { TestSendReceiver__factory } from '@hyperlane-xyz/core';
-import { ChainName, HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
+import { Mailbox, TestSendReceiver__factory } from '@hyperlane-xyz/core';
+import {
+  ChainName,
+  HookType,
+  HyperlaneCore,
+  ModuleType,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { Modules, getAddresses } from './scripts/utils';
 import { sleep } from './src/utils/utils';
+
+enum MailboxHookType {
+  REQUIRED = 'requiredHook',
+  DEFAULT = 'defaultHook',
+}
+
+/**
+ * If a hookArg is provided, set the mailbox hook to the defaultHookArg.
+ * The hook is set either as the default hook or the required hook,
+ * depending on the mailboxHookType argument.
+ */
+async function setMailboxHook(
+  mailbox: Mailbox,
+  coreAddresses: any,
+  local: ChainName,
+  mailboxHookType: MailboxHookType,
+  hookArg: HookType,
+) {
+  const hook = coreAddresses[local][hookArg];
+  switch (mailboxHookType) {
+    case MailboxHookType.REQUIRED: {
+      await mailbox.setRequiredHook(hook);
+      break;
+    }
+    case MailboxHookType.DEFAULT: {
+      await mailbox.setDefaultHook(hook);
+      break;
+    }
+  }
+  console.log(`set the ${mailboxHookType} hook on ${local} to ${hook}`);
+}
 
 const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
   const coreContracts = core.getContracts(chain);
@@ -36,19 +73,33 @@ task('kathy', 'Dispatches random hyperlane messages')
   )
   .addParam('timeout', 'Time to wait between messages in ms.', '5000')
   .addFlag('mineforever', 'Mine forever after sending messages')
+  .addParam(
+    MailboxHookType.DEFAULT,
+    'Default hook to call in postDispatch',
+    HookType.AGGREGATION,
+  )
+  .addParam(
+    MailboxHookType.REQUIRED,
+    'Required hook to call in postDispatch',
+    HookType.PROTOCOL_FEE,
+  )
   .setAction(
     async (
-      taskArgs: { messages: string; timeout: string; mineforever: boolean },
+      taskArgs: {
+        messages: string;
+        timeout: string;
+        mineforever: boolean;
+        defaultHook: HookType;
+        requiredHook: HookType;
+      },
       hre: HardhatRuntimeEnvironment,
     ) => {
       const timeout = Number.parseInt(taskArgs.timeout);
       const environment = 'test';
       const [signer] = await hre.ethers.getSigners();
       const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-      const core = HyperlaneCore.fromAddressesMap(
-        getAddresses(environment, Modules.CORE),
-        multiProvider,
-      );
+      const addresses = getAddresses(environment, Modules.CORE);
+      const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
 
       const randomElement = <T>(list: T[]) =>
         list[Math.floor(Math.random() * list.length)];
@@ -71,15 +122,35 @@ task('kathy', 'Dispatches random hyperlane messages')
         // Random remote chain
         const remote: ChainName = randomElement(core.remoteChains(local));
         const remoteId = multiProvider.getDomainId(remote);
-        const mailbox = core.getContracts(local).mailbox;
+        const contracts = core.getContracts(local);
+        const mailbox = contracts.mailbox;
+        await setMailboxHook(
+          mailbox,
+          addresses,
+          local,
+          MailboxHookType.DEFAULT,
+          taskArgs.defaultHook,
+        );
+        await setMailboxHook(
+          mailbox,
+          addresses,
+          local,
+          MailboxHookType.REQUIRED,
+          taskArgs.requiredHook,
+        );
         const quote = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
           remoteId,
           addressToBytes32(recipient.address),
           '0x1234',
         );
-        await recipient.dispatchToSelf(mailbox.address, remoteId, '0x1234', {
-          value: quote,
-        });
+        await recipient['dispatchToSelf(address,uint32,bytes)'](
+          mailbox.address,
+          remoteId,
+          '0x1234',
+          {
+            value: quote,
+          },
+        );
         console.log(
           `send to ${recipient.address} on ${remote} via mailbox ${
             mailbox.address
