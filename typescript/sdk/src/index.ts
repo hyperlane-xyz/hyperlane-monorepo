@@ -201,6 +201,14 @@ export {
 } from './providers/MultiProtocolProvider';
 export { MultiProvider, MultiProviderOptions } from './providers/MultiProvider';
 export {
+  CosmJsContract,
+  CosmJsProvider,
+  CosmJsTransaction,
+  CosmJsTransactionReceipt,
+  CosmJsWasmContract,
+  CosmJsWasmProvider,
+  CosmJsWasmTransaction,
+  CosmJsWasmTransactionReceipt,
   EthersV5Contract,
   EthersV5Provider,
   EthersV5Transaction,
