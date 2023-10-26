@@ -34,9 +34,6 @@ library MessageUtils {
 contract TestIsm is IInterchainSecurityModule {
     bytes public requiredMetadata;
 
-    // uint8 public constant moduleType =
-    //     uint8(IInterchainSecurityModule.Types.NULL);
-
     function moduleType() external override virtual view returns (uint8) {
         return uint8(IInterchainSecurityModule.Types.NULL);
     }

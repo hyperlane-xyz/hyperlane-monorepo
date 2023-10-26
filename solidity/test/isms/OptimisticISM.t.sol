@@ -2,8 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {console2} from "forge-std/console2.sol";
-
 import {TestIsm} from "./IsmTestUtils.sol";
 import {OptimisticISM} from "../../contracts/isms/optimistic/OptimisticISM.sol";
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";

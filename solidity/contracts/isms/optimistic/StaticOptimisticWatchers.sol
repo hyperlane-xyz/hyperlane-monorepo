@@ -7,19 +7,15 @@ pragma solidity >=0.8.0;
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 
 /**
- * @title StaticAggregationIsm
- * @notice Manages per-domain m-of-n ISM sets that are used to verify
- * interchain messages.
+ * @title StaticOptimisticWatchers
+ * @notice Manages per-domain m-of-n watchers that are used to indicate fraudulent submodules
  */
 contract StaticOptimisticWatchers {
     // ============ Public Functions ============
 
     /**
-     * @notice Returns the set of ISMs responsible for verifying _message
-     * and the number of ISMs that must verify
-     * @dev Can change based on the content of _message
-     * @return modules The array of ISM addresses
-     * @return threshold The number of ISMs needed to verify
+     * @notice Returns the set of watchers responsible for marking submodules as fraudulent
+     * and the number of watchers that must mark a submodule as fraudulent
      */
     function watchersAndThreshold(bytes calldata)
         public
