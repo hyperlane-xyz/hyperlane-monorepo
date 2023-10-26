@@ -1,0 +1,50 @@
+{
+  "relayChains": "neutrontestnet,goerli",
+  "chains": {
+    "neutrontestnet": {
+      "customUrl": "http://54.149.31.83:26657",
+      "signerType": "cosmosKey",
+      "key": "0xac30d9f8ba63095774e7c853e23b02768031aa5076576113bbc9f4f07f4d12c5",
+      "prefix": "dual"
+    },
+    "goerli": {
+      "name": "goerli",
+      "chainId": 5,
+
+      "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
+      "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
+
+      "rpcUrls": [
+        {
+          "http": "https://goerli.infura.io/v3/87fb6a437dd846aea1eaa2e0362e8541"
+        },
+        {
+          "http": "https://nd-604-431-130.p2pify.com/b3cd56f4836e63c4acb1ea497fd34bab,https://rpc.ankr.com/eth_goerli"
+        }
+      ],
+      "customRpcUrls": "https://goerli.infura.io/v3/87fb6a437dd846aea1eaa2e0362e8541,https://nd-604-431-130.p2pify.com/b3cd56f4836e63c4acb1ea497fd34bab,https://rpc.ankr.com/eth_goerli",
+
+      "rpcConsensusType": "fallback",
+      "signerId": "alias/hyperlane-testnet4-key-relayer",
+      "signerType": "aws",
+      "signerRegion": "us-east-1"
+    }
+  },
+  "gasPaymentEnforcement": [
+    {
+      "type": "none"
+    }
+  ],
+  "defaultsigner": {
+    "type": "hexKey",
+    "key": "0xac30d9f8ba63095774e7c853e23b02768031aa5076576113bbc9f4f07f4d12c5"
+  },
+  "allowLocalCheckpointSyncers": "true",
+  "checkpointsyncer": {
+    "type": "localStorage",
+    "path": "./neutron_validator_sigs"
+  },
+  "metricsPort": 9091,
+  "db": "./relayer_db"
+}
