@@ -1,9 +1,26 @@
 import { ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
+import { Coin } from '@cosmjs/stargate';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp';
+import {
+  BalanceResponse,
+  ExecuteMsg as Cw20Execute,
+  QueryMsg as Cw20Query,
+  TokenInfoResponse,
+} from '../../cw-types/Cw20Base.types';
+import {
+  DomainsResponse,
+  InterchainSecurityModuleResponse,
+  OwnerResponse,
+  RouteResponseForHexBinary,
+  RoutesResponseForHexBinary,
+  ExecuteMsg as WarpCw20Execute,
+  QueryMsg as WarpCw20Query,
+} from '../../cw-types/WarpCw20.types';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
+import { ChainName } from '../../types';
 import { ERC20Metadata } from '../config';
 
 import {
@@ -61,61 +78,55 @@ export class CwNativeTokenAdapter
 }
 
 export type CW20Metadata = ERC20Metadata;
+type CW20Response = TokenInfoResponse | BalanceResponse;
 
-// TODO: import from cw20 bindings
-type TokenInfoResponse = {
-  name: string;
-  symbol: string;
-  decimals: number;
-  total_supply: string;
-};
-
-type BalanceResponse = {
-  balance: string;
-};
-
-// https://github.com/CosmWasm/cw-plus/blob/main/packages/cw20/README.md
 // Interacts with CW20/721 contracts
 export class CwTokenAdapter
   extends BaseCosmWasmAdapter
   implements ITokenAdapter
 {
-  public readonly contractAddress: string;
-
   constructor(
-    chainName: string,
-    multiProvider: MultiProtocolProvider,
-    addresses: { token: Address },
+    public readonly chainName: string,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
     public readonly ibcDenom: string,
   ) {
     super(chainName, multiProvider, addresses);
-    this.contractAddress = addresses.token;
+  }
+
+  async queryToken<R extends CW20Response>(msg: Cw20Query): Promise<R> {
+    const provider = await this.getProvider();
+    const response: R = await provider.queryContractSmart(
+      this.addresses.token,
+      msg,
+    );
+    return response;
+  }
+
+  prepareToken(msg: Cw20Execute, funds?: Coin[]): ExecuteInstruction {
+    return {
+      contractAddress: this.addresses.token,
+      msg,
+      funds,
+    };
   }
 
   async getBalance(address: Address): Promise<string> {
-    const provider = await this.getProvider();
-    const balanceResponse: BalanceResponse = await provider.queryContractSmart(
-      this.contractAddress,
-      {
-        balance: {
-          address,
-        },
+    const resp = await this.queryToken<BalanceResponse>({
+      balance: {
+        address,
       },
-    );
-    return balanceResponse.balance;
+    });
+    return resp.balance;
   }
 
   async getMetadata(): Promise<CW20Metadata> {
-    const provider = await this.getProvider();
-    const tokenInfo: TokenInfoResponse = await provider.queryContractSmart(
-      this.contractAddress,
-      {
-        token_info: {},
-      },
-    );
+    const resp = await this.queryToken<TokenInfoResponse>({
+      token_info: {},
+    });
     return {
-      ...tokenInfo,
-      totalSupply: tokenInfo.total_supply,
+      ...resp,
+      totalSupply: resp.total_supply,
     };
   }
 
@@ -124,53 +135,121 @@ export class CwTokenAdapter
     recipient,
   }: TransferParams): Promise<ExecuteInstruction> {
     // TODO: check existing allowance
-    return {
-      contractAddress: this.contractAddress,
-      msg: {
-        increase_allowance: {
-          spender: recipient,
-          amount: weiAmountOrId,
-          expires: {
-            never: {},
-          },
+    return this.prepareToken({
+      increase_allowance: {
+        spender: recipient,
+        amount: weiAmountOrId.toString(),
+        expires: {
+          never: {},
         },
       },
-    };
+    });
   }
 
   async populateTransferTx({
     weiAmountOrId,
     recipient,
   }: TransferParams): Promise<ExecuteInstruction> {
-    return {
-      contractAddress: this.contractAddress,
-      msg: {
-        transfer: {
-          recipient,
-          amount: weiAmountOrId.toString(),
-        },
+    return this.prepareToken({
+      transfer: {
+        recipient,
+        amount: weiAmountOrId.toString(),
       },
-    };
+    });
   }
 }
+
+type TokenRouterResponse =
+  | InterchainSecurityModuleResponse
+  | DomainsResponse
+  | OwnerResponse
+  | RouteResponseForHexBinary
+  | RoutesResponseForHexBinary;
 
 export class CwHypTokenAdapter
   extends CwTokenAdapter
   implements IHypTokenAdapter
 {
-  getDomains(): Promise<number[]> {
-    throw new Error('Method not implemented.');
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly addresses: { token: Address; router: Address },
+    public readonly ibcDenom: string,
+  ) {
+    super(chainName, multiProvider, addresses, ibcDenom);
   }
 
-  getRouterAddress(_domain: number): Promise<Buffer> {
-    throw new Error('Method not implemented.');
+  async queryRouter<R extends TokenRouterResponse>(
+    msg: WarpCw20Query,
+  ): Promise<R> {
+    const provider = await this.getProvider();
+    const response: R = await provider.queryContractSmart(
+      this.addresses.router,
+      msg,
+    );
+    return response;
   }
 
-  getAllRouters(): Promise<{ domain: number; address: Buffer }[]> {
-    throw new Error('Method not implemented.');
+  prepareRouter(msg: WarpCw20Execute, funds?: Coin[]): ExecuteInstruction {
+    return {
+      contractAddress: this.addresses.router,
+      msg,
+      funds,
+    };
   }
 
-  quoteGasPayment(_destination: number): Promise<string> {
+  async interchainSecurityModule(): Promise<Address> {
+    throw new Error('Router does not support ISM config yet.');
+  }
+
+  async owner(): Promise<Address> {
+    const resp = await this.queryRouter<OwnerResponse>({
+      ownable: {
+        get_owner: {},
+      },
+    });
+    return resp.owner;
+  }
+
+  async getDomains(): Promise<Domain[]> {
+    const resp = await this.queryRouter<DomainsResponse>({
+      router: {
+        domains: {},
+      },
+    });
+    return resp.domains;
+  }
+
+  async getRouterAddress(domain: Domain): Promise<Buffer> {
+    const resp = await this.queryRouter<RouteResponseForHexBinary>({
+      router: {
+        get_route: {
+          domain,
+        },
+      },
+    });
+    const route = resp.route.route;
+    if (!route) {
+      throw new Error(`No route found for domain ${domain}`);
+    }
+    return Buffer.from(route);
+  }
+
+  async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
+    const resp = await this.queryRouter<RoutesResponseForHexBinary>({
+      router: {
+        list_routes: {},
+      },
+    });
+    return resp.routes
+      .filter((r) => r.route != null)
+      .map((r) => ({
+        domain: r.domain,
+        address: Buffer.from(r.route!),
+      }));
+  }
+
+  quoteGasPayment(destination: number): Promise<string> {
     throw new Error('Method not implemented.');
   }
 
@@ -180,16 +259,15 @@ export class CwHypTokenAdapter
     weiAmountOrId,
     txValue,
   }: TransferRemoteParams): ExecuteInstruction {
-    return {
-      contractAddress: this.contractAddress,
-      msg: {
+    return this.prepareRouter(
+      {
         transfer_remote: {
           dest_domain: destination,
           recipient,
           amount: weiAmountOrId.toString(),
         },
       },
-      funds: txValue
+      txValue
         ? [
             {
               amount: txValue.toString(),
@@ -197,7 +275,7 @@ export class CwHypTokenAdapter
             },
           ]
         : [],
-    };
+    );
   }
 }
 
@@ -205,47 +283,48 @@ export class CwHypNativeTokenAdapter
   extends CwNativeTokenAdapter
   implements IHypTokenAdapter
 {
-  public readonly contractAddress = this.addresses.token;
+  private readonly cw20adapter: CwHypTokenAdapter;
 
-  getDomains(): Promise<number[]> {
-    throw new Error('Method not implemented.');
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly addresses: { router: Address },
+    public readonly ibcDenom: string,
+  ) {
+    super(chainName, multiProvider, ibcDenom);
+    this.cw20adapter = new CwHypTokenAdapter(
+      chainName,
+      multiProvider,
+      { token: '', router: addresses.router },
+      ibcDenom,
+    );
   }
 
-  getRouterAddress(_domain: number): Promise<Buffer> {
-    throw new Error('Method not implemented.');
+  async interchainSecurityModule(): Promise<Address> {
+    return this.cw20adapter.interchainSecurityModule();
   }
 
-  getAllRouters(): Promise<{ domain: number; address: Buffer }[]> {
-    throw new Error('Method not implemented.');
+  async owner(): Promise<Address> {
+    return this.cw20adapter.owner();
   }
 
-  quoteGasPayment(_destination: number): Promise<string> {
-    throw new Error('Method not implemented.');
+  async getDomains(): Promise<Domain[]> {
+    return this.cw20adapter.getDomains();
   }
 
-  populateTransferRemoteTx({
-    destination,
-    recipient,
-    weiAmountOrId,
-    txValue,
-  }: TransferRemoteParams): ExecuteInstruction {
-    return {
-      contractAddress: this.contractAddress,
-      msg: {
-        transfer_remote: {
-          dest_domain: destination,
-          recipient,
-          amount: weiAmountOrId.toString(),
-        },
-      },
-      funds: txValue
-        ? [
-            {
-              amount: txValue.toString(),
-              denom: this.ibcDenom,
-            },
-          ]
-        : [],
-    };
+  async getRouterAddress(domain: Domain): Promise<Buffer> {
+    return this.cw20adapter.getRouterAddress(domain);
+  }
+
+  async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
+    return this.cw20adapter.getAllRouters();
+  }
+
+  quoteGasPayment(destination: number): Promise<string> {
+    return this.cw20adapter.quoteGasPayment(destination);
+  }
+
+  populateTransferRemoteTx(params: TransferRemoteParams): ExecuteInstruction {
+    return this.cw20adapter.populateTransferRemoteTx(params);
   }
 }
