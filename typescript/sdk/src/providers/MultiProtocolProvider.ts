@@ -28,6 +28,7 @@ export const PROTOCOL_DEFAULT_PROVIDER_TYPE: Partial<
 > = {
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
+  [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
 };
 
 export interface MultiProtocolProviderOptions {

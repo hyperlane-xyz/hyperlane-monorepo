@@ -1,7 +1,12 @@
 import { ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
 import { Coin } from '@cosmjs/stargate';
 
-import { Address, Domain } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  Domain,
+  addressToBytes32,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp';
 import {
@@ -16,6 +21,8 @@ import {
   OwnerResponse,
   RouteResponseForHexBinary,
   RoutesResponseForHexBinary,
+  TokenType,
+  TokenTypeResponse,
   ExecuteMsg as WarpCw20Execute,
   QueryMsg as WarpCw20Query,
 } from '../../cw-types/WarpCw20.types';
@@ -89,7 +96,6 @@ export class CwTokenAdapter
     public readonly chainName: string,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { token: Address },
-    public readonly ibcDenom: string,
   ) {
     super(chainName, multiProvider, addresses);
   }
@@ -160,6 +166,7 @@ export class CwTokenAdapter
 }
 
 type TokenRouterResponse =
+  | TokenTypeResponse
   | InterchainSecurityModuleResponse
   | DomainsResponse
   | OwnerResponse
@@ -174,9 +181,9 @@ export class CwHypTokenAdapter
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider<any>,
     public readonly addresses: { token: Address; router: Address },
-    public readonly ibcDenom: string,
+    public readonly gasDenom = 'token',
   ) {
-    super(chainName, multiProvider, addresses, ibcDenom);
+    super(chainName, multiProvider, addresses);
   }
 
   async queryRouter<R extends TokenRouterResponse>(
@@ -196,6 +203,15 @@ export class CwHypTokenAdapter
       msg,
       funds,
     };
+  }
+
+  async tokenType(): Promise<TokenType> {
+    const resp = await this.queryRouter<TokenTypeResponse>({
+      token_default: {
+        token_type: {},
+      },
+    });
+    return resp.type;
   }
 
   async interchainSecurityModule(): Promise<Address> {
@@ -259,22 +275,23 @@ export class CwHypTokenAdapter
     weiAmountOrId,
     txValue,
   }: TransferRemoteParams): ExecuteInstruction {
+    if (!txValue) {
+      throw new Error('txValue is required for native tokens');
+    }
     return this.prepareRouter(
       {
         transfer_remote: {
           dest_domain: destination,
-          recipient,
+          recipient: strip0x(addressToBytes32(recipient)),
           amount: weiAmountOrId.toString(),
         },
       },
-      txValue
-        ? [
-            {
-              amount: txValue.toString(),
-              denom: this.ibcDenom,
-            },
-          ]
-        : [],
+      [
+        {
+          amount: txValue.toString(),
+          denom: this.gasDenom,
+        },
+      ],
     );
   }
 }
@@ -289,14 +306,14 @@ export class CwHypNativeTokenAdapter
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider<any>,
     public readonly addresses: { router: Address },
-    public readonly ibcDenom: string,
+    public readonly gasDenom: string,
   ) {
-    super(chainName, multiProvider, ibcDenom);
+    super(chainName, multiProvider, gasDenom);
     this.cw20adapter = new CwHypTokenAdapter(
       chainName,
       multiProvider,
       { token: '', router: addresses.router },
-      ibcDenom,
+      gasDenom,
     );
   }
 
@@ -324,7 +341,46 @@ export class CwHypNativeTokenAdapter
     return this.cw20adapter.quoteGasPayment(destination);
   }
 
-  populateTransferRemoteTx(params: TransferRemoteParams): ExecuteInstruction {
-    return this.cw20adapter.populateTransferRemoteTx(params);
+  async denom(): Promise<string> {
+    const tokenType = await this.cw20adapter.tokenType();
+    if ('native' in tokenType) {
+      if ('fungible' in tokenType.native) {
+        return tokenType.native.fungible.denom;
+      }
+    }
+
+    throw new Error(`Token type not supported: ${tokenType}`);
+  }
+
+  async populateTransferRemoteTx({
+    destination,
+    recipient,
+    weiAmountOrId,
+    txValue,
+  }: TransferRemoteParams): Promise<ExecuteInstruction> {
+    if (!txValue) {
+      throw new Error('txValue is required for native tokens');
+    }
+
+    const collateralDenom = await this.denom();
+    return this.cw20adapter.prepareRouter(
+      {
+        transfer_remote: {
+          dest_domain: destination,
+          recipient: strip0x(addressToBytes32(recipient)),
+          amount: weiAmountOrId.toString(),
+        },
+      },
+      [
+        {
+          amount: weiAmountOrId.toString(),
+          denom: collateralDenom,
+        },
+        {
+          amount: txValue.toString(),
+          denom: this.gasDenom,
+        },
+      ],
+    );
   }
 }
