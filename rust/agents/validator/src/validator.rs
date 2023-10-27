@@ -202,12 +202,13 @@ impl Validator {
         tasks
     }
 
-    fn log_on_announce_failure(result: ChainResult<TxOutcome>) {
+    fn log_on_announce_failure(result: ChainResult<TxOutcome>, chain_signer: &String) {
         match result {
             Ok(outcome) => {
                 if outcome.executed {
                     info!(
                         tx_outcome=?outcome,
+                        ?chain_signer,
                         "Successfully announced validator",
                     );
                 } else {
@@ -215,6 +216,7 @@ impl Validator {
                         txid=?outcome.transaction_id,
                         gas_used=?outcome.gas_used,
                         gas_price=?outcome.gas_price,
+                        ?chain_signer,
                         "Transaction attempting to announce validator reverted. Make sure you have enough funds in your account to pay for transaction fees."
                     );
                 }
@@ -222,6 +224,7 @@ impl Validator {
             Err(err) => {
                 error!(
                     ?err,
+                    ?chain_signer,
                     "Failed to announce validator. Make sure you have enough funds in your account to pay for gas."
                 );
             }
@@ -274,6 +277,8 @@ impl Validator {
                     .chain_signer()
                     .await?
                 {
+                    let chain_signer = chain_signer.address_string();
+                    info!(eth_validator_address=?announcement.validator, ?chain_signer, "Attempting self announce");
                     let balance_delta = self
                         .validator_announce
                         .announce_tokens_needed(signed_announcement.clone())
@@ -283,7 +288,7 @@ impl Validator {
                         warn!(
                             tokens_needed=%balance_delta,
                             eth_validator_address=?announcement.validator,
-                            chain_signer=?chain_signer.address_string(),
+                            ?chain_signer,
                             "Please send tokens to your chain signer address to announce",
                         );
                     } else {
@@ -291,7 +296,7 @@ impl Validator {
                             .validator_announce
                             .announce(signed_announcement.clone(), None)
                             .await;
-                        Self::log_on_announce_failure(result);
+                        Self::log_on_announce_failure(result, &chain_signer);
                     }
                 } else {
                     warn!(origin_chain=%self.origin_chain, "Cannot announce validator without a signer; make sure a signer is set for the origin chain");
