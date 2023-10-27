@@ -159,10 +159,12 @@ export {
 export {
   ChainMetadata,
   ChainMetadataSchema,
+  ChainMetadataSchemaObject,
   ExplorerFamily,
   ExplorerFamilyValue,
   RpcUrl,
   RpcUrlSchema,
+  getChainIdNumber,
   getDomainId,
   isValidChainMetadata,
 } from './metadata/chainMetadataTypes';

@@ -4,23 +4,36 @@ import {
   ChainMap,
   Chains,
   chainMetadata,
+  getDomainId,
 } from '@hyperlane-xyz/sdk';
 
 const circleDomainMapping = [
-  { hyperlaneDomain: chainMetadata[Chains.goerli].chainId, circleDomain: 0 },
-  { hyperlaneDomain: chainMetadata[Chains.fuji].chainId, circleDomain: 1 },
+  {
+    hyperlaneDomain: getDomainId(chainMetadata[Chains.goerli]),
+    circleDomain: 0,
+  },
+  { hyperlaneDomain: getDomainId(chainMetadata[Chains.fuji]), circleDomain: 1 },
 ];
 
 const wormholeDomainMapping = [
-  { hyperlaneDomain: chainMetadata[Chains.goerli].chainId, wormholeDomain: 2 },
-  { hyperlaneDomain: chainMetadata[Chains.fuji].chainId, wormholeDomain: 6 },
-  { hyperlaneDomain: chainMetadata[Chains.mumbai].chainId, wormholeDomain: 5 },
   {
-    hyperlaneDomain: chainMetadata[Chains.bsctestnet].chainId,
+    hyperlaneDomain: getDomainId(chainMetadata[Chains.goerli]),
+    wormholeDomain: 2,
+  },
+  {
+    hyperlaneDomain: getDomainId(chainMetadata[Chains.fuji]),
+    wormholeDomain: 6,
+  },
+  {
+    hyperlaneDomain: getDomainId(chainMetadata[Chains.mumbai]),
+    wormholeDomain: 5,
+  },
+  {
+    hyperlaneDomain: getDomainId(chainMetadata[Chains.bsctestnet]),
     wormholeDomain: 4,
   },
   {
-    hyperlaneDomain: chainMetadata[Chains.alfajores].chainId,
+    hyperlaneDomain: getDomainId(chainMetadata[Chains.alfajores]),
     wormholeDomain: 14,
   },
 ];

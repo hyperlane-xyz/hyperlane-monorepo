@@ -130,7 +130,7 @@ export class ChainMetadataManager<MetaExt = {}> {
   /**
    * Get the id for a given chain name, chain id, or domain id
    */
-  tryGetChainId(chainNameOrId: ChainName | number): number | null {
+  tryGetChainId(chainNameOrId: ChainName | number): number | string | null {
     return this.tryGetChainMetadata(chainNameOrId)?.chainId ?? null;
   }
 
@@ -138,14 +138,14 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get the id for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
-  getChainId(chainNameOrId: ChainName | number): number {
+  getChainId(chainNameOrId: ChainName | number): number | string {
     return this.getChainMetadata(chainNameOrId).chainId;
   }
 
   /**
    * Get the ids for all chains known to this MultiProvider
    */
-  getKnownChainIds(): number[] {
+  getKnownChainIds(): Array<number | string> {
     return Object.values(this.metadata).map((c) => c.chainId);
   }
 
@@ -154,7 +154,8 @@ export class ChainMetadataManager<MetaExt = {}> {
    */
   tryGetDomainId(chainNameOrId: ChainName | number): number | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
-    return metadata?.domainId ?? metadata?.chainId ?? null;
+    if (!metadata) return null;
+    return getDomainId(metadata) ?? null;
   }
 
   /**
@@ -162,8 +163,9 @@ export class ChainMetadataManager<MetaExt = {}> {
    * @throws if chain's metadata has not been set
    */
   getDomainId(chainNameOrId: ChainName | number): number {
-    const metadata = this.getChainMetadata(chainNameOrId);
-    return getDomainId(metadata);
+    const domainId = this.tryGetDomainId(chainNameOrId);
+    if (!domainId) throw new Error(`No domain id set for ${chainNameOrId}`);
+    return domainId;
   }
 
   /**
