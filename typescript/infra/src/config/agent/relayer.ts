@@ -60,7 +60,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     const baseConfig = this.#relayerConfig!;
 
     const relayerConfig: RelayerConfig = {
-      relayChains: this.contextChainNames[Role.Relayer].join(','),
+      relayChains: this.relayChains.join(','),
       gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
     };
 
@@ -129,6 +129,10 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
   get role(): Role {
     return Role.Relayer;
+  }
+
+  get relayChains(): Array<string> {
+    return this.contextChainNames[Role.Relayer];
   }
 }
 

@@ -204,12 +204,10 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
     };
 
     const signers = await this.config.signers();
-    values.hyperlane.relayerChains = this.config.environmentChainNames.map(
-      (name) => ({
-        name,
-        signer: signers[name],
-      }),
-    );
+    values.hyperlane.relayerChains = this.config.relayChains.map((name) => ({
+      name,
+      signer: signers[name],
+    }));
 
     return values;
   }

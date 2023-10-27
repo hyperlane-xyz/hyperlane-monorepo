@@ -1,4 +1,5 @@
 import {
+  Chains,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
@@ -68,6 +69,11 @@ const hyperlane: RootAgentConfig = {
       repo,
       tag: 'fd890d2-20231024-132022',
     },
+    chainDockerOverrides: {
+      neutrontestnet: {
+        tag: 'd860160-20231026-161305',
+      },
+    },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
   scraper: {
@@ -111,7 +117,7 @@ const neutron: RootAgentConfig = {
   context: Contexts.Neutron,
   rolesWithKeys: [Role.Relayer],
   contextChainNames: {
-    relayer: [chainMetadata.neutron.name, chainMetadata.goerli.name],
+    relayer: [Chains.neutrontestnet, Chains.goerli],
     validator: [],
     scraper: [],
   },
@@ -119,7 +125,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fd890d2-20231024-132022',
+      tag: 'd860160-20231026-161305',
     },
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
@@ -129,4 +135,5 @@ const neutron: RootAgentConfig = {
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.Neutron]: neutron,
 };
