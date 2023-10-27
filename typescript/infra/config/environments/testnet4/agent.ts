@@ -71,7 +71,7 @@ const hyperlane: RootAgentConfig = {
     },
     chainDockerOverrides: {
       neutrontestnet: {
-        tag: 'd860160-20231026-161305',
+        tag: 'eea130c-20231027-115055',
       },
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -125,7 +125,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd860160-20231026-161305',
+      tag: 'eea130c-20231027-115055',
     },
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
