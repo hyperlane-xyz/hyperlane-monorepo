@@ -17,12 +17,12 @@ pub struct GetAnnounceStorageLocationsRequestInner {
     pub validators: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AnnouncementRequest {
     pub announce: AnnouncementRequestInner,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AnnouncementRequestInner {
     pub validator: String,
     pub storage_location: String,
