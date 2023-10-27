@@ -6,10 +6,7 @@ import { Tendermint37Client } from '@cosmjs/tendermint-rpc';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import {
-  ChainMetadata,
-  ChainMetadataSchema,
-} from '../../metadata/chainMetadataTypes';
+import { ChainMetadata } from '../../metadata/chainMetadataTypes';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 
 import { CwHypNativeTokenAdapter } from './CosmWasmTokenAdapter';
@@ -31,9 +28,6 @@ const dualitydevnet: ChainMetadata = {
   ],
   isTestnet: true,
 };
-
-const ibcDenom =
-  'ibc/B5CB286F69D48B2C4F6F8D8CF59011C40590DCF8A91617A5FBA9FF0A7B21307F';
 
 const signer = '<PRIVATE_KEY>';
 
@@ -79,17 +73,17 @@ export async function getSigningClient() {
 }
 
 async function main() {
-  const parsed = ChainMetadataSchema.parse(dualitydevnet);
-  console.log({ parsed });
   const multiProtocolProvider = new MultiProtocolProvider({
     dualitydevnet,
   });
+
+  const gasDenom = 'token';
 
   const adapter = new CwHypNativeTokenAdapter(
     dualitydevnet.name,
     multiProtocolProvider,
     { router },
-    ibcDenom,
+    gasDenom,
   );
   const owner = await adapter.owner();
   const routers = await adapter.getAllRouters();
