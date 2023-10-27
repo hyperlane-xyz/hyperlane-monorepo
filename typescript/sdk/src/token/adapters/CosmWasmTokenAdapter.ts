@@ -249,7 +249,7 @@ export class CwHypTokenAdapter
       }));
   }
 
-  quoteGasPayment(destination: number): Promise<string> {
+  quoteGasPayment(_destination: number): Promise<string> {
     throw new Error('Method not implemented.');
   }
 

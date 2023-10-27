@@ -53,10 +53,10 @@ export class CosmWasmCoreAdapter
   }
 
   async waitForMessageProcessed(
-    messageId: HexString,
-    destination: ChainName,
-    delayMs?: number,
-    maxAttempts?: number,
+    _messageId: HexString,
+    _destination: ChainName,
+    _delayMs?: number,
+    _maxAttempts?: number,
   ): Promise<void> {
     throw new Error('Method not implemented.');
   }
