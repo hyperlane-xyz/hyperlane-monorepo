@@ -60,7 +60,6 @@ pub trait WasmProvider: Send + Sync {
     async fn simulate_raw_tx<I: IntoIterator<Item = cosmrs::Any> + Sync + Send>(
         &self,
         msgs: I,
-        gas_limit: Option<U256>,
     ) -> ChainResult<SimulateResponse>;
 
     /// generate raw tx
@@ -218,17 +217,13 @@ impl WasmProvider for WasmGrpcProvider {
         Ok(account)
     }
 
-    async fn simulate_raw_tx<I>(
-        &self,
-        msgs: I,
-        gas_limit: Option<U256>,
-    ) -> ChainResult<SimulateResponse>
+    async fn simulate_raw_tx<I>(&self, msgs: I) -> ChainResult<SimulateResponse>
     where
         I: IntoIterator<Item = cosmrs::Any> + Send + Sync,
     {
         let mut client = TxServiceClient::connect(self.get_conn_url()?).await?;
 
-        let tx_bytes = self.generate_raw_tx(msgs, gas_limit).await?;
+        let tx_bytes = self.generate_raw_tx(msgs, None).await?;
         #[allow(deprecated)]
         let sim_req = tonic::Request::new(SimulateRequest { tx: None, tx_bytes });
         let mut sim_res = client
@@ -258,7 +253,7 @@ impl WasmProvider for WasmGrpcProvider {
         let tx_body = tx::Body::new(msgs, "", 9000000u32);
         let signer_info = SignerInfo::single_direct(Some(public_key), account_info.sequence);
 
-        let gas_limit: u64 = gas_limit.unwrap_or(U256::from(100000u64)).as_u64();
+        let gas_limit: u64 = gas_limit.unwrap_or(U256::from(300000u64)).as_u64();
 
         let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
             Coin::new(
@@ -327,10 +322,9 @@ impl WasmProvider for WasmGrpcProvider {
         };
 
         let response = self
-            .simulate_raw_tx(
-                vec![msg.to_any().map_err(ChainCommunicationError::from_other)?],
-                None,
-            )
+            .simulate_raw_tx(vec![msg
+                .to_any()
+                .map_err(ChainCommunicationError::from_other)?])
             .await?;
 
         Ok(response)
