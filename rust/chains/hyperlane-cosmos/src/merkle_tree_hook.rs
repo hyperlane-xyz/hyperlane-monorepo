@@ -1,13 +1,14 @@
 use std::{fmt::Debug, num::NonZeroU64, ops::RangeInclusive, str::FromStr};
 
 use async_trait::async_trait;
+use base64::Engine;
 use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainResult, Checkpoint, ContractLocator,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, LogMeta,
     MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer, H256,
 };
-use tracing::instrument;
+use tracing::{info, instrument};
 
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
@@ -188,6 +189,32 @@ impl CosmosMerkleeTreeHookIndexer {
                     }
                     "index" => {
                         leaf_index = value.parse().unwrap();
+                        attr_count += 1;
+                    }
+                    "aW5kZXg=" => {
+                        leaf_index = String::from_utf8(
+                            base64::engine::general_purpose::STANDARD
+                                .decode(value)
+                                .unwrap(),
+                        )
+                        .unwrap()
+                        .parse()
+                        .unwrap();
+                        attr_count += 1;
+                    }
+                    "bWVzc2FnZV9pZA==" => {
+                        message_id = H256::from_slice(
+                            hex::decode(
+                                String::from_utf8(
+                                    base64::engine::general_purpose::STANDARD
+                                        .decode(value)
+                                        .unwrap(),
+                                )
+                                .unwrap(),
+                            )
+                            .unwrap()
+                            .as_slice(),
+                        );
                         attr_count += 1;
                     }
                     _ => {}
