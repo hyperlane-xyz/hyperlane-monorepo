@@ -116,7 +116,7 @@ export class AgentGCPKey extends CloudAgentKey {
         );
         // TODO support other prefixes?
         // https://cosmosdrops.io/en/tools/bech32-converter is useful for converting to other prefixes.
-        return pubkeyToAddress(encodedPubkey, 'dual');
+        return pubkeyToAddress(encodedPubkey, 'neutron');
       default:
         return undefined;
     }

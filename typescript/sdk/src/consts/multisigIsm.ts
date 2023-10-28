@@ -234,4 +234,12 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
       '0x661faee997654d14ead4ae48035883f05c3150cf',
     ],
   },
+  neutron: {
+    threshold: 2,
+    validators: ['', '', ''],
+  },
+  mantapacific: {
+    threshold: 2,
+    validators: ['', '', ''],
+  },
 };

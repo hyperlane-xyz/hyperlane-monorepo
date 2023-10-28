@@ -44,13 +44,14 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
 };
 
 // Blessed non-Ethereum chains.
-// export const nonEthereumMainnetConfigs: ChainMap<ChainMetadata> = {
-//   solana: chainMetadata.solana,
-// };
+export const nonEthereumMainnetConfigs: ChainMap<ChainMetadata> = {
+  // solana: chainMetadata.solana,
+  neutron: chainMetadata.neutron,
+};
 
 export const mainnetConfigs: ChainMap<ChainMetadata> = {
   ...ethereumMainnetConfigs,
-  // ...nonEthereumMainnetConfigs,
+  ...nonEthereumMainnetConfigs,
 };
 
 export type MainnetChains = keyof typeof mainnetConfigs;

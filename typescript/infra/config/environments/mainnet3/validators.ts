@@ -195,5 +195,29 @@ export const validatorChainConfig = (
         'polygonzkevm',
       ),
     },
+    neutron: {
+      interval: 5,
+      reorgPeriod: 0,
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['', '', ''],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'neutron',
+      ),
+    },
+    mantapacific: {
+      interval: 5,
+      reorgPeriod: 0,
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['', '', ''],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'mantapacific',
+      ),
+    },
   };
 };
