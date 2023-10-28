@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
+
+/* eslint-disable no-console */
 import { SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { Secp256k1, keccak256 } from '@cosmjs/crypto';
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
@@ -9,7 +12,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { ChainMetadata } from '../../metadata/chainMetadataTypes';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 
-import { CwHypNativeTokenAdapter } from './CosmWasmTokenAdapter';
+import { CwHypNativeAdapter } from './CosmWasmTokenAdapter';
 
 const router =
   'dual1nzkcccxw00u9egqfuuq2ue23hjj6kxmfvmc5y0r7wchk5e6nypns6768kk';
@@ -79,10 +82,10 @@ async function main() {
 
   const gasDenom = 'token';
 
-  const adapter = new CwHypNativeTokenAdapter(
+  const adapter = new CwHypNativeAdapter(
     dualitydevnet.name,
     multiProtocolProvider,
-    { router },
+    { warpRouter: router },
     gasDenom,
   );
   const owner = await adapter.owner();

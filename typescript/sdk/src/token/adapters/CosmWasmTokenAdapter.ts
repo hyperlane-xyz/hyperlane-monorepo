@@ -43,11 +43,12 @@ export class CwNativeTokenAdapter
   implements ITokenAdapter
 {
   constructor(
-    chainName: string,
-    multiProvider: MultiProtocolProvider,
-    public readonly ibcDenom: string,
+    public readonly chainName: string,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: Record<string, Address>,
+    public readonly ibcDenom: string = 'token',
   ) {
-    super(chainName, multiProvider, {});
+    super(chainName, multiProvider, addresses);
   }
 
   async getBalance(address: Address): Promise<string> {
@@ -96,6 +97,7 @@ export class CwTokenAdapter
     public readonly chainName: string,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { token: Address },
+    public readonly denom = 'token',
   ) {
     super(chainName, multiProvider, addresses);
   }
@@ -173,14 +175,14 @@ type TokenRouterResponse =
   | RouteResponseForHexBinary
   | RoutesResponseForHexBinary;
 
-export class CwHypTokenAdapter
+export class CwHypSyntheticAdapter
   extends CwTokenAdapter
   implements IHypTokenAdapter
 {
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider<any>,
-    public readonly addresses: { token: Address; router: Address },
+    public readonly addresses: { token: Address; warpRouter: Address },
     public readonly gasDenom = 'token',
   ) {
     super(chainName, multiProvider, addresses);
@@ -191,7 +193,7 @@ export class CwHypTokenAdapter
   ): Promise<R> {
     const provider = await this.getProvider();
     const response: R = await provider.queryContractSmart(
-      this.addresses.router,
+      this.addresses.warpRouter,
       msg,
     );
     return response;
@@ -199,7 +201,7 @@ export class CwHypTokenAdapter
 
   prepareRouter(msg: WarpCw20Execute, funds?: Coin[]): ExecuteInstruction {
     return {
-      contractAddress: this.addresses.router,
+      contractAddress: this.addresses.warpRouter,
       msg,
       funds,
     };
@@ -296,23 +298,23 @@ export class CwHypTokenAdapter
   }
 }
 
-export class CwHypNativeTokenAdapter
+export class CwHypNativeAdapter
   extends CwNativeTokenAdapter
   implements IHypTokenAdapter
 {
-  private readonly cw20adapter: CwHypTokenAdapter;
+  private readonly cw20adapter: CwHypSyntheticAdapter;
 
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider<any>,
-    public readonly addresses: { router: Address },
-    public readonly gasDenom: string,
+    public readonly addresses: { warpRouter: Address },
+    public readonly gasDenom = 'token',
   ) {
-    super(chainName, multiProvider, gasDenom);
-    this.cw20adapter = new CwHypTokenAdapter(
+    super(chainName, multiProvider, addresses, gasDenom);
+    this.cw20adapter = new CwHypSyntheticAdapter(
       chainName,
       multiProvider,
-      { token: '', router: addresses.router },
+      { token: '', warpRouter: addresses.warpRouter },
       gasDenom,
     );
   }
@@ -382,5 +384,20 @@ export class CwHypNativeTokenAdapter
         },
       ],
     );
+  }
+}
+
+export class CwHypCollateralAdapter
+  extends CwHypNativeAdapter
+  implements IHypTokenAdapter
+{
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly addresses: { warpRouter: Address; token: Address },
+    public readonly gasDenom = 'token',
+  ) {
+    super(chainName, multiProvider, addresses, gasDenom);
+    throw new Error('Not yet implemented');
   }
 }

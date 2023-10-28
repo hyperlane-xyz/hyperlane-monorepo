@@ -283,8 +283,9 @@ export {
 } from './router/types';
 export {
   CW20Metadata,
-  CwHypNativeTokenAdapter,
-  CwHypTokenAdapter,
+  CwHypCollateralAdapter,
+  CwHypNativeAdapter,
+  CwHypSyntheticAdapter,
   CwNativeTokenAdapter,
   CwTokenAdapter,
 } from './token/adapters/CosmWasmTokenAdapter';
@@ -304,7 +305,6 @@ export {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
   SealevelHypSyntheticAdapter,
-  SealevelHypTokenAdapter,
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './token/adapters/SealevelTokenAdapter';
