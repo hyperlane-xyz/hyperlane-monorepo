@@ -4,10 +4,10 @@
     "type": "localStorage",
     "path": "./neutron_validator_sigs"
   },
-  "originChainName": "neutrontestnet",
+  "originChainName": "neutron",
   "validator": {
     "signerType": "cosmosKey",
     "key": "0xac30d9f8ba63095774e7c853e23b02768031aa5076576113bbc9f4f07f4d12c5",
-    "prefix": "dual"
+    "prefix": "neutron"
   }
 }
