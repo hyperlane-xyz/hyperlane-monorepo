@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use eyre::{Context, Result};
-use hyperlane_core::{SignedAnnouncement, SignedCheckpoint, SignedCheckpointWithMessageId};
+use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
 use prometheus::IntGauge;
 
 use crate::traits::CheckpointSyncer;
@@ -29,24 +29,12 @@ impl LocalStorage {
         Ok(Self { path, latest_index })
     }
 
-    fn legacy_checkpoint_file_path(&self, index: u32) -> PathBuf {
-        self.path.join(format!("{}.json", index))
-    }
-
     fn checkpoint_file_path(&self, index: u32) -> PathBuf {
         self.path.join(format!("{}_with_id.json", index))
     }
 
     fn latest_index_file_path(&self) -> PathBuf {
         self.path.join("index.json")
-    }
-
-    async fn write_index(&self, index: u32) -> Result<()> {
-        let path = self.latest_index_file_path();
-        tokio::fs::write(&path, index.to_string())
-            .await
-            .with_context(|| format!("Writing index to {path:?}"))?;
-        Ok(())
     }
 
     fn announcement_file_path(&self) -> PathBuf {
@@ -74,41 +62,12 @@ impl CheckpointSyncer for LocalStorage {
         }
     }
 
-    async fn legacy_fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpoint>> {
-        match tokio::fs::read(self.legacy_checkpoint_file_path(index)).await {
-            Ok(data) => {
-                let checkpoint = serde_json::from_slice(&data)?;
-                Ok(Some(checkpoint))
-            }
-            _ => Ok(None),
-        }
-    }
-
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
         let Ok(data) = tokio::fs::read(self.checkpoint_file_path(index)).await else {
             return Ok(None);
         };
         let checkpoint = serde_json::from_slice(&data)?;
         Ok(Some(checkpoint))
-    }
-
-    async fn legacy_write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
-        let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
-        let path = self.legacy_checkpoint_file_path(signed_checkpoint.value.index);
-        tokio::fs::write(&path, &serialized_checkpoint)
-            .await
-            .with_context(|| format!("Writing checkpoint to {path:?}"))?;
-
-        match self.latest_index().await? {
-            Some(current_latest_index) => {
-                if current_latest_index < signed_checkpoint.value.index {
-                    self.write_index(signed_checkpoint.value.index).await?
-                }
-            }
-            None => self.write_index(signed_checkpoint.value.index).await?,
-        }
-
-        Ok(())
     }
 
     async fn write_checkpoint(
