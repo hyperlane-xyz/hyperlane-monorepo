@@ -1,11 +1,10 @@
 use std::num::NonZeroU64;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
 use eyre::{bail, Result};
-use hyperlane_core::{MerkleTreeHook, H256};
+use hyperlane_core::MerkleTreeHook;
 use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::{debug, info};
@@ -217,7 +216,7 @@ impl ValidatorSubmitter {
             bail!("Incorrect tree root, something went wrong");
         }
 
-        if (checkpoint_queue.len() > 0) {
+        if !checkpoint_queue.is_empty() {
             info!(
                 index = checkpoint.index,
                 queue_len = checkpoint_queue.len(),
