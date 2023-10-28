@@ -18,11 +18,6 @@
       "grpcUrl": "http://52.43.22.152:9090",
       "canonicalAsset": "token",
       "prefix": "dual",
-      "signer": {
-        "signerType": "cosmosKey",
-        "key": "0xac30d9f8ba63095774e7c853e23b02768031aa5076576113bbc9f4f07f4d12c5",
-        "prefix": "dual"
-      },
       "index": {
         "from": 1,
         "chunk": 1000
@@ -66,11 +61,6 @@
       "grpcUrl": "https://grpc-kralum.neutron-1.neutron.org:80",
       "canonicalAsset": "untrn",
       "prefix": "neutron",
-      "signer": {
-        "signerType": "cosmosKey",
-        "key": "0xac30d9f8ba63095774e7c853e23b02768031aa5076576113bbc9f4f07f4d12c5",
-        "prefix": "neutron"
-      },
       "index": {
         "from": 4000000,
         "chunk": 100000
