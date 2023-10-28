@@ -67,7 +67,6 @@ fn ism_type_to_module_type(ism_type: hpl_interface::ism::ISMType) -> ModuleType 
         hpl_interface::ism::ISMType::MessageIdMultisig => ModuleType::MessageIdMultisig,
         hpl_interface::ism::ISMType::Null => ModuleType::Null,
         hpl_interface::ism::ISMType::CcipRead => ModuleType::CcipRead,
-        _ => ModuleType::Null,
     }
 }
 

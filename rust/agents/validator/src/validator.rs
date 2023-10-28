@@ -4,15 +4,13 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
 use futures_util::future::ready;
-use hyperlane_cosmos::verify::{priv_to_addr_string, priv_to_binary_addr};
+
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
-    run_all,
-    settings::SignerConf,
-    BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     WatermarkContractSync,
 };
 
@@ -45,7 +43,6 @@ pub struct Validator {
     reorg_period: u64,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
-    raw_signer: SignerConf,
 }
 
 #[async_trait]
@@ -104,7 +101,6 @@ impl BaseAgent for Validator {
             reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
-            raw_signer: settings.validator.clone(),
         })
     }
 
@@ -209,7 +205,12 @@ impl Validator {
     fn log_on_announce_failure(result: ChainResult<TxOutcome>) {
         match result {
             Ok(outcome) => {
-                if !outcome.executed {
+                if outcome.executed {
+                    info!(
+                        tx_outcome=?outcome,
+                        "Successfully announced validator",
+                    );
+                } else {
                     error!(
                         txid=?outcome.transaction_id,
                         gas_used=?outcome.gas_used,
@@ -221,7 +222,7 @@ impl Validator {
             Err(err) => {
                 error!(
                     ?err,
-                    "Failed to announce validator. Make sure you have enough ETH in your account to pay for gas."
+                    "Failed to announce validator. Make sure you have enough funds in your account to pay for gas."
                 );
             }
         }
@@ -229,13 +230,14 @@ impl Validator {
 
     async fn announce(&self) -> Result<()> {
         let address = self.signer.eth_address();
+        let announcement_location = self.checkpoint_syncer.announcement_location();
 
         // Sign and post the validator announcement
         let announcement = Announcement {
             validator: address,
             mailbox_address: self.mailbox.address(),
             mailbox_domain: self.mailbox.domain().id(),
-            storage_location: self.checkpoint_syncer.announcement_location(),
+            storage_location: announcement_location.clone(),
         };
         let signed_announcement = self.signer.sign(announcement.clone()).await?;
         self.checkpoint_syncer
@@ -255,8 +257,12 @@ impl Validator {
                 .await?
                 .first()
             {
-                if locations.contains(&self.checkpoint_syncer.announcement_location()) {
-                    info!("Validator has announced signature storage location");
+                if locations.contains(&announcement_location) {
+                    info!(
+                        ?locations,
+                        ?announcement_location,
+                        "Validator has announced signature storage location"
+                    );
                     break;
                 }
                 info!(
@@ -264,9 +270,9 @@ impl Validator {
                     "Validator has not announced signature storage location"
                 );
 
-                if self.core.settings.chains[self.origin_chain.name()]
-                    .signer
-                    .is_some()
+                if let Some(chain_signer) = self.core.settings.chains[self.origin_chain.name()]
+                    .chain_signer()
+                    .await?
                 {
                     let balance_delta = self
                         .validator_announce
@@ -276,8 +282,9 @@ impl Validator {
                     if balance_delta > U256::zero() {
                         warn!(
                             tokens_needed=%balance_delta,
-                            validator_address=?announcement.validator,
-                            "Please send tokens to the validator address to announce",
+                            eth_validator_address=?announcement.validator,
+                            chain_signer=?chain_signer.address_string(),
+                            "Please send tokens to your chain signer address to announce",
                         );
                     } else {
                         let result = self

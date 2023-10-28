@@ -2,8 +2,9 @@ use async_trait::async_trait;
 
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use hyperlane_core::{
-    Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
+    Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome,
+    ValidatorAnnounce, H256, U256,
 };
 
 use crate::{
@@ -100,9 +101,25 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
             },
         };
 
+        // Perform gas estimation if a limit wasn't already provided.
+        // TODO: refactor `wasm_send` to do this gas estimation automatically
+        // instead of using a default hardcoded value if the gas limit is `None`.
+        let tx_gas_limit = if let Some(gas_limit) = tx_gas_limit {
+            gas_limit
+        } else {
+            // A multiplier is applied already for us
+            self.provider
+                .wasm_simulate(announce_request.clone())
+                .await?
+                .gas_info
+                .ok_or_else(|| ChainCommunicationError::from_other_str("gas info not present"))?
+                .gas_used
+                .into()
+        };
+
         let response: TxResponse = self
             .provider
-            .wasm_send(announce_request, tx_gas_limit)
+            .wasm_send(announce_request, Some(tx_gas_limit))
             .await?;
 
         Ok(TxOutcome {
@@ -115,11 +132,8 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
     }
 
     async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
-        let out = self
-            .announce(announcement, None)
-            .await
-            .expect("failed to announce");
-
-        None
+        // TODO: check user balance. For now, just try announcing and
+        // allow the announce attempt to fail if there are not enough tokens.
+        Some(0u64.into())
     }
 }

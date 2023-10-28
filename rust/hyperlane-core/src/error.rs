@@ -93,6 +93,12 @@ pub enum ChainCommunicationError {
     /// Cosmrs library error
     #[error("{0}")]
     Cosmrs(#[from] CosmrsError),
+    /// Cosmrs ErrorReport
+    #[error("{0}")]
+    CosmrsErrorReport(#[from] cosmrs::ErrorReport),
+    #[error("{0}")]
+    /// Cosmrs Tendermint Error
+    CosmrsTendermintError(#[from] cosmrs::tendermint::Error),
     /// Tonic error
     #[error("{0}")]
     Tonic(#[from] tonic::transport::Error),

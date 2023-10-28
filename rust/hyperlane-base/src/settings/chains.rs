@@ -22,7 +22,7 @@ use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
 
 use crate::{
-    settings::signers::{BuildableWithSignerConf, SignerConf},
+    settings::signers::{BuildableWithSignerConf, ChainSigner, SignerConf},
     CoreMetrics,
 };
 
@@ -600,6 +600,25 @@ impl ChainConf {
     async fn signer<S: BuildableWithSignerConf>(&self) -> Result<Option<S>> {
         if let Some(conf) = &self.signer {
             Ok(Some(conf.build::<S>().await?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Returns a ChainSigner for the flavor of chain this is, if one is configured.
+    pub async fn chain_signer(&self) -> Result<Option<Box<dyn ChainSigner>>> {
+        if let Some(conf) = &self.signer {
+            let chain_signer: Box<dyn ChainSigner> = match &self.connection {
+                ChainConnectionConf::Ethereum(_) => Box::new(conf.build::<h_eth::Signers>().await?),
+                ChainConnectionConf::Fuel(_) => {
+                    Box::new(conf.build::<fuels::prelude::WalletUnlocked>().await?)
+                }
+                ChainConnectionConf::Sealevel(_) => {
+                    Box::new(conf.build::<h_sealevel::Keypair>().await?)
+                }
+                ChainConnectionConf::Cosmos(_) => Box::new(conf.build::<h_cosmos::Signer>().await?),
+            };
+            Ok(Some(chain_signer))
         } else {
             Ok(None)
         }
