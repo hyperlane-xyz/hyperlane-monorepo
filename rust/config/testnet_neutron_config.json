@@ -72,7 +72,7 @@
         "prefix": "neutron"
       },
       "index": {
-        "from": 4200000,
+        "from": 4000000,
         "chunk": 100000
       }
     }
