@@ -1,3 +1,4 @@
+use base64::Engine;
 use std::fmt::{Debug, Formatter};
 use std::io::Cursor;
 use std::num::NonZeroU64;
@@ -258,11 +259,25 @@ impl CosmosMailboxIndexer {
 
                 if key == "message" {
                     let mut reader = Cursor::new(hex::decode(value).unwrap());
-                    res = HyperlaneMessage::read_from(&mut reader).unwrap();
+                    return Some(HyperlaneMessage::read_from(&mut reader).unwrap());
+                }
+
+                if key == "bWVzc2FnZQ==" {
+                    let mut reader = Cursor::new(
+                        hex::decode(
+                            String::from_utf8(
+                                base64::engine::general_purpose::STANDARD
+                                    .decode(value)
+                                    .unwrap(),
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap(),
+                    );
+                    return Some(HyperlaneMessage::read_from(&mut reader).unwrap());
                 }
             }
-
-            Some(res)
+            None
         }
     }
 
