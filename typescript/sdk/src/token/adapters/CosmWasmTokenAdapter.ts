@@ -248,7 +248,7 @@ export class CwHypTokenAdapter
     if (!route) {
       throw new Error(`No route found for domain ${domain}`);
     }
-    return Buffer.from(route);
+    return Buffer.from(route, 'hex');
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
@@ -261,7 +261,7 @@ export class CwHypTokenAdapter
       .filter((r) => r.route != null)
       .map((r) => ({
         domain: r.domain,
-        address: Buffer.from(r.route!),
+        address: Buffer.from(r.route!, 'hex'),
       }));
   }
 

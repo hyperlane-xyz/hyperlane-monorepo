@@ -1,6 +1,6 @@
 import { Debugger, debug } from 'debug';
 
-import { ProtocolType, exclude, isNumeric, pick } from '@hyperlane-xyz/utils';
+import { ProtocolType, exclude, pick } from '@hyperlane-xyz/utils';
 
 import {
   chainMetadata as defaultChainMetadata,
@@ -64,7 +64,7 @@ export class ChainMetadataManager<MetaExt = {}> {
         chainId == metadata.chainId ||
         domainId == metadata.chainId ||
         (metadata.domainId &&
-          (chainId == metadata.domainId || domainId === metadata.domainId));
+          (chainId == metadata.domainId || domainId == metadata.domainId));
       if (idCollision)
         throw new Error(
           `Chain/Domain id collision: ${name} and ${metadata.name}`,
@@ -80,16 +80,12 @@ export class ChainMetadataManager<MetaExt = {}> {
   tryGetChainMetadata(
     chainNameOrId: ChainName | number,
   ): ChainMetadata<MetaExt> | null {
-    let chainMetadata: ChainMetadata<MetaExt> | undefined;
-    if (isNumeric(chainNameOrId)) {
-      // Should be chain id or domain id
-      chainMetadata = Object.values(this.metadata).find(
-        (m) => m.chainId == chainNameOrId || m.domainId == chainNameOrId,
-      );
-    } else if (typeof chainNameOrId === 'string') {
-      // Should be chain name
-      chainMetadata = this.metadata[chainNameOrId];
-    }
+    // First check if it's a chain name
+    if (this.metadata[chainNameOrId]) return this.metadata[chainNameOrId];
+    // Otherwise search by chain id and domain id
+    const chainMetadata = Object.values(this.metadata).find(
+      (m) => m.chainId == chainNameOrId || m.domainId == chainNameOrId,
+    );
     return chainMetadata || null;
   }
 

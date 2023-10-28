@@ -7,7 +7,7 @@ import { Address, HexString, ProtocolType } from './types';
 const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SEALEVEL_ADDRESS_REGEX = /^[a-zA-Z0-9]{36,44}$/;
 const COSMOS_ADDRESS_REGEX =
-  /^[a-z]{1,10}1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{38}$/; // Bech32 address with 32 chars and 6 checksum chars
+  /^[a-z]{1,10}1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{38,58}$/; // Bech32
 
 const EVM_TX_HASH_REGEX = /^0x([A-Fa-f0-9]{64})$/;
 const SEALEVEL_TX_HASH_REGEX = /^[a-zA-Z1-9]{88}$/;
@@ -295,11 +295,14 @@ export function bytesToProtocolAddress(
 export function convertToProtocolAddress(
   address: string,
   protocol: ProtocolType,
+  prefix?: string,
 ) {
   const currentProtocol = getAddressProtocolType(address);
+  if (!currentProtocol)
+    throw new Error(`Unknown address protocol for ${address}`);
   if (currentProtocol === protocol) return address;
   const addressBytes = addressToBytes(address, currentProtocol);
-  return bytesToProtocolAddress(addressBytes, protocol);
+  return bytesToProtocolAddress(addressBytes, protocol, prefix);
 }
 
 export function ensure0x(hexstr: string) {
