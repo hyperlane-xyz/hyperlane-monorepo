@@ -8,6 +8,7 @@ const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SEALEVEL_ADDRESS_REGEX = /^[a-zA-Z0-9]{36,44}$/;
 const COSMOS_ADDRESS_REGEX =
   /^[a-z]{1,10}1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{38,58}$/; // Bech32
+export const IBC_DENOM_REGEX = /^ibc\/([A-Fa-f0-9]{64})$/;
 
 const EVM_TX_HASH_REGEX = /^0x([A-Fa-f0-9]{64})$/;
 const SEALEVEL_TX_HASH_REGEX = /^[a-zA-Z1-9]{88}$/;
@@ -25,17 +26,17 @@ export function isAddressSealevel(address: Address) {
 }
 
 export function isAddressCosmos(address: Address) {
-  return COSMOS_ADDRESS_REGEX.test(address);
+  return COSMOS_ADDRESS_REGEX.test(address) || IBC_DENOM_REGEX.test(address);
 }
 
 export function getAddressProtocolType(address: Address) {
   if (!address) return undefined;
   if (isAddressEvm(address)) {
     return ProtocolType.Ethereum;
-  } else if (isAddressSealevel(address)) {
-    return ProtocolType.Sealevel;
   } else if (isAddressCosmos(address)) {
     return ProtocolType.Cosmos;
+  } else if (isAddressSealevel(address)) {
+    return ProtocolType.Sealevel;
   } else {
     return undefined;
   }
@@ -77,7 +78,8 @@ export function isValidAddressSealevel(address: Address) {
 // Slower than isAddressCosmos above but actually validates content and checksum
 export function isValidAddressCosmos(address: Address) {
   try {
-    const isValid = address && fromBech32(address);
+    const isValid =
+      IBC_DENOM_REGEX.test(address) || (address && fromBech32(address));
     return !!isValid;
   } catch (error) {
     return false;
