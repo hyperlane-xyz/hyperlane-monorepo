@@ -370,7 +370,108 @@
       "protocolFee": "0x9c2214467Daf9e2e1F45b36d08ce0b9C65BFeA88",
       "validatorAnnounce": "0x87ED6926abc9E38b9C7C19f835B41943b622663c",
       "index": {
-        "from": 30715963
+        "from": 30696004
+      }
+    },
+    "mantapacific": {
+      "protocol": "ethereum",
+      "domainId": 169,
+      "chainId": 169,
+      "name": "mantapacific",
+      "displayName": "Manta Pacific",
+      "displayNameShort": "Manta",
+      "nativeToken": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "blocks": {
+        "confirmations": 1,
+        "reorgPeriod": 0,
+        "estimateBlockTime": 3
+      },
+      "rpcUrls": [
+        {
+          "http": "https://pacific-rpc.manta.network/http"
+        }
+      ],
+      "isTestnet": false,
+      "merkleRootMultisigIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
+      "messageIdMultisigIsmFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "aggregationIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+      "aggregationHookFactory": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
+      "routingIsmFactory": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
+      "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
+      "mailbox": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
+      "bsc": {
+        "merkleRootMultisigIsm": "0xeb4351CD48188F2BF3B2adB973ac1591C99Ea1Eb",
+        "messageIdMultisigIsm": "0x7fe658ef7970612241dA3E0C72baB85f483B7E05",
+        "staticAggregationIsm": "0x440f0539CF460215ef86354B9DaF2AE517aec083"
+      },
+      "avalanche": {
+        "merkleRootMultisigIsm": "0x55a189Cf54F3A19Ec0e470D300B9E7154ce6b2BC",
+        "messageIdMultisigIsm": "0x8f818036434828EAbF24Ea5964C2C196B51F69E8",
+        "staticAggregationIsm": "0x85f6fee10DED6b15b4e36dC38786D1647d56abC6"
+      },
+      "base": {
+        "merkleRootMultisigIsm": "0x6c2D1620fFa3eD98901fd83c271a13e8372a833d",
+        "messageIdMultisigIsm": "0x0b9eEb221AE7066a46eEcc00c0e4bf7166e78491",
+        "staticAggregationIsm": "0x2e51Cdb525b5037b8521BDaD9A3D53DD55c2e32a"
+      },
+      "polygon": {
+        "merkleRootMultisigIsm": "0xcD73EEca505BA901D653b0a57d9dBE0E374a39C4",
+        "messageIdMultisigIsm": "0x5538dBd17Fc554800f8b2728666D4E07022d989a",
+        "staticAggregationIsm": "0x4648d8054b537EE7B5691a488bE507f7Bc8A7a56"
+      },
+      "polygonzkevm": {
+        "merkleRootMultisigIsm": "0xb703caB3afD73582F7ea6F80CE88D3b2E3fF5AAD",
+        "messageIdMultisigIsm": "0x865269ae050F6dD1C6eF23CDcf0080456cC5Bd44",
+        "staticAggregationIsm": "0xe7f028152eD20602DABc23d02dfa1605d696816D"
+      },
+      "scroll": {
+        "merkleRootMultisigIsm": "0xFFE674a8f561E13F784C58b6f93bEcEc418A9146",
+        "messageIdMultisigIsm": "0xE67D5867B520Dbe839659Ea90eDa0a52ccE36358",
+        "staticAggregationIsm": "0x3b67302cbEa46b80c3bD0fEFBeE854EA51BED13c"
+      },
+      "celo": {
+        "merkleRootMultisigIsm": "0x424b047b25622b250351252Ee70897485c603582",
+        "messageIdMultisigIsm": "0x7a562ec8a36f124a3752673486feA0FAA3A0496b",
+        "staticAggregationIsm": "0xaEe6d2D15E6C9c273D62Ff03e04Efe68aE8A355C"
+      },
+      "arbitrum": {
+        "merkleRootMultisigIsm": "0x08C0859B4DE164b942080dF136250F5e4e7b19cF",
+        "messageIdMultisigIsm": "0x28517474A13c327d2A9F837093a7D65338C2F0a5",
+        "staticAggregationIsm": "0x2727515b66AEA3f468948c0942DA469da2a7DC75"
+      },
+      "optimism": {
+        "merkleRootMultisigIsm": "0x3848879abD1e07e1916fec8a3E9cE6075FC48d5e",
+        "messageIdMultisigIsm": "0x91e0d11Dd34DaFbEb716784D7127d799ec47964A",
+        "staticAggregationIsm": "0x7fb1c0288F8D9FFD16AB6161866C4de5ccb94C19"
+      },
+      "ethereum": {
+        "merkleRootMultisigIsm": "0xe69de3fcAa6De26D3A3860E5E21aAaabFE70E9D1",
+        "messageIdMultisigIsm": "0x555b99a31935E985354332ea02014555520e0FbF",
+        "staticAggregationIsm": "0x4fde34B9F164cF1E945459b98e6085Fb4031535C"
+      },
+      "moonbeam": {
+        "merkleRootMultisigIsm": "0xbeecDA79C392862003C9618dB6E37b4ee8C2e091",
+        "messageIdMultisigIsm": "0x44de3f39EB40f1a72F8A72cDF407e86274D9818d",
+        "staticAggregationIsm": "0x34e2233224eb4Bb938f24Cdb72D7a182B3074310"
+      },
+      "gnosis": {
+        "merkleRootMultisigIsm": "0x1526dAFeDBfD375EEb69fAD0fD0DF94841A9B70B",
+        "messageIdMultisigIsm": "0x95d4d919d650F5f72A82fa4DEdf176616ec035CA",
+        "staticAggregationIsm": "0x5c3e9E58C852aF94dc9dF49c368619513f8E8D01"
+      },
+      "domainRoutingIsm": "0xDEed16fe4b1c9b2a93483EDFf34C77A9b57D31Ff",
+      "storageGasOracle": "0x19dc38aeae620380430C200a6E990D5Af5480117",
+      "interchainGasPaymaster": "0x0D63128D887159d63De29497dfa45AFc7C699AE4",
+      "merkleTreeHook": "0x149db7afD694722747035d5AEC7007ccb6F8f112",
+      "aggregationHook": "0x8464aF853363B8d6844070F68b0AB34Cb6523d0F",
+      "protocolFee": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
+      "validatorAnnounce": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
+      "index": {
+        "from": 437384
       }
     },
     "moonbeam": {

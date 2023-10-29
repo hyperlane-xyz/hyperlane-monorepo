@@ -49,6 +49,7 @@ const gasPrices: ChainMap<BigNumber> = {
   scroll: ethers.utils.parseUnits('1', 'gwei'),
   polygonzkevm: ethers.utils.parseUnits('2', 'gwei'),
   neutron: ethers.utils.parseUnits('1', 'gwei'),
+  mantapacific: ethers.utils.parseUnits('1', 'gwei'),
 };
 
 // Accurate from coingecko as of Mar 9, 2023.
@@ -86,6 +87,11 @@ const tokenUsdPrices: ChainMap<BigNumber> = {
   ),
   // https://www.coingecko.com/en/coins/neutron
   neutron: ethers.utils.parseUnits('0.304396', TOKEN_EXCHANGE_RATE_DECIMALS),
+  // https://www.coingecko.com/en/coins/ethereum
+  mantapacific: ethers.utils.parseUnits(
+    '1619.00',
+    TOKEN_EXCHANGE_RATE_DECIMALS,
+  ),
 };
 
 // Gets the exchange rate of the remote quoted in local tokens
