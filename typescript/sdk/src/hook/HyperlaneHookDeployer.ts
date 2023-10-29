@@ -1,4 +1,5 @@
 import debug from 'debug';
+import { ethers } from 'ethers';
 
 import {
   DomainRoutingHook,
@@ -9,7 +10,7 @@ import {
   StaticAggregationHook__factory,
   StaticProtocolFee,
 } from '@hyperlane-xyz/core';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { CoreAddresses } from '../core/contracts';
@@ -174,6 +175,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     // deploy opstack ism
     const ismConfig: OpStackIsmConfig = {
       type: IsmType.OP_STACK,
+      origin: chain,
       nativeBridge: l2Messenger,
     };
     const opstackIsm = await this.ismFactory.deploy(
@@ -184,15 +186,42 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     // deploy opstack hook
     const hook = await this.deployContract(chain, HookType.OP_STACK, [
       mailbox,
-      config.destinationDomain,
-      opstackIsm.address,
+      this.multiProvider.getDomainId(config.destinationChain),
+      addressToBytes32(opstackIsm.address),
       config.nativeBridge,
     ]);
     const overrides = this.multiProvider.getTransactionOverrides(chain);
-    await this.multiProvider.handleTx(
-      chain,
-      (opstackIsm as OPStackIsm).setAuthorizedHook(hook.address, overrides),
+    // set authorized hook on opstack ism
+    const authorizedHook = await (opstackIsm as OPStackIsm).authorizedHook();
+    if (authorizedHook === addressToBytes32(hook.address)) {
+      this.logger('Authorized hook already set on ism %s', opstackIsm.address);
+      return hook;
+    } else if (
+      authorizedHook !== addressToBytes32(ethers.constants.AddressZero)
+    ) {
+      this.logger(
+        'Authorized hook mismatch on ism %s, expected %s, got %s',
+        opstackIsm.address,
+        addressToBytes32(hook.address),
+        authorizedHook,
+      );
+      throw new Error('Authorized hook mismatch');
+    }
+    // check if mismatch and redeploy hook
+    this.logger(
+      'Setting authorized hook %s on ism % on destination %s',
+      hook.address,
+      opstackIsm.address,
+      config.destinationChain,
     );
+    await this.multiProvider.handleTx(
+      config.destinationChain,
+      (opstackIsm as OPStackIsm).setAuthorizedHook(
+        addressToBytes32(hook.address),
+        overrides,
+      ),
+    );
+
     return hook;
   }
 

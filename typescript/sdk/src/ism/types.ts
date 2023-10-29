@@ -90,6 +90,7 @@ export type AggregationIsmConfig = {
 
 export type OpStackIsmConfig = {
   type: IsmType.OP_STACK;
+  origin: Address;
   nativeBridge: Address;
 };
 

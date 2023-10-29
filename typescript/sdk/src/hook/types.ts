@@ -39,7 +39,6 @@ export type ProtocolFeeHookConfig = {
 export type OpStackHookConfig = {
   type: HookType.OP_STACK;
   nativeBridge: Address;
-  destinationDomain: BigNumber;
   destinationChain: ChainName;
 };
 
