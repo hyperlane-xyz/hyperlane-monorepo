@@ -61,10 +61,10 @@ describe('utils', () => {
 
   describe('bigToFixed', () => {
     it('converts a BigNumber to a FixedNumber', () => {
-      const big = BigNumber('1234');
+      const big = BigNumber('7.5e-10');
       const fixed = bigToFixed(big);
 
-      expect(fixed.toUnsafeFloat()).to.equal(1234);
+      expect(fixed.toUnsafeFloat()).to.equal(7.5e-10);
     });
   });
 

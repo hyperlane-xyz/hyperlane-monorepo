@@ -5,6 +5,9 @@ const DEFAULT_MIN_ROUNDED_VALUE = 0.00001;
 const DEFAULT_DISPLAY_DECIMALS = 4;
 const DEFAULT_TOKEN_DECIMALS = 18;
 
+// Use toString(10) on bignumber.js to prevent ethers.js bigNumber error
+// when parsing exponential string over e21
+
 /**
  * Convert the given Wei value to Ether value
  * @param value The value to convert.
@@ -15,7 +18,7 @@ export function fromWei(
   decimals = DEFAULT_TOKEN_DECIMALS,
 ): string {
   if (!value) return (0).toString();
-  const valueString = value.toString().trim();
+  const valueString = value.toString(10).trim();
   const flooredValue = BigNumber(valueString).toFixed(0, BigNumber.ROUND_FLOOR);
   return parseFloat(formatUnits(flooredValue, decimals)).toString();
 }
@@ -44,7 +47,7 @@ export function fromWeiRounded(
   }
 
   const displayDecimals = amount.gte(10000) ? 2 : DEFAULT_DISPLAY_DECIMALS;
-  return amount.toFixed(displayDecimals).toString();
+  return amount.toFixed(displayDecimals);
 }
 
 /**
@@ -125,17 +128,17 @@ export function convertDecimals(
 ): string {
   const amount = BigNumber(value);
 
-  if (fromDecimals === toDecimals) return amount.toString();
+  if (fromDecimals === toDecimals) return amount.toString(10);
   else if (fromDecimals > toDecimals) {
     const difference = fromDecimals - toDecimals;
     return amount
       .div(BigNumber(10).pow(difference))
       .integerValue(BigNumber.ROUND_FLOOR)
-      .toString();
+      .toString(10);
   }
   // fromDecimals < toDecimals
   else {
     const difference = toDecimals - fromDecimals;
-    return amount.times(BigNumber(10).pow(difference)).toString();
+    return amount.times(BigNumber(10).pow(difference)).toString(10);
   }
 }

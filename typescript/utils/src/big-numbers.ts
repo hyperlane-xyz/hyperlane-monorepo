@@ -1,6 +1,9 @@
 import BigNumber from 'bignumber.js';
 import { FixedNumber } from 'ethers';
 
+// Use toString(10) on bignumber.js to prevent ethers.js bigNumber error
+// when parsing exponential string over e21
+
 /**
  * Check if a value is bigNumberish (e.g. valid numbers, bigNumber).
  * @param value The value to check.
@@ -36,7 +39,7 @@ export function isZeroish(value: BigNumber.Value): boolean {
  * @returns A FixedNumber representation of a BigNumber.
  */
 export function bigToFixed(big: BigNumber.Value): FixedNumber {
-  return FixedNumber.from(big.toString());
+  return FixedNumber.from(big.toString(10));
 }
 
 /**
@@ -64,7 +67,7 @@ export function mulBigAndFixed(
 ): string {
   // Converts big to a FixedNumber, multiplies it by fixed, and converts the product back
   // to a BigNumber.
-  return fixedToBig(fixed.mulUnsafe(bigToFixed(big)), ceil).toString();
+  return fixedToBig(fixed.mulUnsafe(bigToFixed(big)), ceil).toString(10);
 }
 
 /**
@@ -77,7 +80,7 @@ export function BigNumberMin(
   bn1: BigNumber.Value,
   bn2: BigNumber.Value,
 ): string {
-  return BigNumber(bn1).gte(bn2) ? bn2.toString() : bn1.toString();
+  return BigNumber(bn1).gte(bn2) ? bn2.toString(10) : bn1.toString(10);
 }
 
 /**
@@ -90,5 +93,5 @@ export function BigNumberMax(
   bn1: BigNumber.Value,
   bn2: BigNumber.Value,
 ): string {
-  return BigNumber(bn1).lte(bn2) ? bn2.toString() : bn1.toString();
+  return BigNumber(bn1).lte(bn2) ? bn2.toString(10) : bn1.toString(10);
 }
