@@ -394,7 +394,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
 
     let signer_type = signer
         .chain(&mut err)
-        .get_opt_key("signerType")
+        .get_opt_key("type")
         .parse_string()
         .end();
 
