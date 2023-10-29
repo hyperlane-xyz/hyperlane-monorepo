@@ -79,7 +79,7 @@ export function isValidAddressSealevel(address: Address) {
 export function isValidAddressCosmos(address: Address) {
   try {
     const isValid =
-      IBC_DENOM_REGEX.test(address) || (address && fromBech32(address));
+      address && (IBC_DENOM_REGEX.test(address) || fromBech32(address));
     return !!isValid;
   } catch (error) {
     return false;
