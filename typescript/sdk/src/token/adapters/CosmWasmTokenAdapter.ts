@@ -46,7 +46,7 @@ export class CwNativeTokenAdapter
     public readonly chainName: string,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: Record<string, Address>,
-    public readonly ibcDenom: string = 'token',
+    public readonly ibcDenom: string = 'untrn',
   ) {
     super(chainName, multiProvider, addresses);
   }
@@ -97,7 +97,7 @@ export class CwTokenAdapter
     public readonly chainName: string,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { token: Address },
-    public readonly denom = 'token',
+    public readonly denom = 'untrn',
   ) {
     super(chainName, multiProvider, addresses);
   }
@@ -183,7 +183,7 @@ export class CwHypSyntheticAdapter
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider<any>,
     public readonly addresses: { token: Address; warpRouter: Address },
-    public readonly gasDenom = 'token',
+    public readonly gasDenom = 'untrn',
   ) {
     super(chainName, multiProvider, addresses);
   }
@@ -308,7 +308,7 @@ export class CwHypNativeAdapter
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider<any>,
     public readonly addresses: { warpRouter: Address },
-    public readonly gasDenom = 'token',
+    public readonly gasDenom = 'untrn',
   ) {
     super(chainName, multiProvider, addresses, gasDenom);
     this.cw20adapter = new CwHypSyntheticAdapter(
@@ -402,7 +402,7 @@ export class CwHypCollateralAdapter
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider<any>,
     public readonly addresses: { warpRouter: Address; token: Address },
-    public readonly gasDenom = 'token',
+    public readonly gasDenom = 'untrn',
   ) {
     super(chainName, multiProvider, addresses, gasDenom);
   }
