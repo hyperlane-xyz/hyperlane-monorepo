@@ -236,10 +236,18 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
   },
   neutron: {
     threshold: 2,
-    validators: ['', '', ''],
+    validators: [
+      '0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0',
+      '0x60e890b34cb44ce3fa52f38684f613f31b47a1a6',
+      '0x7885fae56dbcf5176657f54adbbd881dc6714132',
+    ],
   },
   mantapacific: {
     threshold: 2,
-    validators: ['', '', ''],
+    validators: [
+      '0x8e668c97ad76d0e28375275c41ece4972ab8a5bc',
+      '0x80afdde2a81f3fb056fd088a97f0af3722dbc4f3',
+      '0x5dda0c4cf18de3b3ab637f8df82b24921082b54c',
+    ],
   },
 };
