@@ -53,7 +53,10 @@ const hyperlane: RootAgentConfig = {
     },
     chainDockerOverrides: {
       [chainMetadata.neutron.name]: {
-        tag: '7816e05-20231028-225509',
+        tag: 'e300482-20231029-202732',
+      },
+      [chainMetadata.mantapacific.name]: {
+        tag: 'e300482-20231029-202732',
       },
     },
     rpcConsensusType: RpcConsensusType.Quorum,

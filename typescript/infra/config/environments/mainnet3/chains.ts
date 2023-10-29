@@ -53,7 +53,7 @@ export const nonEthereumMainnetConfigs: ChainMap<ChainMetadata> = {
 
 export const mainnetConfigs: ChainMap<ChainMetadata> = {
   ...ethereumMainnetConfigs,
-  // ...nonEthereumMainnetConfigs,
+  ...nonEthereumMainnetConfigs,
 };
 
 export type MainnetChains = keyof typeof mainnetConfigs;
