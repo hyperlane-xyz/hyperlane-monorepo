@@ -319,6 +319,13 @@ export class CwHypNativeAdapter
     );
   }
 
+  async getBalance(address: string): Promise<string> {
+    const provider = await this.getProvider();
+    const denom = await this.denom();
+    const balance = await provider.getBalance(address, denom);
+    return balance.amount;
+  }
+
   async interchainSecurityModule(): Promise<Address> {
     return this.cw20adapter.interchainSecurityModule();
   }
@@ -398,6 +405,5 @@ export class CwHypCollateralAdapter
     public readonly gasDenom = 'token',
   ) {
     super(chainName, multiProvider, addresses, gasDenom);
-    throw new Error('Not yet implemented');
   }
 }
