@@ -138,7 +138,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
           case ProtocolType.Ethereum:
             chainSigner = validator;
             break;
-          case ProtocolType.CosmWasm:
+          case ProtocolType.Cosmos:
             if (metadata.prefix === undefined) {
               throw new Error(
                 `Prefix for cosmos chain ${this.chainName} is undefined`,

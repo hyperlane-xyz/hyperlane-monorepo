@@ -1011,7 +1011,6 @@ export const neutrontestnet: ChainMetadata = {
   chainId: 33333,
   name: Chains.neutrontestnet,
   displayName: 'Neutron Testnet',
-  displayNameShort: 'Neutron Testnet',
   nativeToken: {
     name: 'Neutron',
     symbol: 'NTRN',
