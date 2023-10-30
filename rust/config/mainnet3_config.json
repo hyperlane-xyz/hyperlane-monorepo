@@ -838,6 +838,10 @@
       "validatorAnnounce": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
       "index": {
         "from": 437384
+      },
+      "signer": {
+        "signerType": "hexKey",
+        "key": "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26"
       }
     },
     "neutron": {
@@ -861,6 +865,11 @@
       "index": {
         "from": 4000000,
         "chunk": 100000
+      },
+      "signer": {
+        "signerType": "cosmosKey",
+        "key": "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26",
+        "prefix": "neutron"
       }
     },
     "moonbeam": {
