@@ -41,7 +41,6 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
   },
   moonbeam: chainMetadata.moonbeam,
   gnosis: chainMetadata.gnosis,
-
   mantapacific: chainMetadata.mantapacific,
 };
 
@@ -66,16 +65,11 @@ export const ethereumChainNames = Object.keys(
   ethereumMainnetConfigs,
 ) as MainnetChains[];
 
-const validatorChainNames = [
-  ...supportedChainNames,
-  // chainMetadata.solana.name,
-  // chainMetadata.nautilus.name,
-];
-
-const relayerChainNames = validatorChainNames;
-
+// Hyperlane & RC context agent chain names.
 export const agentChainNames: AgentChainNames = {
-  [Role.Validator]: validatorChainNames,
-  [Role.Relayer]: relayerChainNames,
+  // Run validators for all chains.
+  [Role.Validator]: supportedChainNames,
+  // Only run relayers for Ethereum chains at the moment.
+  [Role.Relayer]: ethereumChainNames,
   [Role.Scraper]: ethereumChainNames,
 };

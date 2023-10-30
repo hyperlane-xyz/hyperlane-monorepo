@@ -44,11 +44,12 @@ export const environment = 'testnet4';
 export const ethereumChainNames = Object.keys(
   ethereumTestnetConfigs,
 ) as TestnetChains[];
-const validatorChainNames = supportedChainNames;
-const relayerChainNames = validatorChainNames;
 
+// Hyperlane & RC context agent chain names.
 export const agentChainNames: AgentChainNames = {
-  [Role.Validator]: validatorChainNames,
-  [Role.Relayer]: relayerChainNames,
+  // Run validators for all chains.
+  [Role.Validator]: supportedChainNames,
+  // Only run relayers for Ethereum chains at the moment.
+  [Role.Relayer]: ethereumChainNames,
   [Role.Scraper]: ethereumChainNames,
 };

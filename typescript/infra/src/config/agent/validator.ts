@@ -12,7 +12,12 @@ import { AgentAwsUser, ValidatorAgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 
-import { AgentConfigHelper, KeyConfig, RootAgentConfig } from './agent';
+import {
+  AgentConfigHelper,
+  KeyConfig,
+  RootAgentConfig,
+  defaultChainSignerKeyConfig,
+} from './agent';
 
 // Validator agents for each chain.
 export type ValidatorBaseChainConfigMap = ChainMap<ValidatorBaseChainConfig>;
@@ -160,6 +165,13 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       console.warn(
         `Validator ${cfg.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
       );
+    }
+
+    // If the chainSigner isn't set to the AWS-based key above, then set the default.
+    // There is no self-announcement on Sealevel, so in that case we just skip the
+    // chain signer altogether
+    if (chainSigner === undefined && protocol !== ProtocolType.Sealevel) {
+      chainSigner = defaultChainSignerKeyConfig(this.chainName);
     }
 
     return {

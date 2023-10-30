@@ -4,7 +4,9 @@ import {
   AgentSignerKeyType,
   ChainName,
   RpcConsensusType,
+  chainMetadata,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../../config/contexts';
 import { AgentChainNames, Role } from '../../roles';
@@ -186,3 +188,22 @@ export abstract class AgentConfigHelper<R = unknown>
 export const allAgentChainNames = (agentChainNames: AgentChainNames) => [
   ...new Set(Object.values(agentChainNames).reduce((a, b) => a.concat(b), [])),
 ];
+
+// Returns the default KeyConfig for the `chainName`'s chain signer.
+// For Ethereum or Sealevel, this is a hexKey, for Cosmos, this is a cosmosKey.
+export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
+  const metadata = chainMetadata[chainName];
+
+  switch (metadata?.protocol) {
+    case ProtocolType.Cosmos:
+      if (metadata.bech32Prefix === undefined) {
+        throw new Error(`Bech32 prefix for cosmos chain ${name} is undefined`);
+      }
+      return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
+    // For Ethereum and Sealevel, use a hex key
+    case ProtocolType.Ethereum:
+    case ProtocolType.Sealevel:
+    default:
+      return { type: AgentSignerKeyType.Hex };
+  }
+}

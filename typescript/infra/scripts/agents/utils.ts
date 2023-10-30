@@ -24,6 +24,8 @@ export class AgentCli {
   agentConfig!: RootAgentConfig;
   initialized = false;
   dryRun = false;
+  // Whether to run deployments in parallel
+  parallel = false;
 
   public async runHelmCommand(command: HelmCommand) {
     await this.init();
@@ -34,12 +36,6 @@ export class AgentCli {
       switch (role) {
         case Role.Validator:
           for (const chain of this.agentConfig.contextChainNames[role]) {
-            if (
-              chain !== 'neutrontestnet' &&
-              chain !== 'neutron' &&
-              chain !== 'mantapacific'
-            )
-              continue;
             const key = `${role}-${chain}`;
             managers[key] = new ValidatorHelmManager(this.agentConfig, chain);
           }
@@ -67,21 +63,21 @@ export class AgentCli {
     }
   }
 
-  protected async init(
-    argv?: GetConfigsArgv & { role: Role[]; 'dry-run'?: boolean },
-  ) {
+  protected async init() {
     if (this.initialized) return;
-    if (!argv)
-      argv = await withAgentRole(withContext(getArgs()))
-        .describe('dry-run', 'Run through the steps without making any changes')
-        .boolean('dry-run').argv;
+    const argv = await withAgentRole(withContext(getArgs()))
+      .describe('dry-run', 'Run through the steps without making any changes')
+      .boolean('dry-run')
+      .describe('parallel', 'Whether to run deployments in parallel')
+      .boolean('parallel').argv;
 
     const { envConfig, agentConfig } = await getConfigsBasedOnArgs(argv);
     await assertCorrectKubeContext(envConfig);
     this.roles = argv.role;
     this.envConfig = envConfig;
     this.agentConfig = agentConfig;
-    this.dryRun = argv['dry-run'] || false;
+    this.dryRun = argv.dryRun || false;
+    this.parallel = argv.parallel || false;
     this.initialized = true;
   }
 }
