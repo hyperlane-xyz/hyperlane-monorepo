@@ -9,7 +9,7 @@ import { TestChains } from '../consts/chains';
 import { HyperlaneContractsMap } from '../contracts/types';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { AggregationIsmConfig, ModuleType } from '../ism/types';
+import { AggregationIsmConfig, IsmType } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { testCoreConfig } from '../test/testUtils';
 import { ChainMap } from '../types';
@@ -95,7 +95,7 @@ describe('core', async () => {
         coreConfig,
         (_, config) => {
           const ismConfig: AggregationIsmConfig = {
-            type: ModuleType.AGGREGATION,
+            type: IsmType.AGGREGATION,
             modules: [testIsm, testIsm],
             threshold: 2,
           };

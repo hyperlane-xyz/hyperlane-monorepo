@@ -18,21 +18,7 @@ import { igp } from './igp';
 import { owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
-  const defaultIsm = routingIsm('mainnet2', local, Contexts.Hyperlane);
-
-  let upgrade: CoreConfig['upgrade'];
-  if (local === 'arbitrum') {
-    upgrade = {
-      timelock: {
-        // 7 days in seconds
-        delay: 7 * 24 * 60 * 60,
-        roles: {
-          proposer: owner,
-          executor: owner,
-        },
-      },
-    };
-  }
+  const defaultIsm = routingIsm('mainnet3', local, Contexts.Hyperlane);
 
   const merkleHook: MerkleTreeHookConfig = {
     type: HookType.MERKLE_TREE,
@@ -51,7 +37,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const requiredHook: ProtocolFeeHookConfig = {
     type: HookType.PROTOCOL_FEE,
     maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'), // 1 gwei of native token
-    protocolFee: BigNumber.from(1), // 1 wei
+    protocolFee: BigNumber.from(0), // 0 wei
     beneficiary: owner,
     owner,
   };

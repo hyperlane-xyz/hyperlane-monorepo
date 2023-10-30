@@ -33,6 +33,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
+    // @ts-ignore
     return HyperlaneCore.fromAddressesMap(envAddresses, multiProvider);
   }
 

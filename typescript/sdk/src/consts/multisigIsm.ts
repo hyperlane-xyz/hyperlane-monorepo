@@ -4,106 +4,104 @@ import { ChainMap } from '../types';
 export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
   // ----------------- Mainnets -----------------
   celo: {
-    threshold: 4,
+    threshold: 2,
     validators: [
-      '0x1f20274b1210046769d48174c2f0e7c25ca7d5c5', // abacus
-      '0x3bc014bafa43f93d534aed34f750997cdffcf007', // dsrv
-      '0xd79d506d741fa735938f7b7847a926e34a6fe6b0', // everstake
-      '0xe4a258bc61e65914c2a477b2a8a433ab4ebdf44b', // zee prime
-      '0x6aea63b0be4679c1385c26a92a3ff8aa6a8379f2', // staked
-      '0xc0085e1a49bcc69e534272adb82c74c0e007e1ca', // zkv
+      '0x63478422679303c3e4fc611b771fa4a707ef7f4a',
+      '0x2f4e808744df049d8acc050628f7bdd8265807f9',
+      '0x7bf30afcb6a7d92146d5a910ea4c154fba38d25e',
     ],
   },
   ethereum: {
-    threshold: 4,
+    threshold: 2,
     validators: [
-      '0x4c327ccb881a7542be77500b2833dc84c839e7b7', // abacus
-      '0x84cb373148ef9112b277e68acf676fefa9a9a9a0', // dsrv
-      '0x0d860c2b28bec3af4fd3a5997283e460ff6f2789', // everstake
-      '0xd4c1211f0eefb97a846c4e6d6589832e52fc03db', // zee prime
-      '0x600c90404d5c9df885404d2cc5350c9b314ea3a2', // staked
-      '0x892DC66F5B2f8C438E03f6323394e34A9C24F2D6', // zkv
+      '0x03c842db86a6a3e524d4a6615390c1ea8e2b9541',
+      '0x4346776b10f5e0d9995d884b7a1dbaee4e24c016',
+      '0x749d6e7ad949e522c92181dc77f7bbc1c5d71506',
     ],
   },
   avalanche: {
-    threshold: 4,
+    threshold: 2,
     validators: [
-      '0xa7aa52623fe3d78c343008c95894be669e218b8d', // abacus
-      '0xb6004433fb04f643e2d48ae765c0e7f890f0bc0c', // dsrv
-      '0xa07e213e0985b21a6128e6c22ab5fb73948b0cc2', // everstake
-      '0x73853ed9a5f6f2e4c521970a94d43469e3cdaea6', // zee prime
-      '0xbd2e136cda02ba627ca882e49b184cbe976081c8', // staked
-      '0x1418126f944a44dad9edbab32294a8c890e7a9e3', // zkv
+      '0x3fb8263859843bffb02950c492d492cae169f4cf',
+      '0xe58c63ad669b946e7c8211299f22679deecc9c83',
+      '0x6c754f1e9cd8287088b46a7c807303d55d728b49',
     ],
   },
   polygon: {
-    threshold: 4,
+    threshold: 2,
     validators: [
-      '0x59a001c3451e7f9f3b4759ea215382c1e9aa5fc1', // abacus
-      '0x009fb042d28944017177920c1d40da02bfebf474', // dsrv
-      '0xba4b13e23705a5919c1901150d9697e8ffb3ea71', // everstake
-      '0x2faa4071b718972f9b4beec1d8cbaa4eb6cca6c6', // zee prime
-      '0x5ae9b0f833dfe09ef455562a1f603f1634504dd6', // staked
-      '0x6a163d312f7352a95c9b81dca15078d5bf77a442', // zkv
+      '0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac',
+      '0x8dd8f8d34b5ecaa5f66de24b01acd7b8461c3916',
+      '0xdbf3666de031bea43ec35822e8c33b9a9c610322',
     ],
   },
   bsc: {
-    threshold: 4,
+    threshold: 2,
     validators: [
-      '0xcc84b1eb711e5076b2755cf4ad1d2b42c458a45e', // abacus
-      '0xefe34eae2bca1846b895d2d0762ec21796aa196a', // dsrv
-      '0x662674e80e189b0861d6835c287693f50ee0c2ff', // everstake
-      '0x8a0f59075af466841808c529624807656309c9da', // zee prime
-      '0xdd2ff046ccd748a456b4757a73d47f165469669f', // staked
-      '0x034c4924c30ec4aa1b7f3ad58548988f0971e1bf', // zkv
+      '0x570af9b7b36568c8877eebba6c6727aa9dab7268',
+      '0x7bf928d5d262365d31d64eaa24755d48c3cae313',
+      '0x03047213365800f065356b4a2fe97c3c3a52296a',
     ],
   },
   arbitrum: {
-    threshold: 4,
+    threshold: 2,
     validators: [
-      '0xbcb815f38d481a5eba4d7ac4c9e74d9d0fc2a7e7', // abacus
-      '0xd839424e2e5ace0a81152298dc2b1e3bb3c7fb20', // dsrv
-      '0xb8085c954b75b7088bcce69e61d12fcef797cd8d', // everstake
-      '0x9856dcb10fd6e5407fa74b5ab1d3b96cc193e9b7', // zee prime
-      '0x505dff4e0827aa5065f5e001db888e0569d46490', // staked
-      '0x25c6779d4610f940bf2488732e10bcffb9d36f81', // ZKV
+      '0x4d966438fe9e2b1e7124c87bbb90cb4f0f6c59a1',
+      '0x6333e110b8a261cab28acb43030bcde59f26978a',
+      '0x3369e12edd52570806f126eb50be269ba5e65843',
     ],
   },
   optimism: {
-    threshold: 4,
+    threshold: 2,
     validators: [
-      '0x9f2296d5cfc6b5176adc7716c7596898ded13d35', // abacus
-      '0x9c10bbe8efa03a8f49dfdb5c549258e3a8dca097', // dsrv
-      '0x62144d4a52a0a0335ea5bb84392ef9912461d9dd', // everstake
-      '0xaff4718d5d637466ad07441ee3b7c4af8e328dbd', // zee prime
-      '0xc64d1efeab8ae222bc889fe669f75d21b23005d9', // staked
-      '0xfa174eb2b4921bb652bc1ada3e8b00e7e280bf3c', // ZKV
+      '0x20349eadc6c72e94ce38268b96692b1a5c20de4f',
+      '0x04d040cee072272789e2d1f29aef73b3ad098db5',
+      '0x779a17e035018396724a6dec8a59bda1b5adf738',
     ],
   },
   moonbeam: {
-    threshold: 3,
+    threshold: 2,
     validators: [
-      '0x237243d32d10e3bdbbf8dbcccc98ad44c1c172ea', // abacus
-      '0x9509c8cf0a06955f27342262af501b74874e98fb', // dsrv
-      '0xb7113c999e4d587b162dd1a28c73f3f51c6bdcdc', // everstake
-      '0x26725501597d47352a23cd26f122709f69ad53bc', // staked
+      '0x2225e2f4e9221049456da93b71d2de41f3b6b2a8',
+      '0x4fe067bb455358e295bfcfb92519a6f9de94b98e',
+      '0xcc4a78aa162482bea43313cd836ba7b560b44fc4',
     ],
   },
   gnosis: {
-    threshold: 3,
-    validators: [
-      '0xd0529ec8df08d0d63c0f023786bfa81e4bb51fd6', // abacus
-      '0x8a72ff8571c53c62c7ca02e8c97a443cd5674383', // dsrv
-      '0x4075c2f6bd6d9562067cfe551d49c2bcafa7d692', // everstake
-      '0xa18580444eaeb1c5957e7b66a6bf84b6519f904d', // staked
-    ],
-  },
-  solana: {
     threshold: 2,
     validators: [
-      '0x3cd1a081f38874bbb075bf10b62adcb858db864c', // abacus
-      '0x2b0c45f6111ae1c1684d4287792e3bd6ebd1abcc', // ZKV
-      '0x7b9ec253a8ba38994457eb9dbe386938d545351a', // everstake
+      '0xd4df66a859585678f2ea8357161d896be19cc1ca',
+      '0x06a833508579f8b59d756b3a1e72451fc70840c3',
+      '0xb93a72cee19402553c9dd7fed2461aebd04e2454',
+    ],
+  },
+  // solana: {
+  //   threshold: 0,
+  //   validators: [
+  //   ],
+  // },
+  base: {
+    threshold: 2,
+    validators: [
+      '0xb9453d675e0fa3c178a17b4ce1ad5b1a279b3af9',
+      '0x4512985a574cb127b2af2d4bb676876ce804e3f8',
+      '0xb144bb2f599a5af095bc30367856f27ea8a8adc7',
+    ],
+  },
+  scroll: {
+    threshold: 2,
+    validators: [
+      '0xad557170a9f2f21c35e03de07cb30dcbcc3dff63',
+      '0xb37fe43a9f47b7024c2d5ae22526cc66b5261533',
+      '0x7210fa0a6be39a75cb14d682ebfb37e2b53ecbe5',
+    ],
+  },
+  polygonzkevm: {
+    threshold: 2,
+    validators: [
+      '0x86f2a44592bb98da766e880cfd70d3bbb295e61a',
+      '0xc84076030bdabaabb9e61161d833dd84b700afda',
+      '0x6a1da2e0b7ae26aaece1377c0a4dbe25b85fa3ca',
     ],
   },
   // ----------------- Testnets -----------------
