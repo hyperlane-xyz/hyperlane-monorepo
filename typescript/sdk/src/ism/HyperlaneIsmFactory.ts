@@ -93,12 +93,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     this.logger(
       `Deploying ${ismType} to ${chain} ${
         origin ? `(for verifying ${origin})` : ''
-      }}`,
+      }`,
     );
 
     let contract: DeployedIsmType[typeof ismType];
     switch (ismType) {
-      case IsmType.MERKLE_ROOT_MULTISIG || IsmType.MESSAGE_ID_MULTISIG:
+      case IsmType.MESSAGE_ID_MULTISIG:
+      case IsmType.MERKLE_ROOT_MULTISIG:
         contract = await this.deployMultisigIsm(chain, config);
         break;
       case IsmType.ROUTING:

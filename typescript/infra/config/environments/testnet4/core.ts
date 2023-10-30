@@ -4,17 +4,14 @@ import {
   AggregationHookConfig,
   AggregationIsmConfig,
   ChainMap,
-  Chains,
   CoreConfig,
   FallbackRoutingHookConfig,
-  HookConfig,
   HookType,
   IgpHookConfig,
   IsmType,
   MerkleTreeHookConfig,
   MultisigConfig,
   MultisigIsmConfig,
-  OpStackIsmConfig,
   ProtocolFeeHookConfig,
   RoutingIsmConfig,
   defaultMultisigIsmConfigs,
@@ -55,14 +52,6 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     owner,
   };
 
-  if (local === Chains.basegoerli || local === Chains.optimismgoerli) {
-    defaultIsm.domains[Chains.goerli] = {
-      origin: Chains.goerli,
-      type: IsmType.OP_STACK,
-      nativeBridge: '0x4200000000000000000000000000000000000007',
-    } as OpStackIsmConfig;
-  }
-
   const merkleHook: MerkleTreeHookConfig = {
     type: HookType.MERKLE_TREE,
   };
@@ -72,27 +61,19 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     ...igp[local],
   };
 
-  const aggregationHook = (opStackHook: HookConfig): AggregationHookConfig => ({
-    type: HookType.AGGREGATION,
-    hooks: [opStackHook, igpHook],
-  });
-
-  const domains = Object.fromEntries(
-    Object.entries(owners)
-      .filter(([chain, _]) => chain !== local)
-      .map(([chain, _]) => [chain, aggregationHook(merkleHook) as HookConfig]),
+  const aggregationHooks = objMap(
+    originMultisigs,
+    (_origin, _): AggregationHookConfig => ({
+      type: HookType.AGGREGATION,
+      hooks: [igpHook, merkleHook],
+    }),
   );
-
-  // if (local === Chains.goerli) {
-  //   domains[Chains.optimismgoerli] = aggregationHook(opHookConfig);
-  //   domains[Chains.basegoerli] = aggregationHook(baseHookConfig);
-  // }
 
   const defaultHook: FallbackRoutingHookConfig = {
     type: HookType.FALLBACK_ROUTING,
     owner,
     fallback: merkleHook,
-    domains: domains,
+    domains: aggregationHooks,
   };
 
   const requiredHook: ProtocolFeeHookConfig = {
