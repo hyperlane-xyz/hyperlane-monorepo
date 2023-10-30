@@ -91,7 +91,7 @@ pub struct AgentConfigAddrs {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct AgentConfigSigner {
-    #[serde(rename = "signerType")]
+    #[serde(rename = "type")]
     pub typ: String,
     pub key: String,
     pub prefix: String,
