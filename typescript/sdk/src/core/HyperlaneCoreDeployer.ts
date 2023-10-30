@@ -155,7 +155,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     );
     this.addDeployedContracts(
       chain,
-      hooks,
+      this.hookDeployer.deployedContracts[chain],
       this.hookDeployer.verificationInputs[chain],
     );
     return hooks[config.type].address;
