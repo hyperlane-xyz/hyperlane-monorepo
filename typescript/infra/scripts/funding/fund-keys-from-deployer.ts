@@ -35,8 +35,8 @@ import { getAgentConfig, getArgs, getEnvironmentConfig } from '../utils';
 
 import * as L1ETHGateway from './utils/L1ETHGateway.json';
 import * as L1MessageQueue from './utils/L1MessageQueue.json';
+import * as L1ScrollMessenger from './utils/L1ScrollMessenger.json';
 import * as PolygonZkEVMBridge from './utils/PolygonZkEVMBridge.json';
-import * as L1ScrollMessenger from './utils/l1ScrollMessenger.json';
 
 const nativeBridges = {
   scrollsepolia: {
