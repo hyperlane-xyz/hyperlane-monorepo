@@ -30,6 +30,7 @@ function getWarpRoutesHelmValues() {
       repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
       tag: '962d34b-20230905-194531',
     },
+    config: 'neutron', // nautilus or neutron
   };
   return helmifyValues(values);
 }
