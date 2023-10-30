@@ -171,7 +171,7 @@ export const ChainMetadataSchemaObject = z.object({
     .optional()
     .describe('Whether the chain is considered a testnet or a mainnet.'),
   // TODO we should have a better policy for protocol-specific configurations
-  prefix: z
+  bech32Prefix: z
     .string()
     .optional()
     .describe('The prefix for a Cosmos address, e.g. osmo'),

@@ -1021,9 +1021,13 @@ export const neutrontestnet: ChainMetadata = {
     reorgPeriod: 0,
     estimateBlockTime: 3,
   },
-  rpcUrls: [{ http: 'http://54.149.31.83:26657' }],
+  // First URL RPC, second REST
+  rpcUrls: [
+    { http: 'http://54.149.31.83:26657' },
+    { http: 'http://54.149.31.83:1317' },
+  ],
+  bech32Prefix: 'dual',
   isTestnet: true,
-  prefix: 'dual',
 };
 
 /**

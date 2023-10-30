@@ -139,14 +139,14 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
             chainSigner = validator;
             break;
           case ProtocolType.Cosmos:
-            if (metadata.prefix === undefined) {
+            if (metadata.bech32Prefix === undefined) {
               throw new Error(
-                `Prefix for cosmos chain ${this.chainName} is undefined`,
+                `Bech32 prefix for cosmos chain ${this.chainName} is undefined`,
               );
             }
             chainSigner = {
               type: AgentSignerKeyType.Cosmos,
-              prefix: metadata.prefix,
+              prefix: metadata.bech32Prefix,
             };
             break;
           // No self-announcement on Sealevel
