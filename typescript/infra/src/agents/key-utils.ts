@@ -9,7 +9,7 @@ import {
 } from '../config';
 import { Role } from '../roles';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
-import { execCmd } from '../utils/utils';
+import { execCmd, isNotEthereumProtocolChain } from '../utils/utils';
 
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
@@ -259,9 +259,4 @@ function addressesIdentifier(
   context: Contexts,
 ) {
   return `${context}-${environment}-key-addresses`;
-}
-
-function isNotEthereumProtocolChain(chainName: ChainName) {
-  if (!chainMetadata[chainName]) throw new Error(`Unknown chain ${chainName}`);
-  return chainMetadata[chainName].protocol !== ProtocolType.Ethereum;
 }
