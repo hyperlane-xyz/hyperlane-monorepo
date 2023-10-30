@@ -35,11 +35,14 @@ import { getAgentConfig, getArgs, getEnvironmentConfig } from '../utils';
 
 import * as L1ETHGateway from './utils/L1ETHGateway.json';
 import * as L1MessageQueue from './utils/L1MessageQueue.json';
+import * as PolygonZkEVMBridge from './utils/PolygonZkEVMBridge.json';
 import * as L1ScrollMessenger from './utils/l1ScrollMessenger.json';
 
 const scrollL1EthGatewayAddress = '0x8A54A2347Da2562917304141ab67324615e9866d';
 const scrollL1ScrollMessengerAddress =
   '0x50c7d3e7f7c656493D1D76aaa1a836CedfCBB16A';
+const polygonZkEVMbridgeGoerliAddress =
+  '0xF6BEEeBB578e214CA9E23B0e9683454Ff88Ed2A7';
 
 type L2Chain =
   | Chains.optimism
@@ -57,6 +60,7 @@ const L2Chains: ChainName[] = [
   Chains.arbitrumgoerli,
   Chains.scrollsepolia,
   Chains.basegoerli,
+  Chains.polygonzkevmtestnet,
 ];
 
 const L2ToL1: ChainMap<ChainName> = {
@@ -66,7 +70,7 @@ const L2ToL1: ChainMap<ChainName> = {
   arbitrum: 'ethereum',
   scrollsepolia: 'sepolia',
   basegoerli: 'goerli',
-  polygonzktestnet: 'goerli',
+  polygonzkevmtestnet: 'goerli',
 };
 
 // Missing types declaration for bufio
@@ -126,7 +130,7 @@ const desiredBalancePerChain: ChainMap<string> = {
   gnosis: '0.1',
   basegoerli: '0.05',
   scrollsepolia: '0.05',
-  polygonzkevmtestnet: '0.01',
+  polygonzkevmtestnet: '0.3',
 
   // unused
   test1: '0',
@@ -432,7 +436,9 @@ class ContextFunder {
           : Role.Relayer;
         const chainsPicked = chains[roleToLookup as AgentRole];
         for (const chain of chainsPicked) {
-          chainKeys[chain].push(key);
+          if (chain === 'polygonzkevmtestnet') {
+            chainKeys[chain].push(key);
+          }
         }
       }
     }
@@ -640,6 +646,8 @@ class ContextFunder {
       tx = await this.bridgeToArbitrum(l2Chain, amount);
     } else if (l2Chain.includes('scroll')) {
       tx = await this.bridgeToScroll(l2Chain, amount, to);
+    } else if (l2Chain.includes('zkevm')) {
+      tx = await this.bridgeToPolygonCDK(l2Chain, amount, to);
     } else {
       throw new Error(`${l2Chain} is not an L2`);
     }
@@ -712,6 +720,31 @@ class ContextFunder {
       l2GasLimit,
       {
         value: totalAmount,
+      },
+    );
+  }
+
+  private async bridgeToPolygonCDK(
+    l2Chain: L2Chain,
+    amount: BigNumber,
+    to: Address,
+  ) {
+    const l1Chain = L2ToL1[l2Chain];
+    const l1ChainSigner = this.multiProvider.getSigner(l1Chain);
+    const polygonZkEVMbridge = new ethers.Contract(
+      polygonZkEVMbridgeGoerliAddress,
+      PolygonZkEVMBridge.abi,
+      l1ChainSigner,
+    );
+    return polygonZkEVMbridge.bridgeAsset(
+      1, // 0 is mainnet, 1 is l2
+      to,
+      amount,
+      ethers.constants.AddressZero,
+      true,
+      [],
+      {
+        value: amount,
       },
     );
   }
