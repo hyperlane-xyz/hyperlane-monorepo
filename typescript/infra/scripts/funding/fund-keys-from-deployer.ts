@@ -12,7 +12,7 @@ import {
   MultiProvider,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { error, log, warn } from '@hyperlane-xyz/utils';
+import { Address, error, log, warn } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { parseKeyIdentifier } from '../../src/agents/agent';
@@ -639,7 +639,7 @@ class ContextFunder {
     } else if (l2Chain.includes('arbitrum')) {
       tx = await this.bridgeToArbitrum(l2Chain, amount);
     } else if (l2Chain.includes('scroll')) {
-      tx = await this.bridgeToScroll(l2Chain, amount);
+      tx = await this.bridgeToScroll(l2Chain, amount, to);
     } else {
       throw new Error(`${l2Chain} is not an L2`);
     }
@@ -677,10 +677,13 @@ class ContextFunder {
     });
   }
 
-  private async bridgeToScroll(l2Chain: L2Chain, amount: BigNumber) {
+  private async bridgeToScroll(
+    l2Chain: L2Chain,
+    amount: BigNumber,
+    to: Address,
+  ) {
     const l1Chain = L2ToL1[l2Chain];
     const l1ChainSigner = this.multiProvider.getSigner(l1Chain);
-    const l2ChainSigner = this.multiProvider.getSigner(l2Chain);
     const l1EthGateway = new ethers.Contract(
       scrollL1EthGatewayAddress,
       L1ETHGateway.abi,
@@ -691,7 +694,7 @@ class ContextFunder {
       L1ScrollMessenger.abi,
       l1ChainSigner,
     );
-    const l2GasLimit = BigNumber.from('50000'); // l2 gas amount for the transfer and an empty callback calls
+    const l2GasLimit = BigNumber.from('200000'); // l2 gas amount for the transfer and an empty callback calls
     console.log(l1EthGateway);
     const l1MessageQueueAddress = await l1ScrollMessenger.messageQueue();
     const l1MessageQueue = new ethers.Contract(
@@ -703,9 +706,8 @@ class ContextFunder {
       l2GasLimit,
     );
     const totalAmount = amount.add(gasQuote);
-    const l2ChainAddress = await l2ChainSigner.getAddress();
     return l1EthGateway['depositETH(address,uint256,uint256)'](
-      l2ChainAddress,
+      to,
       amount,
       l2GasLimit,
       {
