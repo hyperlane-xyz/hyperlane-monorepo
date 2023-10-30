@@ -120,7 +120,6 @@ export {
   MerkleTreeHookConfig,
   OpStackHookConfig,
   ProtocolFeeHookConfig,
-  RoutingHookConfig,
 } from './hook/types';
 export {
   HyperlaneIsmFactory,
@@ -135,6 +134,7 @@ export {
   ModuleType,
   MultisigConfig,
   MultisigIsmConfig,
+  OpStackIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
 export {

@@ -216,14 +216,20 @@ impl ValidatorSubmitter {
             bail!("Incorrect tree root, something went wrong");
         }
 
-        debug!(index = checkpoint.index, "Reached tree consistency");
+        if !checkpoint_queue.is_empty() {
+            info!(
+                index = checkpoint.index,
+                queue_len = checkpoint_queue.len(),
+                "Reached tree consistency"
+            );
 
-        self.sign_and_submit_checkpoints(checkpoint_queue).await?;
+            self.sign_and_submit_checkpoints(checkpoint_queue).await?;
 
-        info!(
-            index = checkpoint.index,
-            "Signed all queued checkpoints until index"
-        );
+            info!(
+                index = checkpoint.index,
+                "Signed all queued checkpoints until index"
+            );
+        }
 
         Ok(())
     }
