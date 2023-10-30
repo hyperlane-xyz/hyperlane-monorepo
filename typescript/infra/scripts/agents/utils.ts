@@ -24,8 +24,6 @@ export class AgentCli {
   agentConfig!: RootAgentConfig;
   initialized = false;
   dryRun = false;
-  // Whether to run deployments in parallel
-  parallel = false;
 
   public async runHelmCommand(command: HelmCommand) {
     await this.init();
@@ -67,9 +65,7 @@ export class AgentCli {
     if (this.initialized) return;
     const argv = await withAgentRole(withContext(getArgs()))
       .describe('dry-run', 'Run through the steps without making any changes')
-      .boolean('dry-run')
-      .describe('parallel', 'Whether to run deployments in parallel')
-      .boolean('parallel').argv;
+      .boolean('dry-run').argv;
 
     const { envConfig, agentConfig } = await getConfigsBasedOnArgs(argv);
     await assertCorrectKubeContext(envConfig);
@@ -77,7 +73,6 @@ export class AgentCli {
     this.envConfig = envConfig;
     this.agentConfig = agentConfig;
     this.dryRun = argv.dryRun || false;
-    this.parallel = argv.parallel || false;
     this.initialized = true;
   }
 }
