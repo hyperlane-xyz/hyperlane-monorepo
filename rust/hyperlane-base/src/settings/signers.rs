@@ -96,7 +96,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
 
 impl ChainSigner for hyperlane_ethereum::Signers {
     fn address_string(&self) -> String {
-        ethers::signers::Signer::address(self).to_string()
+        ethers::abi::AbiEncode::encode_hex(ethers::signers::Signer::address(self))
     }
 }
 
