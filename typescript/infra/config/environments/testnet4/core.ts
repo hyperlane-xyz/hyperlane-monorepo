@@ -4,11 +4,14 @@ import {
   AggregationHookConfig,
   AggregationIsmConfig,
   ChainMap,
+  Chains,
   CoreConfig,
+  FallbackRoutingHookConfig,
+  HookConfig,
   HookType,
   IgpHookConfig,
+  IsmType,
   MerkleTreeHookConfig,
-  ModuleType,
   MultisigConfig,
   MultisigIsmConfig,
   ProtocolFeeHookConfig,
@@ -18,6 +21,7 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { supportedChainNames } from './chains';
+import { baseHookConfig, opHookConfig } from './hooks';
 import { igp } from './igp';
 import { owners } from './owners';
 
@@ -29,11 +33,11 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   );
 
   const messageIdRouting: RoutingIsmConfig = {
-    type: ModuleType.ROUTING,
+    type: IsmType.ROUTING,
     domains: objMap(
       originMultisigs,
       (_, multisig): MultisigIsmConfig => ({
-        type: ModuleType.MESSAGE_ID_MULTISIG,
+        type: IsmType.MESSAGE_ID_MULTISIG,
         ...multisig,
       }),
     ),
@@ -41,11 +45,11 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   };
 
   const merkleRootRouting: RoutingIsmConfig = {
-    type: ModuleType.ROUTING,
+    type: IsmType.ROUTING,
     domains: objMap(
       originMultisigs,
       (_, multisig): MultisigIsmConfig => ({
-        type: ModuleType.MERKLE_ROOT_MULTISIG,
+        type: IsmType.MERKLE_ROOT_MULTISIG,
         ...multisig,
       }),
     ),
@@ -53,7 +57,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   };
 
   const defaultIsm: AggregationIsmConfig = {
-    type: ModuleType.AGGREGATION,
+    type: IsmType.AGGREGATION,
     modules: [messageIdRouting, merkleRootRouting],
     threshold: 1,
   };
@@ -67,9 +71,26 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     ...igp[local],
   };
 
-  const defaultHook: AggregationHookConfig = {
+  const aggregationHook: AggregationHookConfig = {
     type: HookType.AGGREGATION,
     hooks: [merkleHook, igpHook],
+  };
+
+  const domains = Object.fromEntries(
+    Object.entries(owners)
+      .filter(([chain, _]) => chain !== local)
+      .map(([chain, _]) => [chain, aggregationHook as HookConfig]),
+  );
+  if (local === Chains.goerli) {
+    domains[Chains.optimismgoerli] = opHookConfig;
+    domains[Chains.basegoerli] = baseHookConfig;
+  }
+
+  const defaultHook: FallbackRoutingHookConfig = {
+    type: HookType.FALLBACK_ROUTING,
+    owner,
+    fallback: merkleHook,
+    domains: domains,
   };
 
   const requiredHook: ProtocolFeeHookConfig = {

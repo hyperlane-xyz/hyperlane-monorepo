@@ -1349,6 +1349,18 @@
       "address": "0x3726EE36a2A9e11a40d1ffD7D9A1A16e0154cDA0",
       "constructorArguments": "0x000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e59",
       "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0xE1386148385275A27D29fC39Bd58a969CD5dCAF0",
+      "constructorArguments": "000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e59000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c000000000000000000000000221fa9cbafcd6c1c3d206571cf4427703e023ffa",
+      "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0xE1386148385275A27D29fC39Bd58a969CD5dCAF0",
+      "constructorArguments": "000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e59000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c000000000000000000000000221fa9cbafcd6c1c3d206571cf4427703e023ffa",
+      "isProxy": false
     }
   ],
   "basegoerli": [
@@ -2701,6 +2713,18 @@
       "address": "0x679Dc08cC3A4acFeea2f7CAFAa37561aE0b41Ce7",
       "constructorArguments": "0x00000000000000000000000058483b754abb1e8947be63d6b95df75b8249543a",
       "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0x4Ece7b15ba5dCA2708dCE2812016683193102b9F",
+      "constructorArguments": "00000000000000000000000058483b754abb1e8947be63d6b95df75b8249543a000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c0000000000000000000000005821f3b6ee05f3dc62b43b74ab1c8f8e6904b1c8",
+      "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0x4Ece7b15ba5dCA2708dCE2812016683193102b9F",
+      "constructorArguments": "00000000000000000000000058483b754abb1e8947be63d6b95df75b8249543a000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c0000000000000000000000005821f3b6ee05f3dc62b43b74ab1c8f8e6904b1c8",
+      "isProxy": false
     }
   ],
   "fuji": [
@@ -3045,6 +3069,18 @@
       "address": "0x4f7179A691F8a684f56cF7Fed65171877d30739a",
       "constructorArguments": "0x0000000000000000000000005b6cff85442b851a8e6eabd2a4e4507b5135b3b0",
       "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0x50897eDCb3f1bB2A90f20DA5a8dF0e5c57A146e3",
+      "constructorArguments": "0000000000000000000000005b6cff85442b851a8e6eabd2a4e4507b5135b3b0000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c0000000000000000000000009ff6ac3daf63103620bbf76136ea1aff43c2f612",
+      "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0x50897eDCb3f1bB2A90f20DA5a8dF0e5c57A146e3",
+      "constructorArguments": "0000000000000000000000005b6cff85442b851a8e6eabd2a4e4507b5135b3b0000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c0000000000000000000000009ff6ac3daf63103620bbf76136ea1aff43c2f612",
+      "isProxy": false
     }
   ],
   "mumbai": [
@@ -3137,6 +3173,18 @@
       "address": "0x99303EFF09332cDd93E8BC8b2F07b2416e4501e5",
       "constructorArguments": "0x0000000000000000000000002d1889fe5b092cd988972261434f7e5f26041115",
       "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0xFA005A892EbDACFcc3f1EF0111A7406c779c3647",
+      "constructorArguments": "0000000000000000000000002d1889fe5b092cd988972261434f7e5f26041115000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c0000000000000000000000009af85731edd41e2e50f81ef8a0a69d2fb836edf9",
+      "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0xFA005A892EbDACFcc3f1EF0111A7406c779c3647",
+      "constructorArguments": "0000000000000000000000002d1889fe5b092cd988972261434f7e5f26041115000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c0000000000000000000000009af85731edd41e2e50f81ef8a0a69d2fb836edf9",
+      "isProxy": false
     }
   ],
   "bsctestnet": [
@@ -3228,6 +3276,18 @@
       "name": "ValidatorAnnounce",
       "address": "0xf09701B0a93210113D175461b6135a96773B5465",
       "constructorArguments": "0x000000000000000000000000f9f6f5646f478d5ab4e20b0f910c92f1ccc9cc6d",
+      "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0xc278DDe83018F0e8c624b208e6D9E6251d263B1d",
+      "constructorArguments": "000000000000000000000000f9f6f5646f478d5ab4e20b0f910c92f1ccc9cc6d000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c000000000000000000000000c6cbf39a747f5e28d1bdc8d9dfdab2960abd5a8f",
+      "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0xc278DDe83018F0e8c624b208e6D9E6251d263B1d",
+      "constructorArguments": "000000000000000000000000f9f6f5646f478d5ab4e20b0f910c92f1ccc9cc6d000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c000000000000000000000000c6cbf39a747f5e28d1bdc8d9dfdab2960abd5a8f",
       "isProxy": false
     }
   ],
@@ -3413,6 +3473,30 @@
       "address": "0x527768930D889662Fe7ACF64294871e86e4C2381",
       "constructorArguments": "0x0000000000000000000000003c5154a193d6e2955650f9305c8d80c18c814a68",
       "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0xfBeaF07855181f8476B235Cf746A7DF3F9e386Fb",
+      "constructorArguments": "0000000000000000000000003c5154a193d6e2955650f9305c8d80c18c814a68000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c000000000000000000000000863e8c26621c52aca1849c53500606e73ba272f0",
+      "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0xfBeaF07855181f8476B235Cf746A7DF3F9e386Fb",
+      "constructorArguments": "0000000000000000000000003c5154a193d6e2955650f9305c8d80c18c814a68000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c000000000000000000000000863e8c26621c52aca1849c53500606e73ba272f0",
+      "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0x7c115c16E34c74afdb88bd268EaB19bC705891FE",
+      "constructorArguments": "0000000000000000000000003c5154a193d6e2955650f9305c8d80c18c814a68000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c000000000000000000000000863e8c26621c52aca1849c53500606e73ba272f0",
+      "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0x7c115c16E34c74afdb88bd268EaB19bC705891FE",
+      "constructorArguments": "0000000000000000000000003c5154a193d6e2955650f9305c8d80c18c814a68000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c000000000000000000000000863e8c26621c52aca1849c53500606e73ba272f0",
+      "isProxy": false
     }
   ],
   "sepolia": [
@@ -3504,6 +3588,18 @@
       "name": "ValidatorAnnounce",
       "address": "0xE6105C59480a1B7DD3E4f28153aFdbE12F4CfCD9",
       "constructorArguments": "0x000000000000000000000000ffaef09b3cd11d9b20d1a19becca54eec2884766",
+      "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0x7CE74319699165430fC651F6b99406eEbee95493",
+      "constructorArguments": "000000000000000000000000ffaef09b3cd11d9b20d1a19becca54eec2884766000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c0000000000000000000000004917a9746a7b6e0a57159ccb7f5a6744247f2d0d",
+      "isProxy": false
+    },
+    {
+      "name": "FallbackRoutingHook",
+      "address": "0x7CE74319699165430fC651F6b99406eEbee95493",
+      "constructorArguments": "000000000000000000000000ffaef09b3cd11d9b20d1a19becca54eec2884766000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c0000000000000000000000004917a9746a7b6e0a57159ccb7f5a6744247f2d0d",
       "isProxy": false
     }
   ],

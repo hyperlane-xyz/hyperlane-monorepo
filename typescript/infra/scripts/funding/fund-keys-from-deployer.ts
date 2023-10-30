@@ -38,17 +38,16 @@ type L2Chain =
   | Chains.optimismgoerli
   | Chains.arbitrum
   | Chains.arbitrumgoerli
-  | Chains.scrollsepolia
   | Chains.basegoerli
-  | Chains.polygonzkevmtestnet;
+  | Chains.base;
 
 const L2Chains: ChainName[] = [
   Chains.optimism,
   Chains.optimismgoerli,
   Chains.arbitrum,
   Chains.arbitrumgoerli,
-  Chains.scrollsepolia,
   Chains.basegoerli,
+  Chains.base,
 ];
 
 const L2ToL1: ChainMap<ChainName> = {
@@ -56,9 +55,8 @@ const L2ToL1: ChainMap<ChainName> = {
   arbitrumgoerli: 'goerli',
   optimism: 'ethereum',
   arbitrum: 'ethereum',
-  scrollsepolia: 'sepolia',
   basegoerli: 'goerli',
-  polygonzktestnet: 'goerli',
+  base: 'ethereum',
 };
 
 // Missing types declaration for bufio
@@ -119,6 +117,9 @@ const desiredBalancePerChain: ChainMap<string> = {
   basegoerli: '0.05',
   scrollsepolia: '0.05',
   polygonzkevmtestnet: '0.01',
+  polygonzkevm: '0.3',
+  scroll: '0.3',
+  base: '0.3',
 
   // unused
   test1: '0',
@@ -138,6 +139,9 @@ const desiredKathyBalancePerChain: ChainMap<string> = {
   bsc: '0.35',
   moonbeam: '250',
   gnosis: '100',
+  scroll: '0.05',
+  base: '0.05',
+  polygonzkevm: '0.05',
 };
 
 // The balance threshold of the IGP contract that must be met for the key funder
@@ -164,6 +168,9 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   basegoerli: '0.1',
   scrollsepolia: '0.1',
   polygonzkevmtestnet: '0.1',
+  base: '0.1',
+  scroll: '0.1',
+  polygonzkevm: '0.1',
   // unused
   test1: '0',
   test2: '0',
@@ -626,7 +633,7 @@ class ContextFunder {
       ),
     });
     let tx;
-    if (l2Chain.includes('optimism')) {
+    if (l2Chain.includes('optimism') || l2Chain.includes('base')) {
       tx = await this.bridgeToOptimism(l2Chain, amount, to);
     } else if (l2Chain.includes('arbitrum')) {
       tx = await this.bridgeToArbitrum(l2Chain, amount);

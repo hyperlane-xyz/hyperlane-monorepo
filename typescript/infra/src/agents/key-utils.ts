@@ -77,7 +77,7 @@ export function getCloudAgentKey(
     return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, role);
   }
   // Otherwise use an AWS key except for the deployer
-  else if (!!agentConfig.aws && role !== Role.Deployer) {
+  else if (!!agentConfig.aws && role !== Role.Deployer && role !== Role.Kathy) {
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
     // Fallback to GCP
