@@ -38,11 +38,15 @@ import * as L1MessageQueue from './utils/L1MessageQueue.json';
 import * as PolygonZkEVMBridge from './utils/PolygonZkEVMBridge.json';
 import * as L1ScrollMessenger from './utils/l1ScrollMessenger.json';
 
-const scrollL1EthGatewayAddress = '0x8A54A2347Da2562917304141ab67324615e9866d';
-const scrollL1ScrollMessengerAddress =
-  '0x50c7d3e7f7c656493D1D76aaa1a836CedfCBB16A';
-const polygonZkEVMbridgeGoerliAddress =
-  '0xF6BEEeBB578e214CA9E23B0e9683454Ff88Ed2A7';
+const nativeBridges = {
+  scrollsepolia: {
+    l1ETHGateway: '0x8A54A2347Da2562917304141ab67324615e9866d',
+    l1Messenger: '0x50c7d3e7f7c656493D1D76aaa1a836CedfCBB16A',
+  },
+  polygonzkevmtestnet: {
+    l1EVMBridge: '0xF6BEEeBB578e214CA9E23B0e9683454Ff88Ed2A7',
+  },
+};
 
 type L2Chain =
   | Chains.optimism
@@ -436,9 +440,7 @@ class ContextFunder {
           : Role.Relayer;
         const chainsPicked = chains[roleToLookup as AgentRole];
         for (const chain of chainsPicked) {
-          if (chain === 'polygonzkevmtestnet') {
-            chainKeys[chain].push(key);
-          }
+          chainKeys[chain].push(key);
         }
       }
     }
@@ -693,17 +695,16 @@ class ContextFunder {
     const l1Chain = L2ToL1[l2Chain];
     const l1ChainSigner = this.multiProvider.getSigner(l1Chain);
     const l1EthGateway = new ethers.Contract(
-      scrollL1EthGatewayAddress,
+      nativeBridges.scrollsepolia.l1ETHGateway,
       L1ETHGateway.abi,
       l1ChainSigner,
     );
     const l1ScrollMessenger = new ethers.Contract(
-      scrollL1ScrollMessengerAddress,
+      nativeBridges.scrollsepolia.l1Messenger,
       L1ScrollMessenger.abi,
       l1ChainSigner,
     );
     const l2GasLimit = BigNumber.from('200000'); // l2 gas amount for the transfer and an empty callback calls
-    console.log(l1EthGateway);
     const l1MessageQueueAddress = await l1ScrollMessenger.messageQueue();
     const l1MessageQueue = new ethers.Contract(
       l1MessageQueueAddress,
@@ -732,7 +733,7 @@ class ContextFunder {
     const l1Chain = L2ToL1[l2Chain];
     const l1ChainSigner = this.multiProvider.getSigner(l1Chain);
     const polygonZkEVMbridge = new ethers.Contract(
-      polygonZkEVMbridgeGoerliAddress,
+      nativeBridges.polygonzkevmtestnet.l1EVMBridge,
       PolygonZkEVMBridge.abi,
       l1ChainSigner,
     );
