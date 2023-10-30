@@ -116,7 +116,9 @@ impl From<std::convert::Infallible> for SignersError {
 
 #[cfg(test)]
 mod test {
-    use hyperlane_core::{Checkpoint, HyperlaneSigner, HyperlaneSignerExt, H256};
+    use hyperlane_core::{
+        Checkpoint, CheckpointWithMessageId, HyperlaneSigner, HyperlaneSignerExt, H256,
+    };
 
     use crate::signers::Signers;
 
@@ -128,11 +130,14 @@ mod test {
                     .parse::<ethers::signers::LocalWallet>()
                     .unwrap()
                     .into();
-            let message = Checkpoint {
-                merkle_tree_hook_address: H256::repeat_byte(2),
-                mailbox_domain: 5,
-                root: H256::repeat_byte(1),
-                index: 123,
+            let message = CheckpointWithMessageId {
+                checkpoint: Checkpoint {
+                    merkle_tree_hook_address: H256::repeat_byte(2),
+                    mailbox_domain: 5,
+                    root: H256::repeat_byte(1),
+                    index: 123,
+                },
+                message_id: H256::repeat_byte(3),
             };
 
             let signed = signer.sign(message).await.expect("!sign");

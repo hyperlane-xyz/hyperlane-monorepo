@@ -39,3 +39,19 @@ export const multisigIsms = (
       type,
     }),
   );
+
+export const multisigIsm = (
+  remote: ChainName,
+  type: MultisigIsmConfig['type'],
+  context: Contexts,
+): MultisigIsmConfig => {
+  const configs =
+    context === Contexts.ReleaseCandidate
+      ? rcMultisigIsmConfigs
+      : defaultMultisigIsmConfigs;
+
+  return {
+    ...configs[remote],
+    type,
+  };
+};

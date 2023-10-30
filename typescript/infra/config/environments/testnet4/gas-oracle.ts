@@ -6,15 +6,12 @@ import {
   AllStorageGasOracleConfigs,
   getAllStorageGasOracleConfigs,
 } from '../../../src/config';
-import { TOKEN_EXCHANGE_RATE_DECIMALS } from '../../../src/config/gas-oracle';
+import {
+  TOKEN_EXCHANGE_RATE_DECIMALS,
+  getTokenExchangeRateFromValues,
+} from '../../../src/config/gas-oracle';
 
 import { TestnetChains, supportedChainNames } from './chains';
-
-// Overcharge by 30% to account for market making risk
-const TOKEN_EXCHANGE_RATE_MULTIPLIER = ethers.utils.parseUnits(
-  '1.30',
-  TOKEN_EXCHANGE_RATE_DECIMALS,
-);
 
 // Taken by looking at each testnet and overestimating gas prices
 const gasPrices: ChainMap<BigNumber> = {
@@ -32,6 +29,7 @@ const gasPrices: ChainMap<BigNumber> = {
   lineagoerli: ethers.utils.parseUnits('1', 'gwei'),
   polygonzkevmtestnet: ethers.utils.parseUnits('1', 'gwei'),
   chiado: ethers.utils.parseUnits('2', 'gwei'),
+  // solanadevnet: ethers.BigNumber.from('28'),
 };
 
 // Used to categorize rarity of testnet tokens & approximate exchange rates.
@@ -65,6 +63,7 @@ const chainTokenRarity: ChainMap<Rarity> = {
   lineagoerli: Rarity.Rare,
   polygonzkevmtestnet: Rarity.Common,
   chiado: Rarity.Common,
+  // solanadevnet: Rarity.Common,
 };
 
 // Gets the "value" of a testnet chain
@@ -78,8 +77,7 @@ function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
   const localValue = getApproximateValue(local);
   const remoteValue = getApproximateValue(remote);
 
-  // Apply multiplier to overcharge
-  return remoteValue.mul(TOKEN_EXCHANGE_RATE_MULTIPLIER).div(localValue);
+  return getTokenExchangeRateFromValues(local, localValue, remote, remoteValue);
 }
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =

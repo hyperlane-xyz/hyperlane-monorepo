@@ -11,6 +11,7 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {InterchainGasPaymaster} from "../../contracts/hooks/igp/InterchainGasPaymaster.sol";
 import {StorageGasOracle} from "../../contracts/hooks/igp/StorageGasOracle.sol";
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
+import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
 contract InterchainGasPaymasterTest is Test {
     using StandardHookMetadata for bytes;
@@ -532,6 +533,13 @@ contract InterchainGasPaymasterTest is Test {
         igp.postDispatch{value: _quote}(metadata, message);
         uint256 _igpBalanceAfter = address(igp).balance;
         assertEq(_igpBalanceAfter - _igpBalanceBefore, _quote);
+    }
+
+    function testHookType() public {
+        assertEq(
+            igp.hookType(),
+            uint8(IPostDispatchHook.Types.INTERCHAIN_GAS_PAYMASTER)
+        );
     }
 
     // ============ claim ============

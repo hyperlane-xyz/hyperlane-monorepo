@@ -59,7 +59,9 @@ where
 
         loop {
             indexed_height.set(cursor.latest_block() as i64);
-            let Ok((action, eta)) = cursor.next_action().await else { continue };
+            let Ok((action, eta)) = cursor.next_action().await else {
+                continue;
+            };
             match action {
                 CursorAction::Query(range) => {
                     debug!(?range, "Looking for for events in index range");

@@ -69,6 +69,9 @@ impl TracingConfig {
                 .with_target("hyper", Level::Info)
                 .with_target("rusoto_core", Level::Info)
                 .with_target("reqwest", Level::Info)
+                .with_target("h2", Level::Info)
+                .with_target("tower", Level::Info)
+                .with_target("tendermint", Level::Info)
                 .with_target("tokio", Level::Debug)
                 .with_target("tokio_util", Level::Debug)
                 .with_target("ethers_providers", Level::Debug);
