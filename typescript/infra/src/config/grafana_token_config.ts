@@ -27,23 +27,21 @@ interface CollateralTokenConfig {
     | ProtocolType.Cosmos;
 }
 
-// interface SyntheticTokenConfig {
-//   type: TokenType.collateral;
-//   address: string;
-//   decimals: number;
-//   symbol: string;
-//   name: string;
-//   hypSyntheticAddress: string;
-//   isSpl2022?: boolean;
-//   protocolType:
-//     | ProtocolType.Ethereum
-//     | ProtocolType.Sealevel
-//     | ProtocolType.Cosmos;
-// }
+interface SyntheticTokenConfig {
+  type: TokenType.synthetic;
+  hypSyntheticAddress: string;
+  decimals: number;
+  symbol: string;
+  name: string;
+  protocolType:
+    | ProtocolType.Ethereum
+    | ProtocolType.Sealevel
+    | ProtocolType.Cosmos;
+}
 
 // TODO: migrate and dedupe to SDK from infra and Warp UI
 export type WarpTokenConfig = ChainMap<
-  CollateralTokenConfig | NativeTokenConfig
+  CollateralTokenConfig | NativeTokenConfig | SyntheticTokenConfig
 >;
 
 /// nautilus configs
@@ -96,9 +94,8 @@ export const neutronList: WarpTokenConfig = {
     protocolType: ProtocolType.Cosmos,
   },
   mantapacific: {
-    type: TokenType.collateral,
-    address: '0x21E94a77F813A2fE918287715cb33439fbe275F8',
-    hypCollateralAddress: '0x21E94a77F813A2fE918287715cb33439fbe275F8',
+    type: TokenType.synthetic,
+    hypSyntheticAddress: '0x21E94a77F813A2fE918287715cb33439fbe275F8',
     name: 'ATOM',
     symbol: 'ATOM',
     decimals: 6,

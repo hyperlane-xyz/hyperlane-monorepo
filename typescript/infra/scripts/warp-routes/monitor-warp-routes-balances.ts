@@ -153,6 +153,29 @@ async function checkBalance(
               );
             }
           }
+          break;
+        }
+        case TokenType.synthetic: {
+          switch (token.protocolType) {
+            case ProtocolType.Ethereum: {
+              const provider = multiProtocolProvider.getEthersV5Provider(chain);
+              const tokenContract = ERC20__factory.connect(
+                token.hypSyntheticAddress,
+                provider,
+              );
+              const syntheticBalance = await tokenContract.totalSupply();
+              return parseFloat(
+                ethers.utils.formatUnits(syntheticBalance, token.decimals),
+              );
+            }
+            case ProtocolType.Sealevel:
+              // TODO - solana native
+              return 0;
+            case ProtocolType.Cosmos:
+              // TODO - cosmos native
+              return 0;
+          }
+          break;
         }
       }
     },
@@ -169,11 +192,15 @@ function updateTokenBalanceMetrics(
     const tokenAddress =
       token.type === TokenType.native
         ? ethers.constants.AddressZero
-        : token.address;
+        : token.type === TokenType.collateral
+        ? token.address
+        : token.hypSyntheticAddress;
     const walletAddress =
       token.type === TokenType.native
         ? token.hypNativeAddress
-        : token.hypCollateralAddress;
+        : token.type === TokenType.collateral
+        ? token.hypCollateralAddress
+        : token.hypSyntheticAddress;
 
     warpRouteTokenBalance
       .labels({
