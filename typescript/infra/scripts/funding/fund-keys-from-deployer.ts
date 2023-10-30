@@ -12,7 +12,7 @@ import {
   MultiProvider,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { error, log, warn } from '@hyperlane-xyz/utils';
+import { Address, error, log, warn } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { parseKeyIdentifier } from '../../src/agents/agent';
@@ -33,6 +33,21 @@ import {
 } from '../../src/utils/utils';
 import { getAgentConfig, getArgs, getEnvironmentConfig } from '../utils';
 
+import * as L1ETHGateway from './utils/L1ETHGateway.json';
+import * as L1MessageQueue from './utils/L1MessageQueue.json';
+import * as L1ScrollMessenger from './utils/L1ScrollMessenger.json';
+import * as PolygonZkEVMBridge from './utils/PolygonZkEVMBridge.json';
+
+const nativeBridges = {
+  scrollsepolia: {
+    l1ETHGateway: '0x8A54A2347Da2562917304141ab67324615e9866d',
+    l1Messenger: '0x50c7d3e7f7c656493D1D76aaa1a836CedfCBB16A',
+  },
+  polygonzkevmtestnet: {
+    l1EVMBridge: '0xF6BEEeBB578e214CA9E23B0e9683454Ff88Ed2A7',
+  },
+};
+
 type L2Chain =
   | Chains.optimism
   | Chains.optimismgoerli
@@ -49,6 +64,7 @@ const L2Chains: ChainName[] = [
   Chains.arbitrumgoerli,
   Chains.scrollsepolia,
   Chains.basegoerli,
+  Chains.polygonzkevmtestnet,
 ];
 
 const L2ToL1: ChainMap<ChainName> = {
@@ -58,7 +74,7 @@ const L2ToL1: ChainMap<ChainName> = {
   arbitrum: 'ethereum',
   scrollsepolia: 'sepolia',
   basegoerli: 'goerli',
-  polygonzktestnet: 'goerli',
+  polygonzkevmtestnet: 'goerli',
 };
 
 // Missing types declaration for bufio
@@ -118,7 +134,7 @@ const desiredBalancePerChain: ChainMap<string> = {
   gnosis: '0.1',
   basegoerli: '0.05',
   scrollsepolia: '0.05',
-  polygonzkevmtestnet: '0.01',
+  polygonzkevmtestnet: '0.3',
 
   // unused
   test1: '0',
@@ -626,10 +642,14 @@ class ContextFunder {
       ),
     });
     let tx;
-    if (l2Chain.includes('optimism')) {
+    if (l2Chain.includes('optimism') || l2Chain.includes('base')) {
       tx = await this.bridgeToOptimism(l2Chain, amount, to);
     } else if (l2Chain.includes('arbitrum')) {
       tx = await this.bridgeToArbitrum(l2Chain, amount);
+    } else if (l2Chain.includes('scroll')) {
+      tx = await this.bridgeToScroll(l2Chain, amount, to);
+    } else if (l2Chain.includes('zkevm')) {
+      tx = await this.bridgeToPolygonCDK(l2Chain, amount, to);
     } else {
       throw new Error(`${l2Chain} is not an L2`);
     }
@@ -665,6 +685,69 @@ class ContextFunder {
       l1Signer: this.multiProvider.getSigner(l1Chain),
       overrides: this.multiProvider.getTransactionOverrides(l1Chain),
     });
+  }
+
+  private async bridgeToScroll(
+    l2Chain: L2Chain,
+    amount: BigNumber,
+    to: Address,
+  ) {
+    const l1Chain = L2ToL1[l2Chain];
+    const l1ChainSigner = this.multiProvider.getSigner(l1Chain);
+    const l1EthGateway = new ethers.Contract(
+      nativeBridges.scrollsepolia.l1ETHGateway,
+      L1ETHGateway.abi,
+      l1ChainSigner,
+    );
+    const l1ScrollMessenger = new ethers.Contract(
+      nativeBridges.scrollsepolia.l1Messenger,
+      L1ScrollMessenger.abi,
+      l1ChainSigner,
+    );
+    const l2GasLimit = BigNumber.from('200000'); // l2 gas amount for the transfer and an empty callback calls
+    const l1MessageQueueAddress = await l1ScrollMessenger.messageQueue();
+    const l1MessageQueue = new ethers.Contract(
+      l1MessageQueueAddress,
+      L1MessageQueue.abi,
+      l1ChainSigner,
+    );
+    const gasQuote = await l1MessageQueue.estimateCrossDomainMessageFee(
+      l2GasLimit,
+    );
+    const totalAmount = amount.add(gasQuote);
+    return l1EthGateway['depositETH(address,uint256,uint256)'](
+      to,
+      amount,
+      l2GasLimit,
+      {
+        value: totalAmount,
+      },
+    );
+  }
+
+  private async bridgeToPolygonCDK(
+    l2Chain: L2Chain,
+    amount: BigNumber,
+    to: Address,
+  ) {
+    const l1Chain = L2ToL1[l2Chain];
+    const l1ChainSigner = this.multiProvider.getSigner(l1Chain);
+    const polygonZkEVMbridge = new ethers.Contract(
+      nativeBridges.polygonzkevmtestnet.l1EVMBridge,
+      PolygonZkEVMBridge.abi,
+      l1ChainSigner,
+    );
+    return polygonZkEVMbridge.bridgeAsset(
+      1, // 0 is mainnet, 1 is l2
+      to,
+      amount,
+      ethers.constants.AddressZero,
+      true,
+      [],
+      {
+        value: amount,
+      },
+    );
   }
 
   private async updateWalletBalanceGauge(chain: ChainName) {
