@@ -1,4 +1,6 @@
 use async_trait::async_trait;
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, Indexer,
@@ -6,6 +8,7 @@ use hyperlane_core::{
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, InterchainGasPayment, LogMeta, H256};
 use std::ops::RangeInclusive;
+use tracing::info;
 
 use crate::grpc::WasmGrpcProvider;
 use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
@@ -89,9 +92,36 @@ impl CosmosInterchainGasPaymasterIndexer {
                     "message_id" => {
                         res.message_id = H256::from_slice(hex::decode(value).unwrap().as_slice())
                     }
+                    "bWVzc2FnZV9pZA==" => {
+                        res.message_id = H256::from_slice(
+                            hex::decode(
+                                String::from_utf8(STANDARD.decode(value).unwrap()).unwrap(),
+                            )
+                            .unwrap()
+                            .as_slice(),
+                        )
+                    }
                     "payment" => res.payment = value.parse().unwrap(),
+                    "cGF5bWVudA==" => {
+                        res.payment = String::from_utf8(STANDARD.decode(value).unwrap())
+                            .unwrap()
+                            .parse()
+                            .unwrap()
+                    }
                     "gas_amount" => res.gas_amount = value.parse().unwrap(),
+                    "Z2FzX2Ftb3VudA==" => {
+                        res.gas_amount = String::from_utf8(STANDARD.decode(value).unwrap())
+                            .unwrap()
+                            .parse()
+                            .unwrap()
+                    }
                     "dest_domain" => res.destination = value.parse().unwrap(),
+                    "ZGVzdF9kb21haW4=" => {
+                        res.destination = String::from_utf8(STANDARD.decode(value).unwrap())
+                            .unwrap()
+                            .parse()
+                            .unwrap()
+                    }
                     _ => {}
                 }
             }
