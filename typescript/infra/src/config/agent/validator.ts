@@ -139,26 +139,9 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       if (this.aws) {
         validator = (await awsUser.createKeyIfNotExists(this)).keyConfig;
 
-        switch (protocol) {
-          case ProtocolType.Ethereum:
-            chainSigner = validator;
-            break;
-          case ProtocolType.Cosmos:
-            if (metadata.bech32Prefix === undefined) {
-              throw new Error(
-                `Bech32 prefix for cosmos chain ${this.chainName} is undefined`,
-              );
-            }
-            chainSigner = {
-              type: AgentSignerKeyType.Cosmos,
-              prefix: metadata.bech32Prefix,
-            };
-            break;
-          // No self-announcement on Sealevel
-          case ProtocolType.Sealevel:
-          default:
-            chainSigner = undefined;
-            break;
+        // AWS-based chain signer keys are only used for Ethereum
+        if (protocol === ProtocolType.Ethereum) {
+          chainSigner = validator;
         }
       }
     } else {
@@ -168,9 +151,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     }
 
     // If the chainSigner isn't set to the AWS-based key above, then set the default.
-    // There is no self-announcement on Sealevel, so in that case we just skip the
-    // chain signer altogether
-    if (chainSigner === undefined && protocol !== ProtocolType.Sealevel) {
+    if (chainSigner === undefined) {
       chainSigner = defaultChainSignerKeyConfig(this.chainName);
     }
 
