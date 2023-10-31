@@ -80,22 +80,8 @@ impl Debug for CosmosMailbox {
 impl Mailbox for CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let payload = mailbox::NonceRequest {
-            nonce: general::EmptyStruct {},
-        };
-
-        let data = self
-            .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, lag)
-            .await;
-
-        if let Err(e) = data {
-            warn!("error: {:?}", e);
-            return Ok(0);
-        }
-
-        let response: mailbox::NonceResponse = serde_json::from_slice(&data?)?;
-        Ok(response.nonce)
+        let block_height = self.get_block_height_for_lag(lag).await?;
+        self.nonce_at_block(block_height).await
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
@@ -281,30 +267,31 @@ impl CosmosMailboxIndexer {
         }
     }
 
-    #[instrument(level = "debug", err, ret, skip(self))]
-    async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let payload = mailbox::NonceRequest {
-            nonce: general::EmptyStruct {},
+    /// Given a lag, returns the block height at the moment.
+    /// If the lag is None, a block height of None is given, indicating that the
+    /// tip directly can be used.
+    async fn get_block_height_for_lag(&self, lag: Option<NonZeroU64>) -> ChainResult<Option<u64>> {
+        let block_height = match lag {
+            Some(lag) => {
+                let tip = self.indexer.latest_block_height().await?;
+                let block_height = tip as u64 - lag;
+                Some(block_height)
+            }
+            None => None,
         };
 
-        let data = self
-            .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, lag)
-            .await?;
-        let response: mailbox::NonceResponse = serde_json::from_slice(&data)?;
-
-        Ok(response.nonce)
+        Ok(block_height)
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
-    async fn nonce(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
+    async fn nonce_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
         let payload = mailbox::NonceRequest {
             nonce: general::EmptyStruct {},
         };
 
         let data = self
             .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, lag)
+            .wasm_query(GeneralMailboxQuery { mailbox: payload }, block_height)
             .await?;
 
         let response: mailbox::NonceResponse = serde_json::from_slice(&data)?;
@@ -350,28 +337,19 @@ impl Indexer<H256> for CosmosMailboxIndexer {
 #[async_trait]
 impl SequenceIndexer<H256> for CosmosMailboxIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // TODO: implement when cosmos scraper support is implemented
         let tip = self.indexer.latest_block_height().await?;
 
-        let sequence = match NonZeroU64::new(tip as u64) {
-            None => None,
-            Some(n) => Some(self.nonce(Some(n)).await?),
-        };
-
-        Ok((sequence, tip))
+        // No sequence for message deliveries.
+        Ok((None, tip))
     }
 }
 
 #[async_trait]
 impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // TODO: implement when cosmos scraper support is implemented
         let tip = self.indexer.latest_block_height().await?;
 
-        let sequence = match NonZeroU64::new(tip as u64) {
-            None => None,
-            Some(n) => Some(self.nonce(Some(n)).await?),
-        };
+        let sequence = self.nonce_at_block(Some(tip)).await?;
 
         Ok((sequence, tip))
     }
