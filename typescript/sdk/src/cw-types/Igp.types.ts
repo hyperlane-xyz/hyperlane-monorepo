@@ -6,6 +6,7 @@
 
 export interface InstantiateMsg {
   beneficiary: string;
+  default_gas_usage: number;
   gas_token: string;
   hrp: string;
   owner: string;
@@ -19,6 +20,21 @@ export type ExecuteMsg =
     }
   | {
       post_dispatch: PostDispatchMsg;
+    }
+  | {
+      set_default_gas: {
+        gas: number;
+      };
+    }
+  | {
+      set_gas_for_domain: {
+        config: [number, number][];
+      };
+    }
+  | {
+      unset_gas_for_domain: {
+        domains: number[];
+      };
     }
   | {
       set_beneficiary: {
@@ -124,13 +140,7 @@ export type IgpGasOracleQueryMsg = {
 };
 export type IgpQueryMsg =
   | {
-      beneficiary: {};
-    }
-  | {
-      quote_gas_payment: {
-        dest_domain: number;
-        gas_amount: Uint256;
-      };
+      default_gas: {};
     }
   | {
       gas_for_domain: {
@@ -138,7 +148,20 @@ export type IgpQueryMsg =
       };
     }
   | {
-      default_gas: {};
+      list_gas_for_domains: {
+        limit?: number | null;
+        offset?: number | null;
+        order?: Order | null;
+      };
+    }
+  | {
+      beneficiary: {};
+    }
+  | {
+      quote_gas_payment: {
+        dest_domain: number;
+        gas_amount: Uint256;
+      };
     };
 export interface QuoteDispatchMsg {
   message: HexBinary;
@@ -147,8 +170,14 @@ export interface QuoteDispatchMsg {
 export interface BeneficiaryResponse {
   beneficiary: string;
 }
+export interface DefaultGasResponse {
+  gas: number;
+}
 export interface DomainsResponse {
   domains: number[];
+}
+export interface GasForDomainResponse {
+  gas: [number, number][];
 }
 export type Uint128 = string;
 export interface GetExchangeRateAndGasPriceResponse {

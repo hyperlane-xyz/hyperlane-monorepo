@@ -5,6 +5,7 @@ import { Address } from '@hyperlane-xyz/utils';
 import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp';
 import {
   BeneficiaryResponse,
+  DefaultGasResponse,
   DomainsResponse,
   GetExchangeRateAndGasPriceResponse,
   OwnerResponse,
@@ -14,7 +15,7 @@ import {
   RoutesResponseForAddr,
 } from '../../cw-types/Igp.types';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainName } from '../../types';
+import { ChainMap, ChainName } from '../../types';
 
 // TODO: import more
 type IgpResponse =
@@ -24,6 +25,7 @@ type IgpResponse =
   | GetExchangeRateAndGasPriceResponse
   | RoutesResponseForAddr
   | RouteResponseForAddr
+  | DefaultGasResponse
   | QuoteGasPaymentResponse;
 
 export class CosmWasmIgpAdapter extends BaseCosmWasmAdapter {
@@ -62,9 +64,7 @@ export class CosmWasmIgpAdapter extends BaseCosmWasmAdapter {
     return beneficiaryResponse.beneficiary;
   }
 
-  async getOracles(): Promise<{
-    [k: number]: { domain: number; oracle: string };
-  }> {
+  async getOracles(): Promise<ChainMap<Address>> {
     const domainResponse: RoutesResponseForAddr = await this.queryIgp({
       router: {
         list_routes: {},
@@ -73,26 +73,28 @@ export class CosmWasmIgpAdapter extends BaseCosmWasmAdapter {
 
     return Object.fromEntries(
       domainResponse.routes.map((_) => [
-        _.domain,
-        { domain: _.domain, oracle: _.route as string },
+        this.multiProvider.getChainName(_.domain),
+        _.route ?? '',
       ]),
     );
   }
 
   async defaultGas() {
-    const defaultGas = await this.queryIgp({
+    const defaultGas = await this.queryIgp<DefaultGasResponse>({
       igp: {
         default_gas: {},
       },
     });
-    return defaultGas;
+    return defaultGas.gas;
   }
 
-  async getOracleDataForDomain(
-    domain: number,
-    oracle: string,
+  async getOracleData(
+    chain: ChainName,
   ): Promise<GetExchangeRateAndGasPriceResponse> {
     const provider = await this.getProvider();
+    const domain = this.multiProvider.getDomainId(chain);
+    const oracles = await this.getOracles();
+    const oracle = oracles[chain];
     const oracleResponse: GetExchangeRateAndGasPriceResponse =
       await provider.queryContractSmart(oracle, {
         oracle: {

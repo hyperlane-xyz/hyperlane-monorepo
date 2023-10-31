@@ -1,25 +1,31 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 
 /* eslint-disable no-console */
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
 
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+
+import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp';
 import { CosmWasmCoreAdapter } from '../../core/adapters/CosmWasmCoreAdapter';
+import { CosmWasmIgpAdapter } from '../../core/adapters/CosmWasmIgpAdapter';
 import {
-  QueryMsg as AggregateHookQuery,
+  QueryMsg as AggregateQuery,
   HooksResponse,
 } from '../../cw-types/HookAggregate.types';
 import {
-  BeneficiaryResponse,
-  DomainsResponse,
-  GetExchangeRateAndGasPriceResponse,
-  QueryMsg as IgpQuery,
-} from '../../cw-types/Igp.types';
+  MailboxResponse,
+  QueryMsg as MerkleQuery,
+  OwnerResponse,
+} from '../../cw-types/HookMerkle.types';
 import {
   EnrolledValidatorsResponse,
+  ExecuteMsg as MultisigExecute,
   QueryMsg as MultisigQuery,
 } from '../../cw-types/IsmMultisig.types';
+import { MultisigConfig } from '../../ism/types';
 import { ChainMetadata } from '../../metadata/chainMetadataTypes';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
+import { ChainMap, ChainName } from '../../types';
 
 const neutron: ChainMetadata = {
   protocol: ProtocolType.Cosmos,
@@ -40,15 +46,102 @@ const neutron: ChainMetadata = {
   },
 };
 
-const neutronAddresses = {
-  mailbox: 'neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4',
+const mantapacific: ChainMetadata = {
+  protocol: ProtocolType.Ethereum,
+  domainId: 169,
+  chainId: 169,
+  name: 'mantapacific',
+  displayName: 'Manta Pacific',
+  displayNameShort: 'Manta',
+  nativeToken: {
+    name: 'Ether',
+    symbol: 'ETH',
+    decimals: 18,
+  },
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 0,
+    estimateBlockTime: 3,
+  },
+  rpcUrls: [{ http: 'https://pacific-rpc.manta.network/http' }],
 };
 
-const mantaDomain = 169;
+const neutronAddresses = {
+  mailbox: 'neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4',
+  validatorAnnounce:
+    'neutron17w4q6efzym3p4c6umyp4cjf2ustjtmwfqdhd7rt2fpcpk9fmjzsq0kj0f8',
+};
+type MultisigResponse = EnrolledValidatorsResponse;
+
+class CosmWasmMultisigAdapter extends BaseCosmWasmAdapter {
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly addresses: { multisig: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+
+  async queryMultisig<R extends MultisigResponse>(
+    msg: MultisigQuery,
+  ): Promise<R> {
+    const provider = await this.getProvider();
+    const response: R = await provider.queryContractSmart(
+      this.addresses.multisig,
+      msg,
+    );
+    return response;
+  }
+
+  async getConfig(chain: ChainName): Promise<MultisigConfig> {
+    return this.queryMultisig<EnrolledValidatorsResponse>({
+      multisig_ism: {
+        enrolled_validators: {
+          domain: this.multiProvider.getDomainId(chain),
+        },
+      },
+    });
+  }
+
+  prepareMultisig(msg: MultisigExecute): ExecuteInstruction {
+    return {
+      contractAddress: this.addresses.multisig,
+      msg,
+    };
+  }
+
+  async configureMultisig(
+    configMap: ChainMap<MultisigConfig>,
+  ): Promise<ExecuteInstruction[]> {
+    return [
+      this.prepareMultisig({
+        enroll_validators: {
+          set: Object.entries(configMap).flatMap(([origin, config]) =>
+            config.validators.map((validator) => ({
+              domain: this.multiProvider.getDomainId(origin),
+              validator,
+            })),
+          ),
+        },
+      }),
+      this.prepareMultisig({
+        set_thresholds: {
+          set: Object.entries(configMap).map(([origin, config]) => ({
+            domain: this.multiProvider.getDomainId(origin),
+            threshold: config.threshold,
+          })),
+        },
+      }),
+    ];
+  }
+}
 
 async function main() {
+  let summary: any = {};
+
   const multiProtocolProvider = new MultiProtocolProvider({
     neutron,
+    mantapacific,
   });
 
   const adapter = new CosmWasmCoreAdapter(
@@ -59,86 +152,126 @@ async function main() {
 
   const provider = await adapter.getProvider();
 
-  // const defaultHook = await adapter.defaultHook();
+  const getOwner = async (address: Address): Promise<Address> => {
+    const ownableQuery = {
+      ownable: { get_owner: {} },
+    };
+    const ownerResponse: OwnerResponse = await provider.queryContractSmart(
+      address,
+      ownableQuery,
+    );
+    return ownerResponse.owner;
+  };
+
+  const owner = await getOwner(neutronAddresses.mailbox);
+  const info = await provider.getContract(neutronAddresses.mailbox);
+  const defaultHook = await adapter.defaultHook();
   const requiredHook = await adapter.requiredHook();
+  const defaultIsm = await adapter.defaultIsm();
+
+  summary.mailbox = {
+    owner,
+    ...info,
+    defaultHook,
+    requiredHook,
+    defaultIsm,
+  };
+
+  summary.validatorAnnounce = {
+    // owner: await getOwner(neutronAddresses.validatorAnnounce),
+    ...(await provider.getContract(neutronAddresses.validatorAnnounce)),
+  };
+
+  const defaultIsmContract = await provider.getContract(defaultIsm);
+
+  if (defaultIsmContract.label === 'hpl_ism_multisig') {
+    const multisigAdapter = new CosmWasmMultisigAdapter(
+      neutron.name,
+      multiProtocolProvider,
+      { multisig: defaultIsm },
+    );
+    const multisigConfig = await multisigAdapter.getConfig(mantapacific.name);
+    const owner = await getOwner(defaultIsm);
+    summary.defaultIsm = {
+      ...multisigConfig,
+      ...defaultIsmContract,
+      owner,
+    };
+  }
+
+  const defaultHookContract = await provider.getContract(defaultHook);
+  if (defaultHookContract.label === 'hpl_test_mock_hook') {
+    summary.defaultHook = defaultHookContract;
+  }
+
+  const getMailbox = async (hook: Address): Promise<Address> => {
+    const merkleMailboxQuery: MerkleQuery = {
+      hook: {
+        mailbox: {},
+      },
+    };
+    const merkleMailboxResponse: MailboxResponse =
+      await provider.queryContractSmart(hook, merkleMailboxQuery);
+    return merkleMailboxResponse.mailbox;
+  };
+
   const requiredHookContract = await provider.getContract(requiredHook);
-
-  // const defaultHookContract = await provider.getContract(defaultHook);
-
   if (requiredHookContract.label === 'hpl_hook_aggregate') {
-    const hooksQuery: AggregateHookQuery = {
+    const aggregateHookQuery: AggregateQuery = {
       aggregate_hook: {
         hooks: {},
       },
     };
-    const resp: HooksResponse = await provider.queryContractSmart(
+    const hooksResponse: HooksResponse = await provider.queryContractSmart(
       requiredHook,
-      hooksQuery,
+      aggregateHookQuery,
     );
-    for (const hook of resp.hooks) {
-      const hookContract = await provider.getContract(hook);
-      console.log({ hookContract });
-      if (hookContract.label === 'hpl_igp') {
-        const beneficiaryQuery: IgpQuery = {
-          igp: {
-            beneficiary: {},
-          },
-        };
-        const beneficiaryResponse: BeneficiaryResponse =
-          await provider.queryContractSmart(hook, beneficiaryQuery);
-        console.log(beneficiaryResponse);
+    summary.requiredHook = {
+      ...requiredHookContract,
+      hooks: hooksResponse.hooks,
+      owner: await getOwner(requiredHook),
+      mailbox: await getMailbox(requiredHook),
+    };
 
-        const domainsQuery: IgpQuery = {
-          router: {
-            domains: {},
-          },
+    for (const hook of hooksResponse.hooks) {
+      const hookContract = await provider.getContract(hook);
+      if (hookContract.label === 'hpl_hook_merkle') {
+        summary.requiredHook.merkleHook = {
+          ...hookContract,
+          mailbox: await getMailbox(hook),
+          owner: await getOwner(hook),
         };
-        const domainsResponse: DomainsResponse =
-          await provider.queryContractSmart(hook, domainsQuery);
-        for (const domain of domainsResponse.domains) {
-          const oracleQuery: IgpQuery = {
-            oracle: {
-              get_exchange_rate_and_gas_price: {
-                dest_domain: domain,
-              },
-            },
-          };
-          const oracleResponse: GetExchangeRateAndGasPriceResponse =
-            await provider.queryContractSmart(hook, oracleQuery);
-          console.log({ domain, oracleResponse });
-        }
+      } else if (hookContract.label === 'hpl_igp') {
+        const igpAdapter = new CosmWasmIgpAdapter(
+          neutron.name,
+          multiProtocolProvider,
+          { igp: hook },
+        );
+        const oracles = await igpAdapter.getOracles();
+        const defaultGas = await igpAdapter.defaultGas();
+        const beneficiary = await igpAdapter.beneficiary();
+
+        const mantaData = await igpAdapter.getOracleData(mantapacific.name);
+        const igpOracle = oracles[mantapacific.name];
+
+        summary.requiredHook.igpHook = {
+          oracles,
+          mantaOracle: {
+            ...mantaData,
+            owner: await getOwner(igpOracle),
+            ...(await provider.getContract(igpOracle)),
+          },
+          defaultGas,
+          beneficiary,
+          mailbox: await getMailbox(hook),
+          owner: await getOwner(hook),
+          ...hookContract,
+        };
       }
     }
+
+    console.log(JSON.stringify(summary));
   }
-
-  const defaultIsm = await adapter.defaultIsm();
-  const defaultIsmContract = await provider.getContract(defaultIsm);
-
-  if (defaultIsmContract.label === 'hpl_ism_multisig') {
-    const validatorsQuery: MultisigQuery = {
-      multisig_ism: {
-        enrolled_validators: {
-          domain: mantaDomain,
-        },
-      },
-    };
-    const resp: EnrolledValidatorsResponse = await provider.queryContractSmart(
-      defaultIsm,
-      validatorsQuery,
-    );
-    console.log(resp);
-  }
-
-  // console.log({
-  //   owner,
-  //   defaultHook,
-  //   defaultHookContract,
-  //   defaultIsm,
-  //   defaultIsmContract,
-  //   requiredHook,
-  //   requiredHookContract,
-  //   nonce,
-  // });
 }
 
 main().catch(console.error);
