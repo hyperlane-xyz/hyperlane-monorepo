@@ -8,7 +8,6 @@ use hyperlane_core::{
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, InterchainGasPayment, LogMeta, H256};
 use std::ops::RangeInclusive;
-use tracing::info;
 
 use crate::grpc::WasmGrpcProvider;
 use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
@@ -18,11 +17,8 @@ use crate::{ConnectionConf, CosmosProvider};
 /// A reference to a InterchainGasPaymaster contract on some Cosmos chain
 #[derive(Debug)]
 pub struct CosmosInterchainGasPaymaster {
-    _conf: ConnectionConf,
     domain: HyperlaneDomain,
     address: H256,
-    _signer: Signer,
-    _provider: Box<WasmGrpcProvider>,
 }
 
 impl HyperlaneContract for CosmosInterchainGasPaymaster {
@@ -49,11 +45,8 @@ impl CosmosInterchainGasPaymaster {
         let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
 
         Self {
-            _conf: conf,
             domain: locator.domain.clone(),
             address: locator.address,
-            _signer: signer,
-            _provider: Box::new(provider),
         }
     }
 }
@@ -146,35 +139,9 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
 }
 
 #[async_trait]
-impl Indexer<H256> for CosmosInterchainGasPaymasterIndexer {
-    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
-        let parser = self.get_parser();
-        let result = self.indexer.get_range_event_logs(range, parser).await?;
-
-        Ok(result
-            .into_iter()
-            .map(|(msg, meta)| (msg.message_id, meta))
-            .collect())
-    }
-
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.latest_block_height().await
-    }
-}
-
-#[async_trait]
 impl SequenceIndexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // TODO: implement when sealevel scraper support is implemented
-        let tip = self.indexer.latest_block_height().await?;
-        Ok((None, tip))
-    }
-}
-
-#[async_trait]
-impl SequenceIndexer<H256> for CosmosInterchainGasPaymasterIndexer {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // TODO: implement when sealevel scraper support is implemented
+        // TODO: implement when cosmwasm scraper support is implemented
         let tip = self.indexer.latest_block_height().await?;
         Ok((None, tip))
     }
