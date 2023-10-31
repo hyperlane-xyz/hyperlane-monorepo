@@ -103,17 +103,15 @@ impl CosmosInterchainGasPaymasterIndexer {
                     }
                     "payment" => res.payment = value.parse().unwrap(),
                     "cGF5bWVudA==" => {
-                        res.payment = String::from_utf8(STANDARD.decode(value).unwrap())
-                            .unwrap()
-                            .parse()
-                            .unwrap()
+                        let dec_str = String::from_utf8(STANDARD.decode(value).unwrap()).unwrap();
+                        // U256's from_str assumes a radix of 16, so we explicitly use from_dec_str.
+                        res.payment = U256::from_dec_str(dec_str.as_str()).unwrap();
                     }
                     "gas_amount" => res.gas_amount = value.parse().unwrap(),
                     "Z2FzX2Ftb3VudA==" => {
-                        res.gas_amount = String::from_utf8(STANDARD.decode(value).unwrap())
-                            .unwrap()
-                            .parse()
-                            .unwrap()
+                        let dec_str = String::from_utf8(STANDARD.decode(value).unwrap()).unwrap();
+                        // U256's from_str assumes a radix of 16, so we explicitly use from_dec_str.
+                        res.gas_amount = U256::from_dec_str(dec_str.as_str()).unwrap();
                     }
                     "dest_domain" => res.destination = value.parse().unwrap(),
                     "ZGVzdF9kb21haW4=" => {
