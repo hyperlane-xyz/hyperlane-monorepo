@@ -38,6 +38,7 @@ const neutron: ChainMetadata = {
 
 const neutronAddresses = {
   mailbox: 'neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4',
+  igp: 'neutron12p8wntzra3vpfcqv05scdx5sa3ftaj6gjcmtm7ynkl0e6crtt4ns8cnrmx',
 };
 
 const signer = '<PRIVATE_KEY>';

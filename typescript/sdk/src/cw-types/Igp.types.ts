@@ -131,6 +131,14 @@ export type IgpQueryMsg =
         dest_domain: number;
         gas_amount: Uint256;
       };
+    }
+  | {
+      gas_for_domain: {
+        domains: number[];
+      };
+    }
+  | {
+      default_gas: {};
     };
 export interface QuoteDispatchMsg {
   message: HexBinary;
