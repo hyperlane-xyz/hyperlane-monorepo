@@ -13,7 +13,7 @@ pub(crate) async fn get_block_height_for_lag(
     let block_height = match lag {
         Some(lag) => {
             let tip = provider.latest_block_height().await?;
-            let block_height = tip as u64 - lag.get();
+            let block_height = tip - lag.get();
             Some(block_height)
         }
         None => None,
