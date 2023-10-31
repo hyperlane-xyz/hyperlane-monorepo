@@ -11,7 +11,7 @@ use crate::payloads::mailbox::{
 use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
 use crate::CosmosProvider;
-use crate::{signers::Signer, verify, ConnectionConf};
+use crate::{signers::Signer, utils::get_block_height_for_lag, verify, ConnectionConf};
 use async_trait::async_trait;
 
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -40,8 +40,7 @@ impl CosmosMailbox {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
     pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
-        let provider: WasmGrpcProvider =
-            WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
 
         Self {
             _conf: conf,
@@ -80,22 +79,8 @@ impl Debug for CosmosMailbox {
 impl Mailbox for CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let payload = mailbox::NonceRequest {
-            nonce: general::EmptyStruct {},
-        };
-
-        let data = self
-            .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, lag)
-            .await;
-
-        if let Err(e) = data {
-            warn!("error: {:?}", e);
-            return Ok(0);
-        }
-
-        let response: mailbox::NonceResponse = serde_json::from_slice(&data?)?;
-        Ok(response.nonce)
+        let block_height = get_block_height_for_lag(&self.provider, lag).await?;
+        self.nonce_at_block(block_height).await
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
@@ -222,11 +207,29 @@ impl Mailbox for CosmosMailbox {
     }
 }
 
+impl CosmosMailbox {
+    #[instrument(level = "debug", err, ret, skip(self))]
+    async fn nonce_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
+        let payload = mailbox::NonceRequest {
+            nonce: general::EmptyStruct {},
+        };
+
+        let data = self
+            .provider
+            .wasm_query(GeneralMailboxQuery { mailbox: payload }, block_height)
+            .await?;
+
+        let response: mailbox::NonceResponse = serde_json::from_slice(&data)?;
+
+        Ok(response.nonce)
+    }
+}
+
 /// Struct that retrieves event data for a Cosmos Mailbox contract
 #[derive(Debug)]
 pub struct CosmosMailboxIndexer {
+    mailbox: CosmosMailbox,
     indexer: Box<CosmosWasmIndexer>,
-    provider: Box<WasmGrpcProvider>,
 }
 
 impl CosmosMailboxIndexer {
@@ -238,13 +241,12 @@ impl CosmosMailboxIndexer {
         signer: Signer,
         event_type: String,
     ) -> Self {
-        let indexer: CosmosWasmIndexer =
-            CosmosWasmIndexer::new(conf.clone(), locator.clone(), event_type.clone());
-        let provider: WasmGrpcProvider = WasmGrpcProvider::new(conf, locator, signer);
+        let mailbox = CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone());
+        let indexer: CosmosWasmIndexer = CosmosWasmIndexer::new(conf, locator, event_type);
 
         Self {
+            mailbox,
             indexer: Box::new(indexer),
-            provider: Box::new(provider),
         }
     }
 
@@ -279,37 +281,6 @@ impl CosmosMailboxIndexer {
             }
             None
         }
-    }
-
-    #[instrument(level = "debug", err, ret, skip(self))]
-    async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let payload = mailbox::NonceRequest {
-            nonce: general::EmptyStruct {},
-        };
-
-        let data = self
-            .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, lag)
-            .await?;
-        let response: mailbox::NonceResponse = serde_json::from_slice(&data)?;
-
-        Ok(response.nonce)
-    }
-
-    #[instrument(level = "debug", err, ret, skip(self))]
-    async fn nonce(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let payload = mailbox::NonceRequest {
-            nonce: general::EmptyStruct {},
-        };
-
-        let data = self
-            .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, lag)
-            .await?;
-
-        let response: mailbox::NonceResponse = serde_json::from_slice(&data)?;
-
-        Ok(response.nonce)
     }
 }
 
@@ -350,29 +321,20 @@ impl Indexer<H256> for CosmosMailboxIndexer {
 #[async_trait]
 impl SequenceIndexer<H256> for CosmosMailboxIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // TODO: implement when cosmos scraper support is implemented
         let tip = self.indexer.latest_block_height().await?;
 
-        let sequence = match NonZeroU64::new(tip as u64) {
-            None => None,
-            Some(n) => Some(self.nonce(Some(n)).await?),
-        };
-
-        Ok((sequence, tip))
+        // No sequence for message deliveries.
+        Ok((None, tip))
     }
 }
 
 #[async_trait]
 impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // TODO: implement when cosmos scraper support is implemented
         let tip = self.indexer.latest_block_height().await?;
 
-        let sequence = match NonZeroU64::new(tip as u64) {
-            None => None,
-            Some(n) => Some(self.nonce(Some(n)).await?),
-        };
+        let sequence = self.mailbox.nonce_at_block(Some(tip.into())).await?;
 
-        Ok((sequence, tip))
+        Ok((Some(sequence), tip))
     }
 }

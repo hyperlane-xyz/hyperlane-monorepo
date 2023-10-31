@@ -17,6 +17,7 @@ use crate::{
         merkle_tree_hook,
     },
     rpc::{CosmosWasmIndexer, WasmIndexer},
+    utils::get_block_height_for_lag,
     ConnectionConf, CosmosProvider, Signer,
 };
 
@@ -75,13 +76,15 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             tree: general::EmptyStruct {},
         };
 
+        let block_height = get_block_height_for_lag(&self.provider, lag).await?;
+
         let data = self
             .provider
             .wasm_query(
                 merkle_tree_hook::MerkleTreeGenericRequest {
                     merkle_hook: payload,
                 },
-                lag,
+                block_height,
             )
             .await?;
         let response: merkle_tree_hook::MerkleTreeResponse = serde_json::from_slice(&data)?;
@@ -108,13 +111,15 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             count: general::EmptyStruct {},
         };
 
+        let block_height = get_block_height_for_lag(&self.provider, lag).await?;
+
         let data = self
             .provider
             .wasm_query(
                 merkle_tree_hook::MerkleTreeGenericRequest {
                     merkle_hook: payload,
                 },
-                lag,
+                block_height,
             )
             .await?;
         let response: merkle_tree_hook::MerkleTreeCountResponse = serde_json::from_slice(&data)?;
@@ -128,13 +133,15 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             check_point: general::EmptyStruct {},
         };
 
+        let block_height = get_block_height_for_lag(&self.provider, lag).await?;
+
         let data = self
             .provider
             .wasm_query(
                 merkle_tree_hook::MerkleTreeGenericRequest {
                     merkle_hook: payload,
                 },
-                lag,
+                block_height,
             )
             .await?;
         let response: merkle_tree_hook::CheckPointResponse = serde_json::from_slice(&data)?;
