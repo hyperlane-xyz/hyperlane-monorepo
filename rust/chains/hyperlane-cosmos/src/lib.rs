@@ -17,6 +17,7 @@ mod providers;
 mod routing_ism;
 mod signers;
 mod trait_builder;
+mod utils;
 mod validator_announce;
 
 pub use self::{
