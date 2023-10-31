@@ -11,7 +11,7 @@ use crate::payloads::mailbox::{
 use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
 use crate::CosmosProvider;
-use crate::{signers::Signer, verify, ConnectionConf};
+use crate::{signers::Signer, utils::get_block_height_for_lag, verify, ConnectionConf};
 use async_trait::async_trait;
 
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -40,8 +40,7 @@ impl CosmosMailbox {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
     pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
-        let provider: WasmGrpcProvider =
-            WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
 
         Self {
             _conf: conf,
@@ -80,7 +79,7 @@ impl Debug for CosmosMailbox {
 impl Mailbox for CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let block_height = self.get_block_height_for_lag(lag).await?;
+        let block_height = get_block_height_for_lag(&self.provider, lag).await?;
         self.nonce_at_block(block_height).await
     }
 
@@ -208,11 +207,29 @@ impl Mailbox for CosmosMailbox {
     }
 }
 
+impl CosmosMailbox {
+    #[instrument(level = "debug", err, ret, skip(self))]
+    async fn nonce_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
+        let payload = mailbox::NonceRequest {
+            nonce: general::EmptyStruct {},
+        };
+
+        let data = self
+            .provider
+            .wasm_query(GeneralMailboxQuery { mailbox: payload }, block_height)
+            .await?;
+
+        let response: mailbox::NonceResponse = serde_json::from_slice(&data)?;
+
+        Ok(response.nonce)
+    }
+}
+
 /// Struct that retrieves event data for a Cosmos Mailbox contract
 #[derive(Debug)]
 pub struct CosmosMailboxIndexer {
+    mailbox: CosmosMailbox,
     indexer: Box<CosmosWasmIndexer>,
-    provider: Box<WasmGrpcProvider>,
 }
 
 impl CosmosMailboxIndexer {
@@ -224,13 +241,12 @@ impl CosmosMailboxIndexer {
         signer: Signer,
         event_type: String,
     ) -> Self {
-        let indexer: CosmosWasmIndexer =
-            CosmosWasmIndexer::new(conf.clone(), locator.clone(), event_type.clone());
-        let provider: WasmGrpcProvider = WasmGrpcProvider::new(conf, locator, signer);
+        let mailbox = CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone());
+        let indexer: CosmosWasmIndexer = CosmosWasmIndexer::new(conf, locator, event_type);
 
         Self {
+            mailbox,
             indexer: Box::new(indexer),
-            provider: Box::new(provider),
         }
     }
 
@@ -265,38 +281,6 @@ impl CosmosMailboxIndexer {
             }
             None
         }
-    }
-
-    /// Given a lag, returns the block height at the moment.
-    /// If the lag is None, a block height of None is given, indicating that the
-    /// tip directly can be used.
-    async fn get_block_height_for_lag(&self, lag: Option<NonZeroU64>) -> ChainResult<Option<u64>> {
-        let block_height = match lag {
-            Some(lag) => {
-                let tip = self.indexer.latest_block_height().await?;
-                let block_height = tip as u64 - lag;
-                Some(block_height)
-            }
-            None => None,
-        };
-
-        Ok(block_height)
-    }
-
-    #[instrument(level = "debug", err, ret, skip(self))]
-    async fn nonce_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
-        let payload = mailbox::NonceRequest {
-            nonce: general::EmptyStruct {},
-        };
-
-        let data = self
-            .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, block_height)
-            .await?;
-
-        let response: mailbox::NonceResponse = serde_json::from_slice(&data)?;
-
-        Ok(response.nonce)
     }
 }
 
@@ -349,8 +333,8 @@ impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = self.indexer.latest_block_height().await?;
 
-        let sequence = self.nonce_at_block(Some(tip)).await?;
+        let sequence = self.mailbox.nonce_at_block(Some(tip.into())).await?;
 
-        Ok((sequence, tip))
+        Ok((Some(sequence), tip))
     }
 }

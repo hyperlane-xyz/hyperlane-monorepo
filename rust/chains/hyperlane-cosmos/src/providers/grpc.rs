@@ -24,7 +24,6 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, H256, U256,
 };
 use serde::Serialize;
-use std::num::NonZeroU64;
 
 use crate::verify;
 use crate::{signers::Signer, ConnectionConf};
@@ -137,8 +136,6 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
-        let mut client = WasmQueryClient::connect(self.get_conn_url()?).await?;
-
         self.wasm_query_to(self.get_contract_addr()?, payload, block_height)
             .await
     }
