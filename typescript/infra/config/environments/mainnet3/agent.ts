@@ -2,6 +2,7 @@ import {
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
+  getDomainId,
 } from '@hyperlane-xyz/sdk';
 
 import { RootAgentConfig, allAgentChainNames } from '../../../src/config';
@@ -111,9 +112,22 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f47d6ab-20231031-124004',
+      tag: 'ff69559-20231031-172516',
     },
-    gasPaymentEnforcement,
+    gasPaymentEnforcement: [
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: [
+          {
+            originDomain: getDomainId(chainMetadata.neutron),
+            destinationDomain: getDomainId(chainMetadata.mantapacific),
+            senderAddress: '*',
+            recipientAddress: '*',
+          },
+        ],
+      },
+      ...gasPaymentEnforcement,
+    ],
   },
 };
 
