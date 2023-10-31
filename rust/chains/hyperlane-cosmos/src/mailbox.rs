@@ -236,7 +236,7 @@ impl CosmosMailboxIndexer {
 
     fn get_parser(&self) -> fn(attrs: Vec<EventAttribute>) -> Option<HyperlaneMessage> {
         |attrs: Vec<EventAttribute>| -> Option<HyperlaneMessage> {
-            let mut res = HyperlaneMessage::default();
+            let res = HyperlaneMessage::default();
 
             for attr in attrs {
                 let key = attr.key.as_str();
