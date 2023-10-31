@@ -1,111 +1,67 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 
 /* eslint-disable no-console */
-import { SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
-import { Secp256k1, keccak256 } from '@cosmjs/crypto';
-import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
-import { GasPrice, SigningStargateClient } from '@cosmjs/stargate';
-import { Tendermint37Client } from '@cosmjs/tendermint-rpc';
-
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { CosmWasmCoreAdapter } from '../../core/adapters/CosmWasmCoreAdapter';
 import { ChainMetadata } from '../../metadata/chainMetadataTypes';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 
-import { CwHypNativeAdapter } from './CosmWasmTokenAdapter';
-
-const router =
-  'dual1nzkcccxw00u9egqfuuq2ue23hjj6kxmfvmc5y0r7wchk5e6nypns6768kk';
-
-const dualitydevnet: ChainMetadata = {
-  name: 'dualitydevnet',
-  chainId: 'duality-devnet',
-  domainId: 33333,
+const neutron: ChainMetadata = {
   protocol: ProtocolType.Cosmos,
-  bech32Prefix: 'dual',
-  slip44: 118, // what is this
+  name: 'neutron',
+  chainId: 'neutron-1',
+  displayName: 'Neutron',
+  domainId: 1853125230,
+  bech32Prefix: 'neutron',
+  slip44: 118,
   rpcUrls: [
-    {
-      http: 'http://54.149.31.83:26657',
-    },
+    { http: 'https://rpc-kralum.neutron-1.neutron.org' },
+    { http: 'grpc-kralum.neutron-1.neutron.org:80' },
   ],
-  isTestnet: true,
+  nativeToken: {
+    name: 'Neutron',
+    symbol: 'NTRN',
+    decimals: 6,
+  },
 };
 
-const signer = '<PRIVATE_KEY>';
-
-export async function getSigningClient() {
-  const wallet = await DirectSecp256k1Wallet.fromKey(
-    Buffer.from(signer, 'hex'),
-    dualitydevnet.bech32Prefix!,
-  );
-
-  const [account] = await wallet.getAccounts();
-
-  const clientBase = await Tendermint37Client.connect(
-    dualitydevnet.rpcUrls[0].http,
-  );
-
-  const gasPrice = GasPrice.fromString('0.025token');
-
-  const wasm = await SigningCosmWasmClient.createWithSigner(
-    clientBase,
-    wallet,
-    {
-      gasPrice,
-    },
-  );
-  const stargate = await SigningStargateClient.createWithSigner(
-    clientBase,
-    wallet,
-    {
-      gasPrice,
-    },
-  );
-
-  const pubkey = Secp256k1.uncompressPubkey(account.pubkey);
-  const ethaddr = keccak256(pubkey.slice(1)).slice(-20);
-
-  return {
-    wasm,
-    stargate,
-    signer: account.address,
-    signer_addr: Buffer.from(ethaddr).toString('hex'),
-    signer_pubkey: Buffer.from(account.pubkey).toString('hex'),
-  };
-}
+const neutronAddresses = {
+  mailbox: 'neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4',
+};
 
 async function main() {
   const multiProtocolProvider = new MultiProtocolProvider({
-    dualitydevnet,
+    neutron,
   });
 
-  const gasDenom = 'token';
-
-  const adapter = new CwHypNativeAdapter(
-    dualitydevnet.name,
+  const adapter = new CosmWasmCoreAdapter(
+    neutron.name,
     multiProtocolProvider,
-    { warpRouter: router },
-    gasDenom,
+    neutronAddresses,
   );
+
   const owner = await adapter.owner();
-  const routers = await adapter.getAllRouters();
-  const domains = await adapter.getDomains();
-  const balance = await adapter.getBalance(owner);
+  const defaultHook = await adapter.defaultHook();
+  const defaultIsm = await adapter.defaultIsm();
+  const requiredHook = await adapter.requiredHook();
+  const nonce = await adapter.nonce();
 
-  console.log({ owner, routers, domains, balance });
+  const provider = await adapter.getProvider();
+  const defaultHookContract = await provider.getContract(defaultHook);
+  const defaultIsmContract = await provider.getContract(defaultIsm);
+  const requiredHookContract = await provider.getContract(requiredHook);
 
-  const msg = await adapter.populateTransferRemoteTx({
-    destination: domains[0],
-    recipient: '0xE000fA4E466831dB288290Dd97e66560fb3d7d28',
-    weiAmountOrId: 10,
-    txValue: '2500000',
+  console.log({
+    owner,
+    defaultHook,
+    defaultHookContract,
+    defaultIsm,
+    defaultIsmContract,
+    requiredHook,
+    requiredHookContract,
+    nonce,
   });
-
-  const client = await getSigningClient();
-
-  const tx = await client.wasm.executeMultiple(client.signer, [msg], 'auto');
-  console.log({ tx });
 }
 
 main().catch(console.error);
