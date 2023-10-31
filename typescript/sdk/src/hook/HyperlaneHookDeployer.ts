@@ -109,6 +109,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
   ): Promise<HyperlaneContracts<HookFactories>> {
     const aggregatedHooks: string[] = [];
     let hooks: any = {};
+    const output: any = {};
     for (const hookConfig of config.hooks) {
       const subhooks = await this.deployContracts(
         chain,
@@ -117,7 +118,15 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       );
       aggregatedHooks.push(subhooks[hookConfig.type].address);
       hooks = { ...hooks, ...subhooks };
+      output[hookConfig.type] = subhooks[hookConfig.type].address;
     }
+    this.logger(
+      `Deploying static address set as aggregationHook comprising of ${JSON.stringify(
+        output,
+        null,
+        4,
+      )}`,
+    );
     const address = await this.ismFactory.deployStaticAddressSet(
       chain,
       this.ismFactory.getContracts(chain).aggregationHookFactory,

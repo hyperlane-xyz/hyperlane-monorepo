@@ -8,7 +8,6 @@ import {
   ChainName,
   HookType,
   HyperlaneCore,
-  ModuleType,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
@@ -33,6 +32,7 @@ async function setMailboxHook(
   mailboxHookType: MailboxHookType,
   hookArg: HookType,
 ) {
+  console.log(`fetching setMailboxHook config the ${coreAddresses[local]}`);
   const hook = coreAddresses[local][hookArg];
   switch (mailboxHookType) {
     case MailboxHookType.REQUIRED: {
