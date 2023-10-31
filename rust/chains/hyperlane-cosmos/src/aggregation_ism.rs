@@ -1,25 +1,21 @@
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
-    payloads::aggregate_ism::{
-        ModulesAndThresholdRequest, ModulesAndThresholdRequestInner, ModulesAndThresholdResponse,
-    },
+    payloads::aggregate_ism::{ModulesAndThresholdRequest, ModulesAndThresholdResponse},
     verify::bech32_decode,
     ConnectionConf, CosmosProvider, Signer,
 };
 use async_trait::async_trait;
 use hyperlane_core::{
     AggregationIsm, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, RawHyperlaneMessage, H256,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, H256,
 };
 use tracing::instrument;
 
 /// A reference to an AggregationIsm contract on some Cosmos chain
 #[derive(Debug)]
 pub struct CosmosAggregationIsm {
-    _conf: ConnectionConf,
     domain: HyperlaneDomain,
     address: H256,
-    _signer: Signer,
     provider: Box<WasmGrpcProvider>,
 }
 
@@ -29,10 +25,8 @@ impl CosmosAggregationIsm {
         let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
 
         Self {
-            _conf: conf,
             domain: locator.domain.clone(),
             address: locator.address,
-            _signer: signer,
             provider: Box::new(provider),
         }
     }
@@ -61,20 +55,12 @@ impl AggregationIsm for CosmosAggregationIsm {
         &self,
         message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
-        let payload = ModulesAndThresholdRequest {
-            modules_and_threshold: ModulesAndThresholdRequestInner {
-                message: hex::encode(RawHyperlaneMessage::from(message)),
-            },
-        };
+        let payload = ModulesAndThresholdRequest::new(message);
 
         let data = self.provider.wasm_query(payload, None).await?;
         let response: ModulesAndThresholdResponse = serde_json::from_slice(&data)?;
 
-        let modules: Vec<H256> = response
-            .modules
-            .iter()
-            .map(|module| bech32_decode(module.clone()))
-            .collect();
+        let modules: Vec<H256> = response.modules.into_iter().map(bech32_decode).collect();
 
         Ok((modules, response.threshold))
     }

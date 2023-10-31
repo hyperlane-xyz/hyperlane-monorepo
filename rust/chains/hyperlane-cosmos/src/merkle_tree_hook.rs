@@ -8,7 +8,7 @@ use hyperlane_core::{
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, LogMeta,
     MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer, H256,
 };
-use tracing::{info, instrument};
+use tracing::instrument;
 
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
