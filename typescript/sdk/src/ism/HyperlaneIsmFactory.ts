@@ -32,6 +32,7 @@ import { FactoryFactories, factoryFactories } from './contracts';
 import {
   AggregationIsmConfig,
   DeployedIsm,
+  DeployedIsmType,
   IsmConfig,
   IsmType,
   ModuleType,
@@ -75,62 +76,52 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
     );
   }
 
-  async deploy(
+  async deploy<C extends IsmConfig>(
     chain: ChainName,
-    config: IsmConfig,
+    config: C,
     origin?: ChainName,
   ): Promise<DeployedIsm> {
-    let contract: DeployedIsm;
     if (typeof config === 'string') {
-      // TODO: return the appropriate ISM type
+      // @ts-ignore
       return IInterchainSecurityModule__factory.connect(
         config,
         this.multiProvider.getSignerOrProvider(chain),
       );
     }
 
-    if (
-      config.type === IsmType.MERKLE_ROOT_MULTISIG ||
-      config.type === IsmType.MESSAGE_ID_MULTISIG
-    ) {
-      switch (config.type) {
-        case IsmType.MERKLE_ROOT_MULTISIG:
-          this.logger(
-            `Deploying Merkle Root Multisig ISM to ${chain} for verifying ${origin}`,
-          );
-          break;
-        case IsmType.MESSAGE_ID_MULTISIG:
-          this.logger(
-            `Deploying Message ID Multisig ISM to ${chain} for verifying ${origin}`,
-          );
-          break;
-      }
-      contract = await this.deployMultisigIsm(chain, config);
-    } else if (config.type === IsmType.ROUTING) {
-      this.logger(
-        `Deploying Routing ISM to ${chain} for verifying ${Object.keys(
-          config.domains,
-        )}`,
-      );
-      contract = await this.deployRoutingIsm(chain, config);
-    } else if (config.type === IsmType.AGGREGATION) {
-      this.logger(`Deploying Aggregation ISM to ${chain}`);
-      contract = await this.deployAggregationIsm(chain, config, origin);
-    } else if (config.type === IsmType.OP_STACK) {
-      this.logger(`Deploying Op Stack ISM to ${chain} for verifying ${origin}`);
-      contract = await this.deployOpStackIsm(chain, config);
-    } else if (config.type === IsmType.TEST_ISM) {
-      this.logger(`Deploying Test ISM to ${chain}`);
-      contract = await this.multiProvider.handleDeploy(
-        chain,
-        new TestIsm__factory(),
-        [],
-      );
-    } else {
-      throw new Error(`Unsupported ISM type`);
+    const ismType = config.type;
+    this.logger(
+      `Deploying ${ismType} to ${chain} ${
+        origin ? `(for verifying ${origin})` : ''
+      }`,
+    );
+
+    let contract: DeployedIsmType[typeof ismType];
+    switch (ismType) {
+      case IsmType.MESSAGE_ID_MULTISIG:
+      case IsmType.MERKLE_ROOT_MULTISIG:
+        contract = await this.deployMultisigIsm(chain, config);
+        break;
+      case IsmType.ROUTING:
+        contract = await this.deployRoutingIsm(chain, config);
+        break;
+      case IsmType.AGGREGATION:
+        contract = await this.deployAggregationIsm(chain, config, origin);
+        break;
+      case IsmType.OP_STACK:
+        contract = await this.deployOpStackIsm(chain, config);
+        break;
+      case IsmType.TEST_ISM:
+        contract = await this.multiProvider.handleDeploy(
+          chain,
+          new TestIsm__factory(),
+          [],
+        );
+        break;
+      default:
+        throw new Error(`Unsupported ISM type ${ismType}`);
     }
 
-    const ismType = config.type;
     if (!this.deployedIsms[chain]) {
       this.deployedIsms[chain] = {};
     }
@@ -222,7 +213,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
       this.getContracts(chain).aggregationIsmFactory;
     const addresses: Address[] = [];
     for (const module of config.modules) {
-      addresses.push((await this.deploy(chain, module, origin)).address);
+      const submodule = await this.deploy(chain, module, origin);
+      addresses.push(submodule.address);
     }
     const address = await this.deployStaticAddressSet(
       chain,
@@ -521,7 +513,6 @@ export async function moduleMatchesConfig(
       const opStackIsm = OPStackIsm__factory.connect(moduleAddress, provider);
       const type = await opStackIsm.moduleType();
       matches = matches && type === ModuleType.NULL;
-      matches = false;
       break;
     }
     case IsmType.TEST_ISM: {

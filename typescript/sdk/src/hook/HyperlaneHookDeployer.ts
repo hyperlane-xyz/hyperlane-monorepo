@@ -25,12 +25,13 @@ import { ChainMap, ChainName } from '../types';
 import { HookFactories, hookFactories } from './contracts';
 import {
   AggregationHookConfig,
+  DomainRoutingHookConfig,
+  FallbackRoutingHookConfig,
   HookConfig,
   HookType,
   IgpHookConfig,
   OpStackHookConfig,
   ProtocolFeeHookConfig,
-  RoutingHookConfig,
 } from './types';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
@@ -139,6 +140,9 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       aggregatedHooks.push(subhooks[hookConfig.type].address);
       hooks = { ...hooks, ...subhooks };
     }
+    this.logger(
+      `Deploying aggregation hook of ${config.hooks.map((h) => h.type)}`,
+    );
     const address = await this.ismFactory.deployStaticAddressSet(
       chain,
       this.ismFactory.getContracts(chain).aggregationHookFactory,
@@ -178,11 +182,11 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       origin: chain,
       nativeBridge: l2Messenger,
     };
-    const opstackIsm = await this.ismFactory.deploy(
+    const opstackIsm = (await this.ismFactory.deploy(
       config.destinationChain,
       ismConfig,
       chain,
-    );
+    )) as OPStackIsm;
     // deploy opstack hook
     const hook = await this.deployContract(chain, HookType.OP_STACK, [
       mailbox,
@@ -192,7 +196,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     ]);
     const overrides = this.multiProvider.getTransactionOverrides(chain);
     // set authorized hook on opstack ism
-    const authorizedHook = await (opstackIsm as OPStackIsm).authorizedHook();
+    const authorizedHook = await opstackIsm.authorizedHook();
     if (authorizedHook === addressToBytes32(hook.address)) {
       this.logger('Authorized hook already set on ism %s', opstackIsm.address);
       return hook;
@@ -216,10 +220,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     );
     await this.multiProvider.handleTx(
       config.destinationChain,
-      (opstackIsm as OPStackIsm).setAuthorizedHook(
-        addressToBytes32(hook.address),
-        overrides,
-      ),
+      opstackIsm.setAuthorizedHook(addressToBytes32(hook.address), overrides),
     );
 
     return hook;
@@ -227,7 +228,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 
   async deployRouting(
     chain: ChainName,
-    config: RoutingHookConfig,
+    config: DomainRoutingHookConfig | FallbackRoutingHookConfig,
     coreAddresses = this.core[chain],
   ): Promise<DomainRoutingHook> {
     const mailbox = coreAddresses?.mailbox;

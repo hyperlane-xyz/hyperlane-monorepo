@@ -38,6 +38,8 @@ export async function runHelloworldKathyHelmCommand(
 
   const values = getHelloworldKathyHelmValues(agentConfig, kathyConfig);
 
+  console.log('kathy values: ', values);
+
   return execCmd(
     `helm ${helmCommand} ${getHelmReleaseName(
       agentConfig.context,

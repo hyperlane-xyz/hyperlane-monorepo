@@ -29,6 +29,7 @@ export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, owner) => {
       exclude(chain, supportedChainNames).map((remote) => [
         remote,
         multisigIsmVerificationCost(
+          // TODO: parameterize this
           defaultMultisigIsmConfigs[remote].threshold,
           defaultMultisigIsmConfigs[remote].validators.length,
         ),

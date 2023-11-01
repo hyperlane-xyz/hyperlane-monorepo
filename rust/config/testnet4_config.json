@@ -98,7 +98,7 @@
       "AGGREGATION": "0x6f36a2dCC2eE58eB6b4B43330788Baa350F952EC",
       "fallbackRoutingHook": "0xE1386148385275A27D29fC39Bd58a969CD5dCAF0",
       "index": {
-        "from": 20647937
+        "from": 20566929
       }
     },
     "arbitrumgoerli": {
@@ -148,7 +148,7 @@
       "protocolFee": "0x0358ba0D90ED2d90fB8cBb610F27C274D8077a0B",
       "fallbackRoutingHook": "0x3Ce607F6FcE5Dfb9821f33504d86E04A4CD0C75f",
       "index": {
-        "from": 51782328
+        "from": 50669378
       }
     },
     "basegoerli": {
@@ -355,7 +355,7 @@
       "AGGREGATION": "0x16c328B3976e5624D8AC38E362574e694676Ac6b",
       "fallbackRoutingHook": "0xc278DDe83018F0e8c624b208e6D9E6251d263B1d",
       "index": {
-        "from": 34641957
+        "from": 34506952
       }
     },
     "fuji": {
@@ -453,7 +453,7 @@
       "AGGREGATION": "0x39202263246c48eb80879870e9c547Bc787cdfC6",
       "fallbackRoutingHook": "0x50897eDCb3f1bB2A90f20DA5a8dF0e5c57A146e3",
       "index": {
-        "from": 27245961
+        "from": 27090437
       }
     },
     "goerli": {
@@ -633,7 +633,7 @@
       "validatorAnnounce": "0x07543860AE9E72aBcF2Bae9827b23621A64Fa416",
       "fallbackRoutingHook": "0x6c9EB73793F9Cd535DB1bF86dC307f6d899b2fE3",
       "index": {
-        "from": 5382573
+        "from": 5355188
       }
     },
     "mumbai": {
@@ -739,7 +739,7 @@
       "AGGREGATION": "0xE794ff773fcd25ad43749CbCAE8e69f7f64810EF",
       "fallbackRoutingHook": "0xFA005A892EbDACFcc3f1EF0111A7406c779c3647",
       "index": {
-        "from": 41804759
+        "from": 41618135
       }
     },
     "optimismgoerli": {
@@ -789,7 +789,7 @@
       "protocolFee": "0x962e30F6A3ECDA85c7fa1FcF38cD04efA991Ee20",
       "fallbackRoutingHook": "0xba962f31B8DE02238fDdf8CE6a21260Af8C5Dd2F",
       "index": {
-        "from": 16597573
+        "from": 16395052
       }
     },
     "polygonzkevmtestnet": {
@@ -838,7 +838,7 @@
       "protocolFee": "0xddf4C3e791caCaFd26D7fb275549739B38ae6e75",
       "fallbackRoutingHook": "0xB057Fb841027a8554521DcCdeC3c3474CaC99AB5",
       "index": {
-        "from": 3049869
+        "from": 3019086
       }
     },
     "scrollsepolia": {
@@ -871,6 +871,9 @@
         "estimateBlockTime": 3
       },
       "isTestnet": true,
+      "transactionOverrides": {
+        "gasLimit": 5000000
+      },
       "merkleRootMultisigIsmFactory": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
       "messageIdMultisigIsmFactory": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
       "aggregationIsmFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
@@ -944,7 +947,7 @@
       "AGGREGATION": "0x5861Baf9aa7eC91e88585aB3bd8e3183B0768437",
       "fallbackRoutingHook": "0x7c115c16E34c74afdb88bd268EaB19bC705891FE",
       "index": {
-        "from": 1941608
+        "from": 1846115
       }
     },
     "sepolia": {
@@ -983,6 +986,9 @@
         "estimateBlockTime": 13
       },
       "isTestnet": true,
+      "transactionOverrides": {
+        "gasLimit": 1000000
+      },
       "merkleRootMultisigIsmFactory": "0x0a71AcC99967829eE305a285750017C4916Ca269",
       "messageIdMultisigIsmFactory": "0xFEb9585b2f948c1eD74034205a7439261a9d27DD",
       "aggregationIsmFactory": "0xC83e12EF2627ACE445C298e6eC418684918a6002",
@@ -999,7 +1005,7 @@
       "validatorAnnounce": "0xE6105C59480a1B7DD3E4f28153aFdbE12F4CfCD9",
       "fallbackRoutingHook": "0x977837C7bf2863403d08a57Ee952d63fA1ae279E",
       "index": {
-        "from": 4590471
+        "from": 4558491
       }
     }
   },

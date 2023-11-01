@@ -42,22 +42,19 @@ export type OpStackHookConfig = {
   destinationChain: ChainName;
 };
 
-export type DomainRoutingHookConfig = {
+type RoutingHookConfig = {
+  owner: Address;
+  domains: ChainMap<HookConfig>;
+};
+
+export type DomainRoutingHookConfig = RoutingHookConfig & {
   type: HookType.ROUTING;
-  owner: Address;
-  domains: ChainMap<HookConfig>;
 };
 
-export type FallbackRoutingHookConfig = {
+export type FallbackRoutingHookConfig = RoutingHookConfig & {
   type: HookType.FALLBACK_ROUTING;
-  owner: Address;
   fallback: HookConfig;
-  domains: ChainMap<HookConfig>;
 };
-
-export type RoutingHookConfig =
-  | DomainRoutingHookConfig
-  | FallbackRoutingHookConfig;
 
 export type HookConfig =
   | MerkleTreeHookConfig
@@ -65,4 +62,5 @@ export type HookConfig =
   | IgpHookConfig
   | ProtocolFeeHookConfig
   | OpStackHookConfig
-  | RoutingHookConfig;
+  | DomainRoutingHookConfig
+  | FallbackRoutingHookConfig;

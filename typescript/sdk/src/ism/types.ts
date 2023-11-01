@@ -1,26 +1,13 @@
 import {
   IAggregationIsm,
-  IInterchainSecurityModule,
   IMultisigIsm,
   IRoutingIsm,
   OPStackIsm,
-  StaticMerkleRootMultisigIsm,
-  StaticMessageIdMultisigIsm,
   TestIsm,
 } from '@hyperlane-xyz/core';
-import type { Address } from '@hyperlane-xyz/utils';
+import type { Address, ValueOf } from '@hyperlane-xyz/utils';
 
 import { ChainMap } from '../types';
-
-export type DeployedIsm =
-  | IInterchainSecurityModule
-  | IMultisigIsm
-  | IAggregationIsm
-  | IRoutingIsm
-  | StaticMessageIdMultisigIsm
-  | StaticMerkleRootMultisigIsm
-  | OPStackIsm
-  | TestIsm;
 
 // this enum should match the IInterchainSecurityModule.sol enum
 // meant for the relayer
@@ -101,3 +88,14 @@ export type IsmConfig =
   | AggregationIsmConfig
   | OpStackIsmConfig
   | TestIsmConfig;
+
+export type DeployedIsmType = {
+  [IsmType.ROUTING]: IRoutingIsm;
+  [IsmType.AGGREGATION]: IAggregationIsm;
+  [IsmType.MERKLE_ROOT_MULTISIG]: IMultisigIsm;
+  [IsmType.MESSAGE_ID_MULTISIG]: IMultisigIsm;
+  [IsmType.OP_STACK]: OPStackIsm;
+  [IsmType.TEST_ISM]: TestIsm;
+};
+
+export type DeployedIsm = ValueOf<DeployedIsmType>;
