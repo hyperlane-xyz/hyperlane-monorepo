@@ -6,7 +6,6 @@ use std::ops::Deref;
 use crate::config::StrOrIntParseError;
 use cosmrs::proto::prost;
 use cosmrs::Error as CosmrsError;
-// use fixed_hash::rustc_hex::FromHexError;
 use std::string::FromUtf8Error;
 
 use crate::HyperlaneProviderError;

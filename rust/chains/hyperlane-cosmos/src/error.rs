@@ -1,4 +1,3 @@
-// use bech32::Error;
 use hyperlane_core::ChainCommunicationError;
 
 /// Errors from the crates specific to the hyperlane-cosmos
