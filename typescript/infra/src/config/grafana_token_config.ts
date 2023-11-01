@@ -85,19 +85,19 @@ export const neutronList: WarpTokenConfig = {
   neutron: {
     type: TokenType.collateral,
     address:
-      'ibc/C4CFF46FD6DE35CA4CF4CE031E643C8FDC9BA4B99AE598E9B0ED98FE3A2319F9',
+      'ibc/773B4D0A3CD667B2275D5A4A7A2F0909C0BA0F4059C0B9181E680DDF4965DCC7',
     hypCollateralAddress:
-      'neutron1kduejjvqak5xd6csctxnndgmv6uc86ca0l7jn6cpxzjjr2hm8tws9nej4g',
-    name: 'Neutron',
-    symbol: 'ATOM',
+      'neutron1ch7x3xgpnj62weyes8vfada35zff6z59kt2psqhnx9gjnt2ttqdqtva3pa',
+    name: 'Celestia',
+    symbol: 'TIA',
     decimals: 6,
     protocolType: ProtocolType.Cosmos,
   },
   mantapacific: {
     type: TokenType.synthetic,
-    hypSyntheticAddress: '0x21E94a77F813A2fE918287715cb33439fbe275F8',
-    name: 'ATOM',
-    symbol: 'ATOM',
+    hypSyntheticAddress: '0x6Fae4D9935E2fcb11fC79a64e917fb2BF14DaFaa',
+    name: 'Celestia',
+    symbol: 'TIA',
     decimals: 6,
     protocolType: ProtocolType.Ethereum,
   },

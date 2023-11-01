@@ -13,10 +13,10 @@ export async function runWarpRouteHelmCommand(
 
   return execCmd(
     `helm ${helmCommand} ${getHelmReleaseName(
-      'zebec',
+      values.config,
     )} ./helm/warp-routes --namespace ${runEnv} ${values.join(
       ' ',
-    )} --set fullnameOverride="${getHelmReleaseName('zebec')}"`,
+    )} --set fullnameOverride="${getHelmReleaseName(values.config)}"`,
   );
 }
 
