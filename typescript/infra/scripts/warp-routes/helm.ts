@@ -6,17 +6,18 @@ import { assertCorrectKubeContext, getEnvironmentConfig } from '../utils';
 export async function runWarpRouteHelmCommand(
   helmCommand: HelmCommand,
   runEnv: DeployEnvironment,
+  config: string,
 ) {
   const envConfig = getEnvironmentConfig(runEnv);
   await assertCorrectKubeContext(envConfig);
-  const values = getWarpRoutesHelmValues();
+  const values = getWarpRoutesHelmValues(config);
 
   return execCmd(
     `helm ${helmCommand} ${getHelmReleaseName(
-      values.config,
+      config,
     )} ./helm/warp-routes --namespace ${runEnv} ${values.join(
       ' ',
-    )} --set fullnameOverride="${getHelmReleaseName(values.config)}"`,
+    )} --set fullnameOverride="${getHelmReleaseName(config)}"`,
   );
 }
 
@@ -24,13 +25,13 @@ function getHelmReleaseName(route: string): string {
   return `hyperlane-warp-route-${route}`;
 }
 
-function getWarpRoutesHelmValues() {
+function getWarpRoutesHelmValues(config: string) {
   const values = {
     image: {
       repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
       tag: '962d34b-20230905-194531',
     },
-    config: 'neutron', // nautilus or neutron
+    config: config, // nautilus or neutron
   };
   return helmifyValues(values);
 }
