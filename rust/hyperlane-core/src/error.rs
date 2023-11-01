@@ -124,6 +124,9 @@ pub enum ChainCommunicationError {
     /// Int string parsing error
     #[error("{0}")]
     ParseIntError(#[from] std::num::ParseIntError),
+    /// Hash string parsing error
+    #[error("{0}")]
+    HashParsingError(#[from] fixed_hash::rustc_hex::FromHexError),
     /// Invalid Request
     #[error("Invalid Request: {msg:?}")]
     InvalidRequest {

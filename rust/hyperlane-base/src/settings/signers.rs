@@ -152,7 +152,7 @@ impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
             SignerConf::HexKey { .. } => bail!("HexKey signer is not supported by cosmos"),
             SignerConf::Aws { .. } => bail!("Aws signer is not supported by cosmos"),
             SignerConf::CosmosKey { key, prefix } => {
-                hyperlane_cosmos::Signer::new(key.as_bytes().to_vec(), prefix.clone())
+                hyperlane_cosmos::Signer::new(key.as_bytes().to_vec(), prefix.clone())?
             }
             SignerConf::Node => bail!("Node signer is not supported by cosmos"),
         })
@@ -161,6 +161,6 @@ impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
 
 impl ChainSigner for hyperlane_cosmos::Signer {
     fn address_string(&self) -> String {
-        self.address()
+        self.address.clone()
     }
 }
