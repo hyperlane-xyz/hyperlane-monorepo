@@ -201,16 +201,15 @@ impl CosmosMerkleTreeHookIndexer {
     /// Get the parser for the indexer
     fn get_parser(
         &self,
-    ) -> fn(attrs: Vec<EventAttribute>) -> ChainResult<Option<MerkleTreeInsertion>> {
-        |attrs: Vec<EventAttribute>| -> ChainResult<Option<MerkleTreeInsertion>> {
+    ) -> fn(attrs: &Vec<EventAttribute>) -> ChainResult<Option<MerkleTreeInsertion>> {
+        |attrs: &Vec<EventAttribute>| -> ChainResult<Option<MerkleTreeInsertion>> {
             let mut message_id = H256::zero();
             let mut leaf_index: u32 = 0;
             let mut attr_count = 0;
 
             for attr in attrs {
                 let key = attr.key.as_str();
-                let value = attr.value;
-                let value = value.as_str();
+                let value = attr.value.as_str();
 
                 match key {
                     "message_id" => {

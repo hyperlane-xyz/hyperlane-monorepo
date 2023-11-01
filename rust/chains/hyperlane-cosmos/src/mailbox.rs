@@ -262,14 +262,13 @@ impl CosmosMailboxIndexer {
 
     fn get_parser(
         &self,
-    ) -> fn(attrs: Vec<EventAttribute>) -> ChainResult<Option<HyperlaneMessage>> {
-        |attrs: Vec<EventAttribute>| -> ChainResult<Option<HyperlaneMessage>> {
+    ) -> fn(attrs: &Vec<EventAttribute>) -> ChainResult<Option<HyperlaneMessage>> {
+        |attrs: &Vec<EventAttribute>| -> ChainResult<Option<HyperlaneMessage>> {
             let res = HyperlaneMessage::default();
 
             for attr in attrs {
                 let key = attr.key.as_str();
-                let value = attr.value;
-                let value = value.as_str();
+                let value = attr.value.as_str();
 
                 if key == "message" {
                     let mut reader = Cursor::new(hex::decode(value)?);
