@@ -25,10 +25,13 @@ import {
 } from '../consts/environments';
 import { appFromAddressesMapHelper } from '../contracts/contracts';
 import { HyperlaneAddressesMap, HyperlaneContracts } from '../contracts/types';
+import {
+  ProxyFactoryFactories,
+  proxyFactoryFactories,
+} from '../deploy/contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import { FactoryFactories, factoryFactories } from './contracts';
 import {
   AggregationIsmConfig,
   DeployedIsm,
@@ -42,7 +45,7 @@ import {
   ismTypeToModuleType,
 } from './types';
 
-export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
+export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   // The shape of this object is `ChainMap<Address | ChainMap<Address>`,
   // although `any` is use here because that type breaks a lot of signatures.
   // TODO: fix this in the next refactoring
@@ -66,7 +69,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
   ): HyperlaneIsmFactory {
     const helper = appFromAddressesMapHelper(
       addressesMap,
-      factoryFactories,
+      proxyFactoryFactories,
       multiProvider,
     );
     return new HyperlaneIsmFactory(
@@ -401,7 +404,7 @@ export async function moduleMatchesConfig(
   moduleAddress: Address,
   config: IsmConfig,
   multiProvider: MultiProvider,
-  contracts: HyperlaneContracts<FactoryFactories>,
+  contracts: HyperlaneContracts<ProxyFactoryFactories>,
   _origin?: ChainName,
 ): Promise<boolean> {
   if (typeof config === 'string') {
