@@ -4,9 +4,9 @@ use async_trait::async_trait;
 use base64::Engine;
 use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, ChainResult, Checkpoint, ContractLocator,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, LogMeta,
-    MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer, H256,
+    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
+    ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
+    Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer, H256,
 };
 use tracing::instrument;
 
@@ -94,12 +94,11 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             .iter()
             .map(|s| s.as_str())
             .map(H256::from_str)
-            .collect::<Result<Vec<H256>, _>>()
-            .expect("fail to parse tree branch");
+            .collect::<Result<Vec<H256>, _>>()?;
 
-        let branch_res: [H256; 32] = branch
-            .try_into()
-            .expect("fail to convert tree branch to array");
+        let branch_res: [H256; 32] = branch.try_into().map_err(|_| {
+            ChainCommunicationError::from_other_str("Failed to build merkle branch array")
+        })?;
 
         Ok(IncrementalMerkle::new(branch_res, response.count as usize))
     }
