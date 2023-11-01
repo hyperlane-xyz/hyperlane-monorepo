@@ -1,5 +1,6 @@
 use std::num::NonZeroU64;
 use std::sync::Arc;
+use std::thread::current;
 use std::time::{Duration, Instant};
 use std::vec;
 
@@ -221,6 +222,10 @@ impl ValidatorSubmitter {
                 continue;
             }
 
+            println!(
+                "israel queued_checkpoint with id: {:?}",
+                queued_checkpoint.message_id
+            );
             let signed_checkpoint = self.signer.sign(queued_checkpoint).await?;
             self.checkpoint_syncer
                 .write_checkpoint(&signed_checkpoint)
@@ -300,6 +305,14 @@ impl ValidatorSubmitter {
                 .unwrap_or(true)
             {
                 let signed_checkpoint = self.signer.sign(latest_checkpoint).await?;
+                // fetch the message id for the current index
+                if let Some(insertion) = self
+                    .message_db
+                    .retrieve_merkle_tree_insertion_by_leaf_index(&latest_checkpoint.index)?
+                {
+                    let message_id = insertion.message_id();
+                    println!("adesanya queued_checkpoint with id: {:?}", message_id);
+                }
 
                 info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed new latest checkpoint");
                 current_index = Some(latest_checkpoint.index);

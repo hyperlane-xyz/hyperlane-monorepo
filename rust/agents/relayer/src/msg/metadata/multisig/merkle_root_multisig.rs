@@ -42,10 +42,12 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             debug!("Couldn't get highest known leaf index")
         );
         println!("pacquiao highest_leaf_index: {:?}", highest_leaf_index);
-        println!(
-            "pacquiao highest_message_id: {:?}",
-            self.get_insertion_by_leaf_index(highest_leaf_index).await
-        );
+        for i in 0..highest_leaf_index {
+            println!(
+                "pacquiao leaf_index: {:?}",
+                self.get_insertion_by_leaf_index(i).await?
+            );
+        }
         unwrap_or_none_result!(
             leaf_index,
             self.get_merkle_leaf_id_by_message_id(message.id())

@@ -149,6 +149,12 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
                 metadata,
             )?))
         } else {
+            println!(
+                "pacquiao: validator, threshold, message_id: {:?}, {:?}, {:?}",
+                validators,
+                threshold,
+                message.id()
+            );
             info!(
                 ?message, ?validators, threshold, ism=%multisig_ism.address(),
                 "Could not fetch metadata: Unable to reach quorum"

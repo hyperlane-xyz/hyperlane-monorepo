@@ -19,6 +19,6 @@ export const aggregationIsm = (
       multisigIsm(remote, ModuleType.MERKLE_ROOT_MULTISIG, context),
       multisigIsm(remote, ModuleType.MESSAGE_ID_MULTISIG, context),
     ],
-    threshold: 1,
+    threshold: 2,
   };
 };
