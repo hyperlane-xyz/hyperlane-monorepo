@@ -149,7 +149,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
         Ok(Checkpoint {
             merkle_tree_hook_address: self.address,
             mailbox_domain: self.domain.id(),
-            root: response.root.parse().unwrap(),
+            root: response.root.parse()?,
             index: response.count,
         })
     }

@@ -149,7 +149,7 @@ impl Mailbox for CosmosMailbox {
         let response: mailbox::RecipientIsmResponse = serde_json::from_slice(&data)?;
 
         // convert Hex to H256
-        let ism = verify::bech32_decode(response.ism);
+        let ism = verify::bech32_decode(response.ism)?;
         Ok(ism)
     }
 

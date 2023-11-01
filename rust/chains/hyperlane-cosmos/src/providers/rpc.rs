@@ -125,7 +125,7 @@ impl WasmIndexer for CosmosWasmIndexer {
             let target_type = format!("{}-{}", Self::WASM_TYPE, self.event_type);
 
             // Get BlockHash from block_search
-            let client = self.get_client().unwrap();
+            let client = self.get_client()?;
 
             for tx in txs {
                 if tx.tx_result.code.is_err() {
@@ -139,7 +139,7 @@ impl WasmIndexer for CosmosWasmIndexer {
                     if event.kind.as_str() == target_type {
                         if let Some(msg) = parser(event.attributes.clone())? {
                             let meta = LogMeta {
-                                address: bech32_decode(contract_address.clone()),
+                                address: bech32_decode(contract_address.clone())?,
                                 block_number: tx.height.value(),
                                 // FIXME: block_hash is not available in tx_search
                                 block_hash: H256::zero(),

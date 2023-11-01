@@ -72,6 +72,6 @@ impl RoutingIsm for CosmosRoutingIsm {
             .await?;
         let response: IsmRouteRespnose = serde_json::from_slice(&data)?;
 
-        Ok(bech32_decode(response.ism))
+        Ok(bech32_decode(response.ism)?)
     }
 }
