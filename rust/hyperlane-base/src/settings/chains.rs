@@ -230,7 +230,7 @@ impl ChainConf {
                     signer.clone(),
                     "mailbox_dispatch".to_string(),
                     self.reorg_period,
-                ));
+                )?);
                 Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
             }
         }
@@ -270,7 +270,7 @@ impl ChainConf {
                     signer,
                     "mailbox_process".to_string(),
                     self.reorg_period,
-                ));
+                )?);
                 Ok(indexer as Box<dyn SequenceIndexer<H256>>)
             }
         }
@@ -350,7 +350,7 @@ impl ChainConf {
                     locator,
                     "igp-core-pay-for-gas".to_string(),
                     self.reorg_period,
-                ));
+                )?);
                 Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
             }
         }
@@ -394,7 +394,7 @@ impl ChainConf {
                     // TODO: remove signer requirement entirely
                     signer.unwrap().clone(),
                     self.reorg_period,
-                ));
+                )?);
                 Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
             }
         }

@@ -250,15 +250,14 @@ impl CosmosMailboxIndexer {
         signer: Signer,
         event_type: String,
         reorg_period: u32,
-    ) -> Self {
+    ) -> ChainResult<Self> {
         let mailbox = CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone());
-        let indexer: CosmosWasmIndexer =
-            CosmosWasmIndexer::new(conf, locator, event_type, reorg_period);
+        let indexer = CosmosWasmIndexer::new(conf, locator, event_type, reorg_period)?;
 
-        Self {
+        Ok(Self {
             mailbox,
             indexer: Box::new(indexer),
-        }
+        })
     }
 
     fn get_parser(

@@ -64,13 +64,12 @@ impl CosmosInterchainGasPaymasterIndexer {
         locator: ContractLocator,
         event_type: String,
         reorg_period: u32,
-    ) -> Self {
-        let indexer: CosmosWasmIndexer =
-            CosmosWasmIndexer::new(conf, locator, event_type.clone(), reorg_period);
+    ) -> ChainResult<Self> {
+        let indexer = CosmosWasmIndexer::new(conf, locator, event_type.clone(), reorg_period)?;
 
-        Self {
+        Ok(Self {
             indexer: Box::new(indexer),
-        }
+        })
     }
 
     fn get_parser(

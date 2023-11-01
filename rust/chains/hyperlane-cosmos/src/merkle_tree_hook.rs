@@ -184,18 +184,18 @@ impl CosmosMerkleTreeHookIndexer {
         locator: ContractLocator,
         signer: Signer,
         reorg_period: u32,
-    ) -> Self {
-        let indexer: CosmosWasmIndexer = CosmosWasmIndexer::new(
+    ) -> ChainResult<Self> {
+        let indexer = CosmosWasmIndexer::new(
             conf.clone(),
             locator.clone(),
             EVENT_TYPE.to_string(),
             reorg_period,
-        );
+        )?;
 
-        Self {
+        Ok(Self {
             merkle_tree_hook: CosmosMerkleTreeHook::new(conf, locator, signer),
             indexer: Box::new(indexer),
-        }
+        })
     }
 
     /// Get the parser for the indexer
