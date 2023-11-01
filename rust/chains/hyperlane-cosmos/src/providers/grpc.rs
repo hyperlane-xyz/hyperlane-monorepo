@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use cosmrs::crypto::secp256k1::SigningKey;
 use cosmrs::proto::cosmos::auth::v1beta1::BaseAccount;
 use cosmrs::proto::cosmos::auth::v1beta1::{
     query_client::QueryClient as QueryAccountClient, QueryAccountRequest,
@@ -25,8 +24,8 @@ use hyperlane_core::{
 };
 use serde::Serialize;
 
-use crate::verify;
 use crate::{signers::Signer, ConnectionConf};
+use crate::{verify, HyperlaneCosmosError};
 
 const DEFAULT_GAS_PRICE: f32 = 0.05;
 const DEFAULT_GAS_ADJUSTMENT: f32 = 1.25;
@@ -218,13 +217,14 @@ impl WasmProvider for WasmGrpcProvider {
     where
         I: IntoIterator<Item = cosmrs::Any> + Send + Sync,
     {
-        let account_info = self.account_query(self.signer.address()).await?;
+        let account_info = self.account_query(self.signer.address.clone()).await?;
 
-        let private_key = SigningKey::from_slice(&self.signer.private_key).unwrap();
+        let private_key = self.signer.signing_key()?;
         let public_key = private_key.public_key();
 
         let tx_body = tx::Body::new(msgs, "", 9000000u32);
-        let signer_info = SignerInfo::single_direct(Some(public_key), account_info.sequence);
+        let signer_info =
+            SignerInfo::single_direct(Some(self.signer.public_key), account_info.sequence);
 
         let gas_limit: u64 = gas_limit.unwrap_or(U256::from(300000u64)).as_u64();
 
@@ -256,7 +256,7 @@ impl WasmProvider for WasmGrpcProvider {
         let mut client = TxServiceClient::connect(self.get_conn_url()?).await?;
 
         let msgs = vec![MsgExecuteContract {
-            sender: self.signer.address(),
+            sender: self.signer.address.clone(),
             contract: self.get_contract_addr()?,
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
@@ -272,7 +272,7 @@ impl WasmProvider for WasmGrpcProvider {
         let tx_res = client
             .broadcast_tx(tx_req)
             .await
-            .unwrap()
+            .map_err(Into::<HyperlaneCosmosError>::into)?
             .into_inner()
             .tx_response
             .ok_or_else(|| ChainCommunicationError::from_other_str("Empty tx_response"))?;
@@ -288,7 +288,7 @@ impl WasmProvider for WasmGrpcProvider {
         T: Serialize + Send + Sync,
     {
         let msg = MsgExecuteContract {
-            sender: self.signer.address(),
+            sender: self.signer.address.clone(),
             contract: self.get_contract_addr()?,
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],

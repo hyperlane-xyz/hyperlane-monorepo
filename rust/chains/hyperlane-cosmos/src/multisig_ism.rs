@@ -75,12 +75,12 @@ impl MultisigIsm for CosmosMultisigIsm {
             .await?;
         let response: multisig_ism::VerifyInfoResponse = serde_json::from_slice(&data)?;
 
-        let validators: Vec<H256> = response
+        let validators: ChainResult<Vec<H256>> = response
             .validators
             .iter()
-            .map(|v| h160_to_h256(H160::from_str(v).unwrap()))
+            .map(|v| H160::from_str(v).map(h160_to_h256).map_err(Into::into))
             .collect();
 
-        Ok((validators, response.threshold))
+        Ok((validators?, response.threshold))
     }
 }

@@ -60,8 +60,9 @@ impl AggregationIsm for CosmosAggregationIsm {
         let data = self.provider.wasm_query(payload, None).await?;
         let response: ModulesAndThresholdResponse = serde_json::from_slice(&data)?;
 
-        let modules: Vec<H256> = response.modules.into_iter().map(bech32_decode).collect();
+        let modules: ChainResult<Vec<H256>> =
+            response.modules.into_iter().map(bech32_decode).collect();
 
-        Ok((modules, response.threshold))
+        Ok((modules?, response.threshold))
     }
 }
