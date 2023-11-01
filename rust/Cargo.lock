@@ -4108,6 +4108,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "auto_impl 1.1.0",
+ "base64 0.21.4",
  "borsh 0.9.3",
  "bs58 0.5.0",
  "bytes",

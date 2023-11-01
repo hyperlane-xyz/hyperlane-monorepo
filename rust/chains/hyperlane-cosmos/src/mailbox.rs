@@ -24,7 +24,9 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
     H256, U256,
 };
-use hyperlane_core::{ContractLocator, Decode, RawHyperlaneMessage, SequenceIndexer};
+use hyperlane_core::{
+    ChainCommunicationError, ContractLocator, Decode, RawHyperlaneMessage, SequenceIndexer,
+};
 use tracing::{instrument, warn};
 
 /// A reference to a Mailbox contract on some Cosmos chain
@@ -171,7 +173,7 @@ impl Mailbox for CosmosMailbox {
             .await?;
         Ok(TxOutcome {
             transaction_id: h256_to_h512(H256::from_slice(
-                hex::decode(response.txhash).unwrap().as_slice(),
+                hex::decode(response.txhash)?.as_slice(),
             )),
             executed: response.code == 0,
             gas_used: U256::from(response.gas_used),
@@ -194,7 +196,14 @@ impl Mailbox for CosmosMailbox {
 
         let response: SimulateResponse = self.provider.wasm_simulate(process_message).await?;
         let result = TxCostEstimate {
-            gas_limit: U256::from(response.gas_info.unwrap().gas_used),
+            gas_limit: U256::from(
+                response
+                    .gas_info
+                    .ok_or(ChainCommunicationError::TxCostEstimateError(
+                        "Failed to estimate gas limit".to_string(),
+                    ))?
+                    .gas_used,
+            ),
             gas_price: U256::from(2500),
             l2_gas_limit: None,
         };
@@ -250,8 +259,10 @@ impl CosmosMailboxIndexer {
         }
     }
 
-    fn get_parser(&self) -> fn(attrs: Vec<EventAttribute>) -> Option<HyperlaneMessage> {
-        |attrs: Vec<EventAttribute>| -> Option<HyperlaneMessage> {
+    fn get_parser(
+        &self,
+    ) -> fn(attrs: Vec<EventAttribute>) -> ChainResult<Option<HyperlaneMessage>> {
+        |attrs: Vec<EventAttribute>| -> ChainResult<Option<HyperlaneMessage>> {
             let res = HyperlaneMessage::default();
 
             for attr in attrs {
@@ -260,26 +271,18 @@ impl CosmosMailboxIndexer {
                 let value = value.as_str();
 
                 if key == "message" {
-                    let mut reader = Cursor::new(hex::decode(value).unwrap());
-                    return Some(HyperlaneMessage::read_from(&mut reader).unwrap());
+                    let mut reader = Cursor::new(hex::decode(value)?);
+                    return Ok(Some(HyperlaneMessage::read_from(&mut reader)?));
                 }
 
                 if key == "bWVzc2FnZQ==" {
-                    let mut reader = Cursor::new(
-                        hex::decode(
-                            String::from_utf8(
-                                base64::engine::general_purpose::STANDARD
-                                    .decode(value)
-                                    .unwrap(),
-                            )
-                            .unwrap(),
-                        )
-                        .unwrap(),
-                    );
-                    return Some(HyperlaneMessage::read_from(&mut reader).unwrap());
+                    let mut reader = Cursor::new(hex::decode(String::from_utf8(
+                        base64::engine::general_purpose::STANDARD.decode(value)?,
+                    )?)?);
+                    return Ok(Some(HyperlaneMessage::read_from(&mut reader)?));
                 }
             }
-            None
+            Ok(None)
         }
     }
 }
@@ -304,7 +307,7 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
 #[async_trait]
 impl Indexer<H256> for CosmosMailboxIndexer {
     async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
-        let parser: fn(Vec<EventAttribute>) -> Option<HyperlaneMessage> = self.get_parser();
+        let parser = self.get_parser();
         let result = self.indexer.get_range_event_logs(range, parser).await?;
 
         Ok(result
