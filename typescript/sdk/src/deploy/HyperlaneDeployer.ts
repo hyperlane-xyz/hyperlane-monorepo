@@ -78,10 +78,6 @@ export abstract class HyperlaneDeployer<
     this.cachedAddresses = addressesMap;
   }
 
-  async checkConfig(_: ChainMap<Config>): Promise<void> {
-    return;
-  }
-
   abstract deployContracts(
     chain: ChainName,
     config: Config,

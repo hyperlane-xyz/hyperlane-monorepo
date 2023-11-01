@@ -3,6 +3,10 @@ import path from 'path';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
+  Chains,
+  HypERC20Config,
+  HypERC20Deployer,
+  HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
   HyperlaneIgpDeployer,
@@ -11,7 +15,12 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
+  TokenType,
 } from '@hyperlane-xyz/sdk';
+import {
+  TokenConfig,
+  TokenDecimals,
+} from '@hyperlane-xyz/sdk/dist/token/config';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
@@ -70,6 +79,35 @@ async function main() {
       multiProvider,
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
+  } else if (module === Modules.WARP) {
+    const neutronRouter = '';
+    const tokenConfig: TokenConfig & TokenDecimals = {
+      type: TokenType.synthetic,
+      name: 'TIA',
+      symbol: 'TIA',
+      decimals: 6,
+      // scale: ???
+      totalSupply: 0,
+    };
+    const core = HyperlaneCore.fromEnvironment(
+      deployEnvToSdkEnv[environment],
+      multiProvider,
+    );
+    const routerConfig = core.getRouterConfig(envConfig.owners);
+    const targetChains = [Chains.ethereum, Chains.arbitrum, Chains.polygon];
+    config = Object.fromEntries(
+      targetChains.map((chain) => {
+        const warpRouterConfig: HypERC20Config = {
+          ...routerConfig[chain],
+          ...tokenConfig,
+          foreignDeployment: neutronRouter,
+          gas: HypERC20Deployer.gasOverheadDefault(tokenConfig),
+        };
+        return [chain, warpRouterConfig];
+      }),
+    );
+    console.log({ config });
+    deployer = new HypERC20Deployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
