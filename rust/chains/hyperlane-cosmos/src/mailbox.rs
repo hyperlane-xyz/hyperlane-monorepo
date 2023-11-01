@@ -9,7 +9,7 @@ use crate::payloads::mailbox::{
     GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
 };
 use crate::payloads::{general, mailbox};
-use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
+use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::CosmosProvider;
 use crate::{signers::Signer, utils::get_block_height_for_lag, verify, ConnectionConf};
 use async_trait::async_trait;
@@ -262,8 +262,8 @@ impl CosmosMailboxIndexer {
 
     fn get_parser(
         &self,
-    ) -> fn(attrs: &Vec<EventAttribute>) -> ChainResult<Option<HyperlaneMessage>> {
-        |attrs: &Vec<EventAttribute>| -> ChainResult<Option<HyperlaneMessage>> {
+    ) -> fn(attrs: &Vec<EventAttribute>) -> ChainResult<Option<ParsedEvent<HyperlaneMessage>>> {
+        |attrs: &Vec<EventAttribute>| -> ChainResult<Option<ParsedEvent<HyperlaneMessage>>> {
             let res = HyperlaneMessage::default();
 
             for attr in attrs {
@@ -272,14 +272,20 @@ impl CosmosMailboxIndexer {
 
                 if key == "message" {
                     let mut reader = Cursor::new(hex::decode(value)?);
-                    return Ok(Some(HyperlaneMessage::read_from(&mut reader)?));
+                    return Ok(Some(ParsedEvent::new(
+                        "".to_owned(),
+                        HyperlaneMessage::read_from(&mut reader)?,
+                    )));
                 }
 
                 if key == "bWVzc2FnZQ==" {
                     let mut reader = Cursor::new(hex::decode(String::from_utf8(
                         base64::engine::general_purpose::STANDARD.decode(value)?,
                     )?)?);
-                    return Ok(Some(HyperlaneMessage::read_from(&mut reader)?));
+                    return Ok(Some(ParsedEvent::new(
+                        "".to_owned(),
+                        HyperlaneMessage::read_from(&mut reader)?,
+                    )));
                 }
             }
             Ok(None)

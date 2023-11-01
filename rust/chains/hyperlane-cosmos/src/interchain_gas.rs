@@ -10,7 +10,7 @@ use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, InterchainGasPayment, L
 use std::ops::RangeInclusive;
 
 use crate::grpc::WasmGrpcProvider;
-use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
+use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::signers::Signer;
 use crate::{ConnectionConf, CosmosProvider};
 
@@ -74,8 +74,9 @@ impl CosmosInterchainGasPaymasterIndexer {
 
     fn get_parser(
         &self,
-    ) -> fn(attrs: &Vec<EventAttribute>) -> ChainResult<Option<InterchainGasPayment>> {
-        |attrs: &Vec<EventAttribute>| -> ChainResult<Option<InterchainGasPayment>> {
+    ) -> fn(attrs: &Vec<EventAttribute>) -> ChainResult<Option<ParsedEvent<InterchainGasPayment>>>
+    {
+        |attrs: &Vec<EventAttribute>| -> ChainResult<Option<ParsedEvent<InterchainGasPayment>>> {
             let mut res = InterchainGasPayment::default();
             for attr in attrs {
                 let key = attr.key.as_str();
@@ -110,7 +111,7 @@ impl CosmosInterchainGasPaymasterIndexer {
                 }
             }
 
-            Ok(Some(res))
+            Ok(Some(ParsedEvent::new("".to_owned(), res)))
         }
     }
 }

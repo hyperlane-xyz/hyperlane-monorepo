@@ -25,10 +25,27 @@ pub trait WasmIndexer: Send + Sync {
     async fn get_range_event_logs<T>(
         &self,
         range: RangeInclusive<u32>,
-        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<Option<T>>,
+        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<Option<ParsedEvent<T>>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
         T: Send + Sync + 'static;
+}
+
+#[derive(Debug)]
+/// An event parsed from the RPC response.
+pub struct ParsedEvent<T> {
+    contract_address: String,
+    event: T,
+}
+
+impl<T> ParsedEvent<T> {
+    /// Create a new ParsedEvent.
+    pub fn new(contract_address: String, event: T) -> Self {
+        Self {
+            contract_address,
+            event,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -79,7 +96,7 @@ impl CosmosWasmIndexer {
     fn handle_txs<T>(
         &self,
         txs: Vec<tx::Response>,
-        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<Option<T>>,
+        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<Option<ParsedEvent<T>>>,
     ) -> ChainResult<impl Iterator<Item = (T, LogMeta)> + '_>
     where
         T: 'static,
@@ -108,8 +125,13 @@ impl CosmosWasmIndexer {
                         })
                         .ok()
                         .flatten()
-                        .map(|msg| {
-                            (msg, LogMeta {
+                        .and_then(|parsed_event| {
+                            if parsed_event.contract_address != self.contract_address_bech32 {
+                                debug!(tx_hash=?tx.hash, log_idx, ?event, "Event contract address does not match indexer contract address");
+                                return None;
+                            }
+
+                            Some((parsed_event.event, LogMeta {
                                 address: self.contract_address,
                                 block_number: tx.height.value(),
                                 // FIXME: block_hash is not available in tx_search
@@ -117,7 +139,7 @@ impl CosmosWasmIndexer {
                                 transaction_id: h256_to_h512(H256::from_slice(tx.hash.as_bytes())),
                                 transaction_index: tx.index as u64,
                                 log_index: U256::from(log_idx),
-                            })
+                            }))
                         })
                     });
                 logs_for_tx
@@ -148,7 +170,7 @@ impl WasmIndexer for CosmosWasmIndexer {
     async fn get_range_event_logs<T>(
         &self,
         range: RangeInclusive<u32>,
-        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<Option<T>>,
+        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<Option<ParsedEvent<T>>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
         T: Send + Sync + 'static,
