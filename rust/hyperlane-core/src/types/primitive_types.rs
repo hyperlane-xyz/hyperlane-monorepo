@@ -321,14 +321,6 @@ impl_fixed_hash_serde!(H160, 20);
 impl_fixed_hash_serde!(H256, 32);
 impl_fixed_hash_serde!(H512, 64);
 
-// impl TryFrom<String> for H256 {
-//     type Error = ChainCommunicationError;
-
-//     fn try_from(value: String) -> Result<Self, Self::Error> {
-//         Ok(H256::from_slice(hex::decode(value)?.as_slice()))
-//     }
-// }
-
 #[cfg(feature = "solana")]
 impl From<solana_sdk::hash::Hash> for H256 {
     fn from(hash: solana_sdk::hash::Hash) -> Self {
