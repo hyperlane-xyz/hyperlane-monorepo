@@ -685,6 +685,35 @@ export const proteustestnet: ChainMetadata = {
   },
 };
 
+export const mantapacific: ChainMetadata = {
+  chainId: 169,
+  domainId: 169,
+  name: Chains.mantapacific,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Manta Pacific',
+  displayNameShort: 'Manta',
+  nativeToken: {
+    name: 'Ether',
+    symbol: 'ETH',
+    decimals: 18,
+  },
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 0,
+    estimateBlockTime: 3,
+  },
+  blockExplorers: [
+    {
+      name: 'Manta Pacific Explorer',
+      url: 'https://pacific-explorer.manta.network/',
+      apiUrl: 'https://pacific-explorer.manta.network/api',
+      family: ExplorerFamily.Blockscout,
+    },
+  ],
+  rpcUrls: [{ http: 'https://pacific-rpc.manta.network/http' }],
+  isTestnet: false,
+};
+
 export const nautilus: ChainMetadata = {
   chainId: 22222,
   domainId: 22222,
@@ -706,6 +735,39 @@ export const nautilus: ChainMetadata = {
     reorgPeriod: 1,
     estimateBlockTime: 1,
   },
+};
+
+export const neutron: ChainMetadata = {
+  chainId: 'neutron-1',
+  domainId: 1853125230,
+  name: Chains.neutron,
+  protocol: ProtocolType.Cosmos,
+  displayName: 'Neutron',
+  bech32Prefix: 'neutron',
+  slip44: 118,
+  nativeToken: {
+    name: 'Neutron',
+    symbol: 'NTRN',
+    decimals: 6,
+  },
+  rpcUrls: [
+    { http: 'https://rpc-kralum.neutron-1.neutron.org' },
+    { http: 'grpc-kralum.neutron-1.neutron.org:80' },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 0,
+    estimateBlockTime: 3,
+  },
+  blockExplorers: [
+    {
+      name: 'Mintscan',
+      url: 'https://www.mintscan.io/neutron',
+      apiUrl: 'https://www.mintscan.io/neutron',
+      family: ExplorerFamily.Other,
+    },
+  ],
+  isTestnet: false,
 };
 
 /**
@@ -887,9 +949,11 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   lineagoerli,
   scrollsepolia,
   sepolia,
+  mantapacific,
   moonbasealpha,
   moonbeam,
   mumbai,
+  neutron,
   optimism,
   optimismgoerli,
   polygon,
