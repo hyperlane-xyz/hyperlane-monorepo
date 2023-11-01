@@ -24,7 +24,6 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, H256, U256,
 };
 use serde::Serialize;
-use std::num::NonZeroU64;
 
 use crate::verify;
 use crate::{signers::Signer, ConnectionConf};
@@ -42,7 +41,7 @@ pub trait WasmProvider: Send + Sync {
     async fn wasm_query<T: Serialize + Sync + Send>(
         &self,
         payload: T,
-        maybe_lag: Option<NonZeroU64>,
+        block_height: Option<u64>,
     ) -> ChainResult<Vec<u8>>;
 
     /// query to specific contract address
@@ -50,7 +49,7 @@ pub trait WasmProvider: Send + Sync {
         &self,
         to: String,
         payload: T,
-        maybe_lag: Option<NonZeroU64>,
+        block_height: Option<u64>,
     ) -> ChainResult<Vec<u8>>;
 
     /// query account info
@@ -133,41 +132,19 @@ impl WasmProvider for WasmGrpcProvider {
         Ok(height as u64)
     }
 
-    async fn wasm_query<T>(&self, payload: T, maybe_lag: Option<NonZeroU64>) -> ChainResult<Vec<u8>>
+    async fn wasm_query<T>(&self, payload: T, block_height: Option<u64>) -> ChainResult<Vec<u8>>
     where
         T: Serialize + Send + Sync,
     {
-        let mut client = WasmQueryClient::connect(self.get_conn_url()?).await?;
-
-        let mut request = tonic::Request::new(QuerySmartContractStateRequest {
-            address: self.get_contract_addr()?,
-            query_data: serde_json::to_string(&payload)?.as_bytes().to_vec(),
-        });
-
-        if let Some(lag) = maybe_lag {
-            let height = self.latest_block_height().await?;
-            let height = height.saturating_sub(lag.get());
-
-            request
-                .metadata_mut()
-                .insert("x-cosmos-block-height", height.into());
-        }
-
-        let response = client
-            .smart_contract_state(request)
+        self.wasm_query_to(self.get_contract_addr()?, payload, block_height)
             .await
-            .map_err(ChainCommunicationError::from_other)?
-            .into_inner();
-
-        // TODO: handle query to specific block number
-        Ok(response.data)
     }
 
     async fn wasm_query_to<T>(
         &self,
         to: String,
         payload: T,
-        maybe_lag: Option<NonZeroU64>,
+        block_height: Option<u64>,
     ) -> ChainResult<Vec<u8>>
     where
         T: Serialize + Send + Sync,
@@ -178,13 +155,10 @@ impl WasmProvider for WasmGrpcProvider {
             query_data: serde_json::to_string(&payload)?.as_bytes().to_vec(),
         });
 
-        if let Some(lag) = maybe_lag {
-            let height = self.latest_block_height().await?;
-            let height = height.saturating_sub(lag.get());
-
+        if let Some(block_height) = block_height {
             request
                 .metadata_mut()
-                .insert("x-cosmos-block-height", height.into());
+                .insert("x-cosmos-block-height", block_height.into());
         }
 
         let response = client
@@ -193,7 +167,6 @@ impl WasmProvider for WasmGrpcProvider {
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
 
-        // TODO: handle query to specific block number
         Ok(response.data)
     }
 
