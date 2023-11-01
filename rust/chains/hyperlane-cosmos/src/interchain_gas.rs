@@ -67,15 +67,11 @@ impl CosmosInterchainGasPaymasterIndexer {
         }
     }
 
-    fn get_parser(&self) -> fn(attrs: Vec<EventAttribute>) -> Option<InterchainGasPayment> {
-        |attrs: Vec<EventAttribute>| -> Option<InterchainGasPayment> {
-            let mut res = InterchainGasPayment {
-                message_id: H256::zero(),
-                payment: U256::zero(),
-                gas_amount: U256::zero(),
-                destination: 0,
-            };
-
+    fn get_parser(
+        &self,
+    ) -> fn(attrs: Vec<EventAttribute>) -> ChainResult<Option<InterchainGasPayment>> {
+        |attrs: Vec<EventAttribute>| -> ChainResult<Option<InterchainGasPayment>> {
+            let mut res = InterchainGasPayment::default();
             for attr in attrs {
                 let key = attr.key.as_str();
                 let value = attr.value;
@@ -83,41 +79,34 @@ impl CosmosInterchainGasPaymasterIndexer {
 
                 match key {
                     "message_id" => {
-                        res.message_id = H256::from_slice(hex::decode(value).unwrap().as_slice())
+                        res.message_id = H256::from_slice(hex::decode(value)?.as_slice())
                     }
                     "bWVzc2FnZV9pZA==" => {
                         res.message_id = H256::from_slice(
-                            hex::decode(
-                                String::from_utf8(STANDARD.decode(value).unwrap()).unwrap(),
-                            )
-                            .unwrap()
-                            .as_slice(),
+                            hex::decode(String::from_utf8(STANDARD.decode(value)?)?)?.as_slice(),
                         )
                     }
-                    "payment" => res.payment = value.parse().unwrap(),
+                    "payment" => res.payment = value.parse()?,
                     "cGF5bWVudA==" => {
-                        let dec_str = String::from_utf8(STANDARD.decode(value).unwrap()).unwrap();
+                        let dec_str = String::from_utf8(STANDARD.decode(value)?)?;
                         // U256's from_str assumes a radix of 16, so we explicitly use from_dec_str.
-                        res.payment = U256::from_dec_str(dec_str.as_str()).unwrap();
+                        res.payment = U256::from_dec_str(dec_str.as_str())?;
                     }
-                    "gas_amount" => res.gas_amount = value.parse().unwrap(),
+                    "gas_amount" => res.gas_amount = value.parse()?,
                     "Z2FzX2Ftb3VudA==" => {
-                        let dec_str = String::from_utf8(STANDARD.decode(value).unwrap()).unwrap();
+                        let dec_str = String::from_utf8(STANDARD.decode(value)?)?;
                         // U256's from_str assumes a radix of 16, so we explicitly use from_dec_str.
-                        res.gas_amount = U256::from_dec_str(dec_str.as_str()).unwrap();
+                        res.gas_amount = U256::from_dec_str(dec_str.as_str())?;
                     }
-                    "dest_domain" => res.destination = value.parse().unwrap(),
+                    "dest_domain" => res.destination = value.parse()?,
                     "ZGVzdF9kb21haW4=" => {
-                        res.destination = String::from_utf8(STANDARD.decode(value).unwrap())
-                            .unwrap()
-                            .parse()
-                            .unwrap()
+                        res.destination = String::from_utf8(STANDARD.decode(value)?)?.parse()?
                     }
                     _ => {}
                 }
             }
 
-            Some(res)
+            Ok(Some(res))
         }
     }
 }

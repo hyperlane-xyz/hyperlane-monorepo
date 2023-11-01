@@ -26,7 +26,7 @@ pub trait WasmIndexer: Send + Sync {
     async fn get_range_event_logs<T>(
         &self,
         range: RangeInclusive<u32>,
-        parser: fn(Vec<EventAttribute>) -> Option<T>,
+        parser: fn(Vec<EventAttribute>) -> ChainResult<Option<T>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
         T: Send + Sync;
@@ -93,7 +93,7 @@ impl WasmIndexer for CosmosWasmIndexer {
     async fn get_range_event_logs<T>(
         &self,
         range: RangeInclusive<u32>,
-        parser: fn(Vec<EventAttribute>) -> Option<T>,
+        parser: fn(Vec<EventAttribute>) -> ChainResult<Option<T>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
         T: Send + Sync,
@@ -120,7 +120,7 @@ impl WasmIndexer for CosmosWasmIndexer {
         let last_page = total_count / PAGINATION_LIMIT as u32
             + (total_count % PAGINATION_LIMIT as u32 != 0) as u32;
 
-        let handler = |txs: Vec<tx::Response>| -> Vec<(T, LogMeta)> {
+        let handler = |txs: Vec<tx::Response>| -> ChainResult<Vec<(T, LogMeta)>> {
             let mut result: Vec<(T, LogMeta)> = vec![];
             let target_type = format!("{}-{}", Self::WASM_TYPE, self.event_type);
 
@@ -137,7 +137,7 @@ impl WasmIndexer for CosmosWasmIndexer {
 
                 for (log_idx, event) in tx.tx_result.events.clone().into_iter().enumerate() {
                     if event.kind.as_str() == target_type {
-                        if let Some(msg) = parser(event.attributes.clone()) {
+                        if let Some(msg) = parser(event.attributes.clone())? {
                             let meta = LogMeta {
                                 address: bech32_decode(contract_address.clone()),
                                 block_number: tx.height.value(),
@@ -156,10 +156,10 @@ impl WasmIndexer for CosmosWasmIndexer {
                 result.extend(parse_result);
             }
 
-            result
+            Ok(result)
         };
 
-        let mut result = handler(tx_search_result.txs);
+        let mut result = handler(tx_search_result.txs)?;
 
         for page in 2..=last_page {
             debug!(page, "Making tx search RPC");
@@ -174,7 +174,7 @@ impl WasmIndexer for CosmosWasmIndexer {
                 )
                 .await?;
 
-            result.extend(handler(tx_search_result.txs));
+            result.extend(handler(tx_search_result.txs)?);
         }
 
         Ok(result)

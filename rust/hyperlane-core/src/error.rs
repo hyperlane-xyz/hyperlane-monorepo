@@ -6,9 +6,7 @@ use std::ops::Deref;
 use crate::config::StrOrIntParseError;
 use cosmrs::proto::prost;
 use cosmrs::Error as CosmrsError;
-// use ethers_contract::ContractError;
-// use ethers_core::types::SignatureError;
-// use ethers_providers::{Middleware, ProviderError};
+use std::string::FromUtf8Error;
 
 use crate::HyperlaneProviderError;
 use crate::H256;
@@ -105,12 +103,27 @@ pub enum ChainCommunicationError {
     /// protobuf error
     #[error("{0}")]
     Protobuf(#[from] prost::DecodeError),
+    /// base64 error
+    #[error("{0}")]
+    Base64(#[from] base64::DecodeError),
+    /// utf8 error
+    #[error("{0}")]
+    Utf8(#[from] FromUtf8Error),
     /// Serde JSON error
     #[error("{0}")]
     JsonParseError(#[from] serde_json::Error),
-    /// Hex parse error
+    /// String hex parsing error
     #[error("{0}")]
     HexParseError(#[from] hex::FromHexError),
+    /// Uint hex parsing error
+    #[error("{0}")]
+    UintParseError(#[from] uint::FromHexError),
+    /// Decimal string parsing error
+    #[error("{0}")]
+    FromDecStrError(#[from] uint::FromDecStrErr),
+    /// Int string parsing error
+    #[error("{0}")]
+    ParseIntError(#[from] std::num::ParseIntError),
     /// Invalid Request
     #[error("Invalid Request: {msg:?}")]
     InvalidRequest {
@@ -123,12 +136,9 @@ pub enum ChainCommunicationError {
         /// Error message
         msg: String,
     },
-    /// Not match connection type
-    #[error("Not match connection type: require {msg:?}")]
-    NotMatchConnectionType {
-        /// Error message
-        msg: String,
-    },
+    /// Failed to estimate transaction gas cost.
+    #[error("Failed to estimate transaction gas cost {0}")]
+    TxCostEstimateError(String),
 }
 
 impl ChainCommunicationError {

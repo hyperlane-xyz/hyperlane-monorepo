@@ -171,8 +171,10 @@ impl CosmosMerkleeTreeHookIndexer {
     }
 
     /// Get the parser for the indexer
-    fn get_parser(&self) -> fn(attrs: Vec<EventAttribute>) -> Option<MerkleTreeInsertion> {
-        |attrs: Vec<EventAttribute>| -> Option<MerkleTreeInsertion> {
+    fn get_parser(
+        &self,
+    ) -> fn(attrs: Vec<EventAttribute>) -> ChainResult<Option<MerkleTreeInsertion>> {
+        |attrs: Vec<EventAttribute>| -> ChainResult<Option<MerkleTreeInsertion>> {
             let mut message_id = H256::zero();
             let mut leaf_index: u32 = 0;
             let mut attr_count = 0;
@@ -184,35 +186,25 @@ impl CosmosMerkleeTreeHookIndexer {
 
                 match key {
                     "message_id" => {
-                        message_id = H256::from_slice(hex::decode(value).unwrap().as_slice());
+                        message_id = H256::from_slice(hex::decode(value)?.as_slice());
                         attr_count += 1;
                     }
                     "index" => {
-                        leaf_index = value.parse().unwrap();
+                        leaf_index = value.parse::<u32>()?;
                         attr_count += 1;
                     }
                     "aW5kZXg=" => {
                         leaf_index = String::from_utf8(
-                            base64::engine::general_purpose::STANDARD
-                                .decode(value)
-                                .unwrap(),
-                        )
-                        .unwrap()
-                        .parse()
-                        .unwrap();
+                            base64::engine::general_purpose::STANDARD.decode(value)?,
+                        )?
+                        .parse()?;
                         attr_count += 1;
                     }
                     "bWVzc2FnZV9pZA==" => {
                         message_id = H256::from_slice(
-                            hex::decode(
-                                String::from_utf8(
-                                    base64::engine::general_purpose::STANDARD
-                                        .decode(value)
-                                        .unwrap(),
-                                )
-                                .unwrap(),
-                            )
-                            .unwrap()
+                            hex::decode(String::from_utf8(
+                                base64::engine::general_purpose::STANDARD.decode(value)?,
+                            )?)?
                             .as_slice(),
                         );
                         attr_count += 1;
@@ -222,10 +214,10 @@ impl CosmosMerkleeTreeHookIndexer {
             }
 
             if attr_count != 2 {
-                return None;
+                return Ok(None);
             }
 
-            Some(MerkleTreeInsertion::new(leaf_index, message_id))
+            Ok(Some(MerkleTreeInsertion::new(leaf_index, message_id)))
         }
     }
 }
