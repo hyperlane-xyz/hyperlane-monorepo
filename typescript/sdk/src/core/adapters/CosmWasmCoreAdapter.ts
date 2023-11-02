@@ -1,9 +1,13 @@
+import { ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
+
 import { Address, HexString } from '@hyperlane-xyz/utils';
 
 import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp';
 import {
+  Coin,
   DefaultHookResponse,
   DefaultIsmResponse,
+  ExecuteMsg,
   LatestDispatchedIdResponse,
   MessageDeliveredResponse,
   NonceResponse,
@@ -39,6 +43,48 @@ export class CosmWasmCoreAdapter
     public readonly addresses: { mailbox: Address },
   ) {
     super(chainName, multiProvider, addresses);
+  }
+
+  prepareMailbox(msg: ExecuteMsg, funds?: Coin[]): ExecuteInstruction {
+    return {
+      contractAddress: this.addresses.mailbox,
+      msg,
+      funds,
+    };
+  }
+
+  initTransferOwner(newOwner: Address): ExecuteInstruction {
+    return this.prepareMailbox({
+      ownable: {
+        init_ownership_transfer: {
+          next_owner: newOwner,
+        },
+      },
+    });
+  }
+
+  claimTransferOwner(): ExecuteInstruction {
+    return this.prepareMailbox({
+      ownable: {
+        claim_ownership: {},
+      },
+    });
+  }
+
+  setDefaultHook(address: Address): ExecuteInstruction {
+    return this.prepareMailbox({
+      set_default_hook: {
+        hook: address,
+      },
+    });
+  }
+
+  setRequiredHook(address: Address): ExecuteInstruction {
+    return this.prepareMailbox({
+      set_required_hook: {
+        hook: address,
+      },
+    });
   }
 
   async queryMailbox<R extends MailboxResponse>(msg: QueryMsg): Promise<R> {
