@@ -7,7 +7,9 @@ use cosmrs::rpc::endpoint::tx;
 use cosmrs::rpc::query::Query;
 use cosmrs::rpc::Order;
 use cosmrs::tendermint::abci::EventAttribute;
-use hyperlane_core::{ChainResult, ContractLocator, HyperlaneDomain, LogMeta, H256, U256};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, LogMeta, H256, U256,
+};
 use tracing::debug;
 
 use crate::verify::{self, bech32_decode};
@@ -20,8 +22,8 @@ const PAGINATION_LIMIT: u8 = 100;
 pub trait WasmIndexer: Send + Sync {
     /// get rpc client
     fn get_client(&self) -> ChainResult<HttpClient>;
-    /// get latest block height
-    async fn latest_block_height(&self) -> ChainResult<u32>;
+    /// get latest finalized block height
+    async fn get_finalized_block_number(&self) -> ChainResult<u32>;
     /// get range event logs
     async fn get_range_event_logs<T>(
         &self,
@@ -47,18 +49,25 @@ pub struct CosmosWasmIndexer {
     _domain: HyperlaneDomain,
     address: H256,
     event_type: String,
+    reorg_period: u32,
 }
 
 impl CosmosWasmIndexer {
     const WASM_TYPE: &str = "wasm";
 
     /// create new Cosmwasm RPC Provider
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, event_type: String) -> Self {
+    pub fn new(
+        conf: ConnectionConf,
+        locator: ContractLocator,
+        event_type: String,
+        reorg_period: u32,
+    ) -> Self {
         Self {
             conf,
             _domain: locator.domain.clone(),
             address: locator.address,
             event_type,
+            reorg_period,
         }
     }
 
@@ -83,11 +92,19 @@ impl WasmIndexer for CosmosWasmIndexer {
             .build()?)
     }
 
-    async fn latest_block_height(&self) -> ChainResult<u32> {
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         let client = self.get_client()?;
 
-        let result = client.latest_block().await?;
-        Ok(result.block.header.height.value() as u32)
+        let latest_height: u32 = client
+            .latest_block()
+            .await?
+            .block
+            .header
+            .height
+            .value()
+            .try_into()
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(latest_height.saturating_sub(self.reorg_period))
     }
 
     async fn get_range_event_logs<T>(

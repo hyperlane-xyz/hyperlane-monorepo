@@ -229,6 +229,7 @@ impl ChainConf {
                     locator,
                     signer.clone(),
                     "mailbox_dispatch".to_string(),
+                    self.reorg_period,
                 ));
                 Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
             }
@@ -268,6 +269,7 @@ impl ChainConf {
                     locator,
                     signer,
                     "mailbox_process".to_string(),
+                    self.reorg_period,
                 ));
                 Ok(indexer as Box<dyn SequenceIndexer<H256>>)
             }
@@ -347,6 +349,7 @@ impl ChainConf {
                     conf.clone(),
                     locator,
                     "igp-core-pay-for-gas".to_string(),
+                    self.reorg_period,
                 ));
                 Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
             }
@@ -384,9 +387,10 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
-                let indexer = Box::new(h_cosmos::CosmosMerkleeTreeHookIndexer::new(
+                let indexer = Box::new(h_cosmos::CosmosMerkleTreeHookIndexer::new(
                     conf.clone(),
                     locator,
+                    self.reorg_period,
                 ));
                 Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
             }

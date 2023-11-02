@@ -59,8 +59,14 @@ pub struct CosmosInterchainGasPaymasterIndexer {
 
 impl CosmosInterchainGasPaymasterIndexer {
     /// create new Cosmos InterchainGasPaymasterIndexer agent
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, event_type: String) -> Self {
-        let indexer: CosmosWasmIndexer = CosmosWasmIndexer::new(conf, locator, event_type.clone());
+    pub fn new(
+        conf: ConnectionConf,
+        locator: ContractLocator,
+        event_type: String,
+        reorg_period: u32,
+    ) -> Self {
+        let indexer: CosmosWasmIndexer =
+            CosmosWasmIndexer::new(conf, locator, event_type.clone(), reorg_period);
 
         Self {
             indexer: Box::new(indexer),
@@ -123,7 +129,7 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.latest_block_height().await
+        self.indexer.get_finalized_block_number().await
     }
 }
 
@@ -131,7 +137,7 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
 impl SequenceIndexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when cosmwasm scraper support is implemented
-        let tip = self.indexer.latest_block_height().await?;
+        let tip = self.get_finalized_block_number().await?;
         Ok((None, tip))
     }
 }

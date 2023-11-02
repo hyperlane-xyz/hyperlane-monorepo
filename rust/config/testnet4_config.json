@@ -1029,6 +1029,9 @@
       "index": {
         "from": 1,
         "chunk": 1000
+      },
+      "blocks": {
+        "reorgPeriod": 1
       }
     }
   },

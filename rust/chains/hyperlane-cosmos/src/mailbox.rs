@@ -249,9 +249,11 @@ impl CosmosMailboxIndexer {
         locator: ContractLocator,
         signer: Signer,
         event_type: String,
+        reorg_period: u32,
     ) -> Self {
         let mailbox = CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone());
-        let indexer: CosmosWasmIndexer = CosmosWasmIndexer::new(conf, locator, event_type);
+        let indexer: CosmosWasmIndexer =
+            CosmosWasmIndexer::new(conf, locator, event_type, reorg_period);
 
         Self {
             mailbox,
@@ -300,7 +302,7 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.latest_block_height().await
+        self.indexer.get_finalized_block_number().await
     }
 }
 
@@ -317,14 +319,14 @@ impl Indexer<H256> for CosmosMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.latest_block_height().await
+        self.indexer.get_finalized_block_number().await
     }
 }
 
 #[async_trait]
 impl SequenceIndexer<H256> for CosmosMailboxIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = self.indexer.latest_block_height().await?;
+        let tip = Indexer::<H256>::get_finalized_block_number(&self).await?;
 
         // No sequence for message deliveries.
         Ok((None, tip))
@@ -334,7 +336,7 @@ impl SequenceIndexer<H256> for CosmosMailboxIndexer {
 #[async_trait]
 impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = self.indexer.latest_block_height().await?;
+        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(&self).await?;
 
         let sequence = self.mailbox.nonce_at_block(Some(tip.into())).await?;
 
