@@ -807,7 +807,7 @@ export const neutron: ChainMetadata = {
   ],
   blocks: {
     confirmations: 1,
-    reorgPeriod: 0,
+    reorgPeriod: 1,
     estimateBlockTime: 3,
   },
   blockExplorers: [
@@ -1018,7 +1018,7 @@ export const neutrontestnet: ChainMetadata = {
   },
   blocks: {
     confirmations: 1,
-    reorgPeriod: 0,
+    reorgPeriod: 1,
     estimateBlockTime: 3,
   },
   // First URL RPC, second REST
