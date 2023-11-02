@@ -4,63 +4,38 @@
  * and run the @cosmwasm/ts-codegen generate command to regenerate this file.
  */
 
-export type TokenModeMsgForCw20ModeBridgedAndCw20ModeCollateral =
+export type TokenModeMsgForNativeModeBrigedAndNativeModeCollateral =
   | {
-      bridged: Cw20ModeBridged;
+      bridged: NativeModeBriged;
     }
   | {
-      collateral: Cw20ModeCollateral;
+      collateral: NativeModeCollateral;
     };
-export type Uint128 = string;
-export type Logo =
-  | {
-      url: string;
-    }
-  | {
-      embedded: EmbeddedLogo;
-    };
-export type EmbeddedLogo =
-  | {
-      svg: Binary;
-    }
-  | {
-      png: Binary;
-    };
-export type Binary = string;
 export interface InstantiateMsg {
   hrp: string;
   mailbox: string;
   owner: string;
-  token: TokenModeMsgForCw20ModeBridgedAndCw20ModeCollateral;
+  token: TokenModeMsgForNativeModeBrigedAndNativeModeCollateral;
 }
-export interface Cw20ModeBridged {
-  code_id: number;
-  init_msg: InstantiateMsg1;
+export interface NativeModeBriged {
+  denom: string;
+  metadata?: Metadata | null;
 }
-export interface InstantiateMsg1 {
-  decimals: number;
-  initial_balances: Cw20Coin[];
-  marketing?: InstantiateMarketingInfo | null;
-  mint?: MinterResponse | null;
+export interface Metadata {
+  base: string;
+  denom_units: DenomUnit[];
+  description: string;
+  display: string;
   name: string;
   symbol: string;
 }
-export interface Cw20Coin {
-  address: string;
-  amount: Uint128;
+export interface DenomUnit {
+  aliases: string[];
+  denom: string;
+  exponent: number;
 }
-export interface InstantiateMarketingInfo {
-  description?: string | null;
-  logo?: Logo | null;
-  marketing?: string | null;
-  project?: string | null;
-}
-export interface MinterResponse {
-  cap?: Uint128 | null;
-  minter: string;
-}
-export interface Cw20ModeCollateral {
-  address: string;
+export interface NativeModeCollateral {
+  denom: string;
 }
 export type ExecuteMsg =
   | {
@@ -122,6 +97,7 @@ export type ConnectionMsg =
         ism: string;
       };
     };
+export type Uint128 = string;
 export interface DomainRouteSetForHexBinary {
   domain: number;
   route?: HexBinary | null;
