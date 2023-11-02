@@ -176,16 +176,26 @@ class CosmWasmMultisigAdapter extends BaseCosmWasmAdapter {
       },
     );
 
-    const thresholdInstruction = this.prepareMultisig({
-      set_thresholds: {
-        set: Object.entries(configMap).map(([origin, config]) => ({
-          domain: this.multiProvider.getDomainId(origin),
-          threshold: config.threshold,
-        })),
-      },
-    });
+    const setThresholds = Object.entries(configMap)
+      .filter(
+        ([origin, { threshold }]) =>
+          threshold !== configuredMap[origin].threshold,
+      )
+      .map(([origin, config]) => ({
+        domain: this.multiProvider.getDomainId(origin),
+        threshold: config.threshold,
+      }));
 
-    return validatorInstructions.concat(thresholdInstruction);
+    if (setThresholds.length > 0) {
+      const thresholdInstruction = this.prepareMultisig({
+        set_thresholds: {
+          set: setThresholds,
+        },
+      });
+      return [...validatorInstructions, thresholdInstruction];
+    }
+
+    return validatorInstructions;
   }
 }
 
@@ -524,19 +534,21 @@ export async function rotateValidators() {
         '8e668c97ad76d0e28375275c41ece4972ab8a5bc', // hyperlane
         '521a3e6bf8d24809fde1c1fd3494a859a16f132c', // cosmosstation
         '25b9a0961c51e74fd83295293bc029131bf1e05a', // neutron (pablo)
+        '14025fe092f5f8a401dd9819704d9072196d2125', // p2p
+        'a0ee95e280d46c14921e524b075d0c341e7ad1c8', // cosmos spaces
       ],
     },
   });
 
-  const safe = await getSigningClient(
-    '2ac7230628b8b4a587c4005798184735471b9240fc57fc75d97824e1fb6b5409',
-  );
-
   console.log(JSON.stringify(instructions));
 
-  const tx = await safe.wasm.executeMultiple(safe.signer, instructions, 'auto');
+  // const safe = await getSigningClient(
+  //   '2ac7230628b8b4a587c4005798184735471b9240fc57fc75d97824e1fb6b5409',
+  // );
 
-  console.log(tx);
+  // const tx = await safe.wasm.executeMultiple(safe.signer, instructions, 'auto');
+
+  // console.log(tx);
 }
 
-summary().catch(console.error);
+rotateValidators().catch(console.error);
