@@ -10,9 +10,9 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage,
+    ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction,
     HyperlaneMessageIdIndexerStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta,
-    SequenceIndexer, H256,
+    SequenceIndexer, Sequenced, H256,
 };
 use tokio::time::sleep;
 use tracing::{debug, warn};
@@ -129,7 +129,7 @@ impl SyncState {
     }
 }
 
-impl<T> MessageSyncCursor<T> {
+impl<T: Sequenced> MessageSyncCursor<T> {
     async fn retrieve_message_id_by_sequence(&self, sequence: u32) -> Option<H256> {
         if let Ok(Some(message)) = self.db.retrieve_message_id_by_sequence(sequence).await {
             Some(message)
@@ -152,7 +152,7 @@ impl<T> MessageSyncCursor<T> {
         if !logs.is_empty()
             && !logs
                 .iter()
-                .any(|m| m.0.nonce == self.sync_state.next_sequence)
+                .any(|m| m.0.sequence() == self.sync_state.next_sequence)
         {
             warn!(next_nonce=?self.sync_state.next_sequence, "Target nonce not found, rewinding");
             // If the previous nonce has been synced, rewind to the block number
@@ -171,11 +171,11 @@ impl<T> MessageSyncCursor<T> {
 }
 
 /// A MessageSyncCursor that syncs forwards in perpetuity.
-pub(crate) struct ForwardMessageSyncCursor<T: 'static> {
+pub(crate) struct ForwardMessageSyncCursor<T: Sequenced> {
     cursor: MessageSyncCursor<T>,
 }
 
-impl<T> ForwardMessageSyncCursor<T> {
+impl<T: Sequenced> ForwardMessageSyncCursor<T> {
     pub fn new(
         indexer: Arc<dyn SequenceIndexer<T>>,
         db: Arc<dyn HyperlaneMessageIdIndexerStore<T>>,
@@ -255,7 +255,7 @@ impl<T> ForwardMessageSyncCursor<T> {
 }
 
 #[async_trait]
-impl<T: 'static> ContractSyncCursor<T> for ForwardMessageSyncCursor<T> {
+impl<T: Sequenced> ContractSyncCursor<T> for ForwardMessageSyncCursor<T> {
     async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
         // TODO: Fix ETA calculation
         let eta = Duration::from_secs(0);
@@ -280,19 +280,19 @@ impl<T: 'static> ContractSyncCursor<T> for ForwardMessageSyncCursor<T> {
         // We should not consider these messages when checking for continuity errors.
         let filtered_logs = logs
             .into_iter()
-            .filter(|m| m.0.nonce >= self.cursor.sync_state.next_sequence)
+            .filter(|m| m.0.sequence() >= self.cursor.sync_state.next_sequence)
             .collect();
         self.cursor.update(filtered_logs, prev_nonce).await
     }
 }
 
 /// A MessageSyncCursor that syncs backwards to sequence (nonce) zero.
-pub(crate) struct BackwardMessageSyncCursor<T: 'static> {
+pub(crate) struct BackwardMessageSyncCursor<T: Sequenced> {
     cursor: MessageSyncCursor<T>,
     synced: bool,
 }
 
-impl<T> BackwardMessageSyncCursor<T> {
+impl<T: Sequenced> BackwardMessageSyncCursor<T> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         indexer: Arc<dyn SequenceIndexer<T>>,
@@ -369,7 +369,7 @@ impl<T> BackwardMessageSyncCursor<T> {
         // We should not consider these messages when checking for continuity errors.
         let filtered_logs = logs
             .into_iter()
-            .filter(|m| m.0.nonce <= self.cursor.sync_state.next_sequence)
+            .filter(|m| m.0.sequence() <= self.cursor.sync_state.next_sequence)
             .collect();
         self.cursor.update(filtered_logs, prev_sequence).await
     }
@@ -382,13 +382,13 @@ pub enum SyncDirection {
 }
 
 /// A MessageSyncCursor that syncs forwards in perpetuity.
-pub(crate) struct ForwardBackwardMessageSyncCursor<T: 'static + Send + Sync> {
+pub(crate) struct ForwardBackwardMessageSyncCursor<T: Sequenced> {
     forward: ForwardMessageSyncCursor<T>,
     backward: BackwardMessageSyncCursor<T>,
     direction: SyncDirection,
 }
 
-impl<T: 'static + Send + Sync> ForwardBackwardMessageSyncCursor<T> {
+impl<T: Sequenced> ForwardBackwardMessageSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
         indexer: Arc<dyn SequenceIndexer<T>>,
@@ -428,7 +428,7 @@ impl<T: 'static + Send + Sync> ForwardBackwardMessageSyncCursor<T> {
 }
 
 #[async_trait]
-impl<T: 'static + Send + Sync> ContractSyncCursor<T> for ForwardBackwardMessageSyncCursor<T> {
+impl<T: Sequenced> ContractSyncCursor<T> for ForwardBackwardMessageSyncCursor<T> {
     async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
         // TODO: Proper ETA for backwards sync
         let eta = Duration::from_secs(0);

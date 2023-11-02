@@ -26,6 +26,12 @@ pub trait HyperlaneMessageStore: HyperlaneLogStore<HyperlaneMessage> {
 }
 
 /// TODO
+pub trait Sequenced: 'static + Send + Sync {
+    /// TODO
+    fn sequence(&self) -> u32;
+}
+
+/// TODO
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
 pub trait HyperlaneMessageIdIndexerStore<T>: HyperlaneLogStore<T>

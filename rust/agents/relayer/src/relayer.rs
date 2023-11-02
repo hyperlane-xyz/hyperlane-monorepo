@@ -12,7 +12,9 @@ use hyperlane_base::{
     run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, MessageContractSync,
     WatermarkContractSync,
 };
-use hyperlane_core::{HyperlaneDomain, InterchainGasPayment, MerkleTreeInsertion, U256};
+use hyperlane_core::{
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, U256,
+};
 use tokio::{
     sync::{
         mpsc::{self, UnboundedReceiver, UnboundedSender},
@@ -50,15 +52,14 @@ pub struct Relayer {
     destination_chains: HashSet<HyperlaneDomain>,
     #[as_ref]
     core: HyperlaneAgentCore,
-    message_syncs: HashMap<HyperlaneDomain, Arc<MessageContractSync>>,
+    message_syncs: HashMap<HyperlaneDomain, Arc<MessageContractSync<HyperlaneMessage>>>,
     interchain_gas_payment_syncs:
         HashMap<HyperlaneDomain, Arc<WatermarkContractSync<InterchainGasPayment>>>,
     /// Context data for each (origin, destination) chain pair a message can be
     /// sent between
     msg_ctxs: HashMap<ContextKey, Arc<MessageContext>>,
     prover_syncs: HashMap<HyperlaneDomain, Arc<RwLock<MerkleTreeBuilder>>>,
-    merkle_tree_hook_syncs:
-        HashMap<HyperlaneDomain, Arc<WatermarkContractSync<MerkleTreeInsertion>>>,
+    merkle_tree_hook_syncs: HashMap<HyperlaneDomain, Arc<MessageContractSync<MerkleTreeInsertion>>>,
     dbs: HashMap<HyperlaneDomain, HyperlaneRocksDB>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
