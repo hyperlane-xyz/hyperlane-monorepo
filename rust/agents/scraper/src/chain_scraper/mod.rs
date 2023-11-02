@@ -8,8 +8,8 @@ use eyre::Result;
 use hyperlane_base::settings::IndexSettings;
 use hyperlane_core::{
     unwrap_or_none_result, BlockInfo, Delivery, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneMessageStore, HyperlaneProvider, HyperlaneWatermarkedLogStore,
-    InterchainGasPayment, LogMeta, H256,
+    HyperlaneMessage, HyperlaneMessageIdIndexerStore, HyperlaneMessageStore, HyperlaneProvider,
+    HyperlaneWatermarkedLogStore, InterchainGasPayment, LogMeta, H256,
 };
 use itertools::Itertools;
 use tracing::trace;
@@ -387,6 +387,34 @@ impl HyperlaneMessageStore for HyperlaneSqlDb {
             tx_id,
             self.db
                 .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, nonce)
+                .await?
+        );
+        unwrap_or_none_result!(block_id, self.db.retrieve_block_id(tx_id).await?);
+        Ok(self.db.retrieve_block_number(block_id).await?)
+    }
+}
+
+/// TODO
+#[async_trait]
+impl HyperlaneMessageIdIndexerStore<HyperlaneMessage> for HyperlaneSqlDb {
+    /// Gets a message ID by its sequence.
+    /// A sequence is a monotonically increasing number that is incremented every time a message ID is indexed.
+    /// E.g. for Mailbox indexing, this is equal to the message nonce, and for merkle tree hook indexing, this
+    /// is equal to the leaf index.
+    async fn retrieve_message_id_by_sequence(&self, sequence: u32) -> Result<Option<H256>> {
+        let message = self
+            .db
+            .retrieve_message_by_nonce(self.domain().id(), &self.mailbox_address, sequence)
+            .await?;
+        Ok(message.map(|m| m.id()))
+    }
+
+    /// Gets the block number at which the log occurred.
+    async fn retrieve_log_block_number(&self, sequence: u32) -> Result<Option<u64>> {
+        unwrap_or_none_result!(
+            tx_id,
+            self.db
+                .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, sequence)
                 .await?
         );
         unwrap_or_none_result!(block_id, self.db.retrieve_block_id(tx_id).await?);

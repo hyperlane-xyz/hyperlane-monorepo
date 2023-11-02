@@ -11,8 +11,8 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage,
-    HyperlaneMessageIdIndexerStore, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode,
-    Indexer, LogMeta, SequenceIndexer,
+    HyperlaneMessageIdIndexerStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta,
+    SequenceIndexer, H256,
 };
 use tokio::time::sleep;
 use tracing::{debug, warn};
@@ -130,7 +130,7 @@ impl SyncState {
 }
 
 impl MessageSyncCursor {
-    async fn retrieve_message_id_by_sequence(&self, sequence: u32) -> Option<HyperlaneMessage> {
+    async fn retrieve_message_id_by_sequence(&self, sequence: u32) -> Option<H256> {
         if let Ok(Some(message)) = self.db.retrieve_message_id_by_sequence(sequence).await {
             Some(message)
         } else {
