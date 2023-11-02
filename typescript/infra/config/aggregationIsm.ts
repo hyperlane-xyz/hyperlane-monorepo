@@ -1,8 +1,5 @@
-import {
-  AggregationIsmConfig,
-  ChainName,
-  ModuleType,
-} from '@hyperlane-xyz/sdk';
+import { AggregationIsmConfig, ChainName } from '@hyperlane-xyz/sdk';
+import { IsmType } from '@hyperlane-xyz/sdk/dist/ism/types';
 
 import { Contexts } from './contexts';
 import { multisigIsm } from './multisigIsm';
@@ -13,11 +10,11 @@ export const aggregationIsm = (
   context: Contexts,
 ): AggregationIsmConfig => {
   return {
-    type: ModuleType.AGGREGATION,
+    type: IsmType.AGGREGATION,
     modules: [
       // Ordering matters to preserve determinism
-      multisigIsm(remote, ModuleType.MERKLE_ROOT_MULTISIG, context),
-      multisigIsm(remote, ModuleType.MESSAGE_ID_MULTISIG, context),
+      multisigIsm(remote, IsmType.MERKLE_ROOT_MULTISIG, context),
+      multisigIsm(remote, IsmType.MESSAGE_ID_MULTISIG, context),
     ],
     threshold: 1,
   };
