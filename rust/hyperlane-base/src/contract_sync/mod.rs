@@ -121,7 +121,7 @@ where
     }
 }
 
-/// A ContractSync for syncing messages using a MessageSyncCursor
+/// A ContractSync for syncing messages using a SequenceSyncCursor
 pub type MessageContractSync<T> =
     ContractSync<T, Arc<dyn HyperlaneSequencedDataIndexerStore<T>>, Arc<dyn SequenceIndexer<T>>>;
 impl<T: Sequenced> MessageContractSync<T> {
@@ -131,7 +131,7 @@ impl<T: Sequenced> MessageContractSync<T> {
         index_settings: IndexSettings,
         next_nonce: u32,
     ) -> Box<dyn ContractSyncCursor<T>> {
-        Box::new(ForwardMessageSyncCursor::new(
+        Box::new(ForwardSequenceSyncCursor::new(
             self.indexer.clone(),
             self.db.clone(),
             index_settings.chunk_size,
@@ -148,7 +148,7 @@ impl<T: Sequenced> MessageContractSync<T> {
         index_settings: IndexSettings,
     ) -> Box<dyn ContractSyncCursor<T>> {
         Box::new(
-            ForwardBackwardMessageSyncCursor::new(
+            ForwardBackwardSequenceSyncCursor::new(
                 self.indexer.clone(),
                 self.db.clone(),
                 index_settings.chunk_size,
