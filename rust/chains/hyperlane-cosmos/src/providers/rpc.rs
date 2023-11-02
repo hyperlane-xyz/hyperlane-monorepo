@@ -2,7 +2,7 @@ use std::ops::RangeInclusive;
 
 use crate::binary::h256_to_h512;
 use async_trait::async_trait;
-use cosmrs::rpc::client::{Client, CompatMode, HttpClient};
+use cosmrs::rpc::client::{Client, HttpClient};
 use cosmrs::rpc::endpoint::tx;
 use cosmrs::rpc::query::Query;
 use cosmrs::rpc::Order;
