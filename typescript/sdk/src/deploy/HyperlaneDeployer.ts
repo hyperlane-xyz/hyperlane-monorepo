@@ -237,15 +237,20 @@ export abstract class HyperlaneDeployer<
     setHook: (contract: C, hook: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
     const configuredHook = await getHook(contract);
-    if (targetHook !== configuredHook) {
+    if (!eqAddress(targetHook, configuredHook)) {
       await this.runIfOwner(chain, contract, async () => {
-        this.logger(`Set hook on ${chain}`);
+        this.logger(
+          `Set hook on ${chain} to ${targetHook}, currently is ${configuredHook}`,
+        );
         await this.multiProvider.sendTransaction(
           chain,
           setHook(contract, targetHook),
         );
-        if (targetHook !== (await getHook(contract))) {
-          throw new Error(`Set hook failed on ${chain}`);
+        const actualHook = await getHook(contract);
+        if (!eqAddress(targetHook, actualHook)) {
+          throw new Error(
+            `Set hook failed on ${chain}, wanted ${targetHook}, got ${actualHook}`,
+          );
         }
       });
     }

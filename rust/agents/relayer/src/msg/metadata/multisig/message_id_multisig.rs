@@ -22,7 +22,7 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         vec![
             MetadataToken::CheckpointMerkleTreeHook,
             MetadataToken::CheckpointMerkleRoot,
-            MetadataToken::MessageMerkleLeafIndex,
+            MetadataToken::CheckpointIndex,
             MetadataToken::Signatures,
         ]
     }
@@ -34,10 +34,12 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
+        let message_id = message.id();
+
         const CTX: &str = "When fetching MessageIdMultisig metadata";
         unwrap_or_none_result!(
             leaf_index,
-            self.get_merkle_leaf_id_by_message_id(message.id())
+            self.get_merkle_leaf_id_by_message_id(message_id)
                 .await
                 .context(CTX)?,
             debug!(
@@ -54,27 +56,23 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
             trace!("No quorum checkpoint found")
         );
 
-        if quorum_checkpoint.checkpoint.message_id != message.id() {
+        if quorum_checkpoint.checkpoint.message_id != message_id {
             warn!(
                 "Quorum checkpoint message id {} does not match message id {}",
-                quorum_checkpoint.checkpoint.message_id,
-                message.id()
+                quorum_checkpoint.checkpoint.message_id, message_id
             );
+            if quorum_checkpoint.checkpoint.index != leaf_index {
+                warn!(
+                    "Quorum checkpoint index {} does not match leaf index {}",
+                    quorum_checkpoint.checkpoint.index, leaf_index
+                );
+            }
             return Ok(None);
         }
 
-        unwrap_or_none_result!(
-            merkle_leaf_id,
-            self.get_merkle_leaf_id_by_message_id(message.id())
-                .await
-                .context(CTX)?
-        );
-
         Ok(Some(MultisigMetadata::new(
-            quorum_checkpoint.checkpoint.checkpoint,
-            quorum_checkpoint.signatures,
-            Some(merkle_leaf_id),
-            None,
+            quorum_checkpoint,
+            leaf_index,
             None,
         )))
     }

@@ -19,10 +19,7 @@ use tracing::{debug, info, instrument, warn};
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     msg::metadata::{
-        multisig::{
-            LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
-            MessageIdMultisigMetadataBuilder,
-        },
+        multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
         AggregationIsmMetadataBuilder, CcipReadIsmMetadataBuilder, NullMetadataBuilder,
         RoutingIsmMetadataBuilder,
     },
@@ -87,7 +84,6 @@ impl MetadataBuilder for BaseMetadataBuilder {
         let base = self.clone_with_incremented_depth()?;
 
         let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
-            ModuleType::LegacyMultisig => Box::new(LegacyMultisigMetadataBuilder::new(base)),
             ModuleType::MerkleRootMultisig => {
                 Box::new(MerkleRootMultisigMetadataBuilder::new(base))
             }
