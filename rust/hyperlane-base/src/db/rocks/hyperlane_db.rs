@@ -5,7 +5,7 @@ use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
     GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
-    HyperlaneMessageIdIndexerStore, HyperlaneWatermarkedLogStore, InterchainGasExpenditure,
+    HyperlaneSequencedDataIndexerStore, HyperlaneWatermarkedLogStore, InterchainGasExpenditure,
     InterchainGasPayment, InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, H256,
 };
 
@@ -271,16 +271,15 @@ impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     }
 }
 
-/// TODO
 #[async_trait]
-impl HyperlaneMessageIdIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
+impl HyperlaneSequencedDataIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
     /// Gets a message ID by its sequence.
     /// A sequence is a monotonically increasing number that is incremented every time a message ID is indexed.
     /// E.g. for Mailbox indexing, this is equal to the message nonce, and for merkle tree hook indexing, this
     /// is equal to the leaf index.
-    async fn retrieve_message_id_by_sequence(&self, sequence: u32) -> Result<Option<H256>> {
+    async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<HyperlaneMessage>> {
         let message = self.retrieve_message_by_nonce(sequence)?;
-        Ok(message.map(|m| m.id()))
+        Ok(message)
     }
 
     /// Gets the block number at which the log occurred.
@@ -290,16 +289,15 @@ impl HyperlaneMessageIdIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
     }
 }
 
-/// TODO
 #[async_trait]
-impl HyperlaneMessageIdIndexerStore<MerkleTreeInsertion> for HyperlaneRocksDB {
+impl HyperlaneSequencedDataIndexerStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     /// Gets a message ID by its sequence.
     /// A sequence is a monotonically increasing number that is incremented every time a message ID is indexed.
     /// E.g. for Mailbox indexing, this is equal to the message nonce, and for merkle tree hook indexing, this
     /// is equal to the leaf index.
-    async fn retrieve_message_id_by_sequence(&self, sequence: u32) -> Result<Option<H256>> {
+    async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<MerkleTreeInsertion>> {
         let insertion = self.retrieve_merkle_tree_insertion_by_leaf_index(&sequence)?;
-        Ok(insertion.map(|i| i.message_id()))
+        Ok(insertion)
     }
 
     /// Gets the block number at which the log occurred.

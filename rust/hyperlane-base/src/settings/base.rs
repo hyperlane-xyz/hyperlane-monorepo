@@ -3,9 +3,10 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use eyre::{eyre, Context, Result};
 use futures_util::future::try_join_all;
 use hyperlane_core::{
-    Delivery, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneMessageIdIndexerStore,
-    HyperlaneProvider, HyperlaneWatermarkedLogStore, InterchainGasPaymaster, InterchainGasPayment,
-    Mailbox, MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ValidatorAnnounce, H256,
+    Delivery, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    HyperlaneSequencedDataIndexerStore, HyperlaneWatermarkedLogStore, InterchainGasPaymaster,
+    InterchainGasPayment, Mailbox, MerkleTreeHook, MerkleTreeInsertion, MultisigIsm,
+    ValidatorAnnounce, H256,
 };
 
 use crate::{
@@ -183,8 +184,8 @@ impl Settings {
     build_contract_fns!(build_validator_announce, build_validator_announces -> dyn ValidatorAnnounce);
     build_contract_fns!(build_provider, build_providers -> dyn HyperlaneProvider);
     build_indexer_fns!(build_delivery_indexer, build_delivery_indexers -> dyn HyperlaneWatermarkedLogStore<Delivery>, WatermarkContractSync<Delivery>);
-    build_indexer_fns!(build_message_indexer, build_message_indexers -> dyn HyperlaneMessageIdIndexerStore<HyperlaneMessage>, MessageContractSync<HyperlaneMessage>);
+    build_indexer_fns!(build_message_indexer, build_message_indexers -> dyn HyperlaneSequencedDataIndexerStore<HyperlaneMessage>, MessageContractSync<HyperlaneMessage>);
     build_indexer_fns!(build_interchain_gas_payment_indexer, build_interchain_gas_payment_indexers -> dyn HyperlaneWatermarkedLogStore<InterchainGasPayment>, WatermarkContractSync<InterchainGasPayment>);
-    build_indexer_fns!(build_merkle_tree_hook_indexer, build_merkle_tree_hook_indexers -> dyn HyperlaneMessageIdIndexerStore<MerkleTreeInsertion>, MessageContractSync<MerkleTreeInsertion>);
-    // build_indexer_fns!(build_merkle_tree_hook_indexer, build_merkle_tree_hook_indexers -> dyn HyperlaneMessageIdIndexerStore<MerkleTreeInsertion>, WatermarkContractSync<MerkleTreeInsertion>);
+    build_indexer_fns!(build_merkle_tree_hook_indexer, build_merkle_tree_hook_indexers -> dyn HyperlaneSequencedDataIndexerStore<MerkleTreeInsertion>, MessageContractSync<MerkleTreeInsertion>);
+    // build_indexer_fns!(build_merkle_tree_hook_indexer, build_merkle_tree_hook_indexers -> dyn HyperlaneSequencedDataIndexerStore<MerkleTreeInsertion>, WatermarkContractSync<MerkleTreeInsertion>);
 }

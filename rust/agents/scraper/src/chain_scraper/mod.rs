@@ -8,7 +8,7 @@ use eyre::Result;
 use hyperlane_base::settings::IndexSettings;
 use hyperlane_core::{
     unwrap_or_none_result, BlockInfo, Delivery, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneMessageIdIndexerStore, HyperlaneProvider,
+    HyperlaneMessage, HyperlaneProvider, HyperlaneSequencedDataIndexerStore,
     HyperlaneWatermarkedLogStore, InterchainGasPayment, LogMeta, H256,
 };
 use itertools::Itertools;
@@ -369,19 +369,15 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
     }
 }
 
-/// TODO
 #[async_trait]
-impl HyperlaneMessageIdIndexerStore<HyperlaneMessage> for HyperlaneSqlDb {
-    /// Gets a message ID by its sequence.
-    /// A sequence is a monotonically increasing number that is incremented every time a message ID is indexed.
-    /// E.g. for Mailbox indexing, this is equal to the message nonce, and for merkle tree hook indexing, this
-    /// is equal to the leaf index.
-    async fn retrieve_message_id_by_sequence(&self, sequence: u32) -> Result<Option<H256>> {
+impl HyperlaneSequencedDataIndexerStore<HyperlaneMessage> for HyperlaneSqlDb {
+    /// Gets a message by its nonce.
+    async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<HyperlaneMessage>> {
         let message = self
             .db
             .retrieve_message_by_nonce(self.domain().id(), &self.mailbox_address, sequence)
             .await?;
-        Ok(message.map(|m| m.id()))
+        Ok(message)
     }
 
     /// Gets the block number at which the log occurred.

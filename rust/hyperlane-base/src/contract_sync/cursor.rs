@@ -11,8 +11,8 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction,
-    HyperlaneMessageIdIndexerStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta,
-    SequenceIndexer, Sequenced, H256,
+    HyperlaneSequencedDataIndexerStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta,
+    SequenceIndexer, Sequenced,
 };
 use tokio::time::sleep;
 use tracing::{debug, warn};
@@ -29,7 +29,7 @@ const MAX_SEQUENCE_RANGE: u32 = 100;
 #[derive(Debug, new)]
 pub(crate) struct MessageSyncCursor<T> {
     indexer: Arc<dyn SequenceIndexer<T>>,
-    db: Arc<dyn HyperlaneMessageIdIndexerStore<T>>,
+    db: Arc<dyn HyperlaneSequencedDataIndexerStore<T>>,
     sync_state: SyncState,
 }
 
@@ -130,20 +130,17 @@ impl SyncState {
 }
 
 impl<T: Sequenced> MessageSyncCursor<T> {
-    async fn retrieve_message_id_by_sequence(&self, sequence: u32) -> Option<H256> {
-        if let Ok(Some(message)) = self.db.retrieve_message_id_by_sequence(sequence).await {
-            Some(message)
-        } else {
-            None
-        }
+    async fn retrieve_by_sequence(&self, sequence: u32) -> Option<T> {
+        self.db.retrieve_by_sequence(sequence).await.ok().flatten()
     }
 
     async fn retrieve_log_block_number(&self, sequence: u32) -> Option<u32> {
-        if let Ok(Some(block_number)) = self.db.retrieve_log_block_number(sequence).await {
-            Some(u32::try_from(block_number).unwrap())
-        } else {
-            None
-        }
+        self.db
+            .retrieve_log_block_number(sequence)
+            .await
+            .ok()
+            .flatten()
+            .map(|num| u32::try_from(num).unwrap())
     }
 
     async fn update(&mut self, logs: Vec<(T, LogMeta)>, prev_sequence: u32) -> Result<()> {
@@ -178,7 +175,7 @@ pub(crate) struct ForwardMessageSyncCursor<T> {
 impl<T: Sequenced> ForwardMessageSyncCursor<T> {
     pub fn new(
         indexer: Arc<dyn SequenceIndexer<T>>,
-        db: Arc<dyn HyperlaneMessageIdIndexerStore<T>>,
+        db: Arc<dyn HyperlaneSequencedDataIndexerStore<T>>,
         chunk_size: u32,
         start_block: u32,
         next_block: u32,
@@ -206,7 +203,7 @@ impl<T: Sequenced> ForwardMessageSyncCursor<T> {
         // and update the cursor accordingly.
         while self
             .cursor
-            .retrieve_message_id_by_sequence(self.cursor.sync_state.next_sequence)
+            .retrieve_by_sequence(self.cursor.sync_state.next_sequence)
             .await
             .is_some()
         {
@@ -296,7 +293,7 @@ impl<T: Sequenced> BackwardMessageSyncCursor<T> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         indexer: Arc<dyn SequenceIndexer<T>>,
-        db: Arc<dyn HyperlaneMessageIdIndexerStore<T>>,
+        db: Arc<dyn HyperlaneSequencedDataIndexerStore<T>>,
         chunk_size: u32,
         start_block: u32,
         next_block: u32,
@@ -327,7 +324,7 @@ impl<T: Sequenced> BackwardMessageSyncCursor<T> {
         while !self.synced {
             if self
                 .cursor
-                .retrieve_message_id_by_sequence(self.cursor.sync_state.next_sequence)
+                .retrieve_by_sequence(self.cursor.sync_state.next_sequence)
                 .await
                 .is_none()
             {
@@ -392,7 +389,7 @@ impl<T: Sequenced> ForwardBackwardMessageSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
         indexer: Arc<dyn SequenceIndexer<T>>,
-        db: Arc<dyn HyperlaneMessageIdIndexerStore<T>>,
+        db: Arc<dyn HyperlaneSequencedDataIndexerStore<T>>,
         chunk_size: u32,
         mode: IndexMode,
     ) -> Result<Self> {
