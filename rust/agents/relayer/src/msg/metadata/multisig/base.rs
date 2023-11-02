@@ -129,12 +129,6 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             debug!(?message, ?metadata.checkpoint, "Found checkpoint with quorum");
             Ok(Some(self.format_metadata(metadata)?))
         } else {
-            println!(
-                "pacquiao: validator, threshold, message_id: {:?}, {:?}, {:?}",
-                validators,
-                threshold,
-                message.id()
-            );
             info!(
                 ?message, ?validators, threshold, ism=%multisig_ism.address(),
                 "Could not fetch metadata: Unable to reach quorum"
