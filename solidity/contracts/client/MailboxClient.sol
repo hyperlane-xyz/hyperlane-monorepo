@@ -14,8 +14,10 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 abstract contract MailboxClient is OwnableUpgradeable {
     using Message for bytes;
 
+    /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
     IMailbox public immutable mailbox;
 
+    /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
     uint32 public immutable localDomain;
 
     IPostDispatchHook public hook;
@@ -50,6 +52,7 @@ abstract contract MailboxClient is OwnableUpgradeable {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address _mailbox) onlyContract(_mailbox) {
         mailbox = IMailbox(_mailbox);
         localDomain = mailbox.localDomain();

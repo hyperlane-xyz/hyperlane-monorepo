@@ -21,6 +21,7 @@ abstract contract Router is MailboxClient, IMessageRecipient {
 
     uint256[48] private __GAP; // gap for upgrade safety
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address _mailbox) MailboxClient(_mailbox) {}
 
     // ============ External functions ============
