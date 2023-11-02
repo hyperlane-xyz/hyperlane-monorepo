@@ -27,9 +27,9 @@ const MAX_SEQUENCE_RANGE: u32 = 100;
 /// A struct that holds the data needed for forwards and backwards
 /// message sync cursors.
 #[derive(Debug, new)]
-pub(crate) struct MessageSyncCursor {
-    indexer: Arc<dyn SequenceIndexer<HyperlaneMessage>>,
-    db: Arc<dyn HyperlaneMessageIdIndexerStore<HyperlaneMessage>>,
+pub(crate) struct MessageSyncCursor<T> {
+    indexer: Arc<dyn SequenceIndexer<T>>,
+    db: Arc<dyn HyperlaneMessageIdIndexerStore<T>>,
     sync_state: SyncState,
 }
 
@@ -129,7 +129,7 @@ impl SyncState {
     }
 }
 
-impl MessageSyncCursor {
+impl<T> MessageSyncCursor<T> {
     async fn retrieve_message_id_by_sequence(&self, sequence: u32) -> Option<H256> {
         if let Ok(Some(message)) = self.db.retrieve_message_id_by_sequence(sequence).await {
             Some(message)
@@ -146,11 +146,7 @@ impl MessageSyncCursor {
         }
     }
 
-    async fn update(
-        &mut self,
-        logs: Vec<(HyperlaneMessage, LogMeta)>,
-        prev_sequence: u32,
-    ) -> Result<()> {
+    async fn update(&mut self, logs: Vec<(T, LogMeta)>, prev_sequence: u32) -> Result<()> {
         // If we found messages, but did *not* find the message we were looking for,
         // we need to rewind to the block at which we found the last message.
         if !logs.is_empty()
@@ -175,14 +171,14 @@ impl MessageSyncCursor {
 }
 
 /// A MessageSyncCursor that syncs forwards in perpetuity.
-pub(crate) struct ForwardMessageSyncCursor {
-    cursor: MessageSyncCursor,
+pub(crate) struct ForwardMessageSyncCursor<T: 'static> {
+    cursor: MessageSyncCursor<T>,
 }
 
-impl ForwardMessageSyncCursor {
+impl<T> ForwardMessageSyncCursor<T> {
     pub fn new(
-        indexer: Arc<dyn SequenceIndexer<HyperlaneMessage>>,
-        db: Arc<dyn HyperlaneMessageIdIndexerStore<HyperlaneMessage>>,
+        indexer: Arc<dyn SequenceIndexer<T>>,
+        db: Arc<dyn HyperlaneMessageIdIndexerStore<T>>,
         chunk_size: u32,
         start_block: u32,
         next_block: u32,
@@ -259,7 +255,7 @@ impl ForwardMessageSyncCursor {
 }
 
 #[async_trait]
-impl ContractSyncCursor<HyperlaneMessage> for ForwardMessageSyncCursor {
+impl<T: 'static> ContractSyncCursor<T> for ForwardMessageSyncCursor<T> {
     async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
         // TODO: Fix ETA calculation
         let eta = Duration::from_secs(0);
@@ -278,7 +274,7 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardMessageSyncCursor {
     /// If the previous block has been synced, rewind to the block number
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
-    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> Result<()> {
+    async fn update(&mut self, logs: Vec<(T, LogMeta)>) -> Result<()> {
         let prev_nonce = self.cursor.sync_state.next_sequence.saturating_sub(1);
         // We may wind up having re-indexed messages that are previous to the nonce that we are looking for.
         // We should not consider these messages when checking for continuity errors.
@@ -291,16 +287,16 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardMessageSyncCursor {
 }
 
 /// A MessageSyncCursor that syncs backwards to sequence (nonce) zero.
-pub(crate) struct BackwardMessageSyncCursor {
-    cursor: MessageSyncCursor,
+pub(crate) struct BackwardMessageSyncCursor<T: 'static> {
+    cursor: MessageSyncCursor<T>,
     synced: bool,
 }
 
-impl BackwardMessageSyncCursor {
+impl<T> BackwardMessageSyncCursor<T> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        indexer: Arc<dyn SequenceIndexer<HyperlaneMessage>>,
-        db: Arc<dyn HyperlaneMessageIdIndexerStore<HyperlaneMessage>>,
+        indexer: Arc<dyn SequenceIndexer<T>>,
+        db: Arc<dyn HyperlaneMessageIdIndexerStore<T>>,
         chunk_size: u32,
         start_block: u32,
         next_block: u32,
@@ -367,7 +363,7 @@ impl BackwardMessageSyncCursor {
     /// If the previous block has been synced, rewind to the block number
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
-    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> Result<()> {
+    async fn update(&mut self, logs: Vec<(T, LogMeta)>) -> Result<()> {
         let prev_sequence = self.cursor.sync_state.next_sequence.saturating_add(1);
         // We may wind up having re-indexed messages that are previous to the sequence (nonce) that we are looking for.
         // We should not consider these messages when checking for continuity errors.
@@ -386,17 +382,17 @@ pub enum SyncDirection {
 }
 
 /// A MessageSyncCursor that syncs forwards in perpetuity.
-pub(crate) struct ForwardBackwardMessageSyncCursor {
-    forward: ForwardMessageSyncCursor,
-    backward: BackwardMessageSyncCursor,
+pub(crate) struct ForwardBackwardMessageSyncCursor<T: 'static + Send + Sync> {
+    forward: ForwardMessageSyncCursor<T>,
+    backward: BackwardMessageSyncCursor<T>,
     direction: SyncDirection,
 }
 
-impl ForwardBackwardMessageSyncCursor {
+impl<T: 'static + Send + Sync> ForwardBackwardMessageSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
-        indexer: Arc<dyn SequenceIndexer<HyperlaneMessage>>,
-        db: Arc<dyn HyperlaneMessageIdIndexerStore<HyperlaneMessage>>,
+        indexer: Arc<dyn SequenceIndexer<T>>,
+        db: Arc<dyn HyperlaneMessageIdIndexerStore<T>>,
         chunk_size: u32,
         mode: IndexMode,
     ) -> Result<Self> {
@@ -432,7 +428,7 @@ impl ForwardBackwardMessageSyncCursor {
 }
 
 #[async_trait]
-impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
+impl<T: 'static + Send + Sync> ContractSyncCursor<T> for ForwardBackwardMessageSyncCursor<T> {
     async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
         // TODO: Proper ETA for backwards sync
         let eta = Duration::from_secs(0);
@@ -442,28 +438,19 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
             return Ok((CursorAction::Query(forward_range), eta));
         }
 
-        todo!()
-        // // TODO: Proper ETA for backwards sync
-        // let eta = Duration::from_secs(0);
-        // // Prioritize forward syncing over backward syncing.
-        // if let Some(forward_range) = self.forward.get_next_range().await? {
-        //     self.direction = SyncDirection::Forward;
-        //     return Ok((CursorAction::Query(forward_range), eta));
-        // }
-
-        // if let Some(backward_range) = self.backward.get_next_range().await? {
-        //     self.direction = SyncDirection::Backward;
-        //     return Ok((CursorAction::Query(backward_range), eta));
-        // }
-        // // TODO: Define the sleep time from interval flag
-        // return Ok((CursorAction::Sleep(Duration::from_secs(5)), eta));
+        if let Some(backward_range) = self.backward.get_next_range().await? {
+            self.direction = SyncDirection::Backward;
+            return Ok((CursorAction::Query(backward_range), eta));
+        }
+        // TODO: Define the sleep time from interval flag
+        return Ok((CursorAction::Sleep(Duration::from_secs(5)), eta));
     }
 
     fn latest_block(&self) -> u32 {
         self.forward.cursor.sync_state.next_block.saturating_sub(1)
     }
 
-    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> Result<()> {
+    async fn update(&mut self, logs: Vec<(T, LogMeta)>) -> Result<()> {
         match self.direction {
             SyncDirection::Forward => self.forward.update(logs).await,
             SyncDirection::Backward => self.backward.update(logs).await,

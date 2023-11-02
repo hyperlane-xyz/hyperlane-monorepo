@@ -29,6 +29,8 @@ const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
     "pending_message_retry_count_for_message_id_";
 const MERKLE_TREE_INSERTION: &str = "merkle_tree_insertion_";
 const MERKLE_LEAF_INDEX_BY_MESSAGE_ID: &str = "merkle_leaf_index_by_message_id_";
+const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
+    "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 
 type DbResult<T> = std::result::Result<T, DbError>;
@@ -304,6 +306,25 @@ impl HyperlaneMessageIdIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
     }
 }
 
+/// TODO
+#[async_trait]
+impl HyperlaneMessageIdIndexerStore<MerkleTreeInsertion> for HyperlaneRocksDB {
+    /// Gets a message ID by its sequence.
+    /// A sequence is a monotonically increasing number that is incremented every time a message ID is indexed.
+    /// E.g. for Mailbox indexing, this is equal to the message nonce, and for merkle tree hook indexing, this
+    /// is equal to the leaf index.
+    async fn retrieve_message_id_by_sequence(&self, sequence: u32) -> Result<Option<H256>> {
+        let insertion = self.retrieve_merkle_tree_insertion_by_leaf_index(&sequence)?;
+        Ok(insertion.map(|i| i.message_id()))
+    }
+
+    /// Gets the block number at which the log occurred.
+    async fn retrieve_log_block_number(&self, sequence: u32) -> Result<Option<u64>> {
+        let number = self.retrieve_merkle_tree_insertion_block_number_by_leaf_index(&sequence)?;
+        Ok(number)
+    }
+}
+
 /// Note that for legacy reasons this watermark may be shared across multiple cursors, some of which may not have anything to do with gas payments
 /// The high watermark cursor is relatively conservative in writing block numbers, so this shouldn't result in any events being missed.
 #[async_trait]
@@ -376,4 +397,11 @@ make_store_and_retrieve!(
     MERKLE_LEAF_INDEX_BY_MESSAGE_ID,
     H256,
     u32
+);
+make_store_and_retrieve!(
+    pub,
+    merkle_tree_insertion_block_number_by_leaf_index,
+    MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX,
+    u32,
+    u64
 );
