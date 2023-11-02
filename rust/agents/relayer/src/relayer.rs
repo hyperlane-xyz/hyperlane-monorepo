@@ -9,8 +9,8 @@ use derive_more::AsRef;
 use eyre::Result;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
-    run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, MessageContractSync,
-    WatermarkContractSync,
+    run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    SequencedDataContractSync, WatermarkContractSync,
 };
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, U256,
@@ -52,14 +52,15 @@ pub struct Relayer {
     destination_chains: HashSet<HyperlaneDomain>,
     #[as_ref]
     core: HyperlaneAgentCore,
-    message_syncs: HashMap<HyperlaneDomain, Arc<MessageContractSync<HyperlaneMessage>>>,
+    message_syncs: HashMap<HyperlaneDomain, Arc<SequencedDataContractSync<HyperlaneMessage>>>,
     interchain_gas_payment_syncs:
         HashMap<HyperlaneDomain, Arc<WatermarkContractSync<InterchainGasPayment>>>,
     /// Context data for each (origin, destination) chain pair a message can be
     /// sent between
     msg_ctxs: HashMap<ContextKey, Arc<MessageContext>>,
     prover_syncs: HashMap<HyperlaneDomain, Arc<RwLock<MerkleTreeBuilder>>>,
-    merkle_tree_hook_syncs: HashMap<HyperlaneDomain, Arc<MessageContractSync<MerkleTreeInsertion>>>,
+    merkle_tree_hook_syncs:
+        HashMap<HyperlaneDomain, Arc<SequencedDataContractSync<MerkleTreeInsertion>>>,
     dbs: HashMap<HyperlaneDomain, HyperlaneRocksDB>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,

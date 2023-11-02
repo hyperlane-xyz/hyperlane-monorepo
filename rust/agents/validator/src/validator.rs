@@ -11,7 +11,7 @@ use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-    MessageContractSync,
+    SequencedDataContractSync,
 };
 
 use hyperlane_core::{
@@ -33,7 +33,7 @@ pub struct Validator {
     #[as_ref]
     core: HyperlaneAgentCore,
     db: HyperlaneRocksDB,
-    merkle_tree_hook_sync: Arc<MessageContractSync<MerkleTreeInsertion>>,
+    merkle_tree_hook_sync: Arc<SequencedDataContractSync<MerkleTreeInsertion>>,
     mailbox: Arc<dyn Mailbox>,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     validator_announce: Arc<dyn ValidatorAnnounce>,

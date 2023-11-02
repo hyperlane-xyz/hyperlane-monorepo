@@ -122,9 +122,9 @@ where
 }
 
 /// A ContractSync for syncing messages using a SequenceSyncCursor
-pub type MessageContractSync<T> =
+pub type SequencedDataContractSync<T> =
     ContractSync<T, Arc<dyn HyperlaneSequenceIndexerStore<T>>, Arc<dyn SequenceIndexer<T>>>;
-impl<T: Sequenced> MessageContractSync<T> {
+impl<T: Sequenced> SequencedDataContractSync<T> {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     pub async fn forward_message_sync_cursor(
         &self,
