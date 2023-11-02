@@ -131,7 +131,6 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     this.logger('Deploying AggregationHook for %s', chain);
     const aggregatedHooks: string[] = [];
     let hooks: any = {};
-    const output: any = {};
     for (const hookConfig of config.hooks) {
       const subhooks = await this.deployContracts(
         chain,
@@ -140,7 +139,6 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       );
       aggregatedHooks.push(subhooks[hookConfig.type].address);
       hooks = { ...hooks, ...subhooks };
-      output[hookConfig.type] = subhooks[hookConfig.type].address;
     }
     this.logger(
       `Deploying aggregation hook of ${config.hooks.map((h) => h.type)}`,

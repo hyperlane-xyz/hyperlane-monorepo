@@ -32,7 +32,6 @@ async function setMailboxHook(
   mailboxHookType: MailboxHookType,
   hookArg: HookType,
 ) {
-  console.log(`fetching setMailboxHook config the ${coreAddresses[local]}`);
   const hook = coreAddresses[local][hookArg];
   switch (mailboxHookType) {
     case MailboxHookType.REQUIRED: {

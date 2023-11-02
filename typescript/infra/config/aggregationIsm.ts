@@ -16,6 +16,6 @@ export const aggregationIsm = (
       multisigIsm(remote, IsmType.MERKLE_ROOT_MULTISIG, context),
       multisigIsm(remote, IsmType.MESSAGE_ID_MULTISIG, context),
     ],
-    threshold: 2,
+    threshold: 1,
   };
 };

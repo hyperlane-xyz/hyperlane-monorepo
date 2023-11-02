@@ -1,6 +1,5 @@
 use std::num::NonZeroU64;
 use std::sync::Arc;
-use std::thread::current;
 use std::time::{Duration, Instant};
 use std::vec;
 
@@ -252,11 +251,6 @@ impl ValidatorSubmitter {
                 );
                 continue;
             }
-
-            println!(
-                "israel queued_checkpoint with id: {:?}",
-                queued_checkpoint.message_id
-            );
             let signed_checkpoint = self.signer.sign(queued_checkpoint).await?;
             self.checkpoint_syncer
                 .write_checkpoint(&signed_checkpoint)
