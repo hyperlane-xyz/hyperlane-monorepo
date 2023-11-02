@@ -4,11 +4,10 @@ use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome,
-    ValidatorAnnounce, H256, U256,
+    ValidatorAnnounce, H160, H256, U256,
 };
 
 use crate::{
-    binary::h256_to_h160,
     grpc::{WasmGrpcProvider, WasmProvider},
     payloads::validator_announce::{
         self, AnnouncementRequest, AnnouncementRequestInner, GetAnnounceStorageLocationsRequest,
@@ -67,7 +66,7 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
     ) -> ChainResult<Vec<Vec<String>>> {
         let vss = validators
             .iter()
-            .map(|v| h256_to_h160(*v))
+            .map(|v| H160::from(*v))
             .map(|v| hex::encode(v.as_bytes()))
             .collect::<Vec<String>>();
 

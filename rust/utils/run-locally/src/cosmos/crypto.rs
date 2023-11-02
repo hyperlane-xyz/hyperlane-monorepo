@@ -1,3 +1,7 @@
+// TODO: this file can be removed if `CosmosAddress` can be imported from `hyperlane-cosmos`.
+// However, adding a hyperlane-cosmos dep creates a dep cycle.
+// Look into how this can be fixed.
+
 use k256::ecdsa::{SigningKey, VerifyingKey};
 use ripemd::Ripemd160;
 use sha2::{Digest, Sha256};

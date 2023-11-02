@@ -4,6 +4,7 @@ use std::io::Cursor;
 use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
 
+use crate::address::CosmosAddress;
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::payloads::mailbox::{
     GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
@@ -11,14 +12,13 @@ use crate::payloads::mailbox::{
 use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
 use crate::CosmosProvider;
-use crate::{signers::Signer, utils::get_block_height_for_lag, verify, ConnectionConf};
+use crate::{address, signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
 
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
 use cosmrs::tendermint::abci::EventAttribute;
 
-use crate::binary::h256_to_h512;
 use hyperlane_core::{
     utils::fmt_bytes, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
@@ -134,7 +134,7 @@ impl Mailbox for CosmosMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let address = verify::digest_to_addr(recipient, &self.signer.prefix)?;
+        let address = CosmosAddress::from_h256(self.address, &self.signer.prefix)?.address();
 
         let payload = mailbox::RecipientIsmRequest {
             recipient_ism: mailbox::RecipientIsmRequestInner {
@@ -149,7 +149,7 @@ impl Mailbox for CosmosMailbox {
         let response: mailbox::RecipientIsmResponse = serde_json::from_slice(&data)?;
 
         // convert Hex to H256
-        let ism = verify::bech32_decode(response.ism)?;
+        let ism = address::bech32_decode(response.ism)?;
         Ok(ism)
     }
 
@@ -172,9 +172,7 @@ impl Mailbox for CosmosMailbox {
             .wasm_send(process_message, tx_gas_limit)
             .await?;
         Ok(TxOutcome {
-            transaction_id: h256_to_h512(H256::from_slice(
-                hex::decode(response.txhash)?.as_slice(),
-            )),
+            transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),
             executed: response.code == 0,
             gas_used: U256::from(response.gas_used),
             gas_price: U256::from(response.gas_wanted),

@@ -12,6 +12,12 @@ pub enum HyperlaneCosmosError {
     /// gRPC error
     #[error("{0}")]
     GrpcError(#[from] tonic::Status),
+    /// Cosmos error
+    #[error("{0}")]
+    CosmosError(#[from] cosmrs::Error),
+    /// Cosmos error report
+    #[error("{0}")]
+    CosmosErrorReport(#[from] cosmrs::ErrorReport),
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {

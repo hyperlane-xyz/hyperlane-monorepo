@@ -6,12 +6,12 @@ use hyperlane_core::{
 };
 
 use crate::{
+    address::bech32_decode,
     grpc::{WasmGrpcProvider, WasmProvider},
     payloads::ism_routes::{
         IsmRouteRequest, IsmRouteRequestInner, IsmRouteRespnose, QueryRoutingIsmGeneralRequest,
     },
     signers::Signer,
-    verify::bech32_decode,
     ConnectionConf, CosmosProvider,
 };
 

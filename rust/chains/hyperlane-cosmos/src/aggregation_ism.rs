@@ -1,7 +1,7 @@
 use crate::{
+    address::bech32_decode,
     grpc::{WasmGrpcProvider, WasmProvider},
     payloads::aggregate_ism::{ModulesAndThresholdRequest, ModulesAndThresholdResponse},
-    verify::bech32_decode,
     ConnectionConf, CosmosProvider, Signer,
 };
 use async_trait::async_trait;
