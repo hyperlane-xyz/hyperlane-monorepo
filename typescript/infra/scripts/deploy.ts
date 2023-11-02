@@ -1,4 +1,5 @@
 import path from 'path';
+import { prompt } from 'prompts';
 
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
@@ -14,6 +15,7 @@ import {
   HyperlaneProxyFactoryDeployer,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
+  IsmType,
   LiquidityLayerDeployer,
   TokenType,
 } from '@hyperlane-xyz/sdk';
@@ -80,33 +82,52 @@ async function main() {
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.WARP) {
-    const neutronRouter = '';
+    const owner = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+    const neutronRouter =
+      '0x348fac279224ab30cf83da17ab3787d37cc36df32ffecfc6105ace696af6fca8';
     const tokenConfig: TokenConfig & TokenDecimals = {
       type: TokenType.synthetic,
       name: 'TIA',
       symbol: 'TIA',
       decimals: 6,
-      // scale: ???
       totalSupply: 0,
     };
     const core = HyperlaneCore.fromEnvironment(
       deployEnvToSdkEnv[environment],
       multiProvider,
     );
-    const routerConfig = core.getRouterConfig(envConfig.owners);
+    const routerConfig = core.getRouterConfig(owner);
     const targetChains = [Chains.ethereum, Chains.arbitrum, Chains.polygon];
     config = Object.fromEntries(
       targetChains.map((chain) => {
         const warpRouterConfig: HypERC20Config = {
           ...routerConfig[chain],
           ...tokenConfig,
+          interchainSecurityModule: {
+            type: IsmType.ROUTING,
+            domains: {
+              [Chains.neutron]: {
+                type: IsmType.MESSAGE_ID_MULTISIG,
+                validators: [
+                  '0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0',
+                  '0xb65438a014fb05fbadcfe35bc6e25d372b6ba460',
+                  '0xc79503a3e3011535a9c60f6d21f76f59823a38bd',
+                  '0x42fa752defe92459370a052b6387a87f7de9b80c',
+                  '0x54b2cca5091b098a1a993dec03c4d1ee9af65999',
+                  '0x47aa126e05933b95c5eb90b26e6b668d84f4b25a',
+                ],
+                threshold: 5,
+              },
+            },
+            defaultFallback: true,
+            owner,
+          },
           foreignDeployment: neutronRouter,
           gas: HypERC20Deployer.gasOverheadDefault(tokenConfig),
         };
         return [chain, warpRouterConfig];
       }),
     );
-    console.log({ config });
     deployer = new HypERC20Deployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
@@ -192,6 +213,20 @@ async function main() {
           multiProvider,
         }
       : undefined;
+
+  // prompt for confirmation
+  if (environment === 'mainnet3' || environment === 'testnet4') {
+    console.log(JSON.stringify(config, null, 2));
+    const { value: confirmed } = await prompt({
+      type: 'confirm',
+      name: 'value',
+      message: `Confirm you want to deploy this ${module} configuration to ${environment}?`,
+      initial: false,
+    });
+    if (!confirmed) {
+      process.exit(0);
+    }
+  }
 
   await deployWithArtifacts(config, deployer, cache, fork, agentConfig);
 }
