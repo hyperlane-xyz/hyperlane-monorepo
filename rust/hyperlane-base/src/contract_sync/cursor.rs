@@ -171,7 +171,7 @@ impl<T: Sequenced> MessageSyncCursor<T> {
 }
 
 /// A MessageSyncCursor that syncs forwards in perpetuity.
-pub(crate) struct ForwardMessageSyncCursor<T: Sequenced> {
+pub(crate) struct ForwardMessageSyncCursor<T> {
     cursor: MessageSyncCursor<T>,
 }
 
@@ -287,7 +287,7 @@ impl<T: Sequenced> ContractSyncCursor<T> for ForwardMessageSyncCursor<T> {
 }
 
 /// A MessageSyncCursor that syncs backwards to sequence (nonce) zero.
-pub(crate) struct BackwardMessageSyncCursor<T: Sequenced> {
+pub(crate) struct BackwardMessageSyncCursor<T> {
     cursor: MessageSyncCursor<T>,
     synced: bool,
 }
@@ -382,7 +382,7 @@ pub enum SyncDirection {
 }
 
 /// A MessageSyncCursor that syncs forwards in perpetuity.
-pub(crate) struct ForwardBackwardMessageSyncCursor<T: Sequenced> {
+pub(crate) struct ForwardBackwardMessageSyncCursor<T> {
     forward: ForwardMessageSyncCursor<T>,
     backward: BackwardMessageSyncCursor<T>,
     direction: SyncDirection,
