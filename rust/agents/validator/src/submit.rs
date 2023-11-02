@@ -136,10 +136,6 @@ impl ValidatorSubmitter {
             self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
                 .await?;
 
-            self.checkpoint_syncer
-                .update_latest_index(latest_checkpoint.index)
-                .await?;
-
             self.metrics
                 .latest_checkpoint_processed
                 .set(latest_checkpoint.index as i64);
@@ -243,6 +239,8 @@ impl ValidatorSubmitter {
         &self,
         checkpoints: Vec<CheckpointWithMessageId>,
     ) -> Result<()> {
+        let last_checkpoint = checkpoints.as_slice()[checkpoints.len() - 1];
+
         for queued_checkpoint in checkpoints {
             let existing = self
                 .checkpoint_syncer
@@ -265,9 +263,15 @@ impl ValidatorSubmitter {
                 "Signed and submitted checkpoint"
             );
 
+            // TODO: move these into S3 implementations
             // small sleep before signing next checkpoint to avoid rate limiting
             sleep(Duration::from_millis(100)).await;
         }
+
+        self.checkpoint_syncer
+            .update_latest_index(last_checkpoint.index)
+            .await?;
+
         Ok(())
     }
 }
