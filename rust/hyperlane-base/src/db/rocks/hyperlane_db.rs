@@ -139,7 +139,11 @@ impl HyperlaneRocksDB {
     }
 
     /// Store the merkle tree insertion event, and also store a mapping from message_id to leaf_index
-    pub fn process_tree_insertion(&self, insertion: &MerkleTreeInsertion) -> DbResult<bool> {
+    pub fn process_tree_insertion(
+        &self,
+        insertion: &MerkleTreeInsertion,
+        insertion_block_number: u64,
+    ) -> DbResult<bool> {
         if let Ok(Some(_)) = self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index()) {
             debug!(insertion=?insertion, "Tree insertion already stored in db");
             return Ok(false);
@@ -151,6 +155,11 @@ impl HyperlaneRocksDB {
         self.store_merkle_tree_insertion_by_leaf_index(&insertion.index(), insertion)?;
 
         self.store_merkle_leaf_index_by_message_id(&insertion.message_id(), &insertion.index())?;
+
+        self.store_merkle_tree_insertion_block_number_by_leaf_index(
+            &insertion.index(),
+            &insertion_block_number,
+        )?;
         // Return true to indicate the tree insertion was processed
         Ok(true)
     }
@@ -262,8 +271,8 @@ impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     #[instrument(skip_all)]
     async fn store_logs(&self, leaves: &[(MerkleTreeInsertion, LogMeta)]) -> Result<u32> {
         let mut insertions = 0;
-        for (insertion, _meta) in leaves {
-            if self.process_tree_insertion(insertion)? {
+        for (insertion, meta) in leaves {
+            if self.process_tree_insertion(insertion, meta.block_number)? {
                 insertions += 1;
             }
         }
