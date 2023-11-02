@@ -137,7 +137,7 @@ impl ValidatorSubmitter {
                 .await?;
 
             self.checkpoint_syncer
-                .write_latest_index(latest_checkpoint.index)
+                .update_latest_index(latest_checkpoint.index)
                 .await?;
 
             self.metrics
@@ -171,7 +171,7 @@ impl ValidatorSubmitter {
         //
         // tree.index() will panic if the tree is empty, so we use tree.count() instead
         // and convert the correctness_checkpoint.index to a count by adding 1.
-        while correctness_checkpoint.index + 1 > tree.count() as u32 {
+        while tree.count() as u32 <= correctness_checkpoint.index {
             if let Some(insertion) = self
                 .message_db
                 .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))?
