@@ -24,6 +24,7 @@ export enum Chains {
   mantapacific = 'mantapacific',
   moonbasealpha = 'moonbasealpha',
   moonbeam = 'moonbeam',
+  neutron = 'neutron',
   mumbai = 'mumbai',
   nautilus = 'nautilus',
   neutron = 'neutron',

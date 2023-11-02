@@ -67,6 +67,7 @@ export type RoutingIsmConfig = {
   type: IsmType.ROUTING;
   owner: Address;
   domains: ChainMap<IsmConfig>;
+  defaultFallback?: boolean;
 };
 
 export type AggregationIsmConfig = {

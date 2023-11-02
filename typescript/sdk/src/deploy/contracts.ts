@@ -1,4 +1,5 @@
 import {
+  DefaultFallbackRoutingIsmFactory__factory,
   DomainRoutingIsmFactory__factory,
   StaticAggregationHookFactory__factory,
   StaticAggregationIsmFactory__factory,
@@ -13,6 +14,8 @@ export const proxyFactoryFactories = {
   aggregationIsmFactory: new StaticAggregationIsmFactory__factory(),
   aggregationHookFactory: new StaticAggregationHookFactory__factory(),
   routingIsmFactory: new DomainRoutingIsmFactory__factory(),
+  defaultFallbackRoutingIsmFactory:
+    new DefaultFallbackRoutingIsmFactory__factory(),
 };
 
 export type ProxyFactoryFactories = typeof proxyFactoryFactories;
@@ -26,4 +29,5 @@ export const proxyFactoryImplementations: ProxyFactoryImplementations = {
   aggregationIsmFactory: 'StaticAggregationIsm',
   aggregationHookFactory: 'StaticAggregationHook',
   routingIsmFactory: 'DomaingRoutingIsm',
+  defaultFallbackRoutingIsmFactory: 'DefaultFallbackRoutingIsm',
 };
