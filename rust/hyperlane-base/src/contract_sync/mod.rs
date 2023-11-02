@@ -4,8 +4,8 @@ use cursor::*;
 use derive_new::new;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer,
-    SequenceIndexer,
+    HyperlaneMessage, HyperlaneMessageIdIndexerStore, HyperlaneMessageStore,
+    HyperlaneWatermarkedLogStore, Indexer, SequenceIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 use tokio::time::sleep;
@@ -124,7 +124,7 @@ where
 /// A ContractSync for syncing messages using a MessageSyncCursor
 pub type MessageContractSync = ContractSync<
     HyperlaneMessage,
-    Arc<dyn HyperlaneMessageStore>,
+    Arc<dyn HyperlaneMessageIdIndexerStore<HyperlaneMessage>>,
     Arc<dyn SequenceIndexer<HyperlaneMessage>>,
 >;
 impl MessageContractSync {

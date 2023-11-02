@@ -148,14 +148,9 @@ where
     M: Middleware + 'static,
 {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // The InterchainGasPaymasterIndexerBuilder must return a `SequenceIndexer` type.
-        // It's fine if only a blanket implementation is provided for EVM chains, since their
-        // indexing only uses the `Index` trait, which is a supertrait of `SequenceIndexer`.
-        // TODO: if `SequenceIndexer` turns out to not depend on `Indexer` at all, then the supertrait
-        // dependency could be removed, even if the builder would still need to return a type that is both
-        // ``SequenceIndexer` and `Indexer`.
         let tip = self.get_finalized_block_number().await?;
-        Ok((None, tip))
+        let sequence = self.contract.count().block(u64::from(tip)).call().await?;
+        Ok((Some(sequence), tip))
     }
 }
 

@@ -4,9 +4,10 @@ use paste::paste;
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
-    GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneMessageStore,
-    HyperlaneWatermarkedLogStore, InterchainGasExpenditure, InterchainGasPayment,
-    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, H256,
+    GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
+    HyperlaneMessageIdIndexerStore, HyperlaneMessageStore, HyperlaneWatermarkedLogStore,
+    InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta,
+    MerkleTreeInsertion, H256,
 };
 
 use super::{
@@ -280,6 +281,29 @@ impl HyperlaneMessageStore for HyperlaneRocksDB {
     /// Retrieve dispatched block number by message nonce
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {
         let number = self.retrieve_dispatched_block_number_by_nonce(&nonce)?;
+        Ok(number)
+    }
+}
+
+/// TODO
+#[async_trait]
+impl HyperlaneMessageIdIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
+    /// Gets a message ID by its sequence.
+    /// A sequence is a monotonically increasing number that is incremented every time a message ID is indexed.
+    /// E.g. for Mailbox indexing, this is equal to the message nonce, and for merkle tree hook indexing, this
+    /// is equal to the leaf index.
+    async fn retrieve_message_id_by_sequence(
+        &self,
+        sequence: u32,
+    ) -> Result<Option<HyperlaneMessage>> {
+        let message = self.retrieve_message_by_nonce(sequence)?;
+        // Ok(message.map(|m| m.id()))
+        Ok(message)
+    }
+
+    /// Gets the block number at which the log occurred.
+    async fn retrieve_log_block_number(&self, sequence: u32) -> Result<Option<u64>> {
+        let number = self.retrieve_dispatched_block_number_by_nonce(&sequence)?;
         Ok(number)
     }
 }

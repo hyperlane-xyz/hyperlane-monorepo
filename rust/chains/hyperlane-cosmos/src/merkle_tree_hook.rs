@@ -104,7 +104,6 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     }
 
     /// Gets the current leaf count of the merkle tree
-    #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
         let payload = merkle_tree_hook::MerkleTreeCountRequest {
             count: general::EmptyStruct {},
@@ -112,18 +111,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
 
         let block_height = get_block_height_for_lag(&self.provider, lag).await?;
 
-        let data = self
-            .provider
-            .wasm_query(
-                merkle_tree_hook::MerkleTreeGenericRequest {
-                    merkle_hook: payload,
-                },
-                block_height,
-            )
-            .await?;
-        let response: merkle_tree_hook::MerkleTreeCountResponse = serde_json::from_slice(&data)?;
-
-        Ok(response.count)
+        self.count_at_block(block_height).await
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
@@ -154,6 +142,28 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     }
 }
 
+impl CosmosMerkleTreeHook {
+    #[instrument(level = "debug", err, ret, skip(self))]
+    async fn count_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
+        let payload = merkle_tree_hook::MerkleTreeCountRequest {
+            count: general::EmptyStruct {},
+        };
+
+        let data = self
+            .provider
+            .wasm_query(
+                merkle_tree_hook::MerkleTreeGenericRequest {
+                    merkle_hook: payload,
+                },
+                block_height,
+            )
+            .await?;
+        let response: merkle_tree_hook::MerkleTreeCountResponse = serde_json::from_slice(&data)?;
+
+        Ok(response.count)
+    }
+}
+
 // ------------------ Indexer ------------------
 
 const EVENT_TYPE: &str = "hpl_hook_merkle::post_dispatch";
@@ -161,17 +171,20 @@ const EVENT_TYPE: &str = "hpl_hook_merkle::post_dispatch";
 #[derive(Debug)]
 /// A reference to a MerkleTreeHookIndexer contract on some Cosmos chain
 pub struct CosmosMerkleTreeHookIndexer {
+    /// The CosmosMerkleTreeHook
+    merkle_tree_hook: CosmosMerkleTreeHook,
     /// Cosmwasm indexer instance
     indexer: Box<CosmosWasmIndexer>,
 }
 
 impl CosmosMerkleTreeHookIndexer {
     /// create new Cosmos MerkleTreeHookIndexer agent
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, reorg_period: u32) -> Self {
+    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer, reorg_period: u32) -> Self {
         let indexer: CosmosWasmIndexer =
-            CosmosWasmIndexer::new(conf, locator, EVENT_TYPE.to_string(), reorg_period);
+            CosmosWasmIndexer::new(conf.clone(), locator.clone(), EVENT_TYPE.to_string(), reorg_period);
 
         Self {
+            merkle_tree_hook: CosmosMerkleTreeHook::new(conf, locator, signer),
             indexer: Box::new(indexer),
         }
     }
@@ -250,8 +263,12 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
 #[async_trait]
 impl SequenceIndexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // TODO: implement when cosmos scraper support is implemented
         let tip = self.get_finalized_block_number().await?;
-        Ok((None, tip))
+        let sequence = self
+            .merkle_tree_hook
+            .count_at_block(Some(tip.into()))
+            .await?;
+
+        Ok((Some(sequence), tip))
     }
 }

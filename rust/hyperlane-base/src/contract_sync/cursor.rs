@@ -11,8 +11,8 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage,
-    HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta,
-    SequenceIndexer,
+    HyperlaneMessageIdIndexerStore, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode,
+    Indexer, LogMeta, SequenceIndexer,
 };
 use tokio::time::sleep;
 use tracing::{debug, warn};
@@ -29,7 +29,7 @@ const MAX_SEQUENCE_RANGE: u32 = 100;
 #[derive(Debug, new)]
 pub(crate) struct MessageSyncCursor {
     indexer: Arc<dyn SequenceIndexer<HyperlaneMessage>>,
-    db: Arc<dyn HyperlaneMessageStore>,
+    db: Arc<dyn HyperlaneMessageIdIndexerStore<HyperlaneMessage>>,
     sync_state: SyncState,
 }
 
@@ -130,16 +130,16 @@ impl SyncState {
 }
 
 impl MessageSyncCursor {
-    async fn retrieve_message_by_nonce(&self, nonce: u32) -> Option<HyperlaneMessage> {
-        if let Ok(Some(message)) = self.db.retrieve_message_by_nonce(nonce).await {
+    async fn retrieve_message_id_by_sequence(&self, sequence: u32) -> Option<HyperlaneMessage> {
+        if let Ok(Some(message)) = self.db.retrieve_message_id_by_sequence(sequence).await {
             Some(message)
         } else {
             None
         }
     }
 
-    async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Option<u32> {
-        if let Ok(Some(block_number)) = self.db.retrieve_dispatched_block_number(nonce).await {
+    async fn retrieve_log_block_number(&self, sequence: u32) -> Option<u32> {
+        if let Ok(Some(block_number)) = self.db.retrieve_log_block_number(sequence).await {
             Some(u32::try_from(block_number).unwrap())
         } else {
             None
@@ -161,7 +161,7 @@ impl MessageSyncCursor {
             warn!(next_nonce=?self.sync_state.next_sequence, "Target nonce not found, rewinding");
             // If the previous nonce has been synced, rewind to the block number
             // at which it was dispatched. Otherwise, rewind all the way back to the start block.
-            if let Some(block_number) = self.retrieve_dispatched_block_number(prev_sequence).await {
+            if let Some(block_number) = self.retrieve_log_block_number(prev_sequence).await {
                 self.sync_state.next_block = block_number;
                 warn!(block_number, "Rewound to previous known message");
             } else {
@@ -182,7 +182,7 @@ pub(crate) struct ForwardMessageSyncCursor {
 impl ForwardMessageSyncCursor {
     pub fn new(
         indexer: Arc<dyn SequenceIndexer<HyperlaneMessage>>,
-        db: Arc<dyn HyperlaneMessageStore>,
+        db: Arc<dyn HyperlaneMessageIdIndexerStore<HyperlaneMessage>>,
         chunk_size: u32,
         start_block: u32,
         next_block: u32,
@@ -210,13 +210,13 @@ impl ForwardMessageSyncCursor {
         // and update the cursor accordingly.
         while self
             .cursor
-            .retrieve_message_by_nonce(self.cursor.sync_state.next_sequence)
+            .retrieve_message_id_by_sequence(self.cursor.sync_state.next_sequence)
             .await
             .is_some()
         {
             if let Some(block_number) = self
                 .cursor
-                .retrieve_dispatched_block_number(self.cursor.sync_state.next_sequence)
+                .retrieve_log_block_number(self.cursor.sync_state.next_sequence)
                 .await
             {
                 debug!(next_block = block_number, "Fast forwarding next block");
@@ -300,7 +300,7 @@ impl BackwardMessageSyncCursor {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         indexer: Arc<dyn SequenceIndexer<HyperlaneMessage>>,
-        db: Arc<dyn HyperlaneMessageStore>,
+        db: Arc<dyn HyperlaneMessageIdIndexerStore<HyperlaneMessage>>,
         chunk_size: u32,
         start_block: u32,
         next_block: u32,
@@ -331,7 +331,7 @@ impl BackwardMessageSyncCursor {
         while !self.synced {
             if self
                 .cursor
-                .retrieve_message_by_nonce(self.cursor.sync_state.next_sequence)
+                .retrieve_message_id_by_sequence(self.cursor.sync_state.next_sequence)
                 .await
                 .is_none()
             {
@@ -345,7 +345,7 @@ impl BackwardMessageSyncCursor {
 
             if let Some(block_number) = self
                 .cursor
-                .retrieve_dispatched_block_number(self.cursor.sync_state.next_sequence)
+                .retrieve_log_block_number(self.cursor.sync_state.next_sequence)
                 .await
             {
                 // It's possible that eth_getLogs dropped logs from this block, therefore we cannot do block_number - 1.
@@ -396,7 +396,7 @@ impl ForwardBackwardMessageSyncCursor {
     /// Construct a new contract sync helper.
     pub async fn new(
         indexer: Arc<dyn SequenceIndexer<HyperlaneMessage>>,
-        db: Arc<dyn HyperlaneMessageStore>,
+        db: Arc<dyn HyperlaneMessageIdIndexerStore<HyperlaneMessage>>,
         chunk_size: u32,
         mode: IndexMode,
     ) -> Result<Self> {
@@ -442,12 +442,21 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
             return Ok((CursorAction::Query(forward_range), eta));
         }
 
-        if let Some(backward_range) = self.backward.get_next_range().await? {
-            self.direction = SyncDirection::Backward;
-            return Ok((CursorAction::Query(backward_range), eta));
-        }
-        // TODO: Define the sleep time from interval flag
-        return Ok((CursorAction::Sleep(Duration::from_secs(5)), eta));
+        todo!()
+        // // TODO: Proper ETA for backwards sync
+        // let eta = Duration::from_secs(0);
+        // // Prioritize forward syncing over backward syncing.
+        // if let Some(forward_range) = self.forward.get_next_range().await? {
+        //     self.direction = SyncDirection::Forward;
+        //     return Ok((CursorAction::Query(forward_range), eta));
+        // }
+
+        // if let Some(backward_range) = self.backward.get_next_range().await? {
+        //     self.direction = SyncDirection::Backward;
+        //     return Ok((CursorAction::Query(backward_range), eta));
+        // }
+        // // TODO: Define the sleep time from interval flag
+        // return Ok((CursorAction::Sleep(Duration::from_secs(5)), eta));
     }
 
     fn latest_block(&self) -> u32 {
