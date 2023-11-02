@@ -160,16 +160,16 @@ const EVENT_TYPE: &str = "hpl_hook_merkle::post_dispatch";
 
 #[derive(Debug)]
 /// A reference to a MerkleTreeHookIndexer contract on some Cosmos chain
-pub struct CosmosMerkleeTreeHookIndexer {
+pub struct CosmosMerkleTreeHookIndexer {
     /// Cosmwasm indexer instance
     indexer: Box<CosmosWasmIndexer>,
 }
 
-impl CosmosMerkleeTreeHookIndexer {
+impl CosmosMerkleTreeHookIndexer {
     /// create new Cosmos MerkleTreeHookIndexer agent
-    pub fn new(conf: ConnectionConf, locator: ContractLocator) -> Self {
+    pub fn new(conf: ConnectionConf, locator: ContractLocator, reorg_period: u32) -> Self {
         let indexer: CosmosWasmIndexer =
-            CosmosWasmIndexer::new(conf, locator, EVENT_TYPE.to_string());
+            CosmosWasmIndexer::new(conf, locator, EVENT_TYPE.to_string(), reorg_period);
 
         Self {
             indexer: Box::new(indexer),
@@ -229,7 +229,7 @@ impl CosmosMerkleeTreeHookIndexer {
 }
 
 #[async_trait]
-impl Indexer<MerkleTreeInsertion> for CosmosMerkleeTreeHookIndexer {
+impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
     /// Fetch list of logs between `range` of blocks
     async fn fetch_logs(
         &self,
@@ -243,15 +243,15 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleeTreeHookIndexer {
 
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.latest_block_height().await
+        self.indexer.get_finalized_block_number().await
     }
 }
 
 #[async_trait]
-impl SequenceIndexer<MerkleTreeInsertion> for CosmosMerkleeTreeHookIndexer {
+impl SequenceIndexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when cosmos scraper support is implemented
-        let tip = self.indexer.latest_block_height().await?;
+        let tip = self.get_finalized_block_number().await?;
         Ok((None, tip))
     }
 }
