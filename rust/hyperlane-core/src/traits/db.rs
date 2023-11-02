@@ -26,7 +26,7 @@ pub trait Sequenced: 'static + Send + Sync {
 /// Extension of HyperlaneLogStore trait that supports indexed sequenced data.
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
-pub trait HyperlaneSequencedDataIndexerStore<T>: HyperlaneLogStore<T>
+pub trait HyperlaneSequenceIndexerStore<T>: HyperlaneLogStore<T>
 where
     T: Send + Sync,
 {

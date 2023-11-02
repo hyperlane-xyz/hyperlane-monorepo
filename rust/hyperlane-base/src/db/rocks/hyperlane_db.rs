@@ -5,7 +5,7 @@ use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
     GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
-    HyperlaneSequencedDataIndexerStore, HyperlaneWatermarkedLogStore, InterchainGasExpenditure,
+    HyperlaneSequenceIndexerStore, HyperlaneWatermarkedLogStore, InterchainGasExpenditure,
     InterchainGasPayment, InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, H256,
 };
 
@@ -272,7 +272,7 @@ impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
 }
 
 #[async_trait]
-impl HyperlaneSequencedDataIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
+impl HyperlaneSequenceIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
     /// Gets a message ID by its sequence.
     /// A sequence is a monotonically increasing number that is incremented every time a message ID is indexed.
     /// E.g. for Mailbox indexing, this is equal to the message nonce, and for merkle tree hook indexing, this
@@ -290,7 +290,7 @@ impl HyperlaneSequencedDataIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
 }
 
 #[async_trait]
-impl HyperlaneSequencedDataIndexerStore<MerkleTreeInsertion> for HyperlaneRocksDB {
+impl HyperlaneSequenceIndexerStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     /// Gets a message ID by its sequence.
     /// A sequence is a monotonically increasing number that is incremented every time a message ID is indexed.
     /// E.g. for Mailbox indexing, this is equal to the message nonce, and for merkle tree hook indexing, this

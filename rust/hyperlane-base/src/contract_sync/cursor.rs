@@ -11,7 +11,7 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction,
-    HyperlaneSequencedDataIndexerStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta,
+    HyperlaneSequenceIndexerStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta,
     SequenceIndexer, Sequenced,
 };
 use tokio::time::sleep;
@@ -29,7 +29,7 @@ const MAX_SEQUENCE_RANGE: u32 = 100;
 #[derive(Debug, new)]
 pub(crate) struct SequenceSyncCursor<T> {
     indexer: Arc<dyn SequenceIndexer<T>>,
-    db: Arc<dyn HyperlaneSequencedDataIndexerStore<T>>,
+    db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
     sync_state: SyncState,
 }
 
@@ -175,7 +175,7 @@ pub(crate) struct ForwardSequenceSyncCursor<T> {
 impl<T: Sequenced> ForwardSequenceSyncCursor<T> {
     pub fn new(
         indexer: Arc<dyn SequenceIndexer<T>>,
-        db: Arc<dyn HyperlaneSequencedDataIndexerStore<T>>,
+        db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
         chunk_size: u32,
         start_block: u32,
         next_block: u32,
@@ -293,7 +293,7 @@ impl<T: Sequenced> BackwardSequenceSyncCursor<T> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         indexer: Arc<dyn SequenceIndexer<T>>,
-        db: Arc<dyn HyperlaneSequencedDataIndexerStore<T>>,
+        db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
         chunk_size: u32,
         start_block: u32,
         next_block: u32,
@@ -389,7 +389,7 @@ impl<T: Sequenced> ForwardBackwardSequenceSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
         indexer: Arc<dyn SequenceIndexer<T>>,
-        db: Arc<dyn HyperlaneSequencedDataIndexerStore<T>>,
+        db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
         chunk_size: u32,
         mode: IndexMode,
     ) -> Result<Self> {

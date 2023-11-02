@@ -8,7 +8,7 @@ use eyre::Result;
 use hyperlane_base::settings::IndexSettings;
 use hyperlane_core::{
     unwrap_or_none_result, BlockInfo, Delivery, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneProvider, HyperlaneSequencedDataIndexerStore,
+    HyperlaneMessage, HyperlaneProvider, HyperlaneSequenceIndexerStore,
     HyperlaneWatermarkedLogStore, InterchainGasPayment, LogMeta, H256,
 };
 use itertools::Itertools;
@@ -370,7 +370,7 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
 }
 
 #[async_trait]
-impl HyperlaneSequencedDataIndexerStore<HyperlaneMessage> for HyperlaneSqlDb {
+impl HyperlaneSequenceIndexerStore<HyperlaneMessage> for HyperlaneSqlDb {
     /// Gets a message by its nonce.
     async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<HyperlaneMessage>> {
         let message = self
