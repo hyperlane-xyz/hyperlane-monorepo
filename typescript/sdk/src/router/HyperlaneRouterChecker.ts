@@ -1,10 +1,16 @@
+import { ConnectionClientViolation } from '..';
 import { ethers } from 'ethers';
 
-import { addressToBytes32, assert, eqAddress } from '@hyperlane-xyz/utils';
+import { addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
-import { ChainName } from '../types';
+import {
+  HyperlaneIsmFactory,
+  moduleMatchesConfig,
+} from '../ism/HyperlaneIsmFactory';
+import { MultiProvider } from '../providers/MultiProvider';
+import { ChainMap, ChainName } from '../types';
 
 import { RouterApp } from './RouterApps';
 import {
@@ -13,6 +19,8 @@ import {
   MailboxClientConfig,
   OwnableConfig,
   RouterConfig,
+  RouterViolation,
+  RouterViolationType,
 } from './types';
 
 export class HyperlaneRouterChecker<
@@ -20,6 +28,15 @@ export class HyperlaneRouterChecker<
   App extends RouterApp<Factories>,
   Config extends RouterConfig,
 > extends HyperlaneAppChecker<App, Config> {
+  constructor(
+    multiProvider: MultiProvider,
+    app: App,
+    configMap: ChainMap<Config>,
+    readonly ismFactory?: HyperlaneIsmFactory,
+  ) {
+    super(multiProvider, app, configMap);
+  }
+
   async checkChain(chain: ChainName): Promise<void> {
     await this.checkMailboxClient(chain);
     await this.checkEnrolledRouters(chain);
@@ -34,10 +51,44 @@ export class HyperlaneRouterChecker<
       violationType: ClientViolationType,
     ) => {
       const actual = await router[property]();
-      // TODO: check for IsmConfig
       const value = this.configMap[chain][property];
-      if (value && typeof value === 'object')
-        throw new Error('object config unimplemented');
+
+      // If the value is an object, it's an ISM config
+      // and we should make sure it matches the actual ISM config
+      if (value && typeof value === 'object') {
+        if (!this.ismFactory) {
+          throw Error(
+            'ISM factory not provided to HyperlaneRouterChecker, cannot check object-based ISM config',
+          );
+        }
+
+        const matches = await moduleMatchesConfig(
+          chain,
+          actual,
+          value,
+          this.multiProvider,
+          this.ismFactory!.chainMap[chain],
+        );
+
+        if (!matches) {
+          this.app.logger(
+            `Deploying ISM; ISM config of actual ${actual} does not match expected config ${JSON.stringify(
+              value,
+            )}`,
+          );
+          const deployedIsm = await this.ismFactory.deploy(chain, value);
+          const violation: ConnectionClientViolation = {
+            chain,
+            type: violationType,
+            contract: router,
+            actual,
+            expected: deployedIsm.address,
+            description: `ISM config does not match deployed ISM at ${deployedIsm.address}`,
+          };
+          this.addViolation(violation);
+        }
+        return;
+      }
       const expected =
         value && typeof value === 'string'
           ? value
@@ -67,12 +118,21 @@ export class HyperlaneRouterChecker<
 
     await Promise.all(
       this.app.remoteChains(chain).map(async (remoteChain) => {
-        const remoteRouter = this.app.router(
-          this.app.getContracts(remoteChain),
-        );
+        const remoteRouterAddress = this.app.routerAddress(remoteChain);
         const remoteDomainId = this.multiProvider.getDomainId(remoteChain);
-        const address = await router.routers(remoteDomainId);
-        assert(address === addressToBytes32(remoteRouter.address));
+        const actualRouter = await router.routers(remoteDomainId);
+        const expectedRouter = addressToBytes32(remoteRouterAddress);
+        if (actualRouter !== expectedRouter) {
+          const violation: RouterViolation = {
+            chain,
+            remoteChain,
+            type: RouterViolationType.EnrolledRouter,
+            contract: router,
+            actual: actualRouter,
+            expected: expectedRouter,
+          };
+          this.addViolation(violation);
+        }
       }),
     );
   }

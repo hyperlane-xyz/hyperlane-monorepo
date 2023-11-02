@@ -13,7 +13,6 @@ import {
   ProviderType,
   RpcConsensusType,
   TypedTransactionReceipt,
-  chainMetadata,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -22,22 +21,26 @@ import {
   ensure0x,
   error,
   log,
+  objMap,
   retryAsync,
+  strip0x,
   timeout,
   warn,
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
+import { testnetConfigs } from '../../config/environments/testnet4/chains';
 import {
   hyperlaneHelloworld,
   releaseCandidateHelloworld,
 } from '../../config/environments/testnet4/helloworld';
+import { owners } from '../../config/environments/testnet4/owners';
 import { CloudAgentKey } from '../../src/agents/keys';
 import { DeployEnvironment } from '../../src/config/environment';
 import { Role } from '../../src/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { getAddressesForKey, getArgs, withContext } from '../utils';
+import { getArgs, getEnvironmentConfig, withContext } from '../utils';
 
 import { getHelloWorldMultiProtocolApp } from './utils';
 
@@ -160,9 +163,8 @@ async function main(): Promise<boolean> {
   startMetricsServer(metricsRegister);
   debug('Starting up', { environment });
 
-  // TODO (Rossy) remove getCoreConfigStub and re-enable getEnvironmentConfig
-  // const coreConfig = getEnvironmentConfig(environment);
-  const coreConfig = getCoreConfigStub(environment);
+  const coreConfig = getEnvironmentConfig(environment);
+  // const coreConfig = getCoreConfigStub(environment);
 
   const { app, core, igp, multiProvider, keys } =
     await getHelloWorldMultiProtocolApp(
@@ -421,7 +423,13 @@ async function sendMessage(
   });
 
   const sendAndConfirmMsg = async () => {
-    const sender = getAddressesForKey(keys, origin, multiProvider);
+    const originProtocol = app.metadata(origin).protocol;
+    const sender = keys[origin].addressForProtocol(originProtocol);
+    if (!sender) {
+      throw new Error(
+        `No sender address found for chain ${origin} and protocol ${originProtocol}`,
+      );
+    }
     const tx = await app.populateHelloWorldTx(
       origin,
       destination,
@@ -447,7 +455,7 @@ async function sendMessage(
       // that have not yet been ported over
       const connection = app.multiProvider.getSolanaWeb3Provider(origin);
       const payer = Keypair.fromSeed(
-        Buffer.from(keys[origin].privateKey, 'hex'),
+        Buffer.from(strip0x(keys[origin].privateKey), 'hex'),
       );
       tx.transaction.partialSign(payer);
       // Note, tx signature essentially tx means hash on sealevel
@@ -489,7 +497,8 @@ async function sendMessage(
   });
 
   await timeout(
-    core.waitForMessagesProcessed(origin, destination, receipt, 5000, 36),
+    // Will check for up to 12 minutes
+    core.waitForMessagesProcessed(origin, destination, receipt, 5000, 144),
     messageReceiptTimeout,
     'Timeout waiting for message to be received',
   );
@@ -530,8 +539,8 @@ async function updateWalletBalanceMetricFor(
 export function getCoreConfigStub(environment: DeployEnvironment) {
   const multiProvider = new MultiProvider({
     // Desired chains here. Key must have funds on these chains
-    fuji: chainMetadata.fuji,
-    solanadevnet: chainMetadata.solanadevnet,
+    ...testnetConfigs,
+    // solanadevnet: chainMetadata.solanadevnet,
   });
 
   const privateKeyEvm = process.env.KATHY_PRIVATE_KEY_EVM;
@@ -540,14 +549,19 @@ export function getCoreConfigStub(environment: DeployEnvironment) {
   console.log('evmSigner address', evmSigner.address);
   multiProvider.setSharedSigner(evmSigner);
 
-  const privateKeySealevel = process.env.KATHY_PRIVATE_KEY_SEALEVEL;
-  if (!privateKeySealevel)
-    throw new Error('KATHY_PRIVATE_KEY_SEALEVEL env var not set');
+  // const privateKeySealevel = process.env.KATHY_PRIVATE_KEY_SEALEVEL;
+  // if (!privateKeySealevel)
+  //   throw new Error('KATHY_PRIVATE_KEY_SEALEVEL env var not set');
 
-  const sealevelSigner = Keypair.fromSeed(
-    Buffer.from(privateKeySealevel, 'hex'),
-  );
-  console.log('sealevelSigner address', sealevelSigner.publicKey.toBase58());
+  // const sealevelSigner = Keypair.fromSeed(
+  //   Buffer.from(privateKeySealevel, 'hex'),
+  // );
+  // console.log('sealevelSigner address', sealevelSigner.publicKey.toBase58());
+
+  const testnetKeys = objMap(testnetConfigs, (_, __) => ({
+    address: evmSigner.address,
+    privateKey: ensure0x(privateKeyEvm),
+  }));
 
   return {
     helloWorld: {
@@ -555,18 +569,9 @@ export function getCoreConfigStub(environment: DeployEnvironment) {
       [Contexts.ReleaseCandidate]: releaseCandidateHelloworld,
     },
     environment,
-    owners: {
-      fuji: evmSigner.address,
-      solanadevnet: sealevelSigner.publicKey.toBase58(),
-    },
+    owners: owners,
     getMultiProvider: () => multiProvider,
-    getKeys: () => ({
-      fuji: { address: evmSigner.address, privateKey: ensure0x(privateKeyEvm) },
-      solanadevnet: {
-        address: sealevelSigner.publicKey.toBase58(),
-        privateKey: privateKeySealevel,
-      },
-    }),
+    getKeys: () => testnetKeys,
   } as any;
 }
 

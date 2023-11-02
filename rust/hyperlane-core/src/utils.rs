@@ -75,6 +75,7 @@ pub fn fmt_domain(domain: u32) -> String {
 }
 
 /// Formats the duration in the most appropriate time units.
+#[cfg(feature = "float")]
 pub fn fmt_duration(dur: Duration) -> String {
     const MIN: f64 = 60.;
     const HOUR: f64 = MIN * 60.;
@@ -97,6 +98,7 @@ pub fn fmt_duration(dur: Duration) -> String {
 
 /// Formats the duration in the most appropriate time units and says "synced" if
 /// the duration is 0.
+#[cfg(feature = "float")]
 pub fn fmt_sync_time(dur: Duration) -> String {
     if dur.as_secs() == 0 {
         "synced".into()
@@ -243,7 +245,7 @@ macro_rules! unwrap_or_none_result {
     ($variable_name:ident, $e:expr $(, $else_e:expr)?) => {
         let Some($variable_name) = $e
         else {
-            $($else_e)?
+            $($else_e;)?
             return Ok(None);
         };
     };

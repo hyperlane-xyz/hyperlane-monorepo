@@ -135,14 +135,14 @@ export function isValidTransactionHashSealevel(input: string) {
   return SEALEVEL_TX_HASH_REGEX.test(input);
 }
 
-export function isValidTransactionHash(input: string, protocol?: ProtocolType) {
-  return routeAddressUtil(
-    isValidTransactionHashEvm,
-    isValidTransactionHashSealevel,
-    false,
-    input,
-    protocol,
-  );
+export function isValidTransactionHash(input: string, protocol: ProtocolType) {
+  if (protocol === ProtocolType.Ethereum) {
+    return isValidTransactionHashEvm(input);
+  } else if (protocol === ProtocolType.Sealevel) {
+    return isValidTransactionHashSealevel(input);
+  } else {
+    return false;
+  }
 }
 
 export function isZeroishAddress(address: Address) {

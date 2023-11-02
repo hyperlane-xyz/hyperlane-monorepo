@@ -111,7 +111,7 @@ abstract contract TokenRouter is GasRouter {
         uint32 _origin,
         bytes32,
         bytes calldata _message
-    ) internal override {
+    ) internal virtual override {
         bytes32 recipient = _message.recipient();
         uint256 amount = _message.amount();
         bytes calldata metadata = _message.metadata();
