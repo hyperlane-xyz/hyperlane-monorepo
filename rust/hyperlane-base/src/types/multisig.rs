@@ -217,7 +217,7 @@ impl MultisigCheckpointSyncer {
                 // Gracefully handle errors getting the latest_index
                 match checkpoint_syncer.latest_index().await {
                     Ok(Some(index)) => {
-                        trace!(?address, ?index, "Validator returned latest index");
+                        debug!(?address, ?index, "Validator returned latest index");
                         latest_indices.push(index);
                     }
                     err => {

@@ -107,7 +107,7 @@ impl AggregationIsmMetadataBuilder {
 
         let metas_and_gas_count = metas_and_gas.len();
         if metas_and_gas_count < threshold {
-            info!("Could not fetch all metadata: Found {metas_and_gas_count} of the {threshold} required ISM metadata pieces");
+            info!("Could not fetch all metadata: Found {metas_and_gas_count} of the {threshold} required ISM metadata pieces for message_id {message_id}", metas_and_gas_count=metas_and_gas_count, threshold=threshold, message_id=message.id());
             return None;
         }
         Some(Self::n_cheapest_metas(metas_and_gas, threshold))

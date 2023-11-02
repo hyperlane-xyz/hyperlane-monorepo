@@ -75,23 +75,16 @@ impl MerkleTreeBuilder {
     #[instrument(err, skip(self), level="debug", fields(prover_latest_index=self.count()-1))]
     pub fn get_proof(
         &self,
-        message_nonce: u32,
+        leaf_index: u32,
         root_index: u32,
     ) -> Result<Option<Proof>, MerkleTreeBuilderError> {
-        self.db
-            .retrieve_message_id_by_nonce(&message_nonce)?
-            .and_then(|message_id| {
-                self.db
-                    .retrieve_merkle_leaf_index_by_message_id(&message_id)
-                    .ok()
-                    .flatten()
-            })
-            .map(|leaf_index| {
-                self.prover
-                    .prove_against_previous(leaf_index as usize, root_index as usize)
-            })
-            .transpose()
-            .map_err(Into::into)
+        match self
+            .prover
+            .prove_against_previous(leaf_index as usize, root_index as usize)
+        {
+            Ok(proof) => Ok(Some(proof)),
+            Err(prover_err) => Err(MerkleTreeBuilderError::from(prover_err)),
+        }
     }
 
     pub fn count(&self) -> u32 {

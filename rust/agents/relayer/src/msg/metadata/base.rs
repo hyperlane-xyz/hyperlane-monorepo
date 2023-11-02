@@ -120,12 +120,16 @@ impl BaseMetadataBuilder {
         }
     }
 
-    pub async fn get_proof(&self, nonce: u32, checkpoint: Checkpoint) -> Result<Option<Proof>> {
+    pub async fn get_proof(
+        &self,
+        leaf_index: u32,
+        checkpoint: Checkpoint,
+    ) -> Result<Option<Proof>> {
         const CTX: &str = "When fetching message proof";
         let proof = self.origin_prover_sync
             .read()
             .await
-            .get_proof(nonce, checkpoint.index)
+            .get_proof(leaf_index, checkpoint.index)
             .context(CTX)?
             .and_then(|proof| {
                 // checkpoint may be fraudulent if the root does not
