@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use crate::{
-    binary::h160_to_h256,
     grpc::{WasmGrpcProvider, WasmProvider},
     payloads::ism_routes::QueryIsmGeneralRequest,
     signers::Signer,
@@ -10,7 +9,7 @@ use crate::{
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H160, H256,
+    HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H256,
 };
 
 use crate::payloads::multisig_ism::{self, VerifyInfoRequest, VerifyInfoRequestInner};
@@ -78,7 +77,7 @@ impl MultisigIsm for CosmosMultisigIsm {
         let validators: ChainResult<Vec<H256>> = response
             .validators
             .iter()
-            .map(|v| H160::from_str(v).map(h160_to_h256).map_err(Into::into))
+            .map(|v| H256::from_str(v).map_err(Into::into))
             .collect();
 
         Ok((validators?, response.threshold))

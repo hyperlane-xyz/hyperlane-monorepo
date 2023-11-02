@@ -1,6 +1,5 @@
 use std::ops::RangeInclusive;
 
-use crate::binary::h256_to_h512;
 use async_trait::async_trait;
 use cosmrs::rpc::client::{Client, HttpClient};
 use cosmrs::rpc::endpoint::tx;
@@ -12,7 +11,7 @@ use hyperlane_core::{
 };
 use tracing::debug;
 
-use crate::verify::{self, bech32_decode};
+use crate::address::{bech32_decode, CosmosAddress};
 use crate::ConnectionConf;
 
 const PAGINATION_LIMIT: u8 = 100;
@@ -78,7 +77,8 @@ impl CosmosWasmIndexer {
 
     /// get contract address
     pub fn get_contract_addr(&self) -> ChainResult<String> {
-        verify::digest_to_addr(self.address, self.conf.get_prefix().as_str())
+        let cosmos_address = CosmosAddress::from_h256(self.address, &self.conf.get_prefix())?;
+        Ok(cosmos_address.address())
     }
 }
 
@@ -160,7 +160,7 @@ impl WasmIndexer for CosmosWasmIndexer {
                                 block_number: tx.height.value(),
                                 // FIXME: block_hash is not available in tx_search
                                 block_hash: H256::zero(),
-                                transaction_id: h256_to_h512(H256::from_slice(tx.hash.as_bytes())),
+                                transaction_id: H256::from_slice(tx.hash.as_bytes()).into(),
                                 transaction_index: tx.index as u64,
                                 log_index: U256::from(log_idx),
                             };
