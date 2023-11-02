@@ -179,9 +179,18 @@ pub struct CosmosMerkleTreeHookIndexer {
 
 impl CosmosMerkleTreeHookIndexer {
     /// create new Cosmos MerkleTreeHookIndexer agent
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer, reorg_period: u32) -> Self {
-        let indexer: CosmosWasmIndexer =
-            CosmosWasmIndexer::new(conf.clone(), locator.clone(), EVENT_TYPE.to_string(), reorg_period);
+    pub fn new(
+        conf: ConnectionConf,
+        locator: ContractLocator,
+        signer: Signer,
+        reorg_period: u32,
+    ) -> Self {
+        let indexer: CosmosWasmIndexer = CosmosWasmIndexer::new(
+            conf.clone(),
+            locator.clone(),
+            EVENT_TYPE.to_string(),
+            reorg_period,
+        );
 
         Self {
             merkle_tree_hook: CosmosMerkleTreeHook::new(conf, locator, signer),
