@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use derive_new::new;
 use eyre::Result;
-use tracing::{debug, instrument, trace};
+use tracing::{debug, instrument};
 
 use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithMessageId, H160, H256};
 
