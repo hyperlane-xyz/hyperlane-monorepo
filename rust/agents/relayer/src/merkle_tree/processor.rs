@@ -47,14 +47,6 @@ impl ProcessorExt for MerkleTreeProcessor {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
-        let insertion_123 = self.db.retrieve_merkle_tree_insertion_by_leaf_index(&123)?;
-
-        let insertion_124 = self.db.retrieve_merkle_tree_insertion_by_leaf_index(&124)?;
-
-        let insertion_125 = self.db.retrieve_merkle_tree_insertion_by_leaf_index(&125)?;
-
-        tracing::warn!(?insertion_123, ?insertion_124, ?insertion_125, domain=?self.domain(), "insertions bls");
-
         if let Some(insertion) = self.next_unprocessed_leaf()? {
             // Feed the message to the prover sync
             self.prover_sync

@@ -315,7 +315,6 @@ impl Relayer {
     ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
-        // let cursor = contract_sync.rate_limited_cursor(index_settings).await;
         let cursor = contract_sync
             .forward_backward_message_sync_cursor(index_settings)
             .await;

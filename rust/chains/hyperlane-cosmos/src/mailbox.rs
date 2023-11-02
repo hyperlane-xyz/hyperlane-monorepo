@@ -338,16 +338,6 @@ impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(&self).await?;
 
-        // As a hack to ensure we don't get a bunch errors for querying in the
-        // future if an RPC URL has poor load balancing, we just return the
-        // current tip minus 1.
-        // We often would get errors where we query the tip and try to get the
-        // nonce at that tip, and then the same RPC provider complains we're asking
-        // for state in the future.
-        // TODO: RPC retrying to fix this.
-
-        let tip = tip - 1;
-
         let sequence = self.mailbox.nonce_at_block(Some(tip.into())).await?;
 
         Ok((Some(sequence), tip))
