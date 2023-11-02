@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use eyre::Result;
 
-use crate::{HyperlaneMessage, LogMeta, H256};
+use crate::{LogMeta, H256};
 
 /// Interface for a HyperlaneLogStore that ingests logs.
 #[async_trait]
@@ -15,16 +15,6 @@ pub trait HyperlaneLogStore<T>: Send + Sync + Debug {
     async fn store_logs(&self, logs: &[(T, LogMeta)]) -> Result<u32>;
 }
 
-/// Extension of HyperlaneLogStore trait that supports getting the block number at which a known message was dispatched.
-#[async_trait]
-#[auto_impl(&, Box, Arc)]
-pub trait HyperlaneMessageStore: HyperlaneLogStore<HyperlaneMessage> {
-    /// Gets a message by nonce.
-    async fn retrieve_message_by_nonce(&self, nonce: u32) -> Result<Option<HyperlaneMessage>>;
-    /// Gets the block number at which a message was dispatched.
-    async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>>;
-}
-
 /// TODO
 pub trait Sequenced: 'static + Send + Sync {
     /// TODO
@@ -32,6 +22,7 @@ pub trait Sequenced: 'static + Send + Sync {
 }
 
 /// TODO
+/// Extension of HyperlaneLogStore trait that supports getting the block number at which a known message was dispatched.
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
 pub trait HyperlaneMessageIdIndexerStore<T>: HyperlaneLogStore<T>
