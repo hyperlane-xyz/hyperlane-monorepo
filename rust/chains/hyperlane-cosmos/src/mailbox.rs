@@ -25,15 +25,14 @@ use crate::{
     utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64},
 };
 use hyperlane_core::{
-    unwrap_or_none_result, ChainCommunicationError, ContractLocator, Decode, RawHyperlaneMessage,
-    SequenceIndexer,
-};
-use hyperlane_core::{
     utils::fmt_bytes, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
     H256, U256,
 };
-use tracing::{debug, instrument, warn};
+use hyperlane_core::{
+    ChainCommunicationError, ContractLocator, Decode, RawHyperlaneMessage, SequenceIndexer,
+};
+use tracing::{instrument, warn};
 
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {
@@ -291,7 +290,7 @@ impl CosmosMailboxIndexer {
                 CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
                     contract_address = Some(value.to_string());
                 }
-                v if &*CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
+                v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
                     contract_address = Some(String::from_utf8(BASE64.decode(value)?)?);
                 }
 
@@ -301,7 +300,7 @@ impl CosmosMailboxIndexer {
                     let mut reader = Cursor::new(hex::decode(value)?);
                     message = Some(HyperlaneMessage::read_from(&mut reader)?);
                 }
-                v if &*MESSAGE_ATTRIBUTE_KEY_BASE64 == v => {
+                v if *MESSAGE_ATTRIBUTE_KEY_BASE64 == v => {
                     // Intentionally using read_from to get a Result::Err if there's
                     // an issue with the message.
                     let mut reader =
@@ -378,7 +377,6 @@ impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
 mod tests {
     use cosmrs::tendermint::abci::EventAttribute;
     use hyperlane_core::HyperlaneMessage;
-    use std::str::FromStr;
 
     use crate::{rpc::ParsedEvent, utils::event_attributes_from_str};
 

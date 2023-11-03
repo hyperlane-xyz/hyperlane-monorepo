@@ -8,7 +8,7 @@ use cosmrs::rpc::query::Query;
 use cosmrs::rpc::Order;
 use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, U256};
-use tracing::{debug, instrument, trace};
+use tracing::{instrument, trace};
 
 use crate::verify::digest_to_addr;
 use crate::ConnectionConf;
@@ -105,54 +105,64 @@ impl CosmosWasmIndexer {
             .into_iter()
             .filter(|tx| {
                 // Filter out failed txs
-                if tx.tx_result.code.is_err() {
-                    debug!(tx_hash=?tx.hash, "Indexed tx has failed, skipping");
-                    false
-                } else {
-                    true
+                let tx_failed = tx.tx_result.code.is_err();
+                if tx_failed {
+                    trace!(tx_hash=?tx.hash, "Indexed tx has failed, skipping");
                 }
+                !tx_failed
             })
-            .map(move |tx| {
-                // Iter through all events in the tx, looking for the target event.
-                let logs_for_tx = tx.tx_result.events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
-                    if event.kind.as_str() != self.target_event_kind {
+            .flat_map(move |tx| {
+                // Find target events in successful txs
+                self.handle_tx(tx, parser)
+            });
+
+        Ok(logs_iter)
+    }
+
+    // Iter through all events in the tx, looking for any target events
+    // made by the contract we are indexing.
+    fn handle_tx<T>(
+        &self,
+        tx: tx::Response,
+        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
+    ) -> impl Iterator<Item = (T, LogMeta)> + '_
+    where
+        T: 'static,
+    {
+        tx.tx_result.events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
+            if event.kind.as_str() != self.target_event_kind {
+                return None;
+            }
+
+            parser(&event.attributes)
+                .map_err(|err| {
+                    // This can happen if we attempt to parse an event that just happens
+                    // to have the same name but a different structure.
+                    tracing::trace!(?err, tx_hash=?tx.hash, log_idx, ?event, "Failed to parse event attributes");
+                })
+                .ok()
+                .and_then(|parsed_event| {
+                    // This is crucial! We need to make sure that the contract address
+                    // in the event matches the contract address we are indexing.
+                    // Otherwise, we might index events from other contracts that happen
+                    // to have the same target event name.
+                    if parsed_event.contract_address != self.contract_address_bech32 {
+                        trace!(tx_hash=?tx.hash, log_idx, ?event, "Event contract address does not match indexer contract address");
                         return None;
                     }
 
-                    parser(&event.attributes)
-                        .map_err(|err| {
-                            // This can happen if we attempt to parse an event that just happens
-                            // to have the same name but a different structure.
-                            tracing::trace!(?err, tx_hash=?tx.hash, log_idx, ?event, "Failed to parse event attributes");
-                        })
-                        .ok()
-                        .and_then(|parsed_event| {
-                            // This is crucial! We need to make sure that the contract address
-                            // in the event matches the contract address we are indexing.
-                            // Otherwise, we might index events from other contracts that happen
-                            // to have the same target event name.
-                            if parsed_event.contract_address != self.contract_address_bech32 {
-                                trace!(tx_hash=?tx.hash, log_idx, ?event, "Event contract address does not match indexer contract address");
-                                return None;
-                            }
-
-                            Some((parsed_event.event, LogMeta {
-                                address: self.contract_address,
-                                block_number: tx.height.value(),
-                                // FIXME: block_hash is not available in tx_search.
-                                // This isn't strictly required atm.
-                                block_hash: H256::zero(),
-                                transaction_id: h256_to_h512(H256::from_slice(tx.hash.as_bytes())),
-                                transaction_index: tx.index.into(),
-                                log_index: U256::from(log_idx),
-                            }))
-                        })
-                    });
-                logs_for_tx
+                    Some((parsed_event.event, LogMeta {
+                        address: self.contract_address,
+                        block_number: tx.height.value(),
+                        // FIXME: block_hash is not available in tx_search.
+                        // This isn't strictly required atm.
+                        block_hash: H256::zero(),
+                        transaction_id: h256_to_h512(H256::from_slice(tx.hash.as_bytes())),
+                        transaction_index: tx.index.into(),
+                        log_index: U256::from(log_idx),
+                    }))
+                })
             })
-            .flatten();
-
-        Ok(logs_iter)
     }
 }
 

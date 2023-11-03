@@ -4,13 +4,12 @@ use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, unwrap_or_none_result, ChainCommunicationError,
-    ChainResult, Checkpoint, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer,
-    H256,
+    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
+    ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
+    Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer, H256,
 };
 use once_cell::sync::Lazy;
-use tracing::{debug, instrument};
+use tracing::instrument;
 
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
@@ -220,14 +219,14 @@ impl CosmosMerkleTreeHookIndexer {
                 CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
                     contract_address = Some(value.to_string());
                 }
-                v if &*CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
+                v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
                     contract_address = Some(String::from_utf8(BASE64.decode(value)?)?);
                 }
 
                 MESSAGE_ID_ATTRIBUTE_KEY => {
                     insertion.message_id = Some(H256::from_slice(hex::decode(value)?.as_slice()));
                 }
-                v if &*MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
+                v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
                     insertion.message_id = Some(H256::from_slice(
                         hex::decode(String::from_utf8(BASE64.decode(value)?)?)?.as_slice(),
                     ));
@@ -236,7 +235,7 @@ impl CosmosMerkleTreeHookIndexer {
                 INDEX_ATTRIBUTE_KEY => {
                     insertion.leaf_index = Some(value.parse::<u32>()?);
                 }
-                v if &*INDEX_ATTRIBUTE_KEY_BASE64 == v => {
+                v if *INDEX_ATTRIBUTE_KEY_BASE64 == v => {
                     insertion.leaf_index = Some(String::from_utf8(BASE64.decode(value)?)?.parse()?);
                 }
 
@@ -309,7 +308,7 @@ impl TryInto<MerkleTreeInsertion> for IncompleteMerkleTreeInsertion {
 #[cfg(test)]
 mod tests {
     use cosmrs::tendermint::abci::EventAttribute;
-    use hyperlane_core::{HyperlaneMessage, H256, U256};
+    use hyperlane_core::H256;
     use std::str::FromStr;
 
     use crate::{rpc::ParsedEvent, utils::event_attributes_from_str};
