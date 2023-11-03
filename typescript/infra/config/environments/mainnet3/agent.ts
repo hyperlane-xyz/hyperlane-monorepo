@@ -103,7 +103,11 @@ const neutron: RootAgentConfig = {
   ...contextBase,
   contextChainNames: {
     validator: [],
-    relayer: [chainMetadata.neutron.name, chainMetadata.mantapacific.name],
+    relayer: [
+      chainMetadata.neutron.name,
+      chainMetadata.mantapacific.name,
+      chainMetadata.arbitrum.name,
+    ],
     scraper: [],
   },
   context: Contexts.Neutron,
@@ -121,6 +125,12 @@ const neutron: RootAgentConfig = {
           {
             originDomain: getDomainId(chainMetadata.neutron),
             destinationDomain: getDomainId(chainMetadata.mantapacific),
+            senderAddress: '*',
+            recipientAddress: '*',
+          },
+          {
+            originDomain: getDomainId(chainMetadata.neutron),
+            destinationDomain: getDomainId(chainMetadata.arbitrum),
             senderAddress: '*',
             recipientAddress: '*',
           },
