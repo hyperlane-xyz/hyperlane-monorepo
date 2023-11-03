@@ -131,7 +131,7 @@ impl S3Storage {
         format!("checkpoint_{index}_with_id.json")
     }
 
-    fn index_key() -> String {
+    fn latest_index_key() -> String {
         "checkpoint_latest_index.json".to_owned()
     }
 
@@ -144,7 +144,7 @@ impl S3Storage {
 impl CheckpointSyncer for S3Storage {
     async fn latest_index(&self) -> Result<Option<u32>> {
         let ret = self
-            .anonymously_read_from_bucket(S3Storage::index_key())
+            .anonymously_read_from_bucket(S3Storage::latest_index_key())
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
@@ -157,6 +157,13 @@ impl CheckpointSyncer for S3Storage {
         }
 
         ret
+    }
+
+    async fn write_latest_index(&self, index: u32) -> Result<()> {
+        let serialized_index = serde_json::to_string(&index)?;
+        self.write_to_bucket(S3Storage::latest_index_key(), &serialized_index)
+            .await?;
+        Ok(())
     }
 
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {

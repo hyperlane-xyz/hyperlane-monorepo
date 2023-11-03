@@ -32,6 +32,7 @@ export class InterchainQuery extends RouterApp<InterchainQueryFactories> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
+    /// @ts-ignore
     return InterchainQuery.fromAddressesMap(envAddresses, multiProvider);
   }
 

@@ -5,10 +5,11 @@ import {
   AggregationIsmConfig,
   ChainMap,
   CoreConfig,
+  FallbackRoutingHookConfig,
   HookType,
   IgpHookConfig,
+  IsmType,
   MerkleTreeHookConfig,
-  ModuleType,
   MultisigConfig,
   MultisigIsmConfig,
   ProtocolFeeHookConfig,
@@ -28,34 +29,27 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
       .map((origin) => [origin, defaultMultisigIsmConfigs[origin]]),
   );
 
-  const messageIdRouting: RoutingIsmConfig = {
-    type: ModuleType.ROUTING,
+  const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig => ({
+    type: IsmType.MERKLE_ROOT_MULTISIG,
+    ...multisig,
+  });
+
+  const messageIdIsm = (multisig: MultisigConfig): MultisigIsmConfig => ({
+    type: IsmType.MESSAGE_ID_MULTISIG,
+    ...multisig,
+  });
+
+  const defaultIsm: RoutingIsmConfig = {
+    type: IsmType.ROUTING,
     domains: objMap(
       originMultisigs,
-      (_, multisig): MultisigIsmConfig => ({
-        type: ModuleType.MESSAGE_ID_MULTISIG,
-        ...multisig,
+      (_, multisig): AggregationIsmConfig => ({
+        type: IsmType.AGGREGATION,
+        modules: [messageIdIsm(multisig), merkleRoot(multisig)],
+        threshold: 1,
       }),
     ),
     owner,
-  };
-
-  const merkleRootRouting: RoutingIsmConfig = {
-    type: ModuleType.ROUTING,
-    domains: objMap(
-      originMultisigs,
-      (_, multisig): MultisigIsmConfig => ({
-        type: ModuleType.MERKLE_ROOT_MULTISIG,
-        ...multisig,
-      }),
-    ),
-    owner,
-  };
-
-  const defaultIsm: AggregationIsmConfig = {
-    type: ModuleType.AGGREGATION,
-    modules: [messageIdRouting, merkleRootRouting],
-    threshold: 1,
   };
 
   const merkleHook: MerkleTreeHookConfig = {
@@ -67,9 +61,19 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     ...igp[local],
   };
 
-  const defaultHook: AggregationHookConfig = {
-    type: HookType.AGGREGATION,
-    hooks: [merkleHook, igpHook],
+  const aggregationHooks = objMap(
+    originMultisigs,
+    (_origin, _): AggregationHookConfig => ({
+      type: HookType.AGGREGATION,
+      hooks: [igpHook, merkleHook],
+    }),
+  );
+
+  const defaultHook: FallbackRoutingHookConfig = {
+    type: HookType.FALLBACK_ROUTING,
+    owner,
+    fallback: merkleHook,
+    domains: aggregationHooks,
   };
 
   const requiredHook: ProtocolFeeHookConfig = {
