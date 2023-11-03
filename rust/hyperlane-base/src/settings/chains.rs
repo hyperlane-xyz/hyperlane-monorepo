@@ -228,9 +228,8 @@ impl ChainConf {
                     conf.clone(),
                     locator,
                     signer.clone(),
-                    "mailbox_dispatch".to_string(),
                     self.reorg_period,
-                ));
+                )?);
                 Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
             }
         }
@@ -268,9 +267,8 @@ impl ChainConf {
                     conf.clone(),
                     locator,
                     signer,
-                    "mailbox_process".to_string(),
                     self.reorg_period,
-                ));
+                )?);
                 Ok(indexer as Box<dyn SequenceIndexer<H256>>)
             }
         }
@@ -348,9 +346,8 @@ impl ChainConf {
                 let indexer = Box::new(h_cosmos::CosmosInterchainGasPaymasterIndexer::new(
                     conf.clone(),
                     locator,
-                    "igp-core-pay-for-gas".to_string(),
                     self.reorg_period,
-                ));
+                )?);
                 Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
             }
         }
@@ -394,7 +391,7 @@ impl ChainConf {
                     // TODO: remove signer requirement entirely
                     signer.unwrap().clone(),
                     self.reorg_period,
-                ));
+                )?);
                 Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
             }
         }

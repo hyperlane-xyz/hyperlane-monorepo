@@ -22,3 +22,13 @@ pub struct EventAttribute {
     pub value: String,
     pub index: bool,
 }
+
+impl From<EventAttribute> for cosmrs::tendermint::abci::EventAttribute {
+    fn from(val: EventAttribute) -> Self {
+        cosmrs::tendermint::abci::EventAttribute {
+            key: val.key,
+            value: val.value,
+            index: val.index,
+        }
+    }
+}
