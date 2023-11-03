@@ -12,7 +12,6 @@ import {
   RpcConsensusType,
   attachContractsMap,
   attachContractsMapAndGetForeignDeployments,
-  chainMetadata,
   filterChainMapToProtocol,
   hyperlaneEnvironments,
   igpFactories,
@@ -24,7 +23,6 @@ import { EnvironmentConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { HelloWorldConfig } from '../../src/config/helloworld/types';
 import { Role } from '../../src/roles';
-import { getKeyForRole } from '../utils';
 
 export async function getHelloWorldApp(
   coreConfig: EnvironmentConfig,
@@ -101,20 +99,20 @@ export async function getHelloWorldMultiProtocolApp(
   //   await keys['solanadevnet'].fetch();
   // } else
 
-  if (
-    coreConfig.environment === 'mainnet2' &&
-    !multiProtocolProvider.getKnownChainNames().includes('solana')
-  ) {
-    multiProvider.addChain(chainMetadata.solana);
-    multiProtocolProvider.addChain(chainMetadata.solana);
-    keys['solana'] = getKeyForRole(
-      coreConfig.environment,
-      context,
-      'solana',
-      keyRole,
-    );
-    await keys['solana'].fetch();
-  }
+  // if (
+  //   coreConfig.environment === 'mainnet3' &&
+  //   !multiProtocolProvider.getKnownChainNames().includes('solana')
+  // ) {
+  //   multiProvider.addChain(chainMetadata.solana);
+  //   multiProtocolProvider.addChain(chainMetadata.solana);
+  //   keys['solana'] = getKeyForRole(
+  //     coreConfig.environment,
+  //     context,
+  //     'solana',
+  //     keyRole,
+  //   );
+  //   await keys['solana'].fetch();
+  // }
 
   const core = MultiProtocolCore.fromAddressesMap(
     envAddresses,

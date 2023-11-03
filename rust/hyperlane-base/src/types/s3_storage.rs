@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
 use futures_util::TryStreamExt;
-use hyperlane_core::{SignedAnnouncement, SignedCheckpoint, SignedCheckpointWithMessageId};
+use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
 use prometheus::IntGauge;
 use rusoto_core::{
     credential::{Anonymous, AwsCredentials, StaticProvider},
@@ -127,15 +127,11 @@ impl S3Storage {
         }
     }
 
-    fn legacy_checkpoint_key(index: u32) -> String {
-        format!("checkpoint_{index}.json")
-    }
-
     fn checkpoint_key(index: u32) -> String {
         format!("checkpoint_{index}_with_id.json")
     }
 
-    fn index_key() -> String {
+    fn latest_index_key() -> String {
         "checkpoint_latest_index.json".to_owned()
     }
 
@@ -148,7 +144,7 @@ impl S3Storage {
 impl CheckpointSyncer for S3Storage {
     async fn latest_index(&self) -> Result<Option<u32>> {
         let ret = self
-            .anonymously_read_from_bucket(S3Storage::index_key())
+            .anonymously_read_from_bucket(S3Storage::latest_index_key())
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
@@ -163,12 +159,11 @@ impl CheckpointSyncer for S3Storage {
         ret
     }
 
-    async fn legacy_fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpoint>> {
-        self.anonymously_read_from_bucket(S3Storage::legacy_checkpoint_key(index))
-            .await?
-            .map(|data| serde_json::from_slice(&data))
-            .transpose()
-            .map_err(Into::into)
+    async fn write_latest_index(&self, index: u32) -> Result<()> {
+        let serialized_index = serde_json::to_string(&index)?;
+        self.write_to_bucket(S3Storage::latest_index_key(), &serialized_index)
+            .await?;
+        Ok(())
     }
 
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
@@ -177,22 +172,6 @@ impl CheckpointSyncer for S3Storage {
             .map(|data| serde_json::from_slice(&data))
             .transpose()
             .map_err(Into::into)
-    }
-
-    async fn legacy_write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
-        let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
-        self.write_to_bucket(
-            S3Storage::legacy_checkpoint_key(signed_checkpoint.value.index),
-            &serialized_checkpoint,
-        )
-        .await?;
-
-        self.write_to_bucket(
-            S3Storage::index_key(),
-            &signed_checkpoint.value.index.to_string(),
-        )
-        .await?;
-        Ok(())
     }
 
     async fn write_checkpoint(

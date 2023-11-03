@@ -31,7 +31,7 @@ pub enum ModuleType {
     Routing,
     /// Aggregation ISM (aggregates multiple ISMs)
     Aggregation,
-    /// Legacy ISM (validators in calldata, set commitment in storage)
+    /// Legacy ISM (DEPRECATED)
     LegacyMultisig,
     /// Merkle Proof ISM (batching and censorship resistance)
     MerkleRootMultisig,

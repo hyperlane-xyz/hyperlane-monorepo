@@ -14,6 +14,23 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 interface IPostDispatchHook {
+    enum Types {
+        UNUSED,
+        ROUTING,
+        AGGREGATION,
+        MERKLE_TREE,
+        INTERCHAIN_GAS_PAYMASTER,
+        FALLBACK_ROUTING,
+        ID_AUTH_ISM,
+        PAUSABLE,
+        PROTOCOL_FEE
+    }
+
+    /**
+     * @notice Returns an enum that represents the type of hook
+     */
+    function hookType() external view returns (uint8);
+
     /**
      * @notice Returns whether the hook supports metadata
      * @param metadata metadata

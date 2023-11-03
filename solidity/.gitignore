@@ -11,3 +11,4 @@ coverage.json
 out
 forge-cache
 docs
+flattened/

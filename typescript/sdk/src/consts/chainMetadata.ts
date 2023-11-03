@@ -135,6 +135,34 @@ export const avalanche: ChainMetadata = {
     'https://safe-transaction-avalanche.safe.global/',
 };
 
+export const base: ChainMetadata = {
+  chainId: 8453,
+  domainId: 8453,
+  name: Chains.base,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Base',
+  nativeToken: etherToken,
+  rpcUrls: [
+    { http: 'https://base.publicnode.com/' },
+    { http: 'https://mainnet.base.org' },
+    { http: 'https://base.blockpi.network/v1/rpc/public' },
+  ],
+  blockExplorers: [
+    {
+      name: 'BaseScan',
+      url: 'https://basescan.org',
+      apiUrl: 'https://api.basescan.org/api',
+      family: ExplorerFamily.Etherscan,
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 2,
+  },
+  gnosisSafeTransactionServiceUrl: 'https://safe-transaction-base.safe.global/',
+};
+
 export const basegoerli: ChainMetadata = {
   chainId: 84531,
   domainId: 84531,
@@ -419,6 +447,32 @@ export const sepolia: ChainMetadata = {
   isTestnet: true,
 };
 
+export const scroll: ChainMetadata = {
+  chainId: 534352,
+  domainId: 534352,
+  name: Chains.scroll,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Scroll',
+  nativeToken: etherToken,
+  rpcUrls: [
+    { http: 'https://scroll.blockpi.network/v1/rpc/public' },
+    { http: 'https://scroll-mainnet.public.blastapi.io' },
+  ],
+  blockExplorers: [
+    {
+      name: 'Scroll Explorer',
+      url: 'https://scrollscan.com/',
+      apiUrl: 'https://api.scrollscan.com/api',
+      family: ExplorerFamily.Etherscan,
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 3,
+  },
+};
+
 export const scrollsepolia: ChainMetadata = {
   chainId: 534351,
   domainId: 534351,
@@ -426,16 +480,13 @@ export const scrollsepolia: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Scroll Sepolia',
   nativeToken: etherToken,
-  rpcUrls: [
-    { http: 'https://sepolia-rpc.scroll.io' },
-    { http: 'https://scroll-public.scroll-testnet.quiknode.pro' },
-  ],
+  rpcUrls: [{ http: 'https://sepolia-rpc.scroll.io' }],
   blockExplorers: [
     {
       name: 'Scroll Explorer',
-      url: 'https://sepolia-blockscout.scroll.io',
-      apiUrl: 'https://sepolia-blockscout.scroll.io/api',
-      family: ExplorerFamily.Blockscout,
+      url: 'https://sepolia.scrollscan.dev/',
+      apiUrl: 'https://api-sepolia.scrollscan.com/api',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -865,6 +916,33 @@ export const polygonzkevmtestnet: ChainMetadata = {
   isTestnet: true,
 };
 
+export const polygonzkevm: ChainMetadata = {
+  protocol: ProtocolType.Ethereum,
+  chainId: 1101,
+  domainId: 1101,
+  name: Chains.polygonzkevm,
+  displayName: 'Polygon zkEVM',
+  nativeToken: etherToken,
+  rpcUrls: [
+    { http: 'https://polygonzkevm-mainnet.g.alchemy.com/v2/demo' },
+    { http: 'https://rpc.ankr.com/polygon_zkevm' },
+    { http: 'https://zkevm.polygonscan.com/' },
+  ],
+  blockExplorers: [
+    {
+      name: 'PolygonScan',
+      url: 'https://zkevm.polygonscan.com/',
+      apiUrl: 'https://api-zkevm.polygonscan.com/api',
+      family: ExplorerFamily.Etherscan,
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 10,
+  },
+};
+
 /**
  * Collection maps
  *
@@ -876,6 +954,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   arbitrum,
   arbitrumgoerli,
   avalanche,
+  base,
   basegoerli,
   bsc,
   bsctestnet,
@@ -885,6 +964,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   fuji,
   goerli,
   lineagoerli,
+  scroll,
   scrollsepolia,
   sepolia,
   moonbasealpha,
@@ -893,6 +973,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   optimism,
   optimismgoerli,
   polygon,
+  polygonzkevm,
   polygonzkevmtestnet,
   gnosis,
   proteustestnet,
