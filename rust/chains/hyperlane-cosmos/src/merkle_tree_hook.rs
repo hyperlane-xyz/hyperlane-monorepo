@@ -167,11 +167,11 @@ impl CosmosMerkleTreeHook {
 
 const INDEX_ATTRIBUTE_KEY: &str = "index";
 pub(crate) static INDEX_ATTRIBUTE_KEY_BASE64: Lazy<String> =
-    Lazy::new(|| BASE64.encode(CONTRACT_ADDRESS_ATTRIBUTE_KEY));
+    Lazy::new(|| BASE64.encode(INDEX_ATTRIBUTE_KEY));
 
 const MESSAGE_ID_ATTRIBUTE_KEY: &str = "message_id";
 pub(crate) static MESSAGE_ID_ATTRIBUTE_KEY_BASE64: Lazy<String> =
-    Lazy::new(|| BASE64.encode(CONTRACT_ADDRESS_ATTRIBUTE_KEY));
+    Lazy::new(|| BASE64.encode(MESSAGE_ID_ATTRIBUTE_KEY));
 
 #[derive(Debug)]
 /// A reference to a MerkleTreeHookIndexer contract on some Cosmos chain

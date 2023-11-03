@@ -1,7 +1,10 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use std::fmt::{Debug, Formatter};
-use std::num::NonZeroU64;
-use std::ops::RangeInclusive;
+use std::{
+    fmt::{Debug, Formatter},
+    io::Cursor,
+    num::NonZeroU64,
+    ops::RangeInclusive,
+};
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::payloads::mailbox::{
@@ -22,7 +25,7 @@ use crate::{
     utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64},
 };
 use hyperlane_core::{
-    unwrap_or_none_result, ChainCommunicationError, ContractLocator, RawHyperlaneMessage,
+    unwrap_or_none_result, ChainCommunicationError, ContractLocator, Decode, RawHyperlaneMessage,
     SequenceIndexer,
 };
 use hyperlane_core::{
@@ -293,12 +296,17 @@ impl CosmosMailboxIndexer {
                 }
 
                 MESSAGE_ATTRIBUTE_KEY => {
-                    message = Some(HyperlaneMessage::from(hex::decode(value)?));
+                    // Intentionally using read_from to get a Result::Err if there's
+                    // an issue with the message.
+                    let mut reader = Cursor::new(hex::decode(value)?);
+                    message = Some(HyperlaneMessage::read_from(&mut reader)?);
                 }
                 v if &*MESSAGE_ATTRIBUTE_KEY_BASE64 == v => {
-                    message = Some(HyperlaneMessage::from(hex::decode(String::from_utf8(
-                        BASE64.decode(value)?,
-                    )?)?));
+                    // Intentionally using read_from to get a Result::Err if there's
+                    // an issue with the message.
+                    let mut reader =
+                        Cursor::new(hex::decode(String::from_utf8(BASE64.decode(value)?)?)?);
+                    message = Some(HyperlaneMessage::read_from(&mut reader)?);
                 }
 
                 _ => {}
@@ -371,7 +379,7 @@ impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
 #[cfg(test)]
 mod tests {
     use cosmrs::tendermint::abci::EventAttribute;
-    use hyperlane_core::{HyperlaneMessage, H256, U256};
+    use hyperlane_core::HyperlaneMessage;
     use std::str::FromStr;
 
     use crate::{rpc::ParsedEvent, utils::event_attributes_from_str};
@@ -397,7 +405,7 @@ mod tests {
 
         // Non-base64 version
         let non_base64_attrs = event_attributes_from_str(
-            r#"[{"key":"_contract_address","value":"neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4","index":true},{"key":"sender","value":"0000000000000000000000006ba6343a09a60ac048d0e99f50b76fd99eff1063"},{"key":"destination","value":"169","index":true},{"key":"recipient","value":"000000000000000000000000281973b53c9aacec128ac964a6f750fea40912aa","index":true},{"key":"message","value":"03000000006e74726e0000000000000000000000006ba6343a09a60ac048d0e99f50b76fd99eff1063000000a9000000000000000000000000281973b53c9aacec128ac964a6f750fea40912aa48656c6c6f2066726f6d204e657574726f6e204d61696e6e657420746f204d616e74612050616369666963206f63742032392c2031323a353520616d","index":true}]"#,
+            r#"[{"key":"_contract_address","value":"neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4","index":true},{"key":"sender","value":"0000000000000000000000006ba6343a09a60ac048d0e99f50b76fd99eff1063","index":true},{"key":"destination","value":"169","index":true},{"key":"recipient","value":"000000000000000000000000281973b53c9aacec128ac964a6f750fea40912aa","index":true},{"key":"message","value":"03000000006e74726e0000000000000000000000006ba6343a09a60ac048d0e99f50b76fd99eff1063000000a9000000000000000000000000281973b53c9aacec128ac964a6f750fea40912aa48656c6c6f2066726f6d204e657574726f6e204d61696e6e657420746f204d616e74612050616369666963206f63742032392c2031323a353520616d","index":true}]"#,
         );
         assert_parsed_event(&non_base64_attrs);
 
