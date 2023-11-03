@@ -165,8 +165,8 @@ export async function rotateAuth() {
     'neutron1ch7x3xgpnj62weyes8vfada35zff6z59kt2psqhnx9gjnt2ttqdqtva3pa', // warp route
   ];
 
-  let transferInstructions: ExecuteInstruction[] = [];
-  let claimInstructions: ExecuteInstruction[] = [];
+  const transferInstructions: ExecuteInstruction[] = [];
+  const claimInstructions: ExecuteInstruction[] = [];
 
   for (const address of addresses) {
     const info = await safe.wasm.getContract(address);
@@ -218,7 +218,7 @@ export async function rotateAuth() {
 }
 
 export async function summary() {
-  let summary: any = {};
+  const summary: any = {};
 
   const provider = await adapter.getProvider();
 

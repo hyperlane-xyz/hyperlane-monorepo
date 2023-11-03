@@ -79,7 +79,7 @@ export class CosmWasmIgpAdapter extends BaseCosmWasmAdapter {
     );
   }
 
-  async defaultGas() {
+  async defaultGas(): Promise<number> {
     const defaultGas = await this.queryIgp<DefaultGasResponse>({
       igp: {
         default_gas: {},
