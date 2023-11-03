@@ -19,9 +19,7 @@ use cosmrs::proto::traits::Message;
 
 use cosmrs::tx::{self, Fee, MessageExt, SignDoc, SignerInfo};
 use cosmrs::{Amount, Coin};
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, H256, U256,
-};
+use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, H256, U256};
 use serde::Serialize;
 
 use crate::address::CosmosAddress;
@@ -86,17 +84,15 @@ pub trait WasmProvider: Send + Sync {
 /// Cosmwasm GRPC Provider
 pub struct WasmGrpcProvider {
     conf: ConnectionConf,
-    _domain: HyperlaneDomain,
     address: H256,
-    signer: Signer,
+    signer: Option<Signer>,
 }
 
 impl WasmGrpcProvider {
     /// create new Cosmwasm GRPC Provider
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
+    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Option<Signer>) -> Self {
         Self {
             conf,
-            _domain: locator.domain.clone(),
             address: locator.address,
             signer,
         }
@@ -109,6 +105,12 @@ impl WasmGrpcProvider {
     fn get_contract_addr(&self) -> ChainResult<String> {
         let cosmos_address = CosmosAddress::from_h256(self.address, &self.conf.get_prefix())?;
         Ok(cosmos_address.address())
+    }
+
+    fn get_signer(&self) -> ChainResult<Signer> {
+        self.signer
+            .clone()
+            .ok_or(ChainCommunicationError::SignerUnavailable)
     }
 }
 
@@ -219,14 +221,14 @@ impl WasmProvider for WasmGrpcProvider {
     where
         I: IntoIterator<Item = cosmrs::Any> + Send + Sync,
     {
-        let account_info = self.account_query(self.signer.address.clone()).await?;
+        let signer = self.get_signer()?;
+        let account_info = self.account_query(signer.address.clone()).await?;
 
-        let private_key = self.signer.signing_key()?;
+        let private_key = signer.signing_key()?;
         let public_key = private_key.public_key();
 
         let tx_body = tx::Body::new(msgs, "", 9000000u32);
-        let signer_info =
-            SignerInfo::single_direct(Some(self.signer.public_key), account_info.sequence);
+        let signer_info = SignerInfo::single_direct(Some(signer.public_key), account_info.sequence);
 
         let gas_limit: u64 = gas_limit.unwrap_or(U256::from(300000u64)).as_u64();
 
@@ -255,10 +257,11 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
+        let signer = self.get_signer()?;
         let mut client = TxServiceClient::connect(self.get_conn_url()?).await?;
 
         let msgs = vec![MsgExecuteContract {
-            sender: self.signer.address.clone(),
+            sender: signer.address,
             contract: self.get_contract_addr()?,
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
@@ -289,8 +292,9 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
+        let signer = self.get_signer()?;
         let msg = MsgExecuteContract {
-            sender: self.signer.address.clone(),
+            sender: signer.address,
             contract: self.get_contract_addr()?,
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],

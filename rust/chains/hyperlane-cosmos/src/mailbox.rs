@@ -35,24 +35,29 @@ use tracing::{instrument, warn};
 
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {
+    config: ConnectionConf,
     domain: HyperlaneDomain,
     address: H256,
-    signer: Signer,
     provider: Box<WasmGrpcProvider>,
 }
 
 impl CosmosMailbox {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
-        let provider = WasmGrpcProvider::new(conf, locator.clone(), signer.clone());
+    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Option<Signer>) -> Self {
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
 
         Self {
+            config: conf,
             domain: locator.domain.clone(),
             address: locator.address,
-            signer,
             provider: Box::new(provider),
         }
+    }
+
+    /// Prefix used in the bech32 address encoding
+    pub fn prefix(&self) -> String {
+        self.config.get_prefix()
     }
 }
 
@@ -136,7 +141,7 @@ impl Mailbox for CosmosMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let address = CosmosAddress::from_h256(recipient, &self.signer.prefix)?.address();
+        let address = CosmosAddress::from_h256(recipient, &self.prefix())?.address();
 
         let payload = mailbox::RecipientIsmRequest {
             recipient_ism: mailbox::RecipientIsmRequestInner {
@@ -256,7 +261,7 @@ impl CosmosMailboxIndexer {
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
-        signer: Signer,
+        signer: Option<Signer>,
         reorg_period: u32,
     ) -> ChainResult<Self> {
         let mailbox = CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone());
