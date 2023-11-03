@@ -34,7 +34,6 @@ use tracing::{debug, instrument, warn};
 
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {
-    _conf: ConnectionConf,
     domain: HyperlaneDomain,
     address: H256,
     signer: Signer,
@@ -45,10 +44,9 @@ impl CosmosMailbox {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
     pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
+        let provider = WasmGrpcProvider::new(conf, locator.clone(), signer.clone());
 
         Self {
-            _conf: conf,
             domain: locator.domain.clone(),
             address: locator.address,
             signer,

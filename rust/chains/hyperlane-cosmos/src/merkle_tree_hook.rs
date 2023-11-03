@@ -28,14 +28,10 @@ use crate::{
 #[derive(Debug)]
 /// A reference to a MerkleTreeHook contract on some Cosmos chain
 pub struct CosmosMerkleTreeHook {
-    /// Connection configuration
-    _conf: ConnectionConf,
     /// Domain
     domain: HyperlaneDomain,
     /// Contract address
     address: H256,
-    /// Signer
-    _signer: Signer,
     /// Provider
     provider: Box<WasmGrpcProvider>,
 }
@@ -46,10 +42,8 @@ impl CosmosMerkleTreeHook {
         let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
 
         Self {
-            _conf: conf,
             domain: locator.domain.clone(),
             address: locator.address,
-            _signer: signer,
             provider: Box::new(provider),
         }
     }
