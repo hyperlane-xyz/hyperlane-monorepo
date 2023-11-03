@@ -393,4 +393,4 @@ export async function rotateValidators() {
   // console.log(tx);
 }
 
-rotateValidators().catch(console.error);
+summary().catch(console.error);
