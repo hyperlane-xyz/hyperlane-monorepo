@@ -9,7 +9,7 @@ use crate::{
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H256,
+    HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H160, H256,
 };
 
 use crate::payloads::multisig_ism::{self, VerifyInfoRequest, VerifyInfoRequestInner};
@@ -77,7 +77,7 @@ impl MultisigIsm for CosmosMultisigIsm {
         let validators: ChainResult<Vec<H256>> = response
             .validators
             .iter()
-            .map(|v| H256::from_str(v).map_err(Into::into))
+            .map(|v| H160::from_str(v).map(H256::from).map_err(Into::into))
             .collect();
 
         Ok((validators?, response.threshold))

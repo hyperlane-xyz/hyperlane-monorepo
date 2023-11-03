@@ -2,16 +2,21 @@ use std::str::FromStr;
 
 use cosmrs::{crypto::secp256k1::SigningKey, AccountId};
 use derive_new::new;
-use hyperlane_core::{ChainResult, H256};
+use hyperlane_core::{ChainResult, Error::Overflow, H256};
 
 /// decode bech32 address to H256
 pub fn bech32_decode(addr: String) -> ChainResult<H256> {
     let account_id = AccountId::from_str(&addr)?;
-
-    // although `from_slice` can panic if the slice is not 32 bytes long,
-    // we know that we're passing in a value that is 32 bytes long because it was decoded from
-    // bech32
-    Ok(H256::from_slice(&account_id.to_bytes()))
+    let bytes = account_id.to_bytes();
+    let h256_len = H256::len_bytes();
+    let Some(start_point) = h256_len.checked_sub(bytes.len()) else {
+        // input is too large to fit in a H256
+        return Err(Overflow.into());
+    };
+    let mut empty_hash = H256::default();
+    let result = empty_hash.as_bytes_mut();
+    result[start_point..].copy_from_slice(bytes.as_slice());
+    Ok(H256::from_slice(result))
 }
 
 /// Wrapper around the cosmrs AccountId type that abstracts keypair conversions and
@@ -50,4 +55,36 @@ impl CosmosAddress {
 /// encode H256 to bech32 address
 pub fn pub_to_addr(pub_key: Vec<u8>, prefix: &str) -> ChainResult<String> {
     Ok(CosmosAddress::from_pubkey(&pub_key, prefix)?.address())
+}
+
+#[cfg(test)]
+pub mod test {
+    use hyperlane_core::utils::hex_or_base58_to_h256;
+
+    use super::*;
+
+    #[test]
+    fn test_bech32_decode() {
+        let addr = "dual1pk99xge6q94qtu3568x3qhp68zzv0mx7za4ct008ks36qhx5tvss3qawfh";
+        let decoded =
+            bech32_decode(addr.to_string()).expect("decoding of a valid address shouldn't panic");
+        assert_eq!(
+            decoded,
+            H256::from_str("0d8a53233a016a05f234d1cd105c3a3884c7ecde176b85bde7b423a05cd45b21")
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_bech32_decode_from_cosmos_key() {
+        let hex_key = "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26";
+        let key = hex_or_base58_to_h256(hex_key).unwrap();
+        let prefix = "neutron";
+        let addr = CosmosAddress::from_privkey(key.as_bytes(), prefix)
+            .expect("Cosmos address creation failed");
+        assert_eq!(
+            addr.address(),
+            "neutron1qvxyspfhvy6xth4w240lvxngp6k0ytskd9w4uxpve4lrzjdm050uqxvtda6"
+        );
+    }
 }
