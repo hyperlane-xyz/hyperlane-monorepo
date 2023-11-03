@@ -120,7 +120,7 @@ jobs:
     needs: [yarn-build]
     strategy:
       matrix:
-        environment: [testnet4]
+        environment: [testnet4, mainnet3]
         module: [ism, core, helloworld]
 
     steps:

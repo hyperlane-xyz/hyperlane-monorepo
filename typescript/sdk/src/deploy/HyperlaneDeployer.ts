@@ -1,10 +1,8 @@
 import { Debugger, debug } from 'debug';
-import { Contract, ethers } from 'ethers';
+import { Contract, PopulatedTransaction, ethers } from 'ethers';
 
 import {
-  Mailbox,
   MailboxClient,
-  Mailbox__factory,
   Ownable,
   ProxyAdmin,
   ProxyAdmin__factory,
@@ -30,6 +28,7 @@ import {
   HyperlaneIsmFactory,
   moduleMatchesConfig,
 } from '../ism/HyperlaneIsmFactory';
+import { IsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { MailboxClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
@@ -195,75 +194,95 @@ export abstract class HyperlaneDeployer<
     }
   }
 
+  protected async configureIsm<C extends Ownable>(
+    chain: ChainName,
+    contract: C,
+    config: IsmConfig,
+    getIsm: (contract: C) => Promise<Address>,
+    setIsm: (contract: C, ism: Address) => Promise<PopulatedTransaction>,
+  ): Promise<void> {
+    if (this.options?.ismFactory === undefined) {
+      throw new Error('No ISM factory provided');
+    }
+    const ismFactory = this.options.ismFactory;
+
+    const configuredIsm = await getIsm(contract);
+    const matches = await moduleMatchesConfig(
+      chain,
+      configuredIsm,
+      config,
+      this.multiProvider,
+      ismFactory.getContracts(chain),
+    );
+    if (!matches) {
+      await this.runIfOwner(chain, contract, async () => {
+        const targetIsm = await ismFactory.deploy(chain, config);
+        this.logger(`Set ISM on ${chain}`);
+        await this.multiProvider.sendTransaction(
+          chain,
+          setIsm(contract, targetIsm.address),
+        );
+        if (targetIsm.address !== (await getIsm(contract))) {
+          throw new Error(`Set ISM failed on ${chain}`);
+        }
+      });
+    }
+  }
+
+  protected async configureHook<C extends Ownable>(
+    chain: ChainName,
+    contract: C,
+    targetHook: Address,
+    getHook: (contract: C) => Promise<Address>,
+    setHook: (contract: C, hook: Address) => Promise<PopulatedTransaction>,
+  ): Promise<void> {
+    const configuredHook = await getHook(contract);
+    if (!eqAddress(targetHook, configuredHook)) {
+      await this.runIfOwner(chain, contract, async () => {
+        this.logger(
+          `Set hook on ${chain} to ${targetHook}, currently is ${configuredHook}`,
+        );
+        await this.multiProvider.sendTransaction(
+          chain,
+          setHook(contract, targetHook),
+        );
+        const actualHook = await getHook(contract);
+        if (!eqAddress(targetHook, actualHook)) {
+          throw new Error(
+            `Set hook failed on ${chain}, wanted ${targetHook}, got ${actualHook}`,
+          );
+        }
+      });
+    }
+  }
+
   protected async initMailboxClient(
     local: ChainName,
     client: MailboxClient,
     config: MailboxClientConfig,
   ): Promise<void> {
     this.logger(`Initializing mailbox client (if not already) on ${local}...`);
-    await this.runIfOwner(local, client, async () => {
-      const txOverrides = this.multiProvider.getTransactionOverrides(local);
+    if (config.hook) {
+      await this.configureHook(
+        local,
+        client,
+        config.hook,
+        (_client) => _client.hook(),
+        (_client, _hook) => _client.populateTransaction.setHook(_hook),
+      );
+    }
 
-      // set hook if not already set (and configured)
-      if (config.hook && config.hook !== (await client.hook())) {
-        this.logger(`Set hook on ${local}`);
-        await this.multiProvider.handleTx(
-          local,
-          client.setHook(config.hook, txOverrides),
-        );
-      }
+    if (config.interchainSecurityModule) {
+      await this.configureIsm(
+        local,
+        client,
+        config.interchainSecurityModule,
+        (_client) => _client.interchainSecurityModule(),
+        (_client, _module) =>
+          _client.populateTransaction.setInterchainSecurityModule(_module),
+      );
+    }
 
-      let currentIsm = await client.interchainSecurityModule();
-      // in case the above returns zero address, fetch the defaultISM from the mailbox
-      if (currentIsm === ethers.constants.AddressZero) {
-        const mailbox: Mailbox = Mailbox__factory.connect(
-          config.mailbox,
-          client.signer,
-        );
-        currentIsm = await mailbox.defaultIsm();
-      }
-
-      // set interchain security module if not already set (and configured)
-      if (config.interchainSecurityModule) {
-        let configuredIsm: string;
-        if (typeof config.interchainSecurityModule === 'string') {
-          configuredIsm = config.interchainSecurityModule;
-        } else if (this.options?.ismFactory) {
-          const matches = await moduleMatchesConfig(
-            local,
-            currentIsm,
-            config.interchainSecurityModule,
-            this.multiProvider,
-            this.options.ismFactory.chainMap[local],
-          );
-          if (matches) {
-            // when the ISM recursively matches the IsmConfig, we don't need to deploy a new ISM
-            this.logger(
-              `ISM matches config for chain ${local}, skipping deploy`,
-            );
-            return;
-          }
-          const ism = await this.options.ismFactory.deploy(
-            local,
-            config.interchainSecurityModule,
-          );
-          configuredIsm = ism.address;
-        } else {
-          throw new Error('No ISM factory provided');
-        }
-
-        if (!eqAddress(currentIsm, configuredIsm)) {
-          this.logger(
-            `Set interchain security module on ${local} at ${configuredIsm}`,
-          );
-
-          await this.multiProvider.handleTx(
-            local,
-            client.setInterchainSecurityModule(configuredIsm, txOverrides),
-          );
-        }
-      }
-    });
     this.logger(`Connection client on ${local} initialized...`);
   }
 
@@ -418,7 +437,6 @@ export abstract class HyperlaneDeployer<
       return implementation;
     }
 
-    this.logger(`Deploying transparent upgradable proxy`);
     const constructorArgs = proxyConstructorArgs(
       implementation,
       proxyAdmin,

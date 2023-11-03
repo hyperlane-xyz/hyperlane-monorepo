@@ -17,6 +17,7 @@ import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 import {Indexed} from "../libs/Indexed.sol";
+import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "./libs/AbstractPostDispatchHook.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 
@@ -47,6 +48,13 @@ contract MerkleTreeHook is AbstractPostDispatchHook, MailboxClient, Indexed {
 
     function latestCheckpoint() external view returns (bytes32, uint32) {
         return (root(), count() - 1);
+    }
+
+    // ============ External Functions ============
+
+    /// @inheritdoc IPostDispatchHook
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.Types.MERKLE_TREE);
     }
 
     // ============ Internal Functions ============

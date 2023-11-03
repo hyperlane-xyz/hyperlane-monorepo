@@ -9,7 +9,7 @@ fi
 if [ "$ENVIRONMENT" == "testnet4" ]; then
   FORK_CHAIN="goerli"
   RPC_URL="https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
-elif [ "$ENVIRONMENT" == "mainnet2" ]; then
+elif [ "$ENVIRONMENT" == "mainnet3" ]; then
   FORK_CHAIN="arbitrum"
   RPC_URL="https://rpc.ankr.com/arbitrum"
 else

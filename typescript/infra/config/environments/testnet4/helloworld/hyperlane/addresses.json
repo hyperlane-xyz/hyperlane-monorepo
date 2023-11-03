@@ -17,22 +17,22 @@
   "polygonzkevmtestnet": {
     "router": "0x783c4a0bB6663359281aD4a637D5af68F83ae213"
   },
-  "sepolia": {
-    "router": "0xE14FE2a74Ba1E1bD0EE14B780e58fCcc3c95C013"
-  },
   "fuji": {
     "router": "0x0B1C1B54f45e02552331D3106e71f5e0b573D5D4"
-  },
-  "bsctestnet": {
-    "router": "0xd0e07a58BC91a686235E542350E63211C7A34c17"
-  },
-  "goerli": {
-    "router": "0x33AA9cFBC7E222B3eC231EcAa58dd846cC393C28"
   },
   "moonbasealpha": {
     "router": "0x3Ce607F6FcE5Dfb9821f33504d86E04A4CD0C75f"
   },
   "mumbai": {
     "router": "0x04980C17e2CE26578C82f81207e706e4505FaE3B"
+  },
+  "sepolia": {
+    "router": "0x37590302D4E60fbCAdF708E8Fc1DCd903a5880F8"
+  },
+  "bsctestnet": {
+    "router": "0xEF6DE81100B9314B45A1bdfA5C9148aFC4DdbDeE"
+  },
+  "goerli": {
+    "router": "0x31b6a75ef30C8612738CC55eA3CB2d5DD3694DC7"
   }
 }

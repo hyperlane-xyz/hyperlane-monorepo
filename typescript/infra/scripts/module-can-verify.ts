@@ -1,14 +1,13 @@
 import { HyperlaneCore, moduleCanCertainlyVerify } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { mainnetHyperlaneDefaultIsmCache } from '../config/routingIsm';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 
 import { getArgs, getEnvironmentConfig } from './utils';
 
 // Hacky temporary script just to make sure that default ISMs are correct.
-// Testnet3 has already been updated, mainnet2 hasn't, so the above cache
-// is used for mainnet2.
+// Testnet3 has already been updated, mainnet3 hasn't, so the above cache
+// is used for mainnet3.
 
 async function main() {
   const args = await getArgs().argv;
@@ -31,10 +30,8 @@ async function main() {
     }
 
     let ismToCheck = '';
-    if (environment === 'testnet4') {
+    if (environment === 'testnet4' || environment === 'mainnet3') {
       ismToCheck = await core.getContracts(local).mailbox.defaultIsm();
-    } else if (environment === 'mainnet2') {
-      ismToCheck = mainnetHyperlaneDefaultIsmCache[local]!;
     } else {
       throw new Error(`Unsupported environment ${environment}`);
     }

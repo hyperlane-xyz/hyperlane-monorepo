@@ -8,7 +8,6 @@ import {
   ChainName,
   HookType,
   HyperlaneCore,
-  ModuleType,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
