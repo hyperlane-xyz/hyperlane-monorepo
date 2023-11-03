@@ -27,12 +27,12 @@ interface ICrossDomainMessenger {
         bytes calldata _message
     ) external payable;
 
-    /*************
-     * Variables *
-     *************/
-
     function xDomainMessageSender() external view returns (address);
+
+    function OTHER_MESSENGER() external view returns (address);
 }
+
+interface IL1CrossDomainMessenger is ICrossDomainMessenger {}
 
 interface IL2CrossDomainMessenger is ICrossDomainMessenger {
     function messageNonce() external view returns (uint256);

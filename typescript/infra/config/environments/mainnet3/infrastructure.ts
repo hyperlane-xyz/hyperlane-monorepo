@@ -33,9 +33,14 @@ export const infrastructure: InfrastructureConfig = {
     },
     gcpServiceAccountName: 'k8s-external-secrets-mainnet2',
     accessibleGCPSecretPrefixes: [
+      'hyperlane-mainnet-',
+      'mainnet-',
       'hyperlane-mainnet2-',
       'rc-mainnet2-',
       'mainnet2-',
+      'hyperlane-mainnet3-',
+      'rc-mainnet3-',
+      'mainnet3-',
     ],
   },
 };

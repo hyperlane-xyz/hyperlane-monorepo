@@ -3,12 +3,16 @@ import { BigNumber } from 'ethers';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { IgpConfig } from '../gas/types';
+import { ChainMap, ChainName } from '../types';
 
 export enum HookType {
   MERKLE_TREE = 'merkleTreeHook',
   INTERCHAIN_GAS_PAYMASTER = 'interchainGasPaymaster',
   AGGREGATION = 'aggregationHook',
   PROTOCOL_FEE = 'protocolFee',
+  OP_STACK = 'opStackHook',
+  ROUTING = 'domainRoutingHook',
+  FALLBACK_ROUTING = 'fallbackRoutingHook',
 }
 
 export type MerkleTreeHookConfig = {
@@ -32,8 +36,31 @@ export type ProtocolFeeHookConfig = {
   owner: Address;
 };
 
+export type OpStackHookConfig = {
+  type: HookType.OP_STACK;
+  nativeBridge: Address;
+  destinationChain: ChainName;
+};
+
+type RoutingHookConfig = {
+  owner: Address;
+  domains: ChainMap<HookConfig>;
+};
+
+export type DomainRoutingHookConfig = RoutingHookConfig & {
+  type: HookType.ROUTING;
+};
+
+export type FallbackRoutingHookConfig = RoutingHookConfig & {
+  type: HookType.FALLBACK_ROUTING;
+  fallback: HookConfig;
+};
+
 export type HookConfig =
   | MerkleTreeHookConfig
   | AggregationHookConfig
   | IgpHookConfig
-  | ProtocolFeeHookConfig;
+  | ProtocolFeeHookConfig
+  | OpStackHookConfig
+  | DomainRoutingHookConfig
+  | FallbackRoutingHookConfig;

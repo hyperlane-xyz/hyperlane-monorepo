@@ -24,6 +24,7 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
+    /// @ts-ignore
     return HyperlaneIgp.fromAddressesMap(envAddresses, multiProvider);
   }
 

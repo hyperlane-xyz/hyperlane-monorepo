@@ -7,6 +7,7 @@ export enum Chains {
   arbitrum = 'arbitrum',
   arbitrumgoerli = 'arbitrumgoerli',
   avalanche = 'avalanche',
+  base = 'base',
   basegoerli = 'basegoerli',
   bsc = 'bsc',
   bsctestnet = 'bsctestnet',
@@ -17,6 +18,7 @@ export enum Chains {
   gnosis = 'gnosis',
   goerli = 'goerli',
   lineagoerli = 'lineagoerli',
+  scroll = 'scroll',
   scrollsepolia = 'scrollsepolia',
   sepolia = 'sepolia',
   mantapacific = 'mantapacific',
@@ -28,6 +30,7 @@ export enum Chains {
   optimism = 'optimism',
   optimismgoerli = 'optimismgoerli',
   polygon = 'polygon',
+  polygonzkevm = 'polygonzkevm',
   polygonzkevmtestnet = 'polygonzkevmtestnet',
   proteustestnet = 'proteustestnet',
   solana = 'solana',
@@ -62,7 +65,10 @@ export const Mainnets: Array<CoreChainName> = [
   Chains.optimism,
   Chains.polygon,
   Chains.gnosis,
-  Chains.solana,
+  Chains.base,
+  Chains.scroll,
+  Chains.polygonzkevm,
+  // Chains.solana,
 ];
 
 export const Testnets: Array<CoreChainName> = [

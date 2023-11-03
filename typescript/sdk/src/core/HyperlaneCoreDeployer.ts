@@ -90,9 +90,16 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     // configure mailbox
     try {
+      this.logger('Initializing mailbox');
       await this.multiProvider.handleTx(
         chain,
-        mailbox.initialize(config.owner, defaultIsm, defaultHook, requiredHook),
+        mailbox.initialize(
+          config.owner,
+          defaultIsm,
+          defaultHook,
+          requiredHook,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
       );
     } catch (e: any) {
       if (!e.message.includes('already initialized')) {
@@ -155,7 +162,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     );
     this.addDeployedContracts(
       chain,
-      hooks,
+      this.hookDeployer.deployedContracts[chain],
       this.hookDeployer.verificationInputs[chain],
     );
     return hooks[config.type].address;
