@@ -382,13 +382,12 @@ impl HyperlaneSequenceIndexerStore<HyperlaneMessage> for HyperlaneSqlDb {
 
     /// Gets the block number at which the log occurred.
     async fn retrieve_log_block_number(&self, sequence: u32) -> Result<Option<u64>> {
-        unwrap_or_none_result!(
-            tx_id,
+        let tx_id = unwrap_or_none_result!(
             self.db
                 .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, sequence)
                 .await?
         );
-        unwrap_or_none_result!(block_id, self.db.retrieve_block_id(tx_id).await?);
+        let block_id = unwrap_or_none_result!(self.db.retrieve_block_id(tx_id).await?);
         Ok(self.db.retrieve_block_number(block_id).await?)
     }
 }

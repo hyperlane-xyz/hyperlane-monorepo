@@ -249,18 +249,15 @@ impl CosmosMerkleTreeHookIndexer {
             }
         }
 
-        unwrap_or_none_result!(
-            contract_address,
+        let contract_address = unwrap_or_none_result!(
             contract_address,
             debug!("No contract address found in event attributes")
         );
-        unwrap_or_none_result!(
-            leaf_index,
+        let leaf_index = unwrap_or_none_result!(
             leaf_index,
             debug!("No leaf index found in event attributes")
         );
-        unwrap_or_none_result!(
-            message_id,
+        let message_id = unwrap_or_none_result!(
             message_id,
             debug!("No message id found in event attributes")
         );
