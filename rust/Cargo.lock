@@ -4161,6 +4161,7 @@ dependencies = [
  "hyper",
  "hyper-tls",
  "hyperlane-core",
+ "once_cell",
  "ripemd",
  "serde",
  "serde_json",

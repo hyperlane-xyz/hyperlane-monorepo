@@ -21,9 +21,10 @@ pub fn bech32_decode(addr: String) -> ChainResult<H256> {
 
 /// Wrapper around the cosmrs AccountId type that abstracts keypair conversions and
 /// bech32 encoding
-#[derive(new)]
+#[derive(new, Debug)]
 pub struct CosmosAddress {
     account_id: AccountId,
+    digest: H256,
 }
 
 impl CosmosAddress {
@@ -31,7 +32,8 @@ impl CosmosAddress {
     /// Source: https://github.com/cosmos/cosmos-sdk/blob/177e7f45959215b0b4e85babb7c8264eaceae052/crypto/keys/secp256k1/secp256k1.go#L154
     pub fn from_pubkey(pub_key: &[u8], prefix: &str) -> ChainResult<Self> {
         let account_id = AccountId::new(prefix, pub_key)?;
-        Ok(Self { account_id })
+        let digest = bech32_decode(account_id.to_string())?;
+        Ok(Self { account_id, digest })
     }
 
     /// Creates a wrapper arround a cosmrs AccountId from a private key byte array
@@ -49,6 +51,11 @@ impl CosmosAddress {
     /// String representation of a cosmos AccountId
     pub fn address(&self) -> String {
         self.account_id.to_string()
+    }
+
+    /// H256 digest of the cosmos AccountId
+    pub fn digest(&self) -> H256 {
+        self.digest
     }
 }
 

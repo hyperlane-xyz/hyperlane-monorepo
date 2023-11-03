@@ -1,13 +1,14 @@
 use std::{fmt::Debug, num::NonZeroU64, ops::RangeInclusive, str::FromStr};
 
 use async_trait::async_trait;
-use base64::Engine;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
     Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer, H256,
 };
+use once_cell::sync::Lazy;
 use tracing::instrument;
 
 use crate::{
@@ -16,22 +17,21 @@ use crate::{
         general::{self},
         merkle_tree_hook,
     },
-    rpc::{CosmosWasmIndexer, WasmIndexer},
-    utils::get_block_height_for_lag,
+    rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
+    utils::{
+        get_block_height_for_lag, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
+        CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
+    },
     ConnectionConf, CosmosProvider, Signer,
 };
 
 #[derive(Debug)]
 /// A reference to a MerkleTreeHook contract on some Cosmos chain
 pub struct CosmosMerkleTreeHook {
-    /// Connection configuration
-    _conf: ConnectionConf,
     /// Domain
     domain: HyperlaneDomain,
     /// Contract address
     address: H256,
-    /// Signer
-    _signer: Signer,
     /// Provider
     provider: Box<WasmGrpcProvider>,
 }
@@ -42,10 +42,8 @@ impl CosmosMerkleTreeHook {
         let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
 
         Self {
-            _conf: conf,
             domain: locator.domain.clone(),
             address: locator.address,
-            _signer: signer,
             provider: Box::new(provider),
         }
     }
@@ -104,7 +102,6 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     }
 
     /// Gets the current leaf count of the merkle tree
-    #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
         let payload = merkle_tree_hook::MerkleTreeCountRequest {
             count: general::EmptyStruct {},
@@ -112,18 +109,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
 
         let block_height = get_block_height_for_lag(&self.provider, lag).await?;
 
-        let data = self
-            .provider
-            .wasm_query(
-                merkle_tree_hook::MerkleTreeGenericRequest {
-                    merkle_hook: payload,
-                },
-                block_height,
-            )
-            .await?;
-        let response: merkle_tree_hook::MerkleTreeCountResponse = serde_json::from_slice(&data)?;
-
-        Ok(response.count)
+        self.count_at_block(block_height).await
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
@@ -154,77 +140,113 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     }
 }
 
+impl CosmosMerkleTreeHook {
+    #[instrument(level = "debug", err, ret, skip(self))]
+    async fn count_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
+        let payload = merkle_tree_hook::MerkleTreeCountRequest {
+            count: general::EmptyStruct {},
+        };
+
+        let data = self
+            .provider
+            .wasm_query(
+                merkle_tree_hook::MerkleTreeGenericRequest {
+                    merkle_hook: payload,
+                },
+                block_height,
+            )
+            .await?;
+        let response: merkle_tree_hook::MerkleTreeCountResponse = serde_json::from_slice(&data)?;
+
+        Ok(response.count)
+    }
+}
+
 // ------------------ Indexer ------------------
 
-const EVENT_TYPE: &str = "hpl_hook_merkle::post_dispatch";
+const INDEX_ATTRIBUTE_KEY: &str = "index";
+pub(crate) static INDEX_ATTRIBUTE_KEY_BASE64: Lazy<String> =
+    Lazy::new(|| BASE64.encode(INDEX_ATTRIBUTE_KEY));
+
+const MESSAGE_ID_ATTRIBUTE_KEY: &str = "message_id";
+pub(crate) static MESSAGE_ID_ATTRIBUTE_KEY_BASE64: Lazy<String> =
+    Lazy::new(|| BASE64.encode(MESSAGE_ID_ATTRIBUTE_KEY));
 
 #[derive(Debug)]
 /// A reference to a MerkleTreeHookIndexer contract on some Cosmos chain
 pub struct CosmosMerkleTreeHookIndexer {
+    /// The CosmosMerkleTreeHook
+    merkle_tree_hook: CosmosMerkleTreeHook,
     /// Cosmwasm indexer instance
     indexer: Box<CosmosWasmIndexer>,
 }
 
 impl CosmosMerkleTreeHookIndexer {
-    /// create new Cosmos MerkleTreeHookIndexer agent
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, reorg_period: u32) -> Self {
-        let indexer: CosmosWasmIndexer =
-            CosmosWasmIndexer::new(conf, locator, EVENT_TYPE.to_string(), reorg_period);
+    /// The message dispatch event type from the CW contract.
+    const MERKLE_TREE_INSERTION_EVENT_TYPE: &str = "hpl_hook_merkle::post_dispatch";
 
-        Self {
+    /// create new Cosmos MerkleTreeHookIndexer agent
+    pub fn new(
+        conf: ConnectionConf,
+        locator: ContractLocator,
+        signer: Signer,
+        reorg_period: u32,
+    ) -> ChainResult<Self> {
+        let indexer = CosmosWasmIndexer::new(
+            conf.clone(),
+            locator.clone(),
+            Self::MERKLE_TREE_INSERTION_EVENT_TYPE.into(),
+            reorg_period,
+        )?;
+
+        Ok(Self {
+            merkle_tree_hook: CosmosMerkleTreeHook::new(conf, locator, signer),
             indexer: Box::new(indexer),
-        }
+        })
     }
 
-    /// Get the parser for the indexer
-    fn get_parser(
-        &self,
-    ) -> fn(attrs: Vec<EventAttribute>) -> ChainResult<Option<MerkleTreeInsertion>> {
-        |attrs: Vec<EventAttribute>| -> ChainResult<Option<MerkleTreeInsertion>> {
-            let mut message_id = H256::zero();
-            let mut leaf_index: u32 = 0;
-            let mut attr_count = 0;
+    fn merkle_tree_insertion_parser(
+        attrs: &Vec<EventAttribute>,
+    ) -> ChainResult<ParsedEvent<MerkleTreeInsertion>> {
+        let mut contract_address: Option<String> = None;
+        let mut insertion = IncompleteMerkleTreeInsertion::default();
 
-            for attr in attrs {
-                let key = attr.key.as_str();
-                let value = attr.value;
-                let value = value.as_str();
+        for attr in attrs {
+            let key = attr.key.as_str();
+            let value = attr.value.as_str();
 
-                match key {
-                    "message_id" => {
-                        message_id = H256::from_slice(hex::decode(value)?.as_slice());
-                        attr_count += 1;
-                    }
-                    "index" => {
-                        leaf_index = value.parse::<u32>()?;
-                        attr_count += 1;
-                    }
-                    "aW5kZXg=" => {
-                        leaf_index = String::from_utf8(
-                            base64::engine::general_purpose::STANDARD.decode(value)?,
-                        )?
-                        .parse()?;
-                        attr_count += 1;
-                    }
-                    "bWVzc2FnZV9pZA==" => {
-                        message_id = H256::from_slice(
-                            hex::decode(String::from_utf8(
-                                base64::engine::general_purpose::STANDARD.decode(value)?,
-                            )?)?
-                            .as_slice(),
-                        );
-                        attr_count += 1;
-                    }
-                    _ => {}
+            match key {
+                CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
+                    contract_address = Some(value.to_string());
                 }
-            }
+                v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
+                    contract_address = Some(String::from_utf8(BASE64.decode(value)?)?);
+                }
 
-            if attr_count != 2 {
-                return Ok(None);
-            }
+                MESSAGE_ID_ATTRIBUTE_KEY => {
+                    insertion.message_id = Some(H256::from_slice(hex::decode(value)?.as_slice()));
+                }
+                v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
+                    insertion.message_id = Some(H256::from_slice(
+                        hex::decode(String::from_utf8(BASE64.decode(value)?)?)?.as_slice(),
+                    ));
+                }
 
-            Ok(Some(MerkleTreeInsertion::new(leaf_index, message_id)))
+                INDEX_ATTRIBUTE_KEY => {
+                    insertion.leaf_index = Some(value.parse::<u32>()?);
+                }
+                v if *INDEX_ATTRIBUTE_KEY_BASE64 == v => {
+                    insertion.leaf_index = Some(String::from_utf8(BASE64.decode(value)?)?.parse()?);
+                }
+
+                _ => {}
+            }
         }
+
+        let contract_address = contract_address
+            .ok_or_else(|| ChainCommunicationError::from_other_str("missing contract_address"))?;
+
+        Ok(ParsedEvent::new(contract_address, insertion.try_into()?))
     }
 }
 
@@ -235,8 +257,10 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(MerkleTreeInsertion, LogMeta)>> {
-        let parser = self.get_parser();
-        let result = self.indexer.get_range_event_logs(range, parser).await?;
+        let result = self
+            .indexer
+            .get_range_event_logs(range, Self::merkle_tree_insertion_parser)
+            .await?;
 
         Ok(result)
     }
@@ -250,8 +274,77 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
 #[async_trait]
 impl SequenceIndexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // TODO: implement when cosmos scraper support is implemented
         let tip = self.get_finalized_block_number().await?;
-        Ok((None, tip))
+        let sequence = self
+            .merkle_tree_hook
+            .count_at_block(Some(tip.into()))
+            .await?;
+
+        Ok((Some(sequence), tip))
+    }
+}
+
+#[derive(Default)]
+struct IncompleteMerkleTreeInsertion {
+    leaf_index: Option<u32>,
+    message_id: Option<H256>,
+}
+
+impl TryInto<MerkleTreeInsertion> for IncompleteMerkleTreeInsertion {
+    type Error = ChainCommunicationError;
+
+    fn try_into(self) -> Result<MerkleTreeInsertion, Self::Error> {
+        let leaf_index = self
+            .leaf_index
+            .ok_or_else(|| ChainCommunicationError::from_other_str("missing leaf_index"))?;
+        let message_id = self
+            .message_id
+            .ok_or_else(|| ChainCommunicationError::from_other_str("missing message_id"))?;
+
+        Ok(MerkleTreeInsertion::new(leaf_index, message_id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cosmrs::tendermint::abci::EventAttribute;
+    use hyperlane_core::H256;
+    use std::str::FromStr;
+
+    use crate::{rpc::ParsedEvent, utils::event_attributes_from_str};
+
+    use super::*;
+
+    #[test]
+    fn test_merkle_tree_insertion_parser() {
+        // Examples from https://rpc-kralum.neutron-1.neutron.org/tx_search?query=%22tx.height%20%3E=%204000000%20AND%20tx.height%20%3C=%204100000%20AND%20wasm-hpl_hook_merkle::post_dispatch._contract_address%20=%20%27neutron1e5c2qqquc86rd3q77aj2wyht40z6z3q5pclaq040ue9f5f8yuf7qnpvkzk%27%22&prove=false&page=1&per_page=100
+
+        let expected = ParsedEvent::new(
+            "neutron1e5c2qqquc86rd3q77aj2wyht40z6z3q5pclaq040ue9f5f8yuf7qnpvkzk".into(),
+            MerkleTreeInsertion::new(
+                4,
+                H256::from_str("a21078beac8bc19770d532eed0b4ada5ef0b45992cde219979f07e3e49185384")
+                    .unwrap(),
+            ),
+        );
+
+        let assert_parsed_event = |attrs: &Vec<EventAttribute>| {
+            let parsed_event =
+                CosmosMerkleTreeHookIndexer::merkle_tree_insertion_parser(attrs).unwrap();
+
+            assert_eq!(parsed_event, expected);
+        };
+
+        // Non-base64 version
+        let non_base64_attrs = event_attributes_from_str(
+            r#"[{"key":"_contract_address","value":"neutron1e5c2qqquc86rd3q77aj2wyht40z6z3q5pclaq040ue9f5f8yuf7qnpvkzk","index":true},{"key":"index","value":"4","index":true},{"key":"message_id","value":"a21078beac8bc19770d532eed0b4ada5ef0b45992cde219979f07e3e49185384","index":true}]"#,
+        );
+        assert_parsed_event(&non_base64_attrs);
+
+        // Base64 version
+        let base64_attrs = event_attributes_from_str(
+            r#"[{"key":"X2NvbnRyYWN0X2FkZHJlc3M=","value":"bmV1dHJvbjFlNWMycXFxdWM4NnJkM3E3N2FqMnd5aHQ0MHo2ejNxNXBjbGFxMDQwdWU5ZjVmOHl1ZjdxbnB2a3pr","index":true},{"key":"aW5kZXg=","value":"NA==","index":true},{"key":"bWVzc2FnZV9pZA==","value":"YTIxMDc4YmVhYzhiYzE5NzcwZDUzMmVlZDBiNGFkYTVlZjBiNDU5OTJjZGUyMTk5NzlmMDdlM2U0OTE4NTM4NA==","index":true}]"#,
+        );
+        assert_parsed_event(&base64_attrs);
     }
 }

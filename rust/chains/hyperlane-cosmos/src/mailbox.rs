@@ -1,8 +1,10 @@
-use base64::Engine;
-use std::fmt::{Debug, Formatter};
-use std::io::Cursor;
-use std::num::NonZeroU64;
-use std::ops::RangeInclusive;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use std::{
+    fmt::{Debug, Formatter},
+    io::Cursor,
+    num::NonZeroU64,
+    ops::RangeInclusive,
+};
 
 use crate::address::CosmosAddress;
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
@@ -10,15 +12,16 @@ use crate::payloads::mailbox::{
     GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
 };
 use crate::payloads::{general, mailbox};
-use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
+use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::CosmosProvider;
 use crate::{address, signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
-
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
 use cosmrs::tendermint::abci::EventAttribute;
+use once_cell::sync::Lazy;
 
+use crate::utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64};
 use hyperlane_core::{
     utils::fmt_bytes, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
@@ -31,7 +34,6 @@ use tracing::{instrument, warn};
 
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {
-    _conf: ConnectionConf,
     domain: HyperlaneDomain,
     address: H256,
     signer: Signer,
@@ -42,10 +44,9 @@ impl CosmosMailbox {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
     pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
+        let provider = WasmGrpcProvider::new(conf, locator.clone(), signer.clone());
 
         Self {
-            _conf: conf,
             domain: locator.domain.clone(),
             address: locator.address,
             signer,
@@ -232,6 +233,12 @@ impl CosmosMailbox {
     }
 }
 
+// ------------------ Indexer ------------------
+
+const MESSAGE_ATTRIBUTE_KEY: &str = "message";
+static MESSAGE_ATTRIBUTE_KEY_BASE64: Lazy<String> =
+    Lazy::new(|| BASE64.encode(MESSAGE_ATTRIBUTE_KEY));
+
 /// Struct that retrieves event data for a Cosmos Mailbox contract
 #[derive(Debug)]
 pub struct CosmosMailboxIndexer {
@@ -240,50 +247,73 @@ pub struct CosmosMailboxIndexer {
 }
 
 impl CosmosMailboxIndexer {
+    /// The message dispatch event type from the CW contract.
+    const MESSAGE_DISPATCH_EVENT_TYPE: &str = "mailbox_dispatch";
+
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
         signer: Signer,
-        event_type: String,
         reorg_period: u32,
-    ) -> Self {
+    ) -> ChainResult<Self> {
         let mailbox = CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone());
-        let indexer: CosmosWasmIndexer =
-            CosmosWasmIndexer::new(conf, locator, event_type, reorg_period);
+        let indexer = CosmosWasmIndexer::new(
+            conf,
+            locator,
+            Self::MESSAGE_DISPATCH_EVENT_TYPE.into(),
+            reorg_period,
+        )?;
 
-        Self {
+        Ok(Self {
             mailbox,
             indexer: Box::new(indexer),
-        }
+        })
     }
 
-    fn get_parser(
-        &self,
-    ) -> fn(attrs: Vec<EventAttribute>) -> ChainResult<Option<HyperlaneMessage>> {
-        |attrs: Vec<EventAttribute>| -> ChainResult<Option<HyperlaneMessage>> {
-            let res = HyperlaneMessage::default();
+    fn hyperlane_message_parser(
+        attrs: &Vec<EventAttribute>,
+    ) -> ChainResult<ParsedEvent<HyperlaneMessage>> {
+        let mut contract_address: Option<String> = None;
+        let mut message: Option<HyperlaneMessage> = None;
 
-            for attr in attrs {
-                let key = attr.key.as_str();
-                let value = attr.value;
-                let value = value.as_str();
+        for attr in attrs {
+            let key = attr.key.as_str();
+            let value = attr.value.as_str();
 
-                if key == "message" {
+            match key {
+                CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
+                    contract_address = Some(value.to_string());
+                }
+                v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
+                    contract_address = Some(String::from_utf8(BASE64.decode(value)?)?);
+                }
+
+                MESSAGE_ATTRIBUTE_KEY => {
+                    // Intentionally using read_from to get a Result::Err if there's
+                    // an issue with the message.
                     let mut reader = Cursor::new(hex::decode(value)?);
-                    return Ok(Some(HyperlaneMessage::read_from(&mut reader)?));
+                    message = Some(HyperlaneMessage::read_from(&mut reader)?);
+                }
+                v if *MESSAGE_ATTRIBUTE_KEY_BASE64 == v => {
+                    // Intentionally using read_from to get a Result::Err if there's
+                    // an issue with the message.
+                    let mut reader =
+                        Cursor::new(hex::decode(String::from_utf8(BASE64.decode(value)?)?)?);
+                    message = Some(HyperlaneMessage::read_from(&mut reader)?);
                 }
 
-                if key == "bWVzc2FnZQ==" {
-                    let mut reader = Cursor::new(hex::decode(String::from_utf8(
-                        base64::engine::general_purpose::STANDARD.decode(value)?,
-                    )?)?);
-                    return Ok(Some(HyperlaneMessage::read_from(&mut reader)?));
-                }
+                _ => {}
             }
-            Ok(None)
         }
+
+        let contract_address = contract_address
+            .ok_or_else(|| ChainCommunicationError::from_other_str("missing contract_address"))?;
+        let message =
+            message.ok_or_else(|| ChainCommunicationError::from_other_str("missing message"))?;
+
+        Ok(ParsedEvent::new(contract_address, message))
     }
 }
 
@@ -293,8 +323,10 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let parser = self.get_parser();
-        let result = self.indexer.get_range_event_logs(range, parser).await?;
+        let result = self
+            .indexer
+            .get_range_event_logs(range, Self::hyperlane_message_parser)
+            .await?;
 
         Ok(result)
     }
@@ -307,13 +339,8 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
 #[async_trait]
 impl Indexer<H256> for CosmosMailboxIndexer {
     async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
-        let parser = self.get_parser();
-        let result = self.indexer.get_range_event_logs(range, parser).await?;
-
-        Ok(result
-            .into_iter()
-            .map(|(msg, meta)| (msg.id(), meta))
-            .collect())
+        // TODO: implement when implementing Cosmos scraping
+        todo!()
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
@@ -339,5 +366,43 @@ impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
         let sequence = self.mailbox.nonce_at_block(Some(tip.into())).await?;
 
         Ok((Some(sequence), tip))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cosmrs::tendermint::abci::EventAttribute;
+    use hyperlane_core::HyperlaneMessage;
+
+    use crate::{rpc::ParsedEvent, utils::event_attributes_from_str};
+
+    use super::*;
+
+    #[test]
+    fn test_hyperlane_message_parser() {
+        // Examples from https://rpc-kralum.neutron-1.neutron.org/tx_search?query=%22tx.height%20%3E=%204000000%20AND%20tx.height%20%3C=%204100000%20AND%20wasm-mailbox_dispatch._contract_address%20=%20%27neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4%27%22&prove=false&page=1&per_page=100
+
+        let expected = ParsedEvent::new(
+            "neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4".into(),
+            HyperlaneMessage::from(hex::decode("03000000006e74726e0000000000000000000000006ba6343a09a60ac048d0e99f50b76fd99eff1063000000a9000000000000000000000000281973b53c9aacec128ac964a6f750fea40912aa48656c6c6f2066726f6d204e657574726f6e204d61696e6e657420746f204d616e74612050616369666963206f63742032392c2031323a353520616d").unwrap()),
+        );
+
+        let assert_parsed_event = |attrs: &Vec<EventAttribute>| {
+            let parsed_event = CosmosMailboxIndexer::hyperlane_message_parser(attrs).unwrap();
+
+            assert_eq!(parsed_event, expected);
+        };
+
+        // Non-base64 version
+        let non_base64_attrs = event_attributes_from_str(
+            r#"[{"key":"_contract_address","value":"neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4","index":true},{"key":"sender","value":"0000000000000000000000006ba6343a09a60ac048d0e99f50b76fd99eff1063","index":true},{"key":"destination","value":"169","index":true},{"key":"recipient","value":"000000000000000000000000281973b53c9aacec128ac964a6f750fea40912aa","index":true},{"key":"message","value":"03000000006e74726e0000000000000000000000006ba6343a09a60ac048d0e99f50b76fd99eff1063000000a9000000000000000000000000281973b53c9aacec128ac964a6f750fea40912aa48656c6c6f2066726f6d204e657574726f6e204d61696e6e657420746f204d616e74612050616369666963206f63742032392c2031323a353520616d","index":true}]"#,
+        );
+        assert_parsed_event(&non_base64_attrs);
+
+        // Base64 version
+        let base64_attrs = event_attributes_from_str(
+            r#"[{"key":"X2NvbnRyYWN0X2FkZHJlc3M=","value":"bmV1dHJvbjFzanp6ZDRnd2tnZ3k2aHJyczhreHhhdGV4emN1ejNqZWNzeG0zd3FncmVna3Vsemo4cjdxbG51ZWY0","index":true},{"key":"c2VuZGVy","value":"MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNmJhNjM0M2EwOWE2MGFjMDQ4ZDBlOTlmNTBiNzZmZDk5ZWZmMTA2Mw==","index":true},{"key":"ZGVzdGluYXRpb24=","value":"MTY5","index":true},{"key":"cmVjaXBpZW50","value":"MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMjgxOTczYjUzYzlhYWNlYzEyOGFjOTY0YTZmNzUwZmVhNDA5MTJhYQ==","index":true},{"key":"bWVzc2FnZQ==","value":"MDMwMDAwMDAwMDZlNzQ3MjZlMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNmJhNjM0M2EwOWE2MGFjMDQ4ZDBlOTlmNTBiNzZmZDk5ZWZmMTA2MzAwMDAwMGE5MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMjgxOTczYjUzYzlhYWNlYzEyOGFjOTY0YTZmNzUwZmVhNDA5MTJhYTQ4NjU2YzZjNmYyMDY2NzI2ZjZkMjA0ZTY1NzU3NDcyNmY2ZTIwNGQ2MTY5NmU2ZTY1NzQyMDc0NmYyMDRkNjE2ZTc0NjEyMDUwNjE2MzY5NjY2OTYzMjA2ZjYzNzQyMDMyMzkyYzIwMzEzMjNhMzUzNTIwNjE2ZA==","index":true}]"#,
+        );
+        assert_parsed_event(&base64_attrs);
     }
 }
