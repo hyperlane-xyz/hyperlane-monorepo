@@ -121,7 +121,9 @@ impl CosmosWasmIndexer {
 
                     parser(&event.attributes)
                         .map_err(|err| {
-                            tracing::warn!(?err, tx_hash=?tx.hash, log_idx, ?event, "Failed to parse event attributes");
+                            // This can happen if we attempt to parse an event that just happens
+                            // to have the same name but a different structure.
+                            tracing::trace!(?err, tx_hash=?tx.hash, log_idx, ?event, "Failed to parse event attributes");
                         })
                         .ok()
                         .flatten()
@@ -138,10 +140,11 @@ impl CosmosWasmIndexer {
                             Some((parsed_event.event, LogMeta {
                                 address: self.contract_address,
                                 block_number: tx.height.value(),
-                                // FIXME: block_hash is not available in tx_search
+                                // FIXME: block_hash is not available in tx_search.
+                                // This isn't strictly required atm.
                                 block_hash: H256::zero(),
                                 transaction_id: h256_to_h512(H256::from_slice(tx.hash.as_bytes())),
-                                transaction_index: tx.index as u64,
+                                transaction_index: tx.index.into(),
                                 log_index: U256::from(log_idx),
                             }))
                         })
