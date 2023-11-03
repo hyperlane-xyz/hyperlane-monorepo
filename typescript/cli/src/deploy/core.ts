@@ -7,6 +7,7 @@ import {
   CoreConfig,
   DeployedIsm,
   GasOracleContractType,
+  HookType,
   HyperlaneAddresses,
   HyperlaneAddressesMap,
   HyperlaneContractsMap,
@@ -14,11 +15,11 @@ import {
   HyperlaneDeploymentArtifacts,
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
-  HyperlaneIsmFactoryDeployer,
+  HyperlaneProxyFactoryDeployer,
+  IgpConfig,
   ModuleType,
   MultiProvider,
   MultisigIsmConfig,
-  OverheadIgpConfig,
   RoutingIsmConfig,
   agentStartBlocks,
   buildAgentConfig,
@@ -55,6 +56,7 @@ export async function runCoreDeploy({
   chainConfigPath,
   chains,
   ismConfigPath,
+  hookConfigPath,
   artifactsPath,
   outPath,
   skipConfirmation,
@@ -63,6 +65,7 @@ export async function runCoreDeploy({
   chainConfigPath: string;
   chains?: ChainName[];
   ismConfigPath?: string;
+  hookConfigPath?: string;
   artifactsPath?: string;
   outPath: string;
   skipConfirmation: boolean;
@@ -80,6 +83,7 @@ export async function runCoreDeploy({
   }
   const artifacts = await runArtifactStep(chains, artifactsPath);
   const multisigConfig = await runIsmStep(chains, ismConfigPath);
+  await runHookStep(chains, hookConfigPath);
 
   const deploymentParams: DeployParams = {
     chains,
@@ -157,6 +161,10 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
   return configs;
 }
 
+async function runHookStep(_: ChainName[], __?: string) {
+  // TODO: implement hook config
+}
+
 interface DeployParams {
   chains: string[];
   signer: ethers.Signer;
@@ -217,7 +225,7 @@ async function executeDeploy({
 
   // 1. Deploy ISM factories to all deployable chains that don't have them.
   log('Deploying ISM factory contracts');
-  const ismFactoryDeployer = new HyperlaneIsmFactoryDeployer(multiProvider);
+  const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
   ismFactoryDeployer.cacheAddressesMap(mergedContractAddrs);
   const ismFactoryContracts = await ismFactoryDeployer.deploy(chains);
   artifacts = writeMergedAddresses(
@@ -270,7 +278,8 @@ async function executeDeploy({
   // 4. Deploy core contracts to chains
   log(`Deploying core contracts to ${chains.join(', ')}`);
   const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
-  coreDeployer.cacheAddressesMap(artifacts);
+  console.log('Caching addresses map', artifacts);
+  // coreDeployer.cacheAddressesMap(artifacts);
   const coreConfigs = buildCoreConfigMap(owner, chains, defaultIsms);
   console.log('===coreconfigs', coreConfigs); //TODO remove
   const coreContracts = await coreDeployer.deploy(coreConfigs);
@@ -325,9 +334,12 @@ function buildCoreConfigMap(
   defaultIsms: ChainMap<Address>,
 ): ChainMap<CoreConfig> {
   return chains.reduce<ChainMap<CoreConfig>>((config, chain) => {
+    // const defaultHook = artifacts.mailbox
     config[chain] = {
       owner,
       defaultIsm: defaultIsms[chain],
+      defaultHook: { type: HookType.MERKLE_TREE },
+      requiredHook: { type: HookType.MERKLE_TREE }, // TODO: revisit
     };
     return config;
   }, {});
@@ -355,12 +367,12 @@ function buildIgpConfigMap(
   owner: Address,
   chains: ChainName[],
   multisigIsmConfigs: ChainMap<MultisigIsmConfig>,
-): ChainMap<OverheadIgpConfig> {
+): ChainMap<IgpConfig> {
   const mergedMultisigIsmConfig: ChainMap<MultisigIsmConfig> = objMerge(
     defaultMultisigIsmConfigs,
     multisigIsmConfigs,
   );
-  const configMap: ChainMap<OverheadIgpConfig> = {};
+  const configMap: ChainMap<IgpConfig> = {};
   for (const chain of chains) {
     const overhead: ChainMap<number> = {};
     const gasOracleType: ChainMap<GasOracleContractType> = {};
@@ -400,6 +412,7 @@ async function writeAgentConfig(
   chains: ChainName[],
   multiProvider: MultiProvider,
 ) {
+  // TODO: share with rust/config/*
   const startBlocks: ChainMap<number> = { ...agentStartBlocks };
 
   for (const chain of chains) {

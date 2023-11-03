@@ -16,7 +16,7 @@ import {
   TokenType,
   chainMetadata as defaultChainMetadata,
 } from '@hyperlane-xyz/sdk';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
@@ -127,9 +127,9 @@ async function runBuildConfigStep({
         base.interchainSecurityModule ||
         mergedContractAddrs[baseChainName].interchainSecurityModule ||
         mergedContractAddrs[baseChainName].multisigIsm,
-      interchainGasPaymaster:
-        base.interchainGasPaymaster ||
-        mergedContractAddrs[baseChainName].defaultIsmInterchainGasPaymaster,
+      // interchainGasPaymaster: // TODO: igp as hook
+      //   base.interchainGasPaymaster ||
+      //   mergedContractAddrs[baseChainName].defaultIsmInterchainGasPaymaster,
       foreignDeployment: base.foreignDeployment,
       name: baseMetadata.name,
       symbol: baseMetadata.symbol,
@@ -150,9 +150,9 @@ async function runBuildConfigStep({
         synthetic.interchainSecurityModule ||
         mergedContractAddrs[sChainName].interchainSecurityModule ||
         mergedContractAddrs[sChainName].multisigIsm,
-      interchainGasPaymaster:
-        synthetic.interchainGasPaymaster ||
-        mergedContractAddrs[sChainName].defaultIsmInterchainGasPaymaster,
+      // interchainGasPaymaster:
+      //   synthetic.interchainGasPaymaster ||
+      //   mergedContractAddrs[sChainName].defaultIsmInterchainGasPaymaster,
       foreignDeployment: synthetic.foreignDeployment,
     };
   }
@@ -161,7 +161,7 @@ async function runBuildConfigStep({
   const requiredRouterFields: Array<keyof ConnectionClientConfig> = [
     'mailbox',
     'interchainSecurityModule',
-    'interchainGasPaymaster',
+    // 'interchainGasPaymaster',
   ];
   let hasShownInfo = false;
   for (const [chain, token] of Object.entries(configMap)) {
@@ -329,8 +329,10 @@ function writeWarpUiTokenConfig(
       'No base Hyperlane token address deployed and no foreign deployment specified',
     );
   }
+  const chain = multiProvider.getChainMetadata(origin);
+  if (chain.protocol !== ProtocolType.Ethereum) throw Error('Unsupported VM');
   const commonFields = {
-    chainId: multiProvider.getChainId(origin),
+    chainId: multiProvider.getDomainId(origin),
     name: metadata.name,
     symbol: metadata.symbol,
     decimals: metadata.decimals,

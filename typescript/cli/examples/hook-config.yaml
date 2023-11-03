@@ -1,0 +1,12 @@
+# TODO: finalize this example
+
+anvil1:
+  type: 'merkleTree'
+anvil2:
+  type: 'aggregation'
+  hooks:
+    - type: 'merkleTree'
+      threshold: 1
+    - type: 'igp'
+      owner: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
+      oracleKey: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
