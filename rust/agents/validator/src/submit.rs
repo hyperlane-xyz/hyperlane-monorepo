@@ -167,7 +167,7 @@ impl ValidatorSubmitter {
         //
         // tree.index() will panic if the tree is empty, so we use tree.count() instead
         // and convert the correctness_checkpoint.index to a count by adding 1.
-        while correctness_checkpoint.index + 1 > tree.count() as u32 {
+        while tree.count() as u32 <= correctness_checkpoint.index {
             if let Some(insertion) = self
                 .message_db
                 .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))?
@@ -239,6 +239,8 @@ impl ValidatorSubmitter {
         &self,
         checkpoints: Vec<CheckpointWithMessageId>,
     ) -> Result<()> {
+        let last_checkpoint = checkpoints.as_slice()[checkpoints.len() - 1];
+
         for queued_checkpoint in checkpoints {
             let existing = self
                 .checkpoint_syncer
@@ -260,9 +262,15 @@ impl ValidatorSubmitter {
                 "Signed and submitted checkpoint"
             );
 
+            // TODO: move these into S3 implementations
             // small sleep before signing next checkpoint to avoid rate limiting
             sleep(Duration::from_millis(100)).await;
         }
+
+        self.checkpoint_syncer
+            .update_latest_index(last_checkpoint.index)
+            .await?;
+
         Ok(())
     }
 }
