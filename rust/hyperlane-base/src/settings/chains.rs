@@ -387,9 +387,12 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosMerkleTreeHookIndexer::new(
                     conf.clone(),
                     locator,
+                    // TODO: remove signer requirement entirely
+                    signer.unwrap().clone(),
                     self.reorg_period,
                 ));
                 Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
