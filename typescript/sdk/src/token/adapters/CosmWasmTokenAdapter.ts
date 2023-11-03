@@ -37,7 +37,7 @@ import {
   TransferRemoteParams,
 } from './ITokenAdapter';
 
-// Interacts with IBC denom tokens
+// Interacts with IBC denom tokens in CosmWasm
 export class CwNativeTokenAdapter
   extends BaseCosmWasmAdapter
   implements ITokenAdapter

@@ -14,7 +14,7 @@ import {
   CoinGeckoSimplePriceParams,
 } from '../gas/token-prices';
 import { HookType } from '../hook/types';
-import { ModuleType } from '../ism/types';
+import { IsmType } from '../ism/types';
 import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
@@ -51,7 +51,7 @@ export function testCoreConfig(
   const chainConfig: CoreConfig = {
     owner,
     defaultIsm: {
-      type: ModuleType.NULL,
+      type: IsmType.TEST_ISM,
     },
     defaultHook: {
       type: HookType.MERKLE_TREE,

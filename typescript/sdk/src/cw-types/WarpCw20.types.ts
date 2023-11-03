@@ -70,6 +70,9 @@ export type ExecuteMsg =
       router: RouterMsgForHexBinary;
     }
   | {
+      connection: ConnectionMsg;
+    }
+  | {
       handle: HandleMsg;
     }
   | {
@@ -77,16 +80,6 @@ export type ExecuteMsg =
         amount: Uint128;
         dest_domain: number;
         recipient: HexBinary;
-      };
-    }
-  | {
-      set_ism: {
-        ism: string;
-      };
-    }
-  | {
-      set_hook: {
-        hook: string;
       };
     };
 export type OwnableMsg =
@@ -113,6 +106,22 @@ export type RouterMsgForHexBinary =
       };
     };
 export type HexBinary = string;
+export type ConnectionMsg =
+  | {
+      set_mailbox: {
+        mailbox: string;
+      };
+    }
+  | {
+      set_hook: {
+        hook: string;
+      };
+    }
+  | {
+      set_ism: {
+        ism: string;
+      };
+    };
 export interface DomainRouteSetForHexBinary {
   domain: number;
   route?: HexBinary | null;
@@ -128,6 +137,9 @@ export type QueryMsg =
     }
   | {
       router: RouterQueryForHexBinary;
+    }
+  | {
+      connection: ConnectionQueryMsg;
     }
   | {
       token_default: TokenWarpDefaultQueryMsg;
@@ -159,6 +171,16 @@ export type RouterQueryForHexBinary =
       };
     };
 export type Order = 'asc' | 'desc';
+export type ConnectionQueryMsg =
+  | {
+      get_mailbox: {};
+    }
+  | {
+      get_hook: {};
+    }
+  | {
+      get_ism: {};
+    };
 export type TokenWarpDefaultQueryMsg =
   | {
       token_type: {};
@@ -171,6 +193,15 @@ export type IsmSpecifierQueryMsg = {
 };
 export interface DomainsResponse {
   domains: number[];
+}
+export interface HookResponse {
+  hook?: string | null;
+}
+export interface IsmResponse {
+  ism?: string | null;
+}
+export interface MailboxResponse {
+  mailbox?: string | null;
 }
 export type Addr = string;
 export interface OwnerResponse {

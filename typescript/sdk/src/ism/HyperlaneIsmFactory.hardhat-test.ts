@@ -15,6 +15,7 @@ import {
 import {
   AggregationIsmConfig,
   IsmConfig,
+  IsmType,
   ModuleType,
   MultisigIsmConfig,
   RoutingIsmConfig,
@@ -33,7 +34,7 @@ const randomMultisigIsmConfig = (m: number, n: number): MultisigIsmConfig => {
   const emptyArray = new Array<number>(n).fill(0);
   const validators = emptyArray.map(() => randomAddress());
   return {
-    type: ModuleType.MERKLE_ROOT_MULTISIG,
+    type: IsmType.MERKLE_ROOT_MULTISIG,
     validators,
     threshold: m,
   };
@@ -47,7 +48,7 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
     return randomMultisigIsmConfig(randomInt(n, 1), n);
   } else if (moduleType === ModuleType.ROUTING) {
     const config: RoutingIsmConfig = {
-      type: ModuleType.ROUTING,
+      type: IsmType.ROUTING,
       owner: randomAddress(),
       domains: Object.fromEntries(
         TestChains.map((c) => [c, randomIsmConfig(depth + 1)]),
@@ -60,7 +61,7 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
       .fill(0)
       .map(() => randomIsmConfig(depth + 1));
     const config: AggregationIsmConfig = {
-      type: ModuleType.AGGREGATION,
+      type: IsmType.AGGREGATION,
       threshold: randomInt(n, 1),
       modules,
     };

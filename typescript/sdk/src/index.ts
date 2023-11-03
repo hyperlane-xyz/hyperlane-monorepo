@@ -112,10 +112,13 @@ export {
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
 export {
   AggregationHookConfig,
+  DomainRoutingHookConfig,
+  FallbackRoutingHookConfig,
   HookConfig,
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
+  OpStackHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types';
 export {
@@ -127,9 +130,11 @@ export {
   AggregationIsmConfig,
   DeployedIsm,
   IsmConfig,
+  IsmType,
   ModuleType,
   MultisigConfig,
   MultisigIsmConfig,
+  OpStackIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
 export {
