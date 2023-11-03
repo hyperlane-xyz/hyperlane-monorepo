@@ -165,8 +165,6 @@ impl CosmosMerkleTreeHook {
 
 // ------------------ Indexer ------------------
 
-const EVENT_TYPE: &str = "hpl_hook_merkle::post_dispatch";
-
 const INDEX_ATTRIBUTE_KEY: &str = "index";
 pub(crate) static INDEX_ATTRIBUTE_KEY_BASE64: Lazy<String> =
     Lazy::new(|| BASE64.encode(CONTRACT_ADDRESS_ATTRIBUTE_KEY));
@@ -185,6 +183,9 @@ pub struct CosmosMerkleTreeHookIndexer {
 }
 
 impl CosmosMerkleTreeHookIndexer {
+    /// The message dispatch event type from the CW contract.
+    const MERKLE_TREE_INSERTION_EVENT_TYPE: &str = "hpl_hook_merkle::post_dispatch";
+
     /// create new Cosmos MerkleTreeHookIndexer agent
     pub fn new(
         conf: ConnectionConf,
@@ -195,7 +196,7 @@ impl CosmosMerkleTreeHookIndexer {
         let indexer = CosmosWasmIndexer::new(
             conf.clone(),
             locator.clone(),
-            EVENT_TYPE.to_string(),
+            Self::MERKLE_TREE_INSERTION_EVENT_TYPE.into(),
             reorg_period,
         )?;
 
@@ -300,5 +301,45 @@ impl SequenceIndexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
 
 #[cfg(test)]
 mod tests {
+    use cosmrs::tendermint::abci::EventAttribute;
+    use hyperlane_core::{HyperlaneMessage, H256, U256};
+    use std::str::FromStr;
+
+    use crate::{rpc::ParsedEvent, utils::event_attributes_from_str};
+
     use super::*;
+
+    #[test]
+    fn test_merkle_tree_insertion_parser() {
+        // Examples from https://rpc-kralum.neutron-1.neutron.org/tx_search?query=%22tx.height%20%3E=%204000000%20AND%20tx.height%20%3C=%204100000%20AND%20wasm-mailbox_dispatch._contract_address%20=%20%27neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4%27%22&prove=false&page=1&per_page=100
+
+        let expected = ParsedEvent::new(
+            "neutron1e5c2qqquc86rd3q77aj2wyht40z6z3q5pclaq040ue9f5f8yuf7qnpvkzk".into(),
+            MerkleTreeInsertion::new(
+                4,
+                H256::from_str("a21078beac8bc19770d532eed0b4ada5ef0b45992cde219979f07e3e49185384")
+                    .unwrap(),
+            ),
+        );
+
+        let assert_parsed_event = |attrs: &Vec<EventAttribute>| {
+            let parsed_event = CosmosMerkleTreeHookIndexer::merkle_tree_insertion_parser(attrs)
+                .unwrap()
+                .unwrap();
+
+            assert_eq!(parsed_event, expected,);
+        };
+
+        // Non-base64 version
+        let non_base64_attrs = event_attributes_from_str(
+            r#"[{"key":"_contract_address","value":"neutron1e5c2qqquc86rd3q77aj2wyht40z6z3q5pclaq040ue9f5f8yuf7qnpvkzk","index":true},{"key":"index","value":"4","index":true},{"key":"message_id","value":"a21078beac8bc19770d532eed0b4ada5ef0b45992cde219979f07e3e49185384","index":true}]"#,
+        );
+        assert_parsed_event(&non_base64_attrs);
+
+        // Base64 version
+        let base64_attrs = event_attributes_from_str(
+            r#"[{"key":"X2NvbnRyYWN0X2FkZHJlc3M=","value":"bmV1dHJvbjFlNWMycXFxdWM4NnJkM3E3N2FqMnd5aHQ0MHo2ejNxNXBjbGFxMDQwdWU5ZjVmOHl1ZjdxbnB2a3pr","index":true},{"key":"aW5kZXg=","value":"NA==","index":true},{"key":"bWVzc2FnZV9pZA==","value":"YTIxMDc4YmVhYzhiYzE5NzcwZDUzMmVlZDBiNGFkYTVlZjBiNDU5OTJjZGUyMTk5NzlmMDdlM2U0OTE4NTM4NA==","index":true}]"#,
+        );
+        assert_parsed_event(&base64_attrs);
+    }
 }

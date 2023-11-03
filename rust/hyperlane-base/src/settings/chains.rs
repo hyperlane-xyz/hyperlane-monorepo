@@ -228,7 +228,6 @@ impl ChainConf {
                     conf.clone(),
                     locator,
                     signer.clone(),
-                    "mailbox_dispatch".to_string(),
                     self.reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
@@ -268,7 +267,6 @@ impl ChainConf {
                     conf.clone(),
                     locator,
                     signer,
-                    "mailbox_process".to_string(),
                     self.reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceIndexer<H256>>)

@@ -30,3 +30,17 @@ pub(crate) async fn get_block_height_for_lag(
 
     Ok(block_height)
 }
+
+#[cfg(test)]
+/// Helper function to create a Vec<EventAttribute> from a JSON string -
+/// crate::payloads::general::EventAttribute has a Deserialize impl while
+/// cosmrs::tendermint::abci::EventAttribute does not.
+pub(crate) fn event_attributes_from_str(
+    attrs_str: &str,
+) -> Vec<cosmrs::tendermint::abci::EventAttribute> {
+    serde_json::from_str::<Vec<crate::payloads::general::EventAttribute>>(attrs_str)
+        .unwrap()
+        .into_iter()
+        .map(|attr| attr.into())
+        .collect()
+}

@@ -249,17 +249,24 @@ pub struct CosmosMailboxIndexer {
 }
 
 impl CosmosMailboxIndexer {
+    /// The message dispatch event type from the CW contract.
+    const MESSAGE_DISPATCH_EVENT_TYPE: &str = "mailbox_dispatch";
+
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
         signer: Signer,
-        event_type: String,
         reorg_period: u32,
     ) -> ChainResult<Self> {
         let mailbox = CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone());
-        let indexer = CosmosWasmIndexer::new(conf, locator, event_type, reorg_period)?;
+        let indexer = CosmosWasmIndexer::new(
+            conf,
+            locator,
+            Self::MESSAGE_DISPATCH_EVENT_TYPE.into(),
+            reorg_period,
+        )?;
 
         Ok(Self {
             mailbox,
@@ -363,5 +370,41 @@ impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
 
 #[cfg(test)]
 mod tests {
+    use cosmrs::tendermint::abci::EventAttribute;
+    use hyperlane_core::{HyperlaneMessage, H256, U256};
+    use std::str::FromStr;
+
+    use crate::{rpc::ParsedEvent, utils::event_attributes_from_str};
+
     use super::*;
+
+    #[test]
+    fn test_hyperlane_message_parser() {
+        // Examples from https://rpc-kralum.neutron-1.neutron.org/tx_search?query=%22tx.height%20%3E=%204000000%20AND%20tx.height%20%3C=%204100000%20AND%20wasm-mailbox_dispatch._contract_address%20=%20%27neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4%27%22&prove=false&page=1&per_page=100
+
+        let expected = ParsedEvent::new(
+            "neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4".into(),
+            HyperlaneMessage::from(hex::decode("03000000006e74726e0000000000000000000000006ba6343a09a60ac048d0e99f50b76fd99eff1063000000a9000000000000000000000000281973b53c9aacec128ac964a6f750fea40912aa48656c6c6f2066726f6d204e657574726f6e204d61696e6e657420746f204d616e74612050616369666963206f63742032392c2031323a353520616d").unwrap()),
+        );
+
+        let assert_parsed_event = |attrs: &Vec<EventAttribute>| {
+            let parsed_event = CosmosMailboxIndexer::hyperlane_message_parser(attrs)
+                .unwrap()
+                .unwrap();
+
+            assert_eq!(parsed_event, expected,);
+        };
+
+        // Non-base64 version
+        let non_base64_attrs = event_attributes_from_str(
+            r#"[{"key":"_contract_address","value":"neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4","index":true},{"key":"sender","value":"0000000000000000000000006ba6343a09a60ac048d0e99f50b76fd99eff1063"},{"key":"destination","value":"169","index":true},{"key":"recipient","value":"000000000000000000000000281973b53c9aacec128ac964a6f750fea40912aa","index":true},{"key":"message","value":"03000000006e74726e0000000000000000000000006ba6343a09a60ac048d0e99f50b76fd99eff1063000000a9000000000000000000000000281973b53c9aacec128ac964a6f750fea40912aa48656c6c6f2066726f6d204e657574726f6e204d61696e6e657420746f204d616e74612050616369666963206f63742032392c2031323a353520616d","index":true}]"#,
+        );
+        assert_parsed_event(&non_base64_attrs);
+
+        // Base64 version
+        let base64_attrs = event_attributes_from_str(
+            r#"[{"key":"X2NvbnRyYWN0X2FkZHJlc3M=","value":"bmV1dHJvbjFzanp6ZDRnd2tnZ3k2aHJyczhreHhhdGV4emN1ejNqZWNzeG0zd3FncmVna3Vsemo4cjdxbG51ZWY0","index":true},{"key":"c2VuZGVy","value":"MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNmJhNjM0M2EwOWE2MGFjMDQ4ZDBlOTlmNTBiNzZmZDk5ZWZmMTA2Mw==","index":true},{"key":"ZGVzdGluYXRpb24=","value":"MTY5","index":true},{"key":"cmVjaXBpZW50","value":"MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMjgxOTczYjUzYzlhYWNlYzEyOGFjOTY0YTZmNzUwZmVhNDA5MTJhYQ==","index":true},{"key":"bWVzc2FnZQ==","value":"MDMwMDAwMDAwMDZlNzQ3MjZlMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNmJhNjM0M2EwOWE2MGFjMDQ4ZDBlOTlmNTBiNzZmZDk5ZWZmMTA2MzAwMDAwMGE5MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMjgxOTczYjUzYzlhYWNlYzEyOGFjOTY0YTZmNzUwZmVhNDA5MTJhYTQ4NjU2YzZjNmYyMDY2NzI2ZjZkMjA0ZTY1NzU3NDcyNmY2ZTIwNGQ2MTY5NmU2ZTY1NzQyMDc0NmYyMDRkNjE2ZTc0NjEyMDUwNjE2MzY5NjY2OTYzMjA2ZjYzNzQyMDMyMzkyYzIwMzEzMjNhMzUzNTIwNjE2ZA==","index":true}]"#,
+        );
+        assert_parsed_event(&base64_attrs);
+    }
 }

@@ -214,6 +214,7 @@ impl WasmIndexer for CosmosWasmIndexer {
     }
 }
 
+// TODO: just use div_ceil when upgrading from 1.72.1 to 1.73.0 or above
 fn div_ceil(numerator: u32, denominator: u32) -> u32 {
-    (numerator + denominator - 1) / denominator
+    (numerator as f32 / denominator as f32).ceil() as u32
 }

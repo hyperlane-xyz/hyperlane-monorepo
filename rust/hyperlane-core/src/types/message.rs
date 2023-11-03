@@ -21,7 +21,7 @@ impl From<&HyperlaneMessage> for RawHyperlaneMessage {
 }
 
 /// A full Hyperlane message between chains
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Eq, PartialEq)]
 pub struct HyperlaneMessage {
     /// 1   Hyperlane version number
     pub version: u8,
