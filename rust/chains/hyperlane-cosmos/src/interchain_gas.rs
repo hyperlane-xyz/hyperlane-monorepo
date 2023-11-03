@@ -164,16 +164,16 @@ impl CosmosInterchainGasPaymasterIndexer {
         );
 
         let payment =
-            unwrap_or_none_result!(payment, debug!("No message ID found in event attributes"));
+            unwrap_or_none_result!(payment, debug!("No payment found in event attributes"));
 
         let gas_amount = unwrap_or_none_result!(
             gas_amount,
-            debug!("No message ID found in event attributes")
+            debug!("No gas_amount found in event attributes")
         );
 
         let destination = unwrap_or_none_result!(
             destination,
-            debug!("No message ID found in event attributes")
+            debug!("No destination found in event attributes")
         );
 
         Ok(Some(ParsedEvent::new(
