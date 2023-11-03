@@ -152,10 +152,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .enumerate()
             .zip(sub_modules.into_iter())
             .partition(|&((_, ref meta_result), ref sub_module_result)| {
-                match (meta_result, sub_module_result) {
-                    (Ok(Some(_)), Ok(_)) => true,
-                    _ => false,
-                }
+                matches!((meta_result, sub_module_result), (Ok(Some(_)), Ok(_)))
             });
         let valid_sub_module_metas: Vec<_> = valid_sub_modules
             .into_iter()

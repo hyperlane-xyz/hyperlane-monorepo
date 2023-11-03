@@ -14,6 +14,7 @@ use crate::prover::{Prover, ProverError};
 /// Struct to sync prover.
 #[derive(Debug)]
 pub struct MerkleTreeBuilder {
+    #[allow(dead_code)]
     db: HyperlaneRocksDB,
     prover: Prover,
     incremental: IncrementalMerkle,
