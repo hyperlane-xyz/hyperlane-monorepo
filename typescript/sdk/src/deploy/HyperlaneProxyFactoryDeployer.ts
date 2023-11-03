@@ -28,6 +28,7 @@ export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
     for (const factoryName of Object.keys(
       this.factories,
     ) as (keyof ProxyFactoryFactories)[]) {
+      // TODO: fix bug with default fallback routing ISM factory constructor args
       const factory = await this.deployContract(chain, factoryName, []);
       this.addVerificationArtifacts(chain, [
         {
