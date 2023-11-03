@@ -21,6 +21,7 @@ import {
 
 import {
   WarpTokenConfig,
+  arbneutrontiaList,
   nautilusList,
   neutronList,
 } from '../../src/config/grafana_token_config';
@@ -49,11 +50,15 @@ async function main(): Promise<boolean> {
     .alias('c', 'config')
     .describe('config', 'choose warp token config')
     .demandOption('config')
-    .choices('config', ['neutron', 'nautilus'])
+    .choices('config', ['neutron', 'nautilus', 'arbneutrontia'])
     .parse();
 
   const tokenList: WarpTokenConfig =
-    config === 'neutron' ? neutronList : nautilusList;
+    config === 'neutron'
+      ? neutronList
+      : config === 'arbneutrontia'
+      ? arbneutrontiaList
+      : nautilusList;
 
   startMetricsServer(metricsRegister);
 

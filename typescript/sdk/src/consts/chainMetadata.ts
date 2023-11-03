@@ -705,7 +705,7 @@ export const mantapacific: ChainMetadata = {
   blockExplorers: [
     {
       name: 'Manta Pacific Explorer',
-      url: 'https://pacific-explorer.manta.network/',
+      url: 'https://pacific-explorer.manta.network',
       apiUrl: 'https://pacific-explorer.manta.network/api',
       family: ExplorerFamily.Blockscout,
     },

@@ -6,7 +6,7 @@ async function main() {
   await runWarpRouteHelmCommand(
     HelmCommand.InstallOrUpgrade,
     'mainnet2',
-    'neutron',
+    'arbneutrontia',
   );
 }
 
