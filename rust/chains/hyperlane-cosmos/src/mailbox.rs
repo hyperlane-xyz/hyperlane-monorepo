@@ -364,12 +364,4 @@ impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_base64_keys() {
-        assert_eq!(
-            MESSAGE_ATTRIBUTE_KEY_BASE64,
-            BASE64.encode(MESSAGE_ATTRIBUTE_KEY)
-        );
-    }
 }

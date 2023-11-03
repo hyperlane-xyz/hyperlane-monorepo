@@ -301,16 +301,4 @@ impl SequenceIndexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_base64_keys() {
-        assert_eq!(
-            INDEX_ATTRIBUTE_KEY_BASE64,
-            BASE64.encode(INDEX_ATTRIBUTE_KEY)
-        );
-        assert_eq!(
-            MESSAGE_ID_ATTRIBUTE_KEY_BASE64,
-            BASE64.encode(MESSAGE_ID_ATTRIBUTE_KEY)
-        );
-    }
 }

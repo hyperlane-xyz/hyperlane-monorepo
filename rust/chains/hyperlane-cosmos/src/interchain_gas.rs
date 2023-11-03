@@ -237,34 +237,48 @@ mod tests {
     fn test_interchain_gas_payment_parser() {
         // Examples from https://rpc-kralum.neutron-1.neutron.org/tx_search?query=%22tx.height%20%3E=%204000000%20AND%20tx.height%20%3C=%204100000%20AND%20wasm-igp-core-pay-for-gas._contract_address%20=%20%27neutron12p8wntzra3vpfcqv05scdx5sa3ftaj6gjcmtm7ynkl0e6crtt4ns8cnrmx%27%22&prove=false&page=1&per_page=100
 
+        let assert_parsed_event = |attrs: &Vec<EventAttribute>| {
+            let parsed_event =
+                CosmosInterchainGasPaymasterIndexer::interchain_gas_payment_parser(attrs)
+                    .unwrap()
+                    .unwrap();
+
+            assert_eq!(
+                parsed_event,
+                ParsedEvent::new(
+                    "neutron12p8wntzra3vpfcqv05scdx5sa3ftaj6gjcmtm7ynkl0e6crtt4ns8cnrmx".into(),
+                    InterchainGasPayment {
+                        message_id: H256::from_str(
+                            "5dcf6120f8adf4f267eb1a122a85c42eae257fbc872671e93929fbf63daed19b"
+                        )
+                        .unwrap(),
+                        payment: U256::from(2),
+                        gas_amount: U256::from(25000),
+                        destination: 169,
+                    }
+                ),
+            );
+        };
+
         // Non-base64 version
         let non_base64_attrs = r#"[{"key":"_contract_address","value":"neutron12p8wntzra3vpfcqv05scdx5sa3ftaj6gjcmtm7ynkl0e6crtt4ns8cnrmx", "index": true},{"key":"dest_domain","value":"169", "index": true},{"key":"gas_amount","value":"25000", "index": true},{"key":"gas_refunded","value":"0", "index": true},{"key":"gas_required","value":"2", "index": true},{"key":"message_id","value":"5dcf6120f8adf4f267eb1a122a85c42eae257fbc872671e93929fbf63daed19b", "index": true},{"key":"payment","value":"2", "index": true},{"key":"sender","value":"neutron1vdazwhwkh9wy6ue66pjpuvrxcrywv2ww956dq6ls2gh0n7t9f5rs2hydt2", "index": true}]"#;
-        let non_base64_attrs: Vec<crate::payloads::general::EventAttribute> =
-            serde_json::from_str(non_base64_attrs).unwrap();
-        let non_base64_attrs: Vec<EventAttribute> = non_base64_attrs
-            .into_iter()
-            .map(|attr| attr.into())
-            .collect();
-
-        let parsed_event =
-            CosmosInterchainGasPaymasterIndexer::interchain_gas_payment_parser(&non_base64_attrs)
+        let non_base64_attrs: Vec<EventAttribute> =
+            serde_json::from_str::<Vec<crate::payloads::general::EventAttribute>>(non_base64_attrs)
                 .unwrap()
-                .unwrap();
+                .into_iter()
+                .map(|attr| attr.into())
+                .collect();
+        assert_parsed_event(&non_base64_attrs);
 
-        assert_eq!(
-            parsed_event,
-            ParsedEvent::new(
-                "neutron12p8wntzra3vpfcqv05scdx5sa3ftaj6gjcmtm7ynkl0e6crtt4ns8cnrmx".into(),
-                InterchainGasPayment {
-                    message_id: H256::from_str(
-                        "5dcf6120f8adf4f267eb1a122a85c42eae257fbc872671e93929fbf63daed19b"
-                    )
-                    .unwrap(),
-                    payment: U256::from(2),
-                    gas_amount: U256::from(25000),
-                    destination: 169,
-                }
-            ),
-        );
+        // Base64 version
+        let base64_attrs = r#"[{"key":"X2NvbnRyYWN0X2FkZHJlc3M=","value":"bmV1dHJvbjEycDh3bnR6cmEzdnBmY3F2MDVzY2R4NXNhM2Z0YWo2Z2pjbXRtN3lua2wwZTZjcnR0NG5zOGNucm14","index":true},{"key":"ZGVzdF9kb21haW4=","value":"MTY5","index":true},{"key":"Z2FzX2Ftb3VudA==","value":"MjUwMDA=","index":true},{"key":"Z2FzX3JlZnVuZGVk","value":"MA==","index":true},{"key":"Z2FzX3JlcXVpcmVk","value":"Mg==","index":true},{"key":"bWVzc2FnZV9pZA==","value":"NWRjZjYxMjBmOGFkZjRmMjY3ZWIxYTEyMmE4NWM0MmVhZTI1N2ZiYzg3MjY3MWU5MzkyOWZiZjYzZGFlZDE5Yg==","index":true},{"key":"cGF5bWVudA==","value":"Mg==","index":true},{"key":"c2VuZGVy","value":"bmV1dHJvbjF2ZGF6d2h3a2g5d3k2dWU2NnBqcHV2cnhjcnl3djJ3dzk1NmRxNmxzMmdoMG43dDlmNXJzMmh5ZHQy","index":true}]"#;
+        let base64_attrs: Vec<EventAttribute> =
+            serde_json::from_str::<Vec<crate::payloads::general::EventAttribute>>(base64_attrs)
+                .unwrap()
+                .into_iter()
+                .map(|attr| attr.into())
+                .collect();
+
+        assert_parsed_event(&base64_attrs);
     }
 }
