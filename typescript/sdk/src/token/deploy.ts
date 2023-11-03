@@ -23,6 +23,7 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { GasRouterDeployer } from '../router/GasRouterDeployer';
 import { GasConfig, RouterConfig } from '../router/types';
@@ -54,9 +55,10 @@ export class HypERC20Deployer extends GasRouterDeployer<
   ERC20RouterConfig,
   HypERC20Factories
 > {
-  constructor(multiProvider: MultiProvider) {
+  constructor(multiProvider: MultiProvider, ismFactory?: HyperlaneIsmFactory) {
     super(multiProvider, {} as HypERC20Factories, {
       logger: debug('hyperlane:HypERC20Deployer'),
+      ismFactory,
     }); // factories not used in deploy
   }
 
