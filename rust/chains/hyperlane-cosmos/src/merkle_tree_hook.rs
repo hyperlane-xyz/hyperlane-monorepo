@@ -9,6 +9,7 @@ use hyperlane_core::{
     HyperlaneProvider, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer,
     H256,
 };
+use once_cell::sync::Lazy;
 use tracing::{debug, instrument};
 
 use crate::{
@@ -167,12 +168,12 @@ impl CosmosMerkleTreeHook {
 const EVENT_TYPE: &str = "hpl_hook_merkle::post_dispatch";
 
 const INDEX_ATTRIBUTE_KEY: &str = "index";
-// echo -n index | base64
-const INDEX_ATTRIBUTE_KEY_BASE64: &str = "aW5kZXg=";
+pub(crate) static INDEX_ATTRIBUTE_KEY_BASE64: Lazy<String> =
+    Lazy::new(|| BASE64.encode(CONTRACT_ADDRESS_ATTRIBUTE_KEY));
 
 const MESSAGE_ID_ATTRIBUTE_KEY: &str = "message_id";
-// echo -n message_id | base64
-const MESSAGE_ID_ATTRIBUTE_KEY_BASE64: &str = "bWVzc2FnZV9pZA==";
+pub(crate) static MESSAGE_ID_ATTRIBUTE_KEY_BASE64: Lazy<String> =
+    Lazy::new(|| BASE64.encode(CONTRACT_ADDRESS_ATTRIBUTE_KEY));
 
 #[derive(Debug)]
 /// A reference to a MerkleTreeHookIndexer contract on some Cosmos chain
@@ -219,14 +220,14 @@ impl CosmosMerkleTreeHookIndexer {
                 CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
                     contract_address = Some(value.to_string());
                 }
-                CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 => {
+                v if &*CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
                     contract_address = Some(String::from_utf8(BASE64.decode(value)?)?);
                 }
 
                 MESSAGE_ID_ATTRIBUTE_KEY => {
                     message_id = Some(H256::from_slice(hex::decode(value)?.as_slice()));
                 }
-                MESSAGE_ID_ATTRIBUTE_KEY_BASE64 => {
+                v if &*MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
                     message_id = Some(H256::from_slice(
                         hex::decode(String::from_utf8(BASE64.decode(value)?)?)?.as_slice(),
                     ));
@@ -235,7 +236,7 @@ impl CosmosMerkleTreeHookIndexer {
                 INDEX_ATTRIBUTE_KEY => {
                     leaf_index = Some(value.parse::<u32>()?);
                 }
-                INDEX_ATTRIBUTE_KEY_BASE64 => {
+                v if &*INDEX_ATTRIBUTE_KEY_BASE64 == v => {
                     leaf_index = Some(String::from_utf8(BASE64.decode(value)?)?.parse()?);
                 }
 

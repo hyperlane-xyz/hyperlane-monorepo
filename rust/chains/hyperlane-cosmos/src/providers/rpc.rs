@@ -31,7 +31,7 @@ pub trait WasmIndexer: Send + Sync {
         T: Send + Sync + 'static;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 /// An event parsed from the RPC response.
 pub struct ParsedEvent<T> {
     contract_address: String,

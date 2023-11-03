@@ -12,10 +12,10 @@ use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::CosmosProvider;
 use crate::{signers::Signer, utils::get_block_height_for_lag, verify, ConnectionConf};
 use async_trait::async_trait;
-
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
 use cosmrs::tendermint::abci::EventAttribute;
+use once_cell::sync::Lazy;
 
 use crate::{
     binary::h256_to_h512,
@@ -237,11 +237,9 @@ impl CosmosMailbox {
 
 // ------------------ Indexer ------------------
 
-/// Attribute key for the encoded Hyperlane message.
 const MESSAGE_ATTRIBUTE_KEY: &str = "message";
-/// Base64 encoded version of `MESSAGE_ATTRIBUTE_KEY`.
-/// echo -n message | base64
-const MESSAGE_ATTRIBUTE_KEY_BASE64: &str = "bWVzc2FnZQ==";
+static MESSAGE_ATTRIBUTE_KEY_BASE64: Lazy<String> =
+    Lazy::new(|| BASE64.encode(MESSAGE_ATTRIBUTE_KEY));
 
 /// Struct that retrieves event data for a Cosmos Mailbox contract
 #[derive(Debug)]
@@ -283,14 +281,14 @@ impl CosmosMailboxIndexer {
                 CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
                     contract_address = Some(value.to_string());
                 }
-                CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 => {
+                v if &*CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
                     contract_address = Some(String::from_utf8(BASE64.decode(value)?)?);
                 }
 
                 MESSAGE_ATTRIBUTE_KEY => {
                     message = Some(HyperlaneMessage::from(hex::decode(value)?));
                 }
-                MESSAGE_ATTRIBUTE_KEY_BASE64 => {
+                v if &*MESSAGE_ATTRIBUTE_KEY_BASE64 == v => {
                     message = Some(HyperlaneMessage::from(hex::decode(String::from_utf8(
                         BASE64.decode(value)?,
                     )?)?));

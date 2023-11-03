@@ -348,7 +348,6 @@ impl ChainConf {
                 let indexer = Box::new(h_cosmos::CosmosInterchainGasPaymasterIndexer::new(
                     conf.clone(),
                     locator,
-                    "igp-core-pay-for-gas".to_string(),
                     self.reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)

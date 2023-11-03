@@ -8,6 +8,7 @@ use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, Indexer,
     InterchainGasPaymaster, SequenceIndexer, U256,
 };
+use once_cell::sync::Lazy;
 use std::ops::RangeInclusive;
 
 use crate::{
@@ -58,21 +59,24 @@ impl CosmosInterchainGasPaymaster {
 
 // ------------------ Indexer ------------------
 
+/// The event type from the CW contract.
+const INTERCHAIN_GAS_PAYMENT_EVENT_TYPE: &str = "igp-core-pay-for-gas";
+
 const MESSAGE_ID_ATTRIBUTE_KEY: &str = "message_id";
-// echo -n message_id | base64
-const MESSAGE_ID_ATTRIBUTE_KEY_BASE64: &str = "bWVzc2FnZV9pZA==";
+static MESSAGE_ID_ATTRIBUTE_KEY_BASE64: Lazy<String> =
+    Lazy::new(|| BASE64.encode(MESSAGE_ID_ATTRIBUTE_KEY));
 
 const PAYMENT_ATTRIBUTE_KEY: &str = "payment";
-// echo -n payment | base64
-const PAYMENT_ATTRIBUTE_KEY_BASE64: &str = "cGF5bWVudA==";
+static PAYMENT_ATTRIBUTE_KEY_BASE64: Lazy<String> =
+    Lazy::new(|| BASE64.encode(PAYMENT_ATTRIBUTE_KEY));
 
 const GAS_AMOUNT_ATTRIBUTE_KEY: &str = "gas_amount";
-// echo -n gas_amount | base64
-const GAS_AMOUNT_ATTRIBUTE_KEY_BASE64: &str = "Z2FzX2Ftb3VudA==";
+static GAS_AMOUNT_ATTRIBUTE_KEY_BASE64: Lazy<String> =
+    Lazy::new(|| BASE64.encode(GAS_AMOUNT_ATTRIBUTE_KEY));
 
 const DESTINATION_ATTRIBUTE_KEY: &str = "dest_domain";
-// echo -n dest_domain | base64
-const DESTINATION_ATTRIBUTE_KEY_BASE64: &str = "ZGVzdF9kb21haW4=";
+static DESTINATION_ATTRIBUTE_KEY_BASE64: Lazy<String> =
+    Lazy::new(|| BASE64.encode(DESTINATION_ATTRIBUTE_KEY));
 
 /// A reference to a InterchainGasPaymasterIndexer contract on some Cosmos chain
 #[derive(Debug)]
@@ -85,10 +89,14 @@ impl CosmosInterchainGasPaymasterIndexer {
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
-        event_type: String,
         reorg_period: u32,
     ) -> ChainResult<Self> {
-        let indexer = CosmosWasmIndexer::new(conf, locator, event_type.clone(), reorg_period)?;
+        let indexer = CosmosWasmIndexer::new(
+            conf,
+            locator,
+            INTERCHAIN_GAS_PAYMENT_EVENT_TYPE.into(),
+            reorg_period,
+        )?;
 
         Ok(Self {
             indexer: Box::new(indexer),
@@ -112,32 +120,32 @@ impl CosmosInterchainGasPaymasterIndexer {
                 CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
                     contract_address = Some(value.to_string());
                 }
-                CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 => {
+                v if &*CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
                     contract_address = Some(String::from_utf8(BASE64.decode(value)?)?);
                 }
 
                 MESSAGE_ID_ATTRIBUTE_KEY => {
                     message_id = Some(H256::from_slice(hex::decode(value)?.as_slice()));
                 }
-                MESSAGE_ID_ATTRIBUTE_KEY_BASE64 => {
+                v if &*MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
                     message_id = Some(H256::from_slice(
                         hex::decode(String::from_utf8(BASE64.decode(value)?)?)?.as_slice(),
                     ));
                 }
 
                 PAYMENT_ATTRIBUTE_KEY => {
-                    payment = Some(value.parse()?);
+                    payment = Some(U256::from_dec_str(value)?);
                 }
-                PAYMENT_ATTRIBUTE_KEY_BASE64 => {
+                v if &*PAYMENT_ATTRIBUTE_KEY_BASE64 == v => {
                     let dec_str = String::from_utf8(BASE64.decode(value)?)?;
                     // U256's from_str assumes a radix of 16, so we explicitly use from_dec_str.
                     payment = Some(U256::from_dec_str(dec_str.as_str())?);
                 }
 
                 GAS_AMOUNT_ATTRIBUTE_KEY => {
-                    gas_amount = Some(value.parse()?);
+                    gas_amount = Some(U256::from_dec_str(value)?);
                 }
-                GAS_AMOUNT_ATTRIBUTE_KEY_BASE64 => {
+                v if &*GAS_AMOUNT_ATTRIBUTE_KEY_BASE64 == v => {
                     let dec_str = String::from_utf8(BASE64.decode(value)?)?;
                     // U256's from_str assumes a radix of 16, so we explicitly use from_dec_str.
                     gas_amount = Some(U256::from_dec_str(dec_str.as_str())?);
@@ -146,7 +154,7 @@ impl CosmosInterchainGasPaymasterIndexer {
                 DESTINATION_ATTRIBUTE_KEY => {
                     destination = Some(value.parse::<u32>()?);
                 }
-                DESTINATION_ATTRIBUTE_KEY_BASE64 => {
+                v if &*DESTINATION_ATTRIBUTE_KEY_BASE64 == v => {
                     destination = Some(String::from_utf8(BASE64.decode(value)?)?.parse()?);
                 }
 
@@ -217,25 +225,46 @@ impl SequenceIndexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndex
 
 #[cfg(test)]
 mod tests {
+    use cosmrs::tendermint::abci::EventAttribute;
+    use hyperlane_core::{InterchainGasPayment, H256, U256};
+    use std::str::FromStr;
+
+    use crate::rpc::ParsedEvent;
+
     use super::*;
 
     #[test]
-    fn test_base64_keys() {
+    fn test_interchain_gas_payment_parser() {
+        // Examples from https://rpc-kralum.neutron-1.neutron.org/tx_search?query=%22tx.height%20%3E=%204000000%20AND%20tx.height%20%3C=%204100000%20AND%20wasm-igp-core-pay-for-gas._contract_address%20=%20%27neutron12p8wntzra3vpfcqv05scdx5sa3ftaj6gjcmtm7ynkl0e6crtt4ns8cnrmx%27%22&prove=false&page=1&per_page=100
+
+        // Non-base64 version
+        let non_base64_attrs = r#"[{"key":"_contract_address","value":"neutron12p8wntzra3vpfcqv05scdx5sa3ftaj6gjcmtm7ynkl0e6crtt4ns8cnrmx", "index": true},{"key":"dest_domain","value":"169", "index": true},{"key":"gas_amount","value":"25000", "index": true},{"key":"gas_refunded","value":"0", "index": true},{"key":"gas_required","value":"2", "index": true},{"key":"message_id","value":"5dcf6120f8adf4f267eb1a122a85c42eae257fbc872671e93929fbf63daed19b", "index": true},{"key":"payment","value":"2", "index": true},{"key":"sender","value":"neutron1vdazwhwkh9wy6ue66pjpuvrxcrywv2ww956dq6ls2gh0n7t9f5rs2hydt2", "index": true}]"#;
+        let non_base64_attrs: Vec<crate::payloads::general::EventAttribute> =
+            serde_json::from_str(non_base64_attrs).unwrap();
+        let non_base64_attrs: Vec<EventAttribute> = non_base64_attrs
+            .into_iter()
+            .map(|attr| attr.into())
+            .collect();
+
+        let parsed_event =
+            CosmosInterchainGasPaymasterIndexer::interchain_gas_payment_parser(&non_base64_attrs)
+                .unwrap()
+                .unwrap();
+
         assert_eq!(
-            MESSAGE_ID_ATTRIBUTE_KEY_BASE64,
-            BASE64.encode(MESSAGE_ID_ATTRIBUTE_KEY)
-        );
-        assert_eq!(
-            PAYMENT_ATTRIBUTE_KEY_BASE64,
-            BASE64.encode(PAYMENT_ATTRIBUTE_KEY)
-        );
-        assert_eq!(
-            GAS_AMOUNT_ATTRIBUTE_KEY_BASE64,
-            BASE64.encode(GAS_AMOUNT_ATTRIBUTE_KEY)
-        );
-        assert_eq!(
-            DESTINATION_ATTRIBUTE_KEY_BASE64,
-            BASE64.encode(DESTINATION_ATTRIBUTE_KEY)
+            parsed_event,
+            ParsedEvent::new(
+                "neutron12p8wntzra3vpfcqv05scdx5sa3ftaj6gjcmtm7ynkl0e6crtt4ns8cnrmx".into(),
+                InterchainGasPayment {
+                    message_id: H256::from_str(
+                        "5dcf6120f8adf4f267eb1a122a85c42eae257fbc872671e93929fbf63daed19b"
+                    )
+                    .unwrap(),
+                    payment: U256::from(2),
+                    gas_amount: U256::from(25000),
+                    destination: 169,
+                }
+            ),
         );
     }
 }
