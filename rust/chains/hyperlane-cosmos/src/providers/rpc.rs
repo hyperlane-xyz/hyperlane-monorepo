@@ -113,7 +113,7 @@ impl CosmosWasmIndexer {
                 }
             })
             .map(move |tx| {
-                // Iter through all events in the tx, looking for the target
+                // Iter through all events in the tx, looking for the target event.
                 let logs_for_tx = tx.tx_result.events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
                     if event.kind.as_str() != self.target_event_kind {
                         return None;
@@ -126,8 +126,12 @@ impl CosmosWasmIndexer {
                         .ok()
                         .flatten()
                         .and_then(|parsed_event| {
+                            // This is crucial! We need to make sure that the contract address
+                            // in the event matches the contract address we are indexing.
+                            // Otherwise, we might index events from other contracts that happen
+                            // to have the same target event name.
                             if parsed_event.contract_address != self.contract_address_bech32 {
-                                debug!(tx_hash=?tx.hash, log_idx, ?event, "Event contract address does not match indexer contract address");
+                                trace!(tx_hash=?tx.hash, log_idx, ?event, "Event contract address does not match indexer contract address");
                                 return None;
                             }
 
