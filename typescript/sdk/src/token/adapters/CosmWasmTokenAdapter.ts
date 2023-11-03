@@ -86,10 +86,11 @@ export class NativeTokenAdapter
         revisionHeight: 0n,
       },
       timeoutTimestamp: 0n,
-      memo: '',
+      memo: '', // how to encode this?
     };
     return {
       typeUrl: '/ibc.applications.transfer.v1.MsgTransfer',
+      // @ts-ignore
       value: transfer,
     };
   }

@@ -1,10 +1,6 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 
 /* eslint-disable no-console */
-
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-
-/* eslint-disable no-console */
 import {
   CosmWasmClient,
   ExecuteInstruction,
@@ -15,68 +11,18 @@ import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { GasPrice, SigningStargateClient } from '@cosmjs/stargate';
 import { Tendermint37Client } from '@cosmjs/tendermint-rpc';
 
-import {
-  Address,
-  ProtocolType,
-  difference,
-  objMap,
-  promiseObjAll,
-} from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
-import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp';
+import { chainMetadata } from '../../consts/chainMetadata';
+import { Chains } from '../../consts/chains';
 import { CosmWasmCoreAdapter } from '../../core/adapters/CosmWasmCoreAdapter';
 import {
   MailboxResponse,
   QueryMsg as MerkleQuery,
   OwnerResponse,
 } from '../../cw-types/HookMerkle.types';
-import {
-  EnrolledValidatorsResponse,
-  ExecuteMsg as MultisigExecute,
-  QueryMsg as MultisigQuery,
-} from '../../cw-types/IsmMultisig.types';
-import { MultisigConfig } from '../../ism/types';
-import { ChainMetadata } from '../../metadata/chainMetadataTypes';
+import { CosmWasmMultisigAdapter } from '../../ism/adapters/CosmWasmMultisigAdapter';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainMap, ChainName } from '../../types';
-
-const neutron: ChainMetadata = {
-  protocol: ProtocolType.Cosmos,
-  name: 'neutron',
-  chainId: 'neutron-1',
-  displayName: 'Neutron',
-  domainId: 1853125230,
-  bech32Prefix: 'neutron',
-  slip44: 118,
-  rpcUrls: [
-    { http: 'https://rpc-kralum.neutron-1.neutron.org' },
-    { http: 'grpc-kralum.neutron-1.neutron.org:80' },
-  ],
-  nativeToken: {
-    name: 'Neutron',
-    symbol: 'NTRN',
-    decimals: 6,
-  },
-};
-
-const mantapacific: ChainMetadata = {
-  protocol: ProtocolType.Ethereum,
-  chainId: 169,
-  name: 'mantapacific',
-  displayName: 'Manta Pacific',
-  displayNameShort: 'Manta',
-  nativeToken: {
-    name: 'Ether',
-    symbol: 'ETH',
-    decimals: 18,
-  },
-  blocks: {
-    confirmations: 1,
-    reorgPeriod: 0,
-    estimateBlockTime: 3,
-  },
-  rpcUrls: [{ http: 'https://pacific-rpc.manta.network/http' }],
-};
 
 const neutronAddresses = {
   mailbox: 'neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4',
@@ -84,120 +30,16 @@ const neutronAddresses = {
     'neutron17w4q6efzym3p4c6umyp4cjf2ustjtmwfqdhd7rt2fpcpk9fmjzsq0kj0f8',
 };
 
-const multiProtocolProvider = new MultiProtocolProvider({
-  neutron,
-  mantapacific,
-});
+const neutron = chainMetadata.neutron;
+const mantapacific = chainMetadata.mantapacific;
+
+const multiProtocolProvider = new MultiProtocolProvider();
 
 const adapter = new CosmWasmCoreAdapter(
-  neutron.name,
+  Chains.neutron,
   multiProtocolProvider,
   neutronAddresses,
 );
-
-type MultisigResponse = EnrolledValidatorsResponse;
-
-class CosmWasmMultisigAdapter extends BaseCosmWasmAdapter {
-  constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider<any>,
-    public readonly addresses: { multisig: Address },
-  ) {
-    super(chainName, multiProvider, addresses);
-  }
-
-  async queryMultisig<R extends MultisigResponse>(
-    msg: MultisigQuery,
-  ): Promise<R> {
-    const provider = await this.getProvider();
-    const response: R = await provider.queryContractSmart(
-      this.addresses.multisig,
-      msg,
-    );
-    return response;
-  }
-
-  async getConfig(chain: ChainName): Promise<MultisigConfig> {
-    return this.queryMultisig<EnrolledValidatorsResponse>({
-      multisig_ism: {
-        enrolled_validators: {
-          domain: this.multiProvider.getDomainId(chain),
-        },
-      },
-    });
-  }
-
-  prepareMultisig(msg: MultisigExecute): ExecuteInstruction {
-    return {
-      contractAddress: this.addresses.multisig,
-      msg,
-    };
-  }
-
-  async configureMultisig(
-    configMap: ChainMap<MultisigConfig>,
-  ): Promise<ExecuteInstruction[]> {
-    const configuredMap = await promiseObjAll(
-      objMap(configMap, (origin, _) => this.getConfig(origin)),
-    );
-
-    const validatorInstructions = Object.entries(configMap).flatMap(
-      ([origin, config]) => {
-        const domain = this.multiProvider.getDomainId(origin);
-        const configuredSet = new Set(configuredMap[origin].validators);
-        const configSet = new Set(config.validators);
-        const unenrollList = Array.from(
-          difference(configuredSet, configSet).values(),
-        );
-        const enrollList = Array.from(
-          difference(configSet, configuredSet).values(),
-        );
-        return unenrollList
-          .map((validator) =>
-            this.prepareMultisig({
-              unenroll_validator: {
-                domain,
-                validator,
-              },
-            }),
-          )
-          .concat(
-            enrollList.map((validator) =>
-              this.prepareMultisig({
-                enroll_validator: {
-                  set: {
-                    domain,
-                    validator,
-                  },
-                },
-              }),
-            ),
-          );
-      },
-    );
-
-    const setThresholds = Object.entries(configMap)
-      .filter(
-        ([origin, { threshold }]) =>
-          threshold !== configuredMap[origin].threshold,
-      )
-      .map(([origin, config]) => ({
-        domain: this.multiProvider.getDomainId(origin),
-        threshold: config.threshold,
-      }));
-
-    if (setThresholds.length > 0) {
-      const thresholdInstruction = this.prepareMultisig({
-        set_thresholds: {
-          set: setThresholds,
-        },
-      });
-      return [...validatorInstructions, thresholdInstruction];
-    }
-
-    return validatorInstructions;
-  }
-}
 
 export async function getSigningClient(pkey: string) {
   const wallet = await DirectSecp256k1Wallet.fromKey(
