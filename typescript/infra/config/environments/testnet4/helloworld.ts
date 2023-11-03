@@ -22,7 +22,7 @@ export const hyperlaneHelloworld: HelloWorldConfig = {
       mode: HelloWorldKathyRunMode.Service,
       fullCycleTime: 1000 * 60 * 60 * 48, // every 48 hours
     },
-    messageSendTimeout: 1000 * 60 * 10, // 8 min
+    messageSendTimeout: 1000 * 60 * 10, // 10 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
     connectionType: RpcConsensusType.Fallback,
   },
