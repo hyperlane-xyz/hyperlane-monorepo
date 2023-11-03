@@ -25,7 +25,7 @@ pub trait WasmIndexer: Send + Sync {
     async fn get_range_event_logs<T>(
         &self,
         range: RangeInclusive<u32>,
-        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<Option<ParsedEvent<T>>>,
+        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
         T: Send + Sync + 'static;
@@ -96,7 +96,7 @@ impl CosmosWasmIndexer {
     fn handle_txs<T>(
         &self,
         txs: Vec<tx::Response>,
-        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<Option<ParsedEvent<T>>>,
+        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> ChainResult<impl Iterator<Item = (T, LogMeta)> + '_>
     where
         T: 'static,
@@ -126,7 +126,6 @@ impl CosmosWasmIndexer {
                             tracing::trace!(?err, tx_hash=?tx.hash, log_idx, ?event, "Failed to parse event attributes");
                         })
                         .ok()
-                        .flatten()
                         .and_then(|parsed_event| {
                             // This is crucial! We need to make sure that the contract address
                             // in the event matches the contract address we are indexing.
@@ -177,7 +176,7 @@ impl WasmIndexer for CosmosWasmIndexer {
     async fn get_range_event_logs<T>(
         &self,
         range: RangeInclusive<u32>,
-        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<Option<ParsedEvent<T>>>,
+        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
         T: Send + Sync + 'static,

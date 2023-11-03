@@ -279,7 +279,7 @@ impl CosmosMailboxIndexer {
 
     fn hyperlane_message_parser(
         attrs: &Vec<EventAttribute>,
-    ) -> ChainResult<Option<ParsedEvent<HyperlaneMessage>>> {
+    ) -> ChainResult<ParsedEvent<HyperlaneMessage>> {
         let mut contract_address: Option<String> = None;
         let mut message: Option<HyperlaneMessage> = None;
 
@@ -313,14 +313,12 @@ impl CosmosMailboxIndexer {
             }
         }
 
-        let contract_address = unwrap_or_none_result!(
-            contract_address,
-            debug!("No contract address found in event attributes")
-        );
+        let contract_address = contract_address
+            .ok_or_else(|| ChainCommunicationError::from_other_str("missing contract_address"))?;
         let message =
-            unwrap_or_none_result!(message, debug!("No message found in event attributes"));
+            message.ok_or_else(|| ChainCommunicationError::from_other_str("missing message"))?;
 
-        Ok(Some(ParsedEvent::new(contract_address, message)))
+        Ok(ParsedEvent::new(contract_address, message))
     }
 }
 
@@ -396,11 +394,9 @@ mod tests {
         );
 
         let assert_parsed_event = |attrs: &Vec<EventAttribute>| {
-            let parsed_event = CosmosMailboxIndexer::hyperlane_message_parser(attrs)
-                .unwrap()
-                .unwrap();
+            let parsed_event = CosmosMailboxIndexer::hyperlane_message_parser(attrs).unwrap();
 
-            assert_eq!(parsed_event, expected,);
+            assert_eq!(parsed_event, expected);
         };
 
         // Non-base64 version
