@@ -118,7 +118,10 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         chain,
         'Mailbox implementation',
         implementation,
-        [BytecodeHash.V3_MAILBOX_BYTECODE_HASH],
+        [
+          BytecodeHash.V3_MAILBOX_BYTECODE_HASH,
+          BytecodeHash.OPT_V3_MAILBOX_BYTECODE_HASH,
+        ],
         (bytecode) =>
           // This is obviously super janky but basically we are searching
           //  for the ocurrences of localDomain in the bytecode and remove
@@ -140,6 +143,10 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
             .replaceAll(
               /(0000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})6118123373/g,
               (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+            )
+            .replaceAll(
+              /(f167f00000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})338989898/g,
+              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
             ),
       );
     }
@@ -148,13 +155,19 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       chain,
       'Mailbox proxy',
       contracts.mailbox.address,
-      [BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH],
+      [
+        BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH,
+        BytecodeHash.OPT_PROXY_ADMIN_BYTECODE_HASH,
+      ],
     );
     await this.checkBytecode(
       chain,
       'ProxyAdmin',
       contracts.proxyAdmin.address,
-      [BytecodeHash.PROXY_ADMIN_BYTECODE_HASH],
+      [
+        BytecodeHash.PROXY_ADMIN_BYTECODE_HASH,
+        BytecodeHash.V2_PROXY_ADMIN_BYTECODE_HASH,
+      ],
     );
   }
 
