@@ -304,10 +304,6 @@ mod tests {
     #[test]
     fn test_base64_keys() {
         assert_eq!(
-            CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
-            BASE64.encode(CONTRACT_ADDRESS_ATTRIBUTE_KEY)
-        );
-        assert_eq!(
             INDEX_ATTRIBUTE_KEY_BASE64,
             BASE64.encode(INDEX_ATTRIBUTE_KEY)
         );

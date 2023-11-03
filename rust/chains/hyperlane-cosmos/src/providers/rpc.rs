@@ -188,52 +188,6 @@ impl WasmIndexer for CosmosWasmIndexer {
                 self.contract_address_bech32.clone(),
             );
 
-        // let handler = |txs: Vec<tx::Response>| -> ChainResult<Vec<(T, LogMeta)>> {
-        //     // Iterate through all txs, filter out failed txs, find target events
-        //     // in successful txs, and parse them.
-        //     let logs: Vec<(T, LogMeta)> = txs
-        //         .into_iter()
-        //         .filter(|tx| {
-        //             // Filter out failed txs
-        //             if tx.tx_result.code.is_err() {
-        //                 debug!(tx_hash=?tx.hash, "Indexed tx has failed, skipping");
-        //                 false
-        //             } else {
-        //                 true
-        //             }
-        //         })
-        //         .map(|tx| {
-        //             // Iter through all events in the tx, looking for the target
-        //             let logs_for_tx = tx.tx_result.events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
-        //                 if event.kind.as_str() != self.target_event_kind {
-        //                     return None;
-        //                 }
-
-        //                 parser(&event.attributes)
-        //                     .map_err(|err| {
-        //                         tracing::warn!(?err, tx_hash=?tx.hash, log_idx, ?event, "Failed to parse event attributes");
-        //                     })
-        //                     .ok()
-        //                     .flatten()
-        //                     .map(|msg| {
-        //                         (msg, LogMeta {
-        //                             address: self.contract_address,
-        //                             block_number: tx.height.value(),
-        //                             // FIXME: block_hash is not available in tx_search
-        //                             block_hash: H256::zero(),
-        //                             transaction_id: h256_to_h512(H256::from_slice(tx.hash.as_bytes())),
-        //                             transaction_index: tx.index as u64,
-        //                             log_index: U256::from(log_idx),
-        //                         })
-        //                     })
-        //                 });
-        //             logs_for_tx
-        //         })
-        //         .flatten();
-        //     // .collect();
-        //     Ok(logs)
-        // };
-
         let tx_search_result = self.tx_search(query.clone(), 1).await?;
 
         // Using the first tx_search_result, we can calculate the total number of pages.

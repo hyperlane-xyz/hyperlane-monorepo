@@ -214,3 +214,28 @@ impl SequenceIndexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndex
         Ok((None, tip))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_base64_keys() {
+        assert_eq!(
+            MESSAGE_ID_ATTRIBUTE_KEY_BASE64,
+            BASE64.encode(MESSAGE_ID_ATTRIBUTE_KEY)
+        );
+        assert_eq!(
+            PAYMENT_ATTRIBUTE_KEY_BASE64,
+            BASE64.encode(PAYMENT_ATTRIBUTE_KEY)
+        );
+        assert_eq!(
+            GAS_AMOUNT_ATTRIBUTE_KEY_BASE64,
+            BASE64.encode(GAS_AMOUNT_ATTRIBUTE_KEY)
+        );
+        assert_eq!(
+            DESTINATION_ATTRIBUTE_KEY_BASE64,
+            BASE64.encode(DESTINATION_ATTRIBUTE_KEY)
+        );
+    }
+}
