@@ -1,6 +1,5 @@
-use base64::Engine;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use std::fmt::{Debug, Formatter};
-use std::io::Cursor;
 use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
 
@@ -18,16 +17,20 @@ use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
 use cosmrs::tendermint::abci::EventAttribute;
 
-use crate::binary::h256_to_h512;
+use crate::{
+    binary::h256_to_h512,
+    utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64},
+};
+use hyperlane_core::{
+    unwrap_or_none_result, ChainCommunicationError, ContractLocator, RawHyperlaneMessage,
+    SequenceIndexer,
+};
 use hyperlane_core::{
     utils::fmt_bytes, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
     H256, U256,
 };
-use hyperlane_core::{
-    ChainCommunicationError, ContractLocator, Decode, RawHyperlaneMessage, SequenceIndexer,
-};
-use tracing::{instrument, warn};
+use tracing::{debug, instrument, warn};
 
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {
@@ -234,6 +237,14 @@ impl CosmosMailbox {
     }
 }
 
+// ------------------ Indexer ------------------
+
+/// Attribute key for the encoded Hyperlane message.
+const MESSAGE_ATTRIBUTE_KEY: &str = "message";
+/// Base64 encoded version of `MESSAGE_ATTRIBUTE_KEY`.
+/// echo -n message | base64
+const MESSAGE_ATTRIBUTE_KEY_BASE64: &str = "bWVzc2FnZQ==";
+
 /// Struct that retrieves event data for a Cosmos Mailbox contract
 #[derive(Debug)]
 pub struct CosmosMailboxIndexer {
@@ -260,36 +271,45 @@ impl CosmosMailboxIndexer {
         })
     }
 
-    fn get_parser(
-        &self,
-    ) -> fn(attrs: &Vec<EventAttribute>) -> ChainResult<Option<ParsedEvent<HyperlaneMessage>>> {
-        |attrs: &Vec<EventAttribute>| -> ChainResult<Option<ParsedEvent<HyperlaneMessage>>> {
-            let res = HyperlaneMessage::default();
+    fn hyperlane_message_parser(
+        attrs: &Vec<EventAttribute>,
+    ) -> ChainResult<Option<ParsedEvent<HyperlaneMessage>>> {
+        let mut contract_address: Option<String> = None;
+        let mut message: Option<HyperlaneMessage> = None;
 
-            for attr in attrs {
-                let key = attr.key.as_str();
-                let value = attr.value.as_str();
+        for attr in attrs {
+            let key = attr.key.as_str();
+            let value = attr.value.as_str();
 
-                if key == "message" {
-                    let mut reader = Cursor::new(hex::decode(value)?);
-                    return Ok(Some(ParsedEvent::new(
-                        "".to_owned(),
-                        HyperlaneMessage::read_from(&mut reader)?,
-                    )));
+            match key {
+                CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
+                    contract_address = Some(value.to_string());
+                }
+                CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 => {
+                    contract_address = Some(String::from_utf8(BASE64.decode(value)?)?);
                 }
 
-                if key == "bWVzc2FnZQ==" {
-                    let mut reader = Cursor::new(hex::decode(String::from_utf8(
-                        base64::engine::general_purpose::STANDARD.decode(value)?,
-                    )?)?);
-                    return Ok(Some(ParsedEvent::new(
-                        "".to_owned(),
-                        HyperlaneMessage::read_from(&mut reader)?,
-                    )));
+                MESSAGE_ATTRIBUTE_KEY => {
+                    message = Some(HyperlaneMessage::from(hex::decode(value)?));
                 }
+                MESSAGE_ATTRIBUTE_KEY_BASE64 => {
+                    message = Some(HyperlaneMessage::from(hex::decode(String::from_utf8(
+                        BASE64.decode(value)?,
+                    )?)?));
+                }
+
+                _ => {}
             }
-            Ok(None)
         }
+
+        let contract_address = unwrap_or_none_result!(
+            contract_address,
+            debug!("No contract address found in event attributes")
+        );
+        let message =
+            unwrap_or_none_result!(message, debug!("No message found in event attributes"));
+
+        Ok(Some(ParsedEvent::new(contract_address, message)))
     }
 }
 
@@ -299,8 +319,10 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let parser = self.get_parser();
-        let result = self.indexer.get_range_event_logs(range, parser).await?;
+        let result = self
+            .indexer
+            .get_range_event_logs(range, Self::hyperlane_message_parser)
+            .await?;
 
         Ok(result)
     }
@@ -313,13 +335,8 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
 #[async_trait]
 impl Indexer<H256> for CosmosMailboxIndexer {
     async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
-        let parser = self.get_parser();
-        let result = self.indexer.get_range_event_logs(range, parser).await?;
-
-        Ok(result
-            .into_iter()
-            .map(|(msg, meta)| (msg.id(), meta))
-            .collect())
+        // TODO: implement when implementing Cosmos scraping
+        todo!()
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
