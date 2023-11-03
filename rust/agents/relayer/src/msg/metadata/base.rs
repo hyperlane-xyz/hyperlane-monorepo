@@ -154,14 +154,6 @@ impl BaseMetadataBuilder {
         Ok(merkle_leaf)
     }
 
-    pub async fn get_insertion_by_leaf_index(&self, leaf_index: u32) -> Result<Option<H256>> {
-        let insertion = self
-            .db
-            .retrieve_merkle_tree_insertion_by_leaf_index(&leaf_index)?;
-        let message_id = insertion.map(|insertion| insertion.message_id());
-        Ok(message_id)
-    }
-
     pub async fn build_ism(&self, address: H256) -> Result<Box<dyn InterchainSecurityModule>> {
         self.destination_chain_setup
             .build_ism(address, &self.metrics)
