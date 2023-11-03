@@ -5,7 +5,7 @@ import { runWarpRouteHelmCommand } from './helm';
 async function main() {
   await runWarpRouteHelmCommand(
     HelmCommand.InstallOrUpgrade,
-    'mainnet2',
+    'mainnet3',
     'arbneutrontia',
   );
 }
