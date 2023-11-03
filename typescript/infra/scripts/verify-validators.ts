@@ -7,9 +7,7 @@ import { deployEnvToSdkEnv } from '../src/config/environment';
 import { getArgs, getEnvironmentConfig, getValidatorsByChain } from './utils';
 
 async function main() {
-  const { environment, withMessageId } = await getArgs()
-    .boolean('with-message-id')
-    .default('with-message-id', true).argv;
+  const { environment } = await getArgs().argv;
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const core = HyperlaneCore.fromEnvironment(
@@ -36,10 +34,7 @@ async function main() {
       const address = prospectiveValidator.address;
       const bucket = prospectiveValidator.s3Bucket.bucket;
       try {
-        const metrics = await prospectiveValidator.compare(
-          controlValidator,
-          withMessageId,
-        );
+        const metrics = await prospectiveValidator.compare(controlValidator);
         const valid =
           metrics.filter((metric) => metric.status !== CheckpointStatus.VALID)
             .length === 0;

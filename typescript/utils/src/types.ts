@@ -43,7 +43,7 @@ export type Checkpoint = {
   root: string;
   index: number; // safe because 2 ** 32 leaves < Number.MAX_VALUE
   mailbox_domain: Domain;
-  mailbox_address: Address;
+  merkle_tree_hook_address: Address;
 };
 
 /**
