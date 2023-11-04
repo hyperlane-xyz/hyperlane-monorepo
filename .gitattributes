@@ -1,0 +1,2 @@
+typescript/sdk/src/cw-types/*.types.ts linguist-generated=true
+rust/chains/hyperlane-ethereum/abis/*.abi.json linguist-generated=true
