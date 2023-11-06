@@ -4,6 +4,7 @@ use futures_util::future::join_all;
 
 use derive_new::new;
 use eyre::Context;
+use itertools::{Either, Itertools};
 use tracing::{info, instrument};
 
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256};
@@ -90,7 +91,7 @@ impl AggregationIsmMetadataBuilder {
         sub_modules: Vec<IsmAndMetadata>,
         message: &HyperlaneMessage,
         threshold: usize,
-        invalid_isms: Vec<(ModuleType, H256)>,
+        err_isms: Vec<(H256, ModuleType)>,
     ) -> Option<Vec<SubModuleMetadata>> {
         let gas_cost_results: Vec<_> = join_all(
             sub_modules
@@ -108,7 +109,7 @@ impl AggregationIsmMetadataBuilder {
         let metas_and_gas_count = metas_and_gas.len();
         if metas_and_gas_count < threshold {
             info!("Could not fetch all metadata: Found {metas_and_gas_count} of the {threshold} required ISM metadata pieces for message_id {message_id}", metas_and_gas_count=metas_and_gas_count, threshold=threshold, message_id=message.id());
-            for (module_type, ism_address) in invalid_isms {
+            for (module_type, ism_address) in err_isms {
                 info!(
                     "Invalid ISM: {module_type} at {ism_address}",
                     module_type = module_type,
@@ -134,47 +135,38 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         let (ism_addresses, threshold) = ism.modules_and_threshold(message).await.context(CTX)?;
         let threshold = threshold as usize;
 
-        let metas = join_all(
+        let sub_modules_and_metas = join_all(
             ism_addresses
                 .iter()
-                .map(|ism_address| self.base.build(*ism_address, message)),
+                .map(|ism_address| self.base.build_ism_and_metadata(*ism_address, message)),
         )
         .await;
 
-        let sub_modules = join_all(
-            ism_addresses
-                .iter()
-                .map(|ism_address| self.base.build_ism(*ism_address)),
-        )
-        .await;
-        let (valid_sub_modules, invalid_sub_modules): (Vec<_>, Vec<_>) = metas
+        // Partitions things into
+        // 1. ok_sub_modules: ISMs with metadata with valid metadata
+        // 2. err_sub_modules: ISMs with invalid metadata
+        let no_err_sub_modules_and_metas: Vec<_> = sub_modules_and_metas
+            .into_iter()
+            .filter_map(|sub_module_and_meta| sub_module_and_meta.ok())
+            .collect();
+        let (ok_sub_modules, err_sub_modules): (Vec<_>, Vec<_>) = no_err_sub_modules_and_metas
             .into_iter()
             .enumerate()
-            .zip(sub_modules.into_iter())
-            .partition(|&((_, ref meta_result), ref sub_module_result)| {
-                matches!((meta_result, sub_module_result), (Ok(Some(_)), Ok(_)))
-            });
-        let valid_sub_module_metas: Vec<_> = valid_sub_modules
-            .into_iter()
-            .map(|((index, meta_result), sub_module_result)| {
-                IsmAndMetadata::new(
-                    sub_module_result.unwrap(),
-                    index,
-                    meta_result.unwrap().unwrap(),
-                )
-            })
-            .collect();
-
-        let mut invalid_isms: Vec<(ModuleType, H256)> = Vec::new();
-        // get the address and module_type for each invalid sub module (for logging in cheapest_valid_metas)
-        for entry in &invalid_sub_modules {
-            let (_, ism_result) = entry;
-            if let Ok(ism_box) = ism_result {
-                invalid_isms.push((ism_box.module_type().await.unwrap(), ism_box.address()));
-            }
-        }
+            .partition_map(
+                |(index, sub_module_and_meta)| match sub_module_and_meta.metadata {
+                    Some(_) => Either::Left(IsmAndMetadata::new(
+                        sub_module_and_meta.ism,
+                        index,
+                        sub_module_and_meta.metadata.unwrap(),
+                    )),
+                    None => Either::Right((
+                        sub_module_and_meta.ism.address(),
+                        sub_module_and_meta.module_type,
+                    )),
+                },
+            );
         let maybe_aggregation_metadata =
-            Self::cheapest_valid_metas(valid_sub_module_metas, message, threshold, invalid_isms)
+            Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules)
                 .await
                 .map(|mut metas| Self::format_metadata(&mut metas, ism_addresses.len()));
         Ok(maybe_aggregation_metadata)
