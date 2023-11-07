@@ -4,9 +4,10 @@ use futures_util::future::join_all;
 
 use derive_new::new;
 use eyre::Context;
+use itertools::{Either, Itertools};
 use tracing::{info, instrument};
 
-use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, H256, U256};
+use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256};
 
 use super::{BaseMetadataBuilder, MetadataBuilder};
 
@@ -90,6 +91,7 @@ impl AggregationIsmMetadataBuilder {
         sub_modules: Vec<IsmAndMetadata>,
         message: &HyperlaneMessage,
         threshold: usize,
+        err_isms: Vec<(H256, Option<ModuleType>)>,
     ) -> Option<Vec<SubModuleMetadata>> {
         let gas_cost_results: Vec<_> = join_all(
             sub_modules
@@ -97,8 +99,7 @@ impl AggregationIsmMetadataBuilder {
                 .map(|module| module.ism.dry_run_verify(message, &(module.meta.metadata))),
         )
         .await;
-
-        // Filter out the ISMs without a gas cost estimate
+        // Filter out the ISMs with a gas cost estimate
         let metas_and_gas: Vec<_> = sub_modules
             .into_iter()
             .zip(gas_cost_results.into_iter())
@@ -107,7 +108,7 @@ impl AggregationIsmMetadataBuilder {
 
         let metas_and_gas_count = metas_and_gas.len();
         if metas_and_gas_count < threshold {
-            info!("Could not fetch all metadata: Found {metas_and_gas_count} of the {threshold} required ISM metadata pieces");
+            info!(?err_isms, %metas_and_gas_count, %threshold, message_id=message.id().to_string(), "Could not fetch all metadata, ISM metadata count did not reach aggregation threshold");
             return None;
         }
         Some(Self::n_cheapest_metas(metas_and_gas, threshold))
@@ -127,34 +128,33 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         let (ism_addresses, threshold) = ism.modules_and_threshold(message).await.context(CTX)?;
         let threshold = threshold as usize;
 
-        let metas = join_all(
+        let sub_modules_and_metas = join_all(
             ism_addresses
                 .iter()
-                .map(|ism_address| self.base.build(*ism_address, message)),
+                .map(|ism_address| self.base.build_ism_and_metadata(*ism_address, message)),
         )
         .await;
 
-        let sub_modules = join_all(
-            ism_addresses
-                .iter()
-                .map(|ism_address| self.base.build_ism(*ism_address)),
-        )
-        .await;
-
-        let filtered_sub_module_metas = metas
+        // Partitions things into
+        // 1. ok_sub_modules: ISMs with metadata with valid metadata
+        // 2. err_sub_modules: ISMs with invalid metadata
+        let (ok_sub_modules, err_sub_modules): (Vec<_>, Vec<_>) = sub_modules_and_metas
             .into_iter()
+            .zip(ism_addresses.iter())
             .enumerate()
-            .zip(sub_modules.into_iter())
-            .filter_map(|((index, meta_result), sub_module_result)| {
-                match (meta_result, sub_module_result) {
-                    (Ok(Some(meta)), Ok(ism)) => Some(IsmAndMetadata::new(ism, index, meta)),
-                    _ => None,
-                }
-            })
-            .collect();
-
+            .partition_map(|(index, (result, ism_address))| match result {
+                Ok(sub_module_and_meta) => match sub_module_and_meta.metadata {
+                    Some(metadata) => Either::Left(IsmAndMetadata::new(
+                        sub_module_and_meta.ism,
+                        index,
+                        metadata,
+                    )),
+                    None => Either::Right((*ism_address, Some(sub_module_and_meta.module_type))),
+                },
+                Err(_) => Either::Right((*ism_address, None)),
+            });
         let maybe_aggregation_metadata =
-            Self::cheapest_valid_metas(filtered_sub_module_metas, message, threshold)
+            Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules)
                 .await
                 .map(|mut metas| Self::format_metadata(&mut metas, ism_addresses.len()));
         Ok(maybe_aggregation_metadata)
