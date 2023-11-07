@@ -1,7 +1,5 @@
 import { debug } from 'debug';
 import { ethers } from 'ethers';
-import fs from 'fs';
-import path from 'path';
 
 import {
   DomainRoutingIsm__factory,
@@ -18,7 +16,6 @@ import {
 import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
-import { chainMetadata } from '../consts/chainMetadata';
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
@@ -226,20 +223,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
   }
 
   private async deployOpStackIsm(chain: ChainName, config: OpStackIsmConfig) {
-    const recoveredIsm = getDeployedIsms(config.origin, chain, config.type);
-    if (recoveredIsm) {
-      this.logger('Recovered OpStackIsm from deployedIsms');
-      return OPStackIsm__factory.connect(
-        recoveredIsm,
-        this.multiProvider.getSignerOrProvider(chain),
-      );
-    } else {
-      return await this.multiProvider.handleDeploy(
-        chain,
-        new OPStackIsm__factory(),
-        [config.nativeBridge],
-      );
-    }
+    return await this.multiProvider.handleDeploy(
+      chain,
+      new OPStackIsm__factory(),
+      [config.nativeBridge],
+    );
   }
 
   async deployStaticAddressSet(
@@ -569,24 +557,4 @@ export function collectValidators(
   }
 
   return new Set(validators);
-}
-
-// recover non-factory ISM deployments
-export function getDeployedIsms(
-  origin: ChainName,
-  destination: ChainName,
-  ismType: string,
-): Address | null {
-  // check if mainnet or testnet
-  const isTestnet =
-    chainMetadata[origin].isTestnet || chainMetadata[destination].isTestnet;
-  const file = isTestnet ? 'testnet.json' : 'mainnet.json';
-  const addresses = fs.readFileSync(
-    path.resolve(__dirname, `../consts/environments/${file}`),
-  );
-  const parsedAddresses = JSON.parse(addresses.toString());
-  if (ismType in parsedAddresses[destination][origin]) {
-    return parsedAddresses[destination][origin].opStackIsm;
-  }
-  return null;
 }
