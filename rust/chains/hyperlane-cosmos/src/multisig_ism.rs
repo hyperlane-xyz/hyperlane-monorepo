@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use crate::{
-    binary::h160_to_h256,
     grpc::{WasmGrpcProvider, WasmProvider},
     payloads::ism_routes::QueryIsmGeneralRequest,
     signers::Signer,
@@ -78,7 +77,7 @@ impl MultisigIsm for CosmosMultisigIsm {
         let validators: ChainResult<Vec<H256>> = response
             .validators
             .iter()
-            .map(|v| H160::from_str(v).map(h160_to_h256).map_err(Into::into))
+            .map(|v| H160::from_str(v).map(H256::from).map_err(Into::into))
             .collect();
 
         Ok((validators?, response.threshold))

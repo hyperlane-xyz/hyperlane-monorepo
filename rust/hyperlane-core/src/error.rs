@@ -8,6 +8,7 @@ use cosmrs::proto::prost;
 use cosmrs::Error as CosmrsError;
 use std::string::FromUtf8Error;
 
+use crate::Error as PrimitiveTypeError;
 use crate::HyperlaneProviderError;
 use crate::H256;
 
@@ -142,6 +143,9 @@ pub enum ChainCommunicationError {
     /// Failed to estimate transaction gas cost.
     #[error("Failed to estimate transaction gas cost {0}")]
     TxCostEstimateError(String),
+    /// Primitive type error
+    #[error(transparent)]
+    PrimitiveTypeError(#[from] PrimitiveTypeError),
 }
 
 impl ChainCommunicationError {

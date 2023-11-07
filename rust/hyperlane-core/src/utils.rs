@@ -1,7 +1,9 @@
-use std::{str::FromStr, time::Duration};
-
 use eyre::Result;
 use sha3::{digest::Update, Digest, Keccak256};
+use std::str::FromStr;
+
+#[cfg(feature = "float")]
+use std::time::Duration;
 
 use crate::{KnownHyperlaneDomain, H160, H256};
 

@@ -1,7 +1,9 @@
+use std::str::FromStr;
+
 use crate::{
+    address::CosmosAddress,
     grpc::{WasmGrpcProvider, WasmProvider},
     payloads::aggregate_ism::{ModulesAndThresholdRequest, ModulesAndThresholdResponse},
-    verify::bech32_decode,
     ConnectionConf, CosmosProvider, Signer,
 };
 use async_trait::async_trait;
@@ -60,8 +62,11 @@ impl AggregationIsm for CosmosAggregationIsm {
         let data = self.provider.wasm_query(payload, None).await?;
         let response: ModulesAndThresholdResponse = serde_json::from_slice(&data)?;
 
-        let modules: ChainResult<Vec<H256>> =
-            response.modules.into_iter().map(bech32_decode).collect();
+        let modules: ChainResult<Vec<H256>> = response
+            .modules
+            .into_iter()
+            .map(|module| CosmosAddress::from_str(&module).map(|ca| ca.digest()))
+            .collect();
 
         Ok((modules?, response.threshold))
     }

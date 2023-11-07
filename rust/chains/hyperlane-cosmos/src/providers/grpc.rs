@@ -24,8 +24,9 @@ use hyperlane_core::{
 };
 use serde::Serialize;
 
+use crate::address::CosmosAddress;
+use crate::HyperlaneCosmosError;
 use crate::{signers::Signer, ConnectionConf};
-use crate::{verify, HyperlaneCosmosError};
 
 const DEFAULT_GAS_PRICE: f32 = 0.05;
 const DEFAULT_GAS_ADJUSTMENT: f32 = 1.25;
@@ -106,7 +107,8 @@ impl WasmGrpcProvider {
     }
 
     fn get_contract_addr(&self) -> ChainResult<String> {
-        verify::digest_to_addr(self.address, self.signer.prefix.as_str())
+        let cosmos_address = CosmosAddress::from_h256(self.address, &self.conf.get_prefix())?;
+        Ok(cosmos_address.address())
     }
 }
 

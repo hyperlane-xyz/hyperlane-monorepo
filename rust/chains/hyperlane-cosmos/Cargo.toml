@@ -10,6 +10,7 @@ version = { workspace = true }
 [dependencies]
 async-trait = { workspace = true }
 cosmrs = { workspace = true, features = ["cosmwasm", "tokio", "grpc", "rpc"] }
+derive-new = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
@@ -27,12 +28,7 @@ hyper = { workspace = true }
 hyper-tls = { workspace = true }
 sha256 = { workspace = true }
 hex = { workspace = true }
+tendermint = { workspace = true, features = ["rust-crypto", "secp256k1"]}
 hpl-interface = { version = "0.0.2" }
 
 hyperlane-core = { path = "../../hyperlane-core" }
-
-# These should only be used if it _must_ be used to interop with the inner library,
-# all errors exported from a chain crate should be using thiserror or handrolled to
-# make error handling easier.
-# eyre = "never"
-# anyhow = never
