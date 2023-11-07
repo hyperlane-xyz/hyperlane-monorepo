@@ -224,6 +224,7 @@ impl BaseMetadataBuilder {
         Ok(MultisigCheckpointSyncer::new(checkpoint_syncers))
     }
 
+    #[instrument(err, skip(self), fields(domain=self.domain().name()))]
     pub async fn build_ism_and_metadata(
         &self,
         ism_address: H256,
@@ -257,7 +258,7 @@ impl BaseMetadataBuilder {
             .context("When building metadata");
         Ok(IsmWithMetadataAndType {
             ism,
-            metadata: meta.ok().flatten(),
+            metadata: meta?,
             module_type,
         })
     }

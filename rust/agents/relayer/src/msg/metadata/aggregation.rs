@@ -9,7 +9,8 @@ use tracing::{info, instrument};
 
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256};
 
-use super::{BaseMetadataBuilder, MetadataBuilder};
+use super::{base::IsmWithMetadataAndType, BaseMetadataBuilder, MetadataBuilder};
+use eyre::ErrReport;
 
 /// Bytes used to store one member of the (start, end) range tuple
 /// Copied from `AggregationIsmMetadata.sol`
@@ -91,7 +92,7 @@ impl AggregationIsmMetadataBuilder {
         sub_modules: Vec<IsmAndMetadata>,
         message: &HyperlaneMessage,
         threshold: usize,
-        err_isms: Vec<(H256, ModuleType)>,
+        err_isms: Vec<(H256, Option<ModuleType>)>,
     ) -> Option<Vec<SubModuleMetadata>> {
         let gas_cost_results: Vec<_> = join_all(
             sub_modules
@@ -138,26 +139,21 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         // Partitions things into
         // 1. ok_sub_modules: ISMs with metadata with valid metadata
         // 2. err_sub_modules: ISMs with invalid metadata
-        let no_err_sub_modules_and_metas: Vec<_> = sub_modules_and_metas
+        let (ok_sub_modules, err_sub_modules): (Vec<_>, Vec<_>) = sub_modules_and_metas
             .into_iter()
-            .filter_map(|sub_module_and_meta| sub_module_and_meta.ok())
-            .collect();
-        let (ok_sub_modules, err_sub_modules): (Vec<_>, Vec<_>) = no_err_sub_modules_and_metas
-            .into_iter()
+            .zip(ism_addresses.iter())
             .enumerate()
-            .partition_map(
-                |(index, sub_module_and_meta)| match sub_module_and_meta.metadata {
-                    Some(_) => Either::Left(IsmAndMetadata::new(
+            .partition_map(|(index, (result, ism_address))| match result {
+                Ok(sub_module_and_meta) => match sub_module_and_meta.metadata {
+                    Some(metadata) => Either::Left(IsmAndMetadata::new(
                         sub_module_and_meta.ism,
                         index,
-                        sub_module_and_meta.metadata.unwrap(),
+                        metadata,
                     )),
-                    None => Either::Right((
-                        sub_module_and_meta.ism.address(),
-                        sub_module_and_meta.module_type,
-                    )),
+                    None => Either::Right((*ism_address, Some(sub_module_and_meta.module_type))),
                 },
-            );
+                Err(_) => Either::Right((*ism_address, None)),
+            });
         let maybe_aggregation_metadata =
             Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules)
                 .await
