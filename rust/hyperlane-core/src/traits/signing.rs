@@ -1,18 +1,19 @@
-use std::fmt::{Debug, Formatter};
-
 use async_trait::async_trait;
 use auto_impl::auto_impl;
-use elliptic_curve::consts::U32;
-#[cfg(feature = "ethers")]
-use ethers_core::k256::{
-    ecdsa::recoverable::Signature as RecoverableSignature, ecdsa::Signature as K256Signature,
-    PublicKey as K256PublicKey,
-};
-use generic_array::GenericArray;
-
 use serde::{
     ser::{SerializeStruct, Serializer},
     Deserialize, Serialize,
+};
+use std::fmt::{Debug, Formatter};
+
+#[cfg(feature = "ethers")]
+use {
+    elliptic_curve::consts::U32,
+    ethers_core::k256::{
+        ecdsa::recoverable::Signature as RecoverableSignature, ecdsa::Signature as K256Signature,
+        PublicKey as K256PublicKey,
+    },
+    generic_array::GenericArray,
 };
 
 use crate::utils::fmt_bytes;
