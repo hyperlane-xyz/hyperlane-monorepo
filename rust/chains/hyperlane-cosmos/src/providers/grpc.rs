@@ -86,6 +86,8 @@ pub struct WasmGrpcProvider {
     conf: ConnectionConf,
     address: H256,
     signer: Signer,
+    /// GRPC Channel that can be cheaply cloned.
+    /// See https://docs.rs/tonic/latest/tonic/transport/struct.Channel.html#multiplexing-requests
     channel: Channel,
 }
 
