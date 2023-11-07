@@ -16,7 +16,6 @@ use crate::CosmosProvider;
 use crate::{signers::Signer, utils::get_block_height_for_lag, verify, ConnectionConf};
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
 use cosmrs::tendermint::abci::EventAttribute;
 use once_cell::sync::Lazy;
 
@@ -201,16 +200,12 @@ impl Mailbox for CosmosMailbox {
             },
         };
 
-        let response: SimulateResponse = self.provider.wasm_simulate(process_message).await?;
         let result = TxCostEstimate {
-            gas_limit: U256::from(
-                response
-                    .gas_info
-                    .ok_or(ChainCommunicationError::TxCostEstimateError(
-                        "Failed to estimate gas limit".to_string(),
-                    ))?
-                    .gas_used,
-            ),
+            gas_limit: self
+                .provider
+                .wasm_estimate_gas(process_message)
+                .await?
+                .into(),
             gas_price: U256::from(2500),
             l2_gas_limit: None,
         };

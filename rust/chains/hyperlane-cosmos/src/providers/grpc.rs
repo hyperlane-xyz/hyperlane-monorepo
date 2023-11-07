@@ -9,7 +9,7 @@ use cosmrs::proto::cosmos::base::tendermint::v1beta1::{
 };
 use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient as TxServiceClient;
 use cosmrs::proto::cosmos::tx::v1beta1::{
-    BroadcastMode, BroadcastTxRequest, SimulateRequest, SimulateResponse,
+    BroadcastMode, BroadcastTxRequest, SimulateRequest, TxRaw,
 };
 use cosmrs::proto::cosmwasm::wasm::v1::{
     query_client::QueryClient as WasmQueryClient, MsgExecuteContract,
@@ -26,8 +26,9 @@ use tonic::transport::{Channel, Endpoint};
 use crate::{signers::Signer, ConnectionConf};
 use crate::{verify, HyperlaneCosmosError};
 
-const DEFAULT_GAS_PRICE: f32 = 0.05;
-const DEFAULT_GAS_ADJUSTMENT: f32 = 1.25;
+const DEFAULT_GAS_PRICE: f64 = 0.05;
+const DEFAULT_GAS_ADJUSTMENT: f64 = 1.25;
+const TIMEOUT_BLOCKS: u64 = 1000;
 
 #[async_trait]
 /// Cosmwasm GRPC Provider
@@ -61,10 +62,7 @@ pub trait WasmProvider: Send + Sync {
     ) -> ChainResult<TxResponse>;
 
     /// simulate tx
-    async fn wasm_simulate<T: Serialize + Sync + Send>(
-        &self,
-        payload: T,
-    ) -> ChainResult<SimulateResponse>;
+    async fn wasm_estimate_gas<T: Serialize + Sync + Send>(&self, payload: T) -> ChainResult<u64>;
 }
 
 #[derive(Debug)]
@@ -100,64 +98,89 @@ impl WasmGrpcProvider {
 }
 
 impl WasmGrpcProvider {
-    async fn generate_raw_tx<I>(&self, msgs: I, gas_limit: Option<U256>) -> ChainResult<Vec<u8>>
-    where
-        I: IntoIterator<Item = cosmrs::Any> + Send + Sync,
-    {
+    async fn generate_unsigned_sign_doc(
+        &self,
+        msgs: Vec<cosmrs::Any>,
+        gas_limit: u64,
+    ) -> ChainResult<SignDoc> {
         let account_info = self.account_query(self.signer.address.clone()).await?;
+        let current_height = self.latest_block_height().await?;
+        let timeout_height = current_height + TIMEOUT_BLOCKS;
 
-        let private_key = self.signer.signing_key()?;
-        let public_key = private_key.public_key();
-
-        let tx_body = tx::Body::new(msgs, "", 9000000u32);
+        let tx_body = tx::Body::new(
+            msgs,
+            "",
+            TryInto::<u32>::try_into(timeout_height)
+                .map_err(ChainCommunicationError::from_other)?,
+        );
         let signer_info =
             SignerInfo::single_direct(Some(self.signer.public_key), account_info.sequence);
 
-        let gas_limit: u64 = gas_limit.unwrap_or(U256::from(300000u64)).as_u64();
-
         let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
             Coin::new(
-                Amount::from((gas_limit as f32 * DEFAULT_GAS_PRICE) as u64),
+                Amount::from((gas_limit as f64 * DEFAULT_GAS_PRICE) as u64),
                 self.conf.get_canonical_asset().as_str(),
             )?,
             gas_limit,
         ));
 
-        // signing
-        let sign_doc = SignDoc::new(
+        SignDoc::new(
             &tx_body,
             &auth_info,
             &self.conf.get_chain_id().parse()?,
             account_info.account_number,
-        )?;
+        )
+        .map_err(Into::into)
+    }
 
-        let tx_signed = sign_doc.sign(&private_key)?;
+    async fn generate_raw_signed_tx(
+        &self,
+        msgs: Vec<cosmrs::Any>,
+        gas_limit: Option<u64>,
+    ) -> ChainResult<Vec<u8>> {
+        let gas_limit = if let Some(l) = gas_limit {
+            l
+        } else {
+            self.estimate_gas(msgs.clone()).await?
+        };
 
+        let sign_doc = self.generate_unsigned_sign_doc(msgs, gas_limit).await?;
+
+        let tx_signed = sign_doc.sign(&self.signer.signing_key()?)?;
         Ok(tx_signed.to_bytes()?)
     }
 
-    async fn simulate_raw_tx<I>(&self, msgs: I) -> ChainResult<SimulateResponse>
-    where
-        I: IntoIterator<Item = cosmrs::Any> + Send + Sync,
-    {
-        let mut client = TxServiceClient::new(self.channel.clone());
+    async fn estimate_gas(&self, msgs: Vec<cosmrs::Any>) -> ChainResult<u64> {
+        // Get a sign doc with 0 gas, because we plan to simulate
+        let sign_doc = self.generate_unsigned_sign_doc(msgs, 0).await?;
 
-        let tx_bytes = self.generate_raw_tx(msgs, None).await?;
+        let raw_tx = TxRaw {
+            body_bytes: sign_doc.body_bytes,
+            auth_info_bytes: sign_doc.auth_info_bytes,
+            // The poorly documented trick to simuluating a tx without a valid signature is to just pass
+            // in a single empty signature. Taken from cosmjs:
+            // https://github.com/cosmos/cosmjs/blob/44893af824f0712d1f406a8daa9fcae335422235/packages/stargate/src/modules/tx/queries.ts#L67
+            signatures: vec![vec![]],
+        };
+
+        let mut client = TxServiceClient::new(self.channel.clone());
+        let tx_bytes = raw_tx
+            .to_bytes()
+            .map_err(ChainCommunicationError::from_other)?;
         #[allow(deprecated)]
         let sim_req = tonic::Request::new(SimulateRequest { tx: None, tx_bytes });
-        let mut sim_res = client
+        let gas_used = client
             .simulate(sim_req)
             .await
             .map_err(ChainCommunicationError::from_other)?
-            .into_inner();
+            .into_inner()
+            .gas_info
+            .ok_or_else(|| ChainCommunicationError::from_other_str("gas info not present"))?
+            .gas_used;
 
-        // apply gas adjustment
-        sim_res.gas_info.as_mut().map(|v| {
-            v.gas_used = (v.gas_used as f32 * DEFAULT_GAS_ADJUSTMENT) as u64;
-            v
-        });
+        let gas_estimate = (gas_used as f64 * DEFAULT_GAS_ADJUSTMENT) as u64;
 
-        Ok(sim_res)
+        Ok(gas_estimate)
     }
 }
 
@@ -255,8 +278,21 @@ impl WasmProvider for WasmGrpcProvider {
         .to_any()
         .map_err(ChainCommunicationError::from_other)?];
 
+        // We often use U256s for gas limits, but Cosmos expects u64s. Try to convert,
+        // and if it fails, just use None which will result in gas estimation.
+        let gas_limit: Option<u64> = gas_limit.and_then(|limit| match limit.try_into() {
+            Ok(limit) => Some(limit),
+            Err(err) => {
+                tracing::warn!(
+                    ?err,
+                    "failed to convert gas_limit to u64, falling back to estimation"
+                );
+                None
+            }
+        });
+
         let tx_req = BroadcastTxRequest {
-            tx_bytes: self.generate_raw_tx(msgs, gas_limit).await?,
+            tx_bytes: self.generate_raw_signed_tx(msgs, gas_limit).await?,
             mode: BroadcastMode::Sync as i32,
         };
 
@@ -274,7 +310,7 @@ impl WasmProvider for WasmGrpcProvider {
         Ok(tx_res)
     }
 
-    async fn wasm_simulate<T>(&self, payload: T) -> ChainResult<SimulateResponse>
+    async fn wasm_estimate_gas<T>(&self, payload: T) -> ChainResult<u64>
     where
         T: Serialize + Send + Sync,
     {
@@ -286,7 +322,7 @@ impl WasmProvider for WasmGrpcProvider {
         };
 
         let response = self
-            .simulate_raw_tx(vec![msg
+            .estimate_gas(vec![msg
                 .to_any()
                 .map_err(ChainCommunicationError::from_other)?])
             .await?;
