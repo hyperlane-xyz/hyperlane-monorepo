@@ -4242,7 +4242,6 @@ __metadata:
     eslint: ^8.43.0
     ethereum-waffle: ^3.4.4
     ethers: ^5.7.2
-    fs: 0.0.1-security
     hardhat: ^2.16.1
     mocha: ^9.2.2
     prettier: ^2.4.1
@@ -11356,13 +11355,6 @@ __metadata:
   version: 1.0.0
   resolution: "fs.realpath@npm:1.0.0"
   checksum: 99ddea01a7e75aa276c250a04eedeffe5662bce66c65c07164ad6264f9de18fb21be9433ead460e54cff20e31721c811f4fb5d70591799df5f85dce6d6746fd0
-  languageName: node
-  linkType: hard
-
-"fs@npm:0.0.1-security":
-  version: 0.0.1-security
-  resolution: "fs@npm:0.0.1-security"
-  checksum: 53c6230e1faae9fa32c1df82c16a84b51b1243d20f3da2b64bd110bb472b73b9185169b703e008356e3cdc92d155088b617d9d39a63b5227a30b3621baad7f5d
   languageName: node
   linkType: hard
 
