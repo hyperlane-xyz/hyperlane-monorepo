@@ -1,5 +1,13 @@
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
+use crate::{
+    merkle_tree::builder::MerkleTreeBuilder,
+    msg::metadata::{
+        multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
+        AggregationIsmMetadataBuilder, CcipReadIsmMetadataBuilder, NullMetadataBuilder,
+        RoutingIsmMetadataBuilder,
+    },
+};
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
@@ -15,16 +23,6 @@ use hyperlane_core::{
 };
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
-
-use crate::merkle_tree::builder::MerkleTreeBuilderError;
-use crate::{
-    merkle_tree::builder::MerkleTreeBuilder,
-    msg::metadata::{
-        multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
-        AggregationIsmMetadataBuilder, CcipReadIsmMetadataBuilder, NullMetadataBuilder,
-        RoutingIsmMetadataBuilder,
-    },
-};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {

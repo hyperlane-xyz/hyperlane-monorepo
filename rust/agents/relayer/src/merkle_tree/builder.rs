@@ -3,7 +3,7 @@ use std::fmt::Display;
 use eyre::{Context, Result};
 use tracing::{debug, error, instrument};
 
-use hyperlane_base::db::{DbError, HyperlaneRocksDB};
+use hyperlane_base::db::DbError;
 use hyperlane_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
     ChainCommunicationError, H256,
@@ -61,7 +61,7 @@ pub enum MerkleTreeBuilderError {
 }
 
 impl MerkleTreeBuilder {
-    pub fn new(db: HyperlaneRocksDB) -> Self {
+    pub fn new() -> Self {
         let prover = Prover::default();
         let incremental = IncrementalMerkle::default();
         Self {
