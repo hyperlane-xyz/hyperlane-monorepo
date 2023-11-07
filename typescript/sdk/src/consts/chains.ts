@@ -27,7 +27,6 @@ export enum Chains {
   neutron = 'neutron',
   mumbai = 'mumbai',
   nautilus = 'nautilus',
-  neutron = 'neutron',
   optimism = 'optimism',
   optimismgoerli = 'optimismgoerli',
   polygon = 'polygon',

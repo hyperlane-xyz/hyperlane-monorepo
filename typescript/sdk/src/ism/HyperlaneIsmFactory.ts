@@ -162,9 +162,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
   private async deployRoutingIsm(chain: ChainName, config: RoutingIsmConfig) {
     const signer = this.multiProvider.getSigner(chain);
-    const routingIsmFactory = config.defaultFallback
-      ? this.getContracts(chain).defaultFallbackRoutingIsmFactory
-      : this.getContracts(chain).routingIsmFactory;
+    const routingIsmFactory = this.getContracts(chain).routingIsmFactory;
+    // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2895
+    // config.defaultFallback
+    //   ? this.getContracts(chain).defaultFallbackRoutingIsmFactory
+    // : this.getContracts(chain).routingIsmFactory;
     const isms: ChainMap<Address> = {};
     for (const origin in config.domains) {
       const ism = await this.deploy(chain, config.domains[origin], origin);
