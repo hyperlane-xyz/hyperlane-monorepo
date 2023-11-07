@@ -1,3 +1,5 @@
+import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
+import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
 import { providers } from 'ethers';
 import { createPublicClient, http } from 'viem';
@@ -7,6 +9,8 @@ import { ProtocolType, isNumeric } from '@hyperlane-xyz/utils';
 import { ChainMetadata } from '../metadata/chainMetadataTypes';
 
 import {
+  CosmJsProvider,
+  CosmJsWasmProvider,
   EthersV5Provider,
   ProviderType,
   SolanaWeb3Provider,
@@ -102,6 +106,28 @@ export function defaultFuelProviderBuilder(
   throw new Error('TODO fuel support');
 }
 
+export function defaultCosmJsProviderBuilder(
+  rpcUrls: ChainMetadata['rpcUrls'],
+  _network: number | string,
+): CosmJsProvider {
+  if (!rpcUrls.length) throw new Error('No RPC URLs provided');
+  return {
+    type: ProviderType.CosmJs,
+    provider: StargateClient.connect(rpcUrls[0].http),
+  };
+}
+
+export function defaultCosmJsWasmProviderBuilder(
+  rpcUrls: ChainMetadata['rpcUrls'],
+  _network: number | string,
+): CosmJsWasmProvider {
+  if (!rpcUrls.length) throw new Error('No RPC URLs provided');
+  return {
+    type: ProviderType.CosmJsWasm,
+    provider: CosmWasmClient.connect(rpcUrls[0].http),
+  };
+}
+
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
   rpcUrls: ChainMetadata['rpcUrls'],
@@ -119,6 +145,8 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   // [ProviderType.EthersV6]: defaultEthersV6ProviderBuilder,
   [ProviderType.Viem]: defaultViemProviderBuilder,
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
+  [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
+  [ProviderType.CosmJsWasm]: defaultCosmJsWasmProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -128,4 +156,5 @@ export const protocolToDefaultProviderBuilder: Record<
   [ProtocolType.Ethereum]: defaultEthersV5ProviderBuilder,
   [ProtocolType.Sealevel]: defaultSolProviderBuilder,
   [ProtocolType.Fuel]: defaultFuelProviderBuilder,
+  [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
 };

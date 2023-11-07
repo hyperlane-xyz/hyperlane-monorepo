@@ -1,20 +1,27 @@
 import type { Chain as WagmiChain } from '@wagmi/chains';
 
-import { objMap } from '@hyperlane-xyz/utils';
+import { ProtocolType, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { chainMetadata, etherToken } from '../consts/chainMetadata';
-import type { ChainMetadata } from '../metadata/chainMetadataTypes';
+import {
+  ChainMetadata,
+  getChainIdNumber,
+} from '../metadata/chainMetadataTypes';
 import type { ChainMap } from '../types';
 
 // For convenient use in wagmi-based apps
 export const wagmiChainMetadata: ChainMap<WagmiChain> = objMap(
-  chainMetadata,
+  objFilter(
+    chainMetadata,
+    (_, metadata): metadata is ChainMetadata =>
+      metadata.protocol === ProtocolType.Ethereum,
+  ),
   (_, metadata) => chainMetadataToWagmiChain(metadata),
 );
 
 export function chainMetadataToWagmiChain(metadata: ChainMetadata): WagmiChain {
   return {
-    id: metadata.chainId,
+    id: getChainIdNumber(metadata),
     name: metadata.displayName || metadata.name,
     network: metadata.name as string,
     nativeCurrency: metadata.nativeToken || etherToken,
