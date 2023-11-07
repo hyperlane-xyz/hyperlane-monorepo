@@ -9,8 +9,7 @@ use tracing::{info, instrument};
 
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256};
 
-use super::{base::IsmWithMetadataAndType, BaseMetadataBuilder, MetadataBuilder};
-use eyre::ErrReport;
+use super::{BaseMetadataBuilder, MetadataBuilder};
 
 /// Bytes used to store one member of the (start, end) range tuple
 /// Copied from `AggregationIsmMetadata.sol`
