@@ -53,19 +53,6 @@ pub trait WasmProvider: Send + Sync {
     /// query account info
     async fn account_query(&self, address: String) -> ChainResult<BaseAccount>;
 
-    /// simulate raw tx
-    async fn simulate_raw_tx<I: IntoIterator<Item = cosmrs::Any> + Sync + Send>(
-        &self,
-        msgs: I,
-    ) -> ChainResult<SimulateResponse>;
-
-    /// generate raw tx
-    async fn generate_raw_tx<I: IntoIterator<Item = cosmrs::Any> + Sync + Send>(
-        &self,
-        msgs: I,
-        gas_limit: Option<U256>,
-    ) -> ChainResult<Vec<u8>>;
-
     /// send tx
     async fn wasm_send<T: Serialize + Sync + Send>(
         &self,
@@ -109,6 +96,68 @@ impl WasmGrpcProvider {
 
     fn get_contract_addr(&self) -> ChainResult<String> {
         verify::digest_to_addr(self.address, self.signer.prefix.as_str())
+    }
+}
+
+impl WasmGrpcProvider {
+    async fn generate_raw_tx<I>(&self, msgs: I, gas_limit: Option<U256>) -> ChainResult<Vec<u8>>
+    where
+        I: IntoIterator<Item = cosmrs::Any> + Send + Sync,
+    {
+        let account_info = self.account_query(self.signer.address.clone()).await?;
+
+        let private_key = self.signer.signing_key()?;
+        let public_key = private_key.public_key();
+
+        let tx_body = tx::Body::new(msgs, "", 9000000u32);
+        let signer_info =
+            SignerInfo::single_direct(Some(self.signer.public_key), account_info.sequence);
+
+        let gas_limit: u64 = gas_limit.unwrap_or(U256::from(300000u64)).as_u64();
+
+        let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
+            Coin::new(
+                Amount::from((gas_limit as f32 * DEFAULT_GAS_PRICE) as u64),
+                self.conf.get_canonical_asset().as_str(),
+            )?,
+            gas_limit,
+        ));
+
+        // signing
+        let sign_doc = SignDoc::new(
+            &tx_body,
+            &auth_info,
+            &self.conf.get_chain_id().parse()?,
+            account_info.account_number,
+        )?;
+
+        let tx_signed = sign_doc.sign(&private_key)?;
+
+        Ok(tx_signed.to_bytes()?)
+    }
+
+    async fn simulate_raw_tx<I>(&self, msgs: I) -> ChainResult<SimulateResponse>
+    where
+        I: IntoIterator<Item = cosmrs::Any> + Send + Sync,
+    {
+        let mut client = TxServiceClient::new(self.channel.clone());
+
+        let tx_bytes = self.generate_raw_tx(msgs, None).await?;
+        #[allow(deprecated)]
+        let sim_req = tonic::Request::new(SimulateRequest { tx: None, tx_bytes });
+        let mut sim_res = client
+            .simulate(sim_req)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+
+        // apply gas adjustment
+        sim_res.gas_info.as_mut().map(|v| {
+            v.gas_used = (v.gas_used as f32 * DEFAULT_GAS_ADJUSTMENT) as u64;
+            v
+        });
+
+        Ok(sim_res)
     }
 }
 
@@ -189,66 +238,6 @@ impl WasmProvider for WasmGrpcProvider {
                 .as_slice(),
         )?;
         Ok(account)
-    }
-
-    async fn simulate_raw_tx<I>(&self, msgs: I) -> ChainResult<SimulateResponse>
-    where
-        I: IntoIterator<Item = cosmrs::Any> + Send + Sync,
-    {
-        let mut client = TxServiceClient::new(self.channel.clone());
-
-        let tx_bytes = self.generate_raw_tx(msgs, None).await?;
-        #[allow(deprecated)]
-        let sim_req = tonic::Request::new(SimulateRequest { tx: None, tx_bytes });
-        let mut sim_res = client
-            .simulate(sim_req)
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .into_inner();
-
-        // apply gas adjustment
-        sim_res.gas_info.as_mut().map(|v| {
-            v.gas_used = (v.gas_used as f32 * DEFAULT_GAS_ADJUSTMENT) as u64;
-            v
-        });
-
-        Ok(sim_res)
-    }
-
-    async fn generate_raw_tx<I>(&self, msgs: I, gas_limit: Option<U256>) -> ChainResult<Vec<u8>>
-    where
-        I: IntoIterator<Item = cosmrs::Any> + Send + Sync,
-    {
-        let account_info = self.account_query(self.signer.address.clone()).await?;
-
-        let private_key = self.signer.signing_key()?;
-        let public_key = private_key.public_key();
-
-        let tx_body = tx::Body::new(msgs, "", 9000000u32);
-        let signer_info =
-            SignerInfo::single_direct(Some(self.signer.public_key), account_info.sequence);
-
-        let gas_limit: u64 = gas_limit.unwrap_or(U256::from(300000u64)).as_u64();
-
-        let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
-            Coin::new(
-                Amount::from((gas_limit as f32 * DEFAULT_GAS_PRICE) as u64),
-                self.conf.get_canonical_asset().as_str(),
-            )?,
-            gas_limit,
-        ));
-
-        // signing
-        let sign_doc = SignDoc::new(
-            &tx_body,
-            &auth_info,
-            &self.conf.get_chain_id().parse()?,
-            account_info.account_number,
-        )?;
-
-        let tx_signed = sign_doc.sign(&private_key)?;
-
-        Ok(tx_signed.to_bytes()?)
     }
 
     async fn wasm_send<T>(&self, payload: T, gas_limit: Option<U256>) -> ChainResult<TxResponse>
