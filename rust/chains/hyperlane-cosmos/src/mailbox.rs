@@ -136,7 +136,7 @@ impl Mailbox for CosmosMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let address = CosmosAddress::from_h256(self.address, &self.signer.prefix)?.address();
+        let address = CosmosAddress::from_h256(recipient, &self.signer.prefix)?.address();
 
         let payload = mailbox::RecipientIsmRequest {
             recipient_ism: mailbox::RecipientIsmRequestInner {

@@ -127,4 +127,16 @@ pub mod test {
             "neutron1kknekjxg0ear00dky5ykzs8wwp2gz62z9s6aaj"
         );
     }
+
+    #[test]
+    fn test_bech32_encode_from_h256() {
+        let hex_key = "0x1b16866227825a5166eb44031cdcf6568b3e80b52f2806e01b89a34dc90ae616";
+        let key = hex_or_base58_to_h256(hex_key).unwrap();
+        let prefix = "dual";
+        let addr = CosmosAddress::from_h256(key, prefix).expect("Cosmos address creation failed");
+        assert_eq!(
+            addr.address(),
+            "dual1rvtgvc38sfd9zehtgsp3eh8k269naq949u5qdcqm3x35mjg2uctqfdn3yq"
+        );
+    }
 }

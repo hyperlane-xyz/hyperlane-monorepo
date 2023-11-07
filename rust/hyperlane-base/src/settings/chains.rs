@@ -149,7 +149,7 @@ impl ChainConf {
                 Ok(Box::new(h_cosmos::CosmosMailbox::new(
                     conf.clone(),
                     locator.clone(),
-                    signer.clone().unwrap(),
+                    signer.clone().expect("Cosmos signer not configured"),
                 )) as Box<dyn Mailbox>)
             }
         }
