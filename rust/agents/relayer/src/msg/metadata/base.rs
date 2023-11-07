@@ -110,20 +110,14 @@ impl BaseMetadataBuilder {
             .get_proof(leaf_index, checkpoint.index)
             .context(CTX)?;
 
-        if proof.root() == checkpoint.root {
-            Ok(proof)
-        } else {
+        if proof.root() != checkpoint.root {
             info!(
                 ?checkpoint,
                 canonical_root = ?proof.root(),
                 "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
             );
-            Err(MerkleTreeBuilderError::MismatchedRoots {
-                prover_root: proof.root(),
-                incremental_root: checkpoint.root,
-            }
-            .into())
         }
+        Ok(proof)
     }
 
     pub async fn highest_known_leaf_index(&self) -> Option<u32> {
