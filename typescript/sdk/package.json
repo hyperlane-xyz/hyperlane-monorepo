@@ -12,6 +12,7 @@
     "@types/coingecko-api": "^1.0.10",
     "@types/debug": "^4.1.7",
     "@wagmi/chains": "^0.2.6",
+    "bignumber.js": "^9.1.1",
     "coingecko-api": "^1.0.10",
     "cosmjs-types": "^0.9.0",
     "cross-fetch": "^3.1.5",
