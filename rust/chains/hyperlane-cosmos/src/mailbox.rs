@@ -45,15 +45,19 @@ pub struct CosmosMailbox {
 impl CosmosMailbox {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
-        let provider = WasmGrpcProvider::new(conf, locator.clone(), signer.clone());
+    pub fn new(
+        conf: ConnectionConf,
+        locator: ContractLocator,
+        signer: Signer,
+    ) -> ChainResult<Self> {
+        let provider = WasmGrpcProvider::new(conf, locator.clone(), signer.clone())?;
 
-        Self {
+        Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
             signer,
             provider: Box::new(provider),
-        }
+        })
     }
 }
 
@@ -262,7 +266,7 @@ impl CosmosMailboxIndexer {
         signer: Signer,
         reorg_period: u32,
     ) -> ChainResult<Self> {
-        let mailbox = CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone());
+        let mailbox = CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone())?;
         let indexer = CosmosWasmIndexer::new(
             conf,
             locator,

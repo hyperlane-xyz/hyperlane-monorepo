@@ -27,16 +27,20 @@ pub struct CosmosMultisigIsm {
 
 impl CosmosMultisigIsm {
     /// create a new instance of CosmosMultisigIsm
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
+    pub fn new(
+        conf: ConnectionConf,
+        locator: ContractLocator,
+        signer: Signer,
+    ) -> ChainResult<Self> {
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone())?;
 
-        Self {
+        Ok(Self {
             _conf: conf,
             domain: locator.domain.clone(),
             address: locator.address,
             _signer: signer,
             provider: Box::new(provider),
-        }
+        })
     }
 }
 

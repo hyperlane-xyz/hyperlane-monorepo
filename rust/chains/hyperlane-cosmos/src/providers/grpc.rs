@@ -93,14 +93,18 @@ pub struct WasmGrpcProvider {
 
 impl WasmGrpcProvider {
     /// create new Cosmwasm GRPC Provider
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
-        let channel = Endpoint::new(conf.get_grpc_url()).unwrap().connect_lazy();
-        Self {
+    pub fn new(
+        conf: ConnectionConf,
+        locator: ContractLocator,
+        signer: Signer,
+    ) -> ChainResult<Self> {
+        let channel = Endpoint::new(conf.get_grpc_url())?.connect_lazy();
+        Ok(Self {
             conf,
             address: locator.address,
             signer,
             channel,
-        }
+        })
     }
 
     fn get_contract_addr(&self) -> ChainResult<String> {

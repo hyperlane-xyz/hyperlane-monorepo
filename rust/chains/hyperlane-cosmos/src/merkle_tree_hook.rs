@@ -38,14 +38,18 @@ pub struct CosmosMerkleTreeHook {
 
 impl CosmosMerkleTreeHook {
     /// create new Cosmos MerkleTreeHook agent
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
+    pub fn new(
+        conf: ConnectionConf,
+        locator: ContractLocator,
+        signer: Signer,
+    ) -> ChainResult<Self> {
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone())?;
 
-        Self {
+        Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
             provider: Box::new(provider),
-        }
+        })
     }
 }
 
@@ -200,7 +204,7 @@ impl CosmosMerkleTreeHookIndexer {
         )?;
 
         Ok(Self {
-            merkle_tree_hook: CosmosMerkleTreeHook::new(conf, locator, signer),
+            merkle_tree_hook: CosmosMerkleTreeHook::new(conf, locator, signer)?,
             indexer: Box::new(indexer),
         })
     }

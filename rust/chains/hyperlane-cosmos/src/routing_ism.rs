@@ -25,14 +25,18 @@ pub struct CosmosRoutingIsm {
 
 impl CosmosRoutingIsm {
     /// create a new instance of CosmosRoutingIsm
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
+    pub fn new(
+        conf: &ConnectionConf,
+        locator: ContractLocator,
+        signer: Signer,
+    ) -> ChainResult<Self> {
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone())?;
 
-        Self {
+        Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
             provider: Box::new(provider),
-        }
+        })
     }
 }
 
