@@ -155,7 +155,7 @@ export class CosmIbcToWarpTokenAdapter
         token: this.properties.derivedIbcDenom,
         warpRouter: this.addresses.intermediateRouterAddress,
       },
-      this.properties.ibcDenom,
+      this.properties.derivedIbcDenom,
     );
     const transfer = await cwAdapter.populateTransferRemoteTx(transferParams);
     const cwMemo = {
@@ -166,9 +166,16 @@ export class CosmIbcToWarpTokenAdapter
       },
     };
     const memo = JSON.stringify(cwMemo);
+    if (transfer.funds?.length !== 1) {
+      // Only transfers where the interchain gas denom matches the token are currently supported
+      throw new Error('Expected exactly one denom for IBC to Warp transfer');
+    }
+    // Grab amount from the funds details which accounts for interchain gas
+    const weiAmountOrId = transfer.funds[0].amount;
     return super.populateTransferRemoteTx(
       {
         ...transferParams,
+        weiAmountOrId,
         recipient: this.addresses.intermediateRouterAddress,
       },
       memo,
