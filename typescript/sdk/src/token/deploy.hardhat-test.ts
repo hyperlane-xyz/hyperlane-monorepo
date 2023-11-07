@@ -24,10 +24,10 @@ describe('TokenDeployer', async () => {
     [signer] = await ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-    const ismFactory = new HyperlaneIsmFactory(
-      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
-      multiProvider,
+    const factories = await ismFactoryDeployer.deploy(
+      multiProvider.mapKnownChains(() => ({})),
     );
+    const ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
     coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
     const routerConfigMap = coreApp.getRouterConfig(signer.address);
     config = objMap(
