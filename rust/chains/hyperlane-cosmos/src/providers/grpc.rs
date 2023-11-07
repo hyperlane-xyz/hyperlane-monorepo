@@ -51,9 +51,6 @@ pub trait WasmProvider: Send + Sync {
         block_height: Option<u64>,
     ) -> ChainResult<Vec<u8>>;
 
-    /// query account info
-    async fn account_query(&self, address: String) -> ChainResult<BaseAccount>;
-
     /// send tx
     async fn wasm_send<T: Serialize + Sync + Send>(
         &self,
@@ -182,6 +179,26 @@ impl WasmGrpcProvider {
 
         Ok(gas_estimate)
     }
+
+    async fn account_query(&self, account: String) -> ChainResult<BaseAccount> {
+        let mut client = QueryAccountClient::new(self.channel.clone());
+
+        let request = tonic::Request::new(QueryAccountRequest { address: account });
+        let response = client
+            .account(request)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+
+        let account = BaseAccount::decode(
+            response
+                .account
+                .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
+                .value
+                .as_slice(),
+        )?;
+        Ok(account)
+    }
 }
 
 #[async_trait]
@@ -241,26 +258,6 @@ impl WasmProvider for WasmGrpcProvider {
             .into_inner();
 
         Ok(response.data)
-    }
-
-    async fn account_query(&self, account: String) -> ChainResult<BaseAccount> {
-        let mut client = QueryAccountClient::new(self.channel.clone());
-
-        let request = tonic::Request::new(QueryAccountRequest { address: account });
-        let response = client
-            .account(request)
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .into_inner();
-
-        let account = BaseAccount::decode(
-            response
-                .account
-                .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
-                .value
-                .as_slice(),
-        )?;
-        Ok(account)
     }
 
     async fn wasm_send<T>(&self, payload: T, gas_limit: Option<U256>) -> ChainResult<TxResponse>
