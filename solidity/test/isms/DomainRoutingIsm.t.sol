@@ -18,13 +18,11 @@ contract DomainRoutingIsmTest is Test {
 
     function setUp() public virtual {
         ism = new DomainRoutingIsm();
-        ism.initialize(address(this));
     }
 
-    function deployTestIsm(bytes32 requiredMetadata)
-        internal
-        returns (TestIsm)
-    {
+    function deployTestIsm(
+        bytes32 requiredMetadata
+    ) internal returns (TestIsm) {
         return new TestIsm(abi.encode(requiredMetadata));
     }
 
@@ -63,9 +61,10 @@ contract DomainRoutingIsmTest is Test {
         }
     }
 
-    function testSetNonOwner(uint32 domain, IInterchainSecurityModule _ism)
-        public
-    {
+    function testSetNonOwner(
+        uint32 domain,
+        IInterchainSecurityModule _ism
+    ) public {
         vm.prank(NON_OWNER);
         vm.expectRevert("Ownable: caller is not the owner");
         ism.set(domain, _ism);
@@ -115,7 +114,6 @@ contract DefaultFallbackRoutingIsmTest is DomainRoutingIsmTest {
         );
 
         ism = new DefaultFallbackRoutingIsm(address(mailbox));
-        ism.initialize(address(this));
     }
 
     function testConstructorReverts() public {

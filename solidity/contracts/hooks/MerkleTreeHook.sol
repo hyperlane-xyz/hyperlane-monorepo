@@ -69,7 +69,7 @@ contract MerkleTreeHook is AbstractPostDispatchHook, MailboxClient, Indexed {
 
         // ensure messages which were not dispatched are not inserted into the tree
         bytes32 id = message.id();
-        require(_isLatestDispatched(id), "message not dispatching");
+        require(id == mailbox.latestDispatchedId(), "message not dispatching");
 
         uint32 index = count();
         _tree.insert(id);

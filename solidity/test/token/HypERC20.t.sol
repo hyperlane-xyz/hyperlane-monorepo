@@ -26,16 +26,16 @@ import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {HypNative} from "../../contracts/token/HypNative.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
+import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 
 abstract contract HypTokenTest is Test {
     using TypeCasts for address;
     uint32 internal constant ORIGIN = 11;
     uint32 internal constant DESTINATION = 12;
     uint8 internal constant DECIMALS = 18;
-    uint256 internal constant TOTAL_SUPPLY = 1_000_000e18;
+    uint256 internal constant TOTAL_SUPPLY = type(uint256).max;
     uint256 internal REQUIRED_VALUE; // initialized in setUp
     uint256 internal constant GAS_LIMIT = 10_000;
-    uint256 internal constant TRANSFER_AMT = 100e18;
     string internal constant NAME = "HyperlaneInu";
     string internal constant SYMBOL = "HYP";
     address internal constant ALICE = address(0x1);
@@ -73,8 +73,12 @@ abstract contract HypTokenTest is Test {
 
         REQUIRED_VALUE = noopHook.quoteDispatch("", "");
 
-        remoteToken = new HypERC20(DECIMALS, address(remoteMailbox));
-        remoteToken.initialize(TOTAL_SUPPLY, NAME, SYMBOL);
+        remoteToken = new HypERC20(
+            NAME,
+            SYMBOL,
+            DECIMALS,
+            address(remoteMailbox)
+        );
         remoteToken.enrollRemoteRouter(
             ORIGIN,
             address(localToken).addressToBytes32()
@@ -115,9 +119,10 @@ abstract contract HypTokenTest is Test {
         localToken.setDestinationGas(config);
     }
 
-    function _performRemoteTransfer(uint256 _msgValue, uint256 _amount)
-        internal
-    {
+    function _performRemoteTransfer(
+        uint256 _msgValue,
+        uint256 _amount
+    ) internal {
         vm.prank(ALICE);
         localToken.transferRemote{value: _msgValue}(
             DESTINATION,
@@ -154,12 +159,11 @@ abstract contract HypTokenTest is Test {
 
     function testBenchmark_overheadGasUsage() public {
         vm.prank(address(localMailbox));
-
         uint256 gasBefore = gasleft();
         localToken.handle(
             DESTINATION,
             address(remoteToken).addressToBytes32(),
-            abi.encodePacked(BOB.addressToBytes32(), TRANSFER_AMT)
+            abi.encodePacked(BOB.addressToBytes32(), uint256(1_000_000))
         );
         uint256 gasAfter = gasleft();
         console.log("Overhead gas usage: %d", gasBefore - gasAfter);
@@ -173,69 +177,62 @@ contract HypERC20Test is HypTokenTest {
     function setUp() public override {
         super.setUp();
 
-        localToken = new HypERC20(DECIMALS, address(localMailbox));
+        localToken = new HypERC20(
+            NAME,
+            SYMBOL,
+            DECIMALS,
+            address(localMailbox)
+        );
         erc20Token = HypERC20(address(localToken));
-
-        erc20Token.initialize(TOTAL_SUPPLY, NAME, SYMBOL);
 
         erc20Token.enrollRemoteRouter(
             DESTINATION,
             address(remoteToken).addressToBytes32()
         );
-        erc20Token.transfer(ALICE, 1000e18);
 
         _enrollRemoteTokenRouter();
-    }
-
-    function testInitialize_revert_ifAlreadyInitialized() public {
-        vm.expectRevert("Initializable: contract is already initialized");
-        erc20Token.initialize(TOTAL_SUPPLY, NAME, SYMBOL);
-    }
-
-    function testTotalSupply() public {
-        assertEq(erc20Token.totalSupply(), TOTAL_SUPPLY);
     }
 
     function testDecimals() public {
         assertEq(erc20Token.decimals(), DECIMALS);
     }
 
-    function testLocalTransfers() public {
-        assertEq(erc20Token.balanceOf(ALICE), 1000e18);
-        assertEq(erc20Token.balanceOf(BOB), 0);
-
-        vm.prank(ALICE);
-        erc20Token.transfer(BOB, 100e18);
-        assertEq(erc20Token.balanceOf(ALICE), 900e18);
-        assertEq(erc20Token.balanceOf(BOB), 100e18);
-    }
-
-    function testRemoteTransfer() public {
-        remoteToken.enrollRemoteRouter(
-            ORIGIN,
-            address(localToken).addressToBytes32()
+    function _mint(address recipient, uint256 amount) internal {
+        bytes memory message = TokenMessage.format(
+            recipient.addressToBytes32(),
+            amount,
+            bytes("")
         );
-        uint256 balanceBefore = erc20Token.balanceOf(ALICE);
-        _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
-        assertEq(erc20Token.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+        vm.prank(address(localMailbox));
+        localToken.handle(
+            DESTINATION,
+            address(remoteToken).addressToBytes32(),
+            message
+        );
     }
 
-    function testRemoteTransfer_invalidAmount() public {
+    function testRemoteTransfer(uint256 amount) public {
+        _mint(ALICE, amount);
+        uint256 balanceBefore = erc20Token.balanceOf(ALICE);
+        _performRemoteTransferWithEmit(REQUIRED_VALUE, amount, 0);
+        assertEq(erc20Token.balanceOf(ALICE), balanceBefore - amount);
+    }
+
+    function testRemoteTransfer_invalidAmount(uint256 amount) public {
+        vm.assume(amount > 0);
         vm.expectRevert("ERC20: burn amount exceeds balance");
-        _performRemoteTransfer(REQUIRED_VALUE, TRANSFER_AMT * 11);
-        assertEq(erc20Token.balanceOf(ALICE), 1000e18);
+        _performRemoteTransfer(REQUIRED_VALUE, amount);
     }
 
-    function testRemoteTransfer_withCustomGasConfig() public {
+    function testRemoteTransfer_withCustomGasConfig(uint256 amount) public {
+        _mint(ALICE, amount);
         _setCustomGasConfig();
-
-        uint256 balanceBefore = erc20Token.balanceOf(ALICE);
         _performRemoteTransferAndGas(
             REQUIRED_VALUE,
-            TRANSFER_AMT,
+            amount,
             GAS_LIMIT * igp.gasPrice()
         );
-        assertEq(erc20Token.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+        assertEq(erc20Token.balanceOf(ALICE), 0);
     }
 }
 
@@ -257,42 +254,44 @@ contract HypERC20CollateralTest is HypTokenTest {
             address(remoteToken).addressToBytes32()
         );
 
-        primaryToken.transfer(address(localToken), 1000e18);
-        primaryToken.transfer(ALICE, 1000e18);
+        primaryToken.transfer(address(localToken), TOTAL_SUPPLY / 2);
+        primaryToken.transfer(ALICE, TOTAL_SUPPLY / 2);
 
         _enrollRemoteTokenRouter();
     }
 
-    function testInitialize_revert_ifAlreadyInitialized() public {}
+    function testRemoteTransfer(uint256 amount) public {
+        vm.assume(amount < TOTAL_SUPPLY / 2);
 
-    function testRemoteTransfer() public {
         uint256 balanceBefore = localToken.balanceOf(ALICE);
 
         vm.prank(ALICE);
-        primaryToken.approve(address(localToken), TRANSFER_AMT);
-        _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
-        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+        primaryToken.approve(address(localToken), amount);
+
+        _performRemoteTransferWithEmit(REQUIRED_VALUE, amount, 0);
+        assertEq(localToken.balanceOf(ALICE), balanceBefore - amount);
     }
 
-    function testRemoteTransfer_invalidAllowance() public {
+    function testRemoteTransfer_invalidAllowance(uint256 amount) public {
+        vm.assume(amount > 0);
         vm.expectRevert("ERC20: insufficient allowance");
-        _performRemoteTransfer(REQUIRED_VALUE, TRANSFER_AMT);
-        assertEq(localToken.balanceOf(ALICE), 1000e18);
+        _performRemoteTransfer(REQUIRED_VALUE, amount);
     }
 
-    function testRemoteTransfer_withCustomGasConfig() public {
+    function testRemoteTransfer_withCustomGasConfig(uint256 amount) public {
+        vm.assume(amount < TOTAL_SUPPLY / 2);
         _setCustomGasConfig();
 
         uint256 balanceBefore = localToken.balanceOf(ALICE);
 
         vm.prank(ALICE);
-        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        primaryToken.approve(address(localToken), amount);
         _performRemoteTransferAndGas(
             REQUIRED_VALUE,
-            TRANSFER_AMT,
+            amount,
             GAS_LIMIT * igp.gasPrice()
         );
-        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+        assertEq(localToken.balanceOf(ALICE), balanceBefore - amount);
     }
 }
 
@@ -306,43 +305,36 @@ contract HypNativeTest is HypTokenTest {
         localToken = new HypNative(address(localMailbox));
         nativeToken = HypNative(payable(address(localToken)));
 
+        vm.deal(ALICE, TOTAL_SUPPLY / 2);
+        vm.deal(address(nativeToken), TOTAL_SUPPLY / 2);
+
         nativeToken.enrollRemoteRouter(
             DESTINATION,
             address(remoteToken).addressToBytes32()
         );
 
-        vm.deal(address(localToken), 1000e18);
-        vm.deal(ALICE, 1000e18);
-
         _enrollRemoteTokenRouter();
     }
 
-    function testInitialize_revert_ifAlreadyInitialized() public {}
-
-    function testRemoteTransfer() public {
-        _performRemoteTransferWithEmit(
-            REQUIRED_VALUE,
-            TRANSFER_AMT,
-            TRANSFER_AMT
-        );
+    function testRemoteTransfer(uint256 amount) public {
+        vm.assume(amount < TOTAL_SUPPLY / 2);
+        _performRemoteTransferWithEmit(REQUIRED_VALUE, amount, amount);
     }
 
-    function testRemoteTransfer_invalidAmount() public {
+    function testRemoteTransfer_invalidAmount(uint256 amount) public {
+        vm.assume(amount > 0);
+        vm.deal(ALICE, amount);
         vm.expectRevert("Native: amount exceeds msg.value");
-        _performRemoteTransfer(
-            REQUIRED_VALUE + TRANSFER_AMT,
-            TRANSFER_AMT * 10
-        );
-        assertEq(localToken.balanceOf(ALICE), 1000e18);
+        _performRemoteTransfer(REQUIRED_VALUE, amount);
     }
 
-    function testRemoteTransfer_withCustomGasConfig() public {
+    function testRemoteTransfer_withCustomGasConfig(uint256 amount) public {
+        vm.assume(amount < TOTAL_SUPPLY / 2);
         _setCustomGasConfig();
-
         _performRemoteTransferAndGas(
             REQUIRED_VALUE,
-            TRANSFER_AMT,
-            TRANSFER_AMT + GAS_LIMIT * igp.gasPrice()
+            amount,
+            amount + GAS_LIMIT * igp.gasPrice()
         );
     }
 }

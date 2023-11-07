@@ -8,8 +8,9 @@ import {ILiquidityLayerAdapter} from "../interfaces/ILiquidityLayerAdapter.sol";
 import {TypeCasts} from "../../../libs/TypeCasts.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract PortalAdapter is ILiquidityLayerAdapter, Router {
+contract PortalAdapter is ILiquidityLayerAdapter, Router, Initializable {
     /// @notice The Portal TokenBridge contract.
     IPortalTokenBridge public portalTokenBridge;
 
@@ -27,7 +28,23 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
     // with a Hyperlane domain
     uint224 public nonce = 0;
 
-    constructor(address _mailbox) Router(_mailbox) {}
+    /**
+     * @param _owner The new owner.
+     * @param _portalTokenBridge The Portal TokenBridge contract.
+     * @param _liquidityLayerRouter The LiquidityLayerRouter contract.
+     */
+    constructor(
+        address _mailbox,
+        address _owner,
+        address _portalTokenBridge,
+        address _liquidityLayerRouter
+    ) Router(_mailbox) {
+        // Transfer ownership of the contract to deployer
+        _transferOwnership(_owner);
+
+        portalTokenBridge = IPortalTokenBridge(_portalTokenBridge);
+        liquidityLayerRouter = _liquidityLayerRouter;
+    }
 
     /**
      * @notice Emits the nonce of the Portal message when a token is bridged.
@@ -51,23 +68,6 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
     modifier onlyLiquidityLayerRouter() {
         require(msg.sender == liquidityLayerRouter, "!liquidityLayerRouter");
         _;
-    }
-
-    /**
-     * @param _owner The new owner.
-     * @param _portalTokenBridge The Portal TokenBridge contract.
-     * @param _liquidityLayerRouter The LiquidityLayerRouter contract.
-     */
-    function initialize(
-        address _owner,
-        address _portalTokenBridge,
-        address _liquidityLayerRouter
-    ) public initializer {
-        // Transfer ownership of the contract to deployer
-        _transferOwnership(_owner);
-
-        portalTokenBridge = IPortalTokenBridge(_portalTokenBridge);
-        liquidityLayerRouter = _liquidityLayerRouter;
     }
 
     /**
@@ -189,10 +189,10 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
         revert("No messages expected");
     }
 
-    function addDomain(uint32 _hyperlaneDomain, uint16 _wormholeDomain)
-        external
-        onlyOwner
-    {
+    function addDomain(
+        uint32 _hyperlaneDomain,
+        uint16 _wormholeDomain
+    ) external onlyOwner {
         hyperlaneDomainToWormholeDomain[_hyperlaneDomain] = _wormholeDomain;
 
         emit DomainAdded(_hyperlaneDomain, _wormholeDomain);
@@ -203,11 +203,10 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
      * @param _hyperlaneDomain The hyperlane of the origin
      * @param _nonce The nonce of the adapter on the origin
      */
-    function transferId(uint32 _hyperlaneDomain, uint224 _nonce)
-        public
-        pure
-        returns (bytes32)
-    {
+    function transferId(
+        uint32 _hyperlaneDomain,
+        uint224 _nonce
+    ) public pure returns (bytes32) {
         return bytes32(abi.encodePacked(_hyperlaneDomain, _nonce));
     }
 }

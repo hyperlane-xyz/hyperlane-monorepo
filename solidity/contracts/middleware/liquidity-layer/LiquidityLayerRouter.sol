@@ -12,8 +12,9 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
+contract LiquidityLayerRouter is Router, Initializable, ILiquidityLayerRouter {
     using SafeERC20 for IERC20;
 
     // Token bridge => adapter address
@@ -21,7 +22,9 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
 
     event LiquidityLayerAdapterSet(string indexed bridge, address adapter);
 
-    constructor(address _mailbox) Router(_mailbox) {}
+    constructor(address _mailbox) Router(_mailbox) {
+        _disableInitializers();
+    }
 
     /**
      * @notice Initializes the Router contract with Hyperlane core contracts and the address of the interchain security module.
@@ -34,11 +37,10 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
         address _interchainSecurityModule,
         address _owner
     ) external initializer {
-        _MailboxClient_initialize(
-            _interchainGasPaymaster,
-            _interchainSecurityModule,
-            _owner
-        );
+        _transferOwnership(msg.sender);
+        setHook(_interchainGasPaymaster);
+        setInterchainSecurityModule(_interchainSecurityModule);
+        transferOwnership(_owner);
     }
 
     function dispatchWithTokens(
@@ -121,19 +123,17 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
         }
     }
 
-    function setLiquidityLayerAdapter(string calldata _bridge, address _adapter)
-        external
-        onlyOwner
-    {
+    function setLiquidityLayerAdapter(
+        string calldata _bridge,
+        address _adapter
+    ) external onlyOwner {
         liquidityLayerAdapters[_bridge] = _adapter;
         emit LiquidityLayerAdapterSet(_bridge, _adapter);
     }
 
-    function _getAdapter(string memory _bridge)
-        internal
-        view
-        returns (ILiquidityLayerAdapter _adapter)
-    {
+    function _getAdapter(
+        string memory _bridge
+    ) internal view returns (ILiquidityLayerAdapter _adapter) {
         _adapter = ILiquidityLayerAdapter(liquidityLayerAdapters[_bridge]);
         // Require the adapter to have been set
         require(address(_adapter) != address(0), "No adapter found for bridge");

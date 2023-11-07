@@ -6,34 +6,27 @@ import "../client/Router.sol";
 contract TestRouter is Router {
     event InitializeOverload();
 
-    constructor(address _mailbox) Router(_mailbox) {}
-
-    function initialize(address _hook, address _interchainSecurityModule)
-        public
-        initializer
-    {
-        _MailboxClient_initialize(_hook, _interchainSecurityModule, msg.sender);
+    constructor(
+        address _mailbox,
+        address _hook,
+        address _interchainSecurityModule
+    ) Router(_mailbox) {
+        setHook(_hook);
+        setInterchainSecurityModule(_interchainSecurityModule);
     }
 
-    function _handle(
-        uint32,
-        bytes32,
-        bytes calldata
-    ) internal pure override {}
+    function _handle(uint32, bytes32, bytes calldata) internal pure override {}
 
-    function isRemoteRouter(uint32 _domain, bytes32 _potentialRemoteRouter)
-        external
-        view
-        returns (bool)
-    {
+    function isRemoteRouter(
+        uint32 _domain,
+        bytes32 _potentialRemoteRouter
+    ) external view returns (bool) {
         return _isRemoteRouter(_domain, _potentialRemoteRouter);
     }
 
-    function mustHaveRemoteRouter(uint32 _domain)
-        external
-        view
-        returns (bytes32)
-    {
+    function mustHaveRemoteRouter(
+        uint32 _domain
+    ) external view returns (bytes32) {
         return _mustHaveRemoteRouter(_domain);
     }
 

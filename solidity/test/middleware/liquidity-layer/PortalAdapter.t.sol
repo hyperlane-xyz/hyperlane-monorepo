@@ -26,22 +26,21 @@ contract PortalAdapterTest is Test {
 
     function setUp() public {
         token = new MockToken();
+        portalBridge = new MockPortalBridge(token);
+
         recipient = new TestTokenRecipient();
 
         MockMailbox originMailbox = new MockMailbox(originDomain);
         MockMailbox destinationMailbox = new MockMailbox(destinationDomain);
 
-        originAdapter = new PortalAdapter(address(originMailbox));
-        destinationAdapter = new PortalAdapter(address(destinationMailbox));
-
-        portalBridge = new MockPortalBridge(token);
-
-        originAdapter.initialize(
+        originAdapter = new PortalAdapter(
+            address(originMailbox),
             address(this),
             address(portalBridge),
             address(this)
         );
-        destinationAdapter.initialize(
+        destinationAdapter = new PortalAdapter(
+            address(destinationMailbox),
             address(this),
             address(portalBridge),
             address(this)
@@ -84,9 +83,9 @@ contract PortalAdapterTest is Test {
         );
     }
 
-    function testReceivingRevertsWithoutTransferCompletion(uint256 amount)
-        public
-    {
+    function testReceivingRevertsWithoutTransferCompletion(
+        uint256 amount
+    ) public {
         // Transfers of 0 are invalid
         vm.assume(amount > 0);
         token.mint(address(originAdapter), amount);

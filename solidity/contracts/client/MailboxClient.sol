@@ -9,9 +9,9 @@ import {Message} from "../libs/Message.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-abstract contract MailboxClient is OwnableUpgradeable {
+abstract contract MailboxClient is Ownable {
     using Message for bytes;
 
     IMailbox public immutable mailbox;
@@ -68,28 +68,10 @@ abstract contract MailboxClient is OwnableUpgradeable {
      * @notice Sets the address of the application's custom interchain security module.
      * @param _module The address of the interchain security module contract.
      */
-    function setInterchainSecurityModule(address _module)
-        public
-        onlyContractOrNull(_module)
-        onlyOwner
-    {
+    function setInterchainSecurityModule(
+        address _module
+    ) public onlyContractOrNull(_module) onlyOwner {
         interchainSecurityModule = IInterchainSecurityModule(_module);
-    }
-
-    // ======== Initializer =========
-    function _MailboxClient_initialize(
-        address _hook,
-        address _interchainSecurityModule,
-        address _owner
-    ) internal onlyInitializing {
-        __Ownable_init();
-        setHook(_hook);
-        setInterchainSecurityModule(_interchainSecurityModule);
-        _transferOwnership(_owner);
-    }
-
-    function _isLatestDispatched(bytes32 id) internal view returns (bool) {
-        return mailbox.latestDispatchedId() == id;
     }
 
     function _metadata(

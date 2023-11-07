@@ -4,18 +4,21 @@ pragma solidity >=0.8.0;
 import "forge-std/Test.sol";
 
 import {HypNativeScaled} from "../../contracts/token/extensions/HypNativeScaled.sol";
+import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
 
 contract HypNativeScaledTest is Test {
+    using TypeCasts for address;
+
     uint32 nativeDomain = 1;
     uint32 synthDomain = 2;
 
     uint8 decimals = 9;
     uint256 mintAmount = 123456789;
     uint256 nativeDecimals = 18;
-    uint256 scale = 10**(nativeDecimals - decimals);
+    uint256 scale = 10 ** (nativeDecimals - decimals);
 
     event Donation(address indexed sender, uint256 amount);
     event SentTransferRemote(
@@ -38,10 +41,12 @@ contract HypNativeScaledTest is Test {
         environment = new MockHyperlaneEnvironment(synthDomain, nativeDomain);
 
         synth = new HypERC20(
+            "Zebec BSC Token",
+            "ZBC",
             decimals,
             address(environment.mailboxes(synthDomain))
         );
-        synth.initialize(mintAmount * (10**decimals), "Zebec BSC Token", "ZBC");
+        uint256 totalSupply = mintAmount * (10 ** decimals);
 
         native = new HypNativeScaled(
             scale,
@@ -50,11 +55,22 @@ contract HypNativeScaledTest is Test {
 
         native.enrollRemoteRouter(
             synthDomain,
-            TypeCasts.addressToBytes32(address(synth))
+            address(synth).addressToBytes32()
         );
         synth.enrollRemoteRouter(
             nativeDomain,
-            TypeCasts.addressToBytes32(address(native))
+            address(native).addressToBytes32()
+        );
+
+        vm.prank(address(environment.mailboxes(synthDomain)));
+        synth.handle(
+            nativeDomain,
+            address(native).addressToBytes32(),
+            TokenMessage.format(
+                address(this).addressToBytes32(),
+                totalSupply,
+                bytes("")
+            )
         );
     }
 
@@ -82,8 +98,8 @@ contract HypNativeScaledTest is Test {
     function test_handle(uint256 amount) public {
         vm.assume(amount <= mintAmount);
 
-        uint256 synthAmount = amount * (10**decimals);
-        uint256 nativeAmount = amount * (10**nativeDecimals);
+        uint256 synthAmount = amount * (10 ** decimals);
+        uint256 nativeAmount = amount * (10 ** nativeDecimals);
 
         vm.deal(address(native), nativeAmount);
 
@@ -97,9 +113,9 @@ contract HypNativeScaledTest is Test {
         assertEq(receivedValue, nativeAmount);
     }
 
-    function test_handle_reverts_whenAmountExceedsSupply(uint256 amount)
-        public
-    {
+    function test_handle_reverts_whenAmountExceedsSupply(
+        uint256 amount
+    ) public {
         vm.assume(amount <= mintAmount);
 
         bytes32 recipient = TypeCasts.addressToBytes32(address(this));
@@ -117,8 +133,8 @@ contract HypNativeScaledTest is Test {
     function test_tranferRemote(uint256 amount) public {
         vm.assume(amount <= mintAmount);
 
-        uint256 nativeValue = amount * (10**nativeDecimals);
-        uint256 synthAmount = amount * (10**decimals);
+        uint256 nativeValue = amount * (10 ** nativeDecimals);
+        uint256 synthAmount = amount * (10 ** decimals);
         address recipient = address(0xdeadbeef);
         bytes32 bRecipient = TypeCasts.addressToBytes32(recipient);
 

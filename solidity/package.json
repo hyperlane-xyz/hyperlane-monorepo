@@ -5,8 +5,8 @@
   "dependencies": {
     "@eth-optimism/contracts": "^0.6.0",
     "@hyperlane-xyz/utils": "3.1.0-beta0",
-    "@openzeppelin/contracts": "^4.8.0",
-    "@openzeppelin/contracts-upgradeable": "^4.8.0"
+    "@openzeppelin/contracts": "^4.9.3",
+    "@openzeppelin/contracts-upgradeable": "^v4.9.3"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.1",
