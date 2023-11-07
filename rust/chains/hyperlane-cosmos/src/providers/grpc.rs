@@ -19,10 +19,9 @@ use cosmrs::proto::traits::Message;
 
 use cosmrs::tx::{self, Fee, MessageExt, SignDoc, SignerInfo};
 use cosmrs::{Amount, Coin};
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, H256, U256,
-};
+use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, H256, U256};
 use serde::Serialize;
+use tonic::transport::{Channel, Endpoint};
 
 use crate::{signers::Signer, ConnectionConf};
 use crate::{verify, HyperlaneCosmosError};
@@ -85,24 +84,21 @@ pub trait WasmProvider: Send + Sync {
 /// Cosmwasm GRPC Provider
 pub struct WasmGrpcProvider {
     conf: ConnectionConf,
-    _domain: HyperlaneDomain,
     address: H256,
     signer: Signer,
+    channel: Channel,
 }
 
 impl WasmGrpcProvider {
     /// create new Cosmwasm GRPC Provider
     pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
+        let channel = Endpoint::new(conf.get_grpc_url()).unwrap().connect_lazy();
         Self {
             conf,
-            _domain: locator.domain.clone(),
             address: locator.address,
             signer,
+            channel,
         }
-    }
-
-    fn get_conn_url(&self) -> ChainResult<String> {
-        Ok(self.conf.get_grpc_url())
     }
 
     fn get_contract_addr(&self) -> ChainResult<String> {
@@ -113,7 +109,7 @@ impl WasmGrpcProvider {
 #[async_trait]
 impl WasmProvider for WasmGrpcProvider {
     async fn latest_block_height(&self) -> ChainResult<u64> {
-        let mut client = ServiceClient::connect(self.get_conn_url()?).await?;
+        let mut client = ServiceClient::new(self.channel.clone());
         let request = tonic::Request::new(GetLatestBlockRequest {});
 
         let response = client
@@ -148,7 +144,7 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
-        let mut client = WasmQueryClient::connect(self.get_conn_url()?).await?;
+        let mut client = WasmQueryClient::new(self.channel.clone());
         let mut request = tonic::Request::new(QuerySmartContractStateRequest {
             address: to,
             query_data: serde_json::to_string(&payload)?.as_bytes().to_vec(),
@@ -170,7 +166,7 @@ impl WasmProvider for WasmGrpcProvider {
     }
 
     async fn account_query(&self, account: String) -> ChainResult<BaseAccount> {
-        let mut client = QueryAccountClient::connect(self.get_conn_url()?).await?;
+        let mut client = QueryAccountClient::new(self.channel.clone());
 
         let request = tonic::Request::new(QueryAccountRequest { address: account });
         let response = client
@@ -193,7 +189,7 @@ impl WasmProvider for WasmGrpcProvider {
     where
         I: IntoIterator<Item = cosmrs::Any> + Send + Sync,
     {
-        let mut client = TxServiceClient::connect(self.get_conn_url()?).await?;
+        let mut client = TxServiceClient::new(self.channel.clone());
 
         let tx_bytes = self.generate_raw_tx(msgs, None).await?;
         #[allow(deprecated)]
@@ -253,7 +249,7 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
-        let mut client = TxServiceClient::connect(self.get_conn_url()?).await?;
+        let mut client = TxServiceClient::new(self.channel.clone());
 
         let msgs = vec![MsgExecuteContract {
             sender: self.signer.address.clone(),
