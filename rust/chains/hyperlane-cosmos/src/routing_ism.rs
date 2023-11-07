@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use async_trait::async_trait;
 
 use hyperlane_core::{
@@ -6,7 +8,7 @@ use hyperlane_core::{
 };
 
 use crate::{
-    address::bech32_decode,
+    address::CosmosAddress,
     grpc::{WasmGrpcProvider, WasmProvider},
     payloads::ism_routes::{
         IsmRouteRequest, IsmRouteRequestInner, IsmRouteRespnose, QueryRoutingIsmGeneralRequest,
@@ -72,6 +74,6 @@ impl RoutingIsm for CosmosRoutingIsm {
             .await?;
         let response: IsmRouteRespnose = serde_json::from_slice(&data)?;
 
-        Ok(bech32_decode(response.ism)?)
+        Ok(CosmosAddress::from_str(&response.ism)?.digest())
     }
 }

@@ -4,6 +4,7 @@ use std::{
     io::Cursor,
     num::NonZeroU64,
     ops::RangeInclusive,
+    str::FromStr,
 };
 
 use crate::address::CosmosAddress;
@@ -14,7 +15,7 @@ use crate::payloads::mailbox::{
 use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::CosmosProvider;
-use crate::{address, signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
+use crate::{signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
@@ -150,8 +151,8 @@ impl Mailbox for CosmosMailbox {
         let response: mailbox::RecipientIsmResponse = serde_json::from_slice(&data)?;
 
         // convert Hex to H256
-        let ism = address::bech32_decode(response.ism)?;
-        Ok(ism)
+        let ism = CosmosAddress::from_str(&response.ism)?;
+        Ok(ism.digest())
     }
 
     #[instrument(err, ret, skip(self))]

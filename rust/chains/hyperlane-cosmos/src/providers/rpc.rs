@@ -27,17 +27,17 @@ pub trait WasmIndexer: Send + Sync {
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
-        T: Send + Sync + 'static;
+        T: Send + Sync + PartialEq + 'static;
 }
 
 #[derive(Debug, Eq, PartialEq)]
 /// An event parsed from the RPC response.
-pub struct ParsedEvent<T> {
+pub struct ParsedEvent<T: PartialEq> {
     contract_address: String,
     event: T,
 }
 
-impl<T> ParsedEvent<T> {
+impl<T: PartialEq> ParsedEvent<T> {
     /// Create a new ParsedEvent.
     pub fn new(contract_address: String, event: T) -> Self {
         Self {
@@ -99,7 +99,7 @@ impl CosmosWasmIndexer {
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> ChainResult<impl Iterator<Item = (T, LogMeta)> + '_>
     where
-        T: 'static,
+        T: PartialEq + 'static,
     {
         let logs_iter = txs
             .into_iter()
@@ -127,7 +127,7 @@ impl CosmosWasmIndexer {
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> impl Iterator<Item = (T, LogMeta)> + '_
     where
-        T: 'static,
+        T: PartialEq + 'static,
     {
         tx.tx_result.events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
             if event.kind.as_str() != self.target_event_kind {
@@ -189,7 +189,7 @@ impl WasmIndexer for CosmosWasmIndexer {
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
-        T: Send + Sync + 'static,
+        T: PartialEq + Send + Sync + 'static,
     {
         // Page starts from 1
         let query = Query::default()
