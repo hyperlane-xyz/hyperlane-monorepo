@@ -7,7 +7,6 @@ use std::{fs::OpenOptions, io::Write, str::FromStr};
 use hex::FromHex;
 use serde_json::{json, Value};
 
-use ethers::signers::Signer;
 use hyperlane_core::{
     accumulator::{
         merkle::{merkle_root_from_branch, MerkleTree},
