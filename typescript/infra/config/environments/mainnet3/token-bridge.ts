@@ -4,11 +4,15 @@ import {
   Chains,
   CircleBridgeAdapterConfig,
   chainMetadata,
+  getDomainId,
 } from '@hyperlane-xyz/sdk';
 
 const circleDomainMapping = [
-  { hyperlaneDomain: chainMetadata[Chains.goerli].chainId, circleDomain: 0 },
-  { hyperlaneDomain: chainMetadata[Chains.fuji].chainId, circleDomain: 1 },
+  {
+    hyperlaneDomain: getDomainId(chainMetadata[Chains.goerli]),
+    circleDomain: 0,
+  },
+  { hyperlaneDomain: getDomainId(chainMetadata[Chains.fuji]), circleDomain: 1 },
 ];
 
 // Circle deployed contracts
