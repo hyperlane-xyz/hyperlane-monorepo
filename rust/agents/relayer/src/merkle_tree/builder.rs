@@ -75,14 +75,10 @@ impl MerkleTreeBuilder {
         &self,
         leaf_index: u32,
         root_index: u32,
-    ) -> Result<Option<Proof>, MerkleTreeBuilderError> {
-        match self
-            .prover
+    ) -> Result<Proof, MerkleTreeBuilderError> {
+        self.prover
             .prove_against_previous(leaf_index as usize, root_index as usize)
-        {
-            Ok(proof) => Ok(Some(proof)),
-            Err(prover_err) => Err(MerkleTreeBuilderError::from(prover_err)),
-        }
+            .map_err(MerkleTreeBuilderError::from)
     }
 
     pub fn count(&self) -> u32 {

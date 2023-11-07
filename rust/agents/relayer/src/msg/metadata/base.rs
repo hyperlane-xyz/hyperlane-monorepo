@@ -101,31 +101,29 @@ impl BaseMetadataBuilder {
         }
     }
 
-    pub async fn get_proof(
-        &self,
-        leaf_index: u32,
-        checkpoint: Checkpoint,
-    ) -> Result<Option<Proof>> {
+    pub async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> Result<Proof> {
         const CTX: &str = "When fetching message proof";
-        let proof = self.origin_prover_sync
+        let proof = self
+            .origin_prover_sync
             .read()
             .await
             .get_proof(leaf_index, checkpoint.index)
-            .context(CTX)?
-            .and_then(|proof| {
-                // checkpoint may be fraudulent if the root does not
-                // match the canonical root at the checkpoint's index
-                if proof.root() == checkpoint.root {
-                    return Some(proof)
-                }
-                info!(
-                    ?checkpoint,
-                    canonical_root = ?proof.root(),
-                    "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
-                );
-                None
-            });
-        Ok(proof)
+            .context(CTX)?;
+
+        if proof.root() == checkpoint.root {
+            Ok(proof)
+        } else {
+            info!(
+                ?checkpoint,
+                canonical_root = ?proof.root(),
+                "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
+            );
+            Err(MerkleTreeBuilderError::MismatchedRoots {
+                prover_root: proof.root(),
+                incremental_root: checkpoint.root,
+            }
+            .into())
+        }
     }
 
     pub async fn highest_known_leaf_index(&self) -> Option<u32> {

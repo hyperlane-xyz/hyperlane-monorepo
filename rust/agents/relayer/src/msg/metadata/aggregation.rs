@@ -108,14 +108,7 @@ impl AggregationIsmMetadataBuilder {
 
         let metas_and_gas_count = metas_and_gas.len();
         if metas_and_gas_count < threshold {
-            info!("Could not fetch all metadata: Found {metas_and_gas_count} of the {threshold} required ISM metadata pieces for message_id {message_id}", metas_and_gas_count=metas_and_gas_count, threshold=threshold, message_id=message.id());
-            for (module_type, ism_address) in err_isms {
-                info!(
-                    "Invalid ISM: {module_type} at {ism_address}",
-                    module_type = module_type,
-                    ism_address = ism_address
-                );
-            }
+            info!(?err_isms, %metas_and_gas_count, %threshold, message_id=message.id().to_string(), "Could not fetch all metadata, ISM metadata count did not reach aggregation threshold");
             return None;
         }
         Some(Self::n_cheapest_metas(metas_and_gas, threshold))
