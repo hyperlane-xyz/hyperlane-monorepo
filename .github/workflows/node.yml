@@ -82,7 +82,9 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: lint
-        run: yarn lint
+        run: |
+          corepack enable
+          yarn lint
 
       - name: prettier
         run: |
