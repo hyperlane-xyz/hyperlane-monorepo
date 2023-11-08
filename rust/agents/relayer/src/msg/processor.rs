@@ -251,7 +251,7 @@ mod test {
         let core_metrics = CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap();
         BaseMetadataBuilder::new(
             destination_chain_conf.clone(),
-            Arc::new(RwLock::new(MerkleTreeBuilder::new(db.clone()))),
+            Arc::new(RwLock::new(MerkleTreeBuilder::new())),
             Arc::new(MockValidatorAnnounceContract::default()),
             false,
             Arc::new(core_metrics),
