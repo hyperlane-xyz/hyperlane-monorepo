@@ -95,7 +95,7 @@ async function executeDelivery({
 
     log('Getting gas quote');
     const value = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
-      destination,
+      destinationDomain,
       formattedRecipient,
       MESSAGE_BODY,
     );

@@ -102,7 +102,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<FactoryFactories> {
       this.logger(`Deploying Aggregation ISM to ${chain}`);
       return this.deployAggregationIsm(chain, config);
     } else {
-      throw new Error(`Unsupported ISM type`);
+      throw new Error(`Unsupported ISM type: ${config.type}`);
     }
   }
 

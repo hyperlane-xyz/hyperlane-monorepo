@@ -227,7 +227,13 @@ async function executeDeploy({
   log('Deploying ISM factory contracts');
   const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
   ismFactoryDeployer.cacheAddressesMap(mergedContractAddrs);
-  const ismFactoryContracts = await ismFactoryDeployer.deploy(chains);
+
+  const ismFactoryConfig = chains.reduce((chainMap, curr) => {
+    chainMap[curr] = {};
+    return chainMap;
+  }, {} as ChainMap<{}>);
+  const ismFactoryContracts = await ismFactoryDeployer.deploy(ismFactoryConfig);
+
   artifacts = writeMergedAddresses(
     contractsFilePath,
     artifacts,
@@ -339,7 +345,13 @@ function buildCoreConfigMap(
       owner,
       defaultIsm: defaultIsms[chain],
       defaultHook: { type: HookType.MERKLE_TREE },
-      requiredHook: { type: HookType.MERKLE_TREE }, // TODO: revisit
+      requiredHook: {
+        type: HookType.PROTOCOL_FEE,
+        maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'), // 1 gwei of native token
+        protocolFee: ethers.utils.parseUnits('0', 'wei'), // 1 wei
+        beneficiary: owner,
+        owner,
+      },
     };
     return config;
   }, {});

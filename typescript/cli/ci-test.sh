@@ -22,6 +22,8 @@ set -e
 
 echo "{}" > /tmp/empty-artifacts.json
 
+export DEBUG=hyperlane:*
+
 echo "Deploying contracts to anvil1 and anvil2"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
     --chain-configs ./examples/anvil-chains.yaml \
@@ -94,6 +96,7 @@ do
       -e CONFIG_FILES=/data/${AGENT_CONFIG_FILENAME} -e HYP_VALIDATOR_ORIGINCHAINNAME=$1 \
       -e HYP_VALIDATOR_REORGPERIOD=0 -e HYP_VALIDATOR_INTERVAL=1 \
       -e HYP_BASE_CHAINS_${3}_CONNECTION_URL=${DOCKER_CONNECTION_URL}:${2} \
+      -e HYP_BASE_CHAINS_${1}_DOMAIN=13371 \
       -e HYP_VALIDATOR_VALIDATOR_TYPE=hexKey \
       -e HYP_VALIDATOR_VALIDATOR_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6 \
       -e HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE=localStorage \
