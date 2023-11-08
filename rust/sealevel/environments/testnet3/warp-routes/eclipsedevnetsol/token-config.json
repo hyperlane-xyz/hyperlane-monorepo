@@ -1,0 +1,12 @@
+{
+  "solanadevnet": {
+    "type": "native",
+    "decimals": 9
+  },
+  "eclipsedevnet": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Solana (solanadevnet)",
+    "symbol": "SOL"
+  }
+}

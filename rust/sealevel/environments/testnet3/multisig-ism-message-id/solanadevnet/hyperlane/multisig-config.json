@@ -88,5 +88,12 @@
       "0x72840388d5ab57323bc4f6e6d3ddedfd5cc911f0",
       "0xd4b2a50c53fc6614bb3cd3198e0fdc03f5da973f"
     ]
+  },
+  "eclipsedevnet": {
+    "type": 3,
+    "threshold": 1,
+    "validators": [
+      "0x9bffCE22f84e34f6FE1f263Ad7a3D19eD75817c7"
+    ]
   }
 }

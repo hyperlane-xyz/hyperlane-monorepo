@@ -1,0 +1,10 @@
+{
+  "eclipsedevnet": {
+    "hex": "0xa4abb80a1b0fbd4f3d8cf56142a25a6abc50ff6cdc1d3ce0486f79de2348c0cf",
+    "base58": "C5ojRms3NQnqQ89TX2Gr6zFj2Yqjmb89zfV9ur3ppZj4"
+  },
+  "solanadevnet": {
+    "hex": "0xc9ef79697f72609fcce2bdba4ce11debd707428b0effb0e9646e298334c75fd7",
+    "base58": "EbGjthGqhGargCXGzx8DWDLteP8QD39jZCkEVN33LoyQ"
+  }
+}

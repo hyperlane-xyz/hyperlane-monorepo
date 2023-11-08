@@ -76,7 +76,7 @@ pub fn fmt_domain(domain: u32) -> String {
 
 /// Formats the duration in the most appropriate time units.
 #[cfg(feature = "float")]
-pub fn fmt_duration(dur: Duration) -> String {
+pub fn fmt_duration(dur: std::time::Duration) -> String {
     const MIN: f64 = 60.;
     const HOUR: f64 = MIN * 60.;
     const DAY: f64 = HOUR * 24.;
@@ -99,7 +99,7 @@ pub fn fmt_duration(dur: Duration) -> String {
 /// Formats the duration in the most appropriate time units and says "synced" if
 /// the duration is 0.
 #[cfg(feature = "float")]
-pub fn fmt_sync_time(dur: Duration) -> String {
+pub fn fmt_sync_time(dur: std::time::Duration) -> String {
     if dur.as_secs() == 0 {
         "synced".into()
     } else {

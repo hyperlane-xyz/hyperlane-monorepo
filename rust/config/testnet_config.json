@@ -145,6 +145,25 @@
         "mode": "sequence"
       }
     },
+    "eclipsedevnet": {
+      "name": "eclipsedevnet",
+      "domain": 3131313,
+      "addresses": {
+        "mailbox": "FQkHqYaGFvC2m9AUhSDa317suypULXhAN4jJWMcF4hZb",
+        "interchainGasPaymaster": "AwtcyJ3K31iGrgLzQvAtiYsvEeMQTKRaC7edR7uLVVf5",
+        "validatorAnnounce": "8CZUxPBeANqKERNEVUHS8J8oSGruEG146cCdeWekQoTH"
+      },
+      "protocol": "sealevel",
+      "finalityBlocks": 0,
+      "connection": {
+        "type": "http",
+        "url": "https://staging-rpc.dev.eclipsenetwork.xyz"
+      },
+      "index": {
+        "from": 1,
+        "mode": "sequence"
+      }
+    },
     "proteustestnet": {
       "name": "proteustestnet",
       "domain": 88002,
