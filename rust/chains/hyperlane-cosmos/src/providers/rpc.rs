@@ -1,6 +1,5 @@
 use std::ops::RangeInclusive;
 
-use crate::binary::h256_to_h512;
 use async_trait::async_trait;
 use cosmrs::rpc::client::{Client, CompatMode, HttpClient};
 use cosmrs::rpc::endpoint::{tx, tx_search::Response as TxSearchResponse};
@@ -10,7 +9,7 @@ use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, U256};
 use tracing::{instrument, trace};
 
-use crate::verify::digest_to_addr;
+use crate::address::CosmosAddress;
 use crate::ConnectionConf;
 
 const PAGINATION_LIMIT: u8 = 100;
@@ -28,17 +27,17 @@ pub trait WasmIndexer: Send + Sync {
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
-        T: Send + Sync + 'static;
+        T: Send + Sync + PartialEq + 'static;
 }
 
 #[derive(Debug, Eq, PartialEq)]
 /// An event parsed from the RPC response.
-pub struct ParsedEvent<T> {
+pub struct ParsedEvent<T: PartialEq> {
     contract_address: String,
     event: T,
 }
 
-impl<T> ParsedEvent<T> {
+impl<T: PartialEq> ParsedEvent<T> {
     /// Create a new ParsedEvent.
     pub fn new(contract_address: String, event: T) -> Self {
         Self {
@@ -52,8 +51,7 @@ impl<T> ParsedEvent<T> {
 /// Cosmwasm RPC Provider
 pub struct CosmosWasmIndexer {
     client: HttpClient,
-    contract_address: H256,
-    contract_address_bech32: String,
+    contract_address: CosmosAddress,
     target_event_kind: String,
     reorg_period: u32,
 }
@@ -74,8 +72,10 @@ impl CosmosWasmIndexer {
             .build()?;
         Ok(Self {
             client,
-            contract_address: locator.address,
-            contract_address_bech32: digest_to_addr(locator.address, conf.get_prefix().as_str())?,
+            contract_address: CosmosAddress::from_h256(
+                locator.address,
+                conf.get_prefix().as_str(),
+            )?,
             target_event_kind: format!("{}-{}", Self::WASM_TYPE, event_type),
             reorg_period,
         })
@@ -99,7 +99,7 @@ impl CosmosWasmIndexer {
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> ChainResult<impl Iterator<Item = (T, LogMeta)> + '_>
     where
-        T: 'static,
+        T: PartialEq + 'static,
     {
         let logs_iter = txs
             .into_iter()
@@ -127,7 +127,7 @@ impl CosmosWasmIndexer {
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> impl Iterator<Item = (T, LogMeta)> + '_
     where
-        T: 'static,
+        T: PartialEq + 'static,
     {
         tx.tx_result.events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
             if event.kind.as_str() != self.target_event_kind {
@@ -146,18 +146,18 @@ impl CosmosWasmIndexer {
                     // in the event matches the contract address we are indexing.
                     // Otherwise, we might index events from other contracts that happen
                     // to have the same target event name.
-                    if parsed_event.contract_address != self.contract_address_bech32 {
+                    if parsed_event.contract_address != self.contract_address.address() {
                         trace!(tx_hash=?tx.hash, log_idx, ?event, "Event contract address does not match indexer contract address");
                         return None;
                     }
 
                     Some((parsed_event.event, LogMeta {
-                        address: self.contract_address,
+                        address: self.contract_address.digest(),
                         block_number: tx.height.value(),
                         // FIXME: block_hash is not available in tx_search.
                         // This isn't strictly required atm.
                         block_hash: H256::zero(),
-                        transaction_id: h256_to_h512(H256::from_slice(tx.hash.as_bytes())),
+                        transaction_id: H256::from_slice(tx.hash.as_bytes()).into(),
                         transaction_index: tx.index.into(),
                         log_index: U256::from(log_idx),
                     }))
@@ -189,7 +189,7 @@ impl WasmIndexer for CosmosWasmIndexer {
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
-        T: Send + Sync + 'static,
+        T: PartialEq + Send + Sync + 'static,
     {
         // Page starts from 1
         let query = Query::default()
@@ -197,7 +197,7 @@ impl WasmIndexer for CosmosWasmIndexer {
             .and_lte("tx.height", *range.end() as u64)
             .and_eq(
                 format!("{}._contract_address", self.target_event_kind),
-                self.contract_address_bech32.clone(),
+                self.contract_address.address(),
             );
 
         let tx_search_result = self.tx_search(query.clone(), 1).await?;

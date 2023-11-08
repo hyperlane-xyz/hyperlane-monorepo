@@ -146,7 +146,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                h_cosmos::CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone().unwrap())
+                h_cosmos::CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone())
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
@@ -182,12 +182,9 @@ impl ChainConf {
                     .map_err(Into::into)
             }
             ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?.unwrap();
-                let hook = h_cosmos::CosmosMerkleTreeHook::new(
-                    conf.clone(),
-                    locator.clone(),
-                    signer.clone(),
-                )?;
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                let hook =
+                    h_cosmos::CosmosMerkleTreeHook::new(conf.clone(), locator.clone(), signer)?;
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
@@ -221,11 +218,11 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?.unwrap();
+                let signer = self.cosmos_signer().await.context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosMailboxIndexer::new(
                     conf.clone(),
                     locator,
-                    signer.clone(),
+                    signer,
                     self.reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
@@ -260,7 +257,7 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceIndexer<H256>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?.unwrap();
+                let signer = self.cosmos_signer().await.context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosMailboxIndexer::new(
                     conf.clone(),
                     locator,
@@ -304,7 +301,7 @@ impl ChainConf {
                 let paymaster = Box::new(h_cosmos::CosmosInterchainGasPaymaster::new(
                     conf.clone(),
                     locator.clone(),
-                    signer.unwrap().clone(),
+                    signer,
                 )?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
@@ -387,7 +384,7 @@ impl ChainConf {
                     conf.clone(),
                     locator,
                     // TODO: remove signer requirement entirely
-                    signer.unwrap().clone(),
+                    signer,
                     self.reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
@@ -418,7 +415,7 @@ impl ChainConf {
                 let va = Box::new(h_cosmos::CosmosValidatorAnnounce::new(
                     conf.clone(),
                     locator.clone(),
-                    signer.unwrap().clone(),
+                    signer,
                 )?);
 
                 Ok(va as Box<dyn ValidatorAnnounce>)
@@ -458,9 +455,7 @@ impl ChainConf {
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
                 let ism = Box::new(h_cosmos::CosmosInterchainSecurityModule::new(
-                    conf,
-                    locator,
-                    signer.unwrap(),
+                    conf, locator, signer,
                 )?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
@@ -494,7 +489,7 @@ impl ChainConf {
                 let ism = Box::new(h_cosmos::CosmosMultisigIsm::new(
                     conf.clone(),
                     locator.clone(),
-                    signer.unwrap().clone(),
+                    signer,
                 )?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
@@ -528,7 +523,7 @@ impl ChainConf {
                 let ism = Box::new(h_cosmos::CosmosRoutingIsm::new(
                     &conf.clone(),
                     locator.clone(),
-                    signer.unwrap().clone(),
+                    signer,
                 )?);
                 Ok(ism as Box<dyn RoutingIsm>)
             }
@@ -562,7 +557,7 @@ impl ChainConf {
                 let ism = Box::new(h_cosmos::CosmosAggregationIsm::new(
                     conf.clone(),
                     locator.clone(),
-                    signer.unwrap().clone(),
+                    signer,
                 )?);
 
                 Ok(ism as Box<dyn AggregationIsm>)

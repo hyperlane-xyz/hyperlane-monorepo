@@ -4,8 +4,10 @@ use std::{
     io::Cursor,
     num::NonZeroU64,
     ops::RangeInclusive,
+    str::FromStr,
 };
 
+use crate::address::CosmosAddress;
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::payloads::mailbox::{
     GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
@@ -13,16 +15,13 @@ use crate::payloads::mailbox::{
 use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::CosmosProvider;
-use crate::{signers::Signer, utils::get_block_height_for_lag, verify, ConnectionConf};
+use crate::{signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::tendermint::abci::EventAttribute;
 use once_cell::sync::Lazy;
 
-use crate::{
-    binary::h256_to_h512,
-    utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64},
-};
+use crate::utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64};
 use hyperlane_core::{
     utils::fmt_bytes, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
@@ -35,9 +34,9 @@ use tracing::{instrument, warn};
 
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {
+    config: ConnectionConf,
     domain: HyperlaneDomain,
     address: H256,
-    signer: Signer,
     provider: Box<WasmGrpcProvider>,
 }
 
@@ -47,16 +46,21 @@ impl CosmosMailbox {
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
-        signer: Signer,
+        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf, locator.clone(), signer.clone())?;
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
 
         Ok(Self {
+            config: conf,
             domain: locator.domain.clone(),
             address: locator.address,
-            signer,
             provider: Box::new(provider),
         })
+    }
+
+    /// Prefix used in the bech32 address encoding
+    pub fn prefix(&self) -> String {
+        self.config.get_prefix()
     }
 }
 
@@ -140,7 +144,7 @@ impl Mailbox for CosmosMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let address = verify::digest_to_addr(recipient, &self.signer.prefix)?;
+        let address = CosmosAddress::from_h256(recipient, &self.prefix())?.address();
 
         let payload = mailbox::RecipientIsmRequest {
             recipient_ism: mailbox::RecipientIsmRequestInner {
@@ -155,8 +159,8 @@ impl Mailbox for CosmosMailbox {
         let response: mailbox::RecipientIsmResponse = serde_json::from_slice(&data)?;
 
         // convert Hex to H256
-        let ism = verify::bech32_decode(response.ism)?;
-        Ok(ism)
+        let ism = CosmosAddress::from_str(&response.ism)?;
+        Ok(ism.digest())
     }
 
     #[instrument(err, ret, skip(self))]
@@ -178,9 +182,7 @@ impl Mailbox for CosmosMailbox {
             .wasm_send(process_message, tx_gas_limit)
             .await?;
         Ok(TxOutcome {
-            transaction_id: h256_to_h512(H256::from_slice(
-                hex::decode(response.txhash)?.as_slice(),
-            )),
+            transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),
             executed: response.code == 0,
             gas_used: U256::from(response.gas_used),
             gas_price: U256::from(response.gas_wanted),
@@ -258,7 +260,7 @@ impl CosmosMailboxIndexer {
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
-        signer: Signer,
+        signer: Option<Signer>,
         reorg_period: u32,
     ) -> ChainResult<Self> {
         let mailbox = CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone())?;

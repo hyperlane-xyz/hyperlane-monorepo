@@ -47,9 +47,9 @@ impl CosmosInterchainGasPaymaster {
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
-        signer: Signer,
+        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone())?;
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
 
         Ok(Self {
             domain: locator.domain.clone(),

@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use async_trait::async_trait;
 
 use hyperlane_core::{
@@ -6,12 +8,12 @@ use hyperlane_core::{
 };
 
 use crate::{
+    address::CosmosAddress,
     grpc::{WasmGrpcProvider, WasmProvider},
     payloads::ism_routes::{
         IsmRouteRequest, IsmRouteRequestInner, IsmRouteRespnose, QueryRoutingIsmGeneralRequest,
     },
     signers::Signer,
-    verify::bech32_decode,
     ConnectionConf, CosmosProvider,
 };
 
@@ -28,9 +30,9 @@ impl CosmosRoutingIsm {
     pub fn new(
         conf: &ConnectionConf,
         locator: ContractLocator,
-        signer: Signer,
+        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone())?;
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
 
         Ok(Self {
             domain: locator.domain.clone(),
@@ -76,6 +78,6 @@ impl RoutingIsm for CosmosRoutingIsm {
             .await?;
         let response: IsmRouteRespnose = serde_json::from_slice(&data)?;
 
-        Ok(bech32_decode(response.ism)?)
+        Ok(CosmosAddress::from_str(&response.ism)?.digest())
     }
 }

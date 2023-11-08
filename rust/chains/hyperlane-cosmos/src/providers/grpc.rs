@@ -23,8 +23,9 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, H256
 use serde::Serialize;
 use tonic::transport::{Channel, Endpoint};
 
+use crate::address::CosmosAddress;
+use crate::HyperlaneCosmosError;
 use crate::{signers::Signer, ConnectionConf};
-use crate::{verify, HyperlaneCosmosError};
 
 /// The gas price to use for transactions.
 /// TODO: is there a nice way to get a suggested price dynamically?
@@ -77,7 +78,7 @@ pub trait WasmProvider: Send + Sync {
 pub struct WasmGrpcProvider {
     conf: ConnectionConf,
     address: H256,
-    signer: Signer,
+    signer: Option<Signer>,
     /// GRPC Channel that can be cheaply cloned.
     /// See https://docs.rs/tonic/latest/tonic/transport/struct.Channel.html#multiplexing-requests
     channel: Channel,
@@ -88,7 +89,7 @@ impl WasmGrpcProvider {
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
-        signer: Signer,
+        signer: Option<Signer>,
     ) -> ChainResult<Self> {
         let channel = Endpoint::new(conf.get_grpc_url())?.connect_lazy();
         Ok(Self {
@@ -100,7 +101,14 @@ impl WasmGrpcProvider {
     }
 
     fn get_contract_addr(&self) -> ChainResult<String> {
-        verify::digest_to_addr(self.address, self.signer.prefix.as_str())
+        let cosmos_address = CosmosAddress::from_h256(self.address, &self.conf.get_prefix())?;
+        Ok(cosmos_address.address())
+    }
+
+    fn get_signer(&self) -> ChainResult<Signer> {
+        self.signer
+            .clone()
+            .ok_or(ChainCommunicationError::SignerUnavailable)
     }
 }
 
@@ -110,7 +118,8 @@ impl WasmGrpcProvider {
         msgs: Vec<cosmrs::Any>,
         gas_limit: u64,
     ) -> ChainResult<SignDoc> {
-        let account_info = self.account_query(self.signer.address.clone()).await?;
+        let signer = self.get_signer()?;
+        let account_info = self.account_query(signer.address).await?;
         let current_height = self.latest_block_height().await?;
         let timeout_height = current_height + TIMEOUT_BLOCKS;
 
@@ -120,8 +129,7 @@ impl WasmGrpcProvider {
             TryInto::<u32>::try_into(timeout_height)
                 .map_err(ChainCommunicationError::from_other)?,
         );
-        let signer_info =
-            SignerInfo::single_direct(Some(self.signer.public_key), account_info.sequence);
+        let signer_info = SignerInfo::single_direct(Some(signer.public_key), account_info.sequence);
 
         let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
             Coin::new(
@@ -153,7 +161,8 @@ impl WasmGrpcProvider {
 
         let sign_doc = self.generate_unsigned_sign_doc(msgs, gas_limit).await?;
 
-        let tx_signed = sign_doc.sign(&self.signer.signing_key()?)?;
+        let signer = self.get_signer()?;
+        let tx_signed = sign_doc.sign(&signer.signing_key()?)?;
         Ok(tx_signed.to_bytes()?)
     }
 
@@ -274,10 +283,11 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
+        let signer = self.get_signer()?;
         let mut client = TxServiceClient::new(self.channel.clone());
 
         let msgs = vec![MsgExecuteContract {
-            sender: self.signer.address.clone(),
+            sender: signer.address,
             contract: self.get_contract_addr()?,
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
@@ -321,8 +331,9 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
+        let signer = self.get_signer()?;
         let msg = MsgExecuteContract {
-            sender: self.signer.address.clone(),
+            sender: signer.address,
             contract: self.get_contract_addr()?,
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],

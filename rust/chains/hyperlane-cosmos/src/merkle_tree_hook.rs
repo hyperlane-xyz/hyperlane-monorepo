@@ -41,9 +41,9 @@ impl CosmosMerkleTreeHook {
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
-        signer: Signer,
+        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone())?;
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
 
         Ok(Self {
             domain: locator.domain.clone(),
@@ -193,7 +193,7 @@ impl CosmosMerkleTreeHookIndexer {
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
-        signer: Signer,
+        signer: Option<Signer>,
         reorg_period: u32,
     ) -> ChainResult<Self> {
         let indexer = CosmosWasmIndexer::new(

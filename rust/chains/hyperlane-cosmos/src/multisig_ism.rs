@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use crate::{
-    binary::h160_to_h256,
     grpc::{WasmGrpcProvider, WasmProvider},
     payloads::ism_routes::QueryIsmGeneralRequest,
     signers::Signer,
@@ -18,10 +17,8 @@ use crate::payloads::multisig_ism::{self, VerifyInfoRequest, VerifyInfoRequestIn
 /// A reference to a MultisigIsm contract on some Cosmos chain
 #[derive(Debug)]
 pub struct CosmosMultisigIsm {
-    _conf: ConnectionConf,
     domain: HyperlaneDomain,
     address: H256,
-    _signer: Signer,
     provider: Box<WasmGrpcProvider>,
 }
 
@@ -30,15 +27,13 @@ impl CosmosMultisigIsm {
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
-        signer: Signer,
+        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone())?;
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
 
         Ok(Self {
-            _conf: conf,
             domain: locator.domain.clone(),
             address: locator.address,
-            _signer: signer,
             provider: Box::new(provider),
         })
     }
@@ -82,7 +77,7 @@ impl MultisigIsm for CosmosMultisigIsm {
         let validators: ChainResult<Vec<H256>> = response
             .validators
             .iter()
-            .map(|v| H160::from_str(v).map(h160_to_h256).map_err(Into::into))
+            .map(|v| H160::from_str(v).map(H256::from).map_err(Into::into))
             .collect();
 
         Ok((validators?, response.threshold))
