@@ -84,9 +84,9 @@ contract PortalAdapterTest is Test {
         );
     }
 
-    function testReceivingRevertsWithoutTransferCompletion(
-        uint256 amount
-    ) public {
+    function testReceivingRevertsWithoutTransferCompletion(uint256 amount)
+        public
+    {
         // Transfers of 0 are invalid
         vm.assume(amount > 0);
         token.mint(address(originAdapter), amount);

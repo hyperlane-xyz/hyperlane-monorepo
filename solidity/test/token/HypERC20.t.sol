@@ -115,10 +115,9 @@ abstract contract HypTokenTest is Test {
         localToken.setDestinationGas(config);
     }
 
-    function _performRemoteTransfer(
-        uint256 _msgValue,
-        uint256 _amount
-    ) internal {
+    function _performRemoteTransfer(uint256 _msgValue, uint256 _amount)
+        internal
+    {
         vm.prank(ALICE);
         localToken.transferRemote{value: _msgValue}(
             DESTINATION,
