@@ -30,6 +30,7 @@ jobs:
 
       - name: yarn-install
         run: |
+          corepack enable
           yarn install
           CHANGES=$(git status -s --ignore-submodules)
           if [[ ! -z $CHANGES ]]; then
