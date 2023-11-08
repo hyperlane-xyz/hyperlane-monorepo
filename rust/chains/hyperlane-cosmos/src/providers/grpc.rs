@@ -26,24 +26,34 @@ use tonic::transport::{Channel, Endpoint};
 use crate::{signers::Signer, ConnectionConf};
 use crate::{verify, HyperlaneCosmosError};
 
+/// The gas price to use for transactions.
+/// TODO: is there a nice way to get a suggested price dynamically?
 const DEFAULT_GAS_PRICE: f64 = 0.05;
-const DEFAULT_GAS_ADJUSTMENT: f64 = 1.25;
+/// A multiplier applied to a simulated transaction's gas usage to
+/// calculate the estimated gas.
+const GAS_ESTIMATE_MULTIPLIER: f64 = 1.25;
+/// The number of blocks in the future in which a transaction will
+/// be valid for.
 const TIMEOUT_BLOCKS: u64 = 1000;
 
 #[async_trait]
 /// Cosmwasm GRPC Provider
 pub trait WasmProvider: Send + Sync {
-    /// get latest block height
+    /// Get latest block height.
+    /// Note that in Tendermint, validators come to consensus on a block
+    /// before they execute the transactions in that block. This means that
+    /// we may not be able to make state queries against this block until
+    /// the next one is committed!
     async fn latest_block_height(&self) -> ChainResult<u64>;
 
-    /// query to already define contract address
+    /// Perform a wasm query against the stored contract address.
     async fn wasm_query<T: Serialize + Sync + Send>(
         &self,
         payload: T,
         block_height: Option<u64>,
     ) -> ChainResult<Vec<u8>>;
 
-    /// query to specific contract address
+    /// Perform a wasm query against a specified contract address.
     async fn wasm_query_to<T: Serialize + Sync + Send>(
         &self,
         to: String,
@@ -51,14 +61,14 @@ pub trait WasmProvider: Send + Sync {
         block_height: Option<u64>,
     ) -> ChainResult<Vec<u8>>;
 
-    /// send tx
+    /// Send a wasm tx.
     async fn wasm_send<T: Serialize + Sync + Send>(
         &self,
         payload: T,
         gas_limit: Option<U256>,
     ) -> ChainResult<TxResponse>;
 
-    /// simulate tx
+    /// Estimate gas for a wasm tx.
     async fn wasm_estimate_gas<T: Serialize + Sync + Send>(&self, payload: T) -> ChainResult<u64>;
 }
 
@@ -175,7 +185,7 @@ impl WasmGrpcProvider {
             .ok_or_else(|| ChainCommunicationError::from_other_str("gas info not present"))?
             .gas_used;
 
-        let gas_estimate = (gas_used as f64 * DEFAULT_GAS_ADJUSTMENT) as u64;
+        let gas_estimate = (gas_used as f64 * GAS_ESTIMATE_MULTIPLIER) as u64;
 
         Ok(gas_estimate)
     }
