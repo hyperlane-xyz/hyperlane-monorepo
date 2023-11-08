@@ -16,7 +16,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @title Interchain Query Router that performs remote view calls on other chains and returns the result.
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
-contract InterchainQueryRouter is Router, Initializable {
+contract InterchainQueryRouter is Router {
     using TypeCasts for address;
     using TypeCasts for bytes32;
     using InterchainQueryMessage for bytes;
@@ -40,9 +40,7 @@ contract InterchainQueryRouter is Router, Initializable {
      */
     event QueryResolved(uint32 indexed destination, address indexed sender);
 
-    constructor(address _mailbox) Router(_mailbox) {
-        _disableInitializers();
-    }
+    constructor(address _mailbox) Router(_mailbox) {}
 
     /**
      * @notice Initializes the Router contract with Hyperlane core contracts and the address of the interchain security module.
@@ -55,10 +53,11 @@ contract InterchainQueryRouter is Router, Initializable {
         address _interchainSecurityModule,
         address _owner
     ) external initializer {
-        _transferOwnership(msg.sender);
-        setHook(_interchainGasPaymaster);
-        setInterchainSecurityModule(_interchainSecurityModule);
-        transferOwnership(_owner);
+        _MailboxClient_initialize(
+            _interchainGasPaymaster,
+            _interchainSecurityModule,
+            _owner
+        );
     }
 
     /**

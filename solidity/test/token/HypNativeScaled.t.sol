@@ -4,14 +4,11 @@ pragma solidity >=0.8.0;
 import "forge-std/Test.sol";
 
 import {HypNativeScaled} from "../../contracts/token/extensions/HypNativeScaled.sol";
-import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
 
 contract HypNativeScaledTest is Test {
-    using TypeCasts for address;
-
     uint32 nativeDomain = 1;
     uint32 synthDomain = 2;
 
@@ -41,12 +38,14 @@ contract HypNativeScaledTest is Test {
         environment = new MockHyperlaneEnvironment(synthDomain, nativeDomain);
 
         synth = new HypERC20(
-            "Zebec BSC Token",
-            "ZBC",
             decimals,
             address(environment.mailboxes(synthDomain))
         );
-        uint256 totalSupply = mintAmount * (10 ** decimals);
+        synth.initialize(
+            mintAmount * (10 ** decimals),
+            "Zebec BSC Token",
+            "ZBC"
+        );
 
         native = new HypNativeScaled(
             scale,
@@ -55,22 +54,11 @@ contract HypNativeScaledTest is Test {
 
         native.enrollRemoteRouter(
             synthDomain,
-            address(synth).addressToBytes32()
+            TypeCasts.addressToBytes32(address(synth))
         );
         synth.enrollRemoteRouter(
             nativeDomain,
-            address(native).addressToBytes32()
-        );
-
-        vm.prank(address(environment.mailboxes(synthDomain)));
-        synth.handle(
-            nativeDomain,
-            address(native).addressToBytes32(),
-            TokenMessage.format(
-                address(this).addressToBytes32(),
-                totalSupply,
-                bytes("")
-            )
+            TypeCasts.addressToBytes32(address(native))
         );
     }
 

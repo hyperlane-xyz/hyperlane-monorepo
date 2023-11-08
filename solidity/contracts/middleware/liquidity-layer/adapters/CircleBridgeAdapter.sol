@@ -9,9 +9,8 @@ import {ILiquidityLayerAdapter} from "../interfaces/ILiquidityLayerAdapter.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router, Initializable {
+contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
     using SafeERC20 for IERC20;
 
     /// @notice The TokenMessenger contract.
@@ -63,26 +62,28 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router, Initializable {
         _;
     }
 
+    constructor(address _mailbox) Router(_mailbox) {}
+
     /**
      * @param _owner The new owner.
      * @param _tokenMessenger The TokenMessenger contract.
      * @param _circleMessageTransmitter The Circle MessageTransmitter contract.
      * @param _liquidityLayerRouter The LiquidityLayerRouter contract.
      */
-    constructor(
-        address _mailbox,
+    function initialize(
         address _owner,
         address _tokenMessenger,
         address _circleMessageTransmitter,
         address _liquidityLayerRouter
-    ) Router(_mailbox) {
-        _transferOwnership(msg.sender);
+    ) external initializer {
+        __Ownable_init();
+        _transferOwnership(_owner);
+
         tokenMessenger = ITokenMessenger(_tokenMessenger);
         circleMessageTransmitter = ICircleMessageTransmitter(
             _circleMessageTransmitter
         );
         liquidityLayerRouter = _liquidityLayerRouter;
-        transferOwnership(_owner);
     }
 
     function sendTokens(
@@ -169,19 +170,19 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router, Initializable {
         revert("No messages expected");
     }
 
-    function addDomain(
-        uint32 _hyperlaneDomain,
-        uint32 _circleDomain
-    ) external onlyOwner {
+    function addDomain(uint32 _hyperlaneDomain, uint32 _circleDomain)
+        external
+        onlyOwner
+    {
         hyperlaneDomainToCircleDomain[_hyperlaneDomain] = _circleDomain;
 
         emit DomainAdded(_hyperlaneDomain, _circleDomain);
     }
 
-    function addToken(
-        address _token,
-        string calldata _tokenSymbol
-    ) external onlyOwner {
+    function addToken(address _token, string calldata _tokenSymbol)
+        external
+        onlyOwner
+    {
         require(
             _token != address(0) && bytes(_tokenSymbol).length > 0,
             "Cannot add default values"
@@ -203,10 +204,10 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router, Initializable {
         emit TokenAdded(_token, _tokenSymbol);
     }
 
-    function removeToken(
-        address _token,
-        string calldata _tokenSymbol
-    ) external onlyOwner {
+    function removeToken(address _token, string calldata _tokenSymbol)
+        external
+        onlyOwner
+    {
         // Require the provided token and token symbols match what's in storage.
         address _existingToken = address(tokenSymbolToAddress[_tokenSymbol]);
         require(_existingToken == _token, "Token mismatch");
@@ -231,10 +232,11 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router, Initializable {
               destination
      * @return hash of source and nonce
      */
-    function _circleNonceId(
-        uint32 _originCircleDomain,
-        uint64 _nonce
-    ) internal pure returns (bytes32) {
+    function _circleNonceId(uint32 _originCircleDomain, uint64 _nonce)
+        internal
+        pure
+        returns (bytes32)
+    {
         return keccak256(abi.encodePacked(_originCircleDomain, _nonce));
     }
 }

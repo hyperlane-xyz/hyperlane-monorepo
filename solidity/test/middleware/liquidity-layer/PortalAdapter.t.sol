@@ -26,21 +26,22 @@ contract PortalAdapterTest is Test {
 
     function setUp() public {
         token = new MockToken();
-        portalBridge = new MockPortalBridge(token);
-
         recipient = new TestTokenRecipient();
 
         MockMailbox originMailbox = new MockMailbox(originDomain);
         MockMailbox destinationMailbox = new MockMailbox(destinationDomain);
 
-        originAdapter = new PortalAdapter(
-            address(originMailbox),
+        originAdapter = new PortalAdapter(address(originMailbox));
+        destinationAdapter = new PortalAdapter(address(destinationMailbox));
+
+        portalBridge = new MockPortalBridge(token);
+
+        originAdapter.initialize(
             address(this),
             address(portalBridge),
             address(this)
         );
-        destinationAdapter = new PortalAdapter(
-            address(destinationMailbox),
+        destinationAdapter.initialize(
             address(this),
             address(portalBridge),
             address(this)

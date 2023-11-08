@@ -56,11 +56,15 @@ contract LiquidityLayerRouterTest is Test {
             testEnvironment.mailboxes(destinationDomain)
         );
 
+        originBridgeAdapter = new CircleBridgeAdapter(originMailbox);
+        destinationBridgeAdapter = new CircleBridgeAdapter(destinationMailbox);
+
         originLiquidityLayerRouter = new LiquidityLayerRouter(originMailbox);
         destinationLiquidityLayerRouter = new LiquidityLayerRouter(
             destinationMailbox
         );
 
+        address owner = address(this);
         originLiquidityLayerRouter.enrollRemoteRouter(
             destinationDomain,
             TypeCasts.addressToBytes32(address(destinationLiquidityLayerRouter))
@@ -70,16 +74,14 @@ contract LiquidityLayerRouterTest is Test {
             TypeCasts.addressToBytes32(address(originLiquidityLayerRouter))
         );
 
-        address owner = address(this);
-        originBridgeAdapter = new CircleBridgeAdapter(
-            originMailbox,
+        originBridgeAdapter.initialize(
             owner,
             address(tokenMessenger),
             address(messageTransmitter),
             address(originLiquidityLayerRouter)
         );
-        destinationBridgeAdapter = new CircleBridgeAdapter(
-            destinationMailbox,
+
+        destinationBridgeAdapter.initialize(
             owner,
             address(tokenMessenger),
             address(messageTransmitter),

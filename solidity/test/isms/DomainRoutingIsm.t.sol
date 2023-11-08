@@ -18,6 +18,7 @@ contract DomainRoutingIsmTest is Test {
 
     function setUp() public virtual {
         ism = new DomainRoutingIsm();
+        ism.initialize(address(this));
     }
 
     function deployTestIsm(
@@ -114,6 +115,7 @@ contract DefaultFallbackRoutingIsmTest is DomainRoutingIsmTest {
         );
 
         ism = new DefaultFallbackRoutingIsm(address(mailbox));
+        ism.initialize(address(this));
     }
 
     function testConstructorReverts() public {

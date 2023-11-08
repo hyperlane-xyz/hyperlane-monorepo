@@ -24,7 +24,7 @@ const destination = 2;
 const destinationWithoutRouter = 3;
 const body = '0xdeadbeef';
 
-describe.skip('Router', async () => {
+describe('Router', async () => {
   let router: TestRouter,
     mailbox: TestMailbox,
     igp: TestInterchainGasPaymaster,
