@@ -50,9 +50,6 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install Foundry
-        uses: onbjerg/foundry-toolchain@v1
-
       - name: yarn-cache
         uses: actions/cache@v3
         with:
@@ -68,7 +65,9 @@ jobs:
           key: ${{ github.sha }}
 
       - name: build
-        run: yarn build
+        run: /
+          corepack enable
+          yarn build
 
   lint-prettier:
     runs-on: ubuntu-latest
