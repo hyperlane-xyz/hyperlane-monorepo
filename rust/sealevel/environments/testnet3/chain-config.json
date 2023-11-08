@@ -331,5 +331,22 @@
         "http": "https://api.proteus.nautchain.xyz/solana"
       }
     ]
+  },
+  "eclipsedevnet": {
+    "chainId": 3131313,
+    "domainId": 3131313,
+    "name": "eclipsedevnet",
+    "protocol": "sealevel",
+    "displayName": "Eclipse Devnet",
+    "nativeToken": {
+      "name": "Unknown",
+      "symbol": "IDK",
+      "decimals": 9
+    },
+    "rpcUrls": [
+      {
+        "http": "https://staging-rpc.dev.eclipsenetwork.xyz"
+      }
+    ]
   }
 }
