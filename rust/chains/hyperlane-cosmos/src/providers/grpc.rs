@@ -1,25 +1,29 @@
 use async_trait::async_trait;
-use cosmrs::proto::cosmos::auth::v1beta1::BaseAccount;
-use cosmrs::proto::cosmos::auth::v1beta1::{
-    query_client::QueryClient as QueryAccountClient, QueryAccountRequest,
+use cosmrs::{
+    proto::{
+        cosmos::{
+            auth::v1beta1::{
+                query_client::QueryClient as QueryAccountClient, BaseAccount, QueryAccountRequest,
+            },
+            base::{
+                abci::v1beta1::TxResponse,
+                tendermint::v1beta1::{service_client::ServiceClient, GetLatestBlockRequest},
+            },
+            tx::v1beta1::{
+                service_client::ServiceClient as TxServiceClient, BroadcastMode,
+                BroadcastTxRequest, SimulateRequest, TxRaw,
+            },
+        },
+        cosmwasm::wasm::v1::{
+            query_client::QueryClient as WasmQueryClient, MsgExecuteContract,
+            QuerySmartContractStateRequest,
+        },
+        traits::Message,
+    },
+    tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
+    Amount, Coin,
 };
-use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-use cosmrs::proto::cosmos::base::tendermint::v1beta1::{
-    service_client::ServiceClient, GetLatestBlockRequest,
-};
-use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient as TxServiceClient;
-use cosmrs::proto::cosmos::tx::v1beta1::{
-    BroadcastMode, BroadcastTxRequest, SimulateRequest, TxRaw,
-};
-use cosmrs::proto::cosmwasm::wasm::v1::{
-    query_client::QueryClient as WasmQueryClient, MsgExecuteContract,
-    QuerySmartContractStateRequest,
-};
-use cosmrs::proto::traits::Message;
-
-use cosmrs::tx::{self, Fee, MessageExt, SignDoc, SignerInfo};
-use cosmrs::{Amount, Coin};
-use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, H256, U256};
+use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, U256};
 use serde::Serialize;
 use tonic::transport::{Channel, Endpoint};
 
@@ -74,10 +78,14 @@ pub trait WasmProvider: Send + Sync {
 }
 
 #[derive(Debug)]
-/// Cosmwasm GRPC Provider
+/// Cosmwasm GRPC provider.
 pub struct WasmGrpcProvider {
+    /// Connection configuration.
     conf: ConnectionConf,
-    address: H256,
+    /// A contract address that can be used as the default
+    /// for queries / sends / estimates.
+    contract_address: CosmosAddress,
+    /// Signer for transactions.
     signer: Option<Signer>,
     /// GRPC Channel that can be cheaply cloned.
     /// See https://docs.rs/tonic/latest/tonic/transport/struct.Channel.html#multiplexing-requests
@@ -92,22 +100,19 @@ impl WasmGrpcProvider {
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
         let channel = Endpoint::new(conf.get_grpc_url())?.connect_lazy();
+        let contract_address = CosmosAddress::from_h256(locator.address, &conf.get_prefix())?;
+
         Ok(Self {
             conf,
-            address: locator.address,
+            contract_address,
             signer,
             channel,
         })
     }
 
-    fn get_contract_addr(&self) -> ChainResult<String> {
-        let cosmos_address = CosmosAddress::from_h256(self.address, &self.conf.get_prefix())?;
-        Ok(cosmos_address.address())
-    }
-
-    fn get_signer(&self) -> ChainResult<Signer> {
+    fn get_signer(&self) -> ChainResult<&Signer> {
         self.signer
-            .clone()
+            .as_ref()
             .ok_or(ChainCommunicationError::SignerUnavailable)
     }
 }
@@ -119,7 +124,7 @@ impl WasmGrpcProvider {
         gas_limit: u64,
     ) -> ChainResult<SignDoc> {
         let signer = self.get_signer()?;
-        let account_info = self.account_query(signer.address).await?;
+        let account_info = self.account_query(signer.address.clone()).await?;
         let current_height = self.latest_block_height().await?;
         let timeout_height = current_height + TIMEOUT_BLOCKS;
 
@@ -245,7 +250,7 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
-        self.wasm_query_to(self.get_contract_addr()?, payload, block_height)
+        self.wasm_query_to(self.contract_address.address(), payload, block_height)
             .await
     }
 
@@ -287,8 +292,8 @@ impl WasmProvider for WasmGrpcProvider {
         let mut client = TxServiceClient::new(self.channel.clone());
 
         let msgs = vec![MsgExecuteContract {
-            sender: signer.address,
-            contract: self.get_contract_addr()?,
+            sender: signer.address.clone(),
+            contract: self.contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
         }
@@ -333,8 +338,8 @@ impl WasmProvider for WasmGrpcProvider {
     {
         let signer = self.get_signer()?;
         let msg = MsgExecuteContract {
-            sender: signer.address,
-            contract: self.get_contract_addr()?,
+            sender: signer.address.clone(),
+            contract: self.contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
         };
