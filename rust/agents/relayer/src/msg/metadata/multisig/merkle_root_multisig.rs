@@ -67,13 +67,10 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                 highest_leaf_index, "Couldn't get checkpoint in range"
             )
         );
-        unwrap_or_none_result!(
-            proof,
-            self.get_proof(leaf_index, quorum_checkpoint.checkpoint.checkpoint)
-                .await
-                .context(CTX)?,
-            debug!(leaf_index, checkpoint=?quorum_checkpoint, "Couldn't get proof")
-        );
+        let proof = self
+            .get_proof(leaf_index, quorum_checkpoint.checkpoint.checkpoint)
+            .await
+            .context(CTX)?;
         Ok(Some(MultisigMetadata::new(
             quorum_checkpoint,
             leaf_index,
