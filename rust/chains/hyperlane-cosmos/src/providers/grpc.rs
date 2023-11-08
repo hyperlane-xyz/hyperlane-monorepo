@@ -329,9 +329,6 @@ impl WasmProvider for WasmGrpcProvider {
             .into_inner()
             .tx_response
             .ok_or_else(|| ChainCommunicationError::from_other_str("Empty tx_response"))?;
-        if tx_res.code != 0 {
-            println!("TX_ERROR: {}", tx_res.raw_log);
-        }
 
         Ok(tx_res)
     }
