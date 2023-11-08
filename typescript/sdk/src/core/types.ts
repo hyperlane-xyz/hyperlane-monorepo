@@ -12,6 +12,7 @@ export type CoreConfig = {
   defaultHook: HookConfig;
   requiredHook: HookConfig;
   owner: Address;
+  ownerOverrides?: Record<string, string>;
   remove?: boolean;
   upgrade?: UpgradeConfig;
 };

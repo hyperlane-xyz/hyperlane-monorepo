@@ -11,7 +11,7 @@ if [ "$ENVIRONMENT" == "testnet4" ]; then
   RPC_URL="https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
 elif [ "$ENVIRONMENT" == "mainnet3" ]; then
   FORK_CHAIN="arbitrum"
-  RPC_URL="https://rpc.ankr.com/arbitrum"
+  RPC_URL="https://arb1.arbitrum.io/rpc"
 else
   echo "Unknown environment $ENVIRONMENT"
   exit 1
