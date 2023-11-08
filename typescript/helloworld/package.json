@@ -10,9 +10,9 @@
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.1",
-    "@nomiclabs/hardhat-waffle": "^2.0.3",
+    "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@trivago/prettier-plugin-sort-imports": "^3.2.0",
-    "@typechain/ethers-v5": "10.0.0",
+    "@typechain/ethers-v5": "^10.0.0",
     "@typechain/hardhat": "^6.0.0",
     "@types/mocha": "^9.1.0",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
@@ -20,8 +20,8 @@
     "chai": "^4.3.0",
     "eslint": "^8.16.0",
     "eslint-config-prettier": "^8.5.0",
-    "ethereum-waffle": "^3.4.4",
-    "hardhat": "^2.16.1",
+    "ethereum-waffle": "^4.0.10",
+    "hardhat": "^2.19.0",
     "hardhat-gas-reporter": "^1.0.9",
     "prettier": "^2.4.1",
     "prettier-plugin-solidity": "^1.0.0-beta.5",
@@ -29,7 +29,7 @@
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.8.3",
     "ts-node": "^10.8.0",
-    "typechain": "8.0.0",
+    "typechain": "^8.0.0",
     "typescript": "^5.1.6"
   },
   "files": [
@@ -60,12 +60,11 @@
     "sync": "ts-node scripts/sync-with-template-repo.ts"
   },
   "types": "dist/src/index.d.ts",
-  "resolutions": {
-    "underscore": "^1.13",
-    "fetch-ponyfill": "^7.1",
-    "lodash": "^4.17.21",
-    "async": "^2.6.4",
-    "undici": "^5.11"
-  },
-  "stableVersion": "1.5.0"
+  "stableVersion": "1.5.0",
+  "peerDependencies": {
+    "@ethersproject/abi": "*",
+    "@ethersproject/providers": "*",
+    "@types/node": "*",
+    "@types/sinon-chai": "*"
+  }
 }
