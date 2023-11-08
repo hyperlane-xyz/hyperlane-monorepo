@@ -311,3 +311,13 @@ version = "=0.1.0"
 
 git = "https://github.com/hyperlane-xyz/solana-program-library.git"
 branch = "hyperlane"
+
+[patch.crates-io.tendermint]
+version = "=0.32.2"
+git = "https://github.com/hyperlane-xyz/tendermint-rs.git"
+branch = "trevor/0.32.2-fork"
+
+[patch.crates-io.tendermint-rpc]
+version = "=0.32.2"
+git = "https://github.com/hyperlane-xyz/tendermint-rs.git"
+branch = "trevor/0.32.2-fork"
