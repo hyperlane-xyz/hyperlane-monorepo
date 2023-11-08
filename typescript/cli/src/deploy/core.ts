@@ -161,8 +161,18 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
   return configs;
 }
 
-async function runHookStep(_: ChainName[], __?: string) {
-  // TODO: implement hook config
+async function runHookStep(
+  selectedChains: ChainName[],
+  hookConfigPath?: string,
+) {
+  const presetConfigChains = Object.keys(presetHookConfigs);
+
+  if (!hookConfigPath) {
+    logBlue(
+      '\n',
+      'Hyperlane instances requires an Interchain Security Module (ISM).',
+    );
+  }
 }
 
 interface DeployParams {

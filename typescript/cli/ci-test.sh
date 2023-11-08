@@ -87,22 +87,22 @@ else
     DOCKER_CONNECTION_URL="http://127.0.0.1"
 fi
 
+echo $DOCKER_CONNECTION_URL
 for i in "anvil1 8545 ANVIL1" "anvil2 8555 ANVIL2"
 do
     set -- $i
     echo "Running validator on $1"
     docker run \
       --mount type=bind,source="/tmp",target=/data --net=host \
-      -e CONFIG_FILES=/data/${AGENT_CONFIG_FILENAME} -e HYP_VALIDATOR_ORIGINCHAINNAME=$1 \
-      -e HYP_VALIDATOR_REORGPERIOD=0 -e HYP_VALIDATOR_INTERVAL=1 \
-      -e HYP_BASE_CHAINS_${3}_CONNECTION_URL=${DOCKER_CONNECTION_URL}:${2} \
-      -e HYP_BASE_CHAINS_${1}_DOMAIN=13371 \
-      -e HYP_VALIDATOR_VALIDATOR_TYPE=hexKey \
-      -e HYP_VALIDATOR_VALIDATOR_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6 \
-      -e HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE=localStorage \
-      -e HYP_VALIDATOR_CHECKPOINTSYNCER_PATH=/data/${1}/validator \
-      -e HYP_BASE_TRACING_LEVEL=debug -e HYP_BASE_TRACING_FMT=compact \
-      gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator > /tmp/${1}/validator-logs.txt &
+      -e CONFIG_FILES=/data/${AGENT_CONFIG_FILENAME} -e HYP_ORIGINCHAINNAME=$1 \
+      -e HYP_CHAINS_${3}_BLOCKS_REORGPERIOD=0 -e HYP_VALIDATOR_INTERVAL=1 \
+      -e HYP_CHAINS_${3}_CUSTOMRPCURLS=${DOCKER_CONNECTION_URL}:${2} \
+      -e HYP_VALIDATOR_TYPE=hexKey \
+      -e HYP_VALIDATOR_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6 \
+      -e HYP_CHECKPOINTSYNCER_TYPE=localStorage \
+      -e HYP_CHECKPOINTSYNCER_PATH=/data/${1}/validator \
+      -e HYP_TRACING_LEVEL=debug -e HYP_BASE_TRACING_FMT=compact \
+      gcr.io/abacus-labs-dev/hyperlane-agent:81dc179-20231108-123442 ./validator > /tmp/${1}/validator-logs.txt &
 done
 
 echo "Validator running, sleeping to let it sync"
@@ -118,17 +118,17 @@ echo "Running relayer"
 docker run \
     --mount type=bind,source="/tmp",target=/data --net=host \
     -e CONFIG_FILES=/data/${AGENT_CONFIG_FILENAME} \
-    -e HYP_BASE_CHAINS_ANVIL1_CONNECTION_URL=${DOCKER_CONNECTION_URL}:8545 \
-    -e HYP_BASE_CHAINS_ANVIL2_CONNECTION_URL=${DOCKER_CONNECTION_URL}:8555 \
-    -e HYP_BASE_TRACING_LEVEL=debug -e HYP_BASE_TRACING_FMT=compact \
-    -e HYP_RELAYER_RELAYCHAINS=anvil1,anvil2 \
-    -e HYP_RELAYER_ALLOWLOCALCHECKPOINTSYNCERS=true -e HYP_RELAYER_DB=/data/relayer \
-    -e HYP_RELAYER_GASPAYMENTENFORCEMENT='[{"type":"none"}]' \
-    -e HYP_BASE_CHAINS_ANVIL1_SIGNER_TYPE=hexKey \
-    -e HYP_BASE_CHAINS_ANVIL1_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
-    -e HYP_BASE_CHAINS_ANVIL2_SIGNER_TYPE=hexKey \
-    -e HYP_BASE_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
-    gcr.io/abacus-labs-dev/hyperlane-agent:main ./relayer > /tmp/relayer/relayer-logs.txt &
+    -e HYP_CHAINS_ANVIL1_CUSTOMRPCURLS=${DOCKER_CONNECTION_URL}:8545 \
+    -e HYP_CHAINS_ANVIL2_CUSTOMRPCURLS=${DOCKER_CONNECTION_URL}:8555 \
+    -e HYP_TRACING_LEVEL=debug -e HYP_TRACING_FMT=compact \
+    -e HYP_RELAYCHAINS=anvil1,anvil2 \
+    -e HYP_ALLOWLOCALCHECKPOINTSYNCERS=true -e HYP_DB=/data/relayer \
+    -e HYP_GASPAYMENTENFORCEMENT='[{"type":"none"}]' \
+    -e HYP_CHAINS_ANVIL1_SIGNER_TYPE=hexKey \
+    -e HYP_CHAINS_ANVIL1_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
+    -e HYP_CHAINS_ANVIL2_SIGNER_TYPE=hexKey \
+    -e HYP_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
+    gcr.io/abacus-labs-dev/hyperlane-agent:81dc179-20231108-123442 ./relayer > /tmp/relayer/relayer-logs.txt &
 
 sleep 5
 echo "Done running relayer, checking message delivery statuses"
