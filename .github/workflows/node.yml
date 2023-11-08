@@ -65,7 +65,7 @@ jobs:
           key: ${{ github.sha }}
 
       - name: build
-        run: /
+        run: |
           corepack enable
           yarn build
 
