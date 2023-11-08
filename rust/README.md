@@ -5,14 +5,14 @@
 - install `rustup`
   - [link here](https://rustup.rs/)
 
-Note: You should be running >= version `1.71.1` of the rustc compiler, you can see that version with this command and
+Note: You should be running >= version `1.72.1` of the rustc compiler, you can see that version with this command and
 should see similar output:
 
 ```
 $ rustup --version
 rustup 1.26.0 (5af9b9484 2023-04-05)
 info: This is the version for the rustup toolchain manager, not the rustc compiler.
-info: The currently active `rustc` version is `rustc 1.71.1 (eb26296b5 2023-08-03)`
+info: The currently active `rustc` version is `rustc 1.72.1 (d5c2e9c34 2023-09-13)`
 ```
 
 ### Running Locally
@@ -63,9 +63,9 @@ kubectl cp testnet3/fuji-hyperlane-agent-validator-0:/usr/share/hyperlane /tmp/f
 Configure additional env variables appropriately:
 
 ```bash
-HYP_BASE_DB=/tmp/fuji-validator-db
+HYP_DB=/tmp/fuji-validator-db
 CONFIG_FILES=./config/testnet_config.json
-HYP_BASE_TRACING_FMT=pretty
+HYP_TRACING_FMT=pretty
 DATABASE_URL=<READ_REPLICA_POSTGRES_URL> # for scraper
 ```
 

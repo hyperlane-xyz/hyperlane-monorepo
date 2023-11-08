@@ -71,6 +71,18 @@ contract HelloWorld is Router {
         );
     }
 
+    /**
+     * @notice Fetches the amount of gas that will be used when a message is
+     * dispatched to the given domain.
+     */
+    function quoteDispatch(uint32 _destinationDomain, bytes calldata _message)
+        external
+        view
+        returns (uint256)
+    {
+        return _quoteDispatch(_destinationDomain, _message);
+    }
+
     // ============ Internal functions ============
     function _metadata(
         uint32 /*_destinationDomain*/

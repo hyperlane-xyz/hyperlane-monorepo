@@ -14,6 +14,7 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
+import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
@@ -35,8 +36,8 @@ abstract contract AbstractMessageIdAuthHook is
 
     // ============ Constants ============
 
-    // address for ISM to verify messages
-    address public immutable ism;
+    // left-padded address for ISM to verify messages
+    bytes32 public immutable ism;
     // Domain of chain on which the ISM is deployed
     uint32 public immutable destinationDomain;
 
@@ -45,15 +46,20 @@ abstract contract AbstractMessageIdAuthHook is
     constructor(
         address _mailbox,
         uint32 _destinationDomain,
-        address _ism
+        bytes32 _ism
     ) MailboxClient(_mailbox) {
-        require(_ism != address(0), "AbstractMessageIdAuthHook: invalid ISM");
+        require(_ism != bytes32(0), "AbstractMessageIdAuthHook: invalid ISM");
         require(
             _destinationDomain != 0,
             "AbstractMessageIdAuthHook: invalid destination domain"
         );
         ism = _ism;
         destinationDomain = _destinationDomain;
+    }
+
+    /// @inheritdoc IPostDispatchHook
+    function hookType() external pure returns (uint8) {
+        return uint8(IPostDispatchHook.Types.ID_AUTH_ISM);
     }
 
     // ============ Internal functions ============

@@ -18,7 +18,6 @@ pragma solidity >=0.8.0;
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {LibBit} from "../../libs/LibBit.sol";
 import {Message} from "../../libs/Message.sol";
-import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 // ============ External Imports ============
 
@@ -46,9 +45,9 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     /// @dev the first bit is reserved for verification and the rest 255 bits are for the msg.value
     mapping(bytes32 => uint256) public verifiedMessages;
     /// @notice Index of verification bit in verifiedMessages
-    uint256 public constant MASK_INDEX = 255;
-    /// @notice Address for the authorized hook
-    address public authorizedHook;
+    uint256 public constant VERIFIED_MASK_INDEX = 255;
+    /// @notice address for the authorized hook
+    bytes32 public authorizedHook;
 
     // ============ Events ============
 
@@ -57,9 +56,9 @@ abstract contract AbstractMessageIdAuthorizedIsm is
 
     // ============ Initializer ============
 
-    function setAuthorizedHook(address _hook) external initializer {
+    function setAuthorizedHook(bytes32 _hook) external initializer {
         require(
-            _hook != address(0),
+            _hook != bytes32(0),
             "AbstractMessageIdAuthorizedIsm: invalid authorized hook"
         );
         authorizedHook = _hook;
@@ -79,12 +78,18 @@ abstract contract AbstractMessageIdAuthorizedIsm is
         bytes32 messageId = message.id();
 
         // check for the first bit (used for verification)
-        bool verified = verifiedMessages[messageId].isBitSet(MASK_INDEX);
+        bool verified = verifiedMessages[messageId].isBitSet(
+            VERIFIED_MASK_INDEX
+        );
         // rest 255 bits contains the msg.value passed from the hook
         if (verified) {
-            payable(message.recipientAddress()).sendValue(
-                verifiedMessages[messageId].clearBit(MASK_INDEX)
+            uint256 _msgValue = verifiedMessages[messageId].clearBit(
+                VERIFIED_MASK_INDEX
             );
+            if (_msgValue > 0) {
+                verifiedMessages[messageId] -= _msgValue;
+                payable(message.recipientAddress()).sendValue(_msgValue);
+            }
         }
         return verified;
     }
@@ -99,8 +104,12 @@ abstract contract AbstractMessageIdAuthorizedIsm is
             _isAuthorized(),
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
+        require(
+            msg.value < 2**VERIFIED_MASK_INDEX,
+            "AbstractMessageIdAuthorizedIsm: msg.value must be less than 2^255"
+        );
 
-        verifiedMessages[messageId] = msg.value.setBit(MASK_INDEX);
+        verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
         emit ReceivedMessage(messageId);
     }
 

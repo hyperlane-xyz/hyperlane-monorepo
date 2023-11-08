@@ -1,16 +1,16 @@
-use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    fmt::{Debug, Formatter},
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
-use hyperlane_base::db::HyperlaneRocksDB;
+use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, trace, warn};
-
-use hyperlane_base::CoreMetrics;
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
 
 use super::{
     gas_payment::GasPaymentEnforcer,
@@ -183,11 +183,10 @@ impl PendingOperation for PendingMessage {
                 .message_meets_gas_payment_requirement(&self.message, &tx_cost_estimate)
                 .await,
             "checking if message meets gas payment requirement"
-        )
-            else {
-                info!(?tx_cost_estimate, "Gas payment requirement not met yet");
-                return self.on_reprepare();
-            };
+        ) else {
+            info!(?tx_cost_estimate, "Gas payment requirement not met yet");
+            return self.on_reprepare();
+        };
 
         // Go ahead and attempt processing of message to destination chain.
         debug!(
@@ -393,9 +392,12 @@ impl PendingMessage {
             i if (1..12).contains(&i) => 10,
             // wait 90s to 19.5min with a linear increase
             i if (12..24).contains(&i) => (i as u64 - 11) * 90,
-            // exponential increase + 30 min; -21 makes it so that at i = 32 it will be
-            // ~60min timeout (64min to be more precise).
-            i => (2u64).pow(i - 21) + 60 * 30,
+            // wait 30min for the next 12 attempts
+            i if (24..36).contains(&i) => 60 * 30,
+            // wait 60min for the next 12 attempts
+            i if (36..48).contains(&i) => 60 * 60,
+            // wait 3h for the next 12 attempts,
+            _ => 60 * 60 * 3,
         }))
     }
 }

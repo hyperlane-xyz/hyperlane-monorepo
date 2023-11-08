@@ -2,27 +2,36 @@ export {
   addressToByteHexString,
   addressToBytes,
   addressToBytes32,
+  addressToBytesCosmos,
   addressToBytesEvm,
   addressToBytesSol,
   bytes32ToAddress,
+  bytesToAddressCosmos,
+  bytesToAddressEvm,
+  bytesToAddressSol,
   bytesToProtocolAddress,
   capitalizeAddress,
   convertToProtocolAddress,
   ensure0x,
   eqAddress,
+  eqAddressCosmos,
   eqAddressEvm,
   eqAddressSol,
   getAddressProtocolType,
+  isAddressCosmos,
   isAddressEvm,
   isAddressSealevel,
   isValidAddress,
+  isValidAddressCosmos,
   isValidAddressEvm,
   isValidAddressSealevel,
   isValidTransactionHash,
+  isValidTransactionHashCosmos,
   isValidTransactionHashEvm,
   isValidTransactionHashSealevel,
   isZeroishAddress,
   normalizeAddress,
+  normalizeAddressCosmos,
   normalizeAddressEvm,
   normalizeAddressSealevel,
   shortenAddress,
@@ -30,6 +39,7 @@ export {
 } from './src/addresses';
 export {
   convertDecimals,
+  convertDecimalsEthersBigNumber,
   eqAmountApproximate,
   fromWei,
   fromWeiRounded,
@@ -44,7 +54,7 @@ export {
   sleep,
   timeout,
 } from './src/async';
-export { base58ToBuffer, bufferToBase58 } from './src/base58';
+export { base58ToBuffer, bufferToBase58, hexOrBase58ToHex } from './src/base58';
 export { fromBase64, toBase64 } from './src/base64';
 export {
   BigNumberMax,

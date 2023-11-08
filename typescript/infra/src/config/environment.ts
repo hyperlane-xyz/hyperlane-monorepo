@@ -19,12 +19,12 @@ import { Role } from '../roles';
 import { RootAgentConfig } from './agent';
 import { KeyFunderConfig } from './funding';
 import { AllStorageGasOracleConfigs } from './gas-oracle';
-import { HelloWorldConfig } from './helloworld';
+import { HelloWorldConfig } from './helloworld/types';
 import { InfrastructureConfig } from './infrastructure';
 import { LiquidityLayerRelayerConfig } from './middleware';
 
 // TODO: fix this?
-export const EnvironmentNames = ['test', 'testnet4', 'mainnet2'];
+export const EnvironmentNames = ['test', 'testnet4', 'mainnet3'];
 export type DeployEnvironment = keyof typeof environments;
 export type EnvironmentChain<E extends DeployEnvironment> = Extract<
   keyof typeof environments[E],
@@ -63,6 +63,6 @@ export const deployEnvToSdkEnv: Record<
   HyperlaneEnvironment
 > = {
   test: 'testnet', // TODO: remove this
-  mainnet2: 'mainnet',
+  mainnet3: 'mainnet',
   testnet4: 'testnet',
 };

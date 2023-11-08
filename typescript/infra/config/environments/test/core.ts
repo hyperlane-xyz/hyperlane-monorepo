@@ -4,10 +4,11 @@ import {
   AggregationHookConfig,
   ChainMap,
   CoreConfig,
+  FallbackRoutingHookConfig,
   HookType,
   IgpHookConfig,
+  IsmType,
   MerkleTreeHookConfig,
-  ModuleType,
   RoutingIsmConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolFeeHookConfig } from '@hyperlane-xyz/sdk/src/hook/types';
@@ -20,7 +21,7 @@ import { owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const defaultIsm: RoutingIsmConfig = {
-    type: ModuleType.ROUTING,
+    type: IsmType.ROUTING,
     owner,
     domains: Object.fromEntries(
       Object.entries(chainToValidator)
@@ -38,9 +39,20 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     ...igp[local],
   };
 
-  const defaultHook: AggregationHookConfig = {
+  const aggregationHook: AggregationHookConfig = {
     type: HookType.AGGREGATION,
     hooks: [merkleHook, igpHook],
+  };
+
+  const defaultHook: FallbackRoutingHookConfig = {
+    type: HookType.FALLBACK_ROUTING,
+    owner,
+    fallback: merkleHook,
+    domains: Object.fromEntries(
+      Object.entries(chainToValidator)
+        .filter(([chain, _]) => chain !== local)
+        .map(([chain, _]) => [chain, aggregationHook]),
+    ),
   };
 
   const requiredHook: ProtocolFeeHookConfig = {

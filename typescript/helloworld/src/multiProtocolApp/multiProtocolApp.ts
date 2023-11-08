@@ -38,11 +38,15 @@ export class HelloMultiProtocolApp extends MultiProtocolRouterApp<
     );
   }
 
-  channelStats(origin: ChainName, destination: ChainName): Promise<StatCounts> {
-    return this.adapter(origin).channelStats(
-      destination,
-      this.addresses[destination].mailbox,
-    );
+  async channelStats(
+    origin: ChainName,
+    destination: ChainName,
+  ): Promise<StatCounts> {
+    const [sent, received] = await Promise.all([
+      this.adapter(origin).sentStat(destination),
+      this.adapter(destination).sentStat(origin),
+    ]);
+    return { sent, received };
   }
 
   async stats(): Promise<ChainMap<ChainMap<StatCounts>>> {

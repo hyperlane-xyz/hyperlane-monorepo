@@ -91,7 +91,7 @@ impl BlockCursor {
             };
             debug!(?model, "Inserting cursor");
             if let Err(e) = Insert::one(model).exec(&self.db).await {
-                warn!(error = ?e, "Failed to update database with new cursor")
+                warn!(error = ?e, "Failed to update database with new cursor. When you just started this, ensure that the migrations included this domain.")
             } else {
                 debug!(cursor = ?*inner, "Updated cursor")
             }

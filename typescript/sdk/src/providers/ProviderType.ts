@@ -1,4 +1,11 @@
 import type {
+  CosmWasmClient,
+  Contract as CosmWasmContract,
+  ExecuteInstruction,
+} from '@cosmjs/cosmwasm-stargate';
+import type { EncodeObject as CmTransaction } from '@cosmjs/proto-signing';
+import type { DeliverTxResponse, StargateClient } from '@cosmjs/stargate';
+import type {
   Connection,
   Transaction as SolTransaction,
   VersionedTransactionResponse as SolTransactionReceipt,
@@ -21,6 +28,8 @@ export enum ProviderType {
   // EthersV6 = 'ethers-v6', Disabled for now to simplify build tooling
   Viem = 'viem',
   SolanaWeb3 = 'solana-web3',
+  CosmJs = 'cosmjs',
+  CosmJsWasm = 'cosmjs-wasm',
 }
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
@@ -55,11 +64,25 @@ export interface SolanaWeb3Provider extends TypedProviderBase<Connection> {
   provider: Connection;
 }
 
+export interface CosmJsProvider
+  extends TypedProviderBase<Promise<StargateClient>> {
+  type: ProviderType.CosmJs;
+  provider: Promise<StargateClient>;
+}
+
+export interface CosmJsWasmProvider
+  extends TypedProviderBase<Promise<CosmWasmClient>> {
+  type: ProviderType.CosmJsWasm;
+  provider: Promise<CosmWasmClient>;
+}
+
 export type TypedProvider =
   | EthersV5Provider
   // | EthersV6Provider
   | ViemProvider
-  | SolanaWeb3Provider;
+  | SolanaWeb3Provider
+  | CosmJsProvider
+  | CosmJsWasmProvider;
 
 /**
  * Contracts with discriminated union of provider type
@@ -72,7 +95,7 @@ interface TypedContractBase<T> {
 
 export interface EthersV5Contract extends TypedContractBase<EV5Contract> {
   type: ProviderType.EthersV5;
-  transaction: EV5Contract;
+  contract: EV5Contract;
 }
 
 // export interface EthersV6Contract extends TypedContractBase<Ev6Contract> {
@@ -82,20 +105,34 @@ export interface EthersV5Contract extends TypedContractBase<EV5Contract> {
 
 export interface ViemContract extends TypedContractBase<GetContractReturnType> {
   type: ProviderType.Viem;
-  transaction: GetContractReturnType;
+  contract: GetContractReturnType;
 }
 
 export interface SolanaWeb3Contract extends TypedContractBase<never> {
   type: ProviderType.SolanaWeb3;
   // Contract concept doesn't exist in @solana/web3.js
-  transaction: never;
+  contract: never;
+}
+
+export interface CosmJsContract extends TypedContractBase<never> {
+  type: ProviderType.CosmJs;
+  // TODO, research if cosmos sdk modules have an equivalent for here
+  contract: never;
+}
+
+export interface CosmJsWasmContract
+  extends TypedContractBase<CosmWasmContract> {
+  type: ProviderType.CosmJsWasm;
+  contract: CosmWasmContract;
 }
 
 export type TypedContract =
   | EthersV5Contract
   // | EthersV6Contract
   | ViemContract
-  | SolanaWeb3Contract;
+  | SolanaWeb3Contract
+  | CosmJsContract
+  | CosmJsWasmContract;
 
 /**
  * Transactions with discriminated union of provider type
@@ -128,11 +165,24 @@ export interface SolanaWeb3Transaction
   transaction: SolTransaction;
 }
 
+export interface CosmJsTransaction extends TypedTransactionBase<CmTransaction> {
+  type: ProviderType.CosmJs;
+  transaction: CmTransaction;
+}
+
+export interface CosmJsWasmTransaction
+  extends TypedTransactionBase<ExecuteInstruction> {
+  type: ProviderType.CosmJs;
+  transaction: ExecuteInstruction;
+}
+
 export type TypedTransaction =
   | EthersV5Transaction
   // | EthersV6Transaction
   | ViemTransaction
-  | SolanaWeb3Transaction;
+  | SolanaWeb3Transaction
+  | CosmJsTransaction
+  | CosmJsWasmTransaction;
 
 /**
  * Transaction receipt/response with discriminated union of provider type
@@ -161,7 +211,21 @@ export interface SolanaWeb3TransactionReceipt
   receipt: SolTransactionReceipt;
 }
 
+export interface CosmJsTransactionReceipt
+  extends TypedTransactionReceiptBase<DeliverTxResponse> {
+  type: ProviderType.CosmJs;
+  receipt: DeliverTxResponse;
+}
+
+export interface CosmJsWasmTransactionReceipt
+  extends TypedTransactionReceiptBase<DeliverTxResponse> {
+  type: ProviderType.CosmJsWasm;
+  receipt: DeliverTxResponse;
+}
+
 export type TypedTransactionReceipt =
   | EthersV5TransactionReceipt
   | ViemTransactionReceipt
-  | SolanaWeb3TransactionReceipt;
+  | SolanaWeb3TransactionReceipt
+  | CosmJsTransactionReceipt
+  | CosmJsWasmTransactionReceipt;

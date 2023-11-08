@@ -5,11 +5,12 @@ import { ethers } from 'hardhat';
 import {
   ChainMap,
   Chains,
+  HyperlaneIsmFactory,
+  HyperlaneProxyFactoryDeployer,
   MultiProvider,
   TestCoreApp,
   TestCoreDeployer,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { HelloWorldConfig } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
@@ -31,7 +32,12 @@ describe('HelloWorld', async () => {
   before(async () => {
     [signer] = await ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    coreApp = await new TestCoreDeployer(multiProvider).deployApp();
+    const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    const ismFactory = new HyperlaneIsmFactory(
+      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
+      multiProvider,
+    );
+    coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
     config = coreApp.getRouterConfig(signer.address);
 
     localDomain = multiProvider.getDomainId(localChain);
@@ -52,21 +58,15 @@ describe('HelloWorld', async () => {
     expect(await remote.received()).to.equal(0);
   });
 
-  async function quoteGasPayment(body: string) {
-    return coreApp
-      .getContracts(localChain)
-      .mailbox['quoteDispatch(uint32,bytes32,bytes)'](
-        remoteDomain,
-        addressToBytes32(remote.address),
-        Buffer.from(body),
-      );
-  }
-
   it('sends a message', async () => {
     const body = 'Hello';
+    const payment = await local['quoteDispatch(uint32,bytes)'](
+      remoteDomain,
+      Buffer.from(body),
+    );
     await expect(
       local.sendHelloWorld(remoteDomain, body, {
-        value: await quoteGasPayment(body),
+        value: payment,
       }),
     ).to.emit(local, 'SentHelloWorld');
     // The sent counts are correct
@@ -87,8 +87,12 @@ describe('HelloWorld', async () => {
 
   it('handles a message', async () => {
     const body = 'World';
+    const payment = await local['quoteDispatch(uint32,bytes)'](
+      remoteDomain,
+      Buffer.from(body),
+    );
     await local.sendHelloWorld(remoteDomain, body, {
-      value: await quoteGasPayment(body),
+      value: payment,
     });
     // Mock processing of the message by Hyperlane
     await coreApp.processOutboundMessages(localChain);

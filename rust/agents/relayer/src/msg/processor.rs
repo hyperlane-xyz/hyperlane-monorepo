@@ -229,7 +229,7 @@ mod test {
         ChainConf {
             domain: domain.clone(),
             signer: Default::default(),
-            finality_blocks: Default::default(),
+            reorg_period: Default::default(),
             addresses: Default::default(),
             connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf::Http {
                 url: "http://example.com".parse().unwrap(),
@@ -251,7 +251,7 @@ mod test {
         let core_metrics = CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap();
         BaseMetadataBuilder::new(
             destination_chain_conf.clone(),
-            Arc::new(RwLock::new(MerkleTreeBuilder::new(db.clone()))),
+            Arc::new(RwLock::new(MerkleTreeBuilder::new())),
             Arc::new(MockValidatorAnnounceContract::default()),
             false,
             Arc::new(core_metrics),
@@ -390,7 +390,7 @@ mod test {
             .await;
 
             // Set some retry counts. This should update HyperlaneDB entries too.
-            let msg_retries_to_set = vec![3, 0, 10];
+            let msg_retries_to_set = [3, 0, 10];
             pending_messages
                 .into_iter()
                 .enumerate()

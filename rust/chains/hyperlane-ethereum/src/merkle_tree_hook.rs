@@ -52,7 +52,7 @@ impl BuildableWithProvider for MerkleTreeHookBuilder {
 }
 
 pub struct MerkleTreeHookIndexerBuilder {
-    pub finality_blocks: u32,
+    pub reorg_period: u32,
 }
 
 #[async_trait]
@@ -67,7 +67,7 @@ impl BuildableWithProvider for MerkleTreeHookIndexerBuilder {
         Box::new(EthereumMerkleTreeHookIndexer::new(
             Arc::new(provider),
             locator,
-            self.finality_blocks,
+            self.reorg_period,
         ))
     }
 }
@@ -80,7 +80,7 @@ where
 {
     contract: Arc<MerkleTreeHookContract<M>>,
     provider: Arc<M>,
-    finality_blocks: u32,
+    reorg_period: u32,
 }
 
 impl<M> EthereumMerkleTreeHookIndexer<M>
@@ -88,14 +88,14 @@ where
     M: Middleware + 'static,
 {
     /// Create new EthereumMerkleTreeHookIndexer
-    pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
+    pub fn new(provider: Arc<M>, locator: &ContractLocator, reorg_period: u32) -> Self {
         Self {
             contract: Arc::new(MerkleTreeHookContract::new(
                 locator.address,
                 provider.clone(),
             )),
             provider,
-            finality_blocks,
+            reorg_period,
         }
     }
 }
@@ -138,7 +138,7 @@ where
             .await
             .map_err(ChainCommunicationError::from_other)?
             .as_u32()
-            .saturating_sub(self.finality_blocks))
+            .saturating_sub(self.reorg_period))
     }
 }
 
