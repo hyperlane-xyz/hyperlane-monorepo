@@ -18,6 +18,7 @@ import {
 
 const COSMOS_IBC_TRANSFER_TIMEOUT = 60_000; // 1 minute
 
+// Interacts with native tokens on a Cosmos chain (e.g TIA on Celestia)
 export class CosmNativeTokenAdapter
   extends BaseCosmosAdapter
   implements ITokenAdapter
@@ -56,6 +57,9 @@ export class CosmNativeTokenAdapter
   }
 }
 
+// Interacts with native tokens on a Cosmos chain and adds support for IBC transfers
+// This implements the IHypTokenAdapter interface but it's an imperfect fit as some
+// methods don't apply to IBC transfers the way they do for Warp transfers
 export class CosmIbcTokenAdapter
   extends CosmNativeTokenAdapter
   implements IHypTokenAdapter
@@ -126,6 +130,8 @@ export class CosmIbcTokenAdapter
   }
 }
 
+// A wrapper for the CosmIbcTokenAdapter that adds support auto-initiated warp transfers
+// A.k.a. 'One-Click' cosmos to evm transfers
 export class CosmIbcToWarpTokenAdapter
   extends CosmIbcTokenAdapter
   implements IHypTokenAdapter
