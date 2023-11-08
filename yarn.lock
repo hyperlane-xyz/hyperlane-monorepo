@@ -2782,8 +2782,8 @@ __metadata:
     "@hyperlane-xyz/utils": "npm:3.1.0-beta0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.1"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.3"
-    "@openzeppelin/contracts": "npm:^4.8.0"
-    "@openzeppelin/contracts-upgradeable": "npm:^4.8.0"
+    "@openzeppelin/contracts": "npm:^4.9.3"
+    "@openzeppelin/contracts-upgradeable": "npm:^v4.9.3"
     "@typechain/ethers-v5": "npm:10.0.0"
     "@typechain/hardhat": "npm:^6.0.0"
     chai: "npm:^4.3.0"
@@ -2810,7 +2810,7 @@ __metadata:
     "@hyperlane-xyz/sdk": "npm:3.1.0-beta0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.1"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.3"
-    "@openzeppelin/contracts-upgradeable": "npm:^4.8.0"
+    "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
     "@trivago/prettier-plugin-sort-imports": "npm:^3.2.0"
     "@typechain/ethers-v5": "npm:10.0.0"
     "@typechain/hardhat": "npm:^6.0.0"
@@ -3564,7 +3564,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts-upgradeable@npm:^4.8.0":
+"@openzeppelin/contracts-upgradeable@npm:^4.9.3, @openzeppelin/contracts-upgradeable@npm:^v4.9.3":
   version: 4.9.3
   resolution: "@openzeppelin/contracts-upgradeable@npm:4.9.3"
   checksum: d8fd6fd9d2271fbdd3958c20769b72a241687883ecd3bea05a3969568cdcabdee9d53c21ac776a651c397507d9c22d8db0a4fb970d27bdab918979fae7285a2f
@@ -3578,7 +3578,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts@npm:^4.8.0":
+"@openzeppelin/contracts@npm:^4.9.3":
   version: 4.9.3
   resolution: "@openzeppelin/contracts@npm:4.9.3"
   checksum: ce0a16a56a39b62d72370ac702bce1917096492442ff05de88521beda2c3f3935b93ee2b9a184614dd543a6181f2f0be10243f5a629be87aab284ade68c18320

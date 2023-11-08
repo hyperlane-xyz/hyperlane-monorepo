@@ -6,6 +6,7 @@ import {HypERC721} from "../HypERC721.sol";
 import {ERC721URIStorageUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
 import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 
 /**
  * @title Hyperlane ERC721 Token that extends ERC721URIStorage with remote transfer and URI relay functionality.
@@ -17,7 +18,7 @@ contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
     function balanceOf(address account)
         public
         view
-        override(HypERC721, ERC721Upgradeable)
+        override(HypERC721, ERC721Upgradeable, IERC721Upgradeable)
         returns (uint256)
     {
         return HypERC721.balanceOf(account);
@@ -75,7 +76,7 @@ contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC721EnumerableUpgradeable, ERC721Upgradeable)
+        override(ERC721EnumerableUpgradeable, ERC721URIStorageUpgradeable)
         returns (bool)
     {
         return ERC721EnumerableUpgradeable.supportsInterface(interfaceId);
