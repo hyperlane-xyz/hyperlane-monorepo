@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import {TestRouter} from "../contracts/test/TestRouter.sol";
 import {TestMailbox} from "../contracts/test/TestMailbox.sol";
 import {TestInterchainGasPaymaster} from "../contracts/test/TestInterchainGasPaymaster.sol";
-import {TestMultisigIsm} from "../contracts/test/TestMultisigIsm.sol";
+import {TestIsm} from "../contracts/test/TestIsm.sol";
 import {TestMerkleTreeHook} from "../contracts/test/TestMerkleTreeHook.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
@@ -14,7 +14,7 @@ contract RouterTest is Test {
     TestMailbox mailbox;
     TestInterchainGasPaymaster igp;
     TestMerkleTreeHook requiredHook;
-    TestMultisigIsm ism;
+    TestIsm ism;
 
     uint32 localDomain = 1000;
     uint32 origin = 1;
@@ -33,7 +33,7 @@ contract RouterTest is Test {
         mailbox = new TestMailbox(localDomain);
         igp = new TestInterchainGasPaymaster();
         router = new TestRouter(address(mailbox));
-        ism = new TestMultisigIsm();
+        ism = new TestIsm();
         requiredHook = new TestMerkleTreeHook(address(mailbox));
 
         mailbox.initialize(
