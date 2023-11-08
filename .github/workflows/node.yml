@@ -30,7 +30,6 @@ jobs:
 
       - name: yarn-install
         run: |
-          corepack enable
           yarn install
           CHANGES=$(git status -s --ignore-submodules)
           if [[ ! -z $CHANGES ]]; then
@@ -65,9 +64,7 @@ jobs:
           key: ${{ github.sha }}
 
       - name: build
-        run: |
-          corepack enable
-          yarn build
+        run: yarn build
 
   lint-prettier:
     runs-on: ubuntu-latest
@@ -82,9 +79,7 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: lint
-        run: |
-          corepack enable
-          yarn lint
+        run: yarn lint
 
       - name: prettier
         run: |
