@@ -2,13 +2,13 @@ import { Debugger, debug } from 'debug';
 import { Contract, PopulatedTransaction, ethers } from 'ethers';
 
 import {
+  ITransparentUpgradeableProxy,
   MailboxClient,
   Ownable,
   ProxyAdmin,
   ProxyAdmin__factory,
   TimelockController,
   TimelockController__factory,
-  TransparentUpgradeableProxy,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -353,7 +353,7 @@ export abstract class HyperlaneDeployer<
 
   protected async changeAdmin(
     chain: ChainName,
-    proxy: TransparentUpgradeableProxy,
+    proxy: ITransparentUpgradeableProxy,
     admin: string,
   ): Promise<void> {
     const actualAdmin = await proxyAdmin(
@@ -385,7 +385,7 @@ export abstract class HyperlaneDeployer<
 
   protected async upgradeAndInitialize<C extends ethers.Contract>(
     chain: ChainName,
-    proxy: TransparentUpgradeableProxy,
+    proxy: ITransparentUpgradeableProxy,
     implementation: C,
     initializeArgs: Parameters<C['initialize']>,
   ): Promise<void> {
