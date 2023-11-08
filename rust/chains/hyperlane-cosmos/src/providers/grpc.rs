@@ -118,6 +118,7 @@ impl WasmGrpcProvider {
 }
 
 impl WasmGrpcProvider {
+    /// Generates an unsigned SignDoc for a transaction.
     async fn generate_unsigned_sign_doc(
         &self,
         msgs: Vec<cosmrs::Any>,
@@ -153,6 +154,7 @@ impl WasmGrpcProvider {
         .map_err(Into::into)
     }
 
+    /// Generates a raw signed transaction including `msgs`, estimating gas if a limit is not provided.
     async fn generate_raw_signed_tx(
         &self,
         msgs: Vec<cosmrs::Any>,
@@ -171,6 +173,7 @@ impl WasmGrpcProvider {
         Ok(tx_signed.to_bytes()?)
     }
 
+    /// Estimates gas for a transaction containing `msgs`.
     async fn estimate_gas(&self, msgs: Vec<cosmrs::Any>) -> ChainResult<u64> {
         // Get a sign doc with 0 gas, because we plan to simulate
         let sign_doc = self.generate_unsigned_sign_doc(msgs, 0).await?;
@@ -204,6 +207,7 @@ impl WasmGrpcProvider {
         Ok(gas_estimate)
     }
 
+    /// Queries an account.
     async fn account_query(&self, account: String) -> ChainResult<BaseAccount> {
         let mut client = QueryAccountClient::new(self.channel.clone());
 
@@ -300,8 +304,8 @@ impl WasmProvider for WasmGrpcProvider {
         .to_any()
         .map_err(ChainCommunicationError::from_other)?];
 
-        // We often use U256s for gas limits, but Cosmos expects u64s. Try to convert,
-        // and if it fails, just use None which will result in gas estimation.
+        // We often use U256s to represent gas limits, but Cosmos expects u64s. Try to convert,
+        // and if it fails, just fallback to None which will result in gas estimation.
         let gas_limit: Option<u64> = gas_limit.and_then(|limit| match limit.try_into() {
             Ok(limit) => Some(limit),
             Err(err) => {
