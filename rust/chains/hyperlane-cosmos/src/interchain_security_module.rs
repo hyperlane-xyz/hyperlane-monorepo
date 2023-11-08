@@ -28,9 +28,9 @@ pub struct CosmosInterchainSecurityModule {
 /// The Cosmos Interchain Security Module Implementation.
 impl CosmosInterchainSecurityModule {
     /// Creates a new Cosmos Interchain Security Module.
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
+    pub fn new(conf: &ConnectionConf, locator: ContractLocator, signer: Option<Signer>) -> Self {
         let provider: WasmGrpcProvider =
-            WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
+            WasmGrpcProvider::new(conf.clone(), locator.clone(), signer);
 
         Self {
             domain: locator.domain.clone(),

@@ -44,8 +44,8 @@ impl InterchainGasPaymaster for CosmosInterchainGasPaymaster {}
 
 impl CosmosInterchainGasPaymaster {
     /// create new Cosmos InterchainGasPaymaster agent
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
+    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Option<Signer>) -> Self {
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer);
 
         Self {
             domain: locator.domain.clone(),

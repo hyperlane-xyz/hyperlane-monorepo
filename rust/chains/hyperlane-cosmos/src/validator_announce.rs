@@ -20,23 +20,19 @@ use crate::{
 /// A reference to a ValidatorAnnounce contract on some Cosmos chain
 #[derive(Debug)]
 pub struct CosmosValidatorAnnounce {
-    _conf: ConnectionConf,
     domain: HyperlaneDomain,
     address: H256,
-    _signer: Signer,
     provider: Box<WasmGrpcProvider>,
 }
 
 impl CosmosValidatorAnnounce {
     /// create a new instance of CosmosValidatorAnnounce
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
+    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Option<Signer>) -> Self {
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer);
 
         Self {
-            _conf: conf,
             domain: locator.domain.clone(),
             address: locator.address,
-            _signer: signer,
             provider: Box::new(provider),
         }
     }
