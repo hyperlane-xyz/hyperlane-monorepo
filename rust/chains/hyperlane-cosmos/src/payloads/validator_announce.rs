@@ -24,11 +24,7 @@ pub struct AnnouncementRequest {
 }
 
 impl AnnouncementRequest {
-    pub fn new(
-        validator: H160,
-        storage_location: String,
-        signature: Vec<u8>,
-    ) -> Self {
+    pub fn new(validator: H160, storage_location: String, signature: Vec<u8>) -> Self {
         Self {
             announce: AnnouncementRequestInner {
                 validator,
@@ -44,7 +40,7 @@ struct AnnouncementRequestInner {
     // TODO be conscious this puts a 0x prefix that may not be allowed!
     validator: H160,
     storage_location: String,
-    #[serde(with="hex::serde")]
+    #[serde(with = "hex::serde")]
     signature: Vec<u8>,
 }
 

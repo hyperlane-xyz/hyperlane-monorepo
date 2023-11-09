@@ -90,7 +90,8 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
         announcement: SignedType<Announcement>,
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        let announce_request = AnnouncementRequest::new(announcement.value.validator,
+        let announce_request = AnnouncementRequest::new(
+            announcement.value.validator,
             announcement.value.storage_location,
             announcement.signature.to_vec(),
         );
