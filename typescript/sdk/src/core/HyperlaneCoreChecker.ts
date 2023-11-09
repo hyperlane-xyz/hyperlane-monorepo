@@ -55,7 +55,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
 
-    let ownableOverrides: Record<string, Address> = config.ownerOverrides || {};
+    const ownableOverrides: Record<string, Address> =
+      config.ownerOverrides || {};
     if (config.upgrade) {
       const proxyOwner = await this.app.getContracts(chain).proxyAdmin.owner();
       ownableOverrides.proxyAdmin = proxyOwner;

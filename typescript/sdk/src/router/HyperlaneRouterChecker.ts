@@ -1,6 +1,5 @@
 import { ConnectionClientViolation } from '..';
 import { ethers } from 'ethers';
-import { zeroAddress } from 'viem';
 
 import { IMailbox__factory } from '@hyperlane-xyz/core';
 import { addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
