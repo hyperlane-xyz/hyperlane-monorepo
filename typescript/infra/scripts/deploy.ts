@@ -4,9 +4,6 @@ import { prompt } from 'prompts';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
-  Chains,
-  HypERC20Config,
-  HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
@@ -15,14 +12,8 @@ import {
   HyperlaneProxyFactoryDeployer,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
-  IsmType,
   LiquidityLayerDeployer,
-  TokenType,
 } from '@hyperlane-xyz/sdk';
-import {
-  TokenConfig,
-  TokenDecimals,
-} from '@hyperlane-xyz/sdk/dist/token/config';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
@@ -40,8 +31,6 @@ import {
   getContractAddressesSdkFilepath,
   getEnvironmentConfig,
   getModuleDirectory,
-  getProxiedRouterConfig,
-  getRouterConfig,
   withContext,
   withModuleAndFork,
 } from './utils';
@@ -56,21 +45,28 @@ async function main() {
   const envConfig = getEnvironmentConfig(environment);
   let multiProvider = await envConfig.getMultiProvider();
 
+  // TODO: make this more generic
+  const deployerAddress =
+    environment === 'testnet4'
+      ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
+      : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+
   if (fork) {
     multiProvider = multiProvider.extendChainMetadata({
       [fork]: { blocks: { confirmations: 0 } },
     });
     await useLocalProvider(multiProvider, fork);
 
-    // TODO: make this more generic
-    const deployerAddress =
-      environment === 'testnet4'
-        ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
-        : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
-
     const signer = await impersonateAccount(deployerAddress);
     multiProvider.setSharedSigner(signer);
   }
+
+  const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+    getAddresses(environment, Modules.PROXY_FACTORY),
+    multiProvider,
+  );
+  const env = deployEnvToSdkEnv[environment];
+  const core = HyperlaneCore.fromEnvironment(env, multiProvider);
 
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
@@ -79,70 +75,18 @@ async function main() {
     deployer = new HyperlaneProxyFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
     config = envConfig.core;
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.PROXY_FACTORY),
-      multiProvider,
-    );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
-  } else if (module === Modules.WARP) {
-    const owner = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
-    const neutronRouter =
-      '0x9c504f7d878445228bef5684f9028cb388f63e58bf1077db75876c7651b9a71f';
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.PROXY_FACTORY),
-      multiProvider,
-    );
-    const tokenConfig: TokenConfig & TokenDecimals = {
-      type: TokenType.synthetic,
-      name: 'TIA',
-      symbol: 'TIA.n',
-      decimals: 6,
-      totalSupply: 0,
-    };
-    const core = HyperlaneCore.fromEnvironment(
-      deployEnvToSdkEnv[environment],
-      multiProvider,
-    );
-    const routerConfig = core.getRouterConfig(owner);
-    const targetChains = [Chains.arbitrum];
-    config = Object.fromEntries(
-      targetChains.map((chain) => {
-        const warpRouterConfig: HypERC20Config = {
-          ...routerConfig[chain],
-          ...tokenConfig,
-          interchainSecurityModule: {
-            type: IsmType.MESSAGE_ID_MULTISIG,
-            validators: [
-              '0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0',
-              '0xb65438a014fb05fbadcfe35bc6e25d372b6ba460',
-              '0xc79503a3e3011535a9c60f6d21f76f59823a38bd',
-              '0x42fa752defe92459370a052b6387a87f7de9b80c',
-              '0x54b2cca5091b098a1a993dec03c4d1ee9af65999',
-              '0x47aa126e05933b95c5eb90b26e6b668d84f4b25a',
-            ],
-            threshold: 4,
-          },
-          // foreignDeployment: neutronRouter,
-          gas: 600_000,
-        };
-        return [chain, warpRouterConfig];
-      }),
-    );
-    deployer = new HypERC20Deployer(multiProvider, ismFactory);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    config = await getProxiedRouterConfig(environment, multiProvider);
+    config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainAccountDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
-    config = await getProxiedRouterConfig(environment, multiProvider);
+    config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainQueryDeployer(multiProvider);
   } else if (module === Modules.LIQUIDITY_LAYER) {
-    const routerConfig = await getProxiedRouterConfig(
-      environment,
-      multiProvider,
-    );
+    const routerConfig = core.getRouterConfig(envConfig.owners);
     if (!envConfig.liquidityLayerConfig) {
       throw new Error(`No liquidity layer config for ${environment}`);
     }
@@ -168,15 +112,7 @@ async function main() {
     }));
     deployer = new TestQuerySenderDeployer(multiProvider);
   } else if (module === Modules.HELLO_WORLD) {
-    config = await getRouterConfig(
-      environment,
-      multiProvider,
-      true, // use deployer as owner
-    );
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.PROXY_FACTORY),
-      multiProvider,
-    );
+    config = core.getRouterConfig(deployerAddress);
     deployer = new HelloWorldDeployer(multiProvider, ismFactory);
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
