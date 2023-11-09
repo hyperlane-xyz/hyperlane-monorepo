@@ -53,16 +53,26 @@ pub fn deploy_cw_hyperlane(
     );
 
     // deploy igp set
+    #[cw_serde]
+    pub struct Something {
+        pub hrp: String,
+        pub owner: String,
+        pub gas_token: String,
+        pub beneficiary: String,
+        pub default_gas_usage: String,
+    }
+
     let igp = cli.wasm_init(
         &endpoint,
         &deployer,
         Some(deployer_addr),
         codes.hpl_igp,
-        igp::core::InstantiateMsg {
+        &Something {
+            hrp: PREFIX.to_string(),
             owner: deployer_addr.clone(),
             gas_token: "uosmo".to_string(),
             beneficiary: deployer_addr.clone(),
-            hrp: PREFIX.to_string(),
+            default_gas_usage: "250000".to_string(),
         },
         "hpl_igp",
     );
@@ -72,10 +82,10 @@ pub fn deploy_cw_hyperlane(
         &deployer,
         Some(deployer_addr),
         codes.hpl_igp_oracle,
-        IGPOracleInstantiateMsg {
+        igp::oracle::InstantiateMsg {
             owner: deployer_addr.clone(),
         },
-        "hpl_igp_gas_oracle",
+        "hpl_igp_oracle",
     );
 
     // deploy ism - routing ism with empty routes
