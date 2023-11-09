@@ -54,7 +54,7 @@ pub fn deploy_cw_hyperlane(
 
     // deploy igp set
     #[cw_serde]
-    pub struct Something {
+    pub struct GasOracleInitMsg {
         pub hrp: String,
         pub owner: String,
         pub gas_token: String,
@@ -67,7 +67,7 @@ pub fn deploy_cw_hyperlane(
         &deployer,
         Some(deployer_addr),
         codes.hpl_igp,
-        &Something {
+        GasOracleInitMsg {
             hrp: PREFIX.to_string(),
             owner: deployer_addr.clone(),
             gas_token: "uosmo".to_string(),
