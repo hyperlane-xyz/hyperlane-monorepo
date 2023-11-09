@@ -45,12 +45,6 @@ pub struct GasPaymentEnforcer {
 
 impl GasPaymentEnforcer {
     pub fn new(policy_configs: Vec<GasPaymentEnforcementConf>, db: HyperlaneRocksDB) -> Self {
-        if policy_configs.len() == 0 {
-            return Self {
-                policies: vec![(Box::new(GasPaymentPolicyNone), MatchingList::default())],
-                db,
-            };
-        }
         let policies = policy_configs
             .into_iter()
             .map(|cfg| {
