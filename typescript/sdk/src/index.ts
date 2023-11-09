@@ -164,10 +164,12 @@ export {
 export {
   ChainMetadata,
   ChainMetadataSchema,
+  ChainMetadataSchemaObject,
   ExplorerFamily,
   ExplorerFamilyValue,
   RpcUrl,
   RpcUrlSchema,
+  getChainIdNumber,
   getDomainId,
   isValidChainMetadata,
 } from './metadata/chainMetadataTypes';
@@ -206,6 +208,14 @@ export {
 } from './providers/MultiProtocolProvider';
 export { MultiProvider, MultiProviderOptions } from './providers/MultiProvider';
 export {
+  CosmJsContract,
+  CosmJsProvider,
+  CosmJsTransaction,
+  CosmJsTransactionReceipt,
+  CosmJsWasmContract,
+  CosmJsWasmProvider,
+  CosmJsWasmTransaction,
+  CosmJsWasmTransactionReceipt,
   EthersV5Contract,
   EthersV5Provider,
   EthersV5Transaction,
@@ -277,6 +287,14 @@ export {
   proxiedFactories,
 } from './router/types';
 export {
+  CW20Metadata,
+  CwHypCollateralAdapter,
+  CwHypNativeAdapter,
+  CwHypSyntheticAdapter,
+  CwNativeTokenAdapter,
+  CwTokenAdapter,
+} from './token/adapters/CosmWasmTokenAdapter';
+export {
   EvmHypCollateralAdapter,
   EvmHypSyntheticAdapter,
   EvmNativeTokenAdapter,
@@ -292,7 +310,6 @@ export {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
   SealevelHypSyntheticAdapter,
-  SealevelHypTokenAdapter,
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './token/adapters/SealevelTokenAdapter';

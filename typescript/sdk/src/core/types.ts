@@ -12,6 +12,7 @@ export type CoreConfig = {
   defaultHook: HookConfig;
   requiredHook: HookConfig;
   owner: Address;
+  ownerOverrides?: Record<string, string>;
   remove?: boolean;
   upgrade?: UpgradeConfig;
 };
@@ -24,6 +25,7 @@ export enum CoreViolationType {
 
 export enum MailboxViolationType {
   DefaultIsm = 'DefaultIsm',
+  NotProxied = 'NotProxied',
 }
 
 export interface MailboxViolation extends CheckerViolation {

@@ -162,7 +162,7 @@ export class SealevelTokenAdapter
 // we generously request 1M units.
 const TRANSFER_REMOTE_COMPUTE_LIMIT = 1_000_000;
 
-export abstract class SealevelHypTokenAdapter
+abstract class SealevelHypTokenAdapter
   extends SealevelTokenAdapter
   implements IHypTokenAdapter
 {
