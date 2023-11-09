@@ -72,7 +72,7 @@ pub fn deploy_cw_hyperlane(
             owner: deployer_addr.clone(),
             gas_token: "uosmo".to_string(),
             beneficiary: deployer_addr.clone(),
-            default_gas_usage: "250000".to_string(),
+            default_gas_usage: "2500000".to_string(),
         },
         "hpl_igp",
     );
