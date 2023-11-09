@@ -1,12 +1,7 @@
-import {
-  IPostDispatchHook__factory,
-  Mailbox__factory,
-  Router,
-} from '@hyperlane-xyz/core';
+import { Router } from '@hyperlane-xyz/core';
 import {
   Address,
   addressToBytes32,
-  formatMessage,
   objFilter,
   objMap,
   objMerge,
@@ -19,7 +14,6 @@ import {
   HyperlaneFactories,
 } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { moduleCanCertainlyVerify } from '../ism/HyperlaneIsmFactory';
 import { RouterConfig } from '../router/types';
 import { ChainMap } from '../types';
 
@@ -28,73 +22,6 @@ export abstract class HyperlaneRouterDeployer<
   Factories extends HyperlaneFactories,
 > extends HyperlaneDeployer<Config, Factories> {
   abstract router(contracts: HyperlaneContracts<Factories>): Router;
-
-  // The ISM check does not appropriately handle ISMs that have sender,
-  // recipient, or body-specific logic. Folks that wish to deploy using
-  // such ISMs *may* need to override checkConfig to disable this check.
-  async checkConfig(configMap: ChainMap<Config>): Promise<void> {
-    for (const [local, config] of Object.entries(configMap)) {
-      this.logger(`Checking config for ${local}...`);
-      const signerOrProvider = this.multiProvider.getSignerOrProvider(local);
-      const localMailbox = Mailbox__factory.connect(
-        config.mailbox,
-        signerOrProvider,
-      );
-
-      const localHook = IPostDispatchHook__factory.connect(
-        config.hook ?? (await localMailbox.defaultHook()),
-        signerOrProvider,
-      );
-
-      const deployer = await this.multiProvider.getSignerAddress(local);
-
-      const remotes = Object.keys(configMap).filter((c) => c !== local);
-      for (const remote of remotes) {
-        const origin = this.multiProvider.getDomainId(local);
-        const destination = this.multiProvider.getDomainId(remote);
-        const message = formatMessage(
-          0,
-          0,
-          origin,
-          deployer,
-          destination,
-          deployer,
-          '',
-        );
-
-        // Try to confirm that the hook supports delivery to all remotes
-        this.logger(`Checking ${local} => ${remote} hook...`);
-        try {
-          await localHook.quoteDispatch('', message);
-        } catch (e) {
-          throw new Error(
-            `The specified or default hook with address ${localHook.address} on ` +
-              `${local} is not configured to deliver messages to ${remote}, ` +
-              `did you mean to specify a different one?`,
-          );
-        }
-
-        const localIsm =
-          config.interchainSecurityModule ?? (await localMailbox.defaultIsm());
-
-        // Try to confirm that the specified or default ISM can verify messages to all remotes
-        const canVerify = await moduleCanCertainlyVerify(
-          localIsm,
-          this.multiProvider,
-          remote,
-          local,
-        );
-        if (!canVerify) {
-          const ismString = JSON.stringify(localIsm);
-          throw new Error(
-            `The specified or default ISM ${ismString} on ${local} ` +
-              `cannot verify messages from ${remote}, did you forget to ` +
-              `specify an ISM, or mean to specify a different one?`,
-          );
-        }
-      }
-    }
-  }
 
   async initMailboxClients(
     contractsMap: HyperlaneContractsMap<Factories>,

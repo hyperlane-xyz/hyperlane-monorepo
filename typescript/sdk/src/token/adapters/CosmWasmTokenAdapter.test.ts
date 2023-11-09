@@ -357,7 +357,7 @@ export async function summary() {
   // }
   // }
 
-  console.log(JSON.stringify(summary));
+  // console.log(JSON.stringify(summary));
 }
 
 export async function rotateValidators() {
