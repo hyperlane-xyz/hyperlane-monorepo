@@ -45,12 +45,9 @@ contract FallbackDomainRoutingHook is DomainRoutingHook {
 
     // ============ Internal Functions ============
 
-    function _getConfiguredHook(bytes calldata message)
-        internal
-        view
-        override
-        returns (IPostDispatchHook)
-    {
+    function _getConfiguredHook(
+        bytes calldata message
+    ) internal view override returns (IPostDispatchHook) {
         IPostDispatchHook _hook = hooks[message.destination()];
         if (address(_hook) == address(0)) {
             _hook = fallbackHook;

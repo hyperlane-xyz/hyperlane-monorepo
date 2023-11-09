@@ -10,10 +10,9 @@ interface IValidatorAnnounce {
      * @param _validators The list of validators to get storage locations for
      * @return A list of announced storage locations
      */
-    function getAnnouncedStorageLocations(address[] calldata _validators)
-        external
-        view
-        returns (string[][] memory);
+    function getAnnouncedStorageLocations(
+        address[] calldata _validators
+    ) external view returns (string[][] memory);
 
     /**
      * @notice Announces a validator signature storage location

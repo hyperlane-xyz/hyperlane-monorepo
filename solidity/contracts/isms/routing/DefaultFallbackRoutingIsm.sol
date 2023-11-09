@@ -18,12 +18,9 @@ contract DefaultFallbackRoutingIsm is DomainRoutingIsm, MailboxClient {
 
     constructor(address _mailbox) MailboxClient(_mailbox) {}
 
-    function module(uint32 origin)
-        public
-        view
-        override
-        returns (IInterchainSecurityModule)
-    {
+    function module(
+        uint32 origin
+    ) public view override returns (IInterchainSecurityModule) {
         (bool contained, bytes32 _module) = _modules.tryGet(origin);
         if (contained) {
             return IInterchainSecurityModule(_module.bytes32ToAddress());

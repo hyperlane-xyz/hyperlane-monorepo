@@ -65,10 +65,10 @@ abstract contract AbstractMessageIdAuthHook is
     // ============ Internal functions ============
 
     /// @inheritdoc AbstractPostDispatchHook
-    function _postDispatch(bytes calldata metadata, bytes calldata message)
-        internal
-        override
-    {
+    function _postDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal override {
         bytes32 id = message.id();
         require(
             _isLatestDispatched(id),
@@ -90,7 +90,8 @@ abstract contract AbstractMessageIdAuthHook is
      * @param metadata The metadata for the hook caller
      * @param payload The payload for call to the ISM
      */
-    function _sendMessageId(bytes calldata metadata, bytes memory payload)
-        internal
-        virtual;
+    function _sendMessageId(
+        bytes calldata metadata,
+        bytes memory payload
+    ) internal virtual;
 }

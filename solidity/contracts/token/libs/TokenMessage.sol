@@ -23,11 +23,9 @@ library TokenMessage {
         return amount(message);
     }
 
-    function metadata(bytes calldata message)
-        internal
-        pure
-        returns (bytes calldata)
-    {
+    function metadata(
+        bytes calldata message
+    ) internal pure returns (bytes calldata) {
         return message[64:];
     }
 }

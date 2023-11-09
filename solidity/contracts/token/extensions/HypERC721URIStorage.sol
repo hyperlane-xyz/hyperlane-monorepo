@@ -15,7 +15,9 @@ import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC7
 contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
     constructor(address _mailbox) HypERC721(_mailbox) {}
 
-    function balanceOf(address account)
+    function balanceOf(
+        address account
+    )
         public
         view
         override(HypERC721, ERC721Upgradeable, IERC721Upgradeable)
@@ -28,11 +30,9 @@ contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
      * @return _tokenURI The URI of `_tokenId`.
      * @inheritdoc HypERC721
      */
-    function _transferFromSender(uint256 _tokenId)
-        internal
-        override
-        returns (bytes memory _tokenURI)
-    {
+    function _transferFromSender(
+        uint256 _tokenId
+    ) internal override returns (bytes memory _tokenURI) {
         _tokenURI = bytes(tokenURI(_tokenId)); // requires minted
         HypERC721._transferFromSender(_tokenId);
     }
@@ -50,7 +50,9 @@ contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
         _setTokenURI(_tokenId, string(_tokenURI)); // requires minted
     }
 
-    function tokenURI(uint256 tokenId)
+    function tokenURI(
+        uint256 tokenId
+    )
         public
         view
         override(ERC721Upgradeable, ERC721URIStorageUpgradeable)
@@ -73,7 +75,9 @@ contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
         );
     }
 
-    function supportsInterface(bytes4 interfaceId)
+    function supportsInterface(
+        bytes4 interfaceId
+    )
         public
         view
         override(ERC721EnumerableUpgradeable, ERC721URIStorageUpgradeable)
@@ -82,10 +86,9 @@ contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
         return ERC721EnumerableUpgradeable.supportsInterface(interfaceId);
     }
 
-    function _burn(uint256 tokenId)
-        internal
-        override(ERC721URIStorageUpgradeable, ERC721Upgradeable)
-    {
+    function _burn(
+        uint256 tokenId
+    ) internal override(ERC721URIStorageUpgradeable, ERC721Upgradeable) {
         ERC721URIStorageUpgradeable._burn(tokenId);
     }
 }
