@@ -1,5 +1,6 @@
 import { ConnectionClientViolation } from '..';
 import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import { IMailbox__factory } from '@hyperlane-xyz/core';
 import { addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
@@ -124,11 +125,27 @@ export class HyperlaneRouterChecker<
     );
     const ism = await mailbox.recipientIsm(router.address);
 
-    await checkMailboxClientProperty(
-      'interchainSecurityModule',
-      ism,
-      ClientViolationType.InterchainSecurityModule,
-    );
+    if (
+      !this.configMap[chain].interchainSecurityModule ||
+      this.configMap[chain].interchainSecurityModule === zeroAddress
+    ) {
+      const defaultIsm = await mailbox.defaultIsm();
+      if (!eqAddress(defaultIsm, ism)) {
+        this.addViolation({
+          chain,
+          type: ClientViolationType.InterchainSecurityModule,
+          contract: router,
+          actual: ism,
+          expected: defaultIsm,
+        });
+      }
+    } else {
+      await checkMailboxClientProperty(
+        'interchainSecurityModule',
+        ism,
+        ClientViolationType.InterchainSecurityModule,
+      );
+    }
   }
 
   async checkEnrolledRouters(chain: ChainName): Promise<void> {
