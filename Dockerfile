@@ -4,7 +4,7 @@ WORKDIR /hyperlane-monorepo
 
 RUN apk add --update --no-cache git g++ make py3-pip
 
-RUN yarn set version 3.2.0
+RUN yarn set version 4.0.1
 RUN yarn plugin import workspace-tools
 
 # Copy package.json and friends
