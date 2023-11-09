@@ -78,7 +78,7 @@ pub trait WasmProvider: Send + Sync {
 }
 
 #[derive(Debug)]
-/// Cosmwasm GRPC provider.
+/// CosmWasm GRPC provider.
 pub struct WasmGrpcProvider {
     /// Connection configuration.
     conf: ConnectionConf,
@@ -93,7 +93,7 @@ pub struct WasmGrpcProvider {
 }
 
 impl WasmGrpcProvider {
-    /// create new Cosmwasm GRPC Provider
+    /// Create new CosmWasm GRPC Provider.
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
@@ -110,6 +110,7 @@ impl WasmGrpcProvider {
         })
     }
 
+    /// Gets a signer, or returns an error if one is not available.
     fn get_signer(&self) -> ChainResult<&Signer> {
         self.signer
             .as_ref()
