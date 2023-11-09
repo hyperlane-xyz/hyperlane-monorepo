@@ -1,4 +1,4 @@
-use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::{HyperlaneMessage, H256};
 use serde::{Deserialize, Serialize};
 
 use crate::address::CosmosAddress;
@@ -49,12 +49,21 @@ pub struct DefaultIsmRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DeliveredRequest {
-    pub message_delivered: DeliveredRequestInner,
+    message_delivered: DeliveredRequestInner,
+}
+
+impl DeliveredRequest {
+    pub fn new(id: H256) -> Self {
+        Self {
+            message_delivered: DeliveredRequestInner { id },
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct DeliveredRequestInner {
-    pub id: String, // hexbinary
+struct DeliveredRequestInner {
+    // Trevor: note this will add a 0x prefix!
+    id: H256,
 }
 
 #[derive(Serialize, Debug)]

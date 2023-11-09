@@ -91,14 +91,11 @@ impl Mailbox for CosmosMailbox {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        let id = hex::encode(id);
-        let payload = mailbox::DeliveredRequest {
-            message_delivered: mailbox::DeliveredRequestInner { id },
-        };
+        let payload = mailbox::DeliveredRequest::new(id);
 
         let delivered = match self
             .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
+            .wasm_query(GeneralMailboxQuery::new(payload), None)
             .await
         {
             Ok(v) => {
