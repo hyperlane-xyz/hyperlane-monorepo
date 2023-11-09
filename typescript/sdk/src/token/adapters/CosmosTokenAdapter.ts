@@ -16,7 +16,7 @@ import {
   TransferRemoteParams,
 } from './ITokenAdapter';
 
-const COSMOS_IBC_TRANSFER_TIMEOUT = 60_000; // 1 minute
+const COSMOS_IBC_TRANSFER_TIMEOUT = 600_000; // 10 minutes
 
 // Interacts with native tokens on a Cosmos chain (e.g TIA on Celestia)
 export class CosmNativeTokenAdapter
