@@ -45,6 +45,7 @@ export enum Modules {
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
   HELLO_WORLD = 'helloworld',
+  WARP = 'warp',
 }
 
 export const SDK_MODULES = [
