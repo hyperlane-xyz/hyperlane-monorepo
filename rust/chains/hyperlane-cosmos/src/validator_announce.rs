@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 
-use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
@@ -9,7 +8,7 @@ use hyperlane_core::{
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
     payloads::validator_announce::{
-        self, AnnouncementRequest, AnnouncementRequestInner, GetAnnounceStorageLocationsRequest,
+        self, AnnouncementRequest, GetAnnounceStorageLocationsRequest,
         GetAnnounceStorageLocationsRequestInner,
     },
     signers::Signer,
@@ -91,25 +90,14 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
         announcement: SignedType<Announcement>,
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        let announce_request = AnnouncementRequest {
-            announce: AnnouncementRequestInner {
-                validator: hex::encode(announcement.value.validator),
-                storage_location: announcement.value.storage_location,
-                signature: hex::encode(announcement.signature.to_vec()),
-            },
-        };
+        let announce_request = AnnouncementRequest::new(announcement.value.validator,
+            announcement.value.storage_location,
+            announcement.signature.to_vec(),
+        );
 
-        let response: TxResponse = self
-            .provider
+        self.provider
             .wasm_send(announce_request, tx_gas_limit)
-            .await?;
-
-        Ok(TxOutcome {
-            transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),
-            executed: response.code == 0,
-            gas_used: U256::from(response.gas_used),
-            gas_price: U256::from(response.gas_wanted),
-        })
+            .await
     }
 
     async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {

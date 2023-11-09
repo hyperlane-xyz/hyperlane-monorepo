@@ -1,4 +1,7 @@
+use hyperlane_core::HyperlaneMessage;
 use serde::{Deserialize, Serialize};
+
+use crate::address::CosmosAddress;
 
 use super::general::EmptyStruct;
 
@@ -8,27 +11,38 @@ pub struct GeneralMailboxQuery<T> {
     pub mailbox: T,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct CountRequest {
-    pub count: EmptyStruct,
+impl<T> GeneralMailboxQuery<T> {
+    pub fn new(inner: T) -> Self {
+        Self { mailbox: inner }
+    }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct NonceRequest {
     pub nonce: EmptyStruct,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RecipientIsmRequest {
-    pub recipient_ism: RecipientIsmRequestInner,
+    recipient_ism: RecipientIsmRequestInner,
+}
+
+impl RecipientIsmRequest {
+    pub fn new(recipient_addr: CosmosAddress) -> Self {
+        Self {
+            recipient_ism: RecipientIsmRequestInner {
+                recipient_addr: recipient_addr.address(),
+            },
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct RecipientIsmRequestInner {
-    pub recipient_addr: String, // hexbinary
+struct RecipientIsmRequestInner {
+    recipient_addr: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct DefaultIsmRequest {
     pub default_ism: EmptyStruct,
 }
@@ -43,15 +57,25 @@ pub struct DeliveredRequestInner {
     pub id: String, // hexbinary
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ProcessMessageRequest {
-    pub process: ProcessMessageRequestInner,
+#[derive(Serialize, Debug)]
+pub struct ProcessMessageRequest<'a> {
+    process: ProcessMessageRequestInner<'a>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ProcessMessageRequestInner {
-    pub metadata: String,
-    pub message: String,
+impl<'a> ProcessMessageRequest<'a> {
+    pub fn new(message: &'a HyperlaneMessage, metadata: &'a [u8]) -> Self {
+        Self {
+            process: ProcessMessageRequestInner { message, metadata },
+        }
+    }
+}
+
+#[derive(Serialize, Debug)]
+pub struct ProcessMessageRequestInner<'a> {
+    #[serde(with = "hex::serde")]
+    pub metadata: &'a [u8],
+    #[serde(with = "crate::serde::serde_hex_encoded_hyperlane_message")]
+    pub message: &'a HyperlaneMessage,
 }
 
 // Responses

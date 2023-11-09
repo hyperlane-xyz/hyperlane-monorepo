@@ -16,6 +16,7 @@ mod multisig_ism;
 mod payloads;
 mod providers;
 mod routing_ism;
+mod serde;
 mod signers;
 mod trait_builder;
 mod types;

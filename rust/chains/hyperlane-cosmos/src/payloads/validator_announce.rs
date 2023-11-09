@@ -1,3 +1,4 @@
+use hyperlane_core::H160;
 use serde::{Deserialize, Serialize};
 
 use super::general::EmptyStruct;
@@ -19,14 +20,32 @@ pub struct GetAnnounceStorageLocationsRequestInner {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AnnouncementRequest {
-    pub announce: AnnouncementRequestInner,
+    announce: AnnouncementRequestInner,
+}
+
+impl AnnouncementRequest {
+    pub fn new(
+        validator: H160,
+        storage_location: String,
+        signature: Vec<u8>,
+    ) -> Self {
+        Self {
+            announce: AnnouncementRequestInner {
+                validator,
+                storage_location,
+                signature,
+            },
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AnnouncementRequestInner {
-    pub validator: String,
-    pub storage_location: String,
-    pub signature: String,
+struct AnnouncementRequestInner {
+    // TODO be conscious this puts a 0x prefix that may not be allowed!
+    validator: H160,
+    storage_location: String,
+    #[serde(with="hex::serde")]
+    signature: Vec<u8>,
 }
 
 // ========= resp ============

@@ -5,10 +5,7 @@ use cosmrs::{
             auth::v1beta1::{
                 query_client::QueryClient as QueryAccountClient, BaseAccount, QueryAccountRequest,
             },
-            base::{
-                abci::v1beta1::TxResponse,
-                tendermint::v1beta1::{service_client::ServiceClient, GetLatestBlockRequest},
-            },
+            base::tendermint::v1beta1::{service_client::ServiceClient, GetLatestBlockRequest},
             tx::v1beta1::{
                 service_client::ServiceClient as TxServiceClient, BroadcastMode,
                 BroadcastTxRequest, SimulateRequest, TxRaw,
@@ -23,7 +20,9 @@ use cosmrs::{
     tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
     Amount, Coin,
 };
-use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, U256};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, TxOutcome, H256, U256,
+};
 use serde::Serialize;
 use tonic::transport::{Channel, Endpoint};
 
@@ -33,7 +32,7 @@ use crate::{signers::Signer, ConnectionConf};
 
 /// The gas price to use for transactions.
 /// TODO: is there a nice way to get a suggested price dynamically?
-const DEFAULT_GAS_PRICE: f64 = 0.05;
+pub const DEFAULT_GAS_PRICE: f64 = 0.05;
 /// A multiplier applied to a simulated transaction's gas usage to
 /// calculate the estimated gas.
 const GAS_ESTIMATE_MULTIPLIER: f64 = 1.25;
@@ -71,7 +70,7 @@ pub trait WasmProvider: Send + Sync {
         &self,
         payload: T,
         gas_limit: Option<U256>,
-    ) -> ChainResult<TxResponse>;
+    ) -> ChainResult<TxOutcome>;
 
     /// Estimate gas for a wasm tx.
     async fn wasm_estimate_gas<T: Serialize + Sync + Send>(&self, payload: T) -> ChainResult<u64>;
@@ -291,7 +290,7 @@ impl WasmProvider for WasmGrpcProvider {
         Ok(response.data)
     }
 
-    async fn wasm_send<T>(&self, payload: T, gas_limit: Option<U256>) -> ChainResult<TxResponse>
+    async fn wasm_send<T>(&self, payload: T, gas_limit: Option<U256>) -> ChainResult<TxOutcome>
     where
         T: Serialize + Send + Sync,
     {
@@ -325,7 +324,7 @@ impl WasmProvider for WasmGrpcProvider {
             mode: BroadcastMode::Sync as i32,
         };
 
-        let tx_res = client
+        let tx_response = client
             .broadcast_tx(tx_req)
             .await
             .map_err(Into::<HyperlaneCosmosError>::into)?
@@ -333,7 +332,12 @@ impl WasmProvider for WasmGrpcProvider {
             .tx_response
             .ok_or_else(|| ChainCommunicationError::from_other_str("Empty tx_response"))?;
 
-        Ok(tx_res)
+        Ok(TxOutcome {
+            transaction_id: H256::from_slice(hex::decode(tx_response.txhash)?.as_slice()).into(),
+            executed: tx_response.code == 0,
+            gas_used: U256::from(tx_response.gas_used),
+            gas_price: U256::from(0),
+        })
     }
 
     async fn wasm_estimate_gas<T>(&self, payload: T) -> ChainResult<u64>

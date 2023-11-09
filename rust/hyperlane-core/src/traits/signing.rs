@@ -6,16 +6,6 @@ use serde::{
 };
 use std::fmt::{Debug, Formatter};
 
-#[cfg(feature = "ethers")]
-use {
-    elliptic_curve::consts::U32,
-    ethers_core::k256::{
-        ecdsa::recoverable::Signature as RecoverableSignature, ecdsa::Signature as K256Signature,
-        PublicKey as K256PublicKey,
-    },
-    generic_array::GenericArray,
-};
-
 use crate::utils::fmt_bytes;
 use crate::{Signature, H160, H256};
 
@@ -122,33 +112,6 @@ impl<T: Signable> SignedType<T> {
         let sig = ethers_core::types::Signature::from(self.signature);
 
         Ok(sig.recover(hash)?.into())
-    }
-
-    /// Recover the public key of the signer
-    #[cfg(feature = "ethers")]
-    pub fn recover_pubkey(&self) -> Result<Vec<u8>, crate::HyperlaneProtocolError> {
-        use elliptic_curve::sec1::ToEncodedPoint;
-
-        let hash = ethers_core::types::H256::from(self.value.eth_signed_message_hash());
-        let signature = ethers_core::types::Signature::from(self.signature);
-        let recoverable_signature = {
-            let mut r_bytes = [0u8; 32];
-            let mut s_bytes = [0u8; 32];
-            signature.r.to_big_endian(&mut r_bytes);
-            signature.s.to_big_endian(&mut s_bytes);
-            let gar: &GenericArray<u8, U32> = GenericArray::from_slice(&r_bytes);
-            let gas: &GenericArray<u8, U32> = GenericArray::from_slice(&s_bytes);
-            let sig = K256Signature::from_scalars(*gar, *gas).unwrap();
-            RecoverableSignature::new(&sig, signature.recovery_id().unwrap()).unwrap()
-        };
-        let verify_key = recoverable_signature
-            .recover_verifying_key_from_digest_bytes(hash.as_ref().into())
-            .unwrap();
-
-        let public_key = K256PublicKey::from(&verify_key);
-        let public_key = public_key.to_encoded_point(/* compress = */ false);
-        let public_key = public_key.as_bytes();
-        Ok(public_key.to_vec())
     }
 
     /// Check whether a message was signed by a specific address

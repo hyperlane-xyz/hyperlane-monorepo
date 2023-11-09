@@ -13,10 +13,7 @@ use tracing::instrument;
 
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
-    payloads::{
-        general::{self},
-        merkle_tree_hook,
-    },
+    payloads::merkle_tree_hook,
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
     utils::{
         get_block_height_for_lag, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
@@ -74,18 +71,14 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     /// Return the incremental merkle tree in storage
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        let payload = merkle_tree_hook::MerkleTreeRequest {
-            tree: general::EmptyStruct {},
-        };
+        let payload = merkle_tree_hook::MerkleTreeRequest::default();
 
         let block_height = get_block_height_for_lag(&self.provider, lag).await?;
 
         let data = self
             .provider
             .wasm_query(
-                merkle_tree_hook::MerkleTreeGenericRequest {
-                    merkle_hook: payload,
-                },
+                merkle_tree_hook::MerkleTreeGenericRequest::new(payload),
                 block_height,
             )
             .await?;
@@ -107,9 +100,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
 
     /// Gets the current leaf count of the merkle tree
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let payload = merkle_tree_hook::MerkleTreeCountRequest {
-            count: general::EmptyStruct {},
-        };
+        let payload = merkle_tree_hook::MerkleTreeCountRequest::default();
 
         let block_height = get_block_height_for_lag(&self.provider, lag).await?;
 
@@ -118,18 +109,14 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        let payload = merkle_tree_hook::CheckPointRequest {
-            check_point: general::EmptyStruct {},
-        };
+        let payload = merkle_tree_hook::CheckPointRequest::default();
 
         let block_height = get_block_height_for_lag(&self.provider, lag).await?;
 
         let data = self
             .provider
             .wasm_query(
-                merkle_tree_hook::MerkleTreeGenericRequest {
-                    merkle_hook: payload,
-                },
+                merkle_tree_hook::MerkleTreeGenericRequest::new(payload),
                 block_height,
             )
             .await?;
@@ -147,16 +134,12 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
 impl CosmosMerkleTreeHook {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn count_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
-        let payload = merkle_tree_hook::MerkleTreeCountRequest {
-            count: general::EmptyStruct {},
-        };
+        let payload = merkle_tree_hook::MerkleTreeCountRequest::default();
 
         let data = self
             .provider
             .wasm_query(
-                merkle_tree_hook::MerkleTreeGenericRequest {
-                    merkle_hook: payload,
-                },
+                merkle_tree_hook::MerkleTreeGenericRequest::new(payload),
                 block_height,
             )
             .await?;

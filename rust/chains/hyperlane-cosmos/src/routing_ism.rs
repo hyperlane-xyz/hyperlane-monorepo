@@ -4,15 +4,13 @@ use async_trait::async_trait;
 
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, RawHyperlaneMessage, RoutingIsm, H256,
+    HyperlaneMessage, HyperlaneProvider, RoutingIsm, H256,
 };
 
 use crate::{
     address::CosmosAddress,
     grpc::{WasmGrpcProvider, WasmProvider},
-    payloads::ism_routes::{
-        IsmRouteRequest, IsmRouteRequestInner, IsmRouteRespnose, QueryRoutingIsmGeneralRequest,
-    },
+    payloads::ism_routes::{IsmRouteRequest, IsmRouteRespnose, QueryRoutingIsmGeneralRequest},
     signers::Signer,
     ConnectionConf, CosmosProvider,
 };
@@ -61,20 +59,11 @@ impl HyperlaneChain for CosmosRoutingIsm {
 #[async_trait]
 impl RoutingIsm for CosmosRoutingIsm {
     async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
-        let payload = IsmRouteRequest {
-            route: IsmRouteRequestInner {
-                message: hex::encode(RawHyperlaneMessage::from(message)),
-            },
-        };
+        let payload = IsmRouteRequest::new(message);
 
         let data = self
             .provider
-            .wasm_query(
-                QueryRoutingIsmGeneralRequest {
-                    routing_ism: payload,
-                },
-                None,
-            )
+            .wasm_query(QueryRoutingIsmGeneralRequest::new(payload), None)
             .await?;
         let response: IsmRouteRespnose = serde_json::from_slice(&data)?;
 

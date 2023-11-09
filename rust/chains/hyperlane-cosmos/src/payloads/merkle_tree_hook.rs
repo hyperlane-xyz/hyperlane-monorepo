@@ -1,27 +1,28 @@
+use derive_new::new;
 use serde::{Deserialize, Serialize};
 
 use super::general::EmptyStruct;
 
 const TREE_DEPTH: usize = 32;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, new)]
 pub struct MerkleTreeGenericRequest<T> {
     pub merkle_hook: T,
 }
 
 // --------- Requests ---------
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct MerkleTreeRequest {
     pub tree: EmptyStruct,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct MerkleTreeCountRequest {
     pub count: EmptyStruct,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct CheckPointRequest {
     pub check_point: EmptyStruct,
 }

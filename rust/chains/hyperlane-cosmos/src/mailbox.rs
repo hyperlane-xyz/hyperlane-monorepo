@@ -7,17 +7,14 @@ use std::{
     str::FromStr,
 };
 
-use crate::address::CosmosAddress;
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
-use crate::payloads::mailbox::{
-    GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
-};
-use crate::payloads::{general, mailbox};
+use crate::payloads::mailbox;
+use crate::payloads::mailbox::{GeneralMailboxQuery, ProcessMessageRequest};
 use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::CosmosProvider;
+use crate::{address::CosmosAddress, grpc::DEFAULT_GAS_PRICE};
 use crate::{signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
-use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::tendermint::abci::EventAttribute;
 use once_cell::sync::Lazy;
 
@@ -27,9 +24,7 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
     H256, U256,
 };
-use hyperlane_core::{
-    ChainCommunicationError, ContractLocator, Decode, RawHyperlaneMessage, SequenceIndexer,
-};
+use hyperlane_core::{ChainCommunicationError, ContractLocator, Decode, SequenceIndexer};
 use tracing::{instrument, warn};
 
 /// A reference to a Mailbox contract on some Cosmos chain
@@ -41,8 +36,7 @@ pub struct CosmosMailbox {
 }
 
 impl CosmosMailbox {
-    /// Create a reference to a mailbox at a specific Ethereum address on some
-    /// chain
+    /// Create a reference to a mailbox at a specific address.
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
@@ -127,38 +121,33 @@ impl Mailbox for CosmosMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
-        let payload = mailbox::DefaultIsmRequest {
-            default_ism: general::EmptyStruct {},
-        };
+        let payload = mailbox::DefaultIsmRequest::default();
 
         let data = self
             .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
+            .wasm_query(GeneralMailboxQuery::new(payload), None)
             .await?;
         let response: mailbox::DefaultIsmResponse = serde_json::from_slice(&data)?;
 
         // convert Hex to H256
+        // TODO test this???
         let ism = H256::from_slice(&hex::decode(response.default_ism)?);
         Ok(ism)
     }
 
     #[instrument(err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let address = CosmosAddress::from_h256(recipient, &self.prefix())?.address();
+        let recipient_address = CosmosAddress::from_h256(recipient, &self.prefix())?;
 
-        let payload = mailbox::RecipientIsmRequest {
-            recipient_ism: mailbox::RecipientIsmRequestInner {
-                recipient_addr: address,
-            },
-        };
+        let payload = mailbox::RecipientIsmRequest::new(recipient_address);
 
         let data = self
             .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
+            .wasm_query(GeneralMailboxQuery::new(payload), None)
             .await?;
         let response: mailbox::RecipientIsmResponse = serde_json::from_slice(&data)?;
 
-        // convert Hex to H256
+        // Convert from a prefixed bech32 string to H256.
         let ism = CosmosAddress::from_str(&response.ism)?;
         Ok(ism.digest())
     }
@@ -170,23 +159,9 @@ impl Mailbox for CosmosMailbox {
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        let process_message = ProcessMessageRequest {
-            process: ProcessMessageRequestInner {
-                message: hex::encode(RawHyperlaneMessage::from(message)),
-                metadata: hex::encode(metadata),
-            },
-        };
+        let process_message = ProcessMessageRequest::new(message, metadata);
 
-        let response: TxResponse = self
-            .provider
-            .wasm_send(process_message, tx_gas_limit)
-            .await?;
-        Ok(TxOutcome {
-            transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),
-            executed: response.code == 0,
-            gas_used: U256::from(response.gas_used),
-            gas_price: U256::from(response.gas_wanted),
-        })
+        self.provider.wasm_send(process_message, tx_gas_limit).await
     }
 
     #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
@@ -195,12 +170,7 @@ impl Mailbox for CosmosMailbox {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        let process_message = ProcessMessageRequest {
-            process: ProcessMessageRequestInner {
-                message: hex::encode(RawHyperlaneMessage::from(message)),
-                metadata: hex::encode(metadata),
-            },
-        };
+        let process_message = ProcessMessageRequest::new(message, metadata);
 
         let result = TxCostEstimate {
             gas_limit: self
@@ -208,7 +178,10 @@ impl Mailbox for CosmosMailbox {
                 .wasm_estimate_gas(process_message)
                 .await?
                 .into(),
-            gas_price: U256::from(2500),
+            // There isn't a great way of getting this on-chain, and annoyingly cosmos
+            // gas prices can be fractional. For now, we just round up to the nearest integer
+            // and use the default gas price.
+            gas_price: U256::from(DEFAULT_GAS_PRICE.ceil() as u64),
             l2_gas_limit: None,
         };
 
@@ -223,13 +196,11 @@ impl Mailbox for CosmosMailbox {
 impl CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn nonce_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
-        let payload = mailbox::NonceRequest {
-            nonce: general::EmptyStruct {},
-        };
+        let payload = mailbox::NonceRequest::default();
 
         let data = self
             .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, block_height)
+            .wasm_query(GeneralMailboxQuery::new(payload), block_height)
             .await?;
 
         let response: mailbox::NonceResponse = serde_json::from_slice(&data)?;
@@ -255,8 +226,7 @@ impl CosmosMailboxIndexer {
     /// The message dispatch event type from the CW contract.
     const MESSAGE_DISPATCH_EVENT_TYPE: &str = "mailbox_dispatch";
 
-    /// Create a reference to a mailbox at a specific Ethereum address on some
-    /// chain
+    /// Create a mailbox indexer.
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,

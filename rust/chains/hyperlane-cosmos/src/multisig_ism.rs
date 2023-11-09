@@ -9,10 +9,10 @@ use crate::{
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H160, H256,
+    HyperlaneMessage, HyperlaneProvider, MultisigIsm, H160, H256,
 };
 
-use crate::payloads::multisig_ism::{self, VerifyInfoRequest, VerifyInfoRequestInner};
+use crate::payloads::multisig_ism::{self, VerifyInfoRequest};
 
 /// A reference to a MultisigIsm contract on some Cosmos chain
 #[derive(Debug)]
@@ -62,15 +62,11 @@ impl MultisigIsm for CosmosMultisigIsm {
         &self,
         message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
-        let payload = VerifyInfoRequest {
-            verify_info: VerifyInfoRequestInner {
-                message: hex::encode(RawHyperlaneMessage::from(message)),
-            },
-        };
+        let payload = VerifyInfoRequest::new(&message);
 
         let data = self
             .provider
-            .wasm_query(QueryIsmGeneralRequest { ism: payload }, None)
+            .wasm_query(QueryIsmGeneralRequest::new(payload), None)
             .await?;
         let response: multisig_ism::VerifyInfoResponse = serde_json::from_slice(&data)?;
 
