@@ -1,6 +1,8 @@
 import { ConnectionClientViolation } from '..';
 import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
+import { IMailbox__factory } from '@hyperlane-xyz/core';
 import { addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types';
@@ -48,9 +50,9 @@ export class HyperlaneRouterChecker<
 
     const checkMailboxClientProperty = async (
       property: keyof (MailboxClientConfig & OwnableConfig),
+      actual: string,
       violationType: ClientViolationType,
     ) => {
-      const actual = await router[property]();
       const value = this.configMap[chain][property];
 
       // If the value is an object, it's an ISM config
@@ -105,11 +107,28 @@ export class HyperlaneRouterChecker<
       }
     };
 
-    await checkMailboxClientProperty('mailbox', ClientViolationType.Mailbox);
-    await checkMailboxClientProperty('hook', ClientViolationType.Hook);
+    const mailboxAddr = await router.mailbox();
+    await checkMailboxClientProperty(
+      'mailbox',
+      mailboxAddr,
+      ClientViolationType.Mailbox,
+    );
+    await checkMailboxClientProperty(
+      'hook',
+      await router.hook(),
+      ClientViolationType.Hook,
+    );
+
+    const mailbox = IMailbox__factory.connect(
+      mailboxAddr,
+      this.multiProvider.getProvider(chain),
+    );
+    const ism = await mailbox.recipientIsm(router.address);
+
     await checkMailboxClientProperty(
       'interchainSecurityModule',
-      ClientViolationType.Hook,
+      ism,
+      ClientViolationType.InterchainSecurityModule,
     );
   }
 
