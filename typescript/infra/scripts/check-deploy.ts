@@ -43,12 +43,17 @@ function getArgs() {
 async function check() {
   const { fork, govern, module, environment, context } = await getArgs();
   const config = getEnvironmentConfig(environment);
-  const multiProvider = await config.getMultiProvider();
+  let multiProvider = await config.getMultiProvider();
 
   // must rotate to forked provider before building core contracts
   if (fork) {
     await useLocalProvider(multiProvider, fork);
+
     if (govern) {
+      multiProvider = multiProvider.extendChainMetadata({
+        [fork]: { blocks: { confirmations: 0 } },
+      });
+
       const owner = config.core[fork].owner;
       const signer = await impersonateAccount(owner);
       multiProvider.setSigner(fork, signer);

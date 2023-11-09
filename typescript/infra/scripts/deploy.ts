@@ -54,9 +54,12 @@ async function main() {
     environment,
   } = await withContext(withModuleAndFork(getArgs())).argv;
   const envConfig = getEnvironmentConfig(environment);
-  const multiProvider = await envConfig.getMultiProvider();
+  let multiProvider = await envConfig.getMultiProvider();
 
   if (fork) {
+    multiProvider = multiProvider.extendChainMetadata({
+      [fork]: { blocks: { confirmations: 0 } },
+    });
     await useLocalProvider(multiProvider, fork);
 
     // TODO: make this more generic

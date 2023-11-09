@@ -23,7 +23,7 @@ trap 'kill $(jobs -p)' EXIT
 # exit 1 on any subsequent failures
 set -e
 
-anvil --fork-url $RPC_URL --block-time 1 --silent > /dev/null &
+anvil --fork-url $RPC_URL --silent > /dev/null &
 ANVIL_PID=$!
 
 while ! cast bn &> /dev/null; do
