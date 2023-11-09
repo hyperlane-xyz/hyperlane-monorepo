@@ -29,6 +29,3 @@ yarn-error.log
 .vscode
 
 tsconfig.editor.json
-
-rust/neutron_validator_sigs
-rust/relayer_db

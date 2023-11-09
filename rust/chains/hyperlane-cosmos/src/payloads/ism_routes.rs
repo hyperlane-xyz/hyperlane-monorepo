@@ -39,5 +39,5 @@ pub struct QueryIsmModuleTypeRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QueryIsmModuleTypeResponse {
     #[serde(rename = "type")]
-    pub typ: hpl_interface::ism::ISMType,
+    pub typ: hpl_interface::ism::IsmType,
 }
