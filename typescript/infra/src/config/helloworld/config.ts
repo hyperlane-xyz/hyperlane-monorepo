@@ -12,6 +12,10 @@ export async function helloWorldRouterConfig(
   multiProvider: MultiProvider,
 ): Promise<ChainMap<RouterConfig>> {
   const routerConfig = await getRouterConfig(environment, multiProvider, true);
+  if (context === Contexts.Hyperlane) {
+    return routerConfig;
+  }
+
   return objMap(routerConfig, (chain, config) => ({
     ...config,
     interchainSecurityModule: routingIsm(environment, chain, context),

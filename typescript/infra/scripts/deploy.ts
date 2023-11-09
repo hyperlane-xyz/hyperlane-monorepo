@@ -212,7 +212,7 @@ async function main() {
       : undefined;
 
   // prompt for confirmation
-  if (environment === 'mainnet3' || environment === 'testnet4') {
+  if ((environment === 'mainnet3' || environment === 'testnet4') && !fork) {
     console.log(JSON.stringify(config, null, 2));
     const { value: confirmed } = await prompt({
       type: 'confirm',

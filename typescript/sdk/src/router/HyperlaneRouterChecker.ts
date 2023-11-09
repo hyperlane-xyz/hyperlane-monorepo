@@ -73,19 +73,13 @@ export class HyperlaneRouterChecker<
         );
 
         if (!matches) {
-          this.app.logger(
-            `Deploying ISM; ISM config of actual ${actual} does not match expected config ${JSON.stringify(
-              value,
-            )}`,
-          );
-          const deployedIsm = await this.ismFactory.deploy(chain, value);
           const violation: ConnectionClientViolation = {
             chain,
             type: violationType,
             contract: router,
             actual,
-            expected: deployedIsm.address,
-            description: `ISM config does not match deployed ISM at ${deployedIsm.address}`,
+            expected: value,
+            description: `ISM config does not match deployed ISM`,
           };
           this.addViolation(violation);
         }
@@ -136,7 +130,7 @@ export class HyperlaneRouterChecker<
           type: ClientViolationType.InterchainSecurityModule,
           contract: router,
           actual: ism,
-          expected: defaultIsm,
+          expected: zeroAddress,
         });
       }
     } else {
