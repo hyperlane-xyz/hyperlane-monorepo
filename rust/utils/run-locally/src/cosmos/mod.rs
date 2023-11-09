@@ -262,12 +262,11 @@ fn launch_cosmos_validator(
         .hyp_env("REORGPERIOD", "100")
         .hyp_env("DB", validator_base_db.to_str().unwrap())
         .hyp_env("METRICS", agent_config.domain_id.to_string())
-        .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ.clone())
+        .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
         .hyp_env("VALIDATOR_KEY", agent_config.signer.key.clone())
         .hyp_env("VALIDATOR_PREFIX", "osmo")
-        .hyp_env("SIGNER_SIGNER_TYPE", agent_config.signer.typ)
+        .hyp_env("SIGNER_SIGNER_TYPE", "hexKey")
         .hyp_env("SIGNER_KEY", agent_config.signer.key)
-        .hyp_env("SIGNER_PREFIX", "osmo")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .spawn("VAL");
 
