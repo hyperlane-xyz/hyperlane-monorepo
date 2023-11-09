@@ -56,9 +56,9 @@ fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
         KEY_ACCOUNTS3,
     ]
 }
-const CW_HYPERLANE_GIT: &str = "https://github.com/many-things/cw-hyperlane";
 
-const CW_HYPERLANE_VERSION: &str = "0.0.6-rc3";
+const CW_HYPERLANE_GIT: &str = "https://github.com/many-things/cw-hyperlane";
+const CW_HYPERLANE_VERSION: &str = "0.0.6-rc6";
 
 fn make_target() -> String {
     let os = if cfg!(target_os = "linux") {
@@ -140,7 +140,7 @@ pub fn install_cosmos(
             version: OSMOSIS_CLI_VERSION.to_string(),
         })
         .install(cli_dir);
-    let codes = install_codes(codes_dir, true);
+    let codes = install_codes(codes_dir, false);
 
     (osmosisd, codes)
 }
@@ -315,10 +315,7 @@ fn run_locally() {
             .unwrap_or_default(),
     );
 
-    let path_buf =
-        PathBuf::from("/Users/eric/many-things/mitosis/cw-hyperlane/artifacts/dist/wasm");
-
-    let (osmosisd, codes) = install_cosmos(None, cli_src, Some(path_buf), code_src);
+    let (osmosisd, codes) = install_cosmos(None, cli_src, None, code_src);
     let addr_base = "tcp://0.0.0.0";
     let default_config = CosmosConfig {
         cli_path: osmosisd.clone(),
