@@ -78,10 +78,6 @@ export abstract class HyperlaneDeployer<
     this.cachedAddresses = addressesMap;
   }
 
-  async checkConfig(_: ChainMap<Config>): Promise<void> {
-    return;
-  }
-
   abstract deployContracts(
     chain: ChainName,
     config: Config,
@@ -282,7 +278,7 @@ export abstract class HyperlaneDeployer<
       );
     }
 
-    this.logger(`Connection client on ${local} initialized...`);
+    this.logger(`Mailbox client on ${local} initialized...`);
   }
 
   protected async deployContractFromFactory<F extends ethers.ContractFactory>(
