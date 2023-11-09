@@ -1430,7 +1430,7 @@ checksum = "73c9d2043a9e617b0d602fbc0a0ecd621568edbf3a9774890a6d562389bd8e1c"
 dependencies = [
  "prost",
  "prost-types",
- "tendermint-proto",
+ "tendermint-proto 0.32.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tonic",
 ]
 
@@ -9330,8 +9330,7 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.32.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f0a7d05cf78524782337f8edd55cbc578d159a16ad4affe2135c92f7dbac7f0"
+source = "git+https://github.com/hyperlane-xyz/tendermint-rs.git?branch=trevor/0.32.2-fork#feea28d47e73bf7678e1e5cdced0f5ca51b69286"
 dependencies = [
  "bytes",
  "digest 0.10.7",
@@ -9353,7 +9352,7 @@ dependencies = [
  "signature 2.1.0",
  "subtle",
  "subtle-encoding",
- "tendermint-proto",
+ "tendermint-proto 0.32.2 (git+https://github.com/hyperlane-xyz/tendermint-rs.git?branch=trevor/0.32.2-fork)",
  "time",
  "zeroize",
 ]
@@ -9361,8 +9360,7 @@ dependencies = [
 [[package]]
 name = "tendermint-config"
 version = "0.32.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71a72dbbea6dde12045d261f2c70c0de039125675e8a026c8d5ad34522756372"
+source = "git+https://github.com/hyperlane-xyz/tendermint-rs.git?branch=trevor/0.32.2-fork#feea28d47e73bf7678e1e5cdced0f5ca51b69286"
 dependencies = [
  "flex-error",
  "serde",
@@ -9391,10 +9389,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "tendermint-proto"
+version = "0.32.2"
+source = "git+https://github.com/hyperlane-xyz/tendermint-rs.git?branch=trevor/0.32.2-fork#feea28d47e73bf7678e1e5cdced0f5ca51b69286"
+dependencies = [
+ "bytes",
+ "flex-error",
+ "num-derive 0.3.3",
+ "num-traits",
+ "prost",
+ "prost-types",
+ "serde",
+ "serde_bytes",
+ "subtle-encoding",
+ "time",
+]
+
+[[package]]
 name = "tendermint-rpc"
 version = "0.32.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d119d83a130537fc4a98c3c9eb6899ebe857fea4860400a61675bfb5f0b35129"
+source = "git+https://github.com/hyperlane-xyz/tendermint-rs.git?branch=trevor/0.32.2-fork#feea28d47e73bf7678e1e5cdced0f5ca51b69286"
 dependencies = [
  "async-trait",
  "bytes",
@@ -9415,7 +9429,7 @@ dependencies = [
  "subtle-encoding",
  "tendermint",
  "tendermint-config",
- "tendermint-proto",
+ "tendermint-proto 0.32.2 (git+https://github.com/hyperlane-xyz/tendermint-rs.git?branch=trevor/0.32.2-fork)",
  "thiserror",
  "time",
  "tokio",
