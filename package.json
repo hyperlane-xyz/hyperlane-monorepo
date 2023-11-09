@@ -17,7 +17,7 @@
   "scripts": {
     "build": "yarn workspaces foreach --all --parallel --topological run build",
     "clean": "yarn workspaces foreach --all --parallel run clean",
-    "prettier": "yarn workspaces foreach --all parallel run prettier",
+    "prettier": "yarn workspaces foreach --all --parallel run prettier",
     "lint": "yarn workspaces foreach --all --parallel run lint",
     "test": "yarn workspaces foreach --all --parallel run test",
     "coverage": "yarn workspaces foreach --all --parallel run coverage",

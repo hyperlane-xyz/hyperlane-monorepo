@@ -36,7 +36,7 @@
     "prettier": "^2.4.1",
     "sinon": "^13.0.2",
     "ts-node": "^10.8.0",
-    "typescript": "^5.1.6"
+    "typescript": "5.1.6"
   },
   "files": [
     "/dist",
