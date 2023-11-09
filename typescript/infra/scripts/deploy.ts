@@ -43,6 +43,8 @@ async function main() {
     environment,
   } = await withContext(withModuleAndFork(getArgs())).argv;
   const envConfig = getEnvironmentConfig(environment);
+  const env = deployEnvToSdkEnv[environment];
+
   let multiProvider = await envConfig.getMultiProvider();
 
   // TODO: make this more generic
@@ -61,13 +63,6 @@ async function main() {
     multiProvider.setSharedSigner(signer);
   }
 
-  const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-    getAddresses(environment, Modules.PROXY_FACTORY),
-    multiProvider,
-  );
-  const env = deployEnvToSdkEnv[environment];
-  const core = HyperlaneCore.fromEnvironment(env, multiProvider);
-
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
   if (module === Modules.PROXY_FACTORY) {
@@ -75,17 +70,24 @@ async function main() {
     deployer = new HyperlaneProxyFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
     config = envConfig.core;
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      getAddresses(environment, Modules.PROXY_FACTORY),
+      multiProvider,
+    );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainAccountDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainQueryDeployer(multiProvider);
   } else if (module === Modules.LIQUIDITY_LAYER) {
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     const routerConfig = core.getRouterConfig(envConfig.owners);
     if (!envConfig.liquidityLayerConfig) {
       throw new Error(`No liquidity layer config for ${environment}`);
@@ -112,8 +114,9 @@ async function main() {
     }));
     deployer = new TestQuerySenderDeployer(multiProvider);
   } else if (module === Modules.HELLO_WORLD) {
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(deployerAddress);
-    deployer = new HelloWorldDeployer(multiProvider, ismFactory);
+    deployer = new HelloWorldDeployer(multiProvider);
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
