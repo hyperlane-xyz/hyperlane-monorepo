@@ -105,9 +105,8 @@ export class SealevelTokenAdapter
 
   async getBalance(owner: Address): Promise<string> {
     const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
-    const response = await this.getProvider().getTokenAccountBalance(
-      tokenPubKey,
-    );
+    const response =
+      await this.getProvider().getTokenAccountBalance(tokenPubKey);
     return response.value.amount;
   }
 
@@ -532,9 +531,8 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
     // the escrow account.
     if (eqAddress(owner, this.addresses.warpRouter)) {
       const collateralAccount = this.deriveEscrowAccount();
-      const response = await this.getProvider().getTokenAccountBalance(
-        collateralAccount,
-      );
+      const response =
+        await this.getProvider().getTokenAccountBalance(collateralAccount);
       return response.value.amount;
     }
 
@@ -595,9 +593,8 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
 
   override async getBalance(owner: Address): Promise<string> {
     const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
-    const response = await this.getProvider().getTokenAccountBalance(
-      tokenPubKey,
-    );
+    const response =
+      await this.getProvider().getTokenAccountBalance(tokenPubKey);
     return response.value.amount;
   }
 

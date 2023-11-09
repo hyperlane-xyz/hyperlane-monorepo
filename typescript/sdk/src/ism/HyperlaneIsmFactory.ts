@@ -303,9 +303,8 @@ export async function moduleCanCertainlyVerify(
           provider,
         );
 
-        const [, threshold] = await multisigModule.validatorsAndThreshold(
-          message,
-        );
+        const [, threshold] =
+          await multisigModule.validatorsAndThreshold(message);
         return threshold > 0;
       } else if (moduleType === ModuleType.ROUTING) {
         const routingIsm = IRoutingIsm__factory.connect(destModule, provider);
@@ -469,9 +468,8 @@ export async function moduleMatchesConfig(
         moduleAddress,
         provider,
       );
-      const [subModules, threshold] = await aggregationIsm.modulesAndThreshold(
-        '0x',
-      );
+      const [subModules, threshold] =
+        await aggregationIsm.modulesAndThreshold('0x');
       matches = matches && threshold === config.threshold;
       matches = matches && subModules.length === config.modules.length;
 

@@ -719,9 +719,8 @@ class ContextFunder {
       L1MessageQueue.abi,
       l1ChainSigner,
     );
-    const gasQuote = await l1MessageQueue.estimateCrossDomainMessageFee(
-      l2GasLimit,
-    );
+    const gasQuote =
+      await l1MessageQueue.estimateCrossDomainMessageFee(l2GasLimit);
     const totalAmount = amount.add(gasQuote);
     return l1EthGateway['depositETH(address,uint256,uint256)'](
       to,

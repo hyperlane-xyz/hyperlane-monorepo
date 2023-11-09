@@ -41,9 +41,8 @@ export class SealevelRouterAdapter
 
   async remoteRouter(remoteDomain: Domain): Promise<Address> {
     const routers = await this.remoteRouters();
-    const addr = routers.find(
-      (router) => router.domain === remoteDomain,
-    )?.address;
+    const addr = routers.find((router) => router.domain === remoteDomain)
+      ?.address;
     if (!addr) throw new Error(`No router found for ${remoteDomain}`);
     return addr;
   }

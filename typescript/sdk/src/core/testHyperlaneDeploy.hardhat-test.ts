@@ -77,13 +77,11 @@ describe('TestCoreDeployer', async () => {
   });
 
   it('processes outbound messages for two domains', async () => {
-    const localResponses = await testCoreApp.processOutboundMessages(
-      localChain,
-    );
+    const localResponses =
+      await testCoreApp.processOutboundMessages(localChain);
     expect(localResponses.get(remoteChain)!.length).to.equal(1);
-    const remoteResponses = await testCoreApp.processOutboundMessages(
-      remoteChain,
-    );
+    const remoteResponses =
+      await testCoreApp.processOutboundMessages(remoteChain);
     expect(remoteResponses.get(localChain)!.length).to.equal(1);
   });
 
