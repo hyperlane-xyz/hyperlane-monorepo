@@ -249,6 +249,7 @@ fn launch_cosmos_validator(
 
     let validator = Program::default()
         .bin(validator_bin)
+        .working_dir("../../")
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env(
             "MY_VALIDATOR_SIGNATURE_DIRECTORY",
@@ -284,6 +285,7 @@ fn launch_cosmos_relayer(
 
     let relayer = Program::default()
         .bin(relayer_bin)
+        .working_dir("../../")
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env("RUST_BACKTRACE", "1")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
