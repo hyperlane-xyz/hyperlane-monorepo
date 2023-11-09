@@ -245,9 +245,9 @@ impl Validator {
             storage_location: announcement_location.clone(),
         };
         let signed_announcement = self.signer.sign(announcement.clone()).await?;
-        // self.checkpoint_syncer
-        //     .write_announcement(&signed_announcement)
-        //     .await?;
+        self.checkpoint_syncer
+            .write_announcement(&signed_announcement)
+            .await?;
 
         // Ensure that the validator has announced themselves before we enter
         // the main validator submit loop. This is to avoid a situation in

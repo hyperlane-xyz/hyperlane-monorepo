@@ -124,6 +124,8 @@ impl WasmGrpcProvider {
         msgs: Vec<cosmrs::Any>,
         gas_limit: u64,
     ) -> ChainResult<SignDoc> {
+        // As this function is only used for estimating gas or sending transactions,
+        // we can reasonably expect to have a signer.
         let signer = self.get_signer()?;
         let account_info = self.account_query(signer.address.clone()).await?;
         let current_height = self.latest_block_height().await?;
@@ -337,6 +339,8 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
+        // Estimating gas requires a signer, which we can reasonably expect to have
+        // since we need one to send a tx with the estimated gas anyways.
         let signer = self.get_signer()?;
         let msg = MsgExecuteContract {
             sender: signer.address.clone(),
