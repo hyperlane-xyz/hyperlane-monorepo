@@ -2792,10 +2792,10 @@ __metadata:
     ethers: "npm:^5.7.2"
     hardhat: "npm:^2.19.0"
     hardhat-gas-reporter: "npm:^1.0.9"
-    prettier: "npm:^3.0.3"
-    prettier-plugin-solidity: "npm:^1.2.0"
+    prettier: "npm:^2.8.8"
+    prettier-plugin-solidity: "npm:^1.1.3"
     solhint: "npm:^4.0.0"
-    solhint-plugin-prettier: "npm:^0.1.0"
+    solhint-plugin-prettier: "npm:^0.0.5"
     solidity-coverage: "npm:^0.8.3"
     ts-generator: "npm:^0.1.1"
     typechain: "npm:^8.3.2"
@@ -2829,10 +2829,10 @@ __metadata:
     ethers: "npm:^5.7.2"
     hardhat: "npm:^2.19.0"
     hardhat-gas-reporter: "npm:^1.0.9"
-    prettier: "npm:^3.0.3"
-    prettier-plugin-solidity: "npm:^1.2.0"
+    prettier: "npm:^2.8.8"
+    prettier-plugin-solidity: "npm:^1.1.3"
     solhint: "npm:^4.0.0"
-    solhint-plugin-prettier: "npm:^0.1.0"
+    solhint-plugin-prettier: "npm:^0.0.5"
     solidity-coverage: "npm:^0.8.3"
     ts-node: "npm:^10.8.0"
     typechain: "npm:^8.0.0"
@@ -2880,7 +2880,7 @@ __metadata:
     ethers: "npm:^5.7.2"
     hardhat: "npm:^2.19.0"
     mocha: "npm:^10.2.0"
-    prettier: "npm:^3.0.3"
+    prettier: "npm:^2.8.8"
     prom-client: "npm:^14.0.1"
     prompts: "npm:^2.4.2"
     ts-node: "npm:^10.8.0"
@@ -2902,7 +2902,7 @@ __metadata:
     eslint-config-prettier: "npm:^8.5.0"
     husky: "npm:^8.0.0"
     lint-staged: "npm:^12.4.3"
-    prettier: "npm:^3.0.3"
+    prettier: "npm:^2.8.8"
   languageName: unknown
   linkType: soft
 
@@ -2936,7 +2936,7 @@ __metadata:
     ethers: "npm:^5.7.2"
     hardhat: "npm:^2.19.0"
     mocha: "npm:^9.2.2"
-    prettier: "npm:^3.0.3"
+    prettier: "npm:^2.8.8"
     sinon: "npm:^13.0.2"
     ts-node: "npm:^10.8.0"
     typescript: "npm:5.1.6"
@@ -2957,7 +2957,7 @@ __metadata:
     bignumber.js: "npm:^9.1.1"
     chai: "npm:^4.3.0"
     ethers: "npm:^5.7.2"
-    prettier: "npm:^3.0.3"
+    prettier: "npm:^2.8.8"
     typescript: "npm:5.1.6"
   languageName: unknown
   linkType: soft
@@ -3616,15 +3616,6 @@ __metadata:
     "@pnpm/network.ca-file": "npm:^1.0.1"
     config-chain: "npm:^1.1.11"
   checksum: 45422fecc7ed49e5254eef744576625e27cdebccce930f42c66cf2fb70443fc24f506c3fcf4859e6371677ceb144feb45e925ec14774b54588b89806b32dea9a
-  languageName: node
-  linkType: hard
-
-"@prettier/sync@npm:^0.3.0":
-  version: 0.3.0
-  resolution: "@prettier/sync@npm:0.3.0"
-  peerDependencies:
-    prettier: ^3.0.0
-  checksum: 10520d2479830c18256bf2b18349a15a8964f968059f7ccaa1f6d455c133a26e6c96bd7aea7c64ef6701700e8007ad68619b16ec83391b356b5d4a741cbae504
   languageName: node
   linkType: hard
 
@@ -11759,7 +11750,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier-plugin-solidity@npm:^1.2.0":
+"prettier-plugin-solidity@npm:^1.1.3":
   version: 1.2.0
   resolution: "prettier-plugin-solidity@npm:1.2.0"
   dependencies:
@@ -11772,21 +11763,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier@npm:^2.1.2, prettier@npm:^2.3.1, prettier@npm:^2.8.3":
+"prettier@npm:^2.1.2, prettier@npm:^2.3.1, prettier@npm:^2.8.3, prettier@npm:^2.8.8":
   version: 2.8.8
   resolution: "prettier@npm:2.8.8"
   bin:
     prettier: bin-prettier.js
   checksum: 00cdb6ab0281f98306cd1847425c24cbaaa48a5ff03633945ab4c701901b8e96ad558eb0777364ffc312f437af9b5a07d0f45346266e8245beaf6247b9c62b24
-  languageName: node
-  linkType: hard
-
-"prettier@npm:^3.0.3":
-  version: 3.0.3
-  resolution: "prettier@npm:3.0.3"
-  bin:
-    prettier: bin/prettier.cjs
-  checksum: ccf1ead9794b017be6b42d0873f459070beef2069eb393c8b4c0d11aa3430acefc54f6d5f44a5b7ce9af05ad8daf694b912f0aa2808d1c22dfa86e61e9d563f8
   languageName: node
   linkType: hard
 
@@ -12882,16 +12864,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"solhint-plugin-prettier@npm:^0.1.0":
-  version: 0.1.0
-  resolution: "solhint-plugin-prettier@npm:0.1.0"
+"solhint-plugin-prettier@npm:^0.0.5":
+  version: 0.0.5
+  resolution: "solhint-plugin-prettier@npm:0.0.5"
   dependencies:
-    "@prettier/sync": "npm:^0.3.0"
     prettier-linter-helpers: "npm:^1.0.0"
   peerDependencies:
-    prettier: ^3.0.0
-    prettier-plugin-solidity: ^1.0.0
-  checksum: 241caa07b9d1570117cf0cc56371cc81c69fb17706dbc68136dfb112279c8c1cf815dbaa70c146acd06876e16d9a7385312b63302f2381868c02c3bdfa23715b
+    prettier: ^1.15.0 || ^2.0.0
+    prettier-plugin-solidity: ^1.0.0-alpha.14
+  checksum: ca721e327daf49a4d9ef0ee5c9622482a8c5563d600eedfd3856c69ce67e416dd77da5166a033e2e641c9cdd7a0f2cbc7913b0eb1712081b3c7e8c633eef82a5
   languageName: node
   linkType: hard
 

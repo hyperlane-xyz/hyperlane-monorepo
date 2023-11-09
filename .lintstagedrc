@@ -1,5 +1,6 @@
 {
   "*.js": "prettier --write",
   "*.ts": "prettier --write", 
-  "*.md": "prettier --write"
+  "*.md": "prettier --write",
+  "*.sol": "prettier --write"
 }

@@ -34,8 +34,9 @@ export class EvmRouterAdapter extends BaseEvmAdapter implements IRouterAdapter {
   }
 
   async remoteRouter(remoteDomain: Domain): Promise<Address> {
-    const routerAddressesAsBytes32 =
-      await this.getConnectedContract().routers(remoteDomain);
+    const routerAddressesAsBytes32 = await this.getConnectedContract().routers(
+      remoteDomain,
+    );
     return bytes32ToAddress(routerAddressesAsBytes32);
   }
 
@@ -58,8 +59,9 @@ export class EvmGasRouterAdapter
 {
   async quoteGasPayment(destination: ChainName): Promise<string> {
     const destDomain = this.multiProvider.getDomainId(destination);
-    const amount =
-      await this.getConnectedContract().quoteGasPayment(destDomain);
+    const amount = await this.getConnectedContract().quoteGasPayment(
+      destDomain,
+    );
     return amount.toString();
   }
 

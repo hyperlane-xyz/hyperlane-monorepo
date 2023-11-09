@@ -90,8 +90,9 @@ export class S3Validator extends BaseValidator {
   }
 
   async getLatestCheckpointIndex() {
-    const latestCheckpointIndex =
-      await this.s3Bucket.getS3Obj<number>(LATEST_KEY);
+    const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
+      LATEST_KEY,
+    );
 
     if (!latestCheckpointIndex) return -1;
 
@@ -103,10 +104,12 @@ export class S3Validator extends BaseValidator {
     withId = false,
     count = 5,
   ): Promise<CheckpointMetric[]> {
-    const latestCheckpointIndex =
-      await this.s3Bucket.getS3Obj<number>(LATEST_KEY);
-    const otherLatestCheckpointIndex =
-      await other.s3Bucket.getS3Obj<number>(LATEST_KEY);
+    const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
+      LATEST_KEY,
+    );
+    const otherLatestCheckpointIndex = await other.s3Bucket.getS3Obj<number>(
+      LATEST_KEY,
+    );
 
     if (!otherLatestCheckpointIndex || !latestCheckpointIndex) {
       throw new Error('Failed to get latest checkpoints');

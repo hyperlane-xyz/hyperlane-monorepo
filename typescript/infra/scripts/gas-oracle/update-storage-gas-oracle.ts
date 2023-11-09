@@ -75,8 +75,9 @@ async function setStorageGasOracleValues(
     const desiredGasData = localStorageGasOracleConfig[remote]!;
     const remoteId = multiProvider.getDomainId(remote);
 
-    const existingGasData: RemoteGasData =
-      await storageGasOracle.remoteGasData(remoteId);
+    const existingGasData: RemoteGasData = await storageGasOracle.remoteGasData(
+      remoteId,
+    );
 
     console.log(
       `${local} -> ${remote} existing gas data:\n`,
