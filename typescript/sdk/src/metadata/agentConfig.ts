@@ -67,7 +67,7 @@ const AgentSignerAwsKeySchema = z
 const AgentSignerCosmosKeySchema = z
   .object({
     type: z.literal(AgentSignerKeyType.Cosmos),
-    prefix: z.string().describe('The prefix for the cosmos address'),
+    prefix: z.string().describe('The bech32 prefix for the cosmos address'),
     key: ZHash,
   })
   .describe('Cosmos key');
