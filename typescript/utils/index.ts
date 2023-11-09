@@ -116,4 +116,4 @@ export {
   TokenCaip19Id,
 } from './src/types';
 export { assert } from './src/validation';
-export { BaseValidator, Validator } from './src/validator';
+export { BaseValidator } from './src/validator';

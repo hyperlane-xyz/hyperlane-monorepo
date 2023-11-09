@@ -5,7 +5,6 @@ import {
   S3Checkpoint,
   S3CheckpointWithId,
   SignatureLike,
-  isS3Checkpoint,
   isS3CheckpointWithId,
 } from '@hyperlane-xyz/utils';
 
@@ -68,6 +67,7 @@ export class S3Validator extends BaseValidator {
         const address = announcement?.data.value.validator;
         const mailbox = announcement?.data.value.mailbox_address;
         const localDomain = announcement?.data.value.mailbox_domain;
+
         return new S3Validator(
           address,
           localDomain,

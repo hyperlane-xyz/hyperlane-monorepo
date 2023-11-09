@@ -1,41 +1,30 @@
 import { ethers } from 'ethers';
 
 import { domainHash } from './domains';
-import {
-  Address,
-  Checkpoint,
-  Domain,
-  HexString,
-  S3Checkpoint,
-  SignatureLike,
-} from './types';
+import { Address, Checkpoint, Domain, HexString, SignatureLike } from './types';
 
 /**
  * Utilities for validators to construct and verify checkpoints.
  */
 export class BaseValidator {
-  localDomain: Domain;
-  address: Address;
-  merkle_tree_hook_address: Address;
-
   constructor(
-    address: Address,
-    localDomain: Domain,
-    merkle_tree_hook_address: Address,
-  ) {
-    this.localDomain = localDomain;
-    this.address = address;
-    this.merkle_tree_hook_address = merkle_tree_hook_address;
+    public readonly address: Address,
+    public readonly localDomain: Domain,
+    public readonly mailbox_address: Address,
+  ) {}
+
+  announceDomainHash() {
+    return domainHash(this.localDomain, this.mailbox_address);
   }
 
-  domainHash() {
-    return domainHash(this.localDomain, this.merkle_tree_hook_address);
+  checkpointDomainHash(merkle_tree_address: Address) {
+    return domainHash(this.localDomain, merkle_tree_address);
   }
 
   message(checkpoint: Checkpoint, messageId: HexString) {
     const types = ['bytes32', 'bytes32', 'uint32', 'bytes32'];
     const values = [
-      this.domainHash(),
+      this.checkpointDomainHash(checkpoint.merkle_tree_hook_address),
       checkpoint.root,
       checkpoint.index,
       messageId,
@@ -69,48 +58,5 @@ export class BaseValidator {
         messageId,
       ).toLowerCase() === this.address.toLowerCase()
     );
-  }
-}
-
-export class Validator extends BaseValidator {
-  constructor(
-    protected signer: ethers.Signer,
-    address: Address,
-    localDomain: Domain,
-    merkle_tree_hook_address: Address,
-  ) {
-    super(address, localDomain, merkle_tree_hook_address);
-  }
-
-  static async fromSigner(
-    signer: ethers.Signer,
-    localDomain: Domain,
-    merkle_tree_hook_address: Address,
-  ) {
-    return new Validator(
-      signer,
-      await signer.getAddress(),
-      localDomain,
-      merkle_tree_hook_address,
-    );
-  }
-
-  async signCheckpoint(
-    root: HexString,
-    index: number,
-    messageId: string,
-  ): Promise<S3Checkpoint> {
-    const checkpoint = {
-      root,
-      index,
-      merkle_tree_hook_address: this.merkle_tree_hook_address,
-      mailbox_domain: this.localDomain,
-    };
-    const msgHash = this.messageHash(checkpoint, messageId);
-    const signature = await this.signer.signMessage(msgHash);
-    return {
-      value: checkpoint,
-      signature,
-    };
   }
 }
