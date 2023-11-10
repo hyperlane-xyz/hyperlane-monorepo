@@ -302,6 +302,19 @@ const ENV_CW_HYPERLANE_PATH_KEY: &str = "E2E_CW_HYPERLANE_PATH";
 fn run_locally() {
     let debug = false;
 
+    log!("Building rust...");
+    Program::new("cargo")
+        .cmd("build")
+        .arg("features", "test-utils")
+        .arg("bin", "relayer")
+        .arg("bin", "validator")
+        .arg("bin", "scraper")
+        .arg("bin", "init-db")
+        // .arg("bin", "hyperlane-sealevel-client")
+        .filter_logs(|l| !l.contains("workspace-inheritance"))
+        .run()
+        .join();
+
     let cli_src = Some(
         env::var(ENV_CLI_PATH_KEY)
             .as_ref()
