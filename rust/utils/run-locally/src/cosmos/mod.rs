@@ -305,12 +305,12 @@ fn run_locally() {
     log!("Building rust...");
     Program::new("cargo")
         .cmd("build")
+        .working_dir("../../")
         .arg("features", "test-utils")
         .arg("bin", "relayer")
         .arg("bin", "validator")
         .arg("bin", "scraper")
         .arg("bin", "init-db")
-        // .arg("bin", "hyperlane-sealevel-client")
         .filter_logs(|l| !l.contains("workspace-inheritance"))
         .run()
         .join();
