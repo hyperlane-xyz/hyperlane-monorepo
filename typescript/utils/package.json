@@ -29,7 +29,7 @@
     "clean": "rm -rf ./dist",
     "check": "tsc --noEmit",
     "prettier": "prettier --write ./src",
-    "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts'"
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts'"
   },
   "sideEffects": false,
   "types": "dist/index.d.ts",
