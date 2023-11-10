@@ -178,12 +178,8 @@ impl Mailbox for CosmosMailbox {
             .provider
             .wasm_send(process_message, tx_gas_limit)
             .await?;
-        Ok(TxOutcome {
-            transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),
-            executed: response.code == 0,
-            gas_used: U256::from(response.gas_used),
-            gas_price: U256::from(response.gas_wanted),
-        })
+
+        Ok(response.try_into()?)
     }
 
     #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
