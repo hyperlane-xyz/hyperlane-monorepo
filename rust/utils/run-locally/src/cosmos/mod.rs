@@ -452,8 +452,6 @@ fn run_locally() {
         debug,
     );
 
-    sleep(Duration::from_secs(10)); // wait for 10 seconds
-
     // dispatch messages
 
     for node in nodes.iter() {
@@ -506,7 +504,7 @@ fn run_locally() {
         relayer: hpl_rly.join(),
     };
 
-    sleep(Duration::from_secs(1000)); // wait for a long time
+    sleep(Duration::from_secs(20)); // wait for a long time
 }
 
 #[cfg(test)]
