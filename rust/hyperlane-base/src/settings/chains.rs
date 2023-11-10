@@ -146,11 +146,9 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                Ok(Box::new(h_cosmos::CosmosMailbox::new(
-                    conf.clone(),
-                    locator.clone(),
-                    signer.clone(),
-                )) as Box<dyn Mailbox>)
+                h_cosmos::CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone())
+                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
             }
         }
         .context(ctx)
@@ -186,7 +184,7 @@ impl ChainConf {
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
                 let hook =
-                    h_cosmos::CosmosMerkleTreeHook::new(conf.clone(), locator.clone(), signer);
+                    h_cosmos::CosmosMerkleTreeHook::new(conf.clone(), locator.clone(), signer)?;
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
@@ -304,7 +302,7 @@ impl ChainConf {
                     conf.clone(),
                     locator.clone(),
                     signer,
-                ));
+                )?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
         }
@@ -418,7 +416,7 @@ impl ChainConf {
                     conf.clone(),
                     locator.clone(),
                     signer,
-                ));
+                )?);
 
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
@@ -458,7 +456,7 @@ impl ChainConf {
                 let signer = self.cosmos_signer().await.context(ctx)?;
                 let ism = Box::new(h_cosmos::CosmosInterchainSecurityModule::new(
                     conf, locator, signer,
-                ));
+                )?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
         }
@@ -492,7 +490,7 @@ impl ChainConf {
                     conf.clone(),
                     locator.clone(),
                     signer,
-                ));
+                )?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
         }
@@ -526,7 +524,7 @@ impl ChainConf {
                     &conf.clone(),
                     locator.clone(),
                     signer,
-                ));
+                )?);
                 Ok(ism as Box<dyn RoutingIsm>)
             }
         }
@@ -560,7 +558,7 @@ impl ChainConf {
                     conf.clone(),
                     locator.clone(),
                     signer,
-                ));
+                )?);
 
                 Ok(ism as Box<dyn AggregationIsm>)
             }

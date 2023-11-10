@@ -89,7 +89,7 @@ bech32 = "0.9.1"
 elliptic-curve = "0.12.3"
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
-hpl-interface = "0.0.6-rc6"
+hpl-interface = "=0.0.6-rc3"
 hyper = "0.14"
 hyper-tls = "0.5.0"
 itertools = "0.11.0"
@@ -307,6 +307,15 @@ version = "=0.5.0"
 
 [patch.crates-io.spl-type-length-value]
 version = "=0.1.0"
-
-branch = "hyperlane"
 git = "https://github.com/hyperlane-xyz/solana-program-library.git"
+branch = "hyperlane"
+
+[patch.crates-io.tendermint]
+branch = "trevor/0.32.2-fork"
+git = "https://github.com/hyperlane-xyz/tendermint-rs.git"
+version = "=0.32.2"
+
+[patch.crates-io.tendermint-rpc]
+branch = "trevor/0.32.2-fork"
+git = "https://github.com/hyperlane-xyz/tendermint-rs.git"
+version = "=0.32.2"

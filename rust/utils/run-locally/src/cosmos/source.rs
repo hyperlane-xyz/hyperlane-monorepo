@@ -102,7 +102,11 @@ pub enum CLISource {
 
 impl Default for CLISource {
     fn default() -> Self {
-        Self::remote(OSMOSIS_CLI_GIT, OSMOSIS_CLI_VERSION)
+        if make_target().starts_with("darwin") {
+            Self::remote("https://github.com/hashableric/osmosis", "19.0.0-mnts")
+        } else {
+            Self::remote(OSMOSIS_CLI_GIT, OSMOSIS_CLI_VERSION)
+        }
     }
 }
 

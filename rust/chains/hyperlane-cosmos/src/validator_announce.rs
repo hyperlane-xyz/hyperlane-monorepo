@@ -2,9 +2,8 @@ use async_trait::async_trait;
 
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use hyperlane_core::{
-    Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome,
-    ValidatorAnnounce, H160, H256, U256,
+    Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
 
 use crate::{
@@ -27,14 +26,18 @@ pub struct CosmosValidatorAnnounce {
 
 impl CosmosValidatorAnnounce {
     /// create a new instance of CosmosValidatorAnnounce
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Option<Signer>) -> Self {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer);
+    pub fn new(
+        conf: ConnectionConf,
+        locator: ContractLocator,
+        signer: Option<Signer>,
+    ) -> ChainResult<Self> {
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
 
-        Self {
+        Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
             provider: Box::new(provider),
-        }
+        })
     }
 }
 
@@ -96,25 +99,9 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
             },
         };
 
-        // Perform gas estimation if a limit wasn't already provided.
-        // TODO: refactor `wasm_send` to do this gas estimation automatically
-        // instead of using a default hardcoded value if the gas limit is `None`.
-        let tx_gas_limit = if let Some(gas_limit) = tx_gas_limit {
-            gas_limit
-        } else {
-            // A multiplier is applied already for us
-            self.provider
-                .wasm_simulate(announce_request.clone())
-                .await?
-                .gas_info
-                .ok_or_else(|| ChainCommunicationError::from_other_str("gas info not present"))?
-                .gas_used
-                .into()
-        };
-
         let response: TxResponse = self
             .provider
-            .wasm_send(announce_request, Some(tx_gas_limit))
+            .wasm_send(announce_request, tx_gas_limit)
             .await?;
 
         Ok(response.try_into()?)
