@@ -32,11 +32,8 @@ use cli::{OsmosisCLI, OsmosisEndpoint};
 use self::deploy::deploy_cw_hyperlane;
 use self::source::{CLISource, CodeSource};
 
-// const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
-// const OSMOSIS_CLI_VERSION: &str = "19.0.0";
-
-const OSMOSIS_CLI_GIT: &str = "https://github.com/hashableric/osmosis";
-const OSMOSIS_CLI_VERSION: &str = "19.0.0-mnts";
+const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
+const OSMOSIS_CLI_VERSION: &str = "19.0.0";
 
 const KEY_HPL_VALIDATOR: (&str,&str) = ("hpl-validator", "guard evolve region sentence danger sort despair eye deputy brave trim actor left recipe debate document upgrade sustain bus cage afford half demand pigeon");
 const KEY_HPL_RELAYER: (&str,&str) = ("hpl-relayer", "moral item damp melt gloom vendor notice head assume balance doctor retire fashion trim find biology saddle undo switch fault cattle toast drip empty");
