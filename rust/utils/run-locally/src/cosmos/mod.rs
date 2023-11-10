@@ -32,11 +32,8 @@ use cli::{OsmosisCLI, OsmosisEndpoint};
 use self::deploy::deploy_cw_hyperlane;
 use self::source::{CLISource, CodeSource};
 
-// const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
-// const OSMOSIS_CLI_VERSION: &str = "19.0.0";
-
-const OSMOSIS_CLI_GIT: &str = "https://github.com/hashableric/osmosis";
-const OSMOSIS_CLI_VERSION: &str = "19.0.0-mnts";
+const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
+const OSMOSIS_CLI_VERSION: &str = "19.0.0";
 
 const KEY_HPL_VALIDATOR: (&str,&str) = ("hpl-validator", "guard evolve region sentence danger sort despair eye deputy brave trim actor left recipe debate document upgrade sustain bus cage afford half demand pigeon");
 const KEY_HPL_RELAYER: (&str,&str) = ("hpl-relayer", "moral item damp melt gloom vendor notice head assume balance doctor retire fashion trim find biology saddle undo switch fault cattle toast drip empty");
@@ -249,6 +246,7 @@ fn launch_cosmos_validator(
 
     let validator = Program::default()
         .bin(validator_bin)
+        .working_dir("../../")
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env(
             "MY_VALIDATOR_SIGNATURE_DIRECTORY",
@@ -261,9 +259,11 @@ fn launch_cosmos_validator(
         .hyp_env("REORGPERIOD", "100")
         .hyp_env("DB", validator_base_db.to_str().unwrap())
         .hyp_env("METRICS", agent_config.domain_id.to_string())
-        .hyp_env("VALIDATOR_KEY", agent_config.signer.key)
-        .hyp_env("VALIDATOR_TYPE", agent_config.signer.typ)
-        .hyp_env("VALIDATOR_PREFIX", "osmo1")
+        .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
+        .hyp_env("VALIDATOR_KEY", agent_config.signer.key.clone())
+        .hyp_env("VALIDATOR_PREFIX", "osmo")
+        .hyp_env("SIGNER_SIGNER_TYPE", "hexKey")
+        .hyp_env("SIGNER_KEY", agent_config.signer.key)
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .spawn("VAL");
 
@@ -281,6 +281,7 @@ fn launch_cosmos_relayer(
 
     let relayer = Program::default()
         .bin(relayer_bin)
+        .working_dir("../../")
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env("RUST_BACKTRACE", "1")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
@@ -300,6 +301,19 @@ const ENV_CW_HYPERLANE_PATH_KEY: &str = "E2E_CW_HYPERLANE_PATH";
 #[allow(dead_code)]
 fn run_locally() {
     let debug = false;
+
+    log!("Building rust...");
+    Program::new("cargo")
+        .cmd("build")
+        .working_dir("../../")
+        .arg("features", "test-utils")
+        .arg("bin", "relayer")
+        .arg("bin", "validator")
+        .arg("bin", "scraper")
+        .arg("bin", "init-db")
+        .filter_logs(|l| !l.contains("workspace-inheritance"))
+        .run()
+        .join();
 
     let cli_src = Some(
         env::var(ENV_CLI_PATH_KEY)
@@ -438,8 +452,6 @@ fn run_locally() {
         debug,
     );
 
-    sleep(Duration::from_secs(10)); // wait for 10 seconds
-
     // dispatch messages
 
     for node in nodes.iter() {
@@ -492,7 +504,7 @@ fn run_locally() {
         relayer: hpl_rly.join(),
     };
 
-    sleep(Duration::from_secs(1000)); // wait for a long time
+    sleep(Duration::from_secs(20)); // wait for a long time
 }
 
 #[cfg(test)]

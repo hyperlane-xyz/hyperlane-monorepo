@@ -18,7 +18,6 @@ use crate::CosmosProvider;
 use crate::{signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
 use cosmrs::tendermint::abci::EventAttribute;
 use once_cell::sync::Lazy;
 
@@ -44,15 +43,19 @@ pub struct CosmosMailbox {
 impl CosmosMailbox {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
-    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Option<Signer>) -> Self {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
+    pub fn new(
+        conf: ConnectionConf,
+        locator: ContractLocator,
+        signer: Option<Signer>,
+    ) -> ChainResult<Self> {
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
 
-        Self {
+        Ok(Self {
             config: conf,
             domain: locator.domain.clone(),
             address: locator.address,
             provider: Box::new(provider),
-        }
+        })
     }
 
     /// Prefix used in the bech32 address encoding
@@ -199,16 +202,10 @@ impl Mailbox for CosmosMailbox {
             },
         };
 
-        let response: SimulateResponse = self.provider.wasm_simulate(process_message).await?;
+        let gas_limit = self.provider.wasm_estimate_gas(process_message).await?;
+
         let result = TxCostEstimate {
-            gas_limit: U256::from(
-                response
-                    .gas_info
-                    .ok_or(ChainCommunicationError::TxCostEstimateError(
-                        "Failed to estimate gas limit".to_string(),
-                    ))?
-                    .gas_used,
-            ),
+            gas_limit: gas_limit.into(),
             gas_price: U256::from(2500),
             l2_gas_limit: None,
         };
@@ -264,7 +261,7 @@ impl CosmosMailboxIndexer {
         signer: Option<Signer>,
         reorg_period: u32,
     ) -> ChainResult<Self> {
-        let mailbox = CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone());
+        let mailbox = CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone())?;
         let indexer = CosmosWasmIndexer::new(
             conf,
             locator,
