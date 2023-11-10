@@ -5,7 +5,6 @@ import {
   S3Checkpoint,
   S3CheckpointWithId,
   SignatureLike,
-  isS3Checkpoint,
   isS3CheckpointWithId,
 } from '@hyperlane-xyz/utils';
 
@@ -27,14 +26,12 @@ interface CheckpointMetric {
 
 interface SignedCheckpoint {
   checkpoint: Checkpoint;
-  messageId?: HexString;
+  messageId: HexString;
   signature: SignatureLike;
 }
 
 type S3CheckpointReceipt = S3Receipt<SignedCheckpoint>;
 
-const checkpointKey = (checkpointIndex: number) =>
-  `checkpoint_${checkpointIndex}.json`;
 const checkpointWithMessageIdKey = (checkpointIndex: number) =>
   `checkpoint_${checkpointIndex}_with_id.json`;
 const LATEST_KEY = 'checkpoint_latest_index.json';
@@ -70,6 +67,7 @@ export class S3Validator extends BaseValidator {
         const address = announcement?.data.value.validator;
         const mailbox = announcement?.data.value.mailbox_address;
         const localDomain = announcement?.data.value.mailbox_domain;
+
         return new S3Validator(
           address,
           localDomain,
@@ -99,11 +97,7 @@ export class S3Validator extends BaseValidator {
     return latestCheckpointIndex.data;
   }
 
-  async compare(
-    other: S3Validator,
-    withId = false,
-    count = 5,
-  ): Promise<CheckpointMetric[]> {
+  async compare(other: S3Validator, count = 5): Promise<CheckpointMetric[]> {
     const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
       LATEST_KEY,
     );
@@ -140,11 +134,8 @@ export class S3Validator extends BaseValidator {
     const stop = Math.max(maxIndex - count, 0);
 
     for (; checkpointIndex > stop; checkpointIndex--) {
-      const expected = await other.getCheckpointReceipt(
-        checkpointIndex,
-        withId,
-      );
-      const actual = await this.getCheckpointReceipt(checkpointIndex, withId);
+      const expected = await other.getCheckpointReceipt(checkpointIndex);
+      const actual = await this.getCheckpointReceipt(checkpointIndex);
 
       const metric: CheckpointMetric = {
         status: CheckpointStatus.MISSING,
@@ -178,10 +169,10 @@ export class S3Validator extends BaseValidator {
           ) {
             metric.violation = `index mismatch: expected ${expected.data.checkpoint.index}, received ${actual.data.checkpoint.index}`;
           } else if (
-            expected.data.checkpoint.mailbox_address !==
-            actual.data.checkpoint.mailbox_address
+            expected.data.checkpoint.merkle_tree_hook_address !==
+            actual.data.checkpoint.merkle_tree_hook_address
           ) {
-            metric.violation = `mailbox address mismatch: expected ${expected.data.checkpoint.mailbox_address}, received ${actual.data.checkpoint.mailbox_address}`;
+            metric.violation = `mailbox address mismatch: expected ${expected.data.checkpoint.merkle_tree_hook_address}, received ${actual.data.checkpoint.merkle_tree_hook_address}`;
           } else if (
             expected.data.checkpoint.mailbox_domain !==
             actual.data.checkpoint.mailbox_domain
@@ -209,26 +200,15 @@ export class S3Validator extends BaseValidator {
 
   private async getCheckpointReceipt(
     index: number,
-    withId = false,
   ): Promise<S3CheckpointReceipt | undefined> {
-    const key = withId
-      ? checkpointWithMessageIdKey(index)
-      : checkpointKey(index);
+    const key = checkpointWithMessageIdKey(index);
     const s3Object = await this.s3Bucket.getS3Obj<
       S3Checkpoint | S3CheckpointWithId
     >(key);
     if (!s3Object) {
       return;
     }
-    if (isS3Checkpoint(s3Object.data)) {
-      return {
-        data: {
-          checkpoint: s3Object.data.value,
-          signature: s3Object.data.signature,
-        },
-        modified: s3Object.modified,
-      };
-    } else if (isS3CheckpointWithId(s3Object.data)) {
+    if (isS3CheckpointWithId(s3Object.data)) {
       return {
         data: {
           checkpoint: s3Object.data.value.checkpoint,

@@ -1,44 +1,38 @@
 import { ethers } from 'ethers';
 
 import { domainHash } from './domains';
-import {
-  Address,
-  Checkpoint,
-  Domain,
-  HexString,
-  S3Checkpoint,
-  SignatureLike,
-} from './types';
+import { Address, Checkpoint, Domain, HexString, SignatureLike } from './types';
 
 /**
  * Utilities for validators to construct and verify checkpoints.
  */
 export class BaseValidator {
-  localDomain: Domain;
-  address: Address;
-  mailbox: Address;
+  constructor(
+    public readonly address: Address,
+    public readonly localDomain: Domain,
+    public readonly mailbox_address: Address,
+  ) {}
 
-  constructor(address: Address, localDomain: Domain, mailbox: Address) {
-    this.localDomain = localDomain;
-    this.address = address;
-    this.mailbox = mailbox;
+  announceDomainHash() {
+    return domainHash(this.localDomain, this.mailbox_address);
   }
 
-  domainHash() {
-    return domainHash(this.localDomain, this.mailbox);
+  checkpointDomainHash(merkle_tree_address: Address) {
+    return domainHash(this.localDomain, merkle_tree_address);
   }
 
-  message(checkpoint: Checkpoint, messageId?: HexString) {
-    const types = ['bytes32', 'bytes32', 'uint32'];
-    const values = [this.domainHash(), checkpoint.root, checkpoint.index];
-    if (messageId) {
-      types.push('bytes32');
-      values.push(messageId);
-    }
+  message(checkpoint: Checkpoint, messageId: HexString) {
+    const types = ['bytes32', 'bytes32', 'uint32', 'bytes32'];
+    const values = [
+      this.checkpointDomainHash(checkpoint.merkle_tree_hook_address),
+      checkpoint.root,
+      checkpoint.index,
+      messageId,
+    ];
     return ethers.utils.solidityPack(types, values);
   }
 
-  messageHash(checkpoint: Checkpoint, messageId?: HexString) {
+  messageHash(checkpoint: Checkpoint, messageId: HexString) {
     const message = this.message(checkpoint, messageId);
     return ethers.utils.arrayify(ethers.utils.keccak256(message));
   }
@@ -46,7 +40,7 @@ export class BaseValidator {
   recoverAddressFromCheckpoint(
     checkpoint: Checkpoint,
     signature: SignatureLike,
-    messageId?: HexString,
+    messageId: HexString,
   ): Address {
     const msgHash = this.messageHash(checkpoint, messageId);
     return ethers.utils.verifyMessage(msgHash, signature);
@@ -55,7 +49,7 @@ export class BaseValidator {
   matchesSigner(
     checkpoint: Checkpoint,
     signature: SignatureLike,
-    messageId?: HexString,
+    messageId: HexString,
   ) {
     return (
       this.recoverAddressFromCheckpoint(
@@ -64,44 +58,5 @@ export class BaseValidator {
         messageId,
       ).toLowerCase() === this.address.toLowerCase()
     );
-  }
-}
-
-export class Validator extends BaseValidator {
-  constructor(
-    protected signer: ethers.Signer,
-    address: Address,
-    localDomain: Domain,
-    mailbox: Address,
-  ) {
-    super(address, localDomain, mailbox);
-  }
-
-  static async fromSigner(
-    signer: ethers.Signer,
-    localDomain: Domain,
-    mailbox: Address,
-  ) {
-    return new Validator(
-      signer,
-      await signer.getAddress(),
-      localDomain,
-      mailbox,
-    );
-  }
-
-  async signCheckpoint(root: HexString, index: number): Promise<S3Checkpoint> {
-    const checkpoint = {
-      root,
-      index,
-      mailbox_address: this.mailbox,
-      mailbox_domain: this.localDomain,
-    };
-    const msgHash = this.messageHash(checkpoint);
-    const signature = await this.signer.signMessage(msgHash);
-    return {
-      value: checkpoint,
-      signature,
-    };
   }
 }

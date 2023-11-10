@@ -1,5 +1,6 @@
 import { ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
 import { Coin } from '@cosmjs/stargate';
+import BigNumber from 'bignumber.js';
 
 import {
   Address,
@@ -370,8 +371,27 @@ export class CwHypNativeAdapter
     if (!txValue) {
       throw new Error('txValue is required for native tokens');
     }
-
     const collateralDenom = await this.denom();
+
+    const funds: Coin[] =
+      collateralDenom === this.gasDenom
+        ? [
+            {
+              amount: new BigNumber(weiAmountOrId).plus(txValue).toFixed(0),
+              denom: collateralDenom,
+            },
+          ]
+        : [
+            {
+              amount: weiAmountOrId.toString(),
+              denom: collateralDenom,
+            },
+            {
+              amount: txValue.toString(),
+              denom: this.gasDenom,
+            },
+          ];
+
     return this.cw20adapter.prepareRouter(
       {
         transfer_remote: {
@@ -380,16 +400,7 @@ export class CwHypNativeAdapter
           amount: weiAmountOrId.toString(),
         },
       },
-      [
-        {
-          amount: weiAmountOrId.toString(),
-          denom: collateralDenom,
-        },
-        {
-          amount: txValue.toString(),
-          denom: this.gasDenom,
-        },
-      ],
+      funds,
     );
   }
 }
