@@ -14,7 +14,7 @@ env:
 
 jobs:
   yarn-install:
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
     steps:
       - uses: actions/checkout@v3
         with:
@@ -39,7 +39,7 @@ jobs:
           fi
 
   yarn-build:
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
     needs: [yarn-install]
     steps:
       - uses: actions/checkout@v3
@@ -70,7 +70,7 @@ jobs:
         run: yarn build
 
   lint-prettier:
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
     needs: [yarn-install]
     steps:
       - uses: actions/checkout@v3
@@ -94,7 +94,7 @@ jobs:
           fi
 
   test-ts:
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
     needs: [yarn-build]
     steps:
       - uses: actions/checkout@v3
@@ -116,7 +116,7 @@ jobs:
         run: yarn workspace @hyperlane-xyz/infra run test
 
   # test-env:
-  #   runs-on: ubuntu-latest
+  #   runs-on: larger-runner
   #   needs: [yarn-build]
   #   strategy:
   #     matrix:
@@ -140,7 +140,7 @@ jobs:
     env:
       ETHERSCAN_API_KEY: ''
 
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
     needs: [yarn-build]
 
     steps:
@@ -189,7 +189,7 @@ jobs:
           sarif_file: ${{ steps.slither.outputs.sarif }}
 
   coverage-sol:
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
     needs: [yarn-build]
 
     steps:
