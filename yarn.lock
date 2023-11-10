@@ -4019,6 +4019,30 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@hyperlane-xyz/cli@workspace:typescript/cli":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/cli@workspace:typescript/cli"
+  dependencies:
+    "@hyperlane-xyz/sdk": 3.1.0-beta3
+    "@inquirer/prompts": ^3.0.0
+    "@types/node": ^18.14.5
+    "@types/yargs": ^17.0.24
+    "@typescript-eslint/eslint-plugin": ^5.62.0
+    "@typescript-eslint/parser": ^5.62.0
+    chalk: ^5.3.0
+    eslint: ^8.43.0
+    eslint-config-prettier: ^8.8.0
+    ethers: ^5.7.2
+    prettier: ^2.8.8
+    typescript: ^5.1.6
+    yaml: ^2.3.1
+    yargs: ^17.7.2
+    zod: ^3.21.2
+  bin:
+    hyperlane: ./dist/cli.js
+  languageName: unknown
+  linkType: soft
+
 "@hyperlane-xyz/core@3.1.0-beta3, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
@@ -4047,7 +4071,30 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@3.1.0-beta3, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/core@npm:1.5.8":
+  version: 1.5.8
+  resolution: "@hyperlane-xyz/core@npm:1.5.8"
+  dependencies:
+    "@eth-optimism/contracts": ^0.6.0
+    "@hyperlane-xyz/utils": 1.5.8
+    "@openzeppelin/contracts": ^4.8.0
+    "@openzeppelin/contracts-upgradeable": ^4.8.0
+  checksum: 2099a7fbacf2ba12756911de6135680e694c0091c1f6e35ab18268e7dace2d95632f116ea99d8a5077958518c72e4e68e7ad8051d3318445a60748408629139f
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/helloworld@npm:1.5.8":
+  version: 1.5.8
+  resolution: "@hyperlane-xyz/helloworld@npm:1.5.8"
+  dependencies:
+    "@hyperlane-xyz/sdk": 1.5.8
+    "@openzeppelin/contracts-upgradeable": ^4.8.0
+    ethers: ^5.7.2
+  checksum: 1aff4bdfb5e947b82f80304cc6d52c16aa1e408a9f5fbf48839cb0765cb9df762ef45cd978dbdc18bf2d8642f77fa7c0537f2fdbc0f7681913486bbe28505f30
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
@@ -4092,9 +4139,9 @@ __metadata:
     "@ethersproject/experimental": ^5.7.0
     "@ethersproject/hardware-wallets": ^5.7.0
     "@ethersproject/providers": ^5.7.2
-    "@hyperlane-xyz/helloworld": 3.1.0-beta3
+    "@hyperlane-xyz/helloworld": 1.5.8
     "@hyperlane-xyz/sdk": 3.1.0-beta3
-    "@hyperlane-xyz/utils": 3.1.0-beta3
+    "@hyperlane-xyz/utils": 1.5.8
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-etherscan": ^3.0.3
     "@nomiclabs/hardhat-waffle": ^2.0.3
@@ -4176,6 +4223,26 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@hyperlane-xyz/sdk@npm:1.5.8":
+  version: 1.5.8
+  resolution: "@hyperlane-xyz/sdk@npm:1.5.8"
+  dependencies:
+    "@hyperlane-xyz/core": 1.5.8
+    "@hyperlane-xyz/utils": 1.5.8
+    "@solana/web3.js": ^1.78.0
+    "@types/coingecko-api": ^1.0.10
+    "@types/debug": ^4.1.7
+    "@wagmi/chains": ^0.2.6
+    coingecko-api: ^1.0.10
+    cross-fetch: ^3.1.5
+    debug: ^4.3.4
+    ethers: ^5.7.2
+    viem: ^1.3.1
+    zod: ^3.21.2
+  checksum: 4ff933d1f710b62b452e71baf6a0f8817fb5a1ce334c05fa3ccdf6f3d2b8e2ef2c59514cc85a914be238efe962706d29c373a343948c62fcb0069e64e199637a
+  languageName: node
+  linkType: hard
+
 "@hyperlane-xyz/utils@3.1.0-beta3, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
@@ -4189,6 +4256,17 @@ __metadata:
     typescript: ^5.1.6
   languageName: unknown
   linkType: soft
+
+"@hyperlane-xyz/utils@npm:1.5.8":
+  version: 1.5.8
+  resolution: "@hyperlane-xyz/utils@npm:1.5.8"
+  dependencies:
+    "@solana/web3.js": ^1.78.0
+    bignumber.js: ^9.1.1
+    ethers: ^5.7.2
+  checksum: ecaaf1a1a6bf922c9a07bd91223d79844d4901bf7aab8e073d4b99f98153d4b75780ff71d973841549ef66094f8aceb8c6d20f5bba784e8bf20128690e894442
+  languageName: node
+  linkType: hard
 
 "@inquirer/checkbox@npm:^1.3.5":
   version: 1.3.5
