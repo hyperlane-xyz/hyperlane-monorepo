@@ -4,6 +4,7 @@ export enum ProtocolType {
   Ethereum = 'ethereum',
   Sealevel = 'sealevel',
   Fuel = 'fuel',
+  Cosmos = 'cosmos',
 }
 // A type that also allows for literal values of the enum
 export type ProtocolTypeValue = `${ProtocolType}`;
@@ -11,6 +12,7 @@ export type ProtocolTypeValue = `${ProtocolType}`;
 export const ProtocolSmallestUnit = {
   [ProtocolType.Ethereum]: 'wei',
   [ProtocolType.Sealevel]: 'lamports',
+  [ProtocolType.Cosmos]: 'uATOM',
 };
 
 /********* BASIC TYPES *********/
@@ -43,7 +45,7 @@ export type Checkpoint = {
   root: string;
   index: number; // safe because 2 ** 32 leaves < Number.MAX_VALUE
   mailbox_domain: Domain;
-  mailbox_address: Address;
+  merkle_tree_hook_address: Address;
 };
 
 /**

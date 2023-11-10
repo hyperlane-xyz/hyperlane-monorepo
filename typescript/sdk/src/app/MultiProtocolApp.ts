@@ -11,6 +11,8 @@ import {
 import { ChainMetadata } from '../metadata/chainMetadataTypes';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
 import {
+  CosmJsProvider,
+  CosmJsWasmProvider,
   EthersV5Provider,
   SolanaWeb3Provider,
   TypedProvider,
@@ -46,6 +48,22 @@ export class BaseEvmAdapter extends BaseAppAdapter {
 
   public getProvider(): EthersV5Provider['provider'] {
     return this.multiProvider.getEthersV5Provider(this.chainName);
+  }
+}
+
+export class BaseCosmWasmAdapter extends BaseAppAdapter {
+  public readonly protocol: ProtocolType = ProtocolType.Cosmos;
+
+  public getProvider(): CosmJsWasmProvider['provider'] {
+    return this.multiProvider.getCosmJsWasmProvider(this.chainName);
+  }
+}
+
+export class BaseCosmosAdapter extends BaseAppAdapter {
+  public readonly protocol: ProtocolType = ProtocolType.Cosmos;
+
+  public getProvider(): CosmJsProvider['provider'] {
+    return this.multiProvider.getCosmJsProvider(this.chainName);
   }
 }
 

@@ -36,17 +36,25 @@ contract FallbackDomainRoutingHook is DomainRoutingHook {
         fallbackHook = IPostDispatchHook(_fallback);
     }
 
+    // ============ External Functions ============
+
+    /// @inheritdoc IPostDispatchHook
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.Types.FALLBACK_ROUTING);
+    }
+
     // ============ Internal Functions ============
 
     function _getConfiguredHook(bytes calldata message)
         internal
         view
         override
-        returns (IPostDispatchHook hook)
+        returns (IPostDispatchHook)
     {
-        hook = hooks[message.destination()];
-        if (address(hook) == address(0)) {
-            hook = fallbackHook;
+        IPostDispatchHook _hook = hooks[message.destination()];
+        if (address(_hook) == address(0)) {
+            _hook = fallbackHook;
         }
+        return _hook;
     }
 }

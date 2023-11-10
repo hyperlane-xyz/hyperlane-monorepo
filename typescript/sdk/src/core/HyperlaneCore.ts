@@ -48,11 +48,13 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return new HyperlaneCore(helper.contractsMap, helper.multiProvider);
   }
 
-  getRouterConfig = (owner: Address): ChainMap<RouterConfig> =>
-    objMap(this.contractsMap, (_, contracts) => {
+  getRouterConfig = (
+    owners: Address | ChainMap<Address>,
+  ): ChainMap<RouterConfig> =>
+    objMap(this.contractsMap, (chain, contracts) => {
       return {
         mailbox: contracts.mailbox.address,
-        owner,
+        owner: typeof owners === 'string' ? owners : owners[chain],
       };
     });
 

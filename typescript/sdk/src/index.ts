@@ -113,10 +113,13 @@ export {
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
 export {
   AggregationHookConfig,
+  DomainRoutingHookConfig,
+  FallbackRoutingHookConfig,
   HookConfig,
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
+  OpStackHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types';
 export {
@@ -128,9 +131,11 @@ export {
   AggregationIsmConfig,
   DeployedIsm,
   IsmConfig,
+  IsmType,
   ModuleType,
   MultisigConfig,
   MultisigIsmConfig,
+  OpStackIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
 export {
@@ -160,10 +165,12 @@ export {
 export {
   ChainMetadata,
   ChainMetadataSchema,
+  ChainMetadataSchemaObject,
   ExplorerFamily,
   ExplorerFamilyValue,
   RpcUrl,
   RpcUrlSchema,
+  getChainIdNumber,
   getDomainId,
   isValidChainMetadata,
 } from './metadata/chainMetadataTypes';
@@ -202,6 +209,14 @@ export {
 } from './providers/MultiProtocolProvider';
 export { MultiProvider, MultiProviderOptions } from './providers/MultiProvider';
 export {
+  CosmJsContract,
+  CosmJsProvider,
+  CosmJsTransaction,
+  CosmJsTransactionReceipt,
+  CosmJsWasmContract,
+  CosmJsWasmProvider,
+  CosmJsWasmTransaction,
+  CosmJsWasmTransactionReceipt,
   EthersV5Contract,
   EthersV5Provider,
   EthersV5Transaction,
@@ -273,6 +288,19 @@ export {
   proxiedFactories,
 } from './router/types';
 export {
+  CW20Metadata,
+  CwHypCollateralAdapter,
+  CwHypNativeAdapter,
+  CwHypSyntheticAdapter,
+  CwNativeTokenAdapter,
+  CwTokenAdapter,
+} from './token/adapters/CosmWasmTokenAdapter';
+export {
+  CosmIbcToWarpTokenAdapter,
+  CosmIbcTokenAdapter,
+  CosmNativeTokenAdapter,
+} from './token/adapters/CosmosTokenAdapter';
+export {
   EvmHypCollateralAdapter,
   EvmHypSyntheticAdapter,
   EvmNativeTokenAdapter,
@@ -288,7 +316,6 @@ export {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
   SealevelHypSyntheticAdapter,
-  SealevelHypTokenAdapter,
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './token/adapters/SealevelTokenAdapter';

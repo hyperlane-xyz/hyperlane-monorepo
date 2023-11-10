@@ -52,6 +52,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         !eqAddress(currentGasConfig.gasOracle, storageGasOracle.address) ||
         !currentGasConfig.gasOverhead.eq(newGasOverhead)
       ) {
+        this.logger(`Setting gas params for ${remote} to ${newGasOverhead}`);
         gasParamsToSet.push({
           remoteDomain: remoteId,
           config: {
@@ -66,7 +67,10 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       await this.runIfOwner(chain, igp, async () =>
         this.multiProvider.handleTx(
           chain,
-          igp.setDestinationGasConfigs(gasParamsToSet),
+          igp.setDestinationGasConfigs(
+            gasParamsToSet,
+            this.multiProvider.getTransactionOverrides(chain),
+          ),
         ),
       );
     }

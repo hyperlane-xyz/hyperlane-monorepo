@@ -1,26 +1,26 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
+use derive_more::{AsRef, Deref};
 use derive_new::new;
 use ethers::abi::Token;
 
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::accumulator::merkle::Proof;
-use hyperlane_core::{Checkpoint, HyperlaneMessage, SignatureWithSigner, H256};
+use hyperlane_core::{HyperlaneMessage, MultisigSignedCheckpoint, H256};
 use strum::Display;
 use tracing::{debug, info};
 
 use crate::msg::metadata::BaseMetadataBuilder;
 use crate::msg::metadata::MetadataBuilder;
 
-#[derive(new)]
+#[derive(new, AsRef, Deref)]
 pub struct MultisigMetadata {
-    checkpoint: Checkpoint,
-    signatures: Vec<SignatureWithSigner>,
-    merkle_leaf_index: Option<u32>,
-    message_id: Option<H256>,
+    #[deref]
+    quorum_checkpoint: MultisigSignedCheckpoint,
+    merkle_leaf_index: u32,
+    // optional because it's only used for MerkleRootMultisig
     proof: Option<Proof>,
 }
 
@@ -32,9 +32,7 @@ pub enum MetadataToken {
     MessageId,
     MerkleProof,
     MessageMerkleLeafIndex,
-    Threshold,
     Signatures,
-    Validators,
 }
 
 #[async_trait]
@@ -49,22 +47,15 @@ pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
 
     fn token_layout(&self) -> Vec<MetadataToken>;
 
-    fn format_metadata(
-        &self,
-        validators: &[H256],
-        threshold: u8,
-        metadata: MultisigMetadata,
-    ) -> Result<Vec<u8>> {
+    fn format_metadata(&self, metadata: MultisigMetadata) -> Result<Vec<u8>> {
         let build_token = |token: &MetadataToken| -> Result<Vec<u8>> {
             match token {
                 MetadataToken::CheckpointMerkleRoot => {
                     Ok(metadata.checkpoint.root.to_fixed_bytes().into())
                 }
-                MetadataToken::MessageMerkleLeafIndex => Ok(metadata
-                    .merkle_leaf_index
-                    .ok_or(eyre::eyre!("Failed to fetch metadata"))?
-                    .to_be_bytes()
-                    .into()),
+                MetadataToken::MessageMerkleLeafIndex => {
+                    Ok(metadata.merkle_leaf_index.to_be_bytes().into())
+                }
                 MetadataToken::CheckpointIndex => {
                     Ok(metadata.checkpoint.index.to_be_bytes().into())
                 }
@@ -74,9 +65,8 @@ pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
                     .to_fixed_bytes()
                     .into()),
                 MetadataToken::MessageId => {
-                    Ok(metadata.message_id.unwrap().to_fixed_bytes().into())
+                    Ok(metadata.checkpoint.message_id.to_fixed_bytes().into())
                 }
-                MetadataToken::Threshold => Ok(Vec::from([threshold])),
                 MetadataToken::MerkleProof => {
                     let proof_tokens: Vec<Token> = metadata
                         .proof
@@ -87,18 +77,12 @@ pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
                         .collect();
                     Ok(ethers::abi::encode(&proof_tokens))
                 }
-                MetadataToken::Validators => {
-                    let validator_tokens: Vec<Token> = validators
-                        .iter()
-                        .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
-                        .collect();
-                    Ok(ethers::abi::encode(&[Token::FixedArray(validator_tokens)]))
-                }
-                MetadataToken::Signatures => {
-                    let ordered_signatures = order_signatures(validators, &metadata.signatures);
-                    let threshold_signatures = &ordered_signatures[..threshold as usize];
-                    Ok(threshold_signatures.concat())
-                }
+                MetadataToken::Signatures => Ok(metadata
+                    .signatures
+                    .iter()
+                    .map(|x| x.to_vec())
+                    .collect::<Vec<_>>()
+                    .concat()),
             }
         };
         let metas: Result<Vec<Vec<u8>>> = self.token_layout().iter().map(build_token).collect();
@@ -143,11 +127,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .context(CTX)?
         {
             debug!(?message, ?metadata.checkpoint, "Found checkpoint with quorum");
-            Ok(Some(self.format_metadata(
-                &validators,
-                threshold,
-                metadata,
-            )?))
+            Ok(Some(self.format_metadata(metadata)?))
         } else {
             info!(
                 ?message, ?validators, threshold, ism=%multisig_ism.address(),
@@ -156,33 +136,4 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             Ok(None)
         }
     }
-}
-
-/// Orders `signatures` by the signers according to the `desired_order`.
-/// Returns a Vec of the signature raw bytes in the correct order.
-/// Panics if any signers in `signatures` are not present in `desired_order`
-fn order_signatures(desired_order: &[H256], signatures: &[SignatureWithSigner]) -> Vec<Vec<u8>> {
-    // Signer address => index to sort by
-    let ordering_map: HashMap<H256, usize> = desired_order
-        .iter()
-        .enumerate()
-        .map(|(index, a)| (*a, index))
-        .collect();
-
-    // Create a tuple of (SignatureWithSigner, index to sort by)
-    let mut ordered_signatures = signatures
-        .iter()
-        .cloned()
-        .map(|s| {
-            let order_index = ordering_map.get(&H256::from(s.signer)).unwrap();
-            (s, *order_index)
-        })
-        .collect::<Vec<_>>();
-    // Sort by the index
-    ordered_signatures.sort_by_key(|s| s.1);
-    // Now collect only the raw signature bytes
-    ordered_signatures
-        .into_iter()
-        .map(|s| s.0.signature.to_vec())
-        .collect()
 }
