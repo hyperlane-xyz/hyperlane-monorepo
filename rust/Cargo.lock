@@ -4077,6 +4077,7 @@ dependencies = [
  "tracing-error",
  "tracing-futures",
  "tracing-subscriber",
+ "url",
  "walkdir",
  "warp",
 ]
