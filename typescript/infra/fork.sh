@@ -15,7 +15,7 @@ set -e
 
 RPC_URL=`yarn ts-node ./scripts/print-chain-metadatas.ts -e $ENVIRONMENT | jq -r ".$CHAIN.rpcUrls[0].http"`
 
-anvil --fork-url $RPC_URL --silent &
+anvil --fork-url $RPC_URL --fork-retry-backoff 3 --compute-units-per-second 200 --silent &
 ANVIL_PID=$!
 
 while ! cast bn &> /dev/null; do

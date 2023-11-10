@@ -651,12 +651,7 @@ export const polygon: ChainMetadata = {
   nativeToken: etherToken,
   rpcUrls: [
     {
-      http: 'https://rpc-mainnet.matic.quiknode.pro',
-      pagination: {
-        // Needs to be low to avoid RPC timeouts
-        maxBlockRange: 10000,
-        minBlockNumber: 19657100,
-      },
+      http: 'https://polygon-bor.publicnode.com',
     },
     { http: 'https://polygon-rpc.com' },
   ],
