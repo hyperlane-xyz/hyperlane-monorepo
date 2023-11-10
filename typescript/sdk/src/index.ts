@@ -295,6 +295,11 @@ export {
   CwTokenAdapter,
 } from './token/adapters/CosmWasmTokenAdapter';
 export {
+  CosmIbcToWarpTokenAdapter,
+  CosmIbcTokenAdapter,
+  CosmNativeTokenAdapter,
+} from './token/adapters/CosmosTokenAdapter';
+export {
   EvmHypCollateralAdapter,
   EvmHypSyntheticAdapter,
   EvmNativeTokenAdapter,
