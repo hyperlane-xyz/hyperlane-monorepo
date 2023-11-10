@@ -44,7 +44,12 @@ pub struct GasPaymentEnforcer {
 }
 
 impl GasPaymentEnforcer {
-    pub fn new(policy_configs: Vec<GasPaymentEnforcementConf>, db: HyperlaneRocksDB) -> Self {
+    /// Note that `policy_configs` should not be empty. In the settings,
+    /// a default of vec![GasPaymentEnforcementConf::default()] is used.
+    pub fn new(
+        policy_configs: impl IntoIterator<Item = GasPaymentEnforcementConf>,
+        db: HyperlaneRocksDB,
+    ) -> Self {
         let policies = policy_configs
             .into_iter()
             .map(|cfg| {

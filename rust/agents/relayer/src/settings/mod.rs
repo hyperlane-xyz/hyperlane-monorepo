@@ -143,7 +143,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             raw_gas_payment_enforcement_path,
             &raw_gas_payment_enforcement,
         );
-        let mut gas_payment_enforcement = gas_payment_enforcement_parser.into_array_iter().map(|itr| {
+        let gas_payment_enforcement = gas_payment_enforcement_parser.into_array_iter().map(|itr| {
             itr.filter_map(|policy| {
                 let policy_type = policy.chain(&mut err).get_opt_key("type").parse_string().end();
                 let minimum_is_defined = matches!(policy.get_opt_key("minimum"), Ok(Some(_)));
@@ -187,7 +187,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                     matching_list,
                 })
             }).collect_vec()
-        }).unwrap_or(vec![GasPaymentEnforcementConf::default()]);
+        }).unwrap_or_else(|_| vec![GasPaymentEnforcementConf::default()]);
 
         let whitelist = p
             .chain(&mut err)
