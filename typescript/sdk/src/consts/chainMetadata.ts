@@ -312,7 +312,7 @@ export const ethereum: ChainMetadata = {
   displayName: 'Ethereum',
   nativeToken: etherToken,
   rpcUrls: [
-    { http: 'https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161' },
+    { http: 'https://ethereum.publicnode.com' },
     { http: 'https://cloudflare-eth.com' },
   ],
   blockExplorers: [

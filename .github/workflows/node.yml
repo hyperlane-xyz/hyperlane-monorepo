@@ -133,8 +133,8 @@ jobs:
       - name: Install Foundry
         uses: onbjerg/foundry-toolchain@v1
 
-      - name: Test ${{ matrix.environment }} ${{ matrix.module }} deployment (check, deploy, govern, check again)
-        run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }}
+      - name: Fork test ${{ matrix.environment }} ${{ matrix.module }}
+        run: cd typescript/infra && ./fork-all.sh ${{ matrix.environment }} ${{ matrix.module }}
 
   test-sol:
     env:

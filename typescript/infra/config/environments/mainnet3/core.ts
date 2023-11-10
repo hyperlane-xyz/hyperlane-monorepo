@@ -42,16 +42,22 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     owner,
   };
 
+  // reusing mainnet2 proxyAdmins owned by safes (where available)
+  const ownerOverrides = safes[local]
+    ? {
+        proxyAdmin:
+          local === 'arbitrum'
+            ? // timelock on arbitrum
+              `0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01`
+            : safes[local]!,
+      }
+    : undefined;
+
   return {
     owner,
     defaultIsm,
     defaultHook,
     requiredHook,
-    ownerOverrides: {
-      proxyAdmin:
-        local === 'arbitrum'
-          ? `0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01`
-          : safes[local] ?? owner,
-    },
+    ownerOverrides,
   };
 });
