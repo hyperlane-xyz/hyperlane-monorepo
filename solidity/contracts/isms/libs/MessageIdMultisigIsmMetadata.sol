@@ -20,11 +20,9 @@ library MessageIdMultisigIsmMetadata {
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return Origin merkle tree hook of the signed checkpoint as bytes32
      */
-    function originMerkleTreeHook(bytes calldata _metadata)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function originMerkleTreeHook(
+        bytes calldata _metadata
+    ) internal pure returns (bytes32) {
         return
             bytes32(
                 _metadata[ORIGIN_MERKLE_TREE_OFFSET:ORIGIN_MERKLE_TREE_OFFSET +
@@ -62,11 +60,10 @@ library MessageIdMultisigIsmMetadata {
      * @param _index The index of the signature to return.
      * @return The validator ECDSA signature at `_index`.
      */
-    function signatureAt(bytes calldata _metadata, uint256 _index)
-        internal
-        pure
-        returns (bytes calldata)
-    {
+    function signatureAt(
+        bytes calldata _metadata,
+        uint256 _index
+    ) internal pure returns (bytes calldata) {
         uint256 _start = SIGNATURES_OFFSET + (_index * SIGNATURE_LENGTH);
         uint256 _end = _start + SIGNATURE_LENGTH;
         return _metadata[_start:_end];

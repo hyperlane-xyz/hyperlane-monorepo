@@ -45,11 +45,10 @@ contract TestIsm is IInterchainSecurityModule {
         requiredMetadata = _requiredMetadata;
     }
 
-    function verify(bytes calldata _metadata, bytes calldata)
-        external
-        view
-        returns (bool)
-    {
+    function verify(
+        bytes calldata _metadata,
+        bytes calldata
+    ) external view returns (bool) {
         return keccak256(_metadata) == keccak256(requiredMetadata);
     }
 }

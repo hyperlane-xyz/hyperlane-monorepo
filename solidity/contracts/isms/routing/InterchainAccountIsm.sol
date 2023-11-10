@@ -25,13 +25,9 @@ contract InterchainAccountIsm is AbstractRoutingIsm {
      * @param _message Formatted Hyperlane message (see Message.sol).
      * @return module The ISM to use to verify _message
      */
-    function route(bytes calldata _message)
-        public
-        view
-        virtual
-        override
-        returns (IInterchainSecurityModule)
-    {
+    function route(
+        bytes calldata _message
+    ) public view virtual override returns (IInterchainSecurityModule) {
         address _ism = InterchainAccountMessage.ism(Message.body(_message));
         if (_ism == address(0)) {
             return mailbox.defaultIsm();

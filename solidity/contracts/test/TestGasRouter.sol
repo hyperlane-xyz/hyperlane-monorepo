@@ -10,9 +10,5 @@ contract TestGasRouter is GasRouter {
         _dispatch(_destination, _msg);
     }
 
-    function _handle(
-        uint32,
-        bytes32,
-        bytes calldata
-    ) internal pure override {}
+    function _handle(uint32, bytes32, bytes calldata) internal pure override {}
 }

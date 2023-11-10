@@ -170,19 +170,19 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         revert("No messages expected");
     }
 
-    function addDomain(uint32 _hyperlaneDomain, uint32 _circleDomain)
-        external
-        onlyOwner
-    {
+    function addDomain(
+        uint32 _hyperlaneDomain,
+        uint32 _circleDomain
+    ) external onlyOwner {
         hyperlaneDomainToCircleDomain[_hyperlaneDomain] = _circleDomain;
 
         emit DomainAdded(_hyperlaneDomain, _circleDomain);
     }
 
-    function addToken(address _token, string calldata _tokenSymbol)
-        external
-        onlyOwner
-    {
+    function addToken(
+        address _token,
+        string calldata _tokenSymbol
+    ) external onlyOwner {
         require(
             _token != address(0) && bytes(_tokenSymbol).length > 0,
             "Cannot add default values"
@@ -204,10 +204,10 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         emit TokenAdded(_token, _tokenSymbol);
     }
 
-    function removeToken(address _token, string calldata _tokenSymbol)
-        external
-        onlyOwner
-    {
+    function removeToken(
+        address _token,
+        string calldata _tokenSymbol
+    ) external onlyOwner {
         // Require the provided token and token symbols match what's in storage.
         address _existingToken = address(tokenSymbolToAddress[_tokenSymbol]);
         require(_existingToken == _token, "Token mismatch");
@@ -232,11 +232,10 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
               destination
      * @return hash of source and nonce
      */
-    function _circleNonceId(uint32 _originCircleDomain, uint64 _nonce)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function _circleNonceId(
+        uint32 _originCircleDomain,
+        uint64 _nonce
+    ) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(_originCircleDomain, _nonce));
     }
 }

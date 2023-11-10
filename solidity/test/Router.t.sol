@@ -93,9 +93,10 @@ contract RouterTest is Test {
         assertEq(router.isRemoteRouter(origin, remoteRouter), false);
     }
 
-    function testNotOwnerEnrollRouter(address notOwner, bytes32 remoteRouter)
-        public
-    {
+    function testNotOwnerEnrollRouter(
+        address notOwner,
+        bytes32 remoteRouter
+    ) public {
         vm.prank(notOwner);
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
         router.enrollRemoteRouter(origin, remoteRouter);
