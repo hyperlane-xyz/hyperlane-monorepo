@@ -31,6 +31,7 @@ import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
+import { presetHookConfigs } from '../config/hooks.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_BALANCE } from '../consts.js';
 import {
@@ -166,13 +167,24 @@ async function runHookStep(
   hookConfigPath?: string,
 ) {
   const presetConfigChains = Object.keys(presetHookConfigs);
+  console.log(
+    'presetConfigChains',
+    JSON.stringify(presetConfigChains, null, 4),
+  );
 
   if (!hookConfigPath) {
     logBlue(
       '\n',
-      'Hyperlane instances requires an Interchain Security Module (ISM).',
+      'Hyperlane instances can take an Interchain Security Module (ISM).',
     );
+    // hookConfigPath = await runFileSelectionStep(
+    //   './examples/',
+    //   'Hook config',
+    //   'hook',
+    // );
   }
+  // const configs = readHookConfig(hookConfigPath);
+  // log(`Found configs for chains: ${configs}`);
 }
 
 interface DeployParams {

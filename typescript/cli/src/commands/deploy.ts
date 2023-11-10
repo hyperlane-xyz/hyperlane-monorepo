@@ -49,6 +49,11 @@ const coreCommand: CommandModule = {
         description:
           'A path to a JSON or YAML file with ISM configs (e.g. Multisig)',
       },
+      hook: {
+        type: 'string',
+        description:
+          'A path to a JSON or YAML file with Hook configs (for every chain)',
+      },
       yes: skipConfirmationOption,
     }),
   handler: async (argv: any) => {

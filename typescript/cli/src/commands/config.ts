@@ -2,6 +2,7 @@ import { CommandModule } from 'yargs';
 
 import { log, logGreen } from '../../logger.js';
 import { createChainConfig, readChainConfig } from '../config/chain.js';
+import { createHookConfig } from '../config/hooks.js';
 import {
   createMultisigConfig,
   readMultisigConfig,
@@ -40,6 +41,7 @@ const createCommand: CommandModule = {
     yargs
       .command(createChainCommand)
       .command(createMultisigCommand)
+      .command(createHookConfigCommand)
       .command(createWarpCommand)
       .version(false)
       .demandCommand(),
@@ -76,6 +78,24 @@ const createMultisigCommand: CommandModule = {
     const outPath: string = argv.output;
     const chainConfigPath: string = argv.chains;
     await createMultisigConfig({ format, outPath, chainConfigPath });
+    process.exit(0);
+  },
+};
+
+const createHookConfigCommand: CommandModule = {
+  command: 'hook',
+  describe: 'Create a new Hook config',
+  builder: (yargs) =>
+    yargs.options({
+      output: outputFileOption('./configs/hook-config.yaml'),
+      format: fileFormatOption,
+      chains: chainsCommandOption,
+    }),
+  handler: async (argv: any) => {
+    const format: FileFormat = argv.format;
+    const outPath: string = argv.output;
+    const chainConfigPath: string = argv.chains;
+    await createHookConfig({ format, outPath, chainConfigPath });
     process.exit(0);
   },
 };
