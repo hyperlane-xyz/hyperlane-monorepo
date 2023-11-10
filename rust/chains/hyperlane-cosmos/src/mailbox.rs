@@ -202,12 +202,10 @@ impl Mailbox for CosmosMailbox {
             },
         };
 
+        let gas_limit = self.provider.wasm_estimate_gas(process_message).await?;
+
         let result = TxCostEstimate {
-            gas_limit: self
-                .provider
-                .wasm_estimate_gas(process_message)
-                .await?
-                .into(),
+            gas_limit: gas_limit.into(),
             gas_price: U256::from(2500),
             l2_gas_limit: None,
         };

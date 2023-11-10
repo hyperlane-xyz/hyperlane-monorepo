@@ -134,7 +134,7 @@ impl WasmGrpcProvider {
 
         let tx_body = tx::Body::new(
             msgs,
-            "",
+            String::default(),
             TryInto::<u32>::try_into(timeout_height)
                 .map_err(ChainCommunicationError::from_other)?,
         );
