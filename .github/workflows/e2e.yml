@@ -67,7 +67,9 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
       - name: build test
         run: cargo build --release --bin run-locally
-      - name: run test
+      - name: run CosmWasm test
+        run: cargo test --package run-locally --bin run-locally -- cosmos::test --nocapture
+      - name: run test (excluding CosmWasm)
         run: ./target/release/run-locally
         env:
           E2E_CI_MODE: 'true'
