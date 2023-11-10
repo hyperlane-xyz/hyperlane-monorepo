@@ -982,9 +982,9 @@ export const polygonzkevm: ChainMetadata = {
   displayName: 'Polygon zkEVM',
   nativeToken: etherToken,
   rpcUrls: [
+    { http: 'https://zkevm-rpc.com' },
     { http: 'https://polygonzkevm-mainnet.g.alchemy.com/v2/demo' },
     { http: 'https://rpc.ankr.com/polygon_zkevm' },
-    { http: 'https://zkevm.polygonscan.com/' },
   ],
   blockExplorers: [
     {
