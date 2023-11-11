@@ -3,6 +3,7 @@ use std::{fmt::Debug, num::NonZeroU64, ops::RangeInclusive, str::FromStr};
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use cosmrs::tendermint::abci::EventAttribute;
+use hpl_interface::hook::merkle::{MerkleHookQueryMsg, QueryMsg, TreeResponse};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
@@ -13,16 +14,18 @@ use tracing::instrument;
 
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
-    payloads::{
-        general::{self},
-        merkle_tree_hook,
-    },
+    // payloads::{
+    //     general::{self},
+    //     merkle_tree_hook,
+    // },
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
     utils::{
         get_block_height_for_lag, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
         CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
     },
-    ConnectionConf, CosmosProvider, Signer,
+    ConnectionConf,
+    CosmosProvider,
+    Signer,
 };
 
 #[derive(Debug)]
@@ -74,27 +77,17 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     /// Return the incremental merkle tree in storage
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        let payload = merkle_tree_hook::MerkleTreeRequest {
-            tree: general::EmptyStruct {},
-        };
+        let payload = QueryMsg::MerkleHook(MerkleHookQueryMsg::Tree {});
 
         let block_height = get_block_height_for_lag(&self.provider, lag).await?;
 
-        let data = self
-            .provider
-            .wasm_query(
-                merkle_tree_hook::MerkleTreeGenericRequest {
-                    merkle_hook: payload,
-                },
-                block_height,
-            )
-            .await?;
-        let response: merkle_tree_hook::MerkleTreeResponse = serde_json::from_slice(&data)?;
+        let data = self.provider.wasm_query(payload, block_height).await?;
+        let response: TreeResponse = serde_json::from_slice(&data)?;
 
         let branch = response
             .branch
             .iter()
-            .map(|s| s.as_str())
+            .map(|s| s.to_string().as_str())
             .map(H256::from_str)
             .collect::<Result<Vec<H256>, _>>()?;
 
@@ -107,10 +100,6 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
 
     /// Gets the current leaf count of the merkle tree
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let payload = merkle_tree_hook::MerkleTreeCountRequest {
-            count: general::EmptyStruct {},
-        };
-
         let block_height = get_block_height_for_lag(&self.provider, lag).await?;
 
         self.count_at_block(block_height).await
@@ -118,7 +107,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        let payload = merkle_tree_hook::CheckPointRequest {
+        let payload = merkle_tree_hook::requests::CheckPoint {
             check_point: general::EmptyStruct {},
         };
 
@@ -133,7 +122,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
                 block_height,
             )
             .await?;
-        let response: merkle_tree_hook::CheckPointResponse = serde_json::from_slice(&data)?;
+        let response: merkle_tree_hook::responses::CheckPoint = serde_json::from_slice(&data)?;
 
         Ok(Checkpoint {
             merkle_tree_hook_address: self.address,
@@ -147,20 +136,9 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
 impl CosmosMerkleTreeHook {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn count_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
-        let payload = merkle_tree_hook::MerkleTreeCountRequest {
-            count: general::EmptyStruct {},
-        };
-
-        let data = self
-            .provider
-            .wasm_query(
-                merkle_tree_hook::MerkleTreeGenericRequest {
-                    merkle_hook: payload,
-                },
-                block_height,
-            )
-            .await?;
-        let response: merkle_tree_hook::MerkleTreeCountResponse = serde_json::from_slice(&data)?;
+        let payload = QueryMsg::MerkleHook(MerkleHookQueryMsg::Count {});
+        let data = self.provider.wasm_query(payload, block_height).await?;
+        let response: merkle_tree_hook::responses::MerkleTreeCount = serde_json::from_slice(&data)?;
 
         Ok(response.count)
     }

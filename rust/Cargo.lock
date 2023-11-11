@@ -4155,6 +4155,7 @@ dependencies = [
  "base64 0.21.4",
  "bech32 0.9.1",
  "cosmrs",
+ "cosmwasm-std",
  "derive-new",
  "hex 0.4.3",
  "hpl-interface 0.0.2",

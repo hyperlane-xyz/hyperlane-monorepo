@@ -69,6 +69,7 @@ cosmrs = { version = "0.14", default-features = false, features = [
     "grpc",
 ] }
 convert_case = "0.6"
+cosmwasm-std = { version = "*", features = ["stargate"] }
 crunchy = "0.2"
 ctrlc = "3.2"
 curve25519-dalek = { version = "~3.2", features = ["serde"] }

@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use hpl_interface::ism::IsmQueryMsg;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
@@ -6,10 +7,6 @@ use hyperlane_core::{
 
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
-    payloads::{
-        general::EmptyStruct,
-        ism_routes::{QueryIsmGeneralRequest, QueryIsmModuleTypeRequest},
-    },
     types::IsmType,
     ConnectionConf, CosmosProvider, Signer,
 };
@@ -65,14 +62,9 @@ impl InterchainSecurityModule for CosmosInterchainSecurityModule {
     /// Returns the module type of the ISM compliant with the corresponding
     /// metadata offchain fetching and onchain formatting standard.
     async fn module_type(&self) -> ChainResult<ModuleType> {
-        let query = QueryIsmModuleTypeRequest {
-            module_type: EmptyStruct {},
-        };
+        let query = IsmQueryMsg::ModuleType {};
 
-        let data = self
-            .provider
-            .wasm_query(QueryIsmGeneralRequest { ism: query }, None)
-            .await?;
+        let data = self.provider.wasm_query(query.wrap(), None).await?;
 
         let module_type_response =
             serde_json::from_slice::<hpl_interface::ism::ModuleTypeResponse>(&data)?;

@@ -1,4 +1,9 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use cosmwasm_std::HexBinary;
+use hpl_interface::core::mailbox::{
+    DefaultIsmResponse, ExecuteMsg, MailboxQueryMsg, MessageDeliveredResponse, NonceResponse,
+    QueryMsg, RecipientIsmResponse,
+};
 use std::{
     fmt::{Debug, Formatter},
     io::Cursor,
@@ -9,10 +14,10 @@ use std::{
 
 use crate::address::CosmosAddress;
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
-use crate::payloads::mailbox::{
-    GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
-};
-use crate::payloads::{general, mailbox};
+// use crate::payloads::mailbox::{
+//     GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
+// };
+// use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::CosmosProvider;
 use crate::{signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
@@ -97,18 +102,13 @@ impl Mailbox for CosmosMailbox {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        let id = hex::encode(id);
-        let payload = mailbox::DeliveredRequest {
-            message_delivered: mailbox::DeliveredRequestInner { id },
-        };
+        let payload = QueryMsg::Mailbox(MailboxQueryMsg::MessageDelivered {
+            id: HexBinary::from(id.as_bytes()),
+        });
 
-        let delivered = match self
-            .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
-            .await
-        {
+        let delivered = match self.provider.wasm_query(payload, None).await {
             Ok(v) => {
-                let response: mailbox::DeliveredResponse = serde_json::from_slice(&v)?;
+                let response: MessageDeliveredResponse = serde_json::from_slice(&v)?;
 
                 response.delivered
             }
@@ -127,15 +127,10 @@ impl Mailbox for CosmosMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
-        let payload = mailbox::DefaultIsmRequest {
-            default_ism: general::EmptyStruct {},
-        };
+        let payload = QueryMsg::Mailbox(MailboxQueryMsg::DefaultIsm {});
 
-        let data = self
-            .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
-            .await?;
-        let response: mailbox::DefaultIsmResponse = serde_json::from_slice(&data)?;
+        let data = self.provider.wasm_query(payload, None).await?;
+        let response: DefaultIsmResponse = serde_json::from_slice(&data)?;
 
         // convert Hex to H256
         let ism = H256::from_slice(&hex::decode(response.default_ism)?);
@@ -145,18 +140,12 @@ impl Mailbox for CosmosMailbox {
     #[instrument(err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         let address = CosmosAddress::from_h256(recipient, &self.prefix())?.address();
+        let payload = QueryMsg::Mailbox(MailboxQueryMsg::RecipientIsm {
+            recipient_addr: address,
+        });
 
-        let payload = mailbox::RecipientIsmRequest {
-            recipient_ism: mailbox::RecipientIsmRequestInner {
-                recipient_addr: address,
-            },
-        };
-
-        let data = self
-            .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
-            .await?;
-        let response: mailbox::RecipientIsmResponse = serde_json::from_slice(&data)?;
+        let data = self.provider.wasm_query(payload, None).await?;
+        let response: RecipientIsmResponse = serde_json::from_slice(&data)?;
 
         // convert Hex to H256
         let ism = CosmosAddress::from_str(&response.ism)?;
@@ -170,23 +159,16 @@ impl Mailbox for CosmosMailbox {
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        let process_message = ProcessMessageRequest {
-            process: ProcessMessageRequestInner {
-                message: hex::encode(RawHyperlaneMessage::from(message)),
-                metadata: hex::encode(metadata),
-            },
+        let process_message = ExecuteMsg::Process {
+            message: HexBinary::from(RawHyperlaneMessage::from(message)),
+            metadata: HexBinary::from(metadata),
         };
 
         let response: TxResponse = self
             .provider
             .wasm_send(process_message, tx_gas_limit)
             .await?;
-        Ok(TxOutcome {
-            transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),
-            executed: response.code == 0,
-            gas_used: U256::from(response.gas_used),
-            gas_price: U256::from(response.gas_wanted),
-        })
+        Ok(TxOutcome::try_from_tx_response(response)?)
     }
 
     #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
@@ -195,14 +177,12 @@ impl Mailbox for CosmosMailbox {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        let process_message = ProcessMessageRequest {
-            process: ProcessMessageRequestInner {
-                message: hex::encode(RawHyperlaneMessage::from(message)),
-                metadata: hex::encode(metadata),
-            },
+        let payload = ExecuteMsg::Process {
+            metadata: HexBinary::from(RawHyperlaneMessage::from(message)),
+            message: HexBinary::from(metadata),
         };
 
-        let gas_limit = self.provider.wasm_estimate_gas(process_message).await?;
+        let gas_limit = self.provider.wasm_estimate_gas(payload).await?;
 
         let result = TxCostEstimate {
             gas_limit: gas_limit.into(),
@@ -221,16 +201,11 @@ impl Mailbox for CosmosMailbox {
 impl CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn nonce_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
-        let payload = mailbox::NonceRequest {
-            nonce: general::EmptyStruct {},
-        };
+        let payload = QueryMsg::Mailbox(MailboxQueryMsg::Nonce {});
 
-        let data = self
-            .provider
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, block_height)
-            .await?;
+        let data = self.provider.wasm_query(payload, block_height).await?;
 
-        let response: mailbox::NonceResponse = serde_json::from_slice(&data)?;
+        let response: NonceResponse = serde_json::from_slice(&data)?;
 
         Ok(response.nonce)
     }

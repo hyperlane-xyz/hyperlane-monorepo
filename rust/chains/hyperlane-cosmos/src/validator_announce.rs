@@ -8,12 +8,8 @@ use hyperlane_core::{
 
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
-    payloads::validator_announce::{
-        self, AnnouncementRequest, AnnouncementRequestInner, GetAnnounceStorageLocationsRequest,
-        GetAnnounceStorageLocationsRequestInner,
-    },
     signers::Signer,
-    ConnectionConf, CosmosProvider,
+    validator_announce, ConnectionConf, CosmosProvider,
 };
 
 /// A reference to a ValidatorAnnounce contract on some Cosmos chain
@@ -104,12 +100,7 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
             .wasm_send(announce_request, tx_gas_limit)
             .await?;
 
-        Ok(TxOutcome {
-            transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),
-            executed: response.code == 0,
-            gas_used: U256::from(response.gas_used),
-            gas_price: U256::from(response.gas_wanted),
-        })
+        Ok(TxOutcome::try_from_tx_response(response)?)
     }
 
     async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {

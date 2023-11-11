@@ -2,17 +2,17 @@ use std::str::FromStr;
 
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
-    payloads::ism_routes::QueryIsmGeneralRequest,
     signers::Signer,
     ConnectionConf, CosmosProvider,
 };
 use async_trait::async_trait;
+use cosmwasm_std::HexBinary;
+use hpl_interface::ism::IsmQueryMsg;
+use hpl_interface::ism::VerifyInfoResponse;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H160, H256,
 };
-
-use crate::payloads::multisig_ism::{self, VerifyInfoRequest, VerifyInfoRequestInner};
 
 /// A reference to a MultisigIsm contract on some Cosmos chain
 #[derive(Debug)]
@@ -62,22 +62,21 @@ impl MultisigIsm for CosmosMultisigIsm {
         &self,
         message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
-        let payload = VerifyInfoRequest {
-            verify_info: VerifyInfoRequestInner {
-                message: hex::encode(RawHyperlaneMessage::from(message)),
-            },
+        let payload = IsmQueryMsg::VerifyInfo {
+            message: HexBinary::from(RawHyperlaneMessage::from(message)),
         };
 
-        let data = self
-            .provider
-            .wasm_query(QueryIsmGeneralRequest { ism: payload }, None)
-            .await?;
-        let response: multisig_ism::VerifyInfoResponse = serde_json::from_slice(&data)?;
+        let data = self.provider.wasm_query(payload.wrap(), None).await?;
+        let response: VerifyInfoResponse = serde_json::from_slice(&data)?;
 
         let validators: ChainResult<Vec<H256>> = response
             .validators
             .iter()
-            .map(|v| H160::from_str(v).map(H256::from).map_err(Into::into))
+            .map(|v| {
+                H160::from_str(&v.to_string())
+                    .map(H256::from)
+                    .map_err(Into::into)
+            })
             .collect();
 
         Ok((validators?, response.threshold))

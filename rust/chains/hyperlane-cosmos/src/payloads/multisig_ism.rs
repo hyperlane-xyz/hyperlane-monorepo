@@ -9,9 +9,3 @@ pub struct VerifyInfoRequest {
 pub struct VerifyInfoRequestInner {
     pub message: String, // hexbinary
 }
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct VerifyInfoResponse {
-    pub threshold: u8,
-    pub validators: Vec<String>,
-}
