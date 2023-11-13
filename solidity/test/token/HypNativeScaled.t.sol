@@ -15,7 +15,7 @@ contract HypNativeScaledTest is Test {
     uint8 decimals = 9;
     uint256 mintAmount = 123456789;
     uint256 nativeDecimals = 18;
-    uint256 scale = 10**(nativeDecimals - decimals);
+    uint256 scale = 10 ** (nativeDecimals - decimals);
 
     event Donation(address indexed sender, uint256 amount);
     event SentTransferRemote(
@@ -41,7 +41,11 @@ contract HypNativeScaledTest is Test {
             decimals,
             address(environment.mailboxes(synthDomain))
         );
-        synth.initialize(mintAmount * (10**decimals), "Zebec BSC Token", "ZBC");
+        synth.initialize(
+            mintAmount * (10 ** decimals),
+            "Zebec BSC Token",
+            "ZBC"
+        );
 
         native = new HypNativeScaled(
             scale,
@@ -82,8 +86,8 @@ contract HypNativeScaledTest is Test {
     function test_handle(uint256 amount) public {
         vm.assume(amount <= mintAmount);
 
-        uint256 synthAmount = amount * (10**decimals);
-        uint256 nativeAmount = amount * (10**nativeDecimals);
+        uint256 synthAmount = amount * (10 ** decimals);
+        uint256 nativeAmount = amount * (10 ** nativeDecimals);
 
         vm.deal(address(native), nativeAmount);
 
@@ -97,9 +101,9 @@ contract HypNativeScaledTest is Test {
         assertEq(receivedValue, nativeAmount);
     }
 
-    function test_handle_reverts_whenAmountExceedsSupply(uint256 amount)
-        public
-    {
+    function test_handle_reverts_whenAmountExceedsSupply(
+        uint256 amount
+    ) public {
         vm.assume(amount <= mintAmount);
 
         bytes32 recipient = TypeCasts.addressToBytes32(address(this));
@@ -117,8 +121,8 @@ contract HypNativeScaledTest is Test {
     function test_tranferRemote(uint256 amount) public {
         vm.assume(amount <= mintAmount);
 
-        uint256 nativeValue = amount * (10**nativeDecimals);
-        uint256 synthAmount = amount * (10**decimals);
+        uint256 nativeValue = amount * (10 ** nativeDecimals);
+        uint256 synthAmount = amount * (10 ** decimals);
         address recipient = address(0xdeadbeef);
         bytes32 bRecipient = TypeCasts.addressToBytes32(recipient);
 

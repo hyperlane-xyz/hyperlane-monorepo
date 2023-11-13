@@ -25,11 +25,9 @@ library MerkleRootMultisigIsmMetadata {
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return Origin merkle tree hook of the signed checkpoint as bytes32
      */
-    function originMerkleTreeHook(bytes calldata _metadata)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function originMerkleTreeHook(
+        bytes calldata _metadata
+    ) internal pure returns (bytes32) {
         return
             bytes32(
                 _metadata[ORIGIN_MERKLE_TREE_OFFSET:ORIGIN_MERKLE_TREE_OFFSET +
@@ -42,11 +40,9 @@ library MerkleRootMultisigIsmMetadata {
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return Index of the target message in the merkle tree.
      */
-    function messageIndex(bytes calldata _metadata)
-        internal
-        pure
-        returns (uint32)
-    {
+    function messageIndex(
+        bytes calldata _metadata
+    ) internal pure returns (uint32) {
         return
             uint32(
                 bytes4(_metadata[MESSAGE_INDEX_OFFSET:MESSAGE_INDEX_OFFSET + 4])
@@ -58,11 +54,9 @@ library MerkleRootMultisigIsmMetadata {
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return Index of the signed checkpoint
      */
-    function signedIndex(bytes calldata _metadata)
-        internal
-        pure
-        returns (uint32)
-    {
+    function signedIndex(
+        bytes calldata _metadata
+    ) internal pure returns (uint32) {
         return
             uint32(
                 bytes4(_metadata[SIGNED_INDEX_OFFSET:SIGNED_INDEX_OFFSET + 4])
@@ -74,11 +68,9 @@ library MerkleRootMultisigIsmMetadata {
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return Message ID of the signed checkpoint
      */
-    function signedMessageId(bytes calldata _metadata)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function signedMessageId(
+        bytes calldata _metadata
+    ) internal pure returns (bytes32) {
         return bytes32(_metadata[MESSAGE_ID_OFFSET:MESSAGE_ID_OFFSET + 32]);
     }
 
@@ -89,11 +81,9 @@ library MerkleRootMultisigIsmMetadata {
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return Merkle proof branch of the message.
      */
-    function proof(bytes calldata _metadata)
-        internal
-        pure
-        returns (bytes32[32] memory)
-    {
+    function proof(
+        bytes calldata _metadata
+    ) internal pure returns (bytes32[32] memory) {
         return
             abi.decode(
                 _metadata[MERKLE_PROOF_OFFSET:MERKLE_PROOF_OFFSET +
@@ -111,11 +101,10 @@ library MerkleRootMultisigIsmMetadata {
      * @param _index The index of the signature to return.
      * @return The validator ECDSA signature at `_index`.
      */
-    function signatureAt(bytes calldata _metadata, uint256 _index)
-        internal
-        pure
-        returns (bytes calldata)
-    {
+    function signatureAt(
+        bytes calldata _metadata,
+        uint256 _index
+    ) internal pure returns (bytes calldata) {
         uint256 _start = SIGNATURES_OFFSET + (_index * SIGNATURE_LENGTH);
         uint256 _end = _start + SIGNATURE_LENGTH;
         return _metadata[_start:_end];

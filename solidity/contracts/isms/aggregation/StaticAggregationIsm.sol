@@ -21,13 +21,9 @@ contract StaticAggregationIsm is AbstractAggregationIsm {
      * @return modules The array of ISM addresses
      * @return threshold The number of ISMs needed to verify
      */
-    function modulesAndThreshold(bytes calldata)
-        public
-        view
-        virtual
-        override
-        returns (address[] memory, uint8)
-    {
+    function modulesAndThreshold(
+        bytes calldata
+    ) public view virtual override returns (address[] memory, uint8) {
         return abi.decode(MetaProxy.metadata(), (address[], uint8));
     }
 }

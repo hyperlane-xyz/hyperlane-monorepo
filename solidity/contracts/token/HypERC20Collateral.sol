@@ -25,12 +25,9 @@ contract HypERC20Collateral is TokenRouter {
         wrappedToken = IERC20(erc20);
     }
 
-    function balanceOf(address _account)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function balanceOf(
+        address _account
+    ) external view override returns (uint256) {
         return wrappedToken.balanceOf(_account);
     }
 
@@ -38,11 +35,9 @@ contract HypERC20Collateral is TokenRouter {
      * @dev Transfers `_amount` of `wrappedToken` from `msg.sender` to this contract.
      * @inheritdoc TokenRouter
      */
-    function _transferFromSender(uint256 _amount)
-        internal
-        override
-        returns (bytes memory)
-    {
+    function _transferFromSender(
+        uint256 _amount
+    ) internal override returns (bytes memory) {
         wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
         return bytes(""); // no metadata
     }

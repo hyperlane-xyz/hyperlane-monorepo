@@ -18,17 +18,17 @@ contract LibBitTest is Test {
 
     function testSetBit(uint8 index) public {
         testValue = testValue.setBit(index);
-        assertEq(testValue, 2**index);
+        assertEq(testValue, 2 ** index);
     }
 
     function testClearBit(uint8 index) public {
         testValue = MAX_INT;
         testValue = testValue.clearBit(index);
-        assertEq(testValue + 2**index, MAX_INT);
+        assertEq(testValue + 2 ** index, MAX_INT);
     }
 
     function testIsBitSet(uint8 index) public {
-        testValue = 2**index;
+        testValue = 2 ** index;
         assertTrue(testValue.isBitSet(index));
     }
 }

@@ -91,10 +91,10 @@ contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
     // ============ Internal Functions ============
 
     /// @inheritdoc AbstractPostDispatchHook
-    function _postDispatch(bytes calldata metadata, bytes calldata message)
-        internal
-        override
-    {
+    function _postDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal override {
         require(
             msg.value >= protocolFee,
             "StaticProtocolFee: insufficient protocol fee"
@@ -109,12 +109,10 @@ contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
     }
 
     /// @inheritdoc AbstractPostDispatchHook
-    function _quoteDispatch(bytes calldata, bytes calldata)
-        internal
-        view
-        override
-        returns (uint256)
-    {
+    function _quoteDispatch(
+        bytes calldata,
+        bytes calldata
+    ) internal view override returns (uint256) {
         return protocolFee;
     }
 

@@ -19,9 +19,10 @@ contract FastHypERC20Collateral is FastTokenRouter, HypERC20Collateral {
      * @notice Constructor
      * @param erc20 Address of the token to keep as collateral
      */
-    constructor(address erc20, address _mailbox)
-        HypERC20Collateral(erc20, _mailbox)
-    {}
+    constructor(
+        address erc20,
+        address _mailbox
+    ) HypERC20Collateral(erc20, _mailbox) {}
 
     /**
      * @dev delegates transfer logic to `_transferTo`.
@@ -39,10 +40,10 @@ contract FastHypERC20Collateral is FastTokenRouter, HypERC20Collateral {
      * @dev Transfers `_amount` of `wrappedToken` to `_recipient`.
      * @inheritdoc FastTokenRouter
      */
-    function _fastTransferTo(address _recipient, uint256 _amount)
-        internal
-        override
-    {
+    function _fastTransferTo(
+        address _recipient,
+        uint256 _amount
+    ) internal override {
         wrappedToken.safeTransfer(_recipient, _amount);
     }
 
@@ -50,10 +51,10 @@ contract FastHypERC20Collateral is FastTokenRouter, HypERC20Collateral {
      * @dev Transfers in `_amount` of `wrappedToken` from `_recipient`.
      * @inheritdoc FastTokenRouter
      */
-    function _fastRecieveFrom(address _sender, uint256 _amount)
-        internal
-        override
-    {
+    function _fastRecieveFrom(
+        address _sender,
+        uint256 _amount
+    ) internal override {
         wrappedToken.safeTransferFrom(_sender, address(this), _amount);
     }
 }
