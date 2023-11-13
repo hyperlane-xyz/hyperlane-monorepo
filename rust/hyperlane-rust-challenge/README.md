@@ -27,15 +27,14 @@ cargo build --release
 
 ### Configuration
 
-```bash
-The first time you run a command, the tool will generate an Ethereum private key and store it in a .env file in your project directory. Ensure this wallet is funded with Ether for transaction fees.
-```
+The first time you run a command, the tool will generate an Ethereum private key and store it in a `.env` file in your project directory. Ensure this wallet is funded with Ether for transaction fees.
+
 
 ## Usage
 
 ### Sending a Message
 
-To send a message, use the send command with the required parameters:
+To send a message, use the `send` command with the required parameters:
 
 ```bash
 cargo run -p hyperlane-rust-challenge -- -p [NODE_URL] -m [MAILBOX_ADDRESS] send --id [DESTINATION_CHAIN_ID] --destination-address [RECIPIENT_ADDRESS] --message [MESSAGE_HEX] --igp [INTERCHAIN_GAS_PAYMASTER_ADDRESS]
@@ -49,7 +48,7 @@ cargo run -p hyperlane-rust-challenge -- -p https://sepolia.infura.io/v3/APIKEY 
 
 ### Querying Message
 
-To query messages, use the `search` command:
+To query messages, use the `search` command with the required parameters:
 
 ```bash
 cargo run -p hyperlane-rust-challenge -- -p [NODE_URL] -m [MAILBOX_ADDRESS] search --from [START_BLOCK] --to [END_BLOCK]
@@ -60,3 +59,25 @@ Example:
 ```bash
 cargo run -p hyperlane-rust-challenge -- -p https://sepolia.infura.io/v3/APIKEY -m 0xCC737a94FecaeC165AbCf12dED095BB13F037685 search --from 4687656 --to 4687658
 ```
+
+## Links
+
+### TestNet RPC API Keys
+- https://app.infura.io/
+
+### ABIs
+#### Mailbox
++ https://sepolia.etherscan.io/address/0xCC737a94FecaeC165AbCf12dED095BB13F037685#code
+#### InterchainGasPaymaster
++ https://sepolia.etherscan.io/address/0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a#code
+
+
+### Contracts
+#### Mailbox
++ https://docs.hyperlane.xyz/docs/resources/addresses#mailbox-1
+#### InterchainGasPaymaster
++ https://docs.hyperlane.xyz/docs/resources/addresses#interchaingaspaymaster-1
+
+
+### Domain Identifiers
++ https://docs.hyperlane.xyz/docs/resources/domains
