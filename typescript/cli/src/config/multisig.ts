@@ -1,7 +1,7 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { z } from 'zod';
 
-import { ChainMap, ModuleType, MultisigIsmConfig } from '@hyperlane-xyz/sdk';
+import { ChainMap, IsmType, MultisigIsmConfig } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
@@ -12,7 +12,7 @@ import { readChainConfigIfExists } from './chain.js';
 
 const MultisigConfigMapSchema = z.object({}).catchall(
   z.object({
-    type: z.string(),
+    type: z.nativeEnum(IsmType),
     threshold: z.number(),
     validators: z.array(z.string()),
   }),
@@ -30,24 +30,22 @@ export function readMultisigConfig(filePath: string) {
     );
   }
   const parsedConfig = result.data;
-  const formattedConfig = objMap(parsedConfig, (_, config) => ({
-    ...config,
-    type: humanReadableIsmTypeToEnum(config.type),
-  }));
+  const formattedConfig: ChainMap<MultisigIsmConfig> = objMap(
+    parsedConfig,
+    (_, config) =>
+      ({
+        type: config.type as IsmType,
+        threshold: config.threshold,
+        validators: config.validators,
+      } as MultisigIsmConfig),
+  );
 
   logGreen(`All multisig configs in ${filePath} are valid`);
-  return formattedConfig as ChainMap<MultisigIsmConfig>;
+  return formattedConfig;
 }
 
 export function isValidMultisigConfig(config: any) {
   return MultisigConfigMapSchema.safeParse(config).success;
-}
-
-function humanReadableIsmTypeToEnum(type: string): ModuleType {
-  for (const [key, value] of Object.entries(ModuleType)) {
-    if (key.toLowerCase() === type) return parseInt(value.toString(), 10);
-  }
-  throw new Error(`Invalid ISM type ${type}`);
 }
 
 export async function createMultisigConfig({
@@ -80,9 +78,8 @@ export async function createMultisigConfig({
       choices: [
         // { value: 'routing, name: 'routing' }, // TODO add support
         // { value: 'aggregation, name: 'aggregation' }, // TODO add support
-        { value: 'legacy_multisig', name: 'legacy multisig' },
-        { value: 'merkle_root_multisig', name: 'merkle root multisig' },
-        { value: 'message_id_multisig', name: 'message id multisig' },
+        { value: IsmType.MERKLE_ROOT_MULTISIG, name: 'merkle root multisig' },
+        { value: IsmType.MESSAGE_ID_MULTISIG, name: 'message id multisig' },
       ],
       pageSize: 5,
     });

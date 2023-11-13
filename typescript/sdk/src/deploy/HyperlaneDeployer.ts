@@ -197,10 +197,11 @@ export abstract class HyperlaneDeployer<
     getIsm: (contract: C) => Promise<Address>,
     setIsm: (contract: C, ism: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
-    if (this.options?.ismFactory === undefined) {
-      throw new Error('No ISM factory provided');
-    }
-    const ismFactory = this.options.ismFactory;
+    const ismFactory =
+      this.options?.ismFactory ??
+      (() => {
+        throw new Error('No ISM factory provided');
+      })();
 
     const configuredIsm = await getIsm(contract);
     const matches = await moduleMatchesConfig(
@@ -258,6 +259,7 @@ export abstract class HyperlaneDeployer<
     config: MailboxClientConfig,
   ): Promise<void> {
     this.logger(`Initializing mailbox client (if not already) on ${local}...`);
+    this.logger(`MailboxClient Config: ${JSON.stringify(config)}`);
     if (config.hook) {
       await this.configureHook(
         local,

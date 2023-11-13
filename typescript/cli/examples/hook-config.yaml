@@ -1,27 +1,18 @@
-# TODO: finalize this example
-
 anvil1:
   required:
-    type: 'protocolFee'
-    owner: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
-    beneficiary: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
-    maxProtocolFee: 1000000000000000000
-    protocolFee: 0
+    type: protocolFee
+    maxProtocolFee: '10000000000000000'
+    protocolFee: '10000000000'
+    beneficiary: '0xb1b4e269dD0D19d9D49f3a95bF6c2c15f13E7943'
+    owner: '0xb1b4e269dD0D19d9D49f3a95bF6c2c15f13E7943'
   default:
-    type: 'merkleTree'
-
+    type: merkleTreeHook
 anvil2:
   required:
-    type: 'protocolFee'
-    owner: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
-    beneficiary: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
-    maxProtocolFee: 1000000000000000000
-    protocolFee: 0
+    type: protocolFee
+    maxProtocolFee: '10000000000000000'
+    protocolFee: '10000000000'
+    beneficiary: '0xb1b4e269dD0D19d9D49f3a95bF6c2c15f13E7943'
+    owner: '0xb1b4e269dD0D19d9D49f3a95bF6c2c15f13E7943'
   default:
-    type: 'aggregation'
-    hooks:
-      - type: 'merkleTree'
-        threshold: 1
-      - type: 'igp'
-        owner: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
-        oracleKey: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
+    type: merkleTreeHook

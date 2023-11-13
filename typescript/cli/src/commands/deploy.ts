@@ -67,6 +67,7 @@ const coreCommand: CommandModule = {
       .map((r: string) => r.trim());
     const artifactsPath: string = argv.artifacts;
     const ismConfigPath: string = argv.ism;
+    const hookConfigPath: string = argv.hook;
     const skipConfirmation: boolean = argv.yes;
     await runCoreDeploy({
       key,
@@ -74,6 +75,7 @@ const coreCommand: CommandModule = {
       chains,
       artifactsPath,
       ismConfigPath,
+      hookConfigPath,
       outPath,
       skipConfirmation,
     });

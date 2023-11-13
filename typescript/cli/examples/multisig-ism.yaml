@@ -9,12 +9,12 @@
 #   message_id_multisig
 ---
 anvil1:
-  type: 'merkle_root_multisig'
+  type: 'merkleRootMultisigIsm'
   threshold: 1 # Number: Signatures required to approve a message
   validators: # Array: List of validator addresses
     - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
 anvil2:
-  type: 'message_id_multisig'
+  type: 'messageIdMultisigIsm'
   threshold: 1
   validators:
     - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'

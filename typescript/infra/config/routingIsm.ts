@@ -9,6 +9,7 @@ import {
 
 import { DeployEnvironment } from '../src/config';
 
+import { aggregationIsm } from './aggregationIsm';
 import { Contexts } from './contexts';
 import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/chains';
 import { owners as mainnet3Owners } from './environments/mainnet3/owners';
@@ -16,7 +17,6 @@ import { chainNames as testChains } from './environments/test/chains';
 import { owners as testOwners } from './environments/test/owners';
 import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains';
 import { owners as testnet4Owners } from './environments/testnet4/owners';
-import { multisigIsm } from './multisigIsm';
 
 const chains = {
   mainnet3: mainnet3Chains,
@@ -55,22 +55,6 @@ export const routingIsm = (
     type: IsmType.ROUTING,
     domains: aggregationIsms,
     owner: owners[environment][local],
-  };
-};
-
-// Merkle Root    Message ID
-export const aggregationIsm = (
-  remote: ChainName,
-  context: Contexts,
-): AggregationIsmConfig => {
-  return {
-    type: ModuleType.AGGREGATION,
-    modules: [
-      // Ordering matters to preserve determinism
-      multisigIsm(remote, ModuleType.MERKLE_ROOT_MULTISIG, context),
-      multisigIsm(remote, ModuleType.MESSAGE_ID_MULTISIG, context),
-    ],
-    threshold: 1,
   };
 };
 

@@ -13,11 +13,10 @@ import {
   HyperlaneContractsMap,
   HyperlaneCoreDeployer,
   HyperlaneDeploymentArtifacts,
-  HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   IgpConfig,
-  ModuleType,
+  IsmType,
   MultiProvider,
   MultisigIsmConfig,
   RoutingIsmConfig,
@@ -31,7 +30,7 @@ import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
-import { presetHookConfigs } from '../config/hooks.js';
+import { presetHookConfigs, readHookConfig } from '../config/hooks.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_BALANCE } from '../consts.js';
 import {
@@ -133,11 +132,11 @@ async function runArtifactStep(
 }
 
 async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
-  const defaultConfigChains = Object.keys(defaultMultisigIsmConfigs);
-  const configRequired = !!selectedChains.find(
-    (c) => !defaultConfigChains.includes(c),
-  );
-  if (!configRequired) return;
+  // const defaultConfigChains = Object.keys(defaultMultisigIsmConfigs);
+  // const configRequired = !!selectedChains.find(
+  //   (c) => !defaultConfigChains.includes(c),
+  // );
+  // if (!configRequired) return;
 
   if (!ismConfigPath) {
     logBlue(
@@ -177,14 +176,15 @@ async function runHookStep(
       '\n',
       'Hyperlane instances can take an Interchain Security Module (ISM).',
     );
-    // hookConfigPath = await runFileSelectionStep(
-    //   './examples/',
-    //   'Hook config',
-    //   'hook',
-    // );
+    hookConfigPath = await runFileSelectionStep(
+      './configs/',
+      'Hook config',
+      'hook',
+    );
   }
-  // const configs = readHookConfig(hookConfigPath);
-  // log(`Found configs for chains: ${configs}`);
+  const configs = readHookConfig(hookConfigPath);
+  if (!configs) return;
+  log(`Found hook configs for chains: ${Object.keys(configs).join(', ')}`);
 }
 
 interface DeployParams {
@@ -263,15 +263,6 @@ async function executeDeploy({
   );
   logGreen('ISM factory contracts deployed');
 
-  // 2. Deploy IGPs to all deployable chains.
-  log('Deploying IGP contracts');
-  const igpConfig = buildIgpConfigMap(owner, chains, multisigConfig);
-  const igpDeployer = new HyperlaneIgpDeployer(multiProvider);
-  igpDeployer.cacheAddressesMap(artifacts);
-  const igpContracts = await igpDeployer.deploy(igpConfig);
-  artifacts = writeMergedAddresses(contractsFilePath, artifacts, igpContracts);
-  logGreen('IGP contracts deployed');
-
   // Build an IsmFactory that covers all chains so that we can
   // use it to deploy ISMs to remote chains.
   const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
@@ -308,7 +299,12 @@ async function executeDeploy({
   const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   console.log('Caching addresses map', artifacts);
   // coreDeployer.cacheAddressesMap(artifacts);
-  const coreConfigs = buildCoreConfigMap(owner, chains, defaultIsms);
+  const coreConfigs = buildCoreConfigMap(
+    owner,
+    chains,
+    defaultIsms,
+    multisigConfig,
+  );
   console.log('===coreconfigs', coreConfigs); //TODO remove
   const coreContracts = await coreDeployer.deploy(coreConfigs);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
@@ -349,7 +345,7 @@ function buildIsmConfig(
   );
   return {
     owner,
-    type: ModuleType.ROUTING,
+    type: IsmType.ROUTING,
     domains: Object.fromEntries(
       remotes.map((remote) => [remote, mergedMultisigIsmConfig[remote]]),
     ),
@@ -360,13 +356,25 @@ function buildCoreConfigMap(
   owner: Address,
   chains: ChainName[],
   defaultIsms: ChainMap<Address>,
+  multisigConfig: ChainMap<MultisigIsmConfig>,
 ): ChainMap<CoreConfig> {
   return chains.reduce<ChainMap<CoreConfig>>((config, chain) => {
-    // const defaultHook = artifacts.mailbox
+    const igpConfig = buildIgpConfigMap(owner, chains, multisigConfig);
     config[chain] = {
       owner,
       defaultIsm: defaultIsms[chain],
-      defaultHook: { type: HookType.MERKLE_TREE },
+      defaultHook: {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            type: HookType.MERKLE_TREE,
+          },
+          {
+            type: HookType.INTERCHAIN_GAS_PAYMASTER,
+            ...igpConfig[chain],
+          },
+        ],
+      },
       requiredHook: {
         type: HookType.PROTOCOL_FEE,
         maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'), // 1 gwei of native token
@@ -413,8 +421,8 @@ function buildIgpConfigMap(
     for (const remote of chains) {
       if (chain === remote) continue;
       overhead[remote] = multisigIsmVerificationCost(
-        mergedMultisigIsmConfig[remote].threshold,
-        mergedMultisigIsmConfig[remote].validators.length,
+        mergedMultisigIsmConfig[chain].threshold,
+        mergedMultisigIsmConfig[chain].validators.length,
       );
       gasOracleType[remote] = GasOracleContractType.StorageGasOracle;
     }

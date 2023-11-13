@@ -6,6 +6,7 @@ import {
   ChainMap,
   ChainName,
   GasOracleContractType,
+  HookConfig,
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
@@ -15,6 +16,7 @@ import {
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen, logRed } from '../../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
@@ -26,12 +28,8 @@ const ProtocolFeeSchema = z.object({
   type: z.literal(HookType.PROTOCOL_FEE),
   owner: z.string(),
   beneficiary: z.string(),
-  maxProtocolFee: z.custom((value) => value instanceof ethers.BigNumber, {
-    message: 'maxProtocolFee must be an ethers.BigNumber',
-  }),
-  protocolFee: z.custom((value) => value instanceof ethers.BigNumber, {
-    message: 'protocolFee must be an ethers.BigNumber',
-  }),
+  maxProtocolFee: z.string(),
+  protocolFee: z.string(),
 });
 
 const MerkleTreeSchema = z.object({
@@ -120,8 +118,20 @@ export function readHookConfig(filePath: string) {
       `Invalid hook config: ${firstIssue.path} => ${firstIssue.message}`,
     );
   }
-  logGreen('all gucci', result.data);
+  const parsedConfig = result.data;
+  const defaultHook: ChainMap<HookConfig> = objMap(
+    parsedConfig,
+    (_, config) =>
+      ({
+        type: config.default.type,
+      } as HookConfig),
+  );
+  logGreen(`All multisig configs in ${filePath} are valid`);
+  return defaultHook;
 }
+
+// TODO: read different hook configs
+// export async function readProtocolFeeHookConfig(config: {type: HookType.PROTOCOL_FEE, ...}) {
 
 export async function createHookConfig({
   format,
@@ -196,8 +206,8 @@ export async function createHookConfig({
             ...result[chain],
             [hookRequirements]: {
               type: HookType.PROTOCOL_FEE,
-              maxProtocolFee: maxProtocolFee,
-              protocolFee: protocolFee,
+              maxProtocolFee: maxProtocolFee.toString(),
+              protocolFee: protocolFee.toString(),
               beneficiary: beneficiaryAddress,
               owner: ownerAddress,
             },
