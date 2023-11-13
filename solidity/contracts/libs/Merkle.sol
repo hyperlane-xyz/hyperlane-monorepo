@@ -10,7 +10,7 @@ pragma solidity >=0.6.11;
  **/
 library MerkleLib {
     uint256 internal constant TREE_DEPTH = 32;
-    uint256 internal constant MAX_LEAVES = 2**TREE_DEPTH - 1;
+    uint256 internal constant MAX_LEAVES = 2 ** TREE_DEPTH - 1;
 
     /**
      * @notice Struct representing incremental merkle tree. Contains current
@@ -50,11 +50,10 @@ library MerkleLib {
      * @param _zeroes Array of zero hashes
      * @return _current Calculated root of `_tree`
      **/
-    function rootWithCtx(Tree storage _tree, bytes32[TREE_DEPTH] memory _zeroes)
-        internal
-        view
-        returns (bytes32 _current)
-    {
+    function rootWithCtx(
+        Tree storage _tree,
+        bytes32[TREE_DEPTH] memory _zeroes
+    ) internal view returns (bytes32 _current) {
         uint256 _index = _tree.count;
 
         for (uint256 i = 0; i < TREE_DEPTH; i++) {

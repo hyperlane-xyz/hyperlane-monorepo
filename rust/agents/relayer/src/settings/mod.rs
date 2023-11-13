@@ -187,7 +187,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                     matching_list,
                 })
             }).collect_vec()
-        }).unwrap_or_default();
+        }).unwrap_or_else(|_| vec![GasPaymentEnforcementConf::default()]);
 
         let whitelist = p
             .chain(&mut err)

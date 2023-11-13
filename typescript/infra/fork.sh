@@ -18,12 +18,12 @@ else
 fi
 
 # kill all child processes on exit
-trap 'kill $(jobs -p)' EXIT
+trap 'jobs -p | xargs -r kill' EXIT
 
 # exit 1 on any subsequent failures
 set -e
 
-anvil --fork-url $RPC_URL --block-time 1 --silent > /dev/null &
+anvil --fork-url $RPC_URL --silent > /dev/null &
 ANVIL_PID=$!
 
 while ! cast bn &> /dev/null; do
@@ -44,5 +44,3 @@ yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN --govern -
 
 echo "=== Run $MODULE checker against forked $ENVIRONMENT after governance ==="
 yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
-
-kill $ANVIL_PID

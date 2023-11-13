@@ -214,11 +214,10 @@ contract ERC5164IsmTest is Test {
 
     /* ============ helper functions ============ */
 
-    function _encodeTestMessage(uint32 _msgCount, address _receipient)
-        internal
-        view
-        returns (bytes memory)
-    {
+    function _encodeTestMessage(
+        uint32 _msgCount,
+        address _receipient
+    ) internal view returns (bytes memory) {
         return
             MessageUtils.formatMessage(
                 VERSION,

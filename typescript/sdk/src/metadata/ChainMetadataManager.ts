@@ -329,8 +329,6 @@ export class ChainMetadataManager<MetaExt = {}> {
   ): ChainMetadataManager<MetaExt & NewExt> {
     const newMetadata: ChainMap<ChainMetadata<MetaExt & NewExt>> = {};
     for (const [name, meta] of Object.entries(this.metadata)) {
-      if (!additionalMetadata[name])
-        throw new Error(`No additional data provided for chain ${name}`);
       newMetadata[name] = { ...meta, ...additionalMetadata[name] };
     }
     return new ChainMetadataManager(newMetadata);

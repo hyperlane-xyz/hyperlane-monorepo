@@ -94,9 +94,9 @@ contract InterchainGasPaymasterTest is Test {
         );
     }
 
-    function testdestinationGasLimit_whenOverheadNotSet(uint32 _otherDomains)
-        public
-    {
+    function testdestinationGasLimit_whenOverheadNotSet(
+        uint32 _otherDomains
+    ) public {
         vm.assume(_otherDomains != testDestinationDomain);
         assertEq(
             igp.destinationGasLimit(_otherDomains, testGasLimit),
@@ -347,9 +347,10 @@ contract InterchainGasPaymasterTest is Test {
         );
     }
 
-    function testPayForGas_withOverhead(uint128 _gasLimit, uint96 _gasOverhead)
-        public
-    {
+    function testPayForGas_withOverhead(
+        uint128 _gasLimit,
+        uint96 _gasOverhead
+    ) public {
         setRemoteGasData(
             testDestinationDomain,
             1 * TEST_EXCHANGE_RATE,
@@ -501,9 +502,9 @@ contract InterchainGasPaymasterTest is Test {
         assertEq(_igpBalanceAfter - _igpBalanceBefore, _quote);
     }
 
-    function testPostDispatch_customWithMetadataAndOverhead(uint96 _gasOverhead)
-        public
-    {
+    function testPostDispatch_customWithMetadataAndOverhead(
+        uint96 _gasOverhead
+    ) public {
         vm.deal(address(this), _gasOverhead + testGasLimit);
 
         setRemoteGasData(

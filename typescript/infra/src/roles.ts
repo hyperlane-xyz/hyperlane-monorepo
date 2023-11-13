@@ -21,5 +21,5 @@ export const ALL_AGENT_ROLES = [
   Role.Relayer,
   Role.Scraper,
 ] as const;
-export type AgentRole = typeof ALL_AGENT_ROLES[number];
+export type AgentRole = (typeof ALL_AGENT_ROLES)[number];
 export type AgentChainNames = Record<AgentRole, string[]>;

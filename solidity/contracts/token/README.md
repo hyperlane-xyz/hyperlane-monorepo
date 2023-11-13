@@ -65,7 +65,6 @@ interface TokenRouter {
     uint256 amount
   ) public returns (bytes32 messageId);
 }
-
 ```
 
 **NOTE:** The [Relayer](https://docs.hyperlane.xyz/docs/protocol/agents/relayer) shown below must be compensated. Please refer to the relevant guide on [paying for interchain gas](https://docs.hyperlane.xyz/docs/build-with-hyperlane/guides/paying-for-interchain-gas) on the `messageID` returned from the `transferRemote` call.

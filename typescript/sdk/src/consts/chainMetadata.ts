@@ -814,6 +814,7 @@ export const neutron: ChainMetadata = {
     {
       name: 'Mintscan',
       url: 'https://www.mintscan.io/neutron',
+      // TODO API not actually supported, using url to meet validation requirements
       apiUrl: 'https://www.mintscan.io/neutron',
       family: ExplorerFamily.Other,
     },

@@ -27,10 +27,10 @@ abstract contract StaticThresholdAddressSetFactory {
      * @param _threshold The threshold value to use
      * @return set The contract address representing this StaticThresholdAddressSet
      */
-    function deploy(address[] calldata _values, uint8 _threshold)
-        public
-        returns (address)
-    {
+    function deploy(
+        address[] calldata _values,
+        uint8 _threshold
+    ) public returns (address) {
         (bytes32 _salt, bytes memory _bytecode) = _saltAndBytecode(
             _values,
             _threshold
@@ -50,11 +50,10 @@ abstract contract StaticThresholdAddressSetFactory {
      * @param _threshold The threshold value to use
      * @return set The contract address representing this StaticThresholdAddressSet
      */
-    function getAddress(address[] calldata _values, uint8 _threshold)
-        external
-        view
-        returns (address)
-    {
+    function getAddress(
+        address[] calldata _values,
+        uint8 _threshold
+    ) external view returns (address) {
         (bytes32 _salt, bytes memory _bytecode) = _saltAndBytecode(
             _values,
             _threshold
@@ -69,11 +68,10 @@ abstract contract StaticThresholdAddressSetFactory {
      * @param _bytecode The metaproxy bytecode used in Create2
      * @return set The contract address representing this StaticThresholdAddressSet
      */
-    function _getAddress(bytes32 _salt, bytes memory _bytecode)
-        internal
-        view
-        returns (address)
-    {
+    function _getAddress(
+        bytes32 _salt,
+        bytes memory _bytecode
+    ) internal view returns (address) {
         bytes32 _bytecodeHash = keccak256(_bytecode);
         return Create2.computeAddress(_salt, _bytecodeHash);
     }
@@ -85,11 +83,10 @@ abstract contract StaticThresholdAddressSetFactory {
      * @return _salt The salt used in Create2
      * @return _bytecode The metaproxy bytecode used in Create2
      */
-    function _saltAndBytecode(address[] calldata _values, uint8 _threshold)
-        internal
-        view
-        returns (bytes32, bytes memory)
-    {
+    function _saltAndBytecode(
+        address[] calldata _values,
+        uint8 _threshold
+    ) internal view returns (bytes32, bytes memory) {
         bytes memory _metadata = abi.encode(_values, _threshold);
         bytes memory _bytecode = MetaProxy.bytecode(implementation, _metadata);
         bytes32 _salt = keccak256(_metadata);
@@ -116,11 +113,9 @@ abstract contract StaticAddressSetFactory is StaticThresholdAddressSetFactory {
      * @param _values An array of addresses
      * @return set The contract address representing this StaticAddressSet
      */
-    function getAddress(address[] calldata _values)
-        external
-        view
-        returns (address)
-    {
+    function getAddress(
+        address[] calldata _values
+    ) external view returns (address) {
         (bytes32 _salt, bytes memory _bytecode) = _saltAndBytecode(
             _values,
             uint8(_values.length)

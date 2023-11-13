@@ -7,11 +7,10 @@ library MetaProxy {
         hex"600b380380600b3d393df3363d3d373d3d3d3d60368038038091363936013d73";
     bytes13 private constant SUFFIX = hex"5af43d3d93803e603457fd5bf3";
 
-    function bytecode(address _implementation, bytes memory _metadata)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function bytecode(
+        address _implementation,
+        bytes memory _metadata
+    ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
                 PREFIX,

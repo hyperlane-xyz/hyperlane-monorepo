@@ -72,15 +72,9 @@ library InterchainAccountMessage {
      * @param _message The interchain account message
      * @return The array of calls
      */
-    function decode(bytes calldata _message)
-        internal
-        pure
-        returns (
-            bytes32,
-            bytes32,
-            CallLib.Call[] memory
-        )
-    {
+    function decode(
+        bytes calldata _message
+    ) internal pure returns (bytes32, bytes32, CallLib.Call[] memory) {
         return abi.decode(_message, (bytes32, bytes32, CallLib.Call[]));
     }
 

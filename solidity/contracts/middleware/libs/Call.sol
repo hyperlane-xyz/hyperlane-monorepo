@@ -24,10 +24,9 @@ library CallLib {
         bytes callback;
     }
 
-    function call(Call memory _call)
-        internal
-        returns (bytes memory returnData)
-    {
+    function call(
+        Call memory _call
+    ) internal returns (bytes memory returnData) {
         return
             Address.functionCallWithValue(
                 TypeCasts.bytes32ToAddress(_call.to),
@@ -36,11 +35,9 @@ library CallLib {
             );
     }
 
-    function staticcall(StaticCall memory _call)
-        private
-        view
-        returns (bytes memory)
-    {
+    function staticcall(
+        StaticCall memory _call
+    ) private view returns (bytes memory) {
         return
             Address.functionStaticCall(
                 TypeCasts.bytes32ToAddress(_call.to),
@@ -48,11 +45,9 @@ library CallLib {
             );
     }
 
-    function staticcall(StaticCallWithCallback memory _call)
-        internal
-        view
-        returns (bytes memory callback)
-    {
+    function staticcall(
+        StaticCallWithCallback memory _call
+    ) internal view returns (bytes memory callback) {
         return bytes.concat(_call.callback, staticcall(_call._call));
     }
 
@@ -67,11 +62,9 @@ library CallLib {
         }
     }
 
-    function multistaticcall(StaticCallWithCallback[] memory _calls)
-        internal
-        view
-        returns (bytes[] memory)
-    {
+    function multistaticcall(
+        StaticCallWithCallback[] memory _calls
+    ) internal view returns (bytes[] memory) {
         uint256 i = 0;
         uint256 len = _calls.length;
         bytes[] memory callbacks = new bytes[](len);
@@ -95,19 +88,17 @@ library CallLib {
         }
     }
 
-    function build(bytes32 to, bytes memory data)
-        internal
-        pure
-        returns (StaticCall memory)
-    {
+    function build(
+        bytes32 to,
+        bytes memory data
+    ) internal pure returns (StaticCall memory) {
         return StaticCall(to, data);
     }
 
-    function build(address to, bytes memory data)
-        internal
-        pure
-        returns (StaticCall memory)
-    {
+    function build(
+        address to,
+        bytes memory data
+    ) internal pure returns (StaticCall memory) {
         return build(TypeCasts.addressToBytes32(to), data);
     }
 
