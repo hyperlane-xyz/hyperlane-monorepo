@@ -10,6 +10,7 @@ members = [
     "hyperlane-base",
     "hyperlane-core",
     "hyperlane-test",
+    "hyperlane-rust-challenge",
     "sealevel/client",
     "sealevel/libraries/access-control",
     "sealevel/libraries/account-utils",
