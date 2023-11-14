@@ -14,8 +14,8 @@ do
 done
 
 # Optional: remove the --block-time 1 to speedup tests for local runs
-anvil --chain-id 31337 -p 8545 --state /tmp/anvil1/state --block-time 1 > /dev/null &
-anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state --block-time 1 > /dev/null &
+anvil --chain-id 31337 -p 8545 --state /tmp/anvil1/state > /dev/null &
+anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state > /dev/null &
 sleep 1
 
 set -e
@@ -131,7 +131,7 @@ docker run \
     -e HYP_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
     gcr.io/abacus-labs-dev/hyperlane-agent:81dc179-20231108-123442 ./relayer > /tmp/relayer/relayer-logs.txt &
 
-sleep 5
+sleep 10
 echo "Done running relayer, checking message delivery statuses"
 
 for i in "1 $MESSAGE1_ID" "2 $MESSAGE2_ID"

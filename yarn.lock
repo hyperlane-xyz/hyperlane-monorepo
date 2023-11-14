@@ -4023,7 +4023,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cli@workspace:typescript/cli"
   dependencies:
-    "@hyperlane-xyz/sdk": 3.1.0-beta3
+    "@hyperlane-xyz/sdk": 3.1.1
     "@inquirer/prompts": ^3.0.0
     "@types/node": ^18.14.5
     "@types/yargs": ^17.0.24
@@ -4043,12 +4043,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@3.1.0-beta3, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@3.1.1, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
     "@eth-optimism/contracts": ^0.6.0
-    "@hyperlane-xyz/utils": 3.1.0-beta3
+    "@hyperlane-xyz/utils": 3.1.1
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts": ^4.8.0
@@ -4071,12 +4071,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@3.1.0-beta3, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@3.1.1, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
-    "@hyperlane-xyz/core": 3.1.0-beta3
-    "@hyperlane-xyz/sdk": 3.1.0-beta3
+    "@hyperlane-xyz/core": 3.1.1
+    "@hyperlane-xyz/sdk": 3.1.1
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts-upgradeable": ^4.8.0
@@ -4116,9 +4116,9 @@ __metadata:
     "@ethersproject/experimental": ^5.7.0
     "@ethersproject/hardware-wallets": ^5.7.0
     "@ethersproject/providers": ^5.7.2
-    "@hyperlane-xyz/helloworld": 3.1.0-beta3
-    "@hyperlane-xyz/sdk": 3.1.0-beta3
-    "@hyperlane-xyz/utils": 3.1.0-beta3
+    "@hyperlane-xyz/helloworld": 3.1.1
+    "@hyperlane-xyz/sdk": 3.1.1
+    "@hyperlane-xyz/utils": 3.1.1
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-etherscan": ^3.0.3
     "@nomiclabs/hardhat-waffle": ^2.0.3
@@ -4162,14 +4162,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@3.1.0-beta3, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@3.1.1, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
     "@cosmjs/cosmwasm-stargate": ^0.31.3
     "@cosmjs/stargate": ^0.31.3
-    "@hyperlane-xyz/core": 3.1.0-beta3
-    "@hyperlane-xyz/utils": 3.1.0-beta3
+    "@hyperlane-xyz/core": 3.1.1
+    "@hyperlane-xyz/utils": 3.1.1
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@solana/spl-token": ^0.3.8
@@ -4200,7 +4200,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/utils@3.1.0-beta3, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@3.1.1, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:

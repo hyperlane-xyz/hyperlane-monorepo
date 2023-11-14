@@ -1,9 +1,9 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "3.1.0-beta3",
+  "version": "3.1.1",
   "description": "A command-line utility for common Hyperlane operations",
   "dependencies": {
-    "@hyperlane-xyz/sdk": "3.1.0-beta3",
+    "@hyperlane-xyz/sdk": "3.1.1",
     "@inquirer/prompts": "^3.0.0",
     "chalk": "^5.3.0",
     "ethers": "^5.7.2",
