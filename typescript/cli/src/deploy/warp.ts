@@ -122,9 +122,7 @@ async function runBuildConfigStep({
 
   // Create configs that coalesce together values from the config file,
   // the artifacts, and the SDK as a fallback
-  const configMap: ChainMap<
-    TokenConfig & RouterConfig & { ismFactory: Address }
-  > = {
+  const configMap: ChainMap<TokenConfig & RouterConfig> = {
     [baseChainName]: {
       type: baseType,
       token:
@@ -137,7 +135,7 @@ async function runBuildConfigStep({
         base.interchainSecurityModule ||
         mergedContractAddrs[baseChainName].interchainSecurityModule ||
         mergedContractAddrs[baseChainName].multisigIsm,
-      ismFactory: mergedContractAddrs[baseChainName].routingIsmFactory, // fix when updating from routingIsm
+      // ismFactory: mergedContractAddrs[baseChainName].routingIsmFactory, // fix when updating from routingIsm
       foreignDeployment: base.foreignDeployment,
       name: baseMetadata.name,
       symbol: baseMetadata.symbol,
@@ -158,7 +156,7 @@ async function runBuildConfigStep({
         synthetic.interchainSecurityModule ||
         mergedContractAddrs[sChainName].interchainSecurityModule ||
         mergedContractAddrs[sChainName].multisigIsm,
-      ismFactory: mergedContractAddrs[sChainName].routingIsmFactory,
+      // ismFactory: mergedContractAddrs[sChainName].routingIsmFactory, // fix
       foreignDeployment: synthetic.foreignDeployment,
     };
   }
@@ -245,8 +243,8 @@ async function executeDeploy(params: DeployParams) {
   ]);
 
   const deployer = isNft
-    ? new HypERC721Deployer(multiProvider, configMap[params.origin].ismFactory)
-    : new HypERC20Deployer(multiProvider, configMap[params.origin].ismFactory);
+    ? new HypERC721Deployer(multiProvider)
+    : new HypERC20Deployer(multiProvider);
 
   const deployedContracts = await deployer.deploy(configMap);
   logGreen('Hyp token deployments complete');

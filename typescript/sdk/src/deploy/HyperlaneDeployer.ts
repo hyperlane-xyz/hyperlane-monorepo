@@ -197,29 +197,39 @@ export abstract class HyperlaneDeployer<
     getIsm: (contract: C) => Promise<Address>,
     setIsm: (contract: C, ism: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
-    const ismFactory =
-      this.options?.ismFactory ??
-      (() => {
-        throw new Error('No ISM factory provided');
-      })();
-
     const configuredIsm = await getIsm(contract);
-    const matches = await moduleMatchesConfig(
-      chain,
-      configuredIsm,
-      config,
-      this.multiProvider,
-      ismFactory.getContracts(chain),
-    );
+    let matches = false;
+    let targetIsm: Address;
+    if (typeof config === 'string') {
+      if (configuredIsm === config) {
+        matches = true;
+      } else {
+        targetIsm = config;
+      }
+    } else {
+      const ismFactory =
+        this.options?.ismFactory ??
+        (() => {
+          throw new Error('No ISM factory provided');
+        })();
+
+      matches = await moduleMatchesConfig(
+        chain,
+        configuredIsm,
+        config,
+        this.multiProvider,
+        ismFactory.getContracts(chain),
+      );
+      targetIsm = (await ismFactory.deploy(chain, config)).address;
+    }
     if (!matches) {
       await this.runIfOwner(chain, contract, async () => {
-        const targetIsm = await ismFactory.deploy(chain, config);
-        this.logger(`Set ISM on ${chain}`);
+        this.logger(`Set ISM on ${chain} with address ${targetIsm}`);
         await this.multiProvider.sendTransaction(
           chain,
-          setIsm(contract, targetIsm.address),
+          setIsm(contract, targetIsm),
         );
-        if (targetIsm.address !== (await getIsm(contract))) {
+        if (targetIsm !== (await getIsm(contract))) {
           throw new Error(`Set ISM failed on ${chain}`);
         }
       });
@@ -253,7 +263,7 @@ export abstract class HyperlaneDeployer<
     }
   }
 
-  protected async initMailboxClient(
+  protected async configureClient(
     local: ChainName,
     client: MailboxClient,
     config: MailboxClientConfig,
