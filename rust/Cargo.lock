@@ -3874,9 +3874,9 @@ dependencies = [
 
 [[package]]
 name = "hpl-interface"
-version = "0.0.2"
+version = "0.0.6-rc5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ce374f1f3bf048eacfff71e74ecf4700ef4e6d26085c9b3d89f5bb19bdf1ff5"
+checksum = "81f9e9d265630ce019d87c1e2931be566d9be4d155b65e483e93e60704801a3d"
 dependencies = [
  "bech32 0.9.1",
  "cosmwasm-schema",
@@ -3896,9 +3896,8 @@ dependencies = [
 
 [[package]]
 name = "hpl-interface"
-version = "0.0.6-rc5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81f9e9d265630ce019d87c1e2931be566d9be4d155b65e483e93e60704801a3d"
+version = "0.0.6-rc6"
+source = "git+https://github.com/many-things/cw-hyperlane?branch=develop#0adb31f8daf50b41f090fe47963aaa7f96693c2a"
 dependencies = [
  "bech32 0.9.1",
  "cosmwasm-schema",
@@ -4157,7 +4156,7 @@ dependencies = [
  "cosmrs",
  "derive-new",
  "hex 0.4.3",
- "hpl-interface 0.0.2",
+ "hpl-interface 0.0.6-rc6",
  "hyper",
  "hyper-tls",
  "hyperlane-core",

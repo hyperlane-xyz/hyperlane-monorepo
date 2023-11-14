@@ -195,6 +195,8 @@ impl CosmosMailbox {
     async fn nonce_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
         let payload = mailbox::NonceRequest::default();
 
+        // let payload = hpl_interface::core::mailbox::MailboxQueryMsg::Nonce {};
+
         let data = self
             .provider
             .wasm_query(GeneralMailboxQuery::new(payload), block_height)
