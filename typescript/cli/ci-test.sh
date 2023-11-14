@@ -6,6 +6,9 @@ docker ps -aq | xargs docker stop | xargs docker rm
 rm -rf /tmp/anvil*
 rm -rf /tmp/relayer
 
+# kill child processes on exit
+trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+
 # Setup directories for anvil chains
 for CHAIN in anvil1 anvil2
 do
@@ -87,7 +90,6 @@ for i in "anvil1 8545 ANVIL1" "anvil2 8555 ANVIL2"
 do
     set -- $i
     echo "Running validator on $1"
-
     export CONFIG_FILES=/tmp/${AGENT_CONFIG_FILENAME}
     export HYP_ORIGINCHAINNAME=$1
     export HYP_CHAINS_${3}_BLOCKS_REORGPERIOD=0
@@ -101,7 +103,6 @@ do
     export HYP_TRACING_FMT=compact
 
     cargo run --bin validator > /tmp/${1}/validator-logs.txt &
-
 done
 
 echo "Validator running, sleeping to let it sync"
@@ -114,13 +115,13 @@ cat /tmp/anvil1/validator/announcement.json
 echo "Running relayer"
 
 export HYP_RELAYCHAINS=anvil1,anvil2
-export HYP_ALLOWLOCALCHECKPOINTSYNCERS=true 
-export HYP_DB=/data/relayer
+export HYP_ALLOWLOCALCHECKPOINTSYNCERS=true
+export HYP_DB=/tmp/relayer
 export HYP_GASPAYMENTENFORCEMENT='[{"type":"none"}]'
 export HYP_CHAINS_ANVIL1_SIGNER_TYPE=hexKey
-export HYP_CHAINS_ANVIL1_SIGNER_TYPE=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
+export HYP_CHAINS_ANVIL1_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
 export HYP_CHAINS_ANVIL2_SIGNER_TYPE=hexKey
-export HYP_CHAINS_ANVIL2_SIGNER_TYPE=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 
+export HYP_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 
 
 cargo run --bin relayer > /tmp/relayer/relayer-logs.txt &
 
