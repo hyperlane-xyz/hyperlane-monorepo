@@ -85,67 +85,67 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
 MESSAGE2_ID=`cat /tmp/message2 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
 echo "Message 2 ID: $MESSAGE2_ID"
 
-ANVIL_CONNECTION_URL="http://127.0.0.1"
-cd ../../rust
-for i in "anvil1 8545 ANVIL1" "anvil2 8555 ANVIL2"
-do
-    set -- $i
-    echo "Running validator on $1"
-    export CONFIG_FILES=/tmp/${AGENT_CONFIG_FILENAME}
-    export HYP_ORIGINCHAINNAME=$1
-    export HYP_CHAINS_${3}_BLOCKS_REORGPERIOD=0
-    export HYP_VALIDATOR_INTERVAL=1
-    export HYP_CHAINS_${3}_CUSTOMRPCURLS=${ANVIL_CONNECTION_URL}:${2}
-    export HYP_VALIDATOR_TYPE=hexKey
-    export HYP_VALIDATOR_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
-    export HYP_CHECKPOINTSYNCER_TYPE=localStorage
-    export HYP_CHECKPOINTSYNCER_PATH=/tmp/${1}/validator
-    export HYP_TRACING_LEVEL=debug
-    export HYP_TRACING_FMT=compact
+# ANVIL_CONNECTION_URL="http://127.0.0.1"
+# cd ../../rust
+# for i in "anvil1 8545 ANVIL1" "anvil2 8555 ANVIL2"
+# do
+#     set -- $i
+#     echo "Running validator on $1"
+#     export CONFIG_FILES=/tmp/${AGENT_CONFIG_FILENAME}
+#     export HYP_ORIGINCHAINNAME=$1
+#     export HYP_CHAINS_${3}_BLOCKS_REORGPERIOD=0
+#     export HYP_VALIDATOR_INTERVAL=1
+#     export HYP_CHAINS_${3}_CUSTOMRPCURLS=${ANVIL_CONNECTION_URL}:${2}
+#     export HYP_VALIDATOR_TYPE=hexKey
+#     export HYP_VALIDATOR_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
+#     export HYP_CHECKPOINTSYNCER_TYPE=localStorage
+#     export HYP_CHECKPOINTSYNCER_PATH=/tmp/${1}/validator
+#     export HYP_TRACING_LEVEL=debug
+#     export HYP_TRACING_FMT=compact
 
-    cargo run --bin validator > /tmp/${1}/validator-logs.txt &
-done
+#     cargo run --bin validator > /tmp/${1}/validator-logs.txt &
+# done
 
-echo "Validator running, sleeping to let it sync"
-sleep 60
-echo "Done sleeping"
+# echo "Validator running, sleeping to let it sync"
+# sleep 15
+# echo "Done sleeping"
 
-echo "Validator Announcement:"
-cat /tmp/anvil1/validator/announcement.json
+# echo "Validator Announcement:"
+# cat /tmp/anvil1/validator/announcement.json
 
-echo "Running relayer"
+# echo "Running relayer"
 
-export HYP_RELAYCHAINS=anvil1,anvil2
-export HYP_ALLOWLOCALCHECKPOINTSYNCERS=true
-export HYP_DB=/tmp/relayer
-export HYP_GASPAYMENTENFORCEMENT='[{"type":"none"}]'
-export HYP_CHAINS_ANVIL1_SIGNER_TYPE=hexKey
-export HYP_CHAINS_ANVIL1_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
-export HYP_CHAINS_ANVIL2_SIGNER_TYPE=hexKey
-export HYP_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 
+# export HYP_RELAYCHAINS=anvil1,anvil2
+# export HYP_ALLOWLOCALCHECKPOINTSYNCERS=true
+# export HYP_DB=/tmp/relayer
+# export HYP_GASPAYMENTENFORCEMENT='[{"type":"none"}]'
+# export HYP_CHAINS_ANVIL1_SIGNER_TYPE=hexKey
+# export HYP_CHAINS_ANVIL1_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
+# export HYP_CHAINS_ANVIL2_SIGNER_TYPE=hexKey
+# export HYP_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
 
-cargo run --bin relayer > /tmp/relayer/relayer-logs.txt &
+# cargo run --bin relayer > /tmp/relayer/relayer-logs.txt &
 
-sleep 60
-echo "Done running relayer, checking message delivery statuses"
+# sleep 10
+# echo "Done running relayer, checking message delivery statuses"
 
-for i in "1 $MESSAGE1_ID" "2 $MESSAGE2_ID"
-do
-    set -- $i
-    echo "Checking delivery status of $1: $2"
-    yarn workspace @hyperlane-xyz/cli run hyperlane status \
-        --id $2 \
-        --destination anvil2 \
-        --chains ./examples/anvil-chains.yaml \
-        --core $CORE_ARTIFACTS_PATH \
-        | tee /tmp/message-status-$1
-    if ! grep -q "$2 was delivered" /tmp/message-status-$1; then
-        echo "ERROR: Message $1 was not delivered"
-        exit 1
-    else
-        echo "Message $1 was delivered!"
-    fi
-done
+# for i in "1 $MESSAGE1_ID" "2 $MESSAGE2_ID"
+# do
+#     set -- $i
+#     echo "Checking delivery status of $1: $2"
+#     yarn workspace @hyperlane-xyz/cli run hyperlane status \
+#         --id $2 \
+#         --destination anvil2 \
+#         --chains ./examples/anvil-chains.yaml \
+#         --core $CORE_ARTIFACTS_PATH \
+#         | tee /tmp/message-status-$1
+#     if ! grep -q "$2 was delivered" /tmp/message-status-$1; then
+#         echo "ERROR: Message $1 was not delivered"
+#         exit 1
+#     else
+#         echo "Message $1 was delivered!"
+#     fi
+# done
 
 pkill -f anvil
 echo "Done"

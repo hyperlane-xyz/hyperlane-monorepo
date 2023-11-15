@@ -18,7 +18,7 @@ export async function assertNativeBalances(
         .getProvider(chain)
         .getBalance(address);
       const balance = ethers.utils.formatEther(balanceWei);
-      if (balanceWei.lte(minBalanceWei))
+      if (balanceWei.lt(minBalanceWei))
         throw new Error(
           `${address} has insufficient balance on ${chain}. At least ${minBalance} required but found ${balance.toString()} ETH`,
         );
@@ -37,7 +37,7 @@ export async function assertTokenBalance(
   const provider = multiProvider.getProvider(chain);
   const tokenContract = ERC20__factory.connect(token, provider);
   const balanceWei = await tokenContract.balanceOf(address);
-  if (balanceWei.lte(minBalanceWei))
+  if (balanceWei.lt(minBalanceWei))
     throw new Error(
       `${address} has insufficient balance on ${chain} for token ${token}. At least ${minBalanceWei} wei required but found ${balanceWei.toString()} wei`,
     );
