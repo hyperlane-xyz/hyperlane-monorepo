@@ -14,7 +14,7 @@ import {
   MultisigIsmConfig,
   ProtocolFeeHookConfig,
   RoutingIsmConfig,
-  defaultMultisigIsmConfigs,
+  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
@@ -26,7 +26,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
     supportedChainNames
       .filter((chain) => chain !== local)
-      .map((origin) => [origin, defaultMultisigIsmConfigs[origin]]),
+      .map((origin) => [origin, defaultMultisigConfigs[origin]]),
   );
 
   const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig => ({
