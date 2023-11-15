@@ -49,7 +49,9 @@ async function main() {
 
   // TODO: make this more generic
   const deployerAddress =
-    environment === 'testnet4'
+    environment === 'test'
+      ? '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' // anvil account 0
+      : environment === 'testnet4'
       ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
       : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
