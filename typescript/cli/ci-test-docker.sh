@@ -25,12 +25,12 @@ export DEBUG=hyperlane:*
 
 echo "Deploying contracts to anvil1 and anvil2"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
-    --chain-configs ./examples/anvil-chains.yaml \
-    --chains anvil1,anvil2 \
+    --targets anvil1,anvil2 \
+    --chains ./examples/anvil-chains.yaml \
     --artifacts /tmp/empty-artifacts.json \
-    --out /tmp \
     --ism ./examples/multisig-ism.yaml \
     --hook ./examples/hook-config.yaml \
+    --out /tmp \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
 
