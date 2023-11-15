@@ -12,8 +12,7 @@ interface IAggregationIsm is IInterchainSecurityModule {
      * @return modules The array of ISM addresses
      * @return threshold The number of modules needed to verify
      */
-    function modulesAndThreshold(bytes calldata _message)
-        external
-        view
-        returns (address[] memory modules, uint8 threshold);
+    function modulesAndThreshold(
+        bytes calldata _message
+    ) external view returns (address[] memory modules, uint8 threshold);
 }

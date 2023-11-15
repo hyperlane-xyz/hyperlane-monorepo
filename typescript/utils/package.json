@@ -11,7 +11,7 @@
   "devDependencies": {
     "chai": "^4.3.0",
     "prettier": "^2.8.8",
-    "typescript": "^5.1.6"
+    "typescript": "5.1.6"
   },
   "homepage": "https://www.hyperlane.xyz",
   "keywords": [

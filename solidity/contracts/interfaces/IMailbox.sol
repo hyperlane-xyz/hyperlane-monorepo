@@ -96,12 +96,12 @@ interface IMailbox {
         IPostDispatchHook customHook
     ) external view returns (uint256 fee);
 
-    function process(bytes calldata metadata, bytes calldata message)
-        external
-        payable;
+    function process(
+        bytes calldata metadata,
+        bytes calldata message
+    ) external payable;
 
-    function recipientIsm(address recipient)
-        external
-        view
-        returns (IInterchainSecurityModule module);
+    function recipientIsm(
+        address recipient
+    ) external view returns (IInterchainSecurityModule module);
 }

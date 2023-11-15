@@ -35,10 +35,9 @@ contract MockPortalBridge is IPortalTokenBridge {
         return true;
     }
 
-    function completeTransferWithPayload(bytes memory encodedVm)
-        external
-        returns (bytes memory)
-    {
+    function completeTransferWithPayload(
+        bytes memory encodedVm
+    ) external returns (bytes memory) {
         (uint32 _originDomain, uint224 _nonce, uint256 _amount) = abi.decode(
             encodedVm,
             (uint32, uint224, uint256)
@@ -53,11 +52,9 @@ contract MockPortalBridge is IPortalTokenBridge {
             );
     }
 
-    function parseTransferWithPayload(bytes memory encoded)
-        external
-        pure
-        returns (TransferWithPayload memory transfer)
-    {
+    function parseTransferWithPayload(
+        bytes memory encoded
+    ) external pure returns (TransferWithPayload memory transfer) {
         (bytes32 tokenAddress, bytes memory payload) = abi.decode(
             encoded,
             (bytes32, bytes)

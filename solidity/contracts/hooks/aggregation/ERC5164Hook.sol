@@ -45,12 +45,10 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
 
     // ============ Internal Functions ============
 
-    function _quoteDispatch(bytes calldata, bytes calldata)
-        internal
-        pure
-        override
-        returns (uint256)
-    {
+    function _quoteDispatch(
+        bytes calldata,
+        bytes calldata
+    ) internal pure override returns (uint256) {
         return 0; // EIP-5164 doesn't enforce a gas abstraction
     }
 

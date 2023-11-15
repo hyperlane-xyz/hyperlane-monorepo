@@ -44,9 +44,10 @@ contract ValidatorAnnounceTest is Test {
         assertEq(encodedA, encodedB);
     }
 
-    function assertEqStrArrArr(string[][] memory a, string[][] memory b)
-        internal
-    {
+    function assertEqStrArrArr(
+        string[][] memory a,
+        string[][] memory b
+    ) internal {
         bytes memory encodedA = abi.encode(a);
         bytes memory encodedB = abi.encode(b);
         assertEq(encodedA, encodedB);

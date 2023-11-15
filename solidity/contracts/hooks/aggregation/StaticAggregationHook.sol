@@ -29,10 +29,10 @@ contract StaticAggregationHook is AbstractPostDispatchHook {
     }
 
     /// @inheritdoc AbstractPostDispatchHook
-    function _postDispatch(bytes calldata metadata, bytes calldata message)
-        internal
-        override
-    {
+    function _postDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal override {
         address[] memory _hooks = hooks(message);
         uint256 count = _hooks.length;
         for (uint256 i = 0; i < count; i++) {
@@ -49,12 +49,10 @@ contract StaticAggregationHook is AbstractPostDispatchHook {
     }
 
     /// @inheritdoc AbstractPostDispatchHook
-    function _quoteDispatch(bytes calldata metadata, bytes calldata message)
-        internal
-        view
-        override
-        returns (uint256)
-    {
+    function _quoteDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal view override returns (uint256) {
         address[] memory _hooks = hooks(message);
         uint256 count = _hooks.length;
         uint256 total = 0;

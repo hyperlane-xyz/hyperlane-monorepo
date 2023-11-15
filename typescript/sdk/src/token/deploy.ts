@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import debug from 'debug';
 import { providers } from 'ethers';
 

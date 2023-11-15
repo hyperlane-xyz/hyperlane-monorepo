@@ -1,11 +1,10 @@
-FROM node:16-alpine
+FROM node:18-alpine
 
 WORKDIR /hyperlane-monorepo
 
 RUN apk add --update --no-cache git g++ make py3-pip
 
-RUN yarn set version 3.2.0
-RUN yarn plugin import workspace-tools
+RUN yarn set version 4.0.1
 
 # Copy package.json and friends
 COPY package.json yarn.lock .yarnrc.yml ./
