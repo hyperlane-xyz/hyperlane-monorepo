@@ -68,7 +68,7 @@ jobs:
       - name: build test
         run: cargo build --release --bin run-locally
       - name: run CosmWasm test
-        run: cargo test --package run-locally --bin run-locally -- cosmos::test --nocapture
+        run: RUST_BACKTRACE=1 cargo test --package run-locally --bin run-locally -- cosmos::test --nocapture
       - name: run test (excluding CosmWasm)
         run: ./target/release/run-locally
         env:
