@@ -63,7 +63,7 @@ export async function createMultisigConfig({
 
   const result: MultisigConfigMap = {};
   let lastConfig: MultisigConfigMap['string'] | undefined = undefined;
-  let repeat = false;
+  const repeat = false;
   for (const chain of chains) {
     log(`Setting values for chain ${chain}`);
     if (lastConfig && repeat) {

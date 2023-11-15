@@ -30,6 +30,7 @@ import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
+import { readHookConfig } from '../config/hooks.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_BALANCE } from '../consts.js';
 import {
@@ -83,7 +84,7 @@ export async function runCoreDeploy({
   const artifacts = await runArtifactStep(chains, artifactsPath);
   const multisigConfig = await runIsmStep(chains, ismConfigPath);
   // TODO re-enable when hook config is actually used
-  // await runHookStep(chains, hookConfigPath);
+  await runHookStep(chains, hookConfigPath);
 
   const deploymentParams: DeployParams = {
     chains,
@@ -170,27 +171,29 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
   return configs;
 }
 
-// async function runHookStep(
-//   selectedChains: ChainName[],
-//   hookConfigPath?: string,
-// ) {
-//   const presetConfigChains = Object.keys(presetHookConfigs);
+async function runHookStep(
+  _selectedChains: ChainName[],
+  hookConfigPath?: string,
+) {
+  if ('TODO: Skip this step for now as values are unsused') return;
 
-//   if (!hookConfigPath) {
-//     logBlue(
-//       '\n',
-//       'Hyperlane instances can take an Interchain Security Module (ISM).',
-//     );
-//     hookConfigPath = await runFileSelectionStep(
-//       './configs/',
-//       'Hook config',
-//       'hook',
-//     );
-//   }
-//   const configs = readHookConfig(hookConfigPath);
-//   if (!configs) return;
-//   log(`Found hook configs for chains: ${Object.keys(configs).join(', ')}`);
-// }
+  // const presetConfigChains = Object.keys(presetHookConfigs);
+
+  if (!hookConfigPath) {
+    logBlue(
+      '\n',
+      'Hyperlane instances can take an Interchain Security Module (ISM).',
+    );
+    hookConfigPath = await runFileSelectionStep(
+      './configs/',
+      'Hook config',
+      'hook',
+    );
+  }
+  const configs = readHookConfig(hookConfigPath);
+  if (!configs) return;
+  log(`Found hook configs for chains: ${Object.keys(configs).join(', ')}`);
+}
 
 interface DeployParams {
   chains: string[];
