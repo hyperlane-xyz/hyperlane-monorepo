@@ -24,7 +24,7 @@ on:
 jobs:
   automerge:
 
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
 
     steps:
       - name: automerge
@@ -38,7 +38,7 @@ jobs:
 
 # in rust.yml
   complete:
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
     needs: [build, test, lint]
 
     steps:
@@ -52,7 +52,7 @@ jobs:
 
 # in solidity.yml
   complete:
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
     needs: [install, lint, test]
 
     steps:

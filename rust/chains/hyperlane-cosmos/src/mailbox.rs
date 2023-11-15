@@ -249,7 +249,7 @@ impl CosmosMailboxIndexer {
     /// The message dispatch event type from the CW contract.
     const MESSAGE_DISPATCH_EVENT_TYPE: &str = "mailbox_dispatch";
 
-    /// Create a reference to a mailbox at a specific Ethereum address on some
+    /// Create a reference to a mailbox at a specific Cosmos address on some
     /// chain
     pub fn new(
         conf: ConnectionConf,
