@@ -2,12 +2,14 @@
 
 # Optional cleanup for previous runs, useful when running locally
 pkill -f anvil
-docker ps -aq | xargs docker stop | xargs docker rm
 rm -rf /tmp/anvil*
 rm -rf /tmp/relayer
 
-# kill child processes on exit
-trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+if [[ $OSTYPE == 'darwin'* ]]; then
+    # kill child processes on exit, but only locally because
+    # otherwise it causes the script exit code to be non-zero
+    trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+fi
 
 # Setup directories for anvil chains
 for CHAIN in anvil1 anvil2
@@ -105,7 +107,7 @@ do
 done
 
 echo "Validator running, sleeping to let it sync"
-sleep 15
+sleep 60
 echo "Done sleeping"
 
 echo "Validator Announcement:"
@@ -124,7 +126,7 @@ export HYP_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22f
 
 cargo run --bin relayer > /tmp/relayer/relayer-logs.txt &
 
-sleep 10
+sleep 60
 echo "Done running relayer, checking message delivery statuses"
 
 for i in "1 $MESSAGE1_ID" "2 $MESSAGE2_ID"
@@ -145,5 +147,5 @@ do
     fi
 done
 
-docker ps -aq | xargs docker stop | xargs docker rm
 pkill -f anvil
+echo "Done"
