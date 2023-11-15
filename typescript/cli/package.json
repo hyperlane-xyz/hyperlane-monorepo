@@ -5,6 +5,7 @@
   "dependencies": {
     "@hyperlane-xyz/sdk": "3.1.2",
     "@inquirer/prompts": "^3.0.0",
+    "bignumber.js": "^9.1.1",
     "chalk": "^5.3.0",
     "ethers": "^5.7.2",
     "yaml": "^2.3.1",
@@ -52,5 +53,5 @@
     "Deployment",
     "Typescript"
   ],
-  "packageManager": "yarn@3.2.0"
+  "packageManager": "yarn@4.0.1"
 }

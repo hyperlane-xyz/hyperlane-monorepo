@@ -45,7 +45,7 @@
   ],
   "license": "Apache-2.0",
   "main": "dist/src/index.js",
-  "packageManager": "yarn@3.2.0",
+  "packageManager": "yarn@4.0.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/hyperlane-xyz/hyperlane-monorepo"

@@ -3984,6 +3984,7 @@ __metadata:
     "@types/yargs": "npm:^17.0.24"
     "@typescript-eslint/eslint-plugin": "npm:^5.62.0"
     "@typescript-eslint/parser": "npm:^5.62.0"
+    bignumber.js: "npm:^9.1.1"
     chalk: "npm:^5.3.0"
     eslint: "npm:^8.43.0"
     eslint-config-prettier: "npm:^8.8.0"

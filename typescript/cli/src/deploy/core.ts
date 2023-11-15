@@ -30,7 +30,6 @@ import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
-import { presetHookConfigs, readHookConfig } from '../config/hooks.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_BALANCE } from '../consts.js';
 import {
@@ -83,7 +82,8 @@ export async function runCoreDeploy({
   }
   const artifacts = await runArtifactStep(chains, artifactsPath);
   const multisigConfig = await runIsmStep(chains, ismConfigPath);
-  await runHookStep(chains, hookConfigPath);
+  // TODO re-enable when hook config is actually used
+  // await runHookStep(chains, hookConfigPath);
 
   const deploymentParams: DeployParams = {
     chains,
@@ -170,31 +170,27 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
   return configs;
 }
 
-async function runHookStep(
-  selectedChains: ChainName[],
-  hookConfigPath?: string,
-) {
-  const presetConfigChains = Object.keys(presetHookConfigs);
-  console.log(
-    'presetConfigChains',
-    JSON.stringify(presetConfigChains, null, 4),
-  );
+// async function runHookStep(
+//   selectedChains: ChainName[],
+//   hookConfigPath?: string,
+// ) {
+//   const presetConfigChains = Object.keys(presetHookConfigs);
 
-  if (!hookConfigPath) {
-    logBlue(
-      '\n',
-      'Hyperlane instances can take an Interchain Security Module (ISM).',
-    );
-    hookConfigPath = await runFileSelectionStep(
-      './configs/',
-      'Hook config',
-      'hook',
-    );
-  }
-  const configs = readHookConfig(hookConfigPath);
-  if (!configs) return;
-  log(`Found hook configs for chains: ${Object.keys(configs).join(', ')}`);
-}
+//   if (!hookConfigPath) {
+//     logBlue(
+//       '\n',
+//       'Hyperlane instances can take an Interchain Security Module (ISM).',
+//     );
+//     hookConfigPath = await runFileSelectionStep(
+//       './configs/',
+//       'Hook config',
+//       'hook',
+//     );
+//   }
+//   const configs = readHookConfig(hookConfigPath);
+//   if (!configs) return;
+//   log(`Found hook configs for chains: ${Object.keys(configs).join(', ')}`);
+// }
 
 interface DeployParams {
   chains: string[];
@@ -306,7 +302,6 @@ async function executeDeploy({
   // 4. Deploy core contracts to chains
   log(`Deploying core contracts to ${chains.join(', ')}`);
   const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
-  console.log('Caching addresses map', artifacts);
   coreDeployer.cacheAddressesMap(artifacts);
   const coreConfigs = buildCoreConfigMap(
     owner,
@@ -314,7 +309,6 @@ async function executeDeploy({
     defaultIsms,
     multisigConfig,
   );
-  console.log('===coreconfigs', coreConfigs); //TODO remove
   const coreContracts = await coreDeployer.deploy(coreConfigs);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
   logGreen('Core contracts deployed');
@@ -486,7 +480,6 @@ async function writeAgentConfig(
       !!v.validatorAnnounce,
   ) as ChainMap<HyperlaneDeploymentArtifacts>;
 
-  // TODO for v3 only build new agent config schema
   const agentConfig = buildAgentConfig(
     Object.keys(filteredAddressesMap),
     multiProvider,

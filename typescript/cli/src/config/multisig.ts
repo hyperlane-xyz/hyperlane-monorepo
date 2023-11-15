@@ -1,4 +1,4 @@
-import { confirm, input, select } from '@inquirer/prompts';
+import { input, select } from '@inquirer/prompts';
 import { z } from 'zod';
 
 import { ChainMap, IsmType, MultisigIsmConfig } from '@hyperlane-xyz/sdk';
@@ -71,8 +71,6 @@ export async function createMultisigConfig({
       continue;
     }
     // TODO consider using default and not offering options here
-    // legacy_multisig is being deprecated in v3
-    // Default should probably be aggregation(message_id, merkle_root)
     const moduleType = await select({
       message: 'Select multisig type',
       choices: [
@@ -100,9 +98,10 @@ export async function createMultisigConfig({
     };
     result[chain] = lastConfig;
 
-    repeat = await confirm({
-      message: 'Use this same config for remaining chains?',
-    });
+    // TODO consider re-enabling. Disabling based on feedback from @nambrot for now.
+    // repeat = await confirm({
+    //   message: 'Use this same config for remaining chains?',
+    // });
   }
 
   if (isValidMultisigConfig(result)) {

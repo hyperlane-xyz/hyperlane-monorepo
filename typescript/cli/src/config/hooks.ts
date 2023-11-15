@@ -1,4 +1,5 @@
 import { confirm, input, select } from '@inquirer/prompts';
+import { BigNumber } from 'bignumber.js';
 import { ethers } from 'ethers';
 import { z } from 'zod';
 
@@ -15,8 +16,12 @@ import {
   defaultMultisigIsmConfigs,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
-import type { Address } from '@hyperlane-xyz/utils';
-import { objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  normalizeAddressEvm,
+  objMap,
+  toWei,
+} from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen, logRed } from '../../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
@@ -55,13 +60,15 @@ export function presetHookConfigs(
   destinationChains: ChainName[],
   ismConfig?: MultisigIsmConfig,
 ) {
-  const gasOracleType: ChainMap<GasOracleContractType> =
-    destinationChains.reduce<ChainMap<GasOracleContractType>>((acc, chain) => {
-      acc[chain] = GasOracleContractType.StorageGasOracle;
-      return acc;
-    }, {});
+  const gasOracleType = destinationChains.reduce<
+    ChainMap<GasOracleContractType>
+  >((acc, chain) => {
+    acc[chain] = GasOracleContractType.StorageGasOracle;
+    return acc;
+  }, {});
   const overhead = destinationChains.reduce<ChainMap<number>>((acc, chain) => {
-    let validatorThreshold, validatorCount;
+    let validatorThreshold: number;
+    let validatorCount: number;
     if (ismConfig) {
       validatorThreshold = ismConfig.threshold;
       validatorCount = ismConfig.validators.length;
@@ -78,6 +85,7 @@ export function presetHookConfigs(
     return acc;
   }, {});
 
+  // TODO improve types here to avoid need for `as` casts
   return {
     required: {
       type: HookType.PROTOCOL_FEE,
@@ -158,61 +166,57 @@ export async function createHookConfig({
         ],
         pageSize: 5,
       });
-      switch (hookType) {
-        case 'merkle_tree': {
-          result[chain] = {
-            ...result[chain],
-            [hookRequirements]: { type: HookType.MERKLE_TREE },
-          };
-          break;
+      if (hookType === 'merkle_tree') {
+        result[chain] = {
+          ...result[chain],
+          [hookRequirements]: { type: HookType.MERKLE_TREE },
+        };
+      } else if (hookType === 'protocol_fee') {
+        const owner = await input({
+          message: 'Enter owner address',
+        });
+        const ownerAddress = normalizeAddressEvm(owner);
+        let beneficiary;
+        let sameAsOwner = false;
+        sameAsOwner = await confirm({
+          message: 'Use this same address for the beneficiary?',
+        });
+        if (sameAsOwner) {
+          beneficiary = ownerAddress;
+        } else {
+          beneficiary = await input({
+            message: 'Enter beneficiary address',
+          });
         }
-        case 'protocol_fee': {
-          const owner = await input({
-            message: 'Enter owner address',
-          });
-          const ownerAddress = ethers.utils.getAddress(owner);
-          let beneficiary;
-          let sameAsOwner = false;
-          sameAsOwner = await confirm({
-            message: 'Use this same address for the beneficiary?',
-          });
-          if (sameAsOwner) {
-            beneficiary = ownerAddress;
-          } else {
-            beneficiary = await input({
-              message: 'Enter beneficiary address',
-            });
-          }
-          const beneficiaryAddress = ethers.utils.getAddress(beneficiary);
-          // TODO: input in gwei, wei, etc
-          const maxProtocolFee = ethers.utils.parseUnits(
-            await input({
-              message: 'Enter max protocol fee (in 10^18)',
-            }),
-            'ether',
-          );
-          const protocolFee = ethers.utils.parseUnits(
-            await input({
-              message: 'Enter protocol fee (in 10^18)',
-            }),
-            'ether',
-          );
-          if (protocolFee.gt(maxProtocolFee)) {
-            errorRed('Protocol fee cannot be greater than max protocol fee');
-            throw new Error('Invalid protocol fee');
-          }
+        const beneficiaryAddress = normalizeAddressEvm(beneficiary);
+        // TODO: input in gwei, wei, etc
+        const maxProtocolFee = toWei(
+          await input({
+            message: 'Enter max protocol fee in (e.g. 1.0)',
+          }),
+        );
+        const protocolFee = toWei(
+          await input({
+            message: 'Enter protocol fee (e.g. 1.0)',
+          }),
+        );
+        if (BigNumber(protocolFee).gt(maxProtocolFee)) {
+          errorRed('Protocol fee cannot be greater than max protocol fee');
+          throw new Error('Invalid protocol fee');
+        }
 
-          result[chain] = {
-            ...result[chain],
-            [hookRequirements]: {
-              type: HookType.PROTOCOL_FEE,
-              maxProtocolFee: maxProtocolFee.toString(),
-              protocolFee: protocolFee.toString(),
-              beneficiary: beneficiaryAddress,
-              owner: ownerAddress,
-            },
-          };
-        }
+        result[chain] = {
+          ...result[chain],
+          [hookRequirements]: {
+            type: HookType.PROTOCOL_FEE,
+            maxProtocolFee: maxProtocolFee.toString(),
+            protocolFee: protocolFee.toString(),
+            beneficiary: beneficiaryAddress,
+            owner: ownerAddress,
+          },
+        };
+      } else {
+        throw new Error(`Invalid hook type: ${hookType}}`);
       }
     }
     if (isValidHookConfigMap(result)) {
