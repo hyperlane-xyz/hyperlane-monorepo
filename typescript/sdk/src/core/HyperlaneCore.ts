@@ -99,7 +99,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     destination: ChainName,
     delayMs?: number,
     maxAttempts?: number,
-  ): Promise<void> {
+  ): Promise<true> {
     await pollAsync(
       async () => {
         this.logger(`Checking if message ${messageId} was processed`);
@@ -107,7 +107,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         const delivered = await mailbox.delivered(messageId);
         if (delivered) {
           this.logger(`Message ${messageId} was processed`);
-          return;
+          return true;
         } else {
           throw new Error(`Message ${messageId} not yet processed`);
         }
@@ -115,7 +115,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       delayMs,
       maxAttempts,
     );
-    return;
+    return true;
   }
 
   waitForMessageProcessing(
@@ -142,6 +142,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         ),
       ),
     );
+    this.logger(`All messages processed for tx ${sourceTx.transactionHash}`);
   }
 
   // Redundant with static method but keeping for backwards compatibility

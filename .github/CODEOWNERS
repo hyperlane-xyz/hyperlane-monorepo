@@ -22,5 +22,8 @@ typescript/token @yorhodes @jmrossy @tkporter @aroralanuk
 ## Hello World
 typescript/helloworld @yorhodes @nambrot
 
+## CLI
+typescript/cli @jmrossy @yorhodes @aroralanuk
+
 ## Infra
 typescript/infra @tkporter @nambrot

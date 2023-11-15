@@ -1,12 +1,12 @@
 {
   "name": "@hyperlane-xyz/sdk",
   "description": "The official SDK for the Hyperlane Network",
-  "version": "3.1.0-beta3",
+  "version": "3.1.2",
   "dependencies": {
     "@cosmjs/cosmwasm-stargate": "^0.31.3",
     "@cosmjs/stargate": "^0.31.3",
-    "@hyperlane-xyz/core": "3.1.0-beta3",
-    "@hyperlane-xyz/utils": "3.1.0-beta3",
+    "@hyperlane-xyz/core": "3.1.2",
+    "@hyperlane-xyz/utils": "3.1.2",
     "@solana/spl-token": "^0.3.8",
     "@solana/web3.js": "^1.78.0",
     "@types/coingecko-api": "^1.0.10",
@@ -64,7 +64,6 @@
     "test:hardhat": "hardhat test $(find ./src -name \"*.hardhat-test.ts\")"
   },
   "types": "dist/index.d.ts",
-  "stableVersion": "1.5.0",
   "peerDependencies": {
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*"
