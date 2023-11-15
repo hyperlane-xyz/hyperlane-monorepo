@@ -52,11 +52,10 @@ abstract contract Router is MailboxClient, IMessageRecipient {
      * @param _domain The domain of the remote Application Router
      * @param _router The address of the remote Application Router
      */
-    function enrollRemoteRouter(uint32 _domain, bytes32 _router)
-        external
-        virtual
-        onlyOwner
-    {
+    function enrollRemoteRouter(
+        uint32 _domain,
+        bytes32 _router
+    ) external virtual onlyOwner {
         _enrollRemoteRouter(_domain, _router);
     }
 
@@ -80,11 +79,9 @@ abstract contract Router is MailboxClient, IMessageRecipient {
      * @notice Batch version of `unenrollRemoteRouter`
      * @param _domains The domains of the remote Application Routers
      */
-    function unenrollRemoteRouters(uint32[] calldata _domains)
-        external
-        virtual
-        onlyOwner
-    {
+    function unenrollRemoteRouters(
+        uint32[] calldata _domains
+    ) external virtual onlyOwner {
         uint256 length = _domains.length;
         for (uint256 i = 0; i < length; i += 1) {
             _unenrollRemoteRouter(_domains[i]);
@@ -121,10 +118,10 @@ abstract contract Router is MailboxClient, IMessageRecipient {
      * @param _domain The domain
      * @param _address The new router
      */
-    function _enrollRemoteRouter(uint32 _domain, bytes32 _address)
-        internal
-        virtual
-    {
+    function _enrollRemoteRouter(
+        uint32 _domain,
+        bytes32 _address
+    ) internal virtual {
         _routers.set(_domain, _address);
     }
 
@@ -141,11 +138,10 @@ abstract contract Router is MailboxClient, IMessageRecipient {
      * @param _domain The domain of the potential remote Application Router
      * @param _address The address of the potential remote Application Router
      */
-    function _isRemoteRouter(uint32 _domain, bytes32 _address)
-        internal
-        view
-        returns (bool)
-    {
+    function _isRemoteRouter(
+        uint32 _domain,
+        bytes32 _address
+    ) internal view returns (bool) {
         return routers(_domain) == _address;
     }
 
@@ -154,21 +150,17 @@ abstract contract Router is MailboxClient, IMessageRecipient {
      * @param _domain The domain of the chain for which to get the Application Router
      * @return _router The address of the remote Application Router on _domain
      */
-    function _mustHaveRemoteRouter(uint32 _domain)
-        internal
-        view
-        returns (bytes32)
-    {
+    function _mustHaveRemoteRouter(
+        uint32 _domain
+    ) internal view returns (bytes32) {
         (bool contained, bytes32 _router) = _routers.tryGet(_domain);
         require(contained, _domainNotFoundError(_domain));
         return _router;
     }
 
-    function _domainNotFoundError(uint32 _domain)
-        internal
-        pure
-        returns (string memory)
-    {
+    function _domainNotFoundError(
+        uint32 _domain
+    ) internal pure returns (string memory) {
         return
             string.concat(
                 "No router enrolled for domain: ",
@@ -176,11 +168,10 @@ abstract contract Router is MailboxClient, IMessageRecipient {
             );
     }
 
-    function _dispatch(uint32 _destinationDomain, bytes memory _messageBody)
-        internal
-        virtual
-        returns (bytes32)
-    {
+    function _dispatch(
+        uint32 _destinationDomain,
+        bytes memory _messageBody
+    ) internal virtual returns (bytes32) {
         return _dispatch(_destinationDomain, msg.value, _messageBody);
     }
 

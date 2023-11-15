@@ -191,11 +191,10 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
      * @param _metadata Metadata used by the ISM to verify `_message`.
      * @param _message Formatted Hyperlane message (refer to Message.sol).
      */
-    function process(bytes calldata _metadata, bytes calldata _message)
-        external
-        payable
-        override
-    {
+    function process(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) external payable override {
         /// CHECKS ///
 
         // Check that the message was intended for this mailbox.
@@ -391,11 +390,9 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
      * @param _recipient The message recipient whose ISM should be returned.
      * @return The ISM to use for `_recipient`.
      */
-    function recipientIsm(address _recipient)
-        public
-        view
-        returns (IInterchainSecurityModule)
-    {
+    function recipientIsm(
+        address _recipient
+    ) public view returns (IInterchainSecurityModule) {
         // use low-level staticcall in case of revert or empty return data
         (bool success, bytes memory returnData) = _recipient.staticcall(
             abi.encodeCall(

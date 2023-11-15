@@ -59,22 +59,20 @@ contract OPStackHook is AbstractMessageIdAuthHook {
     }
 
     // ============ Internal functions ============
-    function _quoteDispatch(bytes calldata, bytes calldata)
-        internal
-        pure
-        override
-        returns (uint256)
-    {
+    function _quoteDispatch(
+        bytes calldata,
+        bytes calldata
+    ) internal pure override returns (uint256) {
         return 0; // gas subsidized by the L2
     }
 
     /// @inheritdoc AbstractMessageIdAuthHook
-    function _sendMessageId(bytes calldata metadata, bytes memory payload)
-        internal
-        override
-    {
+    function _sendMessageId(
+        bytes calldata metadata,
+        bytes memory payload
+    ) internal override {
         require(
-            metadata.msgValue(0) < 2**255,
+            metadata.msgValue(0) < 2 ** 255,
             "OPStackHook: msgValue must be less than 2 ** 255"
         );
         l1Messenger.sendMessage{value: metadata.msgValue(0)}(

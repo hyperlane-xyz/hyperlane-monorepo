@@ -17,12 +17,9 @@ contract TestPostDispatchHook is AbstractPostDispatchHook {
         return uint8(IPostDispatchHook.Types.UNUSED);
     }
 
-    function supportsMetadata(bytes calldata)
-        public
-        pure
-        override
-        returns (bool)
-    {
+    function supportsMetadata(
+        bytes calldata
+    ) public pure override returns (bool) {
         return true;
     }
 
