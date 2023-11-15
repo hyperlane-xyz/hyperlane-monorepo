@@ -15,24 +15,34 @@ set -e
 
 RPC_URL=`yarn ts-node ./scripts/print-chain-metadatas.ts -e $ENVIRONMENT | jq -r ".$CHAIN.rpcUrls[0].http"`
 
-anvil --fork-url $RPC_URL --fork-retry-backoff 3 --compute-units-per-second 200 --silent &
+anvil --fork-url $RPC_URL --fork-retry-backoff 3 --compute-units-per-second 200 --gas-price 1 --silent &
 ANVIL_PID=$!
 
 while ! cast bn &> /dev/null; do
   sleep 1
 done
 
-echo "=== Run $MODULE checker against forked $CHAIN ==="
+# echo all subsequent commands
+set -x
+
 yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
 
-echo "=== Run $MODULE deployer against forked $CHAIN ==="
+# get balance
+DEPLOYER="0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba"
+BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+
 yarn ts-node ./scripts/deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
+
+AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+DEPLOY_DELTA="$((BEFORE-AFTER))"
 
 # build SDK to get the latest addresses
 yarn --cwd ../sdk build
 
-echo "=== Run $MODULE govern against forked $CHAIN ==="
+BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN --govern -m $MODULE
 
-echo "=== Run $MODULE checker against forked $CHAIN after governance ==="
+AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+GOVERN_DELTA="$((BEFORE-AFTER))"
+
 yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
