@@ -11,8 +11,8 @@ export const keyCommandOption: Options = {
 export const chainsCommandOption: Options = {
   type: 'string',
   description: 'A path to a JSON or YAML file with chain configs',
-  default: './configs/chain-config.yaml',
-  alias: 'cc',
+  default: './configs/chains.yaml',
+  alias: 'c',
 };
 
 export const outDirCommandOption: Options = {

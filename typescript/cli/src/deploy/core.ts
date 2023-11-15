@@ -176,7 +176,7 @@ async function runHookStep(
   _selectedChains: ChainName[],
   hookConfigPath?: string,
 ) {
-  if ('TODO: Skip this step for now as values are unsused') return;
+  if ('TODO: Skip this step for now as values are unused') return;
 
   // const presetConfigChains = Object.keys(presetHookConfigs);
 

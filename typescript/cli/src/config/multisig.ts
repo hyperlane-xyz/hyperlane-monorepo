@@ -8,7 +8,7 @@ import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
-import { readChainConfigIfExists } from './chain.js';
+import { readChainConfigsIfExists } from './chain.js';
 
 const MultisigConfigMapSchema = z.object({}).catchall(
   z.object({
@@ -58,7 +58,7 @@ export async function createMultisigConfig({
   chainConfigPath: string;
 }) {
   logBlue('Creating a new multisig config');
-  const customChains = readChainConfigIfExists(chainConfigPath);
+  const customChains = readChainConfigsIfExists(chainConfigPath);
   const chains = await runMultiChainSelectionStep(customChains);
 
   const result: MultisigConfigMap = {};
