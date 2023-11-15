@@ -1,12 +1,13 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{env, fs};
 
 use cosmwasm_schema::cw_serde;
 use hpl_interface::types::bech32_decode;
 use macro_rules_attribute::apply;
+use maplit::hashmap;
 use tempfile::tempdir;
 
 mod cli;
@@ -26,7 +27,7 @@ use crate::cosmos::link::link_networks;
 use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
-use crate::AGENT_BIN_PATH;
+use crate::{fetch_metric, AGENT_BIN_PATH};
 use cli::{OsmosisCLI, OsmosisEndpoint};
 
 use self::deploy::deploy_cw_hyperlane;
@@ -290,6 +291,7 @@ fn launch_cosmos_relayer(
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]")
+        .hyp_env("METRICSPORT", 9093.to_string())
         .spawn("RLY");
 
     relayer
@@ -300,6 +302,7 @@ const ENV_CW_HYPERLANE_PATH_KEY: &str = "E2E_CW_HYPERLANE_PATH";
 
 #[allow(dead_code)]
 fn run_locally() {
+    const TIMEOUT_SECS: u64 = 60 * 10;
     let debug = false;
 
     log!("Building rust...");
@@ -453,6 +456,7 @@ fn run_locally() {
     );
 
     // dispatch messages
+    let mut dispatched_messages = 0;
 
     for node in nodes.iter() {
         let targets = nodes
@@ -469,6 +473,7 @@ fn run_locally() {
         }
 
         for target in targets {
+            dispatched_messages += 1;
             let cli = OsmosisCLI::new(
                 osmosisd.clone(),
                 node.launch_resp.home_path.to_str().unwrap(),
@@ -504,7 +509,70 @@ fn run_locally() {
         relayer: hpl_rly.join(),
     };
 
-    sleep(Duration::from_secs(100)); // wait for a long time
+    // Mostly copy-pasta from `rust/utils/run-locally/src/main.rs`
+    // TODO: refactor to share code
+    let loop_start = Instant::now();
+    // give things a chance to fully start.
+    sleep(Duration::from_secs(5));
+    let mut failure_occurred = false;
+    loop {
+        // look for the end condition.
+        if termination_invariants_met(dispatched_messages).unwrap_or(false) {
+            // end condition reached successfully
+            break;
+        } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
+            // we ran out of time
+            log!("timeout reached before message submission was confirmed");
+            failure_occurred = true;
+            break;
+        }
+
+        sleep(Duration::from_secs(5));
+    }
+
+    if failure_occurred {
+        panic!("E2E tests failed");
+    } else {
+        log!("E2E tests passed");
+    }
+}
+
+fn termination_invariants_met(messages_expected: u32) -> eyre::Result<bool> {
+    let gas_payments_scraped = fetch_metric(
+        "9093",
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "gas_payment"},
+    )?
+    .iter()
+    .sum::<u32>();
+    let expected_gas_payments = messages_expected;
+    if gas_payments_scraped != expected_gas_payments {
+        log!(
+            "Scraper has scraped {} gas payments, expected {}",
+            gas_payments_scraped,
+            expected_gas_payments
+        );
+        return Ok(false);
+    }
+
+    let delivered_messages_scraped = fetch_metric(
+        "9093",
+        "hyperlane_operations_processed_count",
+        &hashmap! {"phase" => "confirmed"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if delivered_messages_scraped != messages_expected {
+        log!(
+            "Relayer confirmed {} submitted messages, expected {}",
+            delivered_messages_scraped,
+            messages_expected
+        );
+        return Ok(false);
+    }
+
+    log!("Termination invariants have been meet");
+    Ok(true)
 }
 
 #[cfg(test)]
