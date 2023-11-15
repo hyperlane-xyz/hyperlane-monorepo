@@ -6,6 +6,9 @@ docker ps -aq | xargs docker stop | xargs docker rm
 rm -rf /tmp/anvil*
 rm -rf /tmp/relayer
 
+# kill child processes on exit
+trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+
 # Setup directories for anvil chains
 for CHAIN in anvil1 anvil2
 do
@@ -81,29 +84,25 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
 MESSAGE2_ID=`cat /tmp/message2 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
 echo "Message 2 ID: $MESSAGE2_ID"
 
-if [[ $OSTYPE == 'darwin'* ]]; then
-    # Required because the -net=host driver only works on linux
-    DOCKER_CONNECTION_URL="http://host.docker.internal"
-else
-    DOCKER_CONNECTION_URL="http://127.0.0.1"
-fi
-
-echo $DOCKER_CONNECTION_URL
+ANVIL_CONNECTION_URL="http://127.0.0.1"
+cd ../../rust
 for i in "anvil1 8545 ANVIL1" "anvil2 8555 ANVIL2"
 do
     set -- $i
     echo "Running validator on $1"
-    docker run \
-      --mount type=bind,source="/tmp",target=/data --net=host \
-      -e CONFIG_FILES=/data/${AGENT_CONFIG_FILENAME} -e HYP_ORIGINCHAINNAME=$1 \
-      -e HYP_CHAINS_${3}_BLOCKS_REORGPERIOD=0 -e HYP_VALIDATOR_INTERVAL=1 \
-      -e HYP_CHAINS_${3}_CUSTOMRPCURLS=${DOCKER_CONNECTION_URL}:${2} \
-      -e HYP_VALIDATOR_TYPE=hexKey \
-      -e HYP_VALIDATOR_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6 \
-      -e HYP_CHECKPOINTSYNCER_TYPE=localStorage \
-      -e HYP_CHECKPOINTSYNCER_PATH=/data/${1}/validator \
-      -e HYP_TRACING_LEVEL=debug -e HYP_BASE_TRACING_FMT=compact \
-      gcr.io/abacus-labs-dev/hyperlane-agent:81dc179-20231108-123442 ./validator > /tmp/${1}/validator-logs.txt &
+    export CONFIG_FILES=/tmp/${AGENT_CONFIG_FILENAME}
+    export HYP_ORIGINCHAINNAME=$1
+    export HYP_CHAINS_${3}_BLOCKS_REORGPERIOD=0
+    export HYP_VALIDATOR_INTERVAL=1
+    export HYP_CHAINS_${3}_CUSTOMRPCURLS=${ANVIL_CONNECTION_URL}:${2}
+    export HYP_VALIDATOR_TYPE=hexKey
+    export HYP_VALIDATOR_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
+    export HYP_CHECKPOINTSYNCER_TYPE=localStorage
+    export HYP_CHECKPOINTSYNCER_PATH=/tmp/${1}/validator
+    export HYP_TRACING_LEVEL=debug
+    export HYP_TRACING_FMT=compact
+
+    cargo run --bin validator > /tmp/${1}/validator-logs.txt &
 done
 
 echo "Validator running, sleeping to let it sync"
@@ -114,22 +113,17 @@ echo "Validator Announcement:"
 cat /tmp/anvil1/validator/announcement.json
 
 echo "Running relayer"
-# Won't work on anything but linux due to -net=host
-# Replace CONNECTION_URL with host.docker.internal on mac
-docker run \
-    --mount type=bind,source="/tmp",target=/data --net=host \
-    -e CONFIG_FILES=/data/${AGENT_CONFIG_FILENAME} \
-    -e HYP_CHAINS_ANVIL1_CUSTOMRPCURLS=${DOCKER_CONNECTION_URL}:8545 \
-    -e HYP_CHAINS_ANVIL2_CUSTOMRPCURLS=${DOCKER_CONNECTION_URL}:8555 \
-    -e HYP_TRACING_LEVEL=debug -e HYP_TRACING_FMT=compact \
-    -e HYP_RELAYCHAINS=anvil1,anvil2 \
-    -e HYP_ALLOWLOCALCHECKPOINTSYNCERS=true -e HYP_DB=/data/relayer \
-    -e HYP_GASPAYMENTENFORCEMENT='[{"type":"none"}]' \
-    -e HYP_CHAINS_ANVIL1_SIGNER_TYPE=hexKey \
-    -e HYP_CHAINS_ANVIL1_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
-    -e HYP_CHAINS_ANVIL2_SIGNER_TYPE=hexKey \
-    -e HYP_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
-    gcr.io/abacus-labs-dev/hyperlane-agent:81dc179-20231108-123442 ./relayer > /tmp/relayer/relayer-logs.txt &
+
+export HYP_RELAYCHAINS=anvil1,anvil2
+export HYP_ALLOWLOCALCHECKPOINTSYNCERS=true
+export HYP_DB=/tmp/relayer
+export HYP_GASPAYMENTENFORCEMENT='[{"type":"none"}]'
+export HYP_CHAINS_ANVIL1_SIGNER_TYPE=hexKey
+export HYP_CHAINS_ANVIL1_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
+export HYP_CHAINS_ANVIL2_SIGNER_TYPE=hexKey
+export HYP_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 
+
+cargo run --bin relayer > /tmp/relayer/relayer-logs.txt &
 
 sleep 10
 echo "Done running relayer, checking message delivery statuses"

@@ -132,12 +132,6 @@ async function runArtifactStep(
 }
 
 async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
-  // const defaultConfigChains = Object.keys(defaultMultisigIsmConfigs);
-  // const configRequired = !!selectedChains.find(
-  //   (c) => !defaultConfigChains.includes(c),
-  // );
-  // if (!configRequired) return;
-
   if (!ismConfigPath) {
     logBlue(
       '\n',
@@ -153,11 +147,26 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
       'ism',
     );
   }
+  // first we check for user provided chains
   const configs = readMultisigConfig(ismConfigPath);
-  const multisigConfigChains = Object.keys(configs).filter((c) =>
+  const userProvidedConfigChains = Object.keys(configs).filter((c) =>
     selectedChains.includes(c),
   );
-  log(`Found configs for chains: ${multisigConfigChains.join(', ')}`);
+  // then our SDK defaults
+  const configsUnion = [
+    ...userProvidedConfigChains,
+    ...Object.keys(defaultMultisigIsmConfigs),
+  ];
+  // in case where the chains provided - all_configs = missing_configs
+  const missingConfigs = selectedChains.filter(
+    (c) => !configsUnion.includes(c),
+  );
+  if (missingConfigs.length > 0) {
+    throw new Error(
+      `Missing ISM config for one or more chains: ${missingConfigs.join(', ')}`,
+    );
+  }
+  log(`Found configs for chains: ${selectedChains.join(', ')}`);
   return configs;
 }
 
@@ -191,7 +200,7 @@ interface DeployParams {
   chains: string[];
   signer: ethers.Signer;
   multiProvider: MultiProvider;
-  artifacts?: HyperlaneContractsMap<any>;
+  artifacts?: HyperlaneAddressesMap<any>;
   multisigConfig?: ChainMap<MultisigIsmConfig>;
   outPath: string;
   skipConfirmation: boolean;
@@ -298,7 +307,7 @@ async function executeDeploy({
   log(`Deploying core contracts to ${chains.join(', ')}`);
   const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   console.log('Caching addresses map', artifacts);
-  // coreDeployer.cacheAddressesMap(artifacts);
+  coreDeployer.cacheAddressesMap(artifacts);
   const coreConfigs = buildCoreConfigMap(
     owner,
     chains,
