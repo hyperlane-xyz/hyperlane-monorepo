@@ -1,7 +1,7 @@
 import { input, select } from '@inquirer/prompts';
 import { z } from 'zod';
 
-import { ChainMap, IsmType, MultisigIsmConfig } from '@hyperlane-xyz/sdk';
+import { ChainMap, IsmType, MultisigConfig } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
@@ -30,14 +30,14 @@ export function readMultisigConfig(filePath: string) {
     );
   }
   const parsedConfig = result.data;
-  const formattedConfig: ChainMap<MultisigIsmConfig> = objMap(
+  const formattedConfig: ChainMap<MultisigConfig> = objMap(
     parsedConfig,
     (_, config) =>
       ({
         type: config.type as IsmType,
         threshold: config.threshold,
         validators: config.validators,
-      } as MultisigIsmConfig),
+      } as MultisigConfig),
   );
 
   logGreen(`All multisig configs in ${filePath} are valid`);

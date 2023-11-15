@@ -13,7 +13,7 @@ import {
   MerkleTreeHookConfig,
   MultisigIsmConfig,
   ProtocolFeeHookConfig,
-  defaultMultisigIsmConfigs,
+  defaultMultisigConfigs,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -72,9 +72,9 @@ export function presetHookConfigs(
     if (ismConfig) {
       validatorThreshold = ismConfig.threshold;
       validatorCount = ismConfig.validators.length;
-    } else if (local in defaultMultisigIsmConfigs) {
-      validatorThreshold = defaultMultisigIsmConfigs[local].threshold;
-      validatorCount = defaultMultisigIsmConfigs[local].validators.length;
+    } else if (local in defaultMultisigConfigs) {
+      validatorThreshold = defaultMultisigConfigs[local].threshold;
+      validatorCount = defaultMultisigConfigs[local].validators.length;
     } else {
       throw new Error('Cannot estimate gas overhead for IGP hook');
     }
