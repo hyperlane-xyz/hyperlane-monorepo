@@ -16,7 +16,6 @@ do
     chmod -R 777 /tmp/relayer /tmp/$CHAIN
 done
 
-# Optional: remove the --block-time 1 to speedup tests for local runs
 anvil --chain-id 31337 -p 8545 --state /tmp/anvil1/state > /dev/null &
 anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state > /dev/null &
 sleep 1
