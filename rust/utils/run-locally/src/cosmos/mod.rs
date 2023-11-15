@@ -456,6 +456,7 @@ fn run_locally() {
     );
 
     // dispatch messages
+    let mut dispatched_messages = 0;
 
     for node in nodes.iter() {
         let targets = nodes
@@ -472,6 +473,7 @@ fn run_locally() {
         }
 
         for target in targets {
+            dispatched_messages += 1;
             let cli = OsmosisCLI::new(
                 osmosisd.clone(),
                 node.launch_resp.home_path.to_str().unwrap(),
@@ -515,7 +517,7 @@ fn run_locally() {
     let mut failure_occurred = false;
     loop {
         // look for the end condition.
-        if termination_invariants_met().unwrap_or(false) {
+        if termination_invariants_met(dispatched_messages).unwrap_or(false) {
             // end condition reached successfully
             break;
         } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
@@ -535,9 +537,7 @@ fn run_locally() {
     }
 }
 
-fn termination_invariants_met() -> eyre::Result<bool> {
-    const COSMOS_MESSAGES_EXPECTED: u32 = 2;
-
+fn termination_invariants_met(messages_expected: u32) -> eyre::Result<bool> {
     let gas_payments_scraped = fetch_metric(
         "9093",
         "hyperlane_contract_sync_stored_events",
@@ -545,7 +545,7 @@ fn termination_invariants_met() -> eyre::Result<bool> {
     )?
     .iter()
     .sum::<u32>();
-    let expected_gas_payments = COSMOS_MESSAGES_EXPECTED;
+    let expected_gas_payments = messages_expected;
     if gas_payments_scraped != expected_gas_payments {
         log!(
             "Scraper has scraped {} gas payments, expected {}",
@@ -562,11 +562,11 @@ fn termination_invariants_met() -> eyre::Result<bool> {
     )?
     .iter()
     .sum::<u32>();
-    if delivered_messages_scraped != COSMOS_MESSAGES_EXPECTED {
+    if delivered_messages_scraped != messages_expected {
         log!(
             "Relayer confirmed {} submitted messages, expected {}",
             delivered_messages_scraped,
-            COSMOS_MESSAGES_EXPECTED
+            messages_expected
         );
         return Ok(false);
     }
