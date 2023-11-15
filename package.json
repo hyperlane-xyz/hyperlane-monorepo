@@ -37,7 +37,6 @@
     "lodash": "^4.17.21",
     "recursive-readdir": "^2.2.3",
     "underscore": "^1.13",
-    "undici": "^5.11",
-    "@trivago/prettier-plugin-sort-imports/@babel/parser": "^7.22.7"
+    "undici": "^5.11"
   }
 }
