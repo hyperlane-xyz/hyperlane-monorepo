@@ -4,7 +4,7 @@ import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../../logger.js';
-import { assertNativeBalances } from '../utils/balances.js';
+import { assertGasBalances } from '../utils/balances.js';
 import { assertSigner } from '../utils/keys.js';
 
 export async function runPreflightChecks({
@@ -12,13 +12,13 @@ export async function runPreflightChecks({
   remotes,
   signer,
   multiProvider,
-  minBalanceWei,
+  minGas,
 }: {
   origin: ChainName;
   remotes: ChainName[];
   signer: ethers.Signer;
   multiProvider: MultiProvider;
-  minBalanceWei: string;
+  minGas: string;
 }) {
   log('Running pre-flight checks...');
 
@@ -29,7 +29,7 @@ export async function runPreflightChecks({
     chains: [origin, ...remotes],
     signer,
     multiProvider,
-    minBalanceWei,
+    minGas,
   });
 }
 
@@ -37,12 +37,12 @@ export async function runPreflightChecksForChains({
   chains,
   signer,
   multiProvider,
-  minBalanceWei,
+  minGas,
 }: {
   chains: ChainName[];
   signer: ethers.Signer;
   multiProvider: MultiProvider;
-  minBalanceWei: string;
+  minGas: string;
 }) {
   log('Running pre-flight checks...');
 
@@ -58,6 +58,6 @@ export async function runPreflightChecksForChains({
   assertSigner(signer);
   logGreen('Signer is valid ✅');
 
-  await assertNativeBalances(multiProvider, signer, chains, minBalanceWei);
+  await assertGasBalances(multiProvider, signer, chains, minGas);
   logGreen('Balances are sufficient ✅');
 }

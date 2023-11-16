@@ -18,8 +18,8 @@ do
     chmod -R 777 /tmp/relayer /tmp/$CHAIN
 done
 
-anvil --chain-id 31337 -p 8545 --state /tmp/anvil1/state > /dev/null &
-anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state > /dev/null &
+anvil --chain-id 31337 -p 8545 --state /tmp/anvil1/state --gas-price 1 > /dev/null &
+anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state --gas-price 1 > /dev/null &
 sleep 1
 
 set -e
@@ -27,6 +27,9 @@ set -e
 echo "{}" > /tmp/empty-artifacts.json
 
 export DEBUG=hyperlane:*
+
+DEPLOYER=$(cast rpc eth_accounts | jq -r '.[0]')
+BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 
 echo "Deploying contracts to anvil1 and anvil2"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
@@ -38,6 +41,11 @@ yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
     --hook ./examples/hook-config.yaml \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
+
+AFTER_CORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+GAS_PRICE=$(cast gas-price --rpc-url http://localhost:8545)
+CORE_MIN_GAS=$(bc <<< "($BEFORE - $AFTER_CORE) / $GAS_PRICE")
+echo "Gas used: $CORE_MIN_GAS"
 
 CORE_ARTIFACTS_PATH=`find /tmp/core-deployment* -type f -exec ls -t1 {} + | head -1`
 echo "Core artifacts:"
@@ -54,6 +62,11 @@ yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
 
+AFTER_WARP=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+GAS_PRICE=$(cast gas-price --rpc-url http://localhost:8545)
+WARP_MIN_GAS=$(bc <<< "($AFTER_CORE - $AFTER_WARP) / $GAS_PRICE")
+echo "Gas used: $WARP_MIN_GAS"
+
 echo "Sending test message"
 yarn workspace @hyperlane-xyz/cli run hyperlane send message \
     --origin anvil1 \
@@ -63,6 +76,11 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send message \
     --quick \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     | tee /tmp/message1
+
+AFTER_MSG=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+GAS_PRICE=$(cast gas-price --rpc-url http://localhost:8545)
+MSG_MIN_GAS=$(bc <<< "($AFTER_WARP - $AFTER_MSG) / $GAS_PRICE")
+echo "Gas used: $MSG_MIN_GAS"
 
 MESSAGE1_ID=`cat /tmp/message1 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
 echo "Message 1 ID: $MESSAGE1_ID"
