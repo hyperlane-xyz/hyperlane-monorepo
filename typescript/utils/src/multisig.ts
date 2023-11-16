@@ -1,4 +1,5 @@
-import { BigNumber, utils } from 'ethers';
+import BigNumber from 'bignumber.js';
+import { utils } from 'ethers';
 
 import { addressToBytes32 } from './addresses';
 import { ParsedLegacyMultisigIsmMetadata } from './types';
@@ -18,7 +19,7 @@ export const parseLegacyMultisigIsmMetadata = (
   const checkpointRoot = utils.hexlify(
     buf.slice(MERKLE_ROOT_OFFSET, MERKLE_INDEX_OFFSET),
   );
-  const checkpointIndex = BigNumber.from(
+  const checkpointIndex = BigNumber(
     utils.hexlify(buf.slice(MERKLE_INDEX_OFFSET, ORIGIN_MAILBOX_OFFSET)),
   ).toNumber();
   const originMailbox = utils.hexlify(
@@ -30,7 +31,7 @@ export const parseLegacyMultisigIsmMetadata = (
     );
   };
   const proof = parseBytesArray(MERKLE_PROOF_OFFSET, 32, 32);
-  const threshold = BigNumber.from(
+  const threshold = BigNumber(
     utils.hexlify(buf.slice(THRESHOLD_OFFSET, SIGNATURES_OFFSET)),
   ).toNumber();
   const signatures = parseBytesArray(

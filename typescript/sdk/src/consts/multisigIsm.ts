@@ -77,11 +77,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xdb96116d13a2fadde9742d7cc88474a5ed39a03a', // everstake
     ],
   },
-  // solana: {
-  //   threshold: 0,
-  //   validators: [
-  //   ],
-  // },
   base: {
     threshold: 2,
     validators: [
@@ -104,6 +99,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x86f2a44592bb98da766e880cfd70d3bbb295e61a',
       '0xc84076030bdabaabb9e61161d833dd84b700afda',
       '0x57231619fea13d85270ca6943298046c75a6dd01', // everstake
+    ],
+  },
+  solana: {
+    threshold: 2,
+    validators: [
+      '0x3cd1a081f38874bbb075bf10b62adcb858db864c', // abacus
+      '0x2b0c45f6111ae1c1684d4287792e3bd6ebd1abcc', // ZKV
+      '0x7b9ec253a8ba38994457eb9dbe386938d545351a', // everstake
     ],
   },
   // ----------------- Testnets -----------------
