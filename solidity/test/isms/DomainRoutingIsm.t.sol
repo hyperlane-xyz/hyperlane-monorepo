@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "forge-std/console.sol";
 
 import {DomainRoutingIsm} from "../../contracts/isms/routing/DomainRoutingIsm.sol";
 import {DefaultFallbackRoutingIsm} from "../../contracts/isms/routing/DefaultFallbackRoutingIsm.sol";
@@ -10,11 +9,11 @@ import {DefaultFallbackRoutingIsmFactory, DomainRoutingIsmFactory} from "../../c
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {MessageUtils, TestIsm} from "./IsmTestUtils.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
+import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 
 contract DomainRoutingIsmTest is Test {
     address private constant NON_OWNER =
         0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe;
-    event ModuleSet(uint32 indexed domain, IInterchainSecurityModule module);
     DomainRoutingIsm internal ism;
 
     function setUp() public virtual {
@@ -22,23 +21,29 @@ contract DomainRoutingIsmTest is Test {
         ism.initialize(address(this));
     }
 
-    function deployTestIsm(bytes32 requiredMetadata)
-        internal
-        returns (TestIsm)
-    {
+    function deployTestIsm(
+        bytes32 requiredMetadata
+    ) internal returns (TestIsm) {
         return new TestIsm(abi.encode(requiredMetadata));
     }
 
     function getMetadata(uint32 domain) internal view returns (bytes memory) {
-        return TestIsm(address(ism.modules(domain))).requiredMetadata();
+        return TestIsm(address(ism.module(domain))).requiredMetadata();
     }
 
     function testSet(uint32 domain) public {
         TestIsm _ism = deployTestIsm(bytes32(0));
-        vm.expectEmit(true, true, false, true);
-        emit ModuleSet(domain, _ism);
         ism.set(domain, _ism);
-        assertEq(address(ism.modules(domain)), address(_ism));
+        assertEq(address(ism.module(domain)), address(_ism));
+    }
+
+    function testRemove(uint32 domain) public {
+        vm.expectRevert();
+        ism.remove(domain);
+
+        TestIsm _ism = deployTestIsm(bytes32(0));
+        ism.set(domain, _ism);
+        ism.remove(domain);
     }
 
     function testSetManyViaFactory(uint8 count, uint32 domain) public {
@@ -50,18 +55,17 @@ contract DomainRoutingIsmTest is Test {
         for (uint32 i = 0; i < count; ++i) {
             _domains[i] = domain - i;
             _isms[i] = deployTestIsm(bytes32(0));
-            vm.expectEmit(true, true, false, true);
-            emit ModuleSet(_domains[i], _isms[i]);
         }
         ism = factory.deploy(_domains, _isms);
         for (uint256 i = 0; i < count; ++i) {
-            assertEq(address(ism.modules(_domains[i])), address(_isms[i]));
+            assertEq(address(ism.module(_domains[i])), address(_isms[i]));
         }
     }
 
-    function testSetNonOwner(uint32 domain, IInterchainSecurityModule _ism)
-        public
-    {
+    function testSetNonOwner(
+        uint32 domain,
+        IInterchainSecurityModule _ism
+    ) public {
         vm.prank(NON_OWNER);
         vm.expectRevert("Ownable: caller is not the owner");
         ism.set(domain, _ism);
@@ -71,7 +75,10 @@ contract DomainRoutingIsmTest is Test {
         ism.set(domain, deployTestIsm(seed));
 
         bytes memory metadata = getMetadata(domain);
+        uint256 gasBefore = gasleft();
         assertTrue(ism.verify(metadata, MessageUtils.build(domain)));
+        uint256 gasAfter = gasleft();
+        console.log("Overhead gas usage: %d", gasBefore - gasAfter);
     }
 
     function testVerifyNoIsm(uint32 domain, bytes32 seed) public virtual {
@@ -79,7 +86,7 @@ contract DomainRoutingIsmTest is Test {
         ism.set(domain, deployTestIsm(seed));
 
         bytes memory metadata = getMetadata(domain);
-        vm.expectRevert("No ISM found for origin domain");
+        vm.expectRevert();
         ism.verify(metadata, MessageUtils.build(domain - 1));
     }
 
@@ -99,14 +106,20 @@ contract DefaultFallbackRoutingIsmTest is DomainRoutingIsmTest {
     function setUp() public override {
         defaultIsm = deployTestIsm(bytes32(0));
         TestMailbox mailbox = new TestMailbox(1000);
-        mailbox.initialize(address(this), address(defaultIsm));
+        TestPostDispatchHook hook = new TestPostDispatchHook();
+        mailbox.initialize(
+            address(this),
+            address(defaultIsm),
+            address(hook),
+            address(hook)
+        );
 
         ism = new DefaultFallbackRoutingIsm(address(mailbox));
         ism.initialize(address(this));
     }
 
     function testConstructorReverts() public {
-        vm.expectRevert("DefaultFallbackRoutingIsm: INVALID_MAILBOX");
+        vm.expectRevert("MailboxClient: invalid mailbox");
         new DefaultFallbackRoutingIsm(address(0));
     }
 

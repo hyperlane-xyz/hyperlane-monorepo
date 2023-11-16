@@ -59,24 +59,24 @@ export type RpcUrl = z.infer<typeof RpcUrlSchema>;
  * A collection of useful properties and settings for chains using Hyperlane
  * Specified as a Zod schema
  */
-export const ChainMetadataSchema = z.object({
-  protocol: z
-    .nativeEnum(ProtocolType)
-    .describe(
-      'The type of protocol used by this chain. See ProtocolType for valid values.',
-    ),
-  chainId: ZNzUint.describe(
-    `The chainId of the chain. Uses EIP-155 for EVM chains`,
-  ),
-  domainId: ZNzUint.optional().describe(
-    'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value if present, but otherwise fallback to `chainId`.',
-  ),
+export const ChainMetadataSchemaObject = z.object({
   name: z
     .string()
     .regex(/^[a-z][a-z0-9]*$/)
     .describe(
       'The unique string identifier of the chain, used as the key in ChainMap dictionaries.',
     ),
+  protocol: z
+    .nativeEnum(ProtocolType)
+    .describe(
+      'The type of protocol used by this chain. See ProtocolType for valid values.',
+    ),
+  chainId: z
+    .union([ZNzUint, z.string()])
+    .describe(`The chainId of the chain. Uses EIP-155 for EVM chains`),
+  domainId: ZNzUint.optional().describe(
+    'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value if present, but otherwise fallback to `chainId`.',
+  ),
   displayName: z
     .string()
     .optional()
@@ -161,11 +161,58 @@ export const ChainMetadataSchema = z.object({
     .string()
     .optional()
     .describe('The URL of the gnosis safe transaction service.'),
+  bech32Prefix: z
+    .string()
+    .optional()
+    .describe('The human readable address prefix for the chains using bech32.'),
+  slip44: z.number().optional().describe('The SLIP-0044 coin type.'),
   isTestnet: z
     .boolean()
     .optional()
     .describe('Whether the chain is considered a testnet or a mainnet.'),
 });
+
+// Add refinements to the object schema to conditionally validate certain fields
+export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
+  (metadata) => {
+    if (
+      [ProtocolType.Ethereum, ProtocolType.Sealevel].includes(
+        metadata.protocol,
+      ) &&
+      typeof metadata.chainId !== 'number'
+    )
+      return false;
+    else if (
+      metadata.protocol === ProtocolType.Cosmos &&
+      typeof metadata.chainId !== 'string'
+    )
+      return false;
+    else return true;
+  },
+  { message: 'Invalid Chain Id', path: ['chainId'] },
+)
+  .refine(
+    (metadata) => {
+      if (typeof metadata.chainId === 'string' && !metadata.domainId)
+        return false;
+      else return true;
+    },
+    { message: 'Domain Id required', path: ['domainId'] },
+  )
+  .refine(
+    (metadata) => {
+      if (
+        metadata.protocol === ProtocolType.Cosmos &&
+        (!metadata.bech32Prefix || !metadata.slip44)
+      )
+        return false;
+      else return true;
+    },
+    {
+      message: 'Bech32Prefix and Slip44 required for Cosmos chains',
+      path: ['bech32Prefix', 'slip44'],
+    },
+  );
 
 export type ChainMetadata<Ext = object> = z.infer<typeof ChainMetadataSchema> &
   Ext;
@@ -175,5 +222,13 @@ export function isValidChainMetadata(c: ChainMetadata): boolean {
 }
 
 export function getDomainId(chainMetadata: ChainMetadata): number {
-  return chainMetadata.domainId ?? chainMetadata.chainId;
+  if (chainMetadata.domainId) return chainMetadata.domainId;
+  else if (typeof chainMetadata.chainId === 'number')
+    return chainMetadata.chainId;
+  else throw new Error('Invalid chain metadata, no valid domainId');
+}
+
+export function getChainIdNumber(chainMetadata: ChainMetadata): number {
+  if (typeof chainMetadata.chainId === 'number') return chainMetadata.chainId;
+  else throw new Error('ChainId is not a number, chain may be of Cosmos type');
 }

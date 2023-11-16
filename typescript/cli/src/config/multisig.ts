@@ -1,18 +1,18 @@
-import { confirm, input, select } from '@inquirer/prompts';
+import { input, select } from '@inquirer/prompts';
 import { z } from 'zod';
 
-import { ChainMap, ModuleType, MultisigIsmConfig } from '@hyperlane-xyz/sdk';
+import { ChainMap, IsmType, MultisigConfig } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
-import { readChainConfigIfExists } from './chain.js';
+import { readChainConfigsIfExists } from './chain.js';
 
 const MultisigConfigMapSchema = z.object({}).catchall(
   z.object({
-    type: z.string(),
+    type: z.nativeEnum(IsmType),
     threshold: z.number(),
     validators: z.array(z.string()),
   }),
@@ -30,24 +30,22 @@ export function readMultisigConfig(filePath: string) {
     );
   }
   const parsedConfig = result.data;
-  const formattedConfig = objMap(parsedConfig, (_, config) => ({
-    ...config,
-    type: humanReadableIsmTypeToEnum(config.type),
-  }));
+  const formattedConfig: ChainMap<MultisigConfig> = objMap(
+    parsedConfig,
+    (_, config) =>
+      ({
+        type: config.type as IsmType,
+        threshold: config.threshold,
+        validators: config.validators,
+      } as MultisigConfig),
+  );
 
   logGreen(`All multisig configs in ${filePath} are valid`);
-  return formattedConfig as ChainMap<MultisigIsmConfig>;
+  return formattedConfig;
 }
 
 export function isValidMultisigConfig(config: any) {
   return MultisigConfigMapSchema.safeParse(config).success;
-}
-
-function humanReadableIsmTypeToEnum(type: string): ModuleType {
-  for (const [key, value] of Object.entries(ModuleType)) {
-    if (key.toLowerCase() === type) return parseInt(value.toString(), 10);
-  }
-  throw new Error(`Invalid ISM type ${type}`);
 }
 
 export async function createMultisigConfig({
@@ -60,12 +58,12 @@ export async function createMultisigConfig({
   chainConfigPath: string;
 }) {
   logBlue('Creating a new multisig config');
-  const customChains = readChainConfigIfExists(chainConfigPath);
+  const customChains = readChainConfigsIfExists(chainConfigPath);
   const chains = await runMultiChainSelectionStep(customChains);
 
   const result: MultisigConfigMap = {};
   let lastConfig: MultisigConfigMap['string'] | undefined = undefined;
-  let repeat = false;
+  const repeat = false;
   for (const chain of chains) {
     log(`Setting values for chain ${chain}`);
     if (lastConfig && repeat) {
@@ -73,16 +71,13 @@ export async function createMultisigConfig({
       continue;
     }
     // TODO consider using default and not offering options here
-    // legacy_multisig is being deprecated in v3
-    // Default should probably be aggregation(message_id, merkle_root)
     const moduleType = await select({
       message: 'Select multisig type',
       choices: [
         // { value: 'routing, name: 'routing' }, // TODO add support
         // { value: 'aggregation, name: 'aggregation' }, // TODO add support
-        { value: 'legacy_multisig', name: 'legacy multisig' },
-        { value: 'merkle_root_multisig', name: 'merkle root multisig' },
-        { value: 'message_id_multisig', name: 'message id multisig' },
+        { value: IsmType.MERKLE_ROOT_MULTISIG, name: 'merkle root multisig' },
+        { value: IsmType.MESSAGE_ID_MULTISIG, name: 'message id multisig' },
       ],
       pageSize: 5,
     });
@@ -103,9 +98,10 @@ export async function createMultisigConfig({
     };
     result[chain] = lastConfig;
 
-    repeat = await confirm({
-      message: 'Use this same config for remaining chains?',
-    });
+    // TODO consider re-enabling. Disabling based on feedback from @nambrot for now.
+    // repeat = await confirm({
+    //   message: 'Use this same config for remaining chains?',
+    // });
   }
 
   if (isValidMultisigConfig(result)) {

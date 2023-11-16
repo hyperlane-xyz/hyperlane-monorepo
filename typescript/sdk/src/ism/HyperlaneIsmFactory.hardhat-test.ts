@@ -4,6 +4,7 @@ import { ethers } from 'hardhat';
 import { error } from '@hyperlane-xyz/utils';
 
 import { TestChains } from '../consts/chains';
+import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { randomAddress, randomInt } from '../test/testUtils';
 
@@ -11,10 +12,10 @@ import {
   HyperlaneIsmFactory,
   moduleMatchesConfig,
 } from './HyperlaneIsmFactory';
-import { HyperlaneIsmFactoryDeployer } from './HyperlaneIsmFactoryDeployer';
 import {
   AggregationIsmConfig,
   IsmConfig,
+  IsmType,
   ModuleType,
   MultisigIsmConfig,
   RoutingIsmConfig,
@@ -33,7 +34,7 @@ const randomMultisigIsmConfig = (m: number, n: number): MultisigIsmConfig => {
   const emptyArray = new Array<number>(n).fill(0);
   const validators = emptyArray.map(() => randomAddress());
   return {
-    type: ModuleType.MERKLE_ROOT_MULTISIG,
+    type: IsmType.MERKLE_ROOT_MULTISIG,
     validators,
     threshold: m,
   };
@@ -47,7 +48,7 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
     return randomMultisigIsmConfig(randomInt(n, 1), n);
   } else if (moduleType === ModuleType.ROUTING) {
     const config: RoutingIsmConfig = {
-      type: ModuleType.ROUTING,
+      type: IsmType.ROUTING,
       owner: randomAddress(),
       domains: Object.fromEntries(
         TestChains.map((c) => [c, randomIsmConfig(depth + 1)]),
@@ -60,7 +61,7 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
       .fill(0)
       .map(() => randomIsmConfig(depth + 1));
     const config: AggregationIsmConfig = {
-      type: ModuleType.AGGREGATION,
+      type: IsmType.AGGREGATION,
       threshold: randomInt(n, 1),
       modules,
     };
@@ -79,8 +80,8 @@ describe('HyperlaneIsmFactory', async () => {
 
     const multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
-    const deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
-    const contracts = await deployer.deploy([chain]);
+    const deployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    const contracts = await deployer.deploy({ [chain]: {} });
     factory = new HyperlaneIsmFactory(contracts, multiProvider);
   });
 

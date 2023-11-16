@@ -1,8 +1,17 @@
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
+use crate::{
+    merkle_tree::builder::MerkleTreeBuilder,
+    msg::metadata::{
+        multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
+        AggregationIsmMetadataBuilder, CcipReadIsmMetadataBuilder, NullMetadataBuilder,
+        RoutingIsmMetadataBuilder,
+    },
+};
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::{
     settings::{ChainConf, CheckpointSyncerConf},
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
@@ -15,24 +24,18 @@ use hyperlane_core::{
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
-use crate::{
-    merkle_tree_builder::MerkleTreeBuilder,
-    msg::metadata::{
-        multisig::{
-            LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
-            MessageIdMultisigMetadataBuilder,
-        },
-        AggregationIsmMetadataBuilder, CcipReadIsmMetadataBuilder, NullMetadataBuilder,
-        RoutingIsmMetadataBuilder,
-    },
-};
-
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
     #[error("Unknown or invalid module type ({0})")]
     UnsupportedModuleType(ModuleType),
     #[error("Exceeded max depth when building metadata ({0})")]
     MaxDepthExceeded(u32),
+}
+
+pub struct IsmWithMetadataAndType {
+    pub ism: Box<dyn InterchainSecurityModule>,
+    pub metadata: Option<Vec<u8>>,
+    pub module_type: ModuleType,
 }
 
 #[async_trait]
@@ -49,6 +52,7 @@ pub struct BaseMetadataBuilder {
     origin_validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
+    db: HyperlaneRocksDB,
     /// ISMs can be structured recursively. We keep track of the depth
     /// of the recursion to avoid infinite loops.
     #[new(default)]
@@ -74,32 +78,9 @@ impl MetadataBuilder for BaseMetadataBuilder {
         ism_address: H256,
         message: &HyperlaneMessage,
     ) -> Result<Option<Vec<u8>>> {
-        let ism = self
-            .build_ism(ism_address)
+        self.build_ism_and_metadata(ism_address, message)
             .await
-            .context("When building ISM")?;
-        let module_type = ism
-            .module_type()
-            .await
-            .context("When fetching module type")?;
-        let base = self.clone_with_incremented_depth()?;
-
-        let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
-            ModuleType::LegacyMultisig => Box::new(LegacyMultisigMetadataBuilder::new(base)),
-            ModuleType::MerkleRootMultisig => {
-                Box::new(MerkleRootMultisigMetadataBuilder::new(base))
-            }
-            ModuleType::MessageIdMultisig => Box::new(MessageIdMultisigMetadataBuilder::new(base)),
-            ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
-            ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(base)),
-            ModuleType::Null => Box::new(NullMetadataBuilder::new()),
-            ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(base)),
-            _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
-        };
-        metadata_builder
-            .build(ism_address, message)
-            .await
-            .context("When building metadata")
+            .map(|ism_with_metadata| ism_with_metadata.metadata)
     }
 }
 
@@ -118,31 +99,34 @@ impl BaseMetadataBuilder {
         }
     }
 
-    pub async fn get_proof(&self, nonce: u32, checkpoint: Checkpoint) -> Result<Option<Proof>> {
+    pub async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> Result<Proof> {
         const CTX: &str = "When fetching message proof";
         let proof = self
             .origin_prover_sync
             .read()
             .await
-            .get_proof(nonce, checkpoint.index)
+            .get_proof(leaf_index, checkpoint.index)
             .context(CTX)?;
 
-        // checkpoint may be fraudulent if the root does not
-        // match the canonical root at the checkpoint's index
         if proof.root() != checkpoint.root {
             info!(
                 ?checkpoint,
                 canonical_root = ?proof.root(),
                 "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
             );
-            Ok(None)
-        } else {
-            Ok(Some(proof))
         }
+        Ok(proof)
     }
 
-    pub async fn highest_known_nonce(&self) -> u32 {
-        self.origin_prover_sync.read().await.count() - 1
+    pub async fn highest_known_leaf_index(&self) -> Option<u32> {
+        self.origin_prover_sync.read().await.count().checked_sub(1)
+    }
+
+    pub async fn get_merkle_leaf_id_by_message_id(&self, message_id: H256) -> Result<Option<u32>> {
+        let merkle_leaf = self
+            .db
+            .retrieve_merkle_leaf_index_by_message_id(&message_id)?;
+        Ok(merkle_leaf)
     }
 
     pub async fn build_ism(&self, address: H256) -> Result<Box<dyn InterchainSecurityModule>> {
@@ -238,5 +222,44 @@ impl BaseMetadataBuilder {
             }
         }
         Ok(MultisigCheckpointSyncer::new(checkpoint_syncers))
+    }
+
+    #[instrument(err, skip(self), fields(domain=self.domain().name()))]
+    pub async fn build_ism_and_metadata(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+    ) -> Result<IsmWithMetadataAndType> {
+        let ism: Box<dyn InterchainSecurityModule> = self
+            .build_ism(ism_address)
+            .await
+            .context("When building ISM")?;
+
+        let module_type = ism
+            .module_type()
+            .await
+            .context("When fetching module type")?;
+        let base = self.clone_with_incremented_depth()?;
+
+        let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
+            ModuleType::MerkleRootMultisig => {
+                Box::new(MerkleRootMultisigMetadataBuilder::new(base))
+            }
+            ModuleType::MessageIdMultisig => Box::new(MessageIdMultisigMetadataBuilder::new(base)),
+            ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
+            ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(base)),
+            ModuleType::Null => Box::new(NullMetadataBuilder::new()),
+            ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(base)),
+            _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
+        };
+        let meta = metadata_builder
+            .build(ism_address, message)
+            .await
+            .context("When building metadata");
+        Ok(IsmWithMetadataAndType {
+            ism,
+            metadata: meta?,
+            module_type,
+        })
     }
 }

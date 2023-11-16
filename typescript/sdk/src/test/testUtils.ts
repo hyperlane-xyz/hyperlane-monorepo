@@ -1,9 +1,5 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
-import {
-  TestInterchainGasPaymaster,
-  TestInterchainGasPaymaster__factory,
-} from '@hyperlane-xyz/core';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
@@ -17,8 +13,8 @@ import {
   CoinGeckoSimpleInterface,
   CoinGeckoSimplePriceParams,
 } from '../gas/token-prices';
-import { ModuleType, MultisigIsmConfig } from '../ism/types';
-import { MultiProvider } from '../providers/MultiProvider';
+import { HookType } from '../hook/types';
+import { IsmType } from '../ism/types';
 import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
@@ -45,67 +41,31 @@ export function createRouterConfigMap(
   });
 }
 
-export async function deployTestIgpsAndGetRouterConfig(
-  multiProvider: MultiProvider,
-  owner: Address,
-  coreContracts: HyperlaneContractsMap<CoreFactories>,
-): Promise<ChainMap<RouterConfig>> {
-  const igps: ChainMap<TestInterchainGasPaymaster> = {};
-  for (const chain of multiProvider.getKnownChainNames()) {
-    const factory = new TestInterchainGasPaymaster__factory(
-      multiProvider.getSigner(chain),
-    );
-    igps[chain] = await factory.deploy(owner);
-  }
-  return objMap(coreContracts, (chain, contracts) => {
-    return {
-      owner,
-      mailbox: contracts.mailbox.address,
-      interchainGasPaymaster: igps[chain].address,
-    };
-  });
-}
-
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
 // dummy config as TestInbox and TestOutbox do not use deployed ISM
-export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
-  const multisigIsm: MultisigIsmConfig = {
-    type: ModuleType.MERKLE_ROOT_MULTISIG,
-    validators: [nonZeroAddress],
-    threshold: 1,
-  };
-
-  const config: ChainMap<CoreConfig> = Object.fromEntries(
-    chains.map((local) => [
-      local,
-      {
-        owner: nonZeroAddress,
-        defaultIsm: {
-          type: ModuleType.ROUTING,
-          owner: nonZeroAddress,
-          domains: Object.fromEntries(
-            chains
-              .filter((c) => c !== local)
-              .map((remote) => [remote, multisigIsm]),
-          ),
-        },
-      },
-    ]),
-  );
-
-  // test partial timelock config
-  config.test3.upgrade = {
-    timelock: {
-      delay: 100,
-      roles: {
-        executor: nonZeroAddress,
-        proposer: nonZeroAddress,
-      },
+export function testCoreConfig(
+  chains: ChainName[],
+  owner = nonZeroAddress,
+): ChainMap<CoreConfig> {
+  const chainConfig: CoreConfig = {
+    owner,
+    defaultIsm: {
+      type: IsmType.TEST_ISM,
+    },
+    defaultHook: {
+      type: HookType.MERKLE_TREE,
+    },
+    requiredHook: {
+      type: HookType.PROTOCOL_FEE,
+      maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'), // 1 gwei of native token
+      protocolFee: BigNumber.from(1), // 1 wei
+      beneficiary: nonZeroAddress,
+      owner,
     },
   };
 
-  return config;
+  return Object.fromEntries(chains.map((local) => [local, chainConfig]));
 }
 
 // A mock CoinGecko intended to be used by tests

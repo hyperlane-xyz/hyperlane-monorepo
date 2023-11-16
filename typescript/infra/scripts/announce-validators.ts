@@ -22,15 +22,17 @@ function getArgs() {
     .choices('chain', AllChains)
     .describe(
       'location',
-      'location, e.g. s3://hyperlane-testnet3-goerli-validator-0/us-east-1',
+      'location, e.g. s3://hyperlane-testnet4-goerli-validator-0/us-east-1',
     )
     .string('location')
     .check(({ context, chain, location }) => {
       const isSet = [!!context, !!chain, !!location];
-      if (isSet[0] != isSet[1] && isSet[1] == isSet[2]) {
+      if (isSet[1] == isSet[2]) {
         return true;
       } else {
-        throw new Error('Must specify context OR chain and location');
+        throw new Error(
+          'Must set either both or neither of chain and location',
+        );
       }
     }).argv;
 }
@@ -52,6 +54,7 @@ async function main() {
   const chains: ChainName[] = [];
   if (location) {
     chains.push(chain!);
+
     if (location.startsWith('s3://')) {
       const validator = await S3Validator.fromStorageLocation(location);
       announcements.push({

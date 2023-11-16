@@ -9,8 +9,7 @@ interface IGasOracle {
         uint128 gasPrice;
     }
 
-    function getExchangeRateAndGasPrice(uint32 _destinationDomain)
-        external
-        view
-        returns (uint128 tokenExchangeRate, uint128 gasPrice);
+    function getExchangeRateAndGasPrice(
+        uint32 _destinationDomain
+    ) external view returns (uint128 tokenExchangeRate, uint128 gasPrice);
 }

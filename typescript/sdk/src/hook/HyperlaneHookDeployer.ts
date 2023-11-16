@@ -1,168 +1,295 @@
 import debug from 'debug';
+import { ethers } from 'ethers';
 
 import {
-  OptimismISM,
-  OptimismISM__factory,
-  OptimismMessageHook,
-  OptimismMessageHook__factory,
-  TestRecipient,
-  TestRecipient__factory,
+  DomainRoutingHook,
+  FallbackDomainRoutingHook,
+  IL1CrossDomainMessenger__factory,
+  OPStackHook,
+  OPStackIsm,
+  StaticAggregationHook__factory,
+  StaticProtocolFee,
 } from '@hyperlane-xyz/core';
 import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts/types';
+import { HyperlaneContracts } from '../contracts/types';
+import { CoreAddresses } from '../core/contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer';
+import { IgpFactories } from '../gas/contracts';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
+import { IsmType, OpStackIsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import { isHookConfig, isISMConfig } from './config';
 import { HookFactories, hookFactories } from './contracts';
-import { HookConfig } from './types';
+import {
+  AggregationHookConfig,
+  DomainRoutingHookConfig,
+  FallbackRoutingHookConfig,
+  HookConfig,
+  HookType,
+  IgpHookConfig,
+  OpStackHookConfig,
+  ProtocolFeeHookConfig,
+} from './types';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
   HookConfig,
   HookFactories
 > {
-  constructor(multiProvider: MultiProvider) {
+  constructor(
+    multiProvider: MultiProvider,
+    readonly core: ChainMap<Partial<CoreAddresses>>,
+    readonly ismFactory: HyperlaneIsmFactory,
+    readonly igpDeployer = new HyperlaneIgpDeployer(multiProvider),
+  ) {
     super(multiProvider, hookFactories, {
       logger: debug('hyperlane:HookDeployer'),
     });
   }
 
-  async deploy(
-    configMap: ChainMap<HookConfig>,
-  ): Promise<HyperlaneContractsMap<HookFactories>> {
-    let ismContracts: HyperlaneContracts<HookFactories> | undefined;
-    let hookContracts: HyperlaneContracts<HookFactories> | undefined;
-
-    // Process ISM configs first
-    for (const [chain, config] of Object.entries(configMap)) {
-      if (isISMConfig(config)) {
-        ismContracts = await this.deployContracts(chain, config);
-      }
-    }
-
-    // Ensure ISM contracts have been deployed
-    if (!ismContracts || !ismContracts?.optimismISM) {
-      throw new Error('ISM contracts not deployed');
-    }
-
-    // Then process hook configs
-    for (const [chain, config] of Object.entries(configMap)) {
-      if (isHookConfig(config)) {
-        config.remoteIsm = ismContracts.optimismISM.address;
-        this.logger(`Remote ISM address set as ${config.remoteIsm}`);
-        hookContracts = await this.deployContracts(chain, config);
-      }
-    }
-
-    // Ensure hook contracts have been deployed
-    if (!hookContracts || !hookContracts?.optimismMessageHook) {
-      throw new Error('Hook contracts not deployed');
-    }
-
-    const hookAddress = hookContracts.optimismMessageHook.address;
-
-    this.logger(`Setting hook address ${hookAddress} for OptimismISM`);
-    await ismContracts.optimismISM.setOptimismHook(hookAddress);
-
-    const deployedContractMap: HyperlaneContractsMap<HookFactories> = {
-      optimismISM: ismContracts.optimismISM,
-      testRecipient: ismContracts.testRecipient,
-      optimismMessageHook: hookContracts.optimismMessageHook,
-    };
-
-    return deployedContractMap;
+  cacheAddressesMap(addressesMap: ChainMap<CoreAddresses>): void {
+    this.igpDeployer.cacheAddressesMap(addressesMap);
+    super.cacheAddressesMap(addressesMap);
   }
 
   async deployContracts(
     chain: ChainName,
-    hookConfig: HookConfig,
+    config: HookConfig,
+    coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
-    let optimismISM, optimismMessageHook, testRecipient;
-    this.logger(`Deploying ${hookConfig.hookContractType} on ${chain}`);
-    if (isISMConfig(hookConfig)) {
-      optimismISM = await this.deployOptimismISM(
-        chain,
-        hookConfig.nativeBridge,
-      );
-      testRecipient = await this.deployTestRecipient(
-        chain,
-        optimismISM.address,
-      );
-      this.logger(
-        `Deployed test recipient on ${chain} at ${addressToBytes32(
-          testRecipient.address,
-        )}`,
-      );
-
-      return {
-        optimismISM,
-        testRecipient,
-      };
-    } else if (isHookConfig(hookConfig)) {
-      optimismMessageHook = await this.deployOptimismMessageHook(
-        chain,
-        hookConfig.destinationDomain,
-        hookConfig.nativeBridge,
-        hookConfig.remoteIsm,
-      );
-      return {
-        optimismMessageHook,
-      };
+    // other simple hooks can go here
+    let hook;
+    if (config.type === HookType.MERKLE_TREE) {
+      const mailbox = coreAddresses.mailbox;
+      if (!mailbox) {
+        throw new Error(`Mailbox address is required for ${config.type}`);
+      }
+      hook = await this.deployContract(chain, config.type, [mailbox]);
+      return { [config.type]: hook } as any;
+    } else if (config.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
+      return this.deployIgp(chain, config, coreAddresses) as any;
+    } else if (config.type === HookType.AGGREGATION) {
+      return this.deployAggregation(chain, config, coreAddresses); // deploy from factory
+    } else if (config.type === HookType.PROTOCOL_FEE) {
+      hook = await this.deployProtocolFee(chain, config);
+    } else if (config.type === HookType.OP_STACK) {
+      hook = await this.deployOpStack(chain, config, coreAddresses);
+    } else if (
+      config.type === HookType.ROUTING ||
+      config.type === HookType.FALLBACK_ROUTING
+    ) {
+      hook = await this.deployRouting(chain, config, coreAddresses);
     }
-    return {};
+    const deployedContracts = { [config.type]: hook } as any;
+    this.addDeployedContracts(chain, deployedContracts);
+    return deployedContracts;
   }
 
-  async deployOptimismISM(
+  async deployProtocolFee(
     chain: ChainName,
-    nativeBridge: Address,
-  ): Promise<OptimismISM> {
-    const signer = this.multiProvider.getSigner(chain);
+    config: ProtocolFeeHookConfig,
+  ): Promise<StaticProtocolFee> {
+    this.logger('Deploying StaticProtocolFeeHook for %s', chain);
+    return this.deployContract(chain, HookType.PROTOCOL_FEE, [
+      config.maxProtocolFee,
+      config.protocolFee,
+      config.beneficiary,
+      config.owner,
+    ]);
+  }
 
-    const optimismISM = await new OptimismISM__factory(signer).deploy(
-      nativeBridge,
+  async deployIgp(
+    chain: ChainName,
+    config: IgpHookConfig,
+    coreAddresses = this.core[chain],
+  ): Promise<HyperlaneContracts<IgpFactories>> {
+    this.logger('Deploying IGP as hook for %s', chain);
+    if (coreAddresses.proxyAdmin) {
+      this.igpDeployer.writeCache(
+        chain,
+        'proxyAdmin',
+        coreAddresses.proxyAdmin,
+      );
+    }
+    const igpContracts = await this.igpDeployer.deployContracts(chain, config);
+    // bubbling up addresses and verification input artifacts
+    this.addDeployedContracts(
+      chain,
+      igpContracts,
+      this.igpDeployer.verificationInputs[chain],
+    );
+    return igpContracts;
+  }
+
+  async deployAggregation(
+    chain: ChainName,
+    config: AggregationHookConfig,
+    coreAddresses = this.core[chain],
+  ): Promise<HyperlaneContracts<HookFactories>> {
+    this.logger('Deploying AggregationHook for %s', chain);
+    const aggregatedHooks: string[] = [];
+    let hooks: any = {};
+    for (const hookConfig of config.hooks) {
+      const subhooks = await this.deployContracts(
+        chain,
+        hookConfig,
+        coreAddresses,
+      );
+      aggregatedHooks.push(subhooks[hookConfig.type].address);
+      hooks = { ...hooks, ...subhooks };
+    }
+    this.logger(
+      `Deploying aggregation hook of ${config.hooks.map((h) => h.type)}`,
+    );
+    const address = await this.ismFactory.deployStaticAddressSet(
+      chain,
+      this.ismFactory.getContracts(chain).aggregationHookFactory,
+      aggregatedHooks,
+    );
+    hooks[HookType.AGGREGATION] = StaticAggregationHook__factory.connect(
+      address,
+      this.multiProvider.getSignerOrProvider(chain),
+    );
+    this.addDeployedContracts(chain, hooks);
+    return hooks;
+  }
+
+  async deployOpStack(
+    chain: ChainName,
+    config: OpStackHookConfig,
+    coreAddresses = this.core[chain],
+  ): Promise<OPStackHook> {
+    this.logger(
+      'Deploying OPStackHook for %s to %s',
+      chain,
+      config.destinationChain,
+    );
+    const mailbox = coreAddresses.mailbox;
+    if (!mailbox) {
+      throw new Error(`Mailbox address is required for ${config.type}`);
+    }
+    // fetch l2 messenger address from l1 messenger
+    const l1Messenger = IL1CrossDomainMessenger__factory.connect(
+      config.nativeBridge,
+      this.multiProvider.getSignerOrProvider(chain),
+    );
+    const l2Messenger: Address = await l1Messenger.OTHER_MESSENGER();
+    // deploy opstack ism
+    const ismConfig: OpStackIsmConfig = {
+      type: IsmType.OP_STACK,
+      origin: chain,
+      nativeBridge: l2Messenger,
+    };
+    const opstackIsm = (await this.ismFactory.deploy(
+      config.destinationChain,
+      ismConfig,
+      chain,
+    )) as OPStackIsm;
+    // deploy opstack hook
+    const hook = await this.deployContract(chain, HookType.OP_STACK, [
+      mailbox,
+      this.multiProvider.getDomainId(config.destinationChain),
+      addressToBytes32(opstackIsm.address),
+      config.nativeBridge,
+    ]);
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
+    // set authorized hook on opstack ism
+    const authorizedHook = await opstackIsm.authorizedHook();
+    if (authorizedHook === addressToBytes32(hook.address)) {
+      this.logger('Authorized hook already set on ism %s', opstackIsm.address);
+      return hook;
+    } else if (
+      authorizedHook !== addressToBytes32(ethers.constants.AddressZero)
+    ) {
+      this.logger(
+        'Authorized hook mismatch on ism %s, expected %s, got %s',
+        opstackIsm.address,
+        addressToBytes32(hook.address),
+        authorizedHook,
+      );
+      throw new Error('Authorized hook mismatch');
+    }
+    // check if mismatch and redeploy hook
+    this.logger(
+      'Setting authorized hook %s on ism % on destination %s',
+      hook.address,
+      opstackIsm.address,
+      config.destinationChain,
+    );
+    await this.multiProvider.handleTx(
+      config.destinationChain,
+      opstackIsm.setAuthorizedHook(addressToBytes32(hook.address), overrides),
     );
 
-    await this.multiProvider.handleTx(chain, optimismISM.deployTransaction);
-
-    this.logger(`Deployed OptimismISM on ${chain} at ${optimismISM.address}`);
-    return optimismISM;
+    return hook;
   }
 
-  async deployTestRecipient(
+  async deployRouting(
     chain: ChainName,
-    ism: Address,
-  ): Promise<TestRecipient> {
-    const signer = this.multiProvider.getSigner(chain);
+    config: DomainRoutingHookConfig | FallbackRoutingHookConfig,
+    coreAddresses = this.core[chain],
+  ): Promise<DomainRoutingHook> {
+    const mailbox = coreAddresses?.mailbox;
+    if (!mailbox) {
+      throw new Error(`Mailbox address is required for ${config.type}`);
+    }
 
-    const testRecipient = await new TestRecipient__factory(signer).deploy();
+    let routingHook: DomainRoutingHook | FallbackDomainRoutingHook;
+    switch (config.type) {
+      case HookType.ROUTING: {
+        this.logger('Deploying DomainRoutingHook for %s', chain);
+        routingHook = await this.deployContract(chain, HookType.ROUTING, [
+          mailbox,
+          config.owner,
+        ]);
+        break;
+      }
+      case HookType.FALLBACK_ROUTING: {
+        this.logger('Deploying FallbackDomainRoutingHook for %s', chain);
+        const fallbackHook = await this.deployContracts(
+          chain,
+          config.fallback,
+          coreAddresses,
+        );
+        routingHook = await this.deployContract(
+          chain,
+          HookType.FALLBACK_ROUTING,
+          [mailbox, config.owner, fallbackHook[config.fallback.type].address],
+        );
+        break;
+      }
+      default:
+        throw new Error(`Unexpected hook type: ${config}`);
+    }
 
-    await this.multiProvider.handleTx(chain, testRecipient.deployTransaction);
-
-    await testRecipient.setInterchainSecurityModule(ism);
-    return testRecipient;
-  }
-
-  async deployOptimismMessageHook(
-    chain: ChainName,
-    destinationDomain: number,
-    nativeBridge: Address,
-    optimismISM: Address,
-  ): Promise<OptimismMessageHook> {
-    const signer = this.multiProvider.getSigner(chain);
-
-    const optimismMessageHook = await new OptimismMessageHook__factory(
-      signer,
-    ).deploy(destinationDomain, nativeBridge, optimismISM);
+    const routingConfigs: DomainRoutingHook.HookConfigStruct[] = [];
+    for (const [dest, hookConfig] of Object.entries(config.domains)) {
+      const destDomain = this.multiProvider.getDomainId(dest);
+      if (typeof hookConfig === 'string') {
+        routingConfigs.push({
+          destination: destDomain,
+          hook: hookConfig,
+        });
+      } else {
+        const hook = await this.deployContracts(
+          chain,
+          hookConfig,
+          coreAddresses,
+        );
+        routingConfigs.push({
+          destination: destDomain,
+          hook: hook[hookConfig.type].address,
+        });
+      }
+    }
 
     await this.multiProvider.handleTx(
       chain,
-      optimismMessageHook.deployTransaction,
+      routingHook.setHooks(routingConfigs),
     );
-    this.logger(
-      `Deployed OptimismMessageHook on ${chain} at ${optimismMessageHook.address}`,
-    );
-    return optimismMessageHook;
+
+    return routingHook;
   }
 }

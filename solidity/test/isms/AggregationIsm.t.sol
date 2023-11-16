@@ -5,8 +5,8 @@ import "forge-std/Test.sol";
 
 import {IAggregationIsm} from "../../contracts/interfaces/isms/IAggregationIsm.sol";
 import {StaticAggregationIsmFactory} from "../../contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
-import {AggregationIsmMetadata} from "../../contracts/libs/isms/AggregationIsmMetadata.sol";
-import {TestIsm, MOfNTestUtils} from "./IsmTestUtils.sol";
+import {AggregationIsmMetadata} from "../../contracts/isms/libs/AggregationIsmMetadata.sol";
+import {TestIsm, ThresholdTestUtils} from "./IsmTestUtils.sol";
 
 contract AggregationIsmTest is Test {
     StaticAggregationIsmFactory factory;
@@ -32,13 +32,12 @@ contract AggregationIsmTest is Test {
         return isms;
     }
 
-    function getMetadata(uint8 m, bytes32 seed)
-        private
-        view
-        returns (bytes memory)
-    {
+    function getMetadata(
+        uint8 m,
+        bytes32 seed
+    ) private view returns (bytes memory) {
         (address[] memory choices, ) = ism.modulesAndThreshold("");
-        address[] memory chosen = MOfNTestUtils.choose(m, choices, seed);
+        address[] memory chosen = ThresholdTestUtils.choose(m, choices, seed);
         bytes memory offsets;
         uint32 start = 8 * uint32(choices.length);
         bytes memory metametadata;
@@ -63,11 +62,7 @@ contract AggregationIsmTest is Test {
         return abi.encodePacked(offsets, metametadata);
     }
 
-    function testVerify(
-        uint8 m,
-        uint8 n,
-        bytes32 seed
-    ) public {
+    function testVerify(uint8 m, uint8 n, bytes32 seed) public {
         vm.assume(0 < m && m <= n && n < 10);
         deployIsms(m, n, seed);
 
@@ -91,11 +86,7 @@ contract AggregationIsmTest is Test {
         assertTrue(ism.verify(metadata, ""));
     }
 
-    function testVerifyMissingMetadata(
-        uint8 m,
-        uint8 n,
-        bytes32 seed
-    ) public {
+    function testVerifyMissingMetadata(uint8 m, uint8 n, bytes32 seed) public {
         vm.assume(0 < m && m <= n && n < 10);
         deployIsms(m, n, seed);
 
@@ -121,11 +112,7 @@ contract AggregationIsmTest is Test {
         ism.verify(metadata, "");
     }
 
-    function testModulesAndThreshold(
-        uint8 m,
-        uint8 n,
-        bytes32 seed
-    ) public {
+    function testModulesAndThreshold(uint8 m, uint8 n, bytes32 seed) public {
         vm.assume(0 < m && m <= n && n < 10);
         address[] memory expectedIsms = deployIsms(m, n, seed);
         (address[] memory actualIsms, uint8 actualThreshold) = ism

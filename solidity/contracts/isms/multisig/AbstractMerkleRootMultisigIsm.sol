@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
-import {MerkleRootMultisigIsmMetadata} from "../../libs/isms/MerkleRootMultisigIsmMetadata.sol";
+import {MerkleRootMultisigIsmMetadata} from "../../isms/libs/MerkleRootMultisigIsmMetadata.sol";
 import {Message} from "../../libs/Message.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
 import {CheckpointLib} from "../../libs/CheckpointLib.sol";
@@ -23,6 +23,9 @@ import {CheckpointLib} from "../../libs/CheckpointLib.sol";
  * @dev May be adapted in future to support batch message verification against a single root.
  */
 abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
+    using MerkleRootMultisigIsmMetadata for bytes;
+    using Message for bytes;
+
     // ============ Constants ============
 
     // solhint-disable-next-line const-name-snakecase
@@ -32,39 +35,38 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
     /**
      * @inheritdoc AbstractMultisigIsm
      */
-    function digest(bytes calldata _metadata, bytes calldata _message)
-        internal
-        pure
-        override
-        returns (bytes32)
-    {
+    function digest(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) internal pure override returns (bytes32) {
+        require(
+            _metadata.messageIndex() <= _metadata.signedIndex(),
+            "Invalid merkle index metadata"
+        );
         // We verify a merkle proof of (messageId, index) I to compute root J
-        bytes32 _root = MerkleLib.branchRoot(
-            Message.id(_message),
-            MerkleRootMultisigIsmMetadata.proof(_metadata),
-            Message.nonce(_message)
+        bytes32 _signedRoot = MerkleLib.branchRoot(
+            _message.id(),
+            _metadata.proof(),
+            _metadata.messageIndex()
         );
         // We provide (messageId, index) J in metadata for digest derivation
         return
             CheckpointLib.digest(
-                Message.origin(_message),
-                MerkleRootMultisigIsmMetadata.originMailbox(_metadata),
-                _root,
-                MerkleRootMultisigIsmMetadata.index(_metadata),
-                MerkleRootMultisigIsmMetadata.messageId(_metadata)
+                _message.origin(),
+                _metadata.originMerkleTreeHook(),
+                _signedRoot,
+                _metadata.signedIndex(),
+                _metadata.signedMessageId()
             );
     }
 
     /**
      * @inheritdoc AbstractMultisigIsm
      */
-    function signatureAt(bytes calldata _metadata, uint256 _index)
-        internal
-        pure
-        virtual
-        override
-        returns (bytes memory signature)
-    {
-        return MerkleRootMultisigIsmMetadata.signatureAt(_metadata, _index);
+    function signatureAt(
+        bytes calldata _metadata,
+        uint256 _index
+    ) internal pure virtual override returns (bytes calldata) {
+        return _metadata.signatureAt(_index);
     }
 }

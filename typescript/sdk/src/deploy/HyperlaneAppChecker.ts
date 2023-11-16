@@ -1,6 +1,6 @@
 import { keccak256 } from 'ethers/lib/utils';
 
-import { Ownable, TimelockController } from '@hyperlane-xyz/core';
+import { Ownable, TimelockController__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
@@ -107,13 +107,11 @@ export abstract class HyperlaneAppChecker<
     chain: ChainName,
     upgradeConfig: UpgradeConfig,
   ): Promise<void> {
-    const timelockController = this.app.getContracts(chain)
-      .timelockController as TimelockController;
-    if (!timelockController) {
-      throw new Error(
-        `Checking upgrade config for ${chain} with no timelock provided`,
-      );
-    }
+    const proxyOwner = await this.app.getContracts(chain).proxyAdmin.owner();
+    const timelockController = TimelockController__factory.connect(
+      proxyOwner,
+      this.multiProvider.getProvider(chain),
+    );
 
     const minDelay = (await timelockController.getMinDelay()).toNumber();
 

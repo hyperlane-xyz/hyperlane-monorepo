@@ -218,6 +218,7 @@ impl SealevelInterchainGasPaymasterIndexer {
 
         let igp_payment = InterchainGasPayment {
             message_id: gas_payment_account.message_id,
+            destination: gas_payment_account.destination_domain,
             payment: gas_payment_account.payment.into(),
             gas_amount: gas_payment_account.gas_amount.into(),
         };

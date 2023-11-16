@@ -3,9 +3,8 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "../contracts/mock/MockMailbox.sol";
-import "../contracts/ValidatorAnnounce.sol";
+import "../contracts/isms/multisig/ValidatorAnnounce.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
-import {ValidatorAnnouncements} from "../contracts/libs/ValidatorAnnouncements.sol";
 
 contract ValidatorAnnounceTest is Test {
     using TypeCasts for address;
@@ -25,18 +24,17 @@ contract ValidatorAnnounceTest is Test {
         valAnnounce = new ValidatorAnnounce(address(mailbox));
     }
 
-    function announce(uint256 privateKey, string memory storageLocation)
-        internal
-    {
-        bytes32 digest = ValidatorAnnouncements.getAnnouncementDigest(
-            address(mailbox),
-            localDomain,
-            storageLocation
-        );
+    function announce(
+        uint256 privateKey,
+        string memory storageLocation,
+        bool shouldRevert
+    ) internal {
+        bytes32 digest = valAnnounce.getAnnouncementDigest(storageLocation);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         address validator = vm.addr(privateKey);
+        if (shouldRevert) vm.expectRevert("replay");
         valAnnounce.announce(validator, storageLocation, signature);
     }
 
@@ -46,9 +44,10 @@ contract ValidatorAnnounceTest is Test {
         assertEq(encodedA, encodedB);
     }
 
-    function assertEqStrArrArr(string[][] memory a, string[][] memory b)
-        internal
-    {
+    function assertEqStrArrArr(
+        string[][] memory a,
+        string[][] memory b
+    ) internal {
         bytes memory encodedA = abi.encode(a);
         bytes memory encodedB = abi.encode(b);
         assertEq(encodedA, encodedB);
@@ -61,7 +60,7 @@ contract ValidatorAnnounceTest is Test {
         string memory storageLocation1 = "s3://test-bucket/us-east-1";
         vm.expectEmit(true, false, false, true, address(valAnnounce));
         emit ValidatorAnnouncement(validator, storageLocation1);
-        announce(privateKey, storageLocation1);
+        announce(privateKey, storageLocation1, false);
 
         address[] memory expectedValidators = new address[](1);
         expectedValidators[0] = validator;
@@ -80,14 +79,13 @@ contract ValidatorAnnounceTest is Test {
         );
 
         // Shouldn't be able to announce the same location twice
-        vm.expectRevert("replay");
-        announce(privateKey, storageLocation1);
+        announce(privateKey, storageLocation1, true);
 
         // Announce a second location
         string memory storageLocation2 = "s3://test-bucket-2/us-east-1";
         vm.expectEmit(true, false, false, true, address(valAnnounce));
         emit ValidatorAnnouncement(validator, storageLocation2);
-        announce(privateKey, storageLocation2);
+        announce(privateKey, storageLocation2, false);
         assertEqAddrArr(
             valAnnounce.getAnnouncedValidators(),
             expectedValidators

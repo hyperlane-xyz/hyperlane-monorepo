@@ -2,18 +2,14 @@ import path from 'path';
 import yargs from 'yargs';
 
 import {
-  AgentConnectionType,
   AllChains,
   ChainMap,
   ChainMetadata,
   ChainName,
   Chains,
   CoreConfig,
-  HyperlaneCore,
-  HyperlaneIgp,
   MultiProvider,
-  ProxiedRouterConfig,
-  RouterConfig,
+  RpcConsensusType,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
@@ -31,11 +27,11 @@ import {
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { Role } from '../src/roles';
-import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
-import { assertContext, assertRole } from '../src/utils/utils';
+import { assertContext, assertRole, readJSON } from '../src/utils/utils';
 
 export enum Modules {
-  ISM_FACTORY = 'ism',
+  // TODO: change
+  PROXY_FACTORY = 'ism',
   CORE = 'core',
   HOOK = 'hook',
   INTERCHAIN_GAS_PAYMASTER = 'igp',
@@ -45,10 +41,11 @@ export enum Modules {
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
   HELLO_WORLD = 'helloworld',
+  WARP = 'warp',
 }
 
 export const SDK_MODULES = [
-  Modules.ISM_FACTORY,
+  Modules.PROXY_FACTORY,
   Modules.CORE,
   Modules.INTERCHAIN_GAS_PAYMASTER,
   Modules.INTERCHAIN_ACCOUNTS,
@@ -177,7 +174,8 @@ export async function getMultiProviderForRole(
   context: Contexts,
   role: Role,
   index?: number,
-  connectionType?: AgentConnectionType,
+  // TODO: rename to consensusType?
+  connectionType?: RpcConsensusType,
 ): Promise<MultiProvider> {
   if (process.env.CI === 'true') {
     return new MultiProvider(); // use default RPCs
@@ -248,6 +246,24 @@ export function getModuleDirectory(
   return path.join(getEnvironmentDirectory(environment), suffixFn());
 }
 
+export function getInfraAddresses(
+  environment: DeployEnvironment,
+  module: Modules,
+) {
+  return readJSON(getModuleDirectory(environment, module), 'addresses.json');
+}
+
+export function getAddresses(environment: DeployEnvironment, module: Modules) {
+  if (SDK_MODULES.includes(module) && environment !== 'test') {
+    return readJSON(
+      getContractAddressesSdkFilepath(),
+      `${deployEnvToSdkEnv[environment]}.json`,
+    );
+  } else {
+    return getInfraAddresses(environment, module);
+  }
+}
+
 export function getAgentConfigDirectory() {
   return path.join('../../', 'rust', 'config');
 }
@@ -267,74 +283,6 @@ export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {
   }
 }
 
-export async function getRouterConfig(
-  environment: DeployEnvironment,
-  multiProvider: MultiProvider,
-  useMultiProviderOwners = false,
-): Promise<ChainMap<RouterConfig>> {
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[environment],
-    multiProvider,
-  );
-  const igp = HyperlaneIgp.fromEnvironment(
-    deployEnvToSdkEnv[environment],
-    multiProvider,
-  );
-
-  const owners = getEnvironmentConfig(environment).owners;
-  const config: ChainMap<RouterConfig> = {};
-  const knownChains = multiProvider.intersect(
-    core.chains().concat(igp.chains()),
-  ).intersection;
-
-  for (const chain of knownChains) {
-    // CI will not have signers for all known chains. To avoid failing, we
-    // default to the owner configured in the environment if we cannot get a
-    // signer address.
-    const getSignerAddress = (chain: ChainName) => {
-      const signer = multiProvider.tryGetSigner(chain);
-      if (!signer) {
-        const owner = owners[chain];
-        console.warn(
-          `Unable to get signer for chain, ${chain}, defaulting to configured owner ${owner}`,
-        );
-        return owner;
-      }
-      return signer.getAddress();
-    };
-
-    // MultiProvider signers are only used for Ethereum chains.
-    const owner =
-      useMultiProviderOwners &&
-      multiProvider.getChainMetadata(chain).protocol === ProtocolType.Ethereum
-        ? await getSignerAddress(chain)
-        : owners[chain];
-    config[chain] = {
-      owner: owner,
-      mailbox: core.getContracts(chain).mailbox.address,
-      interchainGasPaymaster:
-        igp.getContracts(chain).defaultIsmInterchainGasPaymaster.address,
-    };
-  }
-  return config;
-}
-
-export async function getProxiedRouterConfig(
-  environment: DeployEnvironment,
-  multiProvider: MultiProvider,
-  useMultiProviderOwners = false,
-): Promise<ChainMap<ProxiedRouterConfig>> {
-  const config = await getRouterConfig(
-    environment,
-    multiProvider,
-    useMultiProviderOwners,
-  );
-  return objMap(config, (chain, routerConfig) => ({
-    timelock: environments[environment].core[chain].upgrade?.timelock,
-    ...routerConfig,
-  }));
-}
-
 export function getValidatorsByChain(
   config: ChainMap<CoreConfig>,
 ): ChainMap<Set<string>> {
@@ -352,25 +300,4 @@ export function getValidatorsByChain(
     });
   }
   return validators;
-}
-
-export async function getHooksProvider(
-  multiProvider: MultiProvider,
-  environment: DeployEnvironment,
-): Promise<MultiProvider> {
-  const hooksProvider = new MultiProvider();
-  const hooksConfig = getEnvironmentConfig(environment).hooks;
-  if (!hooksConfig) {
-    return hooksProvider;
-  }
-  for (const chain of Object.keys(hooksConfig)) {
-    // need to use different url for two forks simultaneously
-    // need another rpc param
-    await useLocalProvider(multiProvider, chain);
-  }
-  const signer = await impersonateAccount(
-    '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-  );
-  hooksProvider.setSharedSigner(signer);
-  return hooksProvider;
 }

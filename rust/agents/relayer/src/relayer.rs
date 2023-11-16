@@ -12,7 +12,7 @@ use hyperlane_base::{
     run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, MessageContractSync,
     WatermarkContractSync,
 };
-use hyperlane_core::{HyperlaneDomain, InterchainGasPayment, U256};
+use hyperlane_core::{HyperlaneDomain, InterchainGasPayment, MerkleTreeInsertion, U256};
 use tokio::{
     sync::{
         mpsc::{self, UnboundedReceiver, UnboundedSender},
@@ -22,8 +22,10 @@ use tokio::{
 };
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
+use crate::merkle_tree::processor::{MerkleTreeProcessor, MerkleTreeProcessorMetrics};
+use crate::processor::{Processor, ProcessorExt};
 use crate::{
-    merkle_tree_builder::MerkleTreeBuilder,
+    merkle_tree::builder::MerkleTreeBuilder,
     msg::{
         gas_payment::GasPaymentEnforcer,
         metadata::BaseMetadataBuilder,
@@ -55,6 +57,8 @@ pub struct Relayer {
     /// sent between
     msg_ctxs: HashMap<ContextKey, Arc<MessageContext>>,
     prover_syncs: HashMap<HyperlaneDomain, Arc<RwLock<MerkleTreeBuilder>>>,
+    merkle_tree_hook_syncs:
+        HashMap<HyperlaneDomain, Arc<WatermarkContractSync<MerkleTreeInsertion>>>,
     dbs: HashMap<HyperlaneDomain, HyperlaneRocksDB>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
@@ -127,6 +131,16 @@ impl BaseAgent for Relayer {
                     .collect(),
             )
             .await?;
+        let merkle_tree_hook_syncs = settings
+            .build_merkle_tree_hook_indexers(
+                settings.origin_chains.iter(),
+                &metrics,
+                &contract_sync_metrics,
+                dbs.iter()
+                    .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
+                    .collect(),
+            )
+            .await?;
 
         let whitelist = Arc::new(settings.whitelist);
         let blacklist = Arc::new(settings.blacklist);
@@ -146,10 +160,9 @@ impl BaseAgent for Relayer {
             .origin_chains
             .iter()
             .map(|origin| {
-                let db = dbs.get(origin).unwrap().clone();
                 (
                     origin.clone(),
-                    Arc::new(RwLock::new(MerkleTreeBuilder::new(db))),
+                    Arc::new(RwLock::new(MerkleTreeBuilder::new())),
                 )
             })
             .collect::<HashMap<_, _>>();
@@ -184,12 +197,14 @@ impl BaseAgent for Relayer {
                 };
 
             for origin in &settings.origin_chains {
+                let db = dbs.get(origin).unwrap().clone();
                 let metadata_builder = BaseMetadataBuilder::new(
                     destination_chain_setup.clone(),
                     prover_syncs[origin].clone(),
                     validator_announces[origin].clone(),
                     settings.allow_local_checkpoint_syncers,
                     core.metrics.clone(),
+                    db,
                     5,
                 );
 
@@ -219,6 +234,7 @@ impl BaseAgent for Relayer {
             message_syncs,
             interchain_gas_payment_syncs,
             prover_syncs,
+            merkle_tree_hook_syncs,
             whitelist,
             blacklist,
             transaction_gas_limit,
@@ -244,11 +260,13 @@ impl BaseAgent for Relayer {
         for origin in &self.origin_chains {
             tasks.push(self.run_message_sync(origin).await);
             tasks.push(self.run_interchain_gas_payment_sync(origin).await);
+            tasks.push(self.run_merkle_tree_hook_syncs(origin).await);
         }
 
         // each message process attempts to send messages from a chain
         for origin in &self.origin_chains {
             tasks.push(self.run_message_processor(origin, send_channels.clone()));
+            tasks.push(self.run_merkle_tree_processor(origin));
         }
 
         run_all(tasks)
@@ -289,6 +307,17 @@ impl Relayer {
             .instrument(info_span!("ContractSync"))
     }
 
+    async fn run_merkle_tree_hook_syncs(
+        &self,
+        origin: &HyperlaneDomain,
+    ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+        let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
+        let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
+        let cursor = contract_sync.rate_limited_cursor(index_settings).await;
+        tokio::spawn(async move { contract_sync.clone().sync("merkle_tree_hook", cursor).await })
+            .instrument(info_span!("ContractSync"))
+    }
+
     fn run_message_processor(
         &self,
         origin: &HyperlaneDomain,
@@ -319,16 +348,36 @@ impl Relayer {
             self.whitelist.clone(),
             self.blacklist.clone(),
             metrics,
-            self.prover_syncs[origin].clone(),
             send_channels,
             destination_ctxs,
         );
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
-        let process_fut = message_processor.spawn();
+        let processor = Processor::new(Box::new(message_processor));
         tokio::spawn(async move {
-            let res = tokio::try_join!(process_fut)?;
+            let res = tokio::try_join!(processor.spawn())?;
             info!(?res, "try_join finished for message processor");
+            Ok(())
+        })
+        .instrument(span)
+    }
+
+    fn run_merkle_tree_processor(
+        &self,
+        origin: &HyperlaneDomain,
+    ) -> Instrumented<JoinHandle<Result<()>>> {
+        let metrics = MerkleTreeProcessorMetrics::new();
+        let merkle_tree_processor = MerkleTreeProcessor::new(
+            self.dbs.get(origin).unwrap().clone(),
+            metrics,
+            self.prover_syncs[origin].clone(),
+        );
+
+        let span = info_span!("MerkleTreeProcessor", origin=%merkle_tree_processor.domain());
+        let processor = Processor::new(Box::new(merkle_tree_processor));
+        tokio::spawn(async move {
+            let res = tokio::try_join!(processor.spawn())?;
+            info!(?res, "try_join finished for merkle tree processor");
             Ok(())
         })
         .instrument(span)

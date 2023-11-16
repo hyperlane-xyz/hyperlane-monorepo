@@ -22,27 +22,20 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
     super(multiProvider, interchainQueryFactories);
   }
 
-  async constructorArgs(_: string, __: RouterConfig): Promise<[]> {
-    return [];
+  async constructorArgs(_: string, config: RouterConfig): Promise<[string]> {
+    return [config.mailbox];
   }
+
   async initializeArgs(
     chain: string,
     config: RouterConfig,
-  ): Promise<
-    [
-      _mailbox: string,
-      _interchainGasPaymaster: string,
-      _interchainSecurityModule: string,
-      _owner: string,
-    ]
-  > {
+  ): Promise<[string, string, string]> {
     const owner = await this.multiProvider.getSignerAddress(chain);
     if (typeof config.interchainSecurityModule === 'object') {
       throw new Error('ISM as object unimplemented');
     }
     return [
-      config.mailbox,
-      config.interchainGasPaymaster,
+      config.hook ?? ethers.constants.AddressZero,
       config.interchainSecurityModule ?? ethers.constants.AddressZero,
       owner,
     ];

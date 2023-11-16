@@ -1,0 +1,38 @@
+{
+  "polygon": {
+    "router": "0x42ad84C5d2a90e574678958133B8a13CA9F44AAF"
+  },
+  "bsc": {
+    "router": "0x22Fd11F93F0303346c9b9070cc67C4Bc7aB2dABB"
+  },
+  "arbitrum": {
+    "router": "0xb2BFFD0248C7a0029860A29fD4Efe762a22f93Af"
+  },
+  "optimism": {
+    "router": "0x3da5fDCcC661c84454f49dB0Cf519561BC7c2729"
+  },
+  "moonbeam": {
+    "router": "0xE25d0D46a42a106Cdf4943262644DD5E26fa7bfF"
+  },
+  "gnosis": {
+    "router": "0xA166219dF110BDA97b91e65D4BB4Aae4159978b9"
+  },
+  "base": {
+    "router": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162"
+  },
+  "scroll": {
+    "router": "0x0be2Ae2f6D02a3e0e00ECB57D3E1fCbb7f8F38F4"
+  },
+  "polygonzkevm": {
+    "router": "0xaad207a0Fd7a4e3C927Ccc78ac8134baF586B852"
+  },
+  "celo": {
+    "router": "0x10Add66Db9C837000A43F3601aa9c54c6744F4c8"
+  },
+  "ethereum": {
+    "router": "0x7ff2bF58C38A41AD7C9CbC14e780e8a7EDBbd48D"
+  },
+  "avalanche": {
+    "router": "0xd54fF402ADf0a7CBad9626B1261bF4bEB26A437a"
+  }
+}

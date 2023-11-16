@@ -30,11 +30,9 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
      * @return validators The array of validator addresses
      * @return threshold The number of validator signatures needed
      */
-    function validatorsAndThreshold(bytes calldata _message)
-        public
-        view
-        virtual
-        returns (address[] memory, uint8);
+    function validatorsAndThreshold(
+        bytes calldata _message
+    ) public view virtual returns (address[] memory, uint8);
 
     /**
      * @notice Returns the digest to be used for signature verification.
@@ -42,11 +40,10 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
      * @param _message Formatted Hyperlane message (see Message.sol).
      * @return digest The digest to be signed by validators
      */
-    function digest(bytes calldata _metadata, bytes calldata _message)
-        internal
-        view
-        virtual
-        returns (bytes32);
+    function digest(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) internal view virtual returns (bytes32);
 
     /**
      * @notice Returns the signature at a given index from the metadata.
@@ -54,11 +51,10 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
      * @param _index The index of the signature to return
      * @return signature Packed encoding of signature (65 bytes)
      */
-    function signatureAt(bytes calldata _metadata, uint256 _index)
-        internal
-        pure
-        virtual
-        returns (bytes memory);
+    function signatureAt(
+        bytes calldata _metadata,
+        uint256 _index
+    ) internal pure virtual returns (bytes calldata);
 
     // ============ Public Functions ============
 
@@ -68,11 +64,10 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
      * @param _metadata ABI encoded module metadata
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
-    function verify(bytes calldata _metadata, bytes calldata _message)
-        public
-        view
-        returns (bool)
-    {
+    function verify(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) public view returns (bool) {
         bytes32 _digest = digest(_metadata, _message);
         (
             address[] memory _validators,

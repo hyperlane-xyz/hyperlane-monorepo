@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {Router} from "../../../Router.sol";
+import {Router} from "../../../client/Router.sol";
 
 import {IPortalTokenBridge} from "../interfaces/portal/IPortalTokenBridge.sol";
 import {ILiquidityLayerAdapter} from "../interfaces/ILiquidityLayerAdapter.sol";
@@ -21,13 +21,13 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
     /// @notice transferId => token address
     mapping(bytes32 => address) public portalTransfersProcessed;
 
-    uint32 public localDomain;
-
     // We could technically use Portal's sequence number here but it doesn't
     // get passed through, so we would have to parse the VAA twice
     // 224 bits should be large enough and allows us to pack into a single slot
     // with a Hyperlane domain
     uint224 public nonce = 0;
+
+    constructor(address _mailbox) Router(_mailbox) {}
 
     /**
      * @notice Emits the nonce of the Portal message when a token is bridged.
@@ -54,13 +54,11 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
     }
 
     /**
-     * @param _localDomain The local hyperlane domain
      * @param _owner The new owner.
      * @param _portalTokenBridge The Portal TokenBridge contract.
      * @param _liquidityLayerRouter The LiquidityLayerRouter contract.
      */
     function initialize(
-        uint32 _localDomain,
         address _owner,
         address _portalTokenBridge,
         address _liquidityLayerRouter
@@ -68,7 +66,6 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
         // Transfer ownership of the contract to deployer
         _transferOwnership(_owner);
 
-        localDomain = _localDomain;
         portalTokenBridge = IPortalTokenBridge(_portalTokenBridge);
         liquidityLayerRouter = _liquidityLayerRouter;
     }
@@ -192,10 +189,10 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
         revert("No messages expected");
     }
 
-    function addDomain(uint32 _hyperlaneDomain, uint16 _wormholeDomain)
-        external
-        onlyOwner
-    {
+    function addDomain(
+        uint32 _hyperlaneDomain,
+        uint16 _wormholeDomain
+    ) external onlyOwner {
         hyperlaneDomainToWormholeDomain[_hyperlaneDomain] = _wormholeDomain;
 
         emit DomainAdded(_hyperlaneDomain, _wormholeDomain);
@@ -206,11 +203,10 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
      * @param _hyperlaneDomain The hyperlane of the origin
      * @param _nonce The nonce of the adapter on the origin
      */
-    function transferId(uint32 _hyperlaneDomain, uint224 _nonce)
-        public
-        pure
-        returns (bytes32)
-    {
+    function transferId(
+        uint32 _hyperlaneDomain,
+        uint224 _nonce
+    ) public pure returns (bytes32) {
         return bytes32(abi.encodePacked(_hyperlaneDomain, _nonce));
     }
 }

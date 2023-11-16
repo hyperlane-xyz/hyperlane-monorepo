@@ -1,16 +1,12 @@
-use std::future::Future;
-use std::time::Duration;
-
 use async_trait::async_trait;
 use eyre::Result;
 use paste::paste;
-use tokio::time::sleep;
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneMessageStore,
+    GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneMessageStore,
     HyperlaneWatermarkedLogStore, InterchainGasExpenditure, InterchainGasPayment,
-    InterchainGasPaymentMeta, LogMeta, H256,
+    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, H256,
 };
 
 use super::{
@@ -30,6 +26,8 @@ const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
 const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
     "pending_message_retry_count_for_message_id_";
+const MERKLE_TREE_INSERTION: &str = "merkle_tree_insertion_";
+const MERKLE_LEAF_INDEX_BY_MESSAGE_ID: &str = "merkle_leaf_index_by_message_id_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 
 type DbResult<T> = std::result::Result<T, DbError>;
@@ -106,20 +104,6 @@ impl HyperlaneRocksDB {
         }
     }
 
-    // TODO(james): this is a quick-fix for the prover_sync and I don't like it
-    /// poll db ever 100 milliseconds waiting for a leaf.
-    pub fn wait_for_message_nonce(&self, nonce: u32) -> impl Future<Output = DbResult<H256>> {
-        let slf = self.clone();
-        async move {
-            loop {
-                if let Some(id) = slf.retrieve_message_id_by_nonce(&nonce)? {
-                    return Ok(id);
-                }
-                sleep(Duration::from_millis(100)).await
-            }
-        }
-    }
-
     /// If the provided gas payment, identified by its metadata, has not been
     /// processed, processes the gas payment and records it as processed.
     /// Returns whether the gas payment was processed for the first time.
@@ -146,9 +130,25 @@ impl HyperlaneRocksDB {
         self.store_processed_by_gas_payment_meta(&payment_meta, &true)?;
 
         // Update the total gas payment for the message to include the payment
-        self.update_gas_payment_by_message_id(payment)?;
+        self.update_gas_payment_by_gas_payment_key(payment)?;
 
         // Return true to indicate the gas payment was processed for the first time
+        Ok(true)
+    }
+
+    /// Store the merkle tree insertion event, and also store a mapping from message_id to leaf_index
+    pub fn process_tree_insertion(&self, insertion: &MerkleTreeInsertion) -> DbResult<bool> {
+        if let Ok(Some(_)) = self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index()) {
+            debug!(insertion=?insertion, "Tree insertion already stored in db");
+            return Ok(false);
+        }
+        // even if double insertions are ok, store the leaf by `leaf_index` (guaranteed to be unique)
+        // rather than by `message_id` (not guaranteed to be recurring), so that leaves can be retrieved
+        // based on insertion order.
+        self.store_merkle_tree_insertion_by_leaf_index(&insertion.index(), insertion)?;
+
+        self.store_merkle_leaf_index_by_message_id(&insertion.message_id(), &insertion.index())?;
+        // Return true to indicate the tree insertion was processed
         Ok(true)
     }
 
@@ -160,12 +160,16 @@ impl HyperlaneRocksDB {
     }
 
     /// Update the total gas payment for a message to include gas_payment
-    fn update_gas_payment_by_message_id(&self, event: InterchainGasPayment) -> DbResult<()> {
-        let existing_payment = self.retrieve_gas_payment_by_message_id(event.message_id)?;
+    fn update_gas_payment_by_gas_payment_key(&self, event: InterchainGasPayment) -> DbResult<()> {
+        let gas_payment_key = GasPaymentKey {
+            message_id: event.message_id,
+            destination: event.destination,
+        };
+        let existing_payment = self.retrieve_gas_payment_by_gas_payment_key(gas_payment_key)?;
         let total = existing_payment + event;
 
         debug!(?event, new_total_gas_payment=?total, "Storing gas payment");
-        self.store_interchain_gas_payment_data_by_message_id(&total.message_id, &total.into())?;
+        self.store_interchain_gas_payment_data_by_gas_payment_key(&gas_payment_key, &total.into())?;
 
         Ok(())
     }
@@ -190,14 +194,14 @@ impl HyperlaneRocksDB {
     }
 
     /// Retrieve the total gas payment for a message
-    pub fn retrieve_gas_payment_by_message_id(
+    pub fn retrieve_gas_payment_by_gas_payment_key(
         &self,
-        message_id: H256,
+        gas_payment_key: GasPaymentKey,
     ) -> DbResult<InterchainGasPayment> {
         Ok(self
-            .retrieve_interchain_gas_payment_data_by_message_id(&message_id)?
+            .retrieve_interchain_gas_payment_data_by_gas_payment_key(&gas_payment_key)?
             .unwrap_or_default()
-            .complete(message_id))
+            .complete(gas_payment_key.message_id, gas_payment_key.destination))
     }
 
     /// Retrieve the total gas payment for a message
@@ -246,6 +250,21 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
             debug!(payments = new, "Wrote new gas payments to database");
         }
         Ok(new)
+    }
+}
+
+#[async_trait]
+impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
+    /// Store every tree insertion event
+    #[instrument(skip_all)]
+    async fn store_logs(&self, leaves: &[(MerkleTreeInsertion, LogMeta)]) -> Result<u32> {
+        let mut insertions = 0;
+        for (insertion, _meta) in leaves {
+            if self.process_tree_insertion(insertion)? {
+                insertions += 1;
+            }
+        }
+        Ok(insertions)
     }
 }
 
@@ -315,11 +334,25 @@ make_store_and_retrieve!(pub(self), dispatched_block_number_by_nonce, MESSAGE_DI
 make_store_and_retrieve!(pub, processed_by_nonce, NONCE_PROCESSED, u32, bool);
 make_store_and_retrieve!(pub(self), processed_by_gas_payment_meta, GAS_PAYMENT_META_PROCESSED, InterchainGasPaymentMeta, bool);
 make_store_and_retrieve!(pub(self), interchain_gas_expenditure_data_by_message_id, GAS_EXPENDITURE_FOR_MESSAGE_ID, H256, InterchainGasExpenditureData);
-make_store_and_retrieve!(pub(self), interchain_gas_payment_data_by_message_id, GAS_PAYMENT_FOR_MESSAGE_ID, H256, InterchainGasPaymentData);
+make_store_and_retrieve!(pub(self), interchain_gas_payment_data_by_gas_payment_key, GAS_PAYMENT_FOR_MESSAGE_ID, GasPaymentKey, InterchainGasPaymentData);
 make_store_and_retrieve!(
     pub,
     pending_message_retry_count_by_message_id,
     PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID,
+    H256,
+    u32
+);
+make_store_and_retrieve!(
+    pub,
+    merkle_tree_insertion_by_leaf_index,
+    MERKLE_TREE_INSERTION,
+    u32,
+    MerkleTreeInsertion
+);
+make_store_and_retrieve!(
+    pub,
+    merkle_leaf_index_by_message_id,
+    MERKLE_LEAF_INDEX_BY_MESSAGE_ID,
     H256,
     u32
 );

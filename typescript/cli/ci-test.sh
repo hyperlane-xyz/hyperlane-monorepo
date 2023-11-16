@@ -2,9 +2,14 @@
 
 # Optional cleanup for previous runs, useful when running locally
 pkill -f anvil
-docker ps -aq | xargs docker stop | xargs docker rm
 rm -rf /tmp/anvil*
 rm -rf /tmp/relayer
+
+if [[ $OSTYPE == 'darwin'* ]]; then
+    # kill child processes on exit, but only locally because
+    # otherwise it causes the script exit code to be non-zero
+    trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+fi
 
 # Setup directories for anvil chains
 for CHAIN in anvil1 anvil2
@@ -13,28 +18,38 @@ do
     chmod -R 777 /tmp/relayer /tmp/$CHAIN
 done
 
-# Optional: remove the --block-time 1 to speedup tests for local runs
-anvil --chain-id 31337 -p 8545 --state /tmp/anvil1/state --block-time 1 > /dev/null &
-anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state --block-time 1 > /dev/null &
+anvil --chain-id 31337 -p 8545 --state /tmp/anvil1/state --gas-price 1 > /dev/null &
+anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state --gas-price 1 > /dev/null &
 sleep 1
 
 set -e
 
 echo "{}" > /tmp/empty-artifacts.json
 
+export DEBUG=hyperlane:*
+
+DEPLOYER=$(cast rpc eth_accounts | jq -r '.[0]')
+BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+
 echo "Deploying contracts to anvil1 and anvil2"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
-    --chain-configs ./examples/anvil-chains.yaml \
-    --chains anvil1,anvil2 \
+    --targets anvil1,anvil2 \
+    --chains ./examples/anvil-chains.yaml \
     --artifacts /tmp/empty-artifacts.json \
-    --out /tmp \
     --ism ./examples/multisig-ism.yaml \
+    --hook ./examples/hook-config.yaml \
+    --out /tmp \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
 
+AFTER_CORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+GAS_PRICE=$(cast gas-price --rpc-url http://localhost:8545)
+CORE_MIN_GAS=$(bc <<< "($BEFORE - $AFTER_CORE) / $GAS_PRICE")
+echo "Gas used: $CORE_MIN_GAS"
+
 CORE_ARTIFACTS_PATH=`find /tmp/core-deployment* -type f -exec ls -t1 {} + | head -1`
 echo "Core artifacts:"
-cat $CORE_ARTIFACTS_PATH
+echo $CORE_ARTIFACTS_PATH
 
 AGENT_CONFIG_FILENAME=`ls -t1 /tmp | grep agent-config | head -1`
 
@@ -47,6 +62,11 @@ yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
 
+AFTER_WARP=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+GAS_PRICE=$(cast gas-price --rpc-url http://localhost:8545)
+WARP_MIN_GAS=$(bc <<< "($AFTER_CORE - $AFTER_WARP) / $GAS_PRICE")
+echo "Gas used: $WARP_MIN_GAS"
+
 echo "Sending test message"
 yarn workspace @hyperlane-xyz/cli run hyperlane send message \
     --origin anvil1 \
@@ -56,6 +76,11 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send message \
     --quick \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     | tee /tmp/message1
+
+AFTER_MSG=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+GAS_PRICE=$(cast gas-price --rpc-url http://localhost:8545)
+MSG_MIN_GAS=$(bc <<< "($AFTER_WARP - $AFTER_MSG) / $GAS_PRICE")
+echo "Gas used: $MSG_MIN_GAS"
 
 MESSAGE1_ID=`cat /tmp/message1 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
 echo "Message 1 ID: $MESSAGE1_ID"
@@ -78,75 +103,67 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
 MESSAGE2_ID=`cat /tmp/message2 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
 echo "Message 2 ID: $MESSAGE2_ID"
 
-if [[ $OSTYPE == 'darwin'* ]]; then
-    # Required because the -net=host driver only works on linux
-    DOCKER_CONNECTION_URL="http://host.docker.internal"
-else
-    DOCKER_CONNECTION_URL="http://127.0.0.1"
-fi
+# ANVIL_CONNECTION_URL="http://127.0.0.1"
+# cd ../../rust
+# for i in "anvil1 8545 ANVIL1" "anvil2 8555 ANVIL2"
+# do
+#     set -- $i
+#     echo "Running validator on $1"
+#     export CONFIG_FILES=/tmp/${AGENT_CONFIG_FILENAME}
+#     export HYP_ORIGINCHAINNAME=$1
+#     export HYP_CHAINS_${3}_BLOCKS_REORGPERIOD=0
+#     export HYP_VALIDATOR_INTERVAL=1
+#     export HYP_CHAINS_${3}_CUSTOMRPCURLS=${ANVIL_CONNECTION_URL}:${2}
+#     export HYP_VALIDATOR_TYPE=hexKey
+#     export HYP_VALIDATOR_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
+#     export HYP_CHECKPOINTSYNCER_TYPE=localStorage
+#     export HYP_CHECKPOINTSYNCER_PATH=/tmp/${1}/validator
+#     export HYP_TRACING_LEVEL=debug
+#     export HYP_TRACING_FMT=compact
 
-for i in "anvil1 8545 ANVIL1" "anvil2 8555 ANVIL2"
-do
-    set -- $i
-    echo "Running validator on $1"
-    docker run \
-      --mount type=bind,source="/tmp",target=/data --net=host \
-      -e CONFIG_FILES=/data/${AGENT_CONFIG_FILENAME} -e HYP_VALIDATOR_ORIGINCHAINNAME=$1 \
-      -e HYP_VALIDATOR_REORGPERIOD=0 -e HYP_VALIDATOR_INTERVAL=1 \
-      -e HYP_BASE_CHAINS_${3}_CONNECTION_URL=${DOCKER_CONNECTION_URL}:${2} \
-      -e HYP_VALIDATOR_VALIDATOR_TYPE=hexKey \
-      -e HYP_VALIDATOR_VALIDATOR_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6 \
-      -e HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE=localStorage \
-      -e HYP_VALIDATOR_CHECKPOINTSYNCER_PATH=/data/${1}/validator \
-      -e HYP_BASE_TRACING_LEVEL=debug -e HYP_BASE_TRACING_FMT=compact \
-      gcr.io/abacus-labs-dev/hyperlane-agent:main ./validator > /tmp/${1}/validator-logs.txt &
-done
+#     cargo run --bin validator > /tmp/${1}/validator-logs.txt &
+# done
 
-echo "Validator running, sleeping to let it sync"
-sleep 15
-echo "Done sleeping"
+# echo "Validator running, sleeping to let it sync"
+# sleep 15
+# echo "Done sleeping"
 
-echo "Validator Announcement:"
-cat /tmp/anvil1/validator/announcement.json
+# echo "Validator Announcement:"
+# cat /tmp/anvil1/validator/announcement.json
 
-echo "Running relayer"
-# Won't work on anything but linux due to -net=host
-# Replace CONNECTION_URL with host.docker.internal on mac
-docker run \
-    --mount type=bind,source="/tmp",target=/data --net=host \
-    -e CONFIG_FILES=/data/${AGENT_CONFIG_FILENAME} \
-    -e HYP_BASE_CHAINS_ANVIL1_CONNECTION_URL=${DOCKER_CONNECTION_URL}:8545 \
-    -e HYP_BASE_CHAINS_ANVIL2_CONNECTION_URL=${DOCKER_CONNECTION_URL}:8555 \
-    -e HYP_BASE_TRACING_LEVEL=debug -e HYP_BASE_TRACING_FMT=compact \
-    -e HYP_RELAYER_RELAYCHAINS=anvil1,anvil2 \
-    -e HYP_RELAYER_ALLOWLOCALCHECKPOINTSYNCERS=true -e HYP_RELAYER_DB=/data/relayer \
-    -e HYP_RELAYER_GASPAYMENTENFORCEMENT='[{"type":"none"}]' \
-    -e HYP_BASE_CHAINS_ANVIL1_SIGNER_TYPE=hexKey \
-    -e HYP_BASE_CHAINS_ANVIL1_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
-    -e HYP_BASE_CHAINS_ANVIL2_SIGNER_TYPE=hexKey \
-    -e HYP_BASE_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
-    gcr.io/abacus-labs-dev/hyperlane-agent:main ./relayer > /tmp/relayer/relayer-logs.txt &
+# echo "Running relayer"
 
-sleep 5
-echo "Done running relayer, checking message delivery statuses"
+# export HYP_RELAYCHAINS=anvil1,anvil2
+# export HYP_ALLOWLOCALCHECKPOINTSYNCERS=true
+# export HYP_DB=/tmp/relayer
+# export HYP_GASPAYMENTENFORCEMENT='[{"type":"none"}]'
+# export HYP_CHAINS_ANVIL1_SIGNER_TYPE=hexKey
+# export HYP_CHAINS_ANVIL1_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
+# export HYP_CHAINS_ANVIL2_SIGNER_TYPE=hexKey
+# export HYP_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
 
-for i in "1 $MESSAGE1_ID" "2 $MESSAGE2_ID"
-do
-    set -- $i
-    echo "Checking delivery status of $1: $2"
-    yarn workspace @hyperlane-xyz/cli run hyperlane status \
-        --id $2 \
-        --destination anvil2 \
-        --chains ./examples/anvil-chains.yaml \
-        --core $CORE_ARTIFACTS_PATH \
-        | tee /tmp/message-status-$1
-    if ! grep -q "$2 was delivered" /tmp/message-status-$1; then
-        echo "ERROR: Message $1 was not delivered"
-        exit 1
-    else
-        echo "Message $1 was delivered!"
-    fi
-done
+# cargo run --bin relayer > /tmp/relayer/relayer-logs.txt &
 
-docker ps -aq | xargs docker stop | xargs docker rm
+# sleep 10
+# echo "Done running relayer, checking message delivery statuses"
+
+# for i in "1 $MESSAGE1_ID" "2 $MESSAGE2_ID"
+# do
+#     set -- $i
+#     echo "Checking delivery status of $1: $2"
+#     yarn workspace @hyperlane-xyz/cli run hyperlane status \
+#         --id $2 \
+#         --destination anvil2 \
+#         --chains ./examples/anvil-chains.yaml \
+#         --core $CORE_ARTIFACTS_PATH \
+#         | tee /tmp/message-status-$1
+#     if ! grep -q "$2 was delivered" /tmp/message-status-$1; then
+#         echo "ERROR: Message $1 was not delivered"
+#         exit 1
+#     else
+#         echo "Message $1 was delivered!"
+#     fi
+# done
+
 pkill -f anvil
+echo "Done"

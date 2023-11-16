@@ -227,4 +227,28 @@ macro_rules! many_to_one {
     }
 }
 
+/// Unwrap an expression that returns an `Option`, and return `Ok(None)` if it is `None`.
+/// Otherwise, assign the value to the given variable name.
+/// We use the pattern of returning `Ok(None)` a lot because of our retry logic,
+/// and the goal of this macro is to reduce the boilerplate.
+/// ```ignore
+/// // before using the macro:
+/// let Some(idx) = self.index_of_next_key()
+/// else {
+///     return Ok(None);
+/// };
+/// // after:
+/// unwrap_or_none_result!(idx, self.index_of_next_key());
+/// ```
+#[macro_export]
+macro_rules! unwrap_or_none_result {
+    ($variable_name:ident, $e:expr $(, $else_e:expr)?) => {
+        let Some($variable_name) = $e
+        else {
+            $($else_e;)?
+            return Ok(None);
+        };
+    };
+}
+
 pub(crate) use many_to_one;

@@ -1,7 +1,7 @@
 import { ChainMap } from '../types';
 
 // TODO this was previously in hyp-deploy, but ideally should be integrated
-// into the ChainMetadata type
+// into the ChainMetadata type and de-duped with agent consts
 export const agentStartBlocks: ChainMap<number> = {
   // --------------- Mainnets ---------------------
   celo: 16884144,

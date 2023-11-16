@@ -35,33 +35,39 @@ const coreCommand: CommandModule = {
   describe: 'Deploy core Hyperlane contracts',
   builder: (yargs) =>
     yargs.options({
-      key: keyCommandOption,
-      'chain-configs': chainsCommandOption,
-      chains: {
+      targets: {
         type: 'string',
         description:
           'Comma separated list of chain names to which contracts will be deployed',
       },
-      out: outDirCommandOption,
+      chains: chainsCommandOption,
       artifacts: coreArtifactsOption,
       ism: {
         type: 'string',
         description:
           'A path to a JSON or YAML file with ISM configs (e.g. Multisig)',
       },
+      hook: {
+        type: 'string',
+        description:
+          'A path to a JSON or YAML file with Hook configs (for every chain)',
+      },
+      out: outDirCommandOption,
+      key: keyCommandOption,
       yes: skipConfirmationOption,
     }),
   handler: async (argv: any) => {
     logGray('Hyperlane permissionless core deployment');
     logGray('----------------------------------------');
     const key: string = argv.key || process.env.HYP_KEY;
-    const chainConfigPath: string = argv['chain-configs'];
+    const chainConfigPath: string = argv.chains;
     const outPath: string = argv.out;
-    const chains: string[] | undefined = argv.chains
+    const chains: string[] | undefined = argv.targets
       ?.split(',')
       .map((r: string) => r.trim());
     const artifactsPath: string = argv.artifacts;
     const ismConfigPath: string = argv.ism;
+    const hookConfigPath: string = argv.hook;
     const skipConfirmation: boolean = argv.yes;
     await runCoreDeploy({
       key,
@@ -69,6 +75,7 @@ const coreCommand: CommandModule = {
       chains,
       artifactsPath,
       ismConfigPath,
+      hookConfigPath,
       outPath,
       skipConfirmation,
     });
@@ -84,14 +91,15 @@ const warpCommand: CommandModule = {
   describe: 'Deploy Warp Route contracts',
   builder: (yargs) =>
     yargs.options({
-      key: keyCommandOption,
-      chains: chainsCommandOption,
-      out: outDirCommandOption,
-      core: coreArtifactsOption,
       config: {
         type: 'string',
         description: 'A path to a JSON or YAML file with a warp config.',
+        default: './configs/warp-tokens.yaml',
       },
+      core: coreArtifactsOption,
+      chains: chainsCommandOption,
+      out: outDirCommandOption,
+      key: keyCommandOption,
       yes: skipConfirmationOption,
     }),
   handler: async (argv: any) => {

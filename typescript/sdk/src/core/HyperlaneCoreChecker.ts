@@ -1,4 +1,4 @@
-import { utils as ethersUtils } from 'ethers';
+import { ethers, utils as ethersUtils } from 'ethers';
 
 import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -55,13 +55,11 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
 
-    let ownableOverrides: Record<string, Address> = {};
+    const ownableOverrides: Record<string, Address> =
+      config.ownerOverrides || {};
     if (config.upgrade) {
-      const timelockController =
-        this.app.getAddresses(chain).timelockController;
-      ownableOverrides = {
-        proxyAdmin: timelockController,
-      };
+      const proxyOwner = await this.app.getContracts(chain).proxyAdmin.owner();
+      ownableOverrides.proxyAdmin = proxyOwner;
     }
     return this.checkOwnership(chain, config.owner, ownableOverrides);
   }
@@ -104,39 +102,71 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       mailbox.address,
     );
 
-    await this.checkBytecode(
-      chain,
-      'Mailbox implementation',
-      implementation,
-      [
-        BytecodeHash.MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH,
-        BytecodeHash.MAILBOX_WITHOUT_LOCAL_DOMAIN_NONZERO_PAUSE_BYTE_CODE_HASH,
-      ],
-      (bytecode) =>
-        // This is obviously super janky but basically we are searching
-        //  for the ocurrences of localDomain in the bytecode and remove
-        //  that to compare, but some coincidental ocurrences of
-        // localDomain in the bytecode should be not be removed which
-        // are just done via an offset guard
-        bytecode.replaceAll(
-          ethersUtils.defaultAbiCoder
-            .encode(['uint32'], [localDomain])
-            .slice(2),
-          (match, offset) => (offset > 8000 ? match : ''),
-        ),
-    );
+    if (implementation === ethers.constants.AddressZero) {
+      const violation: MailboxViolation = {
+        type: CoreViolationType.Mailbox,
+        subType: MailboxViolationType.NotProxied,
+        contract: mailbox,
+        chain,
+        actual: implementation,
+        expected: 'non-zero address',
+      };
+      this.addViolation(violation);
+    } else {
+      await this.checkBytecode(
+        chain,
+        'Mailbox implementation',
+        implementation,
+        [
+          BytecodeHash.V3_MAILBOX_BYTECODE_HASH,
+          BytecodeHash.OPT_V3_MAILBOX_BYTECODE_HASH,
+        ],
+        (bytecode) =>
+          // This is obviously super janky but basically we are searching
+          //  for the ocurrences of localDomain in the bytecode and remove
+          //  that to compare, but some coincidental ocurrences of
+          // localDomain in the bytecode should be not be removed which
+          // are just done via an offset guard
+          bytecode
+            .replaceAll(
+              ethersUtils.defaultAbiCoder
+                .encode(['uint32'], [localDomain])
+                .slice(2),
+              (match, offset) => (offset > 8000 ? match : ''),
+            )
+            // We persist the block number in the bytecode now too, so we have to strip it
+            .replaceAll(
+              /(00000000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})81565/g,
+              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+            )
+            .replaceAll(
+              /(0000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})6118123373/g,
+              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+            )
+            .replaceAll(
+              /(f167f00000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})338989898/g,
+              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+            ),
+      );
+    }
 
     await this.checkBytecode(
       chain,
       'Mailbox proxy',
       contracts.mailbox.address,
-      [BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH],
+      [
+        BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH,
+        BytecodeHash.OPT_PROXY_ADMIN_BYTECODE_HASH,
+      ],
     );
     await this.checkBytecode(
       chain,
       'ProxyAdmin',
       contracts.proxyAdmin.address,
-      [BytecodeHash.PROXY_ADMIN_BYTECODE_HASH],
+      [
+        BytecodeHash.PROXY_ADMIN_BYTECODE_HASH,
+        BytecodeHash.V2_PROXY_ADMIN_BYTECODE_HASH,
+      ],
     );
   }
 

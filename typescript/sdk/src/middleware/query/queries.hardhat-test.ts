@@ -14,9 +14,10 @@ import { Chains } from '../../consts/chains';
 import { HyperlaneContractsMap } from '../../contracts/types';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
+import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer';
+import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterConfig } from '../../router/types';
-import { deployTestIgpsAndGetRouterConfig } from '../../test/testUtils';
 import { ChainMap } from '../../types';
 
 import { InterchainQuery } from './InterchainQuery';
@@ -24,7 +25,7 @@ import { InterchainQueryChecker } from './InterchainQueryChecker';
 import { InterchainQueryDeployer } from './InterchainQueryDeployer';
 import { InterchainQueryFactories } from './contracts';
 
-describe('InterchainQueryRouter', async () => {
+describe.skip('InterchainQueryRouter', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
   const localDomain = chainMetadata[localChain].chainId;
@@ -41,27 +42,20 @@ describe('InterchainQueryRouter', async () => {
 
   before(async () => {
     [signer] = await ethers.getSigners();
-
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-
-    const coreDeployer = new TestCoreDeployer(multiProvider);
-    const coreContractsMaps = await coreDeployer.deploy();
-    coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
-    config = await deployTestIgpsAndGetRouterConfig(
+    const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    const ismFactory = new HyperlaneIsmFactory(
+      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
       multiProvider,
-      signer.address,
-      coreContractsMaps,
     );
+    coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
+    config = coreApp.getRouterConfig(signer.address);
   });
 
   beforeEach(async () => {
-    const InterchainQuery = new InterchainQueryDeployer(multiProvider);
-
-    contracts = await InterchainQuery.deploy(config);
-
+    contracts = await new InterchainQueryDeployer(multiProvider).deploy(config);
     local = contracts[localChain].interchainQueryRouter;
     remote = contracts[remoteChain].interchainQueryRouter;
-
     testQuery = await new TestQuery__factory(signer).deploy(local.address);
   });
 

@@ -3,10 +3,9 @@ name: node
 on:
   # Triggers the workflow on push or pull request against main
   push:
-    branches: [main]
+    branches: [v3]
   pull_request:
-    branches: [main]
-
+    branches: [v3]
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -49,9 +48,6 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 18
-
-      - name: Install Foundry
-        uses: onbjerg/foundry-toolchain@v1
 
       - name: yarn-cache
         uses: actions/cache@v3
@@ -102,9 +98,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install Foundry
-        uses: onbjerg/foundry-toolchain@v1
-
       - uses: actions/cache@v3
         with:
           path: ./*
@@ -115,9 +108,6 @@ jobs:
 
       - name: helloworld
         run: yarn workspace @hyperlane-xyz/helloworld run test
-
-      - name: token
-        run: yarn workspace @hyperlane-xyz/hyperlane-token run test
 
       - name: infra
         run: yarn workspace @hyperlane-xyz/infra run test
@@ -145,10 +135,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [yarn-build]
     strategy:
-      fail-fast: false
       matrix:
-        environment: [testnet3, mainnet2]
-        module: [ism, core, igp, ica, helloworld]
+        environment: [testnet4, mainnet3]
+        module: [ism, core, helloworld]
 
     steps:
       - uses: actions/checkout@v3
@@ -200,7 +189,7 @@ jobs:
       - name: Unit tests
         run: yarn workspace @hyperlane-xyz/core run test
 
-      - name: Run Slither
+      - name: Static analysis
         uses: crytic/slither-action@v0.3.0
         id: slither
         with:

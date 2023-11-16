@@ -4,15 +4,14 @@ import {
   helloWorldFactories,
 } from '@hyperlane-xyz/helloworld';
 import {
-  AgentConnectionType,
   HyperlaneCore,
   HyperlaneIgp,
   MultiProtocolCore,
   MultiProtocolProvider,
   MultiProvider,
+  RpcConsensusType,
   attachContractsMap,
   attachContractsMapAndGetForeignDeployments,
-  chainMetadata,
   filterChainMapToProtocol,
   hyperlaneEnvironments,
   igpFactories,
@@ -24,14 +23,13 @@ import { EnvironmentConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { HelloWorldConfig } from '../../src/config/helloworld/types';
 import { Role } from '../../src/roles';
-import { getKeyForRole } from '../utils';
 
 export async function getHelloWorldApp(
   coreConfig: EnvironmentConfig,
   context: Contexts,
   keyRole: Role,
   keyContext: Contexts = context,
-  connectionType: AgentConnectionType = AgentConnectionType.Http,
+  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ) {
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
@@ -64,7 +62,7 @@ export async function getHelloWorldMultiProtocolApp(
   context: Contexts,
   keyRole: Role,
   keyContext: Contexts = context,
-  connectionType: AgentConnectionType = AgentConnectionType.Http,
+  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ) {
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
@@ -84,35 +82,37 @@ export async function getHelloWorldMultiProtocolApp(
   const multiProtocolProvider =
     MultiProtocolProvider.fromMultiProvider(multiProvider);
   // Hacking around infra code limitations, we may need to add solana manually
-  // because the it's not in typescript/infra/config/environments/testnet3/chains.ts
+  // because the it's not in typescript/infra/config/environments/testnet4/chains.ts
   // Adding it there breaks many things
-  if (
-    coreConfig.environment === 'testnet3' &&
-    !multiProtocolProvider.getKnownChainNames().includes('solanadevnet')
-  ) {
-    multiProvider.addChain(chainMetadata.solanadevnet);
-    multiProtocolProvider.addChain(chainMetadata.solanadevnet);
-    keys['solanadevnet'] = getKeyForRole(
-      coreConfig.environment,
-      context,
-      'solanadevnet',
-      keyRole,
-    );
-    await keys['solanadevnet'].fetch();
-  } else if (
-    coreConfig.environment === 'mainnet2' &&
-    !multiProtocolProvider.getKnownChainNames().includes('solana')
-  ) {
-    multiProvider.addChain(chainMetadata.solana);
-    multiProtocolProvider.addChain(chainMetadata.solana);
-    keys['solana'] = getKeyForRole(
-      coreConfig.environment,
-      context,
-      'solana',
-      keyRole,
-    );
-    await keys['solana'].fetch();
-  }
+  // if (
+  //   coreConfig.environment === 'testnet3' &&
+  //   !multiProtocolProvider.getKnownChainNames().includes('solanadevnet')
+  // ) {
+  //   multiProvider.addChain(chainMetadata.solanadevnet);
+  //   multiProtocolProvider.addChain(chainMetadata.solanadevnet);
+  //   keys['solanadevnet'] = getKeyForRole(
+  //     coreConfig.environment,
+  //     context,
+  //     'solanadevnet',
+  //     keyRole,
+  //   );
+  //   await keys['solanadevnet'].fetch();
+  // } else
+
+  // if (
+  //   coreConfig.environment === 'mainnet3' &&
+  //   !multiProtocolProvider.getKnownChainNames().includes('solana')
+  // ) {
+  //   multiProvider.addChain(chainMetadata.solana);
+  //   multiProtocolProvider.addChain(chainMetadata.solana);
+  //   keys['solana'] = getKeyForRole(
+  //     coreConfig.environment,
+  //     context,
+  //     'solana',
+  //     keyRole,
+  //   );
+  //   await keys['solana'].fetch();
+  // }
 
   const core = MultiProtocolCore.fromAddressesMap(
     envAddresses,

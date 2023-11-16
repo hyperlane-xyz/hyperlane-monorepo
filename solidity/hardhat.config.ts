@@ -9,7 +9,7 @@ import 'solidity-coverage';
  */
 module.exports = {
   solidity: {
-    version: '0.8.17',
+    version: '0.8.19',
     settings: {
       optimizer: {
         enabled: true,
@@ -23,7 +23,7 @@ module.exports = {
   typechain: {
     outDir: './types',
     target: 'ethers-v5',
-    alwaysGenerateOverloads: false,
+    alwaysGenerateOverloads: true,
   },
   mocha: {
     bail: true,

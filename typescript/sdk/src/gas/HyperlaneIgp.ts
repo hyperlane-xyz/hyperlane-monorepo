@@ -24,6 +24,7 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
+    /// @ts-ignore
     return HyperlaneIgp.fromAddressesMap(envAddresses, multiProvider);
   }
 
@@ -84,7 +85,7 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
     destination: ChainName,
     gasAmount: BigNumber,
   ): Promise<BigNumber> {
-    const igp = this.getContracts(origin).defaultIsmInterchainGasPaymaster;
+    const igp = this.getContracts(origin).interchainGasPaymaster;
     return this.quoteGasPaymentForIgp(
       origin,
       destination,

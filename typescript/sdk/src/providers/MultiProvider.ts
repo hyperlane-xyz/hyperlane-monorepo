@@ -1,6 +1,7 @@
 import { Debugger, debug } from 'debug';
 import {
   BigNumber,
+  ContractFactory,
   ContractReceipt,
   ContractTransaction,
   PopulatedTransaction,
@@ -288,6 +289,22 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   }
 
   /**
+   * Wait for deploy tx to be confirmed
+   * @throws if chain's metadata or signer has not been set or tx fails
+   */
+  async handleDeploy<F extends ContractFactory>(
+    chainNameOrId: ChainName | number,
+    factory: F,
+    params: Parameters<F['deploy']>,
+  ): Promise<Awaited<ReturnType<F['deploy']>>> {
+    const overrides = this.getTransactionOverrides(chainNameOrId);
+    const signer = this.getSigner(chainNameOrId);
+    const contract = await factory.connect(signer).deploy(...params, overrides);
+    await this.handleTx(chainNameOrId, contract.deployTransaction);
+    return contract as Awaited<ReturnType<F['deploy']>>;
+  }
+
+  /**
    * Wait for given tx to be confirmed
    * @throws if chain's metadata or signer has not been set or tx fails
    */
@@ -352,9 +369,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async sendTransaction(
     chainNameOrId: ChainName | number,
-    tx: PopulatedTransaction,
+    tx: PopulatedTransaction | Promise<PopulatedTransaction>,
   ): Promise<ContractReceipt> {
-    const txReq = await this.prepareTx(chainNameOrId, tx);
+    const txReq = await this.prepareTx(chainNameOrId, await tx);
     const signer = this.getSigner(chainNameOrId);
     const response = await signer.sendTransaction(txReq);
     this.logger(`Sent tx ${response.hash}`);

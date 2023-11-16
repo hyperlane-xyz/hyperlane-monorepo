@@ -1,7 +1,14 @@
 import { ethers } from 'ethers';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
-import { messageId, parseMessage, pollAsync } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  AddressBytes32,
+  messageId,
+  objMap,
+  parseMessage,
+  pollAsync,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
 import {
@@ -11,7 +18,8 @@ import {
 import { appFromAddressesMapHelper } from '../contracts/contracts';
 import { HyperlaneAddressesMap } from '../contracts/types';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
+import { RouterConfig } from '../router/types';
+import { ChainMap, ChainName } from '../types';
 
 import { CoreFactories, coreFactories } from './contracts';
 import { DispatchedMessage } from './types';
@@ -39,6 +47,28 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     );
     return new HyperlaneCore(helper.contractsMap, helper.multiProvider);
   }
+
+  getRouterConfig = (
+    owners: Address | ChainMap<Address>,
+  ): ChainMap<RouterConfig> =>
+    objMap(this.contractsMap, (chain, contracts) => {
+      return {
+        mailbox: contracts.mailbox.address,
+        owner: typeof owners === 'string' ? owners : owners[chain],
+      };
+    });
+
+  quoteGasPayment = (
+    origin: ChainName,
+    destination: ChainName,
+    recipient: AddressBytes32,
+    body: string,
+  ): Promise<ethers.BigNumber> => {
+    const destinationId = this.multiProvider.getDomainId(destination);
+    return this.contractsMap[origin].mailbox[
+      'quoteDispatch(uint32,bytes32,bytes)'
+    ](destinationId, recipient, body);
+  };
 
   protected getDestination(message: DispatchedMessage): ChainName {
     return this.multiProvider.getChainName(message.parsed.destination);

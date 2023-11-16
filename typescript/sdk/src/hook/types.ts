@@ -1,20 +1,66 @@
-import type { Address } from '@hyperlane-xyz/utils';
+import { BigNumber } from 'ethers';
 
-export enum HookContractType {
-  HOOK = 'hook',
-  ISM = 'ism',
+import { Address } from '@hyperlane-xyz/utils';
+
+import { IgpConfig } from '../gas/types';
+import { ChainMap, ChainName } from '../types';
+
+export enum HookType {
+  MERKLE_TREE = 'merkleTreeHook',
+  INTERCHAIN_GAS_PAYMASTER = 'interchainGasPaymaster',
+  AGGREGATION = 'aggregationHook',
+  PROTOCOL_FEE = 'protocolFee',
+  OP_STACK = 'opStackHook',
+  ROUTING = 'domainRoutingHook',
+  FALLBACK_ROUTING = 'fallbackRoutingHook',
 }
 
-export type MessageHookConfig = {
-  hookContractType: HookContractType.HOOK;
-  nativeBridge: Address;
-  remoteIsm: Address;
-  destinationDomain: number;
+export type MerkleTreeHookConfig = {
+  type: HookType.MERKLE_TREE;
 };
 
-export type NoMetadataIsmConfig = {
-  hookContractType: HookContractType.ISM;
-  nativeBridge: Address;
+export type AggregationHookConfig = {
+  type: HookType.AGGREGATION;
+  hooks: Array<HookConfig>;
 };
 
-export type HookConfig = MessageHookConfig | NoMetadataIsmConfig;
+export type IgpHookConfig = IgpConfig & {
+  type: HookType.INTERCHAIN_GAS_PAYMASTER;
+};
+
+export type ProtocolFeeHookConfig = {
+  type: HookType.PROTOCOL_FEE;
+  maxProtocolFee: BigNumber;
+  protocolFee: BigNumber;
+  beneficiary: Address;
+  owner: Address;
+};
+
+export type OpStackHookConfig = {
+  type: HookType.OP_STACK;
+  nativeBridge: Address;
+  destinationChain: ChainName;
+};
+
+type RoutingHookConfig = {
+  owner: Address;
+  domains: ChainMap<HookConfig>;
+};
+
+export type DomainRoutingHookConfig = RoutingHookConfig & {
+  type: HookType.ROUTING;
+};
+
+export type FallbackRoutingHookConfig = RoutingHookConfig & {
+  type: HookType.FALLBACK_ROUTING;
+  fallback: HookConfig;
+};
+
+export type HookConfig =
+  | MerkleTreeHookConfig
+  | AggregationHookConfig
+  | IgpHookConfig
+  | ProtocolFeeHookConfig
+  | OpStackHookConfig
+  | DomainRoutingHookConfig
+  | FallbackRoutingHookConfig;

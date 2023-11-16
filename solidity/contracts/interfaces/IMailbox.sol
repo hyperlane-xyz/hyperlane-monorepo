@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {IInterchainSecurityModule} from "./IInterchainSecurityModule.sol";
+import {IPostDispatchHook} from "./hooks/IPostDispatchHook.sol";
 
 interface IMailbox {
     // ============ Events ============
@@ -49,23 +50,58 @@ interface IMailbox {
 
     function defaultIsm() external view returns (IInterchainSecurityModule);
 
+    function defaultHook() external view returns (IPostDispatchHook);
+
+    function latestDispatchedId() external view returns (bytes32);
+
     function dispatch(
-        uint32 _destinationDomain,
-        bytes32 _recipientAddress,
-        bytes calldata _messageBody
-    ) external returns (bytes32);
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody
+    ) external payable returns (bytes32 messageId);
 
-    function process(bytes calldata _metadata, bytes calldata _message)
-        external;
+    function quoteDispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody
+    ) external view returns (uint256 fee);
 
-    function count() external view returns (uint32);
+    function dispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata body,
+        bytes calldata defaultHookMetadata
+    ) external payable returns (bytes32 messageId);
 
-    function root() external view returns (bytes32);
+    function quoteDispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody,
+        bytes calldata defaultHookMetadata
+    ) external view returns (uint256 fee);
 
-    function latestCheckpoint() external view returns (bytes32, uint32);
+    function dispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata body,
+        bytes calldata customHookMetadata,
+        IPostDispatchHook customHook
+    ) external payable returns (bytes32 messageId);
 
-    function recipientIsm(address _recipient)
-        external
-        view
-        returns (IInterchainSecurityModule);
+    function quoteDispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody,
+        bytes calldata customHookMetadata,
+        IPostDispatchHook customHook
+    ) external view returns (uint256 fee);
+
+    function process(
+        bytes calldata metadata,
+        bytes calldata message
+    ) external payable;
+
+    function recipientIsm(
+        address recipient
+    ) external view returns (IInterchainSecurityModule module);
 }

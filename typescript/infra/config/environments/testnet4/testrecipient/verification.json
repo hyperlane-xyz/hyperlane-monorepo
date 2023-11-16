@@ -1,0 +1,170 @@
+{
+  "alfajores": [
+    {
+      "name": "TestRecipient",
+      "address": "0x6489d13AcAd3B8dce4c5B31f375DE4f9451E7b38",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x92dC0a76452a9D9358D2d2dEd8CddA209DF67c45",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "fuji": [
+    {
+      "name": "TestRecipient",
+      "address": "0x44a7e1d76fD8AfA244AdE7278336E3D5C658D398",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x9CC10c844B3Bbae2444E39991aB027C4A05D1F2e",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "mumbai": [
+    {
+      "name": "TestRecipient",
+      "address": "0xF45A4D54223DA32bf7b5D43a9a460Ef3C94C713B",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x57d098e6952B6C1c85Ce0B68C9Deada3dCf7D05A",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "TestRecipient",
+      "address": "0xfbcD1c00a3d809f36cC1A15918694B17B32c0b6c",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x260f6024119549a40595d0937471e607411E8ea5",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "goerli": [
+    {
+      "name": "TestRecipient",
+      "address": "0x4fC0Ac163eFFEb7890937cB89275B2C231880F22",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0xd8958706B33E20C88679a22203F0AFa6158c834d",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "sepolia": [
+    {
+      "name": "TestRecipient",
+      "address": "0xeDc1A3EDf87187085A3ABb7A9a65E1e7aE370C07",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x031AD9c560D37baC7d6Bd2d27A2443bAfd10101A",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "moonbasealpha": [
+    {
+      "name": "TestRecipient",
+      "address": "0x68729446296E413f0b7d6E85F2FD128465F0e5D0",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0xEdA6f85f4761A1f9e42FD40CA5a4E8Ce1C764015",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "optimismgoerli": [
+    {
+      "name": "TestRecipient",
+      "address": "0x518eA1802407b4b5AAF3aA92c1A803FfbA9FB7fe",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0xB9E45eA920DE14e95A16Ed5e1275F893552f2e32",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "arbitrumgoerli": [
+    {
+      "name": "TestRecipient",
+      "address": "0x07543860AE9E72aBcF2Bae9827b23621A64Fa416",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x207db41AB053213451f1a71d936353C9056A0205",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "basegoerli": [
+    {
+      "name": "TestRecipient",
+      "address": "0x54Bd02f0f20677e9846F8E9FdB1Abc7315C49C38",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x5e65279Fb7293a058776e37587398fcc3E9184b1",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "scrollsepolia": [
+    {
+      "name": "TestRecipient",
+      "address": "0xa3AB7E6cE24E6293bD5320A53329Ef2f4DE73fCA",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0xc76E477437065093D353b7d56c81ff54D167B0Ab",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "polygonzkevmtestnet": [
+    {
+      "name": "TestRecipient",
+      "address": "0x11918DC33E067C5DA83EEF58E50F856398b8Df4C",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x04438ef7622f5412f82915F59caD4f704C61eA48",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ]
+}

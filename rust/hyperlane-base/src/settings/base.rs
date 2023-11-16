@@ -5,7 +5,7 @@ use futures_util::future::try_join_all;
 use hyperlane_core::{
     Delivery, HyperlaneChain, HyperlaneDomain, HyperlaneMessageStore, HyperlaneProvider,
     HyperlaneWatermarkedLogStore, InterchainGasPaymaster, InterchainGasPayment, Mailbox,
-    MultisigIsm, ValidatorAnnounce, H256,
+    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ValidatorAnnounce, H256,
 };
 
 use crate::{
@@ -179,9 +179,11 @@ macro_rules! build_indexer_fns {
 impl Settings {
     build_contract_fns!(build_interchain_gas_paymaster, build_interchain_gas_paymasters -> dyn InterchainGasPaymaster);
     build_contract_fns!(build_mailbox, build_mailboxes -> dyn Mailbox);
+    build_contract_fns!(build_merkle_tree_hook, build_merkle_tree_hooks -> dyn MerkleTreeHook);
     build_contract_fns!(build_validator_announce, build_validator_announces -> dyn ValidatorAnnounce);
     build_contract_fns!(build_provider, build_providers -> dyn HyperlaneProvider);
     build_indexer_fns!(build_delivery_indexer, build_delivery_indexers -> dyn HyperlaneWatermarkedLogStore<Delivery>, WatermarkContractSync<Delivery>);
     build_indexer_fns!(build_message_indexer, build_message_indexers -> dyn HyperlaneMessageStore, MessageContractSync);
     build_indexer_fns!(build_interchain_gas_payment_indexer, build_interchain_gas_payment_indexers -> dyn HyperlaneWatermarkedLogStore<InterchainGasPayment>, WatermarkContractSync<InterchainGasPayment>);
+    build_indexer_fns!(build_merkle_tree_hook_indexer, build_merkle_tree_hook_indexers -> dyn HyperlaneWatermarkedLogStore<MerkleTreeInsertion>, WatermarkContractSync<MerkleTreeInsertion>);
 }

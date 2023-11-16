@@ -1,15 +1,17 @@
-import { InterchainGasPaymaster, OverheadIgp } from '@hyperlane-xyz/core';
+import { BigNumber, ethers } from 'ethers';
+
+import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
   HyperlaneIgp,
   HyperlaneIgpChecker,
   IgpBeneficiaryViolation,
+  IgpConfig,
   IgpGasOraclesViolation,
   IgpOverheadViolation,
   IgpViolation,
   IgpViolationType,
-  OverheadIgpConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -17,7 +19,7 @@ import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor';
 
 export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
   HyperlaneIgp,
-  OverheadIgpConfig
+  IgpConfig
 > {
   constructor(checker: HyperlaneIgpChecker, owners: ChainMap<Address>) {
     super(checker, owners);
@@ -53,7 +55,7 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
       case IgpViolationType.GasOracles: {
         const gasOraclesViolation = violation as IgpGasOraclesViolation;
 
-        const configs: InterchainGasPaymaster.GasOracleConfigStruct[] = [];
+        const configs: InterchainGasPaymaster.GasParamStruct[] = [];
         for (const [remote, expected] of Object.entries(
           gasOraclesViolation.expected,
         )) {
@@ -61,14 +63,17 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
 
           configs.push({
             remoteDomain: remoteId,
-            gasOracle: expected,
+            config: {
+              gasOracle: expected,
+              gasOverhead: 0, // TODO: fix to use the retrieved gas overhead
+            },
           });
         }
 
         this.pushCall(gasOraclesViolation.chain, {
           to: gasOraclesViolation.contract.address,
           data: gasOraclesViolation.contract.interface.encodeFunctionData(
-            'setGasOracles',
+            'setDestinationGasConfigs',
             [configs],
           ),
           description: `Setting ${Object.keys(gasOraclesViolation.expected)
@@ -84,20 +89,21 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
       }
       case IgpViolationType.Overhead: {
         const overheadViolation = violation as IgpOverheadViolation;
-        const configs: OverheadIgp.DomainConfigStruct[] = Object.entries(
+        const configs: InterchainGasPaymaster.GasParamStruct[] = Object.entries(
           violation.expected,
-        ).map(
-          ([remote, gasOverhead]) =>
-            ({
-              domain: this.checker.multiProvider.getDomainId(remote),
-              gasOverhead: gasOverhead,
-            } as OverheadIgp.DomainConfigStruct),
-        );
+        ).map(([remote, gasOverhead]) => ({
+          remoteDomain: this.checker.multiProvider.getDomainId(remote),
+          // TODO: fix to use the retrieved gas oracle
+          config: {
+            gasOracle: ethers.constants.AddressZero,
+            gasOverhead: BigNumber.from(gasOverhead),
+          },
+        }));
 
         this.pushCall(violation.chain, {
           to: overheadViolation.contract.address,
           data: overheadViolation.contract.interface.encodeFunctionData(
-            'setDestinationGasOverheads',
+            'setDestinationGasConfigs',
             [configs],
           ),
           description: `Setting ${Object.keys(violation.expected)

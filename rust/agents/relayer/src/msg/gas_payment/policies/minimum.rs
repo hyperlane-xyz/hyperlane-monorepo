@@ -41,6 +41,7 @@ async fn test_gas_payment_policy_minimum() {
     // If the payment is less than the minimum, returns false
     let current_payment = InterchainGasPayment {
         message_id: H256::zero(),
+        destination: message.destination,
         payment: U256::from(999u32),
         gas_amount: U256::zero(),
     };
@@ -70,6 +71,7 @@ async fn test_gas_payment_policy_minimum() {
     // If the payment is at least the minimum, returns false
     let current_payment = InterchainGasPayment {
         message_id: H256::zero(),
+        destination: message.destination,
         payment: U256::from(1000u32),
         gas_amount: U256::zero(),
     };

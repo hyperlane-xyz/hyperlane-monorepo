@@ -10,11 +10,13 @@ interface IInterchainGasPaymaster {
     /**
      * @notice Emitted when a payment is made for a message's gas costs.
      * @param messageId The ID of the message to pay for.
+     * @param destinationDomain The domain of the destination chain.
      * @param gasAmount The amount of destination gas paid for.
      * @param payment The amount of native tokens paid.
      */
     event GasPayment(
         bytes32 indexed messageId,
+        uint32 indexed destinationDomain,
         uint256 gasAmount,
         uint256 payment
     );
@@ -26,8 +28,8 @@ interface IInterchainGasPaymaster {
         address _refundAddress
     ) external payable;
 
-    function quoteGasPayment(uint32 _destinationDomain, uint256 _gasAmount)
-        external
-        view
-        returns (uint256);
+    function quoteGasPayment(
+        uint32 _destinationDomain,
+        uint256 _gasAmount
+    ) external view returns (uint256);
 }

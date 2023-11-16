@@ -2,7 +2,7 @@ import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 import { z } from 'zod';
 
-import { TokenType } from '@hyperlane-xyz/hyperlane-token';
+import { TokenType } from '@hyperlane-xyz/sdk';
 
 import { errorRed, logBlue, logGreen } from '../../logger.js';
 import {
@@ -11,7 +11,7 @@ import {
 } from '../utils/chains.js';
 import { FileFormat, readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
-import { readChainConfigIfExists } from './chain.js';
+import { readChainConfigsIfExists } from './chain.js';
 
 const ConnectionConfigSchema = {
   mailbox: z.string().optional(),
@@ -78,7 +78,7 @@ export async function createWarpConfig({
   chainConfigPath: string;
 }) {
   logBlue('Creating a new warp route config');
-  const customChains = readChainConfigIfExists(chainConfigPath);
+  const customChains = readChainConfigsIfExists(chainConfigPath);
   const baseChain = await runSingleChainSelectionStep(
     customChains,
     'Select base chain with the original token to warp',

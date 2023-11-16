@@ -2,22 +2,22 @@ import { BigNumber, ethers } from 'ethers';
 
 import {
   ERC20__factory,
-  EvmHypCollateralAdapter,
   HypERC20Collateral__factory,
-  TokenType,
-} from '@hyperlane-xyz/hyperlane-token';
+} from '@hyperlane-xyz/core';
 import {
   ChainName,
+  EvmHypCollateralAdapter,
   HyperlaneContractsMap,
   HyperlaneCore,
   MultiProtocolProvider,
   MultiProvider,
+  TokenType,
 } from '@hyperlane-xyz/sdk';
 import { Address, timeout } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGreen } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
-import { MINIMUM_TEST_SEND_BALANCE } from '../consts.js';
+import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import {
   getContextWithSigner,
   getMergedContractAddresses,
@@ -78,7 +78,7 @@ export async function sendTestTransfer({
     remotes: [destination],
     multiProvider,
     signer,
-    minBalanceWei: MINIMUM_TEST_SEND_BALANCE,
+    minGas: MINIMUM_TEST_SEND_GAS,
   });
 
   await timeout(

@@ -5,14 +5,13 @@ import {
   HyperlaneDeployer,
   HyperlaneDeploymentArtifacts,
   MultiProvider,
-  buildAgentConfigDeprecated,
+  buildAgentConfig,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
-import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { objMap, objMerge, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { getAgentConfigDirectory } from '../../scripts/utils';
 import { DeployEnvironment } from '../config';
-import { deployEnvToSdkEnv } from '../config/environment';
 import {
   readJSONAtPath,
   writeJSON,
@@ -86,11 +85,14 @@ export async function postDeploy<Config>(
   },
 ) {
   if (cache.write) {
+    // TODO: dedupe deployedContracts with cachedAddresses
+    const deployedAddresses = serializeContractsMap(deployer.deployedContracts);
+    const cachedAddresses = deployer.cachedAddresses;
+    const addresses = objMerge(deployedAddresses, cachedAddresses);
+    console.log(addresses);
+
     // cache addresses of deployed contracts
-    writeMergedJSONAtPath(
-      cache.addresses,
-      serializeContractsMap(deployer.deployedContracts),
-    );
+    writeMergedJSONAtPath(cache.addresses, addresses);
 
     let savedVerification = {};
     try {
@@ -132,12 +134,15 @@ export async function writeAgentConfig(
       multiProvider.getProvider(chain).getBlockNumber(),
     ),
   );
-  const agentConfig = buildAgentConfigDeprecated(
+  const agentConfig = buildAgentConfig(
     multiProvider.getKnownChainNames(),
     multiProvider,
     addresses as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
   );
-  const sdkEnv = deployEnvToSdkEnv[environment];
-  writeJSON(getAgentConfigDirectory(), `${sdkEnv}_config.json`, agentConfig);
+  writeJSON(
+    getAgentConfigDirectory(),
+    `${environment}_config.json`,
+    agentConfig,
+  );
 }

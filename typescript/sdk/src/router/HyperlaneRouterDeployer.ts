@@ -1,10 +1,4 @@
-import { ethers } from 'ethers';
-
-import {
-  IInterchainGasPaymaster__factory,
-  Mailbox__factory,
-  Router,
-} from '@hyperlane-xyz/core';
+import { Router } from '@hyperlane-xyz/core';
 import {
   Address,
   addressToBytes32,
@@ -20,7 +14,6 @@ import {
   HyperlaneFactories,
 } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { moduleCanCertainlyVerify } from '../ism/HyperlaneIsmFactory';
 import { RouterConfig } from '../router/types';
 import { ChainMap } from '../types';
 
@@ -30,74 +23,14 @@ export abstract class HyperlaneRouterDeployer<
 > extends HyperlaneDeployer<Config, Factories> {
   abstract router(contracts: HyperlaneContracts<Factories>): Router;
 
-  // The ISM check does not appropriately handle ISMs that have sender,
-  // recipient, or body-specific logic. Folks that wish to deploy using
-  // such ISMs *may* need to override checkConfig to disable this check.
-  async checkConfig(configMap: ChainMap<Config>): Promise<void> {
-    for (const [local, config] of Object.entries(configMap)) {
-      this.logger(`Checking config for ${local}...`);
-      const signerOrProvider = this.multiProvider.getSignerOrProvider(local);
-      const localIgp = IInterchainGasPaymaster__factory.connect(
-        config.interchainGasPaymaster,
-        signerOrProvider,
-      );
-      const localMailbox = Mailbox__factory.connect(
-        config.mailbox,
-        signerOrProvider,
-      );
-      let localIsm;
-      if (
-        !config.interchainSecurityModule ||
-        config.interchainSecurityModule === ethers.constants.AddressZero
-      ) {
-        localIsm = await localMailbox.defaultIsm();
-      } else {
-        localIsm = config.interchainSecurityModule;
-      }
-
-      const remotes = Object.keys(configMap).filter((c) => c !== local);
-      for (const remote of remotes) {
-        this.logger(`Checking origin ${remote}...`);
-        // Try to confirm that the IGP supports delivery to all remotes
-        try {
-          await localIgp.quoteGasPayment(
-            this.multiProvider.getDomainId(remote),
-            1,
-          );
-        } catch (e) {
-          throw new Error(
-            `The specified or default IGP with address ${localIgp.address} on ` +
-              `${local} is not configured to deliver messages to ${remote}, ` +
-              `did you mean to specify a different one?`,
-          );
-        }
-
-        // Try to confirm that the specified or default ISM can verify messages to all remotes
-        const canVerify = await moduleCanCertainlyVerify(
-          localIsm,
-          this.multiProvider,
-          remote,
-          local,
-        );
-        if (!canVerify) {
-          throw new Error(
-            `The specified or default ISM with address ${localIsm} on ${local} ` +
-              `cannot verify messages from ${remote}, did you forget to ` +
-              `specify an ISM, or mean to specify a different one?`,
-          );
-        }
-      }
-    }
-  }
-
-  async initConnectionClients(
+  async configureClients(
     contractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
   ): Promise<void> {
     for (const chain of Object.keys(contractsMap)) {
       const contracts = contractsMap[chain];
       const config = configMap[chain];
-      await super.initConnectionClient(chain, this.router(contracts), config);
+      await super.configureClient(chain, this.router(contracts), config);
     }
   }
 
@@ -198,7 +131,7 @@ export abstract class HyperlaneRouterDeployer<
       configMap,
       foreignDeployments,
     );
-    await this.initConnectionClients(deployedContractsMap, configMap);
+    await this.configureClients(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
     this.logger(`Finished deploying router contracts for all chains.`);
 

@@ -4,6 +4,7 @@ use convert_case::{Case, Casing};
 use derive_new::new;
 use eyre::{eyre, Context};
 use hyperlane_core::{config::*, utils::hex_or_base58_to_h256, H256, U256};
+use itertools::Itertools;
 use serde::de::{DeserializeOwned, StdError};
 use serde_json::Value;
 
@@ -26,7 +27,7 @@ impl<'v> ValueParser<'v> {
 
     /// Get a value at the given key and verify that it is present.
     pub fn get_key(&self, key: &str) -> ConfigResult<ValueParser<'v>> {
-        self.get_opt_key(key)?
+        self.get_opt_key(&key.to_case(Case::Flat))?
             .ok_or_else(|| eyre!("Expected key `{key}` to be defined"))
             .into_config_result(|| &self.cwp + key.to_case(Case::Snake))
     }
@@ -35,7 +36,7 @@ impl<'v> ValueParser<'v> {
     pub fn get_opt_key(&self, key: &str) -> ConfigResult<Option<ValueParser<'v>>> {
         let cwp = &self.cwp + key.to_case(Case::Snake);
         match self.val {
-            Value::Object(obj) => Ok(obj.get(key).map(|val| Self {
+            Value::Object(obj) => Ok(obj.get(&key.to_case(Case::Flat)).map(|val| Self {
                 val,
                 cwp: cwp.clone(),
             })),
@@ -45,6 +46,7 @@ impl<'v> ValueParser<'v> {
     }
 
     /// Create an iterator over all (key, value) tuples.
+    /// Be warned that keys will be in flat case.
     pub fn into_obj_iter(
         self,
     ) -> ConfigResult<impl Iterator<Item = (String, ValueParser<'v>)> + 'v> {
@@ -67,11 +69,40 @@ impl<'v> ValueParser<'v> {
     /// Create an iterator over all array elements.
     pub fn into_array_iter(self) -> ConfigResult<impl Iterator<Item = ValueParser<'v>>> {
         let cwp = self.cwp.clone();
+
         match self.val {
             Value::Array(arr) => Ok(arr.iter().enumerate().map(move |(i, v)| Self {
                 val: v,
                 cwp: &cwp + i.to_string(),
-            })),
+            }))
+            .map(|itr| Box::new(itr) as Box<dyn Iterator<Item = ValueParser<'v>>>),
+            Value::Object(obj) => obj
+                .iter()
+                // convert all keys to a usize index of their position in the array
+                .map(|(k, v)| k.parse().map(|k| (k, v)))
+                // handle any errors during index parsing
+                .collect::<Result<Vec<(usize, &'v Value)>, _>>()
+                .context("Expected array or array-like object where all keys are indexes; some keys are not indexes")
+                // sort by index
+                .map(|arr| arr.into_iter().sorted_unstable_by_key(|(k, _)| *k))
+                // check that all indexes are present
+                .and_then(|itr| {
+                    itr.clone()
+                        .enumerate()
+                        .all(|(expected, (actual, _))| expected == actual)
+                        .then_some(itr)
+                        .ok_or(eyre!(
+                            "Expected array or array-like object where all keys are indexes; some indexes are missing"
+                        ))
+                })
+                // convert to an iterator of value parsers over the values
+                .map(|itr| {
+                    itr.map(move |(i, v)| Self {
+                        val: v,
+                        cwp: &cwp + i.to_string(),
+                    })
+                })
+                .map(|itr| Box::new(itr) as Box<dyn Iterator<Item = ValueParser<'v>>>),
             _ => Err(eyre!("Expected an array type")),
         }
         .into_config_result(|| self.cwp)

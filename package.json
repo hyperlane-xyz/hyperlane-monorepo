@@ -3,7 +3,7 @@
   "description": "A yarn workspace of core Hyperlane packages",
   "version": "0.0.0",
   "devDependencies": {
-    "@trivago/prettier-plugin-sort-imports": "^4.2.0",
+    "@trivago/prettier-plugin-sort-imports": "^4.2.1",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
     "eslint": "^8.43.0",
@@ -12,19 +12,19 @@
     "lint-staged": "^12.4.3",
     "prettier": "^2.8.8"
   },
-  "packageManager": "yarn@3.2.0",
+  "packageManager": "yarn@4.0.1",
   "private": true,
   "scripts": {
-    "build": "yarn workspaces foreach --verbose --parallel --topological run build",
-    "clean": "yarn workspaces foreach --verbose --parallel run clean",
+    "build": "yarn workspaces foreach --all --parallel --topological run build",
+    "clean": "yarn workspaces foreach --all --parallel run clean",
+    "prettier": "yarn workspaces foreach --all --parallel run prettier",
+    "lint": "yarn workspaces foreach --all --parallel run lint",
+    "test": "yarn workspaces foreach --all --parallel run test",
+    "coverage": "yarn workspaces foreach --all --parallel run coverage",
+    "version:prepare": "yarn workspaces foreach --all --no-private --topological version --immediate",
+    "publish:all": "yarn workspaces foreach --all --no-private --topological npm publish --access public",
     "postinstall": "husky install",
-    "prettier": "yarn workspaces foreach --verbose --parallel run prettier",
-    "lint": "yarn workspaces foreach --verbose --parallel run lint",
-    "test": "yarn workspaces foreach --verbose --parallel run test",
-    "coverage": "yarn workspaces foreach --verbose --parallel run coverage",
-    "version:check": "yarn version check --interactive",
-    "version:prepare": "yarn workspaces foreach --no-private --verbose --topological version --immediate",
-    "publish:all": "yarn workspaces foreach --no-private --verbose --topological npm publish --access public"
+    "version:check": "yarn version check --interactive"
   },
   "workspaces": [
     "solidity",

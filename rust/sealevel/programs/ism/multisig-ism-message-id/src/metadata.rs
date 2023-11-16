@@ -5,7 +5,7 @@ use crate::error::Error;
 
 #[derive(Debug)]
 pub struct MultisigIsmMessageIdMetadata {
-    pub origin_mailbox: H256,
+    pub origin_merkle_tree_hook: H256,
     pub merkle_root: H256,
     pub validator_signatures: Vec<EcdsaSignature>,
 }
@@ -53,7 +53,7 @@ impl TryFrom<Vec<u8>> for MultisigIsmMessageIdMetadata {
         }
 
         Ok(Self {
-            origin_mailbox,
+            origin_merkle_tree_hook: origin_mailbox,
             merkle_root,
             validator_signatures,
         })
@@ -66,7 +66,7 @@ impl Encode for MultisigIsmMessageIdMetadata {
         W: std::io::Write,
     {
         let mut bytes_written = 0;
-        bytes_written += writer.write(self.origin_mailbox.as_ref())?;
+        bytes_written += writer.write(self.origin_merkle_tree_hook.as_ref())?;
         bytes_written += writer.write(self.merkle_root.as_ref())?;
         for signature in &self.validator_signatures {
             bytes_written += writer.write(&signature.as_fixed_bytes()[..])?;
@@ -104,7 +104,7 @@ mod test {
         }
 
         let metadata = MultisigIsmMessageIdMetadata::try_from(metadata_bytes).unwrap();
-        assert_eq!(metadata.origin_mailbox, origin_mailbox);
+        assert_eq!(metadata.origin_merkle_tree_hook, origin_mailbox);
         assert_eq!(metadata.merkle_root, merkle_root);
         assert_eq!(metadata.validator_signatures, validator_signatures);
     }

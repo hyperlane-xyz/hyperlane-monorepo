@@ -1,30 +1,28 @@
 import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
-import {
-  ERC20__factory,
-  ERC721__factory,
-  HypERC20Deployer,
-  HypERC721Deployer,
-  TokenConfig,
-  TokenFactories,
-  TokenType,
-} from '@hyperlane-xyz/hyperlane-token';
+import { ERC20__factory, ERC721__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
   ConnectionClientConfig,
+  HypERC20Deployer,
+  HypERC721Deployer,
   HyperlaneContractsMap,
   MultiProvider,
   RouterConfig,
+  TokenConfig,
+  TokenFactories,
+  TokenType,
   chainMetadata as defaultChainMetadata,
+  getChainIdNumber,
 } from '@hyperlane-xyz/sdk';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { WarpRouteConfig, readWarpRouteConfig } from '../config/warp.js';
-import { MINIMUM_WARP_DEPLOY_BALANCE } from '../consts.js';
+import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import {
   getContextWithSigner,
   getMergedContractAddresses,
@@ -83,10 +81,12 @@ export async function runWarpDeploy({
     skipConfirmation,
   };
 
+  logBlue('WARP Deployment plan');
+
   await runDeployPlanStep(deploymentParams);
   await runPreflightChecks({
     ...deploymentParams,
-    minBalanceWei: MINIMUM_WARP_DEPLOY_BALANCE,
+    minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
   await executeDeploy(deploymentParams);
 }
@@ -115,6 +115,11 @@ async function runBuildConfigStep({
 
   const mergedContractAddrs = getMergedContractAddresses(artifacts);
 
+  logGray(
+    'Contract addresses from artifacts:\n',
+    JSON.stringify(mergedContractAddrs[baseChainName], null, 4),
+  );
+
   // Create configs that coalesce together values from the config file,
   // the artifacts, and the SDK as a fallback
   const configMap: ChainMap<TokenConfig & RouterConfig> = {
@@ -130,9 +135,7 @@ async function runBuildConfigStep({
         base.interchainSecurityModule ||
         mergedContractAddrs[baseChainName].interchainSecurityModule ||
         mergedContractAddrs[baseChainName].multisigIsm,
-      interchainGasPaymaster:
-        base.interchainGasPaymaster ||
-        mergedContractAddrs[baseChainName].defaultIsmInterchainGasPaymaster,
+      // ismFactory: mergedContractAddrs[baseChainName].routingIsmFactory, // fix when updating from routingIsm
       foreignDeployment: base.foreignDeployment,
       name: baseMetadata.name,
       symbol: baseMetadata.symbol,
@@ -153,9 +156,7 @@ async function runBuildConfigStep({
         synthetic.interchainSecurityModule ||
         mergedContractAddrs[sChainName].interchainSecurityModule ||
         mergedContractAddrs[sChainName].multisigIsm,
-      interchainGasPaymaster:
-        synthetic.interchainGasPaymaster ||
-        mergedContractAddrs[sChainName].defaultIsmInterchainGasPaymaster,
+      // ismFactory: mergedContractAddrs[sChainName].routingIsmFactory, // fix
       foreignDeployment: synthetic.foreignDeployment,
     };
   }
@@ -164,7 +165,6 @@ async function runBuildConfigStep({
   const requiredRouterFields: Array<keyof ConnectionClientConfig> = [
     'mailbox',
     'interchainSecurityModule',
-    'interchainGasPaymaster',
   ];
   let hasShownInfo = false;
   for (const [chain, token] of Object.entries(configMap)) {
@@ -332,8 +332,11 @@ function writeWarpUiTokenConfig(
       'No base Hyperlane token address deployed and no foreign deployment specified',
     );
   }
+  const chain = multiProvider.getChainMetadata(origin);
+  if (chain.protocol !== ProtocolType.Ethereum) throw Error('Unsupported VM');
+  const chainMetadata = multiProvider.getChainMetadata(origin);
   const commonFields = {
-    chainId: multiProvider.getChainId(origin),
+    chainId: getChainIdNumber(chainMetadata),
     name: metadata.name,
     symbol: metadata.symbol,
     decimals: metadata.decimals,

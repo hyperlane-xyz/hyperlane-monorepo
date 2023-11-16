@@ -3,12 +3,16 @@ import type { Address, ParsedMessage } from '@hyperlane-xyz/utils';
 
 import type { UpgradeConfig } from '../deploy/proxy';
 import type { CheckerViolation } from '../deploy/types';
+import { HookConfig } from '../hook/types';
 import type { IsmConfig } from '../ism/types';
 import type { ChainName } from '../types';
 
 export type CoreConfig = {
   defaultIsm: IsmConfig;
+  defaultHook: HookConfig;
+  requiredHook: HookConfig;
   owner: Address;
+  ownerOverrides?: Record<string, string>;
   remove?: boolean;
   upgrade?: UpgradeConfig;
 };
@@ -21,6 +25,7 @@ export enum CoreViolationType {
 
 export enum MailboxViolationType {
   DefaultIsm = 'DefaultIsm',
+  NotProxied = 'NotProxied',
 }
 
 export interface MailboxViolation extends CheckerViolation {

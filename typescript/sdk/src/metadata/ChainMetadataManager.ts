@@ -1,6 +1,6 @@
 import { Debugger, debug } from 'debug';
 
-import { ProtocolType, exclude, isNumeric, pick } from '@hyperlane-xyz/utils';
+import { ProtocolType, exclude, pick } from '@hyperlane-xyz/utils';
 
 import {
   chainMetadata as defaultChainMetadata,
@@ -64,7 +64,7 @@ export class ChainMetadataManager<MetaExt = {}> {
         chainId == metadata.chainId ||
         domainId == metadata.chainId ||
         (metadata.domainId &&
-          (chainId == metadata.domainId || domainId === metadata.domainId));
+          (chainId == metadata.domainId || domainId == metadata.domainId));
       if (idCollision)
         throw new Error(
           `Chain/Domain id collision: ${name} and ${metadata.name}`,
@@ -80,16 +80,12 @@ export class ChainMetadataManager<MetaExt = {}> {
   tryGetChainMetadata(
     chainNameOrId: ChainName | number,
   ): ChainMetadata<MetaExt> | null {
-    let chainMetadata: ChainMetadata<MetaExt> | undefined;
-    if (isNumeric(chainNameOrId)) {
-      // Should be chain id or domain id
-      chainMetadata = Object.values(this.metadata).find(
-        (m) => m.chainId == chainNameOrId || m.domainId == chainNameOrId,
-      );
-    } else if (typeof chainNameOrId === 'string') {
-      // Should be chain name
-      chainMetadata = this.metadata[chainNameOrId];
-    }
+    // First check if it's a chain name
+    if (this.metadata[chainNameOrId]) return this.metadata[chainNameOrId];
+    // Otherwise search by chain id and domain id
+    const chainMetadata = Object.values(this.metadata).find(
+      (m) => m.chainId == chainNameOrId || m.domainId == chainNameOrId,
+    );
     return chainMetadata || null;
   }
 
@@ -99,8 +95,9 @@ export class ChainMetadataManager<MetaExt = {}> {
    */
   getChainMetadata(chainNameOrId: ChainName | number): ChainMetadata<MetaExt> {
     const chainMetadata = this.tryGetChainMetadata(chainNameOrId);
-    if (!chainMetadata)
+    if (!chainMetadata) {
       throw new Error(`No chain metadata set for ${chainNameOrId}`);
+    }
     return chainMetadata;
   }
 
@@ -129,7 +126,7 @@ export class ChainMetadataManager<MetaExt = {}> {
   /**
    * Get the id for a given chain name, chain id, or domain id
    */
-  tryGetChainId(chainNameOrId: ChainName | number): number | null {
+  tryGetChainId(chainNameOrId: ChainName | number): number | string | null {
     return this.tryGetChainMetadata(chainNameOrId)?.chainId ?? null;
   }
 
@@ -137,14 +134,14 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get the id for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
-  getChainId(chainNameOrId: ChainName | number): number {
+  getChainId(chainNameOrId: ChainName | number): number | string {
     return this.getChainMetadata(chainNameOrId).chainId;
   }
 
   /**
    * Get the ids for all chains known to this MultiProvider
    */
-  getKnownChainIds(): number[] {
+  getKnownChainIds(): Array<number | string> {
     return Object.values(this.metadata).map((c) => c.chainId);
   }
 
@@ -153,7 +150,8 @@ export class ChainMetadataManager<MetaExt = {}> {
    */
   tryGetDomainId(chainNameOrId: ChainName | number): number | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
-    return metadata?.domainId ?? metadata?.chainId ?? null;
+    if (!metadata) return null;
+    return getDomainId(metadata) ?? null;
   }
 
   /**
@@ -161,8 +159,9 @@ export class ChainMetadataManager<MetaExt = {}> {
    * @throws if chain's metadata has not been set
    */
   getDomainId(chainNameOrId: ChainName | number): number {
-    const metadata = this.getChainMetadata(chainNameOrId);
-    return getDomainId(metadata);
+    const domainId = this.tryGetDomainId(chainNameOrId);
+    if (!domainId) throw new Error(`No domain id set for ${chainNameOrId}`);
+    return domainId;
   }
 
   /**
@@ -238,6 +237,7 @@ export class ChainMetadataManager<MetaExt = {}> {
     ) {
       url.searchParams.set('cluster', solanaChainToClusterName[metadata.name]);
     }
+    // TODO cosmos support here
     return url.toString();
   }
 
@@ -344,8 +344,6 @@ export class ChainMetadataManager<MetaExt = {}> {
   ): ChainMetadataManager<MetaExt & NewExt> {
     const newMetadata: ChainMap<ChainMetadata<MetaExt & NewExt>> = {};
     for (const [name, meta] of Object.entries(this.metadata)) {
-      if (!additionalMetadata[name])
-        throw new Error(`No additional data provided for chain ${name}`);
       newMetadata[name] = { ...meta, ...additionalMetadata[name] };
     }
     return new ChainMetadataManager(newMetadata);

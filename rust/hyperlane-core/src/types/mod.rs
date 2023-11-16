@@ -10,6 +10,7 @@ pub use announcement::*;
 pub use chain_data::*;
 pub use checkpoint::*;
 pub use log_metadata::*;
+pub use merkle_tree::*;
 pub use message::*;
 
 use crate::{Decode, Encode, HyperlaneProtocolError};
@@ -18,6 +19,7 @@ mod announcement;
 mod chain_data;
 mod checkpoint;
 mod log_metadata;
+mod merkle_tree;
 mod message;
 mod serialize;
 
@@ -103,11 +105,22 @@ impl From<Signature> for ethers_core::types::Signature {
     }
 }
 
+/// Key for the gas payment
+#[derive(Debug, Copy, Clone)]
+pub struct GasPaymentKey {
+    /// Id of the message
+    pub message_id: H256,
+    /// Destination domain paid for.
+    pub destination: u32,
+}
+
 /// A payment of a message's gas costs.
 #[derive(Debug, Copy, Clone)]
 pub struct InterchainGasPayment {
     /// Id of the message
     pub message_id: H256,
+    /// Destination domain paid for.
+    pub destination: u32,
     /// Amount of native tokens paid.
     pub payment: U256,
     /// Amount of destination gas paid for.
@@ -133,8 +146,13 @@ impl Add for InterchainGasPayment {
             self.message_id, rhs.message_id,
             "Cannot add interchain gas payments for different messages"
         );
+        assert_eq!(
+            self.destination, rhs.destination,
+            "Cannot add interchain gas payments for different destinations"
+        );
         Self {
             message_id: self.message_id,
+            destination: self.destination,
             payment: self.payment + rhs.payment,
             gas_amount: self.gas_amount + rhs.gas_amount,
         }

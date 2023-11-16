@@ -1,12 +1,8 @@
 import { formatUnits, parseUnits } from '@ethersproject/units';
 import BigNumber from 'bignumber.js';
 
-const DEFAULT_MIN_ROUNDED_VALUE = 0.00001;
 const DEFAULT_DISPLAY_DECIMALS = 4;
 const DEFAULT_TOKEN_DECIMALS = 18;
-
-// Use toString(10) on bignumber.js to prevent ethers.js bigNumber error
-// when parsing exponential string over e21
 
 /**
  * Convert the given Wei value to Ether value
@@ -33,21 +29,14 @@ export function fromWei(
 export function fromWeiRounded(
   value: BigNumber.Value | null | undefined,
   decimals = DEFAULT_TOKEN_DECIMALS,
-  roundDownIfSmall = true,
+  displayDecimals?: number,
 ): string {
   if (!value) return '0';
   const flooredValue = BigNumber(value).toFixed(0, BigNumber.ROUND_FLOOR);
   const amount = BigNumber(formatUnits(flooredValue, decimals));
   if (amount.isZero()) return '0';
-
-  // If amount is less than min value
-  if (amount.lt(DEFAULT_MIN_ROUNDED_VALUE)) {
-    if (roundDownIfSmall) return '0';
-    return amount.toString(10);
-  }
-
-  const displayDecimals = amount.gte(10000) ? 2 : DEFAULT_DISPLAY_DECIMALS;
-  return amount.toFixed(displayDecimals);
+  displayDecimals ??= amount.gte(10000) ? 2 : DEFAULT_DISPLAY_DECIMALS;
+  return amount.toFixed(displayDecimals, BigNumber.ROUND_FLOOR);
 }
 
 /**
@@ -100,17 +89,17 @@ export function tryParseAmount(
 /**
  * Checks if an amount is equal of nearly equal to balance within a small margin of error
  * Necessary because amounts in the UI are often rounded
- * @param amountInWei1 The amount to compare.
- * @param amountInWei2 The amount to compare.
+ * @param amount1 The amount to compare.
+ * @param amount2 The amount to compare.
  * @returns true/false.
  */
 export function eqAmountApproximate(
-  amountInWei1: BigNumber.Value,
-  amountInWei2: BigNumber.Value,
+  amount1: BigNumber.Value,
+  amount2: BigNumber.Value,
+  maxDifference: BigNumber.Value,
 ): boolean {
-  const minValueWei = toWei(DEFAULT_MIN_ROUNDED_VALUE);
-  // Is difference btwn amount and balance less than min amount shown for token
-  return BigNumber(amountInWei1).minus(amountInWei2).abs().lt(minValueWei);
+  // Is difference btwn amounts less than maxDifference
+  return BigNumber(amount1).minus(amount2).abs().lte(maxDifference);
 }
 
 /**

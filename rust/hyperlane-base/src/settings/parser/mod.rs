@@ -4,14 +4,12 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-#![allow(dead_code)] // TODO(2214): remove before PR merge
-
 use std::{
-    cmp::Reverse,
     collections::{HashMap, HashSet},
     default::Default,
 };
 
+use convert_case::{Case, Casing};
 use eyre::{eyre, Context};
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, IndexMode,
@@ -23,8 +21,8 @@ use serde_json::Value;
 pub use self::json_value_parser::ValueParser;
 pub use super::envs::*;
 use crate::settings::{
-    chains::IndexSettings, parser::json_value_parser::ParseChain, trace::TracingConfig, ChainConf,
-    ChainConnectionConf, CoreContractAddresses, Settings, SignerConf,
+    chains::IndexSettings, trace::TracingConfig, ChainConf, ChainConnectionConf,
+    CoreContractAddresses, Settings, SignerConf,
 };
 
 mod json_value_parser;
@@ -83,10 +81,16 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
             .and_then(parse_signer)
             .end();
 
+        let default_rpc_consensus_type = p
+            .chain(&mut err)
+            .get_opt_key("defaultRpcConsensusType")
+            .parse_string()
+            .unwrap_or("fallback");
+
         let chains: HashMap<String, ChainConf> = raw_chains
             .into_iter()
             .filter_map(|(name, chain)| {
-                parse_chain(chain, &name)
+                parse_chain(chain, &name, default_rpc_consensus_type)
                     .take_config_err(&mut err)
                     .map(|v| (name, v))
             })
@@ -107,7 +111,11 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
 }
 
 /// The chain name and ChainMetadata
-fn parse_chain(chain: ValueParser, name: &str) -> ConfigResult<ChainConf> {
+fn parse_chain(
+    chain: ValueParser,
+    name: &str,
+    default_rpc_consensus_type: &str,
+) -> ConfigResult<ChainConf> {
     let mut err = ConfigParsingError::default();
 
     let domain = parse_domain(chain.clone(), name).take_config_err(&mut err);
@@ -117,41 +125,43 @@ fn parse_chain(chain: ValueParser, name: &str) -> ConfigResult<ChainConf> {
         .and_then(parse_signer)
         .end();
 
-    // TODO(2214): is it correct to define finality blocks as `confirmations` and not `reorgPeriod`?
-    // TODO(2214): should we rename `finalityBlocks` in ChainConf?
-    let finality_blocks = chain
+    let reorg_period = chain
         .chain(&mut err)
         .get_opt_key("blocks")
-        .get_key("confirmations")
+        .get_key("reorgPeriod")
         .parse_u32()
         .unwrap_or(1);
 
-    let rpcs: Vec<ValueParser> =
-        if let Some(custom_rpc_urls) = chain.get_opt_key("customRpcUrls").unwrap_or_default() {
-            // use the custom defined urls, sorted by highest prio first
-            custom_rpc_urls.chain(&mut err).into_obj_iter().map(|itr| {
-                itr.map(|(_, url)| {
-                    (
-                        url.chain(&mut err)
-                            .get_opt_key("priority")
-                            .parse_i32()
-                            .unwrap_or(0),
-                        url,
-                    )
-                })
-                .sorted_unstable_by_key(|(p, _)| Reverse(*p))
-                .map(|(_, url)| url)
-                .collect()
+    let rpcs_base = chain
+        .chain(&mut err)
+        .get_key("rpcUrls")
+        .into_array_iter()
+        .map(|urls| {
+            urls.filter_map(|v| {
+                v.chain(&mut err)
+                    .get_key("http")
+                    .parse_from_str("Invalid http url")
+                    .end()
             })
-        } else {
-            // if no custom rpc urls are set, use the default rpc urls
-            chain
-                .chain(&mut err)
-                .get_key("rpcUrls")
-                .into_array_iter()
-                .map(Iterator::collect)
-        }
+            .collect_vec()
+        })
         .unwrap_or_default();
+
+    let rpc_overrides = chain
+        .chain(&mut err)
+        .get_opt_key("customRpcUrls")
+        .parse_string()
+        .end()
+        .map(|urls| {
+            urls.split(',')
+                .filter_map(|url| {
+                    url.parse()
+                        .take_err(&mut err, || &chain.cwp + "customRpcUrls")
+                })
+                .collect_vec()
+        });
+
+    let rpcs = rpc_overrides.unwrap_or(rpcs_base);
 
     if rpcs.is_empty() {
         err.push(
@@ -207,69 +217,58 @@ fn parse_chain(chain: ValueParser, name: &str) -> ConfigResult<ChainConf> {
         .get_key("validatorAnnounce")
         .parse_address_hash()
         .end();
+    let merkle_tree_hook = chain
+        .chain(&mut err)
+        .get_opt_key("merkleTreeHook")
+        .parse_address_hash()
+        .end();
 
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
 
     let connection: Option<ChainConnectionConf> = match domain.domain_protocol() {
         HyperlaneDomainProtocol::Ethereum => {
             if rpcs.len() <= 1 {
-                let into_connection =
-                    |url| ChainConnectionConf::Ethereum(h_eth::ConnectionConf::Http { url });
-                rpcs.into_iter().next().and_then(|rpc| {
-                    rpc.chain(&mut err)
-                        .get_key("http")
-                        .parse_from_str("Invalid http url")
-                        .end()
-                        .map(into_connection)
-                })
+                rpcs.into_iter()
+                    .next()
+                    .map(|url| ChainConnectionConf::Ethereum(h_eth::ConnectionConf::Http { url }))
             } else {
-                let urls = rpcs
-                    .into_iter()
-                    .filter_map(|rpc| {
-                        rpc.chain(&mut err)
-                            .get_key("http")
-                            .parse_from_str("Invalid http url")
-                            .end()
-                    })
-                    .collect_vec();
-
                 let rpc_consensus_type = chain
                     .chain(&mut err)
                     .get_opt_key("rpcConsensusType")
                     .parse_string()
-                    .unwrap_or("fallback");
+                    .unwrap_or(default_rpc_consensus_type);
                 match rpc_consensus_type {
-                    "fallback" => Some(h_eth::ConnectionConf::HttpFallback { urls }),
-                    "quorum" => Some(h_eth::ConnectionConf::HttpQuorum { urls }),
+                    "single" => Some(h_eth::ConnectionConf::Http {
+                        url: rpcs.into_iter().next().unwrap(),
+                    }),
+                    "fallback" => Some(h_eth::ConnectionConf::HttpFallback { urls: rpcs }),
+                    "quorum" => Some(h_eth::ConnectionConf::HttpQuorum { urls: rpcs }),
                     ty => Err(eyre!("unknown rpc consensus type `{ty}`"))
                         .take_err(&mut err, || &chain.cwp + "rpc_consensus_type"),
                 }
                 .map(ChainConnectionConf::Ethereum)
             }
         }
-        HyperlaneDomainProtocol::Fuel => ParseChain::from_option(rpcs.into_iter().next(), &mut err)
-            .get_key("http")
-            .parse_from_str("Invalid http url")
-            .end()
+        HyperlaneDomainProtocol::Fuel => rpcs
+            .into_iter()
+            .next()
             .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url })),
-        HyperlaneDomainProtocol::Sealevel => {
-            ParseChain::from_option(rpcs.into_iter().next(), &mut err)
-                .get_key("http")
-                .parse_from_str("Invalod http url")
-                .end()
-                .map(|url| ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf { url }))
-        }
+        HyperlaneDomainProtocol::Sealevel => rpcs
+            .into_iter()
+            .next()
+            .map(|url| ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf { url })),
     };
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce]);
     err.into_result(ChainConf {
         domain,
         signer,
-        finality_blocks,
+        reorg_period,
         addresses: CoreContractAddresses {
             mailbox,
             interchain_gas_paymaster,
             validator_announce,
+            merkle_tree_hook,
         },
         connection,
         metrics_conf: Default::default(),
@@ -386,4 +385,25 @@ impl FromRawConf<RawAgentSignerConf> for SignerConf {
     ) -> ConfigResult<Self> {
         parse_signer(ValueParser::new(cwp.clone(), &raw.0))
     }
+}
+
+/// Recursively re-cases a json value's keys to the given case.
+pub fn recase_json_value(mut val: Value, case: Case) -> Value {
+    match &mut val {
+        Value::Array(ary) => {
+            for i in ary {
+                let val = recase_json_value(i.take(), case);
+                *i = val;
+            }
+        }
+        Value::Object(obj) => {
+            let keys = obj.keys().cloned().collect_vec();
+            for key in keys {
+                let val = obj.remove(&key).unwrap();
+                obj.insert(key.to_case(case), recase_json_value(val, case));
+            }
+        }
+        _ => {}
+    }
+    val
 }

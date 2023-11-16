@@ -1,12 +1,15 @@
 import '@nomiclabs/hardhat-waffle';
-import { expect } from 'chai';
+import { assert, expect } from 'chai';
 import { ethers } from 'hardhat';
 import sinon from 'sinon';
 
+import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+
 import { TestChains } from '../consts/chains';
 import { HyperlaneContractsMap } from '../contracts/types';
+import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { HyperlaneIsmFactoryDeployer } from '../ism/HyperlaneIsmFactoryDeployer';
+import { AggregationIsmConfig, IsmType } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { testCoreConfig } from '../test/testUtils';
 import { ChainMap } from '../types';
@@ -24,25 +27,95 @@ describe('core', async () => {
   let contracts: HyperlaneContractsMap<CoreFactories>;
   let coreConfig: ChainMap<CoreConfig>;
   let ismFactory: HyperlaneIsmFactory;
+
   before(async () => {
     const [signer] = await ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    const ismFactoryDeployer = new HyperlaneIsmFactoryDeployer(multiProvider);
-    const ismFactories = await ismFactoryDeployer.deploy(TestChains);
+    const proxyFactoryDeployer = new HyperlaneProxyFactoryDeployer(
+      multiProvider,
+    );
+    coreConfig = testCoreConfig(TestChains, signer.address);
+    const ismFactories = await proxyFactoryDeployer.deploy(coreConfig);
     ismFactory = new HyperlaneIsmFactory(ismFactories, multiProvider);
-  });
-
-  beforeEach(async () => {
-    const [signer] = await ethers.getSigners();
-    // This is kind of awkward and really these tests shouldn't live here
-    multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    coreConfig = testCoreConfig(TestChains);
+    deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   });
 
   it('deploys', async () => {
-    deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
     contracts = await deployer.deploy(coreConfig);
     core = new HyperlaneCore(contracts, multiProvider);
+  });
+
+  describe('idempotency', () => {
+    beforeEach(async () => {
+      contracts = await deployer.deploy(coreConfig);
+    });
+
+    it('rotates default and required hooks and recovers artifacts', async () => {
+      const getHooks = async (
+        contracts: HyperlaneContractsMap<CoreFactories>,
+      ) =>
+        promiseObjAll(
+          objMap(contracts, async (_, { mailbox }) => ({
+            default: await mailbox.defaultHook(),
+            required: await mailbox.requiredHook(),
+          })),
+        );
+
+      const hooksBefore = await getHooks(contracts);
+
+      const updatedConfig = objMap(coreConfig, (_, config) => ({
+        ...config,
+        defaultHook: config.requiredHook,
+        requiredHook: config.defaultHook,
+      }));
+
+      const [signer] = await ethers.getSigners();
+      const nonceBefore = await signer.getTransactionCount();
+
+      const updatedContracts = await deployer.deploy(updatedConfig);
+
+      const hooksAfter = await getHooks(updatedContracts);
+      expect(hooksBefore).to.deep.equal(
+        objMap(hooksAfter, (_, res) => ({
+          required: res.default,
+          default: res.required,
+        })),
+      );
+
+      // number of set hook transactions
+      const numTransactions = 2 * TestChains.length;
+      const nonceAfter = await signer.getTransactionCount();
+      expect(nonceAfter).to.equal(nonceBefore + numTransactions);
+    });
+
+    it('rotates default ISMs', async () => {
+      const testIsm = await contracts.test1.mailbox.defaultIsm();
+
+      const updatedConfig: ChainMap<CoreConfig> = objMap(
+        coreConfig,
+        (_, config) => {
+          const ismConfig: AggregationIsmConfig = {
+            type: IsmType.AGGREGATION,
+            modules: [testIsm, testIsm],
+            threshold: 2,
+          };
+          return {
+            ...config,
+            defaultIsm: ismConfig,
+          };
+        },
+      );
+
+      const [signer] = await ethers.getSigners();
+      const nonceBefore = await signer.getTransactionCount();
+
+      await deployer.deploy(updatedConfig);
+
+      // one aggregation ISM deploy and one set ISM transaction per chain
+      const numTransactions = 2 * TestChains.length;
+      const nonceAfter = await signer.getTransactionCount();
+      expect(nonceAfter).to.equal(nonceBefore + numTransactions);
+    });
   });
 
   describe('failure modes', async () => {
@@ -71,7 +144,17 @@ describe('core', async () => {
       sinon.restore(); // restore normal deployer behavior and test3 will be deployed
       const result = await deployer.deploy(coreConfig);
       expect(result).to.have.keys(['test1', 'test2', 'test3']);
-      expect(result.test3).to.have.keys(Object.keys(result.test2));
+      // Each test network key has entries about the other test networks, whre ISM details are stored.
+      // With this exception, the keys should be the same, so we check the intersections for equality.
+      const testnetKeysIntersection = Object.keys(result.test1).filter(
+        (key) =>
+          Object.keys(result.test2).includes(key) &&
+          Object.keys(result.test3).includes(key),
+      );
+      assert(
+        testnetKeysIntersection.length > 0,
+        'there are no common core contracts deployed between the local testnets',
+      );
     });
 
     it('can be resumed from partial contracts', async () => {
@@ -83,8 +166,16 @@ describe('core', async () => {
       delete deployer.deployedContracts.test2!.mailbox;
 
       const result = await deployer.deploy(coreConfig);
-      expect(result.test2).to.have.keys(Object.keys(result.test1));
-      expect(result.test3).to.have.keys(Object.keys(result.test1));
+
+      const testnetKeysIntersection = Object.keys(result.test1).filter(
+        (key) =>
+          Object.keys(result.test2).includes(key) &&
+          Object.keys(result.test3).includes(key),
+      );
+      assert(
+        testnetKeysIntersection.length > 0,
+        'there are no common core contracts deployed between the local testnets',
+      );
     });
 
     it('times out ', async () => {

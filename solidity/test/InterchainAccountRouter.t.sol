@@ -4,15 +4,12 @@ pragma solidity ^0.8.13;
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "forge-std/Test.sol";
 import "../contracts/mock/MockMailbox.sol";
-import "../contracts/HyperlaneConnectionClient.sol";
 import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecurityModule.sol";
 import {IInterchainGasPaymaster} from "../contracts/interfaces/IInterchainGasPaymaster.sol";
-import {InterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
+import {CallLib, OwnableMulticall, InterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
 import {InterchainAccountIsm} from "../contracts/isms/routing/InterchainAccountIsm.sol";
-import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
-import {CallLib} from "../contracts/libs/Call.sol";
 
 contract Callable {
     mapping(address => bytes32) public data;
@@ -30,11 +27,10 @@ contract FailingIsm is IInterchainSecurityModule {
         failureMessage = _failureMessage;
     }
 
-    function verify(bytes calldata, bytes calldata)
-        external
-        view
-        returns (bool)
-    {
+    function verify(
+        bytes calldata,
+        bytes calldata
+    ) external view returns (bool) {
         revert(failureMessage);
     }
 }
@@ -70,14 +66,13 @@ contract InterchainAccountRouterTest is Test {
     Callable target;
 
     function deployProxiedIcaRouter(
-        uint32 _domain,
         MockMailbox _mailbox,
-        IInterchainGasPaymaster _igps,
+        IInterchainGasPaymaster _igp,
         IInterchainSecurityModule _ism,
         address _owner
     ) public returns (InterchainAccountRouter) {
         InterchainAccountRouter implementation = new InterchainAccountRouter(
-            _domain
+            address(_mailbox)
         );
 
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -85,8 +80,7 @@ contract InterchainAccountRouterTest is Test {
             address(1), // no proxy owner necessary for testing
             abi.encodeWithSelector(
                 InterchainAccountRouter.initialize.selector,
-                address(_mailbox),
-                address(_igps),
+                address(_igp),
                 address(_ism),
                 _owner
             )
@@ -104,14 +98,12 @@ contract InterchainAccountRouterTest is Test {
 
         address owner = address(this);
         originRouter = deployProxiedIcaRouter(
-            origin,
             environment.mailboxes(origin),
             environment.igps(destination),
             icaIsm,
             owner
         );
         destinationRouter = deployProxiedIcaRouter(
-            destination,
             environment.mailboxes(destination),
             environment.igps(destination),
             icaIsm,
@@ -249,11 +241,9 @@ contract InterchainAccountRouterTest is Test {
         originRouter.enrollRemoteRouterAndIsm(destination, router, ism);
     }
 
-    function getCalls(bytes32 data)
-        private
-        view
-        returns (CallLib.Call[] memory)
-    {
+    function getCalls(
+        bytes32 data
+    ) private view returns (CallLib.Call[] memory) {
         vm.assume(data != bytes32(0));
         CallLib.Call memory call = CallLib.Call(
             TypeCasts.addressToBytes32(address(target)),
@@ -349,7 +339,7 @@ contract InterchainAccountRouterTest is Test {
         string memory failureMessage = "failing ism";
         FailingIsm failingIsm = new FailingIsm(failureMessage);
 
-        environment.mailboxes(destination).setDefaultIsm(failingIsm);
+        environment.mailboxes(destination).setDefaultIsm(address(failingIsm));
         originRouter.callRemoteWithOverrides(
             destination,
             routerOverride,

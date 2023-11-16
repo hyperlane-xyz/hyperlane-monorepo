@@ -1,4 +1,6 @@
-use std::{sync::Arc, time::Duration};
+use std::num::NonZeroU64;
+use std::sync::Arc;
+use std::time::Duration;
 
 use ethers::{
     abi::Detokenize,
@@ -6,6 +8,7 @@ use ethers::{
     types::Eip1559TransactionRequest,
 };
 use ethers_contract::builders::ContractCall;
+use ethers_core::types::BlockNumber;
 use hyperlane_core::{
     utils::fmt_bytes, ChainCommunicationError, ChainResult, KnownHyperlaneDomain, H256, U256,
 };
@@ -117,4 +120,26 @@ where
     let mut eip_1559_tx = tx;
     eip_1559_tx.tx = ethers::types::transaction::eip2718::TypedTransaction::Eip1559(request);
     Ok(eip_1559_tx.gas(gas_limit))
+}
+
+pub(crate) async fn call_with_lag<M, T>(
+    call: ethers::contract::builders::ContractCall<M, T>,
+    provider: &M,
+    maybe_lag: Option<NonZeroU64>,
+) -> ChainResult<ethers::contract::builders::ContractCall<M, T>>
+where
+    M: Middleware + 'static,
+    T: Detokenize,
+{
+    if let Some(lag) = maybe_lag {
+        let fixed_block_number: BlockNumber = provider
+            .get_block_number()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .saturating_sub(lag.get().into())
+            .into();
+        Ok(call.block(fixed_block_number))
+    } else {
+        Ok(call)
+    }
 }

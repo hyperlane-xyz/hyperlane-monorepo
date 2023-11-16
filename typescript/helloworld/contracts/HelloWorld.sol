@@ -2,7 +2,8 @@
 pragma solidity ^0.8.13;
 
 // ============ External Imports ============
-import {Router} from "@hyperlane-xyz/core/contracts/Router.sol";
+import {Router} from "@hyperlane-xyz/core/contracts/client/Router.sol";
+import {StandardHookMetadata} from "@hyperlane-xyz/core/contracts/hooks/libs/StandardHookMetadata.sol";
 
 /*
  * @title The Hello World App
@@ -42,13 +43,10 @@ contract HelloWorld is Router {
         uint256 handleGasAmount
     );
 
-    constructor(address _mailbox, address _interchainGasPaymaster) {
+    constructor(address _mailbox, address _hook) Router(_mailbox) {
         // Transfer ownership of the contract to deployer
         _transferOwnership(msg.sender);
-        // Set the addresses for the Mailbox and IGP
-        // Alternatively, this could be done later in an initialize method
-        _setMailbox(_mailbox);
-        _setInterchainGasPaymaster(_interchainGasPaymaster);
+        setHook(_hook);
     }
 
     // ============ External functions ============
@@ -59,19 +57,13 @@ contract HelloWorld is Router {
      * @param _destinationDomain The destination domain to send the message to.
      * @param _message The message to send.
      */
-    function sendHelloWorld(uint32 _destinationDomain, string calldata _message)
-        external
-        payable
-    {
+    function sendHelloWorld(
+        uint32 _destinationDomain,
+        string calldata _message
+    ) external payable {
         sent += 1;
         sentTo[_destinationDomain] += 1;
-        _dispatchWithGas(
-            _destinationDomain,
-            bytes(_message),
-            HANDLE_GAS_AMOUNT,
-            msg.value,
-            msg.sender
-        );
+        _dispatch(_destinationDomain, bytes(_message));
         emit SentHelloWorld(
             mailbox.localDomain(),
             _destinationDomain,
@@ -79,7 +71,24 @@ contract HelloWorld is Router {
         );
     }
 
+    /**
+     * @notice Fetches the amount of gas that will be used when a message is
+     * dispatched to the given domain.
+     */
+    function quoteDispatch(
+        uint32 _destinationDomain,
+        bytes calldata _message
+    ) external view returns (uint256) {
+        return _quoteDispatch(_destinationDomain, _message);
+    }
+
     // ============ Internal functions ============
+    function _metadata(
+        uint32 /*_destinationDomain*/
+    ) internal view override returns (bytes memory) {
+        return
+            StandardHookMetadata.formatMetadata(HANDLE_GAS_AMOUNT, msg.sender);
+    }
 
     /**
      * @notice Handles a message from a remote router.

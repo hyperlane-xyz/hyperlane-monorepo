@@ -246,7 +246,7 @@ fn verify(
     let multisig_ism = MultisigIsm::new(
         CheckpointWithMessageId {
             checkpoint: Checkpoint {
-                mailbox_address: metadata.origin_mailbox,
+                merkle_tree_hook_address: metadata.origin_merkle_tree_hook,
                 mailbox_domain: message.origin,
                 root: metadata.merkle_root,
                 index: message.nonce,
@@ -599,7 +599,7 @@ pub mod test {
             // is handled in compliance with what the Mailbox expects
             InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
                 metadata: MultisigIsmMessageIdMetadata {
-                    origin_mailbox: checkpoint.mailbox_address,
+                    origin_merkle_tree_hook: checkpoint.merkle_tree_hook_address,
                     merkle_root: checkpoint.root,
                     validator_signatures: vec![
                         EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
@@ -624,7 +624,7 @@ pub mod test {
             // is handled in compliance with what the Mailbox expects
             InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
                 metadata: MultisigIsmMessageIdMetadata {
-                    origin_mailbox: checkpoint.mailbox_address,
+                    origin_merkle_tree_hook: checkpoint.merkle_tree_hook_address,
                     merkle_root: checkpoint.root,
                     validator_signatures: vec![
                         EcdsaSignature::from_bytes(&signatures[1]).unwrap(),
@@ -652,7 +652,7 @@ pub mod test {
             // is handled in compliance with what the Mailbox expects
             InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
                 metadata: MultisigIsmMessageIdMetadata {
-                    origin_mailbox: checkpoint.mailbox_address,
+                    origin_merkle_tree_hook: checkpoint.merkle_tree_hook_address,
                     merkle_root: checkpoint.root,
                     validator_signatures: vec![
                         EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
@@ -676,7 +676,7 @@ pub mod test {
             // is handled in compliance with what the Mailbox expects
             InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
                 metadata: MultisigIsmMessageIdMetadata {
-                    origin_mailbox: checkpoint.mailbox_address,
+                    origin_merkle_tree_hook: checkpoint.merkle_tree_hook_address,
                     merkle_root: checkpoint.root,
                     validator_signatures: vec![
                         EcdsaSignature::from_bytes(&signatures[0]).unwrap(),

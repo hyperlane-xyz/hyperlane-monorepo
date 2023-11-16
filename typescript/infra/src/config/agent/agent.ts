@@ -1,8 +1,9 @@
 import {
-  AgentChainSetup,
-  AgentConnection,
-  AgentConnectionType,
+  AgentChainMetadata,
+  AgentSignerAwsKey,
+  AgentSignerKeyType,
   ChainName,
+  RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
@@ -17,6 +18,12 @@ import {
 } from './relayer';
 import { BaseScraperConfig, HelmScraperValues } from './scraper';
 import { HelmValidatorValues, ValidatorBaseChainConfigMap } from './validator';
+
+export type DeepPartial<T> = T extends object
+  ? {
+      [P in keyof T]?: DeepPartial<T[P]>;
+    }
+  : T;
 
 // See rust/helm/values.yaml for the full list of options and their defaults.
 // This is the root object in the values file.
@@ -45,10 +52,9 @@ interface HelmHyperlaneValues {
 // See rust/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.chains` in the values file.
 export interface HelmAgentChainOverride
-  extends Partial<Omit<AgentChainSetup, 'connection'>> {
-  name: ChainName;
+  extends DeepPartial<AgentChainMetadata> {
+  name: AgentChainMetadata['name'];
   disabled?: boolean;
-  connection?: Partial<AgentConnection>;
 }
 
 export interface RootAgentConfig extends AgentContextConfig {
@@ -80,29 +86,14 @@ export interface AgentContextConfig extends AgentEnvConfig {
 interface AgentRoleConfig {
   docker: DockerConfig;
   chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
-  quorumProvider?: boolean;
-  connectionType: AgentConnectionType;
+  rpcConsensusType: RpcConsensusType;
   index?: IndexingConfig;
 }
 
-export enum KeyType {
-  Aws = 'aws',
-  Hex = 'hexKey',
-}
-
-export interface AwsKeyConfig {
-  type: KeyType.Aws;
-  // ID of the key, can be an alias of the form `alias/foo-bar`
-  id: string;
-  // AWS region where the key is
-  region: string;
-}
-
-// The private key is omitted so it can be fetched using external-secrets
-export interface HexKeyConfig {
-  type: KeyType.Hex;
-}
-
+// require specifying that it's the "aws" type for helm
+export type AwsKeyConfig = Required<AgentSignerAwsKey>;
+// only require specifying that it's the "hex" type for helm since the hex key will be pulled from secrets.
+export type HexKeyConfig = { type: AgentSignerKeyType.Hex };
 export type KeyConfig = AwsKeyConfig | HexKeyConfig;
 
 interface IndexingConfig {
@@ -158,14 +149,14 @@ export abstract class AgentConfigHelper<R = unknown>
   extends RootAgentConfigHelper
   implements AgentRoleConfig
 {
-  connectionType: AgentConnectionType;
+  rpcConsensusType: RpcConsensusType;
   docker: DockerConfig;
   chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
   index?: IndexingConfig;
 
   protected constructor(root: RootAgentConfig, agent: AgentRoleConfig) {
     super(root);
-    this.connectionType = agent.connectionType;
+    this.rpcConsensusType = agent.rpcConsensusType;
     this.docker = agent.docker;
     this.chainDockerOverrides = agent.chainDockerOverrides;
     this.index = agent.index;

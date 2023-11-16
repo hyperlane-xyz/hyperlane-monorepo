@@ -34,8 +34,10 @@ export function serializeContractsMap<F extends HyperlaneFactories>(
 
 export function serializeContracts<F extends HyperlaneFactories>(
   contracts: HyperlaneContracts<F>,
-): HyperlaneAddresses<F> {
-  return objMap(contracts, (_, contract) => contract.address);
+): any {
+  return objMap(contracts, (_, contract) =>
+    contract.address ? contract.address : serializeContracts(contract),
+  );
 }
 
 function getFactory<F extends HyperlaneFactories>(
@@ -148,10 +150,15 @@ export function connectContracts<F extends HyperlaneFactories>(
   contracts: HyperlaneContracts<F>,
   connection: Connection,
 ): HyperlaneContracts<F> {
-  return objMap(
-    contracts,
-    (_, contract) => contract.connect(connection) as typeof contract,
-  );
+  const connectedContracts = objMap(contracts, (_, contract) => {
+    if (!contract.connect) {
+      return undefined;
+    }
+    return contract.connect(connection);
+  });
+  return Object.fromEntries(
+    Object.entries(connectedContracts).filter(([_, contract]) => !!contract),
+  ) as HyperlaneContracts<F>;
 }
 
 export function connectContractsMap<F extends HyperlaneFactories>(

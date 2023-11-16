@@ -1,6 +1,6 @@
 import { CommandModule, Options } from 'yargs';
 
-import { TokenType } from '@hyperlane-xyz/hyperlane-token';
+import { TokenType } from '@hyperlane-xyz/sdk';
 
 import { log } from '../../logger.js';
 import { sendTestMessage } from '../send/message.js';
@@ -32,8 +32,6 @@ export const sendCommand: CommandModule = {
  */
 const messageOptions: { [k: string]: Options } = {
   key: keyCommandOption,
-  chains: chainsCommandOption,
-  core: coreArtifactsOption,
   origin: {
     type: 'string',
     description: 'Origin chain to send message from',
@@ -44,6 +42,8 @@ const messageOptions: { [k: string]: Options } = {
     description: 'Destination chain to send message to',
     demandOption: true,
   },
+  core: coreArtifactsOption,
+  chains: chainsCommandOption,
   timeout: {
     type: 'number',
     description: 'Timeout in seconds',
