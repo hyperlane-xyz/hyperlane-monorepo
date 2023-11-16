@@ -1,6 +1,8 @@
 import { ConnectionClientViolation } from '..';
 import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
+import { IMailbox__factory } from '@hyperlane-xyz/core';
 import { addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types';
@@ -48,9 +50,9 @@ export class HyperlaneRouterChecker<
 
     const checkMailboxClientProperty = async (
       property: keyof (MailboxClientConfig & OwnableConfig),
+      actual: string,
       violationType: ClientViolationType,
     ) => {
-      const actual = await router[property]();
       const value = this.configMap[chain][property];
 
       // If the value is an object, it's an ISM config
@@ -71,19 +73,13 @@ export class HyperlaneRouterChecker<
         );
 
         if (!matches) {
-          this.app.logger(
-            `Deploying ISM; ISM config of actual ${actual} does not match expected config ${JSON.stringify(
-              value,
-            )}`,
-          );
-          const deployedIsm = await this.ismFactory.deploy(chain, value);
           const violation: ConnectionClientViolation = {
             chain,
             type: violationType,
             contract: router,
             actual,
-            expected: deployedIsm.address,
-            description: `ISM config does not match deployed ISM at ${deployedIsm.address}`,
+            expected: value,
+            description: `ISM config does not match deployed ISM`,
           };
           this.addViolation(violation);
         }
@@ -105,12 +101,45 @@ export class HyperlaneRouterChecker<
       }
     };
 
-    await checkMailboxClientProperty('mailbox', ClientViolationType.Mailbox);
-    await checkMailboxClientProperty('hook', ClientViolationType.Hook);
+    const mailboxAddr = await router.mailbox();
     await checkMailboxClientProperty(
-      'interchainSecurityModule',
+      'mailbox',
+      mailboxAddr,
+      ClientViolationType.Mailbox,
+    );
+    await checkMailboxClientProperty(
+      'hook',
+      await router.hook(),
       ClientViolationType.Hook,
     );
+
+    const mailbox = IMailbox__factory.connect(
+      mailboxAddr,
+      this.multiProvider.getProvider(chain),
+    );
+    const ism = await mailbox.recipientIsm(router.address);
+
+    if (
+      !this.configMap[chain].interchainSecurityModule ||
+      this.configMap[chain].interchainSecurityModule === zeroAddress
+    ) {
+      const defaultIsm = await mailbox.defaultIsm();
+      if (!eqAddress(defaultIsm, ism)) {
+        this.addViolation({
+          chain,
+          type: ClientViolationType.InterchainSecurityModule,
+          contract: router,
+          actual: ism,
+          expected: zeroAddress,
+        });
+      }
+    } else {
+      await checkMailboxClientProperty(
+        'interchainSecurityModule',
+        ism,
+        ClientViolationType.InterchainSecurityModule,
+      );
+    }
   }
 
   async checkEnrolledRouters(chain: ChainName): Promise<void> {

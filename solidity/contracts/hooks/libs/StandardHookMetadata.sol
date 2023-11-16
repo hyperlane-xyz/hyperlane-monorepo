@@ -47,11 +47,10 @@ library StandardHookMetadata {
      * @param _default Default fallback value.
      * @return Value for the message as uint256.
      */
-    function msgValue(bytes calldata _metadata, uint256 _default)
-        internal
-        pure
-        returns (uint256)
-    {
+    function msgValue(
+        bytes calldata _metadata,
+        uint256 _default
+    ) internal pure returns (uint256) {
         if (_metadata.length < MSG_VALUE_OFFSET + 32) return _default;
         return
             uint256(bytes32(_metadata[MSG_VALUE_OFFSET:MSG_VALUE_OFFSET + 32]));
@@ -63,11 +62,10 @@ library StandardHookMetadata {
      * @param _default Default fallback gas limit.
      * @return Gas limit for the message as uint256.
      */
-    function gasLimit(bytes calldata _metadata, uint256 _default)
-        internal
-        pure
-        returns (uint256)
-    {
+    function gasLimit(
+        bytes calldata _metadata,
+        uint256 _default
+    ) internal pure returns (uint256) {
         if (_metadata.length < GAS_LIMIT_OFFSET + 32) return _default;
         return
             uint256(bytes32(_metadata[GAS_LIMIT_OFFSET:GAS_LIMIT_OFFSET + 32]));
@@ -79,11 +77,10 @@ library StandardHookMetadata {
      * @param _default Default fallback refund address.
      * @return Refund address for the message as address.
      */
-    function refundAddress(bytes calldata _metadata, address _default)
-        internal
-        pure
-        returns (address)
-    {
+    function refundAddress(
+        bytes calldata _metadata,
+        address _default
+    ) internal pure returns (address) {
         if (_metadata.length < REFUND_ADDRESS_OFFSET + 20) return _default;
         return
             address(
@@ -98,11 +95,9 @@ library StandardHookMetadata {
      * @param _metadata ABI encoded global hook metadata.
      * @return Refund address for the message as address.
      */
-    function getCustomMetadata(bytes calldata _metadata)
-        internal
-        pure
-        returns (bytes calldata)
-    {
+    function getCustomMetadata(
+        bytes calldata _metadata
+    ) internal pure returns (bytes calldata) {
         if (_metadata.length < MIN_METADATA_LENGTH) return _metadata[0:0];
         return _metadata[MIN_METADATA_LENGTH:];
     }
@@ -136,11 +131,9 @@ library StandardHookMetadata {
      * @param _msgValue msg.value for the message.
      * @return ABI encoded global hook metadata.
      */
-    function formatMetadata(uint256 _msgValue)
-        internal
-        view
-        returns (bytes memory)
-    {
+    function formatMetadata(
+        uint256 _msgValue
+    ) internal view returns (bytes memory) {
         return formatMetadata(_msgValue, uint256(0), msg.sender, "");
     }
 
@@ -150,11 +143,10 @@ library StandardHookMetadata {
      * @param _refundAddress Refund address for the message.
      * @return ABI encoded global hook metadata.
      */
-    function formatMetadata(uint256 _gasLimit, address _refundAddress)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function formatMetadata(
+        uint256 _gasLimit,
+        address _refundAddress
+    ) internal pure returns (bytes memory) {
         return formatMetadata(uint256(0), _gasLimit, _refundAddress, "");
     }
 }

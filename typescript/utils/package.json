@@ -1,16 +1,17 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "1.5.7-beta1",
+  "version": "3.1.3",
   "dependencies": {
+    "@cosmjs/encoding": "^0.31.3",
     "@solana/web3.js": "^1.78.0",
     "bignumber.js": "^9.1.1",
     "ethers": "^5.7.2"
   },
   "devDependencies": {
     "chai": "^4.3.0",
-    "prettier": "^2.4.1",
-    "typescript": "^5.1.6"
+    "prettier": "^2.8.8",
+    "typescript": "5.1.6"
   },
   "homepage": "https://www.hyperlane.xyz",
   "keywords": [
@@ -32,6 +33,5 @@
   "types": "dist/index.d.ts",
   "files": [
     "/dist"
-  ],
-  "stableVersion": "1.5.0"
+  ]
 }

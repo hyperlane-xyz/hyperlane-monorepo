@@ -12,19 +12,17 @@ contract MockCircleMessageTransmitter is ICircleMessageTransmitter {
         token = _token;
     }
 
-    function receiveMessage(bytes memory, bytes calldata)
-        external
-        pure
-        returns (bool success)
-    {
+    function receiveMessage(
+        bytes memory,
+        bytes calldata
+    ) external pure returns (bool success) {
         success = true;
     }
 
-    function hashSourceAndNonce(uint32 _source, uint64 _nonce)
-        public
-        pure
-        returns (bytes32)
-    {
+    function hashSourceAndNonce(
+        uint32 _source,
+        uint64 _nonce
+    ) public pure returns (bytes32) {
         return keccak256(abi.encodePacked(_source, _nonce));
     }
 

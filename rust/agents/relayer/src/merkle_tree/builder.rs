@@ -3,7 +3,7 @@ use std::fmt::Display;
 use eyre::{Context, Result};
 use tracing::{debug, error, instrument};
 
-use hyperlane_base::db::{DbError, HyperlaneRocksDB};
+use hyperlane_base::db::DbError;
 use hyperlane_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
     ChainCommunicationError, H256,
@@ -14,7 +14,6 @@ use crate::prover::{Prover, ProverError};
 /// Struct to sync prover.
 #[derive(Debug)]
 pub struct MerkleTreeBuilder {
-    db: HyperlaneRocksDB,
     prover: Prover,
     incremental: IncrementalMerkle,
 }
@@ -62,36 +61,24 @@ pub enum MerkleTreeBuilderError {
 }
 
 impl MerkleTreeBuilder {
-    pub fn new(db: HyperlaneRocksDB) -> Self {
+    pub fn new() -> Self {
         let prover = Prover::default();
         let incremental = IncrementalMerkle::default();
         Self {
             prover,
             incremental,
-            db,
         }
     }
 
     #[instrument(err, skip(self), level="debug", fields(prover_latest_index=self.count()-1))]
     pub fn get_proof(
         &self,
-        message_nonce: u32,
+        leaf_index: u32,
         root_index: u32,
-    ) -> Result<Option<Proof>, MerkleTreeBuilderError> {
-        self.db
-            .retrieve_message_id_by_nonce(&message_nonce)?
-            .and_then(|message_id| {
-                self.db
-                    .retrieve_merkle_leaf_index_by_message_id(&message_id)
-                    .ok()
-                    .flatten()
-            })
-            .map(|leaf_index| {
-                self.prover
-                    .prove_against_previous(leaf_index as usize, root_index as usize)
-            })
-            .transpose()
-            .map_err(Into::into)
+    ) -> Result<Proof, MerkleTreeBuilderError> {
+        self.prover
+            .prove_against_previous(leaf_index as usize, root_index as usize)
+            .map_err(MerkleTreeBuilderError::from)
     }
 
     pub fn count(&self) -> u32 {

@@ -12,8 +12,7 @@ interface IMultisigIsm is IInterchainSecurityModule {
      * @return validators The array of validator addresses
      * @return threshold The number of validator signatures needed
      */
-    function validatorsAndThreshold(bytes calldata _message)
-        external
-        view
-        returns (address[] memory validators, uint8 threshold);
+    function validatorsAndThreshold(
+        bytes calldata _message
+    ) external view returns (address[] memory validators, uint8 threshold);
 }

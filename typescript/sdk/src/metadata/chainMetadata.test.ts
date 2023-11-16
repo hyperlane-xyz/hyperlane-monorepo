@@ -50,6 +50,16 @@ describe('ChainMetadataSchema', () => {
         blocks,
       }),
     ).to.eq(true);
+
+    expect(
+      isValidChainMetadata({
+        ...minimalSchema,
+        protocol: ProtocolType.Cosmos,
+        chainId: 'cosmos',
+        bech32Prefix: 'cosmos',
+        slip44: 118,
+      }),
+    ).to.eq(true);
   });
   it('Rejects invalid schemas', () => {
     expect(
@@ -78,6 +88,21 @@ describe('ChainMetadataSchema', () => {
       isValidChainMetadata({
         ...minimalSchema,
         name: 'Invalid name',
+      }),
+    ).to.eq(false);
+
+    expect(
+      isValidChainMetadata({
+        ...minimalSchema,
+        chainId: 'string-id',
+      }),
+    ).to.eq(false);
+
+    expect(
+      isValidChainMetadata({
+        ...minimalSchema,
+        protocol: ProtocolType.Cosmos,
+        chainId: 'string-id',
       }),
     ).to.eq(false);
   });

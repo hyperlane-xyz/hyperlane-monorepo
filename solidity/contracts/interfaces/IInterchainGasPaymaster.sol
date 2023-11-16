@@ -28,8 +28,8 @@ interface IInterchainGasPaymaster {
         address _refundAddress
     ) external payable;
 
-    function quoteGasPayment(uint32 _destinationDomain, uint256 _gasAmount)
-        external
-        view
-        returns (uint256);
+    function quoteGasPayment(
+        uint32 _destinationDomain,
+        uint256 _gasAmount
+    ) external view returns (uint256);
 }

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
+import debug from 'debug';
 import { providers } from 'ethers';
 
 import {
@@ -22,6 +24,7 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { GasRouterDeployer } from '../router/GasRouterDeployer';
 import { GasConfig, RouterConfig } from '../router/types';
@@ -53,8 +56,11 @@ export class HypERC20Deployer extends GasRouterDeployer<
   ERC20RouterConfig,
   HypERC20Factories
 > {
-  constructor(multiProvider: MultiProvider) {
-    super(multiProvider, {} as HypERC20Factories); // factories not used in deploy
+  constructor(multiProvider: MultiProvider, ismFactory?: HyperlaneIsmFactory) {
+    super(multiProvider, {} as HypERC20Factories, {
+      logger: debug('hyperlane:HypERC20Deployer'),
+      ismFactory,
+    }); // factories not used in deploy
   }
 
   static async fetchMetadata(
@@ -199,6 +205,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
     } else {
       throw new Error('Invalid ERC20 token router config');
     }
+    await this.configureClient(chain, router, config);
     return { router };
   }
 
@@ -267,7 +274,9 @@ export class HypERC721Deployer extends GasRouterDeployer<
   HypERC721Factories
 > {
   constructor(multiProvider: MultiProvider) {
-    super(multiProvider, {} as HypERC721Factories); // factories not used in deploy
+    super(multiProvider, {} as HypERC721Factories, {
+      logger: debug('hyperlane:HypERC721Deployer'),
+    }); // factories not used in deploy
   }
 
   static async fetchMetadata(

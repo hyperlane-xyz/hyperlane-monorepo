@@ -27,24 +27,19 @@ abstract contract AbstractPostDispatchHook is IPostDispatchHook {
     // ============ External functions ============
 
     /// @inheritdoc IPostDispatchHook
-    function supportsMetadata(bytes calldata metadata)
-        public
-        pure
-        virtual
-        override
-        returns (bool)
-    {
+    function supportsMetadata(
+        bytes calldata metadata
+    ) public pure virtual override returns (bool) {
         return
             metadata.length == 0 ||
             metadata.variant() == StandardHookMetadata.VARIANT;
     }
 
     /// @inheritdoc IPostDispatchHook
-    function postDispatch(bytes calldata metadata, bytes calldata message)
-        external
-        payable
-        override
-    {
+    function postDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) external payable override {
         require(
             supportsMetadata(metadata),
             "AbstractPostDispatchHook: invalid metadata variant"
@@ -53,12 +48,10 @@ abstract contract AbstractPostDispatchHook is IPostDispatchHook {
     }
 
     /// @inheritdoc IPostDispatchHook
-    function quoteDispatch(bytes calldata metadata, bytes calldata message)
-        public
-        view
-        override
-        returns (uint256)
-    {
+    function quoteDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) public view override returns (uint256) {
         require(
             supportsMetadata(metadata),
             "AbstractPostDispatchHook: invalid metadata variant"
@@ -73,9 +66,10 @@ abstract contract AbstractPostDispatchHook is IPostDispatchHook {
      * @param metadata The metadata of the message being dispatched.
      * @param message The message being dispatched.
      */
-    function _postDispatch(bytes calldata metadata, bytes calldata message)
-        internal
-        virtual;
+    function _postDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal virtual;
 
     /**
      * @notice Quote dispatch hook implementation.
@@ -83,9 +77,8 @@ abstract contract AbstractPostDispatchHook is IPostDispatchHook {
      * @param message The message being dispatched.
      * @return The quote for the dispatch.
      */
-    function _quoteDispatch(bytes calldata metadata, bytes calldata message)
-        internal
-        view
-        virtual
-        returns (uint256);
+    function _quoteDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal view virtual returns (uint256);
 }

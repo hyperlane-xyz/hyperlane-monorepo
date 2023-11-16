@@ -5,6 +5,7 @@ import {
   Chains,
   RpcConsensusType,
   chainMetadata,
+  getDomainId,
 } from '@hyperlane-xyz/sdk';
 
 import { LiquidityLayerRelayerConfig } from '../../../src/config/middleware';
@@ -12,8 +13,14 @@ import { LiquidityLayerRelayerConfig } from '../../../src/config/middleware';
 import { environment } from './chains';
 
 const circleDomainMapping = [
-  { hyperlaneDomain: chainMetadata[Chains.ethereum].chainId, circleDomain: 0 },
-  { hyperlaneDomain: chainMetadata[Chains.avalanche].chainId, circleDomain: 1 },
+  {
+    hyperlaneDomain: getDomainId(chainMetadata[Chains.ethereum]),
+    circleDomain: 0,
+  },
+  {
+    hyperlaneDomain: getDomainId(chainMetadata[Chains.avalanche]),
+    circleDomain: 1,
+  },
 ];
 
 export const bridgeAdapterConfigs: ChainMap<BridgeAdapterConfig> = {

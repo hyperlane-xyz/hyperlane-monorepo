@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import { ChainMetadata, ChainMetadataSchema } from './chainMetadataTypes';
+import { ChainMetadata, ChainMetadataSchemaObject } from './chainMetadataTypes';
 import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes';
 import {
   HyperlaneDeploymentArtifacts,
@@ -80,7 +80,7 @@ export type AgentSignerAwsKey = z.infer<typeof AgentSignerAwsKeySchema>;
 export type AgentSignerNode = z.infer<typeof AgentSignerNodeSchema>;
 export type AgentSigner = z.infer<typeof AgentSignerSchema>;
 
-export const AgentChainMetadataSchema = ChainMetadataSchema.merge(
+export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
   HyperlaneDeploymentArtifactsSchema,
 ).extend({
   customRpcUrls: z

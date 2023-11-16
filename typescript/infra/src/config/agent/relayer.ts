@@ -4,11 +4,12 @@ import {
   AgentConfig,
   AgentSignerKeyType,
   ChainMap,
+  GasPaymentEnforcement,
   MatchingList,
+  RelayerConfig as RelayerAgentConfig,
   chainMetadata,
+  getDomainId,
 } from '@hyperlane-xyz/sdk';
-import { GasPaymentEnforcement } from '@hyperlane-xyz/sdk';
-import { RelayerConfig as RelayerAgentConfig } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { AgentAwsUser } from '../../agents/aws';
@@ -147,9 +148,9 @@ export function routerMatchingList(
       }
 
       matchingList.push({
-        originDomain: chainMetadata[source].chainId,
+        originDomain: getDomainId(chainMetadata[source]),
         senderAddress: routers[source].router,
-        destinationDomain: chainMetadata[destination].chainId,
+        destinationDomain: getDomainId(chainMetadata[destination]),
         recipientAddress: routers[destination].router,
       });
     }

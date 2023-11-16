@@ -27,11 +27,10 @@ contract FailingIsm is IInterchainSecurityModule {
         failureMessage = _failureMessage;
     }
 
-    function verify(bytes calldata, bytes calldata)
-        external
-        view
-        returns (bool)
-    {
+    function verify(
+        bytes calldata,
+        bytes calldata
+    ) external view returns (bool) {
         revert(failureMessage);
     }
 }
@@ -242,11 +241,9 @@ contract InterchainAccountRouterTest is Test {
         originRouter.enrollRemoteRouterAndIsm(destination, router, ism);
     }
 
-    function getCalls(bytes32 data)
-        private
-        view
-        returns (CallLib.Call[] memory)
-    {
+    function getCalls(
+        bytes32 data
+    ) private view returns (CallLib.Call[] memory) {
         vm.assume(data != bytes32(0));
         CallLib.Call memory call = CallLib.Call(
             TypeCasts.addressToBytes32(address(target)),

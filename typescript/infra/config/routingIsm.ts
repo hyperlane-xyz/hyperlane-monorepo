@@ -41,15 +41,15 @@ export const routingIsm = (
   local: ChainName,
   context: Contexts,
 ): RoutingIsmConfig | string => {
-  const aggregationIsms: ChainMap<AggregationIsmConfig> = chains[
-    environment
-  ].reduce(
-    (acc, chain) => ({
-      ...acc,
-      [chain]: aggregationIsm(chain, context),
-    }),
-    {},
-  );
+  const aggregationIsms: ChainMap<AggregationIsmConfig> = chains[environment]
+    .filter((_) => _ !== local)
+    .reduce(
+      (acc, chain) => ({
+        ...acc,
+        [chain]: aggregationIsm(chain, context),
+      }),
+      {},
+    );
 
   return {
     type: IsmType.ROUTING,

@@ -1,30 +1,31 @@
 import { MultisigConfig } from '../ism/types';
 import { ChainMap } from '../types';
 
-export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
+export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   // ----------------- Mainnets -----------------
   celo: {
     threshold: 2,
     validators: [
       '0x63478422679303c3e4fc611b771fa4a707ef7f4a',
-      '0x2f4e808744df049d8acc050628f7bdd8265807f9',
-      '0x7bf30afcb6a7d92146d5a910ea4c154fba38d25e',
+      '0x622e43baf06ad808ca8399360d9a2d9a1a12688b', // dsrv
+      '0xf2c1e3888eb618f1f1a071ef3618f134715a9a49', // everstake
     ],
   },
   ethereum: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0x03c842db86a6a3e524d4a6615390c1ea8e2b9541',
-      '0x4346776b10f5e0d9995d884b7a1dbaee4e24c016',
-      '0x749d6e7ad949e522c92181dc77f7bbc1c5d71506',
+      '0x94438a7de38d4548ae54df5c6010c4ebc5239eae', // dsrv
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
+      '0xce327111035dd38698c92c3778884dbbb0ca8103', // everstake
     ],
   },
   avalanche: {
     threshold: 2,
     validators: [
       '0x3fb8263859843bffb02950c492d492cae169f4cf',
-      '0xe58c63ad669b946e7c8211299f22679deecc9c83',
-      '0x6c754f1e9cd8287088b46a7c807303d55d728b49',
+      '0x402e0f8c6e4210d408b6ac00d197d4a099fcd25a', // dsrv
+      '0x716a1d4d3166c6151b05ce0450e0d77d94588eac', // everstake
     ],
   },
   polygon: {
@@ -32,47 +33,48 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac',
       '0x8dd8f8d34b5ecaa5f66de24b01acd7b8461c3916',
-      '0xdbf3666de031bea43ec35822e8c33b9a9c610322',
+      '0x722aa4d45387009684582bca8281440d16b8b40f', // everstake
     ],
   },
   bsc: {
     threshold: 2,
     validators: [
       '0x570af9b7b36568c8877eebba6c6727aa9dab7268',
-      '0x7bf928d5d262365d31d64eaa24755d48c3cae313',
-      '0x03047213365800f065356b4a2fe97c3c3a52296a',
+      '0x8292b1a53907ece0f76af8a50724e9492bcdc8a3', // bsc
+      '0xeaf5cf9100f36a4baeea779f8745dda86159103c', // everstake
     ],
   },
   arbitrum: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0x4d966438fe9e2b1e7124c87bbb90cb4f0f6c59a1',
-      '0x6333e110b8a261cab28acb43030bcde59f26978a',
-      '0x3369e12edd52570806f126eb50be269ba5e65843',
+      '0xec68258a7c882ac2fc46b81ce80380054ffb4ef2', // dsrv
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
+      '0x092e1c19da58e87ea65198785ee83867fe4bb418', // everstake
     ],
   },
   optimism: {
     threshold: 2,
     validators: [
       '0x20349eadc6c72e94ce38268b96692b1a5c20de4f',
-      '0x04d040cee072272789e2d1f29aef73b3ad098db5',
-      '0x779a17e035018396724a6dec8a59bda1b5adf738',
+      '0x5b7d47b76c69740462432f6a5a0ca5005e014157', // dsrv
+      '0x22b1ad4322cdb5f2c76ebf4e5a93803d480fcf0d', // everstake
     ],
   },
   moonbeam: {
     threshold: 2,
     validators: [
       '0x2225e2f4e9221049456da93b71d2de41f3b6b2a8',
-      '0x4fe067bb455358e295bfcfb92519a6f9de94b98e',
-      '0xcc4a78aa162482bea43313cd836ba7b560b44fc4',
+      '0x645428d198d2e76cbd9c1647f5c80740bb750b97', // dsrv
+      '0xaed886392df07897743d8e272d438f00c4c9a2ae', // everstake
     ],
   },
   gnosis: {
     threshold: 2,
     validators: [
       '0xd4df66a859585678f2ea8357161d896be19cc1ca',
-      '0x06a833508579f8b59d756b3a1e72451fc70840c3',
-      '0xb93a72cee19402553c9dd7fed2461aebd04e2454',
+      '0x19fb7e04a1be6b39b6966a0b0c60b929a93ed672', // dsrv
+      '0xdb96116d13a2fadde9742d7cc88474a5ed39a03a', // everstake
     ],
   },
   // solana: {
@@ -85,7 +87,7 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0xb9453d675e0fa3c178a17b4ce1ad5b1a279b3af9',
       '0x4512985a574cb127b2af2d4bb676876ce804e3f8',
-      '0xb144bb2f599a5af095bc30367856f27ea8a8adc7',
+      '0x41188cb5a5493a961c467ba38a3f8b1f1d35ee63', // everstake
     ],
   },
   scroll: {
@@ -93,7 +95,7 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0xad557170a9f2f21c35e03de07cb30dcbcc3dff63',
       '0xb37fe43a9f47b7024c2d5ae22526cc66b5261533',
-      '0x7210fa0a6be39a75cb14d682ebfb37e2b53ecbe5',
+      '0x276de8e2b88e659c4e5ad30d62d9de42c3da3403', // everstake
     ],
   },
   polygonzkevm: {
@@ -101,7 +103,7 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x86f2a44592bb98da766e880cfd70d3bbb295e61a',
       '0xc84076030bdabaabb9e61161d833dd84b700afda',
-      '0x6a1da2e0b7ae26aaece1377c0a4dbe25b85fa3ca',
+      '0x57231619fea13d85270ca6943298046c75a6dd01', // everstake
     ],
   },
   // ----------------- Testnets -----------------

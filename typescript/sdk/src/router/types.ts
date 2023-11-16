@@ -63,8 +63,6 @@ export enum ClientViolationType {
 export interface ClientViolation extends CheckerViolation {
   type: ClientViolationType;
   contract: MailboxClient;
-  actual: string;
-  expected: string;
   description?: string;
 }
 
@@ -78,4 +76,5 @@ export interface RouterViolation extends CheckerViolation {
   contract: Router;
   actual: string;
   expected: string;
+  description?: string;
 }
