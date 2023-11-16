@@ -38,17 +38,26 @@ const agentCommand: CommandModule = {
   describe: 'Deploy Hyperlane agents with Kurtosis',
   builder: (yargs) =>
     yargs.options({
+      originChain: {
+        type: 'string',
+        description: 'The name of the origin chain to deploy to',
+      },
       agentConfiguration: agentConfigurationOption,
-      chains: chainsCommandOption,
+      relayChains: {
+        type: 'string',
+        description: 'Comma separated list of chains to relay between',
+      },
     }),
   handler: async (argv: any) => {
     logGray('Hyperlane Agent Deployment with Kurtosis');
     logGray('----------------------------------------');
+    const originChain: string = argv.originChain;
     const agentConfigurationPath: string = argv.agentConfiguration;
-    const chainConfigPath: string = argv.chains;
+    const relayChains: string = argv.relayChains;
     await runKurtosisAgentDeploy({
+      originChain,
       agentConfigurationPath,
-      chainConfigPath,
+      relayChains,
     });
     process.exit(0);
   },
