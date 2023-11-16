@@ -5,6 +5,7 @@ import { runCoreDeploy } from '../deploy/core.js';
 import { runWarpDeploy } from '../deploy/warp.js';
 
 import {
+  agentConfigurationOption,
   chainsCommandOption,
   coreArtifactsOption,
   keyCommandOption,
@@ -22,9 +23,23 @@ export const deployCommand: CommandModule = {
     yargs
       .command(coreCommand)
       .command(warpCommand)
+      .command(agentCommand)
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
+};
+
+/**
+ * Agent command
+ */
+const agentCommand: CommandModule = {
+  command: 'kurtosis-agents',
+  describe: 'Deploy Hyperlane agents with Kurtosis',
+  builder: (yargs) =>
+    yargs.options({ agentConfiguration: agentConfigurationOption }),
+  handler: async (argv: any) => {
+    console.log(argv);
+  },
 };
 
 /**

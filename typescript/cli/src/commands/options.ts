@@ -28,6 +28,12 @@ export const coreArtifactsOption: Options = {
   alias: 'ca',
 };
 
+export const agentConfigurationOption: Options = {
+  type: 'string',
+  description: 'File path to agent configuration artifacts',
+  alias: 'ac',
+};
+
 export const fileFormatOption: Options = {
   type: 'string',
   description: 'Output file format',
