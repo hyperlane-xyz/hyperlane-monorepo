@@ -10,7 +10,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMerge } from '@hyperlane-xyz/utils';
 
-import { readChainConfigIfExists } from './config/chain.js';
+import { readChainConfigsIfExists } from './config/chain.js';
 import { keyToSigner } from './utils/keys.js';
 
 export const sdkContractAddressesMap = {
@@ -28,14 +28,14 @@ export function getMergedContractAddresses(
 }
 
 export function getContext(chainConfigPath: string) {
-  const customChains = readChainConfigIfExists(chainConfigPath);
+  const customChains = readChainConfigsIfExists(chainConfigPath);
   const multiProvider = getMultiProvider(customChains);
   return { customChains, multiProvider };
 }
 
 export function getContextWithSigner(key: string, chainConfigPath: string) {
   const signer = keyToSigner(key);
-  const customChains = readChainConfigIfExists(chainConfigPath);
+  const customChains = readChainConfigsIfExists(chainConfigPath);
   const multiProvider = getMultiProvider(customChains, signer);
   return { signer, customChains, multiProvider };
 }

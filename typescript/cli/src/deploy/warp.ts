@@ -22,7 +22,7 @@ import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 import { log, logBlue, logGray, logGreen } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { WarpRouteConfig, readWarpRouteConfig } from '../config/warp.js';
-import { MINIMUM_WARP_DEPLOY_BALANCE } from '../consts.js';
+import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import {
   getContextWithSigner,
   getMergedContractAddresses,
@@ -86,7 +86,7 @@ export async function runWarpDeploy({
   await runDeployPlanStep(deploymentParams);
   await runPreflightChecks({
     ...deploymentParams,
-    minBalanceWei: MINIMUM_WARP_DEPLOY_BALANCE,
+    minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
   await executeDeploy(deploymentParams);
 }

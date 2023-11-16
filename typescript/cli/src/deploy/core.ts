@@ -33,7 +33,7 @@ import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { readHookConfig } from '../config/hooks.js';
 import { readMultisigConfig } from '../config/multisig.js';
-import { MINIMUM_CORE_DEPLOY_BALANCE } from '../consts.js';
+import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import {
   getContextWithSigner,
   getMergedContractAddresses,
@@ -100,7 +100,7 @@ export async function runCoreDeploy({
   await runDeployPlanStep(deploymentParams);
   await runPreflightChecksForChains({
     ...deploymentParams,
-    minBalanceWei: MINIMUM_CORE_DEPLOY_BALANCE,
+    minGas: MINIMUM_CORE_DEPLOY_GAS,
   });
   await executeDeploy(deploymentParams);
 }
@@ -176,7 +176,7 @@ async function runHookStep(
   _selectedChains: ChainName[],
   hookConfigPath?: string,
 ) {
-  if ('TODO: Skip this step for now as values are unsused') return;
+  if ('TODO: Skip this step for now as values are unused') return;
 
   // const presetConfigChains = Object.keys(presetHookConfigs);
 

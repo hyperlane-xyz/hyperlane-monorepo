@@ -27,7 +27,7 @@ import { errorRed, log, logBlue, logGreen, logRed } from '../../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
-import { readChainConfigIfExists } from './chain.js';
+import { readChainConfigsIfExists } from './chain.js';
 
 const ProtocolFeeSchema = z.object({
   type: z.literal(HookType.PROTOCOL_FEE),
@@ -151,7 +151,7 @@ export async function createHookConfig({
   chainConfigPath: string;
 }) {
   logBlue('Creating a new hook config');
-  const customChains = readChainConfigIfExists(chainConfigPath);
+  const customChains = readChainConfigsIfExists(chainConfigPath);
   const chains = await runMultiChainSelectionStep(customChains);
 
   const result: HookConfigMap = {};

@@ -1,7 +1,7 @@
 import { CommandModule } from 'yargs';
 
 import { log, logGreen } from '../../logger.js';
-import { createChainConfig, readChainConfig } from '../config/chain.js';
+import { createChainConfig, readChainConfigs } from '../config/chain.js';
 import { createHookConfig } from '../config/hooks.js';
 import {
   createMultisigConfig,
@@ -39,21 +39,21 @@ const createCommand: CommandModule = {
   describe: 'Create a new Hyperlane config',
   builder: (yargs) =>
     yargs
-      .command(createChainCommand)
-      .command(createMultisigCommand)
+      .command(createChainConfigCommand)
+      .command(createMultisigConfigCommand)
       .command(createHookConfigCommand)
-      .command(createWarpCommand)
+      .command(createWarpConfigCommand)
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
 };
 
-const createChainCommand: CommandModule = {
+const createChainConfigCommand: CommandModule = {
   command: 'chain',
   describe: 'Create a new, minimal Hyperlane chain config (aka chain metadata)',
   builder: (yargs) =>
     yargs.options({
-      output: outputFileOption('./configs/chain-config.yaml'),
+      output: outputFileOption('./configs/chains.yaml'),
       format: fileFormatOption,
     }),
   handler: async (argv: any) => {
@@ -64,7 +64,7 @@ const createChainCommand: CommandModule = {
   },
 };
 
-const createMultisigCommand: CommandModule = {
+const createMultisigConfigCommand: CommandModule = {
   command: 'multisig',
   describe: 'Create a new Multisig ISM config',
   builder: (yargs) =>
@@ -87,7 +87,7 @@ const createHookConfigCommand: CommandModule = {
   describe: 'Create a new Hook config',
   builder: (yargs) =>
     yargs.options({
-      output: outputFileOption('./configs/hook-config.yaml'),
+      output: outputFileOption('./configs/hooks.yaml'),
       format: fileFormatOption,
       chains: chainsCommandOption,
     }),
@@ -100,7 +100,7 @@ const createHookConfigCommand: CommandModule = {
   },
 };
 
-const createWarpCommand: CommandModule = {
+const createWarpConfigCommand: CommandModule = {
   command: 'warp',
   describe: 'Create a new Warp Route tokens config',
   builder: (yargs) =>
@@ -147,7 +147,7 @@ const validateChainCommand: CommandModule = {
     }),
   handler: async (argv) => {
     const path = argv.path as string;
-    readChainConfig(path);
+    readChainConfigs(path);
     process.exit(0);
   },
 };
