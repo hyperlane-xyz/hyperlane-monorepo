@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import {
   ChainMap,
   ChainMetadata,
-  HyperlaneContractsMap,
+  HyperlaneAddressesMap,
   MultiProvider,
   chainMetadata,
   hyperlaneEnvironments,
@@ -19,12 +19,12 @@ export const sdkContractAddressesMap = {
 };
 
 export function getMergedContractAddresses(
-  artifacts?: HyperlaneContractsMap<any>,
+  artifacts?: HyperlaneAddressesMap<any>,
 ) {
   return objMerge(
     sdkContractAddressesMap,
     artifacts || {},
-  ) as HyperlaneContractsMap<any>;
+  ) as HyperlaneAddressesMap<any>;
 }
 
 export function getContext(chainConfigPath: string) {

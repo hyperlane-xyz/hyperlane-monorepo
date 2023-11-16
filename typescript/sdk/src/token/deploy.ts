@@ -273,9 +273,10 @@ export class HypERC721Deployer extends GasRouterDeployer<
   ERC721RouterConfig,
   HypERC721Factories
 > {
-  constructor(multiProvider: MultiProvider) {
+  constructor(multiProvider: MultiProvider, ismFactory?: HyperlaneIsmFactory) {
     super(multiProvider, {} as HypERC721Factories, {
       logger: debug('hyperlane:HypERC721Deployer'),
+      ismFactory,
     }); // factories not used in deploy
   }
 
@@ -372,6 +373,7 @@ export class HypERC721Deployer extends GasRouterDeployer<
     } else {
       throw new Error('Invalid ERC721 token router config');
     }
+    await this.configureClient(chain, router, config);
     return { router };
   }
 

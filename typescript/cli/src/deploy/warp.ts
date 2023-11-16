@@ -8,7 +8,9 @@ import {
   ConnectionClientConfig,
   HypERC20Deployer,
   HypERC721Deployer,
+  HyperlaneAddressesMap,
   HyperlaneContractsMap,
+  HyperlaneIsmFactory,
   MultiProvider,
   RouterConfig,
   TokenConfig,
@@ -191,6 +193,7 @@ async function runBuildConfigStep({
     origin: baseChainName,
     remotes: synthetics.map(({ chainName }) => chainName),
     isNft: !!isNft,
+    artifacts: mergedContractAddrs,
   };
 }
 
@@ -204,6 +207,7 @@ interface DeployParams {
   multiProvider: MultiProvider;
   outPath: string;
   skipConfirmation: boolean;
+  artifacts?: HyperlaneAddressesMap<any>;
 }
 
 async function runDeployPlanStep({
@@ -242,7 +246,18 @@ async function executeDeploy(params: DeployParams) {
     { filename: 'warp-ui-token-config', description: 'Warp UI token config' },
   ]);
 
-  const deployer = isNft
+  let deployer: HypERC20Deployer | HypERC721Deployer;
+  if (params.artifacts) {
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      params.artifacts,
+      multiProvider,
+    );
+    deployer = isNft
+      ? new HypERC721Deployer(multiProvider, ismFactory)
+      : new HypERC20Deployer(multiProvider, ismFactory);
+  }
+
+  deployer = isNft
     ? new HypERC721Deployer(multiProvider)
     : new HypERC20Deployer(multiProvider);
 
