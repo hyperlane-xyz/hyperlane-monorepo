@@ -4182,6 +4182,7 @@ __metadata:
     bignumber.js: "npm:^9.1.1"
     chai: "npm:^4.3.0"
     ethers: "npm:^5.7.2"
+    mocha: "npm:^10.2.0"
     prettier: "npm:^2.8.8"
     typescript: "npm:5.1.6"
   languageName: unknown

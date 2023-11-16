@@ -6,7 +6,8 @@
     "@cosmjs/encoding": "^0.31.3",
     "@solana/web3.js": "^1.78.0",
     "bignumber.js": "^9.1.1",
-    "ethers": "^5.7.2"
+    "ethers": "^5.7.2",
+    "mocha": "^10.2.0"
   },
   "devDependencies": {
     "chai": "^4.3.0",
@@ -27,7 +28,8 @@
     "build": "tsc",
     "clean": "rm -rf ./dist",
     "check": "tsc --noEmit",
-    "prettier": "prettier --write ./src"
+    "prettier": "prettier --write ./src",
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts'"
   },
   "sideEffects": false,
   "types": "dist/index.d.ts",
