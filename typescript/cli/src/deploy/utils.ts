@@ -18,7 +18,7 @@ export async function runPreflightChecks({
   remotes: ChainName[];
   signer: ethers.Signer;
   multiProvider: MultiProvider;
-  minGas: number;
+  minGas: string;
 }) {
   log('Running pre-flight checks...');
 
@@ -42,7 +42,7 @@ export async function runPreflightChecksForChains({
   chains: ChainName[];
   signer: ethers.Signer;
   multiProvider: MultiProvider;
-  minGas: number;
+  minGas: string;
 }) {
   log('Running pre-flight checks...');
 

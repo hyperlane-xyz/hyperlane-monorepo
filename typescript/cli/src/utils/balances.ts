@@ -36,7 +36,7 @@ export async function assertGasBalances(
   multiProvider: MultiProvider,
   signer: ethers.Signer,
   chains: ChainName[],
-  minGas: number,
+  minGas: string,
 ) {
   await Promise.all(
     chains.map(async (chain) => {
