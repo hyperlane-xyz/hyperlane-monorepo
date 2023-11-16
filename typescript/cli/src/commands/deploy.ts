@@ -1,6 +1,7 @@
 import { CommandModule } from 'yargs';
 
 import { log, logGray } from '../../logger.js';
+import { runKustosisAgentDeploy } from '../deploy/agent.js';
 import { runCoreDeploy } from '../deploy/core.js';
 import { runWarpDeploy } from '../deploy/warp.js';
 
@@ -27,19 +28,6 @@ export const deployCommand: CommandModule = {
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
-};
-
-/**
- * Agent command
- */
-const agentCommand: CommandModule = {
-  command: 'kurtosis-agents',
-  describe: 'Deploy Hyperlane agents with Kurtosis',
-  builder: (yargs) =>
-    yargs.options({ agentConfiguration: agentConfigurationOption }),
-  handler: async (argv: any) => {
-    console.log(argv);
-  },
 };
 
 /**
@@ -129,6 +117,34 @@ const warpCommand: CommandModule = {
       warpConfigPath,
       coreArtifactsPath,
       outPath,
+      skipConfirmation,
+    });
+    process.exit(0);
+  },
+};
+
+/**
+ * Agent command
+ */
+const agentCommand: CommandModule = {
+  command: 'kurtosis-agents',
+  describe: 'Deploy Hyperlane agents with Kurtosis',
+  builder: (yargs) =>
+    yargs.options({
+      agent: agentConfigurationOption,
+      chains: chainsCommandOption,
+      key: keyCommandOption,
+      yes: skipConfirmationOption,
+    }),
+  handler: async (argv: any) => {
+    const agentConfigPath: string = argv.agent;
+    const chainConfigPath: string = argv.chains;
+    const key: string = argv.key || process.env.HYP_KEY;
+    const skipConfirmation: boolean = argv.yes;
+    await runKustosisAgentDeploy({
+      key,
+      agentConfigPath,
+      chainConfigPath,
       skipConfirmation,
     });
     process.exit(0);
