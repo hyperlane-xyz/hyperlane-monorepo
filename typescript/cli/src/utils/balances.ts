@@ -1,3 +1,4 @@
+import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
@@ -21,9 +22,11 @@ export async function assertNativeBalances(
       if (balanceWei.lt(minBalanceWei)) {
         const symbol =
           multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH';
-        throw new Error(
-          `${address} has insufficient balance on ${chain}. At least ${minBalance} required but found ${balance.toString()} ${symbol}`,
-        );
+        const error = `${address} has insufficient balance on ${chain}. At least ${minBalance} required but found ${balance.toString()} ${symbol}`;
+        const isResume = await confirm({
+          message: `WARNING: ${error} Continue?`,
+        });
+        if (!isResume) throw new Error(error);
       }
     }),
   );
