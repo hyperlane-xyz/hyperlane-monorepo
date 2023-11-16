@@ -309,6 +309,7 @@ fn run_locally() {
     Program::new("cargo")
         .cmd("build")
         .working_dir("../../")
+        .flag("release")
         .arg("features", "test-utils")
         .arg("bin", "relayer")
         .arg("bin", "validator")
