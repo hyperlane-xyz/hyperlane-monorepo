@@ -1,13 +1,8 @@
 import { formatUnits, parseUnits } from '@ethersproject/units';
 import BigNumber from 'bignumber.js';
-import { ethers } from 'ethers';
 
-const DEFAULT_MIN_ROUNDED_VALUE = 0.00001;
 const DEFAULT_DISPLAY_DECIMALS = 4;
 const DEFAULT_TOKEN_DECIMALS = 18;
-
-// Use toString(10) on bignumber.js to prevent ethers.js bigNumber error
-// when parsing exponential string over e21
 
 /**
  * Convert the given Wei value to Ether value
@@ -34,21 +29,14 @@ export function fromWei(
 export function fromWeiRounded(
   value: BigNumber.Value | null | undefined,
   decimals = DEFAULT_TOKEN_DECIMALS,
-  roundDownIfSmall = true,
+  displayDecimals?: number,
 ): string {
   if (!value) return '0';
   const flooredValue = BigNumber(value).toFixed(0, BigNumber.ROUND_FLOOR);
   const amount = BigNumber(formatUnits(flooredValue, decimals));
   if (amount.isZero()) return '0';
-
-  // If amount is less than min value
-  if (amount.lt(DEFAULT_MIN_ROUNDED_VALUE)) {
-    if (roundDownIfSmall) return '0';
-    return amount.toString(10);
-  }
-
-  const displayDecimals = amount.gte(10000) ? 2 : DEFAULT_DISPLAY_DECIMALS;
-  return amount.toFixed(displayDecimals);
+  displayDecimals ??= amount.gte(10000) ? 2 : DEFAULT_DISPLAY_DECIMALS;
+  return amount.toFixed(displayDecimals, BigNumber.ROUND_FLOOR);
 }
 
 /**
@@ -101,17 +89,17 @@ export function tryParseAmount(
 /**
  * Checks if an amount is equal of nearly equal to balance within a small margin of error
  * Necessary because amounts in the UI are often rounded
- * @param amountInWei1 The amount to compare.
- * @param amountInWei2 The amount to compare.
+ * @param amount1 The amount to compare.
+ * @param amount2 The amount to compare.
  * @returns true/false.
  */
 export function eqAmountApproximate(
-  amountInWei1: BigNumber.Value,
-  amountInWei2: BigNumber.Value,
+  amount1: BigNumber.Value,
+  amount2: BigNumber.Value,
+  maxDifference: BigNumber.Value,
 ): boolean {
-  const minValueWei = toWei(DEFAULT_MIN_ROUNDED_VALUE);
-  // Is difference btwn amount and balance less than min amount shown for token
-  return BigNumber(amountInWei1).minus(amountInWei2).abs().lt(minValueWei);
+  // Is difference btwn amounts less than maxDifference
+  return BigNumber(amount1).minus(amount2).abs().lte(maxDifference);
 }
 
 /**
@@ -141,30 +129,5 @@ export function convertDecimals(
   else {
     const difference = toDecimals - fromDecimals;
     return amount.times(BigNumber(10).pow(difference)).toString(10);
-  }
-}
-
-/**
- * Converts a value with `fromDecimals` decimals to a value with `toDecimals` decimals.
- * Incurs a loss of precision when `fromDecimals` > `toDecimals`.
- * @param fromDecimals The number of decimals `value` has.
- * @param toDecimals The number of decimals to convert `value` to.
- * @param value The value to convert.
- * @returns `value` represented with `toDecimals` decimals.
- */
-export function convertDecimalsEthersBigNumber(
-  fromDecimals: number,
-  toDecimals: number,
-  value: ethers.BigNumber,
-) {
-  if (fromDecimals === toDecimals) return value;
-  else if (fromDecimals > toDecimals) {
-    const difference = fromDecimals - toDecimals;
-    return value.div(ethers.BigNumber.from('10').pow(difference));
-  }
-  // fromDecimals < toDecimals
-  else {
-    const difference = toDecimals - fromDecimals;
-    return value.mul(ethers.BigNumber.from('10').pow(difference));
   }
 }
