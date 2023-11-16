@@ -18,10 +18,13 @@ export async function assertNativeBalances(
         .getProvider(chain)
         .getBalance(address);
       const balance = ethers.utils.formatEther(balanceWei);
-      if (balanceWei.lt(minBalanceWei))
+      if (balanceWei.lt(minBalanceWei)) {
+        const symbol =
+          multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH';
         throw new Error(
-          `${address} has insufficient balance on ${chain}. At least ${minBalance} required but found ${balance.toString()} ETH`,
+          `${address} has insufficient balance on ${chain}. At least ${minBalance} required but found ${balance.toString()} ${symbol}`,
         );
+      }
     }),
   );
 }
