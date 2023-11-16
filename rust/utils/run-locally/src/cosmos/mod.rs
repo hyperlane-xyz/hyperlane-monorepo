@@ -259,7 +259,7 @@ fn launch_cosmos_validator(
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
         .hyp_env("REORGPERIOD", "100")
         .hyp_env("DB", validator_base_db.to_str().unwrap())
-        .hyp_env("METRICS", agent_config.domain_id.to_string())
+        .hyp_env("METRICSPORT", agent_config.domain_id.to_string())
         .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
         .hyp_env("VALIDATOR_KEY", agent_config.signer.key.clone())
         .hyp_env("VALIDATOR_PREFIX", "osmo")
