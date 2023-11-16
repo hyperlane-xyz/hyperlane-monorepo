@@ -1,6 +1,7 @@
 import { CommandModule } from 'yargs';
 
 import { log, logGray } from '../../logger.js';
+import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { runCoreDeploy } from '../deploy/core.js';
 import { runWarpDeploy } from '../deploy/warp.js';
 
@@ -36,9 +37,20 @@ const agentCommand: CommandModule = {
   command: 'kurtosis-agents',
   describe: 'Deploy Hyperlane agents with Kurtosis',
   builder: (yargs) =>
-    yargs.options({ agentConfiguration: agentConfigurationOption }),
+    yargs.options({
+      agentConfiguration: agentConfigurationOption,
+      chains: chainsCommandOption,
+    }),
   handler: async (argv: any) => {
-    console.log(argv);
+    logGray('Hyperlane Agent Deployment with Kurtosis');
+    logGray('----------------------------------------');
+    const agentConfigurationPath: string = argv.agentConfiguration;
+    const chainConfigPath: string = argv.chains;
+    await runKurtosisAgentDeploy({
+      agentConfigurationPath,
+      chainConfigPath,
+    });
+    process.exit(0);
   },
 };
 
