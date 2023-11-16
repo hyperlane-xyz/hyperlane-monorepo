@@ -1,7 +1,7 @@
 import { MultisigConfig } from '../ism/types';
 import { ChainMap } from '../types';
 
-export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
+export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   // ----------------- Mainnets -----------------
   celo: {
     threshold: 2,

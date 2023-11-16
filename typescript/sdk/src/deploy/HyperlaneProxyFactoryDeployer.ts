@@ -12,7 +12,7 @@ import {
 } from './contracts';
 
 export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
-  any,
+  {},
   ProxyFactoryFactories
 > {
   constructor(multiProvider: MultiProvider) {

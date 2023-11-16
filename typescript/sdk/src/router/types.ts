@@ -76,4 +76,5 @@ export interface RouterViolation extends CheckerViolation {
   contract: Router;
   actual: string;
   expected: string;
+  description?: string;
 }
