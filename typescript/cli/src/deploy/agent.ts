@@ -23,12 +23,18 @@ export async function runKurtosisAgentDeploy({
   }
   const agentConfigObject = readJson<any>(agentConfigurationPath);
 
-  const kurtosisPackageConfig = {
+  const hyperlanePackageArgs = {
+    plan: '{}',
     origin_chain_name: originChain,
     relay_chains: relayChains,
     agent_config_json: agentConfigObject,
   };
 
+  const kurtosisPackageConfig = {
+    restartServices: true,
+    args: hyperlanePackageArgs,
+  };
+  console.log(kurtosisPackageConfig);
   const base64EncodedPackageConfig = jsonToBase64(kurtosisPackageConfig);
   const kurtosisCloudUrl = getKurtosisCloudUrl(base64EncodedPackageConfig);
 
@@ -46,11 +52,10 @@ const getKurtosisCloudUrl = (base64Params: string) =>
 
 function jsonToBase64(jsonData: any): string {
   try {
-    const jsonString = JSON.stringify(jsonData);
-    const base64String = btoa(jsonString);
-    return base64String;
+    console.log(JSON.stringify(jsonData));
+    return btoa(JSON.stringify(jsonData));
   } catch (error) {
-    logRed('Error occurred converting json to base 64.');
+    logRed('Error occurred creating kurtosis cloud url.');
     return '';
   }
 }
