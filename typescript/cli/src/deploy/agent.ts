@@ -19,6 +19,7 @@ export async function runKurtosisAgentDeploy({
     relayChains = await input({
       message: 'Enter a comma separated list of chains to relay between',
     });
+    relayChains = trimSpaces(relayChains);
   }
 
   if (!agentConfigurationPath) {
@@ -60,6 +61,12 @@ export async function runKurtosisAgentDeploy({
 
 const getKurtosisCloudUrl = (base64Params: string) =>
   `https://cloud.kurtosis.com/enclave-manager?package-id=github.com%2Fkurtosis-tech%2Fhyperlane-package&package-args=${base64Params}`;
+
+const trimSpaces = (a: string) =>
+  a
+    .split('')
+    .filter((char) => char !== ' ')
+    .join('');
 
 function jsonToBase64(jsonData: any): string {
   try {
