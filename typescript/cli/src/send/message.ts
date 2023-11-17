@@ -10,7 +10,7 @@ import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
-import { MINIMUM_TEST_SEND_BALANCE } from '../consts.js';
+import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import {
   getContextWithSigner,
   getMergedContractAddresses,
@@ -48,7 +48,7 @@ export async function sendTestMessage({
     remotes: [destination],
     multiProvider,
     signer,
-    minBalanceWei: MINIMUM_TEST_SEND_BALANCE,
+    minGas: MINIMUM_TEST_SEND_GAS,
   });
 
   await timeout(

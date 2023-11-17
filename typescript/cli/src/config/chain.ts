@@ -12,7 +12,7 @@ import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { getMultiProvider } from '../context.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
-export function readChainConfig(filePath: string) {
+export function readChainConfigs(filePath: string) {
   log(`Reading file configs in ${filePath}`);
   const chainToMetadata = readYamlOrJson<ChainMap<ChainMetadata>>(filePath);
 
@@ -47,12 +47,12 @@ export function readChainConfig(filePath: string) {
   return chainToMetadata;
 }
 
-export function readChainConfigIfExists(filePath: string) {
+export function readChainConfigsIfExists(filePath: string) {
   if (!fs.existsSync(filePath)) {
     log('No chain config file provided');
     return {};
   } else {
-    return readChainConfig(filePath);
+    return readChainConfigs(filePath);
   }
 }
 

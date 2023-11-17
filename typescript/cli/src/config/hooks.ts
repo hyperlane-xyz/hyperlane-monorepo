@@ -13,7 +13,7 @@ import {
   MerkleTreeHookConfig,
   MultisigIsmConfig,
   ProtocolFeeHookConfig,
-  defaultMultisigIsmConfigs,
+  defaultMultisigConfigs,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -27,7 +27,7 @@ import { errorRed, log, logBlue, logGreen, logRed } from '../../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
-import { readChainConfigIfExists } from './chain.js';
+import { readChainConfigsIfExists } from './chain.js';
 
 const ProtocolFeeSchema = z.object({
   type: z.literal(HookType.PROTOCOL_FEE),
@@ -72,9 +72,9 @@ export function presetHookConfigs(
     if (ismConfig) {
       validatorThreshold = ismConfig.threshold;
       validatorCount = ismConfig.validators.length;
-    } else if (local in defaultMultisigIsmConfigs) {
-      validatorThreshold = defaultMultisigIsmConfigs[local].threshold;
-      validatorCount = defaultMultisigIsmConfigs[local].validators.length;
+    } else if (local in defaultMultisigConfigs) {
+      validatorThreshold = defaultMultisigConfigs[local].threshold;
+      validatorCount = defaultMultisigConfigs[local].validators.length;
     } else {
       throw new Error('Cannot estimate gas overhead for IGP hook');
     }
@@ -151,7 +151,7 @@ export async function createHookConfig({
   chainConfigPath: string;
 }) {
   logBlue('Creating a new hook config');
-  const customChains = readChainConfigIfExists(chainConfigPath);
+  const customChains = readChainConfigsIfExists(chainConfigPath);
   const chains = await runMultiChainSelectionStep(customChains);
 
   const result: HookConfigMap = {};

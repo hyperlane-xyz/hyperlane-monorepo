@@ -30,7 +30,7 @@ export {
   hyperlaneContractAddresses,
   hyperlaneEnvironments,
 } from './consts/environments';
-export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
+export { defaultMultisigConfigs } from './consts/multisigIsm';
 export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel';
 export {
   attachContracts,
@@ -127,6 +127,7 @@ export {
   collectValidators,
   moduleCanCertainlyVerify,
 } from './ism/HyperlaneIsmFactory';
+export { buildMultisigIsmConfigs } from './ism/multisig';
 export {
   AggregationIsmConfig,
   DeployedIsm,

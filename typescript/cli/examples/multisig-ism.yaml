@@ -4,12 +4,13 @@
 # Valid module types:
 #   routing
 #   aggregation
-#   legacy_multisig
-#   merkle_root_multisig
-#   message_id_multisig
+#   merkleRootMultisig
+#   messageIdMultisigIsm
+
+# ism type don't work currently (sets to messageIdMultisigIsm for all)
 ---
 anvil1:
-  type: 'merkleRootMultisigIsm'
+  type: 'messageIdMultisigIsm'
   threshold: 1 # Number: Signatures required to approve a message
   validators: # Array: List of validator addresses
     - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
