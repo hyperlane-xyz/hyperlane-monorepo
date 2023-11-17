@@ -986,7 +986,7 @@ export const polygonzkevm: ChainMetadata = {
   domainId: 1101,
   name: Chains.polygonzkevm,
   displayName: 'Polygon zkEVM',
-  displayNameShort: 'PolygonZK',
+  displayNameShort: 'zkEVM',
   nativeToken: etherToken,
   rpcUrls: [
     { http: 'https://polygonzkevm-mainnet.g.alchemy.com/v2/demo' },
