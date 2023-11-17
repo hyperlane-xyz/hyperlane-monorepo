@@ -111,7 +111,8 @@ async function executeDelivery({
     txReceipt = await multiProvider.handleTx(origin, messageTx);
     const message = core.getDispatchedMessages(txReceipt)[0];
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
-    logBlue(`Message: ${JSON.stringify(message)}`);
+    logBlue(`Message ID: ${message.id}`);
+    log(`Message: ${JSON.stringify(message)}`);
   } catch (e) {
     errorRed(
       `Encountered error sending message from ${origin} to ${destination}`,

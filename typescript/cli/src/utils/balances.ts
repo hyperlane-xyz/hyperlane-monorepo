@@ -22,7 +22,7 @@ export async function assertNativeBalances(
       if (balanceWei.lt(minBalanceWei)) {
         const symbol =
           multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH';
-        const error = `${address} has insufficient balance on ${chain}. At least ${minBalance} required but found ${balance.toString()} ${symbol}`;
+        const error = `${address} has low balance on ${chain}. At least ${minBalance} recommended but found ${balance.toString()} ${symbol}`;
         const isResume = await confirm({
           message: `WARNING: ${error} Continue?`,
         });
