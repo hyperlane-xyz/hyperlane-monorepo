@@ -1,4 +1,5 @@
 import { input } from '@inquirer/prompts';
+import terminalLink from 'terminal-link';
 
 import { logBlue, logGreen, logRed } from '../../logger.js';
 import { readJson, runFileSelectionStep } from '../utils/files.js';
@@ -50,11 +51,16 @@ export async function runKurtosisAgentDeploy({
   const base64EncodedPackageConfig = jsonToBase64(kurtosisPackageConfig);
   const kurtosisCloudUrl = getKurtosisCloudUrl(base64EncodedPackageConfig);
 
+  const kurtosisCloudLink = terminalLink(
+    'Cmd+Click or Ctrl+Click here',
+    kurtosisCloudUrl,
+  );
+
   logGreen(
     '\n',
-    'Click this link to deploy your validator and relayer with Kurtosis:',
+    'Click the link below to deploy your validator and relayer with Kurtosis:',
     '\n',
-    `${kurtosisCloudUrl}`,
+    `${kurtosisCloudLink}`,
   );
   return;
 }
