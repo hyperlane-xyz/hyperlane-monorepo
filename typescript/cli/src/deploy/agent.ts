@@ -1,5 +1,5 @@
 import { input } from '@inquirer/prompts';
-import { terminalLink } from 'terminal-link';
+import terminalLink from 'terminal-link';
 
 import { logBlue, logGreen, logRed } from '../../logger.js';
 import { readJson, runFileSelectionStep } from '../utils/files.js';
