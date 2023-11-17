@@ -1,10 +1,12 @@
 import { CommandModule } from 'yargs';
 
 import { log, logGray } from '../../logger.js';
+import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { runCoreDeploy } from '../deploy/core.js';
 import { runWarpDeploy } from '../deploy/warp.js';
 
 import {
+  agentConfigurationOption,
   chainsCommandOption,
   coreArtifactsOption,
   keyCommandOption,
@@ -22,9 +24,43 @@ export const deployCommand: CommandModule = {
     yargs
       .command(coreCommand)
       .command(warpCommand)
+      .command(agentCommand)
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
+};
+
+/**
+ * Agent command
+ */
+const agentCommand: CommandModule = {
+  command: 'kurtosis-agents',
+  describe: 'Deploy Hyperlane agents with Kurtosis',
+  builder: (yargs) =>
+    yargs.options({
+      originChain: {
+        type: 'string',
+        description: 'The name of the origin chain to deploy to',
+      },
+      agentConfiguration: agentConfigurationOption,
+      relayChains: {
+        type: 'string',
+        description: 'Comma separated list of chains to relay between',
+      },
+    }),
+  handler: async (argv: any) => {
+    logGray('Hyperlane Agent Deployment with Kurtosis');
+    logGray('----------------------------------------');
+    const originChain: string = argv.originChain;
+    const agentConfigurationPath: string = argv.agentConfiguration;
+    const relayChains: string = argv.relayChains;
+    await runKurtosisAgentDeploy({
+      originChain,
+      agentConfigurationPath,
+      relayChains,
+    });
+    process.exit(0);
+  },
 };
 
 /**
