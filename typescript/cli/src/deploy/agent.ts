@@ -1,3 +1,5 @@
+import { input } from '@inquirer/prompts';
+
 import { logBlue, logGreen, logRed } from '../../logger.js';
 import { readJson, runFileSelectionStep } from '../utils/files.js';
 
@@ -10,6 +12,15 @@ export async function runKurtosisAgentDeploy({
   agentConfigurationPath: string;
   relayChains: string;
 }) {
+  if (!originChain) {
+    originChain = await input({ message: 'Enter the origin chain' });
+  }
+  if (!relayChains) {
+    relayChains = await input({
+      message: 'Enter a comma separated list of chains to relay between',
+    });
+  }
+
   if (!agentConfigurationPath) {
     logBlue(
       '\n',
@@ -18,12 +29,13 @@ export async function runKurtosisAgentDeploy({
     agentConfigurationPath = await runFileSelectionStep(
       './artifacts',
       'agent config json',
-      'agent_config',
+      'agent-config',
     );
   }
   const agentConfigObject = readJson<any>(agentConfigurationPath);
 
   const hyperlanePackageArgs = {
+    plan: '{}',
     origin_chain_name: originChain,
     relay_chains: relayChains,
     agent_config_json: JSON.stringify(agentConfigObject),
