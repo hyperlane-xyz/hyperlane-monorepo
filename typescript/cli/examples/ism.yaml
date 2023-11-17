@@ -1,0 +1,35 @@
+anvil1:
+  type: 'domainRoutingIsm'
+  owner: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
+  domains:
+    anvil2:
+      type: 'messageIdMultisigIsm'
+      threshold: 1
+      validators:
+        - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
+    arbitrumgoerli:
+      type: 'merkleRootMultisigIsm'
+      threshold: 1
+      validators:
+        - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
+
+anvil2:
+  type: 'domainRoutingIsm'
+  owner: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
+  domains:
+    anvil1:
+      type: 'messageIdMultisigIsm'
+      threshold: 1
+      validators:
+        - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
+    arbitrumgoerli:
+      type: 'staticAggregationIsm'
+      modules:
+        - type: 'merkleRootMultisigIsm'
+          threshold: 1
+          validators:
+            - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
+        - type: 'messageIdMultisigIsm'
+          threshold: 1
+          validators:
+            - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
