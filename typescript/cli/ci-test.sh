@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
 
 # Optional cleanup for previous runs, useful when running locally
-pkill -f anvil
 rm -rf /tmp/anvil*
 rm -rf /tmp/relayer
 
-if [[ $OSTYPE == 'darwin'* ]]; then
-    # kill child processes on exit, but only locally because
-    # otherwise it causes the script exit code to be non-zero
-    trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
-fi
+# kill all child processes on exit
+trap 'jobs -p | xargs -r kill' EXIT
 
 # Setup directories for anvil chains
 for CHAIN in anvil1 anvil2
@@ -82,9 +78,6 @@ GAS_PRICE=$(cast gas-price --rpc-url http://localhost:8545)
 MSG_MIN_GAS=$(bc <<< "($AFTER_WARP - $AFTER_MSG) / $GAS_PRICE")
 echo "Gas used: $MSG_MIN_GAS"
 
-MESSAGE1_ID=`cat /tmp/message1 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
-echo "Message 1 ID: $MESSAGE1_ID"
-
 WARP_ARTIFACTS_FILE=`find /tmp/warp-deployment* -type f -exec ls -t1 {} + | head -1`
 ANVIL1_ROUTER=`cat $WARP_ARTIFACTS_FILE | jq -r ".anvil1.router"`
 
@@ -99,9 +92,6 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
     --quick \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     | tee /tmp/message2
-
-MESSAGE2_ID=`cat /tmp/message2 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
-echo "Message 2 ID: $MESSAGE2_ID"
 
 # ANVIL_CONNECTION_URL="http://127.0.0.1"
 # cd ../../rust
@@ -165,5 +155,4 @@ echo "Message 2 ID: $MESSAGE2_ID"
 #     fi
 # done
 
-pkill -f anvil
 echo "Done"
