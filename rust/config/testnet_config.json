@@ -149,15 +149,15 @@
       "name": "eclipsedevnet",
       "domain": 3131313,
       "addresses": {
-        "mailbox": "FQkHqYaGFvC2m9AUhSDa317suypULXhAN4jJWMcF4hZb",
-        "interchainGasPaymaster": "AwtcyJ3K31iGrgLzQvAtiYsvEeMQTKRaC7edR7uLVVf5",
-        "validatorAnnounce": "8CZUxPBeANqKERNEVUHS8J8oSGruEG146cCdeWekQoTH"
+        "mailbox": "AATtwuHptB6ruozdwc3XUFwGCuPfZL6jwPid955RoL6N",
+        "interchainGasPaymaster": "ABFYG8VKJuJ6ftS8wNvgjn7EgUtMq98xkFx82qeg2bKg",
+        "validatorAnnounce": "E3hhoJ1htuau3eatisG79w68fpMikT8c3pQzDieti3yu"
       },
       "protocol": "sealevel",
       "finalityBlocks": 0,
       "connection": {
         "type": "http",
-        "url": "https://staging-rpc.dev.eclipsenetwork.xyz"
+        "url": "https://staging-rpc.dev2.eclipsenetwork.xyz"
       },
       "index": {
         "from": 1,
