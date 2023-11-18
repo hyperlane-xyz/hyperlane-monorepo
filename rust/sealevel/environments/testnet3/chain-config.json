@@ -345,7 +345,7 @@
     },
     "rpcUrls": [
       {
-        "http": "https://staging-rpc.dev.eclipsenetwork.xyz"
+        "http": "https://staging-rpc.dev2.eclipsenetwork.xyz"
       }
     ]
   }
