@@ -1,4 +1,5 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use hpl_interface::core::mailbox::MailboxQueryMsg;
 use std::{
     fmt::{Debug, Formatter},
     io::Cursor,
@@ -19,6 +20,9 @@ use cosmrs::tendermint::abci::EventAttribute;
 use once_cell::sync::Lazy;
 
 use crate::utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64};
+use hpl_interface::core::mailbox::{
+    DefaultIsmResponse, MailboxHookQueryMsg, MessageDeliveredResponse, NonceResponse, QueryMsg,
+};
 use hyperlane_core::{
     utils::fmt_bytes, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
@@ -91,40 +95,28 @@ impl Mailbox for CosmosMailbox {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        let payload = mailbox::DeliveredRequest::new(id);
-
-        let delivered = match self
+        let data = self
             .provider
-            .wasm_query(GeneralMailboxQuery::new(payload), None)
-            .await
-        {
-            Ok(v) => {
-                let response: mailbox::DeliveredResponse = serde_json::from_slice(&v)?;
+            .wasm_query(
+                QueryMsg::Mailbox(MailboxQueryMsg::MessageDelivered {
+                    id: id.as_bytes().into(),
+                }),
+                None,
+            )
+            .await?;
 
-                response.delivered
-            }
-            Err(err) => {
-                warn!(
-                    "error while checking the message delivery status: {:?}",
-                    err
-                );
+        let response: MessageDeliveredResponse = serde_json::from_slice(&data)?;
 
-                false
-            }
-        };
-
-        Ok(delivered)
+        Ok(response.delivered)
     }
 
     #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
-        let payload = mailbox::DefaultIsmRequest::default();
-
         let data = self
             .provider
-            .wasm_query(GeneralMailboxQuery::new(payload), None)
+            .wasm_query(QueryMsg::Mailbox(MailboxQueryMsg::DefaultIsm {}), None)
             .await?;
-        let response: mailbox::DefaultIsmResponse = serde_json::from_slice(&data)?;
+        let response: DefaultIsmResponse = serde_json::from_slice(&data)?;
 
         // convert Hex to H256
         // TODO test this???
@@ -193,16 +185,15 @@ impl Mailbox for CosmosMailbox {
 impl CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn nonce_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
-        let payload = mailbox::NonceRequest::default();
-
-        // let payload = hpl_interface::core::mailbox::MailboxQueryMsg::Nonce {};
-
+        tracing::warn!("foooo");
         let data = self
             .provider
-            .wasm_query(GeneralMailboxQuery::new(payload), block_height)
+            .wasm_query(MailboxQueryMsg::Nonce {}, block_height)
             .await?;
 
         let response: mailbox::NonceResponse = serde_json::from_slice(&data)?;
+
+        tracing::warn!(nonce=?response.nonce, "lets gooo");
 
         Ok(response.nonce)
     }
