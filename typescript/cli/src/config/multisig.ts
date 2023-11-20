@@ -23,9 +23,14 @@ const MultisigIsmConfigSchema = z.object({
   validators: z.array(z.string()),
 });
 
+const TestIsmConfigSchema = z.object({
+  type: z.literal(IsmType.TEST_ISM),
+});
+
 const IsmConfigSchema = z.union([
   MultisigIsmConfigSchema,
   RoutingIsmConfigSchema,
+  TestIsmConfigSchema,
 ]);
 const IsmConfigMapSchema = z.record(IsmConfigSchema);
 export type ZodIsmConfig = z.infer<typeof IsmConfigSchema>;
@@ -93,12 +98,31 @@ export async function createIsmConfig(
   let lastConfig: ZodIsmConfig;
   const moduleType = await select({
     message: 'Select ISM type',
-    choices: Object.values(IsmType)
-      .filter((c) => c !== IsmType.TEST_ISM)
-      .map((type) => ({
-        name: type,
-        value: type,
-      })),
+    choices: [
+      {
+        value: IsmType.MESSAGE_ID_MULTISIG,
+        name: IsmType.MESSAGE_ID_MULTISIG,
+        description: 'Validators need to sign just this messageId',
+      },
+      {
+        value: IsmType.MERKLE_ROOT_MULTISIG,
+        name: IsmType.MERKLE_ROOT_MULTISIG,
+        description:
+          'Validators need to sign the root of the merkle tree of all messages from origin chain',
+      },
+      {
+        value: IsmType.ROUTING,
+        name: IsmType.ROUTING,
+        description:
+          'Each origin chain can be verified by the specified ISM type via RoutingISM',
+      },
+      {
+        value: IsmType.TEST_ISM,
+        name: IsmType.TEST_ISM,
+        description:
+          'ISM where you can deliver messages without any validation (WARNING: only for testing, do not use in production)',
+      },
+    ],
     pageSize: 10,
   });
   if (
@@ -108,6 +132,8 @@ export async function createIsmConfig(
     lastConfig = await createMultisigConfig();
   } else if (moduleType === IsmType.ROUTING) {
     lastConfig = await createRoutingConfig(chain, chainConfigPath);
+  } else if (moduleType === IsmType.TEST_ISM) {
+    lastConfig = { type: IsmType.TEST_ISM };
   } else {
     throw new Error(`Invalid ISM type: ${moduleType}}`);
   }
