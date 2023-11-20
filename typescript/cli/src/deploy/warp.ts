@@ -162,10 +162,7 @@ async function runBuildConfigStep({
   }
 
   // Request input for any address fields that are missing
-  const requiredRouterFields: Array<keyof ConnectionClientConfig> = [
-    'mailbox',
-    'interchainSecurityModule',
-  ];
+  const requiredRouterFields: Array<keyof ConnectionClientConfig> = ['mailbox'];
   let hasShownInfo = false;
   for (const [chain, token] of Object.entries(configMap)) {
     for (const field of requiredRouterFields) {

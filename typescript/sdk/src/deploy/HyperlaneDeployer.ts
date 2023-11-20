@@ -229,7 +229,7 @@ export abstract class HyperlaneDeployer<
           chain,
           setIsm(contract, targetIsm),
         );
-        if (targetIsm !== (await getIsm(contract))) {
+        if (!eqAddress(targetIsm, await getIsm(contract))) {
           throw new Error(`Set ISM failed on ${chain}`);
         }
       });
