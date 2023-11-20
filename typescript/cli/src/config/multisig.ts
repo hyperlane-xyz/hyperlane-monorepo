@@ -18,7 +18,7 @@ const RoutingIsmConfigSchema: z.ZodSchema<any> = z.lazy(() =>
 );
 
 const MultisigIsmConfigSchema = z.object({
-  type: z.nativeEnum(IsmType),
+  type: z.literal(IsmType.ROUTING),
   threshold: z.number(),
   validators: z.array(z.string()),
 });
@@ -93,10 +93,12 @@ export async function createIsmConfig(
   let lastConfig: ZodIsmConfig;
   const moduleType = await select({
     message: 'Select ISM type',
-    choices: Object.values(IsmType).map((type) => ({
-      name: type,
-      value: type,
-    })),
+    choices: Object.values(IsmType)
+      .filter((c) => c !== IsmType.TEST_ISM)
+      .map((type) => ({
+        name: type,
+        value: type,
+      })),
     pageSize: 10,
   });
   if (
