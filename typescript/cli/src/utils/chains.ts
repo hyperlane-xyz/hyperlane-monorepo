@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import {
   ChainMap,
   ChainMetadata,
+  ChainName,
   mainnetChainsMetadata,
   testnetChainsMetadata,
 } from '@hyperlane-xyz/sdk';
@@ -31,9 +32,10 @@ export async function runSingleChainSelectionStep(
 
 export async function runMultiChainSelectionStep(
   customChains: ChainMap<ChainMetadata>,
+  chainsToFilterOut: ChainName[] = [],
   message = 'Select chains',
 ) {
-  const choices = getChainChoices(customChains);
+  const choices = getChainChoices(customChains, chainsToFilterOut);
   const chains = (await checkbox({
     message,
     choices,
@@ -44,9 +46,14 @@ export async function runMultiChainSelectionStep(
   return chains;
 }
 
-function getChainChoices(customChains: ChainMap<ChainMetadata>) {
+function getChainChoices(
+  customChains: ChainMap<ChainMetadata>,
+  chainsToFilterOut: ChainName[] = [],
+) {
   const chainsToChoices = (chains: ChainMetadata[]) =>
-    chains.map((c) => ({ name: c.name, value: c.name }));
+    chains
+      .filter((chain) => !chainsToFilterOut.includes(chain.name))
+      .map((c) => ({ name: c.name, value: c.name }));
   const choices: Parameters<typeof select>['0']['choices'] = [
     new Separator('--Custom Chains--'),
     ...chainsToChoices(Object.values(customChains)),

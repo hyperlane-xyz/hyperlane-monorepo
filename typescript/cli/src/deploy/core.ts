@@ -79,6 +79,7 @@ export async function runCoreDeploy({
   if (!chains?.length) {
     chains = await runMultiChainSelectionStep(
       customChains,
+      [],
       'Select chains to which core contacts will be deployed',
     );
   }
@@ -213,22 +214,17 @@ async function runDeployPlanStep({
   skipConfirmation,
 }: DeployParams) {
   const address = await signer.getAddress();
+
   logBlue('\nDeployment plan');
   logGray('===============');
   log(`Transaction signer and owner of new contracts will be ${address}`);
   log(`Deploying to ${chains.join(', ')}`);
-  const numContracts = Object.keys(
-    Object.values(sdkContractAddressesMap)[0],
-  ).length;
-  log(`There are ${numContracts} contracts for each chain`);
-  if (artifacts)
-    log('But contracts with an address in the artifacts file will be skipped');
-  for (const chain of chains) {
-    const chainArtifacts = artifacts?.[chain] || {};
-    const numRequired = numContracts - Object.keys(chainArtifacts).length;
-    log(`${chain} will require ${numRequired} of ${numContracts}`);
-  }
-  log('The default interchain security module will be a Multisig.');
+  log(
+    `There are several contracts required for each chain but contracts in the Hyperlane SDK ${
+      artifacts ? 'or your artifacts ' : ''
+    }will be skipped`,
+  );
+
   if (skipConfirmation) return;
   const isConfirmed = await confirm({
     message: 'Is this deployment plan correct?',
@@ -284,11 +280,6 @@ async function executeDeploy({
   const ismContracts: ChainMap<{ multisigIsm: DeployedIsm }> = {};
   const defaultIsms: ChainMap<Address> = {};
   for (const ismOrigin of chains) {
-    if (artifacts[ismOrigin].multisigIsm) {
-      log(`ISM contract recovered, skipping ISM deployment to ${ismOrigin}`);
-      defaultIsms[ismOrigin] = artifacts[ismOrigin].multisigIsm;
-      continue;
-    }
     logBlue(`Deploying ISM to ${ismOrigin}`);
     const ismConfig = buildIsmConfig(owner, ismOrigin, chains, multisigConfig);
     ismContracts[ismOrigin] = {
@@ -302,7 +293,7 @@ async function executeDeploy({
   // 4. Deploy core contracts to chains
   logBlue(`Deploying core contracts to ${chains.join(', ')}`);
   const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
-  coreDeployer.cacheAddressesMap(artifacts);
+  coreDeployer.cacheAddressesMap(mergedContractAddrs as any);
   const coreConfigs = buildCoreConfigMap(
     owner,
     chains,
@@ -317,7 +308,7 @@ async function executeDeploy({
   log('Deploying test recipient contracts');
   const testRecipientConfig = buildTestRecipientConfigMap(chains, artifacts);
   const testRecipientDeployer = new TestRecipientDeployer(multiProvider);
-  testRecipientDeployer.cacheAddressesMap(artifacts);
+  testRecipientDeployer.cacheAddressesMap(mergedContractAddrs);
   const testRecipients = await testRecipientDeployer.deploy(
     testRecipientConfig,
   );

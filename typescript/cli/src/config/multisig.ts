@@ -1,11 +1,11 @@
-import { input, select } from '@inquirer/prompts';
+import { confirm, input, select } from '@inquirer/prompts';
 import { z } from 'zod';
 
-import { IsmType } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName, IsmType } from '@hyperlane-xyz/sdk';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
-import { FileFormat, mergeYamlOrJson } from '../utils/files.js';
+import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
 import { readChainConfigsIfExists } from './chain.js';
 
@@ -13,7 +13,7 @@ const RoutingIsmConfigSchema: z.ZodSchema<any> = z.lazy(() =>
   z.object({
     type: z.literal(IsmType.ROUTING),
     owner: z.string(),
-    doamins: z.record(IsmConfigSchema),
+    domains: z.record(IsmConfigSchema),
   }),
 );
 
@@ -28,37 +28,28 @@ const IsmConfigSchema = z.union([
   RoutingIsmConfigSchema,
 ]);
 const IsmConfigMapSchema = z.record(IsmConfigSchema);
-export type IsmConfigMap = z.infer<typeof IsmConfigMapSchema>;
+export type ZodIsmConfig = z.infer<typeof IsmConfigSchema>;
+export type ZodIsmConfigMap = z.infer<typeof IsmConfigMapSchema>;
 
-export function readMultisigConfig(_: string) {
-  // const config = readYamlOrJson(filePath);
-  // if (!config) throw new Error(`No multisig config found at ${filePath}`);
-  // const result = MultisigIsmConfigMapSchema.safeParse(config);
-  // if (!result.success) {
-  //   const firstIssue = result.error.issues[0];
-  //   throw new Error(
-  //     `Invalid multisig config: ${firstIssue.path} => ${firstIssue.message}`,
-  //   );
-  // }
-  // const parsedConfig = result.data;
-  // const formattedConfig: ChainMap<MultisigConfig> = objMap(
-  //   parsedConfig,
-  //   (_, config) =>
-  //     ({
-  //       type: config.type as IsmType,
-  //       threshold: config.threshold,
-  //       validators: config.validators,
-  //     } as MultisigConfig),
-  // );
-  // logGreen(`All multisig configs in ${filePath} are valid`);
-  // return formattedConfig;
+export function readMultisigConfig(filePath: string) {
+  const config = readYamlOrJson(filePath);
+  if (!config) throw new Error(`No multisig config found at ${filePath}`);
+  const result = IsmConfigMapSchema.safeParse(config);
+  if (!result.success) {
+    const firstIssue = result.error.issues[0];
+    throw new Error(
+      `Invalid ISM config: ${firstIssue.path} => ${firstIssue.message}`,
+    );
+  }
+  const parsedConfig = result.data;
+  return parsedConfig;
 }
 
-export function isValidMultisigConfig(config: any) {
-  return IsmConfigSchema.safeParse(config).success;
+export function isValildIsmConfig(config: any) {
+  return IsmConfigMapSchema.safeParse(config).success;
 }
 
-export async function createIsmConfig({
+export async function createIsmConfigMap({
   format,
   outPath,
   chainConfigPath,
@@ -71,42 +62,12 @@ export async function createIsmConfig({
   const customChains = readChainConfigsIfExists(chainConfigPath);
   const chains = await runMultiChainSelectionStep(customChains);
 
-  const result: IsmConfigMap = {};
-  let lastConfig: IsmConfigMap['string'] | undefined = undefined;
-  const repeat = false;
+  const result: ZodIsmConfigMap = {};
   for (const chain of chains) {
     log(`Setting values for chain ${chain}`);
-    if (lastConfig && repeat) {
-      result[chain] = lastConfig;
-      continue;
-    }
-    // TODO consider using default and not offering options here
-    const moduleType = await select({
-      message: 'Select multisig type',
-      choices: [
-        // { value: 'routing, name: 'routing' }, // TODO add support
-        // { value: 'aggregation, name: 'aggregation' }, // TODO add support
-        { value: IsmType.MERKLE_ROOT_MULTISIG, name: 'merkle root multisig' },
-        { value: IsmType.MESSAGE_ID_MULTISIG, name: 'message id multisig' },
-      ],
-      pageSize: 5,
-    });
+    result[chain] = await createIsmConfig(chain, chainConfigPath);
 
-    const thresholdInput = await input({
-      message: 'Enter threshold of signers (number)',
-    });
-    const threshold = parseInt(thresholdInput, 10);
-
-    const validatorsInput = await input({
-      message: 'Enter validator addresses (comma separated list)',
-    });
-    const validators = validatorsInput.split(',').map((v) => v.trim());
-    lastConfig = {
-      type: moduleType,
-      threshold,
-      validators,
-    };
-    result[chain] = lastConfig;
+    console.log('lastConfig', result[chain]);
 
     // TODO consider re-enabling. Disabling based on feedback from @nambrot for now.
     // repeat = await confirm({
@@ -114,13 +75,83 @@ export async function createIsmConfig({
     // });
   }
 
-  if (isValidMultisigConfig(result)) {
-    logGreen(`Multisig config is valid, writing to file ${outPath}`);
+  if (isValildIsmConfig(result)) {
+    logGreen(`ISM config is valid, writing to file ${outPath}`);
     mergeYamlOrJson(outPath, result, format);
   } else {
     errorRed(
-      `Multisig config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/multisig-ism.yaml for an example`,
+      `ISM config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/ism.yaml for an example`,
     );
-    throw new Error('Invalid multisig config');
+    throw new Error('Invalid ISM config');
   }
+}
+
+export async function createIsmConfig(
+  chain: ChainName,
+  chainConfigPath: string,
+): Promise<ZodIsmConfig> {
+  let lastConfig: ZodIsmConfig;
+  const moduleType = await select({
+    message: 'Select ISM type',
+    choices: Object.values(IsmType).map((type) => ({
+      name: type,
+      value: type,
+    })),
+    pageSize: 10,
+  });
+  if (
+    moduleType === IsmType.MESSAGE_ID_MULTISIG ||
+    moduleType === IsmType.MERKLE_ROOT_MULTISIG
+  ) {
+    lastConfig = await createMultisigConfig();
+  } else if (moduleType === IsmType.ROUTING) {
+    lastConfig = await createRoutingConfig(chain, chainConfigPath);
+  } else {
+    throw new Error(`Invalid ISM type: ${moduleType}}`);
+  }
+  return lastConfig;
+}
+
+export async function createMultisigConfig(): Promise<ZodIsmConfig> {
+  const thresholdInput = await input({
+    message: 'Enter threshold of signers (number)',
+  });
+  const threshold = parseInt(thresholdInput, 10);
+
+  const validatorsInput = await input({
+    message: 'Enter validator addresses (comma separated list)',
+  });
+  const validators = validatorsInput.split(',').map((v) => v.trim());
+  return {
+    type: IsmType.MERKLE_ROOT_MULTISIG,
+    threshold,
+    validators,
+  };
+}
+
+export async function createRoutingConfig(
+  chain: ChainName,
+  chainConfigPath: string,
+): Promise<ZodIsmConfig> {
+  const owner = await input({
+    message: 'Enter owner address',
+  });
+  const ownerAddress = owner;
+  const customChains = readChainConfigsIfExists(chainConfigPath);
+  delete customChains[chain];
+  const chains = await runMultiChainSelectionStep(customChains, [chain]);
+
+  const domainsMap: ChainMap<ZodIsmConfig> = {};
+  for (const chain of chains) {
+    await confirm({
+      message: `You are about to configure ISM from source chain ${chain}. Continue?`,
+    });
+    const config = await createIsmConfig(chain, chainConfigPath);
+    domainsMap[chain] = config;
+  }
+  return {
+    type: IsmType.ROUTING,
+    owner: ownerAddress,
+    domains: domainsMap,
+  };
 }

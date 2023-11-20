@@ -3,10 +3,7 @@ import { CommandModule } from 'yargs';
 import { log, logGreen } from '../../logger.js';
 import { createChainConfig, readChainConfigs } from '../config/chain.js';
 import { createHookConfig } from '../config/hooks.js';
-import {
-  createMultisigConfig,
-  readMultisigConfig,
-} from '../config/multisig.js';
+import { createIsmConfigMap, readMultisigConfig } from '../config/multisig.js';
 import { createWarpConfig, readWarpRouteConfig } from '../config/warp.js';
 import { FileFormat } from '../utils/files.js';
 
@@ -77,7 +74,7 @@ const createMultisigConfigCommand: CommandModule = {
     const format: FileFormat = argv.format;
     const outPath: string = argv.output;
     const chainConfigPath: string = argv.chains;
-    await createMultisigConfig({ format, outPath, chainConfigPath });
+    await createIsmConfigMap({ format, outPath, chainConfigPath });
     process.exit(0);
   },
 };

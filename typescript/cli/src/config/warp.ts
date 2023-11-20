@@ -99,6 +99,7 @@ export async function createWarpConfig({
 
   const syntheticChains = await runMultiChainSelectionStep(
     customChains,
+    [],
     'Select the chains to which the base token will be connected',
   );
 
