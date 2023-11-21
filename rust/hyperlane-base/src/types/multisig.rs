@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use derive_new::new;
 use eyre::Result;
-use tracing::{debug, instrument, trace};
+use tracing::{debug, instrument};
 
 use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithMessageId, H160, H256};
 
@@ -46,7 +46,7 @@ impl MultisigCheckpointSyncer {
                 // Gracefully handle errors getting the latest_index
                 match checkpoint_syncer.latest_index().await {
                     Ok(Some(index)) => {
-                        trace!(?address, ?index, "Validator returned latest index");
+                        debug!(?address, ?index, "Validator returned latest index");
                         latest_indices.push(index);
                     }
                     err => {

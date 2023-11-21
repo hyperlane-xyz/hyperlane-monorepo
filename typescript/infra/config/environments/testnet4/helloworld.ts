@@ -13,16 +13,16 @@ export const hyperlaneHelloworld: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '65ac90a-20231020-192335',
+      tag: '52a8416-20231024-025635',
     },
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
     runConfig: {
       mode: HelloWorldKathyRunMode.Service,
-      fullCycleTime: 1000 * 60 * 60 * 24, // every 24 hours
+      fullCycleTime: 1000 * 60 * 60 * 48, // every 48 hours
     },
-    messageSendTimeout: 1000 * 60 * 8, // 8 min
+    messageSendTimeout: 1000 * 60 * 10, // 10 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
     connectionType: RpcConsensusType.Fallback,
   },
@@ -33,7 +33,7 @@ export const releaseCandidateHelloworld: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '65ac90a-20231020-192335',
+      tag: '52a8416-20231024-025635',
     },
     chainsToSkip: [],
     runEnv: environment,

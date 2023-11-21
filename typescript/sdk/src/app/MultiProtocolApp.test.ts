@@ -7,6 +7,7 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
 
 import {
   BaseAppAdapter,
+  BaseCosmWasmAdapter,
   BaseEvmAdapter,
   BaseSealevelAdapter,
   MultiProtocolApp,
@@ -16,6 +17,7 @@ class TestMultiProtocolApp extends MultiProtocolApp<BaseAppAdapter> {
   override protocolToAdapter(protocol: ProtocolType) {
     if (protocol === ProtocolType.Ethereum) return BaseEvmAdapter;
     if (protocol === ProtocolType.Sealevel) return BaseSealevelAdapter;
+    if (protocol === ProtocolType.Cosmos) return BaseCosmWasmAdapter;
     throw new Error(`No adapter for protocol ${protocol}`);
   }
 }

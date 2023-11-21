@@ -23,14 +23,15 @@ contract DestinationRecipientRoutingHook is DomainRoutingHook {
     /// @notice destination => recipient =>custom hook
     mapping(uint32 => mapping(bytes32 => address)) public customHooks;
 
-    constructor(address mailbox, address owner)
-        DomainRoutingHook(mailbox, owner)
-    {}
+    constructor(
+        address mailbox,
+        address owner
+    ) DomainRoutingHook(mailbox, owner) {}
 
-    function _postDispatch(bytes calldata metadata, bytes calldata message)
-        internal
-        override
-    {
+    function _postDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal override {
         address customHookPreset = customHooks[message.destination()][
             message.recipient()
         ];

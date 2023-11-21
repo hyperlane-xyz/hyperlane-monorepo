@@ -6,12 +6,10 @@ import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule
 contract NoopIsm is IInterchainSecurityModule {
     uint8 public constant override moduleType = uint8(Types.NULL);
 
-    function verify(bytes calldata, bytes calldata)
-        public
-        pure
-        override
-        returns (bool)
-    {
+    function verify(
+        bytes calldata,
+        bytes calldata
+    ) public pure override returns (bool) {
         return true;
     }
 }

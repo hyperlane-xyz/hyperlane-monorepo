@@ -10,8 +10,7 @@ interface IRoutingIsm is IInterchainSecurityModule {
      * @param _message Formatted Hyperlane message (see Message.sol).
      * @return module The ISM to use to verify _message
      */
-    function route(bytes calldata _message)
-        external
-        view
-        returns (IInterchainSecurityModule);
+    function route(
+        bytes calldata _message
+    ) external view returns (IInterchainSecurityModule);
 }

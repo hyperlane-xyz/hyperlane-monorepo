@@ -48,11 +48,13 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return new HyperlaneCore(helper.contractsMap, helper.multiProvider);
   }
 
-  getRouterConfig = (owner: Address): ChainMap<RouterConfig> =>
-    objMap(this.contractsMap, (_, contracts) => {
+  getRouterConfig = (
+    owners: Address | ChainMap<Address>,
+  ): ChainMap<RouterConfig> =>
+    objMap(this.contractsMap, (chain, contracts) => {
       return {
         mailbox: contracts.mailbox.address,
-        owner,
+        owner: typeof owners === 'string' ? owners : owners[chain],
       };
     });
 
@@ -97,7 +99,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     destination: ChainName,
     delayMs?: number,
     maxAttempts?: number,
-  ): Promise<void> {
+  ): Promise<true> {
     await pollAsync(
       async () => {
         this.logger(`Checking if message ${messageId} was processed`);
@@ -105,7 +107,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         const delivered = await mailbox.delivered(messageId);
         if (delivered) {
           this.logger(`Message ${messageId} was processed`);
-          return;
+          return true;
         } else {
           throw new Error(`Message ${messageId} not yet processed`);
         }
@@ -113,7 +115,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       delayMs,
       maxAttempts,
     );
-    return;
+    return true;
   }
 
   waitForMessageProcessing(
@@ -140,6 +142,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         ),
       ),
     );
+    this.logger(`All messages processed for tx ${sourceTx.transactionHash}`);
   }
 
   // Redundant with static method but keeping for backwards compatibility

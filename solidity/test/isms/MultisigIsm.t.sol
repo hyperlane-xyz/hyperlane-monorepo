@@ -28,11 +28,9 @@ abstract contract AbstractMultisigIsmTest is Test {
     TestPostDispatchHook internal noopHook;
     TestMailbox mailbox;
 
-    function metadataPrefix(bytes memory message)
-        internal
-        view
-        virtual
-        returns (bytes memory);
+    function metadataPrefix(
+        bytes memory message
+    ) internal view virtual returns (bytes memory);
 
     function getMetadata(
         uint8 m,
@@ -138,12 +136,9 @@ contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
     }
 
     // TODO: test merkleIndex != signedIndex
-    function metadataPrefix(bytes memory message)
-        internal
-        view
-        override
-        returns (bytes memory)
-    {
+    function metadataPrefix(
+        bytes memory message
+    ) internal view override returns (bytes memory) {
         uint32 checkpointIndex = uint32(merkleTreeHook.count() - 1);
         return
             abi.encodePacked(
@@ -169,12 +164,9 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
         mailbox.setRequiredHook(address(noopHook));
     }
 
-    function metadataPrefix(bytes memory)
-        internal
-        view
-        override
-        returns (bytes memory)
-    {
+    function metadataPrefix(
+        bytes memory
+    ) internal view override returns (bytes memory) {
         (bytes32 root, uint32 index) = merkleTreeHook.latestCheckpoint();
         return
             abi.encodePacked(

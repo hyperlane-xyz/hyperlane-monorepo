@@ -162,10 +162,9 @@ impl BaseAgent for Relayer {
             .origin_chains
             .iter()
             .map(|origin| {
-                let db = dbs.get(origin).unwrap().clone();
                 (
                     origin.clone(),
-                    Arc::new(RwLock::new(MerkleTreeBuilder::new(db))),
+                    Arc::new(RwLock::new(MerkleTreeBuilder::new())),
                 )
             })
             .collect::<HashMap<_, _>>();

@@ -1,7 +1,7 @@
 import { BigNumber, ethers } from 'ethers';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import { convertDecimalsEthersBigNumber } from '@hyperlane-xyz/utils';
+import { convertDecimals } from '@hyperlane-xyz/utils';
 
 import { mustGetChainNativeTokenDecimals } from '../utils/utils';
 
@@ -77,15 +77,17 @@ export function getTokenExchangeRateFromValues(
   localValue: BigNumber,
   remote: ChainName,
   remoteValue: BigNumber,
-) {
+): BigNumber {
   // This does not yet account for decimals!
   const exchangeRate = remoteValue
     .mul(TOKEN_EXCHANGE_RATE_MULTIPLIER)
     .div(localValue);
 
-  return convertDecimalsEthersBigNumber(
-    mustGetChainNativeTokenDecimals(remote),
-    mustGetChainNativeTokenDecimals(local),
-    exchangeRate,
+  return BigNumber.from(
+    convertDecimals(
+      mustGetChainNativeTokenDecimals(remote),
+      mustGetChainNativeTokenDecimals(local),
+      exchangeRate.toString(),
+    ),
   );
 }
