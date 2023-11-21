@@ -84,9 +84,6 @@ pub enum ChainCommunicationError {
     /// BlockNotFoundError
     #[error("Block not found: {0:?}")]
     BlockNotFound(H256),
-    /// base64 error
-    #[error("{0}")]
-    Base64(#[from] base64::DecodeError),
     /// utf8 error
     #[error("{0}")]
     Utf8(#[from] FromUtf8Error),

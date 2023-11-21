@@ -7,6 +7,9 @@ use hyperlane_core::ChainCommunicationError;
 /// in hyperlane-core using the `From` trait impl
 #[derive(Debug, thiserror::Error)]
 pub enum HyperlaneCosmosError {
+    /// base64 error
+    #[error("{0}")]
+    Base64(#[from] base64::DecodeError),
     /// bech32 error
     #[error("{0}")]
     Bech32(#[from] bech32::Error),
