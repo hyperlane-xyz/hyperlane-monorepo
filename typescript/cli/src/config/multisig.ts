@@ -9,6 +9,15 @@ import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
 import { readChainConfigsIfExists } from './chain.js';
 
+const MultisigIsmConfigSchema = z.object({
+  type: z.union([
+    z.literal(IsmType.MERKLE_ROOT_MULTISIG),
+    z.literal(IsmType.MESSAGE_ID_MULTISIG),
+  ]),
+  threshold: z.number(),
+  validators: z.array(z.string()),
+});
+
 const RoutingIsmConfigSchema: z.ZodSchema<any> = z.lazy(() =>
   z.object({
     type: z.literal(IsmType.ROUTING),
@@ -17,11 +26,13 @@ const RoutingIsmConfigSchema: z.ZodSchema<any> = z.lazy(() =>
   }),
 );
 
-const MultisigIsmConfigSchema = z.object({
-  type: z.literal(IsmType.ROUTING),
-  threshold: z.number(),
-  validators: z.array(z.string()),
-});
+const AggregationIsmConfigSchema: z.ZodSchema<any> = z.lazy(() =>
+  z.object({
+    type: z.literal(IsmType.AGGREGATION),
+    modules: z.array(IsmConfigSchema),
+    threshold: z.number(),
+  }),
+);
 
 const TestIsmConfigSchema = z.object({
   type: z.literal(IsmType.TEST_ISM),
@@ -30,6 +41,7 @@ const TestIsmConfigSchema = z.object({
 const IsmConfigSchema = z.union([
   MultisigIsmConfigSchema,
   RoutingIsmConfigSchema,
+  AggregationIsmConfigSchema,
   TestIsmConfigSchema,
 ]);
 const IsmConfigMapSchema = z.record(IsmConfigSchema);
@@ -117,6 +129,12 @@ export async function createIsmConfig(
           'Each origin chain can be verified by the specified ISM type via RoutingISM',
       },
       {
+        value: IsmType.AGGREGATION,
+        name: IsmType.AGGREGATION,
+        description:
+          'You can aggregate multiple ISMs into one ISM via AggregationISM',
+      },
+      {
         value: IsmType.TEST_ISM,
         name: IsmType.TEST_ISM,
         description:
@@ -129,9 +147,11 @@ export async function createIsmConfig(
     moduleType === IsmType.MESSAGE_ID_MULTISIG ||
     moduleType === IsmType.MERKLE_ROOT_MULTISIG
   ) {
-    lastConfig = await createMultisigConfig();
+    lastConfig = await createMultisigConfig(moduleType);
   } else if (moduleType === IsmType.ROUTING) {
     lastConfig = await createRoutingConfig(chain, chainConfigPath);
+  } else if (moduleType === IsmType.AGGREGATION) {
+    lastConfig = await createAggregationConfig(chain, chainConfigPath);
   } else if (moduleType === IsmType.TEST_ISM) {
     lastConfig = { type: IsmType.TEST_ISM };
   } else {
@@ -140,7 +160,9 @@ export async function createIsmConfig(
   return lastConfig;
 }
 
-export async function createMultisigConfig(): Promise<ZodIsmConfig> {
+export async function createMultisigConfig(
+  type: IsmType.MERKLE_ROOT_MULTISIG | IsmType.MESSAGE_ID_MULTISIG,
+): Promise<ZodIsmConfig> {
   const thresholdInput = await input({
     message: 'Enter threshold of signers (number)',
   });
@@ -151,9 +173,38 @@ export async function createMultisigConfig(): Promise<ZodIsmConfig> {
   });
   const validators = validatorsInput.split(',').map((v) => v.trim());
   return {
-    type: IsmType.MERKLE_ROOT_MULTISIG,
+    type,
     threshold,
     validators,
+  };
+}
+
+export async function createAggregationConfig(
+  chain: ChainName,
+  chainConfigPath: string,
+): Promise<ZodIsmConfig> {
+  const isms = parseInt(
+    await input({
+      message: 'Enter the number of ISMs to aggregate (number)',
+    }),
+    10,
+  );
+
+  const threshold = parseInt(
+    await input({
+      message: 'Enter the threshold of ISMs to for verification (number)',
+    }),
+    10,
+  );
+
+  const modules: Array<ZodIsmConfig> = [];
+  for (let i = 0; i < isms; i++) {
+    modules.push(await createIsmConfig(chain, chainConfigPath));
+  }
+  return {
+    type: IsmType.AGGREGATION,
+    modules,
+    threshold,
   };
 }
 
