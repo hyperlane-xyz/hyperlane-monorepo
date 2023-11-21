@@ -3,6 +3,7 @@
   "description": "A yarn workspace of core Hyperlane packages",
   "version": "0.0.0",
   "devDependencies": {
+    "@changesets/cli": "^2.26.2",
     "@trivago/prettier-plugin-sort-imports": "^4.2.1",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
@@ -18,13 +19,13 @@
     "build": "yarn workspaces foreach --all --parallel --topological run build",
     "clean": "yarn workspaces foreach --all --parallel run clean",
     "prettier": "yarn workspaces foreach --all --parallel run prettier",
-    "lint": "yarn workspaces foreach --all --parallel run lint",
-    "test": "yarn workspaces foreach --all --parallel run test",
-    "coverage": "yarn workspaces foreach --all --parallel run coverage",
-    "version:prepare": "yarn workspaces foreach --all --no-private --topological version --immediate",
-    "publish:all": "yarn workspaces foreach --all --no-private --topological npm publish --access public",
-    "postinstall": "husky install",
-    "version:check": "yarn version check --interactive"
+    "lint": "yarn workspaces foreach --since main --parallel run lint",
+    "test": "yarn workspaces foreach --since main --parallel run test",
+    "coverage": "yarn workspaces foreach --since main --parallel run coverage",
+    "version:prepare": "yarn changeset version",
+    "version:check": "yarn changeset status",
+    "publish:all": "yarn changeset publish",
+    "postinstall": "husky install"
   },
   "workspaces": [
     "solidity",
