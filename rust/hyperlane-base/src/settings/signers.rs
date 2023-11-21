@@ -103,16 +103,15 @@ impl ChainSigner for hyperlane_ethereum::Signers {
 #[async_trait]
 impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        Ok(match conf {
-            SignerConf::HexKey { key } => {
-                let key = fuels::signers::fuel_crypto::SecretKey::try_from(key.as_bytes())
-                    .context("Invalid fuel signer key")?;
-                fuels::prelude::WalletUnlocked::new_from_private_key(key, None)
-            }
-            SignerConf::Aws { .. } => bail!("Aws signer is not supported by fuel"),
-            SignerConf::CosmosKey { .. } => bail!("Cosmos signer is not supported by fuel"),
-            SignerConf::Node => bail!("Node signer is not supported by fuel"),
-        })
+        if let SignerConf::HexKey { key } = conf {
+            let key = fuels::signers::fuel_crypto::SecretKey::try_from(key.as_bytes())
+                .context("Invalid fuel signer key")?;
+            Ok(fuels::prelude::WalletUnlocked::new_from_private_key(
+                key, None,
+            ))
+        } else {
+            bail!(format!("{conf:?} key is not supported by fuel"));
+        }
     }
 }
 
@@ -125,17 +124,16 @@ impl ChainSigner for fuels::prelude::WalletUnlocked {
 #[async_trait]
 impl BuildableWithSignerConf for Keypair {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        Ok(match conf {
-            SignerConf::HexKey { key } => {
-                let secret = SecretKey::from_bytes(key.as_bytes())
-                    .context("Invalid sealevel ed25519 secret key")?;
+        if let SignerConf::HexKey { key } = conf {
+            let secret = SecretKey::from_bytes(key.as_bytes())
+                .context("Invalid sealevel ed25519 secret key")?;
+            Ok(
                 Keypair::from_bytes(&ed25519_dalek::Keypair::from(secret).to_bytes())
-                    .context("Unable to create Keypair")?
-            }
-            SignerConf::Aws { .. } => bail!("Aws signer is not supported by fuel"),
-            SignerConf::CosmosKey { .. } => bail!("Cosmos signer is not supported by fuel"),
-            SignerConf::Node => bail!("Node signer is not supported by fuel"),
-        })
+                    .context("Unable to create Keypair")?,
+            )
+        } else {
+            bail!(format!("{conf:?} key is not supported by sealevel"));
+        }
     }
 }
 
@@ -148,14 +146,14 @@ impl ChainSigner for Keypair {
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        Ok(match conf {
-            SignerConf::HexKey { .. } => bail!("HexKey signer is not supported by cosmos"),
-            SignerConf::Aws { .. } => bail!("Aws signer is not supported by cosmos"),
-            SignerConf::CosmosKey { key, prefix } => {
-                hyperlane_cosmos::Signer::new(key.as_bytes().to_vec(), prefix.clone())?
-            }
-            SignerConf::Node => bail!("Node signer is not supported by cosmos"),
-        })
+        if let SignerConf::CosmosKey { key, prefix } = conf {
+            Ok(hyperlane_cosmos::Signer::new(
+                key.as_bytes().to_vec(),
+                prefix.clone(),
+            )?)
+        } else {
+            bail!(format!("{conf:?} key is not supported by cosmos"));
+        }
     }
 }
 

@@ -168,7 +168,8 @@ impl Mailbox for CosmosMailbox {
             .provider
             .wasm_send(process_message, tx_gas_limit)
             .await?;
-        Ok(TxOutcome::try_from_tx_response(response)?)
+
+        Ok(response.try_into()?)
     }
 
     #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
