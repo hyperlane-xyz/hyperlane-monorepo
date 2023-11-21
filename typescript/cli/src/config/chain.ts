@@ -5,8 +5,9 @@ import {
   ChainMap,
   ChainMetadata,
   ChainMetadataSchema,
+  chainMetadata as coreChainMetadata,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { getMultiProvider } from '../context.js';
@@ -25,8 +26,16 @@ export function readChainConfigs(filePath: string) {
     process.exit(1);
   }
 
-  for (const [chain, metadata] of Object.entries(chainToMetadata)) {
-    const parseResult = ChainMetadataSchema.safeParse(metadata);
+  // Validate configs from file and merge in core configs as needed
+  for (const chain of Object.keys(chainToMetadata)) {
+    if (coreChainMetadata[chain]) {
+      // For core chains, merge in the default config to allow users to override only some fields
+      chainToMetadata[chain] = objMerge(
+        coreChainMetadata[chain],
+        chainToMetadata[chain],
+      );
+    }
+    const parseResult = ChainMetadataSchema.safeParse(chainToMetadata[chain]);
     if (!parseResult.success) {
       errorRed(
         `Chain config for ${chain} is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/chain-config.yaml for an example`,
@@ -34,13 +43,13 @@ export function readChainConfigs(filePath: string) {
       errorRed(JSON.stringify(parseResult.error.errors));
       process.exit(1);
     }
-    if (metadata.name !== chain) {
+    if (chainToMetadata[chain].name !== chain) {
       errorRed(`Chain ${chain} name does not match key`);
       process.exit(1);
     }
   }
 
-  // Ensure multiprovider accepts this metadata
+  // Ensure MultiProvider accepts this metadata
   getMultiProvider(chainToMetadata);
 
   logGreen(`All chain configs in ${filePath} are valid`);

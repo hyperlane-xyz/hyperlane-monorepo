@@ -109,6 +109,9 @@ jobs:
       - name: helloworld
         run: yarn workspace @hyperlane-xyz/helloworld run test
 
+      - name: cli 
+        run: yarn workspace @hyperlane-xyz/cli run test
+
       - name: infra
         run: yarn workspace @hyperlane-xyz/infra run test
 
