@@ -15,6 +15,8 @@ pub use routing_ism::*;
 pub use signing::*;
 pub use validator_announce::*;
 
+use crate::{ChainCommunicationError, ChainResult, H256, U256};
+
 mod aggregation_ism;
 mod ccip_read_ism;
 mod cursor;
@@ -58,5 +60,20 @@ impl From<ethers_core::types::TransactionReceipt> for TxOutcome {
                 .map(Into::into)
                 .unwrap_or(crate::U256::zero()),
         }
+    }
+}
+
+impl TryFrom<cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse> for TxOutcome {
+    type Error = ChainCommunicationError;
+
+    fn try_from(
+        response: cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse,
+    ) -> ChainResult<Self> {
+        Ok(Self {
+            transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),
+            executed: response.code == 0,
+            gas_used: U256::from(response.gas_used),
+            gas_price: U256::one(),
+        })
     }
 }

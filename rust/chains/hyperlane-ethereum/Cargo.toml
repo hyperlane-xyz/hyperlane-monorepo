@@ -33,12 +33,6 @@ url.workspace = true
 hyperlane-core = { path = "../../hyperlane-core" }
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
 
-# These should only be used if it _must_ be used to interop with the inner library,
-# all errors exported from a chain crate should be using thiserror or handrolled to
-# make error handling easier.
-# eyre = "never"
-# anyhow = never
-
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["ethers"] }
 hyperlane-core = { path = "../../hyperlane-core", features = ["test-utils"] }
