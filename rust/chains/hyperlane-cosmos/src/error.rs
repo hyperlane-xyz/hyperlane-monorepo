@@ -18,6 +18,9 @@ pub enum HyperlaneCosmosError {
     /// Cosmos error report
     #[error("{0}")]
     CosmosErrorReport(#[from] cosmrs::ErrorReport),
+    /// Cosmwasm std error.
+    #[error("{0}")]
+    StdError(#[from] cosmwasm_std::StdError),
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {

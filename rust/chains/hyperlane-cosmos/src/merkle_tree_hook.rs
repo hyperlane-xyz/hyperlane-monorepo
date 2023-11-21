@@ -3,7 +3,7 @@ use std::{fmt::Debug, num::NonZeroU64, ops::RangeInclusive, str::FromStr};
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use cosmrs::tendermint::abci::EventAttribute;
-use hpl_interface::hook::merkle::{MerkleHookQueryMsg, QueryMsg, TreeResponse};
+use hpl_interface::hook::merkle::{self, MerkleHookQueryMsg, QueryMsg, TreeResponse};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
@@ -25,6 +25,7 @@ use crate::{
     },
     ConnectionConf,
     CosmosProvider,
+    HyperlaneCosmosError,
     Signer,
 };
 
@@ -87,8 +88,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
         let branch = response
             .branch
             .iter()
-            .map(|s| s.to_string().as_str())
-            .map(H256::from_str)
+            .map(|s| H256::from_str(s.to_string().as_str()))
             .collect::<Result<Vec<H256>, _>>()?;
 
         let branch_res: [H256; 32] = branch.try_into().map_err(|_| {
@@ -107,27 +107,22 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        let payload = merkle_tree_hook::requests::CheckPoint {
-            check_point: general::EmptyStruct {},
-        };
+        let payload = QueryMsg::MerkleHook(MerkleHookQueryMsg::CheckPoint {});
 
         let block_height = get_block_height_for_lag(&self.provider, lag).await?;
 
-        let data = self
-            .provider
-            .wasm_query(
-                merkle_tree_hook::MerkleTreeGenericRequest {
-                    merkle_hook: payload,
-                },
-                block_height,
-            )
-            .await?;
-        let response: merkle_tree_hook::responses::CheckPoint = serde_json::from_slice(&data)?;
+        let data = self.provider.wasm_query(payload, block_height).await?;
+        let response: merkle::CheckPointResponse = serde_json::from_slice(&data)?;
+
+        let root_slice: [u8; 32] = response
+            .root
+            .to_array()
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
 
         Ok(Checkpoint {
             merkle_tree_hook_address: self.address,
             mailbox_domain: self.domain.id(),
-            root: response.root.parse()?,
+            root: H256::from(root_slice),
             index: response.count,
         })
     }
@@ -138,7 +133,7 @@ impl CosmosMerkleTreeHook {
     async fn count_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
         let payload = QueryMsg::MerkleHook(MerkleHookQueryMsg::Count {});
         let data = self.provider.wasm_query(payload, block_height).await?;
-        let response: merkle_tree_hook::responses::MerkleTreeCount = serde_json::from_slice(&data)?;
+        let response: merkle::CountResponse = serde_json::from_slice(&data)?;
 
         Ok(response.count)
     }

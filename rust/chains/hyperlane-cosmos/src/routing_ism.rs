@@ -60,9 +60,9 @@ impl HyperlaneChain for CosmosRoutingIsm {
 #[async_trait]
 impl RoutingIsm for CosmosRoutingIsm {
     async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
-        let payload = QueryMsg::Route {
+        let payload = QueryMsg::RoutingIsm(RoutingIsmQueryMsg::Route {
             message: HexBinary::from(RawHyperlaneMessage::from(message)),
-        };
+        });
         let data = self.provider.wasm_query(payload, None).await?;
         let response: RouteResponse = serde_json::from_slice(&data)?;
 

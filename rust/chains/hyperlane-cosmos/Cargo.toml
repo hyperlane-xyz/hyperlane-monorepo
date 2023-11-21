@@ -30,6 +30,6 @@ hyper-tls = { workspace = true }
 sha256 = { workspace = true }
 hex = { workspace = true }
 tendermint = { workspace = true, features = ["rust-crypto", "secp256k1"]}
-hpl-interface = { version = "0.0.2" }
+hpl-interface = { version = "=0.0.6-rc3" }
 
 hyperlane-core = { path = "../../hyperlane-core" }

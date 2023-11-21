@@ -21,8 +21,8 @@ use serde_json::Value;
 pub use self::json_value_parser::ValueParser;
 pub use super::envs::*;
 use crate::settings::{
-    chains::IndexSettings, parser::connection_parser::build_connection_conf, trace::TracingConfig,
-    ChainConf, CoreContractAddresses, Settings, SignerConf,
+    chains::IndexSettings, trace::TracingConfig, ChainConf, ChainConnectionConf,
+    CoreContractAddresses, Settings, SignerConf,
 };
 
 mod json_value_parser;

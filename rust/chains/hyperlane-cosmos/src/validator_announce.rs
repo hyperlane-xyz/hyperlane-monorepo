@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+use cosmwasm_std::HexBinary;
+use hpl_interface::core::va::{GetAnnounceStorageLocationsResponse, QueryMsg};
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
@@ -8,6 +10,7 @@ use hyperlane_core::{
 
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
+    payloads::validator_announce::{AnnouncementRequest, AnnouncementRequestInner},
     signers::Signer,
     validator_announce, ConnectionConf, CosmosProvider,
 };
@@ -61,19 +64,13 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
     ) -> ChainResult<Vec<Vec<String>>> {
         let vss = validators
             .iter()
-            .map(|v| H160::from(*v))
-            .map(|v| hex::encode(v.as_bytes()))
-            .collect::<Vec<String>>();
+            .map(|v| HexBinary::from(v.as_bytes()))
+            .collect();
 
-        let payload = GetAnnounceStorageLocationsRequest {
-            get_announce_storage_locations: GetAnnounceStorageLocationsRequestInner {
-                validators: vss,
-            },
-        };
+        let payload = QueryMsg::GetAnnounceStorageLocations { validators: vss };
 
         let data: Vec<u8> = self.provider.wasm_query(payload, None).await?;
-        let response: validator_announce::GetAnnounceStorageLocationsResponse =
-            serde_json::from_slice(&data)?;
+        let response: GetAnnounceStorageLocationsResponse = serde_json::from_slice(&data)?;
 
         Ok(response
             .storage_locations
