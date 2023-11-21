@@ -3,7 +3,11 @@ import { CommandModule } from 'yargs';
 import { log, logGreen } from '../../logger.js';
 import { createChainConfig, readChainConfigs } from '../config/chain.js';
 import { createHookConfig } from '../config/hooks.js';
-import { createIsmConfigMap, readMultisigConfig } from '../config/multisig.js';
+import { createIsmConfigMap, readIsmConfigMap } from '../config/ism.js';
+import {
+  createMultisigConfig,
+  readMultisigConfig,
+} from '../config/multisig.js';
 import { createWarpConfig, readWarpRouteConfig } from '../config/warp.js';
 import { FileFormat } from '../utils/files.js';
 
@@ -37,7 +41,8 @@ const createCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(createChainConfigCommand)
-      .command(createMultisigConfigCommand)
+      .command(createIsmConfigCommand)
+      .command(createIsmConfigMapCommand)
       .command(createHookConfigCommand)
       .command(createWarpConfigCommand)
       .version(false)
@@ -61,12 +66,31 @@ const createChainConfigCommand: CommandModule = {
   },
 };
 
-const createMultisigConfigCommand: CommandModule = {
-  command: 'multisig',
-  describe: 'Create a new Multisig ISM config',
+const createIsmConfigCommand: CommandModule = {
+  command: 'ism',
+  describe:
+    'Create a new basic ISM config (only need to specify validator set and threshold)',
   builder: (yargs) =>
     yargs.options({
-      output: outputFileOption('./configs/multisig-ism.yaml'),
+      output: outputFileOption('./configs/ism.yaml'),
+      format: fileFormatOption,
+      chains: chainsCommandOption,
+    }),
+  handler: async (argv: any) => {
+    const format: FileFormat = argv.format;
+    const outPath: string = argv.output;
+    const chainConfigPath: string = argv.chains;
+    await createMultisigConfig({ format, outPath, chainConfigPath });
+    process.exit(0);
+  },
+};
+
+const createIsmConfigMapCommand: CommandModule = {
+  command: 'ism-advanced',
+  describe: 'Create the full ISM config topologically',
+  builder: (yargs) =>
+    yargs.options({
+      output: outputFileOption('./configs/ism-advanced.yaml'),
       format: fileFormatOption,
       chains: chainsCommandOption,
     }),
@@ -124,7 +148,8 @@ const validateCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(validateChainCommand)
-      .command(validateMultisigCommand)
+      .command(validateIsmCommand)
+      .command(validateIsmAdvancedCommand)
       .command(validateWarpCommand)
       .version(false)
       .demandCommand(),
@@ -149,9 +174,9 @@ const validateChainCommand: CommandModule = {
   },
 };
 
-const validateMultisigCommand: CommandModule = {
-  command: 'multisig',
-  describe: 'Validate a multisig ism config in a YAML or JSON file',
+const validateIsmCommand: CommandModule = {
+  command: 'ism',
+  describe: 'Validate the basic ISM config in a YAML or JSON file',
   builder: (yargs) =>
     yargs.options({
       path: {
@@ -163,6 +188,25 @@ const validateMultisigCommand: CommandModule = {
   handler: async (argv) => {
     const path = argv.path as string;
     readMultisigConfig(path);
+    logGreen('Config is valid');
+    process.exit(0);
+  },
+};
+
+const validateIsmAdvancedCommand: CommandModule = {
+  command: 'ism-advanced',
+  describe: 'Validate the advanced ISM config in a YAML or JSON file',
+  builder: (yargs) =>
+    yargs.options({
+      path: {
+        type: 'string',
+        description: 'Input file path',
+        demandOption: true,
+      },
+    }),
+  handler: async (argv) => {
+    const path = argv.path as string;
+    readIsmConfigMap(path);
     logGreen('Config is valid');
     process.exit(0);
   },

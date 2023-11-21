@@ -16,13 +16,11 @@ import {
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   IgpConfig,
-  IsmType,
+  IsmConfig,
   MultiProvider,
   MultisigConfig,
-  RoutingIsmConfig,
   agentStartBlocks,
   buildAgentConfig,
-  buildMultisigIsmConfigs,
   defaultMultisigConfigs,
   multisigIsmVerificationCost,
   serializeContractsMap,
@@ -32,6 +30,7 @@ import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { readHookConfig } from '../config/hooks.js';
+import { readIsmConfigMap } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import {
@@ -50,7 +49,7 @@ import {
   TestRecipientConfig,
   TestRecipientDeployer,
 } from './TestRecipientDeployer.js';
-import { runPreflightChecksForChains } from './utils.js';
+import { isAdvancedISMConfig, runPreflightChecksForChains } from './utils.js';
 
 export async function runCoreDeploy({
   key,
@@ -84,7 +83,13 @@ export async function runCoreDeploy({
     );
   }
   const artifacts = await runArtifactStep(chains, artifactsPath);
-  const multisigConfig = await runIsmStep(chains, ismConfigPath);
+  const result = await runIsmStep(chains, ismConfigPath);
+  const ismConfigs = isAdvancedISMConfig(result)
+    ? (result as ChainMap<IsmConfig>)
+    : undefined;
+  const multisigs = isAdvancedISMConfig(result)
+    ? defaultMultisigConfigs
+    : (result as ChainMap<MultisigConfig>);
   // TODO re-enable when hook config is actually used
   await runHookStep(chains, hookConfigPath);
 
@@ -93,7 +98,8 @@ export async function runCoreDeploy({
     signer,
     multiProvider,
     artifacts,
-    multisigConfig,
+    ismConfigs,
+    multisigs,
     outPath,
     skipConfirmation,
   };
@@ -141,8 +147,7 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
       'Hyperlane instances requires an Interchain Security Module (ISM).',
     );
     logGray(
-      'Note, only Multisig ISM configs are currently supported in the CLI',
-      'Example config: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/cli/typescript/cli/examples/multisig-ism.yaml',
+      'Example config: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/cli/typescript/cli/examples/ism.yaml',
     );
     ismConfigPath = await runFileSelectionStep(
       './configs',
@@ -150,27 +155,53 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
       'ism',
     );
   }
-  // first we check for user provided chains
-  const multisigConfigs = {
-    ...defaultMultisigConfigs,
-    ...readMultisigConfig(ismConfigPath),
-  } as ChainMap<MultisigConfig>;
-  const requiredMultisigs = objFilter(
-    multisigConfigs,
-    (chain, config): config is MultisigConfig => selectedChains.includes(chain),
-  );
-  // selected chains - (user configs + default configs) = missing config
-  const missingConfigs = selectedChains.filter(
-    (c) => !Object.keys(requiredMultisigs).includes(c),
-  );
-  if (missingConfigs.length > 0) {
-    throw new Error(
-      `Missing ISM config for one or more chains: ${missingConfigs.join(', ')}`,
+  const ismConfig = readIsmConfigMap(ismConfigPath);
+  console.log('ismConfig', ismConfig, isAdvancedISMConfig(ismConfig));
+  // separate flow for 'ism' and 'ism-advanced' options
+  if (isAdvancedISMConfig(ismConfig)) {
+    const requiredIsms = objFilter(
+      readIsmConfigMap(ismConfigPath),
+      (chain, config): config is IsmConfig => selectedChains.includes(chain),
     );
-  }
+    // selected chains - (user configs + default configs) = missing config
+    const missingConfigs = selectedChains.filter(
+      (c) => !Object.keys(ismConfig).includes(c),
+    );
+    if (missingConfigs.length > 0) {
+      throw new Error(
+        `Missing advanced ISM config for one or more chains: ${missingConfigs.join(
+          ', ',
+        )}`,
+      );
+    }
 
-  log(`Found configs for chains: ${selectedChains.join(', ')}`);
-  return requiredMultisigs;
+    log(`Found configs for chains: ${selectedChains.join(', ')}`);
+    return requiredIsms as ChainMap<IsmConfig>;
+  } else {
+    const multisigConfigs = {
+      ...defaultMultisigConfigs,
+      ...readMultisigConfig(ismConfigPath),
+    } as ChainMap<MultisigConfig>;
+    const requiredMultisigs = objFilter(
+      multisigConfigs,
+      (chain, config): config is MultisigConfig =>
+        selectedChains.includes(chain),
+    );
+    // selected chains - (user configs + default configs) = missing config
+    const missingConfigs = selectedChains.filter(
+      (c) => !Object.keys(requiredMultisigs).includes(c),
+    );
+    if (missingConfigs.length > 0) {
+      throw new Error(
+        `Missing ISM config for one or more chains: ${missingConfigs.join(
+          ', ',
+        )}`,
+      );
+    }
+
+    log(`Found configs for chains: ${selectedChains.join(', ')}`);
+    return requiredMultisigs as ChainMap<MultisigConfig>;
+  }
 }
 
 async function runHookStep(
@@ -202,7 +233,8 @@ interface DeployParams {
   signer: ethers.Signer;
   multiProvider: MultiProvider;
   artifacts?: HyperlaneAddressesMap<any>;
-  multisigConfig?: ChainMap<MultisigConfig>;
+  ismConfigs?: ChainMap<IsmConfig>;
+  multisigs?: ChainMap<MultisigConfig>;
   outPath: string;
   skipConfirmation: boolean;
 }
@@ -238,7 +270,8 @@ async function executeDeploy({
   multiProvider,
   outPath,
   artifacts = {},
-  multisigConfig = {},
+  ismConfigs = {},
+  multisigs = {},
 }: DeployParams) {
   logBlue('All systems ready, captain! Beginning deployment...');
 
@@ -281,9 +314,8 @@ async function executeDeploy({
   const defaultIsms: ChainMap<Address> = {};
   for (const ismOrigin of chains) {
     logBlue(`Deploying ISM to ${ismOrigin}`);
-    const ismConfig = buildIsmConfig(owner, ismOrigin, chains, multisigConfig);
     ismContracts[ismOrigin] = {
-      multisigIsm: await ismFactory.deploy(ismOrigin, ismConfig),
+      multisigIsm: await ismFactory.deploy(ismOrigin, ismConfigs[ismOrigin]),
     };
     defaultIsms[ismOrigin] = ismContracts[ismOrigin].multisigIsm.address;
   }
@@ -298,7 +330,7 @@ async function executeDeploy({
     owner,
     chains,
     defaultIsms,
-    multisigConfig,
+    multisigs, // TODO: fix this
   );
   const coreContracts = await coreDeployer.deploy(coreConfigs);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
@@ -326,25 +358,6 @@ async function executeDeploy({
   logBlue('Deployment is complete!');
   logBlue(`Contract address artifacts are in ${contractsFilePath}`);
   logBlue(`Agent configs are in ${agentFilePath}`);
-}
-
-function buildIsmConfig(
-  owner: Address,
-  local: ChainName,
-  chains: ChainName[],
-  multisigIsmConfigs: ChainMap<MultisigConfig>,
-): RoutingIsmConfig {
-  const multisigConfigs = buildMultisigIsmConfigs(
-    IsmType.MESSAGE_ID_MULTISIG,
-    local,
-    chains,
-    multisigIsmConfigs,
-  );
-  return {
-    owner,
-    type: IsmType.ROUTING,
-    domains: multisigConfigs,
-  };
 }
 
 function buildCoreConfigMap(

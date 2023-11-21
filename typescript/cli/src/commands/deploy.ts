@@ -81,7 +81,12 @@ const coreCommand: CommandModule = {
       ism: {
         type: 'string',
         description:
-          'A path to a JSON or YAML file with ISM configs (e.g. Multisig)',
+          'A path to a JSON or YAML file with basic ISM configs (e.g. Multisig)',
+      },
+      ismAdvanced: {
+        type: 'string',
+        description:
+          'A path to a JSON or YAML file with advanced ISM configs (e.g. Multisig)',
       },
       hook: {
         type: 'string',
