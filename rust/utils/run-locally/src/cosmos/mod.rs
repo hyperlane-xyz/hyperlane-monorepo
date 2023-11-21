@@ -537,43 +537,44 @@ fn run_locally() {
     }
 }
 
-fn termination_invariants_met(messages_expected: u32) -> eyre::Result<bool> {
+fn termination_invariants_met(_messages_expected: u32) -> eyre::Result<bool> {
     return Ok(true);
-    let gas_payments_scraped = fetch_metric(
-        "9093",
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "gas_payment"},
-    )?
-    .iter()
-    .sum::<u32>();
-    let expected_gas_payments = messages_expected;
-    if gas_payments_scraped != expected_gas_payments {
-        log!(
-            "Scraper has scraped {} gas payments, expected {}",
-            gas_payments_scraped,
-            expected_gas_payments
-        );
-        return Ok(false);
-    }
+    // TODO: uncomment once CI passes consistently on Ubuntu
+    // let gas_payments_scraped = fetch_metric(
+    //     "9093",
+    //     "hyperlane_contract_sync_stored_events",
+    //     &hashmap! {"data_type" => "gas_payment"},
+    // )?
+    // .iter()
+    // .sum::<u32>();
+    // let expected_gas_payments = messages_expected;
+    // if gas_payments_scraped != expected_gas_payments {
+    //     log!(
+    //         "Scraper has scraped {} gas payments, expected {}",
+    //         gas_payments_scraped,
+    //         expected_gas_payments
+    //     );
+    //     return Ok(false);
+    // }
 
-    let delivered_messages_scraped = fetch_metric(
-        "9093",
-        "hyperlane_operations_processed_count",
-        &hashmap! {"phase" => "confirmed"},
-    )?
-    .iter()
-    .sum::<u32>();
-    if delivered_messages_scraped != messages_expected {
-        log!(
-            "Relayer confirmed {} submitted messages, expected {}",
-            delivered_messages_scraped,
-            messages_expected
-        );
-        return Ok(false);
-    }
+    // let delivered_messages_scraped = fetch_metric(
+    //     "9093",
+    //     "hyperlane_operations_processed_count",
+    //     &hashmap! {"phase" => "confirmed"},
+    // )?
+    // .iter()
+    // .sum::<u32>();
+    // if delivered_messages_scraped != messages_expected {
+    //     log!(
+    //         "Relayer confirmed {} submitted messages, expected {}",
+    //         delivered_messages_scraped,
+    //         messages_expected
+    //     );
+    //     return Ok(false);
+    // }
 
-    log!("Termination invariants have been meet");
-    Ok(true)
+    // log!("Termination invariants have been meet");
+    // Ok(true)
 }
 
 #[cfg(test)]
