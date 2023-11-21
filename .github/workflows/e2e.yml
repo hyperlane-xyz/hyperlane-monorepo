@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: '*'
   workflow_dispatch:
 
 concurrency:
@@ -21,7 +20,7 @@ defaults:
 
 jobs:
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
     steps:
       - uses: actions/setup-node@v3
         with:
@@ -68,7 +67,9 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
       - name: build test
         run: cargo build --release --bin run-locally
-      - name: run test
+      - name: run CosmWasm test
+        run: RUST_BACKTRACE=1 cargo test --package run-locally --bin run-locally -- cosmos::test --nocapture
+      - name: run test (excluding CosmWasm)
         run: ./target/release/run-locally
         env:
           E2E_CI_MODE: 'true'

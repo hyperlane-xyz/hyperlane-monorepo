@@ -9,27 +9,26 @@ version = { workspace = true }
 
 [dependencies]
 async-trait = { workspace = true }
+base64 = { workspace = true }
+bech32 = { workspace = true }
 cosmrs = { workspace = true, features = ["cosmwasm", "tokio", "grpc", "rpc"] }
 derive-new = { workspace = true }
-serde = { workspace = true }
-thiserror = { workspace = true }
-tokio = { workspace = true }
-tracing-futures = { workspace = true }
-tracing = { workspace = true }
-url = { workspace = true }
-bech32 = { workspace = true }
-base64 = { workspace = true }
-serde_json = { workspace = true }
-once_cell = { workspace = true }
-tonic = { workspace = true }
-sha2 = { workspace = true }
-ripemd = { workspace = true }
+hex = { workspace = true }
+hpl-interface.workspace = true
 hyper = { workspace = true }
 hyper-tls = { workspace = true }
+once_cell = { workspace = true }
+ripemd = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
 sha256 = { workspace = true }
-hex = { workspace = true }
-tendermint = { workspace = true, features = ["rust-crypto", "secp256k1"]}
-# hpl-interface = { version = "0.0.2" }
-hpl-interface = { git = "https://github.com/many-things/cw-hyperlane", branch = "develop" }
+tendermint = { workspace = true, features = ["rust-crypto", "secp256k1"] }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tonic = { workspace = true }
+tracing = { workspace = true }
+tracing-futures = { workspace = true }
+url = { workspace = true }
 
 hyperlane-core = { path = "../../hyperlane-core" }

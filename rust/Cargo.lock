@@ -1430,7 +1430,7 @@ checksum = "73c9d2043a9e617b0d602fbc0a0ecd621568edbf3a9774890a6d562389bd8e1c"
 dependencies = [
  "prost",
  "prost-types",
- "tendermint-proto",
+ "tendermint-proto 0.32.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tonic",
 ]
 
@@ -3874,30 +3874,9 @@ dependencies = [
 
 [[package]]
 name = "hpl-interface"
-version = "0.0.6-rc5"
+version = "0.0.6-rc3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81f9e9d265630ce019d87c1e2931be566d9be4d155b65e483e93e60704801a3d"
-dependencies = [
- "bech32 0.9.1",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus",
- "cw2",
- "cw20",
- "cw20-base",
- "ripemd",
- "schemars",
- "serde",
- "sha2 0.10.8",
- "sha3 0.10.8",
- "thiserror",
-]
-
-[[package]]
-name = "hpl-interface"
-version = "0.0.6-rc6"
-source = "git+https://github.com/many-things/cw-hyperlane?branch=develop#0adb31f8daf50b41f090fe47963aaa7f96693c2a"
+checksum = "9124bd88d88aba044ae790007bcbf25493b93424156e8759523c9c5d02229b0c"
 dependencies = [
  "bech32 0.9.1",
  "cosmwasm-schema",
@@ -4098,6 +4077,7 @@ dependencies = [
  "tracing-error",
  "tracing-futures",
  "tracing-subscriber",
+ "url",
  "walkdir",
  "warp",
 ]
@@ -4156,7 +4136,7 @@ dependencies = [
  "cosmrs",
  "derive-new",
  "hex 0.4.3",
- "hpl-interface 0.0.6-rc6",
+ "hpl-interface",
  "hyper",
  "hyper-tls",
  "hyperlane-core",
@@ -6921,7 +6901,7 @@ dependencies = [
  "ctrlc",
  "eyre",
  "hex 0.4.3",
- "hpl-interface 0.0.6-rc5",
+ "hpl-interface",
  "hyperlane-core",
  "k256 0.13.1",
  "macro_rules_attribute",
@@ -9329,8 +9309,7 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.32.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f0a7d05cf78524782337f8edd55cbc578d159a16ad4affe2135c92f7dbac7f0"
+source = "git+https://github.com/hyperlane-xyz/tendermint-rs.git?branch=trevor/0.32.2-fork#feea28d47e73bf7678e1e5cdced0f5ca51b69286"
 dependencies = [
  "bytes",
  "digest 0.10.7",
@@ -9352,7 +9331,7 @@ dependencies = [
  "signature 2.1.0",
  "subtle",
  "subtle-encoding",
- "tendermint-proto",
+ "tendermint-proto 0.32.2 (git+https://github.com/hyperlane-xyz/tendermint-rs.git?branch=trevor/0.32.2-fork)",
  "time",
  "zeroize",
 ]
@@ -9360,8 +9339,7 @@ dependencies = [
 [[package]]
 name = "tendermint-config"
 version = "0.32.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71a72dbbea6dde12045d261f2c70c0de039125675e8a026c8d5ad34522756372"
+source = "git+https://github.com/hyperlane-xyz/tendermint-rs.git?branch=trevor/0.32.2-fork#feea28d47e73bf7678e1e5cdced0f5ca51b69286"
 dependencies = [
  "flex-error",
  "serde",
@@ -9390,10 +9368,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "tendermint-proto"
+version = "0.32.2"
+source = "git+https://github.com/hyperlane-xyz/tendermint-rs.git?branch=trevor/0.32.2-fork#feea28d47e73bf7678e1e5cdced0f5ca51b69286"
+dependencies = [
+ "bytes",
+ "flex-error",
+ "num-derive 0.3.3",
+ "num-traits",
+ "prost",
+ "prost-types",
+ "serde",
+ "serde_bytes",
+ "subtle-encoding",
+ "time",
+]
+
+[[package]]
 name = "tendermint-rpc"
 version = "0.32.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d119d83a130537fc4a98c3c9eb6899ebe857fea4860400a61675bfb5f0b35129"
+source = "git+https://github.com/hyperlane-xyz/tendermint-rs.git?branch=trevor/0.32.2-fork#feea28d47e73bf7678e1e5cdced0f5ca51b69286"
 dependencies = [
  "async-trait",
  "bytes",
@@ -9414,7 +9408,7 @@ dependencies = [
  "subtle-encoding",
  "tendermint",
  "tendermint-config",
- "tendermint-proto",
+ "tendermint-proto 0.32.2 (git+https://github.com/hyperlane-xyz/tendermint-rs.git?branch=trevor/0.32.2-fork)",
  "thiserror",
  "time",
  "tokio",

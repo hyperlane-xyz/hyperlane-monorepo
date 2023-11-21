@@ -30,7 +30,8 @@ impl CosmosInterchainSecurityModule {
         locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
+        let provider: WasmGrpcProvider =
+            WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
 
         Ok(Self {
             domain: locator.domain.clone(),

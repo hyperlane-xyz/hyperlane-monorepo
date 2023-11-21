@@ -6,13 +6,17 @@ use crate::program::Program;
 use crate::utils::TaskHandle;
 
 pub(crate) fn sed(from: &str, to: &str, file: &str) {
-    Program::new("sed")
-        .raw_arg("-i")
-        .cmd("")
+    let mut program = Program::new("sed").raw_arg("-i");
+
+    if cfg!(target_os = "macos") {
+        program = program.cmd("");
+    }
+
+    program
         .cmd(format!("s/{from}/{to}/g"))
         .cmd(file)
         .run()
-        .join();
+        .join()
 }
 
 pub(crate) fn untar(output: &str, dir: &str) {

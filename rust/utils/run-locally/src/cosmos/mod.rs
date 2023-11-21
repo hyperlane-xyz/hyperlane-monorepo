@@ -1,12 +1,13 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{env, fs};
 
 use cosmwasm_schema::cw_serde;
 use hpl_interface::types::bech32_decode;
 use macro_rules_attribute::apply;
+use maplit::hashmap;
 use tempfile::tempdir;
 
 mod cli;
@@ -26,17 +27,14 @@ use crate::cosmos::link::link_networks;
 use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
-use crate::AGENT_BIN_PATH;
+use crate::{fetch_metric, AGENT_BIN_PATH};
 use cli::{OsmosisCLI, OsmosisEndpoint};
 
 use self::deploy::deploy_cw_hyperlane;
 use self::source::{CLISource, CodeSource};
 
-// const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
-// const OSMOSIS_CLI_VERSION: &str = "19.0.0";
-
-const OSMOSIS_CLI_GIT: &str = "https://github.com/hashableric/osmosis";
-const OSMOSIS_CLI_VERSION: &str = "19.0.0-mnts";
+const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
+const OSMOSIS_CLI_VERSION: &str = "19.0.0";
 
 const KEY_HPL_VALIDATOR: (&str,&str) = ("hpl-validator", "guard evolve region sentence danger sort despair eye deputy brave trim actor left recipe debate document upgrade sustain bus cage afford half demand pigeon");
 const KEY_HPL_RELAYER: (&str,&str) = ("hpl-relayer", "moral item damp melt gloom vendor notice head assume balance doctor retire fashion trim find biology saddle undo switch fault cattle toast drip empty");
@@ -56,9 +54,9 @@ fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
         KEY_ACCOUNTS3,
     ]
 }
-const CW_HYPERLANE_GIT: &str = "https://github.com/many-things/cw-hyperlane";
 
-const CW_HYPERLANE_VERSION: &str = "0.0.6-rc3";
+const CW_HYPERLANE_GIT: &str = "https://github.com/many-things/cw-hyperlane";
+const CW_HYPERLANE_VERSION: &str = "0.0.6-rc6";
 
 fn make_target() -> String {
     let os = if cfg!(target_os = "linux") {
@@ -140,7 +138,7 @@ pub fn install_cosmos(
             version: OSMOSIS_CLI_VERSION.to_string(),
         })
         .install(cli_dir);
-    let codes = install_codes(codes_dir, true);
+    let codes = install_codes(codes_dir, false);
 
     (osmosisd, codes)
 }
@@ -249,6 +247,7 @@ fn launch_cosmos_validator(
 
     let validator = Program::default()
         .bin(validator_bin)
+        .working_dir("../../")
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env(
             "MY_VALIDATOR_SIGNATURE_DIRECTORY",
@@ -260,10 +259,12 @@ fn launch_cosmos_validator(
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
         .hyp_env("REORGPERIOD", "100")
         .hyp_env("DB", validator_base_db.to_str().unwrap())
-        .hyp_env("METRICS", agent_config.domain_id.to_string())
-        .hyp_env("VALIDATOR_KEY", agent_config.signer.key)
-        .hyp_env("VALIDATOR_TYPE", agent_config.signer.typ)
-        .hyp_env("VALIDATOR_PREFIX", "osmo1")
+        .hyp_env("METRICSPORT", agent_config.domain_id.to_string())
+        .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
+        .hyp_env("VALIDATOR_KEY", agent_config.signer.key.clone())
+        .hyp_env("VALIDATOR_PREFIX", "osmo")
+        .hyp_env("SIGNER_SIGNER_TYPE", "hexKey")
+        .hyp_env("SIGNER_KEY", agent_config.signer.key)
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .spawn("VAL");
 
@@ -281,6 +282,7 @@ fn launch_cosmos_relayer(
 
     let relayer = Program::default()
         .bin(relayer_bin)
+        .working_dir("../../")
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env("RUST_BACKTRACE", "1")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
@@ -289,6 +291,7 @@ fn launch_cosmos_relayer(
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]")
+        .hyp_env("METRICSPORT", 9093.to_string())
         .spawn("RLY");
 
     relayer
@@ -299,7 +302,21 @@ const ENV_CW_HYPERLANE_PATH_KEY: &str = "E2E_CW_HYPERLANE_PATH";
 
 #[allow(dead_code)]
 fn run_locally() {
+    const TIMEOUT_SECS: u64 = 60 * 10;
     let debug = false;
+
+    log!("Building rust...");
+    Program::new("cargo")
+        .cmd("build")
+        .working_dir("../../")
+        .arg("features", "test-utils")
+        .arg("bin", "relayer")
+        .arg("bin", "validator")
+        .arg("bin", "scraper")
+        .arg("bin", "init-db")
+        .filter_logs(|l| !l.contains("workspace-inheritance"))
+        .run()
+        .join();
 
     let cli_src = Some(
         env::var(ENV_CLI_PATH_KEY)
@@ -315,10 +332,7 @@ fn run_locally() {
             .unwrap_or_default(),
     );
 
-    let path_buf =
-        PathBuf::from("/Users/eric/many-things/mitosis/cw-hyperlane/artifacts/dist/wasm");
-
-    let (osmosisd, codes) = install_cosmos(None, cli_src, Some(path_buf), code_src);
+    let (osmosisd, codes) = install_cosmos(None, cli_src, None, code_src);
     let addr_base = "tcp://0.0.0.0";
     let default_config = CosmosConfig {
         cli_path: osmosisd.clone(),
@@ -441,9 +455,8 @@ fn run_locally() {
         debug,
     );
 
-    sleep(Duration::from_secs(10)); // wait for 10 seconds
-
     // dispatch messages
+    let mut dispatched_messages = 0;
 
     for node in nodes.iter() {
         let targets = nodes
@@ -460,6 +473,7 @@ fn run_locally() {
         }
 
         for target in targets {
+            dispatched_messages += 1;
             let cli = OsmosisCLI::new(
                 osmosisd.clone(),
                 node.launch_resp.home_path.to_str().unwrap(),
@@ -495,7 +509,70 @@ fn run_locally() {
         relayer: hpl_rly.join(),
     };
 
-    sleep(Duration::from_secs(1000)); // wait for a long time
+    // Mostly copy-pasta from `rust/utils/run-locally/src/main.rs`
+    // TODO: refactor to share code
+    let loop_start = Instant::now();
+    // give things a chance to fully start.
+    sleep(Duration::from_secs(5));
+    let mut failure_occurred = false;
+    loop {
+        // look for the end condition.
+        if termination_invariants_met(dispatched_messages).unwrap_or(false) {
+            // end condition reached successfully
+            break;
+        } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
+            // we ran out of time
+            log!("timeout reached before message submission was confirmed");
+            failure_occurred = true;
+            break;
+        }
+
+        sleep(Duration::from_secs(5));
+    }
+
+    if failure_occurred {
+        panic!("E2E tests failed");
+    } else {
+        log!("E2E tests passed");
+    }
+}
+
+fn termination_invariants_met(messages_expected: u32) -> eyre::Result<bool> {
+    let gas_payments_scraped = fetch_metric(
+        "9093",
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "gas_payment"},
+    )?
+    .iter()
+    .sum::<u32>();
+    let expected_gas_payments = messages_expected;
+    if gas_payments_scraped != expected_gas_payments {
+        log!(
+            "Scraper has scraped {} gas payments, expected {}",
+            gas_payments_scraped,
+            expected_gas_payments
+        );
+        return Ok(false);
+    }
+
+    let delivered_messages_scraped = fetch_metric(
+        "9093",
+        "hyperlane_operations_processed_count",
+        &hashmap! {"phase" => "confirmed"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if delivered_messages_scraped != messages_expected {
+        log!(
+            "Relayer confirmed {} submitted messages, expected {}",
+            delivered_messages_scraped,
+            messages_expected
+        );
+        return Ok(false);
+    }
+
+    log!("Termination invariants have been meet");
+    Ok(true)
 }
 
 #[cfg(test)]

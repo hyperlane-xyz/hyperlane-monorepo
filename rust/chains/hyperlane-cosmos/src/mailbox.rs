@@ -16,6 +16,7 @@ use crate::CosmosProvider;
 use crate::{address::CosmosAddress, grpc::DEFAULT_GAS_PRICE};
 use crate::{signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
+use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::tendermint::abci::EventAttribute;
 use once_cell::sync::Lazy;
 
@@ -40,7 +41,8 @@ pub struct CosmosMailbox {
 }
 
 impl CosmosMailbox {
-    /// Create a reference to a mailbox at a specific address.
+    /// Create a reference to a mailbox at a specific Ethereum address on some
+    /// chain
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
@@ -150,7 +152,12 @@ impl Mailbox for CosmosMailbox {
     ) -> ChainResult<TxOutcome> {
         let process_message = ProcessMessageRequest::new(message, metadata);
 
-        self.provider.wasm_send(process_message, tx_gas_limit).await
+        let response: TxResponse = self
+            .provider
+            .wasm_send(process_message, tx_gas_limit)
+            .await?;
+
+        Ok(response.try_into()?)
     }
 
     #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
@@ -161,16 +168,11 @@ impl Mailbox for CosmosMailbox {
     ) -> ChainResult<TxCostEstimate> {
         let process_message = ProcessMessageRequest::new(message, metadata);
 
+        let gas_limit = self.provider.wasm_estimate_gas(process_message).await?;
+
         let result = TxCostEstimate {
-            gas_limit: self
-                .provider
-                .wasm_estimate_gas(process_message)
-                .await?
-                .into(),
-            // There isn't a great way of getting this on-chain, and annoyingly cosmos
-            // gas prices can be fractional. For now, we just round up to the nearest integer
-            // and use the default gas price.
-            gas_price: U256::from(DEFAULT_GAS_PRICE.ceil() as u64),
+            gas_limit: gas_limit.into(),
+            gas_price: U256::from(2500),
             l2_gas_limit: None,
         };
 
@@ -216,7 +218,8 @@ impl CosmosMailboxIndexer {
     /// The message dispatch event type from the CW contract.
     const MESSAGE_DISPATCH_EVENT_TYPE: &str = "mailbox_dispatch";
 
-    /// Create a mailbox indexer.
+    /// Create a reference to a mailbox at a specific Cosmos address on some
+    /// chain
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
