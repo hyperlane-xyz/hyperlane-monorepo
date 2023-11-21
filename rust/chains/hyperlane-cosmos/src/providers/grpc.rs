@@ -5,10 +5,7 @@ use cosmrs::{
             auth::v1beta1::{
                 query_client::QueryClient as QueryAccountClient, BaseAccount, QueryAccountRequest,
             },
-            base::{
-                abci::v1beta1::TxResponse,
-                tendermint::v1beta1::{service_client::ServiceClient, GetLatestBlockRequest},
-            },
+            base::tendermint::v1beta1::{service_client::ServiceClient, GetLatestBlockRequest},
             tx::v1beta1::{
                 service_client::ServiceClient as TxServiceClient, BroadcastMode,
                 BroadcastTxRequest, SimulateRequest, TxRaw,
@@ -23,7 +20,9 @@ use cosmrs::{
     tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
     Amount, Coin,
 };
-use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, U256};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, TxOutcome, H256, U256,
+};
 use serde::Serialize;
 use tonic::transport::{Channel, Endpoint};
 
@@ -33,7 +32,7 @@ use crate::{signers::Signer, ConnectionConf};
 
 /// The gas price to use for transactions.
 /// TODO: is there a nice way to get a suggested price dynamically?
-const DEFAULT_GAS_PRICE: f64 = 0.05;
+pub const DEFAULT_GAS_PRICE: f64 = 0.05;
 /// A multiplier applied to a simulated transaction's gas usage to
 /// calculate the estimated gas.
 const GAS_ESTIMATE_MULTIPLIER: f64 = 1.25;
@@ -291,7 +290,7 @@ impl WasmProvider for WasmGrpcProvider {
         Ok(response.data)
     }
 
-    async fn wasm_send<T>(&self, payload: T, gas_limit: Option<U256>) -> ChainResult<TxResponse>
+    async fn wasm_send<T>(&self, payload: T, gas_limit: Option<U256>) -> ChainResult<TxOutcome>
     where
         T: Serialize + Send + Sync,
     {

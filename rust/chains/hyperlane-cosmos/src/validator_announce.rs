@@ -96,12 +96,9 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
             announcement.signature.to_vec(),
         );
 
-        let response: TxResponse = self
-            .provider
+        self.provider
             .wasm_send(announce_request, tx_gas_limit)
-            .await?;
-
-        Ok(response.try_into()?)
+            .await
     }
 
     async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {

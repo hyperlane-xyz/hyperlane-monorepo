@@ -152,12 +152,7 @@ impl Mailbox for CosmosMailbox {
     ) -> ChainResult<TxOutcome> {
         let process_message = ProcessMessageRequest::new(message, metadata);
 
-        let response: TxResponse = self
-            .provider
-            .wasm_send(process_message, tx_gas_limit)
-            .await?;
-
-        Ok(response.try_into()?)
+        self.provider.wasm_send(process_message, tx_gas_limit).await
     }
 
     #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
