@@ -3,7 +3,6 @@
   "description": "A yarn workspace of core Hyperlane packages",
   "version": "0.0.0",
   "devDependencies": {
-    "@changesets/cli": "^2.26.2",
     "@trivago/prettier-plugin-sort-imports": "^4.2.1",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
@@ -12,6 +11,9 @@
     "husky": "^8.0.0",
     "lint-staged": "^12.4.3",
     "prettier": "^2.8.8"
+  },
+  "dependencies": {
+    "@changesets/cli": "^2.26.2"
   },
   "packageManager": "yarn@4.0.1",
   "private": true,
