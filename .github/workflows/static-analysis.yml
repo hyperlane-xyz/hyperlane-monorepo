@@ -24,8 +24,7 @@ jobs:
             .yarn/cache
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
-      - name: Install dependencies
-        run: cd solidity && yarn install
+      - run: yarn workspaces focus @hyperlane-xyz/core
 
       - name: Static analysis
         uses: crytic/slither-action@v0.3.0
