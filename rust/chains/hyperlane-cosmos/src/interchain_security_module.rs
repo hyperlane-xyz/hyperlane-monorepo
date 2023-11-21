@@ -64,7 +64,7 @@ impl InterchainSecurityModule for CosmosInterchainSecurityModule {
     async fn module_type(&self) -> ChainResult<ModuleType> {
         let query = IsmQueryMsg::ModuleType {};
 
-        let data = self.provider.wasm_query(query, None).await?;
+        let data = self.provider.wasm_query(query.wrap(), None).await?;
 
         let module_type_response =
             serde_json::from_slice::<hpl_interface::ism::ModuleTypeResponse>(&data)?;

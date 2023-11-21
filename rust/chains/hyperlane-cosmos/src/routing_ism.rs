@@ -12,6 +12,7 @@ use hyperlane_core::{
 use crate::{
     address::CosmosAddress,
     grpc::{WasmGrpcProvider, WasmProvider},
+    payloads::ism_routes::{IsmRouteRequest, IsmRouteRequestInner, QueryRoutingIsmGeneralRequest},
     signers::Signer,
     ConnectionConf, CosmosProvider,
 };
@@ -60,10 +61,20 @@ impl HyperlaneChain for CosmosRoutingIsm {
 #[async_trait]
 impl RoutingIsm for CosmosRoutingIsm {
     async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
-        let payload = QueryMsg::RoutingIsm(RoutingIsmQueryMsg::Route {
-            message: HexBinary::from(RawHyperlaneMessage::from(message)),
-        });
-        let data = self.provider.wasm_query(payload, None).await?;
+        let payload = IsmRouteRequest {
+            route: IsmRouteRequestInner {
+                message: hex::encode(RawHyperlaneMessage::from(message)),
+            },
+        };
+        let data = self
+            .provider
+            .wasm_query(
+                QueryRoutingIsmGeneralRequest {
+                    routing_ism: payload,
+                },
+                None,
+            )
+            .await?;
         let response: RouteResponse = serde_json::from_slice(&data)?;
 
         Ok(CosmosAddress::from_str(&response.ism)?.digest())
