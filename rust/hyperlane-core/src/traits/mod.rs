@@ -73,7 +73,7 @@ impl TryFrom<cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse> for TxOutco
             transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),
             executed: response.code == 0,
             gas_used: U256::from(response.gas_used),
-            gas_price: U256::from(response.gas_wanted),
+            gas_price: U256::one(),
         })
     }
 }

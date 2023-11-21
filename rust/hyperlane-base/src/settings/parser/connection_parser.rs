@@ -14,27 +14,23 @@ pub fn build_ethereum_connection_conf(
     err: &mut ConfigParsingError,
     default_rpc_consensus_type: &str,
 ) -> Option<ChainConnectionConf> {
-    if rpcs.len() <= 1 {
-        rpcs.into_iter().next().map(|url| {
-            ChainConnectionConf::Ethereum(h_eth::ConnectionConf::Http { url: url.clone() })
-        })
-    } else {
-        let rpc_consensus_type = chain
-            .chain(err)
-            .get_opt_key("rpcConsensusType")
-            .parse_string()
-            .unwrap_or(default_rpc_consensus_type);
-        match rpc_consensus_type {
-            "single" => Some(h_eth::ConnectionConf::Http {
-                url: rpcs.clone().into_iter().next().unwrap(),
-            }),
-            "fallback" => Some(h_eth::ConnectionConf::HttpFallback { urls: rpcs.clone() }),
-            "quorum" => Some(h_eth::ConnectionConf::HttpQuorum { urls: rpcs.clone() }),
-            ty => Err(eyre!("unknown rpc consensus type `{ty}`"))
-                .take_err(err, || &chain.cwp + "rpc_consensus_type"),
-        }
-        .map(ChainConnectionConf::Ethereum)
+    let Some(first_url) = rpcs.clone().into_iter().next() else {
+        return None;
+    };
+    let rpc_consensus_type = chain
+        .chain(err)
+        .get_opt_key("rpcConsensusType")
+        .parse_string()
+        .unwrap_or(default_rpc_consensus_type);
+
+    match rpc_consensus_type {
+        "single" => Some(h_eth::ConnectionConf::Http { url: first_url }),
+        "fallback" => Some(h_eth::ConnectionConf::HttpFallback { urls: rpcs.clone() }),
+        "quorum" => Some(h_eth::ConnectionConf::HttpQuorum { urls: rpcs.clone() }),
+        ty => Err(eyre!("unknown rpc consensus type `{ty}`"))
+            .take_err(err, || &chain.cwp + "rpc_consensus_type"),
     }
+    .map(ChainConnectionConf::Ethereum)
 }
 
 pub fn build_cosmos_connection_conf(
