@@ -33,7 +33,8 @@
   },
   "files": [
     "./dist",
-    "./examples"
+    "./examples",
+    "package.json"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
