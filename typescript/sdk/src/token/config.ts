@@ -65,11 +65,11 @@ export const isSyntheticConfig = (
 export const isNativeConfig = (config: TokenConfig): config is NativeConfig =>
   config.type === TokenType.native;
 
-export const isUriConfig = (config: TokenConfig) =>
+export const isUriConfig = (config: TokenConfig): boolean =>
   config.type === TokenType.syntheticUri ||
   config.type === TokenType.collateralUri;
 
-export const isFastConfig = (config: TokenConfig) =>
+export const isFastConfig = (config: TokenConfig): boolean =>
   config.type === TokenType.fastSynthetic ||
   config.type === TokenType.fastCollateral;
 

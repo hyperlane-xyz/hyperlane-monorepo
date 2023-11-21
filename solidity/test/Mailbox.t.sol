@@ -449,9 +449,9 @@ contract MailboxTest is Test, Versioned {
         mailbox.process("", message);
     }
 
-    function test_process_revertsWhenBadDestination(bytes calldata body)
-        public
-    {
+    function test_process_revertsWhenBadDestination(
+        bytes calldata body
+    ) public {
         bytes memory message = Message.formatMessage(
             VERSION,
             0,
