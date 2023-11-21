@@ -9,8 +9,6 @@ export const statusCommand: CommandModule = {
   describe: 'Check status of a message',
   builder: (yargs) =>
     yargs.options({
-      chains: chainsCommandOption,
-      core: coreArtifactsOption,
       id: {
         type: 'string',
         description: 'Message ID',
@@ -21,6 +19,8 @@ export const statusCommand: CommandModule = {
         description: 'Destination chain name',
         demandOption: true,
       },
+      chains: chainsCommandOption,
+      core: coreArtifactsOption,
     }),
   handler: async (argv: any) => {
     const chainConfigPath: string = argv.chains;
