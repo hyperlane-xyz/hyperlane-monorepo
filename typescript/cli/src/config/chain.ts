@@ -1,5 +1,4 @@
 import { confirm, input, select } from '@inquirer/prompts';
-import fs from 'fs';
 
 import {
   ChainMap,
@@ -11,7 +10,12 @@ import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { getMultiProvider } from '../context.js';
-import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
+import {
+  FileFormat,
+  isFile,
+  mergeYamlOrJson,
+  readYamlOrJson,
+} from '../utils/files.js';
 
 export function readChainConfigs(filePath: string) {
   log(`Reading file configs in ${filePath}`);
@@ -57,7 +61,7 @@ export function readChainConfigs(filePath: string) {
 }
 
 export function readChainConfigsIfExists(filePath: string) {
-  if (!fs.existsSync(filePath)) {
+  if (!isFile(filePath)) {
     log('No chain config file provided');
     return {};
   } else {

@@ -28,6 +28,7 @@ import {
   getMergedContractAddresses,
 } from '../context.js';
 import {
+  isFile,
   prepNewArtifactsFiles,
   runFileSelectionStep,
   writeJson,
@@ -53,12 +54,14 @@ export async function runWarpDeploy({
 }) {
   const { multiProvider, signer } = getContextWithSigner(key, chainConfigPath);
 
-  if (!warpConfigPath) {
+  if (!warpConfigPath || !isFile(warpConfigPath)) {
     warpConfigPath = await runFileSelectionStep(
       './configs',
       'Warp config',
       'warp',
     );
+  } else {
+    log(`Using warp config at ${warpConfigPath}`);
   }
   const warpRouteConfig = readWarpRouteConfig(warpConfigPath);
 
@@ -115,11 +118,6 @@ async function runBuildConfigStep({
 
   const mergedContractAddrs = getMergedContractAddresses(artifacts);
 
-  logGray(
-    'Contract addresses from artifacts:\n',
-    JSON.stringify(mergedContractAddrs[baseChainName], null, 4),
-  );
-
   // Create configs that coalesce together values from the config file,
   // the artifacts, and the SDK as a fallback
   const configMap: ChainMap<TokenConfig & RouterConfig> = {
@@ -130,12 +128,12 @@ async function runBuildConfigStep({
           ? base.address!
           : ethers.constants.AddressZero,
       owner,
-      mailbox: base.mailbox || mergedContractAddrs[baseChainName].mailbox,
+      mailbox: base.mailbox || mergedContractAddrs[baseChainName]?.mailbox,
       interchainSecurityModule:
         base.interchainSecurityModule ||
-        mergedContractAddrs[baseChainName].interchainSecurityModule ||
-        mergedContractAddrs[baseChainName].multisigIsm,
-      // ismFactory: mergedContractAddrs[baseChainName].routingIsmFactory, // fix when updating from routingIsm
+        mergedContractAddrs[baseChainName]?.interchainSecurityModule ||
+        mergedContractAddrs[baseChainName]?.multisigIsm,
+      // ismFactory: mergedContractAddrs[baseChainName].routingIsmFactory, // TODO fix when updating from routingIsm
       foreignDeployment: base.foreignDeployment,
       name: baseMetadata.name,
       symbol: baseMetadata.symbol,
@@ -154,9 +152,9 @@ async function runBuildConfigStep({
       mailbox: synthetic.mailbox || mergedContractAddrs[sChainName].mailbox,
       interchainSecurityModule:
         synthetic.interchainSecurityModule ||
-        mergedContractAddrs[sChainName].interchainSecurityModule ||
-        mergedContractAddrs[sChainName].multisigIsm,
-      // ismFactory: mergedContractAddrs[sChainName].routingIsmFactory, // fix
+        mergedContractAddrs[sChainName]?.interchainSecurityModule ||
+        mergedContractAddrs[sChainName]?.multisigIsm,
+      // ismFactory: mergedContractAddrs[sChainName].routingIsmFactory, // TODO fix
       foreignDeployment: synthetic.foreignDeployment,
     };
   }
