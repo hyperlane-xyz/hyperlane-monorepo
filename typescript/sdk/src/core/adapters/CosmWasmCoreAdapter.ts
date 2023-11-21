@@ -178,7 +178,7 @@ export class CosmWasmCoreAdapter
     _destination: ChainName,
     _delayMs?: number,
     _maxAttempts?: number,
-  ): Promise<void> {
+  ): Promise<boolean> {
     throw new Error('Method not implemented.');
   }
 }
