@@ -99,7 +99,9 @@ impl WasmGrpcProvider {
         locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let channel = Endpoint::new(conf.get_grpc_url())?.connect_lazy();
+        let endpoint =
+            Endpoint::new(conf.get_grpc_url()).map_err(Into::<HyperlaneCosmosError>::into)?;
+        let channel = endpoint.connect_lazy();
         let contract_address = CosmosAddress::from_h256(locator.address, &conf.get_prefix())?;
 
         Ok(Self {
@@ -144,17 +146,21 @@ impl WasmGrpcProvider {
             Coin::new(
                 Amount::from((gas_limit as f64 * DEFAULT_GAS_PRICE) as u64),
                 self.conf.get_canonical_asset().as_str(),
-            )?,
+            )
+            .map_err(Into::<HyperlaneCosmosError>::into)?,
             gas_limit,
         ));
 
-        SignDoc::new(
-            &tx_body,
-            &auth_info,
-            &self.conf.get_chain_id().parse()?,
-            account_info.account_number,
+        let chain_id = self
+            .conf
+            .get_chain_id()
+            .parse()
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
+
+        Ok(
+            SignDoc::new(&tx_body, &auth_info, &chain_id, account_info.account_number)
+                .map_err(Into::<HyperlaneCosmosError>::into)?,
         )
-        .map_err(Into::into)
     }
 
     /// Generates a raw signed transaction including `msgs`, estimating gas if a limit is not provided.
@@ -172,8 +178,12 @@ impl WasmGrpcProvider {
         let sign_doc = self.generate_unsigned_sign_doc(msgs, gas_limit).await?;
 
         let signer = self.get_signer()?;
-        let tx_signed = sign_doc.sign(&signer.signing_key()?)?;
-        Ok(tx_signed.to_bytes()?)
+        let tx_signed = sign_doc
+            .sign(&signer.signing_key()?)
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
+        Ok(tx_signed
+            .to_bytes()
+            .map_err(Into::<HyperlaneCosmosError>::into)?)
     }
 
     /// Estimates gas for a transaction containing `msgs`.
@@ -227,7 +237,8 @@ impl WasmGrpcProvider {
                 .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
                 .value
                 .as_slice(),
-        )?;
+        )
+        .map_err(Into::<HyperlaneCosmosError>::into)?;
         Ok(account)
     }
 }

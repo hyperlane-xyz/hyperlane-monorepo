@@ -10,7 +10,7 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogM
 use tracing::{instrument, trace};
 
 use crate::address::CosmosAddress;
-use crate::ConnectionConf;
+use crate::{ConnectionConf, HyperlaneCosmosError};
 
 const PAGINATION_LIMIT: u8 = 100;
 
@@ -66,10 +66,15 @@ impl CosmosWasmIndexer {
         event_type: String,
         reorg_period: u32,
     ) -> ChainResult<Self> {
-        let client = HttpClient::builder(conf.get_rpc_url().parse()?)
-            // Consider supporting different compatibility modes.
-            .compat_mode(CompatMode::latest())
-            .build()?;
+        let client = HttpClient::builder(
+            conf.get_rpc_url()
+                .parse()
+                .map_err(Into::<HyperlaneCosmosError>::into)?,
+        )
+        // Consider supporting different compatibility modes.
+        .compat_mode(CompatMode::latest())
+        .build()
+        .map_err(Into::<HyperlaneCosmosError>::into)?;
         Ok(Self {
             client,
             contract_address: CosmosAddress::from_h256(
@@ -88,7 +93,8 @@ impl CosmosWasmIndexer {
         Ok(self
             .client
             .tx_search(query, false, page, PAGINATION_LIMIT, Order::Ascending)
-            .await?)
+            .await
+            .map_err(Into::<HyperlaneCosmosError>::into)?)
     }
 
     // Iterate through all txs, filter out failed txs, find target events
@@ -172,7 +178,8 @@ impl WasmIndexer for CosmosWasmIndexer {
         let latest_height: u32 = self
             .client
             .latest_block()
-            .await?
+            .await
+            .map_err(Into::<HyperlaneCosmosError>::into)?
             .block
             .header
             .height

@@ -1,7 +1,7 @@
 use cosmrs::crypto::{secp256k1::SigningKey, PublicKey};
 use hyperlane_core::ChainResult;
 
-use crate::address::CosmosAddress;
+use crate::{address::CosmosAddress, HyperlaneCosmosError};
 
 #[derive(Clone, Debug)]
 /// Signer for cosmos chain
@@ -41,6 +41,7 @@ impl Signer {
     }
 
     fn build_signing_key(private_key: &Vec<u8>) -> ChainResult<SigningKey> {
-        Ok(SigningKey::from_slice(private_key.as_slice())?)
+        Ok(SigningKey::from_slice(private_key.as_slice())
+            .map_err(Into::<HyperlaneCosmosError>::into)?)
     }
 }

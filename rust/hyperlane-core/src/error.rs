@@ -4,8 +4,6 @@ use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
 use crate::config::StrOrIntParseError;
-use cosmrs::proto::prost;
-use cosmrs::Error as CosmrsError;
 use std::string::FromUtf8Error;
 
 use crate::Error as PrimitiveTypeError;
@@ -83,27 +81,9 @@ pub enum ChainCommunicationError {
     /// Failed to parse strings or integers
     #[error("Data parsing error {0:?}")]
     StrOrIntParseError(#[from] StrOrIntParseError),
-    /// Tendermint RPC Error
-    #[error(transparent)]
-    TendermintError(#[from] tendermint_rpc::error::Error),
     /// BlockNotFoundError
     #[error("Block not found: {0:?}")]
     BlockNotFound(H256),
-    /// Cosmrs library error
-    #[error("{0}")]
-    Cosmrs(#[from] CosmrsError),
-    /// Cosmrs ErrorReport
-    #[error("{0}")]
-    CosmrsErrorReport(#[from] cosmrs::ErrorReport),
-    #[error("{0}")]
-    /// Cosmrs Tendermint Error
-    CosmrsTendermintError(#[from] cosmrs::tendermint::Error),
-    /// Tonic error
-    #[error("{0}")]
-    Tonic(#[from] tonic::transport::Error),
-    /// protobuf error
-    #[error("{0}")]
-    Protobuf(#[from] prost::DecodeError),
     /// base64 error
     #[error("{0}")]
     Base64(#[from] base64::DecodeError),
