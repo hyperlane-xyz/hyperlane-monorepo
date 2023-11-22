@@ -9,7 +9,7 @@ import {
   testnetChainsMetadata,
 } from '@hyperlane-xyz/sdk';
 
-import { log, logBlue, logTip } from '../../logger.js';
+import { log, logBlue, logRed, logTip } from '../../logger.js';
 
 // A special value marker to indicate user selected
 // a new chain in the list
@@ -33,16 +33,18 @@ export async function runMultiChainSelectionStep(
   customChains: ChainMap<ChainMetadata>,
   message = 'Select chains',
 ) {
-  logTip('Use SPACE key to select chains, then press ENTER');
   const choices = getChainChoices(customChains);
-  const chains = (await checkbox({
-    message,
-    choices,
-    pageSize: 20,
-  })) as string[];
-  handleNewChain(chains);
-  if (!chains?.length) throw new Error('No chains selected');
-  return chains;
+  while (true) {
+    logTip('Use SPACE key to select chains, then press ENTER');
+    const chains = (await checkbox({
+      message,
+      choices,
+      pageSize: 20,
+    })) as string[];
+    handleNewChain(chains);
+    if (chains?.length >= 2) return chains;
+    else logRed('Please select at least 2 chains');
+  }
 }
 
 function getChainChoices(customChains: ChainMap<ChainMetadata>) {
