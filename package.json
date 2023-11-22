@@ -27,7 +27,6 @@
     "version:prepare": "yarn changeset version",
     "version:check": "yarn changeset status",
     "publish:all": "yarn changeset publish",
-    "release": "yarn build && yarn version:check && yarn publish:all",
     "postinstall": "husky install"
   },
   "workspaces": [
