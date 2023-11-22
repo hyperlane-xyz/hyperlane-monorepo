@@ -1,6 +1,6 @@
 import { confirm, input, select } from '@inquirer/prompts';
-import { BigNumber } from 'bignumber.js';
-import { ethers } from 'ethers';
+import { BigNumber as BigNumberJs } from 'bignumber.js';
+import { BigNumber, ethers } from 'ethers';
 import { z } from 'zod';
 
 import {
@@ -9,6 +9,7 @@ import {
   GasOracleContractType,
   HookConfig,
   HookType,
+  HooksConfig,
   IgpHookConfig,
   MerkleTreeHookConfig,
   MultisigIsmConfig,
@@ -113,10 +114,10 @@ export function presetHookConfigs(
   };
 }
 
-export function readHookConfig(filePath: string) {
+export function readHooksConfig(filePath: string) {
   const config = readYamlOrJson(filePath);
   if (!config) {
-    logRed(`No multisig config found at ${filePath}`);
+    logRed(`No hook config found at ${filePath}`);
     return;
   }
   const result = HookConfigMapSchema.safeParse(config);
@@ -127,19 +128,35 @@ export function readHookConfig(filePath: string) {
     );
   }
   const parsedConfig = result.data;
-  const defaultHook: ChainMap<HookConfig> = objMap(
+  const hooks: ChainMap<HooksConfig> = objMap(
     parsedConfig,
     (_, config) =>
       ({
-        type: config.default.type,
-      } as HookConfig),
+        required: readHookConfig(config.required),
+        default: readHookConfig(config.default),
+      } as HooksConfig),
   );
-  logGreen(`All multisig configs in ${filePath} are valid`);
-  return defaultHook;
+  logGreen(`All hook configs in ${filePath} are valid`);
+  return hooks;
 }
 
-// TODO: read different hook configs
-// export async function readProtocolFeeHookConfig(config: {type: HookType.PROTOCOL_FEE, ...}) {
+export function readHookConfig(parsedConfig: any): HookConfig {
+  if (parsedConfig.type === HookType.PROTOCOL_FEE) {
+    return {
+      type: parsedConfig.type,
+      maxProtocolFee: BigNumber.from(toWei(parsedConfig.protocolFee)),
+      protocolFee: BigNumber.from(toWei(parsedConfig.protocolFee)),
+      beneficiary: normalizeAddressEvm(parsedConfig.beneficiary),
+      owner: normalizeAddressEvm(parsedConfig.owner),
+    } as ProtocolFeeHookConfig;
+  } else if (parsedConfig.type === HookType.MERKLE_TREE) {
+    return {
+      type: parsedConfig.type,
+    } as MerkleTreeHookConfig;
+  } else {
+    throw new Error(`Invalid hooker type: ${parsedConfig.type}`);
+  }
+}
 
 export async function createHookConfig({
   format,
@@ -192,15 +209,16 @@ export async function createHookConfig({
         // TODO: input in gwei, wei, etc
         const maxProtocolFee = toWei(
           await input({
-            message: 'Enter max protocol fee in (e.g. 1.0)',
+            message:
+              'Enter max protocol fee which you cannot exceed (in eth e.g. 1.0)',
           }),
         );
         const protocolFee = toWei(
           await input({
-            message: 'Enter protocol fee (e.g. 1.0)',
+            message: 'Enter protocol fee (in eth e.g. 0.01)',
           }),
         );
-        if (BigNumber(protocolFee).gt(maxProtocolFee)) {
+        if (BigNumberJs(protocolFee).gt(maxProtocolFee)) {
           errorRed('Protocol fee cannot be greater than max protocol fee');
           throw new Error('Invalid protocol fee');
         }

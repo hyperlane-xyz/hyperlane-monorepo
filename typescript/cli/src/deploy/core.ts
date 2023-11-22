@@ -7,7 +7,7 @@ import {
   CoreConfig,
   DeployedIsm,
   GasOracleContractType,
-  HookType,
+  HooksConfig,
   HyperlaneAddresses,
   HyperlaneAddressesMap,
   HyperlaneContractsMap,
@@ -29,9 +29,16 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
-import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
+import {
+  log,
+  logBlue,
+  logGray,
+  logGreen,
+  logPink,
+  logRed,
+} from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
-import { readHookConfig } from '../config/hooks.js';
+import { readHooksConfig } from '../config/hooks.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import {
@@ -84,8 +91,7 @@ export async function runCoreDeploy({
   }
   const artifacts = await runArtifactStep(chains, artifactsPath);
   const multisigConfig = await runIsmStep(chains, ismConfigPath);
-  // TODO re-enable when hook config is actually used
-  await runHookStep(chains, hookConfigPath);
+  const hooksConfig = await runHookStep(chains, hookConfigPath);
 
   const deploymentParams: DeployParams = {
     chains,
@@ -93,6 +99,7 @@ export async function runCoreDeploy({
     multiProvider,
     artifacts,
     multisigConfig,
+    hooksConfig,
     outPath,
     skipConfirmation,
   };
@@ -176,8 +183,6 @@ async function runHookStep(
   _selectedChains: ChainName[],
   hookConfigPath?: string,
 ) {
-  if ('TODO: Skip this step for now as values are unused') return;
-
   // const presetConfigChains = Object.keys(presetHookConfigs);
 
   if (!hookConfigPath) {
@@ -191,9 +196,7 @@ async function runHookStep(
       'hook',
     );
   }
-  const configs = readHookConfig(hookConfigPath);
-  if (!configs) return;
-  log(`Found hook configs for chains: ${Object.keys(configs).join(', ')}`);
+  return readHooksConfig(hookConfigPath);
 }
 
 interface DeployParams {
@@ -202,6 +205,7 @@ interface DeployParams {
   multiProvider: MultiProvider;
   artifacts?: HyperlaneAddressesMap<any>;
   multisigConfig?: ChainMap<MultisigConfig>;
+  hooksConfig?: ChainMap<HooksConfig>;
   outPath: string;
   skipConfirmation: boolean;
 }
@@ -238,6 +242,7 @@ async function executeDeploy({
   outPath,
   artifacts = {},
   multisigConfig = {},
+  hooksConfig = {},
 }: DeployParams) {
   logBlue('All systems ready, captain! Beginning deployment...');
 
@@ -298,6 +303,7 @@ async function executeDeploy({
     chains,
     defaultIsms,
     multisigConfig,
+    hooksConfig,
   );
   const coreContracts = await coreDeployer.deploy(coreConfigs);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
@@ -351,31 +357,16 @@ function buildCoreConfigMap(
   chains: ChainName[],
   defaultIsms: ChainMap<Address>,
   multisigConfig: ChainMap<MultisigConfig>,
+  hooksConfig: ChainMap<HooksConfig>,
 ): ChainMap<CoreConfig> {
   return chains.reduce<ChainMap<CoreConfig>>((config, chain) => {
-    const igpConfig = buildIgpConfigMap(owner, chains, multisigConfig);
+    // const igpConfig = buildIgpConfigMap(owner, chains, multisigConfig);
+    logPink(JSON.stringify(hooksConfig[chain], null, 2));
     config[chain] = {
       owner,
       defaultIsm: defaultIsms[chain],
-      defaultHook: {
-        type: HookType.AGGREGATION,
-        hooks: [
-          {
-            type: HookType.MERKLE_TREE,
-          },
-          {
-            type: HookType.INTERCHAIN_GAS_PAYMASTER,
-            ...igpConfig[chain],
-          },
-        ],
-      },
-      requiredHook: {
-        type: HookType.PROTOCOL_FEE,
-        maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'), // 1 gwei of native token
-        protocolFee: ethers.utils.parseUnits('0', 'wei'), // 1 wei
-        beneficiary: owner,
-        owner,
-      },
+      defaultHook: hooksConfig[chain].default,
+      requiredHook: hooksConfig[chain].required,
     };
     return config;
   }, {});
@@ -399,7 +390,7 @@ function buildTestRecipientConfigMap(
   }, {});
 }
 
-function buildIgpConfigMap(
+export function buildIgpConfigMap(
   owner: Address,
   chains: ChainName[],
   multisigConfigs: ChainMap<MultisigConfig>,

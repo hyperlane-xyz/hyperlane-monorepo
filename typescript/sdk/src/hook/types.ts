@@ -64,3 +64,8 @@ export type HookConfig =
   | OpStackHookConfig
   | DomainRoutingHookConfig
   | FallbackRoutingHookConfig;
+
+export type HooksConfig = {
+  required: HookConfig;
+  default: HookConfig;
+};
