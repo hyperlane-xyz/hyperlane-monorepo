@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use ethers::{
     abi::Detokenize,
+    middleware::gas_oracle::{GasCategory, GasOracle, Polygon},
     prelude::{NameOrAddress, TransactionReceipt},
     types::Eip1559TransactionRequest,
 };
@@ -87,19 +88,9 @@ where
             .saturating_add(U256::from(GAS_ESTIMATE_BUFFER).into())
             .into()
     };
-    let Ok((max_fee, max_priority_fee)) = provider.estimate_eip1559_fees(None).await else {
+    let Ok((max_fee, max_priority_fee)) = estimate_eip1559_fees(&provider, domain).await else {
         // Is not EIP 1559 chain
         return Ok(tx.gas(gas_limit));
-    };
-    let max_priority_fee = if matches!(
-        KnownHyperlaneDomain::try_from(domain),
-        Ok(KnownHyperlaneDomain::Polygon)
-    ) {
-        // Polygon needs a max priority fee >= 30 gwei
-        let min_polygon_fee = U256::from(30_000_000_000u64);
-        max_priority_fee.max(min_polygon_fee.into())
-    } else {
-        max_priority_fee
     };
     // Is EIP 1559 chain
     let mut request = Eip1559TransactionRequest::new();
@@ -142,4 +133,47 @@ where
     } else {
         Ok(call)
     }
+}
+
+/// Heavily borrowed from:
+/// https://github.com/foundry-rs/foundry/blob/fdaed8603fc330cbc94c936f15594bccdc381225/crates/common/src/provider.rs#L254-L290
+///
+/// Estimates EIP1559 fees depending on the chain
+///
+/// Uses custom gas oracles for
+///   - polygon
+///   - mumbai
+///
+/// Fallback is the default [`Provider::estimate_eip1559_fees`] implementation
+pub async fn estimate_eip1559_fees<M: Middleware>(
+    provider: &M,
+    domain: u32,
+) -> ChainResult<(ethers::types::U256, ethers::types::U256)>
+where
+    M::Error: 'static,
+{
+    if let Ok(domain) = KnownHyperlaneDomain::try_from(domain) {
+        // handle chains that deviate from `eth_feeHistory` and have their own oracle
+        match domain {
+            KnownHyperlaneDomain::Polygon | KnownHyperlaneDomain::Mumbai => {
+                let chain = match domain {
+                    KnownHyperlaneDomain::Polygon => ethers_core::types::Chain::Polygon,
+                    KnownHyperlaneDomain::Mumbai => ethers_core::types::Chain::PolygonMumbai,
+                    _ => unreachable!(),
+                };
+                let estimator = Polygon::new(chain)
+                    .map_err(ChainCommunicationError::from_other)?
+                    .category(GasCategory::Standard);
+                return estimator
+                    .estimate_eip1559_fees()
+                    .await
+                    .map_err(ChainCommunicationError::from_other);
+            }
+            _ => {}
+        }
+    }
+    provider
+        .estimate_eip1559_fees(None)
+        .await
+        .map_err(ChainCommunicationError::from_other)
 }
