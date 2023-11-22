@@ -116,7 +116,7 @@ pub fn build_connection_conf(
             build_ethereum_connection_conf(rpcs, chain, err, default_rpc_consensus_type)
         }
         HyperlaneDomainProtocol::Fuel => rpcs
-            .into_iter()
+            .iter()
             .next()
             .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url: url.clone() })),
         HyperlaneDomainProtocol::Sealevel => rpcs.iter().next().map(|url| {
