@@ -34,7 +34,7 @@ export const isErc20Metadata = (metadata: any): metadata is ERC20Metadata =>
 
 export type SyntheticConfig = TokenMetadata & {
   type: TokenType.synthetic | TokenType.syntheticUri | TokenType.fastSynthetic;
-} & TokenMetadata;
+};
 export type CollateralConfig = {
   type:
     | TokenType.collateral
@@ -65,11 +65,11 @@ export const isSyntheticConfig = (
 export const isNativeConfig = (config: TokenConfig): config is NativeConfig =>
   config.type === TokenType.native;
 
-export const isUriConfig = (config: TokenConfig) =>
+export const isUriConfig = (config: TokenConfig): boolean =>
   config.type === TokenType.syntheticUri ||
   config.type === TokenType.collateralUri;
 
-export const isFastConfig = (config: TokenConfig) =>
+export const isFastConfig = (config: TokenConfig): boolean =>
   config.type === TokenType.fastSynthetic ||
   config.type === TokenType.fastCollateral;
 

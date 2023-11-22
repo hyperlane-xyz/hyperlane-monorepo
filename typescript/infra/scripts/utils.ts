@@ -8,11 +8,7 @@ import {
   ChainName,
   Chains,
   CoreConfig,
-  HyperlaneCore,
-  HyperlaneIgp,
   MultiProvider,
-  ProxiedRouterConfig,
-  RouterConfig,
   RpcConsensusType,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
@@ -45,6 +41,7 @@ export enum Modules {
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
   HELLO_WORLD = 'helloworld',
+  WARP = 'warp',
 }
 
 export const SDK_MODULES = [
@@ -284,74 +281,6 @@ export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {
     );
     process.exit(1);
   }
-}
-
-export async function getRouterConfig(
-  environment: DeployEnvironment,
-  multiProvider: MultiProvider,
-  useMultiProviderOwners = false,
-): Promise<ChainMap<RouterConfig>> {
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[environment],
-    multiProvider,
-  );
-  // TODO: replace this with core.getRouterConfig
-  const igp = HyperlaneIgp.fromEnvironment(
-    deployEnvToSdkEnv[environment],
-    multiProvider,
-  );
-
-  const owners = getEnvironmentConfig(environment).owners;
-  const config: ChainMap<RouterConfig> = {};
-  const knownChains = multiProvider.intersect(
-    core.chains().concat(igp.chains()),
-  ).intersection;
-
-  for (const chain of knownChains) {
-    // CI will not have signers for all known chains. To avoid failing, we
-    // default to the owner configured in the environment if we cannot get a
-    // signer address.
-    const getSignerAddress = (chain: ChainName) => {
-      const signer = multiProvider.tryGetSigner(chain);
-      if (!signer) {
-        const owner = owners[chain];
-        console.warn(
-          `Unable to get signer for chain, ${chain}, defaulting to configured owner ${owner}`,
-        );
-        return owner;
-      }
-      return signer.getAddress();
-    };
-
-    // MultiProvider signers are only used for Ethereum chains.
-    const owner =
-      useMultiProviderOwners &&
-      multiProvider.getChainMetadata(chain).protocol === ProtocolType.Ethereum
-        ? await getSignerAddress(chain)
-        : owners[chain];
-    config[chain] = {
-      owner: owner,
-      mailbox: core.getContracts(chain).mailbox.address,
-      // hook: igp.getContracts(chain).interchainGasPaymaster.address,
-    };
-  }
-  return config;
-}
-
-export async function getProxiedRouterConfig(
-  environment: DeployEnvironment,
-  multiProvider: MultiProvider,
-  useMultiProviderOwners = false,
-): Promise<ChainMap<ProxiedRouterConfig>> {
-  const config = await getRouterConfig(
-    environment,
-    multiProvider,
-    useMultiProviderOwners,
-  );
-  return objMap(config, (chain, routerConfig) => ({
-    timelock: environments[environment].core[chain].upgrade?.timelock,
-    ...routerConfig,
-  }));
 }
 
 export function getValidatorsByChain(

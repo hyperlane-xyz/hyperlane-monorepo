@@ -88,11 +88,9 @@ contract ValidatorAnnounce is MailboxClient, IValidatorAnnounce {
      * @param _validators The list of validators to get registrations for
      * @return A list of registered storage metadata
      */
-    function getAnnouncedStorageLocations(address[] calldata _validators)
-        external
-        view
-        returns (string[][] memory)
-    {
+    function getAnnouncedStorageLocations(
+        address[] calldata _validators
+    ) external view returns (string[][] memory) {
         string[][] memory _metadata = new string[][](_validators.length);
         for (uint256 i = 0; i < _validators.length; i++) {
             _metadata[i] = storageLocations[_validators[i]];
@@ -110,11 +108,9 @@ contract ValidatorAnnounce is MailboxClient, IValidatorAnnounce {
      * @param _storageLocation Storage location string.
      * @return The digest of the announcement.
      */
-    function getAnnouncementDigest(string memory _storageLocation)
-        public
-        view
-        returns (bytes32)
-    {
+    function getAnnouncementDigest(
+        string memory _storageLocation
+    ) public view returns (bytes32) {
         return
             ECDSA.toEthSignedMessageHash(
                 keccak256(abi.encodePacked(_domainHash(), _storageLocation))

@@ -46,7 +46,9 @@ contract StorageGasOracle is IGasOracle, Ownable {
      * @return tokenExchangeRate The exchange rate of the remote native token quoted in the local native token.
      * @return gasPrice The gas price on the remote chain.
      */
-    function getExchangeRateAndGasPrice(uint32 _destinationDomain)
+    function getExchangeRateAndGasPrice(
+        uint32 _destinationDomain
+    )
         external
         view
         override
@@ -63,10 +65,9 @@ contract StorageGasOracle is IGasOracle, Ownable {
      * @notice Sets the remote gas data for many remotes at a time.
      * @param _configs The configs to use when setting the remote gas data.
      */
-    function setRemoteGasDataConfigs(RemoteGasDataConfig[] calldata _configs)
-        external
-        onlyOwner
-    {
+    function setRemoteGasDataConfigs(
+        RemoteGasDataConfig[] calldata _configs
+    ) external onlyOwner {
         uint256 _len = _configs.length;
         for (uint256 i = 0; i < _len; i++) {
             _setRemoteGasData(_configs[i]);
@@ -77,10 +78,9 @@ contract StorageGasOracle is IGasOracle, Ownable {
      * @notice Sets the remote gas data using the values in `_config`.
      * @param _config The config to use when setting the remote gas data.
      */
-    function setRemoteGasData(RemoteGasDataConfig calldata _config)
-        external
-        onlyOwner
-    {
+    function setRemoteGasData(
+        RemoteGasDataConfig calldata _config
+    ) external onlyOwner {
         _setRemoteGasData(_config);
     }
 

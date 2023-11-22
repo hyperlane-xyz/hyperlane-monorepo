@@ -67,6 +67,8 @@ export type RoutingIsmConfig = {
   type: IsmType.ROUTING;
   owner: Address;
   domains: ChainMap<IsmConfig>;
+  // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2895
+  // defaultFallback?: boolean;
 };
 
 export type AggregationIsmConfig = {

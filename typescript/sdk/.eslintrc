@@ -1,5 +1,7 @@
 {
   "rules": {
-    "@typescript-eslint/explicit-module-boundary-types": ["warn"]
+    "@typescript-eslint/explicit-module-boundary-types": ["warn", {
+      "allowArgumentsExplicitlyTypedAsAny": true
+    }]
   }
 }

@@ -43,11 +43,10 @@ library CheckpointLib {
      * @param _originmerkleTreeHook The address of the origin merkle tree as bytes32.
      * @return The domain hash.
      */
-    function domainHash(uint32 _origin, bytes32 _originmerkleTreeHook)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function domainHash(
+        uint32 _origin,
+        bytes32 _originmerkleTreeHook
+    ) internal pure returns (bytes32) {
         // Including the origin merkle tree address in the signature allows the slashing
         // protocol to enroll multiple trees. Otherwise, a valid signature for
         // tree A would be indistinguishable from a fraudulent signature for tree B.

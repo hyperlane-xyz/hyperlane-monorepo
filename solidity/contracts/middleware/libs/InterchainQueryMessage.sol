@@ -33,11 +33,9 @@ library InterchainQueryMessage {
      * @param _message The interchain query message
      * @return The message type (query or response)
      */
-    function messageType(bytes calldata _message)
-        internal
-        pure
-        returns (MessageType)
-    {
+    function messageType(
+        bytes calldata _message
+    ) internal pure returns (MessageType) {
         // left padded with zeroes
         return MessageType(uint8(bytes1(_message[CALLS_OFFSET - 1])));
     }
@@ -83,11 +81,9 @@ library InterchainQueryMessage {
      * @return _calls The sequence of queries to make with the corresponding
      * response callbacks
      */
-    function callsWithCallbacks(bytes calldata _message)
-        internal
-        pure
-        returns (CallLib.StaticCallWithCallback[] memory _calls)
-    {
+    function callsWithCallbacks(
+        bytes calldata _message
+    ) internal pure returns (CallLib.StaticCallWithCallback[] memory _calls) {
         assert(messageType(_message) == MessageType.QUERY);
         (, , _calls) = abi.decode(
             _message,
@@ -101,11 +97,10 @@ library InterchainQueryMessage {
      * @param _calls The sequence of callbacks to make
      * @return Formatted message body
      */
-    function encode(bytes32 _sender, bytes[] memory _calls)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function encode(
+        bytes32 _sender,
+        bytes[] memory _calls
+    ) internal pure returns (bytes memory) {
         return abi.encode(_sender, MessageType.RESPONSE, _calls);
     }
 
@@ -114,11 +109,9 @@ library InterchainQueryMessage {
      * @param _message The interchain query message, type == RESPONSE
      * @return _calls The sequence of callbacks to make
      */
-    function rawCalls(bytes calldata _message)
-        internal
-        pure
-        returns (bytes[] memory _calls)
-    {
+    function rawCalls(
+        bytes calldata _message
+    ) internal pure returns (bytes[] memory _calls) {
         assert(messageType(_message) == MessageType.RESPONSE);
         (, , _calls) = abi.decode(_message, (bytes32, MessageType, bytes[]));
     }

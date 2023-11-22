@@ -11,12 +11,10 @@ contract TestInterchainGasPaymaster is InterchainGasPaymaster {
         initialize(msg.sender, msg.sender);
     }
 
-    function quoteGasPayment(uint32, uint256 gasAmount)
-        public
-        pure
-        override
-        returns (uint256)
-    {
+    function quoteGasPayment(
+        uint32,
+        uint256 gasAmount
+    ) public pure override returns (uint256) {
         return gasPrice * gasAmount;
     }
 }

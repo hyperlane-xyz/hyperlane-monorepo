@@ -19,11 +19,10 @@ library AggregationIsmMetadata {
      * @param _index The index of the ISM to check for metadata for
      * @return Whether or not metadata was provided for the ISM at `_index`
      */
-    function hasMetadata(bytes calldata _metadata, uint8 _index)
-        internal
-        pure
-        returns (bool)
-    {
+    function hasMetadata(
+        bytes calldata _metadata,
+        uint8 _index
+    ) internal pure returns (bool) {
         (uint32 _start, ) = _metadataRange(_metadata, _index);
         return _start > 0;
     }
@@ -37,11 +36,10 @@ library AggregationIsmMetadata {
      * @param _index The index of the ISM to return metadata for
      * @return The metadata provided for the ISM at `_index`
      */
-    function metadataAt(bytes calldata _metadata, uint8 _index)
-        internal
-        pure
-        returns (bytes calldata)
-    {
+    function metadataAt(
+        bytes calldata _metadata,
+        uint8 _index
+    ) internal pure returns (bytes calldata) {
         (uint32 _start, uint32 _end) = _metadataRange(_metadata, _index);
         return _metadata[_start:_end];
     }
@@ -56,11 +54,10 @@ library AggregationIsmMetadata {
      * @return The range of the metadata provided for the ISM at `_index`, or
      * zeroes if not provided
      */
-    function _metadataRange(bytes calldata _metadata, uint8 _index)
-        private
-        pure
-        returns (uint32, uint32)
-    {
+    function _metadataRange(
+        bytes calldata _metadata,
+        uint8 _index
+    ) private pure returns (uint32, uint32) {
         uint256 _start = (uint32(_index) * RANGE_SIZE * 2);
         uint256 _mid = _start + RANGE_SIZE;
         uint256 _end = _mid + RANGE_SIZE;

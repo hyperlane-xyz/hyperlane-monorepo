@@ -68,11 +68,9 @@ abstract contract MailboxClient is OwnableUpgradeable {
      * @notice Sets the address of the application's custom interchain security module.
      * @param _module The address of the interchain security module contract.
      */
-    function setInterchainSecurityModule(address _module)
-        public
-        onlyContractOrNull(_module)
-        onlyOwner
-    {
+    function setInterchainSecurityModule(
+        address _module
+    ) public onlyContractOrNull(_module) onlyOwner {
         interchainSecurityModule = IInterchainSecurityModule(_module);
     }
 
