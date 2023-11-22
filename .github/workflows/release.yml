@@ -35,6 +35,7 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
+          version: yarn version:prepare
           publish: yarn release
         env:
           NPM_CONFIG_PROVENANCE: true

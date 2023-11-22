@@ -50,38 +50,6 @@ If you are using [VSCode](https://code.visualstudio.com/), you can launch the [m
 
 See [`rust/README.md`](rust/README.md)
 
-### Publishing JS/TS Packages
-
-Packages can be versioned and published all at once with commands from the root.
-
-First, increment the version to the desired value:
-
-```bash
-# An example of a prerelease version
-yarn version:prepare 1.1.0-beta0
-# Or a release version
-yarn version:prepare 1.1.0
-```
-
-Commit this preparation so that it is clear which commit the release is from.
-
-Next, ensure packages are cleaned and rebuilt:
-
-```bash
-yarn clean && yarn build
-```
-
-Finally, publish the packages to NPM
-
-```bash
-# Note: If you have not yet logged in, first run yarn npm login
-yarn publish:all --otp YOUR_OTP_HERE
-# Or for a pre-release, include the tag
-yarn publish:all --otp YOUR_OTP_HERE --tag beta
-```
-
-Tag the commit with the appropriate version, and then create a github release with a changelog against the previous version https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/new
-
 ### Release Agents
 
 - Tag the commit with the current date in the format `agents-yyyy-mm-dd`; e.g. `agents-2023-03-28`.
