@@ -2,6 +2,7 @@
 # Consists of a map of chain names to metadata
 # Schema here: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/sdk/src/metadata/chainMetadataTypes.ts
 ---
+# You can define a full config for a new chain
 mychainname:
   # Required fields:
   chainId: 1234567890 # Number: Use EIP-155 for EVM chains
@@ -42,3 +43,8 @@ mychainname:
     estimateBlockTime: 15 # Number: Rough estimate of time per block in seconds
   # transactionOverrides: # Object: Properties to include when forming transaction requests
   # Any tx fields are allowed
+
+# Alternatively, you can extend a core chain config with only fields to be overridden
+sepolia:
+  rpcUrls:
+    - http: https://mycustomrpc.com

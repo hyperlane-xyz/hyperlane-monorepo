@@ -85,8 +85,7 @@ export async function runCoreDeploy({
   if (!chains?.length) {
     chains = await runMultiChainSelectionStep(
       customChains,
-      'Select chains to which core contacts will be deployed',
-      [],
+      'Select chains to connect',
     );
   }
   const artifacts = await runArtifactStep(chains, artifactsPath);
