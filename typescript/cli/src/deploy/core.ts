@@ -17,20 +17,30 @@ import {
   HyperlaneProxyFactoryDeployer,
   IgpConfig,
   IsmConfig,
+  IsmType,
   MultiProvider,
   MultisigConfig,
+  RoutingIsmConfig,
   agentStartBlocks,
   buildAgentConfig,
+  buildAggregationIsmConfigs,
   defaultMultisigConfigs,
   multisigIsmVerificationCost,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
-import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
+import {
+  log,
+  logBlue,
+  logGray,
+  logGreen,
+  logPink,
+  logRed,
+} from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { readHookConfig } from '../config/hooks.js';
-import { readIsmConfigMap } from '../config/ism.js';
+import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import {
@@ -49,7 +59,11 @@ import {
   TestRecipientConfig,
   TestRecipientDeployer,
 } from './TestRecipientDeployer.js';
-import { isAdvancedISMConfig, runPreflightChecksForChains } from './utils.js';
+import {
+  isAdvancedISMConfig,
+  isAdvancedZODISMConfig,
+  runPreflightChecksForChains,
+} from './utils.js';
 
 export async function runCoreDeploy({
   key,
@@ -84,10 +98,12 @@ export async function runCoreDeploy({
   }
   const artifacts = await runArtifactStep(chains, artifactsPath);
   const result = await runIsmStep(chains, ismConfigPath);
-  const ismConfigs = isAdvancedISMConfig(result)
+  // we can either specify the full ISM config or just the multisig config
+  const isAdvancedIsm = isAdvancedISMConfig(result);
+  const ismConfigs = isAdvancedIsm
     ? (result as ChainMap<IsmConfig>)
     : undefined;
-  const multisigs = isAdvancedISMConfig(result)
+  const multisigConfigs = isAdvancedIsm
     ? defaultMultisigConfigs
     : (result as ChainMap<MultisigConfig>);
   // TODO re-enable when hook config is actually used
@@ -99,7 +115,7 @@ export async function runCoreDeploy({
     multiProvider,
     artifacts,
     ismConfigs,
-    multisigs,
+    multisigConfigs,
     outPath,
     skipConfirmation,
   };
@@ -155,12 +171,13 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
       'ism',
     );
   }
-  const ismConfig = readIsmConfigMap(ismConfigPath);
-  console.log('ismConfig', ismConfig, isAdvancedISMConfig(ismConfig));
+  const isAdvancedIsm = isAdvancedZODISMConfig(ismConfigPath);
   // separate flow for 'ism' and 'ism-advanced' options
-  if (isAdvancedISMConfig(ismConfig)) {
+  if (isAdvancedIsm) {
+    const ismConfig = readIsmConfig(ismConfigPath);
+    console.log('ismConfig', ismConfig, isAdvancedZODISMConfig(ismConfigPath));
     const requiredIsms = objFilter(
-      readIsmConfigMap(ismConfigPath),
+      ismConfig,
       (chain, config): config is IsmConfig => selectedChains.includes(chain),
     );
     // selected chains - (user configs + default configs) = missing config
@@ -234,7 +251,7 @@ interface DeployParams {
   multiProvider: MultiProvider;
   artifacts?: HyperlaneAddressesMap<any>;
   ismConfigs?: ChainMap<IsmConfig>;
-  multisigs?: ChainMap<MultisigConfig>;
+  multisigConfigs?: ChainMap<MultisigConfig>;
   outPath: string;
   skipConfirmation: boolean;
 }
@@ -271,7 +288,7 @@ async function executeDeploy({
   outPath,
   artifacts = {},
   ismConfigs = {},
-  multisigs = {},
+  multisigConfigs = {},
 }: DeployParams) {
   logBlue('All systems ready, captain! Beginning deployment...');
 
@@ -314,8 +331,12 @@ async function executeDeploy({
   const defaultIsms: ChainMap<Address> = {};
   for (const ismOrigin of chains) {
     logBlue(`Deploying ISM to ${ismOrigin}`);
+    const ismConfig =
+      ismConfigs[ismOrigin] ??
+      buildIsmConfig(owner, ismOrigin, chains, multisigConfigs);
+    logPink('ISM config', JSON.stringify(ismConfig, null, 4));
     ismContracts[ismOrigin] = {
-      multisigIsm: await ismFactory.deploy(ismOrigin, ismConfigs[ismOrigin]),
+      multisigIsm: await ismFactory.deploy(ismOrigin, ismConfig),
     };
     defaultIsms[ismOrigin] = ismContracts[ismOrigin].multisigIsm.address;
   }
@@ -330,7 +351,7 @@ async function executeDeploy({
     owner,
     chains,
     defaultIsms,
-    multisigs, // TODO: fix this
+    multisigConfigs ?? defaultMultisigConfigs, // TODO: fix this
   );
   const coreContracts = await coreDeployer.deploy(coreConfigs);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
@@ -358,6 +379,25 @@ async function executeDeploy({
   logBlue('Deployment is complete!');
   logBlue(`Contract address artifacts are in ${contractsFilePath}`);
   logBlue(`Agent configs are in ${agentFilePath}`);
+}
+
+function buildIsmConfig(
+  owner: Address,
+  local: ChainName,
+  chains: ChainName[],
+  multisigIsmConfigs: ChainMap<MultisigConfig>,
+): RoutingIsmConfig {
+  const aggregationIsmConfigs = buildAggregationIsmConfigs(
+    local,
+    chains,
+    multisigIsmConfigs,
+  );
+  // logPink('aggregationIsmConfigs', JSONaggregationIsmConfigs);
+  return {
+    owner,
+    type: IsmType.ROUTING,
+    domains: aggregationIsmConfigs,
+  };
 }
 
 function buildCoreConfigMap(
@@ -424,9 +464,16 @@ function buildIgpConfigMap(
     const gasOracleType: ChainMap<GasOracleContractType> = {};
     for (const remote of chains) {
       if (chain === remote) continue;
+      // TODO: accurate estimate of gas from ChainMap<ISMConfig>
+      const threshold = multisigConfigs[remote]
+        ? multisigConfigs[remote].threshold
+        : 2;
+      const validatorsLength = multisigConfigs[remote]
+        ? multisigConfigs[remote].validators.length
+        : 3;
       overhead[remote] = multisigIsmVerificationCost(
-        multisigConfigs[chain].threshold,
-        multisigConfigs[chain].validators.length,
+        threshold,
+        validatorsLength,
       );
       gasOracleType[remote] = GasOracleContractType.StorageGasOracle;
     }

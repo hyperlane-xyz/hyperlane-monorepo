@@ -3,7 +3,7 @@ import { CommandModule } from 'yargs';
 import { log, logGreen } from '../../logger.js';
 import { createChainConfig, readChainConfigs } from '../config/chain.js';
 import { createHookConfig } from '../config/hooks.js';
-import { createIsmConfigMap, readIsmConfigMap } from '../config/ism.js';
+import { createIsmConfigMap, readIsmConfig } from '../config/ism.js';
 import {
   createMultisigConfig,
   readMultisigConfig,
@@ -206,7 +206,7 @@ const validateIsmAdvancedCommand: CommandModule = {
     }),
   handler: async (argv) => {
     const path = argv.path as string;
-    readIsmConfigMap(path);
+    readIsmConfig(path);
     logGreen('Config is valid');
     process.exit(0);
   },

@@ -10,6 +10,7 @@ import {
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../../logger.js';
+import { parseIsmConfig } from '../config/ism.js';
 import { assertGasBalances } from '../utils/balances.js';
 import { assertSigner } from '../utils/keys.js';
 
@@ -72,4 +73,8 @@ export function isAdvancedISMConfig(
   config: ChainMap<MultisigConfig> | ChainMap<IsmConfig>,
 ): boolean {
   return Object.values(config).some((c) => 'type' in c);
+}
+
+export function isAdvancedZODISMConfig(filepath: string): boolean {
+  return parseIsmConfig(filepath).success;
 }

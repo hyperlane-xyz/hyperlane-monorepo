@@ -48,10 +48,14 @@ const IsmConfigMapSchema = z.record(IsmConfigSchema);
 export type ZodIsmConfig = z.infer<typeof IsmConfigSchema>;
 export type ZodIsmConfigMap = z.infer<typeof IsmConfigMapSchema>;
 
-export function readIsmConfigMap(filePath: string) {
+export function parseIsmConfig(filePath: string) {
   const config = readYamlOrJson(filePath);
-  if (!config) return {};
-  const result = IsmConfigMapSchema.safeParse(config);
+  if (!config) throw new Error(`No ISM config found at ${filePath}`);
+  return IsmConfigMapSchema.safeParse(config);
+}
+
+export function readIsmConfig(filePath: string) {
+  const result = parseIsmConfig(filePath);
   if (!result.success) {
     const firstIssue = result.error.issues[0];
     // throw new Error(
