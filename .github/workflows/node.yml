@@ -96,7 +96,7 @@ jobs:
             exit 1
           fi
 
-  test-ts:
+  test:
     runs-on: larger-runner
     needs: [yarn-build]
     steps:
