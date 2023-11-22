@@ -58,9 +58,9 @@ export function readIsmConfig(filePath: string) {
   const result = parseIsmConfig(filePath);
   if (!result.success) {
     const firstIssue = result.error.issues[0];
-    // throw new Error(
-    //   `Invalid ISM config: ${firstIssue.path} => ${firstIssue.message}`,
-    // );
+    throw new Error(
+      `Invalid ISM config: ${firstIssue.path} => ${firstIssue.message}`,
+    );
     logRed(`Invalid ISM config: ${firstIssue.path} => ${firstIssue.message}`);
     return {};
   }
@@ -89,8 +89,6 @@ export async function createIsmConfigMap({
   for (const chain of chains) {
     log(`Setting values for chain ${chain}`);
     result[chain] = await createIsmConfig(chain, chainConfigPath);
-
-    console.log('lastConfig', result[chain]);
 
     // TODO consider re-enabling. Disabling based on feedback from @nambrot for now.
     // repeat = await confirm({
@@ -226,8 +224,8 @@ export async function createRoutingConfig(
   delete customChains[chain];
   const chains = await runMultiChainSelectionStep(
     customChains,
-    [chain],
     `Select origin chains to be verified on ${chain}`,
+    [chain],
   );
 
   const domainsMap: ChainMap<ZodIsmConfig> = {};

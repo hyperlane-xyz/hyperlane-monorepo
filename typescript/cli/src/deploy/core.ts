@@ -85,8 +85,8 @@ export async function runCoreDeploy({
   if (!chains?.length) {
     chains = await runMultiChainSelectionStep(
       customChains,
-      [],
       'Select chains to which core contacts will be deployed',
+      [],
     );
   }
   const artifacts = await runArtifactStep(chains, artifactsPath);
@@ -145,7 +145,11 @@ async function runArtifactStep(
   const artifactChains = Object.keys(artifacts).filter((c) =>
     selectedChains.includes(c),
   );
-  log(`Found existing artifacts for chains: ${artifactChains.join(', ')}`);
+  if (artifactChains.length === 0) {
+    logGray('No artifacts found for selected chains');
+  } else {
+    log(`Found existing artifacts for chains: ${artifactChains.join(', ')}`);
+  }
   return artifacts;
 }
 
@@ -168,7 +172,6 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
   // separate flow for 'ism' and 'ism-advanced' options
   if (isAdvancedIsm) {
     const ismConfig = readIsmConfig(ismConfigPath);
-    console.log('ismConfig', ismConfig, isAdvancedZODISMConfig(ismConfigPath));
     const requiredIsms = objFilter(
       ismConfig,
       (chain, config): config is IsmConfig => selectedChains.includes(chain),
@@ -343,7 +346,7 @@ async function executeDeploy({
     owner,
     chains,
     defaultIsms,
-    multisigConfigs ?? defaultMultisigConfigs, // TODO: fix this
+    multisigConfigs ?? defaultMultisigConfigs, // TODO: fix https://github.com/hyperlane-xyz/issues/issues/773
   );
   const coreContracts = await coreDeployer.deploy(coreConfigs);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);

@@ -32,8 +32,8 @@ export async function runSingleChainSelectionStep(
 
 export async function runMultiChainSelectionStep(
   customChains: ChainMap<ChainMetadata>,
-  chainsToFilterOut: ChainName[] = [],
   message = 'Select chains',
+  chainsToFilterOut: ChainName[] = [],
 ) {
   const choices = getChainChoices(customChains, chainsToFilterOut);
   const chains = (await checkbox({

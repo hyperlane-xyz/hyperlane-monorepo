@@ -68,8 +68,7 @@ const createChainConfigCommand: CommandModule = {
 
 const createIsmConfigCommand: CommandModule = {
   command: 'ism',
-  describe:
-    'Create a new basic ISM config (only need to specify validator set and threshold)',
+  describe: 'Create a basic ISM config for a validator set',
   builder: (yargs) =>
     yargs.options({
       output: outputFileOption('./configs/ism.yaml'),
@@ -87,7 +86,7 @@ const createIsmConfigCommand: CommandModule = {
 
 const createIsmConfigMapCommand: CommandModule = {
   command: 'ism-advanced',
-  describe: 'Create the full ISM config topologically',
+  describe: 'Create a full ISM config topologically',
   builder: (yargs) =>
     yargs.options({
       output: outputFileOption('./configs/ism-advanced.yaml'),
