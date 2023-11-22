@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { ChainMap, ChainName, IsmType } from '@hyperlane-xyz/sdk';
 
-import { errorRed, log, logBlue, logGreen, logRed } from '../../logger.js';
+import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
@@ -61,8 +61,6 @@ export function readIsmConfig(filePath: string) {
     throw new Error(
       `Invalid ISM config: ${firstIssue.path} => ${firstIssue.message}`,
     );
-    logRed(`Invalid ISM config: ${firstIssue.path} => ${firstIssue.message}`);
-    return {};
   }
   const parsedConfig = result.data;
   return parsedConfig;
