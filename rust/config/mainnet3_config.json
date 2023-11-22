@@ -626,7 +626,7 @@
       "validatorAnnounce": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
       "index": {
         "from": 426670,
-        "chunk": 1000
+        "chunk": 999
       }
     }
   },
