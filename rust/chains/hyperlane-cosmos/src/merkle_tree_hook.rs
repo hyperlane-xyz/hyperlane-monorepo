@@ -22,7 +22,7 @@ use crate::{
         get_block_height_for_lag, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
         CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
     },
-    ConnectionConf, CosmosProvider, Signer,
+    ConnectionConf, CosmosProvider, HyperlaneCosmosError, Signer,
 };
 
 #[derive(Debug)]
@@ -224,7 +224,11 @@ impl CosmosMerkleTreeHookIndexer {
                     contract_address = Some(value.to_string());
                 }
                 v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
-                    contract_address = Some(String::from_utf8(BASE64.decode(value)?)?);
+                    contract_address = Some(String::from_utf8(
+                        BASE64
+                            .decode(value)
+                            .map_err(Into::<HyperlaneCosmosError>::into)?,
+                    )?);
                 }
 
                 MESSAGE_ID_ATTRIBUTE_KEY => {
@@ -232,7 +236,12 @@ impl CosmosMerkleTreeHookIndexer {
                 }
                 v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
                     insertion.message_id = Some(H256::from_slice(
-                        hex::decode(String::from_utf8(BASE64.decode(value)?)?)?.as_slice(),
+                        hex::decode(String::from_utf8(
+                            BASE64
+                                .decode(value)
+                                .map_err(Into::<HyperlaneCosmosError>::into)?,
+                        )?)?
+                        .as_slice(),
                     ));
                 }
 
@@ -240,7 +249,14 @@ impl CosmosMerkleTreeHookIndexer {
                     insertion.leaf_index = Some(value.parse::<u32>()?);
                 }
                 v if *INDEX_ATTRIBUTE_KEY_BASE64 == v => {
-                    insertion.leaf_index = Some(String::from_utf8(BASE64.decode(value)?)?.parse()?);
+                    insertion.leaf_index = Some(
+                        String::from_utf8(
+                            BASE64
+                                .decode(value)
+                                .map_err(Into::<HyperlaneCosmosError>::into)?,
+                        )?
+                        .parse()?,
+                    );
                 }
 
                 _ => {}

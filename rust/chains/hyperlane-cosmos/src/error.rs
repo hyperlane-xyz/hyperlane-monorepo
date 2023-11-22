@@ -1,3 +1,4 @@
+use cosmrs::proto::prost;
 use hyperlane_core::ChainCommunicationError;
 
 /// Errors from the crates specific to the hyperlane-cosmos
@@ -6,6 +7,9 @@ use hyperlane_core::ChainCommunicationError;
 /// in hyperlane-core using the `From` trait impl
 #[derive(Debug, thiserror::Error)]
 pub enum HyperlaneCosmosError {
+    /// base64 error
+    #[error("{0}")]
+    Base64(#[from] base64::DecodeError),
     /// bech32 error
     #[error("{0}")]
     Bech32(#[from] bech32::Error),
@@ -18,6 +22,18 @@ pub enum HyperlaneCosmosError {
     /// Cosmos error report
     #[error("{0}")]
     CosmosErrorReport(#[from] cosmrs::ErrorReport),
+    #[error("{0}")]
+    /// Cosmrs Tendermint Error
+    CosmrsTendermintError(#[from] cosmrs::tendermint::Error),
+    /// Tonic error
+    #[error("{0}")]
+    Tonic(#[from] tonic::transport::Error),
+    /// Tendermint RPC Error
+    #[error(transparent)]
+    TendermintError(#[from] tendermint_rpc::error::Error),
+    /// protobuf error
+    #[error("{0}")]
+    Protobuf(#[from] prost::DecodeError),
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {

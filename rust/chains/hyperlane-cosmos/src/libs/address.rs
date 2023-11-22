@@ -9,6 +9,8 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, Error::Overflow, H256
 use tendermint::account::Id as TendermintAccountId;
 use tendermint::public_key::PublicKey as TendermintPublicKey;
 
+use crate::HyperlaneCosmosError;
+
 /// Wrapper around the cosmrs AccountId type that abstracts bech32 encoding
 #[derive(new, Debug)]
 pub struct CosmosAddress {
@@ -27,7 +29,8 @@ impl CosmosAddress {
         // Get the RIPEMD160(SHA256(pubkey))
         let tendermint_id = TendermintAccountId::from(tendermint_pubkey);
         // Bech32 encoding
-        let account_id = AccountId::new(prefix, tendermint_id.as_bytes())?;
+        let account_id = AccountId::new(prefix, tendermint_id.as_bytes())
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
         // Hex digest
         let digest = Self::bech32_decode(account_id.clone())?;
         Ok(CosmosAddress::new(account_id, digest))
@@ -35,7 +38,9 @@ impl CosmosAddress {
 
     /// Creates a wrapper arround a cosmrs AccountId from a private key byte array
     pub fn from_privkey(priv_key: &[u8], prefix: &str) -> ChainResult<Self> {
-        let pubkey = SigningKey::from_slice(priv_key)?.public_key();
+        let pubkey = SigningKey::from_slice(priv_key)
+            .map_err(Into::<HyperlaneCosmosError>::into)?
+            .public_key();
         Self::from_pubkey(pubkey, prefix)
     }
 
@@ -47,7 +52,8 @@ impl CosmosAddress {
         // This is the hex-encoded version of the address
         let bytes = digest.as_bytes();
         // Bech32 encode it
-        let account_id = AccountId::new(prefix, bytes)?;
+        let account_id =
+            AccountId::new(prefix, bytes).map_err(Into::<HyperlaneCosmosError>::into)?;
         Ok(CosmosAddress::new(account_id, digest))
     }
 
@@ -92,7 +98,7 @@ impl FromStr for CosmosAddress {
     type Err = ChainCommunicationError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let account_id = AccountId::from_str(s)?;
+        let account_id = AccountId::from_str(s).map_err(Into::<HyperlaneCosmosError>::into)?;
         let digest = Self::bech32_decode(account_id.clone())?;
         Ok(Self::new(account_id, digest))
     }

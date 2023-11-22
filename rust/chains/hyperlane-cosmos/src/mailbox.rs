@@ -7,14 +7,17 @@ use std::{
     str::FromStr,
 };
 
-use crate::address::CosmosAddress;
-use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::payloads::mailbox::{
     GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
 };
 use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::CosmosProvider;
+use crate::{address::CosmosAddress, types::tx_response_to_outcome};
+use crate::{
+    grpc::{WasmGrpcProvider, WasmProvider},
+    HyperlaneCosmosError,
+};
 use crate::{signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -182,7 +185,7 @@ impl Mailbox for CosmosMailbox {
             .wasm_send(process_message, tx_gas_limit)
             .await?;
 
-        Ok(response.try_into()?)
+        Ok(tx_response_to_outcome(response)?)
     }
 
     #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
@@ -286,7 +289,11 @@ impl CosmosMailboxIndexer {
                     contract_address = Some(value.to_string());
                 }
                 v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
-                    contract_address = Some(String::from_utf8(BASE64.decode(value)?)?);
+                    contract_address = Some(String::from_utf8(
+                        BASE64
+                            .decode(value)
+                            .map_err(Into::<HyperlaneCosmosError>::into)?,
+                    )?);
                 }
 
                 MESSAGE_ATTRIBUTE_KEY => {
@@ -298,8 +305,11 @@ impl CosmosMailboxIndexer {
                 v if *MESSAGE_ATTRIBUTE_KEY_BASE64 == v => {
                     // Intentionally using read_from to get a Result::Err if there's
                     // an issue with the message.
-                    let mut reader =
-                        Cursor::new(hex::decode(String::from_utf8(BASE64.decode(value)?)?)?);
+                    let mut reader = Cursor::new(hex::decode(String::from_utf8(
+                        BASE64
+                            .decode(value)
+                            .map_err(Into::<HyperlaneCosmosError>::into)?,
+                    )?)?);
                     message = Some(HyperlaneMessage::read_from(&mut reader)?);
                 }
 

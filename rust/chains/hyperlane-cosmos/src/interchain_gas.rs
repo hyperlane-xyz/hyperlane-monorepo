@@ -14,7 +14,7 @@ use crate::{
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
     signers::Signer,
     utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64},
-    ConnectionConf, CosmosProvider,
+    ConnectionConf, CosmosProvider, HyperlaneCosmosError,
 };
 
 /// A reference to a InterchainGasPaymaster contract on some Cosmos chain
@@ -119,7 +119,11 @@ impl CosmosInterchainGasPaymasterIndexer {
                     contract_address = Some(value.to_string());
                 }
                 v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
-                    contract_address = Some(String::from_utf8(BASE64.decode(value)?)?);
+                    contract_address = Some(String::from_utf8(
+                        BASE64
+                            .decode(value)
+                            .map_err(Into::<HyperlaneCosmosError>::into)?,
+                    )?);
                 }
 
                 MESSAGE_ID_ATTRIBUTE_KEY => {
@@ -127,7 +131,12 @@ impl CosmosInterchainGasPaymasterIndexer {
                 }
                 v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
                     gas_payment.message_id = Some(H256::from_slice(
-                        hex::decode(String::from_utf8(BASE64.decode(value)?)?)?.as_slice(),
+                        hex::decode(String::from_utf8(
+                            BASE64
+                                .decode(value)
+                                .map_err(Into::<HyperlaneCosmosError>::into)?,
+                        )?)?
+                        .as_slice(),
                     ));
                 }
 
@@ -135,7 +144,11 @@ impl CosmosInterchainGasPaymasterIndexer {
                     gas_payment.payment = Some(U256::from_dec_str(value)?);
                 }
                 v if *PAYMENT_ATTRIBUTE_KEY_BASE64 == v => {
-                    let dec_str = String::from_utf8(BASE64.decode(value)?)?;
+                    let dec_str = String::from_utf8(
+                        BASE64
+                            .decode(value)
+                            .map_err(Into::<HyperlaneCosmosError>::into)?,
+                    )?;
                     // U256's from_str assumes a radix of 16, so we explicitly use from_dec_str.
                     gas_payment.payment = Some(U256::from_dec_str(dec_str.as_str())?);
                 }
@@ -144,7 +157,11 @@ impl CosmosInterchainGasPaymasterIndexer {
                     gas_payment.gas_amount = Some(U256::from_dec_str(value)?);
                 }
                 v if *GAS_AMOUNT_ATTRIBUTE_KEY_BASE64 == v => {
-                    let dec_str = String::from_utf8(BASE64.decode(value)?)?;
+                    let dec_str = String::from_utf8(
+                        BASE64
+                            .decode(value)
+                            .map_err(Into::<HyperlaneCosmosError>::into)?,
+                    )?;
                     // U256's from_str assumes a radix of 16, so we explicitly use from_dec_str.
                     gas_payment.gas_amount = Some(U256::from_dec_str(dec_str.as_str())?);
                 }
@@ -153,8 +170,14 @@ impl CosmosInterchainGasPaymasterIndexer {
                     gas_payment.destination = Some(value.parse::<u32>()?);
                 }
                 v if *DESTINATION_ATTRIBUTE_KEY_BASE64 == v => {
-                    gas_payment.destination =
-                        Some(String::from_utf8(BASE64.decode(value)?)?.parse()?);
+                    gas_payment.destination = Some(
+                        String::from_utf8(
+                            BASE64
+                                .decode(value)
+                                .map_err(Into::<HyperlaneCosmosError>::into)?,
+                        )?
+                        .parse()?,
+                    );
                 }
 
                 _ => {}
