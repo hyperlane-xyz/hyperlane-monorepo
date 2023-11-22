@@ -12,19 +12,22 @@
     "lint-staged": "^12.4.3",
     "prettier": "^2.8.8"
   },
-  "packageManager": "yarn@4.0.1",
+  "dependencies": {
+    "@changesets/cli": "^2.26.2"
+  },
+  "packageManager": "yarn@4.0.2",
   "private": true,
   "scripts": {
     "build": "yarn workspaces foreach --all --parallel --topological run build",
     "clean": "yarn workspaces foreach --all --parallel run clean",
-    "prettier": "yarn workspaces foreach --all --parallel run prettier",
-    "lint": "yarn workspaces foreach --all --parallel run lint",
-    "test": "yarn workspaces foreach --all --parallel run test",
-    "coverage": "yarn workspaces foreach --all --parallel run coverage",
-    "version:prepare": "yarn workspaces foreach --all --no-private --topological version --immediate",
-    "publish:all": "yarn workspaces foreach --all --no-private --topological npm publish --access public",
-    "postinstall": "husky install",
-    "version:check": "yarn version check --interactive"
+    "prettier": "yarn workspaces foreach --since --parallel run prettier",
+    "lint": "yarn workspaces foreach --since --parallel run lint",
+    "test": "yarn workspaces foreach --since --parallel run test",
+    "coverage": "yarn workspaces foreach --since --parallel run coverage",
+    "version:prepare": "yarn changeset version",
+    "version:check": "yarn changeset status",
+    "publish:all": "yarn changeset publish",
+    "postinstall": "husky install"
   },
   "workspaces": [
     "solidity",
