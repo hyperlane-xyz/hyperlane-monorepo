@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -11,6 +13,8 @@ jobs:
   release:
     permissions:
       id-token: write
+      contents: write
+      pull-requests: write
     name: Release
     runs-on: larger-runner
     steps:
@@ -29,10 +33,11 @@ jobs:
       - name: Install Dependencies
         run: yarn
 
-      - name: Create Release Pull Request or Publish to npm
+      - name: Create Release PR or Publish to NPM
         id: changesets
         uses: changesets/action@v1
         with:
+          version: yarn version:prepare
           publish: yarn release
         env:
           NPM_CONFIG_PROVENANCE: true
