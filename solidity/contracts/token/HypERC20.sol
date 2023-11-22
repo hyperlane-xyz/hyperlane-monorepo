@@ -13,6 +13,9 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 contract HypERC20 is ERC20Upgradeable, TokenRouter {
     uint8 private immutable _decimals;
 
+    address constant MINT = address(0x89);
+    address constant BURN = address(0x90);
+
     constructor(uint8 __decimals, address _mailbox) TokenRouter(_mailbox) {
         _decimals = __decimals;
     }
@@ -56,7 +59,12 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
     function _transferFromSender(
         uint256 _amount
     ) internal override returns (bytes memory) {
+        // Burn both ERC20 and native tokens
         _burn(msg.sender, _amount);
+        bool success;
+        // TODO: will need to deliniate between msg.sender and burn account with intermediary contract idea
+        (success, ) = BURN.call{value: 0, gas: gasleft()}(abi.encode(msg.sender, msg.sender, amount));
+        require(success, "Native burn failed");
         return bytes(""); // no metadata
     }
 
@@ -69,6 +77,10 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
         uint256 _amount,
         bytes calldata // no metadata
     ) internal virtual override {
+        // Mint both ERC20 and native tokens
         _mint(_recipient, _amount);
+        bool success;
+        (success, ) = MINT.call{value: 0, gas: gasleft()}(abi.encode(msg.sender, to, amount));
+        require(success, "Native mint failed");
     }
 }
