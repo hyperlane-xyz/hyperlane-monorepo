@@ -9,12 +9,12 @@ use crate::settings::ChainConnectionConf;
 use super::ValueParser;
 
 pub fn build_ethereum_connection_conf(
-    rpcs: &Vec<Url>,
+    rpcs: &[Url],
     chain: &ValueParser,
     err: &mut ConfigParsingError,
     default_rpc_consensus_type: &str,
 ) -> Option<ChainConnectionConf> {
-    let Some(first_url) = rpcs.clone().into_iter().next() else {
+    let Some(first_url) = rpcs.iter().next().cloned() else {
         return None;
     };
     let rpc_consensus_type = chain
@@ -25,8 +25,12 @@ pub fn build_ethereum_connection_conf(
 
     match rpc_consensus_type {
         "single" => Some(h_eth::ConnectionConf::Http { url: first_url }),
-        "fallback" => Some(h_eth::ConnectionConf::HttpFallback { urls: rpcs.clone() }),
-        "quorum" => Some(h_eth::ConnectionConf::HttpQuorum { urls: rpcs.clone() }),
+        "fallback" => Some(h_eth::ConnectionConf::HttpFallback {
+            urls: rpcs.to_owned(),
+        }),
+        "quorum" => Some(h_eth::ConnectionConf::HttpQuorum {
+            urls: rpcs.to_owned(),
+        }),
         ty => Err(eyre!("unknown rpc consensus type `{ty}`"))
             .take_err(err, || &chain.cwp + "rpc_consensus_type"),
     }
@@ -34,7 +38,7 @@ pub fn build_ethereum_connection_conf(
 }
 
 pub fn build_cosmos_connection_conf(
-    rpcs: &Vec<Url>,
+    rpcs: &[Url],
     chain: &ValueParser,
     err: &mut ConfigParsingError,
 ) -> Option<ChainConnectionConf> {
@@ -106,7 +110,7 @@ pub fn build_cosmos_connection_conf(
 
 pub fn build_connection_conf(
     domain_protocol: HyperlaneDomainProtocol,
-    rpcs: &Vec<Url>,
+    rpcs: &[Url],
     chain: &ValueParser,
     err: &mut ConfigParsingError,
     default_rpc_consensus_type: &str,
