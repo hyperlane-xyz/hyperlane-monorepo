@@ -224,7 +224,11 @@ export async function createRoutingConfig(
   const ownerAddress = owner;
   const customChains = readChainConfigsIfExists(chainConfigPath);
   delete customChains[chain];
-  const chains = await runMultiChainSelectionStep(customChains, [chain]);
+  const chains = await runMultiChainSelectionStep(
+    customChains,
+    [chain],
+    `Select origin chains to be verified on ${chain}`,
+  );
 
   const domainsMap: ChainMap<ZodIsmConfig> = {};
   for (const chain of chains) {

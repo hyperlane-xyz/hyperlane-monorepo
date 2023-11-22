@@ -30,14 +30,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
-import {
-  log,
-  logBlue,
-  logGray,
-  logGreen,
-  logPink,
-  logRed,
-} from '../../logger.js';
+import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { readHookConfig } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
@@ -334,7 +327,6 @@ async function executeDeploy({
     const ismConfig =
       ismConfigs[ismOrigin] ??
       buildIsmConfig(owner, ismOrigin, chains, multisigConfigs);
-    logPink('ISM config', JSON.stringify(ismConfig, null, 4));
     ismContracts[ismOrigin] = {
       multisigIsm: await ismFactory.deploy(ismOrigin, ismConfig),
     };
@@ -392,7 +384,6 @@ function buildIsmConfig(
     chains,
     multisigIsmConfigs,
   );
-  // logPink('aggregationIsmConfigs', JSONaggregationIsmConfigs);
   return {
     owner,
     type: IsmType.ROUTING,
