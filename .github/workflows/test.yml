@@ -159,18 +159,12 @@ jobs:
         with:
           prefix-key: 'v2-rust'
           shared-key: 'e2e'
-          workspaces: |
-            ./rust
+          workspaces: ./rust
 
       - name: agent-build
         run: cargo build --release --bin run-locally
         working-directory: ./rust
 
-      - name: agent-build-cache
-        uses: actions/cache@v3
-        with:
-          path: ./rust/*
-          key: ${{ github.sha }}
 
   agent-e2e:
     runs-on: larger-runner
@@ -179,12 +173,6 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
-
-      - name: agent-build-cache
-        uses: actions/cache@v3
-        with:
-          path: ./rust/*
-          key: ${{ github.sha }}
         
       - name: foundry-install
         uses: onbjerg/foundry-toolchain@v1
@@ -194,8 +182,7 @@ jobs:
         with:
           prefix-key: 'v2-rust'
           shared-key: 'e2e'
-          workspaces: |
-            ./rust
+          workspaces: ./rust
 
       - name: run CosmWasm test
         run: RUST_BACKTRACE=1 cargo test --package run-locally --bin run-locally -- cosmos::test --nocapture
@@ -232,11 +219,12 @@ jobs:
           path: ./*
           key: ${{ github.sha }}
 
-      - name: agent-build-cache
-        uses: actions/cache@v3
+      - name: rust-cache
+        uses: Swatinem/rust-cache@v2
         with:
-          path: ./rust/*
-          key: ${{ github.sha }}
+          prefix-key: 'v2-rust'
+          shared-key: 'e2e'
+          workspaces: ./rust
 
       - name: test
         run: ./ci-test.sh
