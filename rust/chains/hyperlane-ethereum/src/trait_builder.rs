@@ -24,7 +24,6 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
 };
 
-use crate::provider;
 use crate::{signers::Signers, ConnectionConf, FallbackProvider, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
@@ -191,11 +190,14 @@ pub trait BuildableWithProvider {
         metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> ChainResult<Self::Output>
     where
-        P: JsonRpcClient + Clone + 'static,
+        P: JsonRpcClient + 'static,
     {
-        let provider = Provider::new(client);
+        let provider = Arc::new(Provider::new(client));
 
-        let gas_oracle: Arc<dyn GasOracle> = {
+        // Apply a gas oracle.
+        // Polygon and Mumbai require using the Polygon gas oracle, see discussion here
+        // https://github.com/foundry-rs/foundry/issues/1703
+        let gas_oracle: Box<dyn GasOracle> = {
             match locator.domain {
                 HyperlaneDomain::Known(
                     KnownHyperlaneDomain::Polygon | KnownHyperlaneDomain::Mumbai,
@@ -209,16 +211,15 @@ pub trait BuildableWithProvider {
                         }
                         _ => unreachable!(),
                     };
-                    let estimator = Polygon::new(chain)
+                    let gas_oracle = Polygon::new(chain)
                         .map_err(ChainCommunicationError::from_other)?
                         .category(GasCategory::Standard);
-                    Arc::new(estimator)
+                    Box::new(gas_oracle)
                 }
-                _ => Arc::new(ProviderOracle::new(provider.clone())),
+                _ => Box::new(ProviderOracle::new(provider.clone())),
             }
         };
-
-        let provider = Arc::new(GasOracleMiddleware::new(provider, gas_oracle));
+        let provider = GasOracleMiddleware::new(provider, gas_oracle);
 
         Ok(if let Some(metrics) = metrics {
             let provider = Arc::new(PrometheusMiddleware::new(provider, metrics.0, metrics.1));
