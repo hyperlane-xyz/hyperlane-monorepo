@@ -190,7 +190,7 @@ pub trait BuildableWithProvider {
     where
         P: JsonRpcClient + 'static,
     {
-        let provider = wrap_with_gas_oracle(Arc::new(Provider::new(client)), locator.domain)?;
+        let provider = wrap_with_gas_oracle(Provider::new(client), locator.domain)?;
 
         Ok(if let Some(metrics) = metrics {
             let provider = Arc::new(PrometheusMiddleware::new(provider, metrics.0, metrics.1));
@@ -243,35 +243,32 @@ async fn wrap_with_signer<M: Middleware>(
     Ok(signing_provider)
 }
 
+fn build_polygon_gas_oracle(chain: ethers_core::types::Chain) -> ChainResult<Box<dyn GasOracle>> {
+    let gas_oracle = Polygon::new(chain)
+        .map_err(ChainCommunicationError::from_other)?
+        .category(GasCategory::Standard);
+    Ok(Box::new(gas_oracle) as Box<dyn GasOracle>)
+}
+
 /// Wrap the provider with a gas oracle middleware.
 /// Polygon and Mumbai require using the Polygon gas oracle, see discussion here
 /// https://github.com/foundry-rs/foundry/issues/1703.
 /// Defaults to using the provider's gas oracle.
 fn wrap_with_gas_oracle<M>(
-    provider: Arc<M>,
+    provider: M,
     domain: &HyperlaneDomain,
 ) -> ChainResult<GasOracleMiddleware<Arc<M>, Box<dyn GasOracle>>>
 where
     M: Middleware + 'static,
 {
+    let provider = Arc::new(provider);
     let gas_oracle: Box<dyn GasOracle> = {
         match domain {
-            HyperlaneDomain::Known(
-                KnownHyperlaneDomain::Polygon | KnownHyperlaneDomain::Mumbai,
-            ) => {
-                let chain = match domain {
-                    HyperlaneDomain::Known(KnownHyperlaneDomain::Polygon) => {
-                        ethers_core::types::Chain::Polygon
-                    }
-                    HyperlaneDomain::Known(KnownHyperlaneDomain::Mumbai) => {
-                        ethers_core::types::Chain::PolygonMumbai
-                    }
-                    _ => unreachable!(),
-                };
-                let gas_oracle = Polygon::new(chain)
-                    .map_err(ChainCommunicationError::from_other)?
-                    .category(GasCategory::Standard);
-                Box::new(gas_oracle)
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Polygon) => {
+                build_polygon_gas_oracle(ethers_core::types::Chain::Polygon)?
+            }
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Mumbai) => {
+                build_polygon_gas_oracle(ethers_core::types::Chain::PolygonMumbai)?
             }
             _ => Box::new(ProviderOracle::new(provider.clone())),
         }
