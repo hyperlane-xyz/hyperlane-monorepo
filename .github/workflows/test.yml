@@ -154,12 +154,12 @@ jobs:
           mold-version: 2.0.0
           make-default: true
 
-      - name: rust cache
-        uses: Swatinem/rust-cache@v2
+      - name: agent-build-cache
+        uses: actions/cache@v3
         with:
-          prefix-key: 'v2-rust'
-          shared-key: 'e2e'
-          workspaces: ./rust -> target
+          path: |
+            ./rust/target
+            ~/.cargo
 
       - name: agent build
         run: cargo build --release --bin run-locally
@@ -182,12 +182,13 @@ jobs:
       - name: foundry-install
         uses: onbjerg/foundry-toolchain@v1
       
-      - name: rust cache
-        uses: Swatinem/rust-cache@v2
+      - name: agent-build-cache
+        uses: actions/cache@v3
         with:
-          prefix-key: 'v2-rust'
-          shared-key: 'e2e'
-          workspaces: ./rust -> target
+          path: |
+            ./rust/target
+            ~/.cargo
+          key: rust-${{ github.sha }}
 
       - name: run CosmWasm test
         run: RUST_BACKTRACE=1 cargo test --package run-locally --bin run-locally -- cosmos::test --nocapture
@@ -219,13 +220,6 @@ jobs:
       - name: foundry-install
         uses: onbjerg/foundry-toolchain@v1
 
-      - name: rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: 'v2-rust'
-          shared-key: 'e2e'
-          workspaces: ./rust -> target
-
       - name: yarn-cache
         uses: actions/cache@v3
         with:
@@ -239,6 +233,13 @@ jobs:
         with:
           path: ./*
           key: ${{ github.sha }}
+
+      - name: agent-build-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ./rust/target
+            ~/.cargo
 
       - name: test
         run: ./ci-test.sh
