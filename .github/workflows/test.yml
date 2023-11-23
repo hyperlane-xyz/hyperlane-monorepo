@@ -1,4 +1,4 @@
-name: test 
+name: test
 
 on:
   # Triggers the workflow on push or pull request against main
@@ -48,9 +48,6 @@ jobs:
             exit 1
           fi
 
-      - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
-
   build:
     runs-on: larger-runner
     needs: [install]
@@ -86,7 +83,8 @@ jobs:
           # check out full history
           fetch-depth: 0
 
-      - uses: actions/cache@v3
+      - name: yarn-cache
+        uses: actions/cache@v3
         with:
           path: |
             **/node_modules
@@ -114,7 +112,11 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - uses: actions/cache@v3
+      - name: foundry-install
+        uses: onbjerg/foundry-toolchain@v1
+
+      - name: build-cache
+        uses: actions/cache@v3
         with:
           path: ./*
           key: ${{ github.sha }}
@@ -124,11 +126,13 @@ jobs:
 
   agent-build:
     runs-on: larger-runner
-    needs: [install]
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
+
+      - name: foundry-install
+        uses: onbjerg/foundry-toolchain@v1
 
       - name: setup rust
         uses: actions-rs/toolchain@v1
@@ -166,6 +170,21 @@ jobs:
     runs-on: larger-runner
     needs: [agent-build]
     steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+        
+      - name: foundry-install
+        uses: onbjerg/foundry-toolchain@v1
+      
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: 'v2-rust'
+          shared-key: 'e2e'
+          workspaces: |
+            ./rust
+
       - name: run CosmWasm test
         run: RUST_BACKTRACE=1 cargo test --package run-locally --bin run-locally -- cosmos::test --nocapture
         working-directory: ./rust
@@ -180,13 +199,23 @@ jobs:
 
   cli-e2e:
     runs-on: larger-runner
-    needs: [agent-build]
+    needs: [build, agent-build]
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
+          fetch-depth: 0
 
-      - uses: actions/cache@v3
+      - name: yarn-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+
+      - name: build-cache
+        uses: actions/cache@v3
         with:
           path: ./*
           key: ${{ github.sha }}
