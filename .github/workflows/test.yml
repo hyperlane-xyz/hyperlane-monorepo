@@ -154,17 +154,17 @@ jobs:
           mold-version: 2.0.0
           make-default: true
 
-      - name: rust-cache
+      - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: 'v2-rust'
           shared-key: 'e2e'
-          workspaces: ./rust
+          workspaces: |
+            ./rust
 
-      - name: agent-build
+      - name: agent build
         run: cargo build --release --bin run-locally
         working-directory: ./rust
-
 
   agent-e2e:
     runs-on: larger-runner
@@ -182,7 +182,8 @@ jobs:
         with:
           prefix-key: 'v2-rust'
           shared-key: 'e2e'
-          workspaces: ./rust
+          workspaces: |
+            ./rust
 
       - name: run CosmWasm test
         run: RUST_BACKTRACE=1 cargo test --package run-locally --bin run-locally -- cosmos::test --nocapture
@@ -219,15 +220,8 @@ jobs:
           path: ./*
           key: ${{ github.sha }}
 
-      - name: rust-cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: 'v2-rust'
-          shared-key: 'e2e'
-          workspaces: ./rust
-
       - name: test
-        run: ./ci-test.sh
+        run: ./typescript/cli/ci-test.sh
         working-directory: ./typescript/cli
 
   env-test:
