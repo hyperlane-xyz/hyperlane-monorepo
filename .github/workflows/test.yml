@@ -1,4 +1,4 @@
-name: node
+name: test 
 
 on:
   # Triggers the workflow on push or pull request against main
@@ -9,13 +9,23 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
 env:
   DEBUG: 'hyperlane:*'
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
 
 jobs:
-  yarn-install:
+  install:
     runs-on: larger-runner
     steps:
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
       - uses: actions/checkout@v3
         with:
           submodules: recursive
@@ -38,18 +48,17 @@ jobs:
             exit 1
           fi
 
-  yarn-build:
+      - name: foundry-install
+        uses: onbjerg/foundry-toolchain@v1
+
+  build:
     runs-on: larger-runner
-    needs: [yarn-install]
+    needs: [install]
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
           fetch-depth: 0
-
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 18
 
       - name: yarn-cache
         uses: actions/cache@v3
@@ -70,7 +79,7 @@ jobs:
 
   lint-prettier:
     runs-on: larger-runner
-    needs: [yarn-install]
+    needs: [install]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -96,17 +105,14 @@ jobs:
             exit 1
           fi
 
-  test:
+  unit-test:
     runs-on: larger-runner
-    needs: [yarn-build]
+    needs: [build]
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
           fetch-depth: 0
-
-      - name: Install Foundry
-        uses: onbjerg/foundry-toolchain@v1
 
       - uses: actions/cache@v3
         with:
@@ -116,16 +122,69 @@ jobs:
       - name: Unit Tests
         run: yarn test
 
-  test-cli:
+  agent-build:
     runs-on: larger-runner
-    needs: [yarn-build]
+    needs: [install]
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      - name: Install Foundry
-        uses: onbjerg/foundry-toolchain@v1
+      - name: setup rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Free disk space
+        run: |
+          # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+      - name: Install mold linker
+        uses: rui314/setup-mold@v1
+        with:
+          mold-version: 2.0.0
+          make-default: true
+
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: 'v2-rust'
+          shared-key: 'e2e'
+          workspaces: |
+            ./rust
+
+      - name: agent build
+        run: cargo build --release --bin run-locally
+        working-directory: ./rust
+
+  agent-e2e:
+    runs-on: larger-runner
+    needs: [agent-build]
+    steps:
+      - name: run CosmWasm test
+        run: RUST_BACKTRACE=1 cargo test --package run-locally --bin run-locally -- cosmos::test --nocapture
+        working-directory: ./rust
+
+      - name: run test (excluding CosmWasm)
+        run: ./target/release/run-locally
+        working-directory: ./rust
+        env:
+          E2E_CI_MODE: 'true'
+          E2E_CI_TIMEOUT_SEC: '600'
+          E2E_KATHY_MESSAGES: '20'
+
+  cli-e2e:
+    runs-on: larger-runner
+    needs: [agent-build]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
       - uses: actions/cache@v3
         with:
@@ -134,10 +193,11 @@ jobs:
 
       - name: test
         run: ./typescript/cli/ci-test.sh
+        working-directory: ./typescript/cli
 
-  test-env:
+  env-test:
     runs-on: larger-runner
-    needs: [yarn-build]
+    needs: [build]
     strategy:
       matrix:
         environment: [testnet4, mainnet3]
@@ -150,15 +210,12 @@ jobs:
           path: ./*
           key: ${{ github.sha }}
 
-      - name: Install Foundry
-        uses: onbjerg/foundry-toolchain@v1
-
       - name: Test ${{ matrix.environment }} ${{ matrix.module }} deployment (check, deploy, govern, check again)
         run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }}
 
   coverage:
     runs-on: larger-runner
-    needs: [yarn-build]
+    needs: [build]
 
     steps:
       - uses: actions/checkout@v3
@@ -177,9 +234,6 @@ jobs:
             **/node_modules
             .yarn/cache
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
-
-      - name: Install Foundry
-        uses: onbjerg/foundry-toolchain@v1
 
       - name: Run tests with coverage
         run: yarn coverage
