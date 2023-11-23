@@ -3,6 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use ethers::middleware::gas_oracle::{
+    GasCategory, GasOracle, GasOracleMiddleware, Polygon, ProviderOracle,
+};
 use ethers::prelude::{
     Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
     SignerMiddleware, WeightedProvider, Ws, WsClientError,
@@ -17,8 +20,11 @@ use ethers_prometheus::json_rpc_client::{
 use ethers_prometheus::middleware::{
     MiddlewareMetrics, PrometheusMiddleware, PrometheusMiddlewareConf,
 };
-use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
+};
 
+use crate::provider;
 use crate::{signers::Signers, ConnectionConf, FallbackProvider, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
@@ -176,6 +182,7 @@ pub trait BuildableWithProvider {
 
     /// Wrap the provider creation with metrics if provided; this is the second
     /// step
+    /// TODO rename
     async fn wrap_with_metrics<P>(
         &self,
         client: P,
@@ -184,9 +191,35 @@ pub trait BuildableWithProvider {
         metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> ChainResult<Self::Output>
     where
-        P: JsonRpcClient + 'static,
+        P: JsonRpcClient + Clone + 'static,
     {
         let provider = Provider::new(client);
+
+        let gas_oracle: Arc<dyn GasOracle> = {
+            match locator.domain {
+                HyperlaneDomain::Known(
+                    KnownHyperlaneDomain::Polygon | KnownHyperlaneDomain::Mumbai,
+                ) => {
+                    let chain = match locator.domain {
+                        HyperlaneDomain::Known(KnownHyperlaneDomain::Polygon) => {
+                            ethers_core::types::Chain::Polygon
+                        }
+                        HyperlaneDomain::Known(KnownHyperlaneDomain::Mumbai) => {
+                            ethers_core::types::Chain::PolygonMumbai
+                        }
+                        _ => unreachable!(),
+                    };
+                    let estimator = Polygon::new(chain)
+                        .map_err(ChainCommunicationError::from_other)?
+                        .category(GasCategory::Standard);
+                    Arc::new(estimator)
+                }
+                _ => Arc::new(ProviderOracle::new(provider.clone())),
+            }
+        };
+
+        let provider = Arc::new(GasOracleMiddleware::new(provider, gas_oracle));
+
         Ok(if let Some(metrics) = metrics {
             let provider = Arc::new(PrometheusMiddleware::new(provider, metrics.0, metrics.1));
             tokio::spawn(provider.start_updating_on_interval(METRICS_SCRAPE_INTERVAL));
