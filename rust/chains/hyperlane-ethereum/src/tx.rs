@@ -6,6 +6,7 @@ use ethers::{
     types::Eip1559TransactionRequest,
 };
 use ethers_contract::builders::ContractCall;
+use ethers_core::types::BlockNumber;
 use hyperlane_core::{
     utils::fmt_bytes, ChainCommunicationError, ChainResult, KnownHyperlaneDomain, H256, U256,
 };
@@ -70,7 +71,6 @@ pub(crate) async fn fill_tx_gas_params<M, D>(
     tx: ContractCall<M, D>,
     tx_gas_limit: Option<U256>,
     provider: Arc<M>,
-    domain: u32,
 ) -> ChainResult<ContractCall<M, D>>
 where
     M: Middleware + 'static,
@@ -87,16 +87,6 @@ where
     let Ok((max_fee, max_priority_fee)) = provider.estimate_eip1559_fees(None).await else {
         // Is not EIP 1559 chain
         return Ok(tx.gas(gas_limit));
-    };
-    let max_priority_fee = if matches!(
-        KnownHyperlaneDomain::try_from(domain),
-        Ok(KnownHyperlaneDomain::Polygon)
-    ) {
-        // Polygon needs a max priority fee >= 30 gwei
-        let min_polygon_fee = U256::from(30_000_000_000u64);
-        max_priority_fee.max(min_polygon_fee.into())
-    } else {
-        max_priority_fee
     };
     // Is EIP 1559 chain
     let mut request = Eip1559TransactionRequest::new();
