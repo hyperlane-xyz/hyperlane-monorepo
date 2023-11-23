@@ -202,7 +202,7 @@ pub trait BuildableWithProvider {
     }
 
     /// Wrap the provider creation with a signing provider if signers were
-    /// provided; this is the third step.
+    /// provided, and then create the associated trait.
     async fn build_with_signer<M>(
         &self,
         provider: M,
