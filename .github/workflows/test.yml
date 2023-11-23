@@ -154,7 +154,7 @@ jobs:
           mold-version: 2.0.0
           make-default: true
 
-      - name: rust cache
+      - name: rust-cache
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: 'v2-rust'
@@ -162,9 +162,15 @@ jobs:
           workspaces: |
             ./rust
 
-      - name: agent build
+      - name: agent-build
         run: cargo build --release --bin run-locally
         working-directory: ./rust
+
+      - name: agent-build-cache
+        uses: actions/cache@v3
+        with:
+          path: ./rust/*
+          key: ${{ github.sha }}
 
   agent-e2e:
     runs-on: larger-runner
@@ -173,6 +179,12 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
+
+      - name: agent-build-cache
+        uses: actions/cache@v3
+        with:
+          path: ./rust/*
+          key: ${{ github.sha }}
         
       - name: foundry-install
         uses: onbjerg/foundry-toolchain@v1
@@ -220,8 +232,14 @@ jobs:
           path: ./*
           key: ${{ github.sha }}
 
+      - name: agent-build-cache
+        uses: actions/cache@v3
+        with:
+          path: ./rust/*
+          key: ${{ github.sha }}
+
       - name: test
-        run: ./typescript/cli/ci-test.sh
+        run: ./ci-test.sh
         working-directory: ./typescript/cli
 
   env-test:
