@@ -160,6 +160,7 @@ jobs:
           path: |
             ./rust/target
             ~/.cargo
+          key: rust-${{ github.sha }}
 
       - name: agent build
         run: cargo build --release --bin run-locally
@@ -240,6 +241,7 @@ jobs:
           path: |
             ./rust/target
             ~/.cargo
+          key: rust-${{ github.sha }}
 
       - name: test
         run: ./ci-test.sh
