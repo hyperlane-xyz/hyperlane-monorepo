@@ -192,34 +192,7 @@ pub trait BuildableWithProvider {
     where
         P: JsonRpcClient + 'static,
     {
-        let provider = Arc::new(Provider::new(client));
-
-        // Apply a gas oracle.
-        // Polygon and Mumbai require using the Polygon gas oracle, see discussion here
-        // https://github.com/foundry-rs/foundry/issues/1703
-        let gas_oracle: Box<dyn GasOracle> = {
-            match locator.domain {
-                HyperlaneDomain::Known(
-                    KnownHyperlaneDomain::Polygon | KnownHyperlaneDomain::Mumbai,
-                ) => {
-                    let chain = match locator.domain {
-                        HyperlaneDomain::Known(KnownHyperlaneDomain::Polygon) => {
-                            ethers_core::types::Chain::Polygon
-                        }
-                        HyperlaneDomain::Known(KnownHyperlaneDomain::Mumbai) => {
-                            ethers_core::types::Chain::PolygonMumbai
-                        }
-                        _ => unreachable!(),
-                    };
-                    let gas_oracle = Polygon::new(chain)
-                        .map_err(ChainCommunicationError::from_other)?
-                        .category(GasCategory::Standard);
-                    Box::new(gas_oracle)
-                }
-                _ => Box::new(ProviderOracle::new(provider.clone())),
-            }
-        };
-        let provider = GasOracleMiddleware::new(provider, gas_oracle);
+        let provider = Self::wrap_with_gas_oracle(Arc::new(Provider::new(client)), locator.domain)?;
 
         Ok(if let Some(metrics) = metrics {
             let provider = Arc::new(PrometheusMiddleware::new(provider, metrics.0, metrics.1));
@@ -250,6 +223,42 @@ pub trait BuildableWithProvider {
             self.build_with_provider(provider, locator)
         }
         .await)
+    }
+
+    /// Wrap the provider a gas oracle.
+    /// Polygon and Mumbai require using the Polygon gas oracle, see discussion here
+    /// https://github.com/foundry-rs/foundry/issues/1703.
+    /// Defaults to using the provider's gas oracle.
+    fn wrap_with_gas_oracle<M>(
+        provider: Arc<M>,
+        domain: &HyperlaneDomain,
+    ) -> ChainResult<GasOracleMiddleware<Arc<M>, Box<dyn GasOracle>>>
+    where
+        M: Middleware + 'static,
+    {
+        let gas_oracle: Box<dyn GasOracle> = {
+            match domain {
+                HyperlaneDomain::Known(
+                    KnownHyperlaneDomain::Polygon | KnownHyperlaneDomain::Mumbai,
+                ) => {
+                    let chain = match domain {
+                        HyperlaneDomain::Known(KnownHyperlaneDomain::Polygon) => {
+                            ethers_core::types::Chain::Polygon
+                        }
+                        HyperlaneDomain::Known(KnownHyperlaneDomain::Mumbai) => {
+                            ethers_core::types::Chain::PolygonMumbai
+                        }
+                        _ => unreachable!(),
+                    };
+                    let gas_oracle = Polygon::new(chain)
+                        .map_err(ChainCommunicationError::from_other)?
+                        .category(GasCategory::Standard);
+                    Box::new(gas_oracle)
+                }
+                _ => Box::new(ProviderOracle::new(provider.clone())),
+            }
+        };
+        Ok(GasOracleMiddleware::new(provider, gas_oracle))
     }
 
     /// Construct a new instance of the associated trait using a provider.
