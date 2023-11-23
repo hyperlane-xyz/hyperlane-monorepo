@@ -178,7 +178,8 @@ pub trait BuildableWithProvider {
         )
     }
 
-    /// Create the provider, applying any middlewares (e.g. gas oracle, signer, metrics) as needed.
+    /// Create the provider, applying any middlewares (e.g. gas oracle, signer, metrics) as needed,
+    /// and then create the associated trait.
     async fn build<P>(
         &self,
         client: P,
