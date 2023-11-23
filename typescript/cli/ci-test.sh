@@ -126,7 +126,7 @@ done
 
 echo "Validator running, sleeping to let it sync"
 # This needs to be long to allow time for the cargo build to finish
-sleep 150
+sleep 120
 echo "Done sleeping"
 
 echo "Validator Announcement:"
@@ -146,7 +146,7 @@ export HYP_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22f
 cargo run --bin relayer > /tmp/relayer/relayer-logs.txt &
 
 # This needs to be long to allow time for the cargo build to finish
-sleep 30
+sleep 60
 echo "Done running relayer, checking message delivery statuses"
 
 for i in "1 $MESSAGE1_ID" "2 $MESSAGE2_ID"

@@ -159,8 +159,7 @@ jobs:
         with:
           prefix-key: 'v2-rust'
           shared-key: 'e2e'
-          workspaces: |
-            ./rust
+          workspaces: ./rust -> target
 
       - name: agent build
         run: cargo build --release --bin run-locally
@@ -188,8 +187,7 @@ jobs:
         with:
           prefix-key: 'v2-rust'
           shared-key: 'e2e'
-          workspaces: |
-            ./rust
+          workspaces: ./rust -> target
 
       - name: run CosmWasm test
         run: RUST_BACKTRACE=1 cargo test --package run-locally --bin run-locally -- cosmos::test --nocapture
@@ -226,8 +224,7 @@ jobs:
         with:
           prefix-key: 'v2-rust'
           shared-key: 'e2e'
-          workspaces: |
-            ./rust
+          workspaces: ./rust -> target
 
       - name: yarn-cache
         uses: actions/cache@v3
