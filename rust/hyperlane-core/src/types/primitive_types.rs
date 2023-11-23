@@ -10,9 +10,10 @@ use uint::construct_uint;
 use crate::types::serialize;
 
 /// Error type for conversion.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
     /// Overflow encountered.
+    #[error("Overflow when creating primitive type")]
     Overflow,
 }
 
