@@ -129,7 +129,7 @@ jobs:
         run: yarn test
 
   agent-build:
-    runs-on: larger-runner
+    runs-on: arc-runner-set
     steps:
       - uses: actions/checkout@v3
         with:
