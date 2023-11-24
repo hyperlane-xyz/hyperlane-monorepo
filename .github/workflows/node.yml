@@ -14,7 +14,7 @@ env:
 
 jobs:
   yarn-install:
-    runs-on: larger-runner
+    runs-on: arc-runner-set
     steps:
       - uses: actions/checkout@v3
         with:
@@ -39,7 +39,7 @@ jobs:
           fi
 
   yarn-build:
-    runs-on: larger-runner
+    runs-on: arc-runner-set
     needs: [yarn-install]
     steps:
       - uses: actions/checkout@v3
@@ -69,7 +69,7 @@ jobs:
         run: yarn build
 
   lint-prettier:
-    runs-on: larger-runner
+    runs-on: arc-runner-set
     needs: [yarn-install]
     steps:
       - uses: actions/checkout@v3
@@ -97,7 +97,7 @@ jobs:
           fi
 
   test:
-    runs-on: larger-runner
+    runs-on: arc-runner-set
     needs: [yarn-build]
     steps:
       - uses: actions/checkout@v3
@@ -117,7 +117,7 @@ jobs:
         run: yarn test
 
   test-cli:
-    runs-on: larger-runner
+    runs-on: arc-runner-set
     needs: [yarn-build]
     steps:
       - uses: actions/checkout@v3
@@ -136,7 +136,7 @@ jobs:
         run: ./typescript/cli/ci-test.sh
 
   test-env:
-    runs-on: larger-runner
+    runs-on: arc-runner-set
     needs: [yarn-build]
     strategy:
       matrix:
@@ -157,7 +157,7 @@ jobs:
         run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }}
 
   coverage:
-    runs-on: larger-runner
+    runs-on: arc-runner-set
     needs: [yarn-build]
 
     steps:
