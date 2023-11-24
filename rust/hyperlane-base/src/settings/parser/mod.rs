@@ -21,10 +21,11 @@ use serde_json::Value;
 pub use self::json_value_parser::ValueParser;
 pub use super::envs::*;
 use crate::settings::{
-    chains::IndexSettings, trace::TracingConfig, ChainConf, ChainConnectionConf,
-    CoreContractAddresses, Settings, SignerConf,
+    chains::IndexSettings, parser::connection_parser::build_connection_conf, trace::TracingConfig,
+    ChainConf, CoreContractAddresses, Settings, SignerConf,
 };
 
+mod connection_parser;
 mod json_value_parser;
 
 /// The base agent config
@@ -224,40 +225,13 @@ fn parse_chain(
         .end();
 
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
-
-    let connection: Option<ChainConnectionConf> = match domain.domain_protocol() {
-        HyperlaneDomainProtocol::Ethereum => {
-            if rpcs.len() <= 1 {
-                rpcs.into_iter()
-                    .next()
-                    .map(|url| ChainConnectionConf::Ethereum(h_eth::ConnectionConf::Http { url }))
-            } else {
-                let rpc_consensus_type = chain
-                    .chain(&mut err)
-                    .get_opt_key("rpcConsensusType")
-                    .parse_string()
-                    .unwrap_or(default_rpc_consensus_type);
-                match rpc_consensus_type {
-                    "single" => Some(h_eth::ConnectionConf::Http {
-                        url: rpcs.into_iter().next().unwrap(),
-                    }),
-                    "fallback" => Some(h_eth::ConnectionConf::HttpFallback { urls: rpcs }),
-                    "quorum" => Some(h_eth::ConnectionConf::HttpQuorum { urls: rpcs }),
-                    ty => Err(eyre!("unknown rpc consensus type `{ty}`"))
-                        .take_err(&mut err, || &chain.cwp + "rpc_consensus_type"),
-                }
-                .map(ChainConnectionConf::Ethereum)
-            }
-        }
-        HyperlaneDomainProtocol::Fuel => rpcs
-            .into_iter()
-            .next()
-            .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url })),
-        HyperlaneDomainProtocol::Sealevel => rpcs
-            .into_iter()
-            .next()
-            .map(|url| ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf { url })),
-    };
+    let connection = build_connection_conf(
+        domain.domain_protocol(),
+        &rpcs,
+        &chain,
+        &mut err,
+        default_rpc_consensus_type,
+    );
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce]);
     err.into_result(ChainConf {
@@ -327,7 +301,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
 
     let signer_type = signer
         .chain(&mut err)
-        .get_opt_key("signerType")
+        .get_opt_key("type")
         .parse_string()
         .end();
 
@@ -358,11 +332,28 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .unwrap_or_default();
             err.into_result(SignerConf::Aws { id, region })
         }};
+        (cosmosKey) => {{
+            let key = signer
+                .chain(&mut err)
+                .get_key("key")
+                .parse_private_key()
+                .unwrap_or_default();
+            let prefix = signer
+                .chain(&mut err)
+                .get_key("prefix")
+                .parse_string()
+                .unwrap_or_default();
+            err.into_result(SignerConf::CosmosKey {
+                key,
+                prefix: prefix.to_string(),
+            })
+        }};
     }
 
     match signer_type {
         Some("hexKey") => parse_signer!(hexKey),
         Some("aws") => parse_signer!(aws),
+        Some("cosmosKey") => parse_signer!(cosmosKey),
         Some(t) => {
             Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| &signer.cwp + "type")
         }

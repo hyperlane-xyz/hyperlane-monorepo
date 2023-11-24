@@ -123,8 +123,10 @@ impl MultisigCheckpointSyncer {
                         );
                         continue;
                     }
-                    // Ensure that the signature is actually by the validator at the current index
+
+                    // Ensure that the signature is actually by the validator
                     let signer = signed_checkpoint.recover()?;
+
                     if H256::from(signer) != *validator {
                         debug!(
                             validator = format!("{:#x}", validator),
