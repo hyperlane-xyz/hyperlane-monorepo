@@ -10,12 +10,7 @@ import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
 import { readChainConfigsIfExists } from './chain.js';
 
-const MultisigConfigMapSchema = z.object({}).catchall(
-  z.object({
-    threshold: z.number(),
-    validators: z.array(z.string()),
-  }),
-);
+const MultisigConfigMapSchema = z.record(z.custom<MultisigConfig>());
 export type MultisigConfigMap = z.infer<typeof MultisigConfigMapSchema>;
 
 export function readMultisigConfig(filePath: string) {

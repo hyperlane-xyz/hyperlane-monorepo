@@ -42,7 +42,6 @@ const createCommand: CommandModule = {
     yargs
       .command(createChainConfigCommand)
       .command(createIsmConfigCommand)
-      .command(createIsmConfigMapCommand)
       .command(createHookConfigCommand)
       .command(createWarpConfigCommand)
       .version(false)
@@ -68,36 +67,30 @@ const createChainConfigCommand: CommandModule = {
 
 const createIsmConfigCommand: CommandModule = {
   command: 'ism',
-  describe: 'Create a basic ISM config for a validator set',
+  describe: 'Create a basic or advanced ISM config for a validator set',
   builder: (yargs) =>
     yargs.options({
       output: outputFileOption('./configs/ism.yaml'),
       format: fileFormatOption,
       chains: chainsCommandOption,
+      advanced: {
+        type: 'boolean',
+        describe: 'Create an advanced ISM configuration',
+        default: false,
+      },
     }),
   handler: async (argv: any) => {
     const format: FileFormat = argv.format;
     const outPath: string = argv.output;
     const chainConfigPath: string = argv.chains;
-    await createMultisigConfig({ format, outPath, chainConfigPath });
-    process.exit(0);
-  },
-};
+    const isAdvanced: boolean = argv.advanced;
 
-const createIsmConfigMapCommand: CommandModule = {
-  command: 'ism-advanced',
-  describe: 'Create a full ISM config topologically',
-  builder: (yargs) =>
-    yargs.options({
-      output: outputFileOption('./configs/ism-advanced.yaml'),
-      format: fileFormatOption,
-      chains: chainsCommandOption,
-    }),
-  handler: async (argv: any) => {
-    const format: FileFormat = argv.format;
-    const outPath: string = argv.output;
-    const chainConfigPath: string = argv.chains;
-    await createIsmConfigMap({ format, outPath, chainConfigPath });
+    if (isAdvanced) {
+      await createIsmConfigMap({ format, outPath, chainConfigPath });
+    } else {
+      await createMultisigConfig({ format, outPath, chainConfigPath });
+    }
+
     process.exit(0);
   },
 };
