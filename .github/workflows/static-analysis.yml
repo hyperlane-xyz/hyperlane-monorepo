@@ -1,0 +1,41 @@
+name: static-analysis
+
+on:
+  # Triggers the workflow on pull request against main
+  pull_request:
+    branches: [main]
+    paths:
+      - 'solidity/**'
+
+jobs:
+  slither:
+    runs-on: larger-runner
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: yarn-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+
+      - run: yarn workspaces focus @hyperlane-xyz/core
+
+      - name: Static analysis
+        uses: crytic/slither-action@v0.3.0
+        id: slither
+        with:
+          target: 'solidity/'
+          slither-config: 'solidity/slither.config.json'
+          sarif: results.sarif
+          fail-on: none
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: ${{ steps.slither.outputs.sarif }}

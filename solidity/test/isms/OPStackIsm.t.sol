@@ -51,7 +51,7 @@ contract OPStackIsmTest is Test {
     bytes internal testMessage =
         abi.encodePacked("Hello from the other chain!");
     bytes internal testMetadata =
-        StandardHookMetadata.formatMetadata(0, 0, address(this), "");
+        StandardHookMetadata.overrideRefundAddress(address(this));
 
     bytes internal encodedMessage;
     bytes32 internal messageId;
@@ -195,12 +195,8 @@ contract OPStackIsmTest is Test {
         vm.selectFork(mainnetFork);
 
         vm.deal(address(this), uint256(2 ** 255 + 1));
-        bytes memory excessValueMetadata = StandardHookMetadata.formatMetadata(
-            uint256(2 ** 255 + 1),
-            DEFAULT_GAS_LIMIT,
-            address(this),
-            ""
-        );
+        bytes memory excessValueMetadata = StandardHookMetadata
+            .overrideMsgValue(uint256(2 ** 255 + 1));
 
         l1Mailbox.updateLatestDispatchedId(messageId);
         vm.expectRevert("OPStackHook: msgValue must be less than 2 ** 255");

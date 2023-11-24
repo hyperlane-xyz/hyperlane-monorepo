@@ -6,14 +6,24 @@ import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 
 import { objMerge } from '@hyperlane-xyz/utils';
 
-import { logBlue } from '../../logger.js';
+import { log, logBlue } from '../../logger.js';
 
 import { getTimestampForFilename } from './time.js';
 
 export type FileFormat = 'yaml' | 'json';
 
+export function isFile(filepath: string) {
+  if (!filepath) return false;
+  try {
+    return fs.existsSync(filepath) && fs.lstatSync(filepath).isFile();
+  } catch (error) {
+    log(`Error checking for file: ${filepath}`);
+    return false;
+  }
+}
+
 export function readFileAtPath(filepath: string) {
-  if (!fs.existsSync(filepath)) {
+  if (!isFile(filepath)) {
     throw Error(`File doesn't exist at ${filepath}`);
   }
   return fs.readFileSync(filepath, 'utf8');
@@ -21,7 +31,7 @@ export function readFileAtPath(filepath: string) {
 
 export function writeFileAtPath(filepath: string, value: string) {
   const dirname = path.dirname(filepath);
-  if (!fs.existsSync(dirname)) {
+  if (!isFile(dirname)) {
     fs.mkdirSync(dirname, { recursive: true });
   }
   fs.writeFileSync(filepath, value);
@@ -47,7 +57,7 @@ export function mergeJson<T extends Record<string, any>>(
   filepath: string,
   obj: T,
 ) {
-  if (fs.existsSync(filepath)) {
+  if (isFile(filepath)) {
     const previous = readJson<T>(filepath);
     writeJson(filepath, objMerge(previous, obj));
   } else {
@@ -75,7 +85,7 @@ export function mergeYaml<T extends Record<string, any>>(
   filepath: string,
   obj: T,
 ) {
-  if (fs.existsSync(filepath)) {
+  if (isFile(filepath)) {
     const previous = readYaml<T>(filepath);
     writeYaml(filepath, objMerge(previous, obj));
   } else {
