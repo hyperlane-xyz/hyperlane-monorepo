@@ -12,13 +12,13 @@ env:
 
 jobs:
   test-rs:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest
 
     steps:
       - run: 'echo "No test required" '
 
   lint-rs:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest
 
     steps:
       - run: 'echo "No lint required" '
