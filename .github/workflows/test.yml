@@ -68,7 +68,9 @@ jobs:
       - name: build-cache
         uses: actions/cache@v3
         with:
-          path: ./*
+          path: |
+            ./solidity
+            ./typescript
           key: ${{ github.sha }}
 
       - name: build
@@ -118,7 +120,9 @@ jobs:
       - name: build-cache
         uses: actions/cache@v3
         with:
-          path: ./*
+          path: |
+            ./solidity
+            ./typescript
           key: ${{ github.sha }}
 
       - name: Unit Tests
@@ -259,9 +263,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/cache@v3
+
+      - name: build-cache
+        uses: actions/cache@v3
         with:
-          path: ./*
+          path: |
+            ./solidity
+            ./typescript
           key: ${{ github.sha }}
 
       - name: Test ${{ matrix.environment }} ${{ matrix.module }} deployment (check, deploy, govern, check again)
@@ -276,11 +284,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/cache@v3
-        with:
-          path: ./*
-          key: ${{ github.sha }}
-
       - name: yarn-cache
         uses: actions/cache@v3
         with:
@@ -288,6 +291,14 @@ jobs:
             **/node_modules
             .yarn/cache
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+
+      - name: build-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ./solidity
+            ./typescript
+          key: ${{ github.sha }}
 
       - name: Run tests with coverage
         run: yarn coverage
