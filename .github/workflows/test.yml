@@ -75,6 +75,8 @@ jobs:
 
       - name: build
         run: yarn build
+      - name: foundry-install
+        uses: onbjerg/foundry-toolchain@v1
 
   lint-prettier:
     runs-on: ubuntu-latest
@@ -113,10 +115,6 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-
-      - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
-
       - name: build-cache
         uses: actions/cache@v3
         with:
@@ -183,9 +181,6 @@ jobs:
         with:
           toolchain: stable
           profile: minimal
-        
-      - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
       
       - name: agent-build-cache
         uses: actions/cache@v3
