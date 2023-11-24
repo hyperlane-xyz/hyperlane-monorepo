@@ -35,7 +35,7 @@ jobs:
         with:
           path: |
             **/node_modules
-            .yarn/cache
+            .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: yarn-install
@@ -62,7 +62,7 @@ jobs:
         with:
           path: |
             **/node_modules
-            .yarn/cache
+            .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
@@ -90,7 +90,7 @@ jobs:
         with:
           path: |
             **/node_modules
-            .yarn/cache
+            .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: lint
@@ -230,7 +230,7 @@ jobs:
         with:
           path: |
             **/node_modules
-            .yarn/cache
+            .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
@@ -289,7 +289,7 @@ jobs:
         with:
           path: |
             **/node_modules
-            .yarn/cache
+            .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
