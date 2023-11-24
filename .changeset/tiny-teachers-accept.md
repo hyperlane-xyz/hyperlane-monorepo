@@ -3,4 +3,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-adding support for full IsmConfig in CLI
+Add support for all ISM types in CLI interactive config creation
