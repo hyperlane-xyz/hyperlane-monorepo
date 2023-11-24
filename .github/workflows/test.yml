@@ -69,8 +69,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            ./solidity
-            ./typescript
+            ./*
+            !./rust
           key: ${{ github.sha }}
 
       - name: build
@@ -121,8 +121,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            ./solidity
-            ./typescript
+            ./*
+            !./rust
           key: ${{ github.sha }}
 
       - name: Unit Tests
@@ -237,8 +237,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            ./solidity
-            ./typescript
+            ./*
+            !./rust
           key: ${{ github.sha }}
 
       - name: agent-build-cache
@@ -268,8 +268,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            ./solidity
-            ./typescript
+            ./*
+            !./rust
           key: ${{ github.sha }}
 
       - name: Test ${{ matrix.environment }} ${{ matrix.module }} deployment (check, deploy, govern, check again)
@@ -296,8 +296,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            ./solidity
-            ./typescript
+            ./*
+            !./rust
           key: ${{ github.sha }}
 
       - name: Run tests with coverage
