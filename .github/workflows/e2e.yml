@@ -20,7 +20,7 @@ defaults:
 
 jobs:
   e2e:
-    runs-on: larger-runner
+    runs-on: arc-runner-set
     steps:
       - uses: actions/setup-node@v3
         with:
