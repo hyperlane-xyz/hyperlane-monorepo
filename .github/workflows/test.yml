@@ -132,6 +132,10 @@ jobs:
     runs-on: arc-runner-set
     needs: [yarn-build]
     steps:
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
       - uses: actions/checkout@v3
         with:
           submodules: recursive
