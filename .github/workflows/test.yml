@@ -130,6 +130,7 @@ jobs:
 
   e2e:
     runs-on: arc-runner-set
+    needs: [yarn-build]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -185,11 +186,11 @@ jobs:
         run: cargo build --release --bin run-locally
         working-directory: ./rust
 
-      - name: run agent test with CosmWasm
+      - name: agent tests with CosmWasm
         run: RUST_BACKTRACE=1 cargo test --package run-locally --bin run-locally -- cosmos::test --nocapture
         working-directory: ./rust
 
-      - name: run agent test excluding CosmWasm
+      - name: agent tests excluding CosmWasm
         run: ./target/release/run-locally
         working-directory: ./rust
         env:
@@ -197,7 +198,7 @@ jobs:
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
 
-      - name: test
+      - name: cli e2e tests
         run: ./ci-test.sh
         working-directory: ./typescript/cli
 
