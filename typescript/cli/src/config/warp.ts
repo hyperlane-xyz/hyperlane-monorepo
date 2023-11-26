@@ -99,7 +99,7 @@ export async function createWarpConfig({
 
   const syntheticChains = await runMultiChainSelectionStep(
     customChains,
-    'Select the chains to which the base token will be connected',
+    'Select chains to which the base token will be connected',
   );
 
   // TODO add more prompts here to support customizing the token metadata

@@ -1,9 +1,10 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "3.1.7",
+  "version": "3.1.10",
   "description": "A command-line utility for common Hyperlane operations",
   "dependencies": {
-    "@hyperlane-xyz/sdk": "3.1.7",
+    "@hyperlane-xyz/sdk": "3.1.10",
+    "@hyperlane-xyz/utils": "3.1.10",
     "@inquirer/prompts": "^3.0.0",
     "bignumber.js": "^9.1.1",
     "chalk": "^5.3.0",
@@ -14,26 +15,31 @@
     "zod": "^3.21.2"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.1",
     "@types/node": "^18.14.5",
     "@types/yargs": "^17.0.24",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
+    "chai": "^4.3.6",
     "eslint": "^8.43.0",
     "eslint-config-prettier": "^8.8.0",
+    "mocha": "^10.2.0",
     "prettier": "^2.8.8",
     "typescript": "^5.1.6"
   },
   "scripts": {
     "hyperlane": "node ./dist/cli.js",
     "build": "tsc",
-    "dev": "tsc --watch",
     "clean": "rm -rf ./dist",
+    "dev": "tsc --watch",
     "lint": "eslint . --ext .ts",
-    "prettier": "prettier --write ./src ./examples"
+    "prettier": "prettier --write ./src ./examples",
+    "test": "mocha --config .mocharc.json"
   },
   "files": [
     "./dist",
-    "./examples"
+    "./examples",
+    "package.json"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

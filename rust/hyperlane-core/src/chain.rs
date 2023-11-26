@@ -99,6 +99,10 @@ pub enum KnownHyperlaneDomain {
     LineaGoerli = 59140,
     BaseGoerli = 84531,
     ScrollSepolia = 534351,
+
+    /// Cosmos local chains
+    CosmosTest26657 = 26657,
+    CosmosTest26658 = 26658,
 }
 
 #[derive(Clone)]
@@ -162,6 +166,8 @@ pub enum HyperlaneDomainProtocol {
     Fuel,
     /// A Sealevel-based chain type which uses hyperlane-sealevel.
     Sealevel,
+    /// A Cosmos-based chain type which uses hyperlane-cosmos.
+    Cosmos,
 }
 
 impl HyperlaneDomainProtocol {
@@ -171,6 +177,7 @@ impl HyperlaneDomainProtocol {
             Ethereum => format!("{:?}", H160::from(addr)),
             Fuel => format!("{:?}", addr),
             Sealevel => format!("{:?}", addr),
+            Cosmos => format!("{:?}", addr),
         }
     }
 }
@@ -193,7 +200,7 @@ impl KnownHyperlaneDomain {
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
                 Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia, Chiado
             ],
-            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2],
+            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest26657, CosmosTest26658],
         })
     }
 
@@ -208,6 +215,7 @@ impl KnownHyperlaneDomain {
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
+            HyperlaneDomainProtocol::Cosmos: [CosmosTest26657, CosmosTest26658],
         })
     }
 }
@@ -296,7 +304,7 @@ impl HyperlaneDomain {
     ) -> Result<Self, HyperlaneDomainConfigError> {
         let name = name.to_ascii_lowercase();
         if let Ok(domain) = KnownHyperlaneDomain::try_from(domain_id) {
-            if name == domain.as_str() {
+            if name == domain.as_str().to_ascii_lowercase() {
                 Ok(HyperlaneDomain::Known(domain))
             } else {
                 Err(HyperlaneDomainConfigError::UnknownDomainName(name))
@@ -367,7 +375,7 @@ impl HyperlaneDomain {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
         many_to_one!(match protocol {
-            IndexMode::Block: [Ethereum],
+            IndexMode::Block: [Ethereum, Cosmos], // TODO: Is cosmos index-mode is correct?
             IndexMode::Sequence : [Sealevel, Fuel],
         })
     }

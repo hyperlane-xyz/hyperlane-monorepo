@@ -86,8 +86,7 @@ contract HelloWorld is Router {
     function _metadata(
         uint32 /*_destinationDomain*/
     ) internal view override returns (bytes memory) {
-        return
-            StandardHookMetadata.formatMetadata(HANDLE_GAS_AMOUNT, msg.sender);
+        return StandardHookMetadata.overrideGasLimit(HANDLE_GAS_AMOUNT);
     }
 
     /**
