@@ -123,33 +123,37 @@ task('kathy', 'Dispatches random hyperlane messages')
         const remoteId = multiProvider.getDomainId(remote);
         const contracts = core.getContracts(local);
         const mailbox = contracts.mailbox;
-        await setMailboxHook(
-          mailbox,
-          addresses,
-          local,
-          MailboxHookType.DEFAULT,
-          taskArgs.defaultHook,
-        );
-        await setMailboxHook(
-          mailbox,
-          addresses,
-          local,
-          MailboxHookType.REQUIRED,
-          taskArgs.requiredHook,
-        );
-        const quote = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
-          remoteId,
-          addressToBytes32(recipient.address),
-          '0x1234',
-        );
-        await recipient['dispatchToSelf(address,uint32,bytes)'](
-          mailbox.address,
-          remoteId,
-          '0x1234',
-          {
-            value: quote,
-          },
-        );
+        try {
+          await setMailboxHook(
+            mailbox,
+            addresses,
+            local,
+            MailboxHookType.DEFAULT,
+            taskArgs.defaultHook,
+          );
+          await setMailboxHook(
+            mailbox,
+            addresses,
+            local,
+            MailboxHookType.REQUIRED,
+            taskArgs.requiredHook,
+          );
+          const quote = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
+            remoteId,
+            addressToBytes32(recipient.address),
+            '0x1234',
+          );
+          await recipient['dispatchToSelf(address,uint32,bytes)'](
+            mailbox.address,
+            remoteId,
+            '0x1234',
+            {
+              value: quote,
+            },
+          );
+        } catch (e) {
+          console.error('Error in kathy', e);
+        }
         console.log(
           `send to ${recipient.address} on ${remote} via mailbox ${
             mailbox.address

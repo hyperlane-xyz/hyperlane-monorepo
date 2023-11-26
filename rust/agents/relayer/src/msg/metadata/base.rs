@@ -7,6 +7,7 @@ use crate::{
         AggregationIsmMetadataBuilder, CcipReadIsmMetadataBuilder, NullMetadataBuilder,
         RoutingIsmMetadataBuilder,
     },
+    settings::matching_list::MatchingList,
 };
 use async_trait::async_trait;
 use derive_new::new;
@@ -20,6 +21,10 @@ use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
     HyperlaneMessage, InterchainSecurityModule, ModuleType, MultisigIsm, RoutingIsm,
     ValidatorAnnounce, H160, H256,
+};
+use prometheus::{
+    core::{AtomicI64, GenericGauge},
+    IntGauge, IntGaugeVec,
 };
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
@@ -40,24 +45,36 @@ pub struct IsmWithMetadataAndType {
 
 #[async_trait]
 pub trait MetadataBuilder: Send + Sync {
+    // TODO rm?
     #[allow(clippy::async_yields_async)]
-    async fn build(&self, ism_address: H256, message: &HyperlaneMessage)
-        -> Result<Option<Vec<u8>>>;
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+        metric_app_context: Option<String>,
+    ) -> Result<Option<Vec<u8>>>;
 }
 
 #[derive(Clone, new)]
 pub struct BaseMetadataBuilder {
-    destination_chain_setup: ChainConf,
+    pub(crate) origin_domain: HyperlaneDomain,
+    pub(crate) destination_chain_setup: ChainConf,
     origin_prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     origin_validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,
-    metrics: Arc<CoreMetrics>,
+    pub(crate) metrics: Arc<CoreMetrics>,
     db: HyperlaneRocksDB,
     /// ISMs can be structured recursively. We keep track of the depth
     /// of the recursion to avoid infinite loops.
     #[new(default)]
     depth: u32,
     max_depth: u32,
+    // root_ism: H256,
+    // metric_app_context: Option<String>,
+}
+
+struct MetricContext {
+    app_context: Option<String>,
 }
 
 impl Debug for BaseMetadataBuilder {
@@ -77,8 +94,9 @@ impl MetadataBuilder for BaseMetadataBuilder {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
+        metric_app_context: Option<String>,
     ) -> Result<Option<Vec<u8>>> {
-        self.build_ism_and_metadata(ism_address, message)
+        self.build_ism_and_metadata(ism_address, message, metric_app_context)
             .await
             .map(|ism_with_metadata| ism_with_metadata.metadata)
     }
@@ -159,9 +177,12 @@ impl BaseMetadataBuilder {
             .await
     }
 
+    // here
     pub async fn build_checkpoint_syncer(
         &self,
         validators: &[H256],
+        // get_latest_index_gauge: Option<fn (validator: H256) -> IntGauge>,
+        get_latest_index_gauge: Option<impl Fn(H256) -> GenericGauge<AtomicI64>>,
     ) -> Result<MultisigCheckpointSyncer> {
         let storage_locations = self
             .origin_validator_announce
@@ -193,7 +214,17 @@ impl BaseMetadataBuilder {
                     continue;
                 }
 
-                match config.build(None) {
+                // let validator_address = format!("0x{:x}", H160::from(validator));
+
+                // // let latest_index_gauge = metric_labels.as_ref().map(|app_context| self
+                // //     .metrics
+                // //     .validator_checkpoint_index()
+                // //     .with_label_values(&[&self.origin_domain.to_string(), &validator_address.to_lowercase(), app_context])
+                // // );
+
+                let latest_index_gauge = get_latest_index_gauge.as_ref().map(|f| f(validator));
+
+                match config.build(latest_index_gauge) {
                     Ok(checkpoint_syncer) => {
                         // found the syncer for this validator
                         checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());
@@ -221,7 +252,10 @@ impl BaseMetadataBuilder {
                 }
             }
         }
-        Ok(MultisigCheckpointSyncer::new(checkpoint_syncers))
+        Ok(MultisigCheckpointSyncer::new(
+            checkpoint_syncers,
+            self.metrics.clone(),
+        ))
     }
 
     #[instrument(err, skip(self), fields(domain=self.domain().name()))]
@@ -229,6 +263,7 @@ impl BaseMetadataBuilder {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
+        metric_app_context: Option<String>,
     ) -> Result<IsmWithMetadataAndType> {
         let ism: Box<dyn InterchainSecurityModule> = self
             .build_ism(ism_address)
@@ -253,7 +288,7 @@ impl BaseMetadataBuilder {
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         let meta = metadata_builder
-            .build(ism_address, message)
+            .build(ism_address, message, metric_app_context)
             .await
             .context("When building metadata");
         Ok(IsmWithMetadataAndType {

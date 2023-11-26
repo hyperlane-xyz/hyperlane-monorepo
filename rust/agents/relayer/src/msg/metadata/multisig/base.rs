@@ -5,6 +5,7 @@ use derive_more::{AsRef, Deref};
 use derive_new::new;
 use ethers::abi::Token;
 
+use ethers::types::H160;
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::accumulator::merkle::Proof;
@@ -97,6 +98,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
+        metric_app_context: Option<String>,
     ) -> Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching MultisigIsm metadata";
         let multisig_ism = self
@@ -115,9 +117,28 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             return Ok(None);
         }
 
+        let get_latest_index_gauge = metric_app_context.map(|app_context| {
+            move |validator: H256| {
+                let validator_address = format!("0x{:x}", H160::from(validator));
+                let ism_address = format!("0x{:x}", ism_address);
+
+                // &["origin", "destination", "validator", "app_context", "ism_address"],
+                self.as_ref()
+                    .metrics
+                    .validator_checkpoint_index()
+                    .with_label_values(&[
+                        &self.as_ref().origin_domain.to_string(),
+                        &self.as_ref().destination_chain_setup.domain.to_string(),
+                        &validator_address.to_lowercase(),
+                        &app_context,
+                        &ism_address,
+                    ])
+            }
+        });
+
         let checkpoint_syncer = self
             .as_ref()
-            .build_checkpoint_syncer(&validators)
+            .build_checkpoint_syncer(&validators, get_latest_index_gauge)
             .await
             .context(CTX)?;
 

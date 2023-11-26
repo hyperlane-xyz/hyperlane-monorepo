@@ -115,7 +115,14 @@ impl CoreMetrics {
                 "Observed signed checkpoint indices per validator",
                 const_labels_ref
             ),
-            &["origin", "validator"],
+            // &["origin", "validator", "app_context"],
+            &[
+                "origin",
+                "destination",
+                "validator",
+                "app_context",
+                "ism_address"
+            ],
             registry
         )?;
 

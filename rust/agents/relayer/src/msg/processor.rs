@@ -240,16 +240,23 @@ mod test {
     }
 
     fn dummy_metadata_builder(
-        domain: &HyperlaneDomain,
+        origin_domain: &HyperlaneDomain,
+        destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
     ) -> BaseMetadataBuilder {
         let mut settings = Settings::default();
-        settings
-            .chains
-            .insert(domain.name().to_owned(), dummy_chain_conf(domain));
-        let destination_chain_conf = settings.chain_setup(domain).unwrap();
+        settings.chains.insert(
+            origin_domain.name().to_owned(),
+            dummy_chain_conf(origin_domain),
+        );
+        settings.chains.insert(
+            destination_domain.name().to_owned(),
+            dummy_chain_conf(destination_domain),
+        );
+        let destination_chain_conf = settings.chain_setup(destination_domain).unwrap();
         let core_metrics = CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap();
         BaseMetadataBuilder::new(
+            origin_domain.clone(),
             destination_chain_conf.clone(),
             Arc::new(RwLock::new(MerkleTreeBuilder::new())),
             Arc::new(MockValidatorAnnounceContract::default()),
@@ -268,7 +275,7 @@ mod test {
         MessageProcessor,
         UnboundedReceiver<Box<DynPendingOperation>>,
     ) {
-        let base_metadata_builder = dummy_metadata_builder(origin_domain, db);
+        let base_metadata_builder = dummy_metadata_builder(origin_domain, destination_domain, db);
         let message_context = Arc::new(MessageContext {
             destination_mailbox: Arc::new(MockMailboxContract::default()),
             origin_db: db.clone(),

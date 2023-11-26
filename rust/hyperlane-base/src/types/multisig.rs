@@ -7,7 +7,7 @@ use tracing::{debug, instrument};
 
 use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithMessageId, H160, H256};
 
-use crate::CheckpointSyncer;
+use crate::{CheckpointSyncer, CoreMetrics};
 
 /// Fetches signed checkpoints from multiple validators to create
 /// MultisigSignedCheckpoints
@@ -15,6 +15,7 @@ use crate::CheckpointSyncer;
 pub struct MultisigCheckpointSyncer {
     /// The checkpoint syncer for each valid validator signer address
     checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>>,
+    metrics: Arc<CoreMetrics>,
 }
 
 impl MultisigCheckpointSyncer {
@@ -171,5 +172,26 @@ impl MultisigCheckpointSyncer {
         }
         debug!("No quorum checkpoint found for message");
         Ok(None)
+    }
+
+    async fn fetch_latest_checkpoints(&self, validators: &[H256]) -> Result<Vec<u32>> {
+        // Get the latest_index from each validator's checkpoint syncer.
+        let mut latest_indices = Vec::with_capacity(validators.len());
+        for validator in validators {
+            let address = H160::from(*validator);
+            if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&address) {
+                // Gracefully handle errors getting the latest_index
+                match checkpoint_syncer.latest_index().await {
+                    Ok(Some(index)) => {
+                        debug!(?address, ?index, "Validator returned latest index");
+                        latest_indices.push(index);
+                    }
+                    err => {
+                        debug!(?address, ?err, "Failed to get latest index from validator");
+                    }
+                }
+            }
+        }
+        Ok(latest_indices)
     }
 }

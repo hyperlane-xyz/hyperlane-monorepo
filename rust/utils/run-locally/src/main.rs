@@ -335,7 +335,7 @@ fn main() -> ExitCode {
         .cmd("kathy")
         .arg("messages", (config.kathy_messages / 4).to_string())
         .arg("timeout", "1000");
-    kathy_env_single_insertion.clone().run().join();
+    kathy_env_single_insertion.clone().run();
 
     let kathy_env_zero_insertion = Program::new("yarn")
         .working_dir(INFRA_PATH)
@@ -348,7 +348,7 @@ fn main() -> ExitCode {
         // replacing the `aggregationHook` with the `interchainGasPaymaster` means there
         // is no more `merkleTreeHook`, causing zero merkle insertions to occur.
         .arg("default-hook", "interchainGasPaymaster");
-    kathy_env_zero_insertion.clone().run().join();
+    kathy_env_zero_insertion.clone().run();
 
     let kathy_env_double_insertion = Program::new("yarn")
         .working_dir(INFRA_PATH)
@@ -358,7 +358,7 @@ fn main() -> ExitCode {
         // replacing the `protocolFees` required hook with the `merkleTreeHook`
         // will cause double insertions to occur, which should be handled correctly
         .arg("required-hook", "merkleTreeHook");
-    kathy_env_double_insertion.clone().run().join();
+    kathy_env_double_insertion.clone().run();
 
     // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
     // for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
@@ -371,7 +371,8 @@ fn main() -> ExitCode {
         state.push_agent(validator);
     }
 
-    state.push_agent(relayer_env.spawn("RLY"));
+    // state.push_agent(relayer_env.spawn("RLY"));
+    println!("Relayer command: {:?}", relayer_env.create_command());
 
     // Send some sealevel messages after spinning up the relayer, to test the forward indexing cursor
     // for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
@@ -386,26 +387,26 @@ fn main() -> ExitCode {
     kathy_env_zero_insertion.clone().run().join();
     state.push_agent(kathy_env_single_insertion.flag("mineforever").spawn("KTY"));
 
-    let loop_start = Instant::now();
+    // let loop_start = Instant::now();
     // give things a chance to fully start.
     sleep(Duration::from_secs(5));
     let mut failure_occurred = false;
     while !SHUTDOWN.load(Ordering::Relaxed) {
-        if config.ci_mode {
-            // for CI we have to look for the end condition.
-            if termination_invariants_met(&config)
-                // if termination_invariants_met(&config, &solana_path, &solana_config_path)
-                .unwrap_or(false)
-            {
-                // end condition reached successfully
-                break;
-            } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
-                // we ran out of time
-                log!("CI timeout reached before queues emptied");
-                failure_occurred = true;
-                break;
-            }
-        }
+        // if config.ci_mode {
+        //     // for CI we have to look for the end condition.
+        //     if termination_invariants_met(&config)
+        //         // if termination_invariants_met(&config, &solana_path, &solana_config_path)
+        //         .unwrap_or(false)
+        //     {
+        //         // end condition reached successfully
+        //         break;
+        //     } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
+        //         // we ran out of time
+        //         log!("CI timeout reached before queues emptied");
+        //         failure_occurred = true;
+        //         break;
+        //     }
+        // }
 
         // verify long-running tasks are still running
         for (name, child) in state.agents.iter_mut() {

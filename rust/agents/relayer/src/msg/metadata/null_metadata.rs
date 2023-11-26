@@ -15,6 +15,7 @@ impl MetadataBuilder for NullMetadataBuilder {
         &self,
         _ism_address: H256,
         _message: &HyperlaneMessage,
+        _metric_app_context: Option<String>,
     ) -> eyre::Result<Option<Vec<u8>>> {
         Ok(Some(vec![]))
     }

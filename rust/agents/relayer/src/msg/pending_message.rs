@@ -153,10 +153,21 @@ impl PendingOperation for PendingMessage {
             "fetching ISM address. Potentially malformed recipient ISM address."
         );
 
+        let default_ism_address = op_try!(
+            self.ctx.destination_mailbox.default_ism().await,
+            "fetching default ISM address"
+        );
+
+        let metric_app_context = if ism_address == default_ism_address {
+            Some("default_ism".to_owned())
+        } else {
+            None
+        };
+
         let Some(metadata) = op_try!(
             self.ctx
                 .metadata_builder
-                .build(ism_address, &self.message)
+                .build(ism_address, &self.message, metric_app_context)
                 .await,
             "building metadata"
         ) else {
