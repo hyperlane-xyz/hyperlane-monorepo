@@ -347,18 +347,19 @@ fn run_locally() {
     };
 
     let port_start = 26600u32;
-    let domain_start = 26657u32;
+    let domain_start = 99990u32;
     let node_count = 2;
+
 
     let nodes = (0..node_count)
         .map(|i| {
             (
                 launch_cosmos_node(CosmosConfig {
                     node_port_base: port_start + (i * 10),
-                    chain_id: format!("cosmos-test-{}", i + 26657),
+                    chain_id: format!("cosmos-test-{}", i + domain_start),
                     ..default_config.clone()
                 }),
-                format!("cosmos-test-{}", i + 26657),
+                format!("cosmos-test-{}", i + domain_start),
                 domain_start + i,
             )
         })
