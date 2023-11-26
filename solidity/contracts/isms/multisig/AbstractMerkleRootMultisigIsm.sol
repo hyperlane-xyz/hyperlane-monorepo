@@ -35,12 +35,10 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
     /**
      * @inheritdoc AbstractMultisigIsm
      */
-    function digest(bytes calldata _metadata, bytes calldata _message)
-        internal
-        pure
-        override
-        returns (bytes32)
-    {
+    function digest(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) internal pure override returns (bytes32) {
         require(
             _metadata.messageIndex() <= _metadata.signedIndex(),
             "Invalid merkle index metadata"
@@ -65,13 +63,10 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
     /**
      * @inheritdoc AbstractMultisigIsm
      */
-    function signatureAt(bytes calldata _metadata, uint256 _index)
-        internal
-        pure
-        virtual
-        override
-        returns (bytes calldata)
-    {
+    function signatureAt(
+        bytes calldata _metadata,
+        uint256 _index
+    ) internal pure virtual override returns (bytes calldata) {
         return _metadata.signatureAt(_index);
     }
 }

@@ -7,16 +7,16 @@
 [codecov-badge]: https://img.shields.io/codecov/c/github/hyperlane-xyz/hyperlane-monorepo
 [foundry]: https://getfoundry.sh/
 [foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
-[license]: https://opensource.org/licenses/MIT
-[license-badge]: https://img.shields.io/badge/License-MIT-blue.svg
+[license]: https://www.apache.org/licenses/LICENSE-2.0
+[license-badge]: https://img.shields.io/badge/License-Apache-blue.svg
 
 ## Versioning
 
 Note this is the branch for Hyperlane v3.
 
-V2 is on the main branch but is eventually being phased out.
+V2 is still in operation but is not being actively developed. The code for V2 can be found in the [v2](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v2) branch.
 
-V1 has since been deprecated in favor of V2, but if you are looking for code relating to the existing V1 deployments of the `testnet2` or `mainnet` environments, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
+V1 has since been deprecated in favor of V2, but if you are looking for code relating to the existing V1 deployments, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
 
 ## Overview
 

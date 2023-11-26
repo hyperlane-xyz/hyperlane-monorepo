@@ -192,15 +192,17 @@ abstract contract FastTokenRouter is TokenRouter {
      * @dev Should transfer `_amount` of tokens to `_recipient`.
      * @dev The implementation is delegated.
      */
-    function _fastTransferTo(address _recipient, uint256 _amount)
-        internal
-        virtual;
+    function _fastTransferTo(
+        address _recipient,
+        uint256 _amount
+    ) internal virtual;
 
     /**
      * @dev Should collect `amount` of tokens from `_sender`.
      * @dev The implementation is delegated.
      */
-    function _fastRecieveFrom(address _sender, uint256 _amount)
-        internal
-        virtual;
+    function _fastRecieveFrom(
+        address _sender,
+        uint256 _amount
+    ) internal virtual;
 }

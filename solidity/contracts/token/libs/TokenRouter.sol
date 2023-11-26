@@ -89,10 +89,9 @@ abstract contract TokenRouter is GasRouter {
      * @dev Called by `transferRemote` before message dispatch.
      * @dev Optionally returns `metadata` associated with the transfer to be passed in message.
      */
-    function _transferFromSender(uint256 _amountOrId)
-        internal
-        virtual
-        returns (bytes memory metadata);
+    function _transferFromSender(
+        uint256 _amountOrId
+    ) internal virtual returns (bytes memory metadata);
 
     /**
      * @notice Returns the balance of `account` on this token router.

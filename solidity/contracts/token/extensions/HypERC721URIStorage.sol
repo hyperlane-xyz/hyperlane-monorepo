@@ -6,6 +6,7 @@ import {HypERC721} from "../HypERC721.sol";
 import {ERC721URIStorageUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
 import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 
 /**
  * @title Hyperlane ERC721 Token that extends ERC721URIStorage with remote transfer and URI relay functionality.
@@ -14,10 +15,12 @@ import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC72
 contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
     constructor(address _mailbox) HypERC721(_mailbox) {}
 
-    function balanceOf(address account)
+    function balanceOf(
+        address account
+    )
         public
         view
-        override(HypERC721, ERC721Upgradeable)
+        override(HypERC721, ERC721Upgradeable, IERC721Upgradeable)
         returns (uint256)
     {
         return HypERC721.balanceOf(account);
@@ -27,11 +30,9 @@ contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
      * @return _tokenURI The URI of `_tokenId`.
      * @inheritdoc HypERC721
      */
-    function _transferFromSender(uint256 _tokenId)
-        internal
-        override
-        returns (bytes memory _tokenURI)
-    {
+    function _transferFromSender(
+        uint256 _tokenId
+    ) internal override returns (bytes memory _tokenURI) {
         _tokenURI = bytes(tokenURI(_tokenId)); // requires minted
         HypERC721._transferFromSender(_tokenId);
     }
@@ -49,7 +50,9 @@ contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
         _setTokenURI(_tokenId, string(_tokenURI)); // requires minted
     }
 
-    function tokenURI(uint256 tokenId)
+    function tokenURI(
+        uint256 tokenId
+    )
         public
         view
         override(ERC721Upgradeable, ERC721URIStorageUpgradeable)
@@ -72,19 +75,20 @@ contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
         );
     }
 
-    function supportsInterface(bytes4 interfaceId)
+    function supportsInterface(
+        bytes4 interfaceId
+    )
         public
         view
-        override(ERC721EnumerableUpgradeable, ERC721Upgradeable)
+        override(ERC721EnumerableUpgradeable, ERC721URIStorageUpgradeable)
         returns (bool)
     {
         return ERC721EnumerableUpgradeable.supportsInterface(interfaceId);
     }
 
-    function _burn(uint256 tokenId)
-        internal
-        override(ERC721URIStorageUpgradeable, ERC721Upgradeable)
-    {
+    function _burn(
+        uint256 tokenId
+    ) internal override(ERC721URIStorageUpgradeable, ERC721Upgradeable) {
         ERC721URIStorageUpgradeable._burn(tokenId);
     }
 }

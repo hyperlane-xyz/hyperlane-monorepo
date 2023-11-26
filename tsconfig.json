@@ -20,8 +20,9 @@
     "preserveWatchOutput": true,
     "pretty": false,
     "resolveJsonModule": true,
+    "skipLibCheck": true,
     "sourceMap": true,
+    "strict": true,
     "target": "ES2020",
-    "strict": true
   }
 }

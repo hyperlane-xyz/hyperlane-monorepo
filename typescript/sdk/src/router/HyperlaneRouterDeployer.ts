@@ -23,14 +23,14 @@ export abstract class HyperlaneRouterDeployer<
 > extends HyperlaneDeployer<Config, Factories> {
   abstract router(contracts: HyperlaneContracts<Factories>): Router;
 
-  async initMailboxClients(
+  async configureClients(
     contractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
   ): Promise<void> {
     for (const chain of Object.keys(contractsMap)) {
       const contracts = contractsMap[chain];
       const config = configMap[chain];
-      await super.initMailboxClient(chain, this.router(contracts), config);
+      await super.configureClient(chain, this.router(contracts), config);
     }
   }
 
@@ -131,7 +131,7 @@ export abstract class HyperlaneRouterDeployer<
       configMap,
       foreignDeployments,
     );
-    await this.initMailboxClients(deployedContractsMap, configMap);
+    await this.configureClients(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
     this.logger(`Finished deploying router contracts for all chains.`);
 

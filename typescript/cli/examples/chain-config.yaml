@@ -1,0 +1,44 @@
+# Configs for describing chain metadata for use in Hyperlane deployments or apps
+# Consists of a map of chain names to metadata
+# Schema here: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/sdk/src/metadata/chainMetadataTypes.ts
+---
+mychainname:
+  # Required fields:
+  chainId: 1234567890 # Number: Use EIP-155 for EVM chains
+  domainId: 1234567890 # Number: Recommend matching chainId when possible
+  name: mychainname # String: Unique identifier for the chain, must match key above
+  protocol: ethereum # ProtocolType: Ethereum, Sealevel, etc.
+  rpcUrls: # Array: List of RPC configs
+    # Only http field is required
+    - http: https://mychain.com/rpc # String: HTTP URL of the RPC endpoint (preferably HTTPS)
+      # Others here are optional
+      pagination:
+        maxBlockRange: 1000 # Number
+        maxBlockAge: 1000 # Number
+        minBlockNumber: 1000 # Number
+      retry:
+        maxRequests: 5 # Number
+        baseRetryMs: 1000 # Number
+  # Optional fields, not required for Hyperlane deployments but useful for apps:
+  isTestnet: false # Boolean: Whether the chain is considered a testnet or a mainnet
+  blockExplorers: # Array: List of BlockExplorer configs
+    # Required fields:
+    - name: My Chain Explorer # String: Human-readable name for the explorer
+      url: https://mychain.com/explorer # String: Base URL for the explorer
+      apiUrl: https://mychain.com/api # String: Base URL for the explorer API
+      # Optional fields:
+      apiKey: myapikey # String: API key for the explorer (optional)
+      family: etherscan # ExplorerFamily: See ExplorerFamily for valid values
+  nativeToken:
+    name: Eth # String
+    symbol: ETH # String
+    decimals: 18 # Number
+  displayName: My Chain Name # String: Human-readable name of the chain
+  displayNameShort: My Chain # String: A shorter human-readable name
+  logoURI: https://mychain.com/logo.png # String: URI to a logo image for the chain
+  blocks:
+    confirmations: 12 # Number: Blocks to wait before considering a transaction confirmed
+    reorgPeriod: 100 # Number: Blocks before a transaction has a near-zero chance of reverting
+    estimateBlockTime: 15 # Number: Rough estimate of time per block in seconds
+  # transactionOverrides: # Object: Properties to include when forming transaction requests
+  # Any tx fields are allowed
