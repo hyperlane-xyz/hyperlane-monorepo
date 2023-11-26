@@ -129,7 +129,7 @@ jobs:
         run: yarn test
 
   e2e:
-    runs-on: arc-runner-set
+    runs-on: larger-runner
     needs: [yarn-build]
     steps:
       - uses: actions/setup-node@v3

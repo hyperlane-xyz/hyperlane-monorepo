@@ -103,6 +103,9 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
 MESSAGE2_ID=`cat /tmp/message2 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
 echo "Message 2 ID: $MESSAGE2_ID"
 
+echo "Pre-building validator with cargo"
+cargo build --release --bin validator
+
 ANVIL_CONNECTION_URL="http://127.0.0.1"
 cd ../../rust
 for i in "anvil1 8545 ANVIL1" "anvil2 8555 ANVIL2"
@@ -126,14 +129,16 @@ done
 
 echo "Validator running, sleeping to let it sync"
 # This needs to be long to allow time for the cargo build to finish
-sleep 120
+sleep 20
 echo "Done sleeping"
 
 echo "Validator Announcement:"
 cat /tmp/anvil1/validator/announcement.json
 
-echo "Running relayer"
+echo "Pre-building relayer with cargo"
+cargo build --release --bin relayer
 
+echo "Running relayer"
 export HYP_RELAYCHAINS=anvil1,anvil2
 export HYP_ALLOWLOCALCHECKPOINTSYNCERS=true
 export HYP_DB=/tmp/relayer
@@ -142,11 +147,10 @@ export HYP_CHAINS_ANVIL1_SIGNER_TYPE=hexKey
 export HYP_CHAINS_ANVIL1_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
 export HYP_CHAINS_ANVIL2_SIGNER_TYPE=hexKey
 export HYP_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
-
 cargo run --bin relayer > /tmp/relayer/relayer-logs.txt &
 
 # This needs to be long to allow time for the cargo build to finish
-sleep 60
+sleep 20
 echo "Done running relayer, checking message delivery statuses"
 
 for i in "1 $MESSAGE1_ID" "2 $MESSAGE2_ID"
