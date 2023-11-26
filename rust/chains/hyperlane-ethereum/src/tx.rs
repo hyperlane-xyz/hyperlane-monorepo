@@ -6,10 +6,7 @@ use ethers::{
     types::Eip1559TransactionRequest,
 };
 use ethers_contract::builders::ContractCall;
-use ethers_core::types::BlockNumber;
-use hyperlane_core::{
-    utils::fmt_bytes, ChainCommunicationError, ChainResult, KnownHyperlaneDomain, H256, U256,
-};
+use hyperlane_core::{utils::fmt_bytes, ChainCommunicationError, ChainResult, H256, U256};
 use tracing::{error, info};
 
 use crate::Middleware;
