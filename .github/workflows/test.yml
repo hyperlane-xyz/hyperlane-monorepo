@@ -129,7 +129,9 @@ jobs:
         run: yarn test
 
   e2e:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: "/"
     needs: [yarn-build]
     steps:
       - uses: actions/setup-node@v3
