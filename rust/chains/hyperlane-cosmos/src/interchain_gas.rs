@@ -22,6 +22,7 @@ use crate::{
 pub struct CosmosInterchainGasPaymaster {
     domain: HyperlaneDomain,
     address: H256,
+    provider: CosmosProvider,
 }
 
 impl HyperlaneContract for CosmosInterchainGasPaymaster {
@@ -36,7 +37,7 @@ impl HyperlaneChain for CosmosInterchainGasPaymaster {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(CosmosProvider::new(self.domain.clone()))
+        Box::new(self.provider.clone())
     }
 }
 
@@ -49,11 +50,17 @@ impl CosmosInterchainGasPaymaster {
         locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
+        let provider = CosmosProvider::new(
+            locator.domain.clone(),
+            conf.clone(),
+            Some(locator.clone()),
+            signer,
+        )?;
 
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
+            provider,
         })
     }
 }

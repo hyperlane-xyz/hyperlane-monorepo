@@ -1,7 +1,13 @@
 use async_trait::async_trait;
 use hyperlane_core::{
-    BlockInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo, H256,
+    BlockInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider,
+    TxnInfo, H256, U256,
 };
+use tendermint_rpc::{client::CompatMode, HttpClient};
+
+use crate::{ConnectionConf, HyperlaneCosmosError, Signer};
+
+use self::grpc::WasmGrpcProvider;
 
 /// cosmos grpc provider
 pub mod grpc;
@@ -9,15 +15,41 @@ pub mod grpc;
 pub mod rpc;
 
 /// A reference to a Cosmos chain
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CosmosProvider {
     domain: HyperlaneDomain,
+    grpc_client: WasmGrpcProvider,
+    _rpc_client: HttpClient,
 }
 
 impl CosmosProvider {
     /// Create a reference to a Cosmos chain
-    pub fn new(domain: HyperlaneDomain) -> Self {
-        Self { domain }
+    pub fn new(
+        domain: HyperlaneDomain,
+        conf: ConnectionConf,
+        locator: Option<ContractLocator>,
+        signer: Option<Signer>,
+    ) -> ChainResult<Self> {
+        let grpc_client = WasmGrpcProvider::new(conf.clone(), locator, signer)?;
+        let _rpc_client = HttpClient::builder(
+            conf.get_rpc_url()
+                .parse()
+                .map_err(Into::<HyperlaneCosmosError>::into)?,
+        )
+        // Consider supporting different compatibility modes.
+        .compat_mode(CompatMode::latest())
+        .build()
+        .map_err(Into::<HyperlaneCosmosError>::into)?;
+
+        Ok(Self {
+            domain,
+            _rpc_client,
+            grpc_client,
+        })
+    }
+
+    pub fn grpc(&self) -> WasmGrpcProvider {
+        self.grpc_client.clone()
     }
 }
 
@@ -27,9 +59,7 @@ impl HyperlaneChain for CosmosProvider {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(CosmosProvider {
-            domain: self.domain.clone(),
-        })
+        Box::new(self.clone())
     }
 }
 
@@ -46,5 +76,14 @@ impl HyperlaneProvider for CosmosProvider {
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
         // FIXME
         Ok(true)
+    }
+
+    async fn get_balance(&self, address: String) -> ChainResult<U256> {
+        // denom is of the form "untrn"
+        Ok(self
+            .grpc_client
+            .get_balance(address, "".to_string())
+            .await?
+            .into())
     }
 }

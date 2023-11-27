@@ -12,7 +12,7 @@ use tendermint::public_key::PublicKey as TendermintPublicKey;
 use crate::HyperlaneCosmosError;
 
 /// Wrapper around the cosmrs AccountId type that abstracts bech32 encoding
-#[derive(new, Debug)]
+#[derive(new, Debug, Clone)]
 pub struct CosmosAddress {
     /// Bech32 encoded cosmos account
     account_id: AccountId,

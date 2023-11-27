@@ -6,7 +6,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
-use hyperlane_core::ethers_core_types;
+use hyperlane_core::{ethers_core_types, U256};
 use tokio::time::sleep;
 use tracing::instrument;
 
@@ -104,6 +104,10 @@ where
             .await
             .map_err(ChainCommunicationError::from_other)?;
         Ok(!code.is_empty())
+    }
+
+    async fn get_balance(&self, address: String) -> ChainResult<U256> {
+        todo!()
     }
 }
 

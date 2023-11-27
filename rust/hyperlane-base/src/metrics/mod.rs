@@ -6,5 +6,6 @@ pub const NAMESPACE: &str = "hyperlane";
 mod core;
 pub use self::core::*;
 
+pub(crate) mod agent;
 mod json_rpc_client;
 mod provider;

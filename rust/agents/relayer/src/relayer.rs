@@ -188,9 +188,20 @@ impl BaseAgent for Relayer {
             .collect();
 
         let mut msg_ctxs = HashMap::new();
+        // let mut custom_metrics = HashMap::new();
         for destination in &settings.destination_chains {
             let destination_chain_setup = core.settings.chain_setup(destination).unwrap().clone();
-
+            let agent_metrics_conf = destination_chain_setup
+                .agent_metrics_conf("relayer".to_owned())
+                .await?;
+            println!("~~~ agent metrics: {:?}", agent_metrics_conf);
+            println!("~~~ agent signer: {:?}", destination_chain_setup.signer);
+            // custom_metrics.insert(
+            //     destination.id(),
+            //     destination_chain_setup
+            //         .metrics(destination)
+            //         .expect("Missing metrics config"),
+            // );
             let transaction_gas_limit: Option<U256> =
                 if skip_transaction_gas_limit_for.contains(&destination.id()) {
                     None

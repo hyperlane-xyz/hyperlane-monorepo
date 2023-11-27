@@ -12,6 +12,7 @@ mod interchain_security_module;
 mod libs;
 mod mailbox;
 mod merkle_tree_hook;
+mod metrics_fetcher;
 mod multisig_ism;
 mod payloads;
 mod providers;
@@ -24,6 +25,7 @@ mod validator_announce;
 
 pub use self::{
     aggregation_ism::*, error::*, interchain_gas::*, interchain_security_module::*, libs::*,
-    mailbox::*, merkle_tree_hook::*, multisig_ism::*, providers::*, routing_ism::*, signers::*,
-    trait_builder::*, trait_builder::*, validator_announce::*, validator_announce::*,
+    mailbox::*, merkle_tree_hook::*, metrics_fetcher::*, multisig_ism::*, providers::*,
+    routing_ism::*, signers::*, trait_builder::*, trait_builder::*, validator_announce::*,
+    validator_announce::*,
 };

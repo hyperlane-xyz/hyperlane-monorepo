@@ -18,7 +18,7 @@ use tracing::instrument;
 pub struct CosmosAggregationIsm {
     domain: HyperlaneDomain,
     address: H256,
-    provider: Box<WasmGrpcProvider>,
+    provider: Box<CosmosProvider>,
 }
 
 impl CosmosAggregationIsm {
@@ -28,7 +28,12 @@ impl CosmosAggregationIsm {
         locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
+        let provider = CosmosProvider::new(
+            locator.domain.clone(),
+            conf.clone(),
+            Some(locator.clone()),
+            signer,
+        )?;
 
         Ok(Self {
             domain: locator.domain.clone(),
@@ -50,7 +55,7 @@ impl HyperlaneChain for CosmosAggregationIsm {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(CosmosProvider::new(self.domain.clone()))
+        Box::new(self.provider.clone())
     }
 }
 
@@ -63,7 +68,7 @@ impl AggregationIsm for CosmosAggregationIsm {
     ) -> ChainResult<(Vec<H256>, u8)> {
         let payload = ModulesAndThresholdRequest::new(message);
 
-        let data = self.provider.wasm_query(payload, None).await?;
+        let data = self.provider.grpc().wasm_query(payload, None).await?;
         let response: ModulesAndThresholdResponse = serde_json::from_slice(&data)?;
 
         let modules: ChainResult<Vec<H256>> = response

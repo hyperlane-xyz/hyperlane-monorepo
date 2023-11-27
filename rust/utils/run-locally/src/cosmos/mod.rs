@@ -537,7 +537,7 @@ fn run_locally() {
 }
 
 fn termination_invariants_met(_messages_expected: u32) -> eyre::Result<bool> {
-    Ok(true)
+    Ok(false)
     // TODO: uncomment once CI passes consistently on Ubuntu
     // let gas_payments_scraped = fetch_metric(
     //     "9093",

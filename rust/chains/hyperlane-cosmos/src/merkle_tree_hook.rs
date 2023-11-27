@@ -33,7 +33,7 @@ pub struct CosmosMerkleTreeHook {
     /// Contract address
     address: H256,
     /// Provider
-    provider: Box<WasmGrpcProvider>,
+    provider: CosmosProvider,
 }
 
 impl CosmosMerkleTreeHook {
@@ -43,12 +43,17 @@ impl CosmosMerkleTreeHook {
         locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
+        let provider = CosmosProvider::new(
+            locator.domain.clone(),
+            conf.clone(),
+            Some(locator.clone()),
+            signer,
+        )?;
 
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
-            provider: Box::new(provider),
+            provider,
         })
     }
 }
@@ -65,7 +70,7 @@ impl HyperlaneChain for CosmosMerkleTreeHook {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(CosmosProvider::new(self.domain.clone()))
+        Box::new(self.provider.clone())
     }
 }
 
@@ -78,10 +83,11 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             tree: general::EmptyStruct {},
         };
 
-        let block_height = get_block_height_for_lag(&self.provider, lag).await?;
+        let block_height = get_block_height_for_lag(&self.provider.grpc(), lag).await?;
 
         let data = self
             .provider
+            .grpc()
             .wasm_query(
                 merkle_tree_hook::MerkleTreeGenericRequest {
                     merkle_hook: payload,
@@ -111,7 +117,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             count: general::EmptyStruct {},
         };
 
-        let block_height = get_block_height_for_lag(&self.provider, lag).await?;
+        let block_height = get_block_height_for_lag(&self.provider.grpc(), lag).await?;
 
         self.count_at_block(block_height).await
     }
@@ -122,10 +128,11 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             check_point: general::EmptyStruct {},
         };
 
-        let block_height = get_block_height_for_lag(&self.provider, lag).await?;
+        let block_height = get_block_height_for_lag(&self.provider.grpc(), lag).await?;
 
         let data = self
             .provider
+            .grpc()
             .wasm_query(
                 merkle_tree_hook::MerkleTreeGenericRequest {
                     merkle_hook: payload,
@@ -153,6 +160,7 @@ impl CosmosMerkleTreeHook {
 
         let data = self
             .provider
+            .grpc()
             .wasm_query(
                 merkle_tree_hook::MerkleTreeGenericRequest {
                     merkle_hook: payload,
