@@ -36,6 +36,6 @@ describe('readMultisigConfig', () => {
   it('invalid address', () => {
     expect(function () {
       readMultisigConfig('src/tests/multisig/invalid-address-fail.yaml');
-    }).to.throw('Invalid address 0xa0ee7a142d267c1n36714e4a8f75612f20a79720');
+    }).to.throw('Invalid address 0xa0ee7a142d267c1n36714e4a8f7561f20a79720');
   });
 });
