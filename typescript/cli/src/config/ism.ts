@@ -1,7 +1,7 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { z } from 'zod';
 
-import { ChainMap, ChainName, IsmConfig, IsmType } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName, IsmType } from '@hyperlane-xyz/sdk';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
@@ -9,9 +9,69 @@ import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
 import { readChainConfigsIfExists } from './chain.js';
 
-const IsmConfigSchema = z.custom<IsmConfig>();
+const MultisigIsmConfigSchema = z.object({
+  type: z.union([
+    z.literal(IsmType.MERKLE_ROOT_MULTISIG),
+    z.literal(IsmType.MESSAGE_ID_MULTISIG),
+  ]),
+  threshold: z.number(),
+  validators: z.array(z.string()),
+});
+
+const RoutingIsmConfigSchema: z.ZodSchema<any> = z.lazy(() =>
+  z.object({
+    type: z.literal(IsmType.ROUTING),
+    owner: z.string(),
+    domains: z.record(IsmConfigSchema),
+  }),
+);
+
+const AggregationIsmConfigSchema: z.ZodSchema<any> = z
+  .lazy(() =>
+    z.object({
+      type: z.literal(IsmType.AGGREGATION),
+      modules: z.array(IsmConfigSchema),
+      threshold: z.number(),
+    }),
+  )
+  .refine(
+    // check ig modules.length >= threshold
+    (ismConfig) => {
+      return ismConfig.modules.length >= ismConfig.threshold;
+    },
+    {
+      message: 'Threshold cannot be greater than number of modules',
+    },
+  );
+
+const TestIsmConfigSchema = z.object({
+  type: z.literal(IsmType.TEST_ISM),
+});
+
+const IsmConfigSchema = z.union([
+  MultisigIsmConfigSchema,
+  RoutingIsmConfigSchema,
+  AggregationIsmConfigSchema,
+  TestIsmConfigSchema,
+]);
+const IsmConfigMapSchema = z.record(IsmConfigSchema).refine(
+  (ismConfigMap) => {
+    // check if any key in IsmConfigMap is found in its own RoutingIsmConfigSchema.domains
+    for (const [key, config] of Object.entries(ismConfigMap)) {
+      if (config.type === IsmType.ROUTING) {
+        if (config.domains && key in config.domains) {
+          return false;
+        }
+      }
+    }
+    return true;
+  },
+  {
+    message:
+      'Cannot set RoutingIsm.domain to the same chain you are configuring',
+  },
+);
 export type ZodIsmConfig = z.infer<typeof IsmConfigSchema>;
-const IsmConfigMapSchema = z.record(IsmConfigSchema);
 export type ZodIsmConfigMap = z.infer<typeof IsmConfigMapSchema>;
 
 export function parseIsmConfig(filePath: string) {
@@ -52,7 +112,7 @@ export async function createIsmConfigMap({
   const result: ZodIsmConfigMap = {};
   for (const chain of chains) {
     log(`Setting values for chain ${chain}`);
-    result[chain] = await createIsmConfig(chain, chains);
+    result[chain] = await createIsmConfig(chain, chainConfigPath);
 
     // TODO consider re-enabling. Disabling based on feedback from @nambrot for now.
     // repeat = await confirm({
@@ -73,7 +133,7 @@ export async function createIsmConfigMap({
 
 export async function createIsmConfig(
   chain: ChainName,
-  chains: ChainName[],
+  chainConfigPath: string,
 ): Promise<ZodIsmConfig> {
   let lastConfig: ZodIsmConfig;
   const moduleType = await select({
@@ -117,9 +177,9 @@ export async function createIsmConfig(
   ) {
     lastConfig = await createMultisigConfig(moduleType);
   } else if (moduleType === IsmType.ROUTING) {
-    lastConfig = await createRoutingConfig(chain, chains);
+    lastConfig = await createRoutingConfig(chain, chainConfigPath);
   } else if (moduleType === IsmType.AGGREGATION) {
-    lastConfig = await createAggregationConfig(chain, chains);
+    lastConfig = await createAggregationConfig(chain, chainConfigPath);
   } else if (moduleType === IsmType.TEST_ISM) {
     lastConfig = { type: IsmType.TEST_ISM };
   } else {
@@ -149,7 +209,7 @@ export async function createMultisigConfig(
 
 export async function createAggregationConfig(
   chain: ChainName,
-  chains: ChainName[],
+  chainConfigPath: string,
 ): Promise<ZodIsmConfig> {
   const isms = parseInt(
     await input({
@@ -167,7 +227,7 @@ export async function createAggregationConfig(
 
   const modules: Array<ZodIsmConfig> = [];
   for (let i = 0; i < isms; i++) {
-    modules.push(await createIsmConfig(chain, chains));
+    modules.push(await createIsmConfig(chain, chainConfigPath));
   }
   return {
     type: IsmType.AGGREGATION,
@@ -177,20 +237,27 @@ export async function createAggregationConfig(
 }
 
 export async function createRoutingConfig(
-  destination: ChainName,
-  chains: ChainName[],
+  chain: ChainName,
+  chainConfigPath: string,
 ): Promise<ZodIsmConfig> {
   const owner = await input({
     message: 'Enter owner address',
   });
   const ownerAddress = owner;
+  const customChains = readChainConfigsIfExists(chainConfigPath);
+  delete customChains[chain];
+  const chains = await runMultiChainSelectionStep(
+    customChains,
+    `Select origin chains to be verified on ${chain}`,
+    [chain],
+  );
 
   const domainsMap: ChainMap<ZodIsmConfig> = {};
-  for (const chain of chains.filter((c) => c !== destination)) {
+  for (const chain of chains) {
     await confirm({
-      message: `You are about to configure ISM on origin chain ${chain}. Continue?`,
+      message: `You are about to configure ISM from source chain ${chain}. Continue?`,
     });
-    const config = await createIsmConfig(chain, chains);
+    const config = await createIsmConfig(chain, chainConfigPath);
     domainsMap[chain] = config;
   }
   return {
