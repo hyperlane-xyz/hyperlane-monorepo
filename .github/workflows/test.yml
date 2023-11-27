@@ -204,7 +204,6 @@ jobs:
 
       - name: cli e2e tests
         run: ./ci-test.sh
-        working-directory: ./typescript/cli
 
   env-test:
     runs-on: ubuntu-latest

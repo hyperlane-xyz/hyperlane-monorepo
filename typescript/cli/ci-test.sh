@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# NOTE: This script is intended to be run from the root of the repo
+
 # Optional cleanup for previous runs, useful when running locally
 pkill -f anvil
 rm -rf /tmp/anvil*
@@ -103,11 +105,11 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
 MESSAGE2_ID=`cat /tmp/message2 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
 echo "Message 2 ID: $MESSAGE2_ID"
 
+cd ./rust
 echo "Pre-building validator with cargo"
-cargo build --release --bin validator
+cargo build --bin validator
 
 ANVIL_CONNECTION_URL="http://127.0.0.1"
-cd ../../rust
 for i in "anvil1 8545 ANVIL1" "anvil2 8555 ANVIL2"
 do
     set -- $i
@@ -129,14 +131,14 @@ done
 
 echo "Validator running, sleeping to let it sync"
 # This needs to be long to allow time for the cargo build to finish
-sleep 20
+sleep 15
 echo "Done sleeping"
 
 echo "Validator Announcement:"
 cat /tmp/anvil1/validator/announcement.json
 
 echo "Pre-building relayer with cargo"
-cargo build --release --bin relayer
+cargo build --bin relayer
 
 echo "Running relayer"
 export HYP_RELAYCHAINS=anvil1,anvil2
