@@ -25,9 +25,6 @@ defaults:
 jobs:
   test-rs:
     runs-on: ubuntu-latest
-    env:
-      CARGO_TARGET_DIR: "/"
-
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
@@ -55,9 +52,6 @@ jobs:
 
   lint-rs:
     runs-on: ubuntu-latest
-    env:
-      CARGO_TARGET_DIR: "/"
-
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1

@@ -130,8 +130,6 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    env:
-      CARGO_TARGET_DIR: "/"
     needs: [yarn-build]
     steps:
       - uses: actions/setup-node@v3
