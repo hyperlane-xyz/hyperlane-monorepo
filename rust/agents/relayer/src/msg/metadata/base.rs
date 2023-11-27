@@ -1,4 +1,9 @@
-use std::{collections::{HashMap, HashSet}, fmt::Debug, str::FromStr, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    str::FromStr,
+    sync::Arc,
+};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -301,7 +306,7 @@ impl BaseMetadataBuilder {
 
 struct ValidatorMetricManager {
     metrics: Arc<CoreMetrics>,
-    
+
     app_context_validators: HashMap<String, HashSet<H256>>,
     origin: HyperlaneDomain,
     destination: HyperlaneDomain,
@@ -321,7 +326,11 @@ impl ValidatorMetricManager {
         }
     }
 
-    fn set_validator_latest_checkpoints(&self, app_context: String, latest_checkpoints: &HashMap<H160, u32>) {
+    fn set_validator_latest_checkpoints(
+        &self,
+        app_context: String,
+        latest_checkpoints: &HashMap<H160, u32>,
+    ) {
         // First, clear out all previous metrics for the app context
         if let Some(prev_validators) = self.app_context_validators.get(&app_context) {
             for validator in prev_validators {
@@ -332,7 +341,8 @@ impl ValidatorMetricManager {
                         &self.destination.to_string(),
                         &format!("0x{:x}", validator).to_lowercase(),
                         &app_context,
-                    ]).unwrap();
+                    ])
+                    .unwrap();
             }
         }
 
@@ -345,8 +355,8 @@ impl ValidatorMetricManager {
                     &self.destination.to_string(),
                     &format!("0x{:x}", validator).to_lowercase(),
                     &app_context,
-                ]).set(*latest_checkpoint as i64);
+                ])
+                .set(*latest_checkpoint as i64);
         }
     }
 }
-
