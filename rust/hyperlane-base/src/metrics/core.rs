@@ -1,14 +1,16 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, OnceLock};
 
 use eyre::Result;
+use hyperlane_core::{HyperlaneDomain, H160, H256};
 use prometheus::{
     histogram_opts, labels, opts, register_counter_vec_with_registry,
     register_gauge_vec_with_registry, register_histogram_vec_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, CounterVec,
     Encoder, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
+use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tracing::warn;
 
@@ -51,6 +53,8 @@ pub struct CoreMetrics {
 
     /// Set of provider-specific metrics. These only need to get created once.
     provider_metrics: OnceLock<MiddlewareMetrics>,
+
+    validator_metrics: ValidatorMetricManager,
 }
 
 impl CoreMetrics {
@@ -111,7 +115,7 @@ impl CoreMetrics {
 
         let validator_checkpoint_index = register_int_gauge_vec_with_registry!(
             opts!(
-                namespaced!("validator_checkpoint_index"),
+                namespaced!("validator_checkpoint_index_1"),
                 "Observed signed checkpoint indices per validator",
                 const_labels_ref
             ),
@@ -176,7 +180,7 @@ impl CoreMetrics {
             span_counts,
             span_events,
             last_known_message_nonce,
-            validator_checkpoint_index,
+            validator_checkpoint_index: validator_checkpoint_index.clone(),
 
             submitter_queue_length,
 
@@ -187,6 +191,8 @@ impl CoreMetrics {
 
             json_rpc_client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
+
+            validator_metrics: ValidatorMetricManager::new(validator_checkpoint_index.clone()),
         })
     }
 
@@ -473,5 +479,92 @@ impl Debug for CoreMetrics {
             "CoreMetrics {{ agent_name: {}, listen_port: {:?} }}",
             self.agent_name, self.listen_port
         )
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Hash)]
+struct Key {
+    origin: HyperlaneDomain,
+    destination: HyperlaneDomain,
+    app_context: String,
+}
+
+struct ValidatorMetricManager {
+    // metrics: Arc<CoreMetrics>,
+    validator_checkpoint_index: IntGaugeVec,
+
+    app_context_validators: RwLock<HashMap<Key, HashSet<H160>>>,
+    // origin: HyperlaneDomain,
+    // destination: HyperlaneDomain,
+}
+
+impl ValidatorMetricManager {
+    fn new(
+        validator_checkpoint_index: IntGaugeVec,
+        // origin: HyperlaneDomain,
+        // destination: HyperlaneDomain,
+    ) -> Self {
+        Self {
+            validator_checkpoint_index,
+            app_context_validators: RwLock::new(HashMap::new()),
+            // origin,
+            // destination,
+        }
+    }
+
+    async fn set_validator_latest_checkpoints(
+        &mut self,
+        origin: HyperlaneDomain,
+        destination: HyperlaneDomain,
+        app_context: String,
+        latest_checkpoints: &HashMap<H160, u32>,
+    ) {
+        {
+            let app_context_validators = self.app_context_validators.read().await;
+            // First, clear out all previous metrics for the app context
+            if let Some(prev_validators) = app_context_validators.get(&Key {
+                origin: origin.clone(),
+                destination: destination.clone(),
+                app_context: app_context.clone(),
+            }) {
+                for validator in prev_validators {
+                    self.validator_checkpoint_index
+                        .remove_label_values(&[
+                            &origin.to_string(),
+                            &destination.to_string(),
+                            &format!("0x{:x}", validator).to_lowercase(),
+                            &app_context,
+                        ])
+                        .unwrap();
+                }
+            }
+        }
+
+        {
+            let mut app_context_validators = self.app_context_validators.write().await;
+
+            let mut set = HashSet::new();
+
+            // Then set the new metrics
+            for (validator, latest_checkpoint) in latest_checkpoints {
+                self.validator_checkpoint_index
+                    .with_label_values(&[
+                        &origin.to_string(),
+                        &destination.to_string(),
+                        &format!("0x{:x}", validator).to_lowercase(),
+                        &app_context,
+                    ])
+                    .set(*latest_checkpoint as i64);
+                set.insert(*validator);
+            }
+            app_context_validators.insert(
+                Key {
+                    origin,
+                    destination,
+                    app_context,
+                },
+                set,
+            );
+        }
     }
 }
