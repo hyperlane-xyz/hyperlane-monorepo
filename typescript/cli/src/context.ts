@@ -8,7 +8,7 @@ import {
   chainMetadata,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
-import { objMerge } from '@hyperlane-xyz/utils';
+import { objFilter, objMapEntries, objMerge } from '@hyperlane-xyz/utils';
 
 import { readChainConfigsIfExists } from './config/chain.js';
 import { keyToSigner } from './utils/keys.js';
@@ -22,7 +22,16 @@ export function getMergedContractAddresses(
   artifacts?: HyperlaneContractsMap<any>,
 ) {
   return objMerge(
-    sdkContractAddressesMap,
+    // filter out interchainGasPaymaster since we don't want to recover it from SDK artifacts
+    Object.fromEntries(
+      objMapEntries(sdkContractAddressesMap, (k, v) => [
+        k,
+        objFilter(
+          v as ChainMap<any>,
+          (key, v): v is any => key !== 'interchainGasPaymaster',
+        ),
+      ]),
+    ),
     artifacts || {},
   ) as HyperlaneContractsMap<any>;
 }
