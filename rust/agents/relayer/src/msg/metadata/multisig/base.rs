@@ -120,7 +120,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         let get_latest_index_gauge = metric_app_context.map(|app_context| {
             move |validator: H256| {
                 let validator_address = format!("0x{:x}", H160::from(validator));
-                let ism_address = format!("0x{:x}", ism_address);
+                // let ism_address = format!("0x{:x}", ism_address);
 
                 // &["origin", "destination", "validator", "app_context", "ism_address"],
                 self.as_ref()
@@ -131,7 +131,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
                         &self.as_ref().destination_chain_setup.domain.to_string(),
                         &validator_address.to_lowercase(),
                         &app_context,
-                        &ism_address,
+                        // &ism_address,
                     ])
             }
         });

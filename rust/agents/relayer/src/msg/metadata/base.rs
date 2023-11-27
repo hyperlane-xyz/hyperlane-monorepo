@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
+use std::{collections::{HashMap, HashSet}, fmt::Debug, str::FromStr, sync::Arc};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -298,3 +298,55 @@ impl BaseMetadataBuilder {
         })
     }
 }
+
+struct ValidatorMetricManager {
+    metrics: Arc<CoreMetrics>,
+    
+    app_context_validators: HashMap<String, HashSet<H256>>,
+    origin: HyperlaneDomain,
+    destination: HyperlaneDomain,
+}
+
+impl ValidatorMetricManager {
+    fn new(
+        metrics: Arc<CoreMetrics>,
+        origin: HyperlaneDomain,
+        destination: HyperlaneDomain,
+    ) -> Self {
+        ValidatorMetricManager {
+            metrics,
+            app_context_validators: HashMap::new(),
+            origin,
+            destination,
+        }
+    }
+
+    fn set_validator_latest_checkpoints(&self, app_context: String, latest_checkpoints: &HashMap<H160, u32>) {
+        // First, clear out all previous metrics for the app context
+        if let Some(prev_validators) = self.app_context_validators.get(&app_context) {
+            for validator in prev_validators {
+                self.metrics
+                    .validator_checkpoint_index()
+                    .remove_label_values(&[
+                        &self.origin.to_string(),
+                        &self.destination.to_string(),
+                        &format!("0x{:x}", validator).to_lowercase(),
+                        &app_context,
+                    ]).unwrap();
+            }
+        }
+
+        // Then set the new metrics
+        for (validator, latest_checkpoint) in latest_checkpoints {
+            self.metrics
+                .validator_checkpoint_index()
+                .with_label_values(&[
+                    &self.origin.to_string(),
+                    &self.destination.to_string(),
+                    &format!("0x{:x}", validator).to_lowercase(),
+                    &app_context,
+                ]).set(*latest_checkpoint as i64);
+        }
+    }
+}
+
