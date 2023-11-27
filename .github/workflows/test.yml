@@ -156,6 +156,8 @@ jobs:
           sudo rm -rf /opt/ghc
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo df -h
+          sudo du -sh .
 
       - name: Install mold linker
         uses: rui314/setup-mold@v1
@@ -170,6 +172,10 @@ jobs:
             **/node_modules
             .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+      - name: After
+        run: |
+          sudo df -h
+          sudo du -sh .
 
       - name: build-cache
         uses: actions/cache@v3
@@ -178,6 +184,10 @@ jobs:
             ./*
             !./rust
           key: ${{ github.sha }}
+      - name: After
+        run: |
+          sudo df -h
+          sudo du -sh .
 
       - name: cargo-cache
         uses: actions/cache@v3
@@ -190,9 +200,19 @@ jobs:
         run: cargo build --release --bin run-locally
         working-directory: ./rust
 
+      - name: After
+      run: |
+        sudo df -h
+        sudo du -sh .
+
       - name: agent tests with CosmWasm
         run: RUST_BACKTRACE=1 cargo test --package run-locally --bin run-locally -- cosmos::test --nocapture
         working-directory: ./rust
+
+      - name: After
+        run: |
+          sudo df -h
+          sudo du -sh .
 
       - name: agent tests excluding CosmWasm
         run: ./target/release/run-locally
@@ -201,6 +221,11 @@ jobs:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
+
+      - name: After
+        run: |
+          sudo df -h
+          sudo du -sh .
 
       - name: cli e2e tests
         run: ./typescript/cli/ci-test.sh
