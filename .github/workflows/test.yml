@@ -203,7 +203,7 @@ jobs:
           E2E_KATHY_MESSAGES: '20'
 
       - name: cli e2e tests
-        run: ./ci-test.sh
+        run: ./typescript/cli/ci-test.sh
 
   env-test:
     runs-on: ubuntu-latest
