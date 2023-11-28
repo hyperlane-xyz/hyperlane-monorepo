@@ -18,6 +18,7 @@ pub mod rpc;
 #[derive(Debug, Clone)]
 pub struct CosmosProvider {
     domain: HyperlaneDomain,
+    canonical_asset: String,
     grpc_client: WasmGrpcProvider,
     _rpc_client: HttpClient,
 }
@@ -45,6 +46,7 @@ impl CosmosProvider {
             domain,
             _rpc_client,
             grpc_client,
+            canonical_asset: conf.get_canonical_asset(),
         })
     }
 
@@ -82,7 +84,7 @@ impl HyperlaneProvider for CosmosProvider {
         // denom is of the form "untrn"
         Ok(self
             .grpc_client
-            .get_balance(address, "".to_string())
+            .get_balance(address, self.canonical_asset.clone())
             .await?
             .into())
     }
