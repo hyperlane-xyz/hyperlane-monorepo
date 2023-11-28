@@ -39,7 +39,6 @@ export {
 } from './src/addresses';
 export {
   convertDecimals,
-  convertDecimalsEthersBigNumber,
   eqAmountApproximate,
   fromWei,
   fromWeiRounded,

@@ -43,14 +43,14 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2e1db12-20231025-013013',
+      tag: '48feaf4-20231122-200632',
     },
     gasPaymentEnforcement,
   },
   validators: {
     docker: {
       repo,
-      tag: '2e1db12-20231025-013013',
+      tag: '1bee32a-20231121-121303',
     },
     chainDockerOverrides: {
       [chainMetadata.neutron.name]: {
@@ -67,7 +67,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2e1db12-20231025-013013',
+      tag: '1bee32a-20231121-121303',
     },
   },
 };

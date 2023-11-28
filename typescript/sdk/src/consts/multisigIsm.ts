@@ -1,7 +1,7 @@
 import { MultisigConfig } from '../ism/types';
 import { ChainMap } from '../types';
 
-export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
+export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   // ----------------- Mainnets -----------------
   celo: {
     threshold: 2,
@@ -77,11 +77,6 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigConfig> = {
       '0xdb96116d13a2fadde9742d7cc88474a5ed39a03a', // everstake
     ],
   },
-  // solana: {
-  //   threshold: 0,
-  //   validators: [
-  //   ],
-  // },
   base: {
     threshold: 2,
     validators: [

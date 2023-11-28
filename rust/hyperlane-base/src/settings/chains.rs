@@ -1,10 +1,11 @@
+use ethers::prelude::Selector;
 use std::collections::HashMap;
 
-use ethers::prelude::Selector;
+use eyre::{eyre, Context, Result};
+
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
-use eyre::{eyre, Context, Result};
 use hyperlane_core::{
     AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
     HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, HyperlaneSigner, IndexMode,
@@ -12,6 +13,7 @@ use hyperlane_core::{
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceIndexer,
     ValidatorAnnounce, H256,
 };
+use hyperlane_cosmos as h_cosmos;
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
     EthereumValidatorAnnounceAbi,
@@ -20,7 +22,7 @@ use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
 
 use crate::{
-    settings::signers::{BuildableWithSignerConf, SignerConf},
+    settings::signers::{BuildableWithSignerConf, ChainSigner, SignerConf},
     CoreMetrics,
 };
 
@@ -55,6 +57,8 @@ pub enum ChainConnectionConf {
     Fuel(h_fuel::ConnectionConf),
     /// Sealevel configuration.
     Sealevel(h_sealevel::ConnectionConf),
+    /// Cosmos configuration.
+    Cosmos(h_cosmos::ConnectionConf),
 }
 
 impl ChainConnectionConf {
@@ -64,6 +68,7 @@ impl ChainConnectionConf {
             Self::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
             Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
             Self::Sealevel(_) => HyperlaneDomainProtocol::Sealevel,
+            Self::Cosmos(_) => HyperlaneDomainProtocol::Cosmos,
         }
     }
 }
@@ -112,6 +117,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Cosmos(_) => todo!(),
         }
         .context(ctx)
     }
@@ -135,6 +141,12 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
                 h_sealevel::SealevelMailbox::new(conf, locator, keypair)
+                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
+            }
+            ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                h_cosmos::CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone())
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
@@ -169,6 +181,13 @@ impl ChainConf {
                     .map(|m| Box::new(m) as Box<dyn MerkleTreeHook>)
                     .map_err(Into::into)
             }
+            ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                let hook =
+                    h_cosmos::CosmosMerkleTreeHook::new(conf.clone(), locator.clone(), signer)?;
+
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
         }
         .context(ctx)
     }
@@ -193,10 +212,19 @@ impl ChainConf {
                 )
                 .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
+            }
+            ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                let indexer = Box::new(h_cosmos::CosmosMailboxIndexer::new(
+                    conf.clone(),
+                    locator,
+                    signer,
+                    self.reorg_period,
+                )?);
                 Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
             }
         }
@@ -223,10 +251,19 @@ impl ChainConf {
                 )
                 .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                Ok(indexer as Box<dyn SequenceIndexer<H256>>)
+            }
+            ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                let indexer = Box::new(h_cosmos::CosmosMailboxIndexer::new(
+                    conf.clone(),
+                    locator,
+                    signer,
+                    self.reorg_period,
+                )?);
                 Ok(indexer as Box<dyn SequenceIndexer<H256>>)
             }
         }
@@ -252,12 +289,20 @@ impl ChainConf {
                 )
                 .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let paymaster = Box::new(
                     h_sealevel::SealevelInterchainGasPaymaster::new(conf, &locator).await?,
                 );
+                Ok(paymaster as Box<dyn InterchainGasPaymaster>)
+            }
+            ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                let paymaster = Box::new(h_cosmos::CosmosInterchainGasPaymaster::new(
+                    conf.clone(),
+                    locator.clone(),
+                    signer,
+                )?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
         }
@@ -285,12 +330,19 @@ impl ChainConf {
                 )
                 .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(
                     h_sealevel::SealevelInterchainGasPaymasterIndexer::new(conf, locator).await?,
                 );
+                Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
+            }
+            ChainConnectionConf::Cosmos(conf) => {
+                let indexer = Box::new(h_cosmos::CosmosInterchainGasPaymasterIndexer::new(
+                    conf.clone(),
+                    locator,
+                    self.reorg_period,
+                )?);
                 Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
             }
         }
@@ -326,6 +378,17 @@ impl ChainConf {
                 let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new());
                 Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
             }
+            ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                let indexer = Box::new(h_cosmos::CosmosMerkleTreeHookIndexer::new(
+                    conf.clone(),
+                    locator,
+                    // TODO: remove signer requirement entirely
+                    signer,
+                    self.reorg_period,
+                )?);
+                Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
+            }
         }
         .context(ctx)
     }
@@ -335,16 +398,26 @@ impl ChainConf {
         &self,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn ValidatorAnnounce>> {
+        let ctx = "Building validator announce";
         let locator = self.locator(self.addresses.validator_announce);
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::ValidatorAnnounceBuilder {})
                     .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(conf, locator));
+                Ok(va as Box<dyn ValidatorAnnounce>)
+            }
+            ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                let va = Box::new(h_cosmos::CosmosValidatorAnnounce::new(
+                    conf.clone(),
+                    locator.clone(),
+                    signer,
+                )?);
+
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
         }
@@ -371,13 +444,19 @@ impl ChainConf {
                 )
                 .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
                 let ism = Box::new(h_sealevel::SealevelInterchainSecurityModule::new(
                     conf, locator, keypair,
                 ));
+                Ok(ism as Box<dyn InterchainSecurityModule>)
+            }
+            ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                let ism = Box::new(h_cosmos::CosmosInterchainSecurityModule::new(
+                    conf, locator, signer,
+                )?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
         }
@@ -405,6 +484,15 @@ impl ChainConf {
                 let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(conf, locator, keypair));
                 Ok(ism as Box<dyn MultisigIsm>)
             }
+            ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                let ism = Box::new(h_cosmos::CosmosMultisigIsm::new(
+                    conf.clone(),
+                    locator.clone(),
+                    signer,
+                )?);
+                Ok(ism as Box<dyn MultisigIsm>)
+            }
         }
         .context(ctx)
     }
@@ -426,10 +514,18 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::RoutingIsmBuilder {})
                     .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support routing ISM yet")).context(ctx)
+            }
+            ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                let ism = Box::new(h_cosmos::CosmosRoutingIsm::new(
+                    &conf.clone(),
+                    locator.clone(),
+                    signer,
+                )?);
+                Ok(ism as Box<dyn RoutingIsm>)
             }
         }
         .context(ctx)
@@ -452,10 +548,19 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::AggregationIsmBuilder {})
                     .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support aggregation ISM yet")).context(ctx)
+            }
+            ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                let ism = Box::new(h_cosmos::CosmosAggregationIsm::new(
+                    conf.clone(),
+                    locator.clone(),
+                    signer,
+                )?);
+
+                Ok(ism as Box<dyn AggregationIsm>)
             }
         }
         .context(ctx)
@@ -478,10 +583,12 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::CcipReadIsmBuilder {})
                     .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support CCIP read ISM yet")).context(ctx)
+            }
+            ChainConnectionConf::Cosmos(_) => {
+                Err(eyre!("Cosmos does not support CCIP read ISM yet")).context(ctx)
             }
         }
         .context(ctx)
@@ -490,6 +597,25 @@ impl ChainConf {
     async fn signer<S: BuildableWithSignerConf>(&self) -> Result<Option<S>> {
         if let Some(conf) = &self.signer {
             Ok(Some(conf.build::<S>().await?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Returns a ChainSigner for the flavor of chain this is, if one is configured.
+    pub async fn chain_signer(&self) -> Result<Option<Box<dyn ChainSigner>>> {
+        if let Some(conf) = &self.signer {
+            let chain_signer: Box<dyn ChainSigner> = match &self.connection {
+                ChainConnectionConf::Ethereum(_) => Box::new(conf.build::<h_eth::Signers>().await?),
+                ChainConnectionConf::Fuel(_) => {
+                    Box::new(conf.build::<fuels::prelude::WalletUnlocked>().await?)
+                }
+                ChainConnectionConf::Sealevel(_) => {
+                    Box::new(conf.build::<h_sealevel::Keypair>().await?)
+                }
+                ChainConnectionConf::Cosmos(_) => Box::new(conf.build::<h_cosmos::Signer>().await?),
+            };
+            Ok(Some(chain_signer))
         } else {
             Ok(None)
         }
@@ -506,6 +632,10 @@ impl ChainConf {
     }
 
     async fn sealevel_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
+        self.signer().await
+    }
+
+    async fn cosmos_signer(&self) -> Result<Option<h_cosmos::Signer>> {
         self.signer().await
     }
 

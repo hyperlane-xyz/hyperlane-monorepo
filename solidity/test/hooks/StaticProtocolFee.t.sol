@@ -122,12 +122,7 @@ contract StaticProtocolFeeTest is Test {
         uint256 feeRequired,
         uint256 feeSent
     ) public {
-        bytes memory metadata = StandardHookMetadata.formatMetadata(
-            0,
-            0,
-            bob,
-            ""
-        );
+        bytes memory metadata = StandardHookMetadata.overrideRefundAddress(bob);
 
         feeRequired = bound(feeRequired, 1, fees.MAX_PROTOCOL_FEE());
         feeSent = bound(feeSent, feeRequired, 10 * feeRequired);

@@ -205,7 +205,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
     } else {
       throw new Error('Invalid ERC20 token router config');
     }
-    await this.initMailboxClient(chain, router, config);
+    await this.configureClient(chain, router, config);
     return { router };
   }
 
