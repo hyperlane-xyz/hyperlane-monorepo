@@ -173,7 +173,7 @@ pub struct CosmosNetwork {
     pub launch_resp: CosmosResp,
     pub deployments: Deployments,
     pub chain_id: String,
-    pub metrics: u32,
+    pub metrics_port: u32,
     pub domain: u32,
 }
 
@@ -189,7 +189,7 @@ impl From<(CosmosResp, Deployments, String, u32, u32)> for CosmosNetwork {
             launch_resp: v.0,
             deployments: v.1,
             chain_id: v.2,
-            metrics: v.3,
+            metrics_port: v.3,
             domain: v.4,
         }
     }
@@ -349,7 +349,7 @@ fn run_locally() {
     };
 
     let port_start = 26600u32;
-    let metrics_start = 9090u32;
+    let metrics_port_start = 9090u32;
     let domain_start = 99990u32;
     let node_count = 2;
 
@@ -362,7 +362,7 @@ fn run_locally() {
                     ..default_config.clone()
                 }),
                 format!("cosmos-test-{}", i + domain_start),
-                metrics_start + i,
+                metrics_port_start + i,
                 domain_start + i,
             )
         })
@@ -376,7 +376,7 @@ fn run_locally() {
     let nodes = nodes
         .into_iter()
         .map(|v| (v.0.join(), v.1, v.2, v.3))
-        .map(|(launch_resp, chain_id, metrics, domain)| {
+        .map(|(launch_resp, chain_id, metrics_port, domain)| {
             let deployments = deploy_cw_hyperlane(
                 launch_resp.cli(&osmosisd),
                 launch_resp.endpoint.clone(),
@@ -385,7 +385,7 @@ fn run_locally() {
                 domain,
             );
 
-            (launch_resp, deployments, chain_id, metrics, domain)
+            (launch_resp, deployments, chain_id, metrics_port, domain)
         })
         .collect::<Vec<_>>();
 
@@ -452,11 +452,11 @@ fn run_locally() {
         .into_values()
         .map(|agent_config| launch_cosmos_validator(agent_config, agent_config_path.clone(), debug))
         .collect::<Vec<_>>();
-    let hpl_rly_metrics = metrics_start + node_count + 1u32;
+    let hpl_rly_metrics_port = metrics_port_start + node_count + 1u32;
     let hpl_rly = launch_cosmos_relayer(
         agent_config_path,
         agent_config_out.chains.into_keys().collect::<Vec<_>>(),
-        hpl_rly_metrics,
+        hpl_rly_metrics_port,
         debug,
     );
 
@@ -522,7 +522,7 @@ fn run_locally() {
     let mut failure_occurred = false;
     loop {
         // look for the end condition.
-        if termination_invariants_met(hpl_rly_metrics, dispatched_messages).unwrap_or(false) {
+        if termination_invariants_met(hpl_rly_metrics_port, dispatched_messages).unwrap_or(false) {
             // end condition reached successfully
             break;
         } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
@@ -542,7 +542,7 @@ fn run_locally() {
     }
 }
 
-fn termination_invariants_met(_metrics: u32, _messages_expected: u32) -> eyre::Result<bool> {
+fn termination_invariants_met(_metrics_port: u32, _messages_expected: u32) -> eyre::Result<bool> {
     Ok(true)
     // TODO: uncomment once CI passes consistently on Ubuntu
     // let gas_payments_scraped = fetch_metric(

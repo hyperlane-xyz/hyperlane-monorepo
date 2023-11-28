@@ -145,7 +145,7 @@ impl AgentConfig {
         AgentConfig {
             name: format!("cosmostest{}", network.domain),
             domain_id: network.domain,
-            metrics_port: network.metrics,
+            metrics_port: network.metrics_port,
             mailbox: to_hex_addr(&network.deployments.mailbox),
             interchain_gas_paymaster: to_hex_addr(&network.deployments.igp),
             validator_announce: to_hex_addr(&network.deployments.va),
