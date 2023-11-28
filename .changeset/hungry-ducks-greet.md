@@ -2,4 +2,4 @@
 '@hyperlane-xyz/cli': patch
 ---
 
-Fix error form version command
+Fix error from version command
