@@ -101,12 +101,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x57231619fea13d85270ca6943298046c75a6dd01', // everstake
     ],
   },
-  solana: {
-    threshold: 2,
+  mantapacific: {
+    threshold: 5,
     validators: [
-      '0x3cd1a081f38874bbb075bf10b62adcb858db864c', // abacus
-      '0x2b0c45f6111ae1c1684d4287792e3bd6ebd1abcc', // ZKV
-      '0x7b9ec253a8ba38994457eb9dbe386938d545351a', // everstake
+      '0x8e668c97ad76d0e28375275c41ece4972ab8a5bc', //abacusworks
+      '0x521a3e6bf8d24809fde1c1fd3494a859a16f132c', //cosmostation
+      '0x14025fe092f5f8a401dd9819704d9072196d2125', //p2p
+      '0x25b9a0961c51e74fd83295293bc029131bf1e05a', //neutron
+      '0xa0eE95e280D46C14921e524B075d0C341e7ad1C8', //cosmos spaces
+      '0xcc9a0b6de7fe314bd99223687d784730a75bb957', //dsrv
+      '0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf', //sg-1
     ],
   },
   // ----------------- Testnets -----------------
@@ -229,6 +233,22 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43',
       '0x9c20a149dfa09ea9f77f5a7ca09ed44f9c025133',
       '0x967c5ecdf2625ae86580bd203b630abaaf85cd62',
+    ],
+  },
+  neutrontestnet: {
+    threshold: 2,
+    validators: [
+      '0x5d2a99d67cd294a821de4fb25da6901ea8f89814',
+      '0xb57486243ce3bb3c38c50a582b8bbd20cb393589',
+      '0x661faee997654d14ead4ae48035883f05c3150cf',
+    ],
+  },
+  neutron: {
+    threshold: 2,
+    validators: [
+      '0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0',
+      '0x60e890b34cb44ce3fa52f38684f613f31b47a1a6',
+      '0x7885fae56dbcf5176657f54adbbd881dc6714132',
     ],
   },
 };
