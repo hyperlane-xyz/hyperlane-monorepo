@@ -3,35 +3,38 @@ import { ethers } from 'ethers';
 import {
   ChainMap,
   ChainMetadata,
+  ChainName,
   HyperlaneContractsMap,
   MultiProvider,
   chainMetadata,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
-import { objFilter, objMapEntries, objMerge } from '@hyperlane-xyz/utils';
+import { objFilter, objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { readChainConfigsIfExists } from './config/chain.js';
 import { keyToSigner } from './utils/keys.js';
 
-export const sdkContractAddressesMap = {
+export const sdkContractAddressesMap: HyperlaneContractsMap<any> = {
   ...hyperlaneEnvironments.testnet,
   ...hyperlaneEnvironments.mainnet,
 };
 
 export function getMergedContractAddresses(
   artifacts?: HyperlaneContractsMap<any>,
+  chains?: ChainName[],
 ) {
+  // if chains include non sdkContractAddressesMap chains, don't recover interchainGasPaymaster
+  let sdkContractsAddressesToRecover = sdkContractAddressesMap;
+  if (chains?.some((chain) => !(chain in sdkContractAddressesMap))) {
+    sdkContractsAddressesToRecover = objMap(sdkContractAddressesMap, (_, v) =>
+      objFilter(
+        v as ChainMap<any>,
+        (key, v): v is any => key !== 'interchainGasPaymaster',
+      ),
+    );
+  }
   return objMerge(
-    // filter out interchainGasPaymaster since we don't want to recover it from SDK artifacts
-    Object.fromEntries(
-      objMapEntries(sdkContractAddressesMap, (k, v) => [
-        k,
-        objFilter(
-          v as ChainMap<any>,
-          (key, v): v is any => key !== 'interchainGasPaymaster',
-        ),
-      ]),
-    ),
+    sdkContractsAddressesToRecover,
     artifacts || {},
   ) as HyperlaneContractsMap<any>;
 }

@@ -292,7 +292,7 @@ async function executeDeploy({
   ]);
 
   const owner = await signer.getAddress();
-  const mergedContractAddrs = getMergedContractAddresses(artifacts);
+  const mergedContractAddrs = getMergedContractAddresses(artifacts, chains);
 
   // 1. Deploy ISM factories to all deployable chains that don't have them.
   logBlue('Deploying ISM factory contracts');
