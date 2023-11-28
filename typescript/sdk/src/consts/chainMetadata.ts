@@ -809,7 +809,7 @@ export const neutron: ChainMetadata = {
   ],
   blocks: {
     confirmations: 1,
-    reorgPeriod: 0,
+    reorgPeriod: 1,
     estimateBlockTime: 3,
   },
   blockExplorers: [
@@ -1011,6 +1011,32 @@ export const polygonzkevm: ChainMetadata = {
   },
 };
 
+export const neutrontestnet: ChainMetadata = {
+  protocol: ProtocolType.Cosmos,
+  domainId: 33333,
+  chainId: 'duality-devnet',
+  name: Chains.neutrontestnet,
+  displayName: 'Neutron Testnet',
+  nativeToken: {
+    name: 'Neutron',
+    symbol: 'NTRN',
+    decimals: 6,
+  },
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 3,
+  },
+  // First URL RPC, second REST
+  rpcUrls: [
+    { http: 'http://54.149.31.83:26657' },
+    { http: 'http://54.149.31.83:1317' },
+  ],
+  bech32Prefix: 'dual',
+  slip44: 118,
+  isTestnet: true,
+};
+
 /**
  * Collection maps
  *
@@ -1054,6 +1080,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   solanatestnet,
   solanadevnet,
   nautilus,
+  neutrontestnet,
 };
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<
