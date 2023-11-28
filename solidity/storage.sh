@@ -1,16 +1,17 @@
 #!/bin/bash
 
-CONTRACTS=(
-Mailbox \
-MailboxClient Router GasRouter \
-InterchainGasPaymaster StorageGasOracle \
-MerkleTreeHook \
-HypERC20 HypERC20Collateral \
-HypERC721 HypERC721Collateral \
-HypNative HypNativeScaled
-)
+IFS=$'\n'
+CONTRACT_FILES=($(find ./contracts -type f))
+unset IFS
 
-for contract in "${CONTRACTS[@]}";
+for file in "${CONTRACT_FILES[@]}";
 do
+    contract=$(basename "$file" .sol)
+
+    if [[ $file =~ .*(test|mock|interfaces|libs|upgrade|README|Abstract|Static).* ]]; then
+        continue
+    fi
+
+    echo "Generating storage layout of $contract"
     forge inspect "$contract" storage --pretty > "storage/$contract.md"
 done
