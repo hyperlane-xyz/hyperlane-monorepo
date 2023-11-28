@@ -113,6 +113,7 @@ pub struct AgentUrl {
 pub struct AgentConfig {
     pub name: String,
     pub domain_id: u32,
+    pub metrics_port: u32,
     pub mailbox: String,
     pub interchain_gas_paymaster: String,
     pub validator_announce: String,
@@ -144,6 +145,7 @@ impl AgentConfig {
         AgentConfig {
             name: format!("cosmostest{}", network.domain),
             domain_id: network.domain,
+            metrics_port: network.metrics_port,
             mailbox: to_hex_addr(&network.deployments.mailbox),
             interchain_gas_paymaster: to_hex_addr(&network.deployments.igp),
             validator_announce: to_hex_addr(&network.deployments.va),

@@ -53,8 +53,8 @@ import {
   TestRecipientDeployer,
 } from './TestRecipientDeployer.js';
 import {
-  isAdvancedISMConfig,
-  isAdvancedZODISMConfig,
+  isISMConfig,
+  isZODISMConfig,
   runPreflightChecksForChains,
 } from './utils.js';
 
@@ -91,11 +91,9 @@ export async function runCoreDeploy({
   const artifacts = await runArtifactStep(chains, artifactsPath);
   const result = await runIsmStep(chains, ismConfigPath);
   // we can either specify the full ISM config or just the multisig config
-  const isAdvancedIsm = isAdvancedISMConfig(result);
-  const ismConfigs = isAdvancedIsm
-    ? (result as ChainMap<IsmConfig>)
-    : undefined;
-  const multisigConfigs = isAdvancedIsm
+  const isIsmConfig = isISMConfig(result);
+  const ismConfigs = isIsmConfig ? (result as ChainMap<IsmConfig>) : undefined;
+  const multisigConfigs = isIsmConfig
     ? defaultMultisigConfigs
     : (result as ChainMap<MultisigConfig>);
   // TODO re-enable when hook config is actually used
@@ -167,9 +165,10 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
       'ism',
     );
   }
-  const isAdvancedIsm = isAdvancedZODISMConfig(ismConfigPath);
+
+  const isIsm = isZODISMConfig(ismConfigPath);
   // separate flow for 'ism' and 'ism-advanced' options
-  if (isAdvancedIsm) {
+  if (isIsm) {
     const ismConfig = readIsmConfig(ismConfigPath);
     const requiredIsms = objFilter(
       ismConfig,

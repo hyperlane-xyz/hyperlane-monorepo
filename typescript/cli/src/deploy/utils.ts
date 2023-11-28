@@ -69,12 +69,14 @@ export async function runPreflightChecksForChains({
   logGreen('Balances are sufficient ✅');
 }
 
-export function isAdvancedISMConfig(
+// from parsed types
+export function isISMConfig(
   config: ChainMap<MultisigConfig> | ChainMap<IsmConfig>,
 ): boolean {
   return Object.values(config).some((c) => 'type' in c);
 }
 
-export function isAdvancedZODISMConfig(filepath: string): boolean {
+// directly from filepath
+export function isZODISMConfig(filepath: string): boolean {
   return parseIsmConfig(filepath).success;
 }
