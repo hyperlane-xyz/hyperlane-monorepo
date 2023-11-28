@@ -16,8 +16,10 @@ import { MultiGeneric } from '../utils/MultiGeneric';
 export class HyperlaneApp<
   Factories extends HyperlaneFactories,
 > extends MultiGeneric<HyperlaneContracts<Factories>> {
+  public readonly contractsMap: HyperlaneContractsMap<Factories>;
+
   constructor(
-    public readonly contractsMap: HyperlaneContractsMap<Factories>,
+    contractsMap: HyperlaneContractsMap<Factories>,
     public readonly multiProvider: MultiProvider,
     public readonly logger = debug('hyperlane:App'),
   ) {
@@ -25,6 +27,7 @@ export class HyperlaneApp<
       connectContracts(contracts, multiProvider.getSignerOrProvider(chain)),
     );
     super(connectedContractsMap);
+    this.contractsMap = connectedContractsMap;
   }
 
   getContracts(chain: ChainName): HyperlaneContracts<Factories> {

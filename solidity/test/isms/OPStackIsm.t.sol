@@ -51,7 +51,7 @@ contract OPStackIsmTest is Test {
     bytes internal testMessage =
         abi.encodePacked("Hello from the other chain!");
     bytes internal testMetadata =
-        StandardHookMetadata.formatMetadata(0, 0, address(this), "");
+        StandardHookMetadata.overrideRefundAddress(address(this));
 
     bytes internal encodedMessage;
     bytes32 internal messageId;
@@ -123,7 +123,7 @@ contract OPStackIsmTest is Test {
         // for sending value
         vm.deal(
             AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS),
-            2**255
+            2 ** 255
         );
     }
 
@@ -194,13 +194,9 @@ contract OPStackIsmTest is Test {
 
         vm.selectFork(mainnetFork);
 
-        vm.deal(address(this), uint256(2**255 + 1));
-        bytes memory excessValueMetadata = StandardHookMetadata.formatMetadata(
-            uint256(2**255 + 1),
-            DEFAULT_GAS_LIMIT,
-            address(this),
-            ""
-        );
+        vm.deal(address(this), uint256(2 ** 255 + 1));
+        bytes memory excessValueMetadata = StandardHookMetadata
+            .overrideMsgValue(uint256(2 ** 255 + 1));
 
         l1Mailbox.updateLatestDispatchedId(messageId);
         vm.expectRevert("OPStackHook: msgValue must be less than 2 ** 255");
@@ -307,7 +303,7 @@ contract OPStackIsmTest is Test {
 
     /// forge-config: default.fuzz.runs = 10
     function testFork_verify_WithValue(uint256 _msgValue) public {
-        _msgValue = bound(_msgValue, 0, 2**254);
+        _msgValue = bound(_msgValue, 0, 2 ** 254);
         deployAll();
 
         orchestrateRelayMessage(_msgValue, messageId);
@@ -321,7 +317,7 @@ contract OPStackIsmTest is Test {
 
     /// forge-config: default.fuzz.runs = 10
     function testFork_verify_valueAlreadyClaimed(uint256 _msgValue) public {
-        _msgValue = bound(_msgValue, 0, 2**254);
+        _msgValue = bound(_msgValue, 0, 2 ** 254);
         deployAll();
 
         orchestrateRelayMessage(_msgValue, messageId);
@@ -347,7 +343,7 @@ contract OPStackIsmTest is Test {
     function testFork_verify_tooMuchValue() public {
         deployAll();
 
-        uint256 _msgValue = 2**255 + 1;
+        uint256 _msgValue = 2 ** 255 + 1;
 
         vm.expectEmit(false, false, false, false, address(l2Messenger));
         emit FailedRelayedMessage(messageId);
@@ -479,11 +475,10 @@ contract OPStackIsmTest is Test {
     /// @param _nonce   Message nonce to encode into.
     /// @param _version Version number to encode into the message nonce.
     /// @return Message nonce with version encoded into the first two bytes.
-    function encodeVersionedNonce(uint240 _nonce, uint16 _version)
-        internal
-        pure
-        returns (uint256)
-    {
+    function encodeVersionedNonce(
+        uint240 _nonce,
+        uint16 _version
+    ) internal pure returns (uint256) {
         uint256 nonce;
         assembly {
             nonce := or(shl(240, _version), _nonce)
@@ -496,11 +491,9 @@ contract OPStackIsmTest is Test {
     /// @param _nonce Message nonce with version encoded into the first two bytes.
     /// @return Nonce without encoded version.
     /// @return Version of the message.
-    function decodeVersionedNonce(uint256 _nonce)
-        internal
-        pure
-        returns (uint240, uint16)
-    {
+    function decodeVersionedNonce(
+        uint256 _nonce
+    ) internal pure returns (uint240, uint16) {
         uint240 nonce;
         uint16 version;
         assembly {
@@ -513,9 +506,10 @@ contract OPStackIsmTest is Test {
         return (nonce, version);
     }
 
-    function orchestrateRelayMessage(uint256 _msgValue, bytes32 _messageId)
-        internal
-    {
+    function orchestrateRelayMessage(
+        uint256 _msgValue,
+        bytes32 _messageId
+    ) internal {
         vm.selectFork(optimismFork);
 
         bytes memory encodedHookData = abi.encodeCall(
@@ -530,7 +524,7 @@ contract OPStackIsmTest is Test {
 
         vm.deal(
             AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS),
-            2**256 - 1
+            2 ** 256 - 1
         );
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage{value: _msgValue}(

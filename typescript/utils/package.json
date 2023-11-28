@@ -1,16 +1,19 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "1.5.4-beta0",
+  "version": "3.1.10",
   "dependencies": {
+    "@cosmjs/encoding": "^0.31.3",
     "@solana/web3.js": "^1.78.0",
     "bignumber.js": "^9.1.1",
     "ethers": "^5.7.2"
   },
   "devDependencies": {
-    "chai": "^4.3.0",
-    "prettier": "^2.4.1",
-    "typescript": "^5.1.6"
+    "@types/mocha": "^10.0.1",
+    "chai": "^4.3.6",
+    "mocha": "^10.2.0",
+    "prettier": "^2.8.8",
+    "typescript": "5.1.6"
   },
   "homepage": "https://www.hyperlane.xyz",
   "keywords": [
@@ -26,12 +29,12 @@
     "build": "tsc",
     "clean": "rm -rf ./dist",
     "check": "tsc --noEmit",
-    "prettier": "prettier --write ./src"
+    "prettier": "prettier --write ./src",
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts'"
   },
   "sideEffects": false,
   "types": "dist/index.d.ts",
   "files": [
     "/dist"
-  ],
-  "stableVersion": "1.5.0"
+  ]
 }

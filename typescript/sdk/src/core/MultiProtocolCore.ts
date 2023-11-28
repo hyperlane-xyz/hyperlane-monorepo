@@ -11,6 +11,7 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
 import { TypedTransactionReceipt } from '../providers/ProviderType';
 import { ChainMap, ChainName } from '../types';
 
+import { CosmWasmCoreAdapter } from './adapters/CosmWasmCoreAdapter';
 import { EvmCoreAdapter } from './adapters/EvmCoreAdapter';
 import { SealevelCoreAdapter } from './adapters/SealevelCoreAdapter';
 import { ICoreAdapter } from './adapters/types';
@@ -54,18 +55,19 @@ export class MultiProtocolCore extends MultiProtocolApp<
   ): AdapterClassType<ICoreAdapter> {
     if (protocol === ProtocolType.Ethereum) return EvmCoreAdapter;
     if (protocol === ProtocolType.Sealevel) return SealevelCoreAdapter;
+    if (protocol === ProtocolType.Cosmos) return CosmWasmCoreAdapter;
     throw new Error(`No adapter for protocol ${protocol}`);
   }
 
-  waitForMessagesProcessed(
+  async waitForMessagesProcessed(
     origin: ChainName,
     destination: ChainName,
     sourceTx: TypedTransactionReceipt,
     delayMs?: number,
     maxAttempts?: number,
-  ): Promise<void[]> {
+  ): Promise<boolean> {
     const messages = this.adapter(origin).extractMessageIds(sourceTx);
-    return Promise.all(
+    await Promise.all(
       messages.map((msg) =>
         this.adapter(destination).waitForMessageProcessed(
           msg.messageId,
@@ -75,5 +77,6 @@ export class MultiProtocolCore extends MultiProtocolApp<
         ),
       ),
     );
+    return true;
   }
 }

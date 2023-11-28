@@ -19,10 +19,9 @@ abstract contract GasRouter is Router {
      * @notice Sets the gas amount dispatched for each configured domain.
      * @param gasConfigs The array of GasRouterConfig structs
      */
-    function setDestinationGas(GasRouterConfig[] calldata gasConfigs)
-        external
-        onlyOwner
-    {
+    function setDestinationGas(
+        GasRouterConfig[] calldata gasConfigs
+    ) external onlyOwner {
         for (uint256 i = 0; i < gasConfigs.length; i += 1) {
             _setDestinationGas(gasConfigs[i].domain, gasConfigs[i].gas);
         }
@@ -42,30 +41,17 @@ abstract contract GasRouter is Router {
      * @param _destinationDomain The domain of the router.
      * @return _gasPayment Payment computed by the registered InterchainGasPaymaster.
      */
-    function quoteGasPayment(uint32 _destinationDomain)
-        external
-        view
-        returns (uint256 _gasPayment)
-    {
+    function quoteGasPayment(
+        uint32 _destinationDomain
+    ) external view returns (uint256 _gasPayment) {
         return _quoteDispatch(_destinationDomain, "");
     }
 
-    function _refundAddress(uint32) internal view virtual returns (address) {
-        return msg.sender;
-    }
-
-    function _metadata(uint32 _destination)
-        internal
-        view
-        virtual
-        override
-        returns (bytes memory)
-    {
+    function _metadata(
+        uint32 _destination
+    ) internal view virtual override returns (bytes memory) {
         return
-            StandardHookMetadata.formatMetadata(
-                destinationGas[_destination],
-                _refundAddress(_destination)
-            );
+            StandardHookMetadata.overrideGasLimit(destinationGas[_destination]);
     }
 
     function _setDestinationGas(uint32 domain, uint256 gas) internal {

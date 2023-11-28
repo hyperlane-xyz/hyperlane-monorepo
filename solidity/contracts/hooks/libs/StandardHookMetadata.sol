@@ -16,13 +16,20 @@ pragma solidity >=0.8.0;
 /**
  * Format of metadata:
  *
- * [0:1] variant
- * [2:33] msg.value
- * [34:65] Gas limit for message (IGP)
- * [66:85] Refund address for message (IGP)
+ * [0:2] variant
+ * [2:34] msg.value
+ * [34:66] Gas limit for message (IGP)
+ * [66:86] Refund address for message (IGP)
  * [86:] Custom metadata
  */
 library StandardHookMetadata {
+    struct Metadata {
+        uint16 variant;
+        uint256 msgValue;
+        uint256 gasLimit;
+        address refundAddress;
+    }
+
     uint8 private constant VARIANT_OFFSET = 0;
     uint8 private constant MSG_VALUE_OFFSET = 2;
     uint8 private constant GAS_LIMIT_OFFSET = 34;
@@ -33,7 +40,7 @@ library StandardHookMetadata {
 
     /**
      * @notice Returns the variant of the metadata.
-     * @param _metadata ABI encoded global hook metadata.
+     * @param _metadata ABI encoded standard hook metadata.
      * @return variant of the metadata as uint8.
      */
     function variant(bytes calldata _metadata) internal pure returns (uint16) {
@@ -43,15 +50,14 @@ library StandardHookMetadata {
 
     /**
      * @notice Returns the specified value for the message.
-     * @param _metadata ABI encoded global hook metadata.
+     * @param _metadata ABI encoded standard hook metadata.
      * @param _default Default fallback value.
      * @return Value for the message as uint256.
      */
-    function msgValue(bytes calldata _metadata, uint256 _default)
-        internal
-        pure
-        returns (uint256)
-    {
+    function msgValue(
+        bytes calldata _metadata,
+        uint256 _default
+    ) internal pure returns (uint256) {
         if (_metadata.length < MSG_VALUE_OFFSET + 32) return _default;
         return
             uint256(bytes32(_metadata[MSG_VALUE_OFFSET:MSG_VALUE_OFFSET + 32]));
@@ -59,15 +65,14 @@ library StandardHookMetadata {
 
     /**
      * @notice Returns the specified gas limit for the message.
-     * @param _metadata ABI encoded global hook metadata.
+     * @param _metadata ABI encoded standard hook metadata.
      * @param _default Default fallback gas limit.
      * @return Gas limit for the message as uint256.
      */
-    function gasLimit(bytes calldata _metadata, uint256 _default)
-        internal
-        pure
-        returns (uint256)
-    {
+    function gasLimit(
+        bytes calldata _metadata,
+        uint256 _default
+    ) internal pure returns (uint256) {
         if (_metadata.length < GAS_LIMIT_OFFSET + 32) return _default;
         return
             uint256(bytes32(_metadata[GAS_LIMIT_OFFSET:GAS_LIMIT_OFFSET + 32]));
@@ -75,15 +80,14 @@ library StandardHookMetadata {
 
     /**
      * @notice Returns the specified refund address for the message.
-     * @param _metadata ABI encoded global hook metadata.
+     * @param _metadata ABI encoded standard hook metadata.
      * @param _default Default fallback refund address.
      * @return Refund address for the message as address.
      */
-    function refundAddress(bytes calldata _metadata, address _default)
-        internal
-        pure
-        returns (address)
-    {
+    function refundAddress(
+        bytes calldata _metadata,
+        address _default
+    ) internal pure returns (address) {
         if (_metadata.length < REFUND_ADDRESS_OFFSET + 20) return _default;
         return
             address(
@@ -95,25 +99,23 @@ library StandardHookMetadata {
 
     /**
      * @notice Returns the specified refund address for the message.
-     * @param _metadata ABI encoded global hook metadata.
+     * @param _metadata ABI encoded standard hook metadata.
      * @return Refund address for the message as address.
      */
-    function getCustomMetadata(bytes calldata _metadata)
-        internal
-        pure
-        returns (bytes calldata)
-    {
+    function getCustomMetadata(
+        bytes calldata _metadata
+    ) internal pure returns (bytes calldata) {
         if (_metadata.length < MIN_METADATA_LENGTH) return _metadata[0:0];
         return _metadata[MIN_METADATA_LENGTH:];
     }
 
     /**
-     * @notice Formats the specified gas limit and refund address into global hook metadata.
+     * @notice Formats the specified gas limit and refund address into standard hook metadata.
      * @param _msgValue msg.value for the message.
      * @param _gasLimit Gas limit for the message.
      * @param _refundAddress Refund address for the message.
-     * @param _customMetadata Additional metadata to include in the global hook metadata.
-     * @return ABI encoded global hook metadata.
+     * @param _customMetadata Additional metadata to include in the standard hook metadata.
+     * @return ABI encoded standard hook metadata.
      */
     function formatMetadata(
         uint256 _msgValue,
@@ -132,29 +134,35 @@ library StandardHookMetadata {
     }
 
     /**
-     * @notice Formats the specified gas limit and refund address into global hook metadata.
+     * @notice Formats the specified gas limit and refund address into standard hook metadata.
      * @param _msgValue msg.value for the message.
-     * @return ABI encoded global hook metadata.
+     * @return ABI encoded standard hook metadata.
      */
-    function formatMetadata(uint256 _msgValue)
-        internal
-        view
-        returns (bytes memory)
-    {
+    function overrideMsgValue(
+        uint256 _msgValue
+    ) internal view returns (bytes memory) {
         return formatMetadata(_msgValue, uint256(0), msg.sender, "");
     }
 
     /**
-     * @notice Formats the specified gas limit and refund address into global hook metadata.
+     * @notice Formats the specified gas limit and refund address into standard hook metadata.
      * @param _gasLimit Gas limit for the message.
-     * @param _refundAddress Refund address for the message.
-     * @return ABI encoded global hook metadata.
+     * @return ABI encoded standard hook metadata.
      */
-    function formatMetadata(uint256 _gasLimit, address _refundAddress)
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return formatMetadata(uint256(0), _gasLimit, _refundAddress, "");
+    function overrideGasLimit(
+        uint256 _gasLimit
+    ) internal view returns (bytes memory) {
+        return formatMetadata(uint256(0), _gasLimit, msg.sender, "");
+    }
+
+    /**
+     * @notice Formats the specified refund address into standard hook metadata.
+     * @param _refundAddress Refund address for the message.
+     * @return ABI encoded standard hook metadata.
+     */
+    function overrideRefundAddress(
+        address _refundAddress
+    ) internal pure returns (bytes memory) {
+        return formatMetadata(uint256(0), uint256(0), _refundAddress, "");
     }
 }

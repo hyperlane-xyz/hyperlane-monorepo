@@ -8,8 +8,8 @@ use eyre::Result;
 use hyperlane_base::settings::IndexSettings;
 use hyperlane_core::{
     unwrap_or_none_result, BlockInfo, Delivery, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneMessageStore, HyperlaneProvider, HyperlaneWatermarkedLogStore,
-    InterchainGasPayment, LogMeta, H256,
+    HyperlaneMessage, HyperlaneProvider, HyperlaneSequenceIndexerStore,
+    HyperlaneWatermarkedLogStore, InterchainGasPayment, LogMeta, H256,
 };
 use itertools::Itertools;
 use tracing::trace;
@@ -370,26 +370,24 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
 }
 
 #[async_trait]
-impl HyperlaneMessageStore for HyperlaneSqlDb {
-    /// Gets a message by nonce.
-    async fn retrieve_message_by_nonce(&self, nonce: u32) -> Result<Option<HyperlaneMessage>> {
+impl HyperlaneSequenceIndexerStore<HyperlaneMessage> for HyperlaneSqlDb {
+    /// Gets a message by its nonce.
+    async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<HyperlaneMessage>> {
         let message = self
             .db
-            .retrieve_message_by_nonce(self.domain().id(), &self.mailbox_address, nonce)
+            .retrieve_message_by_nonce(self.domain().id(), &self.mailbox_address, sequence)
             .await?;
         Ok(message)
     }
 
-    /// Retrieves the block number at which the message with the provided nonce
-    /// was dispatched.
-    async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {
-        unwrap_or_none_result!(
-            tx_id,
+    /// Gets the block number at which the log occurred.
+    async fn retrieve_log_block_number(&self, sequence: u32) -> Result<Option<u64>> {
+        let tx_id = unwrap_or_none_result!(
             self.db
-                .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, nonce)
+                .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, sequence)
                 .await?
         );
-        unwrap_or_none_result!(block_id, self.db.retrieve_block_id(tx_id).await?);
+        let block_id = unwrap_or_none_result!(self.db.retrieve_block_id(tx_id).await?);
         Ok(self.db.retrieve_block_number(block_id).await?)
     }
 }

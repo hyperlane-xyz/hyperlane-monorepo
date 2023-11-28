@@ -16,12 +16,9 @@ abstract contract AbstractMetaProxyMultisigIsm is AbstractMultisigIsm {
     /**
      * @inheritdoc AbstractMultisigIsm
      */
-    function validatorsAndThreshold(bytes calldata)
-        public
-        pure
-        override
-        returns (address[] memory, uint8)
-    {
+    function validatorsAndThreshold(
+        bytes calldata
+    ) public pure override returns (address[] memory, uint8) {
         return abi.decode(MetaProxy.metadata(), (address[], uint8));
     }
 }
@@ -37,9 +34,7 @@ abstract contract AbstractMetaProxyMultisigIsm is AbstractMultisigIsm {
 contract StaticMerkleRootMultisigIsm is
     AbstractMerkleRootMultisigIsm,
     AbstractMetaProxyMultisigIsm
-{
-
-}
+{}
 
 /**
  * @title StaticMessageIdMultisigIsm
@@ -49,9 +44,7 @@ contract StaticMerkleRootMultisigIsm is
 contract StaticMessageIdMultisigIsm is
     AbstractMessageIdMultisigIsm,
     AbstractMetaProxyMultisigIsm
-{
-
-}
+{}
 
 // solhint-enable no-empty-blocks
 

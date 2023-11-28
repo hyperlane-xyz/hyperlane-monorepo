@@ -14,7 +14,6 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
 import {Message} from "../../libs/Message.sol";
@@ -59,13 +58,9 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
         }
     }
 
-    function supportsMetadata(bytes calldata)
-        public
-        pure
-        virtual
-        override
-        returns (bool)
-    {
+    function supportsMetadata(
+        bytes calldata
+    ) public pure virtual override returns (bool) {
         // routing hook does not care about metadata shape
         return true;
     }
@@ -73,11 +68,10 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
     // ============ Internal Functions ============
 
     /// @inheritdoc AbstractPostDispatchHook
-    function _postDispatch(bytes calldata metadata, bytes calldata message)
-        internal
-        virtual
-        override
-    {
+    function _postDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal virtual override {
         _getConfiguredHook(message).postDispatch{value: msg.value}(
             metadata,
             message
@@ -85,22 +79,16 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
     }
 
     /// @inheritdoc AbstractPostDispatchHook
-    function _quoteDispatch(bytes calldata metadata, bytes calldata message)
-        internal
-        view
-        virtual
-        override
-        returns (uint256)
-    {
+    function _quoteDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal view virtual override returns (uint256) {
         return _getConfiguredHook(message).quoteDispatch(metadata, message);
     }
 
-    function _getConfiguredHook(bytes calldata message)
-        internal
-        view
-        virtual
-        returns (IPostDispatchHook hook)
-    {
+    function _getConfiguredHook(
+        bytes calldata message
+    ) internal view virtual returns (IPostDispatchHook hook) {
         hook = hooks[message.destination()];
         require(
             address(hook) != address(0),
