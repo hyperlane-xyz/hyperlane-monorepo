@@ -1,13 +1,14 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
-use derive_new::new;
-use eyre::Result;
 
 use crate::{ChainResult, U256};
 
+// This should be whatever the prometheus scrape interval is
+pub const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
+
 #[async_trait]
-pub trait AgenMetricsFetcher {
+pub trait AgenMetricsFetcher: Send + Sync {
     async fn get_balance(&self) -> ChainResult<U256>;
 }
 

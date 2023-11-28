@@ -9,11 +9,16 @@ use derive_more::AsRef;
 use eyre::Result;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
+    metrics::{
+        self,
+        agent::{AgentMetrics, Metrics, MetricsFetcher},
+    },
     run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     SequencedDataContractSync, WatermarkContractSync,
 };
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, U256,
+    metrics::agent::METRICS_SCRAPE_INTERVAL, HyperlaneDomain, HyperlaneMessage,
+    InterchainGasPayment, MerkleTreeInsertion, U256,
 };
 use tokio::{
     sync::{
@@ -92,11 +97,15 @@ impl BaseAgent for Relayer {
 
     type Settings = RelayerSettings;
 
-    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
+    async fn from_settings(
+        settings: Self::Settings,
+        core_metrics: Arc<CoreMetrics>,
+        agent_metrics: Metrics,
+    ) -> Result<(Self, Vec<MetricsFetcher>)>
     where
         Self: Sized,
     {
-        let core = settings.build_hyperlane_core(metrics.clone());
+        let core = settings.build_hyperlane_core(core_metrics.clone());
         let db = DB::from_path(&settings.db)?;
         let dbs = settings
             .origin_chains
@@ -105,18 +114,18 @@ impl BaseAgent for Relayer {
             .collect::<HashMap<_, _>>();
 
         let mailboxes = settings
-            .build_mailboxes(settings.destination_chains.iter(), &metrics)
+            .build_mailboxes(settings.destination_chains.iter(), &core_metrics)
             .await?;
         let validator_announces = settings
-            .build_validator_announces(settings.origin_chains.iter(), &metrics)
+            .build_validator_announces(settings.origin_chains.iter(), &core_metrics)
             .await?;
 
-        let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
+        let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
         let message_syncs = settings
             .build_message_indexers(
                 settings.origin_chains.iter(),
-                &metrics,
+                &core_metrics,
                 &contract_sync_metrics,
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
@@ -126,7 +135,7 @@ impl BaseAgent for Relayer {
         let interchain_gas_payment_syncs = settings
             .build_interchain_gas_payment_indexers(
                 settings.origin_chains.iter(),
-                &metrics,
+                &core_metrics,
                 &contract_sync_metrics,
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
@@ -136,7 +145,7 @@ impl BaseAgent for Relayer {
         let merkle_tree_hook_syncs = settings
             .build_merkle_tree_hook_indexers(
                 settings.origin_chains.iter(),
-                &metrics,
+                &core_metrics,
                 &contract_sync_metrics,
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
@@ -188,20 +197,29 @@ impl BaseAgent for Relayer {
             .collect();
 
         let mut msg_ctxs = HashMap::new();
+        let mut metrics_fetchers = vec![];
         // let mut custom_metrics = HashMap::new();
         for destination in &settings.destination_chains {
             let destination_chain_setup = core.settings.chain_setup(destination).unwrap().clone();
             let agent_metrics_conf = destination_chain_setup
                 .agent_metrics_conf("relayer".to_owned())
                 .await?;
-            println!("~~~ agent metrics: {:?}", agent_metrics_conf);
-            println!("~~~ agent signer: {:?}", destination_chain_setup.signer);
-            // custom_metrics.insert(
-            //     destination.id(),
-            //     destination_chain_setup
-            //         .metrics(destination)
-            //         .expect("Missing metrics config"),
-            // );
+            // PrometheusAgent
+            let metrics_fetcher = destination_chain_setup
+                .build_agent_metrics_fetcher()
+                .await?;
+            let agent_metrics =
+                AgentMetrics::new(agent_metrics.clone(), agent_metrics_conf, metrics_fetcher);
+
+            let fetcher_task = tokio::spawn(async move {
+                agent_metrics
+                    .start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
+                    .await;
+                Ok(())
+            })
+            .instrument(info_span!("AgentMetricsFetcher"));
+            metrics_fetchers.push(fetcher_task);
+
             let transaction_gas_limit: Option<U256> =
                 if skip_transaction_gas_limit_for.contains(&destination.id()) {
                     None
@@ -232,13 +250,13 @@ impl BaseAgent for Relayer {
                         metadata_builder,
                         origin_gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
                         transaction_gas_limit,
-                        metrics: MessageSubmissionMetrics::new(&metrics, origin, destination),
+                        metrics: MessageSubmissionMetrics::new(&core_metrics, origin, destination),
                     }),
                 );
             }
         }
 
-        Ok(Self {
+        let relayer = Self {
             dbs,
             origin_chains: settings.origin_chains,
             destination_chains: settings.destination_chains,
@@ -253,12 +271,19 @@ impl BaseAgent for Relayer {
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
-        })
+        };
+
+        Ok((relayer, metrics_fetchers))
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(self) -> Instrumented<JoinHandle<Result<()>>> {
-        let mut tasks = vec![];
+    async fn run(
+        self,
+        metrics_fetchers: Vec<MetricsFetcher>,
+    ) -> Instrumented<JoinHandle<Result<()>>> {
+        // The tasks vec is initially set to the metrics fetcher tasks,
+        // and is then extended with the rest of the tasks.
+        let mut tasks = metrics_fetchers;
 
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());

@@ -10,6 +10,7 @@ use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
+    metrics::agent::{Metrics as AgentMetrics, MetricsFetcher},
     run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     SequencedDataContractSync,
 };
@@ -51,7 +52,11 @@ impl BaseAgent for Validator {
 
     type Settings = ValidatorSettings;
 
-    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
+    async fn from_settings(
+        settings: Self::Settings,
+        metrics: Arc<CoreMetrics>,
+        agent_metrics: AgentMetrics,
+    ) -> Result<(Self, Vec<MetricsFetcher>)>
     where
         Self: Sized,
     {
@@ -88,7 +93,7 @@ impl BaseAgent for Validator {
             .await?
             .into();
 
-        Ok(Self {
+        let validator = Self {
             origin_chain: settings.origin_chain,
             core,
             db: msg_db,
@@ -101,12 +106,19 @@ impl BaseAgent for Validator {
             reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
-        })
+        };
+
+        Ok((validator, Default::default()))
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(mut self) -> Instrumented<JoinHandle<Result<()>>> {
-        let mut tasks = vec![];
+    async fn run(
+        mut self,
+        metrics_fetchers: Vec<MetricsFetcher>,
+    ) -> Instrumented<JoinHandle<Result<()>>> {
+        // The tasks vec is initially set to the metrics fetcher tasks,
+        // and is then extended with the rest of the tasks.
+        let mut tasks = metrics_fetchers;
 
         if let Some(signer_instance) = self.signer_instance.take() {
             tasks.push(

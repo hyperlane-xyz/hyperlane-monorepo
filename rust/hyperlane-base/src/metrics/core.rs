@@ -183,6 +183,12 @@ impl CoreMetrics {
         })
     }
 
+    /// Get the prometheus registry this metrics instance is attached to.
+    /// This can be used to attach new metrics to it.
+    pub fn registry(&self) -> &Registry {
+        &self.registry
+    }
+
     /// Create the provider metrics attached to this core metrics instance.
     pub fn provider_metrics(&self) -> MiddlewareMetrics {
         self.provider_metrics

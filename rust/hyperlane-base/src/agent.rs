@@ -7,7 +7,13 @@ use hyperlane_core::config::*;
 use tokio::task::JoinHandle;
 use tracing::{debug_span, instrument::Instrumented, Instrument};
 
-use crate::{metrics::CoreMetrics, settings::Settings};
+use crate::{
+    metrics::{
+        agent::{create_agent_metrics, Metrics as AgentMetrics, MetricsFetcher},
+        CoreMetrics,
+    },
+    settings::Settings,
+};
 
 /// Properties shared across all hyperlane agents
 #[derive(Debug)]
@@ -36,13 +42,20 @@ pub trait BaseAgent: Send + Sync + Debug {
     type Settings: LoadableFromSettings;
 
     /// Instantiate the agent from the standard settings object
-    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
+    async fn from_settings(
+        settings: Self::Settings,
+        metrics: Arc<CoreMetrics>,
+        agent_metrics: AgentMetrics,
+    ) -> Result<(Self, Vec<MetricsFetcher>)>
     where
         Self: Sized;
 
     /// Start running this agent.
     #[allow(clippy::async_yields_async)]
-    async fn run(self) -> Instrumented<JoinHandle<Result<()>>>;
+    async fn run(
+        self,
+        metrics_fetchers: Vec<MetricsFetcher>,
+    ) -> Instrumented<JoinHandle<Result<()>>>;
 }
 
 /// Call this from `main` to fully initialize and run the agent for its entire
@@ -68,10 +81,12 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
 
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
     core_settings.tracing.start_tracing(&metrics)?;
-    let agent = A::from_settings(settings, metrics.clone()).await?;
+    let agent_metrics = create_agent_metrics(&metrics)?;
+    let (agent, metrics_fetchers) =
+        A::from_settings(settings, metrics.clone(), agent_metrics).await?;
     metrics.run_http_server();
 
-    agent.run().await.await?
+    agent.run(metrics_fetchers).await.await?
 }
 
 /// Utility to run multiple tasks and shutdown if any one task ends.

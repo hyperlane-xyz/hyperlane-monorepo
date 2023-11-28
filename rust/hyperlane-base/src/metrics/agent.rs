@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::future::Future;
+use std::{collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
 use derive_builder::Builder;
@@ -9,6 +10,8 @@ use hyperlane_core::{
 };
 use maplit::hashmap;
 use prometheus::GaugeVec;
+use tokio::time::MissedTickBehavior;
+use tracing::instrument::Instrumented;
 use tracing::{trace, warn};
 
 use crate::CoreMetrics;
@@ -26,8 +29,10 @@ pub const WALLET_BALANCE_LABELS: &[&str] = &[
 pub const WALLET_BALANCE_HELP: &str =
     "Current native token balance for the wallet addresses in the `wallets` set";
 
+pub type MetricsFetcher = Instrumented<tokio::task::JoinHandle<Result<()>>>;
+
 #[derive(Clone, Builder)]
-pub struct AgentMetrics {
+pub struct Metrics {
     /// Current balance of eth and other tokens in the `tokens` map for the
     /// wallet addresses in the `wallets` set.
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the
@@ -41,8 +46,8 @@ pub struct AgentMetrics {
     wallet_balance: Option<GaugeVec>,
 }
 
-pub(crate) fn create_agent_metrics(metrics: &CoreMetrics) -> Result<AgentMetrics> {
-    Ok(AgentMetricsBuilder::default()
+pub(crate) fn create_agent_metrics(metrics: &CoreMetrics) -> Result<Metrics> {
+    Ok(MetricsBuilder::default()
         .wallet_balance(metrics.new_gauge(
             "wallet_balance",
             WALLET_BALANCE_HELP,
@@ -67,13 +72,13 @@ pub struct AgentMetricsConf {
 }
 
 #[derive(new)]
-pub struct PrometheusAgent {
-    metrics: AgentMetrics,
+pub struct AgentMetrics {
+    metrics: Metrics,
     conf: AgentMetricsConf,
     fetcher: Box<dyn AgenMetricsFetcher>,
 }
 
-impl PrometheusAgent {
+impl AgentMetrics {
     async fn update_wallet_balances(&self) {
         let Some(wallet_addr) = self.conf.address.clone() else {
             return;
@@ -102,6 +107,15 @@ impl PrometheusAgent {
                 }).set(balance)
             },
             Err(e) => warn!("Metric update failed for wallet {wallet_name} ({wallet_addr}) on chain {chain} balance for native currency; {e}")
+        }
+    }
+
+    pub async fn start_updating_on_interval(self, period: Duration) {
+        let mut interval = tokio::time::interval(period);
+        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        loop {
+            self.update_wallet_balances().await;
+            interval.tick().await;
         }
     }
 }

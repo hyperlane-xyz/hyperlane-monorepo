@@ -10,6 +10,7 @@ use ethers::prelude::{
     Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
     SignerMiddleware, WeightedProvider, Ws, WsClientError,
 };
+use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
 use reqwest::{Client, Url};
 use thiserror::Error;
 
@@ -27,7 +28,6 @@ use hyperlane_core::{
 use crate::{signers::Signers, ConnectionConf, FallbackProvider, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
-const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
 const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// An error when connecting to an ethereum provider.
@@ -194,6 +194,7 @@ pub trait BuildableWithProvider {
 
         Ok(if let Some(metrics) = metrics {
             let provider = Arc::new(PrometheusMiddleware::new(provider, metrics.0, metrics.1));
+            // This has to be moved
             tokio::spawn(provider.start_updating_on_interval(METRICS_SCRAPE_INTERVAL));
             self.build_with_signer(provider, locator, signer).await?
         } else {
