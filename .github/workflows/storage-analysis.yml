@@ -33,10 +33,11 @@ jobs:
 
       # Checkout the target branch (base)
       - name: Checkout target branch (base) contracts
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          filter: solidity/contracts
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch origin $BASE_REF
+          git checkout $BASE_REF -- solidity/contracts
 
       # Run the command on the target branch
       - name: Run command on target branch
