@@ -41,7 +41,7 @@ jobs:
 
       # Run the command on the target branch
       - name: Run command on target branch
-        run: yarn workspace @hyperlane-xyz/core storage
+        run: yarn workspace @hyperlane-xyz/core storage base-storage
 
       # Compare outputs
       - name: Compare outputs
