@@ -6,7 +6,7 @@ use hyperlane_core::H160;
 use prometheus::{IntGauge, IntGaugeVec};
 use rusoto_core::Region;
 
-use crate::{CheckpointSyncer, LocalStorage, MultisigCheckpointSyncer, S3Storage};
+use crate::{CheckpointSyncer, GCSStorage, LocalStorage, MultisigCheckpointSyncer, S3Storage};
 
 /// Checkpoint Syncer types
 #[derive(Debug, Clone)]
@@ -24,6 +24,15 @@ pub enum CheckpointSyncerConf {
         folder: Option<String>,
         /// S3 Region
         region: Region,
+    },
+    /// A checkpoint syncer on GCS
+    GCS {
+        /// Bucket name
+        bucket: String,
+        /// Folder name inside bucket - defaults to the root of the bucket
+        folder: Option<String>,
+        /// GCS Region
+        region: String,
     },
 }
 
@@ -45,6 +54,21 @@ impl FromStr for CheckpointSyncerConf {
                     _ => Err(eyre!("Error parsing storage location; could not split bucket, region and folder ({suffix})"))
                 }?;
                 Ok(CheckpointSyncerConf::S3 {
+                    bucket: bucket.into(),
+                    folder,
+                    region: region
+                        .parse()
+                        .context("Invalid region when parsing storage location")?,
+                })
+            }
+            "gcs" => {
+                let url_components = suffix.split('/').collect::<Vec<&str>>();
+                let (bucket, region, folder): (&str, &str, Option<String>) = match url_components.len() {
+                    2 => Ok((url_components[0], url_components[1], None)),
+                    3 .. => Ok((url_components[0], url_components[1], Some(url_components[2..].join("/")))),
+                    _ => Err(eyre!("Error parsing storage location; could not split bucket, region and folder ({suffix})"))
+                }?;
+                Ok(CheckpointSyncerConf::GCS {
                     bucket: bucket.into(),
                     folder,
                     region: region
@@ -75,6 +99,16 @@ impl CheckpointSyncerConf {
                 folder,
                 region,
             } => Box::new(S3Storage::new(
+                bucket.clone(),
+                folder.clone(),
+                region.clone(),
+                latest_index_gauge,
+            )),
+            CheckpointSyncerConf::GCS {
+                bucket,
+                folder,
+                region,
+            } => Box::new(GCSStorage::new(
                 bucket.clone(),
                 folder.clone(),
                 region.clone(),
