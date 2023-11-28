@@ -1,6 +1,6 @@
 import CoinGecko from 'coingecko-api';
 
-import { warn } from '@hyperlane-xyz/utils';
+import { sleep, warn } from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { CoreChainName, Mainnets } from '../consts/chains';
@@ -136,6 +136,8 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     const ids = chains.map(
       (chain) => this.metadata[chain].gasCurrencyCoinGeckoId || chain,
     );
+    // Coingecko rate limits, so we are adding this sleep
+    await sleep(5000);
     const response = await this.coinGecko.simple.price({
       ids,
       vs_currencies: [currency],

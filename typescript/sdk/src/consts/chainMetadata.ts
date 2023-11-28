@@ -155,6 +155,7 @@ export const base: ChainMetadata = {
       family: ExplorerFamily.Etherscan,
     },
   ],
+  gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
   blocks: {
     confirmations: 1,
     reorgPeriod: 1,
@@ -466,6 +467,7 @@ export const scroll: ChainMetadata = {
       family: ExplorerFamily.Etherscan,
     },
   ],
+  gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
   blocks: {
     confirmations: 1,
     reorgPeriod: 1,
@@ -1001,6 +1003,7 @@ export const polygonzkevm: ChainMetadata = {
       family: ExplorerFamily.Etherscan,
     },
   ],
+  gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
   blocks: {
     confirmations: 1,
     reorgPeriod: 1,
