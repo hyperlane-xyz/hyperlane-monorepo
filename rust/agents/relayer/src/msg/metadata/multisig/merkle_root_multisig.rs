@@ -55,7 +55,9 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                     validators,
                     threshold as usize,
                     leaf_index,
-                    highest_leaf_index
+                    highest_leaf_index,
+                    self.origin_domain.clone(),
+                    self.destination_chain_setup.domain.clone(),
                 )
                 .await
                 .context(CTX)?,

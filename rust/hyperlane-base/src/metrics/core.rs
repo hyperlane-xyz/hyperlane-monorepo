@@ -54,7 +54,7 @@ pub struct CoreMetrics {
     /// Set of provider-specific metrics. These only need to get created once.
     provider_metrics: OnceLock<MiddlewareMetrics>,
 
-    validator_metrics: ValidatorMetricManager,
+    pub validator_metrics: ValidatorMetricManager,
 }
 
 impl CoreMetrics {
@@ -125,7 +125,7 @@ impl CoreMetrics {
                 "destination",
                 "validator",
                 "app_context",
-                "ism_address"
+                // "ism_address"
             ],
             registry
         )?;
@@ -489,7 +489,7 @@ struct Key {
     app_context: String,
 }
 
-struct ValidatorMetricManager {
+pub struct ValidatorMetricManager {
     // metrics: Arc<CoreMetrics>,
     validator_checkpoint_index: IntGaugeVec,
 
@@ -512,8 +512,8 @@ impl ValidatorMetricManager {
         }
     }
 
-    async fn set_validator_latest_checkpoints(
-        &mut self,
+    pub async fn set_validator_latest_checkpoints(
+        &self,
         origin: HyperlaneDomain,
         destination: HyperlaneDomain,
         app_context: String,

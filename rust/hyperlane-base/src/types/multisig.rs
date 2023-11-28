@@ -5,7 +5,9 @@ use derive_new::new;
 use eyre::Result;
 use tracing::{debug, instrument};
 
-use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithMessageId, H160, H256};
+use hyperlane_core::{
+    HyperlaneDomain, MultisigSignedCheckpoint, SignedCheckpointWithMessageId, H160, H256,
+};
 
 use crate::{CheckpointSyncer, CoreMetrics};
 
@@ -19,6 +21,46 @@ pub struct MultisigCheckpointSyncer {
 }
 
 impl MultisigCheckpointSyncer {
+    async fn get_validator_latest_checkpoints(
+        &self,
+        validators: &[H256],
+        origin: HyperlaneDomain,
+        destination: HyperlaneDomain,
+    ) -> Vec<u32> {
+        // Get the latest_index from each validator's checkpoint syncer.
+        // let mut latest_indices = Vec::with_capacity(validators.len());
+        let mut latest_indices: HashMap<H160, u32> = HashMap::with_capacity(validators.len());
+
+        for validator in validators {
+            let address = H160::from(*validator);
+            if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&address) {
+                // Gracefully handle errors getting the latest_index
+                match checkpoint_syncer.latest_index().await {
+                    Ok(Some(index)) => {
+                        debug!(?address, ?index, "Validator returned latest index");
+                        latest_indices.insert(H160::from(*validator), index);
+                    }
+                    err => {
+                        debug!(?address, ?err, "Failed to get latest index from validator");
+                    }
+                }
+            }
+            // TODO what if one of these fails, it'll mess up the metrics
+        }
+
+        self.metrics
+            .validator_metrics
+            .set_validator_latest_checkpoints(
+                origin,
+                destination,
+                "app_context".to_owned(),
+                &latest_indices,
+            )
+            .await;
+
+        latest_indices.values().map(|v| *v).collect()
+    }
+
     /// Attempts to get the latest checkpoint with a quorum of signatures among
     /// validators.
     ///
@@ -38,24 +80,31 @@ impl MultisigCheckpointSyncer {
         threshold: usize,
         minimum_index: u32,
         maximum_index: u32,
+        origin: HyperlaneDomain,
+        destination: HyperlaneDomain,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
-        // Get the latest_index from each validator's checkpoint syncer.
-        let mut latest_indices = Vec::with_capacity(validators.len());
-        for validator in validators {
-            let address = H160::from(*validator);
-            if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&address) {
-                // Gracefully handle errors getting the latest_index
-                match checkpoint_syncer.latest_index().await {
-                    Ok(Some(index)) => {
-                        debug!(?address, ?index, "Validator returned latest index");
-                        latest_indices.push(index);
-                    }
-                    err => {
-                        debug!(?address, ?err, "Failed to get latest index from validator");
-                    }
-                }
-            }
-        }
+        // // Get the latest_index from each validator's checkpoint syncer.
+        // let mut latest_indices = Vec::with_capacity(validators.len());
+        // for validator in validators {
+        //     let address = H160::from(*validator);
+        //     if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&address) {
+        //         // Gracefully handle errors getting the latest_index
+        //         match checkpoint_syncer.latest_index().await {
+        //             Ok(Some(index)) => {
+        //                 debug!(?address, ?index, "Validator returned latest index");
+        //                 latest_indices.push(index);
+        //             }
+        //             err => {
+        //                 debug!(?address, ?err, "Failed to get latest index from validator");
+        //             }
+        //         }
+        //     }
+        // }
+
+        let mut latest_indices = self
+            .get_validator_latest_checkpoints(validators, origin, destination)
+            .await;
+
         debug!(
             ?latest_indices,
             "Fetched latest indices from checkpoint syncers"
