@@ -2,6 +2,7 @@ import {
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
+  getDomainId,
 } from '@hyperlane-xyz/sdk';
 
 import { RootAgentConfig, allAgentChainNames } from '../../../src/config';
@@ -42,7 +43,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1bee32a-20231121-121303',
+      tag: '48feaf4-20231122-200632',
     },
     gasPaymentEnforcement,
   },
@@ -50,6 +51,14 @@ const hyperlane: RootAgentConfig = {
     docker: {
       repo,
       tag: '1bee32a-20231121-121303',
+    },
+    chainDockerOverrides: {
+      [chainMetadata.neutron.name]: {
+        tag: '5070398-20231108-172634',
+      },
+      [chainMetadata.mantapacific.name]: {
+        tag: '5070398-20231108-172634',
+      },
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -90,7 +99,50 @@ const releaseCandidate: RootAgentConfig = {
   },
 };
 
+const neutron: RootAgentConfig = {
+  ...contextBase,
+  contextChainNames: {
+    validator: [],
+    relayer: [
+      chainMetadata.neutron.name,
+      chainMetadata.mantapacific.name,
+      chainMetadata.arbitrum.name,
+    ],
+    scraper: [],
+  },
+  context: Contexts.Neutron,
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      tag: '68bad33-20231109-024958',
+    },
+    gasPaymentEnforcement: [
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: [
+          {
+            originDomain: getDomainId(chainMetadata.neutron),
+            destinationDomain: getDomainId(chainMetadata.mantapacific),
+            senderAddress: '*',
+            recipientAddress: '*',
+          },
+          {
+            originDomain: getDomainId(chainMetadata.neutron),
+            destinationDomain: getDomainId(chainMetadata.arbitrum),
+            senderAddress: '*',
+            recipientAddress: '*',
+          },
+        ],
+      },
+      ...gasPaymentEnforcement,
+    ],
+  },
+};
+
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.Neutron]: neutron,
 };
