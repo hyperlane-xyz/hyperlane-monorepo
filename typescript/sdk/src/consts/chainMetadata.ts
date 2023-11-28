@@ -1030,6 +1030,7 @@ export const neutrontestnet: ChainMetadata = {
     { http: 'http://54.149.31.83:1317' },
   ],
   bech32Prefix: 'dual',
+  slip44: 118,
   isTestnet: true,
 };
 
