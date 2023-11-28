@@ -52,14 +52,6 @@ const hyperlane: RootAgentConfig = {
       repo,
       tag: '50aed86-20231128-120255',
     },
-    chainDockerOverrides: {
-      [chainMetadata.neutron.name]: {
-        tag: '5070398-20231108-172634',
-      },
-      [chainMetadata.mantapacific.name]: {
-        tag: '5070398-20231108-172634',
-      },
-    },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -116,7 +108,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '68bad33-20231109-024958',
+      tag: '50aed86-20231128-120255',
     },
     gasPaymentEnforcement: [
       {
