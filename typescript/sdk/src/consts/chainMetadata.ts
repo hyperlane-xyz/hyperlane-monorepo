@@ -1011,7 +1011,7 @@ export const polygonzkevm: ChainMetadata = {
 export const neutrontestnet: ChainMetadata = {
   protocol: ProtocolType.Cosmos,
   domainId: 33333,
-  chainId: 33333,
+  chainId: 'duality-devnet',
   name: Chains.neutrontestnet,
   displayName: 'Neutron Testnet',
   nativeToken: {
