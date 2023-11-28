@@ -116,7 +116,7 @@ export function presetHookConfigs(
 export function readHookConfig(filePath: string) {
   const config = readYamlOrJson(filePath);
   if (!config) {
-    logRed(`No multisig config found at ${filePath}`);
+    logRed(`No hook config found at ${filePath}`);
     return;
   }
   const result = HookConfigMapSchema.safeParse(config);
@@ -134,7 +134,7 @@ export function readHookConfig(filePath: string) {
         type: config.default.type,
       } as HookConfig),
   );
-  logGreen(`All multisig configs in ${filePath} are valid`);
+  logGreen(`All hook configs in ${filePath} are valid`);
   return defaultHook;
 }
 
