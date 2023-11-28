@@ -21,8 +21,8 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install
-        run: yarn workspaces focus @hyperlane-xyz/core
+      - name: yarn-install
+        run: yarn install
 
       - name: foundry-install
         uses: onbjerg/foundry-toolchain@v1
