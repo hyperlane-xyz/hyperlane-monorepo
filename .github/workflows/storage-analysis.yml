@@ -33,13 +33,10 @@ jobs:
 
       # Checkout the target branch (base)
       - name: Checkout target branch (base) contracts
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
-          sparse-checkout: |
-            .yarn
-            solidity/contracts
-          clean: false
+          filter: solidity/contracts
 
       # Run the command on the target branch
       - name: Run command on target branch
