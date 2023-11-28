@@ -9,7 +9,7 @@ on:
 
 jobs:
   slither:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
