@@ -4335,6 +4335,7 @@ __metadata:
     "@aws-sdk/client-iam": "npm:^3.74.0"
     "@aws-sdk/client-kms": "npm:3.48.0"
     "@aws-sdk/client-s3": "npm:^3.74.0"
+    "@cosmjs/amino": "npm:^0.31.3"
     "@eth-optimism/sdk": "npm:^1.7.0"
     "@ethersproject/experimental": "npm:^5.7.0"
     "@ethersproject/hardware-wallets": "npm:^5.7.0"
