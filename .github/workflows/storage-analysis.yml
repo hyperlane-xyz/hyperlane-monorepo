@@ -1,0 +1,49 @@
+name: Check Storage Layout Changes
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  diff-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the PR branch
+      - name: Checkout PR branch
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      # Setup the environment (if needed)
+      - name: Setup Environment
+        run: |
+          # Add commands to setup environment, e.g., install dependencies
+          # sudo apt-get update
+          # sudo apt-get install -y your-dependency-here
+
+      # Run the command on PR branch
+      - name: Run command on PR branch
+        run: yarn workspace @hyperlane-xyz/core storage HEAD-storage
+
+      # Checkout the target branch (base)
+      - name: Checkout target branch (base) contracts
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: solidity/contracts base-storage
+
+      # Run the command on the target branch
+      - name: Run command on target branch
+        run: yarn workspace @hyperlane-xyz/core storage
+
+      # Compare outputs
+      - name: Compare outputs
+        run: diff --recursive solidity/HEAD-storage solidity/base-storage
+
+      - uses: actions/upload-artifact@v3
+        with:
+          path: |
+            solidity/HEAD-storage
+            solidity/base-storage
