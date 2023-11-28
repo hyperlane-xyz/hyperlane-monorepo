@@ -1,9 +1,16 @@
 import { ethers } from 'ethers';
 
-import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainName,
+  IsmConfig,
+  MultiProvider,
+  MultisigConfig,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../../logger.js';
+import { parseIsmConfig } from '../config/ism.js';
 import { assertGasBalances } from '../utils/balances.js';
 import { assertSigner } from '../utils/keys.js';
 
@@ -60,4 +67,16 @@ export async function runPreflightChecksForChains({
 
   await assertGasBalances(multiProvider, signer, chains, minGas);
   logGreen('Balances are sufficient ✅');
+}
+
+// from parsed types
+export function isISMConfig(
+  config: ChainMap<MultisigConfig> | ChainMap<IsmConfig>,
+): boolean {
+  return Object.values(config).some((c) => 'type' in c);
+}
+
+// directly from filepath
+export function isZODISMConfig(filepath: string): boolean {
+  return parseIsmConfig(filepath).success;
 }

@@ -50,9 +50,10 @@ export class S3Validator extends BaseValidator {
     mailbox: string,
     s3Bucket: string,
     s3Region: string,
+    s3Folder: string | undefined,
   ) {
     super(address, localDomain, mailbox);
-    this.s3Bucket = new S3Wrapper(s3Bucket, s3Region);
+    this.s3Bucket = new S3Wrapper(s3Bucket, s3Region, s3Folder);
   }
 
   static async fromStorageLocation(
@@ -61,8 +62,8 @@ export class S3Validator extends BaseValidator {
     if (storageLocation.startsWith(LOCATION_PREFIX)) {
       const suffix = storageLocation.slice(LOCATION_PREFIX.length);
       const pieces = suffix.split('/');
-      if (pieces.length == 2) {
-        const s3Bucket = new S3Wrapper(pieces[0], pieces[1]);
+      if (pieces.length >= 2) {
+        const s3Bucket = new S3Wrapper(pieces[0], pieces[1], pieces[2]);
         const announcement = await s3Bucket.getS3Obj<any>(ANNOUNCEMENT_KEY);
         const address = announcement?.data.value.validator;
         const mailbox = announcement?.data.value.mailbox_address;
@@ -74,6 +75,7 @@ export class S3Validator extends BaseValidator {
           mailbox,
           pieces[0],
           pieces[1],
+          pieces[2],
         );
       }
     }

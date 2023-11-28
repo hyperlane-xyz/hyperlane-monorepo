@@ -4,13 +4,20 @@ import {
   ValidatorConfig as AgentValidatorConfig,
   ChainMap,
   ChainName,
+  chainMetadata,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ValidatorAgentAwsUser } from '../../agents/aws';
+import { AgentAwsUser, ValidatorAgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 
-import { AgentConfigHelper, KeyConfig, RootAgentConfig } from './agent';
+import {
+  AgentConfigHelper,
+  KeyConfig,
+  RootAgentConfig,
+  defaultChainSignerKeyConfig,
+} from './agent';
 
 // Validator agents for each chain.
 export type ValidatorBaseChainConfigMap = ChainMap<ValidatorBaseChainConfig>;
@@ -33,11 +40,13 @@ export interface ValidatorBaseConfig {
 
 export interface ValidatorConfig {
   interval: number;
-  reorgPeriod: number;
   originChainName: ChainName;
   validators: Array<{
     checkpointSyncer: CheckpointSyncerConfig;
+    // The key that signs checkpoints
     validator: KeyConfig;
+    // The key that signs txs (e.g. self-announcements)
+    chainSigner: KeyConfig | undefined;
   }>;
 }
 
@@ -88,7 +97,6 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
   async buildConfig(): Promise<ValidatorConfig> {
     return {
       interval: this.#chainConfig.interval,
-      reorgPeriod: this.#chainConfig.reorgPeriod,
       originChainName: this.chainName!,
       validators: await Promise.all(
         this.#chainConfig.validators.map((val, i) =>
@@ -110,7 +118,12 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     cfg: ValidatorBaseConfig,
     idx: number,
   ): Promise<ValidatorConfig['validators'][number]> {
+    const metadata = chainMetadata[this.chainName];
+    const protocol = metadata.protocol;
+
     let validator: KeyConfig = { type: AgentSignerKeyType.Hex };
+    let chainSigner: KeyConfig | undefined = undefined;
+
     if (cfg.checkpointSyncer.type == CheckpointSyncerType.S3) {
       const awsUser = new ValidatorAgentAwsUser(
         this.runEnv,
@@ -123,17 +136,29 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       await awsUser.createIfNotExists();
       await awsUser.createBucketIfNotExists();
 
-      if (this.aws)
+      if (this.aws) {
         validator = (await awsUser.createKeyIfNotExists(this)).keyConfig;
+
+        // AWS-based chain signer keys are only used for Ethereum
+        if (protocol === ProtocolType.Ethereum) {
+          chainSigner = validator;
+        }
+      }
     } else {
       console.warn(
         `Validator ${cfg.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
       );
     }
 
+    // If the chainSigner isn't set to the AWS-based key above, then set the default.
+    if (chainSigner === undefined) {
+      chainSigner = defaultChainSignerKeyConfig(this.chainName);
+    }
+
     return {
       checkpointSyncer: cfg.checkpointSyncer,
       validator,
+      chainSigner,
     };
   }
 
