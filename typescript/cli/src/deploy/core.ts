@@ -52,11 +52,8 @@ import {
   TestRecipientConfig,
   TestRecipientDeployer,
 } from './TestRecipientDeployer.js';
-import {
-  isAdvancedISMConfig,
-  isAdvancedZODISMConfig,
-  runPreflightChecksForChains,
-} from './utils.js';
+import { isISMConfig, isZODISMConfig } from './utils.js';
+import { runPreflightChecksForChains } from './utils.js';
 
 export async function runCoreDeploy({
   key,
@@ -91,7 +88,7 @@ export async function runCoreDeploy({
   const artifacts = await runArtifactStep(chains, artifactsPath);
   const result = await runIsmStep(chains, ismConfigPath);
   // we can either specify the full ISM config or just the multisig config
-  const isAdvancedIsm = isAdvancedISMConfig(result);
+  const isAdvancedIsm = isISMConfig(result);
   const ismConfigs = isAdvancedIsm
     ? (result as ChainMap<IsmConfig>)
     : undefined;
@@ -167,7 +164,7 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
       'ism',
     );
   }
-  const isAdvancedIsm = isAdvancedZODISMConfig(ismConfigPath);
+  const isAdvancedIsm = isZODISMConfig(ismConfigPath);
   // separate flow for 'ism' and 'ism-advanced' options
   if (isAdvancedIsm) {
     const ismConfig = readIsmConfig(ismConfigPath);
