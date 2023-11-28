@@ -40,6 +40,7 @@ export const infrastructure: InfrastructureConfig = {
       'testnet3-',
       'hyperlane-testnet4-',
       'rc-testnet4-',
+      'neutron-testnet4-',
       'testnet4-',
     ],
   },
