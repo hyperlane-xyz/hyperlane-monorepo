@@ -31,7 +31,7 @@ import {
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
-import { readDeploymentArtifacts } from '../config/artifacts.js';
+import { runDeploymentArtifactStep } from '../config/artifacts.js';
 import { readHookConfig } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
@@ -52,8 +52,11 @@ import {
   TestRecipientConfig,
   TestRecipientDeployer,
 } from './TestRecipientDeployer.js';
-import { isISMConfig, isZODISMConfig } from './utils.js';
-import { runPreflightChecksForChains } from './utils.js';
+import {
+  isISMConfig,
+  isZODISMConfig,
+  runPreflightChecksForChains,
+} from './utils.js';
 
 export async function runCoreDeploy({
   key,
@@ -117,36 +120,12 @@ export async function runCoreDeploy({
   await executeDeploy(deploymentParams);
 }
 
-async function runArtifactStep(
-  selectedChains: ChainName[],
-  artifactsPath?: string,
-) {
-  if (!artifactsPath) {
-    logBlue(
-      '\n',
-      'Deployments can be totally new or can use some existing contract addresses.',
-    );
-    const isResume = await confirm({
-      message: 'Do you want use some existing contract addresses?',
-    });
-    if (!isResume) return undefined;
-
-    artifactsPath = await runFileSelectionStep(
-      './artifacts',
-      'contract artifacts',
-      'core-deployment',
-    );
-  }
-  const artifacts = readDeploymentArtifacts(artifactsPath);
-  const artifactChains = Object.keys(artifacts).filter((c) =>
-    selectedChains.includes(c),
+function runArtifactStep(selectedChains: ChainName[], artifactsPath?: string) {
+  logBlue(
+    '\n',
+    'Deployments can be totally new or can use some existing contract addresses.',
   );
-  if (artifactChains.length === 0) {
-    logGray('No artifacts found for selected chains');
-  } else {
-    log(`Found existing artifacts for chains: ${artifactChains.join(', ')}`);
-  }
-  return artifacts;
+  return runDeploymentArtifactStep(artifactsPath, undefined, selectedChains);
 }
 
 async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
