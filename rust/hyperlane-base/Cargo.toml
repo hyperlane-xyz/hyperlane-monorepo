@@ -12,6 +12,7 @@ version.workspace = true
 [dependencies]
 async-trait.workspace = true
 bs58.workspace = true
+cloud-storage.workspace = true
 color-eyre = { workspace = true, optional = true }
 config.workspace = true
 convert_case.workspace = true
@@ -27,7 +28,7 @@ prometheus.workspace = true
 rocksdb.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-solana-sdk.worksapce = true
+solana-sdk.workspace = true
 static_assertions.workspace = true
 tempfile = { workspace = true, optional = true }
 thiserror.workspace = true
