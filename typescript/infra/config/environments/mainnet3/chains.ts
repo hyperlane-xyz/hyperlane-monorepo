@@ -71,5 +71,8 @@ export const agentChainNames: AgentChainNames = {
   [Role.Validator]: supportedChainNames,
   // Only run relayers for Ethereum chains at the moment.
   [Role.Relayer]: ethereumChainNames,
-  [Role.Scraper]: ethereumChainNames,
+  // Remove mantapacific for now, as it's not included in the scraper domains table
+  [Role.Scraper]: ethereumChainNames.filter(
+    (chainName) => chainName !== chainMetadata.mantapacific.name,
+  ),
 };
