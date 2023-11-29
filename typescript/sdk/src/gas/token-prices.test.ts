@@ -18,7 +18,11 @@ describe('TokenPriceGetter', () => {
     mockCoinGecko.setTokenPrice(chainA, priceA);
     // Destination token
     mockCoinGecko.setTokenPrice(chainB, priceB);
-    tokenPriceGetter = new CoinGeckoTokenPriceGetter(mockCoinGecko);
+    tokenPriceGetter = new CoinGeckoTokenPriceGetter(
+      mockCoinGecko,
+      undefined,
+      0,
+    );
   });
 
   describe('getTokenPrice', () => {

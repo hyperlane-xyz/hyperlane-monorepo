@@ -116,7 +116,10 @@ async function runBuildConfigStep({
     `Using base token metadata: Name: ${baseMetadata.name}, Symbol: ${baseMetadata.symbol}, Decimals: ${baseMetadata.decimals}`,
   );
 
-  const mergedContractAddrs = getMergedContractAddresses(artifacts);
+  const mergedContractAddrs = getMergedContractAddresses(
+    artifacts,
+    Object.keys(warpRouteConfig),
+  );
 
   // Create configs that coalesce together values from the config file,
   // the artifacts, and the SDK as a fallback
