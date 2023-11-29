@@ -163,10 +163,15 @@ export async function runFileSelectionStep(
   description: string,
   pattern?: string,
 ) {
+  const noFilesErrorMessage = `No "${description}" found in ${folderPath}. Please confirm the path for "${description}". By default, the CLI writes to folders relative to where its run.`;
+  if (!fs.existsSync(folderPath)) throw new Error(noFilesErrorMessage);
+
   let filenames = fs.readdirSync(folderPath);
   if (pattern) {
     filenames = filenames.filter((f) => f.includes(pattern));
   }
+
+  if (filenames.length === 0) throw new Error(noFilesErrorMessage);
 
   let filename = (await select({
     message: `Select ${description} file`,
