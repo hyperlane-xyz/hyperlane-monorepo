@@ -43,22 +43,14 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '48feaf4-20231122-200632',
+      tag: '50aed86-20231128-120255',
     },
     gasPaymentEnforcement,
   },
   validators: {
     docker: {
       repo,
-      tag: '1bee32a-20231121-121303',
-    },
-    chainDockerOverrides: {
-      [chainMetadata.neutron.name]: {
-        tag: '5070398-20231108-172634',
-      },
-      [chainMetadata.mantapacific.name]: {
-        tag: '5070398-20231108-172634',
-      },
+      tag: '50aed86-20231128-120255',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -67,7 +59,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1bee32a-20231121-121303',
+      tag: '50aed86-20231128-120255',
     },
   },
 };
@@ -80,7 +72,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '35fdc74-20230913-104940',
+      tag: '50aed86-20231128-120255',
     },
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
@@ -92,7 +84,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'ed7569d-20230725-171222',
+      tag: '50aed86-20231128-120255',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -116,7 +108,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '68bad33-20231109-024958',
+      tag: '50aed86-20231128-120255',
     },
     gasPaymentEnforcement: [
       {
