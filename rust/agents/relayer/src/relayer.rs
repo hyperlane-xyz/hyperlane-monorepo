@@ -9,10 +9,7 @@ use derive_more::AsRef;
 use eyre::Result;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
-    metrics::{
-        self,
-        agent::{AgentMetrics, Metrics, MetricsFetcher},
-    },
+    metrics::{AgentMetrics, InstrumentedFallibleTask, Metrics},
     run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     SequencedDataContractSync, WatermarkContractSync,
 };
@@ -101,7 +98,7 @@ impl BaseAgent for Relayer {
         settings: Self::Settings,
         core_metrics: Arc<CoreMetrics>,
         agent_metrics: Metrics,
-    ) -> Result<(Self, Vec<MetricsFetcher>)>
+    ) -> Result<(Self, Vec<InstrumentedFallibleTask<()>>)>
     where
         Self: Sized,
     {
@@ -201,7 +198,7 @@ impl BaseAgent for Relayer {
         for destination in &settings.destination_chains {
             let destination_chain_setup = core.settings.chain_setup(destination).unwrap().clone();
             let agent_metrics_conf = destination_chain_setup
-                .agent_metrics_conf("relayer".to_owned())
+                .agent_metrics_conf(Self::AGENT_NAME.to_string())
                 .await?;
             let agent_metrics_fetcher = destination_chain_setup
                 .build_agent_metrics_fetcher()
@@ -280,7 +277,7 @@ impl BaseAgent for Relayer {
     #[allow(clippy::async_yields_async)]
     async fn run(
         self,
-        metrics_fetchers: Vec<MetricsFetcher>,
+        metrics_fetchers: Vec<InstrumentedFallibleTask<()>>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         // The tasks vec is initialized with the metrics fetcher tasks,
         // and is then extended with the rest of the tasks.

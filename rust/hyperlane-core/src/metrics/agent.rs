@@ -1,14 +1,18 @@
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 
 use async_trait::async_trait;
 
 use crate::{ChainResult, U256};
 
-// This should be whatever the prometheus scrape interval is
+/// Interval for querying the prometheus metrics endpoint.
+/// This should be whatever the prometheus scrape interval is
 pub const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
 
+/// Trait to be implemented by all chain-specific agent implementations,
+/// to support gathering agent metrics.
 #[async_trait]
 pub trait AgenMetricsFetcher: Send + Sync {
+    /// Fetch the balance of the wallet address associated with the chain provider.
     async fn get_balance(&self) -> ChainResult<U256>;
 }
 

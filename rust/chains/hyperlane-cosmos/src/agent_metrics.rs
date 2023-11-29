@@ -6,6 +6,7 @@ use hyperlane_core::{
 
 use crate::{address::CosmosAddress, ConnectionConf, CosmosProvider};
 
+/// Concrete struct for implementing the AgenMetricsFetcher and HyperlaneChain traits for Cosmos
 #[derive(Debug)]
 pub struct CosmosMetricsFetcher {
     address: CosmosAddress,
@@ -14,6 +15,7 @@ pub struct CosmosMetricsFetcher {
 }
 
 impl CosmosMetricsFetcher {
+    /// Instiante a new CosmosMetricsFetcher
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,

@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use derive_more::AsRef;
 use hyperlane_base::{
-    metrics::agent::{Metrics as AgentMetrics, MetricsFetcher},
+    metrics::{InstrumentedFallibleTask, Metrics as AgentMetrics},
     run_all,
     settings::IndexSettings,
     BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
@@ -40,8 +40,8 @@ impl BaseAgent for Scraper {
     async fn from_settings(
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
-        agent_metrics: AgentMetrics,
-    ) -> eyre::Result<(Self, Vec<MetricsFetcher>)>
+        _agent_metrics: AgentMetrics,
+    ) -> eyre::Result<(Self, Vec<InstrumentedFallibleTask<()>>)>
     where
         Self: Sized,
     {
@@ -94,7 +94,7 @@ impl BaseAgent for Scraper {
     #[allow(clippy::async_yields_async)]
     async fn run(
         self,
-        metrics_fetchers: Vec<MetricsFetcher>,
+        metrics_fetchers: Vec<InstrumentedFallibleTask<()>>,
     ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
         // The tasks vec is initialized with the metrics fetcher tasks,
         // and is then extended with the rest of the tasks.

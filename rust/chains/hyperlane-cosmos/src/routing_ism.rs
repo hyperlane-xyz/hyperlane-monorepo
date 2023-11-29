@@ -9,7 +9,7 @@ use hyperlane_core::{
 
 use crate::{
     address::CosmosAddress,
-    grpc::{WasmGrpcProvider, WasmProvider},
+    grpc::WasmProvider,
     payloads::ism_routes::{
         IsmRouteRequest, IsmRouteRequestInner, IsmRouteRespnose, QueryRoutingIsmGeneralRequest,
     },

@@ -1,18 +1,16 @@
 use ethers::prelude::Selector;
-use h_cosmos::{address::CosmosAddress, CosmosMetricsFetcher, CosmosProvider};
+use h_cosmos::{address::CosmosAddress, CosmosMetricsFetcher};
 use std::collections::HashMap;
 
 use eyre::{eyre, Context, Result};
 
-use ethers_prometheus::middleware::{
-    ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
-};
+use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
-    metrics::agent::AgenMetricsFetcher, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
-    HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
-    HyperlaneSigner, IndexMode, InterchainGasPaymaster, InterchainGasPayment,
-    InterchainSecurityModule, Mailbox, MerkleTreeHook, MerkleTreeInsertion, MultisigIsm,
-    RoutingIsm, SequenceIndexer, ValidatorAnnounce, H256,
+    metrics::agent::AgenMetricsFetcher, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi,
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
+    InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
+    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceIndexer,
+    ValidatorAnnounce, H256,
 };
 use hyperlane_cosmos as h_cosmos;
 use hyperlane_ethereum::{
@@ -23,7 +21,7 @@ use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
 
 use crate::{
-    metrics::agent::AgentMetricsConf,
+    metrics::AgentMetricsConf,
     settings::signers::{BuildableWithSignerConf, ChainSigner, SignerConf},
     CoreMetrics,
 };
@@ -596,13 +594,13 @@ impl ChainConf {
         .context(ctx)
     }
 
+    /// Try to convert the chain setting into a trait object for fetching agent metrics
     pub async fn build_agent_metrics_fetcher(&self) -> Result<Box<dyn AgenMetricsFetcher>> {
         let ctx = "Building Agent Metrics Fetcher";
 
         match &self.connection {
-            ChainConnectionConf::Ethereum(conf) => {
-                Ok(Box::new(h_eth::agent_metrics::EthereumMetricsFetcher {})
-                    as Box<dyn AgenMetricsFetcher>)
+            ChainConnectionConf::Ethereum(_conf) => {
+                Ok(Box::new(h_eth::EthereumMetricsFetcher {}) as Box<dyn AgenMetricsFetcher>)
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => todo!(),
@@ -670,6 +668,7 @@ impl ChainConf {
         self.signer().await
     }
 
+    /// Try to build an agent metrics configuration from the chain config
     pub async fn agent_metrics_conf(&self, agent_name: String) -> Result<AgentMetricsConf> {
         let chain_signer_address = self.chain_signer().await?.map(|s| s.address_string());
         Ok(AgentMetricsConf {
@@ -681,7 +680,7 @@ impl ChainConf {
 
     /// Get a clone of the ethereum metrics conf with correctly configured
     /// contract information.
-    pub fn metrics_conf(&self, agent_name: &str) -> PrometheusMiddlewareConf {
+    pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
         let mut cfg = self.metrics_conf.clone();
 
         if cfg.chain.is_none() {
@@ -746,7 +745,7 @@ impl ChainConf {
         B: BuildableWithProvider + Sync,
     {
         let signer = self.ethereum_signer().await?;
-        let metrics_conf = self.metrics_conf(metrics.agent_name());
+        let metrics_conf = self.metrics_conf();
         let rpc_metrics = Some(metrics.json_rpc_client_metrics());
         let middleware_metrics = Some((metrics.provider_metrics(), metrics_conf));
         let res = builder

@@ -3,8 +3,6 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-use ethers::prelude::U256;
-
 mod contracts;
 
 pub mod json_rpc_client;

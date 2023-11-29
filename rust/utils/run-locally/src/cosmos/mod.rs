@@ -564,9 +564,9 @@ fn relayer_balance_sum(metrics_port: u32) -> eyre::Result<f64> {
 }
 
 fn termination_invariants_met(
-    relayer_metrics_port: u32,
-    messages_expected: u32,
-    starting_relayer_balance: f64,
+    _relayer_metrics_port: u32,
+    _messages_expected: u32,
+    _starting_relayer_balance: f64,
 ) -> eyre::Result<bool> {
     Ok(true)
     // TODO: uncomment once CI passes consistently on Ubuntu

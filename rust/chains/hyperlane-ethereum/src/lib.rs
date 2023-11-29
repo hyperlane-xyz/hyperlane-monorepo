@@ -74,8 +74,10 @@ mod signers;
 #[cfg(not(doctest))]
 mod singleton_signer;
 
-pub mod agent_metrics;
+mod agent_metrics;
 mod config;
+
+pub use self::agent_metrics::*;
 
 fn extract_fn_map(abi: &'static Lazy<abi::Abi>) -> HashMap<Vec<u8>, &'static str> {
     abi.functions()

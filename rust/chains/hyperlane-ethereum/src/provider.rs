@@ -106,7 +106,7 @@ where
         Ok(!code.is_empty())
     }
 
-    async fn get_balance(&self, address: String) -> ChainResult<U256> {
+    async fn get_balance(&self, _address: String) -> ChainResult<U256> {
         todo!()
     }
 }

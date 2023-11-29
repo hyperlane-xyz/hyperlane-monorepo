@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::{
     address::CosmosAddress,
-    grpc::{WasmGrpcProvider, WasmProvider},
+    grpc::WasmProvider,
     payloads::aggregate_ism::{ModulesAndThresholdRequest, ModulesAndThresholdResponse},
     ConnectionConf, CosmosProvider, Signer,
 };

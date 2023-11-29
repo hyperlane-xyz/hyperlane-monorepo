@@ -12,7 +12,7 @@ use once_cell::sync::Lazy;
 use tracing::instrument;
 
 use crate::{
-    grpc::{WasmGrpcProvider, WasmProvider},
+    grpc::WasmProvider,
     payloads::{
         general::{self},
         merkle_tree_hook,

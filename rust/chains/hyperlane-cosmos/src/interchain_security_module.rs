@@ -5,7 +5,7 @@ use hyperlane_core::{
 };
 
 use crate::{
-    grpc::{WasmGrpcProvider, WasmProvider},
+    grpc::WasmProvider,
     payloads::{
         general::EmptyStruct,
         ism_routes::{QueryIsmGeneralRequest, QueryIsmModuleTypeRequest},

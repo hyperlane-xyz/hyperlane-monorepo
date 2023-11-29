@@ -1,14 +1,10 @@
-use std::future::Future;
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 
-use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_core::metrics::agent::u256_as_scaled_f64;
-use hyperlane_core::{
-    metrics::agent::AgenMetricsFetcher, ChainResult, HyperlaneDomain, H256, U256,
-};
+use hyperlane_core::{metrics::agent::AgenMetricsFetcher, HyperlaneDomain};
 use maplit::hashmap;
 use prometheus::GaugeVec;
 use tokio::time::MissedTickBehavior;
@@ -30,8 +26,10 @@ pub const WALLET_BALANCE_LABELS: &[&str] = &[
 pub const WALLET_BALANCE_HELP: &str =
     "Current native token balance for the wallet addresses in the `wallets` set";
 
-pub type MetricsFetcher = Instrumented<tokio::task::JoinHandle<Result<()>>>;
+/// Instrumented fallible task alias
+pub type InstrumentedFallibleTask<T> = Instrumented<tokio::task::JoinHandle<Result<T>>>;
 
+/// Agent-specific metrics
 #[derive(Clone, Builder)]
 pub struct Metrics {
     /// Current balance of eth and other tokens in the `tokens` map for the
@@ -69,9 +67,11 @@ pub struct AgentMetricsConf {
     /// Information about the chain this metric is for
     pub domain: HyperlaneDomain,
 
+    /// Name of the agent the metrics are about
     pub name: String,
 }
 
+/// Utility struct to update agent metrics
 #[derive(new)]
 pub struct AgentMetrics {
     metrics: Metrics,
@@ -95,7 +95,7 @@ impl AgentMetrics {
                 // Okay, so the native type is not a token, but whatever, close enough.
                 // Note: This is ETH for many chains, but not all so that is why we use `N` and `Native`
                 // TODO: can we get away with scaling as 18 in all cases here? I am guessing not.
-                let balance = u256_as_scaled_f64(U256::from(balance), 18);
+                let balance = u256_as_scaled_f64(balance, 18);
                 trace!("Wallet {wallet_name} ({wallet_addr}) on chain {chain} balance is {balance} of the native currency");
                 wallet_balance_metric
                     .with(&hashmap! {
@@ -111,6 +111,7 @@ impl AgentMetrics {
         }
     }
 
+    /// Periodically updates the metrics
     pub async fn start_updating_on_interval(self, period: Duration) {
         let mut interval = tokio::time::interval(period);
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);

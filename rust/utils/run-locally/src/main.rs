@@ -388,7 +388,7 @@ fn main() -> ExitCode {
 
     let loop_start = Instant::now();
     // give things a chance to fully start.
-    sleep(Duration::from_secs(5));
+    sleep(Duration::from_secs(10));
     let mut failure_occurred = false;
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {

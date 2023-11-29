@@ -20,9 +20,9 @@ use maplit::hashmap;
 use prometheus::{CounterVec, GaugeVec, IntCounterVec, IntGaugeVec};
 use static_assertions::assert_impl_all;
 use tokio::sync::RwLock;
-use tokio::time::MissedTickBehavior;
 
 pub use error::PrometheusMiddlewareError;
+use tokio::time::MissedTickBehavior;
 
 pub use crate::ChainInfo;
 

@@ -9,8 +9,7 @@ use tracing::{debug_span, instrument::Instrumented, Instrument};
 
 use crate::{
     metrics::{
-        agent::{create_agent_metrics, Metrics as AgentMetrics, MetricsFetcher},
-        CoreMetrics,
+        create_agent_metrics, CoreMetrics, InstrumentedFallibleTask, Metrics as AgentMetrics,
     },
     settings::Settings,
 };
@@ -46,7 +45,7 @@ pub trait BaseAgent: Send + Sync + Debug {
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
-    ) -> Result<(Self, Vec<MetricsFetcher>)>
+    ) -> Result<(Self, Vec<InstrumentedFallibleTask<()>>)>
     where
         Self: Sized;
 
@@ -54,7 +53,7 @@ pub trait BaseAgent: Send + Sync + Debug {
     #[allow(clippy::async_yields_async)]
     async fn run(
         self,
-        metrics_fetchers: Vec<MetricsFetcher>,
+        metrics_fetchers: Vec<InstrumentedFallibleTask<()>>,
     ) -> Instrumented<JoinHandle<Result<()>>>;
 }
 

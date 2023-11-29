@@ -26,6 +26,7 @@ pub mod utils;
 pub mod test_utils;
 
 pub mod config;
+/// Prometheus metrics traits / utilities
 pub mod metrics;
 
 /// Core hyperlane system data structures

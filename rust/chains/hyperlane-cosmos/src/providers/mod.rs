@@ -50,10 +50,12 @@ impl CosmosProvider {
         })
     }
 
+    /// Get a grpc client
     pub fn grpc(&self) -> WasmGrpcProvider {
         self.grpc_client.clone()
     }
 
+    /// Get an rpc client
     pub fn rpc(&self) -> &HttpClient {
         &self.rpc_client
     }
