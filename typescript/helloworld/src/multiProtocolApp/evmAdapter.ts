@@ -35,6 +35,7 @@ export class EvmHelloWorldAdapter
     const { transactionOverrides } = this.multiProvider.getChainMetadata(
       this.chainName,
     );
+    const signerAddress = await contract.signer.getAddress();
 
     const quote = await contract.callStatic.quoteDispatch(
       toDomain,
@@ -44,7 +45,14 @@ export class EvmHelloWorldAdapter
     const estimated = await contract.estimateGas.sendHelloWorld(
       toDomain,
       message,
-      { ...transactionOverrides, value: BigNumber.from(value).add(quote) },
+      {
+        ...transactionOverrides,
+        // Some networks, like PolygonZkEvm, require a `from` address
+        // with funds to be specified when estimating gas for a transaction
+        // that provides non-zero `value`.
+        from: signerAddress,
+        value: BigNumber.from(value).add(quote),
+      },
     );
     const gasLimit = estimated.mul(12).div(10);
 
