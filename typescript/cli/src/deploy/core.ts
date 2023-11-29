@@ -52,8 +52,11 @@ import {
   TestRecipientConfig,
   TestRecipientDeployer,
 } from './TestRecipientDeployer.js';
-import { isISMConfig, isZODISMConfig } from './utils.js';
-import { runPreflightChecksForChains } from './utils.js';
+import {
+  isISMConfig,
+  isZODISMConfig,
+  runPreflightChecksForChains,
+} from './utils.js';
 
 export async function runCoreDeploy({
   key,
@@ -88,11 +91,9 @@ export async function runCoreDeploy({
   const artifacts = await runArtifactStep(chains, artifactsPath);
   const result = await runIsmStep(chains, ismConfigPath);
   // we can either specify the full ISM config or just the multisig config
-  const isAdvancedIsm = isISMConfig(result);
-  const ismConfigs = isAdvancedIsm
-    ? (result as ChainMap<IsmConfig>)
-    : undefined;
-  const multisigConfigs = isAdvancedIsm
+  const isIsmConfig = isISMConfig(result);
+  const ismConfigs = isIsmConfig ? (result as ChainMap<IsmConfig>) : undefined;
+  const multisigConfigs = isIsmConfig
     ? defaultMultisigConfigs
     : (result as ChainMap<MultisigConfig>);
   // TODO re-enable when hook config is actually used
@@ -164,9 +165,10 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
       'ism',
     );
   }
-  const isAdvancedIsm = isZODISMConfig(ismConfigPath);
+
+  const isIsm = isZODISMConfig(ismConfigPath);
   // separate flow for 'ism' and 'ism-advanced' options
-  if (isAdvancedIsm) {
+  if (isIsm) {
     const ismConfig = readIsmConfig(ismConfigPath);
     const requiredIsms = objFilter(
       ismConfig,
@@ -290,7 +292,7 @@ async function executeDeploy({
   ]);
 
   const owner = await signer.getAddress();
-  const mergedContractAddrs = getMergedContractAddresses(artifacts);
+  const mergedContractAddrs = getMergedContractAddresses(artifacts, chains);
 
   // 1. Deploy ISM factories to all deployable chains that don't have them.
   logBlue('Deploying ISM factory contracts');
