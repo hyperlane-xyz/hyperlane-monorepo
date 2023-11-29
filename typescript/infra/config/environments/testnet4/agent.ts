@@ -50,7 +50,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '48feaf4-20231122-200632',
+      tag: 'c2288eb-20231129-115257',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -67,12 +67,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1bee32a-20231121-121303',
-    },
-    chainDockerOverrides: {
-      neutrontestnet: {
-        tag: '5070398-20231108-172634',
-      },
+      tag: 'c2288eb-20231129-115257',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -80,7 +75,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1bee32a-20231121-121303',
+      tag: 'c2288eb-20231129-115257',
     },
   },
 };
@@ -93,7 +88,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fd890d2-20231024-132022',
+      tag: 'c2288eb-20231129-115257',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
@@ -106,7 +101,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fd890d2-20231024-132022',
+      tag: 'c2288eb-20231129-115257',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
@@ -125,7 +120,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5070398-20231108-172634',
+      tag: 'c2288eb-20231129-115257',
     },
     gasPaymentEnforcement,
     transactionGasLimit: 750000,

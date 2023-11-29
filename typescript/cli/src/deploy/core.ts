@@ -91,11 +91,9 @@ export async function runCoreDeploy({
   const artifacts = await runArtifactStep(chains, artifactsPath);
   const result = await runIsmStep(chains, ismConfigPath);
   // we can either specify the full ISM config or just the multisig config
-  const isAdvancedIsm = isISMConfig(result);
-  const ismConfigs = isAdvancedIsm
-    ? (result as ChainMap<IsmConfig>)
-    : undefined;
-  const multisigConfigs = isAdvancedIsm
+  const isIsmConfig = isISMConfig(result);
+  const ismConfigs = isIsmConfig ? (result as ChainMap<IsmConfig>) : undefined;
+  const multisigConfigs = isIsmConfig
     ? defaultMultisigConfigs
     : (result as ChainMap<MultisigConfig>);
   // TODO re-enable when hook config is actually used
@@ -143,9 +141,10 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
       'ism',
     );
   }
-  const isAdvancedIsm = isZODISMConfig(ismConfigPath);
+
+  const isIsm = isZODISMConfig(ismConfigPath);
   // separate flow for 'ism' and 'ism-advanced' options
-  if (isAdvancedIsm) {
+  if (isIsm) {
     const ismConfig = readIsmConfig(ismConfigPath);
     const requiredIsms = objFilter(
       ismConfig,
@@ -269,7 +268,7 @@ async function executeDeploy({
   ]);
 
   const owner = await signer.getAddress();
-  const mergedContractAddrs = getMergedContractAddresses(artifacts);
+  const mergedContractAddrs = getMergedContractAddresses(artifacts, chains);
 
   // 1. Deploy ISM factories to all deployable chains that don't have them.
   logBlue('Deploying ISM factory contracts');
@@ -298,7 +297,7 @@ async function executeDeploy({
 
   // 3. Deploy ISM contracts to remote deployable chains
   logBlue('Deploying ISMs');
-  const ismContracts: ChainMap<{ multisigIsm: DeployedIsm }> = {};
+  const ismContracts: ChainMap<{ interchainSecurityModule: DeployedIsm }> = {};
   const defaultIsms: ChainMap<Address> = {};
   for (const ismOrigin of chains) {
     logBlue(`Deploying ISM to ${ismOrigin}`);
@@ -306,9 +305,10 @@ async function executeDeploy({
       ismConfigs[ismOrigin] ??
       buildIsmConfig(owner, ismOrigin, chains, multisigConfigs);
     ismContracts[ismOrigin] = {
-      multisigIsm: await ismFactory.deploy(ismOrigin, ismConfig),
+      interchainSecurityModule: await ismFactory.deploy(ismOrigin, ismConfig),
     };
-    defaultIsms[ismOrigin] = ismContracts[ismOrigin].multisigIsm.address;
+    defaultIsms[ismOrigin] =
+      ismContracts[ismOrigin].interchainSecurityModule.address;
   }
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, ismContracts);
   logGreen('ISM contracts deployed');
@@ -410,8 +410,6 @@ function buildTestRecipientConfigMap(
 ): ChainMap<TestRecipientConfig> {
   return chains.reduce<ChainMap<TestRecipientConfig>>((config, chain) => {
     const interchainSecurityModule =
-      // TODO revisit assumption that multisigIsm is always the ISM
-      addressesMap[chain].multisigIsm ??
       addressesMap[chain].interchainSecurityModule ??
       ethers.constants.AddressZero;
     if (interchainSecurityModule === ethers.constants.AddressZero) {
