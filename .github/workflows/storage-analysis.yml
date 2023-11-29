@@ -47,6 +47,9 @@ jobs:
       - name: Compare outputs
         run: diff --unified solidity/base-storage solidity/HEAD-storage > layout.diff
 
-      - uses: actions/upload-artifact@v3
+      - name: Comment PR with execution number
+        uses: yorhodes/actions-comment-pull-request@v2.4.4
         with:
-          path: layout.diff
+          filePath: layout.diff
+          mdLanguage: diff
+          comment_tag: storagelayoutdiff
