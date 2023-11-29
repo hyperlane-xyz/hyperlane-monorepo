@@ -39,7 +39,7 @@ import {
   logRed,
 } from '../../logger.js';
 import { readDeploymentArtifacts } from '../config/artifacts.js';
-import { readHooksConfig } from '../config/hooks.js';
+import { readHooksConfigMap } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
@@ -103,7 +103,6 @@ export async function runCoreDeploy({
   const multisigConfigs = isIsmConfig
     ? defaultMultisigConfigs
     : (result as ChainMap<MultisigConfig>);
-  // TODO re-enable when hook config is actually used
   const hooksConfig = await runHookStep(chains, hookConfigPath);
 
   const deploymentParams: DeployParams = {
@@ -237,10 +236,10 @@ async function runHookStep(
     hookConfigPath = await runFileSelectionStep(
       './configs/',
       'Hook config',
-      'hook',
+      'hooks',
     );
   }
-  return readHooksConfig(hookConfigPath);
+  return readHooksConfigMap(hookConfigPath);
 }
 
 interface DeployParams {
@@ -351,7 +350,6 @@ async function executeDeploy({
     owner,
     chains,
     defaultIsms,
-    multisigConfigs ?? defaultMultisigConfigs, // TODO: fix https://github.com/hyperlane-xyz/issues/issues/773
     hooksConfig,
   );
   const coreContracts = await coreDeployer.deploy(coreConfigs);
@@ -404,11 +402,9 @@ function buildCoreConfigMap(
   owner: Address,
   chains: ChainName[],
   defaultIsms: ChainMap<Address>,
-  multisigConfig: ChainMap<MultisigConfig>,
   hooksConfig: ChainMap<HooksConfig>,
 ): ChainMap<CoreConfig> {
   return chains.reduce<ChainMap<CoreConfig>>((config, chain) => {
-    // const igpConfig = buildIgpConfigMap(owner, chains, multisigConfig);
     logPink(JSON.stringify(hooksConfig[chain], null, 2));
     config[chain] = {
       owner,

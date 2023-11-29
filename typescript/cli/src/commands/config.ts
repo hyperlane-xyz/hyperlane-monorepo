@@ -2,7 +2,7 @@ import { CommandModule } from 'yargs';
 
 import { log, logGreen } from '../../logger.js';
 import { createChainConfig, readChainConfigs } from '../config/chain.js';
-import { createHookConfig } from '../config/hooks.js';
+import { createHooksConfigMap } from '../config/hooks.js';
 import { createIsmConfigMap, readIsmConfig } from '../config/ism.js';
 import {
   createMultisigConfig,
@@ -108,7 +108,7 @@ const createHookConfigCommand: CommandModule = {
     const format: FileFormat = argv.format;
     const outPath: string = argv.output;
     const chainConfigPath: string = argv.chains;
-    await createHookConfig({ format, outPath, chainConfigPath });
+    await createHooksConfigMap({ format, outPath, chainConfigPath });
     process.exit(0);
   },
 };

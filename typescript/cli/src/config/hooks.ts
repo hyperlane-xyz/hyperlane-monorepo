@@ -1,6 +1,6 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { BigNumber as BigNumberJs } from 'bignumber.js';
-import { BigNumber, ethers } from 'ethers';
+import { ethers } from 'ethers';
 import { z } from 'zod';
 
 import {
@@ -30,31 +30,49 @@ import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
 import { readChainConfigsIfExists } from './chain.js';
 
-const ProtocolFeeSchema = z.object({
-  type: z.literal(HookType.PROTOCOL_FEE),
-  owner: z.string(),
-  beneficiary: z.string(),
-  maxProtocolFee: z.string(),
-  protocolFee: z.string(),
-});
+// const ProtocolFeeSchema = z.object({
+//   type: z.literal(HookType.PROTOCOL_FEE),
+//   owner: z.string(),
+//   beneficiary: z.string(),
+//   maxProtocolFee: z.string(),
+//   protocolFee: z.string(),
+// });
 
-const MerkleTreeSchema = z.object({
-  type: z.literal(HookType.MERKLE_TREE),
-});
+// const MerkleTreeSchema = z.object({
+//   type: z.literal(HookType.MERKLE_TREE),
+// });
 
-const IGPSchema = z.object({
-  type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
-  owner: z.string(),
-  beneficiary: z.string(),
-  overhead: z.record(z.string()),
-  oracleKey: z.string(),
-});
+// const IGPSchema = z.object({
+//   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
+//   owner: z.string(),
+//   beneficiary: z.string(),
+//   overhead: z.record(z.number()),
+//   oracleKey: z.string(),
+// });
 
-const HookConfigSchema = z.union([
-  ProtocolFeeSchema,
-  MerkleTreeSchema,
-  IGPSchema,
-]);
+// const RoutingConfigSchema: z.ZodSchema<any> = z.lazy(() =>
+//   z.object({
+//     type: z.literal(HookType.ROUTING),
+//     owner: z.string(),
+//     domains: z.record(HookConfigSchema),
+//   }),
+// );
+
+// const AggregationConfigSchema: z.ZodSchema<any> = z.lazy(() =>
+//   z.object({
+//     type: z.literal(HookType.AGGREGATION),
+//     modules: z.array(HookConfigSchema),
+//   }),
+// );
+
+// const HookConfigSchema = z.union([
+//   ProtocolFeeSchema,
+//   MerkleTreeSchema,
+//   IGPSchema,
+//   RoutingConfigSchema,
+//   AggregationConfigSchema,
+// ]);
+const HookConfigSchema = z.custom<HookConfig>();
 export type ZODHookConfig = z.infer<typeof HookConfigSchema>;
 
 const HooksConfigSchema = z.object({
@@ -103,8 +121,8 @@ export function presetHookConfigs(
   return {
     required: {
       type: HookType.PROTOCOL_FEE,
-      maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'),
-      protocolFee: ethers.utils.parseUnits('0', 'wei'),
+      maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(),
+      protocolFee: ethers.utils.parseUnits('0', 'wei').toString(),
       beneficiary: owner,
       owner: owner,
     } as ProtocolFeeHookConfig,
@@ -127,7 +145,7 @@ export function presetHookConfigs(
   };
 }
 
-export function readHooksConfig(filePath: string) {
+export function readHooksConfigMap(filePath: string) {
   const config = readYamlOrJson(filePath);
   if (!config) {
     logRed(`No hook config found at ${filePath}`);
@@ -145,33 +163,37 @@ export function readHooksConfig(filePath: string) {
     parsedConfig,
     (_, config) =>
       ({
-        required: readHookConfig(config.required),
-        default: readHookConfig(config.default),
+        required: config.required,
+        default: config.default,
       } as HooksConfig),
   );
   logGreen(`All hook configs in ${filePath} are valid`);
   return hooks;
 }
 
-export function readHookConfig(parsedConfig: any): HookConfig {
-  if (parsedConfig.type === HookType.PROTOCOL_FEE) {
-    return {
-      type: parsedConfig.type,
-      maxProtocolFee: BigNumber.from(toWei(parsedConfig.protocolFee)),
-      protocolFee: BigNumber.from(toWei(parsedConfig.protocolFee)),
-      beneficiary: normalizeAddressEvm(parsedConfig.beneficiary),
-      owner: normalizeAddressEvm(parsedConfig.owner),
-    } as ProtocolFeeHookConfig;
-  } else if (parsedConfig.type === HookType.MERKLE_TREE) {
-    return {
-      type: parsedConfig.type,
-    } as MerkleTreeHookConfig;
-  } else {
-    throw new Error(`Invalid hooker type: ${parsedConfig.type}`);
-  }
-}
+// export function readHookConfig(parsedConfig: any): HookConfig {
+//   if (parsedConfig.type === HookType.PROTOCOL_FEE) {
+//     return {
+//       type: parsedConfig.type,
+//       maxProtocolFee: toWei(parsedConfig.protocolFee),
+//       protocolFee: toWei(parsedConfig.protocolFee),
+//       beneficiary: normalizeAddressEvm(parsedConfig.beneficiary),
+//       owner: normalizeAddressEvm(parsedConfig.owner),
+//     } as ProtocolFeeHookConfig;
+//   } else if (parsedConfig.type === HookType.MERKLE_TREE) {
+//     return {
+//       type: parsedConfig.type,
+//     } as MerkleTreeHookConfig;
+//   } else if (parsedConfig.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
+//     return {
+//       type: parsedConfig.type,
+//     } as IgpHookConfig;
+//   } else {
+//     throw new Error(`Invalid hooker type: ${parsedConfig.type}`);
+//   }
+// }
 
-export async function createHookConfigMap({
+export async function createHooksConfigMap({
   format,
   outPath,
   chainConfigPath,
@@ -188,9 +210,10 @@ export async function createHookConfigMap({
   for (const chain of chains) {
     for (const hookRequirements of ['required', 'default']) {
       log(`Setting ${hookRequirements} hook for chain ${chain}`);
+      const remotes = chains.filter((c) => c !== chain);
       result[chain] = {
         ...result[chain],
-        [hookRequirements]: createHookConfig(chain, chainConfigPath),
+        [hookRequirements]: await createHookConfig(remotes),
       };
     }
     if (isValidHookConfigMap(result)) {
@@ -206,8 +229,7 @@ export async function createHookConfigMap({
 }
 
 export async function createHookConfig(
-  _?: ChainName,
-  __?: string,
+  remotes: ChainName[],
 ): Promise<ZODHookConfig> {
   let lastConfig: ZODHookConfig;
   const hookType = await select({
@@ -230,20 +252,38 @@ export async function createHookConfig(
         description:
           'Allow for payments for expected gas to be paid by the relayer while delivering on remote chain',
       },
+      {
+        value: HookType.AGGREGATION,
+        name: HookType.AGGREGATION,
+        description:
+          'Aggregate multiple hooks into a single hook (e.g. merkle tree + IGP) which will be called in sequence',
+      },
+      {
+        value: HookType.ROUTING,
+        name: HookType.ROUTING,
+        description:
+          'Each destination domain can have its own hook configured via DomainRoutingHook',
+      },
     ],
-    pageSize: 5,
+    pageSize: 10,
   });
   if (hookType === HookType.MERKLE_TREE) {
     lastConfig = { type: HookType.MERKLE_TREE };
   } else if (hookType === HookType.PROTOCOL_FEE) {
-    lastConfig = await createProtocolFeeHookConfig();
+    lastConfig = await createProtocolFeeConfig();
+  } else if (hookType === HookType.INTERCHAIN_GAS_PAYMASTER) {
+    lastConfig = await createIGPConfig(remotes);
+  } else if (hookType === HookType.AGGREGATION) {
+    lastConfig = await createAggregationConfig(remotes);
+  } else if (hookType === HookType.ROUTING) {
+    lastConfig = await createRoutingConfig(remotes);
   } else {
-    throw new Error(`Invalid hook type: ${hookType}}`);
+    throw new Error(`Invalid hook type: ${hookType}`);
   }
   return lastConfig;
 }
 
-export async function createProtocolFeeHookConfig(): Promise<ZODHookConfig> {
+export async function createProtocolFeeConfig(): Promise<ZODHookConfig> {
   const owner = await input({
     message: 'Enter owner address',
   });
@@ -288,8 +328,7 @@ export async function createProtocolFeeHookConfig(): Promise<ZODHookConfig> {
 }
 
 export async function createIGPConfig(
-  chain: ChainName,
-  chainConfigPath: string,
+  remotes: ChainName[],
 ): Promise<ZODHookConfig> {
   const owner = await input({
     message: 'Enter owner address',
@@ -313,19 +352,14 @@ export async function createIGPConfig(
   }
   const beneficiaryAddress = normalizeAddressEvm(beneficiary);
   const oracleKeyAddress = normalizeAddressEvm(oracleKey);
-  const customChains = readChainConfigsIfExists(chainConfigPath);
-  delete customChains[chain];
-  const chains = await runMultiChainSelectionStep(
-    customChains,
-    `Select destination chains to pay overhead from ${chain}`,
-    [chain],
-  );
-  const overheads: ChainMap<string> = {};
-  for (const chain of chains) {
-    const overhead = await input({
-      message: `Enter overhead for ${chain} (in eth e.g. 0.01)`,
-    });
-    overheads[chain] = toWei(overhead);
+  const overheads: ChainMap<number> = {};
+  for (const chain of remotes) {
+    const overhead = parseInt(
+      await input({
+        message: `Enter overhead for ${chain} (eg 75000)`,
+      }),
+    );
+    overheads[chain] = overhead;
   }
 
   return {
@@ -334,5 +368,52 @@ export async function createIGPConfig(
     owner: ownerAddress,
     oracleKey: oracleKeyAddress,
     overhead: overheads,
+    gasOracleType: objMap(
+      overheads,
+      () => GasOracleContractType.StorageGasOracle,
+    ),
+  };
+}
+
+export async function createAggregationConfig(
+  remotes: ChainName[],
+): Promise<ZODHookConfig> {
+  const hooksNum = parseInt(
+    await input({
+      message: 'Enter the number of hooks to aggregate (number)',
+    }),
+    10,
+  );
+  const hooks: Array<ZODHookConfig> = [];
+  for (let i = 0; i < hooksNum; i++) {
+    logBlue(`Creating hook ${i + 1} of ${hooksNum} ...`);
+    hooks.push(await createHookConfig(remotes));
+  }
+  return {
+    type: HookType.AGGREGATION,
+    hooks,
+  };
+}
+
+export async function createRoutingConfig(
+  remotes: ChainName[],
+): Promise<ZODHookConfig> {
+  const owner = await input({
+    message: 'Enter owner address',
+  });
+  const ownerAddress = owner;
+
+  const domainsMap: ChainMap<ZODHookConfig> = {};
+  for (const chain of remotes) {
+    await confirm({
+      message: `You are about to configure hook for remote chain ${chain}. Continue?`,
+    });
+    const config = await createHookConfig(remotes);
+    domainsMap[chain] = config;
+  }
+  return {
+    type: HookType.ROUTING,
+    owner: ownerAddress,
+    domains: domainsMap,
   };
 }
