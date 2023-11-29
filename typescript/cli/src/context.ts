@@ -25,7 +25,11 @@ export function getMergedContractAddresses(
 ) {
   // if chains include non sdkContractAddressesMap chains, don't recover interchainGasPaymaster
   let sdkContractsAddressesToRecover = sdkContractAddressesMap;
-  if (chains?.some((chain) => !(chain in sdkContractAddressesMap))) {
+  if (
+    chains?.some(
+      (chain) => !Object.keys(sdkContractAddressesMap).includes(chain),
+    )
+  ) {
     sdkContractsAddressesToRecover = objMap(sdkContractAddressesMap, (_, v) =>
       objFilter(
         v as ChainMap<any>,
