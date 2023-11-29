@@ -115,7 +115,7 @@ pub struct GasPaymentKey {
 }
 
 /// A payment of a message's gas costs.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default, Eq, PartialEq)]
 pub struct InterchainGasPayment {
     /// Id of the message
     pub message_id: H256,

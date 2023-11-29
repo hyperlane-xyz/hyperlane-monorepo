@@ -5,11 +5,12 @@ import chalk from 'chalk';
 import {
   ChainMap,
   ChainMetadata,
+  ChainName,
   mainnetChainsMetadata,
   testnetChainsMetadata,
 } from '@hyperlane-xyz/sdk';
 
-import { log, logBlue } from '../../logger.js';
+import { log, logBlue, logRed, logTip } from '../../logger.js';
 
 // A special value marker to indicate user selected
 // a new chain in the list
@@ -32,21 +33,30 @@ export async function runSingleChainSelectionStep(
 export async function runMultiChainSelectionStep(
   customChains: ChainMap<ChainMetadata>,
   message = 'Select chains',
+  chainsToFilterOut: ChainName[] = [],
 ) {
-  const choices = getChainChoices(customChains);
-  const chains = (await checkbox({
-    message,
-    choices,
-    pageSize: 20,
-  })) as string[];
-  handleNewChain(chains);
-  if (!chains?.length) throw new Error('No chains selected');
-  return chains;
+  const choices = getChainChoices(customChains, chainsToFilterOut);
+  while (true) {
+    logTip('Use SPACE key to select chains, then press ENTER');
+    const chains = (await checkbox({
+      message,
+      choices,
+      pageSize: 20,
+    })) as string[];
+    handleNewChain(chains);
+    if (chains?.length >= 2) return chains;
+    else logRed('Please select at least 2 chains');
+  }
 }
 
-function getChainChoices(customChains: ChainMap<ChainMetadata>) {
+function getChainChoices(
+  customChains: ChainMap<ChainMetadata>,
+  chainsToFilterOut: ChainName[] = [],
+) {
   const chainsToChoices = (chains: ChainMetadata[]) =>
-    chains.map((c) => ({ name: c.name, value: c.name }));
+    chains
+      .filter((chain) => !chainsToFilterOut.includes(chain.name))
+      .map((c) => ({ name: c.name, value: c.name }));
   const choices: Parameters<typeof select>['0']['choices'] = [
     new Separator('--Custom Chains--'),
     ...chainsToChoices(Object.values(customChains)),

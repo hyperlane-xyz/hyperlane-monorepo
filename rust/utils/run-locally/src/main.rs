@@ -35,6 +35,7 @@ use crate::{
 };
 
 mod config;
+mod cosmos;
 mod ethereum;
 mod invariants;
 mod logging;
@@ -166,7 +167,7 @@ fn main() -> ExitCode {
         // by setting this as a quorum provider we will cause nonce errors when delivering to test2
         // because the message will be sent to the node 3 times.
         .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "quorum")
-        .hyp_env("CHAINS_TEST3_RPCCONSENSUSTYPE", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
         .hyp_env("METRICSPORT", "9092")
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])

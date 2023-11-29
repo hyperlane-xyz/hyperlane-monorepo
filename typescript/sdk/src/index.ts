@@ -128,7 +128,10 @@ export {
   collectValidators,
   moduleCanCertainlyVerify,
 } from './ism/HyperlaneIsmFactory';
-export { buildMultisigIsmConfigs } from './ism/multisig';
+export {
+  buildAggregationIsmConfigs,
+  buildMultisigIsmConfigs,
+} from './ism/multisig';
 export {
   AggregationIsmConfig,
   DeployedIsm,

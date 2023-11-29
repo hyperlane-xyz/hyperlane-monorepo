@@ -4,8 +4,8 @@ use cursor::*;
 use derive_new::new;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer,
-    SequenceIndexer,
+    HyperlaneSequenceIndexerStore, HyperlaneWatermarkedLogStore, Indexer, SequenceIndexer,
+    Sequenced,
 };
 pub use metrics::ContractSyncMetrics;
 use tokio::time::sleep;
@@ -121,20 +121,17 @@ where
     }
 }
 
-/// A ContractSync for syncing messages using a MessageSyncCursor
-pub type MessageContractSync = ContractSync<
-    HyperlaneMessage,
-    Arc<dyn HyperlaneMessageStore>,
-    Arc<dyn SequenceIndexer<HyperlaneMessage>>,
->;
-impl MessageContractSync {
+/// A ContractSync for syncing messages using a SequenceSyncCursor
+pub type SequencedDataContractSync<T> =
+    ContractSync<T, Arc<dyn HyperlaneSequenceIndexerStore<T>>, Arc<dyn SequenceIndexer<T>>>;
+impl<T: Sequenced> SequencedDataContractSync<T> {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     pub async fn forward_message_sync_cursor(
         &self,
         index_settings: IndexSettings,
         next_nonce: u32,
-    ) -> Box<dyn ContractSyncCursor<HyperlaneMessage>> {
-        Box::new(ForwardMessageSyncCursor::new(
+    ) -> Box<dyn ContractSyncCursor<T>> {
+        Box::new(ForwardSequenceSyncCursor::new(
             self.indexer.clone(),
             self.db.clone(),
             index_settings.chunk_size,
@@ -149,9 +146,9 @@ impl MessageContractSync {
     pub async fn forward_backward_message_sync_cursor(
         &self,
         index_settings: IndexSettings,
-    ) -> Box<dyn ContractSyncCursor<HyperlaneMessage>> {
+    ) -> Box<dyn ContractSyncCursor<T>> {
         Box::new(
-            ForwardBackwardMessageSyncCursor::new(
+            ForwardBackwardSequenceSyncCursor::new(
                 self.indexer.clone(),
                 self.db.clone(),
                 index_settings.chunk_size,

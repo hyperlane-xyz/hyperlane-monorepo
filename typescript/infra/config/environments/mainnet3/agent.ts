@@ -2,6 +2,7 @@ import {
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
+  getDomainId,
 } from '@hyperlane-xyz/sdk';
 
 import { RootAgentConfig, allAgentChainNames } from '../../../src/config';
@@ -42,14 +43,14 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1bee32a-20231121-121303',
+      tag: 'c2288eb-20231129-115257',
     },
     gasPaymentEnforcement,
   },
   validators: {
     docker: {
       repo,
-      tag: '1bee32a-20231121-121303',
+      tag: 'c2288eb-20231129-115257',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -58,7 +59,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1bee32a-20231121-121303',
+      tag: 'c2288eb-20231129-115257',
     },
   },
 };
@@ -71,7 +72,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '35fdc74-20230913-104940',
+      tag: 'c2288eb-20231129-115257',
     },
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
@@ -83,14 +84,57 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'ed7569d-20230725-171222',
+      tag: 'c2288eb-20231129-115257',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
 };
 
+const neutron: RootAgentConfig = {
+  ...contextBase,
+  contextChainNames: {
+    validator: [],
+    relayer: [
+      chainMetadata.neutron.name,
+      chainMetadata.mantapacific.name,
+      chainMetadata.arbitrum.name,
+    ],
+    scraper: [],
+  },
+  context: Contexts.Neutron,
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      tag: 'c2288eb-20231129-115257',
+    },
+    gasPaymentEnforcement: [
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: [
+          {
+            originDomain: getDomainId(chainMetadata.neutron),
+            destinationDomain: getDomainId(chainMetadata.mantapacific),
+            senderAddress: '*',
+            recipientAddress: '*',
+          },
+          {
+            originDomain: getDomainId(chainMetadata.neutron),
+            destinationDomain: getDomainId(chainMetadata.arbitrum),
+            senderAddress: '*',
+            recipientAddress: '*',
+          },
+        ],
+      },
+      ...gasPaymentEnforcement,
+    ],
+  },
+};
+
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.Neutron]: neutron,
 };

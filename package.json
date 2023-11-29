@@ -24,10 +24,9 @@
     "lint": "yarn workspaces foreach --since --parallel run lint",
     "test": "yarn workspaces foreach --since --parallel run test",
     "coverage": "yarn workspaces foreach --since --parallel run coverage",
-    "version:prepare": "yarn changeset version",
+    "version:prepare": "yarn changeset version && yarn workspaces foreach --all --parallel run version:update && yarn install --no-immutable",
     "version:check": "yarn changeset status",
-    "publish:all": "yarn changeset publish",
-    "release": "yarn build && yarn publish:all",
+    "release": "yarn build && yarn changeset publish",
     "postinstall": "husky install"
   },
   "workspaces": [

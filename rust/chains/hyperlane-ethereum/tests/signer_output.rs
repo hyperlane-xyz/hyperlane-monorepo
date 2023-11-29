@@ -14,7 +14,7 @@ use hyperlane_core::{
     },
     test_utils,
     utils::domain_hash,
-    Checkpoint, HyperlaneMessage, HyperlaneSignerExt, H160, H256,
+    HyperlaneMessage, H160, H256,
 };
 
 /// Output proof to /vector/message.json

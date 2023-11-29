@@ -17,11 +17,11 @@ import { supportedChainNames } from './chains';
 // Last updated Mar 9, 2023.
 const gasPrices: ChainMap<BigNumber> = {
   // https://bscscan.com/chart/gasprice
-  bsc: ethers.utils.parseUnits('7', 'gwei'),
+  bsc: ethers.utils.parseUnits('3', 'gwei'),
   // https://snowtrace.io/chart/gasprice
   avalanche: ethers.utils.parseUnits('35', 'gwei'),
   // https://polygonscan.com/chart/gasprice
-  polygon: ethers.utils.parseUnits('200', 'gwei'),
+  polygon: ethers.utils.parseUnits('300', 'gwei'),
   // https://celoscan.io/chart/gasprice
   // This one is interesting - the average is high (~20 gwei)
   // but the median is low (< 10). This is likely because a popular wallet is
@@ -41,13 +41,15 @@ const gasPrices: ChainMap<BigNumber> = {
   moonbeam: ethers.utils.parseUnits('150', 'gwei'),
   // https://gnosisscan.io/chart/gasprice
   // People also seem to be overpaying here
-  gnosis: ethers.utils.parseUnits('2', 'gwei'),
+  gnosis: ethers.utils.parseUnits('10', 'gwei'),
   // Arbitrarily chosen as gas prices aren't really a thing
   // in Solana.
   solana: ethers.BigNumber.from('28'),
   base: ethers.utils.parseUnits('1', 'gwei'),
   scroll: ethers.utils.parseUnits('1', 'gwei'),
   polygonzkevm: ethers.utils.parseUnits('2', 'gwei'),
+  neutron: ethers.utils.parseUnits('1', 'gwei'),
+  mantapacific: ethers.utils.parseUnits('1', 'gwei'),
 };
 
 // Accurate from coingecko as of Mar 9, 2023.
@@ -55,31 +57,38 @@ const gasPrices: ChainMap<BigNumber> = {
 // tokens are what matters. These generally have high beta
 const tokenUsdPrices: ChainMap<BigNumber> = {
   // https://www.coingecko.com/en/coins/bnb
-  bsc: ethers.utils.parseUnits('211.55', TOKEN_EXCHANGE_RATE_DECIMALS),
+  bsc: ethers.utils.parseUnits('230.55', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/avalanche
-  avalanche: ethers.utils.parseUnits('9.25', TOKEN_EXCHANGE_RATE_DECIMALS),
+  avalanche: ethers.utils.parseUnits('20.25', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/polygon
-  polygon: ethers.utils.parseUnits('0.518', TOKEN_EXCHANGE_RATE_DECIMALS),
+  polygon: ethers.utils.parseUnits('0.75', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/celo
-  celo: ethers.utils.parseUnits('0.42', TOKEN_EXCHANGE_RATE_DECIMALS),
+  celo: ethers.utils.parseUnits('0.52', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  arbitrum: ethers.utils.parseUnits('1619.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  arbitrum: ethers.utils.parseUnits('2000.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  optimism: ethers.utils.parseUnits('1619.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  optimism: ethers.utils.parseUnits('2000.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  ethereum: ethers.utils.parseUnits('1619.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  ethereum: ethers.utils.parseUnits('2000.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/moonbeam
-  moonbeam: ethers.utils.parseUnits('0.166', TOKEN_EXCHANGE_RATE_DECIMALS),
+  moonbeam: ethers.utils.parseUnits('0.266', TOKEN_EXCHANGE_RATE_DECIMALS),
   // xDAI
   gnosis: ethers.utils.parseUnits('1.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/solana
-  solana: ethers.utils.parseUnits('18.85', TOKEN_EXCHANGE_RATE_DECIMALS),
+  solana: ethers.utils.parseUnits('58.85', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  base: ethers.utils.parseUnits('1619.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  base: ethers.utils.parseUnits('2000.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  scroll: ethers.utils.parseUnits('1619.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  scroll: ethers.utils.parseUnits('2000.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
   polygonzkevm: ethers.utils.parseUnits(
+    '2000.00',
+    TOKEN_EXCHANGE_RATE_DECIMALS,
+  ),
+  // https://www.coingecko.com/en/coins/neutron
+  neutron: ethers.utils.parseUnits('0.304396', TOKEN_EXCHANGE_RATE_DECIMALS),
+  // https://www.coingecko.com/en/coins/ethereum
+  mantapacific: ethers.utils.parseUnits(
     '1619.00',
     TOKEN_EXCHANGE_RATE_DECIMALS,
   ),

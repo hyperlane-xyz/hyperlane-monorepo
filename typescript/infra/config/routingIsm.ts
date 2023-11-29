@@ -43,7 +43,7 @@ export const routingIsm = (
   context: Contexts,
 ): RoutingIsmConfig | string => {
   const aggregationIsms: ChainMap<AggregationIsmConfig> = chains[environment]
-    .filter((_) => _ !== local)
+    .filter((chain) => chain !== local)
     .reduce(
       (acc, chain) => ({
         ...acc,

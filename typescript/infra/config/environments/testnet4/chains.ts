@@ -25,13 +25,14 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
 };
 
 // Blessed non-Ethereum chains.
-// export const nonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
-//   solanadevnet: chainMetadata.solanadevnet,
-// };
+export const nonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
+  // solanadevnet: chainMetadata.solanadevnet,
+  // neutrontestnet: chainMetadata.neutrontestnet,
+};
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {
   ...ethereumTestnetConfigs,
-  // ...nonEthereumTestnetConfigs,
+  ...nonEthereumTestnetConfigs,
 };
 
 export type TestnetChains = keyof typeof testnetConfigs;
@@ -43,15 +44,12 @@ export const environment = 'testnet4';
 export const ethereumChainNames = Object.keys(
   ethereumTestnetConfigs,
 ) as TestnetChains[];
-const validatorChainNames = [
-  ...supportedChainNames,
-  // chainMetadata.solanadevnet.name,
-  // chainMetadata.proteustestnet.name,
-];
-const relayerChainNames = validatorChainNames;
 
+// Hyperlane & RC context agent chain names.
 export const agentChainNames: AgentChainNames = {
-  [Role.Validator]: validatorChainNames,
-  [Role.Relayer]: relayerChainNames,
+  // Run validators for all chains.
+  [Role.Validator]: supportedChainNames,
+  // Only run relayers for Ethereum chains at the moment.
+  [Role.Relayer]: ethereumChainNames,
   [Role.Scraper]: ethereumChainNames,
 };
