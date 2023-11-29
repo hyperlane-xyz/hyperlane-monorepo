@@ -120,6 +120,7 @@ export abstract class MultiProtocolApp<
     public readonly addresses: ChainMap<ContractAddrs>,
     public readonly logger = debug('hyperlane:MultiProtocolApp'),
   ) {
+    multiProvider = multiProvider.intersect(Object.keys(addresses)).result;
     super(multiProvider.metadata);
   }
 

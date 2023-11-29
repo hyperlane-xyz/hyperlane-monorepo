@@ -29,13 +29,13 @@ export class EvmHelloWorldAdapter
     destination: ChainName,
     message: string,
     value: string,
+    sender: Address,
   ): Promise<EthersV5Transaction> {
     const contract = this.getConnectedContract();
     const toDomain = this.multiProvider.getDomainId(destination);
     const { transactionOverrides } = this.multiProvider.getChainMetadata(
       this.chainName,
     );
-    const signerAddress = await contract.signer.getAddress();
 
     const quote = await contract.callStatic.quoteDispatch(
       toDomain,
@@ -50,7 +50,7 @@ export class EvmHelloWorldAdapter
         // Some networks, like PolygonZkEvm, require a `from` address
         // with funds to be specified when estimating gas for a transaction
         // that provides non-zero `value`.
-        from: signerAddress,
+        from: sender,
         value: BigNumber.from(value).add(quote),
       },
     );
