@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_new::new;
 use eyre::Result;
+use hyperlane_core::metrics::agent::u256_as_scaled_f64;
 use hyperlane_core::{
     metrics::agent::AgenMetricsFetcher, ChainResult, HyperlaneDomain, H256, U256,
 };
@@ -118,9 +119,4 @@ impl AgentMetrics {
             interval.tick().await;
         }
     }
-}
-
-/// Convert a u256 scaled integer value into the corresponding f64 value.
-fn u256_as_scaled_f64(value: U256, decimals: u8) -> f64 {
-    value.to_f64_lossy() / (10u64.pow(decimals as u32) as f64)
 }

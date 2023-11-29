@@ -227,11 +227,7 @@ impl WasmGrpcProvider {
     pub async fn get_balance(&self, address: String, denom: String) -> ChainResult<u64> {
         let mut client = QueryBalanceClient::new(self.channel.clone());
 
-        let balance_request = tonic::Request::new(QueryBalanceRequest {
-            address,
-            /// denom is the coin denom to query balances for.
-            denom,
-        });
+        let balance_request = tonic::Request::new(QueryBalanceRequest { address, denom });
         let response = client
             .balance(balance_request)
             .await

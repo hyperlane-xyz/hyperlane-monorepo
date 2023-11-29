@@ -2775,6 +2775,7 @@ dependencies = [
  "derive_builder",
  "ethers",
  "futures",
+ "hyperlane-core",
  "log",
  "maplit",
  "parking_lot 0.12.1",

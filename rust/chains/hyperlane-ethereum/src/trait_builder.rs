@@ -194,7 +194,9 @@ pub trait BuildableWithProvider {
 
         Ok(if let Some(metrics) = metrics {
             let provider = Arc::new(PrometheusMiddleware::new(provider, metrics.0, metrics.1));
-            // This has to be moved
+            // TODO: This task is spawned each time `.build_ethereum(...)` is called, which is about 15 times,
+            // in spite of it doing the same thing, wasting resources.
+            // Only spawn this once along with the other agent tasks.
             tokio::spawn(provider.start_updating_on_interval(METRICS_SCRAPE_INTERVAL));
             self.build_with_signer(provider, locator, signer).await?
         } else {

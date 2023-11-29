@@ -14,13 +14,13 @@ pub mod grpc;
 /// cosmos rpc provider
 pub mod rpc;
 
-/// A reference to a Cosmos chain
+/// Abstraction over a connection to a Cosmos chain
 #[derive(Debug, Clone)]
 pub struct CosmosProvider {
     domain: HyperlaneDomain,
     canonical_asset: String,
     grpc_client: WasmGrpcProvider,
-    _rpc_client: HttpClient,
+    rpc_client: HttpClient,
 }
 
 impl CosmosProvider {
@@ -32,7 +32,7 @@ impl CosmosProvider {
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
         let grpc_client = WasmGrpcProvider::new(conf.clone(), locator, signer)?;
-        let _rpc_client = HttpClient::builder(
+        let rpc_client = HttpClient::builder(
             conf.get_rpc_url()
                 .parse()
                 .map_err(Into::<HyperlaneCosmosError>::into)?,
@@ -44,7 +44,7 @@ impl CosmosProvider {
 
         Ok(Self {
             domain,
-            _rpc_client,
+            rpc_client,
             grpc_client,
             canonical_asset: conf.get_canonical_asset(),
         })
@@ -52,6 +52,10 @@ impl CosmosProvider {
 
     pub fn grpc(&self) -> WasmGrpcProvider {
         self.grpc_client.clone()
+    }
+
+    pub fn rpc(&self) -> &HttpClient {
+        &self.rpc_client
     }
 }
 
@@ -81,7 +85,6 @@ impl HyperlaneProvider for CosmosProvider {
     }
 
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        // denom is of the form "untrn"
         Ok(self
             .grpc_client
             .get_balance(address, self.canonical_asset.clone())

@@ -198,18 +198,19 @@ impl BaseAgent for Relayer {
 
         let mut msg_ctxs = HashMap::new();
         let mut metrics_fetchers = vec![];
-        // let mut custom_metrics = HashMap::new();
         for destination in &settings.destination_chains {
             let destination_chain_setup = core.settings.chain_setup(destination).unwrap().clone();
             let agent_metrics_conf = destination_chain_setup
                 .agent_metrics_conf("relayer".to_owned())
                 .await?;
-            // PrometheusAgent
-            let metrics_fetcher = destination_chain_setup
+            let agent_metrics_fetcher = destination_chain_setup
                 .build_agent_metrics_fetcher()
                 .await?;
-            let agent_metrics =
-                AgentMetrics::new(agent_metrics.clone(), agent_metrics_conf, metrics_fetcher);
+            let agent_metrics = AgentMetrics::new(
+                agent_metrics.clone(),
+                agent_metrics_conf,
+                agent_metrics_fetcher,
+            );
 
             let fetcher_task = tokio::spawn(async move {
                 agent_metrics
@@ -281,7 +282,7 @@ impl BaseAgent for Relayer {
         self,
         metrics_fetchers: Vec<MetricsFetcher>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        // The tasks vec is initially set to the metrics fetcher tasks,
+        // The tasks vec is initialized with the metrics fetcher tasks,
         // and is then extended with the rest of the tasks.
         let mut tasks = metrics_fetchers;
 

@@ -14,6 +14,7 @@ use ethers::abi::AbiEncode;
 use ethers::prelude::*;
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::utils::hex::ToHex;
+use hyperlane_core::metrics::agent::u256_as_scaled_f64;
 use log::{debug, trace};
 use maplit::hashmap;
 use prometheus::{CounterVec, GaugeVec, IntCounterVec, IntGaugeVec};
@@ -23,7 +24,6 @@ use tokio::time::MissedTickBehavior;
 
 pub use error::PrometheusMiddlewareError;
 
-use crate::u256_as_scaled_f64;
 pub use crate::ChainInfo;
 
 mod error;
@@ -208,17 +208,6 @@ pub struct MiddlewareMetrics {
     // /// - `address_to`: destination address of the transaction.
     // #[builder(setter(into, strip_option), default)]
     // transaction_send_gas_eth_total: Option<CounterVec>,
-    // /// Current balance of eth and other tokens in the `tokens` map for the
-    // /// wallet addresses in the `wallets` set.
-    // /// - `chain`: the chain name (or chain ID if the name is unknown) of the
-    // ///   chain the tx occurred on.
-    // /// - `wallet_address`: Address of the wallet holding the funds.
-    // /// - `wallet_name`: Name of the address holding the funds.
-    // /// - `token_address`: Address of the token.
-    // /// - `token_symbol`: Symbol of the token.
-    // /// - `token_name`: Full name of the token.
-    // #[builder(setter(into, strip_option), default)]
-    // wallet_balance: Option<GaugeVec>,
 }
 
 /// An ethers-rs middleware that instruments calls with prometheus metrics. To
@@ -236,9 +225,6 @@ pub struct PrometheusMiddleware<M> {
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 pub struct PrometheusMiddlewareConf {
-    // /// The wallets to track and identifying info
-    // #[cfg_attr(feature = "serde", serde(default))]
-    // pub wallets: HashMap<Address, WalletInfo>,
     /// Contract info for more useful metrics
     #[cfg_attr(feature = "serde", serde(default))]
     pub contracts: HashMap<Address, ContractInfo>,
@@ -512,7 +498,6 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
     /// prometheus scrape interval.
     pub fn update(&self) -> impl Future<Output = ()> {
         // all metrics are Arcs internally so just clone the ones we want to report for.
-        // let wallet_balance = self.metrics.wallet_balance.clone();
         let block_height = self.metrics.block_height.clone();
         let gas_price_gwei = self.metrics.gas_price_gwei.clone();
 
@@ -527,9 +512,6 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
             if block_height.is_some() || gas_price_gwei.is_some() {
                 Self::update_block_details(&*client, chain, block_height, gas_price_gwei).await;
             }
-            // if let Some(wallet_balance) = wallet_balance {
-            //     Self::update_wallet_balances(client.clone(), &data, chain, wallet_balance).await;
-            // }
 
             // more metrics to come...
         }
@@ -557,7 +539,7 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
         }
         if let Some(gas_price_gwei) = gas_price_gwei {
             if let Some(london_fee) = current_block.base_fee_per_gas {
-                let gas = u256_as_scaled_f64(london_fee, 18) * 1e9;
+                let gas = u256_as_scaled_f64(london_fee.into(), 18) * 1e9;
                 trace!("Gas price for chain {chain} is {gas:.1}gwei");
                 gas_price_gwei.with(&hashmap! { "chain" => chain }).set(gas);
             } else {

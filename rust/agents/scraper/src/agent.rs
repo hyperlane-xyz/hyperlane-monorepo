@@ -87,12 +87,18 @@ impl BaseAgent for Scraper {
         ))
     }
 
+    /// Run the scraper
+    ///
+    /// * `metrics_fetchers` - A list of metrics fetchers to run. Currently this
+    /// only comprise
     #[allow(clippy::async_yields_async)]
     async fn run(
         self,
-        _metrics_fetchers: Vec<MetricsFetcher>,
+        metrics_fetchers: Vec<MetricsFetcher>,
     ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
-        let mut tasks = Vec::with_capacity(self.scrapers.len());
+        // The tasks vec is initialized with the metrics fetcher tasks,
+        // and is then extended with the rest of the tasks.
+        let mut tasks = metrics_fetchers;
         for domain in self.scrapers.keys() {
             tasks.push(self.scrape(*domain).await);
         }

@@ -116,7 +116,7 @@ impl BaseAgent for Validator {
         mut self,
         metrics_fetchers: Vec<MetricsFetcher>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        // The tasks vec is initially set to the metrics fetcher tasks,
+        // The tasks vec is initialized with the metrics fetcher tasks,
         // and is then extended with the rest of the tasks.
         let mut tasks = metrics_fetchers;
 
