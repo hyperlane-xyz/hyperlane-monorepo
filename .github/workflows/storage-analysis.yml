@@ -3,6 +3,8 @@ name: Check Storage Layout Changes
 on:
   pull_request:
     branches: [main]
+    paths:
+      - 'solidity/**'
   workflow_dispatch:
 
 jobs:
