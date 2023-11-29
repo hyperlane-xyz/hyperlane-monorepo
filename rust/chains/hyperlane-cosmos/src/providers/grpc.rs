@@ -237,17 +237,10 @@ impl WasmGrpcProvider {
             .await
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
-        // let coin = u128::decode(
-        //     response
-        //         .balance
-        //         .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
-        //         .amount
-        // );
 
         let balance = response
             .balance
             .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?;
-        println!("~~~ relayer balance: {:?}", balance);
 
         Ok(balance.amount.parse()?)
     }

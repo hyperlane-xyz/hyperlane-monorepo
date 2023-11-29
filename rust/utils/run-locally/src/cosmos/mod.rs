@@ -7,6 +7,7 @@ use std::{env, fs};
 use cosmwasm_schema::cw_serde;
 use hpl_interface::types::bech32_decode;
 use macro_rules_attribute::apply;
+use maplit::hashmap;
 use tempfile::tempdir;
 
 mod cli;
@@ -26,7 +27,7 @@ use crate::cosmos::link::link_networks;
 use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
-use crate::AGENT_BIN_PATH;
+use crate::{fetch_metric, AGENT_BIN_PATH};
 use cli::{OsmosisCLI, OsmosisEndpoint};
 
 use self::deploy::deploy_cw_hyperlane;
@@ -460,6 +461,11 @@ fn run_locally() {
         debug,
     );
 
+    // give things a chance to fully start.
+    sleep(Duration::from_secs(5));
+
+    let starting_relayer_balance: f64 = relayer_balance_sum(hpl_rly_metrics_port).unwrap();
+
     // dispatch messages
     let mut dispatched_messages = 0;
 
@@ -517,12 +523,16 @@ fn run_locally() {
     // Mostly copy-pasta from `rust/utils/run-locally/src/main.rs`
     // TODO: refactor to share code
     let loop_start = Instant::now();
-    // give things a chance to fully start.
-    sleep(Duration::from_secs(5));
     let mut failure_occurred = false;
     loop {
         // look for the end condition.
-        if termination_invariants_met(hpl_rly_metrics_port, dispatched_messages).unwrap_or(false) {
+        if termination_invariants_met(
+            hpl_rly_metrics_port,
+            dispatched_messages,
+            starting_relayer_balance,
+        )
+        .unwrap_or(false)
+        {
             // end condition reached successfully
             break;
         } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
@@ -542,44 +552,74 @@ fn run_locally() {
     }
 }
 
-fn termination_invariants_met(_metrics_port: u32, _messages_expected: u32) -> eyre::Result<bool> {
-    Ok(true)
+fn relayer_balance_sum(metrics_port: u32) -> eyre::Result<f64> {
+    let balance = fetch_metric(
+        &metrics_port.to_string(),
+        "hyperlane_wallet_balance",
+        &hashmap! {},
+    )?
+    .iter()
+    .sum();
+    Ok(balance)
+}
+
+fn termination_invariants_met(
+    relayer_metrics_port: u32,
+    messages_expected: u32,
+    starting_relayer_balance: f64,
+) -> eyre::Result<bool> {
     // TODO: uncomment once CI passes consistently on Ubuntu
-    // let gas_payments_scraped = fetch_metric(
-    //     "9093",
-    //     "hyperlane_contract_sync_stored_events",
-    //     &hashmap! {"data_type" => "gas_payment"},
-    // )?
-    // .iter()
-    // .sum::<u32>();
-    // let expected_gas_payments = messages_expected;
-    // if gas_payments_scraped != expected_gas_payments {
-    //     log!(
-    //         "Scraper has scraped {} gas payments, expected {}",
-    //         gas_payments_scraped,
-    //         expected_gas_payments
-    //     );
-    //     return Ok(false);
-    // }
+    let gas_payments_scraped = fetch_metric(
+        &relayer_metrics_port.to_string(),
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "gas_payment"},
+    )?
+    .iter()
+    .sum::<u32>();
+    let expected_gas_payments = messages_expected;
+    if gas_payments_scraped != expected_gas_payments {
+        log!(
+            "Scraper has scraped {} gas payments, expected {}",
+            gas_payments_scraped,
+            expected_gas_payments
+        );
+        return Ok(false);
+    }
 
-    // let delivered_messages_scraped = fetch_metric(
-    //     "9093",
-    //     "hyperlane_operations_processed_count",
-    //     &hashmap! {"phase" => "confirmed"},
-    // )?
-    // .iter()
-    // .sum::<u32>();
-    // if delivered_messages_scraped != messages_expected {
-    //     log!(
-    //         "Relayer confirmed {} submitted messages, expected {}",
-    //         delivered_messages_scraped,
-    //         messages_expected
-    //     );
-    //     return Ok(false);
-    // }
+    let delivered_messages_scraped = fetch_metric(
+        &relayer_metrics_port.to_string(),
+        "hyperlane_operations_processed_count",
+        &hashmap! {"phase" => "confirmed"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if delivered_messages_scraped != messages_expected {
+        log!(
+            "Relayer confirmed {} submitted messages, expected {}",
+            delivered_messages_scraped,
+            messages_expected
+        );
+        return Ok(false);
+    }
 
-    // log!("Termination invariants have been meet");
-    // Ok(true)
+    let ending_relayer_balance: f64 = relayer_balance_sum(relayer_metrics_port).unwrap();
+    // Ideally, make sure that the difference is >= gas_per_tx * gas_cost, set here:
+    // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/c2288eb31734ba1f2f997e2c6ecb30176427bc2c/rust/utils/run-locally/src/cosmos/cli.rs#L55
+    // What's stopping this is that the format returned by the `uosmo` balance query is a surprisingly low number (0.000003999999995184)
+    // but then maybe the gas_per_tx is just very low - how can we check that? (maybe by simulating said tx)
+    if starting_relayer_balance <= ending_relayer_balance {
+        // worth retrying this because metrics are polled every
+        // `METRICS_SCRAPE_INTERVAL`
+        log!(
+            "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
+            starting_relayer_balance,
+            ending_relayer_balance
+        );
+        return Ok(false);
+    }
+
+    log!("Termination invariants have been meet");
+    Ok(true)
 }
 
 #[cfg(test)]
