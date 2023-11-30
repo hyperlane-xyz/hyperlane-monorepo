@@ -566,63 +566,61 @@ fn relayer_balance_sum(metrics_port: u32) -> eyre::Result<f64> {
 }
 
 fn termination_invariants_met(
-    _relayer_metrics_port: u32,
-    _messages_expected: u32,
-    _starting_relayer_balance: f64,
+    relayer_metrics_port: u32,
+    messages_expected: u32,
+    starting_relayer_balance: f64,
 ) -> eyre::Result<bool> {
+    let gas_payments_scraped = fetch_metric(
+        &relayer_metrics_port.to_string(),
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "gas_payment"},
+    )?
+    .iter()
+    .sum::<u32>();
+    let expected_gas_payments = messages_expected;
+    if gas_payments_scraped != expected_gas_payments {
+        log!(
+            "Scraper has scraped {} gas payments, expected {}",
+            gas_payments_scraped,
+            expected_gas_payments
+        );
+        return Ok(false);
+    }
+
+    let delivered_messages_scraped = fetch_metric(
+        &relayer_metrics_port.to_string(),
+        "hyperlane_operations_processed_count",
+        &hashmap! {"phase" => "confirmed"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if delivered_messages_scraped != messages_expected {
+        log!(
+            "Relayer confirmed {} submitted messages, expected {}",
+            delivered_messages_scraped,
+            messages_expected
+        );
+        return Ok(false);
+    }
+
+    let ending_relayer_balance: f64 = relayer_balance_sum(relayer_metrics_port).unwrap();
+    // Ideally, make sure that the difference is >= gas_per_tx * gas_cost, set here:
+    // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/c2288eb31734ba1f2f997e2c6ecb30176427bc2c/rust/utils/run-locally/src/cosmos/cli.rs#L55
+    // What's stopping this is that the format returned by the `uosmo` balance query is a surprisingly low number (0.000003999999995184)
+    // but then maybe the gas_per_tx is just very low - how can we check that? (maybe by simulating said tx)
+    if starting_relayer_balance <= ending_relayer_balance {
+        // worth retrying this because metrics are polled every
+        // `METRICS_SCRAPE_INTERVAL`
+        log!(
+            "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
+            starting_relayer_balance,
+            ending_relayer_balance
+        );
+        return Ok(false);
+    }
+
+    log!("Termination invariants have been meet");
     Ok(true)
-    // TODO: uncomment once CI passes consistently on Ubuntu
-    // let gas_payments_scraped = fetch_metric(
-    //     &relayer_metrics_port.to_string(),
-    //     "hyperlane_contract_sync_stored_events",
-    //     &hashmap! {"data_type" => "gas_payment"},
-    // )?
-    // .iter()
-    // .sum::<u32>();
-    // let expected_gas_payments = messages_expected;
-    // if gas_payments_scraped != expected_gas_payments {
-    //     log!(
-    //         "Scraper has scraped {} gas payments, expected {}",
-    //         gas_payments_scraped,
-    //         expected_gas_payments
-    //     );
-    //     return Ok(false);
-    // }
-
-    // let delivered_messages_scraped = fetch_metric(
-    //     &relayer_metrics_port.to_string(),
-    //     "hyperlane_operations_processed_count",
-    //     &hashmap! {"phase" => "confirmed"},
-    // )?
-    // .iter()
-    // .sum::<u32>();
-    // if delivered_messages_scraped != messages_expected {
-    //     log!(
-    //         "Relayer confirmed {} submitted messages, expected {}",
-    //         delivered_messages_scraped,
-    //         messages_expected
-    //     );
-    //     return Ok(false);
-    // }
-
-    // let ending_relayer_balance: f64 = relayer_balance_sum(relayer_metrics_port).unwrap();
-    // // Ideally, make sure that the difference is >= gas_per_tx * gas_cost, set here:
-    // // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/c2288eb31734ba1f2f997e2c6ecb30176427bc2c/rust/utils/run-locally/src/cosmos/cli.rs#L55
-    // // What's stopping this is that the format returned by the `uosmo` balance query is a surprisingly low number (0.000003999999995184)
-    // // but then maybe the gas_per_tx is just very low - how can we check that? (maybe by simulating said tx)
-    // if starting_relayer_balance <= ending_relayer_balance {
-    //     // worth retrying this because metrics are polled every
-    //     // `METRICS_SCRAPE_INTERVAL`
-    //     log!(
-    //         "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
-    //         starting_relayer_balance,
-    //         ending_relayer_balance
-    //     );
-    //     return Ok(false);
-    // }
-
-    // log!("Termination invariants have been meet");
-    // Ok(true)
 }
 
 #[cfg(test)]
