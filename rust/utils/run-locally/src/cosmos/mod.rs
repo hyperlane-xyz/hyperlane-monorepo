@@ -458,6 +458,10 @@ fn run_locally() {
         .map(|agent_config| launch_cosmos_validator(agent_config, agent_config_path.clone(), debug))
         .collect::<Vec<_>>();
     let hpl_rly_metrics_port = metrics_port_start + node_count + 1u32;
+
+    log!("sleeping for 10s");
+    sleep(Duration::from_secs(10));
+    log!("done sleeping for 10s");
     let hpl_rly = launch_cosmos_relayer(
         agent_config_path,
         agent_config_out.chains.into_keys().collect::<Vec<_>>(),
