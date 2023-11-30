@@ -9,12 +9,8 @@ import {
 import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
-import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
-import {
-  getContextWithSigner,
-  getMergedContractAddresses,
-} from '../context.js';
+import { getContext, getMergedContractAddresses } from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
 
 const MESSAGE_BODY = '0x48656c6c6f21'; // Hello!'
@@ -38,10 +34,11 @@ export async function sendTestMessage({
   timeoutSec: number;
   skipWaitForDelivery: boolean;
 }) {
-  const { signer, multiProvider } = getContextWithSigner(key, chainConfigPath);
-  const coreArtifacts = coreArtifactsPath
-    ? readDeploymentArtifacts(coreArtifactsPath)
-    : undefined;
+  const { signer, multiProvider, coreArtifacts } = await getContext({
+    chainConfigPath,
+    coreConfig: { coreArtifactsPath },
+    key,
+  });
 
   await runPreflightChecks({
     origin,

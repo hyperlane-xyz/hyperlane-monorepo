@@ -37,7 +37,7 @@ import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import {
-  getContextWithSigner,
+  getContext,
   getMergedContractAddresses,
   sdkContractAddressesMap,
 } from '../context.js';
@@ -77,10 +77,10 @@ export async function runCoreDeploy({
   outPath: string;
   skipConfirmation: boolean;
 }) {
-  const { customChains, multiProvider, signer } = getContextWithSigner(
-    key,
+  const { customChains, multiProvider, signer } = await getContext({
     chainConfigPath,
-  );
+    key,
+  });
 
   if (!chains?.length) {
     chains = await runMultiChainSelectionStep(
@@ -120,8 +120,7 @@ export async function runCoreDeploy({
 
 function runArtifactStep(selectedChains: ChainName[], artifactsPath?: string) {
   logBlue(
-    '\n',
-    'Deployments can be totally new or can use some existing contract addresses.',
+    '\nDeployments can be totally new or can use some existing contract addresses.',
   );
   return runDeploymentArtifactStep(artifactsPath, undefined, selectedChains);
 }

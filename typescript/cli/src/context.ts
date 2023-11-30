@@ -11,6 +11,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objFilter, objMap, objMerge } from '@hyperlane-xyz/utils';
 
+import { runDeploymentArtifactStep } from './config/artifacts.js';
 import { readChainConfigsIfExists } from './config/chain.js';
 import { keyToSigner } from './utils/keys.js';
 
@@ -43,17 +44,50 @@ export function getMergedContractAddresses(
   ) as HyperlaneContractsMap<any>;
 }
 
-export function getContext(chainConfigPath: string) {
-  const customChains = readChainConfigsIfExists(chainConfigPath);
-  const multiProvider = getMultiProvider(customChains);
-  return { customChains, multiProvider };
+interface ContextSettings {
+  chainConfigPath?: string;
+  coreConfig?: {
+    coreArtifactsPath?: string;
+    promptMessage?: string;
+  };
+  key?: string;
 }
 
-export function getContextWithSigner(key: string, chainConfigPath: string) {
-  const signer = keyToSigner(key);
-  const customChains = readChainConfigsIfExists(chainConfigPath);
-  const multiProvider = getMultiProvider(customChains, signer);
-  return { signer, customChains, multiProvider };
+interface CommandContextBase {
+  customChains: ChainMap<ChainMetadata>;
+  multiProvider: MultiProvider;
+}
+
+type CommandContext<P extends ContextSettings> = CommandContextBase &
+  (P extends { key: string }
+    ? { signer: ethers.Signer }
+    : { signer: undefined }) &
+  (P extends { coreConfig: object }
+    ? { coreArtifacts: HyperlaneContractsMap<any> }
+    : { coreArtifacts: undefined });
+
+export async function getContext<P extends ContextSettings>(
+  settings: P,
+): Promise<CommandContext<P>> {
+  const customChains = readChainConfigsIfExists(settings.chainConfigPath);
+  const multiProvider = getMultiProvider(customChains);
+  const context: any = {
+    customChains,
+    multiProvider,
+    signer: undefined,
+    coreArtifacts: undefined,
+  };
+  if (settings.key) {
+    context.signer = keyToSigner(settings.key);
+  }
+  if (settings.coreConfig) {
+    context.coreArtifacts = await runDeploymentArtifactStep(
+      settings.coreConfig.coreArtifactsPath,
+      settings.coreConfig.promptMessage ||
+        'Do you want to use some core deployment address artifacts? This is required for warp deployments to PI chains (non-core chains).',
+    );
+  }
+  return context;
 }
 
 export function getMultiProvider(

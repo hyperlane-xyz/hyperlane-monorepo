@@ -16,12 +16,8 @@ import {
 import { Address, timeout } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGreen } from '../../logger.js';
-import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
-import {
-  getContextWithSigner,
-  getMergedContractAddresses,
-} from '../context.js';
+import { getContext, getMergedContractAddresses } from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
 import { assertNativeBalances, assertTokenBalance } from '../utils/balances.js';
 
@@ -52,10 +48,11 @@ export async function sendTestTransfer({
   timeoutSec: number;
   skipWaitForDelivery: boolean;
 }) {
-  const { signer, multiProvider } = getContextWithSigner(key, chainConfigPath);
-  const artifacts = coreArtifactsPath
-    ? readDeploymentArtifacts(coreArtifactsPath)
-    : undefined;
+  const { signer, multiProvider, coreArtifacts } = await getContext({
+    chainConfigPath,
+    coreConfig: { coreArtifactsPath },
+    key,
+  });
 
   if (tokenType === TokenType.collateral) {
     await assertTokenBalance(
@@ -91,7 +88,7 @@ export async function sendTestTransfer({
       recipient,
       signer,
       multiProvider,
-      artifacts,
+      coreArtifacts,
       skipWaitForDelivery,
     }),
     timeoutSec * 1000,
@@ -108,7 +105,7 @@ async function executeDelivery({
   recipient,
   multiProvider,
   signer,
-  artifacts,
+  coreArtifacts,
   skipWaitForDelivery,
 }: {
   origin: ChainName;
@@ -119,13 +116,13 @@ async function executeDelivery({
   recipient?: string;
   multiProvider: MultiProvider;
   signer: ethers.Signer;
-  artifacts?: HyperlaneContractsMap<any>;
+  coreArtifacts?: HyperlaneContractsMap<any>;
   skipWaitForDelivery: boolean;
 }) {
   const signerAddress = await signer.getAddress();
   recipient ||= signerAddress;
 
-  const mergedContractAddrs = getMergedContractAddresses(artifacts);
+  const mergedContractAddrs = getMergedContractAddresses(coreArtifacts);
 
   const core = HyperlaneCore.fromAddressesMap(
     mergedContractAddrs,

@@ -1,7 +1,6 @@
 import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 
 import { log, logBlue, logGreen } from '../../logger.js';
-import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { getContext, getMergedContractAddresses } from '../context.js';
 
 export async function checkMessageStatus({
@@ -15,10 +14,10 @@ export async function checkMessageStatus({
   messageId: string;
   destination: ChainName;
 }) {
-  const { multiProvider } = getContext(chainConfigPath);
-  const coreArtifacts = coreArtifactsPath
-    ? readDeploymentArtifacts(coreArtifactsPath)
-    : undefined;
+  const { multiProvider, coreArtifacts } = await getContext({
+    chainConfigPath,
+    coreConfig: { coreArtifactsPath },
+  });
 
   const mergedContractAddrs = getMergedContractAddresses(coreArtifacts);
   const core = HyperlaneCore.fromAddressesMap(

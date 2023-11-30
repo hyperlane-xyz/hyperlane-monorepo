@@ -21,7 +21,7 @@ export async function runKurtosisAgentDeploy({
   chainConfigPath: string;
   agentConfigurationPath: string;
 }) {
-  const { customChains } = getContext(chainConfigPath);
+  const { customChains } = await getContext({ chainConfigPath });
 
   if (!originChain) {
     originChain = await runSingleChainSelectionStep(
