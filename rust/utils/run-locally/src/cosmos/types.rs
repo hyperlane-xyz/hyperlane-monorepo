@@ -151,7 +151,7 @@ impl AgentConfig {
             validator_announce: to_hex_addr(&network.deployments.va),
             merkle_tree_hook: to_hex_addr(&network.deployments.hook_merkle),
             protocol: "cosmos".to_string(),
-            finality_blocks: 1,
+            finality_blocks: 10,
             chain_id: format!("cosmos-test-{}", network.domain),
             rpc_urls: vec![AgentUrl {
                 http: format!(
