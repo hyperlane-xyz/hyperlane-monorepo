@@ -195,26 +195,7 @@ async function runHookStep(
   _selectedChains: ChainName[],
   hookConfigPath?: string,
 ) {
-  // const presetConfigChains = Object.keys(presetHookConfigs);
-
-  if (!hookConfigPath) {
-    logBlue(
-      '\n',
-      'Hyperlane V3 allows for custom hook configs for each chain.',
-    );
-    const usePresetHooks = await confirm({
-      message: "You haven't specified a hook config. Use the preset?",
-    });
-    if (usePresetHooks) {
-      return {};
-    } else {
-      hookConfigPath = await runFileSelectionStep(
-        './configs/',
-        'Hook config',
-        'hooks',
-      );
-    }
-  }
+  if (!hookConfigPath) return {};
   return readHooksConfigMap(hookConfigPath);
 }
 
