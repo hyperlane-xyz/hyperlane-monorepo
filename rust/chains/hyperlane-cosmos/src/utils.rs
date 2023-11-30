@@ -23,6 +23,7 @@ pub(crate) async fn get_block_height_for_lag(
         Some(lag) => {
             let tip = provider.latest_block_height().await?;
             let block_height = tip - lag.get();
+            println!("~~~ tip and lag: {} {}", tip, lag.get());
             Some(block_height)
         }
         None => None,

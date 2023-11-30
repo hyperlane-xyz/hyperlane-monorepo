@@ -258,7 +258,7 @@ fn launch_cosmos_validator(
         .hyp_env("CHECKPOINTSYNCER_PATH", checkpoint_path.to_str().unwrap())
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage")
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
-        .hyp_env("REORGPERIOD", "5")
+        .hyp_env("REORGPERIOD", "10")
         .hyp_env("DB", validator_base_db.to_str().unwrap())
         .hyp_env("METRICSPORT", agent_config.metrics_port.to_string())
         .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
@@ -288,7 +288,7 @@ fn launch_cosmos_relayer(
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env("RUST_BACKTRACE", "1")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
-        .hyp_env("REORGPERIOD", "5")
+        .hyp_env("REORGPERIOD", "10")
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
@@ -471,9 +471,9 @@ fn run_locally() {
 
     // give things a chance to fully start.
 
-    log!("sleeping for 5s");
-    sleep(Duration::from_secs(5));
-    log!("done sleeping for 5s");
+    log!("sleeping for 10s");
+    sleep(Duration::from_secs(10));
+    log!("done sleeping for 10s");
 
     let starting_relayer_balance: f64 = relayer_balance_sum(hpl_rly_metrics_port).unwrap();
 
