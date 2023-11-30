@@ -312,9 +312,11 @@ impl WasmProvider for WasmGrpcProvider {
         });
 
         if let Some(block_height) = block_height {
-            request.metadata_mut();
+            println!("~~~ wasm request to block no: {:?}", block_height);
+            request
+                .metadata_mut()
+                .insert("x-cosmos-block-height", block_height.into());
         }
-        println!("~~~ wasm request to block no: {:?}", block_height);
 
         let response = client
             .smart_contract_state(request)
