@@ -200,13 +200,23 @@ async function runHookStep(
   if (!hookConfigPath) {
     logBlue(
       '\n',
-      'Hyperlane instances can take an Interchain Security Module (ISM).',
+      'Hyperlane V3 allows for custom hook configs for each chain.',
     );
-    hookConfigPath = await runFileSelectionStep(
-      './configs/',
-      'Hook config',
-      'hooks',
-    );
+    const usePresetHooks = await confirm({
+      message: "You haven't specified a hook config. Use the preset?",
+    });
+    if (usePresetHooks) {
+      // todo
+      // return presetHookConfigs()
+      return {};
+    } else {
+      hookConfigPath = await runFileSelectionStep(
+        './configs/',
+        'Hook config',
+        'hooks',
+      );
+      return readHooksConfigMap(hookConfigPath);
+    }
   }
   return readHooksConfigMap(hookConfigPath);
 }

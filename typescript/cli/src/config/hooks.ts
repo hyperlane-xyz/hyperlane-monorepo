@@ -107,7 +107,9 @@ export function presetHookConfigs(
       validatorThreshold = defaultMultisigConfigs[local].threshold;
       validatorCount = defaultMultisigConfigs[local].validators.length;
     } else {
-      throw new Error('Cannot estimate gas overhead for IGP hook');
+      // default values
+      validatorThreshold = 2;
+      validatorCount = 3;
     }
     acc[chain] = multisigIsmVerificationCost(
       validatorThreshold,
@@ -141,7 +143,7 @@ export function presetHookConfigs(
         } as IgpHookConfig,
       ],
     },
-  };
+  } as HooksConfig;
 }
 
 export function readHooksConfigMap(filePath: string) {
