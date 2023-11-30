@@ -31,7 +31,7 @@ import {
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
-import { readDeploymentArtifacts } from '../config/artifacts.js';
+import { runDeploymentArtifactStep } from '../config/artifacts.js';
 import { readHookConfig } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
@@ -52,8 +52,11 @@ import {
   TestRecipientConfig,
   TestRecipientDeployer,
 } from './TestRecipientDeployer.js';
-import { isISMConfig, isZODISMConfig } from './utils.js';
-import { runPreflightChecksForChains } from './utils.js';
+import {
+  isISMConfig,
+  isZODISMConfig,
+  runPreflightChecksForChains,
+} from './utils.js';
 
 export async function runCoreDeploy({
   key,
@@ -88,11 +91,9 @@ export async function runCoreDeploy({
   const artifacts = await runArtifactStep(chains, artifactsPath);
   const result = await runIsmStep(chains, ismConfigPath);
   // we can either specify the full ISM config or just the multisig config
-  const isAdvancedIsm = isISMConfig(result);
-  const ismConfigs = isAdvancedIsm
-    ? (result as ChainMap<IsmConfig>)
-    : undefined;
-  const multisigConfigs = isAdvancedIsm
+  const isIsmConfig = isISMConfig(result);
+  const ismConfigs = isIsmConfig ? (result as ChainMap<IsmConfig>) : undefined;
+  const multisigConfigs = isIsmConfig
     ? defaultMultisigConfigs
     : (result as ChainMap<MultisigConfig>);
   // TODO re-enable when hook config is actually used
@@ -117,36 +118,12 @@ export async function runCoreDeploy({
   await executeDeploy(deploymentParams);
 }
 
-async function runArtifactStep(
-  selectedChains: ChainName[],
-  artifactsPath?: string,
-) {
-  if (!artifactsPath) {
-    logBlue(
-      '\n',
-      'Deployments can be totally new or can use some existing contract addresses.',
-    );
-    const isResume = await confirm({
-      message: 'Do you want use some existing contract addresses?',
-    });
-    if (!isResume) return undefined;
-
-    artifactsPath = await runFileSelectionStep(
-      './artifacts',
-      'contract artifacts',
-      'core-deployment',
-    );
-  }
-  const artifacts = readDeploymentArtifacts(artifactsPath);
-  const artifactChains = Object.keys(artifacts).filter((c) =>
-    selectedChains.includes(c),
+function runArtifactStep(selectedChains: ChainName[], artifactsPath?: string) {
+  logBlue(
+    '\n',
+    'Deployments can be totally new or can use some existing contract addresses.',
   );
-  if (artifactChains.length === 0) {
-    logGray('No artifacts found for selected chains');
-  } else {
-    log(`Found existing artifacts for chains: ${artifactChains.join(', ')}`);
-  }
-  return artifacts;
+  return runDeploymentArtifactStep(artifactsPath, undefined, selectedChains);
 }
 
 async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
@@ -164,9 +141,10 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
       'ism',
     );
   }
-  const isAdvancedIsm = isZODISMConfig(ismConfigPath);
+
+  const isIsm = isZODISMConfig(ismConfigPath);
   // separate flow for 'ism' and 'ism-advanced' options
-  if (isAdvancedIsm) {
+  if (isIsm) {
     const ismConfig = readIsmConfig(ismConfigPath);
     const requiredIsms = objFilter(
       ismConfig,
@@ -290,7 +268,7 @@ async function executeDeploy({
   ]);
 
   const owner = await signer.getAddress();
-  const mergedContractAddrs = getMergedContractAddresses(artifacts);
+  const mergedContractAddrs = getMergedContractAddresses(artifacts, chains);
 
   // 1. Deploy ISM factories to all deployable chains that don't have them.
   logBlue('Deploying ISM factory contracts');
@@ -319,7 +297,7 @@ async function executeDeploy({
 
   // 3. Deploy ISM contracts to remote deployable chains
   logBlue('Deploying ISMs');
-  const ismContracts: ChainMap<{ multisigIsm: DeployedIsm }> = {};
+  const ismContracts: ChainMap<{ interchainSecurityModule: DeployedIsm }> = {};
   const defaultIsms: ChainMap<Address> = {};
   for (const ismOrigin of chains) {
     logBlue(`Deploying ISM to ${ismOrigin}`);
@@ -327,9 +305,10 @@ async function executeDeploy({
       ismConfigs[ismOrigin] ??
       buildIsmConfig(owner, ismOrigin, chains, multisigConfigs);
     ismContracts[ismOrigin] = {
-      multisigIsm: await ismFactory.deploy(ismOrigin, ismConfig),
+      interchainSecurityModule: await ismFactory.deploy(ismOrigin, ismConfig),
     };
-    defaultIsms[ismOrigin] = ismContracts[ismOrigin].multisigIsm.address;
+    defaultIsms[ismOrigin] =
+      ismContracts[ismOrigin].interchainSecurityModule.address;
   }
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, ismContracts);
   logGreen('ISM contracts deployed');
@@ -431,8 +410,6 @@ function buildTestRecipientConfigMap(
 ): ChainMap<TestRecipientConfig> {
   return chains.reduce<ChainMap<TestRecipientConfig>>((config, chain) => {
     const interchainSecurityModule =
-      // TODO revisit assumption that multisigIsm is always the ISM
-      addressesMap[chain].multisigIsm ??
       addressesMap[chain].interchainSecurityModule ??
       ethers.constants.AddressZero;
     if (interchainSecurityModule === ethers.constants.AddressZero) {

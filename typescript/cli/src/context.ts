@@ -3,26 +3,42 @@ import { ethers } from 'ethers';
 import {
   ChainMap,
   ChainMetadata,
+  ChainName,
   HyperlaneContractsMap,
   MultiProvider,
   chainMetadata,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
-import { objMerge } from '@hyperlane-xyz/utils';
+import { objFilter, objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { readChainConfigsIfExists } from './config/chain.js';
 import { keyToSigner } from './utils/keys.js';
 
-export const sdkContractAddressesMap = {
+export const sdkContractAddressesMap: HyperlaneContractsMap<any> = {
   ...hyperlaneEnvironments.testnet,
   ...hyperlaneEnvironments.mainnet,
 };
 
 export function getMergedContractAddresses(
   artifacts?: HyperlaneContractsMap<any>,
+  chains?: ChainName[],
 ) {
+  // if chains include non sdkContractAddressesMap chains, don't recover interchainGasPaymaster
+  let sdkContractsAddressesToRecover = sdkContractAddressesMap;
+  if (
+    chains?.some(
+      (chain) => !Object.keys(sdkContractAddressesMap).includes(chain),
+    )
+  ) {
+    sdkContractsAddressesToRecover = objMap(sdkContractAddressesMap, (_, v) =>
+      objFilter(
+        v as ChainMap<any>,
+        (key, v): v is any => key !== 'interchainGasPaymaster',
+      ),
+    );
+  }
   return objMerge(
-    sdkContractAddressesMap,
+    sdkContractsAddressesToRecover,
     artifacts || {},
   ) as HyperlaneContractsMap<any>;
 }
