@@ -258,7 +258,7 @@ fn launch_cosmos_validator(
         .hyp_env("CHECKPOINTSYNCER_PATH", checkpoint_path.to_str().unwrap())
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage")
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
-        .hyp_env("REORGPERIOD", "100")
+        .hyp_env("REORGPERIOD", "1")
         .hyp_env("DB", validator_base_db.to_str().unwrap())
         .hyp_env("METRICSPORT", agent_config.metrics_port.to_string())
         .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
@@ -288,7 +288,7 @@ fn launch_cosmos_relayer(
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env("RUST_BACKTRACE", "1")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
-        .hyp_env("REORGPERIOD", "100")
+        .hyp_env("REORGPERIOD", "1")
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
@@ -413,9 +413,9 @@ fn run_locally() {
         }
     }
 
-    log!("sleeping for 20s");
-    sleep(Duration::from_secs(20));
-    log!("done sleeping for 20s");
+    // log!("sleeping for 20s");
+    // sleep(Duration::from_secs(20));
+    // log!("done sleeping for 20s");
 
     // for debug
     println!(
@@ -459,9 +459,9 @@ fn run_locally() {
         .collect::<Vec<_>>();
     let hpl_rly_metrics_port = metrics_port_start + node_count + 1u32;
 
-    log!("sleeping for 10s");
-    sleep(Duration::from_secs(10));
-    log!("done sleeping for 10s");
+    // log!("sleeping for 10s");
+    // sleep(Duration::from_secs(10));
+    // log!("done sleeping for 10s");
     let hpl_rly = launch_cosmos_relayer(
         agent_config_path,
         agent_config_out.chains.into_keys().collect::<Vec<_>>(),
@@ -471,9 +471,9 @@ fn run_locally() {
 
     // give things a chance to fully start.
 
-    log!("sleeping for 100s");
-    sleep(Duration::from_secs(1000));
-    log!("done sleeping for 100s");
+    log!("sleeping for 5s");
+    sleep(Duration::from_secs(5));
+    log!("done sleeping for 5s");
 
     let starting_relayer_balance: f64 = relayer_balance_sum(hpl_rly_metrics_port).unwrap();
 
@@ -575,63 +575,63 @@ fn relayer_balance_sum(metrics_port: u32) -> eyre::Result<f64> {
 }
 
 fn termination_invariants_met(
-    _relayer_metrics_port: u32,
-    _messages_expected: u32,
-    _starting_relayer_balance: f64,
+    relayer_metrics_port: u32,
+    messages_expected: u32,
+    starting_relayer_balance: f64,
 ) -> eyre::Result<bool> {
-    Ok(true)
-    // TODO: uncomment once CI passes consistently on Ubuntu
-    // let gas_payments_scraped = fetch_metric(
-    //     &relayer_metrics_port.to_string(),
-    //     "hyperlane_contract_sync_stored_events",
-    //     &hashmap! {"data_type" => "gas_payment"},
-    // )?
-    // .iter()
-    // .sum::<u32>();
-    // let expected_gas_payments = messages_expected;
-    // if gas_payments_scraped != expected_gas_payments {
-    //     log!(
-    //         "Scraper has scraped {} gas payments, expected {}",
-    //         gas_payments_scraped,
-    //         expected_gas_payments
-    //     );
-    //     return Ok(false);
-    // }
-
-    // let delivered_messages_scraped = fetch_metric(
-    //     &relayer_metrics_port.to_string(),
-    //     "hyperlane_operations_processed_count",
-    //     &hashmap! {"phase" => "confirmed"},
-    // )?
-    // .iter()
-    // .sum::<u32>();
-    // if delivered_messages_scraped != messages_expected {
-    //     log!(
-    //         "Relayer confirmed {} submitted messages, expected {}",
-    //         delivered_messages_scraped,
-    //         messages_expected
-    //     );
-    //     return Ok(false);
-    // }
-
-    // let ending_relayer_balance: f64 = relayer_balance_sum(relayer_metrics_port).unwrap();
-    // // Ideally, make sure that the difference is >= gas_per_tx * gas_cost, set here:
-    // // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/c2288eb31734ba1f2f997e2c6ecb30176427bc2c/rust/utils/run-locally/src/cosmos/cli.rs#L55
-    // // What's stopping this is that the format returned by the `uosmo` balance query is a surprisingly low number (0.000003999999995184)
-    // // but then maybe the gas_per_tx is just very low - how can we check that? (maybe by simulating said tx)
-    // if starting_relayer_balance <= ending_relayer_balance {
-    //     // worth retrying this because metrics are polled every
-    //     // `METRICS_SCRAPE_INTERVAL`
-    //     log!(
-    //         "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
-    //         starting_relayer_balance,
-    //         ending_relayer_balance
-    //     );
-    //     return Ok(false);
-    // }
-
-    // log!("Termination invariants have been meet");
     // Ok(true)
+    // TODO: uncomment once CI passes consistently on Ubuntu
+    let gas_payments_scraped = fetch_metric(
+        &relayer_metrics_port.to_string(),
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "gas_payment"},
+    )?
+    .iter()
+    .sum::<u32>();
+    let expected_gas_payments = messages_expected;
+    if gas_payments_scraped != expected_gas_payments {
+        log!(
+            "Scraper has scraped {} gas payments, expected {}",
+            gas_payments_scraped,
+            expected_gas_payments
+        );
+        return Ok(false);
+    }
+
+    let delivered_messages_scraped = fetch_metric(
+        &relayer_metrics_port.to_string(),
+        "hyperlane_operations_processed_count",
+        &hashmap! {"phase" => "confirmed"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if delivered_messages_scraped != messages_expected {
+        log!(
+            "Relayer confirmed {} submitted messages, expected {}",
+            delivered_messages_scraped,
+            messages_expected
+        );
+        return Ok(false);
+    }
+
+    let ending_relayer_balance: f64 = relayer_balance_sum(relayer_metrics_port).unwrap();
+    // Ideally, make sure that the difference is >= gas_per_tx * gas_cost, set here:
+    // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/c2288eb31734ba1f2f997e2c6ecb30176427bc2c/rust/utils/run-locally/src/cosmos/cli.rs#L55
+    // What's stopping this is that the format returned by the `uosmo` balance query is a surprisingly low number (0.000003999999995184)
+    // but then maybe the gas_per_tx is just very low - how can we check that? (maybe by simulating said tx)
+    if starting_relayer_balance <= ending_relayer_balance {
+        // worth retrying this because metrics are polled every
+        // `METRICS_SCRAPE_INTERVAL`
+        log!(
+            "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
+            starting_relayer_balance,
+            ending_relayer_balance
+        );
+        return Ok(false);
+    }
+
+    log!("Termination invariants have been meet");
+    Ok(true)
 }
 
 #[cfg(test)]
