@@ -70,25 +70,25 @@ export async function getContext<P extends ContextSettings>(
   settings: P,
 ): Promise<CommandContext<P>> {
   const customChains = readChainConfigsIfExists(settings.chainConfigPath);
-  const multiProvider = getMultiProvider(customChains);
-  const context: any = {
-    customChains,
-    multiProvider,
-    signer: undefined,
-    coreArtifacts: undefined,
-  };
-  if (settings.key) {
-    context.signer = keyToSigner(settings.key);
-  }
+  const signer = settings.key ? keyToSigner(settings.key) : undefined;
+  const multiProvider = getMultiProvider(customChains, signer);
+
+  let coreArtifacts = undefined;
   if (settings.coreConfig) {
-    context.coreArtifacts =
+    coreArtifacts =
       (await runDeploymentArtifactStep(
         settings.coreConfig.coreArtifactsPath,
         settings.coreConfig.promptMessage ||
           'Do you want to use some core deployment address artifacts? This is required for warp deployments to PI chains (non-core chains).',
       )) || {};
   }
-  return context;
+
+  return {
+    customChains,
+    signer,
+    multiProvider,
+    coreArtifacts,
+  } as CommandContext<P>;
 }
 
 export function getMultiProvider(
