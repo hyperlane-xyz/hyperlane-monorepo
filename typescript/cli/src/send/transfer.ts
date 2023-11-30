@@ -1,3 +1,4 @@
+import { input } from '@inquirer/prompts';
 import { BigNumber, ethers } from 'ethers';
 
 import {
@@ -20,6 +21,7 @@ import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { getContext, getMergedContractAddresses } from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
 import { assertNativeBalances, assertTokenBalance } from '../utils/balances.js';
+import { runSingleChainSelectionStep } from '../utils/chains.js';
 
 // TODO improve the UX here by making params optional and
 // prompting for missing values
@@ -38,21 +40,42 @@ export async function sendTestTransfer({
 }: {
   key: string;
   chainConfigPath: string;
-  coreArtifactsPath: string;
-  origin: ChainName;
-  destination: ChainName;
-  routerAddress: Address;
+  coreArtifactsPath?: string;
+  origin?: ChainName;
+  destination?: ChainName;
+  routerAddress?: Address;
   tokenType: TokenType;
   wei: string;
   recipient?: string;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
 }) {
-  const { signer, multiProvider, coreArtifacts } = await getContext({
-    chainConfigPath,
-    coreConfig: { coreArtifactsPath },
-    key,
-  });
+  const { signer, multiProvider, customChains, coreArtifacts } =
+    await getContext({
+      chainConfigPath,
+      coreConfig: { coreArtifactsPath },
+      key,
+    });
+
+  if (!origin) {
+    origin = await runSingleChainSelectionStep(
+      customChains,
+      'Select the origin chain',
+    );
+  }
+
+  if (!destination) {
+    destination = await runSingleChainSelectionStep(
+      customChains,
+      'Select the destination chain',
+    );
+  }
+
+  if (!routerAddress) {
+    routerAddress = await input({
+      message: 'Please specify the router address',
+    });
+  }
 
   if (tokenType === TokenType.collateral) {
     await assertTokenBalance(

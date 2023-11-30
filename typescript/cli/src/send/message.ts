@@ -12,11 +12,10 @@ import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { getContext, getMergedContractAddresses } from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
+import { runSingleChainSelectionStep } from '../utils/chains.js';
 
 const MESSAGE_BODY = '0x48656c6c6f21'; // Hello!'
 
-// TODO improve the UX here by making params optional and
-// prompting for missing values
 export async function sendTestMessage({
   key,
   chainConfigPath,
@@ -28,17 +27,32 @@ export async function sendTestMessage({
 }: {
   key: string;
   chainConfigPath: string;
-  coreArtifactsPath: string;
-  origin: ChainName;
-  destination: ChainName;
+  coreArtifactsPath?: string;
+  origin?: ChainName;
+  destination?: ChainName;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
 }) {
-  const { signer, multiProvider, coreArtifacts } = await getContext({
-    chainConfigPath,
-    coreConfig: { coreArtifactsPath },
-    key,
-  });
+  const { signer, multiProvider, customChains, coreArtifacts } =
+    await getContext({
+      chainConfigPath,
+      coreConfig: { coreArtifactsPath },
+      key,
+    });
+
+  if (!origin) {
+    origin = await runSingleChainSelectionStep(
+      customChains,
+      'Select the origin chain',
+    );
+  }
+
+  if (!destination) {
+    destination = await runSingleChainSelectionStep(
+      customChains,
+      'Select the destination chain',
+    );
+  }
 
   await runPreflightChecks({
     origin,

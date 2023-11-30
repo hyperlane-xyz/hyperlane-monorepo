@@ -81,11 +81,12 @@ export async function getContext<P extends ContextSettings>(
     context.signer = keyToSigner(settings.key);
   }
   if (settings.coreConfig) {
-    context.coreArtifacts = await runDeploymentArtifactStep(
-      settings.coreConfig.coreArtifactsPath,
-      settings.coreConfig.promptMessage ||
-        'Do you want to use some core deployment address artifacts? This is required for warp deployments to PI chains (non-core chains).',
-    );
+    context.coreArtifacts =
+      (await runDeploymentArtifactStep(
+        settings.coreConfig.coreArtifactsPath,
+        settings.coreConfig.promptMessage ||
+          'Do you want to use some core deployment address artifacts? This is required for warp deployments to PI chains (non-core chains).',
+      )) || {};
   }
   return context;
 }
