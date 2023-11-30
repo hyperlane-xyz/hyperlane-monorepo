@@ -150,7 +150,7 @@ impl OsmosisCLI {
             .arg("rpc.laddr", &endpoint.rpc_addr) // default is tcp://0.0.0.0:26657
             .arg("grpc.address", &endpoint.grpc_addr) // default is 0.0.0.0:9090
             .arg("rpc.pprof_laddr", pprof_addr) // default is localhost:6060
-            .arg("log_level", "panic")
+            .arg("log_level", "debug")
             .spawn("COSMOS");
 
         endpoint.wait_for_node();
