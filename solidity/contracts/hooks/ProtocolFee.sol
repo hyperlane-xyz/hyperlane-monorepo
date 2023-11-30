@@ -24,10 +24,10 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
- * @title StaticProtocolFee
+ * @title ProtocolFee
  * @notice Collects a static protocol fee from the sender.
  */
-contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
+contract ProtocolFee is AbstractPostDispatchHook, Ownable {
     using StandardHookMetadata for bytes;
     using Address for address payable;
     using Message for bytes;
@@ -97,7 +97,7 @@ contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
     ) internal override {
         require(
             msg.value >= protocolFee,
-            "StaticProtocolFee: insufficient protocol fee"
+            "ProtocolFee: insufficient protocol fee"
         );
 
         uint256 refund = msg.value - protocolFee;
@@ -123,7 +123,7 @@ contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
     function _setProtocolFee(uint256 _protocolFee) internal {
         require(
             _protocolFee <= MAX_PROTOCOL_FEE,
-            "StaticProtocolFee: exceeds max protocol fee"
+            "ProtocolFee: exceeds max protocol fee"
         );
         protocolFee = _protocolFee;
     }
@@ -133,10 +133,7 @@ contract StaticProtocolFee is AbstractPostDispatchHook, Ownable {
      * @param _beneficiary The new beneficiary.
      */
     function _setBeneficiary(address _beneficiary) internal {
-        require(
-            _beneficiary != address(0),
-            "StaticProtocolFee: invalid beneficiary"
-        );
+        require(_beneficiary != address(0), "ProtocolFee: invalid beneficiary");
         beneficiary = _beneficiary;
     }
 }
