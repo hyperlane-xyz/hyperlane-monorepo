@@ -234,13 +234,14 @@ impl CosmosMailbox {
             nonce: general::EmptyStruct {},
         };
 
-        let data = self
+        let data_res = self
             .provider
             .grpc()
             .wasm_query(GeneralMailboxQuery { mailbox: payload }, block_height)
-            .await?;
+            .await;
+        println!("~~~ err querying nonce: {:?}", data_res);
 
-        let response: mailbox::NonceResponse = serde_json::from_slice(&data)?;
+        let response: mailbox::NonceResponse = serde_json::from_slice(&data_res?)?;
 
         Ok(response.nonce)
     }
