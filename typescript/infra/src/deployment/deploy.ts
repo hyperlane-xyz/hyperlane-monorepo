@@ -2,6 +2,7 @@ import {
   ChainMap,
   ChainName,
   HyperlaneAddresses,
+  HyperlaneCore,
   HyperlaneDeployer,
   HyperlaneDeploymentArtifacts,
   MultiProvider,
@@ -126,14 +127,19 @@ export async function writeAgentConfig(
   } catch (e) {
     console.error('Failed to load cached addresses');
   }
-  // Write agent config indexing from the deployed or latest block numbers.
-  // For non-net-new deployments, these changes will need to be
-  // reverted manually.
-  const startBlocks = await promiseObjAll(
-    objMap(addresses, (chain, _) =>
-      multiProvider.getProvider(chain).getBlockNumber(),
-    ),
+
+  const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
+  // Write agent config indexing from the deployed Mailbox which stores the block number at deployment
+  const startBlocksBigNumber = await promiseObjAll(
+    objMap(addresses, (chain, _) => {
+      const mailbox = core.getContracts(chain).mailbox;
+      return mailbox.deployedBlock();
+    }),
   );
+  const startBlocks = objMap(startBlocksBigNumber, (_, blockNumber) =>
+    blockNumber.toNumber(),
+  );
+
   const agentConfig = buildAgentConfig(
     multiProvider.getKnownChainNames(),
     multiProvider,

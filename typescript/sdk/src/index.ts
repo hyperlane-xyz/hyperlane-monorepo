@@ -6,7 +6,6 @@ export {
   BaseSealevelAdapter,
   MultiProtocolApp,
 } from './app/MultiProtocolApp';
-export { agentStartBlocks } from './consts/agentStartBlocks';
 export {
   chainIdToMetadata,
   chainMetadata,
