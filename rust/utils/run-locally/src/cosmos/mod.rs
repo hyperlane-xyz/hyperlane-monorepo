@@ -34,7 +34,7 @@ use self::deploy::deploy_cw_hyperlane;
 use self::source::{CLISource, CodeSource};
 
 const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
-const OSMOSIS_CLI_VERSION: &str = "19.0.0";
+const OSMOSIS_CLI_VERSION: &str = "20.5.0";
 
 const KEY_HPL_VALIDATOR: (&str,&str) = ("hpl-validator", "guard evolve region sentence danger sort despair eye deputy brave trim actor left recipe debate document upgrade sustain bus cage afford half demand pigeon");
 const KEY_HPL_RELAYER: (&str,&str) = ("hpl-relayer", "moral item damp melt gloom vendor notice head assume balance doctor retire fashion trim find biology saddle undo switch fault cattle toast drip empty");
@@ -257,8 +257,14 @@ fn launch_cosmos_validator(
         .env("RUST_BACKTRACE", "1")
         .hyp_env("CHECKPOINTSYNCER_PATH", checkpoint_path.to_str().unwrap())
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage")
-        .hyp_env("ORIGINCHAINNAME", agent_config.name)
-        .hyp_env("REORGPERIOD", "10")
+        .hyp_env("ORIGINCHAINNAME", agent_config.name.clone())
+        .hyp_env(
+            format!(
+                "CHAIN_{}_BLOCKS_REORGPERIOD",
+                agent_config.name.to_uppercase()
+            ),
+            "10",
+        )
         .hyp_env("DB", validator_base_db.to_str().unwrap())
         .hyp_env("METRICSPORT", agent_config.metrics_port.to_string())
         .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
@@ -288,7 +294,8 @@ fn launch_cosmos_relayer(
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env("RUST_BACKTRACE", "1")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
-        .hyp_env("REORGPERIOD", "10")
+        // .hyp_env(format!("CHAIN_{}_BLOCKS_REORGPERIOD", agent_config.name.to_uppercase()), "10")
+        // .hyp_env("REORGPERIOD", "10")
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
