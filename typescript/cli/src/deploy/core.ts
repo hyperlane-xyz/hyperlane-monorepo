@@ -32,7 +32,7 @@ import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
 import { runDeploymentArtifactStep } from '../config/artifacts.js';
-import { readHooksConfigMap } from '../config/hooks.js';
+import { presetHookConfigs, readHooksConfigMap } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
@@ -206,8 +206,6 @@ async function runHookStep(
       message: "You haven't specified a hook config. Use the preset?",
     });
     if (usePresetHooks) {
-      // todo
-      // return presetHookConfigs()
       return {};
     } else {
       hookConfigPath = await runFileSelectionStep(
@@ -215,7 +213,6 @@ async function runHookStep(
         'Hook config',
         'hooks',
       );
-      return readHooksConfigMap(hookConfigPath);
     }
   }
   return readHooksConfigMap(hookConfigPath);
@@ -330,6 +327,7 @@ async function executeDeploy({
     chains,
     defaultIsms,
     hooksConfig,
+    multisigConfigs,
   );
   const coreContracts = await coreDeployer.deploy(coreConfigs);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
@@ -382,13 +380,22 @@ function buildCoreConfigMap(
   chains: ChainName[],
   defaultIsms: ChainMap<Address>,
   hooksConfig: ChainMap<HooksConfig>,
+  multisigConfigs: ChainMap<MultisigConfig>,
 ): ChainMap<CoreConfig> {
   return chains.reduce<ChainMap<CoreConfig>>((config, chain) => {
+    const hooks =
+      hooksConfig[chain] ??
+      presetHookConfigs(
+        owner,
+        chain,
+        chains.filter((c) => c !== chain),
+        multisigConfigs[chain], // if no multisig config, uses default 2/3
+      );
     config[chain] = {
       owner,
       defaultIsm: defaultIsms[chain],
-      defaultHook: hooksConfig[chain].default,
-      requiredHook: hooksConfig[chain].required,
+      defaultHook: hooks.default,
+      requiredHook: hooks.required,
     };
     return config;
   }, {});

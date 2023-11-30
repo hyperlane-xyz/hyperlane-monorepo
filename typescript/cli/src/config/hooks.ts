@@ -11,7 +11,7 @@ import {
   HooksConfig,
   IgpHookConfig,
   MerkleTreeHookConfig,
-  MultisigIsmConfig,
+  MultisigConfig,
   ProtocolFeeHookConfig,
   defaultMultisigConfigs,
   multisigIsmVerificationCost,
@@ -89,7 +89,7 @@ export function presetHookConfigs(
   owner: Address,
   local: ChainName,
   destinationChains: ChainName[],
-  ismConfig?: MultisigIsmConfig,
+  ismConfig?: MultisigConfig,
 ) {
   const gasOracleType = destinationChains.reduce<
     ChainMap<GasOracleContractType>
