@@ -185,6 +185,10 @@ impl WasmIndexer for CosmosWasmIndexer {
             .value()
             .try_into()
             .map_err(ChainCommunicationError::from_other)?;
+        println!(
+            "~~~ latest height and reorg period: {} {}",
+            latest_height, self.reorg_period
+        );
         Ok(latest_height.saturating_sub(self.reorg_period))
     }
 

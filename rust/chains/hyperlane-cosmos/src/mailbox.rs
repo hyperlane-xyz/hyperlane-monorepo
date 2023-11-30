@@ -373,6 +373,7 @@ impl Indexer<H256> for CosmosMailboxIndexer {
 impl SequenceIndexer<H256> for CosmosMailboxIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<H256>::get_finalized_block_number(&self).await?;
+        println!("~~~ querying mailbox with at tip: {}", tip);
 
         // No sequence for message deliveries.
         Ok((None, tip))
