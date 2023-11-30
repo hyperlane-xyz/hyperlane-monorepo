@@ -413,6 +413,10 @@ fn run_locally() {
         }
     }
 
+    log!("sleeping for 10s");
+    sleep(Duration::from_secs(10));
+    log!("done sleeping for 10s");
+
     // for debug
     println!(
         "{}",
