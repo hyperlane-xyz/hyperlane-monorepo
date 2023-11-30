@@ -30,15 +30,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
-import {
-  log,
-  logBlue,
-  logGray,
-  logGreen,
-  logPink,
-  logRed,
-} from '../../logger.js';
-import { readDeploymentArtifacts } from '../config/artifacts.js';
+import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
+import { runDeploymentArtifactStep } from '../config/artifacts.js';
 import { readHooksConfigMap } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
@@ -125,36 +118,12 @@ export async function runCoreDeploy({
   await executeDeploy(deploymentParams);
 }
 
-async function runArtifactStep(
-  selectedChains: ChainName[],
-  artifactsPath?: string,
-) {
-  if (!artifactsPath) {
-    logBlue(
-      '\n',
-      'Deployments can be totally new or can use some existing contract addresses.',
-    );
-    const isResume = await confirm({
-      message: 'Do you want use some existing contract addresses?',
-    });
-    if (!isResume) return undefined;
-
-    artifactsPath = await runFileSelectionStep(
-      './artifacts',
-      'contract artifacts',
-      'core-deployment',
-    );
-  }
-  const artifacts = readDeploymentArtifacts(artifactsPath);
-  const artifactChains = Object.keys(artifacts).filter((c) =>
-    selectedChains.includes(c),
+function runArtifactStep(selectedChains: ChainName[], artifactsPath?: string) {
+  logBlue(
+    '\n',
+    'Deployments can be totally new or can use some existing contract addresses.',
   );
-  if (artifactChains.length === 0) {
-    logGray('No artifacts found for selected chains');
-  } else {
-    log(`Found existing artifacts for chains: ${artifactChains.join(', ')}`);
-  }
-  return artifacts;
+  return runDeploymentArtifactStep(artifactsPath, undefined, selectedChains);
 }
 
 async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
@@ -405,7 +374,6 @@ function buildCoreConfigMap(
   hooksConfig: ChainMap<HooksConfig>,
 ): ChainMap<CoreConfig> {
   return chains.reduce<ChainMap<CoreConfig>>((config, chain) => {
-    logPink(JSON.stringify(hooksConfig[chain], null, 2));
     config[chain] = {
       owner,
       defaultIsm: defaultIsms[chain],
