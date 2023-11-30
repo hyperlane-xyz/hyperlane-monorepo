@@ -58,7 +58,7 @@ jobs:
         run: diff --unified solidity/base-storage solidity/HEAD-storage > layout.diff
 
       - name: Comment PR with layout diff
-        uses: yorhodes/actions-comment-pull-request@v2.4.5
+        uses: yorhodes/actions-comment-pull-request@v2.4.6
         with:
           header: Storage Layout Diff
           filePath: layout.diff
