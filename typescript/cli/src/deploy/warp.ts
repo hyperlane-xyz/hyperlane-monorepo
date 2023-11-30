@@ -51,7 +51,7 @@ export async function runWarpDeploy({
   const { multiProvider, signer, coreArtifacts } = await getContext({
     chainConfigPath,
     coreConfig: { coreArtifactsPath },
-    key,
+    keyConfig: { key },
   });
 
   if (!warpConfigPath || !isFile(warpConfigPath)) {

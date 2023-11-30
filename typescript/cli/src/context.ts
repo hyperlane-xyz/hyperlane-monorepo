@@ -1,3 +1,4 @@
+import { input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import {
@@ -50,7 +51,10 @@ interface ContextSettings {
     coreArtifactsPath?: string;
     promptMessage?: string;
   };
-  key?: string;
+  keyConfig?: {
+    key?: string;
+    promptMessage?: string;
+  };
 }
 
 interface CommandContextBase {
@@ -59,29 +63,43 @@ interface CommandContextBase {
 }
 
 type CommandContext<P extends ContextSettings> = CommandContextBase &
-  (P extends { key: string }
+  (P extends { keyConfig: object }
     ? { signer: ethers.Signer }
     : { signer: undefined }) &
   (P extends { coreConfig: object }
     ? { coreArtifacts: HyperlaneContractsMap<any> }
     : { coreArtifacts: undefined });
 
-export async function getContext<P extends ContextSettings>(
-  settings: P,
-): Promise<CommandContext<P>> {
-  const customChains = readChainConfigsIfExists(settings.chainConfigPath);
-  const signer = settings.key ? keyToSigner(settings.key) : undefined;
-  const multiProvider = getMultiProvider(customChains, signer);
+export async function getContext<P extends ContextSettings>({
+  chainConfigPath,
+  coreConfig,
+  keyConfig,
+}: P): Promise<CommandContext<P>> {
+  const customChains = readChainConfigsIfExists(chainConfigPath);
+
+  let signer = undefined;
+  if (keyConfig) {
+    const key =
+      keyConfig.key ||
+      (await input({
+        message:
+          keyConfig.promptMessage ||
+          'Please enter a private key or use the HYP_KEY environment variable',
+      }));
+    signer = keyToSigner(key);
+  }
 
   let coreArtifacts = undefined;
-  if (settings.coreConfig) {
+  if (coreConfig) {
     coreArtifacts =
       (await runDeploymentArtifactStep(
-        settings.coreConfig.coreArtifactsPath,
-        settings.coreConfig.promptMessage ||
-          'Do you want to use some core deployment address artifacts? This is required for warp deployments to PI chains (non-core chains).',
+        coreConfig.coreArtifactsPath,
+        coreConfig.promptMessage ||
+          'Do you want to use some core deployment address artifacts? This is required for PI chains (non-core chains).',
       )) || {};
   }
+
+  const multiProvider = getMultiProvider(customChains, signer);
 
   return {
     customChains,

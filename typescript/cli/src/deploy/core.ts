@@ -78,7 +78,7 @@ export async function runCoreDeploy({
 }) {
   const { customChains, multiProvider, signer } = await getContext({
     chainConfigPath,
-    key,
+    keyConfig: { key },
   });
 
   if (!chains?.length) {

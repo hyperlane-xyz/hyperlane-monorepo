@@ -54,7 +54,7 @@ export async function sendTestTransfer({
     await getContext({
       chainConfigPath,
       coreConfig: { coreArtifactsPath },
-      key,
+      keyConfig: { key },
     });
 
   if (!origin) {

@@ -37,7 +37,7 @@ export async function sendTestMessage({
     await getContext({
       chainConfigPath,
       coreConfig: { coreArtifactsPath },
-      key,
+      keyConfig: { key },
     });
 
   if (!origin) {

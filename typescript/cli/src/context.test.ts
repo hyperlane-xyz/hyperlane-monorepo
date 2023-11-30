@@ -14,7 +14,7 @@ describe('context', () => {
     const randomWallet = ethers.Wallet.createRandom();
     const context = await getContext({
       chainConfigPath: './fakePath',
-      key: randomWallet.privateKey,
+      keyConfig: { key: randomWallet.privateKey },
     });
     expect(!!context.multiProvider).to.be.true;
     expect(context.customChains).to.eql({});
