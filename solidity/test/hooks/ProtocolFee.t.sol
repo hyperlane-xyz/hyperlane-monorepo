@@ -7,12 +7,12 @@ import {MessageUtils} from "../isms/IsmTestUtils.sol";
 import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
-import {StaticProtocolFee} from "../../contracts/hooks/StaticProtocolFee.sol";
+import {ProtocolFee} from "../../contracts/hooks/ProtocolFee.sol";
 
-contract StaticProtocolFeeTest is Test {
+contract ProtocolFeeTest is Test {
     using TypeCasts for address;
 
-    StaticProtocolFee internal fees;
+    ProtocolFee internal fees;
 
     address internal alice = address(0x1); // alice the user
     address internal bob = address(0x2); // bob the beneficiary
@@ -27,7 +27,7 @@ contract StaticProtocolFeeTest is Test {
     bytes internal testMessage;
 
     function setUp() public {
-        fees = new StaticProtocolFee(MAX_FEE, FEE, bob, address(this));
+        fees = new ProtocolFee(MAX_FEE, FEE, bob, address(this));
 
         testMessage = _encodeTestMessage();
     }
@@ -63,7 +63,7 @@ contract StaticProtocolFeeTest is Test {
             10 * fees.MAX_PROTOCOL_FEE()
         );
 
-        vm.expectRevert("StaticProtocolFee: exceeds max protocol fee");
+        vm.expectRevert("ProtocolFee: exceeds max protocol fee");
         fees.setProtocolFee(fee);
 
         assertEq(fees.protocolFee(), FEE);
@@ -95,7 +95,7 @@ contract StaticProtocolFeeTest is Test {
         uint256 balanceBefore = alice.balance;
 
         vm.prank(alice);
-        vm.expectRevert("StaticProtocolFee: insufficient protocol fee");
+        vm.expectRevert("ProtocolFee: insufficient protocol fee");
         fees.postDispatch{value: feeSent}("", "");
 
         assertEq(alice.balance, balanceBefore);
