@@ -266,7 +266,8 @@ fn launch_cosmos_validator(
         .hyp_env("VALIDATOR_PREFIX", "osmo")
         .hyp_env("SIGNER_SIGNER_TYPE", "hexKey")
         .hyp_env("SIGNER_KEY", agent_config.signer.key)
-        .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
+        .hyp_env("TRACING_LEVEL", "trace")
+        // .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .spawn("VAL");
 
     validator
@@ -291,7 +292,7 @@ fn launch_cosmos_relayer(
         .hyp_env("REORGPERIOD", "100")
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
-        .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
+        .hyp_env("TRACING_LEVEL", "trace")
         .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]")
         .hyp_env("METRICSPORT", metrics.to_string())
         .spawn("RLY");
