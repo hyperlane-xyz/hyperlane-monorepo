@@ -462,9 +462,10 @@ fn run_locally() {
     );
 
     // give things a chance to fully start.
-    println!("sleeping for 100s");
+
+    log!("sleeping for 100s");
     sleep(Duration::from_secs(100));
-    println!("done sleeping for 100s");
+    log!("done sleeping for 100s");
 
     let starting_relayer_balance: f64 = relayer_balance_sum(hpl_rly_metrics_port).unwrap();
 
