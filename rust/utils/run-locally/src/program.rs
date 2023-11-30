@@ -244,7 +244,7 @@ impl Program {
         let mut command = self.create_command();
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        log!("Spawning {}...", &self);
+        log!("Spawning {}...: {:?}", &self, command);
         let mut child = command
             .spawn()
             .unwrap_or_else(|e| panic!("Failed to start {:?} with error: {e}", &self));
