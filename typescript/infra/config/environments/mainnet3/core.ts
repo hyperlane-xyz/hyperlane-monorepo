@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import {
   AggregationHookConfig,

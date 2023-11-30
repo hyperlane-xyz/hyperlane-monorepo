@@ -7,7 +7,6 @@ import {
   ChainMap,
   ChainName,
   GasOracleContractType,
-  HookConfig,
   HookType,
   HooksConfig,
   IgpHookConfig,
@@ -30,49 +29,49 @@ import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
 import { readChainConfigsIfExists } from './chain.js';
 
-// const ProtocolFeeSchema = z.object({
-//   type: z.literal(HookType.PROTOCOL_FEE),
-//   owner: z.string(),
-//   beneficiary: z.string(),
-//   maxProtocolFee: z.string(),
-//   protocolFee: z.string(),
-// });
+const ProtocolFeeSchema = z.object({
+  type: z.literal(HookType.PROTOCOL_FEE),
+  owner: z.string(),
+  beneficiary: z.string(),
+  maxProtocolFee: z.string(),
+  protocolFee: z.string(),
+});
 
-// const MerkleTreeSchema = z.object({
-//   type: z.literal(HookType.MERKLE_TREE),
-// });
+const MerkleTreeSchema = z.object({
+  type: z.literal(HookType.MERKLE_TREE),
+});
 
-// const IGPSchema = z.object({
-//   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
-//   owner: z.string(),
-//   beneficiary: z.string(),
-//   overhead: z.record(z.number()),
-//   oracleKey: z.string(),
-// });
+const IGPSchema = z.object({
+  type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
+  owner: z.string(),
+  beneficiary: z.string(),
+  overhead: z.record(z.number()),
+  gasOracleType: z.record(z.literal(GasOracleContractType.StorageGasOracle)),
+  oracleKey: z.string(),
+});
 
-// const RoutingConfigSchema: z.ZodSchema<any> = z.lazy(() =>
-//   z.object({
-//     type: z.literal(HookType.ROUTING),
-//     owner: z.string(),
-//     domains: z.record(HookConfigSchema),
-//   }),
-// );
+const RoutingConfigSchema: z.ZodSchema<any> = z.lazy(() =>
+  z.object({
+    type: z.literal(HookType.ROUTING),
+    owner: z.string(),
+    domains: z.record(HookConfigSchema),
+  }),
+);
 
-// const AggregationConfigSchema: z.ZodSchema<any> = z.lazy(() =>
-//   z.object({
-//     type: z.literal(HookType.AGGREGATION),
-//     modules: z.array(HookConfigSchema),
-//   }),
-// );
+const AggregationConfigSchema: z.ZodSchema<any> = z.lazy(() =>
+  z.object({
+    type: z.literal(HookType.AGGREGATION),
+    hooks: z.array(HookConfigSchema),
+  }),
+);
 
-// const HookConfigSchema = z.union([
-//   ProtocolFeeSchema,
-//   MerkleTreeSchema,
-//   IGPSchema,
-//   RoutingConfigSchema,
-//   AggregationConfigSchema,
-// ]);
-const HookConfigSchema = z.custom<HookConfig>();
+const HookConfigSchema = z.union([
+  ProtocolFeeSchema,
+  MerkleTreeSchema,
+  IGPSchema,
+  RoutingConfigSchema,
+  AggregationConfigSchema,
+]);
 export type ZODHookConfig = z.infer<typeof HookConfigSchema>;
 
 const HooksConfigSchema = z.object({
@@ -161,37 +160,11 @@ export function readHooksConfigMap(filePath: string) {
   const parsedConfig = result.data;
   const hooks: ChainMap<HooksConfig> = objMap(
     parsedConfig,
-    (_, config) =>
-      ({
-        required: config.required,
-        default: config.default,
-      } as HooksConfig),
+    (_, config) => config as HooksConfig,
   );
-  logGreen(`All hook configs in ${filePath} are valid`);
+  logGreen(`All hook configs in ${filePath} are valid for ${hooks}`);
   return hooks;
 }
-
-// export function readHookConfig(parsedConfig: any): HookConfig {
-//   if (parsedConfig.type === HookType.PROTOCOL_FEE) {
-//     return {
-//       type: parsedConfig.type,
-//       maxProtocolFee: toWei(parsedConfig.protocolFee),
-//       protocolFee: toWei(parsedConfig.protocolFee),
-//       beneficiary: normalizeAddressEvm(parsedConfig.beneficiary),
-//       owner: normalizeAddressEvm(parsedConfig.owner),
-//     } as ProtocolFeeHookConfig;
-//   } else if (parsedConfig.type === HookType.MERKLE_TREE) {
-//     return {
-//       type: parsedConfig.type,
-//     } as MerkleTreeHookConfig;
-//   } else if (parsedConfig.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
-//     return {
-//       type: parsedConfig.type,
-//     } as IgpHookConfig;
-//   } else {
-//     throw new Error(`Invalid hooker type: ${parsedConfig.type}`);
-//   }
-// }
 
 export async function createHooksConfigMap({
   format,
@@ -361,7 +334,6 @@ export async function createIGPConfig(
     );
     overheads[chain] = overhead;
   }
-
   return {
     type: HookType.INTERCHAIN_GAS_PAYMASTER,
     beneficiary: beneficiaryAddress,
