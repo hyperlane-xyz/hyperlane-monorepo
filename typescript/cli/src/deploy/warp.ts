@@ -20,7 +20,7 @@ import {
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen } from '../../logger.js';
-import { readDeploymentArtifacts } from '../config/artifacts.js';
+import { runDeploymentArtifactStep } from '../config/artifacts.js';
 import { WarpRouteConfig, readWarpRouteConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import {
@@ -65,9 +65,10 @@ export async function runWarpDeploy({
   }
   const warpRouteConfig = readWarpRouteConfig(warpConfigPath);
 
-  const artifacts = coreArtifactsPath
-    ? readDeploymentArtifacts(coreArtifactsPath)
-    : undefined;
+  const artifacts = await runDeploymentArtifactStep(
+    coreArtifactsPath,
+    'Do you want use some core deployment address artifacts? This is required for warp deployments to PI chains (non-core chains).',
+  );
 
   const configs = await runBuildConfigStep({
     warpRouteConfig,
@@ -116,7 +117,10 @@ async function runBuildConfigStep({
     `Using base token metadata: Name: ${baseMetadata.name}, Symbol: ${baseMetadata.symbol}, Decimals: ${baseMetadata.decimals}`,
   );
 
-  const mergedContractAddrs = getMergedContractAddresses(artifacts);
+  const mergedContractAddrs = getMergedContractAddresses(
+    artifacts,
+    Object.keys(warpRouteConfig),
+  );
 
   // Create configs that coalesce together values from the config file,
   // the artifacts, and the SDK as a fallback
