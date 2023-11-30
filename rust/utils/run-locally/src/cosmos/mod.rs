@@ -413,9 +413,9 @@ fn run_locally() {
         }
     }
 
-    log!("sleeping for 10s");
-    sleep(Duration::from_secs(10));
-    log!("done sleeping for 10s");
+    log!("sleeping for 100s");
+    sleep(Duration::from_secs(100));
+    log!("done sleeping for 100s");
 
     // for debug
     println!(
