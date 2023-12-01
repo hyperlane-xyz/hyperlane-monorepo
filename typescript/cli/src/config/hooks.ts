@@ -70,7 +70,7 @@ const HookConfigSchema = z.union([
   RoutingConfigSchema,
   AggregationConfigSchema,
 ]);
-export type ZODHookConfig = z.infer<typeof HookConfigSchema>;
+export type HookConfig = z.infer<typeof HookConfigSchema>;
 
 const HooksConfigSchema = z.object({
   required: HookConfigSchema,
@@ -205,8 +205,8 @@ export async function createHooksConfigMap({
 export async function createHookConfig(
   chain: ChainName,
   remotes: ChainName[],
-): Promise<ZODHookConfig> {
-  let lastConfig: ZODHookConfig;
+): Promise<HookConfig> {
+  let lastConfig: HookConfig;
   const hookType = await select({
     message: 'Select hook type',
     choices: [
@@ -260,7 +260,7 @@ export async function createHookConfig(
 
 export async function createProtocolFeeConfig(
   chain: ChainName,
-): Promise<ZODHookConfig> {
+): Promise<HookConfig> {
   const owner = await input({
     message: 'Enter owner address',
   });
@@ -309,7 +309,7 @@ export async function createProtocolFeeConfig(
 
 export async function createIGPConfig(
   remotes: ChainName[],
-): Promise<ZODHookConfig> {
+): Promise<HookConfig> {
   const owner = await input({
     message: 'Enter owner address',
   });
@@ -357,14 +357,14 @@ export async function createIGPConfig(
 export async function createAggregationConfig(
   chain: ChainName,
   remotes: ChainName[],
-): Promise<ZODHookConfig> {
+): Promise<HookConfig> {
   const hooksNum = parseInt(
     await input({
       message: 'Enter the number of hooks to aggregate (number)',
     }),
     10,
   );
-  const hooks: Array<ZODHookConfig> = [];
+  const hooks: Array<HookConfig> = [];
   for (let i = 0; i < hooksNum; i++) {
     logBlue(`Creating hook ${i + 1} of ${hooksNum} ...`);
     hooks.push(await createHookConfig(chain, remotes));
@@ -378,13 +378,13 @@ export async function createAggregationConfig(
 export async function createRoutingConfig(
   origin: ChainName,
   remotes: ChainName[],
-): Promise<ZODHookConfig> {
+): Promise<HookConfig> {
   const owner = await input({
     message: 'Enter owner address',
   });
   const ownerAddress = owner;
 
-  const domainsMap: ChainMap<ZODHookConfig> = {};
+  const domainsMap: ChainMap<HookConfig> = {};
   for (const chain of remotes) {
     await confirm({
       message: `You are about to configure hook for remote chain ${chain}. Continue?`,
