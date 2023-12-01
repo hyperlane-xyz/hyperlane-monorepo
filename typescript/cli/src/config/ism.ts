@@ -160,6 +160,12 @@ export async function createIsmConfig(
           'Each origin chain can be verified by the specified ISM type via RoutingISM',
       },
       {
+        value: IsmType.FALLBACK_ROUTING,
+        name: IsmType.FALLBACK_ROUTING,
+        description:
+          "You can specify ISM type for specific chains you like and fallback to mailbox's default ISM for other chains via DefaultFallbackRoutingISM",
+      },
+      {
         value: IsmType.AGGREGATION,
         name: IsmType.AGGREGATION,
         description:
@@ -179,8 +185,11 @@ export async function createIsmConfig(
     moduleType === IsmType.MERKLE_ROOT_MULTISIG
   ) {
     lastConfig = await createMultisigConfig(moduleType);
-  } else if (moduleType === IsmType.ROUTING) {
-    lastConfig = await createRoutingConfig(chain, chainConfigPath);
+  } else if (
+    moduleType === IsmType.ROUTING ||
+    moduleType === IsmType.FALLBACK_ROUTING
+  ) {
+    lastConfig = await createRoutingConfig(moduleType, chain, chainConfigPath);
   } else if (moduleType === IsmType.AGGREGATION) {
     lastConfig = await createAggregationConfig(chain, chainConfigPath);
   } else if (moduleType === IsmType.TEST_ISM) {
@@ -240,6 +249,7 @@ export async function createAggregationConfig(
 }
 
 export async function createRoutingConfig(
+  type: IsmType.ROUTING | IsmType.FALLBACK_ROUTING,
   chain: ChainName,
   chainConfigPath: string,
 ): Promise<ZodIsmConfig> {
@@ -264,7 +274,7 @@ export async function createRoutingConfig(
     domainsMap[chain] = config;
   }
   return {
-    type: IsmType.ROUTING,
+    type,
     owner: ownerAddress,
     domains: domainsMap,
   };
