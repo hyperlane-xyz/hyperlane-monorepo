@@ -1,14 +1,14 @@
 use ethers::prelude::Selector;
-use h_cosmos::{address::CosmosAddress, CosmosMetricsFetcher};
+use h_cosmos::CosmosProvider;
 use std::collections::HashMap;
 
 use eyre::{eyre, Context, Result};
 
 use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
-    metrics::agent::AgenMetricsFetcher, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi,
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
-    InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
+    metrics::agent::AgentMetricsFetcher, AggregationIsm, CcipReadIsm, ContractLocator,
+    HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
+    IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceIndexer,
     ValidatorAnnounce, H256,
 };
@@ -22,9 +22,11 @@ use hyperlane_sealevel as h_sealevel;
 
 use crate::{
     metrics::AgentMetricsConf,
-    settings::signers::{BuildableWithSignerConf, ChainSigner, SignerConf},
+    settings::signers::{BuildableWithSignerConf, SignerConf},
     CoreMetrics,
 };
+
+use super::ChainSigner;
 
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
 /// deployed) and details for connecting to the chain API.
@@ -595,30 +597,34 @@ impl ChainConf {
     }
 
     /// Try to convert the chain setting into a trait object for fetching agent metrics
-    pub async fn build_agent_metrics_fetcher(&self) -> Result<Box<dyn AgenMetricsFetcher>> {
-        let ctx = "Building Agent Metrics Fetcher";
-
+    pub async fn build_agent_metrics_fetcher(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn AgentMetricsFetcher>> {
         match &self.connection {
-            ChainConnectionConf::Ethereum(_conf) => {
-                Ok(Box::new(h_eth::EthereumMetricsFetcher {}) as Box<dyn AgenMetricsFetcher>)
+            ChainConnectionConf::Ethereum(conf) => {
+                let locator = self.locator(H256::zero());
+                let provider = self
+                    .build_ethereum(
+                        conf,
+                        &locator,
+                        metrics,
+                        h_eth::AgentMetricsFetcherBuilder {},
+                    )
+                    .await?;
+                Ok(provider)
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => todo!(),
             ChainConnectionConf::Cosmos(conf) => {
-                let signer = self
-                    .cosmos_signer()
-                    .await
-                    .context(ctx)?
-                    .ok_or(eyre!("No signer set"))
-                    .context(ctx)?;
-                let address = CosmosAddress::from_pubkey(signer.public_key, &conf.get_prefix())
-                    .context(ctx)?;
-                let metrics_fetcher = CosmosMetricsFetcher::new(
+                let locator = self.locator(H256::zero());
+                let provider = CosmosProvider::new(
+                    locator.domain.clone(),
                     conf.clone(),
-                    self.locator(self.addresses.mailbox),
-                    address,
+                    Some(locator.clone()),
+                    None,
                 )?;
-                Ok(Box::new(metrics_fetcher) as Box<dyn AgenMetricsFetcher>)
+                Ok(Box::new(provider) as Box<dyn AgentMetricsFetcher>)
             }
         }
     }

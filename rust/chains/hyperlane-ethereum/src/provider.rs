@@ -6,7 +6,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
-use hyperlane_core::{ethers_core_types, U256};
+use hyperlane_core::{ethers_core_types, metrics::agent::AgentMetricsFetcher, U256};
 use tokio::time::sleep;
 use tracing::instrument;
 
@@ -41,6 +41,22 @@ where
             self.provider.clone(),
             self.domain.clone(),
         ))
+    }
+}
+
+#[async_trait]
+impl<M> AgentMetricsFetcher for EthereumProvider<M>
+where
+    M: Middleware + 'static,
+{
+    #[instrument(err, skip(self))]
+    async fn get_balance(&self, address: String) -> ChainResult<U256> {
+        let balance = self
+            .provider
+            .get_balance(address, None)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(balance.into())
     }
 }
 
@@ -105,10 +121,6 @@ where
             .map_err(ChainCommunicationError::from_other)?;
         Ok(!code.is_empty())
     }
-
-    async fn get_balance(&self, _address: String) -> ChainResult<U256> {
-        todo!()
-    }
 }
 
 impl<M> EthereumProvider<M>
@@ -136,6 +148,29 @@ pub struct HyperlaneProviderBuilder {}
 #[async_trait]
 impl BuildableWithProvider for HyperlaneProviderBuilder {
     type Output = Box<dyn HyperlaneProvider>;
+
+    async fn build_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(EthereumProvider::new(
+            Arc::new(provider),
+            locator.domain.clone(),
+        ))
+    }
+}
+
+/// Builder for the Agent Metrics Fetcher.
+// TODO: Remove this when trait upcasting is stabilized and Box<dyn HyperlaneProvider> can be used
+// as Box<dyn AgentMetricsFetcher>
+// Tracking issue:
+// https://github.com/rust-lang/rust/issues/65991
+pub struct AgentMetricsFetcherBuilder {}
+
+#[async_trait]
+impl BuildableWithProvider for AgentMetricsFetcherBuilder {
+    type Output = Box<dyn AgentMetricsFetcher>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,

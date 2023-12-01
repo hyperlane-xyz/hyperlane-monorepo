@@ -4,11 +4,10 @@ use derive_builder::Builder;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_core::metrics::agent::u256_as_scaled_f64;
-use hyperlane_core::{metrics::agent::AgenMetricsFetcher, HyperlaneDomain};
+use hyperlane_core::{metrics::agent::AgentMetricsFetcher, HyperlaneDomain};
 use maplit::hashmap;
 use prometheus::GaugeVec;
 use tokio::time::MissedTickBehavior;
-use tracing::instrument::Instrumented;
 use tracing::{trace, warn};
 
 use crate::CoreMetrics;
@@ -25,9 +24,6 @@ pub const WALLET_BALANCE_LABELS: &[&str] = &[
 /// Help string for the metric.
 pub const WALLET_BALANCE_HELP: &str =
     "Current native token balance for the wallet addresses in the `wallets` set";
-
-/// Instrumented fallible task alias
-pub type InstrumentedFallibleTask<T> = Instrumented<tokio::task::JoinHandle<Result<T>>>;
 
 /// Agent-specific metrics
 #[derive(Clone, Builder)]
@@ -76,7 +72,7 @@ pub struct AgentMetricsConf {
 pub struct AgentMetrics {
     metrics: Metrics,
     conf: AgentMetricsConf,
-    fetcher: Box<dyn AgenMetricsFetcher>,
+    fetcher: Box<dyn AgentMetricsFetcher>,
 }
 
 impl AgentMetrics {
@@ -90,7 +86,7 @@ impl AgentMetrics {
         };
         let chain = self.conf.domain.name();
 
-        match self.fetcher.get_balance().await {
+        match self.fetcher.get_balance(wallet_addr.clone()).await {
             Ok(balance) => {
                 // Okay, so the native type is not a token, but whatever, close enough.
                 // Note: This is ETH for many chains, but not all so that is why we use `N` and `Native`

@@ -8,9 +8,7 @@ use tokio::task::JoinHandle;
 use tracing::{debug_span, instrument::Instrumented, Instrument};
 
 use crate::{
-    metrics::{
-        create_agent_metrics, CoreMetrics, InstrumentedFallibleTask, Metrics as AgentMetrics,
-    },
+    metrics::{create_agent_metrics, CoreMetrics, Metrics as AgentMetrics},
     settings::Settings,
 };
 
@@ -45,16 +43,13 @@ pub trait BaseAgent: Send + Sync + Debug {
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
-    ) -> Result<(Self, Vec<InstrumentedFallibleTask<()>>)>
+    ) -> Result<Self>
     where
         Self: Sized;
 
     /// Start running this agent.
     #[allow(clippy::async_yields_async)]
-    async fn run(
-        self,
-        metrics_fetchers: Vec<InstrumentedFallibleTask<()>>,
-    ) -> Instrumented<JoinHandle<Result<()>>>;
+    async fn run(self) -> Instrumented<JoinHandle<Result<()>>>;
 }
 
 /// Call this from `main` to fully initialize and run the agent for its entire
@@ -81,11 +76,10 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
     core_settings.tracing.start_tracing(&metrics)?;
     let agent_metrics = create_agent_metrics(&metrics)?;
-    let (agent, metrics_fetchers) =
-        A::from_settings(settings, metrics.clone(), agent_metrics).await?;
+    let agent = A::from_settings(settings, metrics.clone(), agent_metrics).await?;
     metrics.run_http_server();
 
-    agent.run(metrics_fetchers).await.await?
+    agent.run().await.await?
 }
 
 /// Utility to run multiple tasks and shutdown if any one task ends.

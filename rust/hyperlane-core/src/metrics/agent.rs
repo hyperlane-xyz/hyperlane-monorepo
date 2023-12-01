@@ -11,9 +11,9 @@ pub const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
 /// Trait to be implemented by all chain-specific agent implementations,
 /// to support gathering agent metrics.
 #[async_trait]
-pub trait AgenMetricsFetcher: Send + Sync {
+pub trait AgentMetricsFetcher: Send + Sync {
     /// Fetch the balance of the wallet address associated with the chain provider.
-    async fn get_balance(&self) -> ChainResult<U256>;
+    async fn get_balance(&self, address: String) -> ChainResult<U256>;
 }
 
 /// Convert a u256 scaled integer value into the corresponding f64 value.

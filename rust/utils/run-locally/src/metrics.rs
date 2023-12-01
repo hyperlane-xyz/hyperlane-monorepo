@@ -1,6 +1,7 @@
 use std::{collections::HashMap, error::Error as StdError, str::FromStr};
 
 use eyre::{eyre, ErrReport, Result};
+use maplit::hashmap;
 
 /// Fetch a prometheus format metric, filtering by labels.
 pub fn fetch_metric<T, E>(port: &str, metric: &str, labels: &HashMap<&str, &str>) -> Result<Vec<T>>
@@ -25,4 +26,15 @@ where
             Ok(value.parse::<T>()?)
         })
         .collect()
+}
+
+pub fn agent_balance_sum(metrics_port: u32) -> eyre::Result<f64> {
+    let balance = fetch_metric(
+        &metrics_port.to_string(),
+        "hyperlane_wallet_balance",
+        &hashmap! {},
+    )?
+    .iter()
+    .sum();
+    Ok(balance)
 }

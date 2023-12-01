@@ -30,6 +30,7 @@ use crate::{
     config::Config,
     ethereum::start_anvil,
     invariants::termination_invariants_met,
+    metrics::agent_balance_sum,
     solana::*,
     utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle},
 };
@@ -390,10 +391,11 @@ fn main() -> ExitCode {
     // give things a chance to fully start.
     sleep(Duration::from_secs(10));
     let mut failure_occurred = false;
+    let starting_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
-            if termination_invariants_met(&config)
+            if termination_invariants_met(&config, starting_relayer_balance)
                 // if termination_invariants_met(&config, &solana_path, &solana_config_path)
                 .unwrap_or(false)
             {

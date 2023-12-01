@@ -55,7 +55,7 @@ impl HyperlaneChain for CosmosAggregationIsm {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(self.provider.clone())
+        self.provider.clone()
     }
 }
 

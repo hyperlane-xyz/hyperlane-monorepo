@@ -9,9 +9,11 @@ use derive_more::AsRef;
 use eyre::Result;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
-    metrics::{AgentMetrics, InstrumentedFallibleTask, Metrics},
-    run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-    SequencedDataContractSync, WatermarkContractSync,
+    metrics::{AgentMetrics, Metrics},
+    run_all,
+    settings::ChainConf,
+    BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, SequencedDataContractSync,
+    WatermarkContractSync,
 };
 use hyperlane_core::{
     metrics::agent::METRICS_SCRAPE_INTERVAL, HyperlaneDomain, HyperlaneMessage,
@@ -51,7 +53,7 @@ struct ContextKey {
 #[derive(AsRef)]
 pub struct Relayer {
     origin_chains: HashSet<HyperlaneDomain>,
-    destination_chains: HashSet<HyperlaneDomain>,
+    destination_chains: HashMap<HyperlaneDomain, ChainConf>,
     #[as_ref]
     core: HyperlaneAgentCore,
     message_syncs: HashMap<HyperlaneDomain, Arc<SequencedDataContractSync<HyperlaneMessage>>>,
@@ -69,6 +71,8 @@ pub struct Relayer {
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
+    core_metrics: Arc<CoreMetrics>,
+    agent_metrics: Metrics,
 }
 
 impl Debug for Relayer {
@@ -98,7 +102,7 @@ impl BaseAgent for Relayer {
         settings: Self::Settings,
         core_metrics: Arc<CoreMetrics>,
         agent_metrics: Metrics,
-    ) -> Result<(Self, Vec<InstrumentedFallibleTask<()>>)>
+    ) -> Result<Self>
     where
         Self: Sized,
     {
@@ -194,30 +198,10 @@ impl BaseAgent for Relayer {
             .collect();
 
         let mut msg_ctxs = HashMap::new();
-        let mut metrics_fetchers = vec![];
+        let mut destination_chains = HashMap::new();
         for destination in &settings.destination_chains {
             let destination_chain_setup = core.settings.chain_setup(destination).unwrap().clone();
-            let agent_metrics_conf = destination_chain_setup
-                .agent_metrics_conf(Self::AGENT_NAME.to_string())
-                .await?;
-            let agent_metrics_fetcher = destination_chain_setup
-                .build_agent_metrics_fetcher()
-                .await?;
-            let agent_metrics = AgentMetrics::new(
-                agent_metrics.clone(),
-                agent_metrics_conf,
-                agent_metrics_fetcher,
-            );
-
-            let fetcher_task = tokio::spawn(async move {
-                agent_metrics
-                    .start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
-                    .await;
-                Ok(())
-            })
-            .instrument(info_span!("AgentMetricsFetcher"));
-            metrics_fetchers.push(fetcher_task);
-
+            destination_chains.insert(destination.clone(), destination_chain_setup.clone());
             let transaction_gas_limit: Option<U256> =
                 if skip_transaction_gas_limit_for.contains(&destination.id()) {
                     None
@@ -257,7 +241,7 @@ impl BaseAgent for Relayer {
         let relayer = Self {
             dbs,
             origin_chains: settings.origin_chains,
-            destination_chains: settings.destination_chains,
+            destination_chains,
             msg_ctxs,
             core,
             message_syncs,
@@ -269,28 +253,48 @@ impl BaseAgent for Relayer {
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
+            core_metrics,
+            agent_metrics,
         };
 
-        Ok((relayer, metrics_fetchers))
+        Ok(relayer)
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(
-        self,
-        metrics_fetchers: Vec<InstrumentedFallibleTask<()>>,
-    ) -> Instrumented<JoinHandle<Result<()>>> {
-        // The tasks vec is initialized with the metrics fetcher tasks,
-        // and is then extended with the rest of the tasks.
-        let mut tasks = metrics_fetchers;
+    async fn run(self) -> Instrumented<JoinHandle<Result<()>>> {
+        let mut tasks = vec![];
 
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
-        for destination in &self.destination_chains {
+        for (dest_domain, dest_conf) in &self.destination_chains {
             let (send_channel, receive_channel) =
                 mpsc::unbounded_channel::<Box<DynPendingOperation>>();
-            send_channels.insert(destination.id(), send_channel);
+            send_channels.insert(dest_domain.id(), send_channel);
 
-            tasks.push(self.run_destination_submitter(destination, receive_channel));
+            tasks.push(self.run_destination_submitter(dest_domain, receive_channel));
+
+            let agent_metrics_conf = dest_conf
+                .agent_metrics_conf(Self::AGENT_NAME.to_string())
+                .await
+                .unwrap();
+            let agent_metrics_fetcher = dest_conf
+                .build_agent_metrics_fetcher(&self.core_metrics)
+                .await
+                .unwrap();
+            let agent_metrics = AgentMetrics::new(
+                self.agent_metrics.clone(),
+                agent_metrics_conf,
+                agent_metrics_fetcher,
+            );
+
+            let fetcher_task = tokio::spawn(async move {
+                agent_metrics
+                    .start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
+                    .await;
+                Ok(())
+            })
+            .instrument(info_span!("AgentMetricsFetcher"));
+            tasks.push(fetcher_task);
         }
 
         for origin in &self.origin_chains {
@@ -364,11 +368,11 @@ impl Relayer {
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
             origin,
-            self.destination_chains.iter(),
+            self.destination_chains.keys(),
         );
         let destination_ctxs = self
             .destination_chains
-            .iter()
+            .keys()
             .filter(|&destination| destination != origin)
             .map(|destination| {
                 (

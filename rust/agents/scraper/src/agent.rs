@@ -3,10 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use derive_more::AsRef;
 use hyperlane_base::{
-    metrics::{InstrumentedFallibleTask, Metrics as AgentMetrics},
-    run_all,
-    settings::IndexSettings,
-    BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    metrics::Metrics as AgentMetrics, run_all, settings::IndexSettings, BaseAgent,
+    ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
 };
 use hyperlane_core::HyperlaneDomain;
 use tokio::task::JoinHandle;
@@ -41,7 +39,7 @@ impl BaseAgent for Scraper {
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         _agent_metrics: AgentMetrics,
-    ) -> eyre::Result<(Self, Vec<InstrumentedFallibleTask<()>>)>
+    ) -> eyre::Result<Self>
     where
         Self: Sized,
     {
@@ -76,15 +74,12 @@ impl BaseAgent for Scraper {
 
         trace!(domain_count = scrapers.len(), "Created scrapers");
 
-        Ok((
-            Self {
-                core,
-                metrics,
-                contract_sync_metrics,
-                scrapers,
-            },
-            Default::default(),
-        ))
+        Ok(Self {
+            core,
+            metrics,
+            contract_sync_metrics,
+            scrapers,
+        })
     }
 
     /// Run the scraper
@@ -92,13 +87,8 @@ impl BaseAgent for Scraper {
     /// * `metrics_fetchers` - A list of metrics fetchers to run. Currently this
     /// only comprise
     #[allow(clippy::async_yields_async)]
-    async fn run(
-        self,
-        metrics_fetchers: Vec<InstrumentedFallibleTask<()>>,
-    ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
-        // The tasks vec is initialized with the metrics fetcher tasks,
-        // and is then extended with the rest of the tasks.
-        let mut tasks = metrics_fetchers;
+    async fn run(self) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+        let mut tasks = Vec::with_capacity(self.scrapers.len());
         for domain in self.scrapers.keys() {
             tasks.push(self.scrape(*domain).await);
         }

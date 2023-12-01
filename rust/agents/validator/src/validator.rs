@@ -10,7 +10,7 @@ use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
-    metrics::{InstrumentedFallibleTask, Metrics as AgentMetrics},
+    metrics::Metrics as AgentMetrics,
     run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     SequencedDataContractSync,
 };
@@ -56,7 +56,7 @@ impl BaseAgent for Validator {
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         _agent_metrics: AgentMetrics,
-    ) -> Result<(Self, Vec<InstrumentedFallibleTask<()>>)>
+    ) -> Result<Self>
     where
         Self: Sized,
     {
@@ -108,17 +108,12 @@ impl BaseAgent for Validator {
             checkpoint_syncer,
         };
 
-        Ok((validator, Default::default()))
+        Ok(validator)
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(
-        mut self,
-        metrics_fetchers: Vec<InstrumentedFallibleTask<()>>,
-    ) -> Instrumented<JoinHandle<Result<()>>> {
-        // The tasks vec is initialized with the metrics fetcher tasks,
-        // and is then extended with the rest of the tasks.
-        let mut tasks = metrics_fetchers;
+    async fn run(mut self) -> Instrumented<JoinHandle<Result<()>>> {
+        let mut tasks = vec![];
 
         if let Some(signer_instance) = self.signer_instance.take() {
             tasks.push(

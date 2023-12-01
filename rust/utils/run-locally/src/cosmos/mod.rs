@@ -25,6 +25,7 @@ use utils::*;
 
 use crate::cosmos::link::link_networks;
 use crate::logging::log;
+use crate::metrics::agent_balance_sum;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
 use crate::{fetch_metric, AGENT_BIN_PATH};
@@ -258,7 +259,6 @@ fn launch_cosmos_validator(
         .hyp_env("CHECKPOINTSYNCER_PATH", checkpoint_path.to_str().unwrap())
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage")
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
-        .hyp_env("REORGPERIOD", "1")
         .hyp_env("DB", validator_base_db.to_str().unwrap())
         .hyp_env("METRICSPORT", agent_config.metrics_port.to_string())
         .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
@@ -288,7 +288,6 @@ fn launch_cosmos_relayer(
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env("RUST_BACKTRACE", "1")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
-        .hyp_env("REORGPERIOD", "1")
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
@@ -462,11 +461,9 @@ fn run_locally() {
     );
 
     // give things a chance to fully start.
-    println!("sleeping for 100s");
-    sleep(Duration::from_secs(100));
-    println!("done sleeping for 100s");
+    sleep(Duration::from_secs(10));
 
-    let starting_relayer_balance: f64 = relayer_balance_sum(hpl_rly_metrics_port).unwrap();
+    let starting_relayer_balance: f64 = agent_balance_sum(hpl_rly_metrics_port).unwrap();
 
     // dispatch messages
     let mut dispatched_messages = 0;
@@ -554,17 +551,6 @@ fn run_locally() {
     }
 }
 
-fn relayer_balance_sum(metrics_port: u32) -> eyre::Result<f64> {
-    let balance = fetch_metric(
-        &metrics_port.to_string(),
-        "hyperlane_wallet_balance",
-        &hashmap! {},
-    )?
-    .iter()
-    .sum();
-    Ok(balance)
-}
-
 fn termination_invariants_met(
     relayer_metrics_port: u32,
     messages_expected: u32,
@@ -603,7 +589,7 @@ fn termination_invariants_met(
         return Ok(false);
     }
 
-    let ending_relayer_balance: f64 = relayer_balance_sum(relayer_metrics_port).unwrap();
+    let ending_relayer_balance: f64 = agent_balance_sum(relayer_metrics_port).unwrap();
     // Ideally, make sure that the difference is >= gas_per_tx * gas_cost, set here:
     // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/c2288eb31734ba1f2f997e2c6ecb30176427bc2c/rust/utils/run-locally/src/cosmos/cli.rs#L55
     // What's stopping this is that the format returned by the `uosmo` balance query is a surprisingly low number (0.000003999999995184)
