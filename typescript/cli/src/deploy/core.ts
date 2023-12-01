@@ -326,7 +326,7 @@ async function executeDeploy({
   }
   artifacts = objMerge(artifacts, isms);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
-  logGreen('Core contracts deployed - artifacts');
+  logGreen('Core contracts deployed');
 
   // 5. Deploy TestRecipients to all deployable chains
   log('Deploying test recipient contracts');
