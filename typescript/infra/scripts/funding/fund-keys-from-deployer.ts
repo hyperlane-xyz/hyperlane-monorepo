@@ -396,7 +396,8 @@ class ContextFunder {
   // Returns whether a failure occurred.
   async fund(): Promise<boolean> {
     const chainKeys = this.getChainKeys();
-    const promises = Object.entries(chainKeys).map(async ([chain, keys]) => {
+    const chainKeyEntries = Object.entries(chainKeys);
+    const promises = chainKeyEntries.map(async ([chain, keys]) => {
       let failureOccurred = false;
       if (keys.length > 0) {
         if (!this.skipIgpClaim) {
@@ -421,14 +422,22 @@ class ContextFunder {
     });
 
     let failureOccurred = false;
-    try {
-      failureOccurred = (await Promise.all(promises)).some(
-        (promiseFailure) => promiseFailure,
-      );
-    } catch (e) {
-      error('Unhandled error when funding key', { error: format(e) });
-      failureOccurred = true;
-    }
+    // A failure occurred if any of the promises rejected or
+    // if any of them resolved with true, indicating a failure
+    // somewhere along the way
+    failureOccurred = (await Promise.allSettled(promises)).reduce(
+      (failureAgg, result, i) => {
+        if (result.status === 'rejected') {
+          console.log(
+            `Funding promise for chain ${chainKeyEntries[i][0]} rejected`,
+            result.reason,
+          );
+          return true;
+        }
+        return result.value || failureAgg;
+      },
+      false,
+    );
 
     return failureOccurred;
   }
