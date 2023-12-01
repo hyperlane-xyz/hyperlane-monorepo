@@ -51,6 +51,7 @@
     "coverage": "./coverage.sh",
     "docs": "forge doc",
     "flatten": "./flatten.sh",
+    "storage": "./storage.sh",
     "prettier": "prettier --write ./contracts ./test",
     "test": "hardhat test && forge test -vvv",
     "gas": "forge snapshot",

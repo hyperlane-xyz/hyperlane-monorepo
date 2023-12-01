@@ -8,9 +8,9 @@ import {
   DeployedIsm,
   GasOracleContractType,
   HooksConfig,
-  HyperlaneAddresses,
   HyperlaneAddressesMap,
   HyperlaneContractsMap,
+  HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeploymentArtifacts,
   HyperlaneIsmFactory,
@@ -21,7 +21,6 @@ import {
   MultiProvider,
   MultisigConfig,
   RoutingIsmConfig,
-  agentStartBlocks,
   buildAgentConfig,
   buildAggregationIsmConfigs,
   defaultMultisigConfigs,
@@ -450,33 +449,21 @@ async function writeAgentConfig(
   chains: ChainName[],
   multiProvider: MultiProvider,
 ) {
-  // TODO: share with rust/config/*
-  const startBlocks: ChainMap<number> = { ...agentStartBlocks };
-
+  const startBlocks: ChainMap<number> = {};
   for (const chain of chains) {
-    if (startBlocks[chain]) continue;
-    startBlocks[chain] = await multiProvider
-      .getProvider(chain)
-      .getBlockNumber();
+    const core = HyperlaneCore.fromAddressesMap(artifacts, multiProvider);
+    const mailbox = core.getContracts(chain).mailbox;
+    startBlocks[chain] = (await mailbox.deployedBlock()).toNumber();
   }
-
-  const mergedAddressesMap: HyperlaneAddressesMap<any> = objMerge(
+  const mergedAddressesMap = objMerge(
     sdkContractAddressesMap,
     artifacts,
-  );
-  const filteredAddressesMap = objFilter(
-    mergedAddressesMap,
-    (chain, v): v is HyperlaneAddresses<any> =>
-      chains.includes(chain) &&
-      !!v.mailbox &&
-      !!v.interchainGasPaymaster &&
-      !!v.validatorAnnounce,
   ) as ChainMap<HyperlaneDeploymentArtifacts>;
 
   const agentConfig = buildAgentConfig(
-    Object.keys(filteredAddressesMap),
+    Object.keys(mergedAddressesMap),
     multiProvider,
-    filteredAddressesMap,
+    mergedAddressesMap,
     startBlocks,
   );
   writeJson(filePath, agentConfig);

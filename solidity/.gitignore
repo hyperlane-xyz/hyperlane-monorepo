@@ -5,6 +5,7 @@ types/
 dist/
 coverage/
 coverage.json
+storage/
 .env
 *lcov.info
 # Foundry
