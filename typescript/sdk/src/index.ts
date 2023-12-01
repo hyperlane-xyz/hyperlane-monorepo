@@ -116,6 +116,7 @@ export {
   FallbackRoutingHookConfig,
   HookConfig,
   HookType,
+  HooksConfig,
   IgpHookConfig,
   MerkleTreeHookConfig,
   OpStackHookConfig,
