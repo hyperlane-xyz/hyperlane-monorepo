@@ -1,4 +1,5 @@
 @openzeppelin=../node_modules/@openzeppelin
+@chainlink=../node_modules/@chainlink
 @eth-optimism=../node_modules/@eth-optimism
 ds-test/=lib/forge-std/lib/ds-test/src/
 forge-std/=lib/forge-std/src/

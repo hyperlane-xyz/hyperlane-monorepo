@@ -3,6 +3,7 @@
   "description": "Core solidity contracts for Hyperlane",
   "version": "3.2.0",
   "dependencies": {
+    "@chainlink/contracts-ccip": "^0.7.6",
     "@eth-optimism/contracts": "^0.6.0",
     "@hyperlane-xyz/utils": "3.2.0",
     "@openzeppelin/contracts": "^4.9.3",
