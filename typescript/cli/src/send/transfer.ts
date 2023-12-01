@@ -23,8 +23,6 @@ import { runPreflightChecks } from '../deploy/utils.js';
 import { assertNativeBalances, assertTokenBalance } from '../utils/balances.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 
-// TODO improve the UX here by making params optional and
-// prompting for missing values
 export async function sendTestTransfer({
   key,
   chainConfigPath,
