@@ -9,10 +9,8 @@ import {
   GasOracleContractType,
   HookType,
   HooksConfig,
-  IgpHookConfig,
-  MerkleTreeHookConfig,
   MultisigConfig,
-  ProtocolFeeHookConfig,
+  chainMetadata,
   defaultMultisigConfigs,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
@@ -78,7 +76,7 @@ const HooksConfigSchema = z.object({
   required: HookConfigSchema,
   default: HookConfigSchema,
 });
-const HooksConfigMapSchema = z.object({}).catchall(HooksConfigSchema);
+const HooksConfigMapSchema = z.record(HooksConfigSchema);
 export type HooksConfigMap = z.infer<typeof HooksConfigMapSchema>;
 
 export function isValidHookConfigMap(config: any) {
@@ -89,8 +87,8 @@ export function presetHookConfigs(
   owner: Address,
   local: ChainName,
   destinationChains: ChainName[],
-  ismConfig?: MultisigConfig,
-) {
+  multisigConfig?: MultisigConfig,
+): HooksConfig {
   const gasOracleType = destinationChains.reduce<
     ChainMap<GasOracleContractType>
   >((acc, chain) => {
@@ -100,14 +98,15 @@ export function presetHookConfigs(
   const overhead = destinationChains.reduce<ChainMap<number>>((acc, chain) => {
     let validatorThreshold: number;
     let validatorCount: number;
-    if (ismConfig) {
-      validatorThreshold = ismConfig.threshold;
-      validatorCount = ismConfig.validators.length;
+    if (multisigConfig) {
+      validatorThreshold = multisigConfig.threshold;
+      validatorCount = multisigConfig.validators.length;
     } else if (local in defaultMultisigConfigs) {
       validatorThreshold = defaultMultisigConfigs[local].threshold;
       validatorCount = defaultMultisigConfigs[local].validators.length;
     } else {
       // default values
+      // fix here: https://github.com/hyperlane-xyz/issues/issues/773
       validatorThreshold = 2;
       validatorCount = 3;
     }
@@ -126,13 +125,13 @@ export function presetHookConfigs(
       protocolFee: ethers.utils.parseUnits('0', 'wei').toString(),
       beneficiary: owner,
       owner: owner,
-    } as ProtocolFeeHookConfig,
+    },
     default: {
       type: HookType.AGGREGATION,
       hooks: [
         {
           type: HookType.MERKLE_TREE,
-        } as MerkleTreeHookConfig,
+        },
         {
           type: HookType.INTERCHAIN_GAS_PAYMASTER,
           owner: owner,
@@ -140,10 +139,10 @@ export function presetHookConfigs(
           gasOracleType,
           overhead,
           oracleKey: owner,
-        } as IgpHookConfig,
+        },
       ],
     },
-  } as HooksConfig;
+  };
 }
 
 export function readHooksConfigMap(filePath: string) {
@@ -188,7 +187,7 @@ export async function createHooksConfigMap({
       const remotes = chains.filter((c) => c !== chain);
       result[chain] = {
         ...result[chain],
-        [hookRequirements]: await createHookConfig(remotes),
+        [hookRequirements]: await createHookConfig(chain, remotes),
       };
     }
     if (isValidHookConfigMap(result)) {
@@ -204,6 +203,7 @@ export async function createHooksConfigMap({
 }
 
 export async function createHookConfig(
+  chain: ChainName,
   remotes: ChainName[],
 ): Promise<ZODHookConfig> {
   let lastConfig: ZODHookConfig;
@@ -245,20 +245,22 @@ export async function createHookConfig(
   if (hookType === HookType.MERKLE_TREE) {
     lastConfig = { type: HookType.MERKLE_TREE };
   } else if (hookType === HookType.PROTOCOL_FEE) {
-    lastConfig = await createProtocolFeeConfig();
+    lastConfig = await createProtocolFeeConfig(chain);
   } else if (hookType === HookType.INTERCHAIN_GAS_PAYMASTER) {
     lastConfig = await createIGPConfig(remotes);
   } else if (hookType === HookType.AGGREGATION) {
-    lastConfig = await createAggregationConfig(remotes);
+    lastConfig = await createAggregationConfig(chain, remotes);
   } else if (hookType === HookType.ROUTING) {
-    lastConfig = await createRoutingConfig(remotes);
+    lastConfig = await createRoutingConfig(chain, remotes);
   } else {
     throw new Error(`Invalid hook type: ${hookType}`);
   }
   return lastConfig;
 }
 
-export async function createProtocolFeeConfig(): Promise<ZODHookConfig> {
+export async function createProtocolFeeConfig(
+  chain: ChainName,
+): Promise<ZODHookConfig> {
   const owner = await input({
     message: 'Enter owner address',
   });
@@ -279,13 +281,16 @@ export async function createProtocolFeeConfig(): Promise<ZODHookConfig> {
   // TODO: input in gwei, wei, etc
   const maxProtocolFee = toWei(
     await input({
-      message:
-        'Enter max protocol fee which you cannot exceed (in eth e.g. 1.0)',
+      message: `Enter max protocol fee ${nativeTokenAndDecimals(
+        chain,
+      )} e.g. 1.0)`,
     }),
   );
   const protocolFee = toWei(
     await input({
-      message: 'Enter protocol fee (in eth e.g. 0.01)',
+      message: `Enter protocol fee in ${nativeTokenAndDecimals(
+        chain,
+      )} e.g. 0.01)`,
     }),
   );
   if (BigNumberJs(protocolFee).gt(maxProtocolFee)) {
@@ -350,6 +355,7 @@ export async function createIGPConfig(
 }
 
 export async function createAggregationConfig(
+  chain: ChainName,
   remotes: ChainName[],
 ): Promise<ZODHookConfig> {
   const hooksNum = parseInt(
@@ -361,7 +367,7 @@ export async function createAggregationConfig(
   const hooks: Array<ZODHookConfig> = [];
   for (let i = 0; i < hooksNum; i++) {
     logBlue(`Creating hook ${i + 1} of ${hooksNum} ...`);
-    hooks.push(await createHookConfig(remotes));
+    hooks.push(await createHookConfig(chain, remotes));
   }
   return {
     type: HookType.AGGREGATION,
@@ -370,6 +376,7 @@ export async function createAggregationConfig(
 }
 
 export async function createRoutingConfig(
+  origin: ChainName,
   remotes: ChainName[],
 ): Promise<ZODHookConfig> {
   const owner = await input({
@@ -382,7 +389,7 @@ export async function createRoutingConfig(
     await confirm({
       message: `You are about to configure hook for remote chain ${chain}. Continue?`,
     });
-    const config = await createHookConfig(remotes);
+    const config = await createHookConfig(origin, remotes);
     domainsMap[chain] = config;
   }
   return {
@@ -390,4 +397,12 @@ export async function createRoutingConfig(
     owner: ownerAddress,
     domains: domainsMap,
   };
+}
+
+function nativeTokenAndDecimals(chain: ChainName) {
+  return `10^${
+    chainMetadata[chain].nativeToken?.decimals ?? '18'
+  } which you cannot exceed (in ${
+    chainMetadata[chain].nativeToken?.symbol ?? 'eth'
+  }`;
 }

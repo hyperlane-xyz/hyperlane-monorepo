@@ -85,7 +85,7 @@ describe('readHooksConfigMap', () => {
   });
 
   it('parsing failure, missing internal key "overhead"', () => {
-    expect(function () {
+    expect(() => {
       readHooksConfigMap('src/tests/hooks/safe-parse-fail.yaml');
     }).to.throw('Invalid hook config: anvil2,default => Invalid input');
   });

@@ -97,7 +97,7 @@ const createIsmConfigCommand: CommandModule = {
 
 const createHookConfigCommand: CommandModule = {
   command: 'hooks',
-  describe: 'Create a new hook configs (required & default)',
+  describe: 'Create a new hooks config (required & default)',
   builder: (yargs) =>
     yargs.options({
       output: outputFileOption('./configs/hooks.yaml'),
