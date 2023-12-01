@@ -1,7 +1,7 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { z } from 'zod';
 
-import { ChainMap, ChainName, IsmType } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName, IsmType, ZHash } from '@hyperlane-xyz/sdk';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
@@ -15,13 +15,16 @@ const MultisigIsmConfigSchema = z.object({
     z.literal(IsmType.MESSAGE_ID_MULTISIG),
   ]),
   threshold: z.number(),
-  validators: z.array(z.string()),
+  validators: z.array(ZHash),
 });
 
 const RoutingIsmConfigSchema: z.ZodSchema<any> = z.lazy(() =>
   z.object({
-    type: z.literal(IsmType.ROUTING),
-    owner: z.string(),
+    type: z.union([
+      z.literal(IsmType.ROUTING),
+      z.literal(IsmType.FALLBACK_ROUTING),
+    ]),
+    owner: ZHash,
     domains: z.record(IsmConfigSchema),
   }),
 );

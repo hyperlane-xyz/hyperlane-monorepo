@@ -87,7 +87,7 @@ describe('HyperlaneIsmFactory', async () => {
 
   it('deploys a simple ism', async () => {
     const config = randomMultisigIsmConfig(3, 5);
-    const ism = await factory.deploy(chain, config);
+    const ism = await factory.deploy({ chain, config });
     const matches = await moduleMatchesConfig(
       chain,
       ism.address,
@@ -103,7 +103,7 @@ describe('HyperlaneIsmFactory', async () => {
       const config = randomIsmConfig();
       let ismAddress: string;
       try {
-        const ism = await factory.deploy(chain, config);
+        const ism = await factory.deploy({ chain, config });
         ismAddress = ism.address;
       } catch (e) {
         error('Failed to deploy random ism config', e);

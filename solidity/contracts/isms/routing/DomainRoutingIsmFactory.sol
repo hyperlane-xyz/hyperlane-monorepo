@@ -51,19 +51,3 @@ contract DomainRoutingIsmFactory is AbstractDomainRoutingIsmFactory {
         return _implementation;
     }
 }
-
-/**
- * @title DefaultFallbackRoutingIsmFactory
- */
-contract DefaultFallbackRoutingIsmFactory is AbstractDomainRoutingIsmFactory {
-    // ============ Immutables ============
-    address internal immutable _implementation;
-
-    constructor(address mailbox) {
-        _implementation = address(new DefaultFallbackRoutingIsm(mailbox));
-    }
-
-    function implementation() public view override returns (address) {
-        return _implementation;
-    }
-}
