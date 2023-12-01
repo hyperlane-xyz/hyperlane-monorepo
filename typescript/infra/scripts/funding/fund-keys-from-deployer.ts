@@ -421,17 +421,16 @@ class ContextFunder {
       return failureOccurred;
     });
 
-    let failureOccurred = false;
     // A failure occurred if any of the promises rejected or
     // if any of them resolved with true, indicating a failure
     // somewhere along the way
-    failureOccurred = (await Promise.allSettled(promises)).reduce(
+    const failureOccurred = (await Promise.allSettled(promises)).reduce(
       (failureAgg, result, i) => {
         if (result.status === 'rejected') {
-          console.log(
-            `Funding promise for chain ${chainKeyEntries[i][0]} rejected`,
-            result.reason,
-          );
+          error('Funding promise for chain rejected', {
+            chain: chainKeyEntries[i][0],
+            error: format(result.reason),
+          });
           return true;
         }
         return result.value || failureAgg;
