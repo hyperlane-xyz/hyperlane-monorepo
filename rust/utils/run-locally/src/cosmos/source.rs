@@ -11,7 +11,10 @@ use crate::{
     utils::concat_path,
 };
 
-use super::{CW_HYPERLANE_GIT, CW_HYPERLANE_VERSION, OSMOSIS_CLI_GIT, OSMOSIS_CLI_VERSION};
+use super::{
+    CW_HYPERLANE_GIT, CW_HYPERLANE_VERSION, OSMOSIS_CLI_GIT, OSMOSIS_CLI_VERSION,
+    OSMOSIS_DARWIN_CLI_GIT, OSMOSIS_DARWIN_CLI_VERSION,
+};
 
 pub enum CodeSource {
     Local { path: String },
@@ -103,7 +106,7 @@ pub enum CLISource {
 impl Default for CLISource {
     fn default() -> Self {
         if make_target().starts_with("darwin") {
-            Self::remote("https://github.com/hashableric/osmosis", "19.0.0-mnts")
+            Self::remote(OSMOSIS_DARWIN_CLI_GIT, OSMOSIS_DARWIN_CLI_VERSION)
         } else {
             Self::remote(OSMOSIS_CLI_GIT, OSMOSIS_CLI_VERSION)
         }
