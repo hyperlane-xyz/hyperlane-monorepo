@@ -78,7 +78,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     );
     return new HyperlaneIsmFactory(
       helper.contractsMap,
-      helper.multiProvider,
+      multiProvider,
       debug('hyperlane:IsmFactoryApp'),
     );
   }
@@ -211,13 +211,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           'Mailbox address is required for deploying fallback routing ISM',
         );
       }
-      debug('DEBUGG default fallback routing ISM ...');
+      debug('Deploying fallback routing ISM ...');
       routingIsm = await this.multiProvider.handleDeploy(
         chain,
         new DefaultFallbackRoutingIsm__factory(),
         [mailbox],
       );
-      debug('Initialising default fallback routing ISM ...');
+      debug('Initialising fallback routing ISM ...');
       receipt = await this.multiProvider.handleTx(
         chain,
         routingIsm['initialize(address,uint32[],address[])'](

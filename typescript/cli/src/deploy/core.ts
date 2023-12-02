@@ -214,7 +214,7 @@ async function runHookStep(
   log(`Found hook configs for chains: ${Object.keys(configs).join(', ')}`);
 }
 
-interface DeployParams {
+export interface DeployParams {
   chains: string[];
   signer: ethers.Signer;
   multiProvider: MultiProvider;
@@ -250,7 +250,7 @@ async function runDeployPlanStep({
   if (!isConfirmed) throw new Error('Deployment cancelled');
 }
 
-async function executeDeploy({
+export async function executeDeploy({
   chains,
   signer,
   multiProvider,
@@ -302,7 +302,6 @@ async function executeDeploy({
       buildIsmConfig(owner, ismOrigin, chains, multisigConfigs);
   }
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, ismContracts);
-  logGreen('ISM contracts deployed');
 
   // 4. Deploy core contracts to chains
   logBlue(`Deploying core contracts to ${chains.join(', ')}`);
@@ -350,6 +349,8 @@ async function executeDeploy({
   logBlue('Deployment is complete!');
   logBlue(`Contract address artifacts are in ${contractsFilePath}`);
   logBlue(`Agent configs are in ${agentFilePath}`);
+
+  return artifacts;
 }
 
 function buildIsmConfig(
