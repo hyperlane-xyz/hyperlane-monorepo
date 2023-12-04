@@ -223,7 +223,7 @@ impl WasmGrpcProvider {
         Ok(gas_estimate)
     }
 
-    /// Estimates gas for a transaction containing `msgs`.
+    /// Fetches balance for a given `address` and `denom`
     pub async fn get_balance(&self, address: String, denom: String) -> ChainResult<u64> {
         let mut client = QueryBalanceClient::new(self.channel.clone());
 
