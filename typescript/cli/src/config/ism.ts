@@ -176,8 +176,11 @@ export async function createIsmConfig(
     moduleType === IsmType.MERKLE_ROOT_MULTISIG
   ) {
     lastConfig = await createMultisigConfig(moduleType);
-  } else if (moduleType === IsmType.ROUTING) {
-    lastConfig = await createRoutingConfig(remote, origins);
+  } else if (
+    moduleType === IsmType.ROUTING ||
+    moduleType === IsmType.FALLBACK_ROUTING
+  ) {
+    lastConfig = await createRoutingConfig(moduleType, remote, origins);
   } else if (moduleType === IsmType.AGGREGATION) {
     lastConfig = await createAggregationConfig(remote, origins);
   } else if (moduleType === IsmType.TEST_ISM) {
@@ -237,6 +240,7 @@ export async function createAggregationConfig(
 }
 
 export async function createRoutingConfig(
+  type: IsmType.ROUTING | IsmType.FALLBACK_ROUTING,
   remote: ChainName,
   chains: ChainName[],
 ): Promise<ZodIsmConfig> {

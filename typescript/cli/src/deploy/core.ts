@@ -358,7 +358,7 @@ function buildIsmConfig(
 function buildCoreConfigMap(
   owner: Address,
   chains: ChainName[],
-  defaultIsms: ChainMap<Address>,
+  defaultIsms: ChainMap<IsmConfig>,
   hooksConfig: ChainMap<HooksConfig>,
   multisigConfigs: ChainMap<MultisigConfig>,
 ): ChainMap<CoreConfig> {
