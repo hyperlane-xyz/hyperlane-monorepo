@@ -1,12 +1,19 @@
 import { debug } from 'debug';
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import {
+  DefaultFallbackRoutingIsm,
+  DefaultFallbackRoutingIsm__factory,
+  DomainRoutingIsm,
   DomainRoutingIsm__factory,
+  IAggregationIsm,
   IAggregationIsm__factory,
   IInterchainSecurityModule__factory,
+  IMultisigIsm,
   IMultisigIsm__factory,
+  IRoutingIsm,
   IRoutingIsm__factory,
+  OPStackIsm,
   OPStackIsm__factory,
   StaticAddressSetFactory,
   StaticAggregationIsm__factory,
@@ -71,16 +78,18 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     );
     return new HyperlaneIsmFactory(
       helper.contractsMap,
-      helper.multiProvider,
+      multiProvider,
       debug('hyperlane:IsmFactoryApp'),
     );
   }
 
-  async deploy<C extends IsmConfig>(
-    chain: ChainName,
-    config: C,
-    origin?: ChainName,
-  ): Promise<DeployedIsm> {
+  async deploy<C extends IsmConfig>(params: {
+    chain: ChainName;
+    config: C;
+    origin?: ChainName;
+    mailbox?: Address;
+  }): Promise<DeployedIsm> {
+    const { chain, config, origin, mailbox } = params;
     if (typeof config === 'string') {
       // @ts-ignore
       return IInterchainSecurityModule__factory.connect(
@@ -103,10 +112,21 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         contract = await this.deployMultisigIsm(chain, config);
         break;
       case IsmType.ROUTING:
-        contract = await this.deployRoutingIsm(chain, config);
+      case IsmType.FALLBACK_ROUTING:
+        contract = await this.deployRoutingIsm({
+          chain,
+          config,
+          origin,
+          mailbox,
+        });
         break;
       case IsmType.AGGREGATION:
-        contract = await this.deployAggregationIsm(chain, config, origin);
+        contract = await this.deployAggregationIsm({
+          chain,
+          config,
+          origin,
+          mailbox,
+        });
         break;
       case IsmType.OP_STACK:
         contract = await this.deployOpStackIsm(chain, config);
@@ -140,7 +160,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     return contract;
   }
 
-  private async deployMultisigIsm(chain: ChainName, config: MultisigIsmConfig) {
+  protected async deployMultisigIsm(
+    chain: ChainName,
+    config: MultisigIsmConfig,
+  ): Promise<IMultisigIsm> {
     const signer = this.multiProvider.getSigner(chain);
     const multisigIsmFactory =
       config.type === IsmType.MERKLE_ROOT_MULTISIG
@@ -157,16 +180,22 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     return IMultisigIsm__factory.connect(address, signer);
   }
 
-  private async deployRoutingIsm(chain: ChainName, config: RoutingIsmConfig) {
-    const signer = this.multiProvider.getSigner(chain);
+  protected async deployRoutingIsm(params: {
+    chain: ChainName;
+    config: RoutingIsmConfig;
+    origin?: ChainName;
+    mailbox?: Address;
+  }): Promise<IRoutingIsm> {
+    const { chain, config, mailbox } = params;
     const routingIsmFactory = this.getContracts(chain).routingIsmFactory;
-    // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2895
-    // config.defaultFallback
-    //   ? this.getContracts(chain).defaultFallbackRoutingIsmFactory
-    // : this.getContracts(chain).routingIsmFactory;
     const isms: ChainMap<Address> = {};
     for (const origin in config.domains) {
-      const ism = await this.deploy(chain, config.domains[origin], origin);
+      const ism = await this.deploy({
+        chain,
+        config: config.domains[origin],
+        origin,
+        mailbox,
+      });
       isms[origin] = ism.address;
     }
     const domains = Object.keys(isms).map((chain) =>
@@ -174,50 +203,80 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     );
     const submoduleAddresses = Object.values(isms);
     const overrides = this.multiProvider.getTransactionOverrides(chain);
-    const tx = await routingIsmFactory.deploy(
-      domains,
-      submoduleAddresses,
-      overrides,
-    );
-    const receipt = await this.multiProvider.handleTx(chain, tx);
-    // TODO: Break this out into a generalized function
-    const dispatchLogs = receipt.logs
-      .map((log) => {
-        try {
-          return routingIsmFactory.interface.parseLog(log);
-        } catch (e) {
-          return undefined;
-        }
-      })
-      .filter(
-        (log): log is ethers.utils.LogDescription =>
-          !!log && log.name === 'ModuleDeployed',
+    let receipt: ethers.providers.TransactionReceipt;
+    let routingIsm: DomainRoutingIsm | DefaultFallbackRoutingIsm;
+    if (config.type === IsmType.FALLBACK_ROUTING) {
+      if (!mailbox) {
+        throw new Error(
+          'Mailbox address is required for deploying fallback routing ISM',
+        );
+      }
+      debug('Deploying fallback routing ISM ...');
+      routingIsm = await this.multiProvider.handleDeploy(
+        chain,
+        new DefaultFallbackRoutingIsm__factory(),
+        [mailbox],
       );
-    const moduleAddress = dispatchLogs[0].args['module'];
-    const routingIsm = DomainRoutingIsm__factory.connect(
-      moduleAddress,
-      this.multiProvider.getSigner(chain),
-    );
-    this.logger(`Transferring ownership of routing ISM to ${config.owner}`);
-    await this.multiProvider.handleTx(
-      chain,
-      await routingIsm.transferOwnership(config.owner, overrides),
-    );
-    const address = dispatchLogs[0].args['module'];
-    return IRoutingIsm__factory.connect(address, signer);
+      debug('Initialising fallback routing ISM ...');
+      receipt = await this.multiProvider.handleTx(
+        chain,
+        routingIsm['initialize(address,uint32[],address[])'](
+          config.owner,
+          domains,
+          submoduleAddresses,
+          overrides,
+        ),
+      );
+    } else {
+      const tx = await routingIsmFactory.deploy(
+        config.owner,
+        domains,
+        submoduleAddresses,
+        overrides,
+      );
+      receipt = await this.multiProvider.handleTx(chain, tx);
+
+      // TODO: Break this out into a generalized function
+      const dispatchLogs = receipt.logs
+        .map((log) => {
+          try {
+            return routingIsmFactory.interface.parseLog(log);
+          } catch (e) {
+            return undefined;
+          }
+        })
+        .filter(
+          (log): log is ethers.utils.LogDescription =>
+            !!log && log.name === 'ModuleDeployed',
+        );
+      const moduleAddress = dispatchLogs[0].args['module'];
+      routingIsm = DomainRoutingIsm__factory.connect(
+        moduleAddress,
+        this.multiProvider.getSigner(chain),
+      );
+    }
+
+    return routingIsm;
   }
 
-  private async deployAggregationIsm(
-    chain: ChainName,
-    config: AggregationIsmConfig,
-    origin?: ChainName,
-  ) {
+  protected async deployAggregationIsm(params: {
+    chain: ChainName;
+    config: AggregationIsmConfig;
+    origin?: ChainName;
+    mailbox?: Address;
+  }): Promise<IAggregationIsm> {
+    const { chain, config, origin, mailbox } = params;
     const signer = this.multiProvider.getSigner(chain);
     const aggregationIsmFactory =
       this.getContracts(chain).aggregationIsmFactory;
     const addresses: Address[] = [];
     for (const module of config.modules) {
-      const submodule = await this.deploy(chain, module, origin);
+      const submodule = await this.deploy({
+        chain,
+        config: module,
+        origin,
+        mailbox,
+      });
       addresses.push(submodule.address);
     }
     const address = await this.deployStaticAddressSet(
@@ -229,7 +288,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     return IAggregationIsm__factory.connect(address, signer);
   }
 
-  private async deployOpStackIsm(chain: ChainName, config: OpStackIsmConfig) {
+  protected async deployOpStackIsm(
+    chain: ChainName,
+    config: OpStackIsmConfig,
+  ): Promise<OPStackIsm> {
     return await this.multiProvider.handleDeploy(
       chain,
       new OPStackIsm__factory(),
@@ -405,7 +467,7 @@ export async function routingModuleDelta(
   contracts: HyperlaneContracts<ProxyFactoryFactories>,
 ): Promise<RoutingIsmDelta> {
   const provider = multiProvider.getProvider(chain);
-  const routingIsm = IRoutingIsm__factory.connect(moduleAddress, provider);
+  const routingIsm = DomainRoutingIsm__factory.connect(moduleAddress, provider);
   const owner = await routingIsm.owner();
   const domains = await routingIsm.domains();
   // const domainIds = domains.map((d) => multiProvider.getDomainName(d));
@@ -423,7 +485,8 @@ export async function routingModuleDelta(
     }
   }
   for (const [origin, subConfig] of Object.entries(config.domains)) {
-    if (!domains.includes(origin)) {
+    const configDomainId = multiProvider.getDomainId(origin);
+    if (!domains.includes(BigNumber.from(configDomainId))) {
       delta.domainsToEnroll.push(origin);
     } else {
       const subModule = await routingIsm.module(
