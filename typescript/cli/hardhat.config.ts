@@ -15,9 +15,4 @@ module.exports = {
   gasReporter: {
     currency: 'USD',
   },
-  typechain: {
-    outDir: './src/types',
-    target: 'ethers-v5',
-    alwaysGenerateOverloads: true,
-  },
 };

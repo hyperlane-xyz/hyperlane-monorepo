@@ -4,8 +4,7 @@
     "module": "Node16",
     "moduleResolution": "Node16",
     "outDir": "./dist/",
-    "rootDir": ".",
-    "allowJs": true
+    "rootDir": "."
   },
   "include": [
     "./cli.ts",
@@ -13,6 +12,6 @@
     "./src/**/*.ts",
     "./src/*.d.ts",
     "./examples/**/*.ts"
-  ],
-  "files": ["./hardhat.config.cjs"]
+  ]
+  // "files": ["hardhat.config.mjs"]
 }
