@@ -28,8 +28,8 @@ pub const WALLET_BALANCE_HELP: &str =
 /// Agent-specific metrics
 #[derive(Clone, Builder)]
 pub struct Metrics {
-    /// Current balance of eth and other tokens in the `tokens` map for the
-    /// wallet addresses in the `wallets` set.
+    /// Current balance of native tokens for the
+    /// wallet address.
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the
     ///   chain the tx occurred on.
     /// - `wallet_address`: Address of the wallet holding the funds.

@@ -238,7 +238,7 @@ impl BaseAgent for Relayer {
             }
         }
 
-        let relayer = Self {
+        Ok(Self {
             dbs,
             origin_chains: settings.origin_chains,
             destination_chains,
@@ -255,9 +255,7 @@ impl BaseAgent for Relayer {
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
             core_metrics,
             agent_metrics,
-        };
-
-        Ok(relayer)
+        })
     }
 
     #[allow(clippy::async_yields_async)]

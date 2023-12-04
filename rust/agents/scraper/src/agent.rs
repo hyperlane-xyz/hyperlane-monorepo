@@ -82,10 +82,6 @@ impl BaseAgent for Scraper {
         })
     }
 
-    /// Run the scraper
-    ///
-    /// * `metrics_fetchers` - A list of metrics fetchers to run. Currently this
-    /// only comprise
     #[allow(clippy::async_yields_async)]
     async fn run(self) -> Instrumented<JoinHandle<eyre::Result<()>>> {
         let mut tasks = Vec::with_capacity(self.scrapers.len());

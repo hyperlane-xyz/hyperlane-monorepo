@@ -93,7 +93,7 @@ impl BaseAgent for Validator {
             .await?
             .into();
 
-        let validator = Self {
+        Ok(Self {
             origin_chain: settings.origin_chain,
             core,
             db: msg_db,
@@ -106,9 +106,7 @@ impl BaseAgent for Validator {
             reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
-        };
-
-        Ok(validator)
+        })
     }
 
     #[allow(clippy::async_yields_async)]
