@@ -391,6 +391,60 @@ export async function moduleCanCertainlyVerify(
   }
 }
 
+type RoutingIsmDelta = {
+  domainsToUnenroll: ChainName[];
+  domainsToEnroll: ChainName[];
+  owner?: Address;
+};
+
+export async function routingModuleDelta(
+  chain: ChainName,
+  moduleAddress: Address,
+  config: RoutingIsmConfig,
+  multiProvider: MultiProvider,
+  contracts: HyperlaneContracts<ProxyFactoryFactories>,
+): Promise<RoutingIsmDelta> {
+  const provider = multiProvider.getProvider(chain);
+  const routingIsm = IRoutingIsm__factory.connect(moduleAddress, provider);
+  const owner = await routingIsm.owner();
+  const domains = await routingIsm.domains();
+  // const domainIds = domains.map((d) => multiProvider.getDomainName(d));
+
+  const delta: RoutingIsmDelta = {
+    domainsToUnenroll: [],
+    domainsToEnroll: [],
+  };
+  if (owner !== config.owner) {
+    delta.owner = owner;
+  }
+  for (const existing of Object.keys(domains)) {
+    if (!Object.keys(config.domains).includes(existing)) {
+      delta.domainsToUnenroll.push(existing);
+    }
+  }
+  for (const [origin, subConfig] of Object.entries(config.domains)) {
+    if (!domains.includes(origin)) {
+      delta.domainsToEnroll.push(origin);
+    } else {
+      const subModule = await routingIsm.module(
+        multiProvider.getDomainId(origin),
+      );
+      const subModuleMatches = await moduleMatchesConfig(
+        chain,
+        subModule,
+        subConfig,
+        multiProvider,
+        contracts,
+        origin,
+      );
+      if (!subModuleMatches) {
+        delta.domainsToEnroll.push(origin);
+      }
+    }
+  }
+  return delta;
+}
+
 export async function moduleMatchesConfig(
   chain: ChainName,
   moduleAddress: Address,
