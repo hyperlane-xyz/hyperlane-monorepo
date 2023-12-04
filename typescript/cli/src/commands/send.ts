@@ -91,7 +91,6 @@ const transferCommand: CommandModule = {
       router: {
         type: 'string',
         description: 'The address of the token router contract',
-        demandOption: true,
       },
       type: {
         type: 'string',
