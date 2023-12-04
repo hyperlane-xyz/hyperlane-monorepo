@@ -48,5 +48,5 @@ describe('readFallbackRoutingIsmConfig', () => {
     expect(actualIsm).to.equal(
       (artifacts.anvil1.anvil2 as any).messageIdMultisigIsm,
     );
-  }).timeout(250000);
+  }).timeout(25000);
 });
