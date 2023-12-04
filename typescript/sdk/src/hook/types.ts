@@ -1,5 +1,3 @@
-import { BigNumber } from 'ethers';
-
 import { Address } from '@hyperlane-xyz/utils';
 
 import { IgpConfig } from '../gas/types';
@@ -30,8 +28,8 @@ export type IgpHookConfig = IgpConfig & {
 
 export type ProtocolFeeHookConfig = {
   type: HookType.PROTOCOL_FEE;
-  maxProtocolFee: BigNumber;
-  protocolFee: BigNumber;
+  maxProtocolFee: string;
+  protocolFee: string;
   beneficiary: Address;
   owner: Address;
 };
@@ -64,3 +62,8 @@ export type HookConfig =
   | OpStackHookConfig
   | DomainRoutingHookConfig
   | FallbackRoutingHookConfig;
+
+export type HooksConfig = {
+  required: HookConfig;
+  default: HookConfig;
+};

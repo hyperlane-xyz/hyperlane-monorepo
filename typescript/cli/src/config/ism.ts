@@ -112,7 +112,7 @@ export async function createIsmConfigMap({
   const result: ZodIsmConfigMap = {};
   for (const chain of chains) {
     log(`Setting values for chain ${chain}`);
-    result[chain] = await createIsmConfig(chain, chainConfigPath);
+    result[chain] = await createIsmConfig(chain, chains);
 
     // TODO consider re-enabling. Disabling based on feedback from @nambrot for now.
     // repeat = await confirm({
@@ -132,8 +132,8 @@ export async function createIsmConfigMap({
 }
 
 export async function createIsmConfig(
-  chain: ChainName,
-  chainConfigPath: string,
+  remote: ChainName,
+  origins: ChainName[],
 ): Promise<ZodIsmConfig> {
   let lastConfig: ZodIsmConfig;
   const moduleType = await select({
@@ -177,9 +177,9 @@ export async function createIsmConfig(
   ) {
     lastConfig = await createMultisigConfig(moduleType);
   } else if (moduleType === IsmType.ROUTING) {
-    lastConfig = await createRoutingConfig(chain, chainConfigPath);
+    lastConfig = await createRoutingConfig(remote, origins);
   } else if (moduleType === IsmType.AGGREGATION) {
-    lastConfig = await createAggregationConfig(chain, chainConfigPath);
+    lastConfig = await createAggregationConfig(remote, origins);
   } else if (moduleType === IsmType.TEST_ISM) {
     lastConfig = { type: IsmType.TEST_ISM };
   } else {
@@ -208,8 +208,8 @@ export async function createMultisigConfig(
 }
 
 export async function createAggregationConfig(
-  chain: ChainName,
-  chainConfigPath: string,
+  remote: ChainName,
+  chains: ChainName[],
 ): Promise<ZodIsmConfig> {
   const isms = parseInt(
     await input({
@@ -227,7 +227,7 @@ export async function createAggregationConfig(
 
   const modules: Array<ZodIsmConfig> = [];
   for (let i = 0; i < isms; i++) {
-    modules.push(await createIsmConfig(chain, chainConfigPath));
+    modules.push(await createIsmConfig(remote, chains));
   }
   return {
     type: IsmType.AGGREGATION,
@@ -237,27 +237,21 @@ export async function createAggregationConfig(
 }
 
 export async function createRoutingConfig(
-  chain: ChainName,
-  chainConfigPath: string,
+  remote: ChainName,
+  chains: ChainName[],
 ): Promise<ZodIsmConfig> {
   const owner = await input({
     message: 'Enter owner address',
   });
   const ownerAddress = owner;
-  const customChains = readChainConfigsIfExists(chainConfigPath);
-  delete customChains[chain];
-  const chains = await runMultiChainSelectionStep(
-    customChains,
-    `Select origin chains to be verified on ${chain}`,
-    [chain],
-  );
+  const origins = chains.filter((chain) => chain !== remote);
 
   const domainsMap: ChainMap<ZodIsmConfig> = {};
-  for (const chain of chains) {
+  for (const chain of origins) {
     await confirm({
       message: `You are about to configure ISM from source chain ${chain}. Continue?`,
     });
-    const config = await createIsmConfig(chain, chainConfigPath);
+    const config = await createIsmConfig(chain, chains);
     domainsMap[chain] = config;
   }
   return {
