@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use hyperlane_core::{
-    metrics::agent::AgentMetricsFetcher, BlockInfo, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneDomain, HyperlaneProvider, TxnInfo, H256, U256,
+    BlockInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider,
+    TxnInfo, H256, U256,
 };
 use tendermint_rpc::{client::CompatMode, HttpClient};
 
@@ -51,8 +51,8 @@ impl CosmosProvider {
     }
 
     /// Get a grpc client
-    pub fn grpc(&self) -> WasmGrpcProvider {
-        self.grpc_client.clone()
+    pub fn grpc(&self) -> &WasmGrpcProvider {
+        &self.grpc_client
     }
 
     /// Get an rpc client
@@ -72,17 +72,6 @@ impl HyperlaneChain for CosmosProvider {
 }
 
 #[async_trait]
-impl AgentMetricsFetcher for CosmosProvider {
-    async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        Ok(self
-            .grpc_client
-            .get_balance(address, self.canonical_asset.clone())
-            .await?
-            .into())
-    }
-}
-
-#[async_trait]
 impl HyperlaneProvider for CosmosProvider {
     async fn get_block_by_hash(&self, _hash: &H256) -> ChainResult<BlockInfo> {
         todo!() // FIXME
@@ -95,5 +84,13 @@ impl HyperlaneProvider for CosmosProvider {
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
         // FIXME
         Ok(true)
+    }
+
+    async fn get_balance(&self, address: String) -> ChainResult<U256> {
+        Ok(self
+            .grpc_client
+            .get_balance(address, self.canonical_asset.clone())
+            .await?
+            .into())
     }
 }

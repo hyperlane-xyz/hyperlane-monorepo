@@ -9,7 +9,7 @@ use derive_more::AsRef;
 use eyre::Result;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
-    metrics::{AgentMetrics, Metrics},
+    metrics::{AgentMetrics, AgentMetricsUpdater},
     run_all,
     settings::ChainConf,
     BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, SequencedDataContractSync,
@@ -72,7 +72,7 @@ pub struct Relayer {
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
     core_metrics: Arc<CoreMetrics>,
-    agent_metrics: Metrics,
+    agent_metrics: AgentMetrics,
 }
 
 impl Debug for Relayer {
@@ -101,7 +101,7 @@ impl BaseAgent for Relayer {
     async fn from_settings(
         settings: Self::Settings,
         core_metrics: Arc<CoreMetrics>,
-        agent_metrics: Metrics,
+        agent_metrics: AgentMetrics,
     ) -> Result<Self>
     where
         Self: Sized,
@@ -275,11 +275,8 @@ impl BaseAgent for Relayer {
                 .agent_metrics_conf(Self::AGENT_NAME.to_string())
                 .await
                 .unwrap();
-            let agent_metrics_fetcher = dest_conf
-                .build_agent_metrics_fetcher(&self.core_metrics)
-                .await
-                .unwrap();
-            let agent_metrics = AgentMetrics::new(
+            let agent_metrics_fetcher = dest_conf.build_provider(&self.core_metrics).await.unwrap();
+            let agent_metrics = AgentMetricsUpdater::new(
                 self.agent_metrics.clone(),
                 agent_metrics_conf,
                 agent_metrics_fetcher,
@@ -291,7 +288,7 @@ impl BaseAgent for Relayer {
                     .await;
                 Ok(())
             })
-            .instrument(info_span!("AgentMetricsFetcher"));
+            .instrument(info_span!("AgentMetrics"));
             tasks.push(fetcher_task);
         }
 

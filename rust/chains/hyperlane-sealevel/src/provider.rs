@@ -1,8 +1,7 @@
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    metrics::agent::AgentMetricsFetcher, BlockInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
-    HyperlaneProvider, TxnInfo, H256, U256,
+    BlockInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo, H256, U256,
 };
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
@@ -31,13 +30,6 @@ impl HyperlaneChain for SealevelProvider {
 }
 
 #[async_trait]
-impl AgentMetricsFetcher for SealevelProvider {
-    async fn get_balance(&self, _address: String) -> ChainResult<U256> {
-        todo!() // FIXME
-    }
-}
-
-#[async_trait]
 impl HyperlaneProvider for SealevelProvider {
     async fn get_block_by_hash(&self, _hash: &H256) -> ChainResult<BlockInfo> {
         todo!() // FIXME
@@ -50,5 +42,9 @@ impl HyperlaneProvider for SealevelProvider {
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
         // FIXME
         Ok(true)
+    }
+
+    async fn get_balance(&self, _address: String) -> ChainResult<U256> {
+        todo!() // FIXME
     }
 }

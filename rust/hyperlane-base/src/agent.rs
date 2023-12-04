@@ -8,7 +8,7 @@ use tokio::task::JoinHandle;
 use tracing::{debug_span, instrument::Instrumented, Instrument};
 
 use crate::{
-    metrics::{create_agent_metrics, CoreMetrics, Metrics as AgentMetrics},
+    metrics::{create_agent_metrics, AgentMetrics, CoreMetrics},
     settings::Settings,
 };
 

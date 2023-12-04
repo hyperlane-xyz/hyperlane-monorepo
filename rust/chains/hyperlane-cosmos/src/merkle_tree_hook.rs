@@ -83,7 +83,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             tree: general::EmptyStruct {},
         };
 
-        let block_height = get_block_height_for_lag(&self.provider.grpc(), lag).await?;
+        let block_height = get_block_height_for_lag(self.provider.grpc(), lag).await?;
 
         let data = self
             .provider
@@ -117,7 +117,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             count: general::EmptyStruct {},
         };
 
-        let block_height = get_block_height_for_lag(&self.provider.grpc(), lag).await?;
+        let block_height = get_block_height_for_lag(self.provider.grpc(), lag).await?;
 
         self.count_at_block(block_height).await
     }
@@ -128,7 +128,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             check_point: general::EmptyStruct {},
         };
 
-        let block_height = get_block_height_for_lag(&self.provider.grpc(), lag).await?;
+        let block_height = get_block_height_for_lag(self.provider.grpc(), lag).await?;
 
         let data = self
             .provider

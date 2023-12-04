@@ -96,7 +96,7 @@ impl Debug for CosmosMailbox {
 impl Mailbox for CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let block_height = get_block_height_for_lag(&self.provider.grpc(), lag).await?;
+        let block_height = get_block_height_for_lag(self.provider.grpc(), lag).await?;
         self.nonce_at_block(block_height).await
     }
 

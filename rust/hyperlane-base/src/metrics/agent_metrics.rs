@@ -4,7 +4,8 @@ use derive_builder::Builder;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_core::metrics::agent::u256_as_scaled_f64;
-use hyperlane_core::{metrics::agent::AgentMetricsFetcher, HyperlaneDomain};
+use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::HyperlaneProvider;
 use maplit::hashmap;
 use prometheus::GaugeVec;
 use tokio::time::MissedTickBehavior;
@@ -27,7 +28,7 @@ pub const WALLET_BALANCE_HELP: &str =
 
 /// Agent-specific metrics
 #[derive(Clone, Builder)]
-pub struct Metrics {
+pub struct AgentMetrics {
     /// Current balance of native tokens for the
     /// wallet address.
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the
@@ -41,8 +42,8 @@ pub struct Metrics {
     wallet_balance: Option<GaugeVec>,
 }
 
-pub(crate) fn create_agent_metrics(metrics: &CoreMetrics) -> Result<Metrics> {
-    Ok(MetricsBuilder::default()
+pub(crate) fn create_agent_metrics(metrics: &CoreMetrics) -> Result<AgentMetrics> {
+    Ok(AgentMetricsBuilder::default()
         .wallet_balance(metrics.new_gauge(
             "wallet_balance",
             WALLET_BALANCE_HELP,
@@ -67,15 +68,15 @@ pub struct AgentMetricsConf {
     pub name: String,
 }
 
-/// Utility struct to update agent metrics
+/// Utility struct to update agent metrics for a given chain
 #[derive(new)]
-pub struct AgentMetrics {
-    metrics: Metrics,
+pub struct AgentMetricsUpdater {
+    metrics: AgentMetrics,
     conf: AgentMetricsConf,
-    fetcher: Box<dyn AgentMetricsFetcher>,
+    provider: Box<dyn HyperlaneProvider>,
 }
 
-impl AgentMetrics {
+impl AgentMetricsUpdater {
     async fn update_wallet_balances(&self) {
         let Some(wallet_addr) = self.conf.address.clone() else {
             return;
@@ -86,7 +87,7 @@ impl AgentMetrics {
         };
         let chain = self.conf.domain.name();
 
-        match self.fetcher.get_balance(wallet_addr.clone()).await {
+        match self.provider.get_balance(wallet_addr.clone()).await {
             Ok(balance) => {
                 // Okay, so the native type is not a token, but whatever, close enough.
                 // Note: This is ETH for many chains, but not all so that is why we use `N` and `Native`

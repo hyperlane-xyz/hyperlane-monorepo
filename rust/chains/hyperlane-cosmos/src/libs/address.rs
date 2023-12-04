@@ -132,6 +132,11 @@ pub mod test {
             addr.address(),
             "neutron1kknekjxg0ear00dky5ykzs8wwp2gz62z9s6aaj"
         );
+        // TODO: watch out for this edge case. This check will fail unless
+        // the first 12 bytes are removed from the digest.
+        // let digest = addr.digest();
+        // let addr2 = CosmosAddress::from_h256(digest, prefix).expect("Cosmos address creation failed");
+        // assert_eq!(addr.address(), addr2.address());
     }
 
     #[test]

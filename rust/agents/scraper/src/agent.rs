@@ -3,8 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use derive_more::AsRef;
 use hyperlane_base::{
-    metrics::Metrics as AgentMetrics, run_all, settings::IndexSettings, BaseAgent,
-    ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    metrics::AgentMetrics, run_all, settings::IndexSettings, BaseAgent, ContractSyncMetrics,
+    CoreMetrics, HyperlaneAgentCore,
 };
 use hyperlane_core::HyperlaneDomain;
 use tokio::task::JoinHandle;

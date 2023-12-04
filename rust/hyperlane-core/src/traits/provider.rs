@@ -4,9 +4,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use thiserror::Error;
 
-use crate::{
-    metrics::agent::AgentMetricsFetcher, BlockInfo, ChainResult, HyperlaneChain, TxnInfo, H256,
-};
+use crate::{BlockInfo, ChainResult, HyperlaneChain, TxnInfo, H256, U256};
 
 /// Interface for a provider. Allows abstraction over different provider types
 /// for different chains.
@@ -17,7 +15,7 @@ use crate::{
 /// the context of a contract.
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
-pub trait HyperlaneProvider: HyperlaneChain + AgentMetricsFetcher + Send + Sync + Debug {
+pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
     /// Get block info for a given block hash
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo>;
 
@@ -26,6 +24,9 @@ pub trait HyperlaneProvider: HyperlaneChain + AgentMetricsFetcher + Send + Sync 
 
     /// Returns whether a contract exists at the provided address
     async fn is_contract(&self, address: &H256) -> ChainResult<bool>;
+
+    /// Fetch the balance of the wallet address associated with the chain provider.
+    async fn get_balance(&self, address: String) -> ChainResult<U256>;
 }
 
 /// Errors when querying for provider information.

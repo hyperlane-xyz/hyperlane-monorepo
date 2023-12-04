@@ -132,9 +132,8 @@ pub fn termination_invariants_met(
     }
 
     let ending_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
+    // Make sure the balance was correctly updated in the metrics.
     if starting_relayer_balance <= ending_relayer_balance {
-        // worth retrying this because metrics are polled every
-        // `METRICS_SCRAPE_INTERVAL`
         log!(
             "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
             starting_relayer_balance,

@@ -6,9 +6,9 @@ use eyre::{eyre, Context, Result};
 
 use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
-    metrics::agent::AgentMetricsFetcher, AggregationIsm, CcipReadIsm, ContractLocator,
-    HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
-    IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
+    AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
+    HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
+    InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceIndexer,
     ValidatorAnnounce, H256,
 };
@@ -119,7 +119,16 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => todo!(),
-            ChainConnectionConf::Cosmos(_) => todo!(),
+            ChainConnectionConf::Cosmos(conf) => {
+                let locator = self.locator(H256::zero());
+                let provider = CosmosProvider::new(
+                    locator.domain.clone(),
+                    conf.clone(),
+                    Some(locator.clone()),
+                    None,
+                )?;
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
         }
         .context(ctx)
     }
@@ -594,39 +603,6 @@ impl ChainConf {
             }
         }
         .context(ctx)
-    }
-
-    /// Try to convert the chain setting into a trait object for fetching agent metrics
-    pub async fn build_agent_metrics_fetcher(
-        &self,
-        metrics: &CoreMetrics,
-    ) -> Result<Box<dyn AgentMetricsFetcher>> {
-        match &self.connection {
-            ChainConnectionConf::Ethereum(conf) => {
-                let locator = self.locator(H256::zero());
-                let provider = self
-                    .build_ethereum(
-                        conf,
-                        &locator,
-                        metrics,
-                        h_eth::AgentMetricsFetcherBuilder {},
-                    )
-                    .await?;
-                Ok(provider)
-            }
-            ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => todo!(),
-            ChainConnectionConf::Cosmos(conf) => {
-                let locator = self.locator(H256::zero());
-                let provider = CosmosProvider::new(
-                    locator.domain.clone(),
-                    conf.clone(),
-                    Some(locator.clone()),
-                    None,
-                )?;
-                Ok(Box::new(provider) as Box<dyn AgentMetricsFetcher>)
-            }
-        }
     }
 
     async fn signer<S: BuildableWithSignerConf>(&self) -> Result<Option<S>> {

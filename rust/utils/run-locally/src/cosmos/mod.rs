@@ -590,13 +590,13 @@ fn termination_invariants_met(
     }
 
     let ending_relayer_balance: f64 = agent_balance_sum(relayer_metrics_port).unwrap();
+
+    // Make sure the balance was correctly updated in the metrics.
     // Ideally, make sure that the difference is >= gas_per_tx * gas_cost, set here:
     // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/c2288eb31734ba1f2f997e2c6ecb30176427bc2c/rust/utils/run-locally/src/cosmos/cli.rs#L55
     // What's stopping this is that the format returned by the `uosmo` balance query is a surprisingly low number (0.000003999999995184)
     // but then maybe the gas_per_tx is just very low - how can we check that? (maybe by simulating said tx)
     if starting_relayer_balance <= ending_relayer_balance {
-        // worth retrying this because metrics are polled every
-        // `METRICS_SCRAPE_INTERVAL`
         log!(
             "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
             starting_relayer_balance,
