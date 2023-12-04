@@ -7,7 +7,7 @@ import {
   CoreConfig,
   DeployedIsm,
   GasOracleContractType,
-  HookType,
+  HooksConfig,
   HyperlaneAddressesMap,
   HyperlaneContractsMap,
   HyperlaneCore,
@@ -31,7 +31,7 @@ import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
 import { runDeploymentArtifactStep } from '../config/artifacts.js';
-import { readHookConfig } from '../config/hooks.js';
+import { presetHookConfigs, readHooksConfigMap } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
@@ -95,8 +95,7 @@ export async function runCoreDeploy({
   const multisigConfigs = isIsmConfig
     ? defaultMultisigConfigs
     : (result as ChainMap<MultisigConfig>);
-  // TODO re-enable when hook config is actually used
-  await runHookStep(chains, hookConfigPath);
+  const hooksConfig = await runHookStep(chains, hookConfigPath);
 
   const deploymentParams: DeployParams = {
     chains,
@@ -105,6 +104,7 @@ export async function runCoreDeploy({
     artifacts,
     ismConfigs,
     multisigConfigs,
+    hooksConfig,
     outPath,
     skipConfirmation,
   };
@@ -194,24 +194,8 @@ async function runHookStep(
   _selectedChains: ChainName[],
   hookConfigPath?: string,
 ) {
-  if ('TODO: Skip this step for now as values are unused') return;
-
-  // const presetConfigChains = Object.keys(presetHookConfigs);
-
-  if (!hookConfigPath) {
-    logBlue(
-      '\n',
-      'Hyperlane instances can take an Interchain Security Module (ISM).',
-    );
-    hookConfigPath = await runFileSelectionStep(
-      './configs/',
-      'Hook config',
-      'hook',
-    );
-  }
-  const configs = readHookConfig(hookConfigPath);
-  if (!configs) return;
-  log(`Found hook configs for chains: ${Object.keys(configs).join(', ')}`);
+  if (!hookConfigPath) return {};
+  return readHooksConfigMap(hookConfigPath);
 }
 
 export interface DeployParams {
@@ -221,6 +205,7 @@ export interface DeployParams {
   artifacts?: HyperlaneAddressesMap<any>;
   ismConfigs?: ChainMap<IsmConfig>;
   multisigConfigs?: ChainMap<MultisigConfig>;
+  hooksConfig?: ChainMap<HooksConfig>;
   outPath: string;
   skipConfirmation: boolean;
 }
@@ -258,6 +243,7 @@ export async function executeDeploy({
   artifacts = {},
   ismConfigs = {},
   multisigConfigs = {},
+  hooksConfig = {},
 }: DeployParams) {
   logBlue('All systems ready, captain! Beginning deployment...');
 
@@ -311,7 +297,8 @@ export async function executeDeploy({
     owner,
     chains,
     defaultIsms,
-    multisigConfigs ?? defaultMultisigConfigs, // TODO: fix https://github.com/hyperlane-xyz/issues/issues/773
+    hooksConfig,
+    multisigConfigs,
   );
   const coreContracts = await coreDeployer.deploy(coreConfigs);
 
@@ -375,32 +362,23 @@ function buildCoreConfigMap(
   owner: Address,
   chains: ChainName[],
   defaultIsms: ChainMap<IsmConfig>,
-  multisigConfig: ChainMap<MultisigConfig>,
+  hooksConfig: ChainMap<HooksConfig>,
+  multisigConfigs: ChainMap<MultisigConfig>,
 ): ChainMap<CoreConfig> {
   return chains.reduce<ChainMap<CoreConfig>>((config, chain) => {
-    const igpConfig = buildIgpConfigMap(owner, chains, multisigConfig);
+    const hooks =
+      hooksConfig[chain] ??
+      presetHookConfigs(
+        owner,
+        chain,
+        chains.filter((c) => c !== chain),
+        multisigConfigs[chain], // if no multisig config, uses default 2/3
+      );
     config[chain] = {
       owner,
       defaultIsm: defaultIsms[chain],
-      defaultHook: {
-        type: HookType.AGGREGATION,
-        hooks: [
-          {
-            type: HookType.MERKLE_TREE,
-          },
-          {
-            type: HookType.INTERCHAIN_GAS_PAYMASTER,
-            ...igpConfig[chain],
-          },
-        ],
-      },
-      requiredHook: {
-        type: HookType.PROTOCOL_FEE,
-        maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'), // 1 gwei of native token
-        protocolFee: ethers.utils.parseUnits('0', 'wei'), // 1 wei
-        beneficiary: owner,
-        owner,
-      },
+      defaultHook: hooks.default,
+      requiredHook: hooks.required,
     };
     return config;
   }, {});
@@ -422,7 +400,7 @@ export function buildTestRecipientConfigMap(
   }, {});
 }
 
-function buildIgpConfigMap(
+export function buildIgpConfigMap(
   owner: Address,
   chains: ChainName[],
   multisigConfigs: ChainMap<MultisigConfig>,

@@ -189,7 +189,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     const { chain, config, mailbox } = params;
     const routingIsmFactory = this.getContracts(chain).routingIsmFactory;
     const isms: ChainMap<Address> = {};
-    for (const origin in config.domains) {
+    for (const origin of Object.keys(config.domains)) {
       const ism = await this.deploy({
         chain,
         config: config.domains[origin],

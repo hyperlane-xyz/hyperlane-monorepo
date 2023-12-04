@@ -44,6 +44,8 @@ describe('readFallbackRoutingIsmConfig', () => {
     );
 
     const actualIsm = await ism.module(multiProvider.getChainId('anvil2'));
-    expect(actualIsm).to.equal(artifacts.anvil2.messageIdMultisigIsm);
+    expect(actualIsm).to.equal(
+      (artifacts.anvil1.anvil2 as any).messageIdMultisigIsm,
+    );
   }).timeout(250000);
 });
