@@ -65,14 +65,17 @@ export const ethereumChainNames = Object.keys(
   ethereumMainnetConfigs,
 ) as MainnetChains[];
 
+// Remove mantapacific, as it's not considered a "blessed"
+// chain. It's not included in the scraper domains table,
+// and we don't relay to mantapacific on the Hyperlane or RC contexts.
+const hyperlaneContextRelayChains = ethereumChainNames.filter(
+  (chainName) => chainName !== chainMetadata.mantapacific.name,
+);
+
 // Hyperlane & RC context agent chain names.
 export const agentChainNames: AgentChainNames = {
   // Run validators for all chains.
   [Role.Validator]: supportedChainNames,
-  // Only run relayers for Ethereum chains at the moment.
-  [Role.Relayer]: ethereumChainNames,
-  // Remove mantapacific for now, as it's not included in the scraper domains table
-  [Role.Scraper]: ethereumChainNames.filter(
-    (chainName) => chainName !== chainMetadata.mantapacific.name,
-  ),
+  [Role.Relayer]: hyperlaneContextRelayChains,
+  [Role.Scraper]: hyperlaneContextRelayChains,
 };
