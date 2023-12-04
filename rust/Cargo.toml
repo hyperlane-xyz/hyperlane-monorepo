@@ -148,28 +148,28 @@ which = "4.3"
 
 [workspace.dependencies.ethers]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2023-06-01"
 features = []
+tag = "2023-11-29-02"
 
 [workspace.dependencies.ethers-contract]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2023-06-01"
 features = ["legacy"]
+tag = "2023-11-29-02"
 
 [workspace.dependencies.ethers-core]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2023-06-01"
 features = []
+tag = "2023-11-29-02"
 
 [workspace.dependencies.ethers-providers]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2023-06-01"
 features = []
+tag = "2023-11-29-02"
 
 [workspace.dependencies.ethers-signers]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2023-06-01"
 features = ["aws"]
+tag = "2023-11-29-02"
 
 [patch.crates-io.curve25519-dalek]
 version = "3.2.2"
