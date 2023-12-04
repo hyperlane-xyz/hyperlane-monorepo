@@ -39,7 +39,7 @@ yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
     --chains ./examples/anvil-chains.yaml \
     --artifacts /tmp/empty-artifacts.json \
     --ism ./examples/ism.yaml \
-    --hook ./examples/hook-config.yaml \
+    --hook ./examples/hooks.yaml \
     --out /tmp \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
