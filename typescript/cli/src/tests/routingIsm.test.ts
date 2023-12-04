@@ -1,19 +1,15 @@
 import { expect } from 'chai';
+import { ethers } from 'hardhat';
 
 import { DomainRoutingIsm__factory } from '@hyperlane-xyz/core';
-import { IsmConfig, IsmType } from '@hyperlane-xyz/sdk';
+import { IsmConfig, IsmType, MultiProvider } from '@hyperlane-xyz/sdk';
 
-import { getContextWithSigner } from '../context.js';
 import { DeployParams, executeDeploy } from '../deploy/core.js';
 
 describe('readFallbackRoutingIsmConfig', () => {
+  let multiProvider: MultiProvider;
   let deployParams: DeployParams;
-  const key =
-    '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
-  const { multiProvider, signer } = getContextWithSigner(
-    key,
-    './examples/anvil-chains.yaml',
-  );
+  let artifacts: any;
   const ismConfig: IsmConfig = {
     type: IsmType.ROUTING,
     owner: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720',
@@ -26,7 +22,9 @@ describe('readFallbackRoutingIsmConfig', () => {
     },
   };
 
-  it('deploys and right module for the origin specified', async () => {
+  before(async () => {
+    const [signer] = await ethers.getSigners();
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
     deployParams = {
       chains: ['anvil1'],
       signer,
@@ -37,7 +35,10 @@ describe('readFallbackRoutingIsmConfig', () => {
       outPath: '/tmp',
       skipConfirmation: true,
     };
-    const artifacts = await executeDeploy(deployParams);
+    artifacts = await executeDeploy(deployParams);
+  });
+
+  it('deploys and right module for the origin specified', async () => {
     const ism = DomainRoutingIsm__factory.connect(
       artifacts.anvil1.interchainSecurityModule,
       multiProvider.getSigner('anvil1'),
