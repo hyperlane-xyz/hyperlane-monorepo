@@ -1,14 +1,13 @@
 use ethers::prelude::Selector;
+use h_cosmos::CosmosProvider;
 use std::collections::HashMap;
 
 use eyre::{eyre, Context, Result};
 
-use ethers_prometheus::middleware::{
-    ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
-};
+use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
     AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
-    HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, HyperlaneSigner, IndexMode,
+    HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
     InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceIndexer,
     ValidatorAnnounce, H256,
@@ -22,9 +21,12 @@ use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
 
 use crate::{
-    settings::signers::{BuildableWithSignerConf, ChainSigner, SignerConf},
+    metrics::AgentMetricsConf,
+    settings::signers::{BuildableWithSignerConf, SignerConf},
     CoreMetrics,
 };
+
+use super::ChainSigner;
 
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
 /// deployed) and details for connecting to the chain API.
@@ -117,7 +119,16 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => todo!(),
-            ChainConnectionConf::Cosmos(_) => todo!(),
+            ChainConnectionConf::Cosmos(conf) => {
+                let locator = self.locator(H256::zero());
+                let provider = CosmosProvider::new(
+                    locator.domain.clone(),
+                    conf.clone(),
+                    Some(locator.clone()),
+                    None,
+                )?;
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
         }
         .context(ctx)
     }
@@ -639,27 +650,25 @@ impl ChainConf {
         self.signer().await
     }
 
+    /// Try to build an agent metrics configuration from the chain config
+    pub async fn agent_metrics_conf(&self, agent_name: String) -> Result<AgentMetricsConf> {
+        let chain_signer_address = self.chain_signer().await?.map(|s| s.address_string());
+        Ok(AgentMetricsConf {
+            address: chain_signer_address,
+            domain: self.domain.clone(),
+            name: agent_name,
+        })
+    }
+
     /// Get a clone of the ethereum metrics conf with correctly configured
     /// contract information.
-    fn metrics_conf(
-        &self,
-        agent_name: &str,
-        signer: &Option<impl HyperlaneSigner>,
-    ) -> PrometheusMiddlewareConf {
+    pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
         let mut cfg = self.metrics_conf.clone();
 
         if cfg.chain.is_none() {
             cfg.chain = Some(ChainInfo {
                 name: Some(self.domain.name().into()),
             });
-        }
-
-        if let Some(signer) = signer {
-            cfg.wallets
-                .entry(signer.eth_address().into())
-                .or_insert_with(|| WalletInfo {
-                    name: Some(agent_name.into()),
-                });
         }
 
         let mut register_contract = |name: &str, address: H256, fns: HashMap<Vec<u8>, String>| {
@@ -718,7 +727,7 @@ impl ChainConf {
         B: BuildableWithProvider + Sync,
     {
         let signer = self.ethereum_signer().await?;
-        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
+        let metrics_conf = self.metrics_conf();
         let rpc_metrics = Some(metrics.json_rpc_client_metrics());
         let middleware_metrics = Some((metrics.provider_metrics(), metrics_conf));
         let res = builder

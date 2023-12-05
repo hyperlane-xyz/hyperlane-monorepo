@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    BlockInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo, H256,
+    BlockInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo, H256, U256,
 };
 
 /// A wrapper around a fuel provider to get generic blockchain information.
@@ -29,6 +29,10 @@ impl HyperlaneProvider for FuelProvider {
     }
 
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
+        todo!()
+    }
+
+    async fn get_balance(&self, address: String) -> ChainResult<U256> {
         todo!()
     }
 }

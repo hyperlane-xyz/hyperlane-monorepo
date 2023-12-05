@@ -26,7 +26,7 @@ export enum ModuleType {
 export enum IsmType {
   OP_STACK = 'opStackIsm',
   ROUTING = 'domainRoutingIsm',
-  FALLBACK_ROUTING = 'fallbackRoutingIsm',
+  FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
   AGGREGATION = 'staticAggregationIsm',
   MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
   MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm',

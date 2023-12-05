@@ -1,3 +1,4 @@
+import { input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import {
@@ -11,6 +12,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objFilter, objMap, objMerge } from '@hyperlane-xyz/utils';
 
+import { runDeploymentArtifactStep } from './config/artifacts.js';
 import { readChainConfigsIfExists } from './config/chain.js';
 import { keyToSigner } from './utils/keys.js';
 
@@ -43,17 +45,69 @@ export function getMergedContractAddresses(
   ) as HyperlaneContractsMap<any>;
 }
 
-export function getContext(chainConfigPath: string) {
-  const customChains = readChainConfigsIfExists(chainConfigPath);
-  const multiProvider = getMultiProvider(customChains);
-  return { customChains, multiProvider };
+interface ContextSettings {
+  chainConfigPath?: string;
+  coreConfig?: {
+    coreArtifactsPath?: string;
+    promptMessage?: string;
+  };
+  keyConfig?: {
+    key?: string;
+    promptMessage?: string;
+  };
 }
 
-export function getContextWithSigner(key: string, chainConfigPath: string) {
-  const signer = keyToSigner(key);
+interface CommandContextBase {
+  customChains: ChainMap<ChainMetadata>;
+  multiProvider: MultiProvider;
+}
+
+// This makes return type dynamic based on the input settings
+type CommandContext<P extends ContextSettings> = CommandContextBase &
+  (P extends { keyConfig: object }
+    ? { signer: ethers.Signer }
+    : { signer: undefined }) &
+  (P extends { coreConfig: object }
+    ? { coreArtifacts: HyperlaneContractsMap<any> }
+    : { coreArtifacts: undefined });
+
+export async function getContext<P extends ContextSettings>({
+  chainConfigPath,
+  coreConfig,
+  keyConfig,
+}: P): Promise<CommandContext<P>> {
   const customChains = readChainConfigsIfExists(chainConfigPath);
+
+  let signer = undefined;
+  if (keyConfig) {
+    const key =
+      keyConfig.key ||
+      (await input({
+        message:
+          keyConfig.promptMessage ||
+          'Please enter a private key or use the HYP_KEY environment variable',
+      }));
+    signer = keyToSigner(key);
+  }
+
+  let coreArtifacts = undefined;
+  if (coreConfig) {
+    coreArtifacts =
+      (await runDeploymentArtifactStep(
+        coreConfig.coreArtifactsPath,
+        coreConfig.promptMessage ||
+          'Do you want to use some core deployment address artifacts? This is required for PI chains (non-core chains).',
+      )) || {};
+  }
+
   const multiProvider = getMultiProvider(customChains, signer);
-  return { signer, customChains, multiProvider };
+
+  return {
+    customChains,
+    signer,
+    multiProvider,
+    coreArtifacts,
+  } as CommandContext<P>;
 }
 
 export function getMultiProvider(

@@ -220,7 +220,8 @@ export abstract class HyperlaneDeployer<
         this.multiProvider,
         ismFactory.getContracts(chain),
       );
-      targetIsm = (await ismFactory.deploy({ chain, config })).address;
+      targetIsm = (await ismFactory.deploy({ destination: chain, config }))
+        .address;
     }
     if (!matches) {
       await this.runIfOwner(chain, contract, async () => {

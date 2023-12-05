@@ -1,7 +1,7 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { z } from 'zod';
 
-import { ChainMap, ChainName, IsmType } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName, IsmType, ZHash } from '@hyperlane-xyz/sdk';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
@@ -15,13 +15,16 @@ const MultisigIsmConfigSchema = z.object({
     z.literal(IsmType.MESSAGE_ID_MULTISIG),
   ]),
   threshold: z.number(),
-  validators: z.array(z.string()),
+  validators: z.array(ZHash),
 });
 
 const RoutingIsmConfigSchema: z.ZodSchema<any> = z.lazy(() =>
   z.object({
-    type: z.literal(IsmType.ROUTING),
-    owner: z.string(),
+    type: z.union([
+      z.literal(IsmType.ROUTING),
+      z.literal(IsmType.FALLBACK_ROUTING),
+    ]),
+    owner: ZHash,
     domains: z.record(IsmConfigSchema),
   }),
 );
@@ -107,7 +110,11 @@ export async function createIsmConfigMap({
 }) {
   logBlue('Creating a new ISM config');
   const customChains = readChainConfigsIfExists(chainConfigPath);
-  const chains = await runMultiChainSelectionStep(customChains);
+  const chains = await runMultiChainSelectionStep(
+    customChains,
+    'Select chains to configure ISM for',
+    true,
+  );
 
   const result: ZodIsmConfigMap = {};
   for (const chain of chains) {
@@ -155,6 +162,12 @@ export async function createIsmConfig(
         name: IsmType.ROUTING,
         description:
           'Each origin chain can be verified by the specified ISM type via RoutingISM',
+      },
+      {
+        value: IsmType.FALLBACK_ROUTING,
+        name: IsmType.FALLBACK_ROUTING,
+        description:
+          "You can specify ISM type for specific chains you like and fallback to mailbox's default ISM for other chains via DefaultFallbackRoutingISM",
       },
       {
         value: IsmType.AGGREGATION,
@@ -259,7 +272,7 @@ export async function createRoutingConfig(
     domainsMap[chain] = config;
   }
   return {
-    type: IsmType.ROUTING,
+    type,
     owner: ownerAddress,
     domains: domainsMap,
   };
