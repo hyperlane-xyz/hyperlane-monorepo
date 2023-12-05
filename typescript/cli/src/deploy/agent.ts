@@ -33,6 +33,7 @@ export async function runKurtosisAgentDeploy({
     const selectedRelayChains = await runMultiChainSelectionStep(
       customChains,
       'Select chains to relay between',
+      true,
     );
     relayChains = selectedRelayChains.join(',');
   }

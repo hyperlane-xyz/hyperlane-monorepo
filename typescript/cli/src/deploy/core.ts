@@ -85,6 +85,7 @@ export async function runCoreDeploy({
     chains = await runMultiChainSelectionStep(
       customChains,
       'Select chains to connect',
+      true,
     );
   }
   const artifacts = await runArtifactStep(chains, artifactsPath);
