@@ -25,6 +25,10 @@ export interface KeyAsAddress {
   address: string;
 }
 
+// ==================
+// Keys for specific roles
+// ==================
+
 // Gets the relayer key used for signing txs to the provided chain.
 export function getRelayerKeyForChain(
   agentConfig: AgentContextConfig,
@@ -54,38 +58,6 @@ export function getKathyKeyForChain(
   }
 
   return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Kathy);
-}
-
-// TODO try to remove
-// If getting all keys for relayers or validators, it's recommended to use
-// `getAllRelayerCloudAgentKeys` or `getAllValidatorCloudAgentKeys` instead.
-export function getCloudAgentKey(
-  agentConfig: AgentContextConfig,
-  role: Role,
-  chainName?: ChainName,
-  index?: number,
-): CloudAgentKey {
-  // Non-evm Kathy is always GCP-based but does not index by chain
-  if (
-    role === Role.Kathy &&
-    chainName &&
-    isNotEthereumProtocolChain(chainName)
-  ) {
-    return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, role);
-  }
-  // Otherwise use an AWS key except for the deployer
-  else if (!!agentConfig.aws && role !== Role.Deployer && role !== Role.Kathy) {
-    return new AgentAwsKey(agentConfig, role, chainName, index);
-  } else {
-    // Fallback to GCP
-    return new AgentGCPKey(
-      agentConfig.runEnv,
-      agentConfig.context,
-      role,
-      chainName,
-      index,
-    );
-  }
 }
 
 // Returns the deployer key. This is always a GCP key, not chain specific,
@@ -134,117 +106,9 @@ export function getValidatorKeysForChain(
   };
 }
 
-export function getAllCloudAgentKeys(
-  agentConfig: RootAgentConfig,
-): Array<CloudAgentKey> {
-  const keysPerChain = getRoleKeyMapPerChain(agentConfig);
-
-  const keysByIdentifier = Object.keys(keysPerChain).reduce(
-    (acc, chainName) => {
-      const chainKeyRoles = keysPerChain[chainName];
-      // All keys regardless of role
-      const chainKeys = Object.keys(chainKeyRoles).reduce((acc, role) => {
-        const roleKeys = chainKeyRoles[role as Role];
-        return {
-          ...acc,
-          ...roleKeys,
-        };
-      }, {});
-
-      return {
-        ...acc,
-        ...chainKeys,
-      };
-    },
-    {},
-  );
-
-  return Object.values(keysByIdentifier);
-}
-
-export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
-  const keys = getAllCloudAgentKeys(agentConfig);
-  await Promise.all(keys.map((key) => key.delete()));
-  await execCmd(
-    `gcloud secrets delete ${addressesIdentifier(
-      agentConfig.runEnv,
-      agentConfig.context,
-    )} --quiet`,
-  );
-}
-
-export async function createAgentKeysIfNotExists(
-  agentConfig: AgentContextConfig,
-) {
-  const keys = getAllCloudAgentKeys(agentConfig);
-
-  await Promise.all(
-    keys.map(async (key) => {
-      return key.createIfNotExists();
-    }),
-  );
-
-  await persistAddresses(
-    agentConfig.runEnv,
-    agentConfig.context,
-    keys.map((key) => key.serializeAsAddress()),
-  );
-}
-
-export async function rotateKey(
-  agentConfig: AgentContextConfig,
-  role: Role,
-  chainName: ChainName,
-) {
-  const key = getCloudAgentKey(agentConfig, role, chainName);
-  await key.update();
-  const keyIdentifier = key.identifier;
-  const addresses = await fetchGCPKeyAddresses(
-    agentConfig.runEnv,
-    agentConfig.context,
-  );
-  const filteredAddresses = addresses.filter((_) => {
-    return _.identifier !== keyIdentifier;
-  });
-
-  filteredAddresses.push(key.serializeAsAddress());
-  await persistAddresses(
-    agentConfig.runEnv,
-    agentConfig.context,
-    filteredAddresses,
-  );
-}
-
-async function persistAddresses(
-  environment: DeployEnvironment,
-  context: Contexts,
-  keys: KeyAsAddress[],
-) {
-  await setGCPSecret(
-    addressesIdentifier(environment, context),
-    JSON.stringify(keys),
-    {
-      environment,
-      context,
-    },
-  );
-}
-
-// Returns a nested object of the shape:
-// {
-//   [chain]: {
-//     [role]: keys[],
-//   }
-// }
-export function getRoleKeysPerChain(
-  agentConfig: RootAgentConfig,
-): ChainMap<Record<Role, CloudAgentKey[]>> {
-  return objMap(getRoleKeyMapPerChain(agentConfig), (_chain, roleKeys) => {
-    return objMap(roleKeys, (_role, keys) => {
-      return Object.values(keys);
-    });
-  });
-}
+// ==================
+// Functions for getting keys
+// ==================
 
 // Returns a nested object of the shape:
 // {
@@ -347,28 +211,154 @@ export function getRoleKeyMapPerChain(
   return keysPerChain;
 }
 
-// This function returns all keys for a given mailbox chain in a dictionary where the key is the identifier
-export async function fetchKeysForChain(
+// Returns a nested object of the shape:
+// {
+//   [chain]: {
+//     [role]: keys[],
+//   }
+// }
+export function getRoleKeysPerChain(
   agentConfig: RootAgentConfig,
-  chainNames: ChainName | ChainName[],
-): Promise<Record<string, CloudAgentKey>> {
-  if (!Array.isArray(chainNames)) chainNames = [chainNames];
+): ChainMap<Record<Role, CloudAgentKey[]>> {
+  return objMap(getRoleKeyMapPerChain(agentConfig), (_chain, roleKeys) => {
+    return objMap(roleKeys, (_role, keys) => {
+      return Object.values(keys);
+    });
+  });
+}
 
-  // Get all keys for the chainNames. Include keys where chainNames is undefined,
-  // which are keys that are not chain-specific but should still be included
-  const keys = await Promise.all(
-    getAllCloudAgentKeys(agentConfig)
-      .filter(
-        (key) =>
-          key.chainName === undefined || chainNames.includes(key.chainName),
-      )
-      .map(async (key) => {
-        await key.fetch();
-        return [key.identifier, key];
-      }),
+// Gets a big array of all keys.
+export function getAllCloudAgentKeys(
+  agentConfig: RootAgentConfig,
+): Array<CloudAgentKey> {
+  const keysPerChain = getRoleKeyMapPerChain(agentConfig);
+
+  const keysByIdentifier = Object.keys(keysPerChain).reduce(
+    (acc, chainName) => {
+      const chainKeyRoles = keysPerChain[chainName];
+      // All keys regardless of role
+      const chainKeys = Object.keys(chainKeyRoles).reduce((acc, role) => {
+        const roleKeys = chainKeyRoles[role as Role];
+        return {
+          ...acc,
+          ...roleKeys,
+        };
+      }, {});
+
+      return {
+        ...acc,
+        ...chainKeys,
+      };
+    },
+    {},
   );
 
-  return Object.fromEntries(keys);
+  return Object.values(keysByIdentifier);
+}
+
+// Gets a specific key. The chain name or index is required depending on the role.
+// For this reason, using this function is only encouraged if the caller
+// knows they want a specific key relating to a specific role.
+export function getCloudAgentKey(
+  agentConfig: AgentContextConfig,
+  role: Role,
+  chainName?: ChainName,
+  index?: number,
+): CloudAgentKey {
+  switch (role) {
+    case Role.Validator:
+      if (chainName === undefined || index === undefined) {
+        throw Error(`Must provide chainName and index for validator key`);
+      }
+      // For now just get the validator key, and not the chain signer.
+      return getValidatorKeysForChain(agentConfig, chainName, index).validator;
+    case Role.Relayer:
+      if (chainName === undefined) {
+        throw Error(`Must provide chainName for relayer key`);
+      }
+      return getRelayerKeyForChain(agentConfig, chainName);
+    case Role.Kathy:
+      if (chainName === undefined) {
+        throw Error(`Must provide chainName for kathy key`);
+      }
+      return getKathyKeyForChain(agentConfig, chainName);
+    case Role.Deployer:
+      return getDeployerKey(agentConfig);
+    default:
+      throw Error(`Unsupported role ${role}`);
+  }
+}
+
+// ==================
+// Functions for managing keys
+// ==================
+
+export async function createAgentKeysIfNotExists(
+  agentConfig: AgentContextConfig,
+) {
+  const keys = getAllCloudAgentKeys(agentConfig);
+
+  await Promise.all(
+    keys.map(async (key) => {
+      return key.createIfNotExists();
+    }),
+  );
+
+  await persistAddresses(
+    agentConfig.runEnv,
+    agentConfig.context,
+    keys.map((key) => key.serializeAsAddress()),
+  );
+}
+
+export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
+  const keys = getAllCloudAgentKeys(agentConfig);
+  await Promise.all(keys.map((key) => key.delete()));
+  await execCmd(
+    `gcloud secrets delete ${addressesIdentifier(
+      agentConfig.runEnv,
+      agentConfig.context,
+    )} --quiet`,
+  );
+}
+
+export async function rotateKey(
+  agentConfig: AgentContextConfig,
+  role: Role,
+  chainName: ChainName,
+) {
+  const key = getCloudAgentKey(agentConfig, role, chainName);
+  await key.update();
+  const keyIdentifier = key.identifier;
+  const addresses = await fetchGCPKeyAddresses(
+    agentConfig.runEnv,
+    agentConfig.context,
+  );
+  const filteredAddresses = addresses.filter((_) => {
+    return _.identifier !== keyIdentifier;
+  });
+
+  filteredAddresses.push(key.serializeAsAddress());
+  await persistAddresses(
+    agentConfig.runEnv,
+    agentConfig.context,
+    filteredAddresses,
+  );
+}
+
+async function persistAddresses(
+  environment: DeployEnvironment,
+  context: Contexts,
+  keys: KeyAsAddress[],
+) {
+  await setGCPSecret(
+    addressesIdentifier(environment, context),
+    JSON.stringify(keys),
+    {
+      environment,
+      context,
+    },
+  );
 }
 
 async function fetchGCPKeyAddresses(
