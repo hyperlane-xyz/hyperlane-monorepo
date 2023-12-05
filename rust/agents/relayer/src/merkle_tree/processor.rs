@@ -76,7 +76,7 @@ impl MerkleTreeProcessor {
                 .set(insertion.index() as i64);
             Some(insertion)
         } else {
-            trace!(leaf_index=?self.leaf_index, "No more messages found in DB for leaf index. Done processing.");
+            trace!(leaf_index=?self.leaf_index, "No merkle tree insertion found in DB for leaf index, waiting for it to be indexed");
             None
         };
         Ok(leaf)
