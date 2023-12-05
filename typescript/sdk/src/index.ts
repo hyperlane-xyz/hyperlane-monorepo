@@ -179,6 +179,7 @@ export {
   getDomainId,
   isValidChainMetadata,
 } from './metadata/chainMetadataTypes';
+export { ZHash } from './metadata/customZodTypes';
 export {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,

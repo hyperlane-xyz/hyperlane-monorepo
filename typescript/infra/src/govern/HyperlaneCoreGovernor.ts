@@ -29,10 +29,10 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
       case MailboxViolationType.DefaultIsm: {
         let ismAddress: string;
         if (typeof violation.expected === 'object') {
-          const ism = await this.checker.ismFactory.deploy(
-            violation.chain,
-            violation.expected,
-          );
+          const ism = await this.checker.ismFactory.deploy({
+            destination: violation.chain,
+            config: violation.expected,
+          });
           ismAddress = ism.address;
         } else if (typeof violation.expected === 'string') {
           ismAddress = violation.expected;
