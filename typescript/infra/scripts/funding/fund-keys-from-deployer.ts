@@ -4,7 +4,6 @@ import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import {
-  AllChains,
   ChainMap,
   ChainName,
   Chains,
@@ -16,7 +15,6 @@ import {
   Address,
   error,
   log,
-  objFilter,
   objMap,
   promiseObjAll,
   warn,
@@ -24,12 +22,7 @@ import {
 
 import { Contexts } from '../../config/contexts';
 import { parseKeyIdentifier } from '../../src/agents/agent';
-import {
-  KeyAsAddress,
-  getAllCloudAgentKeys,
-  getRoleKeyMapPerChain,
-  getRoleKeysPerChain,
-} from '../../src/agents/key-utils';
+import { KeyAsAddress, getRoleKeysPerChain } from '../../src/agents/key-utils';
 import {
   BaseCloudAgentKey,
   ReadOnlyCloudAgentKey,
@@ -37,7 +30,7 @@ import {
 import { DeployEnvironment } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
-import { ALL_AGENT_ROLES, AgentRole, Role } from '../../src/roles';
+import { Role } from '../../src/roles';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
   assertContext,

@@ -28,12 +28,29 @@ export interface KeyAsAddress {
 // Returns a nested object of the shape:
 // {
 //   [chain]: {
+//     [role]: keys[],
+//   }
+// }
+export function getRoleKeysPerChain(
+  agentConfig: RootAgentConfig,
+): ChainMap<Record<Role, CloudAgentKey[]>> {
+  return objMap(getRoleKeyMapPerChain(agentConfig), (_chain, roleKeys) => {
+    return objMap(roleKeys, (_role, keys) => {
+      return Object.values(keys);
+    });
+  });
+}
+
+// Returns a nested object of the shape:
+// {
+//   [chain]: {
 //     [role]: {
+//       // To guarantee no key duplicates, the key identifier is used as the key
 //       [key identifier]: key
 //     }
 //   }
 // }
-export function getRoleKeyMapPerChain(
+function getRoleKeyMapPerChain(
   agentConfig: RootAgentConfig,
 ): ChainMap<Record<Role, Record<string, CloudAgentKey>>> {
   const keysPerChain: ChainMap<Record<Role, Record<string, CloudAgentKey>>> =
@@ -124,22 +141,6 @@ export function getRoleKeyMapPerChain(
   }
 
   return keysPerChain;
-}
-
-// Returns a nested object of the shape:
-// {
-//   [chain]: {
-//     [role]: keys[],
-//   }
-// }
-export function getRoleKeysPerChain(
-  agentConfig: RootAgentConfig,
-): ChainMap<Record<Role, CloudAgentKey[]>> {
-  return objMap(getRoleKeyMapPerChain(agentConfig), (_chain, roleKeys) => {
-    return objMap(roleKeys, (_role, keys) => {
-      return Object.values(keys);
-    });
-  });
 }
 
 // Gets a big array of all keys.
