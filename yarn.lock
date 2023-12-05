@@ -4238,6 +4238,7 @@ __metadata:
     "@hyperlane-xyz/sdk": "npm:3.2.0"
     "@hyperlane-xyz/utils": "npm:3.2.0"
     "@inquirer/prompts": "npm:^3.0.0"
+    "@types/figlet": "npm:^1"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
     "@types/yargs": "npm:^17.0.24"
@@ -4249,6 +4250,7 @@ __metadata:
     eslint: "npm:^8.43.0"
     eslint-config-prettier: "npm:^8.8.0"
     ethers: "npm:^5.7.2"
+    figlet: "npm:^1.7.0"
     mocha: "npm:^10.2.0"
     prettier: "npm:^2.8.8"
     terminal-link: "npm:^3.0.0"
@@ -5925,6 +5927,13 @@ __metadata:
   dependencies:
     "@types/ms": "npm:*"
   checksum: 0a7b89d8ed72526858f0b61c6fd81f477853e8c4415bb97f48b1b5545248d2ae389931680b94b393b993a7cfe893537a200647d93defe6d87159b96812305adc
+  languageName: node
+  linkType: hard
+
+"@types/figlet@npm:^1":
+  version: 1.5.8
+  resolution: "@types/figlet@npm:1.5.8"
+  checksum: 95d81e778265bc8b4f1b58e98c7d8889b8a3046ef775aa0e95b6d41ad97ace47813887427d5bdfd760b6a3a4767d8799bbb8a1f7d5bbf17f6142ae46e32509d2
   languageName: node
   linkType: hard
 
@@ -9804,6 +9813,15 @@ __metadata:
   dependencies:
     reusify: "npm:^1.0.4"
   checksum: 0902cb9b81accf34e5542612c8a1df6c6ea47674f85bcc9cdc38795a28b53e4a096f751cfcf4fb25d2ea42fee5447499ba6cf5af5d0209297e1d1fd4dd551bb6
+  languageName: node
+  linkType: hard
+
+"figlet@npm:^1.7.0":
+  version: 1.7.0
+  resolution: "figlet@npm:1.7.0"
+  bin:
+    figlet: bin/index.js
+  checksum: 1baeed096fa90f5802022c4d36c24ebd59331f77f00f9b3de68b13f42f7ab210b327f4935fd194fc29575120e91aa95a2f43d63c2760f3e374a4f8348070c784
   languageName: node
   linkType: hard
 

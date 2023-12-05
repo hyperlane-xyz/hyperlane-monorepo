@@ -15,6 +15,7 @@ bs58.workspace = true
 color-eyre = { workspace = true, optional = true }
 config.workspace = true
 convert_case.workspace = true
+derive_builder.workspace = true
 derive-new.workspace = true
 ed25519-dalek.workspace = true
 ethers.workspace = true
@@ -22,6 +23,7 @@ eyre.workspace = true
 fuels.workspace = true
 futures-util.workspace = true
 itertools.workspace = true
+maplit.workspace = true
 paste.workspace = true
 prometheus.workspace = true
 rocksdb.workspace = true

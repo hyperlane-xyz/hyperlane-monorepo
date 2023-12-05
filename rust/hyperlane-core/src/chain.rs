@@ -5,6 +5,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+use derive_new::new;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 #[cfg(feature = "strum")]
@@ -18,7 +19,7 @@ pub struct Address(pub bytes::Bytes);
 #[derive(Debug, Clone)]
 pub struct Balance(pub num::BigInt);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ContractLocator<'a> {
     pub domain: &'a HyperlaneDomain,
     pub address: H256,

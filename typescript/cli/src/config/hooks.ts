@@ -195,7 +195,7 @@ export async function createHooksConfigMap({
       mergeYamlOrJson(outPath, result, format);
     } else {
       errorRed(
-        `Hook config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/hook-config.yaml for an example`,
+        `Hook config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/hooks.yaml for an example`,
       );
       throw new Error('Invalid hook config');
     }

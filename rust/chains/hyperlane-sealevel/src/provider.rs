@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    BlockInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo, H256,
+    BlockInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo, H256, U256,
 };
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
@@ -42,5 +42,9 @@ impl HyperlaneProvider for SealevelProvider {
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
         // FIXME
         Ok(true)
+    }
+
+    async fn get_balance(&self, _address: String) -> ChainResult<U256> {
+        todo!() // FIXME
     }
 }
