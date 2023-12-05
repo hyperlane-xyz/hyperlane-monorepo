@@ -302,7 +302,7 @@ export abstract class SealevelHypTokenAdapter
     return tx;
   }
 
-  async getIgpKeys() {
+  async getIgpKeys(): Promise<KeyListParams['igp']> {
     const tokenData = await this.getTokenAccountData();
     if (!tokenData.interchain_gas_paymaster) return undefined;
     const igpConfig = tokenData.interchain_gas_paymaster;
