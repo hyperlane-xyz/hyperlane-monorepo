@@ -26,87 +26,6 @@ export interface KeyAsAddress {
 }
 
 // ==================
-// Keys for specific roles
-// ==================
-
-// Gets the relayer key used for signing txs to the provided chain.
-export function getRelayerKeyForChain(
-  agentConfig: AgentContextConfig,
-  chainName: ChainName,
-): CloudAgentKey {
-  // If AWS is enabled and the chain is an Ethereum-based chain, we want to use
-  // an AWS key.
-  if (agentConfig.aws && isEthereumProtocolChain(chainName)) {
-    return new AgentAwsKey(agentConfig, Role.Relayer);
-  }
-
-  return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer);
-}
-
-// Gets the kathy key used for signing txs to the provided chain.
-// Note this is basically a dupe of getRelayerKeyForChain, but to encourage
-// consumers to be aware of what role they're using, and to keep the door open
-// for future per-role deviations, we have separate functions.
-export function getKathyKeyForChain(
-  agentConfig: AgentContextConfig,
-  chainName: ChainName,
-): CloudAgentKey {
-  // If AWS is enabled and the chain is an Ethereum-based chain, we want to use
-  // an AWS key.
-  if (agentConfig.aws && isEthereumProtocolChain(chainName)) {
-    return new AgentAwsKey(agentConfig, Role.Kathy);
-  }
-
-  return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Kathy);
-}
-
-// Returns the deployer key. This is always a GCP key, not chain specific,
-// and in the Hyperlane context.
-export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
-  return new AgentGCPKey(agentConfig.runEnv, Contexts.Hyperlane, Role.Deployer);
-}
-
-// Returns the validator signer key and the chain signer key for the given validator for
-// the given chain and index.
-// The validator signer key is used to sign checkpoints and can be AWS regardless of the
-// chain protocol type. The chain signer is dependent on the chain protocol type.
-export function getValidatorKeysForChain(
-  agentConfig: AgentContextConfig,
-  chainName: ChainName,
-  index: number,
-): {
-  validator: CloudAgentKey;
-  chainSigner: CloudAgentKey;
-} {
-  const validator = agentConfig.aws
-    ? new AgentAwsKey(agentConfig, Role.Validator, chainName, index)
-    : new AgentGCPKey(
-        agentConfig.runEnv,
-        agentConfig.context,
-        Role.Validator,
-        chainName,
-        index,
-      );
-
-  // If the chain is Ethereum-based, we can just use the validator key (even if it's AWS-based)
-  // as the chain signer. Otherwise, we need to use a GCP key.
-  const chainSigner = isEthereumProtocolChain(chainName)
-    ? validator
-    : new AgentGCPKey(
-        agentConfig.runEnv,
-        agentConfig.context,
-        Role.Validator,
-        chainName,
-        index,
-      );
-
-  return {
-    validator,
-    chainSigner,
-  };
-}
-
-// ==================
 // Functions for getting keys
 // ==================
 
@@ -287,6 +206,87 @@ export function getCloudAgentKey(
     default:
       throw Error(`Unsupported role ${role}`);
   }
+}
+
+// ==================
+// Keys for specific roles
+// ==================
+
+// Gets the relayer key used for signing txs to the provided chain.
+export function getRelayerKeyForChain(
+  agentConfig: AgentContextConfig,
+  chainName: ChainName,
+): CloudAgentKey {
+  // If AWS is enabled and the chain is an Ethereum-based chain, we want to use
+  // an AWS key.
+  if (agentConfig.aws && isEthereumProtocolChain(chainName)) {
+    return new AgentAwsKey(agentConfig, Role.Relayer);
+  }
+
+  return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer);
+}
+
+// Gets the kathy key used for signing txs to the provided chain.
+// Note this is basically a dupe of getRelayerKeyForChain, but to encourage
+// consumers to be aware of what role they're using, and to keep the door open
+// for future per-role deviations, we have separate functions.
+export function getKathyKeyForChain(
+  agentConfig: AgentContextConfig,
+  chainName: ChainName,
+): CloudAgentKey {
+  // If AWS is enabled and the chain is an Ethereum-based chain, we want to use
+  // an AWS key.
+  if (agentConfig.aws && isEthereumProtocolChain(chainName)) {
+    return new AgentAwsKey(agentConfig, Role.Kathy);
+  }
+
+  return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Kathy);
+}
+
+// Returns the deployer key. This is always a GCP key, not chain specific,
+// and in the Hyperlane context.
+export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
+  return new AgentGCPKey(agentConfig.runEnv, Contexts.Hyperlane, Role.Deployer);
+}
+
+// Returns the validator signer key and the chain signer key for the given validator for
+// the given chain and index.
+// The validator signer key is used to sign checkpoints and can be AWS regardless of the
+// chain protocol type. The chain signer is dependent on the chain protocol type.
+export function getValidatorKeysForChain(
+  agentConfig: AgentContextConfig,
+  chainName: ChainName,
+  index: number,
+): {
+  validator: CloudAgentKey;
+  chainSigner: CloudAgentKey;
+} {
+  const validator = agentConfig.aws
+    ? new AgentAwsKey(agentConfig, Role.Validator, chainName, index)
+    : new AgentGCPKey(
+        agentConfig.runEnv,
+        agentConfig.context,
+        Role.Validator,
+        chainName,
+        index,
+      );
+
+  // If the chain is Ethereum-based, we can just use the validator key (even if it's AWS-based)
+  // as the chain signer. Otherwise, we need to use a GCP key.
+  const chainSigner = isEthereumProtocolChain(chainName)
+    ? validator
+    : new AgentGCPKey(
+        agentConfig.runEnv,
+        agentConfig.context,
+        Role.Validator,
+        chainName,
+        index,
+      );
+
+  return {
+    validator,
+    chainSigner,
+  };
 }
 
 // ==================
