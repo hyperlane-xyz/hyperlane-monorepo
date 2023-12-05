@@ -39,35 +39,10 @@ export function getRelayerKeyForChain(
   return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer);
 }
 
-// // Returns all keys used by a relayer: an AWS key if AWS is enabled and there
-// // are Ethereum-based chains, and a GCP key if there are non-Ethereum-based chains
-// // or AWS is not enabled.
-// export function getAllRelayerCloudAgentKeys(
-//   agentConfig: AgentContextConfig,
-// ): Array<CloudAgentKey> {
-//   if (!agentConfig.aws) {
-//     return [
-//       new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer),
-//     ];
-//   }
-
-//   const keys = [];
-//   keys.push(new AgentAwsKey(agentConfig, Role.Relayer));
-//   const hasNonEthereumChains = !!agentConfig.contextChainNames[
-//     Role.Relayer
-//   ].find(isNotEthereumProtocolChain);
-//   // If there are any non-ethereum chains, we also want hex keys.
-//   if (hasNonEthereumChains) {
-//     keys.push(
-//       new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer),
-//     );
-//   }
-//   return keys;
-// }
-
-// TODO: Note this is basically a dupe of getRelayerKeyForChain!
-
 // Gets the kathy key used for signing txs to the provided chain.
+// Note this is basically a dupe of getRelayerKeyForChain, but to encourage
+// consumers to be aware of what role they're using, and to keep the door open
+// for future per-role deviations, we have separate functions.
 export function getKathyKeyForChain(
   agentConfig: AgentContextConfig,
   chainName: ChainName,
@@ -81,26 +56,7 @@ export function getKathyKeyForChain(
   return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Kathy);
 }
 
-// // Returns all keys used by Kathy: an AWS key if AWS is enabled and there
-// // are Ethereum-based chains, and a GCP key if there are non-Ethereum-based chains
-// // or AWS is not enabled.
-// export function getAllKathyCloudAgentKeys(
-//   agentConfig: AgentContextConfig,
-// ): Array<CloudAgentKey> {
-//   const gcpKey = new AgentGCPKey(
-//     agentConfig.runEnv,
-//     agentConfig.context,
-//     Role.Kathy,
-//   );
-//   if (!agentConfig.aws) {
-//     return [gcpKey];
-//   }
-
-//   // Return both GCP and AWS keys for Kathy even if the agentConfig is configured
-//   // to use AWS. Non-Ethereum chains require GCP keys.
-//   return [gcpKey, new AgentAwsKey(agentConfig, Role.Kathy)];
-// }
-
+// TODO try to remove
 // If getting all keys for relayers or validators, it's recommended to use
 // `getAllRelayerCloudAgentKeys` or `getAllValidatorCloudAgentKeys` instead.
 export function getCloudAgentKey(
@@ -138,6 +94,10 @@ export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
   return new AgentGCPKey(agentConfig.runEnv, Contexts.Hyperlane, Role.Deployer);
 }
 
+// Returns the validator signer key and the chain signer key for the given validator for
+// the given chain and index.
+// The validator signer key is used to sign checkpoints and can be AWS regardless of the
+// chain protocol type. The chain signer is dependent on the chain protocol type.
 export function getValidatorKeysForChain(
   agentConfig: AgentContextConfig,
   chainName: ChainName,
@@ -174,69 +134,9 @@ export function getValidatorKeysForChain(
   };
 }
 
-// // Returns all keys used by validators: for each chain, an AWS key
-// // if AWS is enabled, and a GCP key if AWS is not enabled or the chain
-// // is not an EVM chain.
-// export function getAllValidatorCloudAgentKeys(
-//   agentConfig: RootAgentConfig,
-// ): Array<CloudAgentKey> {
-//   // For each chainName, create validatorCount keys
-//   if (!agentConfig.validators) return [];
-
-//   const validators = agentConfig.validators;
-//   return agentConfig.contextChainNames[Role.Validator]
-//     .filter((chainName) => !!validators.chains[chainName])
-//     .flatMap((chainName) =>
-//       validators.chains[chainName].validators.map((_, index) => {
-//         const validatorKeys = [];
-
-//         // If AWS is enabled, we want to use AWS keys for the validator signing key
-//         // that actually signs checkpoints.
-//         if (agentConfig.aws) {
-//           validatorKeys.push(
-//             new AgentAwsKey(agentConfig, Role.Validator, chainName, index),
-//           );
-//         }
-
-//         // If the chain is not an EVM chain, we also want to use GCP keys for
-//         // self-announcing. This key won't actually sign checkpoints, just the self-announcement tx.
-//         // We also want to use a GCP key if AWS is not enabled.
-//         if (isNotEthereumProtocolChain(chainName) || !agentConfig.aws) {
-//           validatorKeys.push(
-//             new AgentGCPKey(
-//               agentConfig.runEnv,
-//               agentConfig.context,
-//               Role.Validator,
-//               chainName,
-//               index,
-//             ),
-//           );
-//         }
-
-//         return validatorKeys;
-//       }),
-//     )
-//     .flat();
-// }
-
 export function getAllCloudAgentKeys(
   agentConfig: RootAgentConfig,
 ): Array<CloudAgentKey> {
-  // const keys = [];
-  // if (agentConfig.rolesWithKeys.includes(Role.Relayer))
-  //   keys.push(...getAllRelayerCloudAgentKeys(agentConfig));
-  // if (agentConfig.rolesWithKeys.includes(Role.Validator))
-  //   keys.push(...getAllValidatorCloudAgentKeys(agentConfig));
-  // if (agentConfig.rolesWithKeys.includes(Role.Kathy))
-  //   keys.push(...getAllKathyCloudAgentKeys(agentConfig));
-
-  // for (const role of agentConfig.rolesWithKeys) {
-  //   if (role == Role.Relayer || role == Role.Validator || role == Role.Kathy)
-  //     continue;
-  //   keys.push(getCloudAgentKey(agentConfig, role));
-  // }
-  // return keys;
-
   const keysPerChain = getRoleKeyMapPerChain(agentConfig);
 
   const keysByIdentifier = Object.keys(keysPerChain).reduce(
