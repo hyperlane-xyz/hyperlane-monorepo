@@ -110,7 +110,11 @@ export async function createIsmConfigMap({
 }) {
   logBlue('Creating a new ISM config');
   const customChains = readChainConfigsIfExists(chainConfigPath);
-  const chains = await runMultiChainSelectionStep(customChains);
+  const chains = await runMultiChainSelectionStep(
+    customChains,
+    'Select chains to configure ISM for',
+    true,
+  );
 
   const result: ZodIsmConfigMap = {};
   for (const chain of chains) {

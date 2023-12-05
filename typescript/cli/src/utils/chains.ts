@@ -5,7 +5,6 @@ import chalk from 'chalk';
 import {
   ChainMap,
   ChainMetadata,
-  ChainName,
   mainnetChainsMetadata,
   testnetChainsMetadata,
 } from '@hyperlane-xyz/sdk';
@@ -33,9 +32,9 @@ export async function runSingleChainSelectionStep(
 export async function runMultiChainSelectionStep(
   customChains: ChainMap<ChainMetadata>,
   message = 'Select chains',
-  chainsToFilterOut: ChainName[] = [],
+  requireMultiple = false,
 ) {
-  const choices = getChainChoices(customChains, chainsToFilterOut);
+  const choices = getChainChoices(customChains);
   while (true) {
     logTip('Use SPACE key to select chains, then press ENTER');
     const chains = (await checkbox({
@@ -44,19 +43,17 @@ export async function runMultiChainSelectionStep(
       pageSize: 20,
     })) as string[];
     handleNewChain(chains);
-    if (chains?.length >= 2) return chains;
-    else logRed('Please select at least 2 chains');
+    if (requireMultiple && chains?.length < 2) {
+      logRed('Please select at least 2 chains');
+      continue;
+    }
+    return chains;
   }
 }
 
-function getChainChoices(
-  customChains: ChainMap<ChainMetadata>,
-  chainsToFilterOut: ChainName[] = [],
-) {
+function getChainChoices(customChains: ChainMap<ChainMetadata>) {
   const chainsToChoices = (chains: ChainMetadata[]) =>
-    chains
-      .filter((chain) => !chainsToFilterOut.includes(chain.name))
-      .map((c) => ({ name: c.name, value: c.name }));
+    chains.map((c) => ({ name: c.name, value: c.name }));
   const choices: Parameters<typeof select>['0']['choices'] = [
     new Separator('--Custom Chains--'),
     ...chainsToChoices(Object.values(customChains)),

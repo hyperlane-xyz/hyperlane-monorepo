@@ -60,8 +60,8 @@ export function readChainConfigs(filePath: string) {
   return chainToMetadata;
 }
 
-export function readChainConfigsIfExists(filePath: string) {
-  if (!isFile(filePath)) {
+export function readChainConfigsIfExists(filePath?: string) {
+  if (!filePath || !isFile(filePath)) {
     log('No chain config file provided');
     return {};
   } else {

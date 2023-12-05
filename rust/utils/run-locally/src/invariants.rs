@@ -1,6 +1,7 @@
 // use std::path::Path;
 
 use crate::config::Config;
+use crate::metrics::agent_balance_sum;
 use maplit::hashmap;
 
 use crate::logging::log;
@@ -15,6 +16,7 @@ pub const SOL_MESSAGES_EXPECTED: u32 = 0;
 /// number of messages have been sent.
 pub fn termination_invariants_met(
     config: &Config,
+    starting_relayer_balance: f64,
     // solana_cli_tools_path: &Path,
     // solana_config_path: &Path,
 ) -> eyre::Result<bool> {
@@ -125,6 +127,17 @@ pub fn termination_invariants_met(
             "Scraper has scraped {} delivered messages, expected {}",
             delivered_messages_scraped,
             eth_messages_expected
+        );
+        return Ok(false);
+    }
+
+    let ending_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
+    // Make sure the balance was correctly updated in the metrics.
+    if starting_relayer_balance <= ending_relayer_balance {
+        log!(
+            "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
+            starting_relayer_balance,
+            ending_relayer_balance
         );
         return Ok(false);
     }

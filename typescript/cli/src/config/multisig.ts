@@ -1,4 +1,4 @@
-import { input } from '@inquirer/prompts';
+import { confirm, input } from '@inquirer/prompts';
 import { z } from 'zod';
 
 import { ChainMap, MultisigConfig, ZHash } from '@hyperlane-xyz/sdk';
@@ -10,6 +10,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
+import { sdkContractAddressesMap } from '../context.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
@@ -72,6 +73,9 @@ export async function createMultisigConfig({
   chainConfigPath: string;
 }) {
   logBlue('Creating a new multisig config');
+  log(
+    'Select your own chain below to run your own validators. If you want to reuse existing Hyperlane validators instead of running your own, do not select additional mainnet or testnet chains.',
+  );
   const customChains = readChainConfigsIfExists(chainConfigPath);
   const chains = await runMultiChainSelectionStep(customChains);
 
@@ -83,6 +87,12 @@ export async function createMultisigConfig({
     if (lastConfig && repeat) {
       result[chain] = lastConfig;
       continue;
+    }
+    if (Object.keys(sdkContractAddressesMap).includes(chain)) {
+      const reuseCoreConfig = await confirm({
+        message: 'Use existing Hyperlane validators for this chain?',
+      });
+      if (reuseCoreConfig) continue;
     }
 
     const thresholdInput = await input({
@@ -111,7 +121,7 @@ export async function createMultisigConfig({
     mergeYamlOrJson(outPath, result, format);
   } else {
     errorRed(
-      `Multisig config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/multisig-ism.yaml for an example`,
+      `Multisig config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/ism.yaml for an example`,
     );
     throw new Error('Invalid multisig config');
   }

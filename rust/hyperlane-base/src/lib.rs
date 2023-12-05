@@ -12,7 +12,7 @@ pub mod settings;
 mod agent;
 pub use agent::*;
 
-mod metrics;
+pub mod metrics;
 pub use metrics::*;
 
 mod contract_sync;

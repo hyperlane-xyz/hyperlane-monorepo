@@ -7,7 +7,10 @@ use hyperlane_core::config::*;
 use tokio::task::JoinHandle;
 use tracing::{debug_span, instrument::Instrumented, Instrument};
 
-use crate::{metrics::CoreMetrics, settings::Settings};
+use crate::{
+    metrics::{create_agent_metrics, AgentMetrics, CoreMetrics},
+    settings::Settings,
+};
 
 /// Properties shared across all hyperlane agents
 #[derive(Debug)]
@@ -36,7 +39,11 @@ pub trait BaseAgent: Send + Sync + Debug {
     type Settings: LoadableFromSettings;
 
     /// Instantiate the agent from the standard settings object
-    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
+    async fn from_settings(
+        settings: Self::Settings,
+        metrics: Arc<CoreMetrics>,
+        agent_metrics: AgentMetrics,
+    ) -> Result<Self>
     where
         Self: Sized;
 
@@ -68,7 +75,8 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
 
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
     core_settings.tracing.start_tracing(&metrics)?;
-    let agent = A::from_settings(settings, metrics.clone()).await?;
+    let agent_metrics = create_agent_metrics(&metrics)?;
+    let agent = A::from_settings(settings, metrics.clone(), agent_metrics).await?;
     metrics.run_http_server();
 
     agent.run().await.await?

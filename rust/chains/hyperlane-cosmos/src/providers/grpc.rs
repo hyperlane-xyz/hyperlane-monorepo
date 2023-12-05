@@ -5,6 +5,7 @@ use cosmrs::{
             auth::v1beta1::{
                 query_client::QueryClient as QueryAccountClient, BaseAccount, QueryAccountRequest,
             },
+            bank::v1beta1::{query_client::QueryClient as QueryBalanceClient, QueryBalanceRequest},
             base::{
                 abci::v1beta1::TxResponse,
                 tendermint::v1beta1::{service_client::ServiceClient, GetLatestBlockRequest},
@@ -77,14 +78,14 @@ pub trait WasmProvider: Send + Sync {
     async fn wasm_estimate_gas<T: Serialize + Sync + Send>(&self, payload: T) -> ChainResult<u64>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// CosmWasm GRPC provider.
 pub struct WasmGrpcProvider {
     /// Connection configuration.
     conf: ConnectionConf,
     /// A contract address that can be used as the default
     /// for queries / sends / estimates.
-    contract_address: CosmosAddress,
+    contract_address: Option<CosmosAddress>,
     /// Signer for transactions.
     signer: Option<Signer>,
     /// GRPC Channel that can be cheaply cloned.
@@ -96,13 +97,15 @@ impl WasmGrpcProvider {
     /// Create new CosmWasm GRPC Provider.
     pub fn new(
         conf: ConnectionConf,
-        locator: ContractLocator,
+        locator: Option<ContractLocator>,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
         let endpoint =
             Endpoint::new(conf.get_grpc_url()).map_err(Into::<HyperlaneCosmosError>::into)?;
         let channel = endpoint.connect_lazy();
-        let contract_address = CosmosAddress::from_h256(locator.address, &conf.get_prefix())?;
+        let contract_address = locator
+            .map(|l| CosmosAddress::from_h256(l.address, &conf.get_prefix()))
+            .transpose()?;
 
         Ok(Self {
             conf,
@@ -220,6 +223,24 @@ impl WasmGrpcProvider {
         Ok(gas_estimate)
     }
 
+    /// Fetches balance for a given `address` and `denom`
+    pub async fn get_balance(&self, address: String, denom: String) -> ChainResult<U256> {
+        let mut client = QueryBalanceClient::new(self.channel.clone());
+
+        let balance_request = tonic::Request::new(QueryBalanceRequest { address, denom });
+        let response = client
+            .balance(balance_request)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+
+        let balance = response
+            .balance
+            .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?;
+
+        Ok(balance.amount.parse()?)
+    }
+
     /// Queries an account.
     async fn account_query(&self, account: String) -> ChainResult<BaseAccount> {
         let mut client = QueryAccountClient::new(self.channel.clone());
@@ -268,7 +289,10 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
-        self.wasm_query_to(self.contract_address.address(), payload, block_height)
+        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
+            ChainCommunicationError::from_other_str("No contract address available")
+        })?;
+        self.wasm_query_to(contract_address.address(), payload, block_height)
             .await
     }
 
@@ -308,10 +332,13 @@ impl WasmProvider for WasmGrpcProvider {
     {
         let signer = self.get_signer()?;
         let mut client = TxServiceClient::new(self.channel.clone());
+        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
+            ChainCommunicationError::from_other_str("No contract address available")
+        })?;
 
         let msgs = vec![MsgExecuteContract {
             sender: signer.address.clone(),
-            contract: self.contract_address.address(),
+            contract: contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
         }
@@ -354,9 +381,12 @@ impl WasmProvider for WasmGrpcProvider {
         // Estimating gas requires a signer, which we can reasonably expect to have
         // since we need one to send a tx with the estimated gas anyways.
         let signer = self.get_signer()?;
+        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
+            ChainCommunicationError::from_other_str("No contract address available")
+        })?;
         let msg = MsgExecuteContract {
             sender: signer.address.clone(),
-            contract: self.contract_address.address(),
+            contract: contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
         };
