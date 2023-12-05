@@ -1,5 +1,5 @@
 import { ChainMap, ChainName, chainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { helloWorld } from '../../config/environments/mainnet3/helloworld';
@@ -20,7 +20,7 @@ import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { CloudAgentKey } from './keys';
 
-interface KeyAsAddress {
+export interface KeyAsAddress {
   identifier: string;
   address: string;
 }
@@ -237,7 +237,7 @@ export function getAllCloudAgentKeys(
   // }
   // return keys;
 
-  const keysPerChain = getKeysPerChain(agentConfig);
+  const keysPerChain = getRoleKeyMapPerChain(agentConfig);
 
   const keysByIdentifier = Object.keys(keysPerChain).reduce(
     (acc, chainName) => {
@@ -330,8 +330,31 @@ async function persistAddresses(
   );
 }
 
-// getRoleKeysPerChain
-export function getKeysPerChain(
+// Returns a nested object of the shape:
+// {
+//   [chain]: {
+//     [role]: keys[],
+//   }
+// }
+export function getRoleKeysPerChain(
+  agentConfig: RootAgentConfig,
+): ChainMap<Record<Role, CloudAgentKey[]>> {
+  return objMap(getRoleKeyMapPerChain(agentConfig), (_chain, roleKeys) => {
+    return objMap(roleKeys, (_role, keys) => {
+      return Object.values(keys);
+    });
+  });
+}
+
+// Returns a nested object of the shape:
+// {
+//   [chain]: {
+//     [role]: {
+//       [key identifier]: key
+//     }
+//   }
+// }
+export function getRoleKeyMapPerChain(
   agentConfig: RootAgentConfig,
 ): ChainMap<Record<Role, Record<string, CloudAgentKey>>> {
   const keysPerChain: ChainMap<Record<Role, Record<string, CloudAgentKey>>> =
@@ -382,7 +405,7 @@ export function getKeysPerChain(
       const kathyKey = getKathyKeyForChain(agentConfig, chainName);
       keysPerChain[chainName] = {
         ...keysPerChain[chainName],
-        [Role.Relayer]: {
+        [Role.Kathy]: {
           [kathyKey.identifier]: kathyKey,
         },
       };
