@@ -198,7 +198,7 @@ async function runHookStep(
   return readHooksConfigMap(hookConfigPath);
 }
 
-interface DeployParams {
+export interface DeployParams {
   chains: string[];
   signer: ethers.Signer;
   multiProvider: MultiProvider;
@@ -235,7 +235,7 @@ async function runDeployPlanStep({
   if (!isConfirmed) throw new Error('Deployment cancelled');
 }
 
-async function executeDeploy({
+export async function executeDeploy({
   chains,
   signer,
   multiProvider,
@@ -279,24 +279,15 @@ async function executeDeploy({
     mergedContractAddrs,
     multiProvider,
   );
-
-  // 3. Deploy ISM contracts to remote deployable chains
-  logBlue('Deploying ISMs');
+  // 3. Construct ISM configs for all deployable chains
   const ismContracts: ChainMap<{ interchainSecurityModule: DeployedIsm }> = {};
-  const defaultIsms: ChainMap<Address> = {};
+  const defaultIsms: ChainMap<IsmConfig> = {};
   for (const ismOrigin of chains) {
-    logBlue(`Deploying ISM to ${ismOrigin}`);
-    const ismConfig =
+    defaultIsms[ismOrigin] =
       ismConfigs[ismOrigin] ??
       buildIsmConfig(owner, ismOrigin, chains, multisigConfigs);
-    ismContracts[ismOrigin] = {
-      interchainSecurityModule: await ismFactory.deploy(ismOrigin, ismConfig),
-    };
-    defaultIsms[ismOrigin] =
-      ismContracts[ismOrigin].interchainSecurityModule.address;
   }
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, ismContracts);
-  logGreen('ISM contracts deployed');
 
   // 4. Deploy core contracts to chains
   logBlue(`Deploying core contracts to ${chains.join(', ')}`);
@@ -310,6 +301,16 @@ async function executeDeploy({
     multisigConfigs,
   );
   const coreContracts = await coreDeployer.deploy(coreConfigs);
+
+  // 4.5 recover the toplevel ISM address
+  const isms: HyperlaneAddressesMap<any> = {};
+  for (const chain of chains) {
+    isms[chain] = {
+      interchainSecurityModule:
+        coreDeployer.cachedAddresses[chain].interchainSecurityModule,
+    };
+  }
+  artifacts = objMerge(artifacts, isms);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
   logGreen('Core contracts deployed');
 
@@ -335,6 +336,8 @@ async function executeDeploy({
   logBlue('Deployment is complete!');
   logBlue(`Contract address artifacts are in ${contractsFilePath}`);
   logBlue(`Agent configs are in ${agentFilePath}`);
+
+  return artifacts;
 }
 
 function buildIsmConfig(
@@ -381,7 +384,7 @@ function buildCoreConfigMap(
   }, {});
 }
 
-function buildTestRecipientConfigMap(
+export function buildTestRecipientConfigMap(
   chains: ChainName[],
   addressesMap: HyperlaneAddressesMap<any>,
 ): ChainMap<TestRecipientConfig> {

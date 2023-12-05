@@ -9,6 +9,7 @@ import {
   IAggregationIsm,
   IAggregationIsm__factory,
   IInterchainSecurityModule__factory,
+  IMailbox__factory,
   IMultisigIsm,
   IMultisigIsm__factory,
   IRoutingIsm,
@@ -46,6 +47,7 @@ import {
   MultisigIsmConfig,
   OpStackIsmConfig,
   RoutingIsmConfig,
+  RoutingIsmDelta,
   ismTypeToModuleType,
 } from './types';
 
@@ -187,6 +189,16 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     mailbox?: Address;
   }): Promise<IRoutingIsm> {
     const { chain, config, mailbox } = params;
+    const signer = this.multiProvider.getSigner(chain);
+    const defaultIsm = await IMailbox__factory.connect(mailbox, signer);
+    console.log('defaultIsm used', defaultIsm.address);
+    const delta = await this.routingModuleDelta(
+      chain,
+      defaultIsm,
+      config,
+      this.getContracts(chain),
+    );
+    console.log(JSON.stringify(delta, null, 2));
     const routingIsmFactory = this.getContracts(chain).routingIsmFactory;
     const isms: ChainMap<Address> = {};
     for (const origin of Object.keys(config.domains)) {
@@ -331,6 +343,57 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     }
     return address;
   }
+
+  async routingModuleDelta(
+    chain: ChainName,
+    moduleAddress: Address,
+    config: RoutingIsmConfig,
+    contracts: HyperlaneContracts<ProxyFactoryFactories>,
+  ): Promise<RoutingIsmDelta> {
+    const provider = this.multiProvider.getProvider(chain);
+    const routingIsm = DomainRoutingIsm__factory.connect(
+      moduleAddress,
+      provider,
+    );
+    const owner = await routingIsm.owner();
+    const domains = await routingIsm.domains();
+    // const domainIds = domains.map((d) => multiProvider.getDomainName(d));
+
+    const delta: RoutingIsmDelta = {
+      domainsToUnenroll: [],
+      domainsToEnroll: [],
+    };
+    if (owner !== config.owner) {
+      delta.owner = owner;
+    }
+    for (const existing of Object.keys(domains)) {
+      if (!Object.keys(config.domains).includes(existing)) {
+        delta.domainsToUnenroll.push(existing);
+      }
+    }
+    for (const [origin, subConfig] of Object.entries(config.domains)) {
+      const configDomainId = this.multiProvider.getDomainId(origin);
+      if (!domains.includes(BigNumber.from(configDomainId))) {
+        delta.domainsToEnroll.push(origin);
+      } else {
+        const subModule = await routingIsm.module(
+          this.multiProvider.getDomainId(origin),
+        );
+        const subModuleMatches = await moduleMatchesConfig(
+          chain,
+          subModule,
+          subConfig,
+          this.multiProvider,
+          contracts,
+          origin,
+        );
+        if (!subModuleMatches) {
+          delta.domainsToEnroll.push(origin);
+        }
+      }
+    }
+    return delta;
+  }
 }
 
 // Note that this function may return false negatives, but should
@@ -451,61 +514,6 @@ export async function moduleCanCertainlyVerify(
         throw new Error(`Unsupported module type: ${(destModule as any).type}`);
     }
   }
-}
-
-type RoutingIsmDelta = {
-  domainsToUnenroll: ChainName[];
-  domainsToEnroll: ChainName[];
-  owner?: Address;
-};
-
-export async function routingModuleDelta(
-  chain: ChainName,
-  moduleAddress: Address,
-  config: RoutingIsmConfig,
-  multiProvider: MultiProvider,
-  contracts: HyperlaneContracts<ProxyFactoryFactories>,
-): Promise<RoutingIsmDelta> {
-  const provider = multiProvider.getProvider(chain);
-  const routingIsm = DomainRoutingIsm__factory.connect(moduleAddress, provider);
-  const owner = await routingIsm.owner();
-  const domains = await routingIsm.domains();
-  // const domainIds = domains.map((d) => multiProvider.getDomainName(d));
-
-  const delta: RoutingIsmDelta = {
-    domainsToUnenroll: [],
-    domainsToEnroll: [],
-  };
-  if (owner !== config.owner) {
-    delta.owner = owner;
-  }
-  for (const existing of Object.keys(domains)) {
-    if (!Object.keys(config.domains).includes(existing)) {
-      delta.domainsToUnenroll.push(existing);
-    }
-  }
-  for (const [origin, subConfig] of Object.entries(config.domains)) {
-    const configDomainId = multiProvider.getDomainId(origin);
-    if (!domains.includes(BigNumber.from(configDomainId))) {
-      delta.domainsToEnroll.push(origin);
-    } else {
-      const subModule = await routingIsm.module(
-        multiProvider.getDomainId(origin),
-      );
-      const subModuleMatches = await moduleMatchesConfig(
-        chain,
-        subModule,
-        subConfig,
-        multiProvider,
-        contracts,
-        origin,
-      );
-      if (!subModuleMatches) {
-        delta.domainsToEnroll.push(origin);
-      }
-    }
-  }
-  return delta;
 }
 
 export async function moduleMatchesConfig(
