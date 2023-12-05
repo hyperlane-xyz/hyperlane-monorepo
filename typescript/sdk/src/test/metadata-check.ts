@@ -152,6 +152,11 @@ async function main() {
   console.table(results);
   console.log('The bad ones:\n===============');
   console.log(badList);
+
+  if (badList.length) {
+    console.error('Some RPCs or block explorers are unhealthy');
+    process.exit(1);
+  }
 }
 
 main()
