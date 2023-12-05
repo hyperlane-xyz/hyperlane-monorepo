@@ -301,6 +301,9 @@ class ContextFunder {
     public readonly rolesToFund: Role[],
     public readonly skipIgpClaim: boolean,
   ) {
+    console.log('keys', keys);
+    // process.exit(1);
+
     this.igp = HyperlaneIgp.fromEnvironment(
       deployEnvToSdkEnv[this.environment],
       multiProvider,
@@ -396,6 +399,10 @@ class ContextFunder {
   // Returns whether a failure occurred.
   async fund(): Promise<boolean> {
     const chainKeys = this.getChainKeys();
+
+    console.log('chainKeys', chainKeys);
+    process.exit(1);
+
     const chainKeyEntries = Object.entries(chainKeys);
     const promises = chainKeyEntries.map(async ([chain, keys]) => {
       let failureOccurred = false;

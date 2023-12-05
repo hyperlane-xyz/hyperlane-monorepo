@@ -50,5 +50,6 @@ export const releaseCandidate: HelloWorldConfig = {
 
 export const helloWorld = {
   [Contexts.Hyperlane]: hyperlane,
-  // [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.Neutron]: undefined,
 };
