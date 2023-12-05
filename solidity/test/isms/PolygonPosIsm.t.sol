@@ -11,8 +11,8 @@ import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/Abstract
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MessageUtils} from "./IsmTestUtils.sol";
-import {OPStackIsm} from "../../contracts/isms/hook/OPStackIsm.sol";
-import {OPStackHook} from "../../contracts/hooks/OPStackHook.sol";
+import {PolygonPosIsm} from "../../contracts/isms/hook/PolygonPosIsm.sol";
+import {PolygonPosHook} from "../../contracts/hooks/PolygonPosHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 
 import {NotCrossChainCall} from "@openzeppelin/contracts/crosschain/errors.sol";
@@ -20,13 +20,13 @@ import {NotCrossChainCall} from "@openzeppelin/contracts/crosschain/errors.sol";
 import {AddressAliasHelper} from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
 import {ICrossDomainMessenger, IL2CrossDomainMessenger} from "../../contracts/interfaces/optimism/ICrossDomainMessenger.sol";
 
-contract OPStackIsmTest is Test {
+contract PolygonPosIsmTest is Test {
     using LibBit for uint256;
     using TypeCasts for address;
     using MessageUtils for bytes;
 
     uint256 internal mainnetFork;
-    uint256 internal optimismFork;
+    uint256 internal polygonPosFork;
 
     address internal constant L1_MESSENGER_ADDRESS =
         0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1;
@@ -34,6 +34,20 @@ contract OPStackIsmTest is Test {
         0x5E4e65926BA27467555EB562121fac00D24E9dD2;
     address internal constant L2_MESSENGER_ADDRESS =
         0x4200000000000000000000000000000000000007;
+
+    address internal constant MUMBAI_FX_CHILD =
+        0xCf73231F28B7331BBe3124B907840A94851f9f11;
+    address internal constant GOERLI_CHECKPOINT_MANAGER =
+        0x2890bA17EfE978480615e330ecB65333b880928e;
+    address internal constant GOERLI_FX_ROOT =
+        0x3d1d3E34f7fB6D26245E6640E1c50710eFFf15bA;
+
+    address internal constant MAINNET_FX_CHILD =
+        0x8397259c983751DAf40400790063935a11afa28a;
+    address internal constant MAINNET_CHECKPOINT_MANAGER =
+        0x86E4Dc95c7FBdBf52e33D563BbDB00823894C287;
+    address internal constant MAINNET_FX_ROOT =
+        0xfe5e5D361b2ad62c541bAb87C45a0B9B018389a2;
 
     uint8 internal constant OPTIMISM_VERSION = 0;
     uint8 internal constant HYPERLANE_VERSION = 1;
@@ -57,7 +71,7 @@ contract OPStackIsmTest is Test {
     bytes32 internal messageId;
 
     uint32 internal constant MAINNET_DOMAIN = 1;
-    uint32 internal constant OPTIMISM_DOMAIN = 10;
+    uint32 internal constant POLYGON_POS_DOMAIN = 137;
 
     event SentMessage(
         address indexed target,
@@ -75,8 +89,8 @@ contract OPStackIsmTest is Test {
 
     function setUp() public {
         // block numbers to fork from, chain data is cached to ../../forge-cache/
-        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 17_586_909);
-        optimismFork = vm.createFork(vm.rpcUrl("optimism"), 106_233_774);
+        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 18_718_401);
+        polygonPosFork = vm.createFork(vm.rpcUrl("polygon"), 50_760_479);
 
         testRecipient = new TestRecipient();
 
@@ -88,15 +102,15 @@ contract OPStackIsmTest is Test {
     ///                            SETUP                            ///
     ///////////////////////////////////////////////////////////////////
 
-    function deployOptimismHook() public {
+    function deployPolygonPosHook() public {
         vm.selectFork(mainnetFork);
 
         l1Messenger = ICrossDomainMessenger(L1_MESSENGER_ADDRESS);
         l1Mailbox = new TestMailbox(MAINNET_DOMAIN);
 
-        opHook = new OPStackHook(
+        polygonPosHook = new PolygonPosHook(
             address(l1Mailbox),
-            OPTIMISM_DOMAIN,
+            POLYGON_POS_DOMAIN,
             TypeCasts.addressToBytes32(address(opISM)),
             L1_MESSENGER_ADDRESS
         );
@@ -104,20 +118,20 @@ contract OPStackIsmTest is Test {
         vm.makePersistent(address(opHook));
     }
 
-    function deployOPStackIsm() public {
-        vm.selectFork(optimismFork);
+    function deployPolygonPosIsm() public {
+        vm.selectFork(polygonPosFork);
 
         l2Messenger = IL2CrossDomainMessenger(L2_MESSENGER_ADDRESS);
-        opISM = new OPStackIsm(L2_MESSENGER_ADDRESS);
+        polygonPosISM = new PolygonPosIsm(L2_MESSENGER_ADDRESS);
 
         vm.makePersistent(address(opISM));
     }
 
     function deployAll() public {
-        deployOPStackIsm();
-        deployOptimismHook();
+        deployPolygonPosIsm();
+        deployPolygonPosHook();
 
-        vm.selectFork(optimismFork);
+        vm.selectFork(polygonPosFork);
 
         opISM.setAuthorizedHook(TypeCasts.addressToBytes32(address(opHook)));
         // for sending value
@@ -367,7 +381,7 @@ contract OPStackIsmTest is Test {
             uint8(0),
             MAINNET_DOMAIN,
             TypeCasts.addressToBytes32(address(this)),
-            OPTIMISM_DOMAIN,
+            POLYGON_POS_DOMAIN,
             TypeCasts.addressToBytes32(address(this)), // wrong recipient
             testMessage
         );
@@ -385,7 +399,7 @@ contract OPStackIsmTest is Test {
             uint8(0),
             MAINNET_DOMAIN,
             TypeCasts.addressToBytes32(address(this)),
-            OPTIMISM_DOMAIN,
+            POLYGON_POS_DOMAIN,
             TypeCasts.addressToBytes32(address(this)),
             testMessage
         );
@@ -405,7 +419,7 @@ contract OPStackIsmTest is Test {
                 uint32(0),
                 MAINNET_DOMAIN,
                 TypeCasts.addressToBytes32(address(this)),
-                OPTIMISM_DOMAIN,
+                POLYGON_POS_DOMAIN,
                 TypeCasts.addressToBytes32(address(testRecipient)),
                 testMessage
             );
