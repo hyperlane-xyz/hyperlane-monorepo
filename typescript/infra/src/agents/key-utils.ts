@@ -1,5 +1,5 @@
-import { ChainMap, ChainName, chainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { helloWorld } from '../../config/environments/mainnet3/helloworld';
@@ -10,11 +10,7 @@ import {
 } from '../config';
 import { Role } from '../roles';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
-import {
-  execCmd,
-  isEthereumProtocolChain,
-  isNotEthereumProtocolChain,
-} from '../utils/utils';
+import { execCmd, isEthereumProtocolChain } from '../utils/utils';
 
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
