@@ -1,11 +1,7 @@
 import { confirm, input } from '@inquirer/prompts';
 import { z } from 'zod';
 
-import {
-  ChainMap,
-  MultisigConfig,
-  defaultMultisigConfigs,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, MultisigConfig } from '@hyperlane-xyz/sdk';
 import {
   Address,
   isValidAddress,
@@ -96,14 +92,7 @@ export async function createMultisigConfig({
       const reuseCoreConfig = await confirm({
         message: 'Use existing Hyperlane validators for this chain?',
       });
-      if (reuseCoreConfig) {
-        result[chain] = {
-          threshold: defaultMultisigConfigs[chain].threshold,
-          validators: defaultMultisigConfigs[chain].validators,
-        };
-        console.log(result[chain]);
-        continue;
-      }
+      if (reuseCoreConfig) continue;
     }
 
     const thresholdInput = await input({
