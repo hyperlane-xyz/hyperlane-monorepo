@@ -95,7 +95,7 @@ describe('HyperlaneIsmFactory', async () => {
 
   it('deploys a simple ism', async () => {
     const config = randomMultisigIsmConfig(3, 5);
-    const ism = await ismFactory.deploy({ chain, config });
+    const ism = await ismFactory.deploy({ destination: chain, config });
     const matches = await moduleMatchesConfig(
       chain,
       ism.address,
@@ -111,7 +111,7 @@ describe('HyperlaneIsmFactory', async () => {
       const config = randomIsmConfig();
       let ismAddress: string;
       try {
-        const ism = await ismFactory.deploy({ chain, config });
+        const ism = await ismFactory.deploy({ destination: chain, config });
         ismAddress = ism.address;
       } catch (e) {
         error('Failed to deploy random ism config', e);
@@ -144,7 +144,7 @@ describe('HyperlaneIsmFactory', async () => {
         TestChains.map((c) => [c, randomIsmConfig()]),
       ),
     };
-    const ism = await ismFactory.deploy({ chain, config });
+    const ism = await ismFactory.deploy({ destination: chain, config });
     const matches = await moduleMatchesConfig(
       chain,
       ism.address,
@@ -165,7 +165,7 @@ describe('HyperlaneIsmFactory', async () => {
     };
     const mailbox = await coreApp.getContracts(chain).mailbox;
     const ism = await ismFactory.deploy({
-      chain,
+      destination: chain,
       config,
       mailbox: mailbox.address,
     }); // not through an actual factory just for maintaining consistency in naming

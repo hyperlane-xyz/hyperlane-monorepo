@@ -15,8 +15,6 @@
     "zod": "^3.21.2"
   },
   "devDependencies": {
-    "@nomiclabs/hardhat-ethers": "^2.2.1",
-    "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@types/mocha": "^10.0.1",
     "@types/node": "^18.14.5",
     "@types/yargs": "^17.0.24",
@@ -25,7 +23,6 @@
     "chai": "^4.3.6",
     "eslint": "^8.43.0",
     "eslint-config-prettier": "^8.8.0",
-    "hardhat": "^2.19.0",
     "mocha": "^10.2.0",
     "prettier": "^2.8.8",
     "typescript": "^5.1.6"
@@ -37,9 +34,7 @@
     "clean": "rm -rf ./dist",
     "lint": "eslint . --ext .ts",
     "prettier": "prettier --write ./src ./examples",
-    "test": "yarn test:unit && yarn test:hardhat",
-    "test:unit": "mocha --config .mocharc.json",
-    "test:hardhat": "hardhat test $(find ./src -name \"*.hardhat-test.ts\")",
+    "test": "mocha --config .mocharc.json",
     "version:update": "echo \"export const VERSION = '$npm_package_version';\" > src/version.ts"
   },
   "files": [

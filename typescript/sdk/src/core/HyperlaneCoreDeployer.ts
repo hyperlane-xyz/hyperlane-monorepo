@@ -178,7 +178,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     mailbox: Address,
   ): Promise<Address> {
     const ism = await this.ismFactory.deploy({
-      chain,
+      destination: chain,
       config,
       mailbox,
     });

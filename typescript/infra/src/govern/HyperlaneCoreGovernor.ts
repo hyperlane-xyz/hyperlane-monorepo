@@ -30,7 +30,7 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
         let ismAddress: string;
         if (typeof violation.expected === 'object') {
           const ism = await this.checker.ismFactory.deploy({
-            chain: violation.chain,
+            destination: violation.chain,
             config: violation.expected,
           });
           ismAddress = ism.address;

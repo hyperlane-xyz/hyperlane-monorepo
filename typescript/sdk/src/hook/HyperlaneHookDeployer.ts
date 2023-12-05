@@ -183,7 +183,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       nativeBridge: l2Messenger,
     };
     const opstackIsm = (await this.ismFactory.deploy({
-      chain: config.destinationChain,
+      destination: config.destinationChain,
       config: ismConfig,
       origin: chain,
     })) as OPStackIsm;
