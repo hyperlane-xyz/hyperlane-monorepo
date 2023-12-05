@@ -31,6 +31,10 @@ export interface KeyAsAddress {
 //     [role]: keys[],
 //   }
 // }
+//
+// Note that some types of keys are used on multiple different chains
+// and may be duplicated in the returned object. E.g. the deployer key
+// or the relayer key, etc
 export function getRoleKeysPerChain(
   agentConfig: RootAgentConfig,
 ): ChainMap<Record<Role, CloudAgentKey[]>> {
