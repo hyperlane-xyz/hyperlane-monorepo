@@ -167,6 +167,7 @@ export {
   buildAgentConfig,
 } from './metadata/agentConfig';
 export {
+  BlockExplorer,
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,

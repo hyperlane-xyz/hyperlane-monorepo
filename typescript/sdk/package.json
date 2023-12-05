@@ -62,7 +62,8 @@
     "prettier": "prettier --write ./src",
     "test": "yarn test:unit && yarn test:hardhat",
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts'",
-    "test:hardhat": "hardhat test $(find ./src -name \"*.hardhat-test.ts\")"
+    "test:hardhat": "hardhat test $(find ./src -name \"*.hardhat-test.ts\")",
+    "test:metadata": "ts-node ./src/test/metadata-check.ts"
   },
   "types": "dist/index.d.ts",
   "peerDependencies": {

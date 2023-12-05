@@ -16,10 +16,6 @@ export const maticToken = { name: 'MATIC', symbol: 'MATIC', decimals: 18 };
 export const xDaiToken = { name: 'xDai', symbol: 'xDai', decimals: 18 };
 export const solToken = { name: 'Sol', symbol: 'SOL', decimals: 9 };
 
-/**
- * Metadata for Ethereum chains
- */
-
 export const alfajores: ChainMetadata = {
   chainId: 44787,
   domainId: 44787,
@@ -248,30 +244,6 @@ export const bsctestnet: ChainMetadata = {
   isTestnet: true,
 };
 
-export const chiado: ChainMetadata = {
-  chainId: 10200,
-  domainId: 10200,
-  name: Chains.chiado,
-  protocol: ProtocolType.Ethereum,
-  displayName: 'Chiado',
-  nativeToken: xDaiToken,
-  rpcUrls: [{ http: 'https://gnosis-chiado.publicnode.com' }],
-  blockExplorers: [
-    {
-      name: 'GnosisScan',
-      url: 'https://gnosis-chiado.blockscout.com',
-      apiUrl: 'https://gnosis-chiado.blockscout.com/api',
-      family: ExplorerFamily.Blockscout,
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    reorgPeriod: 14,
-    estimateBlockTime: 5,
-  },
-  isTestnet: true,
-};
-
 export const celo: ChainMetadata = {
   chainId: 42220,
   domainId: 42220,
@@ -303,6 +275,30 @@ export const celo: ChainMetadata = {
   // with delegates on a multisig created with the old unofficial Celo tooling.
   gnosisSafeTransactionServiceUrl:
     'https://mainnet-tx-svc.celo-safe-prod.celo-networks-dev.org/',
+};
+
+export const chiado: ChainMetadata = {
+  chainId: 10200,
+  domainId: 10200,
+  name: Chains.chiado,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Chiado',
+  nativeToken: xDaiToken,
+  rpcUrls: [{ http: 'https://gnosis-chiado.publicnode.com' }],
+  blockExplorers: [
+    {
+      name: 'GnosisScan',
+      url: 'https://gnosis-chiado.blockscout.com',
+      apiUrl: 'https://gnosis-chiado.blockscout.com/api',
+      family: ExplorerFamily.Blockscout,
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 14,
+    estimateBlockTime: 5,
+  },
+  isTestnet: true,
 };
 
 export const ethereum: ChainMetadata = {
@@ -396,6 +392,40 @@ export const goerli: ChainMetadata = {
   isTestnet: true,
 };
 
+export const gnosis: ChainMetadata = {
+  chainId: 100,
+  domainId: 100,
+  name: Chains.gnosis,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Gnosis',
+  nativeToken: xDaiToken,
+  rpcUrls: [
+    {
+      http: 'https://rpc.gnosischain.com',
+      pagination: {
+        maxBlockRange: 10000,
+        minBlockNumber: 25997478,
+      },
+    },
+  ],
+  blockExplorers: [
+    {
+      name: 'GnosisScan',
+      url: 'https://gnosisscan.io',
+      apiUrl: 'https://api.gnosisscan.io/api',
+      family: ExplorerFamily.Etherscan,
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 14,
+    estimateBlockTime: 5,
+  },
+  gasCurrencyCoinGeckoId: 'xdai',
+  gnosisSafeTransactionServiceUrl:
+    'https://safe-transaction-gnosis-chain.safe.global/',
+};
+
 export const lineagoerli: ChainMetadata = {
   chainId: 59140,
   domainId: 59140,
@@ -420,83 +450,33 @@ export const lineagoerli: ChainMetadata = {
   isTestnet: true,
 };
 
-export const sepolia: ChainMetadata = {
-  chainId: 11155111,
-  domainId: 11155111,
-  name: Chains.sepolia,
+export const mantapacific: ChainMetadata = {
+  chainId: 169,
+  domainId: 169,
+  name: Chains.mantapacific,
   protocol: ProtocolType.Ethereum,
-  displayName: 'Sepolia',
-  nativeToken: etherToken,
-  rpcUrls: [
-    { http: 'https://ethereum-sepolia.blockpi.network/v1/rpc/public' },
-    { http: 'https://eth-sepolia.g.alchemy.com/v2/demo' },
-    { http: 'https://rpc.sepolia.org' },
-  ],
-  blockExplorers: [
-    {
-      name: 'Etherscan',
-      url: 'https://sepolia.etherscan.io',
-      apiUrl: 'https://api-sepolia.etherscan.io/api',
-      family: ExplorerFamily.Etherscan,
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    reorgPeriod: 2,
-    estimateBlockTime: 13,
+  displayName: 'Manta Pacific',
+  displayNameShort: 'Manta',
+  nativeToken: {
+    name: 'Ether',
+    symbol: 'ETH',
+    decimals: 18,
   },
-  isTestnet: true,
-};
-
-export const scroll: ChainMetadata = {
-  chainId: 534352,
-  domainId: 534352,
-  name: Chains.scroll,
-  protocol: ProtocolType.Ethereum,
-  displayName: 'Scroll',
-  nativeToken: etherToken,
-  rpcUrls: [
-    { http: 'https://scroll.blockpi.network/v1/rpc/public' },
-    { http: 'https://scroll-mainnet.public.blastapi.io' },
-  ],
-  blockExplorers: [
-    {
-      name: 'Scroll Explorer',
-      url: 'https://scrollscan.com/',
-      apiUrl: 'https://api.scrollscan.com/api',
-      family: ExplorerFamily.Etherscan,
-    },
-  ],
-  gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
   blocks: {
     confirmations: 1,
-    reorgPeriod: 1,
+    reorgPeriod: 0,
     estimateBlockTime: 3,
   },
-};
-
-export const scrollsepolia: ChainMetadata = {
-  chainId: 534351,
-  domainId: 534351,
-  name: Chains.scrollsepolia,
-  protocol: ProtocolType.Ethereum,
-  displayName: 'Scroll Sepolia',
-  nativeToken: etherToken,
-  rpcUrls: [{ http: 'https://sepolia-rpc.scroll.io' }],
   blockExplorers: [
     {
-      name: 'Scroll Explorer',
-      url: 'https://sepolia.scrollscan.dev/',
-      apiUrl: 'https://api-sepolia.scrollscan.com/api',
-      family: ExplorerFamily.Etherscan,
+      name: 'Manta Pacific Explorer',
+      url: 'https://pacific-explorer.manta.network',
+      apiUrl: 'https://pacific-explorer.manta.network/api',
+      family: ExplorerFamily.Blockscout,
     },
   ],
-  blocks: {
-    confirmations: 1,
-    reorgPeriod: 1,
-    estimateBlockTime: 3,
-  },
-  isTestnet: true,
+  rpcUrls: [{ http: 'https://pacific-rpc.manta.network/http' }],
+  isTestnet: false,
 };
 
 export const moonbasealpha: ChainMetadata = {
@@ -593,6 +573,89 @@ export const mumbai: ChainMetadata = {
   isTestnet: true,
 };
 
+export const nautilus: ChainMetadata = {
+  chainId: 22222,
+  domainId: 22222,
+  name: Chains.nautilus,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Nautilus',
+  nativeToken: {
+    name: 'Zebec',
+    symbol: 'ZBC',
+    decimals: 18,
+  },
+  rpcUrls: [
+    {
+      http: 'https://api.nautilus.nautchain.xyz',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 1,
+  },
+};
+
+export const neutron: ChainMetadata = {
+  chainId: 'neutron-1',
+  domainId: 1853125230,
+  name: Chains.neutron,
+  protocol: ProtocolType.Cosmos,
+  displayName: 'Neutron',
+  bech32Prefix: 'neutron',
+  slip44: 118,
+  nativeToken: {
+    name: 'Neutron',
+    symbol: 'NTRN',
+    decimals: 6,
+  },
+  rpcUrls: [
+    { http: 'https://rpc-kralum.neutron-1.neutron.org' },
+    { http: 'grpc-kralum.neutron-1.neutron.org:80' },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 3,
+  },
+  blockExplorers: [
+    {
+      name: 'Mintscan',
+      url: 'https://www.mintscan.io/neutron',
+      // TODO API not actually supported, using url to meet validation requirements
+      apiUrl: 'https://www.mintscan.io/neutron',
+      family: ExplorerFamily.Other,
+    },
+  ],
+  isTestnet: false,
+};
+
+export const neutrontestnet: ChainMetadata = {
+  protocol: ProtocolType.Cosmos,
+  domainId: 33333,
+  chainId: 'duality-devnet',
+  name: Chains.neutrontestnet,
+  displayName: 'Neutron Testnet',
+  nativeToken: {
+    name: 'Neutron',
+    symbol: 'NTRN',
+    decimals: 6,
+  },
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 3,
+  },
+  // First URL RPC, second REST
+  rpcUrls: [
+    { http: 'http://54.149.31.83:26657' },
+    { http: 'http://54.149.31.83:1317' },
+  ],
+  bech32Prefix: 'dual',
+  slip44: 118,
+  isTestnet: true,
+};
+
 export const optimism: ChainMetadata = {
   chainId: 10,
   domainId: 10,
@@ -680,38 +743,58 @@ export const polygon: ChainMetadata = {
     'https://safe-transaction-polygon.safe.global/',
 };
 
-export const gnosis: ChainMetadata = {
-  chainId: 100,
-  domainId: 100,
-  name: Chains.gnosis,
+export const polygonzkevmtestnet: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
-  displayName: 'Gnosis',
-  nativeToken: xDaiToken,
-  rpcUrls: [
-    {
-      http: 'https://rpc.gnosischain.com',
-      pagination: {
-        maxBlockRange: 10000,
-        minBlockNumber: 25997478,
-      },
-    },
-  ],
+  chainId: 1442,
+  domainId: 1442,
+  name: Chains.polygonzkevmtestnet,
+  displayName: 'Polygon zkEVM Testnet',
+  displayNameShort: 'ZkEvm Testnet',
+  nativeToken: etherToken,
+  rpcUrls: [{ http: 'https://rpc.public.zkevm-test.net' }],
   blockExplorers: [
     {
-      name: 'GnosisScan',
-      url: 'https://gnosisscan.io',
-      apiUrl: 'https://api.gnosisscan.io/api',
+      name: 'PolygonScan',
+      url: 'https://testnet-zkevm.polygonscan.com/',
+      apiUrl: 'https://api-testnet-zkevm.polygonscan.com/api',
       family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
     confirmations: 1,
-    reorgPeriod: 14,
-    estimateBlockTime: 5,
+    reorgPeriod: 1,
+    estimateBlockTime: 3,
   },
-  gasCurrencyCoinGeckoId: 'xdai',
-  gnosisSafeTransactionServiceUrl:
-    'https://safe-transaction-gnosis-chain.safe.global/',
+  isTestnet: true,
+};
+
+export const polygonzkevm: ChainMetadata = {
+  protocol: ProtocolType.Ethereum,
+  chainId: 1101,
+  domainId: 1101,
+  name: Chains.polygonzkevm,
+  displayName: 'Polygon zkEVM',
+  displayNameShort: 'zkEVM',
+  nativeToken: etherToken,
+  rpcUrls: [
+    { http: 'https://polygonzkevm-mainnet.g.alchemy.com/v2/demo' },
+    { http: 'https://rpc.ankr.com/polygon_zkevm' },
+    { http: 'https://zkevm.polygonscan.com/' },
+  ],
+  blockExplorers: [
+    {
+      name: 'PolygonScan',
+      url: 'https://zkevm.polygonscan.com/',
+      apiUrl: 'https://api-zkevm.polygonscan.com/api',
+      family: ExplorerFamily.Etherscan,
+    },
+  ],
+  gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 10,
+  },
 };
 
 // Testnet for Nautilus
@@ -738,122 +821,49 @@ export const proteustestnet: ChainMetadata = {
   },
 };
 
-export const mantapacific: ChainMetadata = {
-  chainId: 169,
-  domainId: 169,
-  name: Chains.mantapacific,
+export const scroll: ChainMetadata = {
+  chainId: 534352,
+  domainId: 534352,
+  name: Chains.scroll,
   protocol: ProtocolType.Ethereum,
-  displayName: 'Manta Pacific',
-  displayNameShort: 'Manta',
-  nativeToken: {
-    name: 'Ether',
-    symbol: 'ETH',
-    decimals: 18,
-  },
-  blocks: {
-    confirmations: 1,
-    reorgPeriod: 0,
-    estimateBlockTime: 3,
-  },
+  displayName: 'Scroll',
+  nativeToken: etherToken,
+  rpcUrls: [
+    { http: 'https://scroll.blockpi.network/v1/rpc/public' },
+    { http: 'https://scroll-mainnet.public.blastapi.io' },
+  ],
   blockExplorers: [
     {
-      name: 'Manta Pacific Explorer',
-      url: 'https://pacific-explorer.manta.network/',
-      apiUrl: 'https://pacific-explorer.manta.network/api',
-      family: ExplorerFamily.Blockscout,
+      name: 'Scroll Explorer',
+      url: 'https://scrollscan.com/',
+      apiUrl: 'https://api.scrollscan.com/api',
+      family: ExplorerFamily.Etherscan,
     },
   ],
-  rpcUrls: [{ http: 'https://pacific-rpc.manta.network/http' }],
-  isTestnet: false,
-};
-
-export const nautilus: ChainMetadata = {
-  chainId: 22222,
-  domainId: 22222,
-  name: Chains.nautilus,
-  protocol: ProtocolType.Ethereum,
-  displayName: 'Nautilus',
-  nativeToken: {
-    name: 'Zebec',
-    symbol: 'ZBC',
-    decimals: 18,
-  },
-  rpcUrls: [
-    {
-      http: 'https://api.nautilus.nautchain.xyz',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    reorgPeriod: 1,
-    estimateBlockTime: 1,
-  },
-};
-
-export const neutron: ChainMetadata = {
-  chainId: 'neutron-1',
-  domainId: 1853125230,
-  name: Chains.neutron,
-  protocol: ProtocolType.Cosmos,
-  displayName: 'Neutron',
-  bech32Prefix: 'neutron',
-  slip44: 118,
-  nativeToken: {
-    name: 'Neutron',
-    symbol: 'NTRN',
-    decimals: 6,
-  },
-  rpcUrls: [
-    { http: 'https://rpc-kralum.neutron-1.neutron.org' },
-    { http: 'grpc-kralum.neutron-1.neutron.org:80' },
-  ],
+  gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
   blocks: {
     confirmations: 1,
     reorgPeriod: 1,
     estimateBlockTime: 3,
   },
+};
+
+export const scrollsepolia: ChainMetadata = {
+  chainId: 534351,
+  domainId: 534351,
+  name: Chains.scrollsepolia,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Scroll Sepolia',
+  nativeToken: etherToken,
+  rpcUrls: [{ http: 'https://sepolia-rpc.scroll.io' }],
   blockExplorers: [
     {
-      name: 'Mintscan',
-      url: 'https://www.mintscan.io/neutron',
-      // TODO API not actually supported, using url to meet validation requirements
-      apiUrl: 'https://www.mintscan.io/neutron',
-      family: ExplorerFamily.Other,
+      name: 'Scroll Explorer',
+      url: 'https://sepolia.scrollscan.dev/',
+      apiUrl: 'https://api-sepolia.scrollscan.com/api',
+      family: ExplorerFamily.Etherscan,
     },
   ],
-  isTestnet: false,
-};
-
-/**
- * Metadata for local test chains
- */
-
-export const test1: ChainMetadata = {
-  chainId: 13371,
-  domainId: 13371,
-  name: Chains.test1,
-  protocol: ProtocolType.Ethereum,
-  displayName: 'Test 1',
-  nativeToken: etherToken,
-  rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
-  blockExplorers: [],
-  blocks: {
-    confirmations: 1,
-    reorgPeriod: 0,
-    estimateBlockTime: 3,
-  },
-  isTestnet: true,
-};
-
-export const test2: ChainMetadata = {
-  chainId: 13372,
-  domainId: 13372,
-  name: Chains.test2,
-  protocol: ProtocolType.Ethereum,
-  displayName: 'Test 2',
-  nativeToken: etherToken,
-  rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
-  blockExplorers: [],
   blocks: {
     confirmations: 1,
     reorgPeriod: 1,
@@ -862,26 +872,33 @@ export const test2: ChainMetadata = {
   isTestnet: true,
 };
 
-export const test3: ChainMetadata = {
-  chainId: 13373,
-  domainId: 13373,
-  name: Chains.test3,
+export const sepolia: ChainMetadata = {
+  chainId: 11155111,
+  domainId: 11155111,
+  name: Chains.sepolia,
   protocol: ProtocolType.Ethereum,
-  displayName: 'Test 3',
+  displayName: 'Sepolia',
   nativeToken: etherToken,
-  rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
-  blockExplorers: [],
+  rpcUrls: [
+    { http: 'https://ethereum-sepolia.blockpi.network/v1/rpc/public' },
+    { http: 'https://eth-sepolia.g.alchemy.com/v2/demo' },
+    { http: 'https://rpc.sepolia.org' },
+  ],
+  blockExplorers: [
+    {
+      name: 'Etherscan',
+      url: 'https://sepolia.etherscan.io',
+      apiUrl: 'https://api-sepolia.etherscan.io/api',
+      family: ExplorerFamily.Etherscan,
+    },
+  ],
   blocks: {
     confirmations: 1,
     reorgPeriod: 2,
-    estimateBlockTime: 3,
+    estimateBlockTime: 13,
   },
   isTestnet: true,
 };
-
-/**
- * Metadata for Sealevel chains
- */
 
 export const solana: ChainMetadata = {
   protocol: ProtocolType.Sealevel,
@@ -957,23 +974,32 @@ export const solanadevnet: ChainMetadata = {
   isTestnet: true,
 };
 
-export const polygonzkevmtestnet: ChainMetadata = {
+export const test1: ChainMetadata = {
+  chainId: 13371,
+  domainId: 13371,
+  name: Chains.test1,
   protocol: ProtocolType.Ethereum,
-  chainId: 1442,
-  domainId: 1442,
-  name: Chains.polygonzkevmtestnet,
-  displayName: 'Polygon zkEVM Testnet',
-  displayNameShort: 'ZkEvm Testnet',
+  displayName: 'Test 1',
   nativeToken: etherToken,
-  rpcUrls: [{ http: 'https://rpc.public.zkevm-test.net' }],
-  blockExplorers: [
-    {
-      name: 'PolygonScan',
-      url: 'https://testnet-zkevm.polygonscan.com/',
-      apiUrl: 'https://api-testnet-zkevm.polygonscan.com/api',
-      family: ExplorerFamily.Etherscan,
-    },
-  ],
+  rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
+  blockExplorers: [],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 0,
+    estimateBlockTime: 3,
+  },
+  isTestnet: true,
+};
+
+export const test2: ChainMetadata = {
+  chainId: 13372,
+  domainId: 13372,
+  name: Chains.test2,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Test 2',
+  nativeToken: etherToken,
+  rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
+  blockExplorers: [],
   blocks: {
     confirmations: 1,
     reorgPeriod: 1,
@@ -982,58 +1008,20 @@ export const polygonzkevmtestnet: ChainMetadata = {
   isTestnet: true,
 };
 
-export const polygonzkevm: ChainMetadata = {
+export const test3: ChainMetadata = {
+  chainId: 13373,
+  domainId: 13373,
+  name: Chains.test3,
   protocol: ProtocolType.Ethereum,
-  chainId: 1101,
-  domainId: 1101,
-  name: Chains.polygonzkevm,
-  displayName: 'Polygon zkEVM',
-  displayNameShort: 'zkEVM',
+  displayName: 'Test 3',
   nativeToken: etherToken,
-  rpcUrls: [
-    { http: 'https://polygonzkevm-mainnet.g.alchemy.com/v2/demo' },
-    { http: 'https://rpc.ankr.com/polygon_zkevm' },
-    { http: 'https://zkevm.polygonscan.com/' },
-  ],
-  blockExplorers: [
-    {
-      name: 'PolygonScan',
-      url: 'https://zkevm.polygonscan.com/',
-      apiUrl: 'https://api-zkevm.polygonscan.com/api',
-      family: ExplorerFamily.Etherscan,
-    },
-  ],
-  gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
+  rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
+  blockExplorers: [],
   blocks: {
     confirmations: 1,
-    reorgPeriod: 1,
-    estimateBlockTime: 10,
-  },
-};
-
-export const neutrontestnet: ChainMetadata = {
-  protocol: ProtocolType.Cosmos,
-  domainId: 33333,
-  chainId: 'duality-devnet',
-  name: Chains.neutrontestnet,
-  displayName: 'Neutron Testnet',
-  nativeToken: {
-    name: 'Neutron',
-    symbol: 'NTRN',
-    decimals: 6,
-  },
-  blocks: {
-    confirmations: 1,
-    reorgPeriod: 1,
+    reorgPeriod: 2,
     estimateBlockTime: 3,
   },
-  // First URL RPC, second REST
-  rpcUrls: [
-    { http: 'http://54.149.31.83:26657' },
-    { http: 'http://54.149.31.83:1317' },
-  ],
-  bech32Prefix: 'dual',
-  slip44: 118,
   isTestnet: true,
 };
 
@@ -1052,39 +1040,39 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   basegoerli,
   bsc,
   bsctestnet,
-  chiado,
   celo,
+  chiado,
   ethereum,
   fuji,
+  gnosis,
   goerli,
   lineagoerli,
-  scroll,
-  scrollsepolia,
-  sepolia,
   mantapacific,
   moonbasealpha,
   moonbeam,
   mumbai,
+  nautilus,
   neutron,
+  neutrontestnet,
   optimism,
   optimismgoerli,
   polygon,
   polygonzkevm,
   polygonzkevmtestnet,
-  gnosis,
   proteustestnet,
-  test1,
-  test2,
-  test3,
+  scroll,
+  scrollsepolia,
+  sepolia,
   solana,
   solanatestnet,
   solanadevnet,
-  nautilus,
-  neutrontestnet,
+  test1,
+  test2,
+  test3,
 };
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<
-  ChainMap<ChainMetadata>
+  Record<string | number, ChainMetadata>
 >((result, chain) => {
   result[chain.chainId] = chain;
   return result;

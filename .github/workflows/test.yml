@@ -128,6 +128,26 @@ jobs:
       - name: Unit Tests
         run: yarn test
 
+  metadata-check:
+    runs-on: ubuntu-latest
+    needs: [yarn-build]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: build-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ./*
+            !./rust
+          key: ${{ github.sha }}
+
+      - name: Metadata Health Check
+        run: yarn workspace @hyperlane-xyz/sdk run test:metadata
+
   e2e:
     runs-on: larger-runner
     needs: [yarn-build]
