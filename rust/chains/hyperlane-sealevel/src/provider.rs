@@ -38,10 +38,10 @@ impl SealevelProvider {
         let pubkey = Pubkey::from_str(&address).map_err(Into::<HyperlaneSealevelError>::into)?;
         let balance = self
             .rpc_client
-            .get_account(&pubkey)
+            .get_balance(&pubkey)
             .await
             .map_err(Into::<HyperlaneSealevelError>::into)?;
-        Ok(balance.lamports.into())
+        Ok(balance.into())
     }
 }
 
@@ -73,7 +73,7 @@ impl HyperlaneProvider for SealevelProvider {
         Ok(true)
     }
 
-    async fn get_balance(&self, _address: String) -> ChainResult<U256> {
-        todo!() // FIXME
+    async fn get_balance(&self, address: String) -> ChainResult<U256> {
+        self.get_balance(address).await
     }
 }
