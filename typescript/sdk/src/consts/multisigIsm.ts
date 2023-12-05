@@ -101,18 +101,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x57231619fea13d85270ca6943298046c75a6dd01', // everstake
     ],
   },
-  mantapacific: {
-    threshold: 5,
-    validators: [
-      '0x8e668c97ad76d0e28375275c41ece4972ab8a5bc', //abacusworks
-      '0x521a3e6bf8d24809fde1c1fd3494a859a16f132c', //cosmostation
-      '0x14025fe092f5f8a401dd9819704d9072196d2125', //p2p
-      '0x25b9a0961c51e74fd83295293bc029131bf1e05a', //neutron
-      '0xa0eE95e280D46C14921e524B075d0C341e7ad1C8', //cosmos spaces
-      '0xcc9a0b6de7fe314bd99223687d784730a75bb957', //dsrv
-      '0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf', //sg-1
-    ],
-  },
   // ----------------- Testnets -----------------
   alfajores: {
     threshold: 2,

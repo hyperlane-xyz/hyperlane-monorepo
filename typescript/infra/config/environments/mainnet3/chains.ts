@@ -41,7 +41,6 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
   },
   moonbeam: chainMetadata.moonbeam,
   gnosis: chainMetadata.gnosis,
-  mantapacific: chainMetadata.mantapacific,
 };
 
 // Blessed non-Ethereum chains.
