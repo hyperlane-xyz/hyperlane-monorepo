@@ -10,28 +10,30 @@ use hyperlane_core::{
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use serializable_account_meta::SimulationReturnData;
 
-use crate::{utils::simulate_instruction, ConnectionConf, RpcClientWithDebug};
+use crate::{utils::simulate_instruction, ConnectionConf, RpcClientWithDebug, SealevelProvider};
 
 /// A reference to an InterchainSecurityModule contract on some Sealevel chain
 #[derive(Debug)]
 pub struct SealevelInterchainSecurityModule {
-    rpc_client: RpcClientWithDebug,
     payer: Option<Keypair>,
     program_id: Pubkey,
-    domain: HyperlaneDomain,
+    provider: SealevelProvider,
 }
 
 impl SealevelInterchainSecurityModule {
     /// Create a new sealevel InterchainSecurityModule
     pub fn new(conf: &ConnectionConf, locator: ContractLocator, payer: Option<Keypair>) -> Self {
-        let rpc_client = RpcClientWithDebug::new(conf.url.to_string());
+        let provider = SealevelProvider::new(locator.domain.clone(), conf);
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
-            rpc_client,
             payer,
             program_id,
-            domain: locator.domain.clone(),
+            provider,
         }
+    }
+
+    fn rpc(&self) -> &RpcClientWithDebug {
+        self.provider.rpc()
     }
 }
 
@@ -43,11 +45,11 @@ impl HyperlaneContract for SealevelInterchainSecurityModule {
 
 impl HyperlaneChain for SealevelInterchainSecurityModule {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.domain
+        self.provider.domain()
     }
 
     fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
-        Box::new(crate::SealevelProvider::new(self.domain.clone()))
+        self.provider.provider()
     }
 }
 
@@ -63,7 +65,7 @@ impl InterchainSecurityModule for SealevelInterchainSecurityModule {
         );
 
         let module = simulate_instruction::<SimulationReturnData<u32>>(
-            &self.rpc_client,
+            self.rpc(),
             self.payer
                 .as_ref()
                 .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
