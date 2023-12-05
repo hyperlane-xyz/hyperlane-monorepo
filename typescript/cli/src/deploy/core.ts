@@ -336,8 +336,6 @@ export async function executeDeploy({
   logBlue('Deployment is complete!');
   logBlue(`Contract address artifacts are in ${contractsFilePath}`);
   logBlue(`Agent configs are in ${agentFilePath}`);
-
-  return artifacts;
 }
 
 function buildIsmConfig(

@@ -4,6 +4,8 @@ import { ethers } from 'hardhat';
 import { error } from '@hyperlane-xyz/utils';
 
 import { TestChains } from '../consts/chains';
+import { TestCoreApp } from '../core/TestCoreApp';
+import { TestCoreDeployer } from '../core/TestCoreDeployer';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { randomAddress, randomInt } from '../test/testUtils';
@@ -72,7 +74,9 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
 };
 
 describe('HyperlaneIsmFactory', async () => {
-  let factory: HyperlaneIsmFactory;
+  let ismFactory: HyperlaneIsmFactory;
+  let coreApp: TestCoreApp;
+
   const chain = 'test1';
 
   before(async () => {
@@ -80,20 +84,24 @@ describe('HyperlaneIsmFactory', async () => {
 
     const multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
-    const deployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-    const contracts = await deployer.deploy({ [chain]: {} });
-    factory = new HyperlaneIsmFactory(contracts, multiProvider);
+    const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    ismFactory = new HyperlaneIsmFactory(
+      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
+      multiProvider,
+    );
+    const coreDeployer = new TestCoreDeployer(multiProvider, ismFactory);
+    coreApp = await coreDeployer.deployApp();
   });
 
   it('deploys a simple ism', async () => {
     const config = randomMultisigIsmConfig(3, 5);
-    const ism = await factory.deploy({ chain, config });
+    const ism = await ismFactory.deploy({ chain, config });
     const matches = await moduleMatchesConfig(
       chain,
       ism.address,
       config,
-      factory.multiProvider,
-      factory.getContracts(chain),
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
     );
     expect(matches).to.be.true;
   });
@@ -103,7 +111,7 @@ describe('HyperlaneIsmFactory', async () => {
       const config = randomIsmConfig();
       let ismAddress: string;
       try {
-        const ism = await factory.deploy({ chain, config });
+        const ism = await ismFactory.deploy({ chain, config });
         ismAddress = ism.address;
       } catch (e) {
         error('Failed to deploy random ism config', e);
@@ -116,8 +124,8 @@ describe('HyperlaneIsmFactory', async () => {
           chain,
           ismAddress,
           config,
-          factory.multiProvider,
-          factory.getContracts(chain),
+          ismFactory.multiProvider,
+          ismFactory.getContracts(chain),
         );
         expect(matches).to.be.true;
       } catch (e) {
@@ -127,4 +135,48 @@ describe('HyperlaneIsmFactory', async () => {
       }
     });
   }
+
+  it('deploys routingIsm with correct routes', async () => {
+    const config: RoutingIsmConfig = {
+      type: IsmType.ROUTING,
+      owner: randomAddress(),
+      domains: Object.fromEntries(
+        TestChains.map((c) => [c, randomIsmConfig()]),
+      ),
+    };
+    const ism = await ismFactory.deploy({ chain, config });
+    const matches = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      config,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+    );
+    expect(matches).to.be.true;
+  });
+
+  it('deploys defaultFallbackRoutingIsm with correct routes and fallback to mailbox', async () => {
+    const config: RoutingIsmConfig = {
+      type: IsmType.FALLBACK_ROUTING,
+      owner: randomAddress(),
+      domains: Object.fromEntries(
+        TestChains.map((c) => [c, randomIsmConfig()]),
+      ),
+    };
+    const mailbox = await coreApp.getContracts(chain).mailbox;
+    const ism = await ismFactory.deploy({
+      chain,
+      config,
+      mailbox: mailbox.address,
+    }); // not through an actual factory just for maintaining consistency in naming
+    const matches = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      config,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+      mailbox.address,
+    );
+    expect(matches).to.be.true;
+  });
 });

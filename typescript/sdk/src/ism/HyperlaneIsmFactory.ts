@@ -13,6 +13,7 @@ import {
   IMultisigIsm__factory,
   IRoutingIsm,
   IRoutingIsm__factory,
+  MailboxClient__factory,
   OPStackIsm,
   OPStackIsm__factory,
   StaticAddressSetFactory,
@@ -459,7 +460,7 @@ export async function moduleMatchesConfig(
   config: IsmConfig,
   multiProvider: MultiProvider,
   contracts: HyperlaneContracts<ProxyFactoryFactories>,
-  _origin?: ChainName,
+  mailbox?: Address,
 ): Promise<boolean> {
   if (typeof config === 'string') {
     return eqAddress(moduleAddress, config);
@@ -500,6 +501,7 @@ export async function moduleMatchesConfig(
       matches = eqAddress(expectedAddress, module.address);
       break;
     }
+    case IsmType.FALLBACK_ROUTING:
     case IsmType.ROUTING: {
       // A RoutingIsm matches if:
       //   1. The set of domains in the config equals those on-chain
@@ -512,6 +514,15 @@ export async function moduleMatchesConfig(
       // Check that the RoutingISM owner matches the config
       const owner = await routingIsm.owner();
       matches = matches && eqAddress(owner, config.owner);
+      // check if the mailbox matches the config for fallback routing
+      if (config.type === IsmType.FALLBACK_ROUTING) {
+        const client = MailboxClient__factory.connect(moduleAddress, provider);
+        const mailboxAddress = await client.mailbox();
+        matches =
+          matches &&
+          mailbox !== undefined &&
+          eqAddress(mailboxAddress, mailbox);
+      }
       // Recursively check that the submodule for each configured
       // domain matches the submodule config.
       for (const [origin, subConfig] of Object.entries(config.domains)) {
@@ -524,7 +535,7 @@ export async function moduleMatchesConfig(
           subConfig,
           multiProvider,
           contracts,
-          origin,
+          mailbox,
         );
         matches = matches && subModuleMatches;
       }
