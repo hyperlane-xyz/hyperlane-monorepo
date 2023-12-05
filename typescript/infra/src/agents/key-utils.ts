@@ -95,6 +95,7 @@ function getRoleKeyMapPerChain(
   };
 
   const setKathyKeys = () => {
+    // Kathy is only needed on chains where the hello world contracts are deployed.
     for (const chainName of Object.keys(
       helloWorld[agentConfig.context]?.addresses || {},
     )) {
