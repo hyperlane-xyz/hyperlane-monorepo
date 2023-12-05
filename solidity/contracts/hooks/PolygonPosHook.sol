@@ -21,7 +21,7 @@ import {Message} from "../libs/Message.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 // ============ External Imports ============
-import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenger.sol";
+import {FxBaseRootTunnel} from "fx-portal/tunnel/FxBaseRootTunnel.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
@@ -29,13 +29,10 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @notice Message hook to inform the PolygonPosIsm of messages published through
  * the native PoS bridge.
  */
-contract PolygonPosHook is AbstractMessageIdAuthHook {
+contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
     using StandardHookMetadata for bytes;
 
     // ============ Constants ============
-
-    /// @notice messenger contract specified by the rollup
-    ICrossDomainMessenger public immutable l1Messenger;
 
     // Gas limit for sending messages to L2
     // First 1.92e6 gas is provided by Optimism, see more here:
@@ -48,13 +45,21 @@ contract PolygonPosHook is AbstractMessageIdAuthHook {
         address _mailbox,
         uint32 _destinationDomain,
         bytes32 _ism,
-        address _l1Messenger
-    ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
+        address _cpManager,
+        address _fxRoot
+    )
+        AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism)
+        FxBaseRootTunnel(_cpManager, _fxRoot)
+    {
+        // FIX: check needed?
         require(
-            Address.isContract(_l1Messenger),
-            "OPStackHook: invalid messenger"
+            Address.isContract(_cpManager),
+            "PolygonPosHook: invalid cpManager contract"
         );
-        l1Messenger = ICrossDomainMessenger(_l1Messenger);
+        require(
+            Address.isContract(_fxRoot),
+            "PolygonPosHook: invalid fxRoot contract"
+        );
     }
 
     // ============ Internal functions ============
@@ -74,10 +79,13 @@ contract PolygonPosHook is AbstractMessageIdAuthHook {
             metadata.msgValue(0) < 2 ** 255,
             "OPStackHook: msgValue must be less than 2 ** 255"
         );
-        l1Messenger.sendMessage{value: metadata.msgValue(0)}(
-            TypeCasts.bytes32ToAddress(ism),
-            payload,
-            GAS_LIMIT
-        );
+        _sendMessageToChild(payload);
+    }
+
+    // FIX: connect to mailbox, check how to do bidrectional
+    bytes public latestData;
+
+    function _processMessageFromChild(bytes memory data) internal override {
+        latestData = data;
     }
 }

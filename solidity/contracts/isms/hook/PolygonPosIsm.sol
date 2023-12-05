@@ -21,16 +21,18 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.sol";
 
 // ============ External Imports ============
-import {CrossChainEnabledOptimism} from "@openzeppelin/contracts/crosschain/optimism/CrossChainEnabledOptimism.sol";
+import {CrossChainEnabledPolygonChild} from "@openzeppelin/contracts/crosschain/polygon/CrossChainEnabledPolygonChild.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {FxBaseChildTunnel} from "fx-portal/tunnel/FxBaseChildTunnel.sol";
 
 /**
- * @title OPStackIsm
- * @notice Uses the native Optimism bridge to verify interchain messages.
+ * @title PolygonPosIsm
+ * @notice Uses the native Polygon Pos Fx Portal Bridge to verify interchain messages.
  */
-contract OPStackIsm is
-    CrossChainEnabledOptimism,
-    AbstractMessageIdAuthorizedIsm
+contract PolygonPosIsm is
+    CrossChainEnabledPolygonChild,
+    AbstractMessageIdAuthorizedIsm,
+    FxBaseChildTunnel
 {
     // ============ Constants ============
 
@@ -39,14 +41,40 @@ contract OPStackIsm is
 
     // ============ Constructor ============
 
-    constructor(address _l2Messenger) CrossChainEnabledOptimism(_l2Messenger) {
+    constructor(
+        address _fxChild
+    ) CrossChainEnabledPolygonChild(_fxChild) FxBaseChildTunnel(_fxChild) {
         require(
-            Address.isContract(_l2Messenger),
-            "OPStackIsm: invalid L2Messenger"
+            Address.isContract(_fxChild),
+            "PolygonPosIsm: invalid FxChild contract"
         );
     }
 
     // ============ Internal function ============
+
+    uint256 public latestStateId;
+    address public latestRootMessageSender;
+    bytes public latestData;
+
+    function _processMessageFromRoot(
+        uint256 stateId,
+        address sender,
+        bytes memory data
+    ) internal override validateSender(sender) {
+        latestStateId = stateId;
+        latestRootMessageSender = sender;
+        latestData = data;
+    }
+
+    function processMessageFromRoot() internal override validateSender(sender) {
+        latestStateId = stateId;
+        latestRootMessageSender = sender;
+        latestData = data;
+    }
+
+    function sendMessageToRoot(bytes memory message) public {
+        _sendMessageToRoot(message);
+    }
 
     /**
      * @notice Check if sender is authorized to message `verifyMessageId`.
