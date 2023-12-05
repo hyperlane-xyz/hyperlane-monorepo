@@ -13,12 +13,6 @@ import { VERSION } from './src/version.js';
 // From yargs code:
 const MISSING_PARAMS_ERROR = 'Not enough non-option arguments';
 
-console.log(
-  figlet.textSync('Hyperlane', {
-    font: 'ANSI Shadow',
-  }),
-);
-
 try {
   await yargs(process.argv.slice(2))
     .scriptName('hyperlane')
@@ -33,9 +27,8 @@ try {
     .help()
     .fail((msg, err, yargs) => {
       if (msg && !msg.includes(MISSING_PARAMS_ERROR)) errorRed('Error: ' + msg);
-      console.log('');
+      console.log(figlet.textSync('Hyperlane', { font: 'ANSI Shadow' }));
       yargs.showHelp();
-      console.log('');
       if (err) errorRed(err.toString());
       process.exit(1);
     }).argv;
