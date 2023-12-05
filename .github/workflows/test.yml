@@ -137,13 +137,13 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: build-cache
+      - name: yarn-cache
         uses: actions/cache@v3
         with:
           path: |
-            ./*
-            !./rust
-          key: ${{ github.sha }}
+            **/node_modules
+            .yarn
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: Metadata Health Check
         run: yarn workspace @hyperlane-xyz/sdk run test:metadata
