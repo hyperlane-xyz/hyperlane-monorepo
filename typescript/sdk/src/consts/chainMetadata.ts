@@ -212,10 +212,7 @@ export const bsc: ChainMetadata = {
   name: Chains.bsc,
   nativeToken: bnbToken,
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [
-    { http: 'https://bsc-dataseed.binance.org' },
-    { http: 'https://rpc.ankr.com/bsc' },
-  ],
+  rpcUrls: [{ http: 'https://rpc.ankr.com/bsc' }],
 };
 
 export const bsctestnet: ChainMetadata = {
@@ -241,7 +238,6 @@ export const bsctestnet: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
     { http: 'https://bsc-testnet.publicnode.com' },
-    { http: 'https://bsc-testnet.public.blastapi.io' },
     { http: 'https://bsc-testnet.blockpi.network/v1/rpc/public' },
   ],
 };
@@ -390,7 +386,6 @@ export const goerli: ChainMetadata = {
   rpcUrls: [
     { http: 'https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161' },
     { http: 'https://rpc.ankr.com/eth_goerli' },
-    { http: 'https://eth-goerli.public.blastapi.io' },
   ],
 };
 
@@ -569,9 +564,6 @@ export const mumbai: ChainMetadata = {
         minBlockNumber: 22900000,
       },
     },
-    {
-      http: 'https://matic-mumbai.chainstacklabs.com',
-    },
   ],
 };
 
@@ -625,36 +617,7 @@ export const neutron: ChainMetadata = {
     symbol: 'NTRN',
   },
   protocol: ProtocolType.Cosmos,
-  rpcUrls: [
-    { http: 'https://rpc-kralum.neutron-1.neutron.org' },
-    { http: 'grpc-kralum.neutron-1.neutron.org:80' },
-  ],
-  slip44: 118,
-};
-
-export const neutrontestnet: ChainMetadata = {
-  bech32Prefix: 'dual',
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
-  },
-  chainId: 'duality-devnet',
-  displayName: 'Neutron Testnet',
-  domainId: 33333,
-  isTestnet: true,
-  name: Chains.neutrontestnet,
-  nativeToken: {
-    decimals: 6,
-    name: 'Neutron',
-    symbol: 'NTRN',
-  },
-  protocol: ProtocolType.Cosmos,
-  // First URL RPC, second REST
-  rpcUrls: [
-    { http: 'http://54.149.31.83:26657' },
-    { http: 'http://54.149.31.83:1317' },
-  ],
+  rpcUrls: [{ http: 'https://rpc-kralum.neutron-1.neutron.org' }],
   slip44: 118,
 };
 
@@ -746,38 +709,13 @@ export const polygon: ChainMetadata = {
   ],
 };
 
-export const polygonzkevmtestnet: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-testnet-zkevm.polygonscan.com/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'PolygonScan',
-      url: 'https://testnet-zkevm.polygonscan.com/',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
-  },
-  chainId: 1442,
-  displayName: 'Polygon zkEVM Testnet',
-  displayNameShort: 'ZkEvm Testnet',
-  domainId: 1442,
-  isTestnet: true,
-  name: Chains.polygonzkevmtestnet,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.public.zkevm-test.net' }],
-};
-
 export const polygonzkevm: ChainMetadata = {
   blockExplorers: [
     {
       apiUrl: 'https://api-zkevm.polygonscan.com/api',
       family: ExplorerFamily.Etherscan,
       name: 'PolygonScan',
-      url: 'https://zkevm.polygonscan.com/',
+      url: 'https://zkevm.polygonscan.com',
     },
   ],
   // ETH is used for gas
@@ -794,11 +732,32 @@ export const polygonzkevm: ChainMetadata = {
   name: Chains.polygonzkevm,
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [
-    { http: 'https://polygonzkevm-mainnet.g.alchemy.com/v2/demo' },
-    { http: 'https://rpc.ankr.com/polygon_zkevm' },
-    { http: 'https://zkevm.polygonscan.com/' },
+  rpcUrls: [{ http: 'https://rpc.ankr.com/polygon_zkevm' }],
+};
+
+export const polygonzkevmtestnet: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://api-testnet-zkevm.polygonscan.com/api',
+      family: ExplorerFamily.Etherscan,
+      name: 'PolygonScan',
+      url: 'https://testnet-zkevm.polygonscan.com',
+    },
   ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 3,
+    reorgPeriod: 1,
+  },
+  chainId: 1442,
+  displayName: 'Polygon zkEVM Testnet',
+  displayNameShort: 'ZkEvm Testnet',
+  domainId: 1442,
+  isTestnet: true,
+  name: Chains.polygonzkevmtestnet,
+  nativeToken: etherToken,
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [{ http: 'https://rpc.public.zkevm-test.net' }],
 };
 
 // Testnet for Nautilus
@@ -847,10 +806,7 @@ export const scroll: ChainMetadata = {
   name: Chains.scroll,
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [
-    { http: 'https://scroll.blockpi.network/v1/rpc/public' },
-    { http: 'https://scroll-mainnet.public.blastapi.io' },
-  ],
+  rpcUrls: [{ http: 'https://scroll.blockpi.network/v1/rpc/public' }],
 };
 
 export const scrollsepolia: ChainMetadata = {
@@ -900,7 +856,6 @@ export const sepolia: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
     { http: 'https://ethereum-sepolia.blockpi.network/v1/rpc/public' },
-    { http: 'https://eth-sepolia.g.alchemy.com/v2/demo' },
     { http: 'https://rpc.sepolia.org' },
   ],
 };
@@ -1059,7 +1014,6 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   mumbai,
   nautilus,
   neutron,
-  neutrontestnet,
   optimism,
   optimismgoerli,
   polygon,

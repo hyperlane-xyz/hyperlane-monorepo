@@ -7,13 +7,18 @@ import { hyperlaneContractAddresses } from '../consts/environments';
 import { logger } from '../logger';
 import {
   CosmJsProvider,
+  CosmJsWasmProvider,
   EthersV5Provider,
   ProviderType,
   SolanaWeb3Provider,
 } from '../providers/ProviderType';
 import { protocolToDefaultProviderBuilder } from '../providers/providerBuilders';
 
-import { getExplorerAddressUrl, getExplorerBaseUrl } from './blockExplorer';
+import {
+  getExplorerAddressUrl,
+  getExplorerBaseUrl,
+  getExplorerTxUrl,
+} from './blockExplorer';
 import { ChainMetadata, RpcUrl } from './chainMetadataTypes';
 
 export async function isRpcHealthy(
@@ -28,9 +33,12 @@ export async function isRpcHealthy(
     if (provider.type === ProviderType.EthersV5)
       resultPromise = isEthersV5ProviderHealthy(provider.provider, chainId);
     else if (provider.type === ProviderType.SolanaWeb3)
-      resultPromise = isSolanaWeb3ProviderHealthy(provider.provider);
-    else if (provider.type === ProviderType.CosmJs)
-      resultPromise = isCosmJsProviderHealthy(provider.provider);
+      resultPromise = isSolanaWeb3ProviderHealthy(provider.provider, chainId);
+    else if (
+      provider.type === ProviderType.CosmJsWasm ||
+      provider.type === ProviderType.CosmJs
+    )
+      resultPromise = isCosmJsProviderHealthy(provider.provider, chainId);
     else
       throw new Error(
         `Unsupported provider type ${provider.type}, new health check required`,
@@ -41,8 +49,8 @@ export async function isRpcHealthy(
       'RPC health check timed out',
     );
     return result;
-  } catch (err) {
-    logger(`Provider error for ${rpc.http}`, err);
+  } catch (error) {
+    logger(`Provider error for ${rpc.http}`, error);
     return false;
   }
 }
@@ -51,16 +59,20 @@ export async function isEthersV5ProviderHealthy(
   provider: EthersV5Provider['provider'],
   chainId: string | number,
 ): Promise<boolean> {
+  logger(`Checking ethers provider for ${chainId}`);
   const blockNumber = await provider.getBlockNumber();
   if (!blockNumber || blockNumber < 0) return false;
-  if (chainIdToMetadata[chainId]) {
-    const chainName = chainIdToMetadata[chainId].name as CoreChainName;
+  logger(`Block number is okay for ${chainId}`);
+
+  const chainName = chainIdToMetadata[chainId]?.name as CoreChainName;
+  if (chainName && hyperlaneContractAddresses[chainName]) {
     const mailboxAddr = hyperlaneContractAddresses[chainName].mailbox;
     const mailbox = Mailbox__factory.createInterface();
     const topics = mailbox.encodeFilterTopics(
       mailbox.events['DispatchId(bytes32)'],
       [],
     );
+    logger(`Checking mailbox logs for ${chainId}`);
     const mailboxLogs = await provider.getLogs({
       address: mailboxAddr,
       topics,
@@ -68,24 +80,30 @@ export async function isEthersV5ProviderHealthy(
       toBlock: blockNumber,
     });
     if (!mailboxLogs) return false;
+    logger(`Mailbox logs okay for ${chainId}`);
   }
   return true;
 }
 
 export async function isSolanaWeb3ProviderHealthy(
   provider: SolanaWeb3Provider['provider'],
+  chainId: string | number,
 ): Promise<boolean> {
+  logger(`Checking solana provider for ${chainId}`);
   const blockNumber = await provider.getBlockHeight();
   if (!blockNumber || blockNumber < 0) return false;
+  logger(`Block number is okay for ${chainId}`);
   return true;
 }
 
 export async function isCosmJsProviderHealthy(
-  provider: CosmJsProvider['provider'],
+  provider: CosmJsProvider['provider'] | CosmJsWasmProvider['provider'],
+  chainId: string | number,
 ): Promise<boolean> {
   const readyProvider = await provider;
   const blockNumber = await readyProvider.getHeight();
   if (!blockNumber || blockNumber < 0) return false;
+  logger(`Block number is okay for ${chainId}`);
   return true;
 }
 
@@ -94,25 +112,36 @@ export async function isBlockExplorerHealthy(
   address?: Address,
   txHash?: string,
 ): Promise<boolean> {
-  const baseUrl = getExplorerBaseUrl(chainMetadata);
-  if (!baseUrl) return false;
+  try {
+    const baseUrl = getExplorerBaseUrl(chainMetadata);
+    if (!baseUrl) return false;
 
-  const homeReq = await fetch(baseUrl);
-  if (!homeReq.ok) return false;
+    logger(`Checking explorer home for ${chainMetadata.name}`);
+    const homeReq = await fetch(baseUrl);
+    if (!homeReq.ok) return false;
+    logger(`Explorer home okay for ${chainMetadata.name}`);
 
-  if (address) {
-    const addressUrl = getExplorerAddressUrl(chainMetadata, address);
-    if (!addressUrl) return false;
-    const addressReq = await fetch(addressUrl);
-    if (!addressReq.ok) return false;
+    if (address) {
+      logger(`Checking explorer address page for ${chainMetadata.name}`);
+      const addressUrl = getExplorerAddressUrl(chainMetadata, address);
+      if (!addressUrl) return false;
+      const addressReq = await fetch(addressUrl);
+      if (!addressReq.ok) return false;
+      logger(`Explorer address page okay for ${chainMetadata.name}`);
+    }
+
+    if (txHash) {
+      logger(`Checking explorer tx page for ${chainMetadata.name}`);
+      const txUrl = getExplorerTxUrl(chainMetadata, txHash);
+      if (!txUrl) return false;
+      const txReq = await fetch(txUrl);
+      if (!txReq.ok) return false;
+      logger(`Explorer tx page okay for ${chainMetadata.name}`);
+    }
+
+    return true;
+  } catch (error) {
+    logger(`Explorer error for ${chainMetadata.name}`, error);
+    return false;
   }
-
-  if (txHash) {
-    const txUrl = getExplorerAddressUrl(chainMetadata, txHash);
-    if (!txUrl) return false;
-    const txReq = await fetch(txUrl);
-    if (!txReq.ok) return false;
-  }
-
-  return true;
 }

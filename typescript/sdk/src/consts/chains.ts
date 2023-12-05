@@ -24,7 +24,6 @@ export enum Chains {
   mumbai = 'mumbai',
   nautilus = 'nautilus',
   neutron = 'neutron',
-  neutrontestnet = 'neutrontestnet',
   optimism = 'optimism',
   optimismgoerli = 'optimismgoerli',
   polygon = 'polygon',
@@ -50,6 +49,7 @@ export enum DeprecatedChains {
   rinkeby = 'rinkeby',
   optimismkovan = 'optimismkovan',
   optimismrinkeby = 'optimismrinkeby',
+  neutrontestnet = 'neutrontestnet',
 }
 
 export const AllDeprecatedChains = Object.keys(DeprecatedChains) as string[];
