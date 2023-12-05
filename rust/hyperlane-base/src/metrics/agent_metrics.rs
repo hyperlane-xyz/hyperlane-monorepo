@@ -92,7 +92,7 @@ impl AgentMetricsUpdater {
                 // Okay, so the native type is not a token, but whatever, close enough.
                 // Note: This is ETH for many chains, but not all so that is why we use `N` and `Native`
                 // TODO: can we get away with scaling as 18 in all cases here? I am guessing not.
-                let balance = u256_as_scaled_f64(balance, 18);
+                let balance = u256_as_scaled_f64(balance, self.conf.domain.domain_protocol());
                 trace!("Wallet {wallet_name} ({wallet_addr}) on chain {chain} balance is {balance} of the native currency");
                 wallet_balance_metric
                     .with(&hashmap! {

@@ -90,7 +90,6 @@ impl HyperlaneProvider for CosmosProvider {
         Ok(self
             .grpc_client
             .get_balance(address, self.canonical_asset.clone())
-            .await?
-            .into())
+            .await?)
     }
 }

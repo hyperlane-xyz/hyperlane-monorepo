@@ -224,7 +224,7 @@ impl WasmGrpcProvider {
     }
 
     /// Fetches balance for a given `address` and `denom`
-    pub async fn get_balance(&self, address: String, denom: String) -> ChainResult<u64> {
+    pub async fn get_balance(&self, address: String, denom: String) -> ChainResult<U256> {
         let mut client = QueryBalanceClient::new(self.channel.clone());
 
         let balance_request = tonic::Request::new(QueryBalanceRequest { address, denom });

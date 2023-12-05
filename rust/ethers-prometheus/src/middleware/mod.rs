@@ -15,6 +15,7 @@ use ethers::prelude::*;
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::utils::hex::ToHex;
 use hyperlane_core::metrics::agent::u256_as_scaled_f64;
+use hyperlane_core::HyperlaneDomainProtocol;
 use log::{debug, trace};
 use maplit::hashmap;
 use prometheus::{CounterVec, GaugeVec, IntCounterVec, IntGaugeVec};
@@ -539,7 +540,8 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
         }
         if let Some(gas_price_gwei) = gas_price_gwei {
             if let Some(london_fee) = current_block.base_fee_per_gas {
-                let gas = u256_as_scaled_f64(london_fee.into(), 18) * 1e9;
+                let gas =
+                    u256_as_scaled_f64(london_fee.into(), HyperlaneDomainProtocol::Ethereum) * 1e9;
                 trace!("Gas price for chain {chain} is {gas:.1}gwei");
                 gas_price_gwei.with(&hashmap! { "chain" => chain }).set(gas);
             } else {
