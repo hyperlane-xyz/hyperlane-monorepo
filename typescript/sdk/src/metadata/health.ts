@@ -115,6 +115,7 @@ export async function isBlockExplorerHealthy(
   try {
     const baseUrl = getExplorerBaseUrl(chainMetadata);
     if (!baseUrl) return false;
+    logger(`Got base url: ${baseUrl}`);
 
     logger(`Checking explorer home for ${chainMetadata.name}`);
     const homeReq = await fetch(baseUrl);
@@ -125,6 +126,7 @@ export async function isBlockExplorerHealthy(
       logger(`Checking explorer address page for ${chainMetadata.name}`);
       const addressUrl = getExplorerAddressUrl(chainMetadata, address);
       if (!addressUrl) return false;
+      logger(`Got address url: ${addressUrl}`);
       const addressReq = await fetch(addressUrl);
       if (!addressReq.ok) return false;
       logger(`Explorer address page okay for ${chainMetadata.name}`);
@@ -134,6 +136,7 @@ export async function isBlockExplorerHealthy(
       logger(`Checking explorer tx page for ${chainMetadata.name}`);
       const txUrl = getExplorerTxUrl(chainMetadata, txHash);
       if (!txUrl) return false;
+      logger(`Got tx url: ${txUrl}`);
       const txReq = await fetch(txUrl);
       if (!txReq.ok) return false;
       logger(`Explorer tx page okay for ${chainMetadata.name}`);

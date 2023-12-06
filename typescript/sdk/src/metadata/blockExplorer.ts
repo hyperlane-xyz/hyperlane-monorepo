@@ -40,9 +40,7 @@ export function getExplorerTxUrl(
   const urlPathStub = ['nautilus', 'proteustestnet'].includes(chainName)
     ? 'transaction'
     : 'tx';
-  const url = new URL(baseUrl);
-  url.pathname += `/${urlPathStub}/${hash}`;
-  return url.toString();
+  return appendToPath(baseUrl, `${urlPathStub}/${hash}`).toString();
 }
 
 export function getExplorerAddressUrl(
@@ -51,7 +49,13 @@ export function getExplorerAddressUrl(
 ): string | null {
   const baseUrl = getExplorerBaseUrl(metadata);
   if (!baseUrl) return null;
-  const url = new URL(baseUrl);
-  url.pathname += `/address/${address}`;
-  return url.toString();
+  return appendToPath(baseUrl, `address/${address}`).toString();
+}
+
+function appendToPath(baseUrl: string, pathExtension: string) {
+  const base = new URL(baseUrl);
+  let currentPath = base.pathname;
+  if (currentPath.endsWith('/')) currentPath = currentPath.slice(0, -1);
+  const newPath = `${currentPath}/${pathExtension}`;
+  return new URL(newPath, base);
 }
