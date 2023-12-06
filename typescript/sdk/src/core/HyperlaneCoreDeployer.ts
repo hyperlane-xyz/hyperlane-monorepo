@@ -102,7 +102,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         ),
       );
     } catch (e: any) {
-      if (!e.message.includes('already initialized')) {
+      if (
+        !e.message.includes('already initialized') &&
+        !e.message.includes('Reverted 0x08c379a')
+      ) {
         throw e;
       }
 
