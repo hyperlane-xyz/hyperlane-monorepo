@@ -274,7 +274,7 @@ export function mustGetChainNativeTokenDecimals(chain: ChainName): number {
   return metadata.nativeToken.decimals;
 }
 
-export function isNotEthereumProtocolChain(chainName: ChainName) {
+export function isEthereumProtocolChain(chainName: ChainName) {
   if (!chainMetadata[chainName]) throw new Error(`Unknown chain ${chainName}`);
-  return chainMetadata[chainName].protocol !== ProtocolType.Ethereum;
+  return chainMetadata[chainName].protocol === ProtocolType.Ethereum;
 }
