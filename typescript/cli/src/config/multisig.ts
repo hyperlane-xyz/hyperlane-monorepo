@@ -1,7 +1,7 @@
 import { confirm, input } from '@inquirer/prompts';
 import { z } from 'zod';
 
-import { ChainMap, MultisigConfig } from '@hyperlane-xyz/sdk';
+import { ChainMap, MultisigConfig, ZHash } from '@hyperlane-xyz/sdk';
 import {
   Address,
   isValidAddress,
@@ -19,7 +19,7 @@ import { readChainConfigsIfExists } from './chain.js';
 const MultisigConfigMapSchema = z.object({}).catchall(
   z.object({
     threshold: z.number(),
-    validators: z.array(z.string()),
+    validators: z.array(ZHash),
   }),
 );
 export type MultisigConfigMap = z.infer<typeof MultisigConfigMapSchema>;

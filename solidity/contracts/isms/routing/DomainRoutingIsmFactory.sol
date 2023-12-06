@@ -18,10 +18,12 @@ abstract contract AbstractDomainRoutingIsmFactory {
 
     /**
      * @notice Deploys and initializes a DomainRoutingIsm using a minimal proxy
+     * @param _owner The owner to set on the ISM
      * @param _domains The origin domains
      * @param _modules The ISMs to use to verify messages
      */
     function deploy(
+        address _owner,
         uint32[] calldata _domains,
         IInterchainSecurityModule[] calldata _modules
     ) external returns (DomainRoutingIsm) {
@@ -29,7 +31,7 @@ abstract contract AbstractDomainRoutingIsmFactory {
             MinimalProxy.create(implementation())
         );
         emit ModuleDeployed(_ism);
-        _ism.initialize(msg.sender, _domains, _modules);
+        _ism.initialize(_owner, _domains, _modules);
         return _ism;
     }
 
@@ -45,22 +47,6 @@ contract DomainRoutingIsmFactory is AbstractDomainRoutingIsmFactory {
 
     constructor() {
         _implementation = address(new DomainRoutingIsm());
-    }
-
-    function implementation() public view override returns (address) {
-        return _implementation;
-    }
-}
-
-/**
- * @title DefaultFallbackRoutingIsmFactory
- */
-contract DefaultFallbackRoutingIsmFactory is AbstractDomainRoutingIsmFactory {
-    // ============ Immutables ============
-    address internal immutable _implementation;
-
-    constructor(address mailbox) {
-        _implementation = address(new DefaultFallbackRoutingIsm(mailbox));
     }
 
     function implementation() public view override returns (address) {

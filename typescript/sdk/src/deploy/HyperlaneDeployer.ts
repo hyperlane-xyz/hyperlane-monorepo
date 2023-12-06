@@ -220,7 +220,8 @@ export abstract class HyperlaneDeployer<
         this.multiProvider,
         ismFactory.getContracts(chain),
       );
-      targetIsm = (await ismFactory.deploy(chain, config)).address;
+      targetIsm = (await ismFactory.deploy({ destination: chain, config }))
+        .address;
     }
     if (!matches) {
       await this.runIfOwner(chain, contract, async () => {
@@ -269,7 +270,6 @@ export abstract class HyperlaneDeployer<
     config: MailboxClientConfig,
   ): Promise<void> {
     this.logger(`Initializing mailbox client (if not already) on ${local}...`);
-    this.logger(`MailboxClient Config: ${JSON.stringify(config)}`);
     if (config.hook) {
       await this.configureHook(
         local,

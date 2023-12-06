@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {DomainRoutingIsm} from "../../contracts/isms/routing/DomainRoutingIsm.sol";
 import {DefaultFallbackRoutingIsm} from "../../contracts/isms/routing/DefaultFallbackRoutingIsm.sol";
-import {DefaultFallbackRoutingIsmFactory, DomainRoutingIsmFactory} from "../../contracts/isms/routing/DomainRoutingIsmFactory.sol";
+import {DomainRoutingIsmFactory} from "../../contracts/isms/routing/DomainRoutingIsmFactory.sol";
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {MessageUtils, TestIsm} from "./IsmTestUtils.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";

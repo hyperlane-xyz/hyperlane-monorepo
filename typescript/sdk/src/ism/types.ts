@@ -26,6 +26,7 @@ export enum ModuleType {
 export enum IsmType {
   OP_STACK = 'opStackIsm',
   ROUTING = 'domainRoutingIsm',
+  FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
   AGGREGATION = 'staticAggregationIsm',
   MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
   MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm',
@@ -38,6 +39,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.OP_STACK:
       return ModuleType.NULL;
     case IsmType.ROUTING:
+      return ModuleType.ROUTING;
+    case IsmType.FALLBACK_ROUTING:
       return ModuleType.ROUTING;
     case IsmType.AGGREGATION:
       return ModuleType.AGGREGATION;
@@ -64,11 +67,9 @@ export type TestIsmConfig = {
 };
 
 export type RoutingIsmConfig = {
-  type: IsmType.ROUTING;
+  type: IsmType.ROUTING | IsmType.FALLBACK_ROUTING;
   owner: Address;
   domains: ChainMap<IsmConfig>;
-  // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2895
-  // defaultFallback?: boolean;
 };
 
 export type AggregationIsmConfig = {
@@ -93,6 +94,7 @@ export type IsmConfig =
 
 export type DeployedIsmType = {
   [IsmType.ROUTING]: IRoutingIsm;
+  [IsmType.FALLBACK_ROUTING]: IRoutingIsm;
   [IsmType.AGGREGATION]: IAggregationIsm;
   [IsmType.MERKLE_ROOT_MULTISIG]: IMultisigIsm;
   [IsmType.MESSAGE_ID_MULTISIG]: IMultisigIsm;
