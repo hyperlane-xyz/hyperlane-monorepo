@@ -1,5 +1,5 @@
 #! /usr/bin/env node
-import chalk from 'chalk';
+import figlet from 'figlet';
 import yargs from 'yargs';
 
 import { errorRed } from './logger.js';
@@ -8,16 +8,18 @@ import { configCommand } from './src/commands/config.js';
 import { deployCommand } from './src/commands/deploy.js';
 import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
-import { readJson } from './src/utils/files.js';
+import { VERSION } from './src/version.js';
 
 // From yargs code:
 const MISSING_PARAMS_ERROR = 'Not enough non-option arguments';
 
-console.log(chalk.blue('Hyperlane'), chalk.magentaBright('CLI'));
+console.log(
+  figlet.textSync('Hyperlane', {
+    font: 'ANSI Shadow',
+  }),
+);
 
 try {
-  const version = readJson<any>('./package.json').version;
-
   await yargs(process.argv.slice(2))
     .scriptName('hyperlane')
     .command(chainsCommand)
@@ -25,7 +27,7 @@ try {
     .command(deployCommand)
     .command(sendCommand)
     .command(statusCommand)
-    .version(version)
+    .version(VERSION)
     .demandCommand()
     .strict()
     .help()

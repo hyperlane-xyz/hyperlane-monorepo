@@ -93,10 +93,10 @@ fn link_network(
 ) {
     let validator_addr = validator.addr(hrp);
 
-    let dest_domain = if network.domain == 26657 {
-        26658
+    let dest_domain = if network.domain == 99990 {
+        99991
     } else {
-        26657
+        99990
     };
 
     // hook routing

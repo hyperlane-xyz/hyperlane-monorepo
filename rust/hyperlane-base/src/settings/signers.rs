@@ -3,6 +3,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use ed25519_dalek::SecretKey;
 use ethers::prelude::{AwsSigner, LocalWallet};
+use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
 use hyperlane_core::H256;
 use hyperlane_sealevel::Keypair;
@@ -96,7 +97,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
 
 impl ChainSigner for hyperlane_ethereum::Signers {
     fn address_string(&self) -> String {
-        ethers::abi::AbiEncode::encode_hex(ethers::signers::Signer::address(self))
+        ethers::signers::Signer::address(self).encode_hex()
     }
 }
 

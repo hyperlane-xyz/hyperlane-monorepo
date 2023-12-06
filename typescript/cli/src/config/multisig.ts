@@ -1,10 +1,16 @@
-import { input, select } from '@inquirer/prompts';
+import { confirm, input } from '@inquirer/prompts';
 import { z } from 'zod';
 
-import { ChainMap, IsmType, MultisigConfig } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { ChainMap, MultisigConfig, ZHash } from '@hyperlane-xyz/sdk';
+import {
+  Address,
+  isValidAddress,
+  normalizeAddressEvm,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
+import { sdkContractAddressesMap } from '../context.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
@@ -12,9 +18,8 @@ import { readChainConfigsIfExists } from './chain.js';
 
 const MultisigConfigMapSchema = z.object({}).catchall(
   z.object({
-    type: z.nativeEnum(IsmType),
     threshold: z.number(),
-    validators: z.array(z.string()),
+    validators: z.array(ZHash),
   }),
 );
 export type MultisigConfigMap = z.infer<typeof MultisigConfigMapSchema>;
@@ -32,14 +37,24 @@ export function readMultisigConfig(filePath: string) {
   const parsedConfig = result.data;
   const formattedConfig: ChainMap<MultisigConfig> = objMap(
     parsedConfig,
-    (_, config) =>
-      ({
-        type: config.type as IsmType,
+    (_, config) => {
+      if (config.threshold > config.validators.length)
+        throw new Error(
+          'Threshold cannot be greater than number of validators',
+        );
+      if (config.threshold < 1)
+        throw new Error('Threshold must be greater than 0');
+      const validators: Address[] = [];
+      for (const v of config.validators) {
+        if (isValidAddress(v)) validators.push(normalizeAddressEvm(v));
+        else throw new Error(`Invalid address ${v}`);
+      }
+      return {
         threshold: config.threshold,
-        validators: config.validators,
-      } as MultisigConfig),
+        validators: validators,
+      } as MultisigConfig;
+    },
   );
-
   logGreen(`All multisig configs in ${filePath} are valid`);
   return formattedConfig;
 }
@@ -58,6 +73,9 @@ export async function createMultisigConfig({
   chainConfigPath: string;
 }) {
   logBlue('Creating a new multisig config');
+  log(
+    'Select your own chain below to run your own validators. If you want to reuse existing Hyperlane validators instead of running your own, do not select additional mainnet or testnet chains.',
+  );
   const customChains = readChainConfigsIfExists(chainConfigPath);
   const chains = await runMultiChainSelectionStep(customChains);
 
@@ -70,17 +88,12 @@ export async function createMultisigConfig({
       result[chain] = lastConfig;
       continue;
     }
-    // TODO consider using default and not offering options here
-    const moduleType = await select({
-      message: 'Select multisig type',
-      choices: [
-        // { value: 'routing, name: 'routing' }, // TODO add support
-        // { value: 'aggregation, name: 'aggregation' }, // TODO add support
-        { value: IsmType.MERKLE_ROOT_MULTISIG, name: 'merkle root multisig' },
-        { value: IsmType.MESSAGE_ID_MULTISIG, name: 'message id multisig' },
-      ],
-      pageSize: 5,
-    });
+    if (Object.keys(sdkContractAddressesMap).includes(chain)) {
+      const reuseCoreConfig = await confirm({
+        message: 'Use existing Hyperlane validators for this chain?',
+      });
+      if (reuseCoreConfig) continue;
+    }
 
     const thresholdInput = await input({
       message: 'Enter threshold of signers (number)',
@@ -92,7 +105,6 @@ export async function createMultisigConfig({
     });
     const validators = validatorsInput.split(',').map((v) => v.trim());
     lastConfig = {
-      type: moduleType,
       threshold,
       validators,
     };
@@ -109,7 +121,7 @@ export async function createMultisigConfig({
     mergeYamlOrJson(outPath, result, format);
   } else {
     errorRed(
-      `Multisig config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/multisig-ism.yaml for an example`,
+      `Multisig config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/ism.yaml for an example`,
     );
     throw new Error('Invalid multisig config');
   }

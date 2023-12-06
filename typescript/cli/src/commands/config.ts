@@ -2,7 +2,8 @@ import { CommandModule } from 'yargs';
 
 import { log, logGreen } from '../../logger.js';
 import { createChainConfig, readChainConfigs } from '../config/chain.js';
-import { createHookConfig } from '../config/hooks.js';
+import { createHooksConfigMap } from '../config/hooks.js';
+import { createIsmConfigMap, readIsmConfig } from '../config/ism.js';
 import {
   createMultisigConfig,
   readMultisigConfig,
@@ -40,7 +41,7 @@ const createCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(createChainConfigCommand)
-      .command(createMultisigConfigCommand)
+      .command(createIsmConfigCommand)
       .command(createHookConfigCommand)
       .command(createWarpConfigCommand)
       .version(false)
@@ -64,27 +65,39 @@ const createChainConfigCommand: CommandModule = {
   },
 };
 
-const createMultisigConfigCommand: CommandModule = {
-  command: 'multisig',
-  describe: 'Create a new Multisig ISM config',
+const createIsmConfigCommand: CommandModule = {
+  command: 'ism',
+  describe: 'Create a basic or advanced ISM config for a validator set',
   builder: (yargs) =>
     yargs.options({
-      output: outputFileOption('./configs/multisig-ism.yaml'),
+      output: outputFileOption('./configs/ism.yaml'),
       format: fileFormatOption,
       chains: chainsCommandOption,
+      advanced: {
+        type: 'boolean',
+        describe: 'Create an advanced ISM configuration',
+        default: false,
+      },
     }),
   handler: async (argv: any) => {
     const format: FileFormat = argv.format;
     const outPath: string = argv.output;
     const chainConfigPath: string = argv.chains;
-    await createMultisigConfig({ format, outPath, chainConfigPath });
+    const isAdvanced: boolean = argv.advanced;
+
+    if (isAdvanced) {
+      await createIsmConfigMap({ format, outPath, chainConfigPath });
+    } else {
+      await createMultisigConfig({ format, outPath, chainConfigPath });
+    }
+
     process.exit(0);
   },
 };
 
 const createHookConfigCommand: CommandModule = {
-  command: 'hook',
-  describe: 'Create a new Hook config',
+  command: 'hooks',
+  describe: 'Create a new hooks config (required & default)',
   builder: (yargs) =>
     yargs.options({
       output: outputFileOption('./configs/hooks.yaml'),
@@ -95,7 +108,7 @@ const createHookConfigCommand: CommandModule = {
     const format: FileFormat = argv.format;
     const outPath: string = argv.output;
     const chainConfigPath: string = argv.chains;
-    await createHookConfig({ format, outPath, chainConfigPath });
+    await createHooksConfigMap({ format, outPath, chainConfigPath });
     process.exit(0);
   },
 };
@@ -127,7 +140,8 @@ const validateCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(validateChainCommand)
-      .command(validateMultisigCommand)
+      .command(validateIsmCommand)
+      .command(validateIsmAdvancedCommand)
       .command(validateWarpCommand)
       .version(false)
       .demandCommand(),
@@ -152,9 +166,9 @@ const validateChainCommand: CommandModule = {
   },
 };
 
-const validateMultisigCommand: CommandModule = {
-  command: 'multisig',
-  describe: 'Validate a multisig ism config in a YAML or JSON file',
+const validateIsmCommand: CommandModule = {
+  command: 'ism',
+  describe: 'Validate the basic ISM config in a YAML or JSON file',
   builder: (yargs) =>
     yargs.options({
       path: {
@@ -166,6 +180,25 @@ const validateMultisigCommand: CommandModule = {
   handler: async (argv) => {
     const path = argv.path as string;
     readMultisigConfig(path);
+    logGreen('Config is valid');
+    process.exit(0);
+  },
+};
+
+const validateIsmAdvancedCommand: CommandModule = {
+  command: 'ism-advanced',
+  describe: 'Validate the advanced ISM config in a YAML or JSON file',
+  builder: (yargs) =>
+    yargs.options({
+      path: {
+        type: 'string',
+        description: 'Input file path',
+        demandOption: true,
+      },
+    }),
+  handler: async (argv) => {
+    const path = argv.path as string;
+    readIsmConfig(path);
     logGreen('Config is valid');
     process.exit(0);
   },

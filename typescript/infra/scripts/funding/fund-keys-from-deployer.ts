@@ -395,10 +395,10 @@ class ContextFunder {
   // Funds all the roles in this.rolesToFund
   // Returns whether a failure occurred.
   async fund(): Promise<boolean> {
-    let failureOccurred = false;
-
     const chainKeys = this.getChainKeys();
-    const promises = Object.entries(chainKeys).map(async ([chain, keys]) => {
+    const chainKeyEntries = Object.entries(chainKeys);
+    const promises = chainKeyEntries.map(async ([chain, keys]) => {
+      let failureOccurred = false;
       if (keys.length > 0) {
         if (!this.skipIgpClaim) {
           failureOccurred ||= await gracefullyHandleError(
@@ -418,14 +418,25 @@ class ContextFunder {
         const failure = await this.attemptToFundKey(key, chain);
         failureOccurred ||= failure;
       }
+      return failureOccurred;
     });
 
-    try {
-      await Promise.all(promises);
-    } catch (e) {
-      error('Unhandled error when funding key', { error: format(e) });
-      failureOccurred = true;
-    }
+    // A failure occurred if any of the promises rejected or
+    // if any of them resolved with true, indicating a failure
+    // somewhere along the way
+    const failureOccurred = (await Promise.allSettled(promises)).reduce(
+      (failureAgg, result, i) => {
+        if (result.status === 'rejected') {
+          error('Funding promise for chain rejected', {
+            chain: chainKeyEntries[i][0],
+            error: format(result.reason),
+          });
+          return true;
+        }
+        return result.value || failureAgg;
+      },
+      false,
+    );
 
     return failureOccurred;
   }

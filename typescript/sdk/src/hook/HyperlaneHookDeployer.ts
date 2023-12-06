@@ -7,8 +7,8 @@ import {
   IL1CrossDomainMessenger__factory,
   OPStackHook,
   OPStackIsm,
+  ProtocolFee,
   StaticAggregationHook__factory,
-  StaticProtocolFee,
 } from '@hyperlane-xyz/core';
 import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
 
@@ -90,8 +90,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
   async deployProtocolFee(
     chain: ChainName,
     config: ProtocolFeeHookConfig,
-  ): Promise<StaticProtocolFee> {
-    this.logger('Deploying StaticProtocolFeeHook for %s', chain);
+  ): Promise<ProtocolFee> {
+    this.logger('Deploying ProtocolFeeHook for %s', chain);
     return this.deployContract(chain, HookType.PROTOCOL_FEE, [
       config.maxProtocolFee,
       config.protocolFee,
@@ -182,11 +182,11 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       origin: chain,
       nativeBridge: l2Messenger,
     };
-    const opstackIsm = (await this.ismFactory.deploy(
-      config.destinationChain,
-      ismConfig,
-      chain,
-    )) as OPStackIsm;
+    const opstackIsm = (await this.ismFactory.deploy({
+      destination: config.destinationChain,
+      config: ismConfig,
+      origin: chain,
+    })) as OPStackIsm;
     // deploy opstack hook
     const hook = await this.deployContract(chain, HookType.OP_STACK, [
       mailbox,

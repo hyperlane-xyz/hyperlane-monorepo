@@ -58,8 +58,8 @@ export function testCoreConfig(
     },
     requiredHook: {
       type: HookType.PROTOCOL_FEE,
-      maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'), // 1 gwei of native token
-      protocolFee: BigNumber.from(1), // 1 wei
+      maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
+      protocolFee: BigNumber.from(1).toString(), // 1 wei
       beneficiary: nonZeroAddress,
       owner,
     },

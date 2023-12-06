@@ -10,6 +10,7 @@ use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
+    metrics::AgentMetrics,
     run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     SequencedDataContractSync,
 };
@@ -51,7 +52,11 @@ impl BaseAgent for Validator {
 
     type Settings = ValidatorSettings;
 
-    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
+    async fn from_settings(
+        settings: Self::Settings,
+        metrics: Arc<CoreMetrics>,
+        _agent_metrics: AgentMetrics,
+    ) -> Result<Self>
     where
         Self: Sized,
     {

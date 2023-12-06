@@ -6,7 +6,6 @@ export {
   BaseSealevelAdapter,
   MultiProtocolApp,
 } from './app/MultiProtocolApp';
-export { agentStartBlocks } from './consts/agentStartBlocks';
 export {
   chainIdToMetadata,
   chainMetadata,
@@ -117,6 +116,7 @@ export {
   FallbackRoutingHookConfig,
   HookConfig,
   HookType,
+  HooksConfig,
   IgpHookConfig,
   MerkleTreeHookConfig,
   OpStackHookConfig,
@@ -127,7 +127,10 @@ export {
   collectValidators,
   moduleCanCertainlyVerify,
 } from './ism/HyperlaneIsmFactory';
-export { buildMultisigIsmConfigs } from './ism/multisig';
+export {
+  buildAggregationIsmConfigs,
+  buildMultisigIsmConfigs,
+} from './ism/multisig';
 export {
   AggregationIsmConfig,
   DeployedIsm,
@@ -175,6 +178,7 @@ export {
   getDomainId,
   isValidChainMetadata,
 } from './metadata/chainMetadataTypes';
+export { ZHash } from './metadata/customZodTypes';
 export {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
