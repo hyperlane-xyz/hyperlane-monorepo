@@ -58,8 +58,8 @@ contract PolygonPosIsmTest is Test {
     ICrossDomainMessenger internal l1Messenger;
     IL2CrossDomainMessenger internal l2Messenger;
     TestMailbox internal l1Mailbox;
-    OPStackIsm internal opISM;
-    OPStackHook internal opHook;
+    PolygonPosIsm internal polygonPosISM;
+    PolygonPosHook internal polygonPosHook;
 
     TestRecipient internal testRecipient;
     bytes internal testMessage =
@@ -111,20 +111,20 @@ contract PolygonPosIsmTest is Test {
         polygonPosHook = new PolygonPosHook(
             address(l1Mailbox),
             POLYGON_POS_DOMAIN,
-            TypeCasts.addressToBytes32(address(opISM)),
-            L1_MESSENGER_ADDRESS
+            TypeCasts.addressToBytes32(address(polygonPosISM)),
+            MAINNET_CHECKPOINT_MANAGER,
+            MAINNET_FX_ROOT
         );
 
-        vm.makePersistent(address(opHook));
+        vm.makePersistent(address(polygonPosHook));
     }
 
     function deployPolygonPosIsm() public {
         vm.selectFork(polygonPosFork);
 
-        l2Messenger = IL2CrossDomainMessenger(L2_MESSENGER_ADDRESS);
-        polygonPosISM = new PolygonPosIsm(L2_MESSENGER_ADDRESS);
+        polygonPosISM = new PolygonPosIsm(MAINNET_FX_CHILD);
 
-        vm.makePersistent(address(opISM));
+        vm.makePersistent(address(polygonPosISM));
     }
 
     function deployAll() public {
@@ -133,12 +133,14 @@ contract PolygonPosIsmTest is Test {
 
         vm.selectFork(polygonPosFork);
 
-        opISM.setAuthorizedHook(TypeCasts.addressToBytes32(address(opHook)));
+        polygonPosISM.setAuthorizedHook(
+            TypeCasts.addressToBytes32(address(polygonPosHook))
+        );
         // for sending value
-        vm.deal(
+        /* vm.deal(
             AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS),
             2 ** 255
-        );
+        ); */
     }
 
     ///////////////////////////////////////////////////////////////////
@@ -152,7 +154,7 @@ contract PolygonPosIsmTest is Test {
 
         vm.selectFork(mainnetFork);
 
-        assertEq(opHook.quoteDispatch(testMetadata, encodedMessage), 0);
+        assertEq(polygonPosHook.quoteDispatch(testMetadata, encodedMessage), 0);
     }
 
     /* ============ hook.postDispatch ============ */
@@ -170,15 +172,15 @@ contract PolygonPosIsmTest is Test {
         uint40 testNonce = 123;
         l1Mailbox.updateLatestDispatchedId(messageId);
 
-        vm.expectEmit(true, true, true, false, L1_MESSENGER_ADDRESS);
+        // vm.expectEmit(counter, MAINNET_FX_CHILD, );/* add sth in front of receiver + encoded message*/
         emit SentMessage(
-            address(opISM),
-            address(opHook),
+            address(polygonPosISM),
+            address(polygonPosHook),
             encodedHookData,
             testNonce,
             DEFAULT_GAS_LIMIT
         );
-        opHook.postDispatch(testMetadata, encodedMessage);
+        polygonPosHook.postDispatch(testMetadata, encodedMessage);
     }
 
     function testFork_postDispatch_RevertWhen_ChainIDNotSupported() public {
@@ -200,7 +202,7 @@ contract PolygonPosIsmTest is Test {
         vm.expectRevert(
             "AbstractMessageIdAuthHook: invalid destination domain"
         );
-        opHook.postDispatch(testMetadata, message);
+        polygonPosHook.postDispatch(testMetadata, message);
     }
 
     function testFork_postDispatch_RevertWhen_TooMuchValue() public {
@@ -214,7 +216,7 @@ contract PolygonPosIsmTest is Test {
 
         l1Mailbox.updateLatestDispatchedId(messageId);
         vm.expectRevert("OPStackHook: msgValue must be less than 2 ** 255");
-        opHook.postDispatch(excessValueMetadata, encodedMessage);
+        polygonPosHook.postDispatch(excessValueMetadata, encodedMessage);
     }
 
     function testFork_postDispatch_RevertWhen_NotLastDispatchedMessage()
@@ -227,7 +229,7 @@ contract PolygonPosIsmTest is Test {
         vm.expectRevert(
             "AbstractMessageIdAuthHook: message not latest dispatched"
         );
-        opHook.postDispatch(testMetadata, encodedMessage);
+        polygonPosHook.postDispatch(testMetadata, encodedMessage);
     }
 
     /* ============ ISM.verifyMessageId ============ */
@@ -235,7 +237,7 @@ contract PolygonPosIsmTest is Test {
     function testFork_verifyMessageId() public {
         deployAll();
 
-        vm.selectFork(optimismFork);
+        vm.selectFork(polygonPosFork);
 
         bytes memory encodedHookData = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
@@ -249,8 +251,8 @@ contract PolygonPosIsmTest is Test {
 
         bytes32 versionedHash = hashCrossDomainMessageV1(
             versionedNonce,
-            address(opHook),
-            address(opISM),
+            address(polygonPosHook),
+            address(polygonPosISM),
             0,
             DEFAULT_GAS_LIMIT,
             encodedHookData
@@ -260,7 +262,7 @@ contract PolygonPosIsmTest is Test {
             AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS)
         );
 
-        vm.expectEmit(true, false, false, false, address(opISM));
+        vm.expectEmit(true, false, false, false, address(polygonPosISM));
         emit ReceivedMessage(messageId);
 
         vm.expectEmit(true, false, false, false, L2_MESSENGER_ADDRESS);
@@ -268,25 +270,25 @@ contract PolygonPosIsmTest is Test {
 
         l2Messenger.relayMessage(
             versionedNonce,
-            address(opHook),
-            address(opISM),
+            address(polygonPosHook),
+            address(polygonPosISM),
             0,
             DEFAULT_GAS_LIMIT,
             encodedHookData
         );
 
-        assertTrue(opISM.verifiedMessages(messageId).isBitSet(255));
+        assertTrue(polygonPosISM.verifiedMessages(messageId).isBitSet(255));
         vm.stopPrank();
     }
 
     function testFork_verifyMessageId_RevertWhen_NotAuthorized() public {
         deployAll();
 
-        vm.selectFork(optimismFork);
+        vm.selectFork(polygonPosFork);
 
         // needs to be called by the cannonical messenger on Optimism
         vm.expectRevert(NotCrossChainCall.selector);
-        opISM.verifyMessageId(messageId);
+        polygonPosISM.verifyMessageId(messageId);
 
         // set the xDomainMessageSender storage slot as alice
         bytes32 key = bytes32(uint256(204));
@@ -299,7 +301,7 @@ contract PolygonPosIsmTest is Test {
         vm.expectRevert(
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
-        opISM.verifyMessageId(messageId);
+        polygonPosISM.verifyMessageId(messageId);
     }
 
     /* ============ ISM.verify ============ */
@@ -307,11 +309,11 @@ contract PolygonPosIsmTest is Test {
     function testFork_verify() public {
         deployAll();
 
-        vm.selectFork(optimismFork);
+        vm.selectFork(polygonPosFork);
 
         orchestrateRelayMessage(0, messageId);
 
-        bool verified = opISM.verify(new bytes(0), encodedMessage);
+        bool verified = polygonPosISM.verify(new bytes(0), encodedMessage);
         assertTrue(verified);
     }
 
@@ -322,10 +324,10 @@ contract PolygonPosIsmTest is Test {
 
         orchestrateRelayMessage(_msgValue, messageId);
 
-        bool verified = opISM.verify(new bytes(0), encodedMessage);
+        bool verified = polygonPosISM.verify(new bytes(0), encodedMessage);
         assertTrue(verified);
 
-        assertEq(address(opISM).balance, 0);
+        assertEq(address(polygonPosISM).balance, 0);
         assertEq(address(testRecipient).balance, _msgValue);
     }
 
@@ -336,20 +338,20 @@ contract PolygonPosIsmTest is Test {
 
         orchestrateRelayMessage(_msgValue, messageId);
 
-        bool verified = opISM.verify(new bytes(0), encodedMessage);
+        bool verified = polygonPosISM.verify(new bytes(0), encodedMessage);
         assertTrue(verified);
 
-        assertEq(address(opISM).balance, 0);
+        assertEq(address(polygonPosISM).balance, 0);
         assertEq(address(testRecipient).balance, _msgValue);
 
         // send more value to the ISM
-        vm.deal(address(opISM), _msgValue);
+        vm.deal(address(polygonPosISM), _msgValue);
 
-        verified = opISM.verify(new bytes(0), encodedMessage);
+        verified = polygonPosISM.verify(new bytes(0), encodedMessage);
         // verified still true
         assertTrue(verified);
 
-        assertEq(address(opISM).balance, _msgValue);
+        assertEq(address(polygonPosISM).balance, _msgValue);
         // value which was already sent
         assertEq(address(testRecipient).balance, _msgValue);
     }
@@ -363,10 +365,10 @@ contract PolygonPosIsmTest is Test {
         emit FailedRelayedMessage(messageId);
         orchestrateRelayMessage(_msgValue, messageId);
 
-        bool verified = opISM.verify(new bytes(0), encodedMessage);
+        bool verified = polygonPosISM.verify(new bytes(0), encodedMessage);
         assertFalse(verified);
 
-        assertEq(address(opISM).balance, 0);
+        assertEq(address(polygonPosISM).balance, 0);
         assertEq(address(testRecipient).balance, 0);
     }
 
@@ -385,14 +387,14 @@ contract PolygonPosIsmTest is Test {
             TypeCasts.addressToBytes32(address(this)), // wrong recipient
             testMessage
         );
-        bool verified = opISM.verify(new bytes(0), invalidMessage);
+        bool verified = polygonPosISM.verify(new bytes(0), invalidMessage);
         assertFalse(verified);
     }
 
     // invalid messageID in postDispatch
     function testFork_verify_RevertWhen_InvalidOptimismMessageID() public {
         deployAll();
-        vm.selectFork(optimismFork);
+        vm.selectFork(polygonPosFork);
 
         bytes memory invalidMessage = MessageUtils.formatMessage(
             HYPERLANE_VERSION,
@@ -406,7 +408,7 @@ contract PolygonPosIsmTest is Test {
         bytes32 _messageId = Message.id(invalidMessage);
         orchestrateRelayMessage(0, _messageId);
 
-        bool verified = opISM.verify(new bytes(0), encodedMessage);
+        bool verified = polygonPosISM.verify(new bytes(0), encodedMessage);
         assertFalse(verified);
     }
 
@@ -524,7 +526,7 @@ contract PolygonPosIsmTest is Test {
         uint256 _msgValue,
         bytes32 _messageId
     ) internal {
-        vm.selectFork(optimismFork);
+        vm.selectFork(polygonPosFork);
 
         bytes memory encodedHookData = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
@@ -543,8 +545,8 @@ contract PolygonPosIsmTest is Test {
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage{value: _msgValue}(
             versionedNonce,
-            address(opHook),
-            address(opISM),
+            address(polygonPosHook),
+            address(polygonPosISM),
             _msgValue,
             DEFAULT_GAS_LIMIT,
             encodedHookData

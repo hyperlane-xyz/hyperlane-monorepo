@@ -23,7 +23,6 @@ import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.s
 // ============ External Imports ============
 import {CrossChainEnabledPolygonChild} from "@openzeppelin/contracts/crosschain/polygon/CrossChainEnabledPolygonChild.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {FxBaseChildTunnel} from "fx-portal/tunnel/FxBaseChildTunnel.sol";
 
 /**
  * @title PolygonPosIsm
@@ -31,8 +30,7 @@ import {FxBaseChildTunnel} from "fx-portal/tunnel/FxBaseChildTunnel.sol";
  */
 contract PolygonPosIsm is
     CrossChainEnabledPolygonChild,
-    AbstractMessageIdAuthorizedIsm,
-    FxBaseChildTunnel
+    AbstractMessageIdAuthorizedIsm
 {
     // ============ Constants ============
 
@@ -41,9 +39,7 @@ contract PolygonPosIsm is
 
     // ============ Constructor ============
 
-    constructor(
-        address _fxChild
-    ) CrossChainEnabledPolygonChild(_fxChild) FxBaseChildTunnel(_fxChild) {
+    constructor(address _fxChild) CrossChainEnabledPolygonChild(_fxChild) {
         require(
             Address.isContract(_fxChild),
             "PolygonPosIsm: invalid FxChild contract"
@@ -56,25 +52,9 @@ contract PolygonPosIsm is
     address public latestRootMessageSender;
     bytes public latestData;
 
-    function _processMessageFromRoot(
-        uint256 stateId,
-        address sender,
-        bytes memory data
-    ) internal override validateSender(sender) {
-        latestStateId = stateId;
-        latestRootMessageSender = sender;
-        latestData = data;
-    }
-
-    function processMessageFromRoot() internal override validateSender(sender) {
-        latestStateId = stateId;
-        latestRootMessageSender = sender;
-        latestData = data;
-    }
-
-    function sendMessageToRoot(bytes memory message) public {
+    /* function sendMessageToRoot(bytes memory message) public {
         _sendMessageToRoot(message);
-    }
+    } */
 
     /**
      * @notice Check if sender is authorized to message `verifyMessageId`.
