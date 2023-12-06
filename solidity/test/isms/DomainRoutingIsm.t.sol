@@ -53,7 +53,7 @@ contract DomainRoutingIsmTest is Test {
             vm.expectEmit(true, true, false, true);
             emit ModuleSet(_domains[i], _isms[i]);
         }
-        ism = factory.deploy(_domains, _isms);
+        ism = factory.deploy(address(this), _domains, _isms);
         for (uint256 i = 0; i < count; ++i) {
             assertEq(address(ism.modules(_domains[i])), address(_isms[i]));
         }
