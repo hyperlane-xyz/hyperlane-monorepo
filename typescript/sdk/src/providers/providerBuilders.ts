@@ -6,7 +6,7 @@ import { createPublicClient, http } from 'viem';
 
 import { ProtocolType, isNumeric } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata } from '../metadata/chainMetadataTypes';
+import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes';
 
 import {
   CosmJsProvider,
@@ -17,7 +17,8 @@ import {
   TypedProvider,
   ViemProvider,
 } from './ProviderType';
-import { RetryJsonRpcProvider, RetryProviderOptions } from './RetryProvider';
+import { RetryProviderOptions } from './RetryProvider';
+import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider';
 
 export type ProviderBuilderFn<P> = (
   rpcUrls: ChainMetadata['rpcUrls'],
@@ -32,29 +33,17 @@ export const DEFAULT_RETRY_OPTIONS: RetryProviderOptions = {
 };
 
 export function defaultEthersV5ProviderBuilder(
-  rpcUrls: ChainMetadata['rpcUrls'],
+  rpcUrls: RpcUrl[],
   network: number | string,
-  retryOverride?: RetryProviderOptions,
+  // TODO add support for retry config in SmartProvider
+  _retryOverride?: RetryProviderOptions,
 ): EthersV5Provider {
-  const createProvider = (r: ChainMetadata['rpcUrls'][number]) => {
-    const retry = r.retry || retryOverride;
-    return retry
-      ? new RetryJsonRpcProvider(retry, r.http, network)
-      : new providers.StaticJsonRpcProvider(r.http, network);
-  };
-  let provider: providers.Provider;
-  if (rpcUrls.length > 1) {
-    provider = new providers.FallbackProvider(rpcUrls.map(createProvider), 1);
-  } else if (rpcUrls.length === 1) {
-    provider = createProvider(rpcUrls[0]);
-  } else {
-    throw new Error('No RPC URLs provided');
-  }
+  const provider = new HyperlaneSmartProvider(network, rpcUrls);
   return { type: ProviderType.EthersV5, provider };
 }
 
 // export function defaultEthersV6ProviderBuilder(
-//   rpcUrls: ChainMetadata['rpcUrls'],
+//   rpcUrls: RpcUrl[],
 //   network: number | string,
 // ): EthersV6Provider {
 //   // TODO add support for retry providers here
@@ -66,7 +55,7 @@ export function defaultEthersV5ProviderBuilder(
 // }
 
 export function defaultViemProviderBuilder(
-  rpcUrls: ChainMetadata['rpcUrls'],
+  rpcUrls: RpcUrl[],
   network: number | string,
 ): ViemProvider {
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
@@ -88,7 +77,7 @@ export function defaultViemProviderBuilder(
 }
 
 export function defaultSolProviderBuilder(
-  rpcUrls: ChainMetadata['rpcUrls'],
+  rpcUrls: RpcUrl[],
   _network: number | string,
 ): SolanaWeb3Provider {
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
@@ -99,7 +88,7 @@ export function defaultSolProviderBuilder(
 }
 
 export function defaultFuelProviderBuilder(
-  rpcUrls: ChainMetadata['rpcUrls'],
+  rpcUrls: RpcUrl[],
   _network: number | string,
 ): EthersV5Provider {
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
@@ -107,7 +96,7 @@ export function defaultFuelProviderBuilder(
 }
 
 export function defaultCosmJsProviderBuilder(
-  rpcUrls: ChainMetadata['rpcUrls'],
+  rpcUrls: RpcUrl[],
   _network: number | string,
 ): CosmJsProvider {
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
@@ -118,7 +107,7 @@ export function defaultCosmJsProviderBuilder(
 }
 
 export function defaultCosmJsWasmProviderBuilder(
-  rpcUrls: ChainMetadata['rpcUrls'],
+  rpcUrls: RpcUrl[],
   _network: number | string,
 ): CosmJsWasmProvider {
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
@@ -130,7 +119,7 @@ export function defaultCosmJsWasmProviderBuilder(
 
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
-  rpcUrls: ChainMetadata['rpcUrls'],
+  rpcUrls: RpcUrl[],
   _network: number | string,
 ): providers.Provider {
   return defaultEthersV5ProviderBuilder(rpcUrls, _network).provider;

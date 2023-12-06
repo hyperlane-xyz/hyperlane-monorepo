@@ -2,8 +2,10 @@ import debug from 'debug';
 import { providers } from 'ethers';
 
 import {
+  BlockExplorer,
   ChainMetadata,
   ExplorerFamily,
+  RpcUrl,
 } from '../../metadata/chainMetadataTypes';
 
 import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider';
@@ -25,21 +27,25 @@ export class HyperlaneSmartProvider
   implements IProviderMethods
 {
   protected readonly logger = debug('hyperlane:SmartProvider');
-  public readonly chainMetadata: ChainMetadataWithRpcConnectionInfo;
   // TODO also support blockscout here
   public readonly explorerProviders: HyperlaneEtherscanProvider[];
   public readonly rpcProviders: HyperlaneJsonRpcProvider[];
   public readonly supportedMethods: ProviderMethod[];
   public requestCount = 0;
 
-  constructor(chainMetadata: ChainMetadataWithRpcConnectionInfo) {
-    const network = chainMetadataToProviderNetwork(chainMetadata);
+  constructor(
+    network: providers.Networkish,
+    rpcUrls?: RpcUrl[],
+    blockExplorers?: BlockExplorer[],
+  ) {
     super(network);
-    this.chainMetadata = chainMetadata;
     const supportedMethods = new Set<ProviderMethod>();
 
-    if (chainMetadata.blockExplorers?.length) {
-      this.explorerProviders = chainMetadata.blockExplorers
+    if (!rpcUrls?.length && !blockExplorers?.length)
+      throw new Error('At least one RPC URL or block explorer is required');
+
+    if (blockExplorers?.length) {
+      this.explorerProviders = blockExplorers
         .map((explorerConfig) => {
           if (
             !explorerConfig.family ||
@@ -61,8 +67,8 @@ export class HyperlaneSmartProvider
       this.explorerProviders = [];
     }
 
-    if (chainMetadata.rpcUrls?.length) {
-      this.rpcProviders = chainMetadata.rpcUrls.map((rpcConfig) => {
+    if (rpcUrls?.length) {
+      this.rpcProviders = rpcUrls.map((rpcConfig) => {
         const newProvider = new HyperlaneJsonRpcProvider(rpcConfig, network);
         newProvider.supportedMethods.forEach((m) => supportedMethods.add(m));
         return newProvider;
@@ -74,11 +80,22 @@ export class HyperlaneSmartProvider
     this.supportedMethods = [...supportedMethods.values()];
   }
 
+  static fromChainMetadata(
+    chainMetadata: ChainMetadataWithRpcConnectionInfo,
+  ): HyperlaneSmartProvider {
+    const network = chainMetadataToProviderNetwork(chainMetadata);
+    return new HyperlaneSmartProvider(
+      network,
+      chainMetadata.rpcUrls,
+      chainMetadata.blockExplorers,
+    );
+  }
+
   async detectNetwork(): Promise<providers.Network> {
     // For simplicity, efficiency, and better compat with new networks, this assumes
     // the provided RPC urls are correct and returns static data here instead of
     // querying each sub-provider for network info
-    return chainMetadataToProviderNetwork(this.chainMetadata);
+    return this.network;
   }
 
   /**

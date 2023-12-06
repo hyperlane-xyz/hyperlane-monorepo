@@ -22,7 +22,7 @@ export class HyperlaneJsonRpcProvider
 
   constructor(
     public readonly rpcConfig: RpcConfigWithConnectionInfo,
-    network: providers.Network,
+    network: providers.Networkish,
   ) {
     super(rpcConfig.connection ?? rpcConfig.http, network);
   }

@@ -61,7 +61,7 @@ describe('SmartProvider', () => {
 
   for (const [description, config] of configs) {
     describe(description, () => {
-      provider = new HyperlaneSmartProvider(config);
+      provider = HyperlaneSmartProvider.fromChainMetadata(config);
 
       itDoesIfSupported(ProviderMethod.GetBlock, async () => {
         const latestBlock = await provider.getBlock('latest');

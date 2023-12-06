@@ -29,7 +29,7 @@ export class HyperlaneEtherscanProvider
 
   constructor(
     public readonly explorerConfig: BlockExplorer,
-    network: providers.Network,
+    network: providers.Networkish,
   ) {
     super(network, explorerConfig.apiKey);
     if (!explorerConfig.apiKey) {
