@@ -60,8 +60,8 @@ export function readChainConfigs(filePath: string) {
   return chainToMetadata;
 }
 
-export function readChainConfigsIfExists(filePath?: string) {
-  if (!filePath || !isFile(filePath)) {
+export function readChainConfigsIfExists(filePath: string) {
+  if (!isFile(filePath)) {
     log('No chain config file provided');
     return {};
   } else {
@@ -81,30 +81,13 @@ export async function createChainConfig({
     message: 'Enter chain name (one word, lower case)',
   });
   const chainId = await input({ message: 'Enter chain id (number)' });
-  const skipDomain = await confirm({
-    message: 'Will the domainId match the chainId (recommended)?',
-  });
-  let domainId: string;
-  if (skipDomain) {
-    domainId = chainId;
-  } else {
-    domainId = await input({
-      message: 'Enter domain id (number, often matches chainId)',
-    });
-  }
-  const protocol = await select({
-    message: 'Select protocol type',
-    choices: Object.values(ProtocolType).map((protocol) => ({
-      name: protocol,
-      value: protocol,
-    })),
-  });
+  const domainId = chainId;
   const rpcUrl = await input({ message: 'Enter http or https rpc url' });
   const metadata: ChainMetadata = {
     name,
     chainId: parseInt(chainId, 10),
     domainId: parseInt(domainId, 10),
-    protocol,
+    protocol: ProtocolType.Ethereum,
     rpcUrls: [{ http: rpcUrl }],
   };
   const parseResult = ChainMetadataSchema.safeParse(metadata);
