@@ -4072,6 +4072,7 @@ __metadata:
     bignumber.js: ^9.1.1
     chai: ^4.3.0
     ethers: ^5.7.2
+    mocha: ^10.2.0
     prettier: ^2.8.8
     typescript: ^5.1.6
   languageName: unknown
@@ -14460,7 +14461,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"mocha@npm:^10.0.0":
+"mocha@npm:^10.0.0, mocha@npm:^10.2.0":
   version: 10.2.0
   resolution: "mocha@npm:10.2.0"
   dependencies:
