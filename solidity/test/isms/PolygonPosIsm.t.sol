@@ -48,7 +48,8 @@ contract PolygonPosIsmTest is Test {
         0x86E4Dc95c7FBdBf52e33D563BbDB00823894C287;
     address internal constant MAINNET_FX_ROOT =
         0xfe5e5D361b2ad62c541bAb87C45a0B9B018389a2;
-
+    address internal constant MAINNET_STATE_SENDER =
+        0x28e4F3a7f651294B9564800b2D01f35189A5bFbE;
     uint8 internal constant OPTIMISM_VERSION = 0;
     uint8 internal constant HYPERLANE_VERSION = 1;
     uint256 internal constant DEFAULT_GAS_LIMIT = 1_920_000;
@@ -172,7 +173,13 @@ contract PolygonPosIsmTest is Test {
         uint40 testNonce = 123;
         l1Mailbox.updateLatestDispatchedId(messageId);
 
-        // vm.expectEmit(counter, MAINNET_FX_CHILD, );/* add sth in front of receiver + encoded message*/
+        vm.expectEmit(
+            true,
+            true,
+            false,
+            false,
+            MAINNET_STATE_SENDER
+        ); /* add sth in front of receiver + encoded message*/
         emit SentMessage(
             address(polygonPosISM),
             address(polygonPosHook),
