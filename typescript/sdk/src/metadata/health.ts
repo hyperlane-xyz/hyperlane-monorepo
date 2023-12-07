@@ -21,6 +21,8 @@ import {
 } from './blockExplorer';
 import { ChainMetadata, RpcUrl } from './chainMetadataTypes';
 
+const HEALTH_CHECK_TIMEOUT = 5000; // 5s
+
 export async function isRpcHealthy(
   rpc: RpcUrl,
   chainId: string | number,
@@ -45,7 +47,7 @@ export async function isRpcHealthy(
       );
     const result = await timeout(
       resultPromise,
-      5000,
+      HEALTH_CHECK_TIMEOUT,
       'RPC health check timed out',
     );
     return result;
