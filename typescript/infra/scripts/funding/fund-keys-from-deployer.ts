@@ -12,16 +12,15 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
   error,
   log,
+  objFilter,
   objMap,
   promiseObjAll,
   warn,
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { parseKeyIdentifier } from '../../src/agents/agent';
 import { KeyAsAddress, getRoleKeysPerChain } from '../../src/agents/key-utils';
 import {
   BaseCloudAgentKey,
@@ -35,6 +34,7 @@ import { submitMetrics } from '../../src/utils/metrics';
 import {
   assertContext,
   assertRole,
+  isEthereumProtocolChain,
   readJSONAtPath,
 } from '../../src/utils/utils';
 import { getAgentConfig, getArgs, getEnvironmentConfig } from '../utils';
@@ -270,6 +270,21 @@ class ContextFunder {
     public readonly rolesToFund: Role[],
     public readonly skipIgpClaim: boolean,
   ) {
+    // At the moment, only blessed EVM chains are supported
+    roleKeysPerChain = objFilter(
+      roleKeysPerChain,
+      (chain, _roleKeys): _roleKeys is Record<Role, BaseCloudAgentKey[]> => {
+        const valid =
+          isEthereumProtocolChain(chain) &&
+          multiProvider.tryGetChainName(chain) !== null;
+        if (!valid) {
+          warn('Skipping funding for non-blessed or non-Ethereum chain', {
+            chain,
+          });
+        }
+        return valid;
+      },
+    );
     this.igp = HyperlaneIgp.fromEnvironment(
       deployEnvToSdkEnv[this.environment],
       multiProvider,
