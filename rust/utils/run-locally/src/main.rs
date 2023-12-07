@@ -388,7 +388,7 @@ fn main() -> ExitCode {
     kathy_env_zero_insertion.clone().run().join();
     state.push_agent(kathy_env_single_insertion.flag("mineforever").spawn("KTY"));
 
-    // let loop_start = Instant::now();
+    let loop_start = Instant::now();
     // give things a chance to fully start.
     sleep(Duration::from_secs(10));
     let mut failure_occurred = false;
