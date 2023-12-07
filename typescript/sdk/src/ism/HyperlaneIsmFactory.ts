@@ -217,8 +217,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     const isms: ChainMap<Address> = {};
     // reconfiguring existing routing ISM
     if (existingIsmAddress && delta.isOwner) {
+      routingIsm = await DomainRoutingIsm__factory.connect(
+        existingIsmAddress,
+        this.multiProvider.getSigner(destination),
+      );
       // deploying all the ISMs which have been updated
       for (const origin of delta.domainsToEnroll) {
+        debug('Reconfiguring preexisting routing ISM at ${}...');
         const ism = await this.deploy({
           destination,
           config: config.domains[origin],
@@ -233,85 +238,67 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
         await this.multiProvider.handleTx(destination, tx);
       }
+
+      // unenrolling domains if needed
+
+      // transfer ownership if needed
+    } else {
+      const submoduleAddresses = Object.values(isms);
       const domains = Object.keys(isms).map((chain) =>
         this.multiProvider.getDomainId(chain),
       );
-      debug('Reconfiguring preexisting routing ISM at ${}...');
-      const routingIsm = await DomainRoutingIsm__factory.connect(
-        existingIsmAddress,
-        this.multiProvider.getSigner(destination),
-      );
-    }
-
-    const submoduleAddresses = Object.values(isms);
-
-    let receipt: ethers.providers.TransactionReceipt;
-
-    if (config.type === IsmType.FALLBACK_ROUTING) {
-      if (!mailbox) {
-        throw new Error(
-          'Mailbox address is required for deploying fallback routing ISM',
+      let receipt: ethers.providers.TransactionReceipt;
+      if (config.type === IsmType.FALLBACK_ROUTING) {
+        if (!mailbox) {
+          throw new Error(
+            'Mailbox address is required for deploying fallback routing ISM',
+          );
+        }
+        debug('Deploying fallback routing ISM ...');
+        routingIsm = await this.multiProvider.handleDeploy(
+          destination,
+          new DefaultFallbackRoutingIsm__factory(),
+          [mailbox],
         );
-      }
-      debug('Deploying fallback routing ISM ...');
-      routingIsm = await this.multiProvider.handleDeploy(
-        destination,
-        new DefaultFallbackRoutingIsm__factory(),
-        [mailbox],
-      );
-      debug('Initialising fallback routing ISM ...');
-      receipt = await this.multiProvider.handleTx(
-        destination,
-        routingIsm['initialize(address,uint32[],address[])'](
+        debug('Initialising fallback routing ISM ...');
+        receipt = await this.multiProvider.handleTx(
+          destination,
+          routingIsm['initialize(address,uint32[],address[])'](
+            config.owner,
+            domains,
+            submoduleAddresses,
+            overrides,
+          ),
+        );
+      } else {
+        // if owner
+        const tx = await routingIsmFactory.deploy(
           config.owner,
           domains,
           submoduleAddresses,
           overrides,
-        ),
-      );
-    } else {
-      // if owner
-
-      if (existingIsmAddress) {
-        // enrolling new routes
-
-        for (const domain of delta.domainsToEnroll) {
-        }
-        // unenrolling old routes
-        for (const domain of delta.domainsToUnenroll) {
-          const tx = await routingIsm.remove(
-            this.multiProvider.getDomainId(domain),
-            overrides,
-          );
-          await this.multiProvider.handleTx(destination, tx);
-        }
-      }
-      const tx = await routingIsmFactory.deploy(
-        config.owner,
-        domains,
-        submoduleAddresses,
-        overrides,
-      );
-      receipt = await this.multiProvider.handleTx(destination, tx);
-
-      // TODO: Break this out into a generalized function
-      const dispatchLogs = receipt.logs
-        .map((log) => {
-          try {
-            return routingIsmFactory.interface.parseLog(log);
-          } catch (e) {
-            return undefined;
-          }
-        })
-        .filter(
-          (log): log is ethers.utils.LogDescription =>
-            !!log && log.name === 'ModuleDeployed',
         );
-      const moduleAddress = dispatchLogs[0].args['module'];
-      routingIsm = DomainRoutingIsm__factory.connect(
-        moduleAddress,
-        this.multiProvider.getSigner(destination),
-      );
+        receipt = await this.multiProvider.handleTx(destination, tx);
+
+        // TODO: Break this out into a generalized function
+        const dispatchLogs = receipt.logs
+          .map((log) => {
+            try {
+              return routingIsmFactory.interface.parseLog(log);
+            } catch (e) {
+              return undefined;
+            }
+          })
+          .filter(
+            (log): log is ethers.utils.LogDescription =>
+              !!log && log.name === 'ModuleDeployed',
+          );
+        const moduleAddress = dispatchLogs[0].args['module'];
+        routingIsm = DomainRoutingIsm__factory.connect(
+          moduleAddress,
+          this.multiProvider.getSigner(destination),
+        );
+      }
     }
 
     return routingIsm;
