@@ -6,7 +6,7 @@ import { CoreChainName } from '../chains';
 import mainnet from './mainnet.json';
 import testnet from './testnet.json';
 
-export const hyperlaneEnvironments = { testnet, mainnet };
+export const hyperlaneEnvironments = { mainnet, testnet };
 
 export type HyperlaneEnvironment = keyof typeof hyperlaneEnvironments;
 export type HyperlaneEnvironmentChain<E extends HyperlaneEnvironment> = Extract<

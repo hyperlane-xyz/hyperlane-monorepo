@@ -2,7 +2,8 @@ import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { helloWorld } from '../../config/environments/mainnet3/helloworld';
+import { getHelloWorldConfig } from '../../scripts/helloworld/utils';
+import { getEnvironmentConfig } from '../../scripts/utils';
 import {
   AgentContextConfig,
   DeployEnvironment,
@@ -99,10 +100,13 @@ function getRoleKeyMapPerChain(
   };
 
   const setKathyKeys = () => {
+    const envConfig = getEnvironmentConfig(agentConfig.runEnv);
+    const helloWorldConfig = getHelloWorldConfig(
+      envConfig,
+      agentConfig.context,
+    );
     // Kathy is only needed on chains where the hello world contracts are deployed.
-    for (const chainName of Object.keys(
-      helloWorld[agentConfig.context]?.addresses || {},
-    )) {
+    for (const chainName of Object.keys(helloWorldConfig.addresses)) {
       const kathyKey = getKathyKeyForChain(agentConfig, chainName);
       keysPerChain[chainName] = {
         ...keysPerChain[chainName],
