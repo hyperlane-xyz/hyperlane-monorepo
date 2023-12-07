@@ -20,13 +20,9 @@ import {
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen } from '../../logger.js';
-import { runDeploymentArtifactStep } from '../config/artifacts.js';
 import { WarpRouteConfig, readWarpRouteConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
-import {
-  getContextWithSigner,
-  getMergedContractAddresses,
-} from '../context.js';
+import { getContext, getMergedContractAddresses } from '../context.js';
 import {
   isFile,
   prepNewArtifactsFiles,
@@ -52,7 +48,11 @@ export async function runWarpDeploy({
   outPath: string;
   skipConfirmation: boolean;
 }) {
-  const { multiProvider, signer } = getContextWithSigner(key, chainConfigPath);
+  const { multiProvider, signer, coreArtifacts } = await getContext({
+    chainConfigPath,
+    coreConfig: { coreArtifactsPath },
+    keyConfig: { key },
+  });
 
   if (!warpConfigPath || !isFile(warpConfigPath)) {
     warpConfigPath = await runFileSelectionStep(
@@ -65,14 +65,9 @@ export async function runWarpDeploy({
   }
   const warpRouteConfig = readWarpRouteConfig(warpConfigPath);
 
-  const artifacts = await runDeploymentArtifactStep(
-    coreArtifactsPath,
-    'Do you want use some core deployment address artifacts? This is required for warp deployments to PI chains (non-core chains).',
-  );
-
   const configs = await runBuildConfigStep({
     warpRouteConfig,
-    artifacts,
+    coreArtifacts,
     multiProvider,
     signer,
   });
@@ -99,12 +94,12 @@ async function runBuildConfigStep({
   warpRouteConfig,
   multiProvider,
   signer,
-  artifacts,
+  coreArtifacts,
 }: {
   warpRouteConfig: WarpRouteConfig;
   multiProvider: MultiProvider;
   signer: ethers.Signer;
-  artifacts?: HyperlaneContractsMap<any>;
+  coreArtifacts?: HyperlaneContractsMap<any>;
 }) {
   log('Assembling token configs');
   const { base, synthetics } = warpRouteConfig;
@@ -118,7 +113,7 @@ async function runBuildConfigStep({
   );
 
   const mergedContractAddrs = getMergedContractAddresses(
-    artifacts,
+    coreArtifacts,
     Object.keys(warpRouteConfig),
   );
 

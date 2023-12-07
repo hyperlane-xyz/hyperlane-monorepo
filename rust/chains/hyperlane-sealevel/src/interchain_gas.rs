@@ -35,6 +35,7 @@ pub struct SealevelInterchainGasPaymaster {
     data_pda_pubkey: Pubkey,
     domain: HyperlaneDomain,
     igp_account: H256,
+    provider: SealevelProvider,
 }
 
 impl SealevelInterchainGasPaymaster {
@@ -43,12 +44,9 @@ impl SealevelInterchainGasPaymaster {
         conf: &ConnectionConf,
         igp_account_locator: &ContractLocator<'_>,
     ) -> ChainResult<Self> {
-        let rpc_client = RpcClientWithDebug::new_with_commitment(
-            conf.url.to_string(),
-            CommitmentConfig::processed(),
-        );
+        let provider = SealevelProvider::new(igp_account_locator.domain.clone(), conf);
         let program_id =
-            Self::determine_igp_program_id(&rpc_client, &igp_account_locator.address).await?;
+            Self::determine_igp_program_id(provider.rpc(), &igp_account_locator.address).await?;
         let (data_pda_pubkey, _) =
             Pubkey::find_program_address(igp_program_data_pda_seeds!(), &program_id);
 
@@ -57,6 +55,7 @@ impl SealevelInterchainGasPaymaster {
             data_pda_pubkey,
             domain: igp_account_locator.domain.clone(),
             igp_account: igp_account_locator.address,
+            provider,
         })
     }
 
@@ -91,7 +90,7 @@ impl HyperlaneChain for SealevelInterchainGasPaymaster {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(SealevelProvider::new(self.domain.clone()))
+        self.provider.provider()
     }
 }
 

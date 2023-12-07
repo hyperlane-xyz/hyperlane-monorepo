@@ -13,9 +13,6 @@ export const proxyFactoryFactories = {
   aggregationIsmFactory: new StaticAggregationIsmFactory__factory(),
   aggregationHookFactory: new StaticAggregationHookFactory__factory(),
   routingIsmFactory: new DomainRoutingIsmFactory__factory(),
-  // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2895
-  // defaultFallbackRoutingIsmFactory:
-  //   new DefaultFallbackRoutingIsmFactory__factory(),
 };
 
 export type ProxyFactoryFactories = typeof proxyFactoryFactories;
@@ -29,5 +26,4 @@ export const proxyFactoryImplementations: ProxyFactoryImplementations = {
   aggregationIsmFactory: 'StaticAggregationIsm',
   aggregationHookFactory: 'StaticAggregationHook',
   routingIsmFactory: 'DomaingRoutingIsm',
-  // defaultFallbackRoutingIsmFactory: 'DefaultFallbackRoutingIsm',
 };

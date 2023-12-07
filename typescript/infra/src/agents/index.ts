@@ -22,7 +22,7 @@ import {
   buildHelmChartDependencies,
   helmifyValues,
 } from '../utils/helm';
-import { execCmd, isNotEthereumProtocolChain } from '../utils/utils';
+import { execCmd, isEthereumProtocolChain } from '../utils/utils';
 
 import { AgentGCPKey } from './gcp';
 
@@ -133,7 +133,7 @@ export abstract class AgentHelmManager {
 
   rpcConsensusType(chain: ChainName): RpcConsensusType {
     // Non-Ethereum chains only support Single
-    if (isNotEthereumProtocolChain(chain)) {
+    if (!isEthereumProtocolChain(chain)) {
       return RpcConsensusType.Single;
     }
 

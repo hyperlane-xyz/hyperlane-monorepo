@@ -22,7 +22,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,
   CoreFactories
 > {
-  startingBlockNumbers: ChainMap<number | undefined> = {};
   hookDeployer: HyperlaneHookDeployer;
 
   constructor(
@@ -69,8 +68,13 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     );
     if (!matches) {
       this.logger('Deploying default ISM');
-      defaultIsm = await this.deployIsm(chain, config.defaultIsm);
+      defaultIsm = await this.deployIsm(
+        chain,
+        config.defaultIsm,
+        mailbox.address,
+      );
     }
+    this.cachedAddresses[chain].interchainSecurityModule = defaultIsm;
 
     const hookAddresses = { mailbox: mailbox.address, proxyAdmin };
 
@@ -168,8 +172,16 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     return hooks[config.type].address;
   }
 
-  async deployIsm(chain: ChainName, config: IsmConfig): Promise<Address> {
-    const ism = await this.ismFactory.deploy(chain, config);
+  async deployIsm(
+    chain: ChainName,
+    config: IsmConfig,
+    mailbox: Address,
+  ): Promise<Address> {
+    const ism = await this.ismFactory.deploy({
+      destination: chain,
+      config,
+      mailbox,
+    });
     this.addDeployedContracts(chain, this.ismFactory.deployedIsms[chain]);
     return ism.address;
   }
@@ -186,10 +198,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
     const mailbox = await this.deployMailbox(chain, config, proxyAdmin.address);
-
-    // TODO: remove once agents fetch deployedBlock from mailbox
-    const deployedBlock = await mailbox.deployedBlock();
-    this.startingBlockNumbers[chain] = deployedBlock.toNumber();
 
     const validatorAnnounce = await this.deployValidatorAnnounce(
       chain,

@@ -1,5 +1,12 @@
 # @hyperlane-xyz/core
 
+## 3.3.0
+
+### Patch Changes
+
+- 350175581: Rename StaticProtocolFee hook to ProtocolFee for clarity
+  - @hyperlane-xyz/utils@3.3.0
+
 ## 3.2.0
 
 ### Minor Changes

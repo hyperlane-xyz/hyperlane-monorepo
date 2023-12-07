@@ -5,7 +5,7 @@ use hyperlane_core::{
 };
 
 use crate::{
-    grpc::{WasmGrpcProvider, WasmProvider},
+    grpc::WasmProvider,
     payloads::{
         general::EmptyStruct,
         ism_routes::{QueryIsmGeneralRequest, QueryIsmModuleTypeRequest},
@@ -22,7 +22,7 @@ pub struct CosmosInterchainSecurityModule {
     /// The address of the ISM contract.
     address: H256,
     /// The provider for the ISM contract.
-    provider: Box<WasmGrpcProvider>,
+    provider: CosmosProvider,
 }
 
 /// The Cosmos Interchain Security Module Implementation.
@@ -33,13 +33,17 @@ impl CosmosInterchainSecurityModule {
         locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider: WasmGrpcProvider =
-            WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
+        let provider = CosmosProvider::new(
+            locator.domain.clone(),
+            conf.clone(),
+            Some(locator.clone()),
+            signer,
+        )?;
 
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
-            provider: Box::new(provider),
+            provider,
         })
     }
 }
@@ -56,7 +60,7 @@ impl HyperlaneChain for CosmosInterchainSecurityModule {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(CosmosProvider::new(self.domain.clone()))
+        Box::new(self.provider.clone())
     }
 }
 
@@ -71,6 +75,7 @@ impl InterchainSecurityModule for CosmosInterchainSecurityModule {
 
         let data = self
             .provider
+            .grpc()
             .wasm_query(QueryIsmGeneralRequest { ism: query }, None)
             .await?;
 

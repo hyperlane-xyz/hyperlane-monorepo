@@ -3,7 +3,7 @@ import { ZodTypeAny, z } from 'zod';
 
 import { ChainName, HyperlaneContractsMap } from '@hyperlane-xyz/sdk';
 
-import { log, logBlue, logRed } from '../../logger.js';
+import { log, logBlue } from '../../logger.js';
 import { readYamlOrJson, runFileSelectionStep } from '../utils/files.js';
 
 const RecursiveObjectSchema: ZodTypeAny = z.lazy(() =>
@@ -37,7 +37,9 @@ export async function runDeploymentArtifactStep(
   artifactsPath?: string,
   message?: string,
   selectedChains?: ChainName[],
-) {
+  defaultArtifactsPath = './artifacts',
+  defaultArtifactsNamePattern = 'core-deployment',
+): Promise<HyperlaneContractsMap<any> | undefined> {
   if (!artifactsPath) {
     const useArtifacts = await confirm({
       message: message || 'Do you want use some existing contract addresses?',
@@ -45,9 +47,9 @@ export async function runDeploymentArtifactStep(
     if (!useArtifacts) return undefined;
 
     artifactsPath = await runFileSelectionStep(
-      './artifacts',
-      'contract artifacts',
-      'core-deployment',
+      defaultArtifactsPath,
+      'contract deployment artifacts',
+      defaultArtifactsNamePattern,
     );
   }
   const artifacts = readDeploymentArtifacts(artifactsPath);
@@ -57,7 +59,7 @@ export async function runDeploymentArtifactStep(
       selectedChains.includes(c),
     );
     if (artifactChains.length === 0) {
-      logRed('No artifacts found for selected chains');
+      log('No artifacts found for selected chains');
     } else {
       log(`Found existing artifacts for chains: ${artifactChains.join(', ')}`);
     }

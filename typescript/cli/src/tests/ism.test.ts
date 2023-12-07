@@ -10,7 +10,7 @@ describe('readIsmConfig', () => {
 
     const exampleIsmConfig: ChainMap<IsmConfig> = {
       anvil1: {
-        type: IsmType.ROUTING,
+        type: IsmType.FALLBACK_ROUTING,
         owner: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720',
         domains: {
           anvil2: {
