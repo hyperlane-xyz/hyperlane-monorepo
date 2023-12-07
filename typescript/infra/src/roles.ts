@@ -3,7 +3,6 @@ export enum Role {
   Relayer = 'relayer',
   Scraper = 'scraper',
   Deployer = 'deployer',
-  Bank = 'bank',
   Kathy = 'kathy',
 }
 
@@ -11,7 +10,6 @@ export const ALL_KEY_ROLES = [
   Role.Validator,
   Role.Relayer,
   Role.Deployer,
-  Role.Bank,
   Role.Kathy,
 ];
 

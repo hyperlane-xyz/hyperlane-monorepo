@@ -11,7 +11,7 @@ import {
   CoreChainName,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
-import { objMerge } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { Role } from '../roles';
@@ -272,4 +272,9 @@ export function mustGetChainNativeTokenDecimals(chain: ChainName): number {
     throw new Error(`No native token for chain ${chain}`);
   }
   return metadata.nativeToken.decimals;
+}
+
+export function isEthereumProtocolChain(chainName: ChainName) {
+  if (!chainMetadata[chainName]) throw new Error(`Unknown chain ${chainName}`);
+  return chainMetadata[chainName].protocol === ProtocolType.Ethereum;
 }
