@@ -1,5 +1,5 @@
 import { debug } from 'debug';
-import { BigNumber, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import {
   DefaultFallbackRoutingIsm,
@@ -21,7 +21,13 @@ import {
   StaticThresholdAddressSetFactory,
   TestIsm__factory,
 } from '@hyperlane-xyz/core';
-import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  eqAddress,
+  formatMessage,
+  normalizeAddress,
+  warn,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
 import {
@@ -90,8 +96,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     config: C;
     origin?: ChainName;
     mailbox?: Address;
+    moduleAddress?: Address;
   }): Promise<DeployedIsm> {
-    const { destination, config, origin, mailbox } = params;
+    const { destination, config, origin, mailbox, moduleAddress } = params;
     if (typeof config === 'string') {
       // @ts-ignore
       return IInterchainSecurityModule__factory.connect(
@@ -120,6 +127,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           config,
           origin,
           mailbox,
+          moduleAddress,
         });
         break;
       case IsmType.AGGREGATION:
@@ -187,26 +195,58 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     config: RoutingIsmConfig;
     origin?: ChainName;
     mailbox?: Address;
+    existingIsmAddress?: Address;
   }): Promise<IRoutingIsm> {
-    const { destination, config, mailbox } = params;
-    const routingIsmFactory = this.getContracts(destination).routingIsmFactory;
-    const isms: ChainMap<Address> = {};
-    for (const origin of Object.keys(config.domains)) {
-      const ism = await this.deploy({
-        destination,
-        config: config.domains[origin],
-        origin,
-        mailbox,
-      });
-      isms[origin] = ism.address;
-    }
-    const domains = Object.keys(isms).map((chain) =>
-      this.multiProvider.getDomainId(chain),
-    );
-    const submoduleAddresses = Object.values(isms);
+    const { destination, config, mailbox, existingIsmAddress } = params;
     const overrides = this.multiProvider.getTransactionOverrides(destination);
-    let receipt: ethers.providers.TransactionReceipt;
+    const routingIsmFactory = this.getContracts(destination).routingIsmFactory;
     let routingIsm: DomainRoutingIsm | DefaultFallbackRoutingIsm;
+    const delta: RoutingIsmDelta = existingIsmAddress
+      ? await this.routingModuleDelta(
+          destination,
+          existingIsmAddress,
+          config,
+          this.getContracts(destination),
+        )
+      : {
+          isOwner: false,
+          domainsToUnenroll: [],
+          domainsToEnroll: Object.keys(config.domains),
+        };
+
+    const isms: ChainMap<Address> = {};
+    // reconfiguring existing routing ISM
+    if (existingIsmAddress && delta.isOwner) {
+      // deploying all the ISMs which have been updated
+      for (const origin of delta.domainsToEnroll) {
+        const ism = await this.deploy({
+          destination,
+          config: config.domains[origin],
+          origin,
+          mailbox,
+        });
+        isms[origin] = ism.address;
+        const tx = await routingIsm.set(
+          this.multiProvider.getDomainId(origin),
+          isms[origin],
+          overrides,
+        );
+        await this.multiProvider.handleTx(destination, tx);
+      }
+      const domains = Object.keys(isms).map((chain) =>
+        this.multiProvider.getDomainId(chain),
+      );
+      debug('Reconfiguring preexisting routing ISM at ${}...');
+      const routingIsm = await DomainRoutingIsm__factory.connect(
+        existingIsmAddress,
+        this.multiProvider.getSigner(destination),
+      );
+    }
+
+    const submoduleAddresses = Object.values(isms);
+
+    let receipt: ethers.providers.TransactionReceipt;
+
     if (config.type === IsmType.FALLBACK_ROUTING) {
       if (!mailbox) {
         throw new Error(
@@ -230,6 +270,22 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         ),
       );
     } else {
+      // if owner
+
+      if (existingIsmAddress) {
+        // enrolling new routes
+
+        for (const domain of delta.domainsToEnroll) {
+        }
+        // unenrolling old routes
+        for (const domain of delta.domainsToUnenroll) {
+          const tx = await routingIsm.remove(
+            this.multiProvider.getDomainId(domain),
+            overrides,
+          );
+          await this.multiProvider.handleTx(destination, tx);
+        }
+      }
       const tx = await routingIsmFactory.deploy(
         config.owner,
         domains,
@@ -335,51 +391,50 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   }
 
   async routingModuleDelta(
-    chain: ChainName,
+    destination: ChainName,
     moduleAddress: Address,
     config: RoutingIsmConfig,
     contracts: HyperlaneContracts<ProxyFactoryFactories>,
   ): Promise<RoutingIsmDelta> {
-    const provider = this.multiProvider.getProvider(chain);
+    const signer = this.multiProvider.getSigner(destination);
+    const provider = this.multiProvider.getProvider(destination);
     const routingIsm = DomainRoutingIsm__factory.connect(
       moduleAddress,
       provider,
     );
     const owner = await routingIsm.owner();
-    const domains = await routingIsm.domains();
-    // const domainIds = domains.map((d) => multiProvider.getDomainName(d));
+    console.log('already owner', owner);
+    console.log('config owner', config.owner, owner !== config.owner);
+    const deployedDomains = (await routingIsm.domains()).map((chain) =>
+      this.multiProvider.getChainName(chain.toNumber()),
+    );
 
     const delta: RoutingIsmDelta = {
+      isOwner: (await signer.getAddress()) == owner,
       domainsToUnenroll: [],
       domainsToEnroll: [],
     };
-    if (owner !== config.owner) {
-      delta.owner = owner;
-    }
-    for (const existing of Object.keys(domains)) {
-      if (!Object.keys(config.domains).includes(existing)) {
-        delta.domainsToUnenroll.push(existing);
-      }
-    }
+    // if owners don't match, we need to transfer ownership
+    if (owner !== normalizeAddress(config.owner)) delta.owner = owner;
+
+    delta.domainsToUnenroll = deployedDomains.filter(
+      (domain) => !Object.keys(config.domains).includes(domain),
+    );
     for (const [origin, subConfig] of Object.entries(config.domains)) {
-      const configDomainId = this.multiProvider.getDomainId(origin);
-      if (!domains.includes(BigNumber.from(configDomainId))) {
-        delta.domainsToEnroll.push(origin);
-      } else {
+      if (!deployedDomains.includes(origin)) delta.domainsToEnroll.push(origin);
+      else {
         const subModule = await routingIsm.module(
           this.multiProvider.getDomainId(origin),
         );
         const subModuleMatches = await moduleMatchesConfig(
-          chain,
+          destination,
           subModule,
           subConfig,
           this.multiProvider,
           contracts,
           origin,
         );
-        if (!subModuleMatches) {
-          delta.domainsToEnroll.push(origin);
-        }
+        if (!subModuleMatches) delta.domainsToEnroll.push(origin);
       }
     }
     return delta;

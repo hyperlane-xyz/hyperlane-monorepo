@@ -136,22 +136,99 @@ describe('HyperlaneIsmFactory', async () => {
     });
   }
 
+  const routingConfig: RoutingIsmConfig = {
+    type: IsmType.ROUTING,
+    owner: randomAddress(),
+    domains: Object.fromEntries(
+      TestChains.filter((c) => c !== 'test1').map((c) => [
+        c,
+        randomMultisigIsmConfig(3, 5),
+      ]),
+    ),
+  };
+
   it('deploys routingIsm with correct routes', async () => {
-    const config: RoutingIsmConfig = {
-      type: IsmType.ROUTING,
-      owner: randomAddress(),
-      domains: Object.fromEntries(
-        TestChains.map((c) => [c, randomIsmConfig()]),
-      ),
-    };
-    const ism = await ismFactory.deploy({ destination: chain, config });
+    const ism = await ismFactory.deploy({
+      destination: chain,
+      config: routingConfig,
+    });
     const matches = await moduleMatchesConfig(
       chain,
       ism.address,
-      config,
+      routingConfig,
       ismFactory.multiProvider,
       ismFactory.getContracts(chain),
     );
+    expect(matches).to.be.true;
+  });
+
+  it('enroll/unenroll routes', async () => {
+    let matches = false;
+    let ism = await ismFactory.deploy({
+      destination: chain,
+      config: routingConfig,
+    });
+    // change the owner
+    routingConfig.owner = randomAddress();
+    ism = await ismFactory.deploy({
+      destination: chain,
+      config: routingConfig,
+      moduleAddress: ism.address,
+    });
+    matches = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      routingConfig,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+    );
+
+    // changing the type of a domain should enroll the domain
+    (routingConfig.domains['test2'] as MultisigIsmConfig).type =
+      IsmType.MESSAGE_ID_MULTISIG;
+
+    ism = await ismFactory.deploy({
+      destination: chain,
+      config: routingConfig,
+      moduleAddress: ism.address,
+    });
+    matches = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      routingConfig,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+    );
+
+    // deleting the domain should unenroll the domain
+    delete routingConfig.domains['test2'];
+    ism = await ismFactory.deploy({
+      destination: chain,
+      config: routingConfig,
+      moduleAddress: ism.address,
+    });
+    matches = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      routingConfig,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+    );
+
+    // using the same config should not change anything
+    ism = await ismFactory.deploy({
+      destination: chain,
+      config: routingConfig,
+      moduleAddress: ism.address,
+    });
+    matches = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      routingConfig,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+    );
+
     expect(matches).to.be.true;
   });
 
