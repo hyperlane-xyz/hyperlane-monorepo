@@ -1,5 +1,5 @@
 #! /usr/bin/env node
-import figlet from 'figlet';
+import chalk from 'chalk';
 import yargs from 'yargs';
 
 import { errorRed } from './logger.js';
@@ -13,11 +13,7 @@ import { VERSION } from './src/version.js';
 // From yargs code:
 const MISSING_PARAMS_ERROR = 'Not enough non-option arguments';
 
-console.log(
-  figlet.textSync('Hyperlane', {
-    font: 'ANSI Shadow',
-  }),
-);
+console.log(chalk.blue('Hyperlane'), chalk.magentaBright('CLI'));
 
 try {
   await yargs(process.argv.slice(2))
