@@ -1,4 +1,5 @@
 import {
+  Chains,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
@@ -49,7 +50,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1bee32a-20231121-121303',
+      tag: '36de5bc-20231205-145629',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -66,7 +67,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1bee32a-20231121-121303',
+      tag: '36de5bc-20231205-145629',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -74,7 +75,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1bee32a-20231121-121303',
+      tag: '36de5bc-20231205-145629',
     },
   },
 };
@@ -87,7 +88,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fd890d2-20231024-132022',
+      tag: '36de5bc-20231205-145629',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
@@ -100,13 +101,34 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fd890d2-20231024-132022',
+      tag: '36de5bc-20231205-145629',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
+  },
+};
+
+const neutron: RootAgentConfig = {
+  ...contextBase,
+  context: Contexts.Neutron,
+  rolesWithKeys: [Role.Relayer],
+  contextChainNames: {
+    relayer: [Chains.neutrontestnet, Chains.goerli],
+    validator: [],
+    scraper: [],
+  },
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      tag: '36de5bc-20231205-145629',
+    },
+    gasPaymentEnforcement,
+    transactionGasLimit: 750000,
   },
 };
 
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.Neutron]: neutron,
 };

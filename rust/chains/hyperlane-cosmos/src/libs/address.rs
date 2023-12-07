@@ -12,7 +12,7 @@ use tendermint::public_key::PublicKey as TendermintPublicKey;
 use crate::HyperlaneCosmosError;
 
 /// Wrapper around the cosmrs AccountId type that abstracts bech32 encoding
-#[derive(new, Debug)]
+#[derive(new, Debug, Clone)]
 pub struct CosmosAddress {
     /// Bech32 encoded cosmos account
     account_id: AccountId,
@@ -132,6 +132,11 @@ pub mod test {
             addr.address(),
             "neutron1kknekjxg0ear00dky5ykzs8wwp2gz62z9s6aaj"
         );
+        // TODO: watch out for this edge case. This check will fail unless
+        // the first 12 bytes are removed from the digest.
+        // let digest = addr.digest();
+        // let addr2 = CosmosAddress::from_h256(digest, prefix).expect("Cosmos address creation failed");
+        // assert_eq!(addr.address(), addr2.address());
     }
 
     #[test]

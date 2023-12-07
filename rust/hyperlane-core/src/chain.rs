@@ -5,6 +5,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+use derive_new::new;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 #[cfg(feature = "strum")]
@@ -18,7 +19,7 @@ pub struct Address(pub bytes::Bytes);
 #[derive(Debug, Clone)]
 pub struct Balance(pub num::BigInt);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ContractLocator<'a> {
     pub domain: &'a HyperlaneDomain,
     pub address: H256,
@@ -101,8 +102,8 @@ pub enum KnownHyperlaneDomain {
     ScrollSepolia = 534351,
 
     /// Cosmos local chains
-    CosmosTest26657 = 26657,
-    CosmosTest26658 = 26658,
+    CosmosTest99990 = 99990,
+    CosmosTest99991 = 99991,
 }
 
 #[derive(Clone)]
@@ -200,7 +201,7 @@ impl KnownHyperlaneDomain {
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
                 Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia, Chiado
             ],
-            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest26657, CosmosTest26658],
+            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991],
         })
     }
 
@@ -215,7 +216,7 @@ impl KnownHyperlaneDomain {
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
-            HyperlaneDomainProtocol::Cosmos: [CosmosTest26657, CosmosTest26658],
+            HyperlaneDomainProtocol::Cosmos: [CosmosTest99990, CosmosTest99991],
         })
     }
 }

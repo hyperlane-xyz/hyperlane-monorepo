@@ -16,6 +16,7 @@ export const safes: ChainMap<Address> = {
   base: '',
   scroll: '',
   polygonzkevm: '',
+  mantapacific: '',
 };
 
 // export const owners = safes;

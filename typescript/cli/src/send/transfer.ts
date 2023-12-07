@@ -1,3 +1,4 @@
+import { input } from '@inquirer/prompts';
 import { BigNumber, ethers } from 'ethers';
 
 import {
@@ -16,17 +17,12 @@ import {
 import { Address, timeout } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGreen } from '../../logger.js';
-import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
-import {
-  getContextWithSigner,
-  getMergedContractAddresses,
-} from '../context.js';
+import { getContext, getMergedContractAddresses } from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
 import { assertNativeBalances, assertTokenBalance } from '../utils/balances.js';
+import { runSingleChainSelectionStep } from '../utils/chains.js';
 
-// TODO improve the UX here by making params optional and
-// prompting for missing values
 export async function sendTestTransfer({
   key,
   chainConfigPath,
@@ -42,20 +38,42 @@ export async function sendTestTransfer({
 }: {
   key: string;
   chainConfigPath: string;
-  coreArtifactsPath: string;
-  origin: ChainName;
-  destination: ChainName;
-  routerAddress: Address;
+  coreArtifactsPath?: string;
+  origin?: ChainName;
+  destination?: ChainName;
+  routerAddress?: Address;
   tokenType: TokenType;
   wei: string;
   recipient?: string;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
 }) {
-  const { signer, multiProvider } = getContextWithSigner(key, chainConfigPath);
-  const artifacts = coreArtifactsPath
-    ? readDeploymentArtifacts(coreArtifactsPath)
-    : undefined;
+  const { signer, multiProvider, customChains, coreArtifacts } =
+    await getContext({
+      chainConfigPath,
+      coreConfig: { coreArtifactsPath },
+      keyConfig: { key },
+    });
+
+  if (!origin) {
+    origin = await runSingleChainSelectionStep(
+      customChains,
+      'Select the origin chain',
+    );
+  }
+
+  if (!destination) {
+    destination = await runSingleChainSelectionStep(
+      customChains,
+      'Select the destination chain',
+    );
+  }
+
+  if (!routerAddress) {
+    routerAddress = await input({
+      message: 'Please specify the router address',
+    });
+  }
 
   if (tokenType === TokenType.collateral) {
     await assertTokenBalance(
@@ -91,7 +109,7 @@ export async function sendTestTransfer({
       recipient,
       signer,
       multiProvider,
-      artifacts,
+      coreArtifacts,
       skipWaitForDelivery,
     }),
     timeoutSec * 1000,
@@ -108,7 +126,7 @@ async function executeDelivery({
   recipient,
   multiProvider,
   signer,
-  artifacts,
+  coreArtifacts,
   skipWaitForDelivery,
 }: {
   origin: ChainName;
@@ -119,13 +137,13 @@ async function executeDelivery({
   recipient?: string;
   multiProvider: MultiProvider;
   signer: ethers.Signer;
-  artifacts?: HyperlaneContractsMap<any>;
+  coreArtifacts?: HyperlaneContractsMap<any>;
   skipWaitForDelivery: boolean;
 }) {
   const signerAddress = await signer.getAddress();
   recipient ||= signerAddress;
 
-  const mergedContractAddrs = getMergedContractAddresses(artifacts);
+  const mergedContractAddrs = getMergedContractAddresses(coreArtifacts);
 
   const core = HyperlaneCore.fromAddressesMap(
     mergedContractAddrs,

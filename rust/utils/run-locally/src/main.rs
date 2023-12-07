@@ -30,6 +30,7 @@ use crate::{
     config::Config,
     ethereum::start_anvil,
     invariants::termination_invariants_met,
+    metrics::agent_balance_sum,
     solana::*,
     utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle},
 };
@@ -389,24 +390,25 @@ fn main() -> ExitCode {
 
     // let loop_start = Instant::now();
     // give things a chance to fully start.
-    sleep(Duration::from_secs(5));
+    sleep(Duration::from_secs(10));
     let mut failure_occurred = false;
+    let starting_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
     while !SHUTDOWN.load(Ordering::Relaxed) {
-        // if config.ci_mode {
-        //     // for CI we have to look for the end condition.
-        //     if termination_invariants_met(&config)
-        //         // if termination_invariants_met(&config, &solana_path, &solana_config_path)
-        //         .unwrap_or(false)
-        //     {
-        //         // end condition reached successfully
-        //         break;
-        //     } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
-        //         // we ran out of time
-        //         log!("CI timeout reached before queues emptied");
-        //         failure_occurred = true;
-        //         break;
-        //     }
-        // }
+        if config.ci_mode {
+            // for CI we have to look for the end condition.
+            if termination_invariants_met(&config, starting_relayer_balance)
+                // if termination_invariants_met(&config, &solana_path, &solana_config_path)
+                .unwrap_or(false)
+            {
+                // end condition reached successfully
+                break;
+            } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
+                // we ran out of time
+                log!("CI timeout reached before queues emptied");
+                failure_occurred = true;
+                break;
+            }
+        }
 
         // verify long-running tasks are still running
         for (name, child) in state.agents.iter_mut() {

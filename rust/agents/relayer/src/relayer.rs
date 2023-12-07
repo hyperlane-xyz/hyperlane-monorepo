@@ -9,11 +9,15 @@ use derive_more::AsRef;
 use eyre::Result;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
-    run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-    SequencedDataContractSync, WatermarkContractSync,
+    metrics::{AgentMetrics, AgentMetricsUpdater},
+    run_all,
+    settings::ChainConf,
+    BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, SequencedDataContractSync,
+    WatermarkContractSync,
 };
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, U256,
+    metrics::agent::METRICS_SCRAPE_INTERVAL, HyperlaneDomain, HyperlaneMessage,
+    InterchainGasPayment, MerkleTreeInsertion, U256,
 };
 use tokio::{
     sync::{
@@ -49,7 +53,7 @@ struct ContextKey {
 #[derive(AsRef)]
 pub struct Relayer {
     origin_chains: HashSet<HyperlaneDomain>,
-    destination_chains: HashSet<HyperlaneDomain>,
+    destination_chains: HashMap<HyperlaneDomain, ChainConf>,
     #[as_ref]
     core: HyperlaneAgentCore,
     message_syncs: HashMap<HyperlaneDomain, Arc<SequencedDataContractSync<HyperlaneMessage>>>,
@@ -67,6 +71,8 @@ pub struct Relayer {
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
+    core_metrics: Arc<CoreMetrics>,
+    agent_metrics: AgentMetrics,
 }
 
 impl Debug for Relayer {
@@ -92,11 +98,15 @@ impl BaseAgent for Relayer {
 
     type Settings = RelayerSettings;
 
-    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
+    async fn from_settings(
+        settings: Self::Settings,
+        core_metrics: Arc<CoreMetrics>,
+        agent_metrics: AgentMetrics,
+    ) -> Result<Self>
     where
         Self: Sized,
     {
-        let core = settings.build_hyperlane_core(metrics.clone());
+        let core = settings.build_hyperlane_core(core_metrics.clone());
         let db = DB::from_path(&settings.db)?;
         let dbs = settings
             .origin_chains
@@ -105,18 +115,18 @@ impl BaseAgent for Relayer {
             .collect::<HashMap<_, _>>();
 
         let mailboxes = settings
-            .build_mailboxes(settings.destination_chains.iter(), &metrics)
+            .build_mailboxes(settings.destination_chains.iter(), &core_metrics)
             .await?;
         let validator_announces = settings
-            .build_validator_announces(settings.origin_chains.iter(), &metrics)
+            .build_validator_announces(settings.origin_chains.iter(), &core_metrics)
             .await?;
 
-        let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
+        let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
         let message_syncs = settings
             .build_message_indexers(
                 settings.origin_chains.iter(),
-                &metrics,
+                &core_metrics,
                 &contract_sync_metrics,
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
@@ -126,7 +136,7 @@ impl BaseAgent for Relayer {
         let interchain_gas_payment_syncs = settings
             .build_interchain_gas_payment_indexers(
                 settings.origin_chains.iter(),
-                &metrics,
+                &core_metrics,
                 &contract_sync_metrics,
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
@@ -136,7 +146,7 @@ impl BaseAgent for Relayer {
         let merkle_tree_hook_syncs = settings
             .build_merkle_tree_hook_indexers(
                 settings.origin_chains.iter(),
-                &metrics,
+                &core_metrics,
                 &contract_sync_metrics,
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
@@ -188,9 +198,10 @@ impl BaseAgent for Relayer {
             .collect();
 
         let mut msg_ctxs = HashMap::new();
+        let mut destination_chains = HashMap::new();
         for destination in &settings.destination_chains {
             let destination_chain_setup = core.settings.chain_setup(destination).unwrap().clone();
-
+            destination_chains.insert(destination.clone(), destination_chain_setup.clone());
             let transaction_gas_limit: Option<U256> =
                 if skip_transaction_gas_limit_for.contains(&destination.id()) {
                     None
@@ -222,7 +233,7 @@ impl BaseAgent for Relayer {
                         metadata_builder,
                         origin_gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
                         transaction_gas_limit,
-                        metrics: MessageSubmissionMetrics::new(&metrics, origin, destination),
+                        metrics: MessageSubmissionMetrics::new(&core_metrics, origin, destination),
                     }),
                 );
             }
@@ -231,7 +242,7 @@ impl BaseAgent for Relayer {
         Ok(Self {
             dbs,
             origin_chains: settings.origin_chains,
-            destination_chains: settings.destination_chains,
+            destination_chains,
             msg_ctxs,
             core,
             message_syncs,
@@ -243,6 +254,8 @@ impl BaseAgent for Relayer {
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
+            core_metrics,
+            agent_metrics,
         })
     }
 
@@ -252,12 +265,32 @@ impl BaseAgent for Relayer {
 
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
-        for destination in &self.destination_chains {
+        for (dest_domain, dest_conf) in &self.destination_chains {
             let (send_channel, receive_channel) =
                 mpsc::unbounded_channel::<Box<DynPendingOperation>>();
-            send_channels.insert(destination.id(), send_channel);
+            send_channels.insert(dest_domain.id(), send_channel);
 
-            tasks.push(self.run_destination_submitter(destination, receive_channel));
+            tasks.push(self.run_destination_submitter(dest_domain, receive_channel));
+
+            let agent_metrics_conf = dest_conf
+                .agent_metrics_conf(Self::AGENT_NAME.to_string())
+                .await
+                .unwrap();
+            let agent_metrics_fetcher = dest_conf.build_provider(&self.core_metrics).await.unwrap();
+            let agent_metrics = AgentMetricsUpdater::new(
+                self.agent_metrics.clone(),
+                agent_metrics_conf,
+                agent_metrics_fetcher,
+            );
+
+            let fetcher_task = tokio::spawn(async move {
+                agent_metrics
+                    .start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
+                    .await;
+                Ok(())
+            })
+            .instrument(info_span!("AgentMetrics"));
+            tasks.push(fetcher_task);
         }
 
         for origin in &self.origin_chains {
@@ -331,11 +364,11 @@ impl Relayer {
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
             origin,
-            self.destination_chains.iter(),
+            self.destination_chains.keys(),
         );
         let destination_ctxs = self
             .destination_chains
-            .iter()
+            .keys()
             .filter(|&destination| destination != origin)
             .map(|destination| {
                 (
