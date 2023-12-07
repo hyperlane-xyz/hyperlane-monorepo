@@ -20,6 +20,10 @@ import {NotCrossChainCall} from "@openzeppelin/contracts/crosschain/errors.sol";
 import {AddressAliasHelper} from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
 import {ICrossDomainMessenger, IL2CrossDomainMessenger} from "../../contracts/interfaces/optimism/ICrossDomainMessenger.sol";
 
+interface IStateSender {
+    function counter() external view returns (uint256);
+}
+
 contract PolygonPosIsmTest is Test {
     using LibBit for uint256;
     using TypeCasts for address;
@@ -74,12 +78,10 @@ contract PolygonPosIsmTest is Test {
     uint32 internal constant MAINNET_DOMAIN = 1;
     uint32 internal constant POLYGON_POS_DOMAIN = 137;
 
-    event SentMessage(
-        address indexed target,
-        address sender,
-        bytes message,
-        uint256 messageNonce,
-        uint256 gasLimit
+    event StateSynced(
+        uint256 indexed id,
+        address indexed contractAddress,
+        bytes data
     );
 
     event RelayedMessage(bytes32 indexed msgHash);
@@ -116,6 +118,9 @@ contract PolygonPosIsmTest is Test {
             MAINNET_CHECKPOINT_MANAGER,
             MAINNET_FX_ROOT
         );
+
+        // FIXME: see if address correct
+        polygonPosHook.setFxChildTunnel(MAINNET_FX_CHILD);
 
         vm.makePersistent(address(polygonPosHook));
     }
@@ -170,22 +175,19 @@ contract PolygonPosIsmTest is Test {
             (messageId)
         );
 
-        uint40 testNonce = 123;
         l1Mailbox.updateLatestDispatchedId(messageId);
 
-        vm.expectEmit(
-            true,
-            true,
-            false,
-            false,
-            MAINNET_STATE_SENDER
-        ); /* add sth in front of receiver + encoded message*/
-        emit SentMessage(
-            address(polygonPosISM),
-            address(polygonPosHook),
-            encodedHookData,
-            testNonce,
-            DEFAULT_GAS_LIMIT
+        IStateSender stateSender = IStateSender(MAINNET_STATE_SENDER);
+
+        vm.expectEmit(true, false, false, true);
+        emit StateSynced(
+            (stateSender.counter() + 1),
+            MAINNET_FX_CHILD,
+            abi.encode(
+                TypeCasts.addressToBytes32(address(polygonPosHook)),
+                TypeCasts.addressToBytes32(MAINNET_FX_CHILD),
+                encodedHookData
+            )
         );
         polygonPosHook.postDispatch(testMetadata, encodedMessage);
     }
