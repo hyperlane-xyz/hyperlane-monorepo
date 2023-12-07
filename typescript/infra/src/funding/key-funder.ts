@@ -45,7 +45,7 @@ function getKeyFunderHelmValues(
     hyperlane: {
       runEnv: agentConfig.runEnv,
       // Only used for fetching RPC urls as env vars
-      chains: agentConfig.contextChainNames,
+      chains: agentConfig.contextChainNames.relayer, // use the relayer chains
       contextFundingFrom: keyFunderConfig.contextFundingFrom,
       contextsAndRolesToFund: keyFunderConfig.contextsAndRolesToFund,
       connectionType: keyFunderConfig.connectionType,
