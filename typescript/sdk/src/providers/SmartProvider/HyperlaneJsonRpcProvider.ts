@@ -1,5 +1,5 @@
 import debug from 'debug';
-import { BigNumber, providers } from 'ethers';
+import { BigNumber, providers, utils } from 'ethers';
 
 import { chunk, isBigNumberish, isNullish } from '@hyperlane-xyz/utils';
 
@@ -118,8 +118,8 @@ export class HyperlaneJsonRpcProvider
             filter: {
               address,
               topics,
-              fromBlock: BigNumber.from(blockChunk[0]).toHexString(),
-              toBlock: BigNumber.from(blockChunk[1]).toHexString(),
+              fromBlock: utils.hexValue(BigNumber.from(blockChunk[0])),
+              toBlock: utils.hexValue(BigNumber.from(blockChunk[1])),
             },
           }) as Promise<Array<providers.Log>>,
       );
