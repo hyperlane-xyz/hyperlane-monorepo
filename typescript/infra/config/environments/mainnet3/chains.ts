@@ -60,10 +60,10 @@ export const supportedChainNames = Object.keys(
   mainnetConfigs,
 ) as MainnetChains[];
 
-export const supportAgentChainNames = Object.keys({
+export const supportedAgentChainNames = Object.keys({
   ...mainnetConfigs,
   neutron: chainMetadata.neutron,
-  mantaPacific: chainMetadata.mantapacific,
+  mantapacific: chainMetadata.mantapacific,
 });
 export const environment = 'mainnet3';
 

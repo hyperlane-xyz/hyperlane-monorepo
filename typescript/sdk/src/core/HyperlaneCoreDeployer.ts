@@ -108,6 +108,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     } catch (e: any) {
       if (
         !e.message.includes('already initialized') &&
+        // Some RPC providers dont return the revert reason (nor allow ethers to parse it), so we have to check the message
         !e.message.includes('Reverted 0x08c379a')
       ) {
         throw e;
