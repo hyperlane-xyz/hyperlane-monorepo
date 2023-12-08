@@ -6917,6 +6917,7 @@ dependencies = [
  "hex 0.4.3",
  "hpl-interface",
  "hyperlane-core",
+ "hyperlane-cosmos",
  "k256 0.13.2",
  "macro_rules_attribute",
  "maplit",

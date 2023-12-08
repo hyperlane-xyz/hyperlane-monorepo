@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use hpl_interface::types::bech32_decode;
+use hyperlane_cosmos::CosmosBalance;
 
 use super::{cli::OsmosisCLI, CosmosNetwork};
 
@@ -35,12 +36,6 @@ pub struct TxResponse {
     pub logs: Vec<TxLog>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Coin {
-    pub denom: String,
-    pub amount: String,
-}
-
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Codes {
     pub hpl_hook_merkle: u64,
@@ -73,7 +68,7 @@ pub struct Deployments {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct BalanceResponse {
-    pub balances: Vec<Coin>,
+    pub balances: Vec<CosmosBalance>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

@@ -11,6 +11,7 @@ use std::{
 
 use convert_case::{Case, Casing};
 use eyre::{eyre, Context};
+use h_cosmos::CosmosBalance;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, IndexMode,
 };
@@ -397,4 +398,23 @@ pub fn recase_json_value(mut val: Value, case: Case) -> Value {
         _ => {}
     }
     val
+}
+
+/// Expects AgentSigner.
+fn parse_cosmos_gas_price(gas_price: ValueParser) -> ConfigResult<CosmosBalance> {
+    let mut err = ConfigParsingError::default();
+
+    let amount = gas_price
+        .chain(&mut err)
+        .get_opt_key("amount")
+        .parse_string()
+        .end();
+
+    let denom = gas_price
+        .chain(&mut err)
+        .get_opt_key("denom")
+        .parse_string()
+        .end();
+    cfg_unwrap_all!(&gas_price.cwp, err: [denom, amount]);
+    err.into_result(CosmosBalance::new(denom.to_owned(), amount.to_owned()))
 }

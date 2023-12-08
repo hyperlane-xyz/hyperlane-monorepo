@@ -1,3 +1,5 @@
+use derive_new::new;
+
 /// Cosmos connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
@@ -11,6 +13,14 @@ pub struct ConnectionConf {
     prefix: String,
     /// Canoncial Assets Denom
     canonical_asset: String,
+    /// The minimum gas price set by the cosmos-sdk validator
+    minimum_gas_price: CosmosBalance,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, new, Clone, Debug)]
+pub struct CosmosBalance {
+    pub denom: String,
+    pub amount: String,
 }
 
 /// An error type when parsing a connection configuration.
@@ -66,6 +76,7 @@ impl ConnectionConf {
         chain_id: String,
         prefix: String,
         canonical_asset: String,
+        minimum_gas_price: CosmosBalance,
     ) -> Self {
         Self {
             grpc_url,
@@ -73,6 +84,7 @@ impl ConnectionConf {
             chain_id,
             prefix,
             canonical_asset,
+            minimum_gas_price,
         }
     }
 }
