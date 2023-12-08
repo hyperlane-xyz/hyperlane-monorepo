@@ -238,7 +238,7 @@ impl WasmGrpcProvider {
             .balance
             .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?;
 
-        Ok(balance.amount.parse()?)
+        Ok(U256::from_dec_str(&balance.amount)?)
     }
 
     /// Queries an account.
