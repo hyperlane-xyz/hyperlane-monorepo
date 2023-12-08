@@ -214,8 +214,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           domainsToUnenroll: [],
           domainsToEnroll: Object.keys(config.domains),
         };
-
-    console.log('delta', delta);
     // reconfiguring existing routing ISM
     if (existingIsmAddress && delta.isOwner && !delta.mailbox) {
       const isms: ChainMap<Address> = {};
@@ -433,7 +431,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     if (config.type === IsmType.FALLBACK_ROUTING) {
       const client = MailboxClient__factory.connect(moduleAddress, provider);
       const mailboxAddress = await client.mailbox();
-      if (!eqAddress(mailboxAddress, mailbox)) delta.mailbox = mailbox;
+      if (mailbox && !eqAddress(mailboxAddress, mailbox))
+        delta.mailbox = mailbox;
     }
 
     delta.domainsToUnenroll = deployedDomains.filter(
