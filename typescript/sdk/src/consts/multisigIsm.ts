@@ -2,7 +2,6 @@ import { MultisigConfig } from '../ism/types';
 import { ChainMap } from '../types';
 
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
-  // ----------------- Testnets -----------------
   alfajores: {
     threshold: 2,
     validators: [
@@ -69,7 +68,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x1f030345963c54ff8229720dd3a711c15c554aeb',
     ],
   },
-  // ----------------- Mainnets -----------------
   celo: {
     threshold: 2,
     validators: [
