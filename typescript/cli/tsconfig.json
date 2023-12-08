@@ -6,12 +6,5 @@
     "outDir": "./dist/",
     "rootDir": "."
   },
-  "include": [
-    "./cli.ts",
-    "./logger.ts",
-    "./src/**/*.ts",
-    "./src/*.d.ts",
-    "./examples/**/*.ts"
-  ]
-  // "files": ["hardhat.config.mjs"]
+  "include": ["./cli.ts", "./logger.ts", "./src/**/*.ts", "./src/*.d.ts", "./examples/**/*.ts"],
 }

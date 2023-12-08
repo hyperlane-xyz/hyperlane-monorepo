@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { error } from '@hyperlane-xyz/utils';
+import { Address, error } from '@hyperlane-xyz/utils';
 
 import { TestChains } from '../consts/chains';
 import { TestCoreApp } from '../core/TestCoreApp';
@@ -76,14 +76,14 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
 describe('HyperlaneIsmFactory', async () => {
   let ismFactory: HyperlaneIsmFactory;
   let coreApp: TestCoreApp;
-
+  let multiProvider: MultiProvider;
+  let exampleRoutingConfig: RoutingIsmConfig;
+  let mailboxAddress: Address;
   const chain = 'test1';
 
-  before(async () => {
+  beforeEach(async () => {
     const [signer] = await ethers.getSigners();
-
-    const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     ismFactory = new HyperlaneIsmFactory(
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
@@ -91,6 +91,18 @@ describe('HyperlaneIsmFactory', async () => {
     );
     const coreDeployer = new TestCoreDeployer(multiProvider, ismFactory);
     coreApp = await coreDeployer.deployApp();
+    mailboxAddress = coreApp.getContracts(chain).mailbox.address;
+
+    exampleRoutingConfig = {
+      type: IsmType.ROUTING,
+      owner: await multiProvider.getSignerAddress(chain),
+      domains: Object.fromEntries(
+        TestChains.filter((c) => c !== 'test1').map((c) => [
+          c,
+          randomMultisigIsmConfig(3, 5),
+        ]),
+      ),
+    };
   });
 
   it('deploys a simple ism', async () => {
@@ -136,124 +148,220 @@ describe('HyperlaneIsmFactory', async () => {
     });
   }
 
-  const routingConfig: RoutingIsmConfig = {
-    type: IsmType.ROUTING,
-    owner: randomAddress(),
-    domains: Object.fromEntries(
-      TestChains.filter((c) => c !== 'test1').map((c) => [
-        c,
-        randomMultisigIsmConfig(3, 5),
-      ]),
-    ),
-  };
-
-  it('deploys routingIsm with correct routes', async () => {
-    const ism = await ismFactory.deploy({
-      destination: chain,
-      config: routingConfig,
+  for (const type of [IsmType.ROUTING, IsmType.FALLBACK_ROUTING]) {
+    it('deploys routingIsm with correct routes', async () => {
+      exampleRoutingConfig.type = type as
+        | IsmType.ROUTING
+        | IsmType.FALLBACK_ROUTING;
+      console.log('type', type);
+      const ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        mailbox: mailboxAddress,
+      });
+      const matches = await moduleMatchesConfig(
+        chain,
+        ism.address,
+        exampleRoutingConfig,
+        ismFactory.multiProvider,
+        ismFactory.getContracts(chain),
+        mailboxAddress,
+      );
+      expect(matches).to.be.true;
     });
-    const matches = await moduleMatchesConfig(
-      chain,
-      ism.address,
-      routingConfig,
-      ismFactory.multiProvider,
-      ismFactory.getContracts(chain),
-    );
-    expect(matches).to.be.true;
-  });
 
-  it('enroll/unenroll routes', async () => {
-    let matches = false;
+    it(`update route in an existing ${type}`, async () => {
+      exampleRoutingConfig.type = type as
+        | IsmType.ROUTING
+        | IsmType.FALLBACK_ROUTING;
+      let matches = true;
+      let ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        mailbox: mailboxAddress,
+      });
+      const existingIsm = ism.address;
+      // changing the type of a domain should enroll the domain
+      (exampleRoutingConfig.domains['test2'] as MultisigIsmConfig).type =
+        IsmType.MESSAGE_ID_MULTISIG;
+      ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        existingIsmAddress: ism.address,
+        mailbox: mailboxAddress,
+      });
+      matches =
+        matches &&
+        existingIsm === ism.address &&
+        (await moduleMatchesConfig(
+          chain,
+          ism.address,
+          exampleRoutingConfig,
+          ismFactory.multiProvider,
+          ismFactory.getContracts(chain),
+          mailboxAddress,
+        ));
+      expect(matches).to.be.true;
+    });
+
+    it(`deletes route in an existing ${type}`, async () => {
+      exampleRoutingConfig.type = type as
+        | IsmType.ROUTING
+        | IsmType.FALLBACK_ROUTING;
+      let matches = true;
+      let ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        mailbox: mailboxAddress,
+      });
+      const existingIsm = ism.address;
+      // deleting the domain should unenroll the domain
+      delete exampleRoutingConfig.domains['test3'];
+      ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        existingIsmAddress: ism.address,
+        mailbox: mailboxAddress,
+      });
+      matches =
+        matches &&
+        existingIsm == ism.address &&
+        (await moduleMatchesConfig(
+          chain,
+          ism.address,
+          exampleRoutingConfig,
+          ismFactory.multiProvider,
+          ismFactory.getContracts(chain),
+          mailboxAddress,
+        ));
+      expect(matches).to.be.true;
+    });
+
+    it(`updates owner in an existing ${type}`, async () => {
+      exampleRoutingConfig.type = type as
+        | IsmType.ROUTING
+        | IsmType.FALLBACK_ROUTING;
+      let matches = true;
+      let ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        mailbox: mailboxAddress,
+      });
+      const existingIsm = ism.address;
+      // change the owner
+      exampleRoutingConfig.owner = randomAddress();
+      ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        existingIsmAddress: ism.address,
+        mailbox: mailboxAddress,
+      });
+      matches =
+        matches &&
+        existingIsm == ism.address &&
+        (await moduleMatchesConfig(
+          chain,
+          ism.address,
+          exampleRoutingConfig,
+          ismFactory.multiProvider,
+          ismFactory.getContracts(chain),
+          mailboxAddress,
+        ));
+      expect(matches).to.be.true;
+    });
+
+    it(`no changes to an existing ${type} means no redeployment or updates`, async () => {
+      exampleRoutingConfig.type = type as
+        | IsmType.ROUTING
+        | IsmType.FALLBACK_ROUTING;
+      let matches = true;
+      let ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        mailbox: mailboxAddress,
+      });
+      const existingIsm = ism.address;
+      // using the same config should not change anything
+      ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        existingIsmAddress: ism.address,
+        mailbox: mailboxAddress,
+      });
+      matches =
+        matches &&
+        existingIsm === ism.address &&
+        (await moduleMatchesConfig(
+          chain,
+          ism.address,
+          exampleRoutingConfig,
+          ismFactory.multiProvider,
+          ismFactory.getContracts(chain),
+          mailboxAddress,
+        ));
+      expect(matches).to.be.true;
+    });
+
+    it(`redeploy same config if the deployer doesn't have ownership of ${type}`, async () => {
+      exampleRoutingConfig.type = type as
+        | IsmType.ROUTING
+        | IsmType.FALLBACK_ROUTING;
+      let matches = true;
+      exampleRoutingConfig.owner = randomAddress();
+      let ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        mailbox: mailboxAddress,
+      });
+      const existingIsm = ism.address;
+      ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        existingIsmAddress: ism.address,
+        mailbox: mailboxAddress,
+      });
+      matches =
+        matches &&
+        existingIsm !== ism.address &&
+        (await moduleMatchesConfig(
+          chain,
+          ism.address,
+          exampleRoutingConfig,
+          ismFactory.multiProvider,
+          ismFactory.getContracts(chain),
+          mailboxAddress,
+        ));
+      expect(matches).to.be.true;
+    });
+  }
+
+  it(`redeploy same config if the mailbox address changes for defaultFallbackRoutingIsm`, async () => {
+    exampleRoutingConfig.type = IsmType.FALLBACK_ROUTING;
+    let matches = true;
     let ism = await ismFactory.deploy({
       destination: chain,
-      config: routingConfig,
+      config: exampleRoutingConfig,
+      mailbox: mailboxAddress,
     });
-    // change the owner
-    routingConfig.owner = randomAddress();
+    const existingIsm = ism.address;
+    const newMailbox = randomAddress();
     ism = await ismFactory.deploy({
       destination: chain,
-      config: routingConfig,
-      moduleAddress: ism.address,
+      config: exampleRoutingConfig,
+      existingIsmAddress: ism.address,
+      mailbox: newMailbox,
     });
-    matches = await moduleMatchesConfig(
-      chain,
-      ism.address,
-      routingConfig,
-      ismFactory.multiProvider,
-      ismFactory.getContracts(chain),
-    );
-
-    // changing the type of a domain should enroll the domain
-    (routingConfig.domains['test2'] as MultisigIsmConfig).type =
-      IsmType.MESSAGE_ID_MULTISIG;
-
-    ism = await ismFactory.deploy({
-      destination: chain,
-      config: routingConfig,
-      moduleAddress: ism.address,
-    });
-    matches = await moduleMatchesConfig(
-      chain,
-      ism.address,
-      routingConfig,
-      ismFactory.multiProvider,
-      ismFactory.getContracts(chain),
-    );
-
-    // deleting the domain should unenroll the domain
-    delete routingConfig.domains['test2'];
-    ism = await ismFactory.deploy({
-      destination: chain,
-      config: routingConfig,
-      moduleAddress: ism.address,
-    });
-    matches = await moduleMatchesConfig(
-      chain,
-      ism.address,
-      routingConfig,
-      ismFactory.multiProvider,
-      ismFactory.getContracts(chain),
-    );
-
-    // using the same config should not change anything
-    ism = await ismFactory.deploy({
-      destination: chain,
-      config: routingConfig,
-      moduleAddress: ism.address,
-    });
-    matches = await moduleMatchesConfig(
-      chain,
-      ism.address,
-      routingConfig,
-      ismFactory.multiProvider,
-      ismFactory.getContracts(chain),
-    );
-
-    expect(matches).to.be.true;
-  });
-
-  it('deploys defaultFallbackRoutingIsm with correct routes and fallback to mailbox', async () => {
-    const config: RoutingIsmConfig = {
-      type: IsmType.FALLBACK_ROUTING,
-      owner: randomAddress(),
-      domains: Object.fromEntries(
-        TestChains.map((c) => [c, randomIsmConfig()]),
-      ),
-    };
-    const mailbox = await coreApp.getContracts(chain).mailbox;
-    const ism = await ismFactory.deploy({
-      destination: chain,
-      config,
-      mailbox: mailbox.address,
-    }); // not through an actual factory just for maintaining consistency in naming
-    const matches = await moduleMatchesConfig(
-      chain,
-      ism.address,
-      config,
-      ismFactory.multiProvider,
-      ismFactory.getContracts(chain),
-      mailbox.address,
-    );
+    matches =
+      matches &&
+      existingIsm !== ism.address &&
+      (await moduleMatchesConfig(
+        chain,
+        ism.address,
+        exampleRoutingConfig,
+        ismFactory.multiProvider,
+        ismFactory.getContracts(chain),
+        newMailbox,
+      ));
     expect(matches).to.be.true;
   });
 });

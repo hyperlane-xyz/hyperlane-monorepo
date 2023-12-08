@@ -198,7 +198,7 @@ async function runHookStep(
   return readHooksConfigMap(hookConfigPath);
 }
 
-export interface DeployParams {
+interface DeployParams {
   chains: string[];
   signer: ethers.Signer;
   multiProvider: MultiProvider;
@@ -235,7 +235,7 @@ async function runDeployPlanStep({
   if (!isConfirmed) throw new Error('Deployment cancelled');
 }
 
-export async function executeDeploy({
+async function executeDeploy({
   chains,
   signer,
   multiProvider,
@@ -336,8 +336,6 @@ export async function executeDeploy({
   logBlue('Deployment is complete!');
   logBlue(`Contract address artifacts are in ${contractsFilePath}`);
   logBlue(`Agent configs are in ${agentFilePath}`);
-
-  return artifacts;
 }
 
 function buildIsmConfig(
