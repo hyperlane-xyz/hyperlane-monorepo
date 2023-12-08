@@ -108,5 +108,6 @@ export type RoutingIsmDelta = {
   domainsToUnenroll: ChainName[];
   domainsToEnroll: ChainName[];
   owner?: Address;
+  mailbox?: Address;
   isOwner: boolean;
 };

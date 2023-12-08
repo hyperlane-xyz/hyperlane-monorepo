@@ -78,7 +78,7 @@ describe('HyperlaneIsmFactory', async () => {
   let coreApp: TestCoreApp;
   let multiProvider: MultiProvider;
   let exampleRoutingConfig: RoutingIsmConfig;
-  let mailboxAddress: Address;
+  let mailboxAddress: Address, newMailboxAddress: Address;
   const chain = 'test1';
 
   beforeEach(async () => {
@@ -89,9 +89,16 @@ describe('HyperlaneIsmFactory', async () => {
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
       multiProvider,
     );
-    const coreDeployer = new TestCoreDeployer(multiProvider, ismFactory);
+    let coreDeployer = new TestCoreDeployer(multiProvider, ismFactory);
     coreApp = await coreDeployer.deployApp();
     mailboxAddress = coreApp.getContracts(chain).mailbox.address;
+
+    coreDeployer = new TestCoreDeployer(multiProvider, ismFactory);
+    coreApp = await coreDeployer.deployApp();
+    newMailboxAddress = coreApp.getContracts(chain).mailbox.address;
+
+    console.log('mailboxAddress', mailboxAddress);
+    console.log('newMailboxAddress', newMailboxAddress);
 
     exampleRoutingConfig = {
       type: IsmType.ROUTING,
@@ -344,12 +351,11 @@ describe('HyperlaneIsmFactory', async () => {
       mailbox: mailboxAddress,
     });
     const existingIsm = ism.address;
-    const newMailbox = randomAddress();
     ism = await ismFactory.deploy({
       destination: chain,
       config: exampleRoutingConfig,
       existingIsmAddress: ism.address,
-      mailbox: newMailbox,
+      mailbox: newMailboxAddress,
     });
     matches =
       matches &&
@@ -360,7 +366,7 @@ describe('HyperlaneIsmFactory', async () => {
         exampleRoutingConfig,
         ismFactory.multiProvider,
         ismFactory.getContracts(chain),
-        newMailbox,
+        newMailboxAddress,
       ));
     expect(matches).to.be.true;
   });

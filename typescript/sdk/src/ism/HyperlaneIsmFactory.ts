@@ -207,6 +207,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           existingIsmAddress,
           config,
           this.getContracts(destination),
+          mailbox,
         )
       : {
           isOwner: false,
@@ -216,7 +217,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     console.log('delta', delta);
     // reconfiguring existing routing ISM
-    if (existingIsmAddress && delta.isOwner) {
+    if (existingIsmAddress && delta.isOwner && !delta.mailbox) {
       const isms: ChainMap<Address> = {};
       routingIsm = DomainRoutingIsm__factory.connect(
         existingIsmAddress,
@@ -254,7 +255,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
       // transfer ownership if needed
       if (delta.owner) {
-        console.log(`Transferring ownership of routing ISM...`);
         debug(`Transferring ownership of routing ISM...`);
         const tx = await routingIsm.transferOwnership(delta.owner, overrides);
         await this.multiProvider.handleTx(destination, tx);
@@ -409,6 +409,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     moduleAddress: Address,
     config: RoutingIsmConfig,
     contracts: HyperlaneContracts<ProxyFactoryFactories>,
+    mailbox?: Address,
   ): Promise<RoutingIsmDelta> {
     const signer = this.multiProvider.getSigner(destination);
     const provider = this.multiProvider.getProvider(destination);
@@ -429,6 +430,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     // if owners don't match, we need to transfer ownership
     if (owner !== normalizeAddress(config.owner)) delta.owner = config.owner;
+    if (config.type === IsmType.FALLBACK_ROUTING) {
+      const client = MailboxClient__factory.connect(moduleAddress, provider);
+      const mailboxAddress = await client.mailbox();
+      if (!eqAddress(mailboxAddress, mailbox)) delta.mailbox = mailbox;
+    }
 
     delta.domainsToUnenroll = deployedDomains.filter(
       (domain) => !Object.keys(config.domains).includes(domain),
@@ -642,14 +648,11 @@ export async function moduleMatchesConfig(
           matches &&
           mailbox !== undefined &&
           eqAddress(mailboxAddress, mailbox);
-        console.log('MMC mailbox', matches);
       }
       // check for exclusion of domains in the config
       const modules = (await routingIsm.domains()).map((d) => d.toNumber());
       matches =
         matches && modules.length === Object.keys(config.domains).length;
-
-      console.log('MMC after exclusion', matches);
       // Recursively check that the submodule for each configured
       // domain matches the submodule config.
       for (const [origin, subConfig] of Object.entries(config.domains)) {
