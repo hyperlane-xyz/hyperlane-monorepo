@@ -1,4 +1,4 @@
-import { confirm, input, select } from '@inquirer/prompts';
+import { input } from '@inquirer/prompts';
 
 import {
   ChainMap,
