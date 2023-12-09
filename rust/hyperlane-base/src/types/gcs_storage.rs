@@ -95,7 +95,7 @@ pub struct GcsStorageClient {
     //        data: impl Into<Bytes>
     //    ) -> Result<Metadata, ObjectError>`
     //
-    // # Details: https://docs.rs/ya-gcp/latest/ya_gcp/storage/struct.StorageClient.html
+    // # Details: <https://docs.rs/ya-gcp/latest/ya_gcp/storage/struct.StorageClient.html>
     inner: StorageClient,
     // bucket name of this client's storage
     bucket: String,
