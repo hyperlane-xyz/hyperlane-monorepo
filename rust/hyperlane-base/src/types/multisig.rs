@@ -21,6 +21,15 @@ pub struct MultisigCheckpointSyncer {
 }
 
 impl MultisigCheckpointSyncer {
+    pub async fn update_validator_latest_checkpoints_metrics(
+        &self,
+        validators: &[H256],
+        origin: HyperlaneDomain,
+        destination: HyperlaneDomain,
+    ) {
+        let _ = self.get_validator_latest_checkpoints(validators, origin, destination);
+    }
+
     async fn get_validator_latest_checkpoints(
         &self,
         validators: &[H256],

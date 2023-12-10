@@ -115,7 +115,7 @@ impl CoreMetrics {
 
         let validator_checkpoint_index = register_int_gauge_vec_with_registry!(
             opts!(
-                namespaced!("validator_checkpoint_index_1"),
+                namespaced!("validator_checkpoint_index"),
                 "Observed signed checkpoint indices per validator",
                 const_labels_ref
             ),

@@ -1,8 +1,11 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
+    future::Future,
+    pin::Pin,
     str::FromStr,
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 use crate::{
@@ -24,7 +27,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
-    HyperlaneMessage, InterchainSecurityModule, ModuleType, MultisigIsm, RoutingIsm,
+    HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, MultisigIsm, RoutingIsm,
     ValidatorAnnounce, H160, H256,
 };
 use prometheus::{
@@ -58,6 +61,74 @@ pub trait MetadataBuilder: Send + Sync {
         message: &HyperlaneMessage,
         metric_app_context: Option<String>,
     ) -> Result<Option<Vec<u8>>>;
+}
+
+pub struct TTLCachedValue<T> {
+    value: RwLock<Option<(T, Instant)>>,
+    ttl: Duration,
+    update: Box<dyn Fn() -> Pin<Box<dyn Future<Output = Result<T>>>>>,
+}
+
+impl<T> TTLCachedValue<T>
+where
+    T: Clone,
+{
+    pub fn new(
+        ttl: Duration,
+        update: Box<dyn Fn() -> Pin<Box<dyn Future<Output = Result<T>>>>>,
+    ) -> Self {
+        Self {
+            value: RwLock::new(None),
+            ttl,
+            update,
+        }
+    }
+
+    pub async fn get(&self) -> Result<T> {
+        let mut value = self.value.write().await;
+        let now = Instant::now();
+        if value.is_none() || value.as_ref().is_some_and(|val| val.1.elapsed() > self.ttl) {
+            *value = Some(((self.update)().await?, Instant::now()));
+        }
+        // TODO refactor
+        Ok(value.as_ref().unwrap().0.clone())
+    }
+}
+
+pub struct AppContextClassifier {
+    default_ism: TTLCachedValue<H256>,
+    app_matching_lists: Vec<(MatchingList, String)>,
+}
+
+// 10 mins
+const DEFAULT_ISM_TTL: Duration = Duration::from_secs(60 * 10);
+
+impl AppContextClassifier {
+    pub fn new(destination_mailbox: Arc<dyn Mailbox>) -> Self {
+        let f = Box::new(move || Box::pin(|| async { destination_mailbox.default_ism().await }));
+        Self {
+            default_ism: TTLCachedValue::new(DEFAULT_ISM_TTL, f),
+            app_matching_lists: vec![],
+        }
+    }
+
+    pub async fn get_app_context(
+        &self,
+        message: &HyperlaneMessage,
+        root_ism: H256,
+    ) -> Result<Option<String>> {
+        let default_ism = self.default_ism.get().await?;
+        if root_ism == default_ism {
+            return Ok(Some("default_ism".to_string()));
+        }
+
+        for (matching_list, app_context) in self.app_matching_lists.iter() {
+            if matching_list.msg_matches(message, false) {
+                return Ok(Some(app_context.clone()));
+            }
+        }
+        Ok(None)
+    }
 }
 
 #[derive(Clone, new)]

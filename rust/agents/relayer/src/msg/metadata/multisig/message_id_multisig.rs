@@ -46,6 +46,11 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
                 "No merkle leaf found for message id, must have not been enqueued in the tree"
             )
         );
+        checkpoint_syncer.update_validator_latest_checkpoints_metrics(
+            validators,
+            self.origin_domain.clone(),
+            self.destination_chain_setup.domain.clone(),
+        );
         let quorum_checkpoint = unwrap_or_none_result!(
             checkpoint_syncer
                 .fetch_checkpoint(validators, threshold as usize, leaf_index)

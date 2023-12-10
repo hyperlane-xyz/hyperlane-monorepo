@@ -135,6 +135,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
                     ])
             }
         });
+        // let get_latest_index_gauge = None;
 
         let checkpoint_syncer = self
             .as_ref()
