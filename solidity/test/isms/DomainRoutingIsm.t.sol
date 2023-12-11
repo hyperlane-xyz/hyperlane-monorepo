@@ -56,7 +56,7 @@ contract DomainRoutingIsmTest is Test {
             _domains[i] = domain - i;
             _isms[i] = deployTestIsm(bytes32(0));
         }
-        ism = factory.deploy(_domains, _isms);
+        ism = factory.deploy(address(this), _domains, _isms);
         for (uint256 i = 0; i < count; ++i) {
             assertEq(address(ism.module(_domains[i])), address(_isms[i]));
         }
