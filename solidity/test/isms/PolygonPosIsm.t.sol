@@ -17,11 +17,12 @@ import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 
 import {NotCrossChainCall} from "@openzeppelin/contracts/crosschain/errors.sol";
 
-import {AddressAliasHelper} from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
-import {ICrossDomainMessenger, IL2CrossDomainMessenger} from "../../contracts/interfaces/optimism/ICrossDomainMessenger.sol";
-
 interface IStateSender {
     function counter() external view returns (uint256);
+}
+
+interface FxChild {
+    function onStateReceive(uint256 stateId, bytes calldata data) external;
 }
 
 contract PolygonPosIsmTest is Test {
@@ -32,12 +33,11 @@ contract PolygonPosIsmTest is Test {
     uint256 internal mainnetFork;
     uint256 internal polygonPosFork;
 
-    address internal constant L1_MESSENGER_ADDRESS =
-        0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1;
-    address internal constant L1_CANNONICAL_CHAIN =
-        0x5E4e65926BA27467555EB562121fac00D24E9dD2;
     address internal constant L2_MESSENGER_ADDRESS =
         0x4200000000000000000000000000000000000007;
+
+    address internal constant POLYGON_CROSSCHAIN_SYSTEM_ADDR =
+        0x0000000000000000000000000000000000001001;
 
     address internal constant MUMBAI_FX_CHILD =
         0xCf73231F28B7331BBe3124B907840A94851f9f11;
@@ -54,17 +54,15 @@ contract PolygonPosIsmTest is Test {
         0xfe5e5D361b2ad62c541bAb87C45a0B9B018389a2;
     address internal constant MAINNET_STATE_SENDER =
         0x28e4F3a7f651294B9564800b2D01f35189A5bFbE;
-    uint8 internal constant OPTIMISM_VERSION = 0;
+
+    uint8 internal constant POLYGON_POS_VERSION = 0;
     uint8 internal constant HYPERLANE_VERSION = 1;
     uint256 internal constant DEFAULT_GAS_LIMIT = 1_920_000;
 
-    address internal alice = address(0x1);
-
-    ICrossDomainMessenger internal l1Messenger;
-    IL2CrossDomainMessenger internal l2Messenger;
     TestMailbox internal l1Mailbox;
     PolygonPosIsm internal polygonPosISM;
     PolygonPosHook internal polygonPosHook;
+    FxChild internal fxChild;
 
     TestRecipient internal testRecipient;
     bytes internal testMessage =
@@ -83,10 +81,6 @@ contract PolygonPosIsmTest is Test {
         address indexed contractAddress,
         bytes data
     );
-
-    event RelayedMessage(bytes32 indexed msgHash);
-
-    event FailedRelayedMessage(bytes32 indexed msgHash);
 
     event ReceivedMessage(bytes32 indexed messageId);
 
@@ -108,7 +102,6 @@ contract PolygonPosIsmTest is Test {
     function deployPolygonPosHook() public {
         vm.selectFork(mainnetFork);
 
-        l1Messenger = ICrossDomainMessenger(L1_MESSENGER_ADDRESS);
         l1Mailbox = new TestMailbox(MAINNET_DOMAIN);
 
         polygonPosHook = new PolygonPosHook(
@@ -128,6 +121,7 @@ contract PolygonPosIsmTest is Test {
     function deployPolygonPosIsm() public {
         vm.selectFork(polygonPosFork);
 
+        fxChild = FxChild(MAINNET_FX_CHILD);
         polygonPosISM = new PolygonPosIsm(MAINNET_FX_CHILD);
 
         vm.makePersistent(address(polygonPosISM));
@@ -198,7 +192,7 @@ contract PolygonPosIsmTest is Test {
         vm.selectFork(mainnetFork);
 
         bytes memory message = MessageUtils.formatMessage(
-            OPTIMISM_VERSION,
+            POLYGON_POS_VERSION,
             uint32(0),
             MAINNET_DOMAIN,
             TypeCasts.addressToBytes32(address(this)),
@@ -218,13 +212,13 @@ contract PolygonPosIsmTest is Test {
         deployAll();
 
         vm.selectFork(mainnetFork);
-
+        // FIXME: see if message value still in need
         vm.deal(address(this), uint256(2 ** 255 + 1));
         bytes memory excessValueMetadata = StandardHookMetadata
             .overrideMsgValue(uint256(2 ** 255 + 1));
 
         l1Mailbox.updateLatestDispatchedId(messageId);
-        vm.expectRevert("OPStackHook: msgValue must be less than 2 ** 255");
+        vm.expectRevert("PolygonPosHook: msgValue must be less than 2 ** 255");
         polygonPosHook.postDispatch(excessValueMetadata, encodedMessage);
     }
 
@@ -253,37 +247,19 @@ contract PolygonPosIsmTest is Test {
             (messageId)
         );
 
-        (uint240 nonce, uint16 version) = decodeVersionedNonce(
-            l2Messenger.messageNonce()
-        );
-        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, version);
-
-        bytes32 versionedHash = hashCrossDomainMessageV1(
-            versionedNonce,
-            address(polygonPosHook),
-            address(polygonPosISM),
-            0,
-            DEFAULT_GAS_LIMIT,
-            encodedHookData
-        );
-
-        vm.startPrank(
-            AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS)
-        );
+        vm.startPrank(POLYGON_CROSSCHAIN_SYSTEM_ADDR);
 
         vm.expectEmit(true, false, false, false, address(polygonPosISM));
         emit ReceivedMessage(messageId);
+        // FIX: expect other events
 
-        vm.expectEmit(true, false, false, false, L2_MESSENGER_ADDRESS);
-        emit RelayedMessage(versionedHash);
-
-        l2Messenger.relayMessage(
-            versionedNonce,
-            address(polygonPosHook),
-            address(polygonPosISM),
+        fxChild.onStateReceive(
             0,
-            DEFAULT_GAS_LIMIT,
-            encodedHookData
+            abi.encode(
+                TypeCasts.addressToBytes32(address(polygonPosHook)),
+                TypeCasts.addressToBytes32(address(polygonPosISM)),
+                encodedHookData
+            )
         );
 
         assertTrue(polygonPosISM.verifiedMessages(messageId).isBitSet(255));
@@ -295,16 +271,11 @@ contract PolygonPosIsmTest is Test {
 
         vm.selectFork(polygonPosFork);
 
-        // needs to be called by the cannonical messenger on Optimism
+        // needs to be called by the fxchild on Polygon
         vm.expectRevert(NotCrossChainCall.selector);
         polygonPosISM.verifyMessageId(messageId);
 
-        // set the xDomainMessageSender storage slot as alice
-        bytes32 key = bytes32(uint256(204));
-        bytes32 value = TypeCasts.addressToBytes32(alice);
-        vm.store(address(l2Messenger), key, value);
-
-        vm.startPrank(L2_MESSENGER_ADDRESS);
+        vm.startPrank(MAINNET_FX_CHILD);
 
         // needs to be called by the authorized hook contract on Ethereum
         vm.expectRevert(
@@ -320,14 +291,14 @@ contract PolygonPosIsmTest is Test {
 
         vm.selectFork(polygonPosFork);
 
-        orchestrateRelayMessage(0, messageId);
+        orchestrateRelayMessage(messageId);
 
         bool verified = polygonPosISM.verify(new bytes(0), encodedMessage);
         assertTrue(verified);
     }
 
     /// forge-config: default.fuzz.runs = 10
-    function testFork_verify_WithValue(uint256 _msgValue) public {
+    /* function testFork_verify_WithValue(uint256 _msgValue) public {
         _msgValue = bound(_msgValue, 0, 2 ** 254);
         deployAll();
 
@@ -338,54 +309,29 @@ contract PolygonPosIsmTest is Test {
 
         assertEq(address(polygonPosISM).balance, 0);
         assertEq(address(testRecipient).balance, _msgValue);
-    }
+    } */
 
-    /// forge-config: default.fuzz.runs = 10
-    function testFork_verify_valueAlreadyClaimed(uint256 _msgValue) public {
-        _msgValue = bound(_msgValue, 0, 2 ** 254);
-        deployAll();
-
-        orchestrateRelayMessage(_msgValue, messageId);
-
-        bool verified = polygonPosISM.verify(new bytes(0), encodedMessage);
-        assertTrue(verified);
-
-        assertEq(address(polygonPosISM).balance, 0);
-        assertEq(address(testRecipient).balance, _msgValue);
-
-        // send more value to the ISM
-        vm.deal(address(polygonPosISM), _msgValue);
-
-        verified = polygonPosISM.verify(new bytes(0), encodedMessage);
-        // verified still true
-        assertTrue(verified);
-
-        assertEq(address(polygonPosISM).balance, _msgValue);
-        // value which was already sent
-        assertEq(address(testRecipient).balance, _msgValue);
-    }
-
-    function testFork_verify_tooMuchValue() public {
+    /* function testFork_verify_tooMuchValue() public {
         deployAll();
 
         uint256 _msgValue = 2 ** 255 + 1;
 
         vm.expectEmit(false, false, false, false, address(l2Messenger));
         emit FailedRelayedMessage(messageId);
-        orchestrateRelayMessage(_msgValue, messageId);
+        orchestrateRelayMessage(messageId);
 
         bool verified = polygonPosISM.verify(new bytes(0), encodedMessage);
         assertFalse(verified);
 
         assertEq(address(polygonPosISM).balance, 0);
         assertEq(address(testRecipient).balance, 0);
-    }
+    } */
 
     // sending over invalid message
     function testFork_verify_RevertWhen_HyperlaneInvalidMessage() public {
         deployAll();
 
-        orchestrateRelayMessage(0, messageId);
+        orchestrateRelayMessage(messageId);
 
         bytes memory invalidMessage = MessageUtils.formatMessage(
             HYPERLANE_VERSION,
@@ -401,7 +347,7 @@ contract PolygonPosIsmTest is Test {
     }
 
     // invalid messageID in postDispatch
-    function testFork_verify_RevertWhen_InvalidOptimismMessageID() public {
+    function testFork_verify_RevertWhen_InvalidPolygonPosMessageID() public {
         deployAll();
         vm.selectFork(polygonPosFork);
 
@@ -415,7 +361,7 @@ contract PolygonPosIsmTest is Test {
             testMessage
         );
         bytes32 _messageId = Message.id(invalidMessage);
-        orchestrateRelayMessage(0, _messageId);
+        orchestrateRelayMessage(_messageId);
 
         bool verified = polygonPosISM.verify(new bytes(0), encodedMessage);
         assertFalse(verified);
@@ -436,105 +382,7 @@ contract PolygonPosIsmTest is Test {
             );
     }
 
-    /// @dev from eth-optimism/contracts-bedrock/contracts/libraries/Hashing.sol
-    /// @notice Hashes a cross domain message based on the V1 (current) encoding.
-    /// @param _nonce    Message nonce.
-    /// @param _sender   Address of the sender of the message.
-    /// @param _target   Address of the target of the message.
-    /// @param _value    ETH value to send to the target.
-    /// @param _gasLimit Gas limit to use for the message.
-    /// @param _data     Data to send with the message.
-    /// @return Hashed cross domain message.
-    function hashCrossDomainMessageV1(
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        uint256 _value,
-        uint256 _gasLimit,
-        bytes memory _data
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                encodeCrossDomainMessageV1(
-                    _nonce,
-                    _sender,
-                    _target,
-                    _value,
-                    _gasLimit,
-                    _data
-                )
-            );
-    }
-
-    /// @dev from eth-optimism/contracts-bedrock/contracts/libraries/Encoding.sol
-    /// @notice Encodes a cross domain message based on the V1 (current) encoding.
-    /// @param _nonce    Message nonce.
-    /// @param _sender   Address of the sender of the message.
-    /// @param _target   Address of the target of the message.
-    /// @param _value    ETH value to send to the target.
-    /// @param _gasLimit Gas limit to use for the message.
-    /// @param _data     Data to send with the message.
-    /// @return Encoded cross domain message.
-    function encodeCrossDomainMessageV1(
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        uint256 _value,
-        uint256 _gasLimit,
-        bytes memory _data
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encodeWithSignature(
-                "relayMessage(uint256,address,address,uint256,uint256,bytes)",
-                _nonce,
-                _sender,
-                _target,
-                _value,
-                _gasLimit,
-                _data
-            );
-    }
-
-    /// @dev from eth-optimism/contracts-bedrock/contracts/libraries/Encoding.sol
-    /// @notice Adds a version number into the first two bytes of a message nonce.
-    /// @param _nonce   Message nonce to encode into.
-    /// @param _version Version number to encode into the message nonce.
-    /// @return Message nonce with version encoded into the first two bytes.
-    function encodeVersionedNonce(
-        uint240 _nonce,
-        uint16 _version
-    ) internal pure returns (uint256) {
-        uint256 nonce;
-        assembly {
-            nonce := or(shl(240, _version), _nonce)
-        }
-        return nonce;
-    }
-
-    /// @dev from eth-optimism/contracts-bedrock/contracts/libraries/Encoding.sol
-    /// @notice Pulls the version out of a version-encoded nonce.
-    /// @param _nonce Message nonce with version encoded into the first two bytes.
-    /// @return Nonce without encoded version.
-    /// @return Version of the message.
-    function decodeVersionedNonce(
-        uint256 _nonce
-    ) internal pure returns (uint240, uint16) {
-        uint240 nonce;
-        uint16 version;
-        assembly {
-            nonce := and(
-                _nonce,
-                0x0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-            )
-            version := shr(240, _nonce)
-        }
-        return (nonce, version);
-    }
-
-    function orchestrateRelayMessage(
-        uint256 _msgValue,
-        bytes32 _messageId
-    ) internal {
+    function orchestrateRelayMessage(bytes32 _messageId) internal {
         vm.selectFork(polygonPosFork);
 
         bytes memory encodedHookData = abi.encodeCall(
@@ -542,23 +390,16 @@ contract PolygonPosIsmTest is Test {
             (_messageId)
         );
 
-        (uint240 nonce, uint16 version) = decodeVersionedNonce(
-            l2Messenger.messageNonce()
-        );
-        uint256 versionedNonce = encodeVersionedNonce(nonce + 1, version);
+        vm.prank(POLYGON_CROSSCHAIN_SYSTEM_ADDR);
 
-        vm.deal(
-            AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS),
-            2 ** 256 - 1
-        );
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
-        l2Messenger.relayMessage{value: _msgValue}(
-            versionedNonce,
-            address(polygonPosHook),
-            address(polygonPosISM),
-            _msgValue,
-            DEFAULT_GAS_LIMIT,
-            encodedHookData
+        // FIXME: stateid?
+        fxChild.onStateReceive(
+            0,
+            abi.encode(
+                TypeCasts.addressToBytes32(address(polygonPosHook)),
+                TypeCasts.addressToBytes32(address(polygonPosISM)),
+                encodedHookData
+            )
         );
     }
 }

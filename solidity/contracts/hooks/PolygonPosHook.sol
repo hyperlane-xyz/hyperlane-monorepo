@@ -78,7 +78,7 @@ contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
         // FIXME: remove
         require(
             metadata.msgValue(0) < 2 ** 255,
-            "OPStackHook: msgValue must be less than 2 ** 255"
+            "PolygonPosHook: msgValue must be less than 2 ** 255"
         );
         _sendMessageToChild(payload);
     }
