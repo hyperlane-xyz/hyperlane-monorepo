@@ -10,7 +10,7 @@ import { ChainMetadata } from '../../metadata/chainMetadataTypes';
 import { ProviderMethod } from './ProviderMethods';
 import { HyperlaneSmartProvider } from './SmartProvider';
 
-const MIN_BLOCK_NUM = 9000000;
+const MIN_BLOCK_NUM = 10000000;
 const DEFAULT_ACCOUNT = '0x9d525E28Fe5830eE92d7Aa799c4D21590567B595';
 const WETH_CONTRACT = '0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6';
 const WETH_TRANSFER_TOPIC0 =
@@ -56,7 +56,7 @@ describe('SmartProvider', () => {
       if (provider.supportedMethods.includes(method)) {
         return fn();
       }
-    }).timeout(30_000);
+    }).timeout(20_000);
   };
 
   for (const [description, config] of configs) {
@@ -195,7 +195,7 @@ describe('SmartProvider', () => {
         expect(result1.length).to.be.greaterThan(0);
         expect(result2).to.be.greaterThan(0);
         expect(!!result3).to.be.true;
-      }).timeout(20_000);
+      }).timeout(10_000);
     });
   }
 });
