@@ -4251,7 +4251,6 @@ __metadata:
     eslint-config-prettier: "npm:^8.8.0"
     ethers: "npm:^5.7.2"
     figlet: "npm:^1.7.0"
-    hardhat: "npm:^2.19.0"
     mocha: "npm:^10.2.0"
     prettier: "npm:^2.8.8"
     terminal-link: "npm:^3.0.0"
