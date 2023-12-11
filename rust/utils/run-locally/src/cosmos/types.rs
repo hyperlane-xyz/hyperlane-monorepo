@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use hpl_interface::types::bech32_decode;
-use hyperlane_cosmos::CosmosBalance;
+use hyperlane_cosmos::RawCosmosAmount;
 
 use super::{cli::OsmosisCLI, CosmosNetwork};
 
@@ -68,7 +68,7 @@ pub struct Deployments {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct BalanceResponse {
-    pub balances: Vec<CosmosBalance>,
+    pub balances: Vec<RawCosmosAmount>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -120,7 +120,7 @@ pub struct AgentConfig {
     pub prefix: String,
     pub signer: AgentConfigSigner,
     pub index: AgentConfigIndex,
-    pub minimum_gas_price: CosmosBalance,
+    pub minimum_gas_price: RawCosmosAmount,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -160,7 +160,7 @@ impl AgentConfig {
                 key: format!("0x{}", hex::encode(validator.priv_key.to_bytes())),
                 prefix: "osmo".to_string(),
             },
-            minimum_gas_price: CosmosBalance {
+            minimum_gas_price: RawCosmosAmount {
                 denom: "uosmo".to_string(),
                 amount: "0.02".to_string(),
             },

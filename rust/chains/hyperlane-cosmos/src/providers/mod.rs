@@ -5,7 +5,7 @@ use hyperlane_core::{
 };
 use tendermint_rpc::{client::CompatMode, HttpClient};
 
-use crate::{ConnectionConf, HyperlaneCosmosError, Signer};
+use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
 use self::grpc::WasmGrpcProvider;
 
@@ -21,6 +21,7 @@ pub struct CosmosProvider {
     canonical_asset: String,
     grpc_client: WasmGrpcProvider,
     rpc_client: HttpClient,
+    gas_price: CosmosAmount,
 }
 
 impl CosmosProvider {
@@ -41,12 +42,14 @@ impl CosmosProvider {
         .compat_mode(CompatMode::latest())
         .build()
         .map_err(Into::<HyperlaneCosmosError>::into)?;
+        let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
 
         Ok(Self {
             domain,
             rpc_client,
             grpc_client,
             canonical_asset: conf.get_canonical_asset(),
+            gas_price,
         })
     }
 
@@ -58,6 +61,11 @@ impl CosmosProvider {
     /// Get an rpc client
     pub fn rpc(&self) -> &HttpClient {
         &self.rpc_client
+    }
+
+    /// Get the gas price
+    pub fn gas_price(&self) -> U256 {
+        self.gas_price.amount
     }
 }
 

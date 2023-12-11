@@ -1026,6 +1026,10 @@
       "grpcUrl": "http://52.43.22.152:9090",
       "canonicalAsset": "token",
       "prefix": "dual",
+      "minimumGasPrice": {
+        "amount": "1",
+        "denom": "udual"
+      },
       "index": {
         "from": 1,
         "chunk": 100000

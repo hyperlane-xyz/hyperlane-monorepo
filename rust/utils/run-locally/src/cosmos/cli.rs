@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, io::Write, path::PathBuf, process::Stdio};
 
-use hyperlane_cosmos::CosmosBalance;
+use hyperlane_cosmos::RawCosmosAmount;
 use k256::ecdsa::SigningKey;
 
 use crate::{
@@ -254,7 +254,7 @@ impl OsmosisCLI {
         sender: &str,
         contract: &str,
         execute_msg: T,
-        funds: Vec<CosmosBalance>,
+        funds: Vec<RawCosmosAmount>,
     ) -> TxResponse {
         let mut cmd = self
             .cli()

@@ -1,4 +1,7 @@
 use derive_new::new;
+use hyperlane_core::{ChainCommunicationError, U256};
+
+use crate::HyperlaneCosmosError;
 
 /// Cosmos connection configuration
 #[derive(Debug, Clone)]
@@ -14,13 +17,45 @@ pub struct ConnectionConf {
     /// Canoncial Assets Denom
     canonical_asset: String,
     /// The minimum gas price set by the cosmos-sdk validator
-    minimum_gas_price: CosmosBalance,
+    minimum_gas_price: RawCosmosAmount,
 }
 
+/// Untyped cosmos amount
 #[derive(serde::Serialize, serde::Deserialize, new, Clone, Debug)]
-pub struct CosmosBalance {
+pub struct RawCosmosAmount {
+    /// Coin denom (e.g. `untrn`)
     pub denom: String,
+    /// Amount in the given denom
     pub amount: String,
+}
+
+/// Typed cosmos amount
+#[derive(Clone, Debug)]
+pub struct CosmosAmount {
+    /// Coin denom (e.g. `untrn`)
+    pub denom: String,
+    /// Amount in the given denom
+    pub amount: U256,
+}
+
+impl TryFrom<RawCosmosAmount> for CosmosAmount {
+    type Error = ChainCommunicationError;
+    fn try_from(raw: RawCosmosAmount) -> Result<Self, ChainCommunicationError> {
+        // Converts to U256 by always rounding up.
+
+        // Remove the decimal part
+        let integer = raw
+            .amount
+            .split('.')
+            .next()
+            .ok_or(HyperlaneCosmosError::NumStrParse)?;
+        let amount = U256::from_dec_str(integer)?;
+        Ok(Self {
+            denom: raw.denom,
+            // Add one to conservatively estimate the gas cost in case there was a decimal part
+            amount: amount + 1,
+        })
+    }
 }
 
 /// An error type when parsing a connection configuration.
@@ -69,6 +104,11 @@ impl ConnectionConf {
         self.canonical_asset.clone()
     }
 
+    /// Get the minimum gas price
+    pub fn get_minimum_gas_price(&self) -> RawCosmosAmount {
+        self.minimum_gas_price.clone()
+    }
+
     /// Create a new connection configuration
     pub fn new(
         grpc_url: String,
@@ -76,7 +116,7 @@ impl ConnectionConf {
         chain_id: String,
         prefix: String,
         canonical_asset: String,
-        minimum_gas_price: CosmosBalance,
+        minimum_gas_price: RawCosmosAmount,
     ) -> Self {
         Self {
             grpc_url,
