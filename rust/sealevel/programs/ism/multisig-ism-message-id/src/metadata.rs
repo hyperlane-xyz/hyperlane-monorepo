@@ -7,12 +7,14 @@ use crate::error::Error;
 pub struct MultisigIsmMessageIdMetadata {
     pub origin_merkle_tree_hook: H256,
     pub merkle_root: H256,
+    pub merkle_index: u32,
     pub validator_signatures: Vec<EcdsaSignature>,
 }
 
 const ORIGIN_MAILBOX_OFFSET: usize = 0;
 const MERKLE_ROOT_OFFSET: usize = 32;
-const SIGNATURES_OFFSET: usize = 64;
+const MERKLE_INDEX_OFFSET: usize = 64;
+const SIGNATURES_OFFSET: usize = 68;
 const SIGNATURE_LENGTH: usize = 65;
 
 /// Format of metadata:
@@ -32,7 +34,12 @@ impl TryFrom<Vec<u8>> for MultisigIsmMessageIdMetadata {
         }
 
         let origin_mailbox = H256::from_slice(&bytes[ORIGIN_MAILBOX_OFFSET..MERKLE_ROOT_OFFSET]);
-        let merkle_root = H256::from_slice(&bytes[MERKLE_ROOT_OFFSET..SIGNATURES_OFFSET]);
+        let merkle_root = H256::from_slice(&bytes[MERKLE_ROOT_OFFSET..MERKLE_INDEX_OFFSET]);
+        // This cannot panic since SIGNATURES_OFFSET - MERKLE_INDEX_OFFSET is 4.
+        let merkle_index_bytes: [u8; 4] = bytes[MERKLE_INDEX_OFFSET..SIGNATURES_OFFSET]
+            .try_into()
+            .unwrap();
+        let merkle_index = u32::from_be_bytes(merkle_index_bytes);
 
         let signature_bytes_len = bytes_len - SIGNATURES_OFFSET;
         // Require the signature bytes to be a multiple of the signature length.
@@ -55,6 +62,7 @@ impl TryFrom<Vec<u8>> for MultisigIsmMessageIdMetadata {
         Ok(Self {
             origin_merkle_tree_hook: origin_mailbox,
             merkle_root,
+            merkle_index,
             validator_signatures,
         })
     }
@@ -68,6 +76,7 @@ impl Encode for MultisigIsmMessageIdMetadata {
         let mut bytes_written = 0;
         bytes_written += writer.write(self.origin_merkle_tree_hook.as_ref())?;
         bytes_written += writer.write(self.merkle_root.as_ref())?;
+        bytes_written += writer.write(&self.merkle_index.to_be_bytes())?;
         for signature in &self.validator_signatures {
             bytes_written += writer.write(&signature.as_fixed_bytes()[..])?;
         }
@@ -83,6 +92,7 @@ mod test {
     fn test_decode_correctly_formatted_metadata() {
         let origin_mailbox = H256::random();
         let merkle_root = H256::random();
+        let merkle_index = 38807;
         let validator_signatures = vec![
             EcdsaSignature {
                 serialized_rs: [11u8; 64],
@@ -106,6 +116,7 @@ mod test {
         let metadata = MultisigIsmMessageIdMetadata::try_from(metadata_bytes).unwrap();
         assert_eq!(metadata.origin_merkle_tree_hook, origin_mailbox);
         assert_eq!(metadata.merkle_root, merkle_root);
+        assert_eq!(metadata.merkle_index, merkle_index);
         assert_eq!(metadata.validator_signatures, validator_signatures);
     }
 
