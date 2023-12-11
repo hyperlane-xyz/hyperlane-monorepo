@@ -36,7 +36,6 @@ export class HyperlaneJsonRpcProvider
     }
 
     const result = await super.perform(method, params);
-
     if (
       result === '0x' &&
       [
@@ -46,11 +45,10 @@ export class HyperlaneJsonRpcProvider
         ProviderMethod.GetBlockNumber,
       ].includes(method as ProviderMethod)
     ) {
-      this.logger(
-        `Received 0x result from method ${method} for reqId ${reqId}. Throwing error.`,
-      );
+      this.logger(`Received 0x result from ${method} for reqId ${reqId}.`);
       throw new Error('Invalid response from provider');
     }
+    return result;
   }
 
   async performGetLogs(params: { filter: providers.Filter }): Promise<any> {
