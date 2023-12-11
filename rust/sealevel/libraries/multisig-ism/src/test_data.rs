@@ -17,7 +17,7 @@ const DESTINATION_DOMAIN: u32 = 4321u32;
 
 pub fn get_multisig_ism_test_data() -> MultisigIsmTestData {
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 69,
         origin: ORIGIN_DOMAIN,
         sender: H256::from_str(

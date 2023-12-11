@@ -299,7 +299,7 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
     // to fetch the account metas required for the instruction.
 
     let test_message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: domain,
         sender: H256::random(),

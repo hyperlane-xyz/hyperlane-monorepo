@@ -451,7 +451,7 @@ async fn transfer_from_remote(
         );
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: origin_override.unwrap_or(REMOTE_DOMAIN),
         // Default to the remote router as the sender
@@ -783,7 +783,7 @@ async fn test_transfer_remote() {
         .unwrap();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: LOCAL_DOMAIN,
         sender: program_id.to_bytes().into(),
