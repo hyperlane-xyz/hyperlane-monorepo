@@ -1,6 +1,8 @@
 import debug from 'debug';
 import { providers } from 'ethers';
 
+import { raceWithContext, retryAsync } from '@hyperlane-xyz/utils';
+
 import {
   BlockExplorer,
   ChainMetadata,
@@ -16,9 +18,12 @@ import {
   ProviderPerformResult,
   ProviderStatus,
   ProviderTimeoutResult,
+  SmartProviderOptions,
 } from './types';
 
-const PROVIDER_STAGGER_DELAY_MS = 1000; // 1 seconds
+const DEFAULT_MAX_RETRIES = 1;
+const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
+const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
 
 type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
 
@@ -37,6 +42,7 @@ export class HyperlaneSmartProvider
     network: providers.Networkish,
     rpcUrls?: RpcUrl[],
     blockExplorers?: BlockExplorer[],
+    public readonly options?: SmartProviderOptions,
   ) {
     super(network);
     const supportedMethods = new Set<ProviderMethod>();
@@ -82,12 +88,27 @@ export class HyperlaneSmartProvider
 
   static fromChainMetadata(
     chainMetadata: ChainMetadataWithRpcConnectionInfo,
+    options?: SmartProviderOptions,
   ): HyperlaneSmartProvider {
     const network = chainMetadataToProviderNetwork(chainMetadata);
     return new HyperlaneSmartProvider(
       network,
       chainMetadata.rpcUrls,
       chainMetadata.blockExplorers,
+      options,
+    );
+  }
+
+  static fromRpcUrl(
+    network: providers.Networkish,
+    rpcUrl: string,
+    options?: SmartProviderOptions,
+  ): HyperlaneSmartProvider {
+    return new HyperlaneSmartProvider(
+      network,
+      [{ http: rpcUrl }],
+      undefined,
+      options,
     );
   }
 
@@ -98,10 +119,6 @@ export class HyperlaneSmartProvider
     return this.network;
   }
 
-  /**
-   * This perform method will trigger any providers that support the method
-   * one at a time in preferential order. If one is slow to respond, the next is triggered.
-   */
   async perform(method: string, params: { [name: string]: any }): Promise<any> {
     const allProviders = [...this.explorerProviders, ...this.rpcProviders];
     if (!allProviders.length) throw new Error('No providers available');
@@ -115,17 +132,32 @@ export class HyperlaneSmartProvider
     this.requestCount += 1;
     const reqId = this.requestCount;
 
+    return retryAsync(
+      () => this.performWithFallback(method, params, supportedProviders, reqId),
+      this.options?.maxRetries || DEFAULT_MAX_RETRIES,
+      this.options?.baseRetryDelayMs || DEFAULT_BASE_RETRY_DELAY_MS,
+    );
+  }
+
+  /**
+   * This perform method will trigger any providers that support the method
+   * one at a time in preferential order. If one is slow to respond, the next is triggered.
+   */
+  async performWithFallback(
+    method: string,
+    params: { [name: string]: any },
+    providers: Array<HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider>,
+    reqId: number,
+  ): Promise<any> {
     let pIndex = 0;
-    const maxPIndex = supportedProviders.length - 1;
     const providerResultPromises: Promise<ProviderPerformResult>[] = [];
     const providerResultErrors: unknown[] = [];
-    // TODO consider implementing quorum and/or retry logic here similar to FallbackProvider/RetryProvider
     while (true) {
-      if (pIndex <= maxPIndex) {
-        // Trigger the next provider in line
-        const provider = supportedProviders[pIndex];
+      // Trigger the next provider in line
+      if (pIndex < providers.length) {
+        const provider = providers[pIndex];
         const providerUrl = provider.getBaseUrl();
-        const isLastProvider = pIndex === maxPIndex;
+        const isLastProvider = pIndex === providers.length - 1;
 
         // Skip the explorer provider if it's currently in a cooldown period
         if (
@@ -145,7 +177,9 @@ export class HyperlaneSmartProvider
           params,
           reqId,
         );
-        const timeoutPromise = timeoutResult(1);
+        const timeoutPromise = timeoutResult(
+          this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
+        );
         const result = await Promise.race([resultPromise, timeoutPromise]);
 
         if (result.status === ProviderStatus.Success) {
@@ -169,9 +203,13 @@ export class HyperlaneSmartProvider
         } else {
           throw new Error('Unexpected result from provider');
         }
-      } else if (providerResultPromises.length > 0) {
+
         // All providers already triggered, wait for one to complete or all to fail/timeout
-        const timeoutPromise = timeoutResult(20);
+      } else if (providerResultPromises.length > 0) {
+        const timeoutPromise = timeoutResult(
+          this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
+          20,
+        );
         const resultPromise = this.waitForProviderSuccess(
           providerResultPromises,
         );
@@ -192,8 +230,9 @@ export class HyperlaneSmartProvider
         } else {
           throw new Error('Unexpected result from provider');
         }
-      } else {
+
         // All providers have already failed, all hope is lost
+      } else {
         this.throwCombinedProviderErrors(
           providerResultErrors,
           `All providers failed for method ${method}`,
@@ -228,23 +267,19 @@ export class HyperlaneSmartProvider
     }
   }
 
+  // Returns the first success from a list a promises, or an error if all fail
   protected async waitForProviderSuccess(
-    _resultPromises: Promise<ProviderPerformResult>[],
+    resultPromises: Promise<ProviderPerformResult>[],
   ): Promise<ProviderPerformResult> {
-    // A hack to remove the promise from the array when it resolves
-    const resolvedPromiseIndexes = new Set<number>();
-    const resultPromises = _resultPromises.map((p, i) =>
-      p.then((r) => {
-        resolvedPromiseIndexes.add(i);
-        return r;
-      }),
-    );
     const combinedErrors: unknown[] = [];
-    for (let i = 0; i < resultPromises.length; i += 1) {
-      const promises = resultPromises.filter(
-        (_, i) => !resolvedPromiseIndexes.has(i),
+    const resolvedPromises = new Set<Promise<ProviderPerformResult>>();
+    while (resolvedPromises.size < resultPromises.length) {
+      const unresolvedPromises = resultPromises.filter(
+        (p) => !resolvedPromises.has(p),
       );
-      const result = await Promise.race(promises);
+      const winner = await raceWithContext(unresolvedPromises);
+      resolvedPromises.add(winner.promise);
+      const result = winner.resolved;
       if (result.status === ProviderStatus.Success) {
         return result;
       } else if (result.status === ProviderStatus.Error) {
@@ -252,10 +287,11 @@ export class HyperlaneSmartProvider
       } else {
         return {
           status: ProviderStatus.Error,
-          error: new Error('Unexpected result from provider'),
+          error: new Error('Unexpected result format from provider'),
         };
       }
     }
+    // If reached, all providers finished unsuccessfully
     return {
       status: ProviderStatus.Error,
       // TODO combine errors
@@ -287,14 +323,14 @@ function chainMetadataToProviderNetwork(
   };
 }
 
-function timeoutResult(multiplier: number) {
+function timeoutResult(staggerDelay: number, multiplier = 1) {
   return new Promise<ProviderTimeoutResult>((resolve) =>
     setTimeout(
       () =>
         resolve({
           status: ProviderStatus.Timeout,
         }),
-      PROVIDER_STAGGER_DELAY_MS * multiplier,
+      staggerDelay * multiplier,
     ),
   );
 }

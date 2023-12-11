@@ -17,42 +17,34 @@ import {
   TypedProvider,
   ViemProvider,
 } from './ProviderType';
-import { RetryProviderOptions } from './RetryProvider';
 import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider';
+import { ProviderRetryOptions } from './SmartProvider/types';
 
 export type ProviderBuilderFn<P> = (
   rpcUrls: ChainMetadata['rpcUrls'],
   network: number | string,
-  retryOverride?: RetryProviderOptions,
+  retryOverride?: ProviderRetryOptions,
 ) => P;
 export type TypedProviderBuilderFn = ProviderBuilderFn<TypedProvider>;
 
-export const DEFAULT_RETRY_OPTIONS: RetryProviderOptions = {
-  maxRequests: 3,
-  baseRetryMs: 250,
+const DEFAULT_RETRY_OPTIONS: ProviderRetryOptions = {
+  maxRetries: 3,
+  baseRetryDelayMs: 250,
 };
 
 export function defaultEthersV5ProviderBuilder(
   rpcUrls: RpcUrl[],
   network: number | string,
-  // TODO add support for retry config in SmartProvider
-  _retryOverride?: RetryProviderOptions,
+  retryOverride?: ProviderRetryOptions,
 ): EthersV5Provider {
-  const provider = new HyperlaneSmartProvider(network, rpcUrls);
+  const provider = new HyperlaneSmartProvider(
+    network,
+    rpcUrls,
+    undefined,
+    retryOverride || DEFAULT_RETRY_OPTIONS,
+  );
   return { type: ProviderType.EthersV5, provider };
 }
-
-// export function defaultEthersV6ProviderBuilder(
-//   rpcUrls: RpcUrl[],
-//   network: number | string,
-// ): EthersV6Provider {
-//   // TODO add support for retry providers here
-//   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
-//   return {
-//     type: ProviderType.EthersV6,
-//     provider: new Ev6JsonRpcProvider(rpcUrls[0].http, network),
-//   };
-// }
 
 export function defaultViemProviderBuilder(
   rpcUrls: RpcUrl[],
@@ -131,7 +123,6 @@ export type ProviderBuilderMap = Record<
 >;
 export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.EthersV5]: defaultEthersV5ProviderBuilder,
-  // [ProviderType.EthersV6]: defaultEthersV6ProviderBuilder,
   [ProviderType.Viem]: defaultViemProviderBuilder,
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,

@@ -39,3 +39,15 @@ export type ProviderPerformResult =
   | ProviderSuccessResult
   | ProviderErrorResult
   | ProviderTimeoutResult;
+
+export interface ProviderRetryOptions {
+  // Maximum number of times to make the re-query the RPC/explorer
+  maxRetries?: number;
+  // Exponential backoff base value for retries
+  baseRetryDelayMs?: number;
+}
+
+export interface SmartProviderOptions extends ProviderRetryOptions {
+  // The time to wait before attempting the next provider
+  fallbackStaggerMs?: number;
+}

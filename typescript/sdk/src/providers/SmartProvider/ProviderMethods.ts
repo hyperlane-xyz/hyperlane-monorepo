@@ -20,6 +20,8 @@ export enum ProviderMethod {
 
 export const AllProviderMethods = Object.values(ProviderMethod);
 
-export function excludeMethods(exclude: ProviderMethod[]): ProviderMethod[] {
+export function excludeProviderMethods(
+  exclude: ProviderMethod[],
+): ProviderMethod[] {
   return AllProviderMethods.filter((m) => !exclude.includes(m));
 }

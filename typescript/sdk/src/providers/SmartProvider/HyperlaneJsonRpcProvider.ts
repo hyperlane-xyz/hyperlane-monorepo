@@ -33,8 +33,23 @@ export class HyperlaneJsonRpcProvider
     );
     if (method === ProviderMethod.GetLogs) {
       return this.performGetLogs(params);
-    } else {
-      return super.perform(method, params);
+    }
+
+    const result = await super.perform(method, params);
+
+    if (
+      result === '0x' &&
+      [
+        ProviderMethod.Call,
+        ProviderMethod.GetBalance,
+        ProviderMethod.GetBlock,
+        ProviderMethod.GetBlockNumber,
+      ].includes(method as ProviderMethod)
+    ) {
+      this.logger(
+        `Received 0x result from method ${method} for reqId ${reqId}. Throwing error.`,
+      );
+      throw new Error('Invalid response from provider');
     }
   }
 

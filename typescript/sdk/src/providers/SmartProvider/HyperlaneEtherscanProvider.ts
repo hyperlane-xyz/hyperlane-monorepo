@@ -8,7 +8,7 @@ import { BlockExplorer } from '../../metadata/chainMetadataTypes';
 import {
   IProviderMethods,
   ProviderMethod,
-  excludeMethods,
+  excludeProviderMethods,
 } from './ProviderMethods';
 
 // Used for crude rate-limiting of explorer queries without API keys
@@ -21,7 +21,7 @@ export class HyperlaneEtherscanProvider
 {
   protected readonly logger = debug('hyperlane:EtherscanProvider');
   // Seeing problems with these two methods even though etherscan api claims to support them
-  public readonly supportedMethods = excludeMethods([
+  public readonly supportedMethods = excludeProviderMethods([
     ProviderMethod.Call,
     ProviderMethod.EstimateGas,
     ProviderMethod.SendTransaction,
