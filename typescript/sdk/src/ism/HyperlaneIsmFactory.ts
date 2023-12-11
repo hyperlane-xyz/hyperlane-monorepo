@@ -202,10 +202,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     const routingIsmFactory = this.getContracts(destination).routingIsmFactory;
     let routingIsm: DomainRoutingIsm | DefaultFallbackRoutingIsm;
     const delta: RoutingIsmDelta = existingIsmAddress
-      ? await this.routingModuleDelta(
+      ? await routingModuleDelta(
           destination,
           existingIsmAddress,
           config,
+          this.multiProvider,
           this.getContracts(destination),
           mailbox,
         )
@@ -401,62 +402,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     }
     return address;
   }
-
-  async routingModuleDelta(
-    destination: ChainName,
-    moduleAddress: Address,
-    config: RoutingIsmConfig,
-    contracts: HyperlaneContracts<ProxyFactoryFactories>,
-    mailbox?: Address,
-  ): Promise<RoutingIsmDelta> {
-    const signer = this.multiProvider.getSigner(destination);
-    const provider = this.multiProvider.getProvider(destination);
-    const routingIsm = DomainRoutingIsm__factory.connect(
-      moduleAddress,
-      provider,
-    );
-    const owner = await routingIsm.owner();
-    const deployedDomains = (await routingIsm.domains()).map((chain) =>
-      this.multiProvider.getChainName(chain.toNumber()),
-    );
-
-    const delta: RoutingIsmDelta = {
-      isOwner: (await signer.getAddress()) == owner,
-      domainsToUnenroll: [],
-      domainsToEnroll: [],
-    };
-
-    // if owners don't match, we need to transfer ownership
-    if (owner !== normalizeAddress(config.owner)) delta.owner = config.owner;
-    if (config.type === IsmType.FALLBACK_ROUTING) {
-      const client = MailboxClient__factory.connect(moduleAddress, provider);
-      const mailboxAddress = await client.mailbox();
-      if (mailbox && !eqAddress(mailboxAddress, mailbox))
-        delta.mailbox = mailbox;
-    }
-
-    delta.domainsToUnenroll = deployedDomains.filter(
-      (domain) => !Object.keys(config.domains).includes(domain),
-    );
-    for (const [origin, subConfig] of Object.entries(config.domains)) {
-      if (!deployedDomains.includes(origin)) delta.domainsToEnroll.push(origin);
-      else {
-        const subModule = await routingIsm.module(
-          this.multiProvider.getDomainId(origin),
-        );
-        const subModuleMatches = await moduleMatchesConfig(
-          destination,
-          subModule,
-          subConfig,
-          this.multiProvider,
-          contracts,
-          origin,
-        );
-        if (!subModuleMatches) delta.domainsToEnroll.push(origin);
-      }
-    }
-    return delta;
-  }
 }
 
 // Note that this function may return false negatives, but should
@@ -648,26 +593,20 @@ export async function moduleMatchesConfig(
           mailbox !== undefined &&
           eqAddress(mailboxAddress, mailbox);
       }
-      // check for exclusion of domains in the config
-      const modules = (await routingIsm.domains()).map((d) => d.toNumber());
+      const delta = await routingModuleDelta(
+        chain,
+        moduleAddress,
+        config,
+        multiProvider,
+        contracts,
+        mailbox,
+      );
       matches =
-        matches && modules.length === Object.keys(config.domains).length;
-      // Recursively check that the submodule for each configured
-      // domain matches the submodule config.
-      for (const [origin, subConfig] of Object.entries(config.domains)) {
-        const subModule = await routingIsm.module(
-          multiProvider.getDomainId(origin),
-        );
-        const subModuleMatches = await moduleMatchesConfig(
-          chain,
-          subModule,
-          subConfig,
-          multiProvider,
-          contracts,
-          mailbox,
-        );
-        matches = matches && subModuleMatches;
-      }
+        matches &&
+        delta.domainsToEnroll.length === 0 &&
+        delta.domainsToUnenroll.length === 0 &&
+        !delta.mailbox &&
+        !delta.owner;
       break;
     }
     case IsmType.AGGREGATION: {
@@ -723,6 +662,62 @@ export async function moduleMatchesConfig(
   }
 
   return matches;
+}
+
+export async function routingModuleDelta(
+  destination: ChainName,
+  moduleAddress: Address,
+  config: RoutingIsmConfig,
+  multiProvider: MultiProvider,
+  contracts: HyperlaneContracts<ProxyFactoryFactories>,
+  mailbox?: Address,
+): Promise<RoutingIsmDelta> {
+  const signer = multiProvider.getSigner(destination);
+  const provider = multiProvider.getProvider(destination);
+  const routingIsm = DomainRoutingIsm__factory.connect(moduleAddress, provider);
+  const owner = await routingIsm.owner();
+  const deployedDomains = (await routingIsm.domains()).map((chain) =>
+    multiProvider.getChainName(chain.toNumber()),
+  );
+
+  const delta: RoutingIsmDelta = {
+    isOwner: (await signer.getAddress()) == owner,
+    domainsToUnenroll: [],
+    domainsToEnroll: [],
+  };
+
+  // if owners don't match, we need to transfer ownership
+  if (owner !== normalizeAddress(config.owner)) delta.owner = config.owner;
+  if (config.type === IsmType.FALLBACK_ROUTING) {
+    const client = MailboxClient__factory.connect(moduleAddress, provider);
+    const mailboxAddress = await client.mailbox();
+    if (mailbox && !eqAddress(mailboxAddress, mailbox)) delta.mailbox = mailbox;
+  }
+  // check for exclusion of domains in the config
+  delta.domainsToUnenroll = deployedDomains.filter(
+    (domain) => !Object.keys(config.domains).includes(domain),
+  );
+  // check for inclusion of domains in the config
+  for (const [origin, subConfig] of Object.entries(config.domains)) {
+    if (!deployedDomains.includes(origin)) delta.domainsToEnroll.push(origin);
+    else {
+      const subModule = await routingIsm.module(
+        multiProvider.getDomainId(origin),
+      );
+      // Recursively check that the submodule for each configured
+      // domain matches the submodule config.
+      const subModuleMatches = await moduleMatchesConfig(
+        destination,
+        subModule,
+        subConfig,
+        multiProvider,
+        contracts,
+        origin,
+      );
+      if (!subModuleMatches) delta.domainsToEnroll.push(origin);
+    }
+  }
+  return delta;
 }
 
 export function collectValidators(

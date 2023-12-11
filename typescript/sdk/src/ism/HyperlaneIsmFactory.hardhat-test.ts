@@ -97,9 +97,6 @@ describe('HyperlaneIsmFactory', async () => {
     coreApp = await coreDeployer.deployApp();
     newMailboxAddress = coreApp.getContracts(chain).mailbox.address;
 
-    console.log('mailboxAddress', mailboxAddress);
-    console.log('newMailboxAddress', newMailboxAddress);
-
     exampleRoutingConfig = {
       type: IsmType.ROUTING,
       owner: await multiProvider.getSignerAddress(chain),
@@ -160,7 +157,6 @@ describe('HyperlaneIsmFactory', async () => {
       exampleRoutingConfig.type = type as
         | IsmType.ROUTING
         | IsmType.FALLBACK_ROUTING;
-      console.log('type', type);
       const ism = await ismFactory.deploy({
         destination: chain,
         config: exampleRoutingConfig,
