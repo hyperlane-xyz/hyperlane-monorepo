@@ -69,7 +69,7 @@ contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
     ) internal override {
         require(
             metadata.msgValue(0) == 0,
-            "PolygonPosHook: Fxchild don't support msgValue"
+            "PolygonPosHook: Fxchild not support msgValue"
         );
         _sendMessageToChild(payload);
     }
