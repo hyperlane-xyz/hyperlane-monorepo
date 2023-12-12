@@ -1,3 +1,6 @@
 [submodule "solidity/lib/forge-std"]
 	path = solidity/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
+[submodule "solidity/lib/eigenlayer-middleware"]
+	path = solidity/lib/eigenlayer-middleware
+	url = https://github.com/Layr-Labs/eigenlayer-middleware
