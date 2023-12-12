@@ -118,7 +118,7 @@ mod test {
         ];
         let test_meta = dummy_metadata_with_sigs(validator_signatures);
         let encoded_meta = test_meta.to_vec();
-        let metadata = MultisigIsmMessageIdMetadata::try_from(encoded_meta).unwrap();
+        let metadata = MultisigIsmMessageIdMetadata::try_from(encoded_meta.clone()).unwrap();
         assert_eq!(
             metadata.origin_merkle_tree_hook,
             test_meta.origin_merkle_tree_hook
@@ -152,5 +152,13 @@ mod test {
         let result = MultisigIsmMessageIdMetadata::try_from(faulty_encoded_meta);
         assert!(result.unwrap_err() == Error::InvalidMetadata);
         MultisigIsmMessageIdMetadata::try_from(encoded_meta).expect("Decoding should succeed");
+    }
+
+    #[test]
+    fn test_decode_real_meta() {
+        // multisig ism message id metadata from this tx:
+        // https://arbiscan.io//tx/0xe558f04ad446b1d9ec4d4a1284661869b73daff38ec9fb7e809be652732fff30#txninfo
+        let bytes = hex::decode("000000000000000000000000149db7afd694722747035d5aec7007ccb6f8f112fb91807ccda2db543bfbd013242643553bc1238f891ae9d0abb3b8b46c5a89990000017addc429c97ca8bcd6ad86ef4461379374b0d545308a1f47db246a6c028f74d7af521dd9355afd2f2a02565a24f22ac7b7e388cbd1f2a931acc97ce689be5456851b4d22f1aece05d293e574e38edcda9f2db64f1dc5b69a89a6a5989e7aaa4f443c137e593bb794eb211de719ed0f466a0778c4d204cc275f54c0936eee918ae1651c").unwrap();
+        MultisigIsmMessageIdMetadata::try_from(bytes).expect("Decoding should succeed");
     }
 }
