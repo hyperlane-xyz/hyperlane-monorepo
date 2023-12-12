@@ -350,7 +350,7 @@ impl BaseMetadataBuilder {
     }
 
     #[instrument(err, skip(self), fields(domain=self.domain().name()))]
-    pub async fn build_ism_and_metadata(
+    pub async fn build_ism_and_metadata_1(
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
@@ -380,10 +380,10 @@ impl BaseMetadataBuilder {
             ModuleType::MessageIdMultisig => {
                 Box::new(MessageIdMultisigMetadataBuilder::new(message_base))
             }
-            ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
-            ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(base)),
+            ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(message_base)),
+            ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(message_base)),
             ModuleType::Null => Box::new(NullMetadataBuilder::new()),
-            ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(base)),
+            ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_base)),
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         let meta = metadata_builder
@@ -455,10 +455,10 @@ impl MessageBaseMetadataBuilder {
             ModuleType::MessageIdMultisig => {
                 Box::new(MessageIdMultisigMetadataBuilder::new(message_base))
             }
-            ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
-            ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(base)),
+            ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(message_base)),
+            ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(message_base)),
             ModuleType::Null => Box::new(NullMetadataBuilder::new()),
-            ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(base)),
+            ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_base)),
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         let meta = metadata_builder

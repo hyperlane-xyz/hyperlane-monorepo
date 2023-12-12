@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::{info, instrument};
 
-use super::{BaseMetadataBuilder, MetadataBuilder};
+use super::{base::MessageBaseMetadataBuilder, BaseMetadataBuilder, MetadataBuilder};
 
 #[derive(Serialize, Deserialize)]
 struct OffchainResponse {
@@ -20,7 +20,7 @@ struct OffchainResponse {
 
 #[derive(Clone, Debug, new, Deref)]
 pub struct CcipReadIsmMetadataBuilder {
-    base: BaseMetadataBuilder,
+    base: MessageBaseMetadataBuilder,
 }
 
 #[async_trait]
@@ -33,7 +33,12 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         metric_app_context: Option<String>,
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching CcipRead metadata";
-        let ism = self.build_ccip_read_ism(ism_address).await.context(CTX)?;
+        let ism = self
+            .base
+            .base
+            .build_ccip_read_ism(ism_address)
+            .await
+            .context(CTX)?;
 
         let response = ism
             .get_offchain_verify_info(RawHyperlaneMessage::from(message).to_vec())

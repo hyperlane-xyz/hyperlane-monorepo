@@ -9,7 +9,7 @@ use tracing::{info, instrument};
 
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256};
 
-use super::{BaseMetadataBuilder, MetadataBuilder};
+use super::{base::MessageBaseMetadataBuilder, BaseMetadataBuilder, MetadataBuilder};
 
 /// Bytes used to store one member of the (start, end) range tuple
 /// Copied from `AggregationIsmMetadata.sol`
@@ -17,7 +17,7 @@ const METADATA_RANGE_SIZE: usize = 4;
 
 #[derive(Clone, Debug, new, Deref)]
 pub struct AggregationIsmMetadataBuilder {
-    base: BaseMetadataBuilder,
+    base: MessageBaseMetadataBuilder,
 }
 
 #[derive(Clone, Debug, new, PartialEq, Eq)]
@@ -125,7 +125,12 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         metric_app_context: Option<String>,
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching AggregationIsm metadata";
-        let ism = self.build_aggregation_ism(ism_address).await.context(CTX)?;
+        let ism = self
+            .base
+            .base
+            .build_aggregation_ism(ism_address)
+            .await
+            .context(CTX)?;
         let (ism_addresses, threshold) = ism.modules_and_threshold(message).await.context(CTX)?;
         let threshold = threshold as usize;
 

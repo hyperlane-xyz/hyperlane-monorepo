@@ -5,11 +5,11 @@ use eyre::Context;
 use hyperlane_core::{HyperlaneMessage, H256};
 use tracing::instrument;
 
-use super::{BaseMetadataBuilder, MetadataBuilder};
+use super::{base::MessageBaseMetadataBuilder, BaseMetadataBuilder, MetadataBuilder};
 
 #[derive(Clone, Debug, new, Deref)]
 pub struct RoutingIsmMetadataBuilder {
-    base: BaseMetadataBuilder,
+    base: MessageBaseMetadataBuilder,
 }
 
 #[async_trait]
@@ -22,9 +22,15 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
         metric_app_context: Option<String>,
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching RoutingIsm metadata";
-        let ism = self.build_routing_ism(ism_address).await.context(CTX)?;
+        let ism = self
+            .base
+            .base
+            .build_routing_ism(ism_address)
+            .await
+            .context(CTX)?;
         let module = ism.route(message).await.context(CTX)?;
         self.base
+            .base
             .build(module, message, metric_app_context)
             .await
             .context(CTX)
