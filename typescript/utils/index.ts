@@ -83,6 +83,7 @@ export {
 export {
   ValueOf,
   arrayToObject,
+  deepCopy,
   deepEquals,
   invertKeysAndValues,
   isObject,
