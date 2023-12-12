@@ -224,7 +224,7 @@ pub struct TxCostEstimate {
     /// The gas limit for the transaction.
     pub gas_limit: U256,
     /// The gas price for the transaction.
-    pub gas_price: U256,
+    pub gas_price: BigFloat,
     /// The amount of L2 gas for the transaction.
     /// If Some, `gas_limit` is the sum of the gas limit
     /// covering L1 costs and the L2 gas limit.

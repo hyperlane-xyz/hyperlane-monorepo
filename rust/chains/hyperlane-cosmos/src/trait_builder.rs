@@ -1,7 +1,7 @@
-use derive_new::new;
-use hyperlane_core::{ChainCommunicationError, U256};
+use std::str::FromStr;
 
-use crate::HyperlaneCosmosError;
+use derive_new::new;
+use hyperlane_core::{BigFloat, ChainCommunicationError};
 
 /// Cosmos connection configuration
 #[derive(Debug, Clone)]
@@ -16,8 +16,10 @@ pub struct ConnectionConf {
     prefix: String,
     /// Canoncial Assets Denom
     canonical_asset: String,
-    /// The minimum gas price set by the cosmos-sdk validator
-    minimum_gas_price: RawCosmosAmount,
+    /// The gas price set by the cosmos-sdk validator. Not that this represents the
+    /// minimum price set by the validator.
+    /// More details here: https://docs.cosmos.network/main/learn/beginner/gas-fees#antehandler
+    gas_price: RawCosmosAmount,
 }
 
 /// Untyped cosmos amount
@@ -35,25 +37,15 @@ pub struct CosmosAmount {
     /// Coin denom (e.g. `untrn`)
     pub denom: String,
     /// Amount in the given denom
-    pub amount: U256,
+    pub amount: BigFloat,
 }
 
 impl TryFrom<RawCosmosAmount> for CosmosAmount {
     type Error = ChainCommunicationError;
     fn try_from(raw: RawCosmosAmount) -> Result<Self, ChainCommunicationError> {
-        // Converts to U256 by always rounding up.
-
-        // Remove the decimal part
-        let integer = raw
-            .amount
-            .split('.')
-            .next()
-            .ok_or(HyperlaneCosmosError::NumStrParse)?;
-        let amount = U256::from_dec_str(integer)?;
         Ok(Self {
             denom: raw.denom,
-            // Add one to conservatively estimate the gas cost in case there was a decimal part
-            amount: amount + 1,
+            amount: BigFloat::from_str(&raw.amount)?,
         })
     }
 }
@@ -106,7 +98,7 @@ impl ConnectionConf {
 
     /// Get the minimum gas price
     pub fn get_minimum_gas_price(&self) -> RawCosmosAmount {
-        self.minimum_gas_price.clone()
+        self.gas_price.clone()
     }
 
     /// Create a new connection configuration
@@ -124,7 +116,7 @@ impl ConnectionConf {
             chain_id,
             prefix,
             canonical_asset,
-            minimum_gas_price,
+            gas_price: minimum_gas_price,
         }
     }
 }

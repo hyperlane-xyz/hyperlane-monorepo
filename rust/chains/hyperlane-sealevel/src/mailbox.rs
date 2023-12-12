@@ -8,10 +8,10 @@ use jsonrpc_core::futures_util::TryFutureExt;
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
-    MerkleTreeHook, SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
+    accumulator::incremental::IncrementalMerkle, BigFloat, ChainCommunicationError, ChainResult,
+    Checkpoint, ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta,
+    Mailbox, MerkleTreeHook, SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -470,7 +470,7 @@ impl Mailbox for SealevelMailbox {
             transaction_id: txid,
             executed,
             // TODO use correct data upon integrating IGP support
-            gas_price: U256::zero(),
+            gas_price: U256::zero().try_into()?,
             gas_used: U256::zero(),
         })
     }
@@ -484,7 +484,7 @@ impl Mailbox for SealevelMailbox {
         // TODO use correct data upon integrating IGP support
         Ok(TxCostEstimate {
             gas_limit: U256::zero(),
-            gas_price: U256::zero(),
+            gas_price: BigFloat::zero(),
             l2_gas_limit: None,
         })
     }
