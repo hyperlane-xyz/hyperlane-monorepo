@@ -18,6 +18,7 @@ pub struct MultisigCheckpointSyncer {
     /// The checkpoint syncer for each valid validator signer address
     checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>>,
     metrics: Arc<CoreMetrics>,
+    app_context: Option<String>,
 }
 
 impl MultisigCheckpointSyncer {
@@ -57,15 +58,17 @@ impl MultisigCheckpointSyncer {
             // TODO what if one of these fails, it'll mess up the metrics
         }
 
-        self.metrics
-            .validator_metrics
-            .set_validator_latest_checkpoints(
-                origin,
-                destination,
-                "app_context".to_owned(),
-                &latest_indices,
-            )
-            .await;
+        if let Some(app_context) = &self.app_context {
+            self.metrics
+                .validator_metrics
+                .set_validator_latest_checkpoints(
+                    origin,
+                    destination,
+                    app_context.clone(),
+                    &latest_indices,
+                )
+                .await;
+        }
 
         latest_indices.values().map(|v| *v).collect()
     }

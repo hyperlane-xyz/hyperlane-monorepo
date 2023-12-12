@@ -26,14 +26,15 @@ use hyperlane_base::{
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
 };
 use hyperlane_core::{
-    accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
-    HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, MultisigIsm, RoutingIsm,
-    ValidatorAnnounce, H160, H256,
+    accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, ChainResult, Checkpoint,
+    HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, MultisigIsm,
+    RoutingIsm, ValidatorAnnounce, H160, H256,
 };
 use prometheus::{
     core::{AtomicI64, GenericGauge},
     IntGauge, IntGaugeVec,
 };
+use serde::de;
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
@@ -63,51 +64,48 @@ pub trait MetadataBuilder: Send + Sync {
     ) -> Result<Option<Vec<u8>>>;
 }
 
-pub struct TTLCachedValue<T> {
-    value: RwLock<Option<(T, Instant)>>,
-    ttl: Duration,
-    update: Box<dyn Fn() -> Pin<Box<dyn Future<Output = Result<T>>>>>,
+#[derive(Clone, Debug)]
+pub struct DefaultIsmCache {
+    value: Arc<RwLock<Option<(H256, Instant)>>>,
+    mailbox: Arc<dyn Mailbox>,
 }
 
-impl<T> TTLCachedValue<T>
-where
-    T: Clone,
-{
-    pub fn new(
-        ttl: Duration,
-        update: Box<dyn Fn() -> Pin<Box<dyn Future<Output = Result<T>>>>>,
-    ) -> Self {
+impl DefaultIsmCache {
+    // 10 mins
+    const TTL: Duration = Duration::from_secs(60 * 10);
+
+    pub fn new(mailbox: Arc<dyn Mailbox>) -> Self {
         Self {
-            value: RwLock::new(None),
-            ttl,
-            update,
+            value: Arc::new(RwLock::new(None)),
+            mailbox,
         }
     }
 
-    pub async fn get(&self) -> Result<T> {
+    pub async fn get(&self) -> Result<H256> {
         let mut value = self.value.write().await;
         let now = Instant::now();
-        if value.is_none() || value.as_ref().is_some_and(|val| val.1.elapsed() > self.ttl) {
-            *value = Some(((self.update)().await?, Instant::now()));
+        if value.is_none()
+            || value
+                .as_ref()
+                .is_some_and(|val| val.1.elapsed() > Self::TTL)
+        {
+            *value = Some((self.mailbox.default_ism().await?, Instant::now()));
         }
         // TODO refactor
         Ok(value.as_ref().unwrap().0.clone())
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct AppContextClassifier {
-    default_ism: TTLCachedValue<H256>,
+    default_ism: DefaultIsmCache,
     app_matching_lists: Vec<(MatchingList, String)>,
 }
 
-// 10 mins
-const DEFAULT_ISM_TTL: Duration = Duration::from_secs(60 * 10);
-
 impl AppContextClassifier {
     pub fn new(destination_mailbox: Arc<dyn Mailbox>) -> Self {
-        let f = Box::new(move || Box::pin(|| async { destination_mailbox.default_ism().await }));
         Self {
-            default_ism: TTLCachedValue::new(DEFAULT_ISM_TTL, f),
+            default_ism: DefaultIsmCache::new(destination_mailbox),
             app_matching_lists: vec![],
         }
     }
@@ -145,12 +143,23 @@ pub struct BaseMetadataBuilder {
     #[new(default)]
     depth: u32,
     max_depth: u32,
+    app_context_classifier: AppContextClassifier,
     // root_ism: H256,
     // metric_app_context: Option<String>,
 }
 
-struct MetricContext {
-    app_context: Option<String>,
+#[derive(Debug, Clone)]
+pub struct MessageBaseMetadataBuilder {
+    pub message: HyperlaneMessage,
+    pub base: BaseMetadataBuilder,
+    pub depth: u32,
+    pub root_ism: H256,
+}
+
+impl AsRef<BaseMetadataBuilder> for MessageBaseMetadataBuilder {
+    fn as_ref(&self) -> &BaseMetadataBuilder {
+        &self.base
+    }
 }
 
 impl Debug for BaseMetadataBuilder {
@@ -172,7 +181,9 @@ impl MetadataBuilder for BaseMetadataBuilder {
         message: &HyperlaneMessage,
         metric_app_context: Option<String>,
     ) -> Result<Option<Vec<u8>>> {
-        self.build_ism_and_metadata(ism_address, message, metric_app_context)
+        let message_metadata_builder = self.message_metadata_builder(ism_address, message)?;
+        message_metadata_builder
+            .build_ism_and_metadata(ism_address, message, metric_app_context)
             .await
             .map(|ism_with_metadata| ism_with_metadata.metadata)
     }
@@ -256,6 +267,7 @@ impl BaseMetadataBuilder {
     // here
     pub async fn build_checkpoint_syncer(
         &self,
+        message: &HyperlaneMessage,
         validators: &[H256],
         // get_latest_index_gauge: Option<fn (validator: H256) -> IntGauge>,
         get_latest_index_gauge: Option<impl Fn(H256) -> GenericGauge<AtomicI64>>,
@@ -331,6 +343,9 @@ impl BaseMetadataBuilder {
         Ok(MultisigCheckpointSyncer::new(
             checkpoint_syncers,
             self.metrics.clone(),
+            self.app_context_classifier
+                .get_app_context(message, H256::zero())
+                .await?,
         ))
     }
 
@@ -351,12 +366,95 @@ impl BaseMetadataBuilder {
             .await
             .context("When fetching module type")?;
         let base = self.clone_with_incremented_depth()?;
+        let message_base = MessageBaseMetadataBuilder {
+            message: message.clone(),
+            base: base.clone(),
+            depth: base.depth,
+            root_ism: H256::zero(),
+        };
 
         let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
             ModuleType::MerkleRootMultisig => {
-                Box::new(MerkleRootMultisigMetadataBuilder::new(base))
+                Box::new(MerkleRootMultisigMetadataBuilder::new(message_base))
             }
-            ModuleType::MessageIdMultisig => Box::new(MessageIdMultisigMetadataBuilder::new(base)),
+            ModuleType::MessageIdMultisig => {
+                Box::new(MessageIdMultisigMetadataBuilder::new(message_base))
+            }
+            ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
+            ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(base)),
+            ModuleType::Null => Box::new(NullMetadataBuilder::new()),
+            ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(base)),
+            _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
+        };
+        let meta = metadata_builder
+            .build(ism_address, message, metric_app_context)
+            .await
+            .context("When building metadata");
+        Ok(IsmWithMetadataAndType {
+            ism,
+            metadata: meta?,
+            module_type,
+        })
+    }
+
+    pub fn message_metadata_builder(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+    ) -> Result<MessageBaseMetadataBuilder> {
+        Ok(MessageBaseMetadataBuilder {
+            message: message.clone(),
+            base: self.clone(),
+            depth: self.depth,
+            root_ism: H256::zero(),
+        })
+    }
+}
+
+impl MessageBaseMetadataBuilder {
+    fn clone_with_incremented_depth(&self) -> Result<MessageBaseMetadataBuilder> {
+        let mut cloned = self.clone();
+        cloned.depth += 1;
+        if cloned.depth > cloned.base.max_depth {
+            Err(MetadataBuilderError::MaxDepthExceeded(cloned.depth).into())
+        } else {
+            Ok(cloned)
+        }
+    }
+
+    #[instrument(err, skip(self), fields(domain=self.base.domain().name()))]
+    pub async fn build_ism_and_metadata(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+        metric_app_context: Option<String>,
+    ) -> Result<IsmWithMetadataAndType> {
+        let ism: Box<dyn InterchainSecurityModule> = self
+            .base
+            .build_ism(ism_address)
+            .await
+            .context("When building ISM")?;
+
+        let module_type = ism
+            .module_type()
+            .await
+            .context("When fetching module type")?;
+        let base = self.base.clone_with_incremented_depth()?;
+        let message_base = self.clone_with_incremented_depth()?;
+        // let message_base = MessageBaseMetadataBuilder {
+        //     message: message.clone(),
+        //     base: base.clone(),
+        //     depth: base.depth,
+        //     root_ism: H256::zero(),
+        // };
+
+        let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
+            ModuleType::MerkleRootMultisig => {
+                Box::new(MerkleRootMultisigMetadataBuilder::new(message_base))
+            }
+            ModuleType::MessageIdMultisig => {
+                Box::new(MessageIdMultisigMetadataBuilder::new(message_base))
+            }
             ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
             ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(base)),
             ModuleType::Null => Box::new(NullMetadataBuilder::new()),

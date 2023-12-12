@@ -13,6 +13,7 @@ use hyperlane_core::{HyperlaneMessage, MultisigSignedCheckpoint, H256};
 use strum::Display;
 use tracing::{debug, info};
 
+use crate::msg::metadata::base::MessageBaseMetadataBuilder;
 use crate::msg::metadata::BaseMetadataBuilder;
 use crate::msg::metadata::MetadataBuilder;
 
@@ -37,7 +38,7 @@ pub enum MetadataToken {
 }
 
 #[async_trait]
-pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
+pub trait MultisigIsmMetadataBuilder: AsRef<MessageBaseMetadataBuilder> + Send + Sync {
     async fn fetch_metadata(
         &self,
         validators: &[H256],
@@ -103,6 +104,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         const CTX: &str = "When fetching MultisigIsm metadata";
         let multisig_ism = self
             .as_ref()
+            .base
             .build_multisig_ism(ism_address)
             .await
             .context(CTX)?;
@@ -124,11 +126,17 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
 
                 // &["origin", "destination", "validator", "app_context", "ism_address"],
                 self.as_ref()
+                    .base
                     .metrics
                     .validator_checkpoint_index()
                     .with_label_values(&[
-                        &self.as_ref().origin_domain.to_string(),
-                        &self.as_ref().destination_chain_setup.domain.to_string(),
+                        &self.as_ref().base.origin_domain.to_string(),
+                        &self
+                            .as_ref()
+                            .base
+                            .destination_chain_setup
+                            .domain
+                            .to_string(),
                         &validator_address.to_lowercase(),
                         &app_context,
                         // &ism_address,
@@ -139,7 +147,8 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
 
         let checkpoint_syncer = self
             .as_ref()
-            .build_checkpoint_syncer(&validators, get_latest_index_gauge)
+            .base
+            .build_checkpoint_syncer(message, &validators, get_latest_index_gauge)
             .await
             .context(CTX)?;
 

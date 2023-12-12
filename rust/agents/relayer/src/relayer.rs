@@ -34,7 +34,7 @@ use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     msg::{
         gas_payment::GasPaymentEnforcer,
-        metadata::BaseMetadataBuilder,
+        metadata::{AppContextClassifier, BaseMetadataBuilder},
         pending_message::{MessageContext, MessageSubmissionMetrics},
         pending_operation::DynPendingOperation,
         processor::{MessageProcessor, MessageProcessorMetrics},
@@ -220,6 +220,7 @@ impl BaseAgent for Relayer {
                     core.metrics.clone(),
                     db,
                     5,
+                    AppContextClassifier::new(mailboxes[origin].clone()),
                 );
 
                 msg_ctxs.insert(

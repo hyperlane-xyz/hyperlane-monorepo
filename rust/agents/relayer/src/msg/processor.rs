@@ -15,7 +15,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, trace};
 
 use super::pending_message::*;
-use crate::msg::pending_operation::DynPendingOperation;
+use crate::msg::{metadata::AppContextClassifier, pending_operation::DynPendingOperation};
 use crate::{processor::ProcessorExt, settings::matching_list::MatchingList};
 
 /// Finds unprocessed messages from an origin and submits then through a channel
@@ -264,6 +264,7 @@ mod test {
             Arc::new(core_metrics),
             db.clone(),
             5,
+            AppContextClassifier::new(Arc::new(MockMailboxContract::default())),
         )
     }
 
