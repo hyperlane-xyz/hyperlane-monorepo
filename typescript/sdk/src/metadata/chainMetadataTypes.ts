@@ -217,6 +217,11 @@ export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
 export type ChainMetadata<Ext = object> = z.infer<typeof ChainMetadataSchema> &
   Ext;
 
+export type BlockExplorer = Exclude<
+  ChainMetadata['blockExplorers'],
+  undefined
+>[number];
+
 export function isValidChainMetadata(c: ChainMetadata): boolean {
   return ChainMetadataSchema.safeParse(c).success;
 }

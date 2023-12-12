@@ -18,9 +18,6 @@ export enum Chains {
   gnosis = 'gnosis',
   goerli = 'goerli',
   lineagoerli = 'lineagoerli',
-  scroll = 'scroll',
-  scrollsepolia = 'scrollsepolia',
-  sepolia = 'sepolia',
   mantapacific = 'mantapacific',
   moonbasealpha = 'moonbasealpha',
   moonbeam = 'moonbeam',
@@ -33,9 +30,11 @@ export enum Chains {
   polygonzkevm = 'polygonzkevm',
   polygonzkevmtestnet = 'polygonzkevmtestnet',
   proteustestnet = 'proteustestnet',
+  scroll = 'scroll',
+  scrollsepolia = 'scrollsepolia',
+  sepolia = 'sepolia',
   solana = 'solana',
   solanadevnet = 'solanadevnet',
-  neutrontestnet = 'neutrontestnet',
   test1 = 'test1',
   test2 = 'test2',
   test3 = 'test3',
@@ -50,6 +49,7 @@ export enum DeprecatedChains {
   rinkeby = 'rinkeby',
   optimismkovan = 'optimismkovan',
   optimismrinkeby = 'optimismrinkeby',
+  neutrontestnet = 'neutrontestnet',
 }
 
 export const AllDeprecatedChains = Object.keys(DeprecatedChains) as string[];
