@@ -87,12 +87,21 @@ impl Encode for MultisigIsmMessageIdMetadata {
 #[cfg(test)]
 mod test {
     use super::*;
+    use rand::Rng;
+
+    // Provide a default test implementation
+    fn dummy_metadata_with_sigs(sigs: Vec<EcdsaSignature>) -> MultisigIsmMessageIdMetadata {
+        let mut rng = rand::thread_rng();
+        MultisigIsmMessageIdMetadata {
+            origin_merkle_tree_hook: H256::random(),
+            merkle_root: H256::random(),
+            merkle_index: rng.gen(),
+            validator_signatures: sigs,
+        }
+    }
 
     #[test]
     fn test_decode_correctly_formatted_metadata() {
-        let origin_mailbox = H256::random();
-        let merkle_root = H256::random();
-        let merkle_index = 38807;
         let validator_signatures = vec![
             EcdsaSignature {
                 serialized_rs: [11u8; 64],
@@ -107,44 +116,41 @@ mod test {
                 recovery_id: 0,
             },
         ];
-        let mut metadata_bytes = origin_mailbox.as_bytes().to_vec();
-        metadata_bytes.extend_from_slice(merkle_root.as_bytes());
-        for signature in &validator_signatures {
-            metadata_bytes.extend_from_slice(&signature.as_fixed_bytes()[..]);
-        }
-
-        let metadata = MultisigIsmMessageIdMetadata::try_from(metadata_bytes).unwrap();
-        assert_eq!(metadata.origin_merkle_tree_hook, origin_mailbox);
-        assert_eq!(metadata.merkle_root, merkle_root);
-        assert_eq!(metadata.merkle_index, merkle_index);
-        assert_eq!(metadata.validator_signatures, validator_signatures);
+        let test_meta = dummy_metadata_with_sigs(validator_signatures);
+        let encoded_meta = test_meta.to_vec();
+        let metadata = MultisigIsmMessageIdMetadata::try_from(encoded_meta).unwrap();
+        assert_eq!(
+            metadata.origin_merkle_tree_hook,
+            test_meta.origin_merkle_tree_hook
+        );
+        assert_eq!(metadata.merkle_root, test_meta.merkle_root);
+        assert_eq!(metadata.merkle_index, test_meta.merkle_index);
+        assert_eq!(
+            metadata.validator_signatures,
+            test_meta.validator_signatures
+        );
     }
 
     #[test]
     fn test_decode_no_signatures_is_err() {
-        let origin_mailbox = H256::random();
-        let merkle_root = H256::random();
-        let metadata_bytes = origin_mailbox
-            .as_bytes()
-            .iter()
-            .chain(merkle_root.as_bytes().iter())
-            .cloned()
-            .collect::<Vec<u8>>();
-
-        let result = MultisigIsmMessageIdMetadata::try_from(metadata_bytes);
+        let test_meta = dummy_metadata_with_sigs(vec![]);
+        let encoded_meta = test_meta.to_vec();
+        let result = MultisigIsmMessageIdMetadata::try_from(encoded_meta);
         assert!(result.unwrap_err() == Error::InvalidMetadata);
     }
 
     #[test]
     fn test_decode_incorrect_signature_length_is_err() {
-        let origin_mailbox = H256::random();
-        let merkle_root = H256::random();
-        let mut metadata_bytes = origin_mailbox.as_bytes().to_vec();
-        metadata_bytes.extend_from_slice(merkle_root.as_bytes());
-        // 64 byte signature instead of 65.
-        metadata_bytes.extend_from_slice(&[1u8; 64]);
-
-        let result = MultisigIsmMessageIdMetadata::try_from(metadata_bytes);
+        let sigs = vec![EcdsaSignature {
+            serialized_rs: [1u8; 64],
+            recovery_id: 0,
+        }];
+        let test_meta = dummy_metadata_with_sigs(sigs);
+        let encoded_meta = test_meta.to_vec();
+        // remove the last byte from the encoded signature
+        let faulty_encoded_meta = encoded_meta[..encoded_meta.len() - 1].to_vec();
+        let result = MultisigIsmMessageIdMetadata::try_from(faulty_encoded_meta);
         assert!(result.unwrap_err() == Error::InvalidMetadata);
+        MultisigIsmMessageIdMetadata::try_from(encoded_meta).expect("Decoding should succeed");
     }
 }
