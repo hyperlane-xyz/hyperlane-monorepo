@@ -112,8 +112,7 @@ contract PolygonPosIsmTest is Test {
             MAINNET_FX_ROOT
         );
 
-        // FIXME: see if address correct
-        polygonPosHook.setFxChildTunnel(MAINNET_FX_CHILD);
+        polygonPosHook.setFxChildTunnel(address(polygonPosISM));
 
         vm.makePersistent(address(polygonPosHook));
     }
@@ -136,11 +135,6 @@ contract PolygonPosIsmTest is Test {
         polygonPosISM.setAuthorizedHook(
             TypeCasts.addressToBytes32(address(polygonPosHook))
         );
-        // for sending value
-        /* vm.deal(
-            AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS),
-            2 ** 255
-        ); */
     }
 
     ///////////////////////////////////////////////////////////////////
@@ -179,7 +173,7 @@ contract PolygonPosIsmTest is Test {
             MAINNET_FX_CHILD,
             abi.encode(
                 TypeCasts.addressToBytes32(address(polygonPosHook)),
-                TypeCasts.addressToBytes32(MAINNET_FX_CHILD),
+                TypeCasts.addressToBytes32(address(polygonPosISM)),
                 encodedHookData
             )
         );
@@ -212,13 +206,14 @@ contract PolygonPosIsmTest is Test {
         deployAll();
 
         vm.selectFork(mainnetFork);
-        // FIXME: see if message value still in need
-        vm.deal(address(this), uint256(2 ** 255 + 1));
+
+        // assign any value should revert
+        vm.deal(address(this), uint256(2 ** 255));
         bytes memory excessValueMetadata = StandardHookMetadata
-            .overrideMsgValue(uint256(2 ** 255 + 1));
+            .overrideMsgValue(uint256(2 ** 255));
 
         l1Mailbox.updateLatestDispatchedId(messageId);
-        vm.expectRevert("PolygonPosHook: msgValue must be less than 2 ** 255");
+        vm.expectRevert("PolygonPosHook: Fxchild don't support msgValue");
         polygonPosHook.postDispatch(excessValueMetadata, encodedMessage);
     }
 
@@ -297,36 +292,6 @@ contract PolygonPosIsmTest is Test {
         assertTrue(verified);
     }
 
-    /// forge-config: default.fuzz.runs = 10
-    /* function testFork_verify_WithValue(uint256 _msgValue) public {
-        _msgValue = bound(_msgValue, 0, 2 ** 254);
-        deployAll();
-
-        orchestrateRelayMessage(_msgValue, messageId);
-
-        bool verified = polygonPosISM.verify(new bytes(0), encodedMessage);
-        assertTrue(verified);
-
-        assertEq(address(polygonPosISM).balance, 0);
-        assertEq(address(testRecipient).balance, _msgValue);
-    } */
-
-    /* function testFork_verify_tooMuchValue() public {
-        deployAll();
-
-        uint256 _msgValue = 2 ** 255 + 1;
-
-        vm.expectEmit(false, false, false, false, address(l2Messenger));
-        emit FailedRelayedMessage(messageId);
-        orchestrateRelayMessage(messageId);
-
-        bool verified = polygonPosISM.verify(new bytes(0), encodedMessage);
-        assertFalse(verified);
-
-        assertEq(address(polygonPosISM).balance, 0);
-        assertEq(address(testRecipient).balance, 0);
-    } */
-
     // sending over invalid message
     function testFork_verify_RevertWhen_HyperlaneInvalidMessage() public {
         deployAll();
@@ -392,7 +357,6 @@ contract PolygonPosIsmTest is Test {
 
         vm.prank(POLYGON_CROSSCHAIN_SYSTEM_ADDR);
 
-        // FIXME: stateid?
         fxChild.onStateReceive(
             0,
             abi.encode(

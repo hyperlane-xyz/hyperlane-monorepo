@@ -32,13 +32,6 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
     using StandardHookMetadata for bytes;
 
-    // ============ Constants ============
-
-    // Gas limit for sending messages to L2
-    // First 1.92e6 gas is provided by Optimism, see more here:
-    // https://community.optimism.io/docs/developers/bridge/messaging/#for-l1-%E2%87%92-l2-transactions
-    uint32 internal constant GAS_LIMIT = 1_920_000;
-
     // ============ Constructor ============
 
     constructor(
@@ -51,7 +44,6 @@ contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
         AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism)
         FxBaseRootTunnel(_cpManager, _fxRoot)
     {
-        // FIX: check needed?
         require(
             Address.isContract(_cpManager),
             "PolygonPosHook: invalid cpManager contract"
@@ -67,7 +59,7 @@ contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
         bytes calldata,
         bytes calldata
     ) internal pure override returns (uint256) {
-        return 0; // gas subsidized by the L2
+        return 0;
     }
 
     /// @inheritdoc AbstractMessageIdAuthHook
@@ -75,10 +67,9 @@ contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
         bytes calldata metadata,
         bytes memory payload
     ) internal override {
-        // FIXME: remove
         require(
-            metadata.msgValue(0) < 2 ** 255,
-            "PolygonPosHook: msgValue must be less than 2 ** 255"
+            metadata.msgValue(0) == 0,
+            "PolygonPosHook: Fxchild don't support msgValue"
         );
         _sendMessageToChild(payload);
     }
