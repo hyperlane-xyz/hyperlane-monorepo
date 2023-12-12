@@ -209,7 +209,7 @@ contract PolygonPosIsmTest is Test {
             .overrideMsgValue(uint256(2 ** 255));
 
         l1Mailbox.updateLatestDispatchedId(messageId);
-        vm.expectRevert("PolygonPosHook: Fxchild don't support msgValue");
+        vm.expectRevert("PolygonPosHook: Fxchild not support msgValue");
         polygonPosHook.postDispatch(excessValueMetadata, encodedMessage);
     }
 
