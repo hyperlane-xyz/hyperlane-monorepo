@@ -23,6 +23,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  debug as debugLog,
   eqAddress,
   formatMessage,
   normalizeAddress,
@@ -224,7 +225,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       );
       // deploying all the ISMs which have to be updated
       for (const origin of delta.domainsToEnroll) {
-        debug(
+        debugLog(
           `Reconfiguring preexisting routing ISM at for origin ${origin}...`,
         );
         const ism = await this.deploy({
@@ -243,7 +244,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
       // unenrolling domains if needed
       for (const origin of delta.domainsToUnenroll) {
-        debug(
+        debugLog(
           `Unenrolling origin ${origin} from preexisting routing ISM at ${existingIsmAddress}...`,
         );
         const tx = await routingIsm.remove(
@@ -254,7 +255,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
       // transfer ownership if needed
       if (delta.owner) {
-        debug(`Transferring ownership of routing ISM...`);
+        debugLog(`Transferring ownership of routing ISM...`);
         const tx = await routingIsm.transferOwnership(delta.owner, overrides);
         await this.multiProvider.handleTx(destination, tx);
       }
@@ -281,13 +282,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             'Mailbox address is required for deploying fallback routing ISM',
           );
         }
-        debug('Deploying fallback routing ISM ...');
+        debugLog('Deploying fallback routing ISM ...');
         routingIsm = await this.multiProvider.handleDeploy(
           destination,
           new DefaultFallbackRoutingIsm__factory(),
           [mailbox],
         );
-        debug('Initialising fallback routing ISM ...');
+        debugLog('Initialising fallback routing ISM ...');
         receipt = await this.multiProvider.handleTx(
           destination,
           routingIsm['initialize(address,uint32[],address[])'](
@@ -676,18 +677,19 @@ export async function routingModuleDelta(
   const provider = multiProvider.getProvider(destination);
   const routingIsm = DomainRoutingIsm__factory.connect(moduleAddress, provider);
   const owner = await routingIsm.owner();
-  const deployedDomains = (await routingIsm.domains()).map((chain) =>
-    multiProvider.getChainName(chain.toNumber()),
+  const deployedDomains = (await routingIsm.domains()).map((domain) =>
+    multiProvider.getChainName(domain.toNumber()),
   );
 
   const delta: RoutingIsmDelta = {
-    isOwner: (await signer.getAddress()) == owner,
+    isOwner: eqAddress(await signer.getAddress(), owner),
     domainsToUnenroll: [],
     domainsToEnroll: [],
   };
 
   // if owners don't match, we need to transfer ownership
-  if (owner !== normalizeAddress(config.owner)) delta.owner = config.owner;
+  if (!eqAddress(owner, normalizeAddress(config.owner)))
+    delta.owner = config.owner;
   if (config.type === IsmType.FALLBACK_ROUTING) {
     const client = MailboxClient__factory.connect(moduleAddress, provider);
     const mailboxAddress = await client.mailbox();
