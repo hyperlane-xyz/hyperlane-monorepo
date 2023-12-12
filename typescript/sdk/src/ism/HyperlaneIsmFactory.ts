@@ -23,11 +23,9 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
-  debug as debugLog,
   eqAddress,
   formatMessage,
   normalizeAddress,
-  warn,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
@@ -41,6 +39,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts';
+import { logger } from '../logger';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -225,7 +224,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       );
       // deploying all the ISMs which have to be updated
       for (const origin of delta.domainsToEnroll) {
-        debugLog(
+        logger(
           `Reconfiguring preexisting routing ISM at for origin ${origin}...`,
         );
         const ism = await this.deploy({
@@ -244,7 +243,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
       // unenrolling domains if needed
       for (const origin of delta.domainsToUnenroll) {
-        debugLog(
+        logger(
           `Unenrolling origin ${origin} from preexisting routing ISM at ${existingIsmAddress}...`,
         );
         const tx = await routingIsm.remove(
@@ -255,7 +254,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
       // transfer ownership if needed
       if (delta.owner) {
-        debugLog(`Transferring ownership of routing ISM...`);
+        logger(`Transferring ownership of routing ISM...`);
         const tx = await routingIsm.transferOwnership(delta.owner, overrides);
         await this.multiProvider.handleTx(destination, tx);
       }
@@ -282,13 +281,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             'Mailbox address is required for deploying fallback routing ISM',
           );
         }
-        debugLog('Deploying fallback routing ISM ...');
+        logger('Deploying fallback routing ISM ...');
         routingIsm = await this.multiProvider.handleDeploy(
           destination,
           new DefaultFallbackRoutingIsm__factory(),
           [mailbox],
         );
-        debugLog('Initialising fallback routing ISM ...');
+        logger('Initialising fallback routing ISM ...');
         receipt = await this.multiProvider.handleTx(
           destination,
           routingIsm['initialize(address,uint32[],address[])'](
@@ -481,7 +480,7 @@ export async function moduleCanCertainlyVerify(
         throw new Error(`Unsupported module type: ${moduleType}`);
       }
     } catch (e) {
-      warn(`Error checking module ${destModule}: ${e}`);
+      logger(`Error checking module ${destModule}: ${e}`);
       return false;
     }
   } else {
