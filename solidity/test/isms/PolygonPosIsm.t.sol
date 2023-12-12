@@ -33,9 +33,6 @@ contract PolygonPosIsmTest is Test {
     uint256 internal mainnetFork;
     uint256 internal polygonPosFork;
 
-    address internal constant L2_MESSENGER_ADDRESS =
-        0x4200000000000000000000000000000000000007;
-
     address internal constant POLYGON_CROSSCHAIN_SYSTEM_ADDR =
         0x0000000000000000000000000000000000001001;
 
@@ -57,7 +54,6 @@ contract PolygonPosIsmTest is Test {
 
     uint8 internal constant POLYGON_POS_VERSION = 0;
     uint8 internal constant HYPERLANE_VERSION = 1;
-    uint256 internal constant DEFAULT_GAS_LIMIT = 1_920_000;
 
     TestMailbox internal l1Mailbox;
     PolygonPosIsm internal polygonPosISM;
