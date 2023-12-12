@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { TransactionReceipt as ViemTxReceipt } from 'viem';
+import type { TransactionReceipt as ViemTxReceipt } from 'viem';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
