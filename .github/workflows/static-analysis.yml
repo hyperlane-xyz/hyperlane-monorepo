@@ -21,10 +21,14 @@ jobs:
         with:
           path: |
             **/node_modules
-            .yarn/cache
+            .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
-      - run: yarn workspaces focus @hyperlane-xyz/core
+      - name: yarn-install
+        run: yarn install
+
+      - name: foundry-install
+        uses: onbjerg/foundry-toolchain@v1
 
       - name: Static analysis
         uses: crytic/slither-action@v0.3.0
