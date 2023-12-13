@@ -164,7 +164,7 @@ async function createServiceAccount(serviceAccountName: string) {
 
 async function getServiceAccountInfo(serviceAccountName: string) {
   // By filtering, we get an array with one element upon a match and an empty
-  // array if there is not a match, which is desireable because it never errors.
+  // array if there is not a match, which is desirable because it never errors.
   const matches = await execCmdAndParseJson(
     `gcloud iam service-accounts list --format json --filter displayName="${serviceAccountName}"`,
   );
