@@ -1,5 +1,6 @@
 use ethers::prelude::Selector;
 use h_cosmos::CosmosProvider;
+use h_sealevel::SealevelProvider;
 use std::collections::HashMap;
 
 use eyre::{eyre, Context, Result};
@@ -111,16 +112,18 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn HyperlaneProvider>> {
         let ctx = "Building provider";
+        let locator = self.locator(H256::zero());
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
-                let locator = self.locator(H256::zero());
                 self.build_ethereum(conf, &locator, metrics, h_eth::HyperlaneProviderBuilder {})
                     .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => Ok(Box::new(h_sealevel::SealevelProvider::new(
+                locator.domain.clone(),
+                conf,
+            )) as Box<dyn HyperlaneProvider>),
             ChainConnectionConf::Cosmos(conf) => {
-                let locator = self.locator(H256::zero());
                 let provider = CosmosProvider::new(
                     locator.domain.clone(),
                     conf.clone(),

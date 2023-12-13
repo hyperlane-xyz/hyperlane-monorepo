@@ -13,6 +13,7 @@ version.workspace = true
 hyperlane-core = { path = "../../hyperlane-core", features = ["float"]}
 toml_edit.workspace = true
 k256.workspace = true
+jobserver.workspace = true
 ripemd.workspace = true
 sha2.workspace = true
 serde.workspace = true

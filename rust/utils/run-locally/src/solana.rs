@@ -282,7 +282,7 @@ pub fn start_solana_test_validator(
 }
 
 #[apply(as_task)]
-pub fn _initiate_solana_hyperlane_transfer(
+pub fn initiate_solana_hyperlane_transfer(
     solana_cli_tools_path: PathBuf,
     solana_config_path: PathBuf,
 ) {
@@ -337,7 +337,7 @@ fn _get_message_id_from_logs(logs: Vec<String>) -> Option<String> {
     None
 }
 
-pub fn _solana_termination_invariants_met(
+pub fn solana_termination_invariants_met(
     solana_cli_tools_path: &Path,
     solana_config_path: &Path,
 ) -> bool {
