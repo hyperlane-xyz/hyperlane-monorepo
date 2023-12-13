@@ -120,7 +120,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         let checkpoint_syncer = self
             .as_ref()
             .base
-            .build_checkpoint_syncer(message, &validators, self.as_ref().app_context.clone())
+            .build_checkpoint_syncer(&validators, self.as_ref().app_context.clone())
             .await
             .context(CTX)?;
 

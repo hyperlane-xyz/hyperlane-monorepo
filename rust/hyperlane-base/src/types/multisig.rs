@@ -34,6 +34,10 @@ impl MultisigCheckpointSyncer {
             .await;
     }
 
+    /// Gets the latest checkpoint index from each validator's checkpoint syncer.
+    /// Returns a vector of the latest indices, in an unspecified order, and does
+    /// not contain indices for validators that did not provide a latest index.
+    /// Also updates the validator latest checkpoint metrics.
     async fn get_validator_latest_checkpoints(
         &self,
         validators: &[H256],
@@ -41,8 +45,10 @@ impl MultisigCheckpointSyncer {
         destination: HyperlaneDomain,
     ) -> Vec<u32> {
         // Get the latest_index from each validator's checkpoint syncer.
-        // let mut latest_indices = Vec::with_capacity(validators.len());
-        let mut latest_indices: HashMap<H160, u32> = HashMap::with_capacity(validators.len());
+        // If a validator does not return a latest index, None is recorded so
+        // this can be surfaced in the metrics.
+        let mut latest_indices: HashMap<H160, Option<u32>> =
+            HashMap::with_capacity(validators.len());
 
         for validator in validators {
             let address = H160::from(*validator);
@@ -51,14 +57,18 @@ impl MultisigCheckpointSyncer {
                 match checkpoint_syncer.latest_index().await {
                     Ok(Some(index)) => {
                         debug!(?address, ?index, "Validator returned latest index");
-                        latest_indices.insert(H160::from(*validator), index);
+                        latest_indices.insert(H160::from(*validator), Some(index));
                     }
-                    err => {
-                        debug!(?address, ?err, "Failed to get latest index from validator");
+                    result => {
+                        debug!(
+                            ?address,
+                            ?result,
+                            "Failed to get latest index from validator"
+                        );
+                        latest_indices.insert(H160::from(*validator), None);
                     }
                 }
             }
-            // TODO what if one of these fails, it'll mess up the metrics
         }
 
         if let Some(app_context) = &self.app_context {
@@ -73,7 +83,12 @@ impl MultisigCheckpointSyncer {
                 .await;
         }
 
-        latest_indices.values().copied().collect()
+        // Filter out any validators that did not return a latest index
+        latest_indices
+            .values()
+            .copied()
+            .filter_map(|index| index)
+            .collect()
     }
 
     /// Attempts to get the latest checkpoint with a quorum of signatures among
@@ -98,24 +113,6 @@ impl MultisigCheckpointSyncer {
         origin: HyperlaneDomain,
         destination: HyperlaneDomain,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
-        // // Get the latest_index from each validator's checkpoint syncer.
-        // let mut latest_indices = Vec::with_capacity(validators.len());
-        // for validator in validators {
-        //     let address = H160::from(*validator);
-        //     if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&address) {
-        //         // Gracefully handle errors getting the latest_index
-        //         match checkpoint_syncer.latest_index().await {
-        //             Ok(Some(index)) => {
-        //                 debug!(?address, ?index, "Validator returned latest index");
-        //                 latest_indices.push(index);
-        //             }
-        //             err => {
-        //                 debug!(?address, ?err, "Failed to get latest index from validator");
-        //             }
-        //         }
-        //     }
-        // }
-
         let mut latest_indices = self
             .get_validator_latest_checkpoints(validators, origin, destination)
             .await;
@@ -236,26 +233,5 @@ impl MultisigCheckpointSyncer {
         }
         debug!("No quorum checkpoint found for message");
         Ok(None)
-    }
-
-    async fn fetch_latest_checkpoints(&self, validators: &[H256]) -> Result<Vec<u32>> {
-        // Get the latest_index from each validator's checkpoint syncer.
-        let mut latest_indices = Vec::with_capacity(validators.len());
-        for validator in validators {
-            let address = H160::from(*validator);
-            if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&address) {
-                // Gracefully handle errors getting the latest_index
-                match checkpoint_syncer.latest_index().await {
-                    Ok(Some(index)) => {
-                        debug!(?address, ?index, "Validator returned latest index");
-                        latest_indices.push(index);
-                    }
-                    err => {
-                        debug!(?address, ?err, "Failed to get latest index from validator");
-                    }
-                }
-            }
-        }
-        Ok(latest_indices)
     }
 }

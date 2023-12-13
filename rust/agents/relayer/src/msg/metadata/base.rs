@@ -292,14 +292,10 @@ impl BaseMetadataBuilder {
             .await
     }
 
-    // here
     pub async fn build_checkpoint_syncer(
         &self,
-        _message: &HyperlaneMessage,
         validators: &[H256],
         app_context: Option<String>,
-        // get_latest_index_gauge: Option<fn (validator: H256) -> IntGauge>,
-        // get_latest_index_gauge: Option<impl Fn(H256) -> GenericGauge<AtomicI64>>,
     ) -> Result<MultisigCheckpointSyncer> {
         let storage_locations = self
             .origin_validator_announce

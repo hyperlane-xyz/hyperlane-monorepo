@@ -54,7 +54,8 @@ pub struct CoreMetrics {
     /// Set of provider-specific metrics. These only need to get created once.
     provider_metrics: OnceLock<MiddlewareMetrics>,
 
-    pub validator_metrics: ValidatorMetricManager,
+    /// Metrics that are used to observe metrics for sets of validators.
+    pub validator_metrics: ValidatorObservabilityMetricManager,
 }
 
 impl CoreMetrics {
@@ -192,7 +193,9 @@ impl CoreMetrics {
             json_rpc_client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
 
-            validator_metrics: ValidatorMetricManager::new(validator_checkpoint_index.clone()),
+            validator_metrics: ValidatorObservabilityMetricManager::new(
+                validator_checkpoint_index.clone(),
+            ),
         })
     }
 
@@ -489,16 +492,13 @@ struct Key {
     app_context: String,
 }
 
-pub struct ValidatorMetricManager {
-    // metrics: Arc<CoreMetrics>,
+pub struct ValidatorObservabilityMetricManager {
     validator_checkpoint_index: IntGaugeVec,
 
     app_context_validators: RwLock<HashMap<Key, HashSet<H160>>>,
-    // origin: HyperlaneDomain,
-    // destination: HyperlaneDomain,
 }
 
-impl ValidatorMetricManager {
+impl ValidatorObservabilityMetricManager {
     fn new(
         validator_checkpoint_index: IntGaugeVec,
         // origin: HyperlaneDomain,
@@ -512,12 +512,14 @@ impl ValidatorMetricManager {
         }
     }
 
+    /// Updates the metrics with the latest checkpoint index for each validator
+    /// in a given set.
     pub async fn set_validator_latest_checkpoints(
         &self,
         origin: HyperlaneDomain,
         destination: HyperlaneDomain,
         app_context: String,
-        latest_checkpoints: &HashMap<H160, u32>,
+        latest_checkpoints: &HashMap<H160, Option<u32>>,
     ) {
         {
             let app_context_validators = self.app_context_validators.read().await;
@@ -554,7 +556,7 @@ impl ValidatorMetricManager {
                         &format!("0x{:x}", validator).to_lowercase(),
                         &app_context,
                     ])
-                    .set(*latest_checkpoint as i64);
+                    .set(latest_checkpoint.map(|i| i as i64).unwrap_or(-1));
                 set.insert(*validator);
             }
             app_context_validators.insert(
