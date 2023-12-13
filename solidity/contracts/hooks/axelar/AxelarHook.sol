@@ -26,8 +26,6 @@ interface IAxelarGasService {
 }
 
 contract AxelarHook is IPostDispatchHook {
-    error MetadataSize(uint256 expected, uint256 actual);
-
     using StandardHookMetadata for bytes;
     using Message for bytes;
 
