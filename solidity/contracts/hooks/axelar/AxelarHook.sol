@@ -113,7 +113,7 @@ contract AxelarHook is IPostDispatchHook {
             quote := mload(0x20)
         }
 
-        require(quote > 0, "Custom Metadata can't be zero value");
+        require(quote > 0, "Custom Metadata cannot be zero value");
 
         return quote;
     }

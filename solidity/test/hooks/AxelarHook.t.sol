@@ -72,7 +72,7 @@ contract AxelarHookTest is Test {
     }
 
     function test_quoteDispatch_revertsWithZeroQuote() public {
-        vm.expectRevert("Custom Metadata can't be zero value");
+        vm.expectRevert("Custom Metadata cannot be zero value");
         uint256 expectedQuote = 0;
         bytes memory justRightCustomMetadata = abi.encodePacked(
             bytes32(expectedQuote)
