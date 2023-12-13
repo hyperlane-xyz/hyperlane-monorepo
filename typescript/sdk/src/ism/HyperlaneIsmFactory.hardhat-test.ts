@@ -153,7 +153,7 @@ describe('HyperlaneIsmFactory', async () => {
   }
 
   for (const type of [IsmType.ROUTING, IsmType.FALLBACK_ROUTING]) {
-    it('deploys routingIsm with correct routes', async () => {
+    it(`deploys ${type} routingIsm with correct routes`, async () => {
       exampleRoutingConfig.type = type as
         | IsmType.ROUTING
         | IsmType.FALLBACK_ROUTING;
