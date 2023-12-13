@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'solidity/**'
+      - '.github/workflows/static-analysis.yml'
 
 jobs:
   slither:
@@ -26,9 +27,6 @@ jobs:
 
       - name: yarn-install
         run: yarn install
-
-      - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
 
       - name: Static analysis
         uses: crytic/slither-action@v0.3.0
