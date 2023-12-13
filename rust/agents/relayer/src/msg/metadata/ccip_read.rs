@@ -30,7 +30,6 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-        // metric_app_context: Option<String>,
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching CcipRead metadata";
         let ism = self

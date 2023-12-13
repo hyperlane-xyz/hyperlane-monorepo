@@ -122,7 +122,6 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-        // metric_app_context: Option<String>,
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching AggregationIsm metadata";
         let ism = self
@@ -134,12 +133,11 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         let (ism_addresses, threshold) = ism.modules_and_threshold(message).await.context(CTX)?;
         let threshold = threshold as usize;
 
-        let sub_modules_and_metas = join_all(ism_addresses.iter().map(|ism_address| {
-            self.base.build_ism_and_metadata(
-                *ism_address,
-                message, /* , metric_app_context.clone()*/
-            )
-        }))
+        let sub_modules_and_metas = join_all(
+            ism_addresses
+                .iter()
+                .map(|ism_address| self.base.build_ism_and_metadata(*ism_address, message)),
+        )
         .await;
 
         // Partitions things into
