@@ -120,7 +120,7 @@ contract AxelarHook is IPostDispatchHook {
 
     function _formatPayload(
         bytes calldata message
-    ) internal returns (bytes memory) {
+    ) internal view returns (bytes memory) {
         return abi.encodePacked(GMP_CALL_CODE, message.id());
     }
 }
