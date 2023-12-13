@@ -24,7 +24,8 @@ interface IPostDispatchHook {
         ID_AUTH_ISM,
         PAUSABLE,
         PROTOCOL_FEE,
-        WORMHOLE
+        WORMHOLE,
+        AXELAR
     }
 
     /**
