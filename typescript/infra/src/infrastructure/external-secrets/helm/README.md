@@ -19,7 +19,7 @@ As of now, the GCP service account that's used by the ClusterSecretStore to acce
 
 GCP service account credentials are static and long-living, which is really unattractive. The leading alternative is workload identity, which doesn't require static and long-living credentials. For now, the GCP service account approach was used for the following reasons:
 
-1. The existing mainnet cluster does not support workload identity. It doesn't seem like a big lift to change the cluster to support workload identity, but it was desireable to avoid a disruption by making large changes to the infrastructure.
+1. The existing mainnet cluster does not support workload identity. It doesn't seem like a big lift to change the cluster to support workload identity, but it was desirable to avoid a disruption by making large changes to the infrastructure.
 2. Workload identity has some less-than-attractive features, like [identity sameness](https://cloud.google.com/kubernetes-engine/docs/concepts/workload-identity), which essentially requires putting sensitive workloads in their own GCP project.
 
 Regardless, workload identities are a more attractive long-term option, and moving to them should be relatively easy.
