@@ -32,7 +32,7 @@ jobs:
         uses: onbjerg/foundry-toolchain@v1
 
       - name: forge-build
-        run: cd solidity && forge build
+        run: cd solidity && forge build --build-info
 
       - name: Static analysis
         uses: crytic/slither-action@v0.3.0
