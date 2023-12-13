@@ -16,7 +16,7 @@ contract TestSendReceiver is IMessageRecipient {
 
     uint256 public constant HANDLE_GAS_AMOUNT = 50_000;
 
-    event Handled(bytes32 blockHash);
+    event Handled(uint256 randao);
 
     function dispatchToSelf(
         IMailbox _mailbox,
@@ -47,14 +47,12 @@ contract TestSendReceiver is IMessageRecipient {
         );
     }
 
+    // for testing random failure of handle call for the agents
+    // if randao ends in 0, fail
     function handle(uint32, bytes32, bytes calldata) external payable override {
-        bytes32 blockHash = previousBlockHash();
-        bool isBlockHashEndIn0 = uint256(blockHash) % 16 == 0;
-        require(!isBlockHashEndIn0, "block hash ends in 0");
-        emit Handled(blockHash);
-    }
-
-    function previousBlockHash() internal view returns (bytes32) {
-        return blockhash(block.number - 1);
+        uint256 randao = block.prevrandao;
+        bool doesRandaoEndIn0 = randao % 16 == 0;
+        require(!doesRandaoEndIn0, "randao ends in 0");
+        emit Handled(randao);
     }
 }
