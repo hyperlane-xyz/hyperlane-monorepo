@@ -33,7 +33,7 @@ export enum IsmType {
   TEST_ISM = 'testIsm',
 }
 
-// mapping betweent the two enums
+// mapping between the two enums
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   switch (ismType) {
     case IsmType.OP_STACK:

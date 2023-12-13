@@ -102,3 +102,17 @@ export async function pollAsync<T>(
   }
   throw saveError;
 }
+
+/**
+ * An enhanced Promise.race that returns
+ * objects with the promise itself and index
+ * instead of just the resolved value.
+ */
+export async function raceWithContext<T>(
+  promises: Array<Promise<T>>,
+): Promise<{ resolved: T; promise: Promise<T>; index: number }> {
+  const promisesWithContext = promises.map((p, i) =>
+    p.then((resolved) => ({ resolved, promise: p, index: i })),
+  );
+  return Promise.race(promisesWithContext);
+}
