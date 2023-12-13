@@ -22,13 +22,16 @@ pub struct MultisigCheckpointSyncer {
 }
 
 impl MultisigCheckpointSyncer {
+    /// Foo
     pub async fn update_validator_latest_checkpoints_metrics(
         &self,
         validators: &[H256],
         origin: HyperlaneDomain,
         destination: HyperlaneDomain,
     ) {
-        let _ = self.get_validator_latest_checkpoints(validators, origin, destination);
+        let _ = self
+            .get_validator_latest_checkpoints(validators, origin, destination)
+            .await;
     }
 
     async fn get_validator_latest_checkpoints(
@@ -70,7 +73,7 @@ impl MultisigCheckpointSyncer {
                 .await;
         }
 
-        latest_indices.values().map(|v| *v).collect()
+        latest_indices.values().copied().collect()
     }
 
     /// Attempts to get the latest checkpoint with a quorum of signatures among

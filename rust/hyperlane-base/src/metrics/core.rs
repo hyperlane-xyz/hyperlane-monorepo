@@ -3,7 +3,7 @@ use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, OnceLock};
 
 use eyre::Result;
-use hyperlane_core::{HyperlaneDomain, H160, H256};
+use hyperlane_core::{HyperlaneDomain, H160};
 use prometheus::{
     histogram_opts, labels, opts, register_counter_vec_with_registry,
     register_gauge_vec_with_registry, register_histogram_vec_with_registry,
@@ -530,8 +530,8 @@ impl ValidatorMetricManager {
                 for validator in prev_validators {
                     self.validator_checkpoint_index
                         .remove_label_values(&[
-                            &origin.to_string(),
-                            &destination.to_string(),
+                            origin.as_ref(),
+                            destination.as_ref(),
                             &format!("0x{:x}", validator).to_lowercase(),
                             &app_context,
                         ])
@@ -549,8 +549,8 @@ impl ValidatorMetricManager {
             for (validator, latest_checkpoint) in latest_checkpoints {
                 self.validator_checkpoint_index
                     .with_label_values(&[
-                        &origin.to_string(),
-                        &destination.to_string(),
+                        origin.as_ref(),
+                        destination.as_ref(),
                         &format!("0x{:x}", validator).to_lowercase(),
                         &app_context,
                     ])

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::{info, instrument};
 
-use super::{base::MessageBaseMetadataBuilder, BaseMetadataBuilder, MetadataBuilder};
+use super::{base::MessageBaseMetadataBuilder, MetadataBuilder};
 
 #[derive(Serialize, Deserialize)]
 struct OffchainResponse {
@@ -30,7 +30,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-        metric_app_context: Option<String>,
+        // metric_app_context: Option<String>,
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching CcipRead metadata";
         let ism = self

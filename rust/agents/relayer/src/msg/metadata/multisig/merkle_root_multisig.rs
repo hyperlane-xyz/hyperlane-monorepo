@@ -9,7 +9,7 @@ use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
 use tracing::debug;
 
-use crate::msg::metadata::{base::MessageBaseMetadataBuilder, BaseMetadataBuilder};
+use crate::msg::metadata::base::MessageBaseMetadataBuilder;
 
 use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 

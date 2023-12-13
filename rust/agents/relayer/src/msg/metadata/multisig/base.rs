@@ -5,7 +5,6 @@ use derive_more::{AsRef, Deref};
 use derive_new::new;
 use ethers::abi::Token;
 
-use ethers::types::H160;
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::accumulator::merkle::Proof;
@@ -14,7 +13,7 @@ use strum::Display;
 use tracing::{debug, info};
 
 use crate::msg::metadata::base::MessageBaseMetadataBuilder;
-use crate::msg::metadata::BaseMetadataBuilder;
+
 use crate::msg::metadata::MetadataBuilder;
 
 #[derive(new, AsRef, Deref)]
@@ -99,7 +98,6 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-        metric_app_context: Option<String>,
     ) -> Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching MultisigIsm metadata";
         let multisig_ism = self
@@ -119,36 +117,10 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             return Ok(None);
         }
 
-        let get_latest_index_gauge = metric_app_context.map(|app_context| {
-            move |validator: H256| {
-                let validator_address = format!("0x{:x}", H160::from(validator));
-                // let ism_address = format!("0x{:x}", ism_address);
-
-                // &["origin", "destination", "validator", "app_context", "ism_address"],
-                self.as_ref()
-                    .base
-                    .metrics
-                    .validator_checkpoint_index()
-                    .with_label_values(&[
-                        &self.as_ref().base.origin_domain.to_string(),
-                        &self
-                            .as_ref()
-                            .base
-                            .destination_chain_setup
-                            .domain
-                            .to_string(),
-                        &validator_address.to_lowercase(),
-                        &app_context,
-                        // &ism_address,
-                    ])
-            }
-        });
-        // let get_latest_index_gauge = None;
-
         let checkpoint_syncer = self
             .as_ref()
             .base
-            .build_checkpoint_syncer(message, &validators, get_latest_index_gauge)
+            .build_checkpoint_syncer(message, &validators, self.as_ref().app_context.clone())
             .await
             .context(CTX)?;
 

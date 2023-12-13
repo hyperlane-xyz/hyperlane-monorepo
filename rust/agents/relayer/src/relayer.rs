@@ -220,7 +220,7 @@ impl BaseAgent for Relayer {
                     core.metrics.clone(),
                     db,
                     5,
-                    AppContextClassifier::new(mailboxes[origin].clone()),
+                    AppContextClassifier::new(mailboxes[destination].clone()),
                 );
 
                 msg_ctxs.insert(
