@@ -197,5 +197,10 @@ describe('SmartProvider', () => {
         expect(!!result3).to.be.true;
       }).timeout(10_000);
     });
+
+    it('Reports as healthy', async () => {
+      const result = await provider.isHealthy();
+      expect(result).to.be.true;
+    });
   }
 });

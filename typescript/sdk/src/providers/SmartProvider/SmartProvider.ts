@@ -1,7 +1,12 @@
 import debug from 'debug';
 import { providers } from 'ethers';
 
-import { raceWithContext, retryAsync } from '@hyperlane-xyz/utils';
+import {
+  raceWithContext,
+  retryAsync,
+  runWithTimeout,
+  sleep,
+} from '@hyperlane-xyz/utils';
 
 import {
   BlockExplorer,
@@ -140,10 +145,44 @@ export class HyperlaneSmartProvider
   }
 
   /**
+   * Checks if this SmartProvider is healthy by checking for new blocks
+   * @param numBlocks The number of sequential blocks to check for. Default 1
+   * @param timeoutMs The maximum time to wait for the full check. Default 3000ms
+   * @returns true if the provider is healthy, false otherwise
+   */
+  async isHealthy(numBlocks = 1, timeoutMs = 3_000): Promise<boolean> {
+    try {
+      await runWithTimeout(timeoutMs, async () => {
+        let previousBlockNumber = 0;
+        let i = 1;
+        while (i <= numBlocks) {
+          const block = await this.getBlock('latest');
+          if (block.number > previousBlockNumber) {
+            i += 1;
+            previousBlockNumber = block.number;
+          } else {
+            await sleep(500);
+          }
+        }
+        return true;
+      });
+      return true;
+    } catch (error) {
+      this.logger('Provider is unhealthy', error);
+      return false;
+    }
+  }
+
+  isExplorerProvider(p: HyperlaneProvider): p is HyperlaneEtherscanProvider {
+    return this.explorerProviders.includes(p as any);
+  }
+
+  /**
    * This perform method will trigger any providers that support the method
    * one at a time in preferential order. If one is slow to respond, the next is triggered.
+   * TODO: Consider adding a quorum option that requires a certain number of providers to agree
    */
-  async performWithFallback(
+  protected async performWithFallback(
     method: string,
     params: { [name: string]: any },
     providers: Array<HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider>,
@@ -241,9 +280,6 @@ export class HyperlaneSmartProvider
     }
   }
 
-  isExplorerProvider(p: HyperlaneProvider): p is HyperlaneEtherscanProvider {
-    return this.explorerProviders.includes(p as any);
-  }
   // Warp for additional logging and error handling
   protected async wrapProviderPerform(
     provider: HyperlaneProvider,

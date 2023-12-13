@@ -42,6 +42,7 @@ describe('SmartProvider', async () => {
 
   it('Handles multiple requests', async () => {
     const [
+      isHealthy,
       blockNum,
       block,
       balance,
@@ -52,6 +53,7 @@ describe('SmartProvider', async () => {
       network,
       logs,
     ] = await Promise.all([
+      smartProvider.isHealthy(),
       smartProvider.getBlockNumber(),
       smartProvider.getBlock(1),
       smartProvider.getBalance(signer.address),
@@ -67,6 +69,7 @@ describe('SmartProvider', async () => {
       }),
     ]);
 
+    expect(isHealthy).to.be.true;
     expect(blockNum).to.greaterThan(0);
     expect(block.number).to.equal(1);
     expect(balance.toBigInt() > 0).to.be.true;
