@@ -385,8 +385,12 @@ impl ChainConf {
                 .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => {
-                let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new());
+            ChainConnectionConf::Sealevel(conf) => {
+                let mailbox_indexer =
+                    Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new(
+                    *mailbox_indexer,
+                ));
                 Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
