@@ -27,7 +27,7 @@ jobs:
         run: yarn install
 
       - name: yarn-build
-        run: $ yarn workspace @hyperlane-xyz/core build
+        run: yarn workspace @hyperlane-xyz/core build
 
       - name: Static analysis
         uses: crytic/slither-action@v0.3.0
