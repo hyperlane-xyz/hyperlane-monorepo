@@ -211,12 +211,22 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           mailbox,
         )
       : {
-          isOwner: false,
           domainsToUnenroll: [],
           domainsToEnroll: Object.keys(config.domains),
         };
+
+    const signer = this.multiProvider.getSigner(destination);
+    const provider = this.multiProvider.getProvider(destination);
+    let isOwner = false;
+    if (existingIsmAddress) {
+      const owner = await DomainRoutingIsm__factory.connect(
+        existingIsmAddress,
+        provider,
+      ).owner();
+      isOwner = eqAddress(await signer.getAddress(), owner);
+    }
     // reconfiguring existing routing ISM
-    if (existingIsmAddress && delta.isOwner && !delta.mailbox) {
+    if (existingIsmAddress && isOwner && !delta.mailbox) {
       const isms: ChainMap<Address> = {};
       routingIsm = DomainRoutingIsm__factory.connect(
         existingIsmAddress,
@@ -320,6 +330,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             (log): log is ethers.utils.LogDescription =>
               !!log && log.name === 'ModuleDeployed',
           );
+        if (dispatchLogs.length === 0) {
+          throw new Error('No ModuleDeployed event found');
+        }
         const moduleAddress = dispatchLogs[0].args['module'];
         routingIsm = DomainRoutingIsm__factory.connect(
           moduleAddress,
@@ -672,7 +685,6 @@ export async function routingModuleDelta(
   contracts: HyperlaneContracts<ProxyFactoryFactories>,
   mailbox?: Address,
 ): Promise<RoutingIsmDelta> {
-  const signer = multiProvider.getSigner(destination);
   const provider = multiProvider.getProvider(destination);
   const routingIsm = DomainRoutingIsm__factory.connect(moduleAddress, provider);
   const owner = await routingIsm.owner();
@@ -681,7 +693,6 @@ export async function routingModuleDelta(
   );
 
   const delta: RoutingIsmDelta = {
-    isOwner: eqAddress(await signer.getAddress(), owner),
     domainsToUnenroll: [],
     domainsToEnroll: [],
   };
@@ -700,8 +711,9 @@ export async function routingModuleDelta(
   );
   // check for inclusion of domains in the config
   for (const [origin, subConfig] of Object.entries(config.domains)) {
-    if (!deployedDomains.includes(origin)) delta.domainsToEnroll.push(origin);
-    else {
+    if (!deployedDomains.includes(origin)) {
+      delta.domainsToEnroll.push(origin);
+    } else {
       const subModule = await routingIsm.module(
         multiProvider.getDomainId(origin),
       );

@@ -104,10 +104,10 @@ export type DeployedIsmType = {
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;
 
+// for finding the difference between the onchain deployment and the config provided
 export type RoutingIsmDelta = {
-  domainsToUnenroll: ChainName[];
-  domainsToEnroll: ChainName[];
-  owner?: Address;
-  mailbox?: Address;
-  isOwner: boolean;
+  domainsToUnenroll: ChainName[]; // new or updated isms for the domain
+  domainsToEnroll: ChainName[]; // isms to remove
+  owner?: Address; // is the owner different
+  mailbox?: Address; // is the mailbox different (only for fallback routing)
 };
