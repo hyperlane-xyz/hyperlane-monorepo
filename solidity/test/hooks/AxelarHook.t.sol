@@ -5,12 +5,14 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
 import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
+import {BridgeAggregationHookMetadata} from "../../contracts/hooks/libs/BridgeAggregationHookMetadata.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
 import {AxelarHook} from "../../contracts/hooks/Axelar/AxelarHook.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 
 contract AxelarHookTest is Test {
     using StandardHookMetadata for bytes;
+    using BridgeAggregationHookMetadata for bytes;
     using TypeCasts for address;
     AxelarHook hook;
 
@@ -41,7 +43,7 @@ contract AxelarHookTest is Test {
     }
 
     function test_quoteDispatch_revertsWithNoMetadata() public {
-        vm.expectRevert("Empty custom metadata. Axelar needs payment.");
+        vm.expectRevert("No Axelar Payment Received");
 
         bytes memory emptyCustomMetadata;
         bytes memory testMetadata = StandardHookMetadata.formatMetadata(
@@ -54,29 +56,11 @@ contract AxelarHookTest is Test {
         hook.quoteDispatch(testMetadata, testMessage);
     }
 
-    function test_quoteDispatch_revertsWithTooLargeMetadata() public {
-        vm.expectRevert("Custom metadata is too large");
-        // tooLargeCustomMetadata becomes 33 bytes long after packing
-        bytes memory tooLargeCustomMetadata = abi.encodePacked(
-            bytes32(uint256(100)),
-            bytes1(uint8(1))
-        );
-        bytes memory testMetadata = StandardHookMetadata.formatMetadata(
-            100,
-            100,
-            msg.sender,
-            tooLargeCustomMetadata
-        );
-
-        hook.quoteDispatch(testMetadata, testMessage);
-    }
-
     function test_quoteDispatch_revertsWithZeroQuote() public {
-        vm.expectRevert("Custom Metadata cannot be zero value");
+        vm.expectRevert("No Axelar Payment Received");
         uint256 expectedQuote = 0;
-        bytes memory justRightCustomMetadata = abi.encodePacked(
-            bytes32(expectedQuote)
-        );
+        bytes memory justRightCustomMetadata = BridgeAggregationHookMetadata
+            .formatMetadata(expectedQuote, 0, abi.encodePacked());
         bytes memory testMetadata = StandardHookMetadata.formatMetadata(
             100,
             100,
@@ -89,9 +73,8 @@ contract AxelarHookTest is Test {
 
     function test_quoteDispatch_ReturnsSmallQuote() public {
         uint256 expectedQuote = 1;
-        bytes memory justRightCustomMetadata = abi.encodePacked(
-            bytes32(expectedQuote)
-        );
+        bytes memory justRightCustomMetadata = BridgeAggregationHookMetadata
+            .formatMetadata(expectedQuote, 0, abi.encodePacked());
         bytes memory testMetadata = StandardHookMetadata.formatMetadata(
             100,
             100,
@@ -106,9 +89,8 @@ contract AxelarHookTest is Test {
     function test_quoteDispatch_ReturnsLargeQuote() public {
         // type(uint256).max = 115792089237316195423570985008687907853269984665640564039457584007913129639935. that's a big quote
         uint256 expectedQuote = type(uint256).max;
-        bytes memory justRightCustomMetadata = abi.encodePacked(
-            bytes32(expectedQuote)
-        );
+        bytes memory justRightCustomMetadata = BridgeAggregationHookMetadata
+            .formatMetadata(expectedQuote, 0, abi.encodePacked());
         bytes memory testMetadata = StandardHookMetadata.formatMetadata(
             100,
             100,

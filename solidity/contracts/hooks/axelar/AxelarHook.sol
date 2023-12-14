@@ -4,6 +4,8 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
+import {BridgeAggregationHookMetadata} from "../libs/BridgeAggregationHookMetadata.sol";
+
 import {Message} from "../../libs/Message.sol";
 
 //TODO: remove temp intermal import. for testing speed purposes only
@@ -27,26 +29,27 @@ interface IAxelarGasService {
 
 contract AxelarHook is IPostDispatchHook {
     using StandardHookMetadata for bytes;
+    using BridgeAggregationHookMetadata for bytes;
     using Message for bytes;
 
     IAxelarGasService public immutable AXELAR_GAS_SERVICE;
     IAxelarGateway public immutable AXELAR_GATEWAY;
     string public DESTINATION_CHAIN;
     string public DESTINATION_CONTRACT;
-    bytes GMP_CALL_CODE;
+    bytes GMP_CALL_DATA;
 
     constructor(
         string memory destinationChain,
         string memory destionationContract,
         address axelarGateway,
         address axelarGasReceiver,
-        bytes memory gmp_call_code
+        bytes memory gmp_call_data
     ) {
         DESTINATION_CHAIN = destinationChain;
         DESTINATION_CONTRACT = destionationContract;
         AXELAR_GATEWAY = IAxelarGateway(axelarGateway);
         AXELAR_GAS_SERVICE = IAxelarGasService(axelarGasReceiver);
-        GMP_CALL_CODE = gmp_call_code;
+        GMP_CALL_DATA = gmp_call_data;
     }
 
     /**
@@ -89,31 +92,16 @@ contract AxelarHook is IPostDispatchHook {
     /**
      * @notice Post action after a message is dispatched via the Mailbox
      * @param metadata The metadata required for the hook. Metadata should contain custom metadata
-     *                 for the gas amount owed to the Axelar Gas Service.
+     *                 adhering to the BridgeAggregationHookMetadata structure.
      */
     function quoteDispatch(
         bytes calldata metadata,
         bytes calldata
     ) external pure returns (uint256) {
-        bytes calldata customMetadata = metadata.getCustomMetadata();
-        // Ensure that the custom metadata is of the correct size
+        bytes calldata bridgeMetadata = metadata.getCustomMetadata();
 
-        require(customMetadata.length <= 32, "Custom metadata is too large");
-        require(
-            customMetadata.length > 0,
-            "Empty custom metadata. Axelar needs payment."
-        );
-
-        uint256 quote;
-        assembly {
-            // Copy the custom metadata to memory
-            // The '0x20' adds an offset for the length field in memory
-            calldatacopy(0x20, customMetadata.offset, customMetadata.length)
-            // Load the data from memory into 'number'
-            quote := mload(0x20)
-        }
-
-        require(quote > 0, "Custom Metadata cannot be zero value");
+        uint256 quote = bridgeMetadata.axelarGasPayment();
+        require(quote > 0, "No Axelar Payment Received");
 
         return quote;
     }
@@ -121,6 +109,6 @@ contract AxelarHook is IPostDispatchHook {
     function _formatPayload(
         bytes calldata message
     ) internal view returns (bytes memory) {
-        return abi.encodePacked(GMP_CALL_CODE, message.id());
+        return abi.encodePacked(GMP_CALL_DATA, message.id());
     }
 }
