@@ -53,7 +53,7 @@ pub struct CoreMetrics {
     /// Set of provider-specific metrics. These only need to get created once.
     provider_metrics: OnceLock<MiddlewareMetrics>,
 
-    /// Metrics that are used to observe metrics for sets of validators.
+    /// Metrics that are used to observe validator sets.
     pub validator_metrics: ValidatorObservabilityMetricManager,
 }
 
