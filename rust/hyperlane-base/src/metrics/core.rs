@@ -39,7 +39,7 @@ pub struct CoreMetrics {
     span_counts: IntCounterVec,
     span_events: IntCounterVec,
     last_known_message_nonce: IntGaugeVec,
-    validator_checkpoint_index: IntGaugeVec,
+    observed_validator_latest_index: IntGaugeVec,
     submitter_queue_length: IntGaugeVec,
 
     operations_processed_count: IntCounterVec,
@@ -114,19 +114,17 @@ impl CoreMetrics {
             registry
         )?;
 
-        let validator_checkpoint_index = register_int_gauge_vec_with_registry!(
+        let observed_validator_latest_index = register_int_gauge_vec_with_registry!(
             opts!(
-                namespaced!("validator_checkpoint_index"),
-                "Observed signed checkpoint indices per validator",
+                namespaced!("observed_validator_latest_index"),
+                "The latest observed latest signed checkpoint indices per validator, from the perspective of the relayer",
                 const_labels_ref
             ),
-            // &["origin", "validator", "app_context"],
             &[
                 "origin",
                 "destination",
                 "validator",
                 "app_context",
-                // "ism_address"
             ],
             registry
         )?;
@@ -181,7 +179,7 @@ impl CoreMetrics {
             span_counts,
             span_events,
             last_known_message_nonce,
-            validator_checkpoint_index: validator_checkpoint_index.clone(),
+            observed_validator_latest_index: observed_validator_latest_index.clone(),
 
             submitter_queue_length,
 
@@ -194,7 +192,7 @@ impl CoreMetrics {
             provider_metrics: OnceLock::new(),
 
             validator_metrics: ValidatorObservabilityMetricManager::new(
-                validator_checkpoint_index.clone(),
+                observed_validator_latest_index.clone(),
             ),
         })
     }
@@ -318,8 +316,8 @@ impl CoreMetrics {
     /// Labels:
     /// - `origin`: Origin chain
     /// - `validator`: Address of the validator
-    pub fn validator_checkpoint_index(&self) -> IntGaugeVec {
-        self.validator_checkpoint_index.clone()
+    pub fn observed_validator_latest_index(&self) -> IntGaugeVec {
+        self.observed_validator_latest_index.clone()
     }
 
     /// Latest message nonce in the validator.
@@ -494,15 +492,15 @@ struct AppContextKey {
 
 /// Manages metrics for observing sets of validators.
 pub struct ValidatorObservabilityMetricManager {
-    validator_checkpoint_index: IntGaugeVec,
+    observed_validator_latest_index: IntGaugeVec,
 
     app_context_validators: RwLock<HashMap<AppContextKey, HashSet<H160>>>,
 }
 
 impl ValidatorObservabilityMetricManager {
-    fn new(validator_checkpoint_index: IntGaugeVec) -> Self {
+    fn new(observed_validator_latest_index: IntGaugeVec) -> Self {
         Self {
-            validator_checkpoint_index,
+            observed_validator_latest_index,
             app_context_validators: RwLock::new(HashMap::new()),
         }
     }
@@ -527,7 +525,7 @@ impl ValidatorObservabilityMetricManager {
         // First, clear out all previous metrics for the app context
         if let Some(prev_validators) = app_context_validators.get(&key) {
             for validator in prev_validators {
-                self.validator_checkpoint_index
+                self.observed_validator_latest_index
                     .remove_label_values(&[
                         origin.as_ref(),
                         destination.as_ref(),
@@ -542,7 +540,7 @@ impl ValidatorObservabilityMetricManager {
 
         // Then set the new metrics
         for (validator, latest_checkpoint) in latest_checkpoints {
-            self.validator_checkpoint_index
+            self.observed_validator_latest_index
                 .with_label_values(&[
                     origin.as_ref(),
                     destination.as_ref(),

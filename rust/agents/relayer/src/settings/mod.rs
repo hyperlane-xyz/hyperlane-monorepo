@@ -54,7 +54,7 @@ pub struct RelayerSettings {
     /// If true, allows local storage based checkpoint syncers.
     /// Not intended for production use.
     pub allow_local_checkpoint_syncers: bool,
-    /// App contexts uses for metrics.
+    /// App contexts used for metrics.
     pub metric_app_contexts: Vec<(MatchingList, String)>,
 }
 
@@ -275,7 +275,6 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
 fn parse_json_array(p: ValueParser) -> Option<(ConfigPath, Value)> {
     let mut err = ConfigParsingError::default();
 
-    // let (raw_metric_app_contexts_path, raw_metric_app_contexts) =
     match p {
         ValueParser {
             val: Value::String(policy_str),

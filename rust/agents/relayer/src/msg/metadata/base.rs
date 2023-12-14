@@ -137,12 +137,6 @@ pub struct MessageMetadataBuilder {
     pub app_context: Option<String>,
 }
 
-impl AsRef<BaseMetadataBuilder> for MessageMetadataBuilder {
-    fn as_ref(&self) -> &BaseMetadataBuilder {
-        &self.base
-    }
-}
-
 impl Deref for MessageMetadataBuilder {
     type Target = BaseMetadataBuilder;
 
@@ -235,8 +229,8 @@ impl Debug for BaseMetadataBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "MetadataBuilder {{ chain_setup: {:?}, validator_announce: {:?} }}",
-            self.destination_chain_setup, self.origin_validator_announce
+            "BaseMetadataBuilder {{ origin_domain: {:?} destination_chain_setup: {:?}, validator_announce: {:?} }}",
+            self.origin_domain, self.destination_chain_setup, self.origin_validator_announce
         )
     }
 }
