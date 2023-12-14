@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {Test} from "forge-std/Test.sol";
+import "forge-std/console.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {TestSendReceiver} from "../../contracts/test/TestSendReceiver.sol";
@@ -91,15 +92,19 @@ contract TestSendReceiverTest is Test {
         );
     }
 
-    event Handled(uint256 randao);
+    event Handled(bytes32 blockhash);
 
-    function testHandle(bytes32 randao) public {
-        vm.prevrandao(randao);
-        if (block.prevrandao % 16 == 0) {
-            vm.expectRevert("randao ends in 0");
+    function testHandle(uint256 blockNumber) public {
+        vm.assume(blockNumber > 0);
+        vm.roll(blockNumber);
+
+        // blockhash(n) = n for forge tests
+        // previousBlockHash() = blockhash(n-1) = n-1
+        if (blockNumber % 16 == 1) {
+            vm.expectRevert("block hash ends in 0"); // blockhash(n-1) ends in 0
         } else {
-            vm.expectEmit(true, true, true, false, address(testSendReceiver));
-            emit Handled(block.prevrandao);
+            vm.expectEmit(true, true, true, false, address(testSendReceiver)); // Process
+            emit Handled(bytes32(blockNumber - 1));
         }
         testSendReceiver.handle(
             0,
