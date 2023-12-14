@@ -26,8 +26,8 @@ impl MultisigCheckpointSyncer {
     pub async fn update_validator_latest_checkpoints_metrics(
         &self,
         validators: &[H256],
-        origin: HyperlaneDomain,
-        destination: HyperlaneDomain,
+        origin: &HyperlaneDomain,
+        destination: &HyperlaneDomain,
     ) {
         let _ = self
             .get_validator_latest_checkpoints(validators, origin, destination)
@@ -41,8 +41,8 @@ impl MultisigCheckpointSyncer {
     async fn get_validator_latest_checkpoints(
         &self,
         validators: &[H256],
-        origin: HyperlaneDomain,
-        destination: HyperlaneDomain,
+        origin: &HyperlaneDomain,
+        destination: &HyperlaneDomain,
     ) -> Vec<u32> {
         // Get the latest_index from each validator's checkpoint syncer.
         // If a validator does not return a latest index, None is recorded so
@@ -110,8 +110,8 @@ impl MultisigCheckpointSyncer {
         threshold: usize,
         minimum_index: u32,
         maximum_index: u32,
-        origin: HyperlaneDomain,
-        destination: HyperlaneDomain,
+        origin: &HyperlaneDomain,
+        destination: &HyperlaneDomain,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
         let mut latest_indices = self
             .get_validator_latest_checkpoints(validators, origin, destination)

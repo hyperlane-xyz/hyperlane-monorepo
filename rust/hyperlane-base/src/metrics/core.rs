@@ -511,8 +511,8 @@ impl ValidatorObservabilityMetricManager {
     /// in a given set.
     pub async fn set_validator_latest_checkpoints(
         &self,
-        origin: HyperlaneDomain,
-        destination: HyperlaneDomain,
+        origin: &HyperlaneDomain,
+        destination: &HyperlaneDomain,
         app_context: String,
         latest_checkpoints: &HashMap<H160, Option<u32>>,
     ) {

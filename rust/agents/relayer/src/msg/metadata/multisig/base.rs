@@ -12,7 +12,7 @@ use hyperlane_core::{HyperlaneMessage, MultisigSignedCheckpoint, H256};
 use strum::Display;
 use tracing::{debug, info};
 
-use crate::msg::metadata::base::MessageBaseMetadataBuilder;
+use crate::msg::metadata::base::MessageMetadataBuilder;
 
 use crate::msg::metadata::MetadataBuilder;
 
@@ -37,7 +37,7 @@ pub enum MetadataToken {
 }
 
 #[async_trait]
-pub trait MultisigIsmMetadataBuilder: AsRef<MessageBaseMetadataBuilder> + Send + Sync {
+pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Sync {
     async fn fetch_metadata(
         &self,
         validators: &[H256],

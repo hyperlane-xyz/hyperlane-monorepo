@@ -128,7 +128,7 @@ impl AppContextClassifier {
 }
 
 #[derive(Debug, Clone)]
-pub struct MessageBaseMetadataBuilder {
+pub struct MessageMetadataBuilder {
     pub message: HyperlaneMessage,
     pub base: BaseMetadataBuilder,
     /// ISMs can be structured recursively. We keep track of the depth
@@ -137,13 +137,13 @@ pub struct MessageBaseMetadataBuilder {
     pub app_context: Option<String>,
 }
 
-impl AsRef<BaseMetadataBuilder> for MessageBaseMetadataBuilder {
+impl AsRef<BaseMetadataBuilder> for MessageMetadataBuilder {
     fn as_ref(&self) -> &BaseMetadataBuilder {
         &self.base
     }
 }
 
-impl Deref for MessageBaseMetadataBuilder {
+impl Deref for MessageMetadataBuilder {
     type Target = BaseMetadataBuilder;
 
     fn deref(&self) -> &Self::Target {
@@ -152,8 +152,8 @@ impl Deref for MessageBaseMetadataBuilder {
 }
 
 #[async_trait]
-impl MetadataBuilder for MessageBaseMetadataBuilder {
-    #[instrument(err, skip(self), fields(domain=self.domain().name()))]
+impl MetadataBuilder for MessageMetadataBuilder {
+    #[instrument(err, skip(self), fields(destination_domain=self.destination_domain().name()))]
     async fn build(
         &self,
         ism_address: H256,
@@ -165,8 +165,8 @@ impl MetadataBuilder for MessageBaseMetadataBuilder {
     }
 }
 
-impl MessageBaseMetadataBuilder {
-    fn clone_with_incremented_depth(&self) -> Result<MessageBaseMetadataBuilder> {
+impl MessageMetadataBuilder {
+    fn clone_with_incremented_depth(&self) -> Result<MessageMetadataBuilder> {
         let mut cloned = self.clone();
         cloned.depth += 1;
         if cloned.depth > cloned.max_depth {
@@ -176,7 +176,7 @@ impl MessageBaseMetadataBuilder {
         }
     }
 
-    #[instrument(err, skip(self), fields(domain=self.domain().name()))]
+    #[instrument(err, skip(self), fields(destination_domain=self.destination_domain().name()))]
     pub async fn build_ism_and_metadata(
         &self,
         ism_address: H256,
@@ -220,12 +220,12 @@ impl MessageBaseMetadataBuilder {
 
 #[derive(Clone, new)]
 pub struct BaseMetadataBuilder {
-    pub(crate) origin_domain: HyperlaneDomain,
-    pub(crate) destination_chain_setup: ChainConf,
+    origin_domain: HyperlaneDomain,
+    destination_chain_setup: ChainConf,
     origin_prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     origin_validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,
-    pub(crate) metrics: Arc<CoreMetrics>,
+    metrics: Arc<CoreMetrics>,
     db: HyperlaneRocksDB,
     max_depth: u32,
     app_context_classifier: AppContextClassifier,
@@ -242,7 +242,11 @@ impl Debug for BaseMetadataBuilder {
 }
 
 impl BaseMetadataBuilder {
-    pub fn domain(&self) -> &HyperlaneDomain {
+    pub fn origin_domain(&self) -> &HyperlaneDomain {
+        &self.origin_domain
+    }
+
+    pub fn destination_domain(&self) -> &HyperlaneDomain {
         &self.destination_chain_setup.domain
     }
 
@@ -380,8 +384,8 @@ impl BaseMetadataBuilder {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-    ) -> Result<MessageBaseMetadataBuilder> {
-        Ok(MessageBaseMetadataBuilder {
+    ) -> Result<MessageMetadataBuilder> {
+        Ok(MessageMetadataBuilder {
             message: message.clone(),
             base: self.clone(),
             depth: 0,
