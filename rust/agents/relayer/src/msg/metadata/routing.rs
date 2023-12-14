@@ -23,6 +23,6 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
         const CTX: &str = "When fetching RoutingIsm metadata";
         let ism = self.build_routing_ism(ism_address).await.context(CTX)?;
         let module = ism.route(message).await.context(CTX)?;
-        self.build(module, message).await.context(CTX)
+        self.base.build(module, message).await.context(CTX)
     }
 }

@@ -131,7 +131,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         let sub_modules_and_metas = join_all(
             ism_addresses
                 .iter()
-                .map(|ism_address| self.build_ism_and_metadata(*ism_address, message)),
+                .map(|ism_address| self.base.build_ism_and_metadata(*ism_address, message)),
         )
         .await;
 
