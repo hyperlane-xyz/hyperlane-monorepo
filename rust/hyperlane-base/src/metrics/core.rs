@@ -486,29 +486,24 @@ impl Debug for CoreMetrics {
 }
 
 #[derive(Debug, Eq, PartialEq, Hash)]
-struct Key {
+struct AppContextKey {
     origin: HyperlaneDomain,
     destination: HyperlaneDomain,
     app_context: String,
 }
 
+/// Manages metrics for observing sets of validators.
 pub struct ValidatorObservabilityMetricManager {
     validator_checkpoint_index: IntGaugeVec,
 
-    app_context_validators: RwLock<HashMap<Key, HashSet<H160>>>,
+    app_context_validators: RwLock<HashMap<AppContextKey, HashSet<H160>>>,
 }
 
 impl ValidatorObservabilityMetricManager {
-    fn new(
-        validator_checkpoint_index: IntGaugeVec,
-        // origin: HyperlaneDomain,
-        // destination: HyperlaneDomain,
-    ) -> Self {
+    fn new(validator_checkpoint_index: IntGaugeVec) -> Self {
         Self {
             validator_checkpoint_index,
             app_context_validators: RwLock::new(HashMap::new()),
-            // origin,
-            // destination,
         }
     }
 
@@ -521,52 +516,42 @@ impl ValidatorObservabilityMetricManager {
         app_context: String,
         latest_checkpoints: &HashMap<H160, Option<u32>>,
     ) {
-        {
-            let app_context_validators = self.app_context_validators.read().await;
-            // First, clear out all previous metrics for the app context
-            if let Some(prev_validators) = app_context_validators.get(&Key {
-                origin: origin.clone(),
-                destination: destination.clone(),
-                app_context: app_context.clone(),
-            }) {
-                for validator in prev_validators {
-                    self.validator_checkpoint_index
-                        .remove_label_values(&[
-                            origin.as_ref(),
-                            destination.as_ref(),
-                            &format!("0x{:x}", validator).to_lowercase(),
-                            &app_context,
-                        ])
-                        .unwrap();
-                }
-            }
-        }
+        let key = AppContextKey {
+            origin: origin.clone(),
+            destination: destination.clone(),
+            app_context: app_context.clone(),
+        };
 
-        {
-            let mut app_context_validators = self.app_context_validators.write().await;
+        let mut app_context_validators = self.app_context_validators.write().await;
 
-            let mut set = HashSet::new();
-
-            // Then set the new metrics
-            for (validator, latest_checkpoint) in latest_checkpoints {
+        // First, clear out all previous metrics for the app context
+        if let Some(prev_validators) = app_context_validators.get(&key) {
+            for validator in prev_validators {
                 self.validator_checkpoint_index
-                    .with_label_values(&[
+                    .remove_label_values(&[
                         origin.as_ref(),
                         destination.as_ref(),
                         &format!("0x{:x}", validator).to_lowercase(),
                         &app_context,
                     ])
-                    .set(latest_checkpoint.map(|i| i as i64).unwrap_or(-1));
-                set.insert(*validator);
+                    .unwrap();
             }
-            app_context_validators.insert(
-                Key {
-                    origin,
-                    destination,
-                    app_context,
-                },
-                set,
-            );
         }
+
+        let mut set = HashSet::new();
+
+        // Then set the new metrics
+        for (validator, latest_checkpoint) in latest_checkpoints {
+            self.validator_checkpoint_index
+                .with_label_values(&[
+                    origin.as_ref(),
+                    destination.as_ref(),
+                    &format!("0x{:x}", validator).to_lowercase(),
+                    &app_context,
+                ])
+                .set(latest_checkpoint.map(|i| i as i64).unwrap_or(-1));
+            set.insert(*validator);
+        }
+        app_context_validators.insert(key, set);
     }
 }

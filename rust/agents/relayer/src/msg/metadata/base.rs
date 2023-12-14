@@ -93,10 +93,13 @@ pub struct AppContextClassifier {
 }
 
 impl AppContextClassifier {
-    pub fn new(destination_mailbox: Arc<dyn Mailbox>) -> Self {
+    pub fn new(
+        destination_mailbox: Arc<dyn Mailbox>,
+        app_matching_lists: Vec<(MatchingList, String)>,
+    ) -> Self {
         Self {
             default_ism: DefaultIsmCache::new(destination_mailbox),
-            app_matching_lists: vec![],
+            app_matching_lists,
         }
     }
 
@@ -105,16 +108,20 @@ impl AppContextClassifier {
         message: &HyperlaneMessage,
         root_ism: H256,
     ) -> Result<Option<String>> {
-        let default_ism = self.default_ism.get().await?;
-        if root_ism == default_ism {
-            return Ok(Some("default_ism".to_string()));
-        }
-
+        // Give priority to the matching list. If the app from the matching list happens
+        // to use the default ISM, it's preferable to use the app context from the matching
+        // list.
         for (matching_list, app_context) in self.app_matching_lists.iter() {
             if matching_list.msg_matches(message, false) {
                 return Ok(Some(app_context.clone()));
             }
         }
+
+        let default_ism = self.default_ism.get().await?;
+        if root_ism == default_ism {
+            return Ok(Some("default_ism".to_string()));
+        }
+
         Ok(None)
     }
 }

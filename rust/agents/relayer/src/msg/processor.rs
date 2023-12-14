@@ -265,7 +265,7 @@ mod test {
             Arc::new(core_metrics),
             db.clone(),
             5,
-            AppContextClassifier::new(Arc::new(MockMailboxContract::default())),
+            AppContextClassifier::new(Arc::new(MockMailboxContract::default()), vec![]),
         )
     }
 
