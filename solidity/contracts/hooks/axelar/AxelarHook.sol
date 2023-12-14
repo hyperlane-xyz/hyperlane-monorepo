@@ -73,9 +73,9 @@ contract AxelarHook is IPostDispatchHook, MailboxClient {
         bytes calldata metadata,
         bytes calldata message
     ) external payable {
-        // ensure messages which were not dispatched are not inserted into the tree
+        // ensure hook only dispatches messages that are dispatched by the mailbox
         bytes32 id = message.id();
-        require(_isLatestDispatched(id), "message not dispatching");
+        require(_isLatestDispatched(id), "message not dispatched by mailbox");
 
         bytes memory axelarPayload = _formatPayload(message);
         // Pay for gas used by Axelar with ETH
