@@ -129,8 +129,7 @@ impl AppContextClassifier {
 
 #[derive(Debug, Clone)]
 pub struct MessageMetadataBuilder {
-    pub message: HyperlaneMessage,
-    pub base: BaseMetadataBuilder,
+    pub base: Arc<BaseMetadataBuilder>,
     /// ISMs can be structured recursively. We keep track of the depth
     /// of the recursion to avoid infinite loops.
     pub depth: u32,
@@ -160,6 +159,22 @@ impl MetadataBuilder for MessageMetadataBuilder {
 }
 
 impl MessageMetadataBuilder {
+    pub async fn new(
+        ism_address: H256,
+        message: &HyperlaneMessage,
+        base: Arc<BaseMetadataBuilder>,
+    ) -> Result<Self> {
+        let app_context = base
+            .app_context_classifier
+            .get_app_context(message, ism_address)
+            .await?;
+        Ok(Self {
+            base,
+            depth: 0,
+            app_context,
+        })
+    }
+
     fn clone_with_incremented_depth(&self) -> Result<MessageMetadataBuilder> {
         let mut cloned = self.clone();
         cloned.depth += 1;
@@ -372,21 +387,5 @@ impl BaseMetadataBuilder {
             self.metrics.clone(),
             app_context,
         ))
-    }
-
-    pub async fn message_metadata_builder(
-        &self,
-        ism_address: H256,
-        message: &HyperlaneMessage,
-    ) -> Result<MessageMetadataBuilder> {
-        Ok(MessageMetadataBuilder {
-            message: message.clone(),
-            base: self.clone(),
-            depth: 0,
-            app_context: self
-                .app_context_classifier
-                .get_app_context(message, ism_address)
-                .await?,
-        })
     }
 }

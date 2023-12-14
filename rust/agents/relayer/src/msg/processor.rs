@@ -281,7 +281,7 @@ mod test {
         let message_context = Arc::new(MessageContext {
             destination_mailbox: Arc::new(MockMailboxContract::default()),
             origin_db: db.clone(),
-            metadata_builder: base_metadata_builder,
+            metadata_builder: Arc::new(base_metadata_builder),
             origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new([], db.clone())),
             transaction_gas_limit: Default::default(),
             metrics: dummy_submission_metrics(),

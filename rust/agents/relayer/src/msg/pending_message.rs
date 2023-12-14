@@ -14,7 +14,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 
 use super::{
     gas_payment::GasPaymentEnforcer,
-    metadata::{BaseMetadataBuilder, MetadataBuilder},
+    metadata::{BaseMetadataBuilder, MessageMetadataBuilder, MetadataBuilder},
     pending_operation::*,
 };
 
@@ -35,7 +35,7 @@ pub struct MessageContext {
     pub origin_db: HyperlaneRocksDB,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
-    pub metadata_builder: BaseMetadataBuilder,
+    pub metadata_builder: Arc<BaseMetadataBuilder>,
     /// Used to determine if messages from the origin have made sufficient gas
     /// payments.
     pub origin_gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -154,10 +154,12 @@ impl PendingOperation for PendingMessage {
         );
 
         let message_metadata_builder = op_try!(
-            self.ctx
-                .metadata_builder
-                .message_metadata_builder(ism_address, &self.message)
-                .await,
+            MessageMetadataBuilder::new(
+                ism_address,
+                &self.message,
+                self.ctx.metadata_builder.clone()
+            )
+            .await,
             "building message metadata"
         );
 
