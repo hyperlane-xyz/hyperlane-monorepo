@@ -49,12 +49,13 @@ pub struct IsmWithMetadataAndType {
 
 #[async_trait]
 pub trait MetadataBuilder: Send + Sync {
-    // TODO rm?
-    // #[allow(clippy::async_yields_async)]
     async fn build(&self, ism_address: H256, message: &HyperlaneMessage)
         -> Result<Option<Vec<u8>>>;
 }
 
+/// Allows fetching the default ISM, caching the value for a period of time
+/// to avoid fetching it all the time.
+/// TODO: make this generic
 #[derive(Clone, Debug)]
 pub struct DefaultIsmCache {
     value: Arc<RwLock<Option<(H256, Instant)>>>,
@@ -62,7 +63,7 @@ pub struct DefaultIsmCache {
 }
 
 impl DefaultIsmCache {
-    // 10 mins
+    /// Time to live for the cached default ISM. 10 mins.
     const TTL: Duration = Duration::from_secs(60 * 10);
 
     pub fn new(mailbox: Arc<dyn Mailbox>) -> Self {
@@ -99,6 +100,7 @@ impl DefaultIsmCache {
     }
 }
 
+/// Classifies messages into an app context if they have one.
 #[derive(Clone, Debug)]
 pub struct AppContextClassifier {
     default_ism: DefaultIsmCache,
@@ -116,6 +118,13 @@ impl AppContextClassifier {
         }
     }
 
+    /// Classifies messages into an app context if they have one, or None
+    /// if they don't.
+    /// An app context is a string that identifies the app that sent the message
+    /// and exists just for metrics.
+    /// An app context is chosen based on:
+    /// - the first element in `app_matching_lists` that matches the message
+    /// - if the message's ISM is the default ISM, the app context is "default_ism"
     pub async fn get_app_context(
         &self,
         message: &HyperlaneMessage,
@@ -139,6 +148,7 @@ impl AppContextClassifier {
     }
 }
 
+/// Builds metadata for a message.
 #[derive(Debug, Clone)]
 pub struct MessageMetadataBuilder {
     pub base: Arc<BaseMetadataBuilder>,
@@ -239,6 +249,7 @@ impl MessageMetadataBuilder {
     }
 }
 
+/// Base metadata builder with types used by higher level metadata builders.
 #[allow(clippy::too_many_arguments)]
 #[derive(Clone, new)]
 pub struct BaseMetadataBuilder {

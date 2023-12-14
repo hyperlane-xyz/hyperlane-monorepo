@@ -93,7 +93,6 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
 
 #[async_trait]
 impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
-    #[allow(clippy::async_yields_async)]
     async fn build(
         &self,
         ism_address: H256,
