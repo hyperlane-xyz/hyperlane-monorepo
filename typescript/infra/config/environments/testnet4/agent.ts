@@ -112,7 +112,7 @@ const neutron: RootAgentConfig = {
   context: Contexts.Neutron,
   rolesWithKeys: [Role.Relayer],
   contextChainNames: {
-    relayer: [Chains.neutrontestnet, Chains.goerli],
+    relayer: [Chains.goerli],
     validator: [],
     scraper: [],
   },

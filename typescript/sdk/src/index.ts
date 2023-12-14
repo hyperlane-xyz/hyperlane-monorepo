@@ -167,6 +167,7 @@ export {
   buildAgentConfig,
 } from './metadata/agentConfig';
 export {
+  BlockExplorer,
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,
@@ -241,12 +242,26 @@ export {
   ViemTransaction,
   ViemTransactionReceipt,
 } from './providers/ProviderType';
+export { HyperlaneEtherscanProvider } from './providers/SmartProvider/HyperlaneEtherscanProvider';
+export { HyperlaneJsonRpcProvider } from './providers/SmartProvider/HyperlaneJsonRpcProvider';
 export {
-  RetryJsonRpcProvider,
-  RetryProviderOptions,
-} from './providers/RetryProvider';
+  AllProviderMethods,
+  IProviderMethods,
+  ProviderMethod,
+  excludeProviderMethods,
+} from './providers/SmartProvider/ProviderMethods';
+export { HyperlaneSmartProvider } from './providers/SmartProvider/SmartProvider';
 export {
-  DEFAULT_RETRY_OPTIONS,
+  ChainMetadataWithRpcConnectionInfo,
+  ProviderErrorResult,
+  ProviderPerformResult,
+  ProviderRetryOptions,
+  ProviderStatus,
+  ProviderSuccessResult,
+  ProviderTimeoutResult,
+  SmartProviderOptions,
+} from './providers/SmartProvider/types';
+export {
   ProviderBuilderFn,
   ProviderBuilderMap,
   TypedProviderBuilderFn,

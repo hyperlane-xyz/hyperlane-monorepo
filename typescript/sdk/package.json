@@ -60,9 +60,11 @@
     "lint": "eslint src --ext .ts",
     "prepublishOnly": "yarn build",
     "prettier": "prettier --write ./src",
-    "test": "yarn test:unit && yarn test:hardhat",
-    "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts'",
-    "test:hardhat": "hardhat test $(find ./src -name \"*.hardhat-test.ts\")"
+    "test": "yarn test:unit && yarn test:hardhat && yarn test:foundry",
+    "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test:hardhat": "hardhat test $(find ./src -name \"*.hardhat-test.ts\")",
+    "test:metadata": "ts-node ./src/test/metadata-check.ts",
+    "test:foundry": "./scripts/foundry-test.sh"
   },
   "types": "dist/index.d.ts",
   "peerDependencies": {
