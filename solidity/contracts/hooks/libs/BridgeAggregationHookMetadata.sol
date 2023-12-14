@@ -20,9 +20,9 @@ library BridgeAggregationHookMetadata {
     uint8 private constant MIN_METADATA_LENGTH = 64;
 
     /**
-     * @notice Returns the variant of the metadata.
+     * @notice Returns the required payment for Axelar bridging.
      * @param _metadata ABI encoded standard hook metadata.
-     * @return variant of the metadata as uint8.
+     * @return uint256 Payment amount.
      */
     function axelarGasPayment(
         bytes calldata _metadata
@@ -37,9 +37,9 @@ library BridgeAggregationHookMetadata {
     }
 
     /**
-     * @notice Returns the variant of the metadata.
+     * @notice Returns the required payment for Wormhole bridging.
      * @param _metadata ABI encoded standard hook metadata.
-     * @return variant of the metadata as uint8.
+     * @return uint256 Payment amount.
      */
     function wormholeGasPayment(
         bytes calldata _metadata
