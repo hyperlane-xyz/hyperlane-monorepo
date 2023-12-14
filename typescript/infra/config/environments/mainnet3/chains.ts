@@ -41,13 +41,13 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
   },
   moonbeam: chainMetadata.moonbeam,
   gnosis: chainMetadata.gnosis,
+  mantapacific: chainMetadata.mantapacific,
 };
 
 // Blessed non-Ethereum chains.
 export const nonEthereumMainnetConfigs: ChainMap<ChainMetadata> = {
   // solana: chainMetadata.solana,
-  // Not blessed on-chain, but in our infra
-  // neutron: chainMetadata.neutron,
+  neutron: chainMetadata.neutron,
 };
 
 export const mainnetConfigs: ChainMap<ChainMetadata> = {
@@ -59,12 +59,6 @@ export type MainnetChains = keyof typeof mainnetConfigs;
 export const supportedChainNames = Object.keys(
   mainnetConfigs,
 ) as MainnetChains[];
-
-export const supportedAgentChainNames = Object.keys({
-  ...mainnetConfigs,
-  neutron: chainMetadata.neutron,
-  mantapacific: chainMetadata.mantapacific,
-});
 export const environment = 'mainnet3';
 
 export const ethereumChainNames = Object.keys(

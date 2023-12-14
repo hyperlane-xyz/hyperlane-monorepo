@@ -9,11 +9,7 @@ import { Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
 import { agents } from './agent';
-import {
-  environment as environmentName,
-  ethereumMainnetConfigs,
-  mainnetConfigs,
-} from './chains';
+import { environment as environmentName, mainnetConfigs } from './chains';
 import { core } from './core';
 import { keyFunderConfig } from './funding';
 import { storageGasOracleConfig } from './gas-oracle';
@@ -32,7 +28,7 @@ export const environment: EnvironmentConfig = {
     connectionType?: RpcConsensusType,
   ) =>
     getMultiProviderForRole(
-      ethereumMainnetConfigs,
+      mainnetConfigs,
       environmentName,
       context,
       role,

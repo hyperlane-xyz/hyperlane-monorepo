@@ -10,6 +10,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x86485dcec5f7bb8478dd251676372d054dea6653',
     ],
   },
+
   arbitrum: {
     threshold: 3,
     validators: [
@@ -20,6 +21,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       // '0xc2d68e109a7e80e12098d50ac4ef9fa7b3061684', // staked (not yet announced)
     ],
   },
+
   arbitrumgoerli: {
     threshold: 2,
     validators: [
@@ -28,6 +30,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xc1590eaaeaf380e7859564c5ebcdcc87e8369e0d',
     ],
   },
+
   avalanche: {
     threshold: 2,
     validators: [
@@ -36,6 +39,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x716a1d4d3166c6151b05ce0450e0d77d94588eac', // everstake
     ],
   },
+
   base: {
     threshold: 2,
     validators: [
@@ -44,6 +48,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x41188cb5a5493a961c467ba38a3f8b1f1d35ee63', // everstake
     ],
   },
+
   basegoerli: {
     threshold: 2,
     validators: [
@@ -52,6 +57,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x9260a6c7d54cbcbed28f8668679cd1fa3a203b25',
     ],
   },
+
   bsc: {
     threshold: 2,
     validators: [
@@ -60,6 +66,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xeaf5cf9100f36a4baeea779f8745dda86159103c', // everstake
     ],
   },
+
   bsctestnet: {
     threshold: 2,
     validators: [
@@ -68,6 +75,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x1f030345963c54ff8229720dd3a711c15c554aeb',
     ],
   },
+
   celo: {
     threshold: 2,
     validators: [
@@ -77,6 +85,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x46ecbc794574727abb8f97f01dacd9db6135f47a', // staked
     ],
   },
+
   chiado: {
     threshold: 2,
     validators: [
@@ -85,6 +94,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xd767ea1206b8295d7e1267ddd00e56d34f278db6',
     ],
   },
+
   ethereum: {
     threshold: 3,
     validators: [
@@ -95,6 +105,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       // '0xb2f5a6a6e6046e2ede213617e989329666a6c4bc', // staked (not yet announced)
     ],
   },
+
   fuji: {
     threshold: 2,
     validators: [
@@ -103,6 +114,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x43e915573d9f1383cbf482049e4a012290759e7f',
     ],
   },
+
   gnosis: {
     threshold: 2,
     validators: [
@@ -111,6 +123,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xdb96116d13a2fadde9742d7cc88474a5ed39a03a', // everstake
     ],
   },
+
   goerli: {
     threshold: 2,
     validators: [
@@ -119,6 +132,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x7940a12c050e24e1839c21ecb12f65afd84e8c5b',
     ],
   },
+
   lineagoerli: {
     threshold: 2,
     validators: [
@@ -127,6 +141,20 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x8327779c3c31fa1ffc7f0c9ffae33e4d804bbd8f',
     ],
   },
+
+  mantapacific: {
+    threshold: 5,
+    validators: [
+      '0x8e668c97ad76d0e28375275c41ece4972ab8a5bc', //abacusworks
+      '0x521a3e6bf8d24809fde1c1fd3494a859a16f132c', //cosmostation
+      '0x14025fe092f5f8a401dd9819704d9072196d2125', //p2p
+      '0x25b9a0961c51e74fd83295293bc029131bf1e05a', //neutron
+      '0xa0eE95e280D46C14921e524B075d0C341e7ad1C8', //cosmos spaces
+      '0xcc9a0b6de7fe314bd99223687d784730a75bb957', //dsrv
+      '0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf', //sg-1
+    ],
+  },
+
   moonbasealpha: {
     threshold: 2,
     validators: [
@@ -135,6 +163,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x01e42c2c44af81dda1ac16fec76fea2a7a54a44c',
     ],
   },
+
   moonbeam: {
     threshold: 2,
     validators: [
@@ -144,6 +173,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcf0bb43255849cb3709a96ee166e5c3ce4adc7f9', // staked
     ],
   },
+
   mumbai: {
     threshold: 2,
     validators: [
@@ -152,6 +182,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x17517c98358c5937c5d9ee47ce1f5b4c2b7fc9f5',
     ],
   },
+
   neutron: {
     threshold: 2,
     validators: [
@@ -168,6 +199,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x661faee997654d14ead4ae48035883f05c3150cf',
     ],
   },
+
   optimism: {
     threshold: 2,
     validators: [
@@ -177,6 +209,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x9636fbe90b6816438327b0fbde435aa3c8eeda15', // staked
     ],
   },
+
   optimismgoerli: {
     threshold: 2,
     validators: [
@@ -185,6 +218,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xf3d2fb4d53c2bb6a88cec040e0d87430fcee4e40',
     ],
   },
+
   polygon: {
     threshold: 2,
     validators: [
@@ -193,6 +227,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x722aa4d45387009684582bca8281440d16b8b40f', // everstake
     ],
   },
+
   polygonzkevm: {
     threshold: 2,
     validators: [
@@ -201,6 +236,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x57231619fea13d85270ca6943298046c75a6dd01', // everstake
     ],
   },
+
   polygonzkevmtestnet: {
     threshold: 2,
     validators: [
@@ -209,6 +245,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xd476548222f43206d0abaa30e46e28670aa7859c',
     ],
   },
+
   scroll: {
     threshold: 2,
     validators: [
@@ -217,6 +254,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x276de8e2b88e659c4e5ad30d62d9de42c3da3403', // everstake
     ],
   },
+
   scrollsepolia: {
     threshold: 2,
     validators: [
@@ -225,6 +263,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x7867bea3c9761fe64e6d124b171f91fd5dd79644',
     ],
   },
+
   sepolia: {
     threshold: 2,
     validators: [
@@ -233,6 +272,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83',
     ],
   },
+
   solanadevnet: {
     threshold: 2,
     validators: [
