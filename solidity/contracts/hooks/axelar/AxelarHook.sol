@@ -7,6 +7,7 @@ import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import {BridgeAggregationHookMetadata} from "../libs/BridgeAggregationHookMetadata.sol";
 
 import {Message} from "../../libs/Message.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
 
 //TODO: remove temp intermal import. for testing speed purposes only
 interface IAxelarGateway {
@@ -27,7 +28,7 @@ interface IAxelarGasService {
     ) external payable;
 }
 
-contract AxelarHook is IPostDispatchHook {
+contract AxelarHook is IPostDispatchHook, MailboxClient {
     using StandardHookMetadata for bytes;
     using BridgeAggregationHookMetadata for bytes;
     using Message for bytes;
@@ -39,12 +40,13 @@ contract AxelarHook is IPostDispatchHook {
     bytes GMP_CALL_DATA;
 
     constructor(
+        address _mailbox,
         string memory destinationChain,
         string memory destionationContract,
         address axelarGateway,
         address axelarGasReceiver,
         bytes memory gmp_call_data
-    ) {
+    ) MailboxClient(_mailbox) {
         DESTINATION_CHAIN = destinationChain;
         DESTINATION_CONTRACT = destionationContract;
         AXELAR_GATEWAY = IAxelarGateway(axelarGateway);
@@ -71,6 +73,10 @@ contract AxelarHook is IPostDispatchHook {
         bytes calldata metadata,
         bytes calldata message
     ) external payable {
+        // ensure messages which were not dispatched are not inserted into the tree
+        bytes32 id = message.id();
+        require(_isLatestDispatched(id), "message not dispatching");
+
         bytes memory axelarPayload = _formatPayload(message);
         // Pay for gas used by Axelar with ETH
         AXELAR_GAS_SERVICE.payNativeGasForContractCall{value: msg.value}(

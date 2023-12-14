@@ -9,12 +9,15 @@ import {BridgeAggregationHookMetadata} from "../../contracts/hooks/libs/BridgeAg
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
 import {AxelarHook} from "../../contracts/hooks/Axelar/AxelarHook.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
+import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 
 contract AxelarHookTest is Test {
     using StandardHookMetadata for bytes;
     using BridgeAggregationHookMetadata for bytes;
     using TypeCasts for address;
+
     AxelarHook hook;
+    TestMailbox mailbox;
 
     address internal alice = address(0x1); // alice the user
     address internal bob = address(0x2); // bob the beneficiary
@@ -32,7 +35,10 @@ contract AxelarHookTest is Test {
     error BadQuote(uint256 balance, uint256 required);
 
     function setUp() public {
+        mailbox = new TestMailbox(1);
+
         hook = new AxelarHook(
+            address(mailbox),
             destinationChain,
             destionationContract,
             axelarGateway,
