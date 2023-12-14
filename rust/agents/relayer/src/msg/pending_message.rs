@@ -160,7 +160,7 @@ impl PendingOperation for PendingMessage {
                 self.ctx.metadata_builder.clone()
             )
             .await,
-            "building message metadata"
+            "getting the message metadata builder"
         );
 
         let Some(metadata) = op_try!(
