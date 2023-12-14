@@ -66,6 +66,10 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
           await this.handleMailboxViolation(violation as MailboxViolation);
           break;
         }
+        case CoreViolationType.ValidatorAnnounce: {
+          console.warn('Ignoring ValidatorAnnounce violation');
+          break;
+        }
         default:
           throw new Error(`Unsupported violation type ${violation.type}`);
       }

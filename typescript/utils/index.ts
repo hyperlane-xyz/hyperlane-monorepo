@@ -48,6 +48,7 @@ export {
 export { chunk, exclude } from './src/arrays';
 export {
   pollAsync,
+  raceWithContext,
   retryAsync,
   runWithTimeout,
   sleep,
