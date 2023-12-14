@@ -50,7 +50,7 @@ pub struct IsmWithMetadataAndType {
 #[async_trait]
 pub trait MetadataBuilder: Send + Sync {
     // TODO rm?
-    #[allow(clippy::async_yields_async)]
+    // #[allow(clippy::async_yields_async)]
     async fn build(&self, ism_address: H256, message: &HyperlaneMessage)
         -> Result<Option<Vec<u8>>>;
 }
@@ -73,17 +73,29 @@ impl DefaultIsmCache {
     }
 
     pub async fn get(&self) -> Result<H256> {
-        let mut value = self.value.write().await;
-        let _now = Instant::now();
-        if value.is_none()
-            || value
-                .as_ref()
-                .is_some_and(|val| val.1.elapsed() > Self::TTL)
+        // If the duration since the value was last updated does not
+        // exceed the TTL, return the cached value.
+        // This is in its own block to avoid holding the lock during the
+        // async operation to fetch the on-chain default ISM if
+        // the cached value is stale.
         {
-            *value = Some((self.mailbox.default_ism().await?, Instant::now()));
+            let value = self.value.read().await;
+
+            if let Some(value) = *value {
+                if value.1.elapsed() < Self::TTL {
+                    return Ok(value.0);
+                }
+            }
         }
-        // TODO refactor
-        Ok(value.as_ref().unwrap().0)
+
+        let default_ism = self.mailbox.default_ism().await?;
+        // Update the cached value.
+        {
+            let mut value = self.value.write().await;
+            *value = Some((default_ism, Instant::now()));
+        }
+
+        Ok(default_ism)
     }
 }
 
@@ -227,6 +239,7 @@ impl MessageMetadataBuilder {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 #[derive(Clone, new)]
 pub struct BaseMetadataBuilder {
     origin_domain: HyperlaneDomain,

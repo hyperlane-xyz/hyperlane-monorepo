@@ -86,11 +86,7 @@ impl MultisigCheckpointSyncer {
         }
 
         // Filter out any validators that did not return a latest index
-        latest_indices
-            .values()
-            .copied()
-            .filter_map(|index| index)
-            .collect()
+        latest_indices.values().copied().flatten().collect()
     }
 
     /// Attempts to get the latest checkpoint with a quorum of signatures among
