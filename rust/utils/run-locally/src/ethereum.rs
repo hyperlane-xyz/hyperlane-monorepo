@@ -21,18 +21,16 @@ pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
     }
     yarn_monorepo.clone().cmd("build").run().join();
 
-    // if !config.is_ci_env {
-    //     // Kill any existing anvil processes just in case since it seems to have issues getting cleaned up
-    //     Program::new("pkill")
-    //         .raw_arg("-SIGKILL")
-    //         .cmd("anvil")
-    //         .run_ignore_code()
-    //         .join();
-    // }
+    if !config.is_ci_env {
+        // Kill any existing anvil processes just in case since it seems to have issues getting cleaned up
+        Program::new("pkill")
+            .raw_arg("-SIGKILL")
+            .cmd("anvil")
+            .run_ignore_code()
+            .join();
+    }
     log!("Launching anvil...");
-    let anvil_args = Program::new("sleep")
-        .raw_arg("1000000")
-        .filter_logs(|_| false); // for now do not keep any of the anvil logs
+    let anvil_args = Program::new("anvil").flag("silent").filter_logs(|_| false); // for now do not keep any of the anvil logs
     let anvil = anvil_args.spawn("ETH");
 
     sleep(Duration::from_secs(10));

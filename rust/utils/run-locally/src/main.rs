@@ -336,7 +336,7 @@ fn main() -> ExitCode {
         .cmd("kathy")
         .arg("messages", (config.kathy_messages / 4).to_string())
         .arg("timeout", "1000");
-    kathy_env_single_insertion.clone().run();
+    kathy_env_single_insertion.clone().run().join();
 
     let kathy_env_zero_insertion = Program::new("yarn")
         .working_dir(INFRA_PATH)
@@ -349,7 +349,7 @@ fn main() -> ExitCode {
         // replacing the `aggregationHook` with the `interchainGasPaymaster` means there
         // is no more `merkleTreeHook`, causing zero merkle insertions to occur.
         .arg("default-hook", "interchainGasPaymaster");
-    kathy_env_zero_insertion.clone().run();
+    kathy_env_zero_insertion.clone().run().join();
 
     let kathy_env_double_insertion = Program::new("yarn")
         .working_dir(INFRA_PATH)
@@ -359,7 +359,7 @@ fn main() -> ExitCode {
         // replacing the `protocolFees` required hook with the `merkleTreeHook`
         // will cause double insertions to occur, which should be handled correctly
         .arg("required-hook", "merkleTreeHook");
-    kathy_env_double_insertion.clone().run();
+    kathy_env_double_insertion.clone().run().join();
 
     // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
     // for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
@@ -372,8 +372,7 @@ fn main() -> ExitCode {
         state.push_agent(validator);
     }
 
-    // state.push_agent(relayer_env.spawn("RLY"));
-    println!("Relayer command: {:?}", relayer_env.create_command());
+    state.push_agent(relayer_env.spawn("RLY"));
 
     // Send some sealevel messages after spinning up the relayer, to test the forward indexing cursor
     // for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
