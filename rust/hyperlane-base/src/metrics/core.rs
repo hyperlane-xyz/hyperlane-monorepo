@@ -538,6 +538,8 @@ impl ValidatorObservabilityMetricManager {
                     &format!("0x{:x}", validator).to_lowercase(),
                     &app_context,
                 ])
+                // If the latest checkpoint is None, set to -1 to indicate that
+                // the validator did not provide a valid latest checkpoint index.
                 .set(latest_checkpoint.map(|i| i as i64).unwrap_or(-1));
             set.insert(*validator);
         }
