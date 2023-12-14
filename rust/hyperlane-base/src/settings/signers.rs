@@ -125,7 +125,7 @@ impl ChainSigner for fuels::prelude::WalletUnlocked {
 #[async_trait]
 impl BuildableWithSignerConf for Keypair {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        let key = if let SignerConf::HexKey { key } = conf {
+        if let SignerConf::HexKey { key } = conf {
             let secret = SecretKey::from_bytes(key.as_bytes())
                 .context("Invalid sealevel ed25519 secret key")?;
             Ok(
@@ -134,9 +134,7 @@ impl BuildableWithSignerConf for Keypair {
             )
         } else {
             bail!(format!("{conf:?} key is not supported by sealevel"));
-        };
-        println!("~~~ created sealevel keypair: {:?}", key);
-        key
+        }
     }
 }
 

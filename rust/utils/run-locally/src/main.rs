@@ -90,6 +90,7 @@ struct State {
     watchers: Vec<Box<dyn TaskHandle<Output = ()>>>,
     data: Vec<Box<dyn ArbitraryData>>,
 }
+
 impl State {
     fn push_agent(&mut self, handles: AgentHandles) {
         self.agents.push((handles.0, handles.1));
@@ -98,6 +99,7 @@ impl State {
         self.data.push(handles.4);
     }
 }
+
 impl Drop for State {
     fn drop(&mut self) {
         SHUTDOWN.store(true, Ordering::Relaxed);
@@ -137,7 +139,7 @@ fn main() -> ExitCode {
 
     let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
     fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
-    let checkpoints_dirs: Vec<DynPath> = (0..VALIDATOR_COUNT)
+    let checkpoints_dirs: Vec<DynPath> = (0..VALIDATOR_COUNT - 1)
         .map(|_| Box::new(tempdir().unwrap()) as DynPath)
         .chain([Box::new(solana_checkpoint_path) as DynPath])
         .collect();
@@ -199,7 +201,6 @@ fn main() -> ExitCode {
         .arg("defaultSigner.key", RELAYER_KEYS[2])
         .arg(
             "relayChains",
-            // "test1,test2,test3",
             "test1,test2,test3,sealeveltest1,sealeveltest2",
         );
 

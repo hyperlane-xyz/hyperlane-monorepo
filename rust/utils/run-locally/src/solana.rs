@@ -285,7 +285,7 @@ pub fn start_solana_test_validator(
 pub fn initiate_solana_hyperlane_transfer(
     solana_cli_tools_path: PathBuf,
     solana_config_path: PathBuf,
-) {
+) -> Option<String> {
     let sender = Program::new(concat_path(&solana_cli_tools_path, "solana"))
         .arg("config", solana_config_path.to_str().unwrap())
         .arg("keypair", SOLANA_KEYPAIR)
@@ -309,21 +309,23 @@ pub fn initiate_solana_hyperlane_transfer(
         .run_with_output()
         .join();
 
-    let message_id = _get_message_id_from_logs(output);
-    if let Some(message_id) = message_id {
+    let message_id = get_message_id_from_logs(output);
+    if let Some(message_id) = message_id.clone() {
         sealevel_client(&solana_cli_tools_path, &solana_config_path)
             .cmd("igp")
             .cmd("pay-for-gas")
             .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
-            .arg("message-id", message_id)
+            .arg("message-id", message_id.clone())
             .arg("destination-domain", SOLANA_REMOTE_CHAIN_ID)
             .arg("gas", "100000")
             .run()
             .join();
     }
+    println!("sent sealevel message: {:?}", message_id);
+    message_id
 }
 
-fn _get_message_id_from_logs(logs: Vec<String>) -> Option<String> {
+fn get_message_id_from_logs(logs: Vec<String>) -> Option<String> {
     let message_id_regex = Regex::new(r"Dispatched message to \d+, ID 0x([0-9a-fA-F]+)").unwrap();
     for log in logs {
         // Use the regular expression to capture the ID
