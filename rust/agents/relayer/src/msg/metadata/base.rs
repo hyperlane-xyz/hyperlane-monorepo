@@ -56,9 +56,9 @@ pub trait MetadataBuilder: Send + Sync {
 /// Allows fetching the default ISM, caching the value for a period of time
 /// to avoid fetching it all the time.
 /// TODO: make this generic
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct DefaultIsmCache {
-    value: Arc<RwLock<Option<(H256, Instant)>>>,
+    value: RwLock<Option<(H256, Instant)>>,
     mailbox: Arc<dyn Mailbox>,
 }
 
@@ -68,7 +68,7 @@ impl DefaultIsmCache {
 
     pub fn new(mailbox: Arc<dyn Mailbox>) -> Self {
         Self {
-            value: Arc::new(RwLock::new(None)),
+            value: RwLock::new(None),
             mailbox,
         }
     }
@@ -101,7 +101,7 @@ impl DefaultIsmCache {
 }
 
 /// Classifies messages into an app context if they have one.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct AppContextClassifier {
     default_ism: DefaultIsmCache,
     app_matching_lists: Vec<(MatchingList, String)>,
@@ -251,7 +251,7 @@ impl MessageMetadataBuilder {
 
 /// Base metadata builder with types used by higher level metadata builders.
 #[allow(clippy::too_many_arguments)]
-#[derive(Clone, new)]
+#[derive(new)]
 pub struct BaseMetadataBuilder {
     origin_domain: HyperlaneDomain,
     destination_chain_setup: ChainConf,
