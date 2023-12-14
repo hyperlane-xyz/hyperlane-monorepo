@@ -235,6 +235,13 @@ const GasPaymentEnforcementSchema = z.union([
 ]);
 export type GasPaymentEnforcement = z.infer<typeof GasPaymentEnforcementSchema>;
 
+const MetricAppContextSchema = z.object({
+  name: z.string().nonempty(),
+  matchingList: MatchingListSchema.describe(
+    'A matching list, any message that matches will be classified as this app context.',
+  ),
+});
+
 export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
   db: z
     .string()
@@ -273,6 +280,12 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .optional()
     .describe(
       'If true, allows local storage based checkpoint syncers. Not intended for production use.',
+    ),
+  metricAppContexts: z
+    .union([z.array(MetricAppContextSchema), z.string().nonempty()])
+    .optional()
+    .describe(
+      'A list of app contexts and their matching lists to use for metrics. A message will be classified as the first matching app context.',
     ),
 });
 
