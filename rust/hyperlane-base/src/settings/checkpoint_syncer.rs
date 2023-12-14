@@ -82,32 +82,3 @@ impl CheckpointSyncerConf {
         })
     }
 }
-
-// /// Config for a MultisigCheckpointSyncer
-// #[derive(Debug, Clone)]
-// pub struct MultisigCheckpointSyncerConf {
-//     /// The checkpoint syncer for each valid validator signer address
-//     checkpointsyncers: HashMap<String, CheckpointSyncerConf>,
-//     metrics: Arc<CoreMetrics>,
-// }
-
-// impl MultisigCheckpointSyncerConf {
-//     /// Get a MultisigCheckpointSyncer from the config
-//     pub fn build(
-//         &self,
-//         origin: &str,
-//         validator_checkpoint_index: IntGaugeVec,
-//     ) -> Result<MultisigCheckpointSyncer, Report> {
-//         let mut checkpoint_syncers = HashMap::new();
-//         for (key, value) in self.checkpointsyncers.iter() {
-//             let gauge =
-//                 validator_checkpoint_index.with_label_values(&[origin, &key.to_lowercase()]);
-//             if let Ok(conf) = value.build(Some(gauge)) {
-//                 checkpoint_syncers.insert(H160::from_str(key)?, conf.into());
-//             } else {
-//                 continue;
-//             }
-//         }
-//         Ok(MultisigCheckpointSyncer::new(checkpoint_syncers, metrics))
-//     }
-// }

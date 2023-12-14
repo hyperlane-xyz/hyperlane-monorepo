@@ -11,8 +11,8 @@ use hyperlane_core::{
 
 use crate::{CheckpointSyncer, CoreMetrics};
 
-/// Fetches signed checkpoints from multiple validators to create
-/// MultisigSignedCheckpoints
+/// For a particular validator set, fetches signed checkpoints from multiple
+/// validators to create MultisigSignedCheckpoints.
 #[derive(Clone, Debug, new)]
 pub struct MultisigCheckpointSyncer {
     /// The checkpoint syncer for each valid validator signer address
@@ -22,7 +22,9 @@ pub struct MultisigCheckpointSyncer {
 }
 
 impl MultisigCheckpointSyncer {
-    /// Foo
+    /// Updates the validator latest index metrics for the given validators.
+    /// Intended to be explicitly called if metadata building doesn't require
+    /// getting the latest checkpoints for the set via `get_validator_latest_checkpoints`.
     pub async fn update_validator_latest_checkpoints_metrics(
         &self,
         validators: &[H256],

@@ -512,7 +512,8 @@ impl ValidatorObservabilityMetricManager {
 
         let mut app_context_validators = self.app_context_validators.write().await;
 
-        // First, clear out all previous metrics for the app context
+        // First, clear out all previous metrics for the app context.
+        // This is necessary because the set of validators may have changed.
         if let Some(prev_validators) = app_context_validators.get(&key) {
             for validator in prev_validators {
                 self.observed_validator_latest_index
@@ -528,7 +529,7 @@ impl ValidatorObservabilityMetricManager {
 
         let mut set = HashSet::new();
 
-        // Then set the new metrics
+        // Then set the new metrics and update the cached set of validators.
         for (validator, latest_checkpoint) in latest_checkpoints {
             self.observed_validator_latest_index
                 .with_label_values(&[
