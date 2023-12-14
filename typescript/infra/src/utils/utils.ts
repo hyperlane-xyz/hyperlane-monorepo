@@ -69,7 +69,7 @@ export function getEthereumAddress(publicKey: Buffer): string {
   pubKeyBuffer = pubKeyBuffer.slice(1, pubKeyBuffer.length);
 
   const address = ethers.utils.keccak256(pubKeyBuffer); // keccak256 hash of publicKey
-  const EthAddr = `0x${address.slice(-40)}`; // take last 20 bytes as ethereum adress
+  const EthAddr = `0x${address.slice(-40)}`; // take last 20 bytes as ethereum address
   return EthAddr;
 }
 
