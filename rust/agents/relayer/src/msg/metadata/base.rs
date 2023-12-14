@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::Debug,
+    ops::Deref,
     str::FromStr,
     sync::Arc,
     time::{Duration, Instant},
@@ -130,10 +131,9 @@ impl AppContextClassifier {
 pub struct MessageBaseMetadataBuilder {
     pub message: HyperlaneMessage,
     pub base: BaseMetadataBuilder,
-    pub depth: u32,
     /// ISMs can be structured recursively. We keep track of the depth
     /// of the recursion to avoid infinite loops.
-    pub max_depth: u32,
+    pub depth: u32,
     pub app_context: Option<String>,
 }
 
@@ -143,9 +143,17 @@ impl AsRef<BaseMetadataBuilder> for MessageBaseMetadataBuilder {
     }
 }
 
+impl Deref for MessageBaseMetadataBuilder {
+    type Target = BaseMetadataBuilder;
+
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
 #[async_trait]
 impl MetadataBuilder for MessageBaseMetadataBuilder {
-    #[instrument(err, skip(self), fields(domain=self.base.domain().name()))]
+    #[instrument(err, skip(self), fields(domain=self.domain().name()))]
     async fn build(
         &self,
         ism_address: H256,
@@ -161,21 +169,20 @@ impl MessageBaseMetadataBuilder {
     fn clone_with_incremented_depth(&self) -> Result<MessageBaseMetadataBuilder> {
         let mut cloned = self.clone();
         cloned.depth += 1;
-        if cloned.depth > cloned.base.max_depth {
+        if cloned.depth > cloned.max_depth {
             Err(MetadataBuilderError::MaxDepthExceeded(cloned.depth).into())
         } else {
             Ok(cloned)
         }
     }
 
-    #[instrument(err, skip(self), fields(domain=self.base.domain().name()))]
+    #[instrument(err, skip(self), fields(domain=self.domain().name()))]
     pub async fn build_ism_and_metadata(
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
     ) -> Result<IsmWithMetadataAndType> {
         let ism: Box<dyn InterchainSecurityModule> = self
-            .base
             .build_ism(ism_address)
             .await
             .context("When building ISM")?;
@@ -378,7 +385,6 @@ impl BaseMetadataBuilder {
             message: message.clone(),
             base: self.clone(),
             depth: 0,
-            max_depth: self.max_depth,
             app_context: self
                 .app_context_classifier
                 .get_app_context(message, ism_address)

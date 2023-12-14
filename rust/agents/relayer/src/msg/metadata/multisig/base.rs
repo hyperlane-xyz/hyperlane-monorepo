@@ -102,7 +102,6 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         const CTX: &str = "When fetching MultisigIsm metadata";
         let multisig_ism = self
             .as_ref()
-            .base
             .build_multisig_ism(ism_address)
             .await
             .context(CTX)?;
@@ -119,7 +118,6 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
 
         let checkpoint_syncer = self
             .as_ref()
-            .base
             .build_checkpoint_syncer(&validators, self.as_ref().app_context.clone())
             .await
             .context(CTX)?;

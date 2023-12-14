@@ -38,8 +38,7 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
 
         const CTX: &str = "When fetching MessageIdMultisig metadata";
         let leaf_index = unwrap_or_none_result!(
-            self.base
-                .get_merkle_leaf_id_by_message_id(message_id)
+            self.get_merkle_leaf_id_by_message_id(message_id)
                 .await
                 .context(CTX)?,
             debug!(
@@ -52,8 +51,8 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         checkpoint_syncer
             .update_validator_latest_checkpoints_metrics(
                 validators,
-                self.base.origin_domain.clone(),
-                self.base.destination_chain_setup.domain.clone(),
+                self.origin_domain.clone(),
+                self.destination_chain_setup.domain.clone(),
             )
             .await;
 

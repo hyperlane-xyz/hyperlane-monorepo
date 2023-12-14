@@ -32,12 +32,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         message: &HyperlaneMessage,
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching CcipRead metadata";
-        let ism = self
-            .base
-            .base
-            .build_ccip_read_ism(ism_address)
-            .await
-            .context(CTX)?;
+        let ism = self.build_ccip_read_ism(ism_address).await.context(CTX)?;
 
         let response = ism
             .get_offchain_verify_info(RawHyperlaneMessage::from(message).to_vec())
