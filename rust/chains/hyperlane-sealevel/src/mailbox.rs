@@ -8,8 +8,8 @@ use jsonrpc_core::futures_util::TryFutureExt;
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, BigFloat, ChainCommunicationError, ChainResult,
-    Checkpoint, ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain,
+    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
+    ContractLocator, Decode as _, Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta,
     Mailbox, MerkleTreeHook, SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
@@ -484,7 +484,7 @@ impl Mailbox for SealevelMailbox {
         // TODO use correct data upon integrating IGP support
         Ok(TxCostEstimate {
             gas_limit: U256::zero(),
-            gas_price: BigFloat::zero(),
+            gas_price: FixedPointNumber::zero(),
             l2_gas_limit: None,
         })
     }

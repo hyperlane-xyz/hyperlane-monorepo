@@ -432,8 +432,8 @@
       "grpcUrl": "https://grpc-kralum.neutron-1.neutron.org:80",
       "canonicalAsset": "untrn",
       "prefix": "neutron",
-      "minimumGasPrice": {
-        "amount": "1",
+      "gasPrice": {
+        "amount": "0.5",
         "denom": "untrn"
       },
       "index": {

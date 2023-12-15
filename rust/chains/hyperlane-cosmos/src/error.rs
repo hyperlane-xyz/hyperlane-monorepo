@@ -34,9 +34,6 @@ pub enum HyperlaneCosmosError {
     /// protobuf error
     #[error("{0}")]
     Protobuf(#[from] prost::DecodeError),
-    /// The string is not a valid number
-    #[error("Failed to parse number from string")]
-    NumStrParse,
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {

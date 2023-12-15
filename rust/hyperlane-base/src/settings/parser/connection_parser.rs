@@ -94,9 +94,9 @@ pub fn build_cosmos_connection_conf(
         None
     };
 
-    let minimum_gas_price = chain
+    let gas_price = chain
         .chain(err)
-        .get_opt_key("minimumGasPrice")
+        .get_opt_key("gasPrice")
         .and_then(parse_cosmos_gas_price)
         .end();
 
@@ -110,7 +110,7 @@ pub fn build_cosmos_connection_conf(
             chain_id.unwrap().to_string(),
             prefix.unwrap().to_string(),
             canonical_asset.unwrap(),
-            minimum_gas_price.unwrap(),
+            gas_price.unwrap(),
         )))
     }
 }

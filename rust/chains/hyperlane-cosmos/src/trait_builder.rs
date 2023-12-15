@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use derive_new::new;
-use hyperlane_core::{BigFloat, ChainCommunicationError};
+use hyperlane_core::{ChainCommunicationError, FixedPointNumber};
 
 /// Cosmos connection configuration
 #[derive(Debug, Clone)]
@@ -16,7 +16,7 @@ pub struct ConnectionConf {
     prefix: String,
     /// Canoncial Assets Denom
     canonical_asset: String,
-    /// The gas price set by the cosmos-sdk validator. Not that this represents the
+    /// The gas price set by the cosmos-sdk validator. Note that this represents the
     /// minimum price set by the validator.
     /// More details here: https://docs.cosmos.network/main/learn/beginner/gas-fees#antehandler
     gas_price: RawCosmosAmount,
@@ -37,7 +37,7 @@ pub struct CosmosAmount {
     /// Coin denom (e.g. `untrn`)
     pub denom: String,
     /// Amount in the given denom
-    pub amount: BigFloat,
+    pub amount: FixedPointNumber,
 }
 
 impl TryFrom<RawCosmosAmount> for CosmosAmount {
@@ -45,7 +45,7 @@ impl TryFrom<RawCosmosAmount> for CosmosAmount {
     fn try_from(raw: RawCosmosAmount) -> Result<Self, ChainCommunicationError> {
         Ok(Self {
             denom: raw.denom,
-            amount: BigFloat::from_str(&raw.amount)?,
+            amount: FixedPointNumber::from_str(&raw.amount)?,
         })
     }
 }

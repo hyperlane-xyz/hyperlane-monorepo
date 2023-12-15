@@ -344,22 +344,35 @@ impl From<solana_sdk::signature::Signature> for H512 {
 
 /// Wrapper type around `BigDecimal` to implement various traits on it
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BigFloat(BigDecimal);
+pub struct FixedPointNumber(BigDecimal);
 
-impl BigFloat {
+impl FixedPointNumber {
     /// Zero
     pub fn zero() -> Self {
         Self(BigDecimal::zero())
     }
+
+    /// Round up to the nearest integer
+    pub fn ceil_to_integer(&self) -> Self {
+        Self(self.0.with_scale(0))
+    }
+
+    /// Ceil
+    pub fn ceil(&self, fractional_digit_count: i64) -> Self {
+        Self(
+            self.0
+                .with_scale_round(fractional_digit_count, bigdecimal::RoundingMode::Ceiling),
+        )
+    }
 }
 
-impl Default for BigFloat {
+impl Default for FixedPointNumber {
     fn default() -> Self {
         Self::zero()
     }
 }
 
-impl TryFrom<U256> for BigFloat {
+impl TryFrom<U256> for FixedPointNumber {
     type Error = ChainCommunicationError;
     fn try_from(val: U256) -> Result<Self, Self::Error> {
         let u256_string = val.to_string();
@@ -367,7 +380,7 @@ impl TryFrom<U256> for BigFloat {
     }
 }
 
-impl TryInto<U256> for BigFloat {
+impl TryInto<U256> for FixedPointNumber {
     type Error = ChainCommunicationError;
 
     fn try_into(self) -> Result<U256, Self::Error> {
@@ -378,7 +391,7 @@ impl TryInto<U256> for BigFloat {
     }
 }
 
-impl TryInto<u128> for BigFloat {
+impl TryInto<u128> for FixedPointNumber {
     type Error = ChainCommunicationError;
 
     fn try_into(self) -> Result<u128, Self::Error> {
@@ -387,7 +400,7 @@ impl TryInto<u128> for BigFloat {
     }
 }
 
-impl<T> From<T> for BigFloat
+impl<T> From<T> for FixedPointNumber
 where
     T: Into<BigDecimal>,
 {
@@ -396,11 +409,11 @@ where
     }
 }
 
-impl<T> Mul<T> for BigFloat
+impl<T> Mul<T> for FixedPointNumber
 where
-    T: Into<BigFloat>,
+    T: Into<FixedPointNumber>,
 {
-    type Output = BigFloat;
+    type Output = FixedPointNumber;
 
     fn mul(self, rhs: T) -> Self::Output {
         let rhs = rhs.into();
@@ -408,7 +421,7 @@ where
     }
 }
 
-impl FromStr for BigFloat {
+impl FromStr for FixedPointNumber {
     type Err = ChainCommunicationError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

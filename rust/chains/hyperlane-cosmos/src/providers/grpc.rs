@@ -24,7 +24,9 @@ use cosmrs::{
     tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
     Coin,
 };
-use hyperlane_core::{BigFloat, ChainCommunicationError, ChainResult, ContractLocator, U256};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, U256,
+};
 use serde::Serialize;
 use tonic::transport::{Channel, Endpoint};
 
@@ -123,7 +125,7 @@ impl WasmGrpcProvider {
     }
 
     /// Get the gas price
-    pub fn gas_price(&self) -> BigFloat {
+    pub fn gas_price(&self) -> FixedPointNumber {
         self.gas_price.amount.clone()
     }
 
@@ -148,10 +150,13 @@ impl WasmGrpcProvider {
         );
         let signer_info = SignerInfo::single_direct(Some(signer.public_key), account_info.sequence);
 
+        let amount: u128 = (FixedPointNumber::from(gas_limit) * self.gas_price())
+            .ceil_to_integer()
+            .try_into()?;
         let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
             Coin::new(
                 // The fee to pay is the gas limit * the gas price
-                (BigFloat::from(gas_limit) * self.gas_price()).try_into()?,
+                amount,
                 self.conf.get_canonical_asset().as_str(),
             )
             .map_err(Into::<HyperlaneCosmosError>::into)?,

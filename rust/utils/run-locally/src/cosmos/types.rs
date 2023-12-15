@@ -120,7 +120,7 @@ pub struct AgentConfig {
     pub prefix: String,
     pub signer: AgentConfigSigner,
     pub index: AgentConfigIndex,
-    pub minimum_gas_price: RawCosmosAmount,
+    pub gas_price: RawCosmosAmount,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -160,9 +160,9 @@ impl AgentConfig {
                 key: format!("0x{}", hex::encode(validator.priv_key.to_bytes())),
                 prefix: "osmo".to_string(),
             },
-            minimum_gas_price: RawCosmosAmount {
+            gas_price: RawCosmosAmount {
                 denom: "uosmo".to_string(),
-                amount: "0.02".to_string(),
+                amount: "0.05".to_string(),
             },
             index: AgentConfigIndex {
                 from: 1,
