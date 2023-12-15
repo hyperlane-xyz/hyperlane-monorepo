@@ -15,7 +15,7 @@ import { Contexts } from '../../contexts';
 import { routingIsm } from '../../routingIsm';
 
 import { igp } from './igp';
-import { owners, safes } from './owners';
+import { owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const defaultIsm = routingIsm('mainnet3', local, Contexts.Hyperlane);
@@ -42,16 +42,16 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     owner,
   };
 
+  const ownerOverrides =
+    local === 'arbitrum'
+      ? { proxyAdmin: `0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01` } // time lock controller
+      : undefined;
+
   return {
     owner,
     defaultIsm,
     defaultHook,
     requiredHook,
-    ownerOverrides: {
-      proxyAdmin:
-        local === 'arbitrum'
-          ? `0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01`
-          : safes[local] ?? owner,
-    },
+    ownerOverrides,
   };
 });

@@ -994,12 +994,12 @@ export const viction: ChainMetadata = {
     reorgPeriod: 0,
   },
   blockExplorers: [
-    {
-      family: ExplorerFamily.Other,
-      name: 'Vicscan',
-      url: 'https://www.vicscan.xyz/',
-      apiUrl: '', // unknown
-    },
+    // {
+    //   family: ExplorerFamily.Other,
+    //   name: 'Vicscan',
+    //   url: 'https://www.vicscan.xyz/',
+    //   apiUrl: '', // unknown
+    // },
   ],
   chainId: 88,
   domainId: 88,
@@ -1061,6 +1061,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   test1,
   test2,
   test3,
+  viction,
 };
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<

@@ -92,6 +92,8 @@ const tokenUsdPrices: ChainMap<BigNumber> = {
     '1619.00',
     TOKEN_EXCHANGE_RATE_DECIMALS,
   ),
+  // https://www.coingecko.com/en/coins/viction
+  viction: ethers.utils.parseUnits('0.881', TOKEN_EXCHANGE_RATE_DECIMALS),
 };
 
 // Gets the exchange rate of the remote quoted in local tokens

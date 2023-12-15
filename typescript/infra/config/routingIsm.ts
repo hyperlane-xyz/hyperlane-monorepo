@@ -28,7 +28,7 @@ const owners = {
 const chains = {
   test: TestChains,
   testnet4: testnet4Chains,
-  mainnet3: mainnet3Chains.filter((_) => _ !== 'mantapacific'),
+  mainnet3: mainnet3Chains,
 };
 
 // Intended to be the "entrypoint" ISM.

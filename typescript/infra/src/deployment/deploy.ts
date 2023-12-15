@@ -29,7 +29,7 @@ export async function deployWithArtifacts<Config>(
     read: boolean;
     write: boolean;
   },
-  fork?: ChainName,
+  targetNetwork?: ChainName,
   agentConfig?: {
     multiProvider: MultiProvider;
     addresses: string;
@@ -56,11 +56,9 @@ export async function deployWithArtifacts<Config>(
   });
 
   try {
-    if (fork) {
-      deployer.deployedContracts[fork] = await deployer.deployContracts(
-        fork,
-        configMap[fork],
-      );
+    if (targetNetwork) {
+      deployer.deployedContracts[targetNetwork] =
+        await deployer.deployContracts(targetNetwork, configMap[targetNetwork]);
     } else {
       await deployer.deploy(configMap);
     }

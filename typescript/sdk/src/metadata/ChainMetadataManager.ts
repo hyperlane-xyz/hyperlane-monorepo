@@ -13,6 +13,7 @@ import {
 } from './blockExplorer';
 import {
   ChainMetadata,
+  ChainMetadataSchema,
   getDomainId,
   isValidChainMetadata,
 } from './chainMetadataTypes';
@@ -55,8 +56,10 @@ export class ChainMetadataManager<MetaExt = {}> {
    * @throws if chain's name or domain/chain ID collide
    */
   addChain(metadata: ChainMetadata<MetaExt>): void {
-    if (!isValidChainMetadata(metadata))
+    if (!isValidChainMetadata(metadata)) {
+      ChainMetadataSchema.parse(metadata);
       throw new Error(`Invalid chain metadata for ${metadata.name}`);
+    }
     // Ensure no two chains have overlapping names/domainIds/chainIds
     for (const chainMetadata of Object.values(this.metadata)) {
       const { name, chainId, domainId } = chainMetadata;

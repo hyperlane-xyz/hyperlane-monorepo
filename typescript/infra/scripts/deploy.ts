@@ -33,6 +33,7 @@ import {
   getModuleDirectory,
   withContext,
   withModuleAndFork,
+  withNetwork,
 } from './utils';
 
 async function main() {
@@ -41,7 +42,8 @@ async function main() {
     module,
     fork,
     environment,
-  } = await withContext(withModuleAndFork(getArgs())).argv;
+    network,
+  } = await withContext(withNetwork(withModuleAndFork(getArgs()))).argv;
   const envConfig = getEnvironmentConfig(environment);
   const env = deployEnvToSdkEnv[environment];
 
@@ -155,7 +157,8 @@ async function main() {
 
   // prompt for confirmation
   if ((environment === 'mainnet3' || environment === 'testnet4') && !fork) {
-    console.log(JSON.stringify(config, null, 2));
+    let confirmConfig = network ? config[network] : config;
+    console.log(JSON.stringify(confirmConfig, null, 2));
     const { value: confirmed } = await prompt({
       type: 'confirm',
       name: 'value',
@@ -167,7 +170,13 @@ async function main() {
     }
   }
 
-  await deployWithArtifacts(config, deployer, cache, fork, agentConfig);
+  await deployWithArtifacts(
+    config,
+    deployer,
+    cache,
+    network ?? fork,
+    agentConfig,
+  );
 }
 
 main()

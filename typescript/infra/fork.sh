@@ -1,19 +1,9 @@
 ENVIRONMENT=$1
 MODULE=$2
+CHAIN=$3
 
-if [ -z "$ENVIRONMENT" ]; then
-  echo "Usage: fork.sh <environment> <module>"
-  exit 1
-fi
-
-if [ "$ENVIRONMENT" == "testnet4" ]; then
-  FORK_CHAIN="goerli"
-  RPC_URL="https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
-elif [ "$ENVIRONMENT" == "mainnet3" ]; then
-  FORK_CHAIN="arbitrum"
-  RPC_URL="https://arb1.arbitrum.io/rpc"
-else
-  echo "Unknown environment $ENVIRONMENT"
+if [ -z "$ENVIRONMENT" ] || [ -z "$MODULE" ] || [ -z "$CHAIN" ]; then
+  echo "Usage: fork.sh <environment> <module> <chain>"
   exit 1
 fi
 
@@ -23,24 +13,36 @@ trap 'jobs -p | xargs -r kill' EXIT
 # exit 1 on any subsequent failures
 set -e
 
-anvil --fork-url $RPC_URL --silent > /dev/null &
+RPC_URL=`yarn ts-node ./scripts/print-chain-metadatas.ts -e $ENVIRONMENT | jq -r ".$CHAIN.rpcUrls[0].http"`
+
+anvil --fork-url $RPC_URL --fork-retry-backoff 3 --compute-units-per-second 200 --gas-price 1 --silent &
 ANVIL_PID=$!
 
 while ! cast bn &> /dev/null; do
   sleep 1
 done
 
-echo "=== Run $MODULE checker against forked $ENVIRONMENT ==="
-yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
+# echo all subsequent commands
+set -x
 
-echo "=== Run $MODULE deployer against forked $ENVIRONMENT ==="
-yarn ts-node ./scripts/deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
+yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
+
+# get balance
+DEPLOYER="0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba"
+BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+
+yarn ts-node ./scripts/deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
+
+AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+DEPLOY_DELTA="$((BEFORE-AFTER))"
 
 # build SDK to get the latest addresses
 yarn --cwd ../sdk build
 
-echo "=== Run $MODULE govern against forked $ENVIRONMENT ==="
-yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN --govern -m $MODULE
+BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN --govern -m $MODULE
 
-echo "=== Run $MODULE checker against forked $ENVIRONMENT after governance ==="
-yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
+AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+GOVERN_DELTA="$((BEFORE-AFTER))"
+
+yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
