@@ -111,7 +111,6 @@ async function main() {
         foreignDeployment: neutronRouter,
       },
     };
-    console.log(config);
     deployer = new HypERC20Deployer(multiProvider, ismFactory);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
