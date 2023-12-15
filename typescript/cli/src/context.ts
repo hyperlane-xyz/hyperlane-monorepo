@@ -55,6 +55,7 @@ interface ContextSettings {
     key?: string;
     promptMessage?: string;
   };
+  skipConfirmation?: boolean;
 }
 
 interface CommandContextBase {
@@ -75,29 +76,34 @@ export async function getContext<P extends ContextSettings>({
   chainConfigPath,
   coreConfig,
   keyConfig,
+  skipConfirmation,
 }: P): Promise<CommandContext<P>> {
   const customChains = readChainConfigsIfExists(chainConfigPath);
 
   let signer = undefined;
   if (keyConfig) {
-    const key =
-      keyConfig.key ||
-      (await input({
+    let key: string;
+    if (keyConfig.key) key = keyConfig.key;
+    else if (skipConfirmation) throw new Error('No key provided');
+    else
+      key = await input({
         message:
           keyConfig.promptMessage ||
           'Please enter a private key or use the HYP_KEY environment variable',
-      }));
+      });
     signer = keyToSigner(key);
   }
 
   let coreArtifacts = undefined;
   if (coreConfig) {
     coreArtifacts =
-      (await runDeploymentArtifactStep(
-        coreConfig.coreArtifactsPath,
-        coreConfig.promptMessage ||
+      (await runDeploymentArtifactStep({
+        artifactsPath: coreConfig.coreArtifactsPath,
+        message:
+          coreConfig.promptMessage ||
           'Do you want to use some core deployment address artifacts? This is required for PI chains (non-core chains).',
-      )) || {};
+        skipConfirmation,
+      })) || {};
   }
 
   const multiProvider = getMultiProvider(customChains, signer);
