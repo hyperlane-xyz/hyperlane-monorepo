@@ -31,7 +31,6 @@ contract AxelarHookTest is Test {
     string destionationContract = "neutronContract";
     address axelarGateway = address(0);
     address axelarGasReceiver = address(0);
-    bytes gmp_call_code = abi.encodePacked(uint8(1));
     error BadQuote(uint256 balance, uint256 required);
 
     function setUp() public {
@@ -42,8 +41,7 @@ contract AxelarHookTest is Test {
             destinationChain,
             destionationContract,
             axelarGateway,
-            axelarGasReceiver,
-            gmp_call_code
+            axelarGasReceiver
         );
         testMessage = _encodeTestMessage();
     }
@@ -66,7 +64,7 @@ contract AxelarHookTest is Test {
         vm.expectRevert("No Axelar Payment Received");
         uint256 expectedQuote = 0;
         bytes memory justRightCustomMetadata = BridgeAggregationHookMetadata
-            .formatMetadata(expectedQuote, 0, abi.encodePacked());
+            .formatMetadata(expectedQuote, abi.encodePacked());
         bytes memory testMetadata = StandardHookMetadata.formatMetadata(
             100,
             100,
@@ -80,7 +78,7 @@ contract AxelarHookTest is Test {
     function test_quoteDispatch_ReturnsSmallQuote() public {
         uint256 expectedQuote = 1;
         bytes memory justRightCustomMetadata = BridgeAggregationHookMetadata
-            .formatMetadata(expectedQuote, 0, abi.encodePacked());
+            .formatMetadata(expectedQuote, abi.encodePacked());
         bytes memory testMetadata = StandardHookMetadata.formatMetadata(
             100,
             100,
@@ -96,7 +94,7 @@ contract AxelarHookTest is Test {
         // type(uint256).max = 115792089237316195423570985008687907853269984665640564039457584007913129639935. that's a big quote
         uint256 expectedQuote = type(uint256).max;
         bytes memory justRightCustomMetadata = BridgeAggregationHookMetadata
-            .formatMetadata(expectedQuote, 0, abi.encodePacked());
+            .formatMetadata(expectedQuote, abi.encodePacked());
         bytes memory testMetadata = StandardHookMetadata.formatMetadata(
             100,
             100,
