@@ -33,14 +33,24 @@ export function readDeploymentArtifacts(filePath: string) {
   return artifacts;
 }
 
-export async function runDeploymentArtifactStep(
-  artifactsPath?: string,
-  message?: string,
-  selectedChains?: ChainName[],
+export async function runDeploymentArtifactStep({
+  artifactsPath,
+  message,
+  selectedChains,
   defaultArtifactsPath = './artifacts',
   defaultArtifactsNamePattern = 'core-deployment',
-): Promise<HyperlaneContractsMap<any> | undefined> {
+  skipConfirmation = false,
+}: {
+  artifactsPath?: string;
+  message?: string;
+  selectedChains?: ChainName[];
+  defaultArtifactsPath?: string;
+  defaultArtifactsNamePattern?: string;
+  skipConfirmation?: boolean;
+}): Promise<HyperlaneContractsMap<any> | undefined> {
   if (!artifactsPath) {
+    if (skipConfirmation) return undefined;
+
     const useArtifacts = await confirm({
       message: message || 'Do you want use some existing contract addresses?',
     });
