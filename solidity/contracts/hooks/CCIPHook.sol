@@ -62,15 +62,11 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
 
     // ============ Storage ============
 
-    // Mapping to keep track of allowlisted source chains.
     mapping(uint64 => bool) public allowlistedSourceChains;
-
-    // Mapping to keep track of allowlisted senders.
     mapping(address => bool) public allowlistedSenders;
-
     mapping(uint64 => bool) public allowlistedDestinationChains;
     IRouterClient internal immutable ccip_router;
-    address immutable public CCIPIsm; // The address of CCIP Ism to call during ccipReceive
+    address public CCIPIsm; // The address of CCIP Ism to call during ccipReceive
 
     // ============ Constructor ============
 
@@ -192,7 +188,7 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
             abi.decode(any2EvmMessage.sender, (address))
         ) // Make sure source chain and sender are allowlisted
     {
-        bytes lastReceivedPayload = abi.decode(any2EvmMessage.data, (bytes)); // abi-decoding of the sent payload
+        bytes memory lastReceivedPayload = abi.decode(any2EvmMessage.data, (bytes)); // abi-decoding of the sent payload
 
         (bool success, ) = CCIPIsm.call(lastReceivedPayload); // verifyMessageId(bytes32)
         require (success, "Call to CCIP Ism failed");
