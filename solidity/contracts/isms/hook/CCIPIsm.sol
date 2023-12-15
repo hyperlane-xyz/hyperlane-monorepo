@@ -32,20 +32,11 @@ contract CCIPIsm is AbstractMessageIdAuthorizedIsm {
 
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.NULL);
-    // corresponding to CCIP hook address
-    address public immutable hook;
-
-    // ============ Constructor ============
-
-    constructor(address _hook) {
-        require(Address.isContract(_hook), "Invalid CCIP hook");
-        hook = _hook;
-    }
 
     /**
      * @notice Check if sender is authorized to message `verifyMessageId`.
      */
     function _isAuthorized() internal view override returns (bool) {
-        return msg.sender == hook;
+        return msg.sender == TypeCasts.bytes32ToAddress(authorizedHook);
     }
 }
