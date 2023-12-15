@@ -130,11 +130,7 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
                 receiver: abi.encode(_receiver), // ABI-encoded receiver address
                 data: abi.encode(_callData), // ABI-encoded payload
                 tokenAmounts: new Client.EVMTokenAmount[](0), // Empty array aas no tokens are transferred
-                // extraArgs: "0x",
-                extraArgs: Client._argsToBytes(
-                    // Additional arguments, setting gas limit and non-strict sequencing mode
-                    Client.EVMExtraArgsV1({gasLimit: 200_000, strict: false})
-                ),
+                extraArgs: "",
                 // Set the feeToken to a feeTokenAddress, indicating specific asset will be used for fees
                 feeToken: _feeTokenAddress
             });
