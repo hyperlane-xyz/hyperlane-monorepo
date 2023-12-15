@@ -4429,7 +4429,7 @@ __metadata:
     sinon: "npm:^13.0.2"
     ts-node: "npm:^10.8.0"
     typescript: "npm:5.1.6"
-    viem: "npm:^1.19.13"
+    viem: "npm:^1.20.0"
     zod: "npm:^3.21.2"
   peerDependencies:
     "@ethersproject/abi": "*"
@@ -17081,9 +17081,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"viem@npm:^1.19.13":
-  version: 1.19.13
-  resolution: "viem@npm:1.19.13"
+"viem@npm:^1.20.0":
+  version: 1.20.0
+  resolution: "viem@npm:1.20.0"
   dependencies:
     "@adraffy/ens-normalize": "npm:1.10.0"
     "@noble/curves": "npm:1.2.0"
@@ -17098,7 +17098,7 @@ __metadata:
   peerDependenciesMeta:
     typescript:
       optional: true
-  checksum: cab5050c60fb776577fd1556742dce151c71ea767f9d20daba6478d044c21487451e51a230d29a23580b5271817bec6eebac079db273606ab686f7430ec41c21
+  checksum: f6f232e1b75085b2088e842a44d3e574afd3e603420cf65181d6fb0dec7942d0c4f4d3cdae8f7a43ddb9942dcb185443b1d5b7daec8a009a3cbab9436bea2164
   languageName: node
   linkType: hard
 
