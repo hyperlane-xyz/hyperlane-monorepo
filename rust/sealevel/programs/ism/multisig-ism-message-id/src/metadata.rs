@@ -38,7 +38,7 @@ impl TryFrom<Vec<u8>> for MultisigIsmMessageIdMetadata {
         // This cannot panic since SIGNATURES_OFFSET - MERKLE_INDEX_OFFSET is 4.
         let merkle_index_bytes: [u8; 4] = bytes[MERKLE_INDEX_OFFSET..SIGNATURES_OFFSET]
             .try_into()
-            .unwrap();
+            .map_err(|_| Error::InvalidMetadata)?;
         let merkle_index = u32::from_be_bytes(merkle_index_bytes);
 
         let signature_bytes_len = bytes_len - SIGNATURES_OFFSET;
