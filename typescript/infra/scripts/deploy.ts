@@ -16,8 +16,8 @@ import {
   LiquidityLayerDeployer,
 } from '@hyperlane-xyz/sdk';
 import {
+  HypERC20CollateralConfig,
   HypERC20Config,
-  HypNativeConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk/dist/token/config';
 import { objMap } from '@hyperlane-xyz/utils';
@@ -97,15 +97,16 @@ async function main() {
     const routerConfig = core.getRouterConfig(owner);
     const syntheticConfig: HypERC20Config = {
       type: TokenType.synthetic,
-      name: 'ETH',
-      symbol: 'ETH',
+      name: 'USDC',
+      symbol: 'USDC',
       decimals: 18,
       totalSupply: 0,
-      gas: 50_000, // native overhead
+      gas: 75_000, // collateral overhead
       ...routerConfig['viction'],
     };
-    const collateralConfig: HypNativeConfig = {
-      type: TokenType.native,
+    const collateralConfig: HypERC20CollateralConfig = {
+      type: TokenType.collateral,
+      token: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // USDC
       gas: 65_000, // synthetic overhead
       ...routerConfig['ethereum'],
       interchainSecurityModule: aggregationIsm('viction', Contexts.Hyperlane),
