@@ -609,7 +609,7 @@ fn termination_invariants_met(
     Ok(true)
 }
 
-#[cfg(test)]
+#[cfg(feature = "cosmos")]
 mod test {
     use super::*;
 

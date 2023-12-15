@@ -30,3 +30,6 @@ macro_rules_attribute.workspace = true
 regex.workspace = true
 hpl-interface.workspace = true
 cosmwasm-schema.workspace = true
+
+[features]
+cosmos = []
