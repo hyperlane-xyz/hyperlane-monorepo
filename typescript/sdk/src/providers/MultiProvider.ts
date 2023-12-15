@@ -17,11 +17,7 @@ import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
 import { ChainMetadata } from '../metadata/chainMetadataTypes';
 import { ChainMap, ChainName } from '../types';
 
-import {
-  DEFAULT_RETRY_OPTIONS,
-  ProviderBuilderFn,
-  defaultProviderBuilder,
-} from './providerBuilders';
+import { ProviderBuilderFn, defaultProviderBuilder } from './providerBuilders';
 
 type Provider = providers.Provider;
 
@@ -91,11 +87,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         31337,
       );
     } else if (rpcUrls.length) {
-      this.providers[name] = this.providerBuilder(
-        rpcUrls,
-        chainId,
-        DEFAULT_RETRY_OPTIONS,
-      );
+      this.providers[name] = this.providerBuilder(rpcUrls, chainId);
     } else {
       return null;
     }

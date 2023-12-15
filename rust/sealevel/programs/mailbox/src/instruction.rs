@@ -11,7 +11,7 @@ use solana_program::{
 use crate::{mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds};
 
 /// The current message version.
-pub const VERSION: u8 = 0;
+pub const VERSION: u8 = 3;
 
 /// Maximum bytes per message = 2 KiB (somewhat arbitrarily set to begin).
 pub const MAX_MESSAGE_BODY_BYTES: usize = 2 * 2_usize.pow(10);
