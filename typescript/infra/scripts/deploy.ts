@@ -4,7 +4,6 @@ import { prompt } from 'prompts';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
-  Chains,
   HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
@@ -15,12 +14,16 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
-  TokenConfig,
 } from '@hyperlane-xyz/sdk';
-import { TokenDecimals, TokenType } from '@hyperlane-xyz/sdk/dist/token/config';
+import {
+  HypERC20Config,
+  HypNativeConfig,
+  TokenType,
+} from '@hyperlane-xyz/sdk/dist/token/config';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
+import { aggregationIsm } from '../config/routingIsm';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -83,35 +86,33 @@ async function main() {
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.WARP) {
     const owner = deployerAddress;
-    const neutronRouter =
-      '6b04c49fcfd98bc4ea9c05cd5790462a39537c00028333474aebe6ddf20b73a3';
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,
     );
-    const tokenConfig: TokenConfig & TokenDecimals = {
-      type: TokenType.synthetic,
-      name: 'Eclipse Fi',
-      symbol: 'ECLIP',
-      decimals: 6,
-      totalSupply: 0,
-    };
     const core = HyperlaneCore.fromEnvironment(
       deployEnvToSdkEnv[environment],
       multiProvider,
     );
     const routerConfig = core.getRouterConfig(owner);
-    const targetChains = [Chains.arbitrum];
+    const syntheticConfig: HypERC20Config = {
+      type: TokenType.synthetic,
+      name: 'ETH',
+      symbol: 'ETH',
+      decimals: 18,
+      totalSupply: 0,
+      gas: 50_000, // native overhead
+      ...routerConfig['viction'],
+    };
+    const collateralConfig: HypNativeConfig = {
+      type: TokenType.native,
+      gas: 65_000, // synthetic overhead
+      ...routerConfig['ethereum'],
+      interchainSecurityModule: aggregationIsm('viction', Contexts.Hyperlane),
+    };
     config = {
-      arbitrum: {
-        ...routerConfig['arbitrum'],
-        ...tokenConfig,
-        interchainSecurityModule: '0x53A5c239d62ff35c98E0EC9612c86517748ffF59',
-        gas: 600_000,
-      },
-      neutron: {
-        foreignDeployment: neutronRouter,
-      },
+      viction: syntheticConfig,
+      ethereum: collateralConfig,
     };
     deployer = new HypERC20Deployer(multiProvider, ismFactory);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
