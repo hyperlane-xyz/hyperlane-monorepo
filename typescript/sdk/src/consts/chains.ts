@@ -35,6 +35,7 @@ export enum Chains {
   sepolia = 'sepolia',
   solana = 'solana',
   solanadevnet = 'solanadevnet',
+  viction = 'viction',
   test1 = 'test1',
   test2 = 'test2',
   test3 = 'test3',
@@ -69,6 +70,7 @@ export const Mainnets: Array<CoreChainName> = [
   Chains.base,
   Chains.scroll,
   Chains.polygonzkevm,
+  Chains.viction,
   // Chains.solana,
 ];
 

@@ -987,6 +987,37 @@ export const test3: ChainMetadata = {
   rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
 };
 
+export const viction: ChainMetadata = {
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 2,
+    reorgPeriod: 0,
+  },
+  blockExplorers: [
+    {
+      family: ExplorerFamily.Other,
+      name: 'Vicscan',
+      url: 'https://www.vicscan.xyz/',
+      apiUrl: '', // unknown
+    },
+  ],
+  chainId: 88,
+  domainId: 88,
+  displayName: 'Viction',
+  name: Chains.viction,
+  nativeToken: {
+    decimals: 18,
+    name: 'Viction',
+    symbol: 'VIC',
+  },
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [
+    {
+      http: 'https://viction.blockpi.network/v1/rpc/public',
+    },
+  ],
+};
+
 /**
  * Collection maps
  *
