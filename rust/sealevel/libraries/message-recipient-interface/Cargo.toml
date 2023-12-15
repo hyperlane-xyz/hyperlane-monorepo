@@ -17,7 +17,6 @@ getrandom = { workspace = true, features = ["custom"] }
 
 [lib]
 crate-type = ["cdylib", "lib"]
-doctest = false
 
 [profile.release]
 overflow-checks = true

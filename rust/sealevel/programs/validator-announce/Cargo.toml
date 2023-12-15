@@ -27,7 +27,6 @@ hyperlane-test-utils ={ path = "../../libraries/test-utils" }
 
 [lib]
 crate-type = ["cdylib", "lib"]
-doctest = false
 
 [profile.release]
 overflow-checks = true

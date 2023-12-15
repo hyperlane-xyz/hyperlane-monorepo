@@ -37,7 +37,6 @@ rand = "0.8.5"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-doctest = false
 
 [profile.release]
 overflow-checks = true
