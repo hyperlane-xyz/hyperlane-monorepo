@@ -62,10 +62,6 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
 
     // ============ Storage ============
 
-
-    bytes32 private lastReceivedMessageId; // Store the last received messageId.
-    bytes private lastReceivedPayload; // Store the last received id.
-
     // Mapping to keep track of allowlisted source chains.
     mapping(uint64 => bool) public allowlistedSourceChains;
 
@@ -74,7 +70,7 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
 
     mapping(uint64 => bool) public allowlistedDestinationChains;
     IRouterClient internal immutable ccip_router;
-    address public CCIPIsm; // The address of CCIP Ism to call during ccipReceive
+    address immutable public CCIPIsm; // The address of CCIP Ism to call during ccipReceive
 
     // ============ Constructor ============
 
@@ -196,8 +192,7 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
             abi.decode(any2EvmMessage.sender, (address))
         ) // Make sure source chain and sender are allowlisted
     {
-        lastReceivedMessageId = any2EvmMessage.messageId; // fetch the messageId
-        lastReceivedPayload = abi.decode(any2EvmMessage.data, (bytes)); // abi-decoding of the sent payload
+        bytes lastReceivedPayload = abi.decode(any2EvmMessage.data, (bytes)); // abi-decoding of the sent payload
 
         (bool success, ) = CCIPIsm.call(lastReceivedPayload); // verifyMessageId(bytes32)
         require (success, "Call to CCIP Ism failed");
@@ -269,17 +264,6 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
     /// @dev Updates the allowlist status of a sender for transactions.
     function addSenderToAllowlist(address _sender, bool allowed) external onlyOwner {
         allowlistedSenders[_sender] = allowed;
-    }
-
-    /// @notice Fetches the details of the last received message.
-    /// @return messageId The ID of the last received message.
-    /// @return payload The last received payload.
-    function getLastReceivedMessageDetails()
-        external
-        view
-        returns (bytes32 messageId, bytes memory payload)
-    {
-        return (lastReceivedMessageId, lastReceivedPayload);
     }
 
     /// @dev Sets the address for Ism to verify message
