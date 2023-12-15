@@ -4400,6 +4400,7 @@ dependencies = [
  "multisig-ism",
  "num-derive 0.4.1",
  "num-traits",
+ "rand 0.8.5",
  "serializable-account-meta",
  "solana-program",
  "solana-program-test",
