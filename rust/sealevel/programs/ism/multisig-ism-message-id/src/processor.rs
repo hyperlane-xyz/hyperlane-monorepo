@@ -171,9 +171,9 @@ pub fn process_instruction(
 /// Initializes the program, creating the access control PDA account.
 ///
 /// Accounts:
-/// 0. `[signer]` The new owner and payer of the access control PDA.
-/// 1. `[writable]` The access control PDA account.
-/// 2. `[executable]` The system program account.
+/// 0. ``signer`` The new owner and payer of the access control PDA.
+/// 1. ``writable`` The access control PDA account.
+/// 2. ``executable`` The system program account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -356,10 +356,10 @@ fn validators_and_threshold(
 /// Set the validators and threshold for a given domain.
 ///
 /// Accounts:
-/// 0. `[signer]` The access control owner and payer of the domain PDA.
+/// 0. ``signer`` The access control owner and payer of the domain PDA.
 /// 1. `[]` The access control PDA account.
-/// 2. `[writable]` The PDA relating to the provided domain.
-/// 3. `[executable]` OPTIONAL - The system program account. Required if creating the domain PDA.
+/// 2. ``writable`` The PDA relating to the provided domain.
+/// 3. ``executable`` OPTIONAL - The system program account. Required if creating the domain PDA.
 fn set_validators_and_threshold(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -505,7 +505,7 @@ fn access_control_data(
 /// Transfers ownership to a new access control owner.
 ///
 /// Accounts:
-/// 0. `[signer]` The current access control owner.
+/// 0. ``signer`` The current access control owner.
 /// 1. `[writeable]` The access control PDA account.
 fn transfer_ownership(
     program_id: &Pubkey,

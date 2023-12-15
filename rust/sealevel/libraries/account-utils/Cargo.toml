@@ -14,6 +14,7 @@ spl-type-length-value.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
+doctest = false
 
 [profile.release]
 overflow-checks = true

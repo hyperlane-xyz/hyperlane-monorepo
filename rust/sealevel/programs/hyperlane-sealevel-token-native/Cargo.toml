@@ -37,6 +37,7 @@ tarpc = "~0.29"
 
 [lib]
 crate-type = ["cdylib", "lib"]
+doctest = false
 
 [profile.release]
 overflow-checks = true

@@ -23,6 +23,7 @@ hex.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
+doctest = false
 
 [profile.release]
 overflow-checks = true
