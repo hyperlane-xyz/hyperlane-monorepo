@@ -9,6 +9,8 @@ import type { ChainMap, ChainName } from '../types';
 
 import { MultiProvider, MultiProviderOptions } from './MultiProvider';
 import {
+  CosmJsProvider,
+  CosmJsWasmProvider,
   EthersV5Provider,
   ProviderMap,
   ProviderType,
@@ -26,6 +28,7 @@ export const PROTOCOL_DEFAULT_PROVIDER_TYPE: Partial<
 > = {
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
+  [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
 };
 
 export interface MultiProtocolProviderOptions {
@@ -143,38 +146,59 @@ export class MultiProtocolProvider<
     return provider;
   }
 
+  protected getSpecificProvider<T>(
+    chainNameOrId: ChainName | number,
+    type: ProviderType,
+  ): T {
+    const provider = this.getProvider(chainNameOrId, type);
+    if (provider.type !== type)
+      throw new Error(
+        `Invalid provider type, expected ${type} but found ${provider.type}`,
+      );
+    return provider.provider as T;
+  }
+
   getEthersV5Provider(
     chainNameOrId: ChainName | number,
   ): EthersV5Provider['provider'] {
-    const provider = this.getProvider(chainNameOrId, ProviderType.EthersV5);
-    if (provider.type !== ProviderType.EthersV5)
-      throw new Error('Invalid provider type');
-    return provider.provider;
+    return this.getSpecificProvider<EthersV5Provider['provider']>(
+      chainNameOrId,
+      ProviderType.EthersV5,
+    );
   }
 
-  // getEthersV6Provider(
-  //   chainNameOrId: ChainName | number,
-  // ): EthersV6Provider['provider'] {
-  //   const provider = this.getProvider(chainNameOrId, ProviderType.EthersV6);
-  //   if (provider.type !== ProviderType.EthersV6)
-  //     throw new Error('Invalid provider type');
-  //   return provider.provider;
-  // }
-
   getViemProvider(chainNameOrId: ChainName | number): ViemProvider['provider'] {
-    const provider = this.getProvider(chainNameOrId, ProviderType.Viem);
-    if (provider.type !== ProviderType.Viem)
-      throw new Error('Invalid provider type');
-    return provider.provider;
+    return this.getSpecificProvider<ViemProvider['provider']>(
+      chainNameOrId,
+      ProviderType.Viem,
+    );
   }
 
   getSolanaWeb3Provider(
     chainNameOrId: ChainName | number,
   ): SolanaWeb3Provider['provider'] {
-    const provider = this.getProvider(chainNameOrId, ProviderType.SolanaWeb3);
-    if (provider.type !== ProviderType.SolanaWeb3)
-      throw new Error('Invalid provider type');
-    return provider.provider;
+    return this.getSpecificProvider<SolanaWeb3Provider['provider']>(
+      chainNameOrId,
+      ProviderType.SolanaWeb3,
+    );
+  }
+
+  getCosmJsProvider(
+    chainNameOrId: ChainName | number,
+  ): CosmJsProvider['provider'] {
+    return this.getSpecificProvider<CosmJsProvider['provider']>(
+      chainNameOrId,
+      ProviderType.CosmJs,
+    );
+  }
+
+  getCosmJsWasmProvider(
+    chainNameOrId: ChainName | number,
+  ): CosmJsWasmProvider['provider'] {
+    return this.getSpecificProvider<CosmJsWasmProvider['provider']>(
+      chainNameOrId,
+      ProviderType.CosmJsWasm,
+    );
   }
 
   setProvider(

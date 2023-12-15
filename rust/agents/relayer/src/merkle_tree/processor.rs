@@ -11,7 +11,7 @@ use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::{HyperlaneDomain, MerkleTreeInsertion};
 use prometheus::IntGauge;
 use tokio::sync::RwLock;
-use tracing::debug;
+use tracing::trace;
 
 use crate::processor::ProcessorExt;
 
@@ -76,7 +76,7 @@ impl MerkleTreeProcessor {
                 .set(insertion.index() as i64);
             Some(insertion)
         } else {
-            debug!(leaf_index=?self.leaf_index, "No message found in DB for leaf index");
+            trace!(leaf_index=?self.leaf_index, "No merkle tree insertion found in DB for leaf index, waiting for it to be indexed");
             None
         };
         Ok(leaf)

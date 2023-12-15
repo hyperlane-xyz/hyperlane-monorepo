@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use derive_new::new;
-use tracing::debug;
+use tracing::warn;
 
 /// Calculates the expected time to catch up to the tip of the blockchain.
 #[derive(new)]
@@ -38,10 +38,13 @@ impl SyncerEtaCalculator {
 
         self.last_block = current_block;
         self.last_tip = current_tip;
+
+        // The block-processing rate, minus the tip-progression rate, measured in
+        // blocks per second.
         let new_rate = (blocks_processed - tip_progression) / elapsed;
 
         // Calculate the effective rate using a moving average. Only set the past
-        // effective rate once we have seen a move to prevent it taking a long
+        // effective rate once we have seen a move, to prevent it taking a long
         // time to normalize.
         let effective_rate = if let Some(old_rate) = self.effective_rate {
             let new_coeff = f64::min(elapsed / self.time_window, 0.9);
@@ -66,7 +69,7 @@ impl SyncerEtaCalculator {
             {
                 Ok(eta) => eta,
                 Err(e) => {
-                    debug!(error=?e, tip=?current_tip, block=?current_block, rate=?effective_rate, "Failed to calculate the eta");
+                    warn!(error=?e, tip=?current_tip, block=?current_block, rate=?effective_rate, "Failed to calculate the eta");
                     default_duration
                 }
             }

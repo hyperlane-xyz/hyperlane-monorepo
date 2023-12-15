@@ -37,9 +37,12 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
         return _decimals;
     }
 
-    function balanceOf(address _account)
+    function balanceOf(
+        address _account
+    )
         public
         view
+        virtual
         override(TokenRouter, ERC20Upgradeable)
         returns (uint256)
     {
@@ -50,11 +53,9 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
      * @dev Burns `_amount` of token from `msg.sender` balance.
      * @inheritdoc TokenRouter
      */
-    function _transferFromSender(uint256 _amount)
-        internal
-        override
-        returns (bytes memory)
-    {
+    function _transferFromSender(
+        uint256 _amount
+    ) internal override returns (bytes memory) {
         _burn(msg.sender, _amount);
         return bytes(""); // no metadata
     }
@@ -67,7 +68,7 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
         address _recipient,
         uint256 _amount,
         bytes calldata // no metadata
-    ) internal override {
+    ) internal virtual override {
         _mint(_recipient, _amount);
     }
 }

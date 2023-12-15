@@ -13,21 +13,23 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
-import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 
 contract StaticAggregationHook is AbstractPostDispatchHook {
-    using StandardHookMetadata for bytes;
-
     // ============ External functions ============
 
+    /// @inheritdoc IPostDispatchHook
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.Types.AGGREGATION);
+    }
+
     /// @inheritdoc AbstractPostDispatchHook
-    function _postDispatch(bytes calldata metadata, bytes calldata message)
-        internal
-        override
-    {
+    function _postDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal override {
         address[] memory _hooks = hooks(message);
         uint256 count = _hooks.length;
         for (uint256 i = 0; i < count; i++) {
@@ -44,12 +46,10 @@ contract StaticAggregationHook is AbstractPostDispatchHook {
     }
 
     /// @inheritdoc AbstractPostDispatchHook
-    function _quoteDispatch(bytes calldata metadata, bytes calldata message)
-        internal
-        view
-        override
-        returns (uint256)
-    {
+    function _quoteDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal view override returns (uint256) {
         address[] memory _hooks = hooks(message);
         uint256 count = _hooks.length;
         uint256 total = 0;

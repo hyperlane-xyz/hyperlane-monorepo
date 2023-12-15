@@ -1,10 +1,11 @@
 import { Contexts } from '../../config/contexts';
 import { AgentAwsUser } from '../agents/aws';
+import { AgentGCPKey } from '../agents/gcp';
 import { AgentContextConfig } from '../config';
 import {
   HelloWorldKathyConfig,
   HelloWorldKathyRunMode,
-} from '../config/helloworld';
+} from '../config/helloworld/types';
 import { Role } from '../roles';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
@@ -25,6 +26,15 @@ export async function runHelloworldKathyHelmCommand(
     await awsUser.createIfNotExists();
     await awsUser.createKeyIfNotExists(agentConfig);
   }
+
+  // Also ensure a GCP key exists, which is used for non-EVM chains even if
+  // the agent config is AWS-based
+  const kathyKey = new AgentGCPKey(
+    agentConfig.runEnv,
+    agentConfig.context,
+    Role.Kathy,
+  );
+  await kathyKey.createIfNotExists();
 
   const values = getHelloworldKathyHelmValues(agentConfig, kathyConfig);
 
@@ -65,9 +75,9 @@ function getHelloworldKathyHelmValues(
       context: agentConfig.context,
       // This is just used for fetching secrets, and is not actually
       // the list of chains that kathy will send to. Because Kathy
-      // will fetch secrets for all chains, regardless of skipping them or
-      // not, we pass in all chains
-      chains: agentConfig.contextChainNames,
+      // will fetch secrets for all chains in the environment, regardless
+      // of skipping them or not, we pass in all chains
+      chains: agentConfig.environmentChainNames,
       aws: agentConfig.aws !== undefined,
 
       chainsToSkip: kathyConfig.chainsToSkip,

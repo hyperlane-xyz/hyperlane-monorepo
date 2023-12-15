@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer,
+    HyperlaneChain, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer,
 };
 use hyperlane_sealevel_mailbox::accounts::OutboxAccount;
 use solana_sdk::commitment_config::CommitmentConfig;
@@ -22,7 +22,7 @@ impl MerkleTreeHook for SealevelMailbox {
         );
 
         let outbox_account = self
-            .rpc_client
+            .rpc()
             .get_account_with_commitment(&self.outbox.0, CommitmentConfig::finalized())
             .await
             .map_err(ChainCommunicationError::from_other)?
@@ -58,7 +58,7 @@ impl MerkleTreeHook for SealevelMailbox {
         })?;
         let checkpoint = Checkpoint {
             merkle_tree_hook_address: self.program_id.to_bytes().into(),
-            mailbox_domain: self.domain.id(),
+            mailbox_domain: self.domain().id(),
             root,
             index,
         };

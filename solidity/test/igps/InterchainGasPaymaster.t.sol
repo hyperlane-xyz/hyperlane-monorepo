@@ -11,6 +11,7 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {InterchainGasPaymaster} from "../../contracts/hooks/igp/InterchainGasPaymaster.sol";
 import {StorageGasOracle} from "../../contracts/hooks/igp/StorageGasOracle.sol";
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
+import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
 contract InterchainGasPaymasterTest is Test {
     using StandardHookMetadata for bytes;
@@ -93,9 +94,9 @@ contract InterchainGasPaymasterTest is Test {
         );
     }
 
-    function testdestinationGasLimit_whenOverheadNotSet(uint32 _otherDomains)
-        public
-    {
+    function testdestinationGasLimit_whenOverheadNotSet(
+        uint32 _otherDomains
+    ) public {
         vm.assume(_otherDomains != testDestinationDomain);
         assertEq(
             igp.destinationGasLimit(_otherDomains, testGasLimit),
@@ -346,9 +347,10 @@ contract InterchainGasPaymasterTest is Test {
         );
     }
 
-    function testPayForGas_withOverhead(uint128 _gasLimit, uint96 _gasOverhead)
-        public
-    {
+    function testPayForGas_withOverhead(
+        uint128 _gasLimit,
+        uint96 _gasOverhead
+    ) public {
         setRemoteGasData(
             testDestinationDomain,
             1 * TEST_EXCHANGE_RATE,
@@ -408,11 +410,8 @@ contract InterchainGasPaymasterTest is Test {
             TEST_GAS_PRICE
         );
 
-        bytes memory metadata = StandardHookMetadata.formatMetadata(
-            0,
-            uint256(testGasLimit), // gas limit
-            testRefundAddress, // refund address,
-            bytes("")
+        bytes memory metadata = StandardHookMetadata.overrideGasLimit(
+            uint256(testGasLimit)
         );
         // 150 * (300_000 + 123_000) = 45_000_000
         assertEq(igp.quoteDispatch(metadata, testEncodedMessage), 63_450_000);
@@ -500,9 +499,9 @@ contract InterchainGasPaymasterTest is Test {
         assertEq(_igpBalanceAfter - _igpBalanceBefore, _quote);
     }
 
-    function testPostDispatch_customWithMetadataAndOverhead(uint96 _gasOverhead)
-        public
-    {
+    function testPostDispatch_customWithMetadataAndOverhead(
+        uint96 _gasOverhead
+    ) public {
         vm.deal(address(this), _gasOverhead + testGasLimit);
 
         setRemoteGasData(
@@ -522,16 +521,20 @@ contract InterchainGasPaymasterTest is Test {
             igp.destinationGasLimit(testDestinationDomain, testGasLimit)
         );
 
-        bytes memory metadata = StandardHookMetadata.formatMetadata(
-            0,
-            uint256(testGasLimit), // gas limit
-            testRefundAddress, // refund address
-            bytes("")
+        bytes memory metadata = StandardHookMetadata.overrideGasLimit(
+            uint256(testGasLimit)
         );
         bytes memory message = _encodeTestMessage();
         igp.postDispatch{value: _quote}(metadata, message);
         uint256 _igpBalanceAfter = address(igp).balance;
         assertEq(_igpBalanceAfter - _igpBalanceBefore, _quote);
+    }
+
+    function testHookType() public {
+        assertEq(
+            igp.hookType(),
+            uint8(IPostDispatchHook.Types.INTERCHAIN_GAS_PAYMASTER)
+        );
     }
 
     // ============ claim ============

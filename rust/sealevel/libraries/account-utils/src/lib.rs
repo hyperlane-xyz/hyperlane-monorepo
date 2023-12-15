@@ -154,11 +154,15 @@ where
 {
     /// Stores the account data in the given account, reallocing the account
     /// if necessary, and ensuring it is rent exempt.
+    /// Requires `_system_program_info` to be passed in despite not being directly
+    /// used to ensure that a CPI to the system program in the case of a realloc
+    /// that requires additional lamports for rent exemption will be successful.
     pub fn store_with_rent_exempt_realloc<'a, 'b>(
         &self,
         account_info: &'a AccountInfo<'b>,
         rent: &Rent,
         payer_info: &'a AccountInfo<'b>,
+        _system_program_info: &'a AccountInfo<'b>,
     ) -> Result<(), ProgramError> {
         let required_size = self.size();
 

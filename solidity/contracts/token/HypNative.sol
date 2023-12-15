@@ -34,12 +34,9 @@ contract HypNative is TokenRouter {
         return _transferRemote(_destination, _recipient, _amount, gasPayment);
     }
 
-    function balanceOf(address _account)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function balanceOf(
+        address _account
+    ) external view override returns (uint256) {
         return _account.balance;
     }
 
@@ -48,12 +45,9 @@ contract HypNative is TokenRouter {
      * @dev No-op because native amount is transferred in `msg.value`
      * @dev Compiler will not include this in the bytecode.
      */
-    function _transferFromSender(uint256)
-        internal
-        pure
-        override
-        returns (bytes memory)
-    {
+    function _transferFromSender(
+        uint256
+    ) internal pure override returns (bytes memory) {
         return bytes(""); // no metadata
     }
 

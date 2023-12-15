@@ -52,7 +52,7 @@ impl BuildableWithProvider for MerkleTreeHookBuilder {
 }
 
 pub struct MerkleTreeHookIndexerBuilder {
-    pub finality_blocks: u32,
+    pub reorg_period: u32,
 }
 
 #[async_trait]
@@ -67,7 +67,7 @@ impl BuildableWithProvider for MerkleTreeHookIndexerBuilder {
         Box::new(EthereumMerkleTreeHookIndexer::new(
             Arc::new(provider),
             locator,
-            self.finality_blocks,
+            self.reorg_period,
         ))
     }
 }
@@ -80,7 +80,7 @@ where
 {
     contract: Arc<MerkleTreeHookContract<M>>,
     provider: Arc<M>,
-    finality_blocks: u32,
+    reorg_period: u32,
 }
 
 impl<M> EthereumMerkleTreeHookIndexer<M>
@@ -88,14 +88,14 @@ where
     M: Middleware + 'static,
 {
     /// Create new EthereumMerkleTreeHookIndexer
-    pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
+    pub fn new(provider: Arc<M>, locator: &ContractLocator, reorg_period: u32) -> Self {
         Self {
             contract: Arc::new(MerkleTreeHookContract::new(
                 locator.address,
                 provider.clone(),
             )),
             provider,
-            finality_blocks,
+            reorg_period,
         }
     }
 }
@@ -130,7 +130,7 @@ where
         Ok(logs)
     }
 
-    #[instrument(level = "debug", err, ret, skip(self))]
+    #[instrument(level = "debug", err, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
             .provider
@@ -138,7 +138,7 @@ where
             .await
             .map_err(ChainCommunicationError::from_other)?
             .as_u32()
-            .saturating_sub(self.finality_blocks))
+            .saturating_sub(self.reorg_period))
     }
 }
 
@@ -147,15 +147,13 @@ impl<M> SequenceIndexer<MerkleTreeInsertion> for EthereumMerkleTreeHookIndexer<M
 where
     M: Middleware + 'static,
 {
+    // TODO: if `SequenceIndexer` turns out to not depend on `Indexer` at all, then the supertrait
+    // dependency could be removed, even if the builder would still need to return a type that is both
+    // `SequenceIndexer` and `Indexer`.
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // The InterchainGasPaymasterIndexerBuilder must return a `SequenceIndexer` type.
-        // It's fine if only a blanket implementation is provided for EVM chains, since their
-        // indexing only uses the `Index` trait, which is a supertrait of `SequenceIndexer`.
-        // TODO: if `SequenceIndexer` turns out to not depend on `Indexer` at all, then the supertrait
-        // dependency could be removed, even if the builder would still need to return a type that is both
-        // ``SequenceIndexer` and `Indexer`.
         let tip = self.get_finalized_block_number().await?;
-        Ok((None, tip))
+        let sequence = self.contract.count().block(u64::from(tip)).call().await?;
+        Ok((Some(sequence), tip))
     }
 }
 

@@ -1,3 +1,4 @@
+import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
   HyperlaneCore,
   HyperlaneCoreChecker,
@@ -10,48 +11,58 @@ import {
   InterchainQueryChecker,
 } from '@hyperlane-xyz/sdk';
 
+import { Contexts } from '../config/contexts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
 import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
 import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor';
 import { ProxiedRouterGovernor } from '../src/govern/ProxiedRouterGovernor';
+import { Role } from '../src/roles';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
+import { getHelloWorldApp } from './helloworld/utils';
 import {
   Modules,
   getEnvironmentConfig,
-  getProxiedRouterConfig,
   getArgs as getRootArgs,
+  withContext,
   withModuleAndFork,
 } from './utils';
 
 function getArgs() {
-  return withModuleAndFork(getRootArgs())
+  return withModuleAndFork(withContext(getRootArgs()))
     .boolean('govern')
     .default('govern', false)
     .alias('g', 'govern').argv;
 }
 
 async function check() {
-  const { fork, govern, module, environment } = await getArgs();
+  const { fork, govern, module, environment, context } = await getArgs();
   const config = getEnvironmentConfig(environment);
-  const multiProvider = await config.getMultiProvider();
+  let multiProvider = await config.getMultiProvider();
 
   // must rotate to forked provider before building core contracts
   if (fork) {
     await useLocalProvider(multiProvider, fork);
+
     if (govern) {
+      multiProvider = multiProvider.extendChainMetadata({
+        [fork]: { blocks: { confirmations: 0 } },
+      });
+
       const owner = config.core[fork].owner;
       const signer = await impersonateAccount(owner);
       multiProvider.setSigner(fork, signer);
     }
   }
 
-  let governor: HyperlaneAppGovernor<any, any>;
   const env = deployEnvToSdkEnv[environment];
+  const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+  const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
+  const routerConfig = core.getRouterConfig(config.owners);
+
+  let governor: HyperlaneAppGovernor<any, any>;
   if (module === Modules.CORE) {
-    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
-    const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
     const checker = new HyperlaneCoreChecker(
       multiProvider,
       core,
@@ -64,10 +75,6 @@ async function check() {
     const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
     governor = new HyperlaneIgpGovernor(checker, config.owners);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    const routerConfig = await getProxiedRouterConfig(
-      environment,
-      multiProvider,
-    );
     const ica = InterchainAccount.fromEnvironment(env, multiProvider);
     const checker = new InterchainAccountChecker(
       multiProvider,
@@ -76,15 +83,26 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker, config.owners);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
-    const routerConfig = await getProxiedRouterConfig(
-      environment,
-      multiProvider,
-    );
     const iqs = InterchainQuery.fromEnvironment(env, multiProvider);
     const checker = new InterchainQueryChecker(
       multiProvider,
       iqs,
       routerConfig,
+    );
+    governor = new ProxiedRouterGovernor(checker, config.owners);
+  } else if (module === Modules.HELLO_WORLD) {
+    const app = await getHelloWorldApp(
+      config,
+      context,
+      Role.Deployer,
+      Contexts.Hyperlane, // Owner should always be from the hyperlane context
+    );
+    const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
+    const checker = new HelloWorldChecker(
+      multiProvider,
+      app,
+      routerConfig,
+      ismFactory,
     );
     governor = new ProxiedRouterGovernor(checker, config.owners);
   } else {

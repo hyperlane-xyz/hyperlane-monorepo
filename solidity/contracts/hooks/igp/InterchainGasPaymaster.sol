@@ -92,14 +92,19 @@ contract InterchainGasPaymaster is
 
     // ============ External Functions ============
 
+    /// @inheritdoc IPostDispatchHook
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.Types.INTERCHAIN_GAS_PAYMASTER);
+    }
+
     /**
      * @param _owner The owner of the contract.
      * @param _beneficiary The beneficiary.
      */
-    function initialize(address _owner, address _beneficiary)
-        public
-        initializer
-    {
+    function initialize(
+        address _owner,
+        address _beneficiary
+    ) public initializer {
         __Ownable_init();
         _transferOwnership(_owner);
         _setBeneficiary(_beneficiary);
@@ -119,10 +124,9 @@ contract InterchainGasPaymaster is
      * @notice Sets the gas oracles for remote domains specified in the config array.
      * @param _configs An array of configs including the remote domain and gas oracles to set.
      */
-    function setDestinationGasConfigs(GasParam[] calldata _configs)
-        external
-        onlyOwner
-    {
+    function setDestinationGasConfigs(
+        GasParam[] calldata _configs
+    ) external onlyOwner {
         uint256 _len = _configs.length;
         for (uint256 i = 0; i < _len; i++) {
             _setDestinationGasConfig(
@@ -187,13 +191,10 @@ contract InterchainGasPaymaster is
      * @param _gasLimit The amount of destination gas to pay for.
      * @return The amount of native tokens required to pay for interchain gas.
      */
-    function quoteGasPayment(uint32 _destinationDomain, uint256 _gasLimit)
-        public
-        view
-        virtual
-        override
-        returns (uint256)
-    {
+    function quoteGasPayment(
+        uint32 _destinationDomain,
+        uint256 _gasLimit
+    ) public view virtual override returns (uint256) {
         // Get the gas data for the destination domain.
         (
             uint128 _tokenExchangeRate,
@@ -216,7 +217,9 @@ contract InterchainGasPaymaster is
      * @return tokenExchangeRate The exchange rate of the remote native token quoted in the local native token.
      * @return gasPrice The gas price on the remote chain.
      */
-    function getExchangeRateAndGasPrice(uint32 _destinationDomain)
+    function getExchangeRateAndGasPrice(
+        uint32 _destinationDomain
+    )
         public
         view
         override
@@ -245,11 +248,10 @@ contract InterchainGasPaymaster is
      * @param _gasLimit The amount of destination gas to pay for. This is only for application gas usage as
      *      the gas usage for the mailbox and the ISM is already accounted in the DomainGasConfig.gasOverhead
      */
-    function destinationGasLimit(uint32 _destinationDomain, uint256 _gasLimit)
-        public
-        view
-        returns (uint256)
-    {
+    function destinationGasLimit(
+        uint32 _destinationDomain,
+        uint256 _gasLimit
+    ) public view returns (uint256) {
         return
             uint256(destinationGasConfigs[_destinationDomain].gasOverhead) +
             _gasLimit;
@@ -258,10 +260,10 @@ contract InterchainGasPaymaster is
     // ============ Internal Functions ============
 
     /// @inheritdoc AbstractPostDispatchHook
-    function _postDispatch(bytes calldata metadata, bytes calldata message)
-        internal
-        override
-    {
+    function _postDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal override {
         payForGas(
             message.id(),
             message.destination(),
@@ -274,12 +276,10 @@ contract InterchainGasPaymaster is
     }
 
     /// @inheritdoc AbstractPostDispatchHook
-    function _quoteDispatch(bytes calldata metadata, bytes calldata message)
-        internal
-        view
-        override
-        returns (uint256)
-    {
+    function _quoteDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal view override returns (uint256) {
         return
             quoteGasPayment(
                 message.destination(),

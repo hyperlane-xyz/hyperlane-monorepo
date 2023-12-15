@@ -1,3 +1,5 @@
+import { BigNumber, ethers } from 'ethers';
+
 import {
   ChainName,
   EthersV5Transaction,
@@ -7,7 +9,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { StatCounts } from '../app/types';
 import { HelloWorld, HelloWorld__factory } from '../types';
 
 import { IHelloWorldAdapter } from './types';
@@ -28,6 +29,7 @@ export class EvmHelloWorldAdapter
     destination: ChainName,
     message: string,
     value: string,
+    sender: Address,
   ): Promise<EthersV5Transaction> {
     const contract = this.getConnectedContract();
     const toDomain = this.multiProvider.getDomainId(destination);
@@ -35,11 +37,22 @@ export class EvmHelloWorldAdapter
       this.chainName,
     );
 
+    const quote = await contract.callStatic.quoteDispatch(
+      toDomain,
+      ethers.utils.toUtf8Bytes(message),
+    );
     // apply gas buffer due to https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/634
     const estimated = await contract.estimateGas.sendHelloWorld(
       toDomain,
       message,
-      { ...transactionOverrides, value },
+      {
+        ...transactionOverrides,
+        // Some networks, like PolygonZkEvm, require a `from` address
+        // with funds to be specified when estimating gas for a transaction
+        // that provides non-zero `value`.
+        from: sender,
+        value: BigNumber.from(value).add(quote),
+      },
     );
     const gasLimit = estimated.mul(12).div(10);
 
@@ -49,28 +62,17 @@ export class EvmHelloWorldAdapter
       {
         ...transactionOverrides,
         gasLimit,
-        value,
+        value: BigNumber.from(value).add(quote),
       },
     );
     return { transaction: tx, type: ProviderType.EthersV5 };
   }
 
-  async channelStats(
-    destination: ChainName,
-    destinationMailbox: Address,
-  ): Promise<StatCounts> {
-    const originDomain = this.multiProvider.getDomainId(this.chainName);
+  async sentStat(destination: ChainName): Promise<number> {
     const destinationDomain = this.multiProvider.getDomainId(destination);
     const originContract = this.getConnectedContract();
     const sent = await originContract.sentTo(destinationDomain);
-    const destinationProvider =
-      this.multiProvider.getEthersV5Provider(destination);
-    const destinationContract = HelloWorld__factory.connect(
-      destinationMailbox,
-      destinationProvider,
-    );
-    const received = await destinationContract.sentTo(originDomain);
-    return { sent: sent.toNumber(), received: received.toNumber() };
+    return sent.toNumber();
   }
 
   override getConnectedContract(): HelloWorld {

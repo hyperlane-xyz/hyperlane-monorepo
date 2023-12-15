@@ -1,8 +1,10 @@
 import path from 'path';
+import { prompt } from 'prompts';
 
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
+  HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
   HyperlaneIgpDeployer,
@@ -29,8 +31,6 @@ import {
   getContractAddressesSdkFilepath,
   getEnvironmentConfig,
   getModuleDirectory,
-  getProxiedRouterConfig,
-  getRouterConfig,
   withContext,
   withModuleAndFork,
 } from './utils';
@@ -43,16 +43,21 @@ async function main() {
     environment,
   } = await withContext(withModuleAndFork(getArgs())).argv;
   const envConfig = getEnvironmentConfig(environment);
-  const multiProvider = await envConfig.getMultiProvider();
+  const env = deployEnvToSdkEnv[environment];
+
+  let multiProvider = await envConfig.getMultiProvider();
+
+  // TODO: make this more generic
+  const deployerAddress =
+    environment === 'testnet4'
+      ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
+      : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
   if (fork) {
+    multiProvider = multiProvider.extendChainMetadata({
+      [fork]: { blocks: { confirmations: 0 } },
+    });
     await useLocalProvider(multiProvider, fork);
-
-    // TODO: make this more generic
-    const deployerAddress =
-      environment === 'testnet4'
-        ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
-        : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
     const signer = await impersonateAccount(deployerAddress);
     multiProvider.setSharedSigner(signer);
@@ -74,16 +79,16 @@ async function main() {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    config = await getProxiedRouterConfig(environment, multiProvider);
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainAccountDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
-    config = await getProxiedRouterConfig(environment, multiProvider);
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainQueryDeployer(multiProvider);
   } else if (module === Modules.LIQUIDITY_LAYER) {
-    const routerConfig = await getProxiedRouterConfig(
-      environment,
-      multiProvider,
-    );
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    const routerConfig = core.getRouterConfig(envConfig.owners);
     if (!envConfig.liquidityLayerConfig) {
       throw new Error(`No liquidity layer config for ${environment}`);
     }
@@ -96,6 +101,7 @@ async function main() {
     );
     deployer = new LiquidityLayerDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
+    config = objMap(envConfig.core, (_chain) => true);
     deployer = new TestRecipientDeployer(multiProvider);
   } else if (module === Modules.TEST_QUERY_SENDER) {
     // Get query router addresses
@@ -108,16 +114,9 @@ async function main() {
     }));
     deployer = new TestQuerySenderDeployer(multiProvider);
   } else if (module === Modules.HELLO_WORLD) {
-    config = await getRouterConfig(
-      environment,
-      multiProvider,
-      true, // use deployer as owner
-    );
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.PROXY_FACTORY),
-      multiProvider,
-    );
-    deployer = new HelloWorldDeployer(multiProvider, ismFactory);
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    config = core.getRouterConfig(deployerAddress);
+    deployer = new HelloWorldDeployer(multiProvider);
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
@@ -153,6 +152,20 @@ async function main() {
           multiProvider,
         }
       : undefined;
+
+  // prompt for confirmation
+  if ((environment === 'mainnet3' || environment === 'testnet4') && !fork) {
+    console.log(JSON.stringify(config, null, 2));
+    const { value: confirmed } = await prompt({
+      type: 'confirm',
+      name: 'value',
+      message: `Confirm you want to deploy this ${module} configuration to ${environment}?`,
+      initial: false,
+    });
+    if (!confirmed) {
+      process.exit(0);
+    }
+  }
 
   await deployWithArtifacts(config, deployer, cache, fork, agentConfig);
 }

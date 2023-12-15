@@ -1,11 +1,9 @@
 import {
+  Chains,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
-  getDomainId,
-  hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
 
 import {
   RootAgentConfig,
@@ -24,20 +22,6 @@ const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
 );
 
-const interchainQueryRouters = objMap(
-  hyperlaneEnvironments.testnet,
-  (_, addresses) => {
-    return {
-      // @ts-ignore moonbasealpha has no interchain query router
-      router: addresses.interchainQueryRouter,
-    };
-  },
-);
-
-const interchainQueriesMatchingList = routerMatchingList(
-  interchainQueryRouters,
-);
-
 const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
 const contextBase = {
@@ -51,14 +35,6 @@ const contextBase = {
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
-  {
-    type: GasPaymentEnforcementPolicyType.None,
-    // To continue relaying interchain query callbacks, we whitelist
-    // all messages between interchain query routers.
-    // This whitelist will become more strict with
-    // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
-    matchingList: interchainQueriesMatchingList,
-  },
   // Default policy is OnChainFeeQuoting
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
@@ -74,7 +50,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ed7569d-20230725-171222',
+      tag: '86b7f98-20231207-153805',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -91,15 +67,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ed7569d-20230725-171222',
-    },
-    chainDockerOverrides: {
-      [chainMetadata.solanadevnet.name]: {
-        tag: '79bad9d-20230706-190752',
-      },
-      [chainMetadata.proteustestnet.name]: {
-        tag: 'c7c44b2-20230811-133851',
-      },
+      tag: '86b7f98-20231207-153805',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -107,7 +75,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'aaddba7-20230620-154941',
+      tag: '86b7f98-20231207-153805',
     },
   },
 };
@@ -120,58 +88,10 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c7c44b2-20230811-133851',
+      tag: '86b7f98-20231207-153805',
     },
-    whitelist: [
-      ...releaseCandidateHelloworldMatchingList,
-      // Whitelist all traffic to solanadevnet
-      {
-        originDomain: '*',
-        senderAddress: '*',
-        destinationDomain: [
-          getDomainId(chainMetadata.solanadevnet),
-          getDomainId(chainMetadata.proteustestnet),
-        ],
-        recipientAddress: '*',
-      },
-      // Whitelist all traffic from solanadevnet to fuji
-      {
-        originDomain: [
-          getDomainId(chainMetadata.solanadevnet),
-          getDomainId(chainMetadata.proteustestnet),
-        ],
-        senderAddress: '*',
-        destinationDomain: [getDomainId(chainMetadata.bsctestnet)],
-        recipientAddress: '*',
-      },
-    ],
-    gasPaymentEnforcement: [
-      // Don't require gas payments from solanadevnet
-      {
-        type: GasPaymentEnforcementPolicyType.None,
-        matchingList: [
-          {
-            originDomain: [getDomainId(chainMetadata.solanadevnet)],
-            senderAddress: '*',
-            destinationDomain: [
-              getDomainId(chainMetadata.bsctestnet),
-              getDomainId(chainMetadata.proteustestnet),
-            ],
-            recipientAddress: '*',
-          },
-          {
-            originDomain: [getDomainId(chainMetadata.bsctestnet)],
-            senderAddress: '*',
-            destinationDomain: [
-              getDomainId(chainMetadata.solanadevnet),
-              getDomainId(chainMetadata.proteustestnet),
-            ],
-            recipientAddress: '*',
-          },
-        ],
-      },
-      ...gasPaymentEnforcement,
-    ],
+    whitelist: [...releaseCandidateHelloworldMatchingList],
+    gasPaymentEnforcement,
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1
     // fees which leads to wildly off predictions.
@@ -181,13 +101,34 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ed7569d-20230725-171222',
+      tag: '86b7f98-20231207-153805',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
+  },
+};
+
+const neutron: RootAgentConfig = {
+  ...contextBase,
+  context: Contexts.Neutron,
+  rolesWithKeys: [Role.Relayer],
+  contextChainNames: {
+    relayer: [Chains.goerli],
+    validator: [],
+    scraper: [],
+  },
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      tag: '86b7f98-20231207-153805',
+    },
+    gasPaymentEnforcement,
+    transactionGasLimit: 750000,
   },
 };
 
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.Neutron]: neutron,
 };

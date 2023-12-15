@@ -62,10 +62,10 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
      * @param _domain The origin domain
      * @param _module The ISM to use to verify messages
      */
-    function set(uint32 _domain, IInterchainSecurityModule _module)
-        external
-        onlyOwner
-    {
+    function set(
+        uint32 _domain,
+        IInterchainSecurityModule _module
+    ) external onlyOwner {
         _set(_domain, address(_module));
     }
 
@@ -81,12 +81,9 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
         return _modules.keys();
     }
 
-    function module(uint32 origin)
-        public
-        view
-        virtual
-        returns (IInterchainSecurityModule)
-    {
+    function module(
+        uint32 origin
+    ) public view virtual returns (IInterchainSecurityModule) {
         (bool contained, bytes32 _module) = _modules.tryGet(origin);
         require(contained, _originNotFoundError(origin));
         return IInterchainSecurityModule(_module.bytes32ToAddress());
@@ -99,12 +96,9 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
      * @param _message Formatted Hyperlane message (see Message.sol).
      * @return module The ISM to use to verify _message
      */
-    function route(bytes calldata _message)
-        public
-        view
-        override
-        returns (IInterchainSecurityModule)
-    {
+    function route(
+        bytes calldata _message
+    ) public view override returns (IInterchainSecurityModule) {
         return module(_message.origin());
     }
 
@@ -118,11 +112,9 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
         require(_modules.remove(_domain), _originNotFoundError(_domain));
     }
 
-    function _originNotFoundError(uint32 _origin)
-        internal
-        pure
-        returns (string memory)
-    {
+    function _originNotFoundError(
+        uint32 _origin
+    ) internal pure returns (string memory) {
         return string.concat("No ISM found for origin: ", _origin.toString());
     }
 

@@ -1,8 +1,12 @@
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
+import debug from 'debug';
 import { providers } from 'ethers';
 
 import {
   ERC20__factory,
   ERC721EnumerableUpgradeable__factory,
+  FastHypERC20Collateral__factory,
+  FastHypERC20__factory,
   HypERC20,
   HypERC20Collateral,
   HypERC20Collateral__factory,
@@ -20,6 +24,7 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { GasRouterDeployer } from '../router/GasRouterDeployer';
 import { GasConfig, RouterConfig } from '../router/types';
@@ -39,6 +44,7 @@ import {
   TokenMetadata,
   isCollateralConfig,
   isErc20Metadata,
+  isFastConfig,
   isNativeConfig,
   isSyntheticConfig,
   isTokenMetadata,
@@ -50,8 +56,11 @@ export class HypERC20Deployer extends GasRouterDeployer<
   ERC20RouterConfig,
   HypERC20Factories
 > {
-  constructor(multiProvider: MultiProvider) {
-    super(multiProvider, {} as HypERC20Factories); // factories not used in deploy
+  constructor(multiProvider: MultiProvider, ismFactory?: HyperlaneIsmFactory) {
+    super(multiProvider, {} as HypERC20Factories, {
+      logger: debug('hyperlane:HypERC20Deployer'),
+      ismFactory,
+    }); // factories not used in deploy
   }
 
   static async fetchMetadata(
@@ -72,11 +81,14 @@ export class HypERC20Deployer extends GasRouterDeployer<
 
   static gasOverheadDefault(config: TokenConfig): number {
     switch (config.type) {
+      case 'fastSynthetic':
+        return 64_000;
       case 'synthetic':
         return 64_000;
       case 'native':
         return 44_000;
       case 'collateral':
+      case 'fastCollateral':
       default:
         return 68_000;
     }
@@ -121,12 +133,16 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20CollateralConfig,
   ): Promise<HypERC20Collateral> {
-    return this.deployContractFromFactory(
-      chain,
-      new HypERC20Collateral__factory(),
-      'HypERC20Collateral',
-      [config.token, config.mailbox],
-    );
+    const isFast = isFastConfig(config);
+    const factory = isFast
+      ? new FastHypERC20Collateral__factory()
+      : new HypERC20Collateral__factory();
+    const name = isFast ? 'FastHypERC20Collateral' : 'HypERC20Collateral';
+
+    return this.deployContractFromFactory(chain, factory, name, [
+      config.token,
+      config.mailbox,
+    ]);
   }
 
   protected async deployNative(
@@ -156,12 +172,17 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20Config,
   ): Promise<HypERC20> {
-    const router = await this.deployContractFromFactory(
-      chain,
-      new HypERC20__factory(),
-      'HypERC20',
-      [config.decimals, config.mailbox],
-    );
+    const isFast = isFastConfig(config);
+    const factory = isFast
+      ? new FastHypERC20__factory()
+      : new HypERC20__factory();
+    const name = isFast ? 'FastHypERC20' : 'HypERC20';
+
+    const router = await this.deployContractFromFactory(chain, factory, name, [
+      config.decimals,
+      config.mailbox,
+    ]);
+
     await this.multiProvider.handleTx(
       chain,
       router.initialize(config.totalSupply, config.name, config.symbol),
@@ -184,6 +205,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
     } else {
       throw new Error('Invalid ERC20 token router config');
     }
+    await this.configureClient(chain, router, config);
     return { router };
   }
 
@@ -252,7 +274,9 @@ export class HypERC721Deployer extends GasRouterDeployer<
   HypERC721Factories
 > {
   constructor(multiProvider: MultiProvider) {
-    super(multiProvider, {} as HypERC721Factories); // factories not used in deploy
+    super(multiProvider, {} as HypERC721Factories, {
+      logger: debug('hyperlane:HypERC721Deployer'),
+    }); // factories not used in deploy
   }
 
   static async fetchMetadata(

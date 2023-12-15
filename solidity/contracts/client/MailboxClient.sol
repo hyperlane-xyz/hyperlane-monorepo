@@ -22,6 +22,8 @@ abstract contract MailboxClient is OwnableUpgradeable {
 
     IInterchainSecurityModule public interchainSecurityModule;
 
+    uint256[48] private __GAP; // gap for upgrade safety
+
     // ============ Modifiers ============
     modifier onlyContract(address _contract) {
         require(
@@ -68,11 +70,9 @@ abstract contract MailboxClient is OwnableUpgradeable {
      * @notice Sets the address of the application's custom interchain security module.
      * @param _module The address of the interchain security module contract.
      */
-    function setInterchainSecurityModule(address _module)
-        public
-        onlyContractOrNull(_module)
-        onlyOwner
-    {
+    function setInterchainSecurityModule(
+        address _module
+    ) public onlyContractOrNull(_module) onlyOwner {
         interchainSecurityModule = IInterchainSecurityModule(_module);
     }
 

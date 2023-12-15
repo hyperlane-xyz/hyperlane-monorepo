@@ -1,17 +1,16 @@
 import debug from 'debug';
 
-import {
-  IInterchainSecurityModule__factory,
-  Mailbox,
-  ValidatorAnnounce,
-} from '@hyperlane-xyz/core';
+import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer';
 import { HookConfig } from '../hook/types';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
+import {
+  HyperlaneIsmFactory,
+  moduleMatchesConfig,
+} from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -23,7 +22,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,
   CoreFactories
 > {
-  startingBlockNumbers: ChainMap<number | undefined> = {};
   hookDeployer: HyperlaneHookDeployer;
 
   constructor(
@@ -33,6 +31,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     super(multiProvider, coreFactories, {
       logger: debug('hyperlane:CoreDeployer'),
       chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
+      ismFactory,
     });
     this.hookDeployer = new HyperlaneHookDeployer(
       multiProvider,
@@ -59,14 +58,34 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       [domain],
     );
 
-    const defaultIsm = await this.deployIsm(chain, config.defaultIsm);
+    let defaultIsm = await mailbox.defaultIsm();
+    const matches = await moduleMatchesConfig(
+      chain,
+      defaultIsm,
+      config.defaultIsm,
+      this.multiProvider,
+      this.ismFactory.getContracts(chain),
+    );
+    if (!matches) {
+      this.logger('Deploying default ISM');
+      defaultIsm = await this.deployIsm(
+        chain,
+        config.defaultIsm,
+        mailbox.address,
+      );
+    }
+    this.cachedAddresses[chain].interchainSecurityModule = defaultIsm;
 
     const hookAddresses = { mailbox: mailbox.address, proxyAdmin };
+
+    this.logger('Deploying default hook');
     const defaultHook = await this.deployHook(
       chain,
       config.defaultHook,
       hookAddresses,
     );
+
+    this.logger('Deploying required hook');
     const requiredHook = await this.deployHook(
       chain,
       config.requiredHook,
@@ -75,16 +94,53 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     // configure mailbox
     try {
+      this.logger('Initializing mailbox');
       await this.multiProvider.handleTx(
         chain,
-        mailbox.initialize(config.owner, defaultIsm, defaultHook, requiredHook),
+        mailbox.initialize(
+          config.owner,
+          defaultIsm,
+          defaultHook,
+          requiredHook,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
       );
     } catch (e: any) {
-      if (!e.message.includes('already initialized')) {
+      if (
+        !e.message.includes('already initialized') &&
+        // Some RPC providers dont return the revert reason (nor allow ethers to parse it), so we have to check the message
+        !e.message.includes('Reverted 0x08c379a')
+      ) {
         throw e;
-      } else {
-        this.logger('Mailbox already initialized');
       }
+
+      this.logger('Mailbox already initialized');
+
+      await this.configureHook(
+        chain,
+        mailbox,
+        defaultHook,
+        (_mailbox) => _mailbox.defaultHook(),
+        (_mailbox, _hook) => _mailbox.populateTransaction.setDefaultHook(_hook),
+      );
+
+      await this.configureHook(
+        chain,
+        mailbox,
+        requiredHook,
+        (_mailbox) => _mailbox.requiredHook(),
+        (_mailbox, _hook) =>
+          _mailbox.populateTransaction.setRequiredHook(_hook),
+      );
+
+      await this.configureIsm(
+        chain,
+        mailbox,
+        defaultIsm,
+        (_mailbox) => _mailbox.defaultIsm(),
+        (_mailbox, _module) =>
+          _mailbox.populateTransaction.setDefaultIsm(_module),
+      );
     }
 
     return mailbox;
@@ -112,23 +168,25 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       config,
       coreAddresses,
     );
-    this.addDeployedContracts(chain, hooks);
+    this.addDeployedContracts(
+      chain,
+      this.hookDeployer.deployedContracts[chain],
+      this.hookDeployer.verificationInputs[chain],
+    );
     return hooks[config.type].address;
   }
 
-  async deployIsm(chain: ChainName, config: IsmConfig): Promise<Address> {
-    const key = 'defaultIsm';
-    if (this.cachedAddresses[chain][key]) {
-      this.addDeployedContracts(chain, {
-        [key]: IInterchainSecurityModule__factory.connect(
-          this.cachedAddresses[chain][key],
-          this.multiProvider.getSignerOrProvider(chain),
-        ),
-      });
-      return this.cachedAddresses[chain][key];
-    }
-    const ism = await this.ismFactory.deploy(chain, config);
-    this.addDeployedContracts(chain, { [key]: ism });
+  async deployIsm(
+    chain: ChainName,
+    config: IsmConfig,
+    mailbox: Address,
+  ): Promise<Address> {
+    const ism = await this.ismFactory.deploy({
+      destination: chain,
+      config,
+      mailbox,
+    });
+    this.addDeployedContracts(chain, this.ismFactory.deployedIsms[chain]);
     return ism.address;
   }
 
@@ -144,10 +202,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
     const mailbox = await this.deployMailbox(chain, config, proxyAdmin.address);
-
-    // TODO: remove once agents fetch deployedBlock from mailbox
-    const deployedBlock = await mailbox.deployedBlock();
-    this.startingBlockNumbers[chain] = deployedBlock.toNumber();
 
     const validatorAnnounce = await this.deployValidatorAnnounce(
       chain,

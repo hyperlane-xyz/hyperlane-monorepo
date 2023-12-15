@@ -7,6 +7,7 @@ import {Message} from "../contracts/libs/Message.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {TestMerkleTreeHook} from "../contracts/test/TestMerkleTreeHook.sol";
 import {TestMailbox} from "../contracts/test/TestMailbox.sol";
+import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
 contract MerkleTreeHookTest is Test {
     using Message for bytes;
@@ -67,5 +68,9 @@ contract MerkleTreeHookTest is Test {
 
             assertEq(hook.quoteDispatch("", currMessage), 0);
         }
+    }
+
+    function testHookType() public {
+        assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.MERKLE_TREE));
     }
 }

@@ -9,7 +9,7 @@ import {
   MultiProvider,
   RouterApp,
 } from '@hyperlane-xyz/sdk';
-import { debug } from '@hyperlane-xyz/utils';
+import { Address, debug } from '@hyperlane-xyz/utils';
 
 import { HelloWorld } from '../types';
 
@@ -21,8 +21,9 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     public readonly core: HyperlaneCore,
     contractsMap: HyperlaneContractsMap<HelloWorldFactories>,
     multiProvider: MultiProvider,
+    foreignDeployments: ChainMap<Address> = {},
   ) {
-    super(contractsMap, multiProvider);
+    super(contractsMap, multiProvider, undefined, foreignDeployments);
   }
 
   router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {
@@ -48,10 +49,11 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     );
     const gasLimit = estimated.mul(12).div(10);
 
+    const quote = await sender.quoteDispatch(toDomain, message);
     const tx = await sender.sendHelloWorld(toDomain, message, {
       ...transactionOverrides,
       gasLimit,
-      value,
+      value: value.add(quote),
     });
     debug('Sending hello message', {
       from,

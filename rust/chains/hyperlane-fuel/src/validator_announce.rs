@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, ValidatorAnnounce, H256,
+    Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 
 /// A reference to a ValidatorAnnounce contract on some Fuel chain
@@ -18,6 +19,10 @@ impl HyperlaneChain for FuelValidatorAnnounce {
     fn domain(&self) -> &HyperlaneDomain {
         todo!()
     }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        todo!()
+    }
 }
 
 #[async_trait]
@@ -26,6 +31,18 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
+        todo!()
+    }
+
+    async fn announce(
+        &self,
+        announcement: SignedType<Announcement>,
+        tx_gas_limit: Option<U256>,
+    ) -> ChainResult<TxOutcome> {
+        todo!()
+    }
+
+    async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
         todo!()
     }
 }

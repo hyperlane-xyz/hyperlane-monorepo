@@ -1,26 +1,25 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::providers::Middleware;
-
 use ethers_contract::builders::ContractCall;
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
-use tracing::instrument;
-use tracing::log::trace;
+use tracing::{instrument, log::trace};
 
-use crate::contracts::i_validator_announce::{
-    IValidatorAnnounce as EthereumValidatorAnnounceInternal, IVALIDATORANNOUNCE_ABI,
+use crate::{
+    contracts::i_validator_announce::{
+        IValidatorAnnounce as EthereumValidatorAnnounceInternal, IVALIDATORANNOUNCE_ABI,
+    },
+    trait_builder::BuildableWithProvider,
+    tx::{fill_tx_gas_params, report_tx},
+    EthereumProvider,
 };
-use crate::trait_builder::BuildableWithProvider;
-use crate::tx::{fill_tx_gas_params, report_tx};
-use crate::EthereumProvider;
 
 impl<M> std::fmt::Display for EthereumValidatorAnnounceInternal<M>
 where
@@ -87,7 +86,7 @@ where
             announcement.value.storage_location,
             serialized_signature.into(),
         );
-        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone(), self.domain.id()).await
+        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone()).await
     }
 }
 
@@ -140,22 +139,17 @@ where
         let validator = announcement.value.validator;
         let eth_h160: ethers::types::H160 = validator.into();
 
-        let Ok(contract_call) = self
-            .announce_contract_call(announcement, None)
-            .await
-        else {
-                trace!("Unable to get announce contract call");
-                return None;
+        let Ok(contract_call) = self.announce_contract_call(announcement, None).await else {
+            trace!("Unable to get announce contract call");
+            return None;
         };
 
-        let Ok(balance) = self.provider.get_balance(eth_h160, None).await
-        else {
+        let Ok(balance) = self.provider.get_balance(eth_h160, None).await else {
             trace!("Unable to query balance");
             return None;
         };
 
-        let Some(max_cost) = contract_call.tx.max_cost()
-        else {
+        let Some(max_cost) = contract_call.tx.max_cost() else {
             trace!("Unable to get announce max cost");
             return None;
         };

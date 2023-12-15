@@ -45,7 +45,7 @@
 //! ```
 //!
 //! and an environment variable is supplied which defines
-//! `HYP_BASE_CHAINS_TEST2_DOMAINID=1`, then the config parser will directly override the value of
+//! `HYP_CHAINS_TEST2_DOMAINID=1`, then the config parser will directly override the value of
 //! the field found in config to be `1`, since the fields in the environment variable name describe
 //! the path traversal to arrive at this field in the JSON config object.
 //!
@@ -57,7 +57,7 @@
 //! 1. The files matching `config/<env>/<config>.json`.
 //! 2. The order of configs in `CONFIG_FILES` with each sequential one
 //!    overwriting previous ones as appropriate.
-//! 3. Configuration env vars with the prefix `HYP_BASE` intended
+//! 3. Configuration env vars with the prefix `HYP` intended
 //!    to be shared by multiple agents in the same environment
 //!    E.g. `export HYP_CHAINS_ARBITRUM_DOMAINID=3000`
 //! 5. Arguments passed to the agent on the command line.
@@ -73,6 +73,7 @@ pub use signers::*;
 pub use trace::*;
 
 mod envs {
+    pub use hyperlane_cosmos as h_cosmos;
     pub use hyperlane_ethereum as h_eth;
     pub use hyperlane_fuel as h_fuel;
     pub use hyperlane_sealevel as h_sealevel;

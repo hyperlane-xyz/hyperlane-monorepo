@@ -2,20 +2,20 @@ import {
   ChainMap,
   ChainName,
   MultisigIsmConfig,
-  defaultMultisigIsmConfigs,
+  buildMultisigIsmConfigs,
+  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
-import { objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../src/config';
 
 import { Contexts } from './contexts';
-import { supportedChainNames as mainnet2Chains } from './environments/mainnet2/chains';
+import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/chains';
 import { chainNames as testChains } from './environments/test/chains';
 import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains';
 import { rcMultisigIsmConfigs } from './rcMultisigIsmConfigs';
 
 const chains = {
-  mainnet2: mainnet2Chains,
+  mainnet3: mainnet3Chains,
   testnet4: testnet4Chains,
   test: testChains,
 };
@@ -25,17 +25,26 @@ export const multisigIsms = (
   local: ChainName,
   type: MultisigIsmConfig['type'],
   context: Contexts,
-): ChainMap<MultisigIsmConfig> =>
-  objMap(
-    objFilter(
-      context === Contexts.ReleaseCandidate
-        ? rcMultisigIsmConfigs
-        : defaultMultisigIsmConfigs,
-      (chain, config): config is MultisigIsmConfig =>
-        chain !== local && chains[env].includes(chain),
-    ),
-    (_, config) => ({
-      ...config,
-      type,
-    }),
-  );
+): ChainMap<MultisigIsmConfig> => {
+  const multisigConfigs =
+    context === Contexts.ReleaseCandidate
+      ? rcMultisigIsmConfigs
+      : defaultMultisigConfigs;
+  return buildMultisigIsmConfigs(type, local, chains[env], multisigConfigs);
+};
+
+export const multisigIsm = (
+  remote: ChainName,
+  type: MultisigIsmConfig['type'],
+  context: Contexts,
+): MultisigIsmConfig => {
+  const configs =
+    context === Contexts.ReleaseCandidate
+      ? rcMultisigIsmConfigs
+      : defaultMultisigConfigs;
+
+  return {
+    ...configs[remote],
+    type,
+  };
+};

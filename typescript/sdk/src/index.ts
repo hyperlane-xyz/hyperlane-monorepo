@@ -28,17 +28,18 @@ export {
   HyperlaneEnvironmentChain,
   hyperlaneContractAddresses,
   hyperlaneEnvironments,
-  hyperlaneEnvironmentsWithSealevel,
 } from './consts/environments';
-export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
+export { defaultMultisigConfigs } from './consts/multisigIsm';
 export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel';
 export {
   attachContracts,
   attachContractsMap,
+  attachContractsMapAndGetForeignDeployments,
   connectContracts,
   connectContractsMap,
   filterAddressesMap,
-  filterAddressesToProtocol,
+  filterChainMapExcludeProtocol,
+  filterChainMapToProtocol,
   filterOwnableContracts,
   serializeContracts,
   serializeContractsMap,
@@ -111,23 +112,34 @@ export {
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
 export {
   AggregationHookConfig,
+  DomainRoutingHookConfig,
+  FallbackRoutingHookConfig,
   HookConfig,
   HookType,
+  HooksConfig,
   IgpHookConfig,
   MerkleTreeHookConfig,
+  OpStackHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types';
 export {
   HyperlaneIsmFactory,
   collectValidators,
+  moduleCanCertainlyVerify,
 } from './ism/HyperlaneIsmFactory';
+export {
+  buildAggregationIsmConfigs,
+  buildMultisigIsmConfigs,
+} from './ism/multisig';
 export {
   AggregationIsmConfig,
   DeployedIsm,
   IsmConfig,
+  IsmType,
   ModuleType,
   MultisigConfig,
   MultisigIsmConfig,
+  OpStackIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
 export {
@@ -155,15 +167,19 @@ export {
   buildAgentConfig,
 } from './metadata/agentConfig';
 export {
+  BlockExplorer,
   ChainMetadata,
   ChainMetadataSchema,
+  ChainMetadataSchemaObject,
   ExplorerFamily,
   ExplorerFamilyValue,
   RpcUrl,
   RpcUrlSchema,
+  getChainIdNumber,
   getDomainId,
   isValidChainMetadata,
 } from './metadata/chainMetadataTypes';
+export { ZHash } from './metadata/customZodTypes';
 export {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
@@ -199,6 +215,14 @@ export {
 } from './providers/MultiProtocolProvider';
 export { MultiProvider, MultiProviderOptions } from './providers/MultiProvider';
 export {
+  CosmJsContract,
+  CosmJsProvider,
+  CosmJsTransaction,
+  CosmJsTransactionReceipt,
+  CosmJsWasmContract,
+  CosmJsWasmProvider,
+  CosmJsWasmTransaction,
+  CosmJsWasmTransactionReceipt,
   EthersV5Contract,
   EthersV5Provider,
   EthersV5Transaction,
@@ -218,12 +242,26 @@ export {
   ViemTransaction,
   ViemTransactionReceipt,
 } from './providers/ProviderType';
+export { HyperlaneEtherscanProvider } from './providers/SmartProvider/HyperlaneEtherscanProvider';
+export { HyperlaneJsonRpcProvider } from './providers/SmartProvider/HyperlaneJsonRpcProvider';
 export {
-  RetryJsonRpcProvider,
-  RetryProviderOptions,
-} from './providers/RetryProvider';
+  AllProviderMethods,
+  IProviderMethods,
+  ProviderMethod,
+  excludeProviderMethods,
+} from './providers/SmartProvider/ProviderMethods';
+export { HyperlaneSmartProvider } from './providers/SmartProvider/SmartProvider';
 export {
-  DEFAULT_RETRY_OPTIONS,
+  ChainMetadataWithRpcConnectionInfo,
+  ProviderErrorResult,
+  ProviderPerformResult,
+  ProviderRetryOptions,
+  ProviderStatus,
+  ProviderSuccessResult,
+  ProviderTimeoutResult,
+  SmartProviderOptions,
+} from './providers/SmartProvider/types';
+export {
   ProviderBuilderFn,
   ProviderBuilderMap,
   TypedProviderBuilderFn,
@@ -253,6 +291,7 @@ export {
 } from './router/adapters/SealevelRouterAdapter';
 export { IGasRouterAdapter, IRouterAdapter } from './router/adapters/types';
 export {
+  MailboxClientConfig as ConnectionClientConfig,
   ClientViolation as ConnectionClientViolation,
   ClientViolationType as ConnectionClientViolationType,
   ForeignDeploymentConfig,
@@ -264,8 +303,23 @@ export {
   ProxiedRouterConfig,
   RouterAddress,
   RouterConfig,
+  RouterViolation,
+  RouterViolationType,
   proxiedFactories,
 } from './router/types';
+export {
+  CW20Metadata,
+  CwHypCollateralAdapter,
+  CwHypNativeAdapter,
+  CwHypSyntheticAdapter,
+  CwNativeTokenAdapter,
+  CwTokenAdapter,
+} from './token/adapters/CosmWasmTokenAdapter';
+export {
+  CosmIbcToWarpTokenAdapter,
+  CosmIbcTokenAdapter,
+  CosmNativeTokenAdapter,
+} from './token/adapters/CosmosTokenAdapter';
 export {
   EvmHypCollateralAdapter,
   EvmHypSyntheticAdapter,
@@ -282,7 +336,6 @@ export {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
   SealevelHypSyntheticAdapter,
-  SealevelHypTokenAdapter,
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './token/adapters/SealevelTokenAdapter';

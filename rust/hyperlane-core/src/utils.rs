@@ -1,7 +1,9 @@
-use std::{str::FromStr, time::Duration};
-
 use eyre::Result;
 use sha3::{digest::Update, Digest, Keccak256};
+use std::str::FromStr;
+
+#[cfg(feature = "float")]
+use std::time::Duration;
 
 use crate::{KnownHyperlaneDomain, H160, H256};
 
@@ -75,6 +77,7 @@ pub fn fmt_domain(domain: u32) -> String {
 }
 
 /// Formats the duration in the most appropriate time units.
+#[cfg(feature = "float")]
 pub fn fmt_duration(dur: Duration) -> String {
     const MIN: f64 = 60.;
     const HOUR: f64 = MIN * 60.;
@@ -97,6 +100,7 @@ pub fn fmt_duration(dur: Duration) -> String {
 
 /// Formats the duration in the most appropriate time units and says "synced" if
 /// the duration is 0.
+#[cfg(feature = "float")]
 pub fn fmt_sync_time(dur: Duration) -> String {
     if dur.as_secs() == 0 {
         "synced".into()
@@ -236,14 +240,15 @@ macro_rules! many_to_one {
 ///     return Ok(None);
 /// };
 /// // after:
-/// unwrap_or_none_result!(idx, self.index_of_next_key());
+/// let idx = unwrap_or_none_result!(self.index_of_next_key());
 /// ```
 #[macro_export]
 macro_rules! unwrap_or_none_result {
-    ($variable_name:ident, $e:expr $(, $else_e:expr)?) => {
-        let Some($variable_name) = $e
-        else {
-            $($else_e)?
+    ($e:expr $(, $else_e:expr)?) => {
+        if let Some(inner) = $e {
+            inner
+        } else {
+            $($else_e;)?
             return Ok(None);
         };
     };

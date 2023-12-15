@@ -2,7 +2,7 @@ import {
   ChainMap,
   GasOracleContractType,
   IgpConfig,
-  defaultMultisigIsmConfigs,
+  defaultMultisigConfigs,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 import { exclude, objMap } from '@hyperlane-xyz/utils';
@@ -29,8 +29,9 @@ export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, owner) => {
       exclude(chain, supportedChainNames).map((remote) => [
         remote,
         multisigIsmVerificationCost(
-          defaultMultisigIsmConfigs[remote].threshold,
-          defaultMultisigIsmConfigs[remote].validators.length,
+          // TODO: parameterize this
+          defaultMultisigConfigs[remote].threshold,
+          defaultMultisigConfigs[remote].validators.length,
         ),
       ]),
     ),

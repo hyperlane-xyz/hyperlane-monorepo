@@ -11,7 +11,7 @@ use solana_program::{
 use crate::{mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds};
 
 /// The current message version.
-pub const VERSION: u8 = 0;
+pub const VERSION: u8 = 3;
 
 /// Maximum bytes per message = 2 KiB (somewhat arbitrarily set to begin).
 pub const MAX_MESSAGE_BODY_BYTES: usize = 2 * 2_usize.pow(10);
@@ -137,6 +137,34 @@ pub fn transfer_ownership_instruction(
         data: Instruction::TransferOwnership(new_owner).into_instruction_data()?,
         accounts: vec![
             AccountMeta::new(outbox_account, false),
+            AccountMeta::new(owner_payer, true),
+        ],
+    };
+    Ok(instruction)
+}
+
+/// Creates an InboxSetDefaultIsm instruction.
+pub fn set_default_ism_instruction(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    default_ism: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (inbox_account, _inbox_bump) =
+        Pubkey::try_find_program_address(mailbox_inbox_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+    let (outbox_account, _outbox_bump) =
+        Pubkey::try_find_program_address(mailbox_outbox_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    // 0. [writeable] - The Inbox PDA account.
+    // 1. [] - The Outbox PDA account.
+    // 2. [signer] - The owner of the Mailbox.
+    let instruction = SolanaInstruction {
+        program_id,
+        data: Instruction::InboxSetDefaultIsm(default_ism).into_instruction_data()?,
+        accounts: vec![
+            AccountMeta::new(inbox_account, false),
+            AccountMeta::new_readonly(outbox_account, false),
             AccountMeta::new(owner_payer, true),
         ],
     };

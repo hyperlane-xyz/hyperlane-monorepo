@@ -1,6 +1,7 @@
 import {
   MailboxClient,
   ProxyAdmin__factory,
+  Router,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
@@ -62,6 +63,18 @@ export enum ClientViolationType {
 export interface ClientViolation extends CheckerViolation {
   type: ClientViolationType;
   contract: MailboxClient;
+  description?: string;
+}
+
+export enum RouterViolationType {
+  EnrolledRouter = 'EnrolledRouter',
+}
+
+export interface RouterViolation extends CheckerViolation {
+  type: RouterViolationType.EnrolledRouter;
+  remoteChain: string;
+  contract: Router;
   actual: string;
   expected: string;
+  description?: string;
 }

@@ -1,6 +1,12 @@
 import { PublicKey } from '@solana/web3.js';
 
-import { Address, HexString, pollAsync } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  ensure0x,
+  pollAsync,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
@@ -35,14 +41,13 @@ export class SealevelCoreAdapter
         `Unsupported provider type for SealevelCoreAdapter ${sourceTx.type}`,
       );
     }
-    const receipt = sourceTx.receipt;
-    const logs = receipt.meta?.logMessages;
+    const logs = sourceTx.receipt.meta?.logMessages;
     if (!logs)
       throw new Error('Transaction logs required to check message delivery');
     const parsedLogs = SealevelCoreAdapter.parseMessageDispatchLogs(logs);
     if (!parsedLogs.length) throw new Error('Message dispatch log not found');
     return parsedLogs.map(({ destination, messageId }) => ({
-      messageId: Buffer.from(messageId, 'hex').toString('hex'),
+      messageId: ensure0x(messageId),
       destination: this.multiProvider.getChainName(destination),
     }));
   }
@@ -52,7 +57,7 @@ export class SealevelCoreAdapter
     destination: ChainName,
     delayMs?: number,
     maxAttempts?: number,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const pda = SealevelCoreAdapter.deriveMailboxMessageProcessedPda(
       this.addresses.mailbox,
       messageId,
@@ -70,6 +75,8 @@ export class SealevelCoreAdapter
       delayMs,
       maxAttempts,
     );
+
+    return true;
   }
 
   static parseMessageDispatchLogs(
@@ -144,10 +151,16 @@ export class SealevelCoreAdapter
 
   static deriveMailboxMessageProcessedPda(
     mailboxProgramId: string | PublicKey,
-    messageId: string,
+    messageId: HexString,
   ): PublicKey {
     return super.derivePda(
-      ['hyperlane', '-', 'processed_message', Buffer.from(messageId, 'hex')],
+      [
+        'hyperlane',
+        '-',
+        'processed_message',
+        '-',
+        Buffer.from(strip0x(messageId), 'hex'),
+      ],
       mailboxProgramId,
     );
   }

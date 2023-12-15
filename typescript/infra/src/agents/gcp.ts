@@ -1,3 +1,8 @@
+import {
+  encodeSecp256k1Pubkey,
+  pubkeyToAddress,
+  rawSecp256k1PubkeyToRawAddress,
+} from '@cosmjs/amino';
 import { Keypair } from '@solana/web3.js';
 import { Wallet, ethers } from 'ethers';
 
@@ -101,6 +106,17 @@ export class AgentGCPKey extends CloudAgentKey {
         return Keypair.fromSeed(
           Buffer.from(strip0x(this.privateKey), 'hex'),
         ).publicKey.toBase58();
+      case ProtocolType.Cosmos:
+        const compressedPubkey = ethers.utils.computePublicKey(
+          this.privateKey,
+          true,
+        );
+        const encodedPubkey = encodeSecp256k1Pubkey(
+          new Uint8Array(Buffer.from(strip0x(compressedPubkey), 'hex')),
+        );
+        // TODO support other prefixes?
+        // https://cosmosdrops.io/en/tools/bech32-converter is useful for converting to other prefixes.
+        return pubkeyToAddress(encodedPubkey, 'neutron');
       default:
         return undefined;
     }

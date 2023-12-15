@@ -106,9 +106,10 @@ abstract contract HypTokenTest is Test, IERC721Receiver {
         );
     }
 
-    function _performRemoteTransfer(uint256 _msgValue, uint256 _tokenId)
-        public
-    {
+    function _performRemoteTransfer(
+        uint256 _msgValue,
+        uint256 _tokenId
+    ) public {
         localToken.transferRemote{value: _msgValue}(
             DESTINATION,
             ALICE.addressToBytes32(),
@@ -133,9 +134,9 @@ abstract contract HypTokenTest is Test, IERC721Receiver {
     }
 
     function onERC721Received(
-        address, /*operator*/
-        address, /*from*/
-        uint256, /*tokenId*/
+        address /*operator*/,
+        address /*from*/,
+        uint256 /*tokenId*/,
         bytes calldata /*data*/
     ) external pure returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;

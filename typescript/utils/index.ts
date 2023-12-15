@@ -2,27 +2,36 @@ export {
   addressToByteHexString,
   addressToBytes,
   addressToBytes32,
+  addressToBytesCosmos,
   addressToBytesEvm,
   addressToBytesSol,
   bytes32ToAddress,
+  bytesToAddressCosmos,
+  bytesToAddressEvm,
+  bytesToAddressSol,
   bytesToProtocolAddress,
   capitalizeAddress,
   convertToProtocolAddress,
   ensure0x,
   eqAddress,
+  eqAddressCosmos,
   eqAddressEvm,
   eqAddressSol,
   getAddressProtocolType,
+  isAddressCosmos,
   isAddressEvm,
   isAddressSealevel,
   isValidAddress,
+  isValidAddressCosmos,
   isValidAddressEvm,
   isValidAddressSealevel,
   isValidTransactionHash,
+  isValidTransactionHashCosmos,
   isValidTransactionHashEvm,
   isValidTransactionHashSealevel,
   isZeroishAddress,
   normalizeAddress,
+  normalizeAddressCosmos,
   normalizeAddressEvm,
   normalizeAddressSealevel,
   shortenAddress,
@@ -39,12 +48,13 @@ export {
 export { chunk, exclude } from './src/arrays';
 export {
   pollAsync,
+  raceWithContext,
   retryAsync,
   runWithTimeout,
   sleep,
   timeout,
 } from './src/async';
-export { base58ToBuffer, bufferToBase58 } from './src/base58';
+export { base58ToBuffer, bufferToBase58, hexOrBase58ToHex } from './src/base58';
 export { fromBase64, toBase64 } from './src/base64';
 export {
   BigNumberMax,
@@ -115,4 +125,4 @@ export {
   TokenCaip19Id,
 } from './src/types';
 export { assert } from './src/validation';
-export { BaseValidator, Validator } from './src/validator';
+export { BaseValidator } from './src/validator';

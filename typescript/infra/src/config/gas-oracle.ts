@@ -1,6 +1,9 @@
 import { BigNumber, ethers } from 'ethers';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import { convertDecimals } from '@hyperlane-xyz/utils';
+
+import { mustGetChainNativeTokenDecimals } from '../utils/utils';
 
 export type RemoteGasData = {
   tokenExchangeRate: BigNumber;
@@ -21,6 +24,12 @@ export type AllStorageGasOracleConfigs = ChainMap<StorageGasOracleConfig>;
 export const TOKEN_EXCHANGE_RATE_DECIMALS = 10;
 export const TOKEN_EXCHANGE_RATE_SCALE = ethers.utils.parseUnits(
   '1',
+  TOKEN_EXCHANGE_RATE_DECIMALS,
+);
+
+// Overcharge by 30% to account for market making risk
+const TOKEN_EXCHANGE_RATE_MULTIPLIER = ethers.utils.parseUnits(
+  '1.30',
   TOKEN_EXCHANGE_RATE_DECIMALS,
 );
 
@@ -61,4 +70,24 @@ export function getAllStorageGasOracleConfigs(
       ),
     };
   }, {}) as AllStorageGasOracleConfigs;
+}
+
+export function getTokenExchangeRateFromValues(
+  local: ChainName,
+  localValue: BigNumber,
+  remote: ChainName,
+  remoteValue: BigNumber,
+): BigNumber {
+  // This does not yet account for decimals!
+  const exchangeRate = remoteValue
+    .mul(TOKEN_EXCHANGE_RATE_MULTIPLIER)
+    .div(localValue);
+
+  return BigNumber.from(
+    convertDecimals(
+      mustGetChainNativeTokenDecimals(remote),
+      mustGetChainNativeTokenDecimals(local),
+      exchangeRate.toString(),
+    ),
+  );
 }

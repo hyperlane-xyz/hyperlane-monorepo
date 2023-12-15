@@ -57,10 +57,10 @@ contract HelloWorld is Router {
      * @param _destinationDomain The destination domain to send the message to.
      * @param _message The message to send.
      */
-    function sendHelloWorld(uint32 _destinationDomain, string calldata _message)
-        external
-        payable
-    {
+    function sendHelloWorld(
+        uint32 _destinationDomain,
+        string calldata _message
+    ) external payable {
         sent += 1;
         sentTo[_destinationDomain] += 1;
         _dispatch(_destinationDomain, bytes(_message));
@@ -71,12 +71,22 @@ contract HelloWorld is Router {
         );
     }
 
+    /**
+     * @notice Fetches the amount of gas that will be used when a message is
+     * dispatched to the given domain.
+     */
+    function quoteDispatch(
+        uint32 _destinationDomain,
+        bytes calldata _message
+    ) external view returns (uint256) {
+        return _quoteDispatch(_destinationDomain, _message);
+    }
+
     // ============ Internal functions ============
     function _metadata(
         uint32 /*_destinationDomain*/
     ) internal view override returns (bytes memory) {
-        return
-            StandardHookMetadata.formatMetadata(HANDLE_GAS_AMOUNT, msg.sender);
+        return StandardHookMetadata.overrideGasLimit(HANDLE_GAS_AMOUNT);
     }
 
     /**

@@ -27,6 +27,7 @@ export class MultiProtocolRouterApp<
     // enabling extensible generic types
     if (protocol === ProtocolType.Ethereum) return EvmRouterAdapter as any;
     if (protocol === ProtocolType.Sealevel) return SealevelRouterAdapter as any;
+    // TODO cosmos support here
     throw new Error(`No adapter for protocol ${protocol}`);
   }
 

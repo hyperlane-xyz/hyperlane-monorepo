@@ -7,6 +7,7 @@ export enum Chains {
   arbitrum = 'arbitrum',
   arbitrumgoerli = 'arbitrumgoerli',
   avalanche = 'avalanche',
+  base = 'base',
   basegoerli = 'basegoerli',
   bsc = 'bsc',
   bsctestnet = 'bsctestnet',
@@ -17,17 +18,21 @@ export enum Chains {
   gnosis = 'gnosis',
   goerli = 'goerli',
   lineagoerli = 'lineagoerli',
-  scrollsepolia = 'scrollsepolia',
-  sepolia = 'sepolia',
+  mantapacific = 'mantapacific',
   moonbasealpha = 'moonbasealpha',
   moonbeam = 'moonbeam',
   mumbai = 'mumbai',
   nautilus = 'nautilus',
+  neutron = 'neutron',
   optimism = 'optimism',
   optimismgoerli = 'optimismgoerli',
   polygon = 'polygon',
+  polygonzkevm = 'polygonzkevm',
   polygonzkevmtestnet = 'polygonzkevmtestnet',
   proteustestnet = 'proteustestnet',
+  scroll = 'scroll',
+  scrollsepolia = 'scrollsepolia',
+  sepolia = 'sepolia',
   solana = 'solana',
   solanadevnet = 'solanadevnet',
   test1 = 'test1',
@@ -44,6 +49,7 @@ export enum DeprecatedChains {
   rinkeby = 'rinkeby',
   optimismkovan = 'optimismkovan',
   optimismrinkeby = 'optimismrinkeby',
+  neutrontestnet = 'neutrontestnet',
 }
 
 export const AllDeprecatedChains = Object.keys(DeprecatedChains) as string[];
@@ -54,10 +60,16 @@ export const Mainnets: Array<CoreChainName> = [
   Chains.bsc,
   Chains.celo,
   Chains.ethereum,
+  Chains.neutron,
+  Chains.mantapacific,
   Chains.moonbeam,
   Chains.optimism,
   Chains.polygon,
   Chains.gnosis,
+  Chains.base,
+  Chains.scroll,
+  Chains.polygonzkevm,
+  // Chains.solana,
 ];
 
 export const Testnets: Array<CoreChainName> = [
@@ -75,6 +87,7 @@ export const Testnets: Array<CoreChainName> = [
   Chains.polygonzkevmtestnet,
   Chains.scrollsepolia,
   Chains.sepolia,
+  Chains.solanadevnet,
 ];
 
 export const TestChains: Array<CoreChainName> = [

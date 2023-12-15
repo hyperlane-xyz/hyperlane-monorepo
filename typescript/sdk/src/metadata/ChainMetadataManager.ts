@@ -1,13 +1,16 @@
 import { Debugger, debug } from 'debug';
 
-import { ProtocolType, exclude, isNumeric, pick } from '@hyperlane-xyz/utils';
+import { ProtocolType, exclude, pick } from '@hyperlane-xyz/utils';
 
-import {
-  chainMetadata as defaultChainMetadata,
-  solanaChainToClusterName,
-} from '../consts/chainMetadata';
+import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { ChainMap, ChainName } from '../types';
 
+import {
+  getExplorerAddressUrl,
+  getExplorerApiUrl,
+  getExplorerBaseUrl,
+  getExplorerTxUrl,
+} from './blockExplorer';
 import {
   ChainMetadata,
   getDomainId,
@@ -64,7 +67,7 @@ export class ChainMetadataManager<MetaExt = {}> {
         chainId == metadata.chainId ||
         domainId == metadata.chainId ||
         (metadata.domainId &&
-          (chainId == metadata.domainId || domainId === metadata.domainId));
+          (chainId == metadata.domainId || domainId == metadata.domainId));
       if (idCollision)
         throw new Error(
           `Chain/Domain id collision: ${name} and ${metadata.name}`,
@@ -80,16 +83,12 @@ export class ChainMetadataManager<MetaExt = {}> {
   tryGetChainMetadata(
     chainNameOrId: ChainName | number,
   ): ChainMetadata<MetaExt> | null {
-    let chainMetadata: ChainMetadata<MetaExt> | undefined;
-    if (isNumeric(chainNameOrId)) {
-      // Should be chain id or domain id
-      chainMetadata = Object.values(this.metadata).find(
-        (m) => m.chainId == chainNameOrId || m.domainId == chainNameOrId,
-      );
-    } else if (typeof chainNameOrId === 'string') {
-      // Should be chain name
-      chainMetadata = this.metadata[chainNameOrId];
-    }
+    // First check if it's a chain name
+    if (this.metadata[chainNameOrId]) return this.metadata[chainNameOrId];
+    // Otherwise search by chain id and domain id
+    const chainMetadata = Object.values(this.metadata).find(
+      (m) => m.chainId == chainNameOrId || m.domainId == chainNameOrId,
+    );
     return chainMetadata || null;
   }
 
@@ -130,7 +129,7 @@ export class ChainMetadataManager<MetaExt = {}> {
   /**
    * Get the id for a given chain name, chain id, or domain id
    */
-  tryGetChainId(chainNameOrId: ChainName | number): number | null {
+  tryGetChainId(chainNameOrId: ChainName | number): number | string | null {
     return this.tryGetChainMetadata(chainNameOrId)?.chainId ?? null;
   }
 
@@ -138,14 +137,14 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get the id for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
-  getChainId(chainNameOrId: ChainName | number): number {
+  getChainId(chainNameOrId: ChainName | number): number | string {
     return this.getChainMetadata(chainNameOrId).chainId;
   }
 
   /**
    * Get the ids for all chains known to this MultiProvider
    */
-  getKnownChainIds(): number[] {
+  getKnownChainIds(): Array<number | string> {
     return Object.values(this.metadata).map((c) => c.chainId);
   }
 
@@ -154,7 +153,8 @@ export class ChainMetadataManager<MetaExt = {}> {
    */
   tryGetDomainId(chainNameOrId: ChainName | number): number | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
-    return metadata?.domainId ?? metadata?.chainId ?? null;
+    if (!metadata) return null;
+    return getDomainId(metadata) ?? null;
   }
 
   /**
@@ -162,8 +162,24 @@ export class ChainMetadataManager<MetaExt = {}> {
    * @throws if chain's metadata has not been set
    */
   getDomainId(chainNameOrId: ChainName | number): number {
-    const metadata = this.getChainMetadata(chainNameOrId);
-    return getDomainId(metadata);
+    const domainId = this.tryGetDomainId(chainNameOrId);
+    if (!domainId) throw new Error(`No domain id set for ${chainNameOrId}`);
+    return domainId;
+  }
+
+  /**
+   * Get the protocol type for a given chain name, chain id, or domain id
+   */
+  tryGetProtocol(chainNameOrId: ChainName | number): ProtocolType | null {
+    return this.tryGetChainMetadata(chainNameOrId)?.protocol ?? null;
+  }
+
+  /**
+   * Get the protocol type for a given chain name, chain id, or domain id
+   * @throws if chain's metadata or protocol has not been set
+   */
+  getProtocol(chainNameOrId: ChainName | number): ProtocolType {
+    return this.getChainMetadata(chainNameOrId).protocol;
   }
 
   /**
@@ -215,16 +231,8 @@ export class ChainMetadataManager<MetaExt = {}> {
    */
   tryGetExplorerUrl(chainNameOrId: ChainName | number): string | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
-    if (!metadata?.blockExplorers?.length) return null;
-    const url = new URL(metadata.blockExplorers[0].url);
-    // TODO move handling of these chain/protocol specific quirks to ChainMetadata
-    if (
-      metadata.protocol === ProtocolType.Sealevel &&
-      solanaChainToClusterName[metadata.name]
-    ) {
-      url.searchParams.set('cluster', solanaChainToClusterName[metadata.name]);
-    }
-    return url.toString();
+    if (!metadata) return null;
+    return getExplorerBaseUrl(metadata);
   }
 
   /**
@@ -242,14 +250,8 @@ export class ChainMetadataManager<MetaExt = {}> {
    */
   tryGetExplorerApiUrl(chainNameOrId: ChainName | number): string | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
-    const { protocol, blockExplorers } = metadata || {};
-    if (protocol !== ProtocolType.Ethereum) return null;
-    if (!blockExplorers?.length || !blockExplorers[0].apiUrl) return null;
-    const { apiUrl, apiKey } = blockExplorers[0];
-    if (!apiKey) return apiUrl;
-    const url = new URL(apiUrl);
-    url.searchParams.set('apikey', apiKey);
-    return url.toString();
+    if (!metadata) return null;
+    return getExplorerApiUrl(metadata);
   }
 
   /**
@@ -269,15 +271,20 @@ export class ChainMetadataManager<MetaExt = {}> {
     chainNameOrId: ChainName | number,
     response: { hash: string },
   ): string | null {
-    const baseUrl = this.tryGetExplorerUrl(chainNameOrId);
-    if (!baseUrl) return null;
-    const chainName = this.getChainName(chainNameOrId);
-    const urlPathStub = ['nautilus', 'proteustestnet'].includes(chainName)
-      ? 'transaction'
-      : 'tx';
-    const url = new URL(baseUrl);
-    url.pathname += `/${urlPathStub}/${response.hash}`;
-    return url.toString();
+    const metadata = this.tryGetChainMetadata(chainNameOrId);
+    if (!metadata) return null;
+    return getExplorerTxUrl(metadata, response.hash);
+  }
+
+  /**
+   * Get a block explorer URL for given chain's tx
+   * @throws if chain's metadata or block explorer data has no been set
+   */
+  getExplorerTxUrl(
+    chainNameOrId: ChainName | number,
+    response: { hash: string },
+  ): string {
+    return `${this.getExplorerUrl(chainNameOrId)}/tx/${response.hash}`;
   }
 
   /**
@@ -287,12 +294,9 @@ export class ChainMetadataManager<MetaExt = {}> {
     chainNameOrId: ChainName | number,
     address?: string,
   ): Promise<string | null> {
-    if (!address) return null;
-    const baseUrl = this.tryGetExplorerUrl(chainNameOrId);
-    if (!baseUrl) return null;
-    const url = new URL(baseUrl);
-    url.pathname += `/address/${address}`;
-    return url.toString();
+    const metadata = this.tryGetChainMetadata(chainNameOrId);
+    if (!metadata || !address) return null;
+    return getExplorerAddressUrl(metadata, address);
   }
 
   /**
@@ -310,17 +314,6 @@ export class ChainMetadataManager<MetaExt = {}> {
   }
 
   /**
-   * Get a block explorer URL for given chain's tx
-   * @throws if chain's metadata or block explorer data has no been set
-   */
-  getExplorerTxUrl(
-    chainNameOrId: ChainName | number,
-    response: { hash: string },
-  ): string {
-    return `${this.getExplorerUrl(chainNameOrId)}/tx/${response.hash}`;
-  }
-
-  /**
    * Creates a new ChainMetadataManager with the extended metadata
    * @param additionalMetadata extra fields to add to the metadata for each chain
    * @returns a new ChainMetadataManager
@@ -330,8 +323,6 @@ export class ChainMetadataManager<MetaExt = {}> {
   ): ChainMetadataManager<MetaExt & NewExt> {
     const newMetadata: ChainMap<ChainMetadata<MetaExt & NewExt>> = {};
     for (const [name, meta] of Object.entries(this.metadata)) {
-      if (!additionalMetadata[name])
-        throw new Error(`No additional data provided for chain ${name}`);
       newMetadata[name] = { ...meta, ...additionalMetadata[name] };
     }
     return new ChainMetadataManager(newMetadata);

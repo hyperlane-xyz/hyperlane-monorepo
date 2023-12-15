@@ -1,9 +1,8 @@
 name: rust
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    branches: [main]
     paths:
       - 'rust/**'
       - .github/workflows/rust.yml
@@ -25,7 +24,7 @@ defaults:
 
 jobs:
   test-rs:
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
 
     steps:
       - uses: actions/checkout@v3
@@ -51,7 +50,7 @@ jobs:
         run: cargo test
 
   lint-rs:
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
 
     steps:
       - uses: actions/checkout@v3

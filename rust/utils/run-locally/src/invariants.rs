@@ -1,10 +1,11 @@
 // use std::path::Path;
 
 use crate::config::Config;
+use crate::metrics::agent_balance_sum;
 use maplit::hashmap;
 
-use crate::fetch_metric;
 use crate::logging::log;
+use crate::{fetch_metric, ZERO_MERKLE_INSERTION_KATHY_MESSAGES};
 // use crate::solana::solana_termination_invariants_met;
 
 // This number should be even, so the messages can be split into two equal halves
@@ -15,6 +16,7 @@ pub const SOL_MESSAGES_EXPECTED: u32 = 0;
 /// number of messages have been sent.
 pub fn termination_invariants_met(
     config: &Config,
+    starting_relayer_balance: f64,
     // solana_cli_tools_path: &Path,
     // solana_config_path: &Path,
 ) -> eyre::Result<bool> {
@@ -23,7 +25,7 @@ pub fn termination_invariants_met(
 
     let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
-    if lengths.iter().any(|n| *n != 0) {
+    if lengths.iter().sum::<u32>() != ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
         log!("Relayer queues not empty. Lengths: {:?}", lengths);
         return Ok(false);
     };
@@ -84,7 +86,7 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
-    if dispatched_messages_scraped != eth_messages_expected {
+    if dispatched_messages_scraped != eth_messages_expected + ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
         log!(
             "Scraper has scraped {} dispatched messages, expected {}",
             dispatched_messages_scraped,
@@ -125,6 +127,17 @@ pub fn termination_invariants_met(
             "Scraper has scraped {} delivered messages, expected {}",
             delivered_messages_scraped,
             eth_messages_expected
+        );
+        return Ok(false);
+    }
+
+    let ending_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
+    // Make sure the balance was correctly updated in the metrics.
+    if starting_relayer_balance <= ending_relayer_balance {
+        log!(
+            "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
+            starting_relayer_balance,
+            ending_relayer_balance
         );
         return Ok(false);
     }

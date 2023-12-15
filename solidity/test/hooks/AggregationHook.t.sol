@@ -6,6 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {StaticAggregationHook} from "../../contracts/hooks/aggregation/StaticAggregationHook.sol";
 import {StaticAggregationHookFactory} from "../../contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
+import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
 contract AggregationHookTest is Test {
     StaticAggregationHookFactory internal factory;
@@ -17,10 +18,10 @@ contract AggregationHookTest is Test {
         factory = new StaticAggregationHookFactory();
     }
 
-    function deployHooks(uint8 n, uint256 fee)
-        internal
-        returns (address[] memory)
-    {
+    function deployHooks(
+        uint8 n,
+        uint256 fee
+    ) internal returns (address[] memory) {
         address[] memory hooks = new address[](n);
         for (uint8 i = 0; i < n; i++) {
             TestPostDispatchHook subHook = new TestPostDispatchHook();
@@ -87,5 +88,10 @@ contract AggregationHookTest is Test {
         address[] memory expectedHooks = deployHooks(_hooks, fee);
         address[] memory actualHook = hook.hooks("");
         assertEq(actualHook, expectedHooks);
+    }
+
+    function testHookType() public {
+        deployHooks(1, 0);
+        assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.AGGREGATION));
     }
 }

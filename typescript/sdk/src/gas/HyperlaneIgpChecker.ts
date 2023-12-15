@@ -1,4 +1,4 @@
-import { BigNumber, utils as ethersUtils } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -54,25 +54,25 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       chain,
       'InterchainGasPaymaster implementation',
       implementation,
-      [
-        BytecodeHash.INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
-        BytecodeHash.OWNER_INITIALIZABLE_INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
-      ],
+      [BytecodeHash.INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH],
     );
 
     await this.checkBytecode(
       chain,
-      'InterchainGasPaymaster',
+      'InterchainGasPaymaster proxy',
       contracts.interchainGasPaymaster.address,
-      [BytecodeHash.OVERHEAD_IGP_BYTECODE_HASH],
+      [BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH],
       (bytecode) =>
-        // Remove the address of the wrapped IGP from the bytecode
-        bytecode.replaceAll(
-          ethersUtils.defaultAbiCoder
-            .encode(['address'], [contracts.interchainGasPaymaster.address])
-            .slice(2),
-          '',
-        ),
+        bytecode
+          // We persist the block number in the bytecode now too, so we have to strip it
+          .replaceAll(
+            /(00000000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})81565/g,
+            (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+          )
+          .replaceAll(
+            /(0000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})6118123373/g,
+            (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+          ),
     );
   }
 
@@ -95,7 +95,13 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
 
     const remotes = this.app.remoteChains(local);
     for (const remote of remotes) {
-      const expectedOverhead = this.configMap[local].overhead[remote];
+      let expectedOverhead = this.configMap[local].overhead[remote];
+      if (!expectedOverhead) {
+        this.app.logger(
+          `No overhead configured for ${local} -> ${remote}, defaulting to 0`,
+        );
+        expectedOverhead = 0;
+      }
 
       const remoteId = this.multiProvider.getDomainId(remote);
       const existingOverhead = await defaultIsmIgp.destinationGasLimit(
@@ -132,14 +138,19 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       expected: {},
     };
 
-    const remotes = this.app.remoteChains(local);
+    // In addition to all remote chains on the app, which are just Ethereum chains,
+    // also consider what the config says about non-Ethereum chains.
+    const remotes = new Set([
+      ...this.app.remoteChains(local),
+      ...Object.keys(this.configMap[local].gasOracleType),
+    ]);
     for (const remote of remotes) {
       const remoteId = this.multiProvider.getDomainId(remote);
       const destinationGasConfigs = await igp.destinationGasConfigs(remoteId);
       const actualGasOracle = destinationGasConfigs.gasOracle;
       const expectedGasOracle = this.getGasOracleAddress(local, remote);
 
-      if (eqAddress(actualGasOracle, expectedGasOracle)) {
+      if (!eqAddress(actualGasOracle, expectedGasOracle)) {
         const remoteChain = remote as ChainName;
         gasOraclesViolation.actual[remoteChain] = actualGasOracle;
         gasOraclesViolation.expected[remoteChain] = expectedGasOracle;
@@ -152,7 +163,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
 
     const actualBeneficiary = await igp.beneficiary();
     const expectedBeneficiary = this.configMap[local].beneficiary;
-    if (eqAddress(actualBeneficiary, expectedBeneficiary)) {
+    if (!eqAddress(actualBeneficiary, expectedBeneficiary)) {
       const violation: IgpBeneficiaryViolation = {
         type: 'InterchainGasPaymaster',
         subType: IgpViolationType.Beneficiary,
@@ -169,9 +180,10 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     const config = this.configMap[local];
     const gasOracleType = config.gasOracleType[remote];
     if (!gasOracleType) {
-      throw Error(
-        `Expected gas oracle type for local ${local} and remote ${remote}`,
+      this.app.logger(
+        `No gas oracle for local ${local} and remote ${remote}, defaulting to zero address`,
       );
+      return ethers.constants.AddressZero;
     }
     const coreContracts = this.app.getContracts(local);
     switch (gasOracleType) {

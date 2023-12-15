@@ -30,7 +30,7 @@ export function isS3CheckpointWithId(obj: any): obj is S3CheckpointWithId {
 export function isCheckpoint(obj: any): obj is Checkpoint {
   const isValidRoot = utils.isHexString(obj.root);
   const isValidIndex = Number.isSafeInteger(obj.index);
-  const isValidMailbox = utils.isHexString(obj.mailbox_address);
+  const isValidMailbox = utils.isHexString(obj.merkle_tree_hook_address);
   const isValidDomain = Number.isSafeInteger(obj.mailbox_domain);
   return isValidIndex && isValidRoot && isValidMailbox && isValidDomain;
 }
