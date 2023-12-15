@@ -183,7 +183,7 @@ async fn test_dispatch_from_eoa() {
         .unwrap();
 
     let expected_message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: LOCAL_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -238,7 +238,7 @@ async fn test_dispatch_from_eoa() {
         .unwrap();
 
     let expected_message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 1,
         origin: LOCAL_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -300,7 +300,7 @@ async fn test_dispatch_from_program() {
             .unwrap();
 
     let expected_message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: LOCAL_DOMAIN,
         // The sender should be the program ID because its dispatch authority signed
@@ -389,7 +389,7 @@ async fn test_dispatch_returns_message_id() {
         message_body: message_body.clone(),
     };
     let expected_message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: LOCAL_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -574,7 +574,7 @@ async fn test_process_successful_verify_and_handle() {
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -605,7 +605,7 @@ async fn test_process_successful_verify_and_handle() {
 
     // Send another to illustrate that the sequence is incremented
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -647,7 +647,7 @@ async fn test_process_errors_if_message_already_processed() {
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -697,7 +697,7 @@ async fn test_process_errors_if_ism_verify_fails() {
     test_ism.set_accept(false).await.unwrap();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -743,7 +743,7 @@ async fn test_process_errors_if_recipient_handle_fails() {
         .unwrap();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -784,7 +784,7 @@ async fn test_process_errors_if_incorrect_destination_domain() {
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -905,7 +905,7 @@ async fn test_process_errors_if_reentrant() {
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
