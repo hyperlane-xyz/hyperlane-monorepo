@@ -285,7 +285,7 @@ pub fn start_solana_test_validator(
 pub fn initiate_solana_hyperlane_transfer(
     solana_cli_tools_path: PathBuf,
     solana_config_path: PathBuf,
-) -> Option<String> {
+) -> String {
     let sender = Program::new(concat_path(&solana_cli_tools_path, "solana"))
         .arg("config", solana_config_path.to_str().unwrap())
         .arg("keypair", SOLANA_KEYPAIR)
@@ -309,19 +309,16 @@ pub fn initiate_solana_hyperlane_transfer(
         .run_with_output()
         .join();
 
-    let message_id = get_message_id_from_logs(output);
-    if let Some(message_id) = message_id.clone() {
-        sealevel_client(&solana_cli_tools_path, &solana_config_path)
-            .cmd("igp")
-            .cmd("pay-for-gas")
-            .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
-            .arg("message-id", message_id.clone())
-            .arg("destination-domain", SOLANA_REMOTE_CHAIN_ID)
-            .arg("gas", "100000")
-            .run()
-            .join();
-    }
-    println!("sent sealevel message: {:?}", message_id);
+    let message_id = get_message_id_from_logs(output).expect("failed to get message id from logs");
+    sealevel_client(&solana_cli_tools_path, &solana_config_path)
+        .cmd("igp")
+        .cmd("pay-for-gas")
+        .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
+        .arg("message-id", message_id.clone())
+        .arg("destination-domain", SOLANA_REMOTE_CHAIN_ID)
+        .arg("gas", "100000")
+        .run()
+        .join();
     message_id
 }
 
@@ -351,7 +348,7 @@ pub fn solana_termination_invariants_met(
             // This value was gotten by observing the relayer logs.
             // TODO: get the actual message-id so we don't have to hardcode it
             "message-id",
-            "0x7b8ba684e5ce44f898c5fa81785c83a00e32b5bef3412e648eb7a17bec497685",
+            "0x89c76191bd40b1858b7957e35bf3455122826e4737c5540b9dc5a555370d78c5",
         )
         .arg("program-id", "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj")
         .run_with_output()

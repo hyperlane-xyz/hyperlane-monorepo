@@ -1,6 +1,5 @@
 use ethers::prelude::Selector;
 use h_cosmos::CosmosProvider;
-use h_sealevel::SealevelProvider;
 use std::collections::HashMap;
 
 use eyre::{eyre, Context, Result};
