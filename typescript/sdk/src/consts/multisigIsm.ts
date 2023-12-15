@@ -18,6 +18,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xec68258a7c882ac2fc46b81ce80380054ffb4ef2', // dsrv
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
       '0x092e1c19da58e87ea65198785ee83867fe4bb418', // everstake
+      // '0xc2d68e109a7e80e12098d50ac4ef9fa7b3061684', // staked (not yet announced)
     ],
   },
 
@@ -61,7 +62,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     threshold: 2,
     validators: [
       '0x570af9b7b36568c8877eebba6c6727aa9dab7268',
-      '0x8292b1a53907ece0f76af8a50724e9492bcdc8a3', // bsc
+      '0x8292b1a53907ece0f76af8a50724e9492bcdc8a3', // dsrv
       '0xeaf5cf9100f36a4baeea779f8745dda86159103c', // everstake
     ],
   },
@@ -81,6 +82,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x63478422679303c3e4fc611b771fa4a707ef7f4a',
       '0x622e43baf06ad808ca8399360d9a2d9a1a12688b', // dsrv
       '0xf2c1e3888eb618f1f1a071ef3618f134715a9a49', // everstake
+      '0x46ecbc794574727abb8f97f01dacd9db6135f47a', // staked
     ],
   },
 
@@ -100,6 +102,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x94438a7de38d4548ae54df5c6010c4ebc5239eae', // dsrv
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
       '0xce327111035dd38698c92c3778884dbbb0ca8103', // everstake
+      // '0xb2f5a6a6e6046e2ede213617e989329666a6c4bc', // staked (not yet announced)
     ],
   },
 
@@ -167,6 +170,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x2225e2f4e9221049456da93b71d2de41f3b6b2a8',
       '0x645428d198d2e76cbd9c1647f5c80740bb750b97', // dsrv
       '0xaed886392df07897743d8e272d438f00c4c9a2ae', // everstake
+      '0xcf0bb43255849cb3709a96ee166e5c3ce4adc7f9', // staked
     ],
   },
 
@@ -202,6 +206,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x20349eadc6c72e94ce38268b96692b1a5c20de4f',
       '0x5b7d47b76c69740462432f6a5a0ca5005e014157', // dsrv
       '0x22b1ad4322cdb5f2c76ebf4e5a93803d480fcf0d', // everstake
+      '0x9636fbe90b6816438327b0fbde435aa3c8eeda15', // staked
     ],
   },
 
@@ -218,7 +223,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     threshold: 2,
     validators: [
       '0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac',
-      '0x8dd8f8d34b5ecaa5f66de24b01acd7b8461c3916',
+      '0x008f24cbb1cc30ad0f19f2516ca75730e37efb5f', // dsrv
       '0x722aa4d45387009684582bca8281440d16b8b40f', // everstake
     ],
   },
