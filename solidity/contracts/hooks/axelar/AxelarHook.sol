@@ -9,7 +9,6 @@ import {BridgeAggregationHookMetadata} from "../libs/BridgeAggregationHookMetada
 import {Message} from "../../libs/Message.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
 
-//TODO: remove temp intermal import. for testing speed purposes only
 interface IAxelarGateway {
     function callContract(
         string calldata destinationChain,
@@ -37,21 +36,18 @@ contract AxelarHook is IPostDispatchHook, MailboxClient {
     IAxelarGateway public immutable AXELAR_GATEWAY;
     string public DESTINATION_CHAIN;
     string public DESTINATION_CONTRACT;
-    bytes GMP_CALL_DATA;
 
     constructor(
         address _mailbox,
         string memory destinationChain,
         string memory destionationContract,
         address axelarGateway,
-        address axelarGasReceiver,
-        bytes memory gmp_call_data
+        address axelarGasReceiver
     ) MailboxClient(_mailbox) {
         DESTINATION_CHAIN = destinationChain;
         DESTINATION_CONTRACT = destionationContract;
         AXELAR_GATEWAY = IAxelarGateway(axelarGateway);
         AXELAR_GAS_SERVICE = IAxelarGasService(axelarGasReceiver);
-        GMP_CALL_DATA = gmp_call_data;
     }
 
     /**
@@ -77,7 +73,8 @@ contract AxelarHook is IPostDispatchHook, MailboxClient {
         bytes32 id = message.id();
         require(_isLatestDispatched(id), "message not dispatched by mailbox");
 
-        bytes memory axelarPayload = _formatPayload(message);
+        bytes memory axelarPayload = _encodeGmpPayload(id);
+
         // Pay for gas used by Axelar with ETH
         AXELAR_GAS_SERVICE.payNativeGasForContractCall{value: msg.value}(
             address(this),
@@ -112,9 +109,34 @@ contract AxelarHook is IPostDispatchHook, MailboxClient {
         return quote;
     }
 
-    function _formatPayload(
-        bytes calldata message
-    ) internal view returns (bytes memory) {
-        return abi.encodePacked(GMP_CALL_DATA, message.id());
+    /**
+     * @notice Helper function to encode the Axelar GMP payload
+     * @param _id The latest id of the current dispatched hyperlane message
+     * @return bytes The Axelar GMP payload.
+     */
+    function _encodeGmpPayload(
+        bytes32 _id
+    ) internal pure returns (bytes memory) {
+        // dociding version used by Axelar
+        bytes4 version = bytes4(0x00000001);
+
+        //name of the arguments used in the cross-chain function call
+        string[] memory argumentNameArray = new string[](1);
+        argumentNameArray[0] = "id";
+
+        // type of argument used in the cross-chain function call
+        string[] memory abiTypeArray = new string[](1);
+        abiTypeArray[0] = "string";
+
+        // add the function name: (submit_meta) and argument value (_id)
+        bytes memory gmpPayload = abi.encode(
+            "submit_meta",
+            argumentNameArray,
+            abiTypeArray,
+            _id
+        );
+
+        // encode the version and return the payload
+        return abi.encodePacked(version, gmpPayload);
     }
 }
