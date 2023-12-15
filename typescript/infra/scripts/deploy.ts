@@ -97,8 +97,8 @@ async function main() {
     const routerConfig = core.getRouterConfig(owner);
     const syntheticConfig: HypERC20Config = {
       type: TokenType.synthetic,
-      name: 'USDC',
-      symbol: 'USDC',
+      name: 'USDT',
+      symbol: 'USDT',
       decimals: 18,
       totalSupply: 0,
       gas: 75_000, // collateral overhead
@@ -106,7 +106,7 @@ async function main() {
     };
     const collateralConfig: HypERC20CollateralConfig = {
       type: TokenType.collateral,
-      token: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // USDC
+      token: '0xdac17f958d2ee523a2206206994597c13d831ec7', // USDT
       gas: 65_000, // synthetic overhead
       ...routerConfig['ethereum'],
       interchainSecurityModule: aggregationIsm('viction', Contexts.Hyperlane),
