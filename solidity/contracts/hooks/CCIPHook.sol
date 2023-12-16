@@ -62,11 +62,15 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
 
     // ============ Storage ============
 
+    // Mapping to keep track of allowlisted source chains.
     mapping(uint64 => bool) public allowlistedSourceChains;
+
+    // Mapping to keep track of allowlisted senders.
     mapping(address => bool) public allowlistedSenders;
+
     mapping(uint64 => bool) public allowlistedDestinationChains;
     IRouterClient internal immutable ccip_router;
-    address public CCIPIsm; // The address of CCIP Ism to call during ccipReceive
+    address public ccipISM; // The address of CCIP Ism to call during ccipReceive
 
     // ============ Constructor ============
 
@@ -188,9 +192,9 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
             abi.decode(any2EvmMessage.sender, (address))
         ) // Make sure source chain and sender are allowlisted
     {
-        bytes memory lastReceivedPayload = abi.decode(any2EvmMessage.data, (bytes)); // abi-decoding of the sent payload
-
-        (bool success, ) = CCIPIsm.call(lastReceivedPayload); // verifyMessageId(bytes32)
+        bytes memory lastReceivedPayload = any2EvmMessage.data;  
+        
+        (bool success, ) = ccipISM.call(lastReceivedPayload); // verifyMessageId(bytes32)
         require (success, "Call to CCIP Ism failed");
 
         emit MessageReceived(
@@ -264,6 +268,6 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
 
     /// @dev Sets the address for Ism to verify message
     function setIsm(address _ism) external onlyOwner {
-        CCIPIsm = _ism;
+        ccipISM = _ism;
     }
 }
