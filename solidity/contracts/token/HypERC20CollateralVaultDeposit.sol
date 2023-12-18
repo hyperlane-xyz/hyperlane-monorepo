@@ -12,6 +12,9 @@ contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
     // Address of the ERC4626 compatible vault
     ERC4626 public immutable vault;
 
+    // Internal balance of total vault shares
+    uint256 public shares;
+
     constructor(
         address _vault,
         address erc20,
@@ -29,6 +32,16 @@ contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
 
     function _depositIntoVault(uint256 _amount) internal {
         wrappedToken.approve(address(vault), _amount);
-        vault.deposit(_amount, address(this));
+        shares += vault.deposit(_amount, address(this));
+    }
+
+    function _transferTo(
+        address _recipient,
+        uint256 _amount,
+        bytes calldata _metadata
+    ) internal virtual override {
+        // TODO maybe Get slippage from meta data
+        shares -= vault.withdraw(_amount, address(this), address(this));
+        super._transferTo(_recipient, _amount, _metadata);
     }
 }

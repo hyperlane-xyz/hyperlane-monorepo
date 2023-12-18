@@ -44,9 +44,9 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
             address(remoteToken).addressToBytes32()
         );
 
-        primaryToken.transfer(address(localToken), 1000e18);
+        remoteMailbox.setDefaultHook(address(noopHook));
+        remoteMailbox.setRequiredHook(address(noopHook));
         primaryToken.transfer(ALICE, 1000e18);
-
         _enrollRemoteTokenRouter();
     }
 
@@ -56,10 +56,78 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
 
         // Check vault shares balance before and after transfer
         assertEq(vault.maxRedeem(address(erc20CollateralVaultDeposit)), 0);
+        assertEq(erc20CollateralVaultDeposit.shares(), 0);
+
         _performRemoteTransfer(0, TRANSFER_AMT);
         assertEq(
             vault.maxRedeem(address(erc20CollateralVaultDeposit)),
             TRANSFER_AMT
         );
+        assertEq(erc20CollateralVaultDeposit.shares(), TRANSFER_AMT);
     }
+
+    function testRemoteTransfer_withdraws_fromVault() public {
+        // Transfer to Bob
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        _performRemoteTransfer(0, TRANSFER_AMT);
+
+        // Transfer back from Bob to Alice
+        vm.prank(BOB);
+        remoteToken.transferRemote(
+            ORIGIN,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+
+        // Check Alice's local token balance
+        uint256 prevBalance = localToken.balanceOf(ALICE);
+        vm.prank(address(localMailbox));
+        localToken.handle(
+            DESTINATION,
+            address(remoteToken).addressToBytes32(),
+            abi.encodePacked(ALICE.addressToBytes32(), TRANSFER_AMT)
+        );
+
+        assertEq(localToken.balanceOf(ALICE), prevBalance + TRANSFER_AMT);
+        assertEq(erc20CollateralVaultDeposit.shares(), 0);
+    }
+
+    function testRemoteTransfer_withdraws_lessShares() public {
+        // Transfer to Bob
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        _performRemoteTransfer(0, TRANSFER_AMT);
+
+        // Increase vault balance, which will reduce share redemptions for the same amount
+        primaryToken.transfer(address(vault), 1 ether);
+
+        // Transfer back from Bob to Alice
+        vm.prank(BOB);
+        remoteToken.transferRemote(
+            ORIGIN,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+
+        // Check Alice's local token balance
+        uint256 prevBalance = localToken.balanceOf(ALICE);
+        vm.prank(address(localMailbox));
+        localToken.handle(
+            DESTINATION,
+            address(remoteToken).addressToBytes32(),
+            abi.encodePacked(ALICE.addressToBytes32(), TRANSFER_AMT)
+        );
+
+        assertEq(localToken.balanceOf(ALICE), prevBalance + TRANSFER_AMT);
+
+        // Has leftover shares
+        assertGt(erc20CollateralVaultDeposit.shares(), 0);
+    }
+
+    function testRemoteTransfer_sweep() public {}
+
+    // function testRemoteTransfer_sweep_reverts() public {
+
+    // }
 }
