@@ -123,7 +123,7 @@ const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 const desiredBalancePerChain: ChainMap<string> = {
   celo: '0.3',
   alfajores: '1',
-  avalanche: '0.3',
+  avalanche: '3',
   fuji: '1',
   ethereum: '0.5',
   polygon: '2',
