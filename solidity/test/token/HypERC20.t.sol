@@ -153,7 +153,7 @@ abstract contract HypTokenTest is Test {
         _performRemoteTransferAndGas(_msgValue, _amount, _gasOverhead);
     }
 
-    function testBenchmark_overheadGasUsage() public {
+    function testBenchmark_overheadGasUsage() public virtual {
         vm.prank(address(localMailbox));
 
         uint256 gasBefore = gasleft();
