@@ -23,6 +23,7 @@ import "../../contracts/test/ERC4626/ERC4626Test.sol";
 
 contract HypERC20CollateralVaultDepositTest is HypTokenTest {
     using TypeCasts for address;
+    uint constant DUST_AMOUNT = 1e11;
     HypERC20CollateralVaultDeposit internal erc20CollateralVaultDeposit;
     ERC4626Test vault;
 
@@ -59,9 +60,10 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
 
         _performRemoteTransfer(0, TRANSFER_AMT);
-        assertEq(
+        assertApproxEqAbs(
             vault.maxRedeem(address(erc20CollateralVaultDeposit)),
-            TRANSFER_AMT
+            TRANSFER_AMT,
+            1
         );
         assertEq(erc20CollateralVaultDeposit.assetDeposited(), TRANSFER_AMT);
     }
@@ -93,14 +95,21 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
     }
 
-    function testRemoteTransfer_withdraws_lessShares() public {
+    function testRemoteTransfer_withdraws_lessShares(
+        uint256 rewardAmount
+    ) public {
+        // @dev a rewardAmount less than the DUST_AMOUNT will round down
+        vm.assume(rewardAmount > DUST_AMOUNT);
+        vm.assume(rewardAmount < TOTAL_SUPPLY);
+
         // Transfer to Bob
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);
         _performRemoteTransfer(0, TRANSFER_AMT);
 
-        // Increase vault balance, which will reduce share redemptions for the same amount
-        primaryToken.transfer(address(vault), 1 ether);
+        // Increase vault balance, which will reduce share redeemed for the same amount
+        primaryToken.mint(rewardAmount);
+        primaryToken.transfer(address(vault), rewardAmount);
 
         // Transfer back from Bob to Alice
         vm.prank(BOB);
@@ -126,16 +135,20 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         assertGt(vault.maxRedeem(address(erc20CollateralVaultDeposit)), 0);
     }
 
-    function testRemoteTransfer_sweep_revertNonOwner() public {
-        testRemoteTransfer_withdraws_lessShares();
+    function testRemoteTransfer_sweep_revertNonOwner(
+        uint256 rewardAmount
+    ) public {
+        testRemoteTransfer_withdraws_lessShares(rewardAmount);
         vm.startPrank(BOB);
         vm.expectRevert(abi.encodePacked("Ownable: caller is not the owner"));
         erc20CollateralVaultDeposit.sweep();
         vm.stopPrank();
     }
 
-    function testRemoteTransfer_sweep_excessShares() public {
-        testRemoteTransfer_withdraws_lessShares();
+    function testRemoteTransfer_sweep_excessShares(
+        uint256 rewardAmount
+    ) public {
+        testRemoteTransfer_withdraws_lessShares(rewardAmount);
 
         uint256 ownerBalancePrev = primaryToken.balanceOf(
             erc20CollateralVaultDeposit.owner()
@@ -151,8 +164,10 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         );
     }
 
-    function testRemoteTransfer_sweep_excessSharesAfterDeposit() public {
-        testRemoteTransfer_withdraws_lessShares();
+    function testRemoteTransfer_sweep_excessSharesMultipleDeposit(
+        uint256 rewardAmount
+    ) public {
+        testRemoteTransfer_withdraws_lessShares(rewardAmount);
 
         uint256 ownerBalancePrev = primaryToken.balanceOf(
             erc20CollateralVaultDeposit.owner()
@@ -161,10 +176,33 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
             address(erc20CollateralVaultDeposit)
         );
 
+        // Deposit again for Alice
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        _performRemoteTransfer(0, TRANSFER_AMT);
+
+        // Sweep and check
         erc20CollateralVaultDeposit.sweep();
         assertGt(
             primaryToken.balanceOf(erc20CollateralVaultDeposit.owner()),
             ownerBalancePrev + excessAmount
         );
+    }
+
+    function testBenchmark_overheadGasUsage() public override {
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        _performRemoteTransfer(0, TRANSFER_AMT);
+
+        vm.prank(address(localMailbox));
+
+        uint256 gasBefore = gasleft();
+        localToken.handle(
+            DESTINATION,
+            address(remoteToken).addressToBytes32(),
+            abi.encodePacked(BOB.addressToBytes32(), TRANSFER_AMT)
+        );
+        uint256 gasAfter = gasleft();
+        console.log("Overhead gas usage: %d", gasBefore - gasAfter);
     }
 }
