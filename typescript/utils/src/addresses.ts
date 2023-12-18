@@ -6,9 +6,16 @@ import { Address, HexString, ProtocolType } from './types';
 
 const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SEALEVEL_ADDRESS_REGEX = /^[a-zA-Z0-9]{36,44}$/;
-const COSMOS_ADDRESS_REGEX =
-  /^[a-z]{1,10}1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{38,58}$/; // Bech32
-export const IBC_DENOM_REGEX = /^ibc\/([A-Fa-f0-9]{64})$/;
+
+// https://github.com/cosmos/cosmos-sdk/blob/84c33215658131d87daf3c629e909e12ed9370fa/types/coin.go#L601C17-L601C44
+const COSMOS_DENOM_PATTERN = `[a-zA-Z][a-zA-Z0-9]{2,127}`;
+// https://en.bitcoin.it/wiki/BIP_0173
+const BECH32_ADDRESS_PATTERN = `[a-zA-Z]{1,83}1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{38,58}`;
+const COSMOS_ADDRESS_REGEX = new RegExp(`^${BECH32_ADDRESS_PATTERN}$`);
+const IBC_DENOM_REGEX = new RegExp(`^ibc/([A-Fa-f0-9]{64})$`);
+const COSMOS_FACTORY_TOKEN_REGEX = new RegExp(
+  `^factory/(${BECH32_ADDRESS_PATTERN})/${COSMOS_DENOM_PATTERN}$`,
+);
 
 const EVM_TX_HASH_REGEX = /^0x([A-Fa-f0-9]{64})$/;
 const SEALEVEL_TX_HASH_REGEX = /^[a-zA-Z1-9]{88}$/;
@@ -26,7 +33,11 @@ export function isAddressSealevel(address: Address) {
 }
 
 export function isAddressCosmos(address: Address) {
-  return COSMOS_ADDRESS_REGEX.test(address) || IBC_DENOM_REGEX.test(address);
+  return (
+    COSMOS_ADDRESS_REGEX.test(address) ||
+    IBC_DENOM_REGEX.test(address) ||
+    COSMOS_FACTORY_TOKEN_REGEX.test(address)
+  );
 }
 
 export function getAddressProtocolType(address: Address) {
@@ -79,7 +90,10 @@ export function isValidAddressSealevel(address: Address) {
 export function isValidAddressCosmos(address: Address) {
   try {
     const isValid =
-      address && (IBC_DENOM_REGEX.test(address) || fromBech32(address));
+      address &&
+      (IBC_DENOM_REGEX.test(address) ||
+        COSMOS_FACTORY_TOKEN_REGEX.test(address) ||
+        fromBech32(address));
     return !!isValid;
   } catch (error) {
     return false;
