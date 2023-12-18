@@ -97,23 +97,26 @@ async function main() {
     const routerConfig = core.getRouterConfig(owner);
     const syntheticConfig: HypERC20Config = {
       type: TokenType.synthetic,
-      name: 'USDT',
-      symbol: 'USDT',
+      name: 'USDC',
+      symbol: 'USDC',
       decimals: 18,
       totalSupply: 0,
       gas: 75_000, // collateral overhead
-      ...routerConfig['viction'],
+      ...routerConfig['ancient8testnet'],
     };
     const collateralConfig: HypERC20CollateralConfig = {
       type: TokenType.collateral,
-      token: '0xdac17f958d2ee523a2206206994597c13d831ec7', // USDT
+      token: '0x07865c6e87b9f70255377e024ace6630c1eaa37f', // goerli USDC
       gas: 65_000, // synthetic overhead
-      ...routerConfig['ethereum'],
-      interchainSecurityModule: aggregationIsm('viction', Contexts.Hyperlane),
+      ...routerConfig['goerli'],
+      interchainSecurityModule: aggregationIsm(
+        'ancient8testnet',
+        Contexts.Hyperlane,
+      ),
     };
     config = {
-      viction: syntheticConfig,
-      ethereum: collateralConfig,
+      ancient8testnet: syntheticConfig,
+      goerli: collateralConfig,
     };
     deployer = new HypERC20Deployer(multiProvider, ismFactory);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
