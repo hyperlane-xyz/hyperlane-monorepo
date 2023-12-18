@@ -14,6 +14,8 @@ contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
     // Internal balance of total asset deposited
     uint256 public assetDeposited;
 
+    event ExcessSharesSwept(uint256 amount, uint256 assetsRedeemed);
+
     constructor(
         address _vault,
         address erc20,
@@ -70,7 +72,12 @@ contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
         if (_excessVaultShares() > 0) {
             uint256 excessShares = vault.maxRedeem(address(this)) -
                 vault.convertToShares(assetDeposited);
-            vault.redeem(excessShares, owner(), address(this));
+            uint256 assetsRedeemed = vault.redeem(
+                excessShares,
+                owner(),
+                address(this)
+            );
+            emit ExcessSharesSwept(excessShares, assetsRedeemed);
         }
     }
 
