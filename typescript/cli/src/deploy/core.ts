@@ -79,17 +79,23 @@ export async function runCoreDeploy({
   const { customChains, multiProvider, signer } = await getContext({
     chainConfigPath,
     keyConfig: { key },
+    skipConfirmation,
   });
 
   if (!chains?.length) {
+    if (skipConfirmation) throw new Error('No chains provided');
     chains = await runMultiChainSelectionStep(
       customChains,
       'Select chains to connect',
       true,
     );
   }
-  const artifacts = await runArtifactStep(chains, artifactsPath);
-  const result = await runIsmStep(chains, ismConfigPath);
+  const artifacts = await runArtifactStep(
+    chains,
+    skipConfirmation,
+    artifactsPath,
+  );
+  const result = await runIsmStep(chains, skipConfirmation, ismConfigPath);
   // we can either specify the full ISM config or just the multisig config
   const isIsmConfig = isISMConfig(result);
   const ismConfigs = isIsmConfig ? (result as ChainMap<IsmConfig>) : undefined;
@@ -118,14 +124,26 @@ export async function runCoreDeploy({
   await executeDeploy(deploymentParams);
 }
 
-function runArtifactStep(selectedChains: ChainName[], artifactsPath?: string) {
+function runArtifactStep(
+  selectedChains: ChainName[],
+  skipConfirmation: boolean,
+  artifactsPath?: string,
+) {
   logBlue(
     '\nDeployments can be totally new or can use some existing contract addresses.',
   );
-  return runDeploymentArtifactStep(artifactsPath, undefined, selectedChains);
+  return runDeploymentArtifactStep({
+    artifactsPath,
+    selectedChains,
+    skipConfirmation,
+  });
 }
 
-async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
+async function runIsmStep(
+  selectedChains: ChainName[],
+  skipConfirmation: boolean,
+  ismConfigPath?: string,
+) {
   if (!ismConfigPath) {
     logBlue(
       '\n',
@@ -134,6 +152,7 @@ async function runIsmStep(selectedChains: ChainName[], ismConfigPath?: string) {
     logGray(
       'Example config: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/cli/typescript/cli/examples/ism.yaml',
     );
+    if (skipConfirmation) throw new Error('ISM config required');
     ismConfigPath = await runFileSelectionStep(
       './configs',
       'ISM config',
