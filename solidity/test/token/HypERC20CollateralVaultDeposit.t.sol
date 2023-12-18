@@ -51,35 +51,48 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
-    function testRemoteTransfer_deposits_intoVault() public {
-        vm.prank(ALICE);
-        primaryToken.approve(address(localToken), TRANSFER_AMT);
+    function testRemoteTransfer_deposits_intoVault(
+        uint256 transferAmount
+    ) public {
+        vm.assume(transferAmount < TOTAL_SUPPLY);
+
+        vm.startPrank(ALICE);
+        primaryToken.mint(transferAmount);
+        primaryToken.approve(address(localToken), transferAmount);
+        vm.stopPrank();
 
         // Check vault shares balance before and after transfer
         assertEq(vault.maxRedeem(address(erc20CollateralVaultDeposit)), 0);
         assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
 
-        _performRemoteTransfer(0, TRANSFER_AMT);
+        _performRemoteTransfer(0, transferAmount);
         assertApproxEqAbs(
             vault.maxRedeem(address(erc20CollateralVaultDeposit)),
-            TRANSFER_AMT,
+            transferAmount,
             1
         );
-        assertEq(erc20CollateralVaultDeposit.assetDeposited(), TRANSFER_AMT);
+        assertEq(erc20CollateralVaultDeposit.assetDeposited(), transferAmount);
     }
 
-    function testRemoteTransfer_withdraws_fromVault() public {
+    function testRemoteTransfer_withdraws_fromVault(
+        uint256 transferAmount
+    ) public {
+        vm.assume(transferAmount < TOTAL_SUPPLY);
+
         // Transfer to Bob
-        vm.prank(ALICE);
-        primaryToken.approve(address(localToken), TRANSFER_AMT);
-        _performRemoteTransfer(0, TRANSFER_AMT);
+        vm.startPrank(ALICE);
+        primaryToken.mint(transferAmount);
+        primaryToken.approve(address(localToken), transferAmount);
+        vm.stopPrank();
+
+        _performRemoteTransfer(0, transferAmount);
 
         // Transfer back from Bob to Alice
         vm.prank(BOB);
         remoteToken.transferRemote(
             ORIGIN,
             BOB.addressToBytes32(),
-            TRANSFER_AMT
+            transferAmount
         );
 
         // Check Alice's local token balance
@@ -88,10 +101,10 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         localToken.handle(
             DESTINATION,
             address(remoteToken).addressToBytes32(),
-            abi.encodePacked(ALICE.addressToBytes32(), TRANSFER_AMT)
+            abi.encodePacked(ALICE.addressToBytes32(), transferAmount)
         );
 
-        assertEq(localToken.balanceOf(ALICE), prevBalance + TRANSFER_AMT);
+        assertEq(localToken.balanceOf(ALICE), prevBalance + transferAmount);
         assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
     }
 
@@ -145,8 +158,10 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         vm.stopPrank();
     }
 
-    function testRemoteTransfer_sweep_noExcessShares() public {
-        testRemoteTransfer_deposits_intoVault();
+    function testRemoteTransfer_sweep_noExcessShares(
+        uint256 transferAmount
+    ) public {
+        testRemoteTransfer_deposits_intoVault(transferAmount);
 
         uint256 ownerBalancePrev = primaryToken.balanceOf(
             erc20CollateralVaultDeposit.owner()
