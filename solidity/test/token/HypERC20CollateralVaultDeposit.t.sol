@@ -56,14 +56,14 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
 
         // Check vault shares balance before and after transfer
         assertEq(vault.maxRedeem(address(erc20CollateralVaultDeposit)), 0);
-        assertEq(erc20CollateralVaultDeposit.shares(), 0);
+        assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
 
         _performRemoteTransfer(0, TRANSFER_AMT);
         assertEq(
             vault.maxRedeem(address(erc20CollateralVaultDeposit)),
             TRANSFER_AMT
         );
-        assertEq(erc20CollateralVaultDeposit.shares(), TRANSFER_AMT);
+        assertEq(erc20CollateralVaultDeposit.assetDeposited(), TRANSFER_AMT);
     }
 
     function testRemoteTransfer_withdraws_fromVault() public {
@@ -90,7 +90,7 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         );
 
         assertEq(localToken.balanceOf(ALICE), prevBalance + TRANSFER_AMT);
-        assertEq(erc20CollateralVaultDeposit.shares(), 0);
+        assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
     }
 
     function testRemoteTransfer_withdraws_lessShares() public {
@@ -121,13 +121,50 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
 
         assertEq(localToken.balanceOf(ALICE), prevBalance + TRANSFER_AMT);
 
-        // Has leftover shares
-        assertGt(erc20CollateralVaultDeposit.shares(), 0);
+        // Has leftover shares, but no assets deposited
+        assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
+        assertGt(vault.maxRedeem(address(erc20CollateralVaultDeposit)), 0);
     }
 
-    function testRemoteTransfer_sweep() public {}
+    function testRemoteTransfer_sweep_revertNonOwner() public {
+        testRemoteTransfer_withdraws_lessShares();
+        vm.startPrank(BOB);
+        vm.expectRevert(abi.encodePacked("Ownable: caller is not the owner"));
+        erc20CollateralVaultDeposit.sweep();
+        vm.stopPrank();
+    }
 
-    // function testRemoteTransfer_sweep_reverts() public {
+    function testRemoteTransfer_sweep_excessShares() public {
+        testRemoteTransfer_withdraws_lessShares();
 
-    // }
+        uint256 ownerBalancePrev = primaryToken.balanceOf(
+            erc20CollateralVaultDeposit.owner()
+        );
+        uint256 excessAmount = vault.maxRedeem(
+            address(erc20CollateralVaultDeposit)
+        );
+
+        erc20CollateralVaultDeposit.sweep();
+        assertGt(
+            primaryToken.balanceOf(erc20CollateralVaultDeposit.owner()),
+            ownerBalancePrev + excessAmount
+        );
+    }
+
+    function testRemoteTransfer_sweep_excessSharesAfterDeposit() public {
+        testRemoteTransfer_withdraws_lessShares();
+
+        uint256 ownerBalancePrev = primaryToken.balanceOf(
+            erc20CollateralVaultDeposit.owner()
+        );
+        uint256 excessAmount = vault.maxRedeem(
+            address(erc20CollateralVaultDeposit)
+        );
+
+        erc20CollateralVaultDeposit.sweep();
+        assertGt(
+            primaryToken.balanceOf(erc20CollateralVaultDeposit.owner()),
+            ownerBalancePrev + excessAmount
+        );
+    }
 }
