@@ -75,12 +75,13 @@ export const arbitrum: ChainMetadata = {
 
 export const arbitrumgoerli: ChainMetadata = {
   blockExplorers: [
-    {
-      apiUrl: 'https://api-goerli.arbiscan.io/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'Arbiscan',
-      url: 'https://goerli.arbiscan.io',
-    },
+    // DEPRECATED:
+    // {
+    //   apiUrl: 'https://api-goerli.arbiscan.io/api',
+    //   family: ExplorerFamily.Etherscan,
+    //   name: 'Arbiscan',
+    //   url: 'https://goerli.arbiscan.io',
+    // },
   ],
   blocks: {
     confirmations: 1,
