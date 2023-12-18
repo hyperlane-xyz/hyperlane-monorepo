@@ -1054,6 +1054,7 @@ export const viction: ChainMetadata = {
  */
 export const chainMetadata: ChainMap<ChainMetadata> = {
   alfajores,
+  ancient8testnet,
   arbitrum,
   arbitrumgoerli,
   avalanche,
