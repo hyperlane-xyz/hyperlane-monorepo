@@ -3,8 +3,6 @@ pragma solidity >=0.8.0;
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {HypERC20Collateral} from "./HypERC20Collateral.sol";
 
-import "forge-std/console.sol";
-
 /**
  * @title Hyperlane ERC20 Token Collateral with deposits collateral to a vault
  * @author brolee
