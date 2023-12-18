@@ -39,7 +39,10 @@ contract WormholeHook is IPostDispatchHook, MailboxClient {
     ) external payable {
         // ensure hook only dispatches messages that are dispatched by the mailbox
         bytes32 id = message.id();
-        require(_isLatestDispatched(id), "message not dispatched by mailbox");
+        require(
+            _isLatestDispatched(id),
+            "message not dispatched by Hyperlane mailbox"
+        );
         // use 0 nonce, _isLatestDispatched is sufficient check.
         // 201 consistency level iis safest as it ensures finality is reached before bridging.
         wormhole.publishMessage{value: msg.value}(0, abi.encodePacked(id), 201);
