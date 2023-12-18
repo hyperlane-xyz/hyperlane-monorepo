@@ -145,6 +145,20 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         vm.stopPrank();
     }
 
+    function testRemoteTransfer_sweep_noExcessShares() public {
+        testRemoteTransfer_deposits_intoVault();
+
+        uint256 ownerBalancePrev = primaryToken.balanceOf(
+            erc20CollateralVaultDeposit.owner()
+        );
+
+        erc20CollateralVaultDeposit.sweep();
+        assertEq(
+            primaryToken.balanceOf(erc20CollateralVaultDeposit.owner()),
+            ownerBalancePrev
+        );
+    }
+
     function testRemoteTransfer_sweep_excessShares(
         uint256 rewardAmount
     ) public {
