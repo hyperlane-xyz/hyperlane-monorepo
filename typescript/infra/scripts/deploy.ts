@@ -15,11 +15,7 @@ import {
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
 } from '@hyperlane-xyz/sdk';
-import {
-  HypERC20CollateralConfig,
-  HypERC20Config,
-  TokenType,
-} from '@hyperlane-xyz/sdk/dist/token/config';
+import { TokenType } from '@hyperlane-xyz/sdk/dist/token/config';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
@@ -95,19 +91,16 @@ async function main() {
       multiProvider,
     );
     const routerConfig = core.getRouterConfig(owner);
-    const syntheticConfig: HypERC20Config = {
+    const syntheticConfig = {
       type: TokenType.synthetic,
-      name: 'USDC',
-      symbol: 'USDC',
+      name: 'ETH',
+      symbol: 'ETH',
       decimals: 18,
       totalSupply: 0,
-      gas: 75_000, // collateral overhead
       ...routerConfig['ancient8testnet'],
     };
-    const collateralConfig: HypERC20CollateralConfig = {
-      type: TokenType.collateral,
-      token: '0x07865c6e87b9f70255377e024ace6630c1eaa37f', // goerli USDC
-      gas: 65_000, // synthetic overhead
+    const collateralConfig = {
+      type: TokenType.native,
       ...routerConfig['goerli'],
       interchainSecurityModule: aggregationIsm(
         'ancient8testnet',
