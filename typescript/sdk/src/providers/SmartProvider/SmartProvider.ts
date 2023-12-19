@@ -289,16 +289,18 @@ export class HyperlaneSmartProvider
     reqId: number,
   ): Promise<ProviderPerformResult> {
     try {
-      this.logger(
-        `Provider using ${providerUrl} performing method ${method} for reqId ${reqId}`,
-      );
+      if (this.options?.debug)
+        this.logger(
+          `Provider using ${providerUrl} performing method ${method} for reqId ${reqId}`,
+        );
       const result = await provider.perform(method, params, reqId);
       return { status: ProviderStatus.Success, value: result };
     } catch (error) {
-      this.logger(
-        `Error performing ${method} on provider ${providerUrl} for reqId ${reqId}`,
-        error,
-      );
+      if (this.options?.debug)
+        this.logger(
+          `Error performing ${method} on provider ${providerUrl} for reqId ${reqId}`,
+          error,
+        );
       return { status: ProviderStatus.Error, error };
     }
   }
