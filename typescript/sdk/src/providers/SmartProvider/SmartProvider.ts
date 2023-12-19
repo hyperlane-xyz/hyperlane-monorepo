@@ -195,7 +195,6 @@ export class HyperlaneSmartProvider
       // Trigger the next provider in line
       if (pIndex < providers.length) {
         const provider = providers[pIndex];
-        const providerUrl = provider.getBaseUrl();
         const isLastProvider = pIndex === providers.length - 1;
 
         // Skip the explorer provider if it's currently in a cooldown period
@@ -211,7 +210,7 @@ export class HyperlaneSmartProvider
 
         const resultPromise = this.wrapProviderPerform(
           provider,
-          providerUrl,
+          pIndex,
           method,
           params,
           reqId,
@@ -225,7 +224,7 @@ export class HyperlaneSmartProvider
           return result.value;
         } else if (result.status === ProviderStatus.Timeout) {
           this.logger(
-            `Slow response from provider using ${providerUrl}.${
+            `Slow response from provider #${pIndex}.${
               !isLastProvider ? ' Triggering next provider.' : ''
             }`,
           );
@@ -233,7 +232,7 @@ export class HyperlaneSmartProvider
           pIndex += 1;
         } else if (result.status === ProviderStatus.Error) {
           this.logger(
-            `Error from provider using ${providerUrl}.${
+            `Error from provider #${pIndex}.${
               !isLastProvider ? ' Triggering next provider.' : ''
             }`,
           );
@@ -283,7 +282,7 @@ export class HyperlaneSmartProvider
   // Warp for additional logging and error handling
   protected async wrapProviderPerform(
     provider: HyperlaneProvider,
-    providerUrl: string,
+    pIndex: number,
     method: string,
     params: any,
     reqId: number,
@@ -291,14 +290,14 @@ export class HyperlaneSmartProvider
     try {
       if (this.options?.debug)
         this.logger(
-          `Provider using ${providerUrl} performing method ${method} for reqId ${reqId}`,
+          `Provider #${pIndex} performing method ${method} for reqId ${reqId}`,
         );
       const result = await provider.perform(method, params, reqId);
       return { status: ProviderStatus.Success, value: result };
     } catch (error) {
       if (this.options?.debug)
         this.logger(
-          `Error performing ${method} on provider ${providerUrl} for reqId ${reqId}`,
+          `Error performing ${method} on provider #${pIndex} for reqId ${reqId}`,
           error,
         );
       return { status: ProviderStatus.Error, error };
