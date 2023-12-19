@@ -28,6 +28,7 @@
       "chainId": 13376,
       "domainId": 13376,
       "mailbox": "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj",
+      "merkleTreeHook": "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj",
       "interchainGasPaymaster": "G5rGigZBL8NmxCaukK2CAKr9Jq4SUfAhsjzeri7GUraK",
       "validatorAnnounce": "3Uo5j2Bti9aZtrDqJmAyuwiFaJFPFoNL5yxTpVCNcUhb",
       "protocol": "sealevel",
