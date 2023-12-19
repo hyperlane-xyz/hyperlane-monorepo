@@ -66,9 +66,9 @@ async fn initialize(
         Pubkey::find_program_address(igp_program_data_pda_seeds!(), &program_id);
 
     // Accounts:
-    // 0. [executable] The system program.
-    // 1. [signer] The payer account.
-    // 2. [writeable] The program data account.
+    // 0. `[executable]` The system program.
+    // 1. `[signer]` The payer account.
+    // 2. `[writeable]` The program data account.
     let init_instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::Init,
@@ -96,9 +96,9 @@ async fn initialize_igp(
     let (igp_key, igp_bump_seed) = Pubkey::find_program_address(igp_pda_seeds!(salt), &program_id);
 
     // Accounts:
-    // 0. [executable] The system program.
-    // 1. [signer] The payer account.
-    // 2. [writeable] The IGP account to initialize.
+    // 0. `[executable]` The system program.
+    // 1. `[signer]` The payer account.
+    // 2. `[writeable]` The IGP account to initialize.
     let init_instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::InitIgp(InitIgp {
@@ -131,9 +131,9 @@ async fn initialize_overhead_igp(
         Pubkey::find_program_address(overhead_igp_pda_seeds!(salt), &program_id);
 
     // Accounts:
-    // 0. [executable] The system program.
-    // 1. [signer] The payer account.
-    // 2. [writeable] The Overhead IGP account to initialize.
+    // 0. `[executable]` The system program.
+    // 1. `[signer]` The payer account.
+    // 2. `[writeable]` The Overhead IGP account to initialize.
     let init_instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::InitOverheadIgp(InitOverheadIgp { salt, owner, inner }),
@@ -438,9 +438,9 @@ async fn test_set_gas_oracle_configs() {
     ];
 
     // Accounts:
-    // 0. [executable] The system program.
-    // 1. [writeable] The IGP.
-    // 2. [signer] The IGP owner.
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The IGP.
+    // 2. `[signer]` The IGP owner.
     let instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::SetGasOracleConfigs(configs.clone()),
@@ -536,9 +536,9 @@ async fn test_set_gas_oracle_configs_errors_if_owner_not_signer() {
     }];
 
     // Accounts:
-    // 0. [executable] The system program.
-    // 1. [writeable] The IGP.
-    // 2. [signer] The IGP owner.
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The IGP.
+    // 2. `[signer]` The IGP owner.
 
     // Try with the correct owner passed in, but it's not a signer
     let instruction = Instruction::new_with_borsh(
@@ -600,9 +600,9 @@ async fn test_set_destination_gas_overheads() {
     ];
 
     // Accounts:
-    // 0. [executable] The system program.
-    // 1. [writeable] The Overhead IGP.
-    // 2. [signer] The Overhead IGP owner.
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The Overhead IGP.
+    // 2. `[signer]` The Overhead IGP owner.
     let instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::SetDestinationGasOverheads(configs.clone()),
@@ -698,9 +698,9 @@ async fn test_set_destination_gas_overheads_errors_if_owner_not_signer() {
     }];
 
     // Accounts:
-    // 0. [executable] The system program.
-    // 1. [writeable] The Overhead IGP.
-    // 2. [signer] The Overhead IGP owner.
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The Overhead IGP.
+    // 2. `[signer]` The Overhead IGP owner.
 
     // Try with the correct owner passed in, but it's not a signer
     let instruction = Instruction::new_with_borsh(
@@ -986,13 +986,13 @@ async fn pay_for_gas(
         &program_id,
     );
 
-    // 0. [executable] The system program.
-    // 1. [signer] The payer.
-    // 2. [writeable] The IGP program data.
-    // 3. [signer] Unique gas payment account.
-    // 4. [writeable] Gas payment PDA.
-    // 5. [writeable] The IGP account.
-    // 6. [] Overhead IGP account (optional).
+    // 0. `[executable]` The system program.
+    // 1. `[signer]` The payer.
+    // 2. `[writeable]` The IGP program data.
+    // 3. `[signer]` Unique gas payment account.
+    // 4. `[writeable]` Gas payment PDA.
+    // 5. `[writeable]` The IGP account.
+    // 6. `[]` Overhead IGP account (optional).
     let mut accounts = vec![
         AccountMeta::new_readonly(system_program::id(), false),
         AccountMeta::new(payer.pubkey(), true),
@@ -1301,9 +1301,9 @@ async fn test_claim() {
     let beneficiary_balance_before = banks_client.get_balance(payer.pubkey()).await.unwrap();
 
     // Accounts:
-    // 0. [executable] The system program.
-    // 1. [writeable] The IGP.
-    // 2. [writeable] The IGP beneficiary.
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The IGP.
+    // 2. `[writeable]` The IGP beneficiary.
     process_instruction(
         &mut banks_client,
         Instruction::new_with_borsh(
@@ -1357,8 +1357,8 @@ async fn test_set_igp_beneficiary() {
     let new_beneficiary = Pubkey::new_unique();
 
     // Accounts:
-    // 0. [] The IGP.
-    // 1. [signer] The owner of the IGP account.
+    // 0. `[]` The IGP.
+    // 1. `[signer]` The owner of the IGP account.
     let instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::SetIgpBeneficiary(new_beneficiary),
@@ -1403,8 +1403,8 @@ async fn test_set_igp_beneficiary_errors_if_owner_not_signer() {
     .unwrap();
 
     // Accounts:
-    // 0. [] The IGP.
-    // 1. [signer] The owner of the IGP account.
+    // 0. `[]` The IGP.
+    // 1. `[signer]` The owner of the IGP account.
 
     // Try with the right owner passed in, but it's not a signer
     let instruction = Instruction::new_with_borsh(
@@ -1448,8 +1448,8 @@ async fn run_transfer_ownership_tests<T: DiscriminatorPrefixedData + AccessContr
     let new_owner = new_funded_keypair(banks_client, payer, 1000000000).await;
 
     // Accounts:
-    // 0. [] The IGP or Overhead IGP.
-    // 1. [signer] The owner of the account.
+    // 0. `[]` The IGP or Overhead IGP.
+    // 1. `[signer]` The owner of the account.
     let instruction = Instruction::new_with_borsh(
         program_id,
         &transfer_ownership_instruction(Some(new_owner.pubkey())),

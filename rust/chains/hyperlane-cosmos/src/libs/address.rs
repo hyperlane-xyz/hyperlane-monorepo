@@ -22,7 +22,7 @@ pub struct CosmosAddress {
 
 impl CosmosAddress {
     /// Returns a Bitcoin style address: RIPEMD160(SHA256(pubkey))
-    /// Source: https://github.com/cosmos/cosmos-sdk/blob/177e7f45959215b0b4e85babb7c8264eaceae052/crypto/keys/secp256k1/secp256k1.go#L154
+    /// Source: `<https://github.com/cosmos/cosmos-sdk/blob/177e7f45959215b0b4e85babb7c8264eaceae052/crypto/keys/secp256k1/secp256k1.go#L154>`
     pub fn from_pubkey(pubkey: PublicKey, prefix: &str) -> ChainResult<Self> {
         // Get the inner type
         let tendermint_pubkey = TendermintPublicKey::from(pubkey);

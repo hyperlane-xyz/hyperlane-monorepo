@@ -111,16 +111,18 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn HyperlaneProvider>> {
         let ctx = "Building provider";
+        let locator = self.locator(H256::zero());
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
-                let locator = self.locator(H256::zero());
                 self.build_ethereum(conf, &locator, metrics, h_eth::HyperlaneProviderBuilder {})
                     .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => Ok(Box::new(h_sealevel::SealevelProvider::new(
+                locator.domain.clone(),
+                conf,
+            )) as Box<dyn HyperlaneProvider>),
             ChainConnectionConf::Cosmos(conf) => {
-                let locator = self.locator(H256::zero());
                 let provider = CosmosProvider::new(
                     locator.domain.clone(),
                     conf.clone(),
@@ -385,8 +387,12 @@ impl ChainConf {
                 .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => {
-                let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new());
+            ChainConnectionConf::Sealevel(conf) => {
+                let mailbox_indexer =
+                    Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new(
+                    *mailbox_indexer,
+                ));
                 Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
