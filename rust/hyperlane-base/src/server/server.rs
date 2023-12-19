@@ -3,14 +3,13 @@ use axum::{
     routing::get,
     Router,
 };
-use bytes::Bytes;
 use hyper::Body;
 use prometheus::{Encoder, Registry};
 use std::{net::SocketAddr, sync::Arc};
 use tokio::task::JoinHandle;
 use tracing::warn;
 
-/// A server that serves metrics in OpenMetrics format.
+/// A server that serves agent-specific routes
 pub struct Server {
     listen_port: u16,
     registry: Registry,
@@ -25,7 +24,11 @@ impl Server {
         }
     }
 
-    /// Run an HTTP server serving OpenMetrics format reports on `/metrics`
+    /// Run an HTTP server serving agent-specific different routes
+    ///
+    /// routes:
+    ///   - metrics - serving OpenMetrics format reports on `/metrics`
+    ///     (this is compatible with Prometheus, which ought to be configured to scrape this endpoint)
     pub fn run(self: Arc<Self>) -> JoinHandle<()> {
         let port = self.listen_port;
         tracing::info!(port, "starting prometheus server on 0.0.0.0");
@@ -39,6 +42,10 @@ impl Server {
                     async move {
                         match server.gather() {
                             Ok(metrics) => Response::builder()
+                                // OpenMetrics specs demands "application/openmetrics-text;
+                                // version=1.0.0; charset=utf-8"
+                                // but the prometheus scraper itself doesn't seem to care?
+                                // try text/plain to make web browsers happy.
                                 .header("Content-Type", "text/plain; charset=utf-8")
                                 .body(Body::from(metrics))
                                 .unwrap(),
@@ -56,6 +63,7 @@ impl Server {
                 .serve(app.into_make_service())
                 .await
                 .expect("Failed to start server");
+            warn!("Prometheus server could not be started or exited early");
         })
     }
 

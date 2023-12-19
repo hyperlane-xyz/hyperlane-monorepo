@@ -11,7 +11,6 @@ use prometheus::{
     Encoder, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
 use tokio::task::JoinHandle;
-use tracing::warn;
 
 use ethers_prometheus::{json_rpc_client::JsonRpcClientMetrics, middleware::MiddlewareMetrics};
 
@@ -409,6 +408,7 @@ impl CoreMetrics {
         Ok(out_buf)
     }
 
+    /// Run the HTTP server for this metrics instance.
     pub fn run_http_server(&self) -> JoinHandle<()> {
         self.server.clone().run()
     }

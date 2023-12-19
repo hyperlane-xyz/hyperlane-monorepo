@@ -12,7 +12,6 @@ version.workspace = true
 [dependencies]
 async-trait.workspace = true
 axum.workspace = true
-bytes.workspace = true
 bs58.workspace = true
 color-eyre = { workspace = true, optional = true }
 config.workspace = true
@@ -38,14 +37,11 @@ static_assertions.workspace = true
 tempfile = { workspace = true, optional = true }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
-tower.workspace = true
 tracing-error.workspace = true
 tracing-futures.workspace = true
 tracing-subscriber = { workspace = true, features = ["json", "ansi"] }
 tracing.workspace = true
 url.workspace = true
-warp.workspace = true
-
 
 backtrace = { workspace = true, optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
