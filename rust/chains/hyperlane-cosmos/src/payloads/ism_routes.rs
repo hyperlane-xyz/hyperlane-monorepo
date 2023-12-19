@@ -32,6 +32,22 @@ pub struct QueryIsmGeneralRequest<T> {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct VerifyRequest {
+    pub verify: VerifyRequestInner,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct VerifyRequestInner {
+    pub metadata: String,
+    pub message: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct VerifyResponse {
+    pub verified: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct QueryIsmModuleTypeRequest {
     pub module_type: EmptyStruct,
 }

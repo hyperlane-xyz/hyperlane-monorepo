@@ -1,14 +1,17 @@
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
+    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, RawHyperlaneMessage,
+    H256, U256,
 };
 
 use crate::{
     grpc::WasmProvider,
     payloads::{
         general::EmptyStruct,
-        ism_routes::{QueryIsmGeneralRequest, QueryIsmModuleTypeRequest},
+        ism_routes::{
+            QueryIsmGeneralRequest, QueryIsmModuleTypeRequest, VerifyRequest, VerifyRequestInner,
+        },
     },
     types::IsmType,
     ConnectionConf, CosmosProvider, Signer,
@@ -91,6 +94,19 @@ impl InterchainSecurityModule for CosmosInterchainSecurityModule {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        Ok(Some(U256::from(1000))) // TODO
+        let process_message = VerifyRequest {
+            verify: VerifyRequestInner {
+                message: hex::encode(RawHyperlaneMessage::from(message)),
+                metadata: hex::encode(metadata),
+            },
+        };
+
+        let gas_estimate = self
+            .provider
+            .grpc()
+            .wasm_estimate_gas(process_message)
+            .await?;
+
+        Ok(Some(gas_estimate.into()))
     }
 }
