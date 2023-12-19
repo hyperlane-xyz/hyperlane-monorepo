@@ -9,7 +9,7 @@ use hyperlane_core::{
 };
 use hyperlane_sealevel_mailbox::accounts::OutboxAccount;
 use solana_sdk::commitment_config::CommitmentConfig;
-use tracing::{debug, instrument};
+use tracing::instrument;
 
 use crate::{SealevelMailbox, SealevelMailboxIndexer};
 
