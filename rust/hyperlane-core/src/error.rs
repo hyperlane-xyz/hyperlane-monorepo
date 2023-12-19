@@ -3,6 +3,8 @@ use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
+use bigdecimal::ParseBigDecimalError;
+
 use crate::config::StrOrIntParseError;
 use std::string::FromUtf8Error;
 
@@ -123,6 +125,9 @@ pub enum ChainCommunicationError {
     /// Primitive type error
     #[error(transparent)]
     PrimitiveTypeError(#[from] PrimitiveTypeError),
+    /// Big decimal parsing error
+    #[error(transparent)]
+    ParseBigDecimalError(#[from] ParseBigDecimalError),
 }
 
 impl ChainCommunicationError {

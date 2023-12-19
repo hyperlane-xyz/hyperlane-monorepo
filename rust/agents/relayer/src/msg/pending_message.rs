@@ -238,7 +238,7 @@ impl PendingOperation for PendingMessage {
             "processing message"
         );
 
-        op_try!(critical: self.ctx.origin_gas_payment_enforcer.record_tx_outcome(&self.message, tx_outcome), "recording tx outcome");
+        op_try!(critical: self.ctx.origin_gas_payment_enforcer.record_tx_outcome(&self.message, tx_outcome.clone()), "recording tx outcome");
         if tx_outcome.executed {
             info!(
                 txid=?tx_outcome.transaction_id,

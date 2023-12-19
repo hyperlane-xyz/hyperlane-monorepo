@@ -22,19 +22,18 @@ use cosmrs::{
         traits::Message,
     },
     tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
-    Amount, Coin,
+    Coin,
 };
-use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, U256};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, U256,
+};
 use serde::Serialize;
 use tonic::transport::{Channel, Endpoint};
 
-use crate::address::CosmosAddress;
 use crate::HyperlaneCosmosError;
+use crate::{address::CosmosAddress, CosmosAmount};
 use crate::{signers::Signer, ConnectionConf};
 
-/// The gas price to use for transactions.
-/// TODO: is there a nice way to get a suggested price dynamically?
-const DEFAULT_GAS_PRICE: f64 = 0.05;
 /// A multiplier applied to a simulated transaction's gas usage to
 /// calculate the estimated gas.
 const GAS_ESTIMATE_MULTIPLIER: f64 = 1.25;
@@ -89,14 +88,16 @@ pub struct WasmGrpcProvider {
     /// Signer for transactions.
     signer: Option<Signer>,
     /// GRPC Channel that can be cheaply cloned.
-    /// See https://docs.rs/tonic/latest/tonic/transport/struct.Channel.html#multiplexing-requests
+    /// See `<https://docs.rs/tonic/latest/tonic/transport/struct.Channel.html#multiplexing-requests>`
     channel: Channel,
+    gas_price: CosmosAmount,
 }
 
 impl WasmGrpcProvider {
     /// Create new CosmWasm GRPC Provider.
     pub fn new(
         conf: ConnectionConf,
+        gas_price: CosmosAmount,
         locator: Option<ContractLocator>,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
@@ -112,6 +113,7 @@ impl WasmGrpcProvider {
             contract_address,
             signer,
             channel,
+            gas_price,
         })
     }
 
@@ -121,9 +123,12 @@ impl WasmGrpcProvider {
             .as_ref()
             .ok_or(ChainCommunicationError::SignerUnavailable)
     }
-}
 
-impl WasmGrpcProvider {
+    /// Get the gas price
+    pub fn gas_price(&self) -> FixedPointNumber {
+        self.gas_price.amount.clone()
+    }
+
     /// Generates an unsigned SignDoc for a transaction.
     async fn generate_unsigned_sign_doc(
         &self,
@@ -145,9 +150,13 @@ impl WasmGrpcProvider {
         );
         let signer_info = SignerInfo::single_direct(Some(signer.public_key), account_info.sequence);
 
+        let amount: u128 = (FixedPointNumber::from(gas_limit) * self.gas_price())
+            .ceil_to_integer()
+            .try_into()?;
         let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
             Coin::new(
-                Amount::from((gas_limit as f64 * DEFAULT_GAS_PRICE) as u64),
+                // The fee to pay is the gas limit * the gas price
+                amount,
                 self.conf.get_canonical_asset().as_str(),
             )
             .map_err(Into::<HyperlaneCosmosError>::into)?,
