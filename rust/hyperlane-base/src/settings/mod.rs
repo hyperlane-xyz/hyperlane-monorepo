@@ -14,8 +14,7 @@
 //! each configured chain.
 //!
 //! All agents share the [`Settings`] struct in this crate, and then define any
-//! additional `Settings` in their own crate. By convention this is done in
-//! `settings.rs` using the [`decl_settings!`] macro.
+//! additional `Settings` in their own crate.
 //!
 //! ### Configuration
 //!
