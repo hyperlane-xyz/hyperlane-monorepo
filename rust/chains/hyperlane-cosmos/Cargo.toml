@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "hyperlane-cosmos"
 documentation = { workspace = true }

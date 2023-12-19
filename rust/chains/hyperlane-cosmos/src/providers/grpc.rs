@@ -88,7 +88,7 @@ pub struct WasmGrpcProvider {
     /// Signer for transactions.
     signer: Option<Signer>,
     /// GRPC Channel that can be cheaply cloned.
-    /// See https://docs.rs/tonic/latest/tonic/transport/struct.Channel.html#multiplexing-requests
+    /// See `<https://docs.rs/tonic/latest/tonic/transport/struct.Channel.html#multiplexing-requests>`
     channel: Channel,
     gas_price: CosmosAmount,
 }
