@@ -50,7 +50,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '34611f0-20231218-204504',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -67,7 +67,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '34611f0-20231218-204504',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -88,7 +88,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '34611f0-20231218-204504',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
@@ -101,7 +101,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '34611f0-20231218-204504',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
@@ -120,7 +120,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '34611f0-20231218-204504',
     },
     gasPaymentEnforcement,
     transactionGasLimit: 750000,

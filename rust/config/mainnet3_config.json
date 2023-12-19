@@ -736,7 +736,8 @@
       "interchainGasPaymaster": "0x0D63128D887159d63De29497dfa45AFc7C699AE4",
       "protocolFee": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
       "index": {
-        "from": 73573878
+        "from": 73573878,
+        "chunk": 1000
       }
     }
   },
