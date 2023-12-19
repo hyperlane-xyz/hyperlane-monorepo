@@ -15,6 +15,9 @@ pub use agent::*;
 pub mod metrics;
 pub use metrics::*;
 
+pub mod server;
+pub use server::*;
+
 mod contract_sync;
 pub use contract_sync::*;
 

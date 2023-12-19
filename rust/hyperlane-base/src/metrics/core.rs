@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, OnceLock};
 
+use crate::server::Server;
 use eyre::Result;
 use prometheus::{
     histogram_opts, labels, opts, register_counter_vec_with_registry,
@@ -31,6 +32,7 @@ pub struct CoreMetrics {
     registry: Registry,
     const_labels: HashMap<String, String>,
     listen_port: u16,
+    server: Arc<Server>,
     agent_name: String,
 
     span_durations: CounterVec,
@@ -161,23 +163,19 @@ impl CoreMetrics {
 
         Ok(Self {
             agent_name: for_agent.into(),
-            registry,
+            registry: registry.clone(),
             listen_port,
             const_labels,
-
+            server: Arc::new(Server::new(listen_port, registry)),
             span_durations,
             span_counts,
             span_events,
             last_known_message_nonce,
             validator_checkpoint_index,
-
             submitter_queue_length,
-
             operations_processed_count,
             messages_processed_count,
-
             latest_checkpoint,
-
             json_rpc_client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
         })
@@ -411,39 +409,8 @@ impl CoreMetrics {
         Ok(out_buf)
     }
 
-    /// Run an HTTP server serving OpenMetrics format reports on `/metrics`
-    ///
-    /// This is compatible with Prometheus, which ought to be configured to
-    /// scrape me!
-    pub fn run_http_server(self: Arc<Self>) -> JoinHandle<()> {
-        use warp::Filter;
-        let port = self.listen_port;
-        tracing::info!(port, "starting prometheus server on 0.0.0.0");
-        tokio::spawn(async move {
-            warp::serve(
-                warp::path!("metrics")
-                    .map(move || {
-                        warp::reply::with_header(
-                            self.gather().expect("failed to encode metrics"),
-                            "Content-Type",
-                            // OpenMetrics specs demands "application/openmetrics-text;
-                            // version=1.0.0; charset=utf-8"
-                            // but the prometheus scraper itself doesn't seem to care?
-                            // try text/plain to make web browsers happy.
-                            "text/plain; charset=utf-8",
-                        )
-                    })
-                    .or(warp::any().map(|| {
-                        warp::reply::with_status(
-                            "go look at /metrics",
-                            warp::http::StatusCode::NOT_FOUND,
-                        )
-                    })),
-            )
-            .try_bind(([0, 0, 0, 0], port))
-            .await;
-            warn!("Prometheus server could not be started or exited early");
-        })
+    pub fn run_http_server(&self) -> JoinHandle<()> {
+        self.server.clone().run_http_server()
     }
 
     /// Get the name of this agent, e.g. "relayer"
