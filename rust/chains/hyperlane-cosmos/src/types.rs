@@ -29,6 +29,6 @@ pub fn tx_response_to_outcome(response: TxResponse) -> ChainResult<TxOutcome> {
         transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),
         executed: response.code == 0,
         gas_used: U256::from(response.gas_used),
-        gas_price: U256::one(),
+        gas_price: U256::one().try_into()?,
     })
 }

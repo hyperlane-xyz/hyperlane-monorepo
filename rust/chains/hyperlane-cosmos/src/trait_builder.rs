@@ -1,3 +1,8 @@
+use std::str::FromStr;
+
+use derive_new::new;
+use hyperlane_core::{ChainCommunicationError, FixedPointNumber};
+
 /// Cosmos connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
@@ -11,6 +16,38 @@ pub struct ConnectionConf {
     prefix: String,
     /// Canoncial Assets Denom
     canonical_asset: String,
+    /// The gas price set by the cosmos-sdk validator. Note that this represents the
+    /// minimum price set by the validator.
+    /// More details here: https://docs.cosmos.network/main/learn/beginner/gas-fees#antehandler
+    gas_price: RawCosmosAmount,
+}
+
+/// Untyped cosmos amount
+#[derive(serde::Serialize, serde::Deserialize, new, Clone, Debug)]
+pub struct RawCosmosAmount {
+    /// Coin denom (e.g. `untrn`)
+    pub denom: String,
+    /// Amount in the given denom
+    pub amount: String,
+}
+
+/// Typed cosmos amount
+#[derive(Clone, Debug)]
+pub struct CosmosAmount {
+    /// Coin denom (e.g. `untrn`)
+    pub denom: String,
+    /// Amount in the given denom
+    pub amount: FixedPointNumber,
+}
+
+impl TryFrom<RawCosmosAmount> for CosmosAmount {
+    type Error = ChainCommunicationError;
+    fn try_from(raw: RawCosmosAmount) -> Result<Self, ChainCommunicationError> {
+        Ok(Self {
+            denom: raw.denom,
+            amount: FixedPointNumber::from_str(&raw.amount)?,
+        })
+    }
 }
 
 /// An error type when parsing a connection configuration.
@@ -59,6 +96,11 @@ impl ConnectionConf {
         self.canonical_asset.clone()
     }
 
+    /// Get the minimum gas price
+    pub fn get_minimum_gas_price(&self) -> RawCosmosAmount {
+        self.gas_price.clone()
+    }
+
     /// Create a new connection configuration
     pub fn new(
         grpc_url: String,
@@ -66,6 +108,7 @@ impl ConnectionConf {
         chain_id: String,
         prefix: String,
         canonical_asset: String,
+        minimum_gas_price: RawCosmosAmount,
     ) -> Self {
         Self {
             grpc_url,
@@ -73,6 +116,7 @@ impl ConnectionConf {
             chain_id,
             prefix,
             canonical_asset,
+            gas_price: minimum_gas_price,
         }
     }
 }
