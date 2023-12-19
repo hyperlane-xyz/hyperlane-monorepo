@@ -48,9 +48,9 @@ impl TestSendReceiverTestClient {
                 .try_to_vec()
                 .unwrap(),
             accounts: vec![
-                // 0. [executable] System program.
-                // 1. [signer] Payer.
-                // 2. [writeable] Storage PDA.
+                // 0. `[executable]` System program.
+                // 1. `[signer]` Payer.
+                // 2. `[writeable]` Storage PDA.
                 AccountMeta::new_readonly(system_program::id(), false),
                 AccountMeta::new(payer_pubkey, true),
                 AccountMeta::new(Self::get_storage_pda_key(), false),
@@ -85,7 +85,7 @@ impl TestSendReceiverTestClient {
             .try_to_vec()
             .unwrap(),
             accounts: vec![
-                // 0. [writeable] Storage PDA.
+                // 0. `[writeable]` Storage PDA.
                 AccountMeta::new(Self::get_storage_pda_key(), false),
             ],
         };
@@ -114,7 +114,7 @@ impl TestSendReceiverTestClient {
                 .try_to_vec()
                 .unwrap(),
             accounts: vec![
-                // 0. [writeable] Storage PDA.
+                // 0. `[writeable]` Storage PDA.
                 AccountMeta::new(storage_pda_key, false),
             ],
         };
@@ -155,15 +155,15 @@ impl TestSendReceiverTestClient {
                 .try_to_vec()
                 .unwrap(),
             accounts: vec![
-                // 0. [executable] The Mailbox program.
+                // 0. `[executable]` The Mailbox program.
                 // And now the accounts expected by the Mailbox's OutboxDispatch instruction:
-                // 1. [writeable] Outbox PDA.
-                // 2. [] This program's dispatch authority.
-                // 3. [executable] System program.
-                // 4. [executable] SPL Noop program.
-                // 5. [signer] Payer.
-                // 6. [signer] Unique message account.
-                // 7. [writeable] Dispatched message PDA. An empty message PDA relating to the seeds
+                // 1. `[writeable]` Outbox PDA.
+                // 2. `[]` This program's dispatch authority.
+                // 3. `[executable]` System program.
+                // 4. `[executable]` SPL Noop program.
+                // 5. `[signer]` Payer.
+                // 6. `[signer]` Unique message account.
+                // 7. `[writeable]` Dispatched message PDA. An empty message PDA relating to the seeds
                 //    `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
                 AccountMeta::new_readonly(mailbox_accounts.program, false),
                 AccountMeta::new(mailbox_accounts.outbox, false),

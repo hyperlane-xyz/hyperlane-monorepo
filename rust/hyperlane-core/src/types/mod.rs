@@ -230,7 +230,7 @@ pub struct TxCostEstimate {
     /// covering L1 costs and the L2 gas limit.
     /// Only present for Arbitrum Nitro chains, where the gas amount
     /// is used to cover L1 and L2 costs. For details:
-    /// https://medium.com/offchainlabs/understanding-arbitrum-2-dimensional-fees-fd1d582596c9
+    /// `<https://medium.com/offchainlabs/understanding-arbitrum-2-dimensional-fees-fd1d582596c9>`
     pub l2_gas_limit: Option<U256>,
 }
 

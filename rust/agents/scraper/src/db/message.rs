@@ -79,7 +79,7 @@ impl ScraperDb {
         {
             Ok(Some(HyperlaneMessage {
                 // We do not write version to the DB.
-                version: 0,
+                version: 3,
                 origin: message.origin as u32,
                 destination: message.destination as u32,
                 nonce: message.nonce as u32,
