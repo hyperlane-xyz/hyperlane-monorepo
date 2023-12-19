@@ -142,7 +142,7 @@ where
     /// 1.   `[writable]` The token PDA account.
     /// 2.   `[writable]` The dispatch authority PDA account.
     /// 3.   `[signer]` The payer and access control owner.
-    /// 4..N [??..??] Plugin-specific accounts.
+    /// 4..N `[??..??]` Plugin-specific accounts.
     pub fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
@@ -271,7 +271,7 @@ where
     /// 12.   `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
     /// 13.   `[writeable]` The IGP account.
     ///      ---- End if ----
-    /// 14..N [??..??] Plugin-specific accounts.
+    /// 14..N `[??..??]` Plugin-specific accounts.
     pub fn transfer_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -495,7 +495,7 @@ where
     /// 1.   `[executable]` system_program
     /// 2.   `[]` hyperlane_token storage
     /// 3.   [depends on plugin] recipient wallet address
-    /// 4..N [??..??] Plugin-specific accounts.
+    /// 4..N `[??..??]` Plugin-specific accounts.
     pub fn transfer_from_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],

@@ -93,7 +93,7 @@ pub fn init_instruction(
     // 1.   `[writable]` The token PDA account.
     // 2.   `[writable]` The dispatch authority PDA account.
     // 3.   `[signer]` The payer and access control owner.
-    // 4..N [??..??] Plugin-specific accounts.
+    // 4..N `[??..??]` Plugin-specific accounts.
     let accounts = vec![
         AccountMeta::new_readonly(solana_program::system_program::id(), false),
         AccountMeta::new(token_key, false),

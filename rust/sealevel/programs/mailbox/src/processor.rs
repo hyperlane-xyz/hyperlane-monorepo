@@ -829,8 +829,8 @@ fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 /// Transfers ownership.
 ///
 /// Accounts:
-/// 0. ``[writeable]`` The Outbox PDA account.
-/// 1. ``[signer]`` The current owner.
+/// 0. `[writeable]` The Outbox PDA account.
+/// 1. `[signer]` The current owner.
 fn transfer_ownership(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

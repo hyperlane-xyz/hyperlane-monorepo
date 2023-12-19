@@ -1007,7 +1007,7 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
             // 12.   `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
             // 13.   `[writeable]` The IGP account.
             //       ---- End if ----
-            // 14..N [??..??] Plugin-specific accounts.
+            // 14..N `[??..??]` Plugin-specific accounts.
             let mut accounts = vec![
                 AccountMeta::new_readonly(system_program::id(), false),
                 AccountMeta::new_readonly(spl_noop::id(), false),

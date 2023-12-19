@@ -17,17 +17,17 @@ pub enum Instruction {
     /// Initializes the program.
     ///
     /// Accounts:
-    /// 0. ``[signer]`` The new owner and payer of the access control PDA.
-    /// 1. ``[writable]`` The access control PDA account.
-    /// 2. ``[executable]`` The system program account.
+    /// 0. `[signer]` The new owner and payer of the access control PDA.
+    /// 1. `[writable]` The access control PDA account.
+    /// 2. `[executable]` The system program account.
     Initialize,
     /// Input: domain ID, validators, & threshold to set.
     ///
     /// Accounts:
-    /// 0. ``[signer]`` The access control owner and payer of the domain PDA.
+    /// 0. `[signer]` The access control owner and payer of the domain PDA.
     /// 1. `[]` The access control PDA account.
-    /// 2. ``[writable]`` The PDA relating to the provided domain.
-    /// 3. ``[executable]`` OPTIONAL - The system program account. Required if creating the domain PDA.
+    /// 2. `[writable]` The PDA relating to the provided domain.
+    /// 3. `[executable]` OPTIONAL - The system program account. Required if creating the domain PDA.
     SetValidatorsAndThreshold(Domained<ValidatorsAndThreshold>),
     /// Gets the owner from the access control data.
     ///
@@ -37,7 +37,7 @@ pub enum Instruction {
     /// Sets the owner in the access control data.
     ///
     /// Accounts:
-    /// 0. ``[signer]`` The current access control owner.
+    /// 0. `[signer]` The current access control owner.
     /// 1. `[]` The access control PDA account.
     TransferOwnership(Option<Pubkey>),
 }
@@ -103,9 +103,9 @@ pub fn init_instruction(
     let ixn = Instruction::Initialize;
 
     // Accounts:
-    // 0. ``[signer]`` The new owner and payer of the access control PDA.
-    // 1. ``[writable]`` The access control PDA account.
-    // 2. ``[executable]`` The system program account.
+    // 0. `[signer]` The new owner and payer of the access control PDA.
+    // 1. `[writable]` The access control PDA account.
+    // 2. `[executable]` The system program account.
     let accounts = vec![
         AccountMeta::new(payer, true),
         AccountMeta::new(access_control_pda_key, false),
@@ -131,8 +131,8 @@ pub fn transfer_ownership_instruction(
         Pubkey::try_find_program_address(access_control_pda_seeds!(), &program_id)
             .ok_or(ProgramError::InvalidSeeds)?;
 
-    // 0. ``[signer]`` The current access control owner.
-    // 1. ``[writeable]`` The access control PDA account.
+    // 0. `[signer]` The current access control owner.
+    // 1. `[writeable]` The access control PDA account.
     let instruction = SolanaInstruction {
         program_id,
         data: Instruction::TransferOwnership(new_owner).encode()?,
@@ -163,10 +163,10 @@ pub fn set_validators_and_threshold_instruction(
     });
 
     // Accounts:
-    // 0. ``[signer]`` The access control owner and payer of the domain PDA.
+    // 0. `[signer]` The access control owner and payer of the domain PDA.
     // 1. `[]` The access control PDA account.
-    // 2. ``[writable]`` The PDA relating to the provided domain.
-    // 3. ``[executable]`` OPTIONAL - The system program account. Required if creating the domain PDA.
+    // 2. `[writable]` The PDA relating to the provided domain.
+    // 3. `[executable]` OPTIONAL - The system program account. Required if creating the domain PDA.
     let accounts = vec![
         AccountMeta::new(owner_payer, true),
         AccountMeta::new_readonly(access_control_pda_key, false),
