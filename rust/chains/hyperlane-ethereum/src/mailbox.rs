@@ -373,15 +373,16 @@ where
             None
         };
 
-        let gas_price = self
+        let gas_price: U256 = self
             .provider
             .get_gas_price()
             .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .map_err(ChainCommunicationError::from_other)?
+            .into();
 
         Ok(TxCostEstimate {
             gas_limit: gas_limit.into(),
-            gas_price: gas_price.into(),
+            gas_price: gas_price.try_into()?,
             l2_gas_limit: l2_gas_limit.map(|v| v.into()),
         })
     }
@@ -484,7 +485,7 @@ mod test {
             tx_cost_estimate,
             TxCostEstimate {
                 gas_limit: estimated_gas_limit,
-                gas_price,
+                gas_price: gas_price.try_into().unwrap(),
                 l2_gas_limit: Some(l2_gas_limit),
             },
         );
