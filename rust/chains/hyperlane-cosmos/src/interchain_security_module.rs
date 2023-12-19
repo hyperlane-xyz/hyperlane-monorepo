@@ -106,6 +106,10 @@ impl InterchainSecurityModule for CosmosInterchainSecurityModule {
             .grpc()
             .wasm_estimate_gas(process_message)
             .await?;
+        println!(
+            "~~~ successfully dryran verify, gas estimate: {}",
+            gas_estimate
+        );
 
         Ok(Some(gas_estimate.into()))
     }
