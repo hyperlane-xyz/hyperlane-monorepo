@@ -1,10 +1,8 @@
 use std::str::FromStr;
 
 use crate::{
-    address::CosmosAddress,
     grpc::WasmProvider,
     payloads::{
-        aggregate_ism::{self, ModulesAndThresholdRequest, ModulesAndThresholdResponse},
         ism_routes::QueryIsmGeneralRequest,
         multisig_ism::{VerifyInfoRequest, VerifyInfoRequestInner, VerifyInfoResponse},
     },
@@ -13,7 +11,7 @@ use crate::{
 use async_trait::async_trait;
 use hyperlane_core::{
     AggregationIsm, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, RawHyperlaneMessage, H160, H256,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, RawHyperlaneMessage, H256,
 };
 use tracing::instrument;
 
@@ -87,6 +85,9 @@ impl AggregationIsm for CosmosAggregationIsm {
         let modules: ChainResult<Vec<H256>> = response
             .validators
             .iter()
+            // The returned values are Bech32-decoded Cosmos addresses.
+            // Since they are not EOAs but rather contracts, they are 32 bytes long and
+            // need to be parsed directly as an `H256`.
             .map(|module| H256::from_str(module).map_err(Into::into))
             .collect();
 

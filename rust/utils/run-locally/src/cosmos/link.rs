@@ -171,16 +171,6 @@ fn link_network(
     cli.wasm_execute(
         &network.launch_resp.endpoint,
         linker,
-        &network.deployments.ism_aggregate,
-        ism::aggregate::ExecuteMsg::SetIsms {
-            isms: vec![network.deployments.ism_multisig.clone()],
-        },
-        vec![],
-    );
-
-    cli.wasm_execute(
-        &network.launch_resp.endpoint,
-        linker,
         &network.deployments.mailbox,
         core::mailbox::ExecuteMsg::SetDefaultHook {
             hook: network.deployments.hook_routing.clone(),

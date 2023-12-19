@@ -8,10 +8,9 @@ use hyperlane_core::{
 use crate::{
     grpc::WasmProvider,
     payloads::{
+        aggregate_ism::{VerifyRequest, VerifyRequestInner, VerifyResponse},
         general::EmptyStruct,
-        ism_routes::{
-            QueryIsmGeneralRequest, QueryIsmModuleTypeRequest, VerifyRequest, VerifyRequestInner,
-        },
+        ism_routes::{QueryIsmGeneralRequest, QueryIsmModuleTypeRequest},
     },
     types::IsmType,
     ConnectionConf, CosmosProvider, Signer,
@@ -94,23 +93,23 @@ impl InterchainSecurityModule for CosmosInterchainSecurityModule {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        let process_message = VerifyRequest {
+        let payload = VerifyRequest {
             verify: VerifyRequestInner {
-                message: hex::encode(RawHyperlaneMessage::from(message)),
                 metadata: hex::encode(metadata),
+                message: hex::encode(RawHyperlaneMessage::from(message)),
             },
         };
-
-        let gas_estimate = self
+        let data = self
             .provider
             .grpc()
-            .wasm_estimate_gas(process_message)
+            .wasm_query(QueryIsmGeneralRequest { ism: payload }, None)
             .await?;
-        println!(
-            "~~~ successfully dryran verify, gas estimate: {}",
-            gas_estimate
-        );
-
-        Ok(Some(gas_estimate.into()))
+        let response: VerifyResponse = serde_json::from_slice(&data)?;
+        // We can't simulate the `verify` call in CosmWasm because
+        // it's not marked as an entrypoint. So we just use the query interface
+        // and hardcode a gas value - this can be inefficient if one ISM is
+        // vastly cheaper than another one.
+        let dummy_gas_value = U256::one();
+        Ok(response.verified.then_some(dummy_gas_value))
     }
 }
