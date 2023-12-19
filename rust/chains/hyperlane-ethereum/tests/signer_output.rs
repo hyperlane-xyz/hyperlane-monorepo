@@ -22,7 +22,7 @@ use hyperlane_core::{
 pub fn output_message() {
     let hyperlane_message = HyperlaneMessage {
         nonce: 0,
-        version: 0,
+        version: 3,
         origin: 1000,
         sender: H256::from(H160::from_str("0x1111111111111111111111111111111111111111").unwrap()),
         destination: 2000,

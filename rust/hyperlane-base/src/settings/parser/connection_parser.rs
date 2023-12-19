@@ -6,7 +6,7 @@ use url::Url;
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
 
-use super::ValueParser;
+use super::{parse_cosmos_gas_price, ValueParser};
 
 pub fn build_ethereum_connection_conf(
     rpcs: &[Url],
@@ -94,6 +94,12 @@ pub fn build_cosmos_connection_conf(
         None
     };
 
+    let gas_price = chain
+        .chain(err)
+        .get_opt_key("gasPrice")
+        .and_then(parse_cosmos_gas_price)
+        .end();
+
     if !local_err.is_ok() {
         err.merge(local_err);
         None
@@ -104,6 +110,7 @@ pub fn build_cosmos_connection_conf(
             chain_id.unwrap().to_string(),
             prefix.unwrap().to_string(),
             canonical_asset.unwrap(),
+            gas_price.unwrap(),
         )))
     }
 }

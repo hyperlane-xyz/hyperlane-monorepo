@@ -224,13 +224,13 @@ pub struct TxCostEstimate {
     /// The gas limit for the transaction.
     pub gas_limit: U256,
     /// The gas price for the transaction.
-    pub gas_price: U256,
+    pub gas_price: FixedPointNumber,
     /// The amount of L2 gas for the transaction.
     /// If Some, `gas_limit` is the sum of the gas limit
     /// covering L1 costs and the L2 gas limit.
     /// Only present for Arbitrum Nitro chains, where the gas amount
     /// is used to cover L1 and L2 costs. For details:
-    /// https://medium.com/offchainlabs/understanding-arbitrum-2-dimensional-fees-fd1d582596c9
+    /// `<https://medium.com/offchainlabs/understanding-arbitrum-2-dimensional-fees-fd1d582596c9>`
     pub l2_gas_limit: Option<U256>,
 }
 

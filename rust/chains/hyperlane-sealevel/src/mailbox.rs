@@ -9,9 +9,9 @@ use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
-    MerkleTreeHook, SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
+    ContractLocator, Decode as _, Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta,
+    Mailbox, MerkleTreeHook, SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -470,7 +470,7 @@ impl Mailbox for SealevelMailbox {
             transaction_id: txid,
             executed,
             // TODO use correct data upon integrating IGP support
-            gas_price: U256::zero(),
+            gas_price: U256::zero().try_into()?,
             gas_used: U256::zero(),
         })
     }
@@ -484,7 +484,7 @@ impl Mailbox for SealevelMailbox {
         // TODO use correct data upon integrating IGP support
         Ok(TxCostEstimate {
             gas_limit: U256::zero(),
-            gas_price: U256::zero(),
+            gas_price: FixedPointNumber::zero(),
             l2_gas_limit: None,
         })
     }
@@ -633,7 +633,7 @@ impl SealevelMailboxIndexer {
 impl SequenceIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     #[instrument(err, skip(self))]
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
+        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         // TODO: need to make sure the call and tip are at the same height?
         let count = Mailbox::count(&self.mailbox, None).await?;
         Ok((Some(count), tip))

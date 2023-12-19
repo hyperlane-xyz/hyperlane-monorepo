@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::{
-    GasPaymentKey, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
-    TxCostEstimate, TxOutcome, U256,
+    FixedPointNumber, GasPaymentKey, HyperlaneMessage, InterchainGasExpenditure,
+    InterchainGasPayment, TxCostEstimate, TxOutcome, U256,
 };
 use tracing::{debug, error, trace};
 
@@ -135,7 +135,8 @@ impl GasPaymentEnforcer {
         self.db.process_gas_expenditure(InterchainGasExpenditure {
             message_id: message.id(),
             gas_used: outcome.gas_used,
-            tokens_used: outcome.gas_used * outcome.gas_price,
+            tokens_used: (FixedPointNumber::try_from(outcome.gas_used)? * outcome.gas_price)
+                .try_into()?,
         })?;
         Ok(())
     }

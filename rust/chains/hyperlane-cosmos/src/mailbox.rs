@@ -215,7 +215,7 @@ impl Mailbox for CosmosMailbox {
 
         let result = TxCostEstimate {
             gas_limit: gas_limit.into(),
-            gas_price: U256::from(2500),
+            gas_price: self.provider.grpc().gas_price(),
             l2_gas_limit: None,
         };
 

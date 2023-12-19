@@ -52,7 +52,7 @@ async fn test_gas_payment_policy_none() {
                 &current_expenditure,
                 &TxCostEstimate {
                     gas_limit: U256::from(100000u32),
-                    gas_price: U256::from(100001u32),
+                    gas_price: U256::from(100001u32).try_into().unwrap(),
                     l2_gas_limit: None,
                 },
             )
@@ -70,7 +70,7 @@ async fn test_gas_payment_policy_none() {
                 &current_expenditure,
                 &TxCostEstimate {
                     gas_limit: U256::from(100000u32),
-                    gas_price: U256::from(100001u32),
+                    gas_price: U256::from(100001u32).try_into().unwrap(),
                     l2_gas_limit: Some(U256::from(22222u32)),
                 },
             )
