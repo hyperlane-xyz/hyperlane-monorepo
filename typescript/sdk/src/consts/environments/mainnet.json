@@ -13,7 +13,7 @@
     "protocolFee": "0xF8F3629e308b4758F8396606405989F8D8C9c578",
     "validatorAnnounce": "0x454E1a1E1CA8B51506090f1b5399083658eA4Fc5",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
     "routingIsmFactory": "0x0d0E816eE4557689d34fAd5885C53b9393C1D9fA"
   },
   "bsc": {
@@ -30,7 +30,7 @@
     "protocolFee": "0xA8Aa5f14a5463a78E45CC068F11c867949F3E367",
     "validatorAnnounce": "0x7024078130D9c2100fEA474DAD009C2d1703aCcd",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
     "routingIsmFactory": "0xe6Af5720d34213C805C08e2470aea979e3F72F75"
   },
   "arbitrum": {
@@ -47,7 +47,7 @@
     "mailbox": "0x979Ca5202784112f4738403dBec5D0F3B9daabB9",
     "validatorAnnounce": "0x1df063280C4166AF9a725e3828b4dAC6c7113B08",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
     "routingIsmFactory": "0xa2931C37957f3079d3B21b877d56E1db930e02a5"
   },
   "optimism": {
@@ -64,7 +64,7 @@
     "mailbox": "0xd4C1905BB1D26BC93DAC913e13CaCC278CdCC80D",
     "validatorAnnounce": "0x30f5b08e01808643221528BB2f7953bf2830Ef38",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
     "routingIsmFactory": "0xD2e905108c5e44dADA680274740f896Ea96Cf2Fb"
   },
   "moonbeam": {
@@ -81,7 +81,7 @@
     "protocolFee": "0xCd3e29A9D293DcC7341295996a118913F7c582c0",
     "validatorAnnounce": "0x8c1001eBee6F25b31863A55EadfF149aF88B356F",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
     "routingIsmFactory": "0x8061Af3A459093540d17823D651BC5E2A92669a7"
   },
   "gnosis": {
@@ -98,7 +98,7 @@
     "protocolFee": "0x9c2214467Daf9e2e1F45b36d08ce0b9C65BFeA88",
     "validatorAnnounce": "0x87ED6926abc9E38b9C7C19f835B41943b622663c",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
     "routingIsmFactory": "0xbB5Df000113e767dE11343A16f83De733e5bCC0F"
   },
   "base": {
@@ -160,7 +160,7 @@
     "mailbox": "0x50da3B3907A08a24fe4999F4Dcf337E8dC7954bb",
     "validatorAnnounce": "0xCeF677b65FDaA6804d4403083bb12B8dB3991FE1",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
     "routingIsmFactory": "0x2A2c22B0a8615ad24839fA6Af302E896Af32d1a3"
   },
   "ethereum": {
@@ -177,7 +177,7 @@
     "mailbox": "0xc005dc82818d67AF737725bD4bf75435d065D239",
     "validatorAnnounce": "0xCe74905e51497b4adD3639366708b821dcBcff96",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
     "routingIsmFactory": "0x28fA9552F19039b450498B0d8e5DEAe0d0aAc559"
   },
   "avalanche": {
@@ -194,7 +194,7 @@
     "mailbox": "0xFf06aFcaABaDDd1fb08371f9ccA15D73D51FeBD6",
     "validatorAnnounce": "0x9Cad0eC82328CEE2386Ec14a12E81d070a27712f",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+    "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
     "routingIsmFactory": "0x28F7907911C7E321c596686AE6D1F20516450037"
   },
   "mantapacific": {
