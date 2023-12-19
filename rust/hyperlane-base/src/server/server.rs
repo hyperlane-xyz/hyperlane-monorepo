@@ -4,6 +4,7 @@ use axum::{
     Router,
 };
 use bytes::Bytes;
+use hyper::Body;
 use prometheus::{Encoder, Registry};
 use std::{net::SocketAddr, sync::Arc};
 use tokio::task::JoinHandle;
@@ -25,7 +26,7 @@ impl Server {
     }
 
     /// Run an HTTP server serving OpenMetrics format reports on `/metrics`
-    pub fn run_http_server(self: Arc<Self>) -> JoinHandle<()> {
+    pub fn run(self: Arc<Self>) -> JoinHandle<()> {
         let port = self.listen_port;
         tracing::info!(port, "starting prometheus server on 0.0.0.0");
 
@@ -37,20 +38,14 @@ impl Server {
                     let server = server_clone.clone();
                     async move {
                         match server.gather() {
-                            Ok(metrics) => {
-                                let response = Response::builder()
-                                    .header("Content-Type", "text/plain; charset=utf-8")
-                                    .body(Bytes::from(metrics))
-                                    .unwrap();
-                                Ok::<_, hyper::Error>(response)
-                            }
-                            Err(_) => {
-                                let response = Response::builder()
-                                    .status(StatusCode::NOT_FOUND)
-                                    .body(Bytes::from("Failed to encode metrics"))
-                                    .unwrap();
-                                Ok::<_, hyper::Error>(response)
-                            }
+                            Ok(metrics) => Response::builder()
+                                .header("Content-Type", "text/plain; charset=utf-8")
+                                .body(Body::from(metrics))
+                                .unwrap(),
+                            Err(_) => Response::builder()
+                                .status(StatusCode::NOT_FOUND)
+                                .body(Body::from("Failed to encode metrics"))
+                                .unwrap(),
                         }
                     }
                 }),
@@ -75,53 +70,36 @@ impl Server {
     }
 }
 
-// / Run an HTTP server serving OpenMetrics format reports on `/metrics`
-// /
-// / This is compatible with Prometheus, which ought to be configured to
-// / scrape me!
-// pub fn run_http_server(self: Arc<Self>) -> JoinHandle<()> {
-//     let port = self.listen_port;
-//     tracing::info!(port, "starting prometheus server on 0.0.0.0");
+#[cfg(test)]
+mod tests {
+    // use hyper::server;
+    use prometheus::{Counter, Registry};
+    use reqwest;
 
-//     tokio::spawn(async move {
-//         let app = Router::new()
-//         .route("/metrics", get(move || async move {
-//             let metrics = self.gather().expect("failed to encode metrics");
-//             (
-//                 StatusCode::OK,
-//                 [("Content-Type", "text/plain; charset=utf-8")],
-//                 metrics,
-//             )
-//         }))
-//         .fallback(get_service(ServeDir::new(".")).handle_error(|error| async move {
-//             (
-//                 StatusCode::INTERNAL_SERVER_ERROR,
-//                 format!("Unhandled internal error: {}", error),
-//             )
-//         }));
+    use super::*;
 
-// })
-// }
+    #[tokio::test]
+    async fn test_metrics_endpoint() {
+        let mock_registry = Registry::new();
+        let counter = Counter::new("expected_metric_content", "test123").unwrap();
+        mock_registry.register(Box::new(counter.clone())).unwrap();
+        counter.inc();
 
-// warp::serve(
-//     warp::path!("metrics")
-//         .map(move || {
-//             warp::reply::with_header(
-//                 self.gather().expect("failed to encode metrics"),
-//                 "Content-Type",
-//                 // OpenMetrics specs demands "application/openmetrics-text;
-//                 // version=1.0.0; charset=utf-8"
-//                 // but the prometheus scraper itself doesn't seem to care?
-//                 // try text/plain to make web browsers happy.
-//                 "text/plain; charset=utf-8",
-//             )
-//         })
-//         .or(warp::any().map(|| {
-//             warp::reply::with_status(
-//                 "go look at /metrics",
-//                 warp::http::StatusCode::NOT_FOUND,
-//             )
-//         })),
-// )
-// .try_bind(([0, 0, 0, 0], port))
-// .await;
+        let server = Server::new(8080, mock_registry);
+        let server = Arc::new(server);
+        let _run_server = server.run();
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+
+        let client = reqwest::Client::new();
+        let response = client
+            .get("http://127.0.0.1:8080/metrics")
+            .send()
+            .await
+            .expect("Failed to send request");
+        assert!(response.status().is_success());
+
+        let body = response.text().await.expect("Failed to read response body");
+        assert!(body.contains("expected_metric_content"));
+    }
+}

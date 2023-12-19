@@ -410,7 +410,7 @@ impl CoreMetrics {
     }
 
     pub fn run_http_server(&self) -> JoinHandle<()> {
-        self.server.clone().run_http_server()
+        self.server.clone().run()
     }
 
     /// Get the name of this agent, e.g. "relayer"
