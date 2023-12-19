@@ -5,7 +5,7 @@ import {HypERC20Collateral} from "./HypERC20Collateral.sol";
 
 /**
  * @title Hyperlane ERC20 Token Collateral with deposits collateral to a vault
- * @author brolee
+ * @author ltyu
  */
 contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
     // Address of the ERC4626 compatible vault
@@ -37,6 +37,7 @@ contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
 
     /**
      * @dev Deposits into the vault and increment assetDeposited
+     * @param _amount amount to deposit into vault
      */
     function _depositIntoVault(uint256 _amount) internal {
         wrappedToken.approve(address(vault), _amount);
@@ -45,7 +46,7 @@ contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
     }
 
     /**
-     * @dev Transfers `_amount` of `wrappedToken` from this contract to `_recipient`.
+     * @dev Transfers `_amount` of `wrappedToken` from this contract to `_recipient`, and withdraws from vault
      * @inheritdoc HypERC20Collateral
      */
     function _transferTo(
@@ -59,6 +60,7 @@ contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
 
     /**
      * @dev Withdraws from the vault and decrement assetDeposited
+     * @param _amount amount to withdraw from vault
      */
     function _withdrawFromVault(uint256 _amount) internal {
         vault.withdraw(_amount, address(this), address(this));
