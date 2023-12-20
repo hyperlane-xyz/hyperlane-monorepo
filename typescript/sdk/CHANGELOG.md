@@ -1,5 +1,18 @@
 # @hyperlane-xyz/sdk
 
+## 3.5.0
+
+### Minor Changes
+
+- 655b6a0cd: Redeploy Routing ISM Factories
+
+### Patch Changes
+
+- 08ba0d32b: Remove dead arbitrum goerli explorer link"
+- f7d285e3a: Adds Test Recipient addresses to the SDK artifacts
+  - @hyperlane-xyz/core@3.5.0
+  - @hyperlane-xyz/utils@3.5.0
+
 ## 3.4.0
 
 ### Minor Changes
