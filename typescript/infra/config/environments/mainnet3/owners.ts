@@ -17,6 +17,7 @@ export const safes: ChainMap<Address> = {
   scroll: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
   polygonzkevm: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
   viction: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+  mantapacific: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
 };
 
 export const owners = safes;
