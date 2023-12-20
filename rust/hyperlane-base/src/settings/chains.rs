@@ -173,8 +173,6 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn MerkleTreeHook>> {
         let ctx = "Building merkle tree hook";
-        // TODO: if the merkle tree hook is set for sealevel, it's still a mailbox program
-        // that the connection is made to using the pda seeds, which will not be usable.
         let locator = self.locator(self.addresses.merkle_tree_hook);
 
         match &self.connection {
