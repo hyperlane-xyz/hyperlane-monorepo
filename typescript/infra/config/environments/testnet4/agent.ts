@@ -107,28 +107,7 @@ const releaseCandidate: RootAgentConfig = {
   },
 };
 
-const neutron: RootAgentConfig = {
-  ...contextBase,
-  context: Contexts.Neutron,
-  rolesWithKeys: [Role.Relayer],
-  contextChainNames: {
-    relayer: [Chains.goerli],
-    validator: [],
-    scraper: [],
-  },
-  relayer: {
-    rpcConsensusType: RpcConsensusType.Fallback,
-    docker: {
-      repo,
-      tag: '86b7f98-20231207-153805',
-    },
-    gasPaymentEnforcement,
-    transactionGasLimit: 750000,
-  },
-};
-
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
-  [Contexts.Neutron]: neutron,
 };
