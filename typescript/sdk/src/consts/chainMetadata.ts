@@ -980,11 +980,6 @@ export const test3: ChainMetadata = {
 };
 
 export const viction: ChainMetadata = {
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 2,
-    reorgPeriod: 0,
-  },
   blockExplorers: [
     // {
     //   family: ExplorerFamily.Other,
@@ -993,9 +988,14 @@ export const viction: ChainMetadata = {
     //   apiUrl: '', // unknown
     // },
   ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 2,
+    reorgPeriod: 0,
+  },
   chainId: 88,
-  domainId: 88,
   displayName: 'Viction',
+  domainId: 88,
   name: Chains.viction,
   nativeToken: {
     decimals: 18,
