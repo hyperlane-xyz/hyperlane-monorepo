@@ -144,9 +144,9 @@ impl Mailbox for CosmosMailbox {
             .await?;
         let response: mailbox::DefaultIsmResponse = serde_json::from_slice(&data)?;
 
-        // convert Hex to H256
-        let ism = H256::from_slice(&hex::decode(response.default_ism)?);
-        Ok(ism)
+        // convert bech32 to H256
+        let ism = CosmosAddress::from_str(&response.default_ism)?;
+        Ok(ism.digest())
     }
 
     #[instrument(err, ret, skip(self))]
@@ -166,7 +166,7 @@ impl Mailbox for CosmosMailbox {
             .await?;
         let response: mailbox::RecipientIsmResponse = serde_json::from_slice(&data)?;
 
-        // convert Hex to H256
+        // convert bech32 to H256
         let ism = CosmosAddress::from_str(&response.ism)?;
         Ok(ism.digest())
     }
