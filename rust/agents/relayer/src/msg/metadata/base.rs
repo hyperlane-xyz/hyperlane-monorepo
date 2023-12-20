@@ -73,6 +73,9 @@ impl DefaultIsmCache {
         }
     }
 
+    /// Gets the default ISM, fetching it from onchain if the cached value
+    /// is stale.
+    /// TODO: this can and should be made generic eventually
     pub async fn get(&self) -> Result<H256> {
         // If the duration since the value was last updated does not
         // exceed the TTL, return the cached value.
