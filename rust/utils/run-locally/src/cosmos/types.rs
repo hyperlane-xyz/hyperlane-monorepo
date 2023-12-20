@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use hpl_interface::types::bech32_decode;
+use hyperlane_cosmos::RawCosmosAmount;
 
 use super::{cli::OsmosisCLI, CosmosNetwork};
 
@@ -35,12 +36,6 @@ pub struct TxResponse {
     pub logs: Vec<TxLog>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Coin {
-    pub denom: String,
-    pub amount: String,
-}
-
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Codes {
     pub hpl_hook_merkle: u64,
@@ -73,7 +68,7 @@ pub struct Deployments {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct BalanceResponse {
-    pub balances: Vec<Coin>,
+    pub balances: Vec<RawCosmosAmount>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -113,18 +108,19 @@ pub struct AgentUrl {
 pub struct AgentConfig {
     pub name: String,
     pub domain_id: u32,
+    pub metrics_port: u32,
     pub mailbox: String,
     pub interchain_gas_paymaster: String,
     pub validator_announce: String,
     pub merkle_tree_hook: String,
     pub protocol: String,
-    pub finality_blocks: u32,
     pub chain_id: String,
     pub rpc_urls: Vec<AgentUrl>,
     pub grpc_url: String,
     pub prefix: String,
     pub signer: AgentConfigSigner,
     pub index: AgentConfigIndex,
+    pub gas_price: RawCosmosAmount,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -144,12 +140,12 @@ impl AgentConfig {
         AgentConfig {
             name: format!("cosmostest{}", network.domain),
             domain_id: network.domain,
+            metrics_port: network.metrics_port,
             mailbox: to_hex_addr(&network.deployments.mailbox),
             interchain_gas_paymaster: to_hex_addr(&network.deployments.igp),
             validator_announce: to_hex_addr(&network.deployments.va),
             merkle_tree_hook: to_hex_addr(&network.deployments.hook_merkle),
             protocol: "cosmos".to_string(),
-            finality_blocks: 1,
             chain_id: format!("cosmos-test-{}", network.domain),
             rpc_urls: vec![AgentUrl {
                 http: format!(
@@ -163,6 +159,10 @@ impl AgentConfig {
                 typ: "cosmosKey".to_string(),
                 key: format!("0x{}", hex::encode(validator.priv_key.to_bytes())),
                 prefix: "osmo".to_string(),
+            },
+            gas_price: RawCosmosAmount {
+                denom: "uosmo".to_string(),
+                amount: "0.05".to_string(),
             },
             index: AgentConfigIndex {
                 from: 1,

@@ -2,4 +2,5 @@
 export enum Contexts {
   Hyperlane = 'hyperlane',
   ReleaseCandidate = 'rc',
+  Neutron = 'neutron',
 }

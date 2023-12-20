@@ -29,6 +29,7 @@ export class EvmHelloWorldAdapter
     destination: ChainName,
     message: string,
     value: string,
+    sender: Address,
   ): Promise<EthersV5Transaction> {
     const contract = this.getConnectedContract();
     const toDomain = this.multiProvider.getDomainId(destination);
@@ -44,7 +45,14 @@ export class EvmHelloWorldAdapter
     const estimated = await contract.estimateGas.sendHelloWorld(
       toDomain,
       message,
-      { ...transactionOverrides, value: BigNumber.from(value).add(quote) },
+      {
+        ...transactionOverrides,
+        // Some networks, like PolygonZkEvm, require a `from` address
+        // with funds to be specified when estimating gas for a transaction
+        // that provides non-zero `value`.
+        from: sender,
+        value: BigNumber.from(value).add(quote),
+      },
     );
     const gasLimit = estimated.mul(12).div(10);
 

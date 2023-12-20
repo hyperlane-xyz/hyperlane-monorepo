@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {DomainRoutingIsm} from "../../contracts/isms/routing/DomainRoutingIsm.sol";
 import {DefaultFallbackRoutingIsm} from "../../contracts/isms/routing/DefaultFallbackRoutingIsm.sol";
-import {DefaultFallbackRoutingIsmFactory, DomainRoutingIsmFactory} from "../../contracts/isms/routing/DomainRoutingIsmFactory.sol";
+import {DomainRoutingIsmFactory} from "../../contracts/isms/routing/DomainRoutingIsmFactory.sol";
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {MessageUtils, TestIsm} from "./IsmTestUtils.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
@@ -56,7 +56,7 @@ contract DomainRoutingIsmTest is Test {
             _domains[i] = domain - i;
             _isms[i] = deployTestIsm(bytes32(0));
         }
-        ism = factory.deploy(_domains, _isms);
+        ism = factory.deploy(address(this), _domains, _isms);
         for (uint256 i = 0; i < count; ++i) {
             assertEq(address(ism.module(_domains[i])), address(_isms[i]));
         }

@@ -12,7 +12,7 @@ import {
 import { DeployEnvironment } from '../src/config';
 
 import { Contexts } from './contexts';
-import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/chains';
+import { ethereumChainNames as mainnet3Chains } from './environments/mainnet3/chains';
 import { owners as mainnet3Owners } from './environments/mainnet3/owners';
 import { owners as testOwners } from './environments/test/owners';
 import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains';
@@ -28,7 +28,7 @@ const owners = {
 const chains = {
   test: TestChains,
   testnet4: testnet4Chains,
-  mainnet3: mainnet3Chains,
+  mainnet3: mainnet3Chains.filter((_) => _ !== 'mantapacific'),
 };
 
 // Intended to be the "entrypoint" ISM.
@@ -43,7 +43,7 @@ export const routingIsm = (
   context: Contexts,
 ): RoutingIsmConfig | string => {
   const aggregationIsms: ChainMap<AggregationIsmConfig> = chains[environment]
-    .filter((_) => _ !== local)
+    .filter((chain) => chain !== local)
     .reduce(
       (acc, chain) => ({
         ...acc,

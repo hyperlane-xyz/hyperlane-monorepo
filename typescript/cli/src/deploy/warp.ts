@@ -20,13 +20,9 @@ import {
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen } from '../../logger.js';
-import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { WarpRouteConfig, readWarpRouteConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
-import {
-  getContextWithSigner,
-  getMergedContractAddresses,
-} from '../context.js';
+import { getContext, getMergedContractAddresses } from '../context.js';
 import {
   isFile,
   prepNewArtifactsFiles,
@@ -52,9 +48,15 @@ export async function runWarpDeploy({
   outPath: string;
   skipConfirmation: boolean;
 }) {
-  const { multiProvider, signer } = getContextWithSigner(key, chainConfigPath);
+  const { multiProvider, signer, coreArtifacts } = await getContext({
+    chainConfigPath,
+    coreConfig: { coreArtifactsPath },
+    keyConfig: { key },
+    skipConfirmation,
+  });
 
   if (!warpConfigPath || !isFile(warpConfigPath)) {
+    if (skipConfirmation) throw new Error('Warp config required');
     warpConfigPath = await runFileSelectionStep(
       './configs',
       'Warp config',
@@ -65,15 +67,12 @@ export async function runWarpDeploy({
   }
   const warpRouteConfig = readWarpRouteConfig(warpConfigPath);
 
-  const artifacts = coreArtifactsPath
-    ? readDeploymentArtifacts(coreArtifactsPath)
-    : undefined;
-
   const configs = await runBuildConfigStep({
     warpRouteConfig,
-    artifacts,
+    coreArtifacts,
     multiProvider,
     signer,
+    skipConfirmation,
   });
 
   const deploymentParams = {
@@ -98,12 +97,14 @@ async function runBuildConfigStep({
   warpRouteConfig,
   multiProvider,
   signer,
-  artifacts,
+  coreArtifacts,
+  skipConfirmation,
 }: {
   warpRouteConfig: WarpRouteConfig;
   multiProvider: MultiProvider;
   signer: ethers.Signer;
-  artifacts?: HyperlaneContractsMap<any>;
+  coreArtifacts?: HyperlaneContractsMap<any>;
+  skipConfirmation: boolean;
 }) {
   log('Assembling token configs');
   const { base, synthetics } = warpRouteConfig;
@@ -116,7 +117,10 @@ async function runBuildConfigStep({
     `Using base token metadata: Name: ${baseMetadata.name}, Symbol: ${baseMetadata.symbol}, Decimals: ${baseMetadata.decimals}`,
   );
 
-  const mergedContractAddrs = getMergedContractAddresses(artifacts);
+  const mergedContractAddrs = getMergedContractAddresses(
+    coreArtifacts,
+    Object.keys(warpRouteConfig),
+  );
 
   // Create configs that coalesce together values from the config file,
   // the artifacts, and the SDK as a fallback
@@ -165,6 +169,8 @@ async function runBuildConfigStep({
   for (const [chain, token] of Object.entries(configMap)) {
     for (const field of requiredRouterFields) {
       if (token[field]) continue;
+      if (skipConfirmation)
+        throw new Error(`Field ${field} for token on ${chain} required`);
       if (!hasShownInfo) {
         logBlue(
           'Some router fields are missing. Please enter them now, add them to your warp config, or use the --core flag to use deployment artifacts.',

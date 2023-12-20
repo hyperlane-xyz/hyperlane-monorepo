@@ -22,7 +22,7 @@ import {
   buildHelmChartDependencies,
   helmifyValues,
 } from '../utils/helm';
-import { execCmd } from '../utils/utils';
+import { execCmd, isEthereumProtocolChain } from '../utils/utils';
 
 import { AgentGCPKey } from './gcp';
 
@@ -113,17 +113,27 @@ export abstract class AgentHelmManager {
         runEnv: this.environment,
         context: this.context,
         aws: !!this.config.aws,
-        chains: this.config.environmentChainNames.map((name) => ({
-          name,
-          disabled: !this.config.contextChainNames[this.role].includes(name),
-          rpcConsensusType: this.rpcConsensusType(name),
-        })),
+        chains: this.config.environmentChainNames.map((chain) => {
+          const metadata = chainMetadata[chain];
+          const reorgPeriod = metadata.blocks?.reorgPeriod;
+          if (reorgPeriod === undefined) {
+            throw new Error(`No reorg period found for chain ${chain}`);
+          }
+          return {
+            name: chain,
+            disabled: !this.config.contextChainNames[this.role].includes(chain),
+            rpcConsensusType: this.rpcConsensusType(chain),
+            protocol: metadata.protocol,
+            blocks: { reorgPeriod },
+          };
+        }),
       },
     };
   }
 
   rpcConsensusType(chain: ChainName): RpcConsensusType {
-    if (chainMetadata[chain].protocol == ProtocolType.Sealevel) {
+    // Non-Ethereum chains only support Single
+    if (!isEthereumProtocolChain(chain)) {
       return RpcConsensusType.Single;
     }
 
@@ -195,12 +205,10 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
     };
 
     const signers = await this.config.signers();
-    values.hyperlane.relayerChains = this.config.environmentChainNames.map(
-      (name) => ({
-        name,
-        signer: signers[name],
-      }),
-    );
+    values.hyperlane.relayerChains = this.config.relayChains.map((name) => ({
+      name,
+      signer: signers[name],
+    }));
 
     return values;
   }
@@ -249,11 +257,6 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
   async helmValues(): Promise<HelmRootAgentValues> {
     const helmValues = await super.helmValues();
     const cfg = await this.config.buildConfig();
-
-    helmValues.hyperlane.chains.push({
-      name: cfg.originChainName,
-      blocks: { reorgPeriod: cfg.reorgPeriod },
-    });
 
     helmValues.hyperlane.validator = {
       enabled: true,

@@ -6,7 +6,6 @@ export {
   BaseSealevelAdapter,
   MultiProtocolApp,
 } from './app/MultiProtocolApp';
-export { agentStartBlocks } from './consts/agentStartBlocks';
 export {
   chainIdToMetadata,
   chainMetadata,
@@ -117,6 +116,7 @@ export {
   FallbackRoutingHookConfig,
   HookConfig,
   HookType,
+  HooksConfig,
   IgpHookConfig,
   MerkleTreeHookConfig,
   OpStackHookConfig,
@@ -127,7 +127,10 @@ export {
   collectValidators,
   moduleCanCertainlyVerify,
 } from './ism/HyperlaneIsmFactory';
-export { buildMultisigIsmConfigs } from './ism/multisig';
+export {
+  buildAggregationIsmConfigs,
+  buildMultisigIsmConfigs,
+} from './ism/multisig';
 export {
   AggregationIsmConfig,
   DeployedIsm,
@@ -164,6 +167,7 @@ export {
   buildAgentConfig,
 } from './metadata/agentConfig';
 export {
+  BlockExplorer,
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,
@@ -175,6 +179,7 @@ export {
   getDomainId,
   isValidChainMetadata,
 } from './metadata/chainMetadataTypes';
+export { ZHash } from './metadata/customZodTypes';
 export {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
@@ -237,12 +242,26 @@ export {
   ViemTransaction,
   ViemTransactionReceipt,
 } from './providers/ProviderType';
+export { HyperlaneEtherscanProvider } from './providers/SmartProvider/HyperlaneEtherscanProvider';
+export { HyperlaneJsonRpcProvider } from './providers/SmartProvider/HyperlaneJsonRpcProvider';
 export {
-  RetryJsonRpcProvider,
-  RetryProviderOptions,
-} from './providers/RetryProvider';
+  AllProviderMethods,
+  IProviderMethods,
+  ProviderMethod,
+  excludeProviderMethods,
+} from './providers/SmartProvider/ProviderMethods';
+export { HyperlaneSmartProvider } from './providers/SmartProvider/SmartProvider';
 export {
-  DEFAULT_RETRY_OPTIONS,
+  ChainMetadataWithRpcConnectionInfo,
+  ProviderErrorResult,
+  ProviderPerformResult,
+  ProviderRetryOptions,
+  ProviderStatus,
+  ProviderSuccessResult,
+  ProviderTimeoutResult,
+  SmartProviderOptions,
+} from './providers/SmartProvider/types';
+export {
   ProviderBuilderFn,
   ProviderBuilderMap,
   TypedProviderBuilderFn,

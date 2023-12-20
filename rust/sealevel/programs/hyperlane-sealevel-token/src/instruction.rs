@@ -19,8 +19,8 @@ pub fn init_instruction(
     let mut instruction = lib_init_instruction(program_id, payer, init)?;
 
     // Add additional account metas:
-    // 0. [writable] The mint / mint authority PDA account.
-    // 1. [writable] The ATA payer PDA account.
+    // 0. `[writable]` The mint / mint authority PDA account.
+    // 1. `[writable]` The ATA payer PDA account.
 
     let (mint_key, _mint_bump) =
         Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);

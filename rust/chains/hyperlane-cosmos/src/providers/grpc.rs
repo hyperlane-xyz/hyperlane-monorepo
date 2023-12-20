@@ -5,6 +5,7 @@ use cosmrs::{
             auth::v1beta1::{
                 query_client::QueryClient as QueryAccountClient, BaseAccount, QueryAccountRequest,
             },
+            bank::v1beta1::{query_client::QueryClient as QueryBalanceClient, QueryBalanceRequest},
             base::{
                 abci::v1beta1::TxResponse,
                 tendermint::v1beta1::{service_client::ServiceClient, GetLatestBlockRequest},
@@ -21,19 +22,18 @@ use cosmrs::{
         traits::Message,
     },
     tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
-    Amount, Coin,
+    Coin,
 };
-use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, U256};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, U256,
+};
 use serde::Serialize;
 use tonic::transport::{Channel, Endpoint};
 
-use crate::address::CosmosAddress;
 use crate::HyperlaneCosmosError;
+use crate::{address::CosmosAddress, CosmosAmount};
 use crate::{signers::Signer, ConnectionConf};
 
-/// The gas price to use for transactions.
-/// TODO: is there a nice way to get a suggested price dynamically?
-const DEFAULT_GAS_PRICE: f64 = 0.05;
 /// A multiplier applied to a simulated transaction's gas usage to
 /// calculate the estimated gas.
 const GAS_ESTIMATE_MULTIPLIER: f64 = 1.25;
@@ -77,38 +77,43 @@ pub trait WasmProvider: Send + Sync {
     async fn wasm_estimate_gas<T: Serialize + Sync + Send>(&self, payload: T) -> ChainResult<u64>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// CosmWasm GRPC provider.
 pub struct WasmGrpcProvider {
     /// Connection configuration.
     conf: ConnectionConf,
     /// A contract address that can be used as the default
     /// for queries / sends / estimates.
-    contract_address: CosmosAddress,
+    contract_address: Option<CosmosAddress>,
     /// Signer for transactions.
     signer: Option<Signer>,
     /// GRPC Channel that can be cheaply cloned.
-    /// See https://docs.rs/tonic/latest/tonic/transport/struct.Channel.html#multiplexing-requests
+    /// See `<https://docs.rs/tonic/latest/tonic/transport/struct.Channel.html#multiplexing-requests>`
     channel: Channel,
+    gas_price: CosmosAmount,
 }
 
 impl WasmGrpcProvider {
     /// Create new CosmWasm GRPC Provider.
     pub fn new(
         conf: ConnectionConf,
-        locator: ContractLocator,
+        gas_price: CosmosAmount,
+        locator: Option<ContractLocator>,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
         let endpoint =
             Endpoint::new(conf.get_grpc_url()).map_err(Into::<HyperlaneCosmosError>::into)?;
         let channel = endpoint.connect_lazy();
-        let contract_address = CosmosAddress::from_h256(locator.address, &conf.get_prefix())?;
+        let contract_address = locator
+            .map(|l| CosmosAddress::from_h256(l.address, &conf.get_prefix()))
+            .transpose()?;
 
         Ok(Self {
             conf,
             contract_address,
             signer,
             channel,
+            gas_price,
         })
     }
 
@@ -118,9 +123,12 @@ impl WasmGrpcProvider {
             .as_ref()
             .ok_or(ChainCommunicationError::SignerUnavailable)
     }
-}
 
-impl WasmGrpcProvider {
+    /// Get the gas price
+    pub fn gas_price(&self) -> FixedPointNumber {
+        self.gas_price.amount.clone()
+    }
+
     /// Generates an unsigned SignDoc for a transaction.
     async fn generate_unsigned_sign_doc(
         &self,
@@ -142,9 +150,13 @@ impl WasmGrpcProvider {
         );
         let signer_info = SignerInfo::single_direct(Some(signer.public_key), account_info.sequence);
 
+        let amount: u128 = (FixedPointNumber::from(gas_limit) * self.gas_price())
+            .ceil_to_integer()
+            .try_into()?;
         let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
             Coin::new(
-                Amount::from((gas_limit as f64 * DEFAULT_GAS_PRICE) as u64),
+                // The fee to pay is the gas limit * the gas price
+                amount,
                 self.conf.get_canonical_asset().as_str(),
             )
             .map_err(Into::<HyperlaneCosmosError>::into)?,
@@ -220,6 +232,24 @@ impl WasmGrpcProvider {
         Ok(gas_estimate)
     }
 
+    /// Fetches balance for a given `address` and `denom`
+    pub async fn get_balance(&self, address: String, denom: String) -> ChainResult<U256> {
+        let mut client = QueryBalanceClient::new(self.channel.clone());
+
+        let balance_request = tonic::Request::new(QueryBalanceRequest { address, denom });
+        let response = client
+            .balance(balance_request)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+
+        let balance = response
+            .balance
+            .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?;
+
+        Ok(U256::from_dec_str(&balance.amount)?)
+    }
+
     /// Queries an account.
     async fn account_query(&self, account: String) -> ChainResult<BaseAccount> {
         let mut client = QueryAccountClient::new(self.channel.clone());
@@ -268,7 +298,10 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
-        self.wasm_query_to(self.contract_address.address(), payload, block_height)
+        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
+            ChainCommunicationError::from_other_str("No contract address available")
+        })?;
+        self.wasm_query_to(contract_address.address(), payload, block_height)
             .await
     }
 
@@ -308,10 +341,13 @@ impl WasmProvider for WasmGrpcProvider {
     {
         let signer = self.get_signer()?;
         let mut client = TxServiceClient::new(self.channel.clone());
+        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
+            ChainCommunicationError::from_other_str("No contract address available")
+        })?;
 
         let msgs = vec![MsgExecuteContract {
             sender: signer.address.clone(),
-            contract: self.contract_address.address(),
+            contract: contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
         }
@@ -354,9 +390,12 @@ impl WasmProvider for WasmGrpcProvider {
         // Estimating gas requires a signer, which we can reasonably expect to have
         // since we need one to send a tx with the estimated gas anyways.
         let signer = self.get_signer()?;
+        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
+            ChainCommunicationError::from_other_str("No contract address available")
+        })?;
         let msg = MsgExecuteContract {
             sender: signer.address.clone(),
-            contract: self.contract_address.address(),
+            contract: contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
         };

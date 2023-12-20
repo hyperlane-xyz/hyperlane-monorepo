@@ -14,10 +14,7 @@ use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::CosmosProvider;
 use crate::{address::CosmosAddress, types::tx_response_to_outcome};
-use crate::{
-    grpc::{WasmGrpcProvider, WasmProvider},
-    HyperlaneCosmosError,
-};
+use crate::{grpc::WasmProvider, HyperlaneCosmosError};
 use crate::{signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -40,7 +37,7 @@ pub struct CosmosMailbox {
     config: ConnectionConf,
     domain: HyperlaneDomain,
     address: H256,
-    provider: Box<WasmGrpcProvider>,
+    provider: CosmosProvider,
 }
 
 impl CosmosMailbox {
@@ -51,13 +48,18 @@ impl CosmosMailbox {
         locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
+        let provider = CosmosProvider::new(
+            locator.domain.clone(),
+            conf.clone(),
+            Some(locator.clone()),
+            signer,
+        )?;
 
         Ok(Self {
             config: conf,
             domain: locator.domain.clone(),
             address: locator.address,
-            provider: Box::new(provider),
+            provider,
         })
     }
 
@@ -79,7 +81,7 @@ impl HyperlaneChain for CosmosMailbox {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(CosmosProvider::new(self.domain.clone()))
+        Box::new(self.provider.clone())
     }
 }
 
@@ -94,7 +96,7 @@ impl Debug for CosmosMailbox {
 impl Mailbox for CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let block_height = get_block_height_for_lag(&self.provider, lag).await?;
+        let block_height = get_block_height_for_lag(self.provider.grpc(), lag).await?;
         self.nonce_at_block(block_height).await
     }
 
@@ -107,6 +109,7 @@ impl Mailbox for CosmosMailbox {
 
         let delivered = match self
             .provider
+            .grpc()
             .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
             .await
         {
@@ -136,6 +139,7 @@ impl Mailbox for CosmosMailbox {
 
         let data = self
             .provider
+            .grpc()
             .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
             .await?;
         let response: mailbox::DefaultIsmResponse = serde_json::from_slice(&data)?;
@@ -157,6 +161,7 @@ impl Mailbox for CosmosMailbox {
 
         let data = self
             .provider
+            .grpc()
             .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
             .await?;
         let response: mailbox::RecipientIsmResponse = serde_json::from_slice(&data)?;
@@ -182,6 +187,7 @@ impl Mailbox for CosmosMailbox {
 
         let response: TxResponse = self
             .provider
+            .grpc()
             .wasm_send(process_message, tx_gas_limit)
             .await?;
 
@@ -201,11 +207,15 @@ impl Mailbox for CosmosMailbox {
             },
         };
 
-        let gas_limit = self.provider.wasm_estimate_gas(process_message).await?;
+        let gas_limit = self
+            .provider
+            .grpc()
+            .wasm_estimate_gas(process_message)
+            .await?;
 
         let result = TxCostEstimate {
             gas_limit: gas_limit.into(),
-            gas_price: U256::from(2500),
+            gas_price: self.provider.grpc().gas_price(),
             l2_gas_limit: None,
         };
 
@@ -226,6 +236,7 @@ impl CosmosMailbox {
 
         let data = self
             .provider
+            .grpc()
             .wasm_query(GeneralMailboxQuery { mailbox: payload }, block_height)
             .await?;
 

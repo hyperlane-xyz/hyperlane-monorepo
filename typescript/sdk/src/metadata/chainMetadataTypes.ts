@@ -107,6 +107,10 @@ export const ChainMetadataSchemaObject = z.object({
     .array(RpcUrlSchema)
     .nonempty()
     .describe('The list of RPC endpoints for interacting with the chain.'),
+  restUrls: z
+    .array(RpcUrlSchema)
+    .describe('For cosmos chains only, a list of Rest API URLs')
+    .optional(),
   blockExplorers: z
     .array(
       z.object({
@@ -216,6 +220,11 @@ export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
 
 export type ChainMetadata<Ext = object> = z.infer<typeof ChainMetadataSchema> &
   Ext;
+
+export type BlockExplorer = Exclude<
+  ChainMetadata['blockExplorers'],
+  undefined
+>[number];
 
 export function isValidChainMetadata(c: ChainMetadata): boolean {
   return ChainMetadataSchema.safeParse(c).success;

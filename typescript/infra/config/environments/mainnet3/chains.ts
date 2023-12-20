@@ -41,12 +41,14 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
   },
   moonbeam: chainMetadata.moonbeam,
   gnosis: chainMetadata.gnosis,
+  mantapacific: chainMetadata.mantapacific,
 };
 
 // Blessed non-Ethereum chains.
-// export const nonEthereumMainnetConfigs: ChainMap<ChainMetadata> = {
-//   solana: chainMetadata.solana,
-// };
+export const nonEthereumMainnetConfigs: ChainMap<ChainMetadata> = {
+  // solana: chainMetadata.solana,
+  neutron: chainMetadata.neutron,
+};
 
 export const mainnetConfigs: ChainMap<ChainMetadata> = {
   ...ethereumMainnetConfigs,
@@ -63,16 +65,17 @@ export const ethereumChainNames = Object.keys(
   ethereumMainnetConfigs,
 ) as MainnetChains[];
 
-const validatorChainNames = [
-  ...supportedChainNames,
-  // chainMetadata.solana.name,
-  // chainMetadata.nautilus.name,
-];
+// Remove mantapacific, as it's not considered a "blessed"
+// chain. It's not included in the scraper domains table,
+// and we don't relay to mantapacific on the Hyperlane or RC contexts.
+const hyperlaneContextRelayChains = ethereumChainNames.filter(
+  (chainName) => chainName !== chainMetadata.mantapacific.name,
+);
 
-const relayerChainNames = validatorChainNames;
-
+// Hyperlane & RC context agent chain names.
 export const agentChainNames: AgentChainNames = {
-  [Role.Validator]: validatorChainNames,
-  [Role.Relayer]: relayerChainNames,
-  [Role.Scraper]: ethereumChainNames,
+  // Run validators for all chains.
+  [Role.Validator]: supportedChainNames,
+  [Role.Relayer]: hyperlaneContextRelayChains,
+  [Role.Scraper]: hyperlaneContextRelayChains,
 };

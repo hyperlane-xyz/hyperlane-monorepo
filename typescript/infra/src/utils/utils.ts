@@ -11,7 +11,7 @@ import {
   CoreChainName,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
-import { objMerge } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { Role } from '../roles';
@@ -69,7 +69,7 @@ export function getEthereumAddress(publicKey: Buffer): string {
   pubKeyBuffer = pubKeyBuffer.slice(1, pubKeyBuffer.length);
 
   const address = ethers.utils.keccak256(pubKeyBuffer); // keccak256 hash of publicKey
-  const EthAddr = `0x${address.slice(-40)}`; // take last 20 bytes as ethereum adress
+  const EthAddr = `0x${address.slice(-40)}`; // take last 20 bytes as ethereum address
   return EthAddr;
 }
 
@@ -272,4 +272,9 @@ export function mustGetChainNativeTokenDecimals(chain: ChainName): number {
     throw new Error(`No native token for chain ${chain}`);
   }
   return metadata.nativeToken.decimals;
+}
+
+export function isEthereumProtocolChain(chainName: ChainName) {
+  if (!chainMetadata[chainName]) throw new Error(`Unknown chain ${chainName}`);
+  return chainMetadata[chainName].protocol === ProtocolType.Ethereum;
 }

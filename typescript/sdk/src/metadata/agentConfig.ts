@@ -4,6 +4,8 @@
  */
 import { z } from 'zod';
 
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -46,6 +48,7 @@ export enum AgentSignerKeyType {
   Aws = 'aws',
   Hex = 'hexKey',
   Node = 'node',
+  Cosmos = 'cosmosKey',
 }
 
 const AgentSignerHexKeySchema = z
@@ -63,6 +66,13 @@ const AgentSignerAwsKeySchema = z
   .describe(
     'An AWS signer. Note that AWS credentials must be inserted into the env separately.',
   );
+const AgentSignerCosmosKeySchema = z
+  .object({
+    type: z.literal(AgentSignerKeyType.Cosmos),
+    prefix: z.string().describe('The bech32 prefix for the cosmos address'),
+    key: ZHash,
+  })
+  .describe('Cosmos key');
 const AgentSignerNodeSchema = z
   .object({
     type: z.literal(AgentSignerKeyType.Node),
@@ -72,47 +82,82 @@ const AgentSignerNodeSchema = z
 const AgentSignerSchema = z.union([
   AgentSignerHexKeySchema,
   AgentSignerAwsKeySchema,
+  AgentSignerCosmosKeySchema,
   AgentSignerNodeSchema,
 ]);
 
 export type AgentSignerHexKey = z.infer<typeof AgentSignerHexKeySchema>;
 export type AgentSignerAwsKey = z.infer<typeof AgentSignerAwsKeySchema>;
+export type AgentSignerCosmosKey = z.infer<typeof AgentSignerNodeSchema>;
 export type AgentSignerNode = z.infer<typeof AgentSignerNodeSchema>;
 export type AgentSigner = z.infer<typeof AgentSignerSchema>;
 
 export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
   HyperlaneDeploymentArtifactsSchema,
-).extend({
-  customRpcUrls: z
-    .string()
-    .optional()
-    .describe(
-      'Specify a comma seperated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
+)
+  .extend({
+    customRpcUrls: z
+      .string()
+      .optional()
+      .describe(
+        'Specify a comma seperated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
+      ),
+    rpcConsensusType: z
+      .nativeEnum(RpcConsensusType)
+      .describe('The consensus type to use when multiple RPCs are configured.')
+      .optional(),
+    signer: AgentSignerSchema.optional().describe(
+      'The signer to use for this chain',
     ),
-  rpcConsensusType: z
-    .nativeEnum(RpcConsensusType)
-    .describe('The consensus type to use when multiple RPCs are configured.')
-    .optional(),
-  signer: AgentSignerSchema.optional().describe(
-    'The signer to use for this chain',
-  ),
-  index: z
-    .object({
-      from: ZUint.optional().describe(
-        'The starting block from which to index events.',
-      ),
-      chunk: ZNzUint.optional().describe(
-        'The number of blocks to index at a time.',
-      ),
-      mode: z
-        .nativeEnum(AgentIndexMode)
-        .optional()
-        .describe(
-          'The indexing method to use for this chain; will attempt to choose a suitable default if not specified.',
+    index: z
+      .object({
+        from: ZUint.optional().describe(
+          'The starting block from which to index events.',
         ),
-    })
-    .optional(),
-});
+        chunk: ZNzUint.optional().describe(
+          'The number of blocks to index at a time.',
+        ),
+        mode: z
+          .nativeEnum(AgentIndexMode)
+          .optional()
+          .describe(
+            'The indexing method to use for this chain; will attempt to choose a suitable default if not specified.',
+          ),
+      })
+      .optional(),
+  })
+  .refine((metadata) => {
+    // Make sure that the signer is valid for the protocol
+
+    const signerType = metadata.signer?.type;
+
+    // If no signer is specified, no validation is needed
+    if (signerType === undefined) {
+      return true;
+    }
+
+    switch (metadata.protocol) {
+      case ProtocolType.Ethereum:
+        return [
+          AgentSignerKeyType.Hex,
+          signerType === AgentSignerKeyType.Aws,
+          signerType === AgentSignerKeyType.Node,
+        ].includes(signerType);
+
+      case ProtocolType.Cosmos:
+        return [AgentSignerKeyType.Cosmos].includes(signerType);
+
+      case ProtocolType.Sealevel:
+        return [AgentSignerKeyType.Hex].includes(signerType);
+
+      case ProtocolType.Fuel:
+        return [AgentSignerKeyType.Hex].includes(signerType);
+
+      default:
+        // Just default to true if we don't know the protocol
+        return true;
+    }
+  });
 
 export type AgentChainMetadata = z.infer<typeof AgentChainMetadataSchema>;
 
