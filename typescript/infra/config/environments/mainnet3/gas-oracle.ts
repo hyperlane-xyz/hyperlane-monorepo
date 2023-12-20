@@ -50,6 +50,7 @@ const gasPrices: ChainMap<BigNumber> = {
   polygonzkevm: ethers.utils.parseUnits('2', 'gwei'),
   neutron: ethers.utils.parseUnits('1', 'gwei'),
   mantapacific: ethers.utils.parseUnits('1', 'gwei'),
+  viction: ethers.utils.parseUnits('0.25', 'gwei'),
 };
 
 // Accurate from coingecko as of Mar 9, 2023.

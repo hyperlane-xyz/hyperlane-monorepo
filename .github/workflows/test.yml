@@ -239,7 +239,7 @@ jobs:
     strategy:
       matrix:
         environment: [testnet4, mainnet3]
-        module: [ism, core, helloworld]
+        module: [ism, core, helloworld, igp]
 
     steps:
       - uses: actions/checkout@v3
