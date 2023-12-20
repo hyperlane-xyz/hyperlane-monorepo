@@ -20,12 +20,14 @@ export async function runPreflightChecks({
   signer,
   multiProvider,
   minGas,
+  chainsToGasCheck,
 }: {
   origin: ChainName;
   remotes: ChainName[];
   signer: ethers.Signer;
   multiProvider: MultiProvider;
   minGas: string;
+  chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks...');
 
@@ -37,6 +39,7 @@ export async function runPreflightChecks({
     signer,
     multiProvider,
     minGas,
+    chainsToGasCheck,
   });
 }
 
@@ -45,11 +48,15 @@ export async function runPreflightChecksForChains({
   signer,
   multiProvider,
   minGas,
+  chainsToGasCheck,
 }: {
   chains: ChainName[];
   signer: ethers.Signer;
   multiProvider: MultiProvider;
   minGas: string;
+  // Chains for which to assert a native balance
+  // Defaults to all chains if not specified
+  chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks...');
 
@@ -65,7 +72,12 @@ export async function runPreflightChecksForChains({
   assertSigner(signer);
   logGreen('Signer is valid ✅');
 
-  await assertGasBalances(multiProvider, signer, chains, minGas);
+  await assertGasBalances(
+    multiProvider,
+    signer,
+    chainsToGasCheck ?? chains,
+    minGas,
+  );
   logGreen('Balances are sufficient ✅');
 }
 
