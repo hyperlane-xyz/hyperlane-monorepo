@@ -162,7 +162,7 @@ fn link_network(
         ism::routing::ExecuteMsg::Set {
             ism: ism::routing::IsmSet {
                 domain: target_domain,
-                address: network.deployments.ism_multisig.clone(),
+                address: network.deployments.ism_aggregate.clone(),
             },
         },
         vec![],
