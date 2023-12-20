@@ -221,7 +221,7 @@ fn parse_chain(
         .end();
     let merkle_tree_hook = chain
         .chain(&mut err)
-        .get_opt_key("merkleTreeHook")
+        .get_key("merkleTreeHook")
         .parse_address_hash()
         .end();
 
@@ -234,7 +234,7 @@ fn parse_chain(
         default_rpc_consensus_type,
     );
 
-    cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce]);
+    cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
     err.into_result(ChainConf {
         domain,
         signer,
