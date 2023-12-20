@@ -48,8 +48,8 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         );
 
         // Update the validator latest checkpoint metrics.
-        checkpoint_syncer
-            .update_validator_latest_checkpoints_metrics(
+        let _ = checkpoint_syncer
+            .get_validator_latest_checkpoints_and_update_metrics(
                 validators,
                 self.origin_domain(),
                 self.destination_domain(),

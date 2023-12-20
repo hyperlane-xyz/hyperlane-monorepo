@@ -22,25 +22,11 @@ pub struct MultisigCheckpointSyncer {
 }
 
 impl MultisigCheckpointSyncer {
-    /// Updates the validator latest index metrics for the given validators.
-    /// Intended to be explicitly called if metadata building doesn't require
-    /// getting the latest checkpoints for the set via `get_validator_latest_checkpoints`.
-    pub async fn update_validator_latest_checkpoints_metrics(
-        &self,
-        validators: &[H256],
-        origin: &HyperlaneDomain,
-        destination: &HyperlaneDomain,
-    ) {
-        let _ = self
-            .get_validator_latest_checkpoints(validators, origin, destination)
-            .await;
-    }
-
     /// Gets the latest checkpoint index from each validator's checkpoint syncer.
     /// Returns a vector of the latest indices, in an unspecified order, and does
     /// not contain indices for validators that did not provide a latest index.
     /// Also updates the validator latest checkpoint metrics.
-    async fn get_validator_latest_checkpoints(
+    pub async fn get_validator_latest_checkpoints_and_update_metrics(
         &self,
         validators: &[H256],
         origin: &HyperlaneDomain,
@@ -112,7 +98,7 @@ impl MultisigCheckpointSyncer {
         destination: &HyperlaneDomain,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
         let mut latest_indices = self
-            .get_validator_latest_checkpoints(validators, origin, destination)
+            .get_validator_latest_checkpoints_and_update_metrics(validators, origin, destination)
             .await;
 
         debug!(

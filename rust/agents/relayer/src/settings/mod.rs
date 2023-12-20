@@ -281,9 +281,9 @@ fn parse_json_array(p: ValueParser) -> Option<(ConfigPath, Value)> {
 
     match p {
         ValueParser {
-            val: Value::String(policy_str),
+            val: Value::String(array_str),
             cwp,
-        } => serde_json::from_str::<Value>(policy_str)
+        } => serde_json::from_str::<Value>(array_str)
             .context("Expected JSON string")
             .take_err(&mut err, || cwp.clone())
             .map(|v| (cwp, recase_json_value(v, Case::Flat))),

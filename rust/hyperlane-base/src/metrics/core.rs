@@ -516,6 +516,9 @@ impl ValidatorObservabilityMetricManager {
         // This is necessary because the set of validators may have changed.
         if let Some(prev_validators) = app_context_validators.get(&key) {
             for validator in prev_validators {
+                // We unwrap because an error here occurs if the # of labels
+                // provided is incorrect, and we'd like to loudly fail in e2e if that
+                // happens.
                 self.observed_validator_latest_index
                     .remove_label_values(&[
                         origin.as_ref(),
