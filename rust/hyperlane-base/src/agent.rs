@@ -10,6 +10,7 @@ use tracing::{debug_span, instrument::Instrumented, Instrument};
 use crate::{
     metrics::{create_agent_metrics, AgentMetrics, CoreMetrics},
     settings::Settings,
+    Server,
 };
 
 /// Properties shared across all hyperlane agents
@@ -76,9 +77,11 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
     core_settings.tracing.start_tracing(&metrics)?;
     let agent_metrics = create_agent_metrics(&metrics)?;
-    let agent = A::from_settings(settings, metrics.clone(), agent_metrics).await?;
-    metrics.run_http_server();
+    let server = settings.as_ref().server(metrics.clone())?;
 
+    let agent = A::from_settings(settings, metrics.clone(), agent_metrics).await?;
+
+    server.run();
     agent.run().await.await?
 }
 

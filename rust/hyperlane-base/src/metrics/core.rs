@@ -1,8 +1,3 @@
-use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
-use std::sync::{Arc, OnceLock};
-
-use crate::server::Server;
 use eyre::Result;
 use prometheus::{
     histogram_opts, labels, opts, register_counter_vec_with_registry,
@@ -10,6 +5,9 @@ use prometheus::{
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, CounterVec,
     Encoder, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
+use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
+use std::sync::{Arc, OnceLock};
 use tokio::task::JoinHandle;
 use tracing::warn;
 
@@ -32,7 +30,6 @@ pub struct CoreMetrics {
     registry: Registry,
     const_labels: HashMap<String, String>,
     listen_port: u16,
-    server: Arc<Server>,
     agent_name: String,
 
     span_durations: CounterVec,
@@ -166,7 +163,7 @@ impl CoreMetrics {
             registry: registry.clone(),
             listen_port,
             const_labels,
-            server: Arc::new(Server::new(listen_port, registry)),
+            // server: Arc::new(Server::new(listen_port, registry)),
             span_durations,
             span_counts,
             span_events,
@@ -409,9 +406,9 @@ impl CoreMetrics {
         Ok(out_buf)
     }
 
-    pub fn run_http_server(&self) -> JoinHandle<()> {
-        self.server.clone().run()
-    }
+    // pub fn run_http_server(&self) -> JoinHandle<()> {
+    //     self.server.clone().run()
+    // }
 
     /// Get the name of this agent, e.g. "relayer"
     pub fn agent_name(&self) -> &str {

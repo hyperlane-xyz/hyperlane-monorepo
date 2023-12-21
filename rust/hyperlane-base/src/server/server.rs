@@ -1,4 +1,4 @@
-use crate::server::EigenNodeAPI;
+use crate::{server::EigenNodeAPI, CoreMetrics};
 use axum::{
     http::{Response, StatusCode},
     routing::get,
@@ -14,14 +14,20 @@ use tracing::warn;
 pub struct Server {
     listen_port: u16,
     registry: Registry,
+    core_metrics: Option<Arc<CoreMetrics>>,
 }
 
 impl Server {
     /// Create a new server instance.
-    pub fn new(listen_port: u16, registry: Registry) -> Self {
+    pub fn new(
+        listen_port: u16,
+        registry: Registry,
+        core_metrics: Option<Arc<CoreMetrics>>,
+    ) -> Self {
         Self {
             listen_port,
             registry,
+            core_metrics,
         }
     }
 
@@ -35,33 +41,33 @@ impl Server {
         tracing::info!(port, "starting prometheus server on 0.0.0.0");
 
         let server_clone = self.clone();
-        let eigen_router = EigenNodeAPI::router();
-        tokio::spawn(async move {
-            let app = Router::new()
-                .route(
-                    "/metrics",
-                    get(move || {
-                        let server = server_clone.clone();
-                        async move {
-                            match server.gather() {
-                                Ok(metrics) => Response::builder()
-                                    // OpenMetrics specs demands "application/openmetrics-text;
-                                    // version=1.0.0; charset=utf-8"
-                                    // but the prometheus scraper itself doesn't seem to care?
-                                    // try text/plain to make web browsers happy.
-                                    .header("Content-Type", "text/plain; charset=utf-8")
-                                    .body(Body::from(metrics))
-                                    .unwrap(),
-                                Err(_) => Response::builder()
-                                    .status(StatusCode::NOT_FOUND)
-                                    .body(Body::from("Failed to encode metrics"))
-                                    .unwrap(),
-                            }
-                        }
-                    }),
-                )
-                .nest("/eigen", eigen_router);
 
+        let app = Router::new().route(
+            "/metrics",
+            get(move || {
+                let server = server_clone.clone();
+                async move {
+                    match server.gather() {
+                        Ok(metrics) => Response::builder()
+                            // OpenMetrics specs demands "application/openmetrics-text;
+                            // version=1.0.0; charset=utf-8"
+                            // but the prometheus scraper itself doesn't seem to care?
+                            // try text/plain to make web browsers happy.
+                            .header("Content-Type", "text/plain; charset=utf-8")
+                            .body(Body::from(metrics))
+                            .unwrap(),
+                        Err(_) => Response::builder()
+                            .status(StatusCode::NOT_FOUND)
+                            .body(Body::from("Failed to encode metrics"))
+                            .unwrap(),
+                    }
+                }
+            }),
+        );
+
+        // let eigen_router = EigenNodeAPI::router();
+        tokio::spawn(async move {
+            // .nest("/eigen", eigen_router);
             let addr = SocketAddr::from(([0, 0, 0, 0], port));
             axum::Server::bind(&addr)
                 .serve(app.into_make_service())
@@ -97,7 +103,7 @@ mod tests {
         mock_registry.register(Box::new(counter.clone())).unwrap();
         counter.inc();
 
-        let server = Server::new(8080, mock_registry);
+        let server = Server::new(8080, mock_registry, None);
         let server = Arc::new(server);
         let _run_server = server.run();
 
