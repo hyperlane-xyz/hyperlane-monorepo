@@ -6,7 +6,14 @@ use axum::{
 };
 use hyper::StatusCode;
 use serde::Serialize;
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
+
+#[derive(Serialize)]
+enum ServiceStatus {
+    Up,
+    Down,
+    Initializing,
+}
 
 // Define a struct for the data you want to return for eigen/node
 #[derive(Serialize)]
@@ -14,6 +21,14 @@ struct NodeInfo {
     node_name: String,
     spec_version: String,
     node_version: String,
+}
+
+#[derive(Serialize)]
+struct Service {
+    id: String,
+    name: String,
+    description: String,
+    status: ServiceStatus,
 }
 
 pub struct EigenNodeAPI {
@@ -37,6 +52,7 @@ impl EigenNodeAPI {
                 "/node/health",
                 get(move || Self::node_health_handler(core_metrics_clone)),
             )
+            .route("/node/services", get(Self::node_services_handler))
             .route("/node", get(Self::node_info_handler))
     }
 
@@ -66,6 +82,25 @@ impl EigenNodeAPI {
             // 503 - unhealthy
             StatusCode::SERVICE_UNAVAILABLE
         }
+    }
+
+    /// Method to return a list of services
+    pub async fn node_services_handler() -> impl IntoResponse {
+        let services = vec![
+            Service {
+                id: "hyperlane-validator-indexer".to_string(),
+                name: "indexer".to_string(),
+                description: "indexes the messages from the origin chain mailbox".to_string(),
+                status: ServiceStatus::Up,
+            },
+            Service {
+                id: "hyperlane-validator-submitter".to_string(),
+                name: "submitter".to_string(),
+                description: "signs messages indexed from the indexer".to_string(),
+                status: ServiceStatus::Down,
+            },
+        ];
+        Json(services)
     }
 
     /// Method to return the NodeInfo data
@@ -110,7 +145,7 @@ mod tests {
         // Check that the response status is OK
         assert_eq!(res.status(), StatusCode::OK);
 
-        // Optionally, check the response body if needed
+        // check the response body if needed
         let json: Value = res.json().await.expect("Failed to parse json");
         assert_eq!(json["node_name"], "Hyperlane Validator");
         assert_eq!(json["spec_version"], "0.1.0");
@@ -166,16 +201,10 @@ mod tests {
             .expect("Failed to send request");
 
         // Check that the response status is as expected
-        // This depends on what node_health_handler actually returns
-        // For example, if it returns StatusCode::OK
         assert_eq!(res.status(), StatusCode::OK);
 
-        // Optionally, check the response body if needed
-        // This also depends on what node_health_handler returns
-        // For example, if it returns Json(node_info)
+        // check the response body if needed
         let json: Value = res.json().await.expect("Failed to parse json");
-        // Assert based on the expected structure of the response
-        // For example:
         // assert_eq!(json["node_name"], "Hyperlane Validator");
 
         // Stop the server
@@ -186,7 +215,6 @@ mod tests {
     // async fn test_eigen_node_api_internal_error() {
     //     // Setup the test environment to induce an error in get_node_info
     //     // For example, set a global variable or use a feature flag
-    //     // ...
 
     //     let app = EigenNodeAPI::router();
 
@@ -211,7 +239,6 @@ mod tests {
     //     // assert_eq!(json["error"], "Internal Server Error");
 
     //     // Clean up the test environment if necessary
-    //     // ...
 
     //     // Stop the server
     //     server_handle.abort();
