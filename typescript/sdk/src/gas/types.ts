@@ -10,12 +10,22 @@ export enum GasOracleContractType {
   StorageGasOracle = 'StorageGasOracle',
 }
 
+export type RemoteGasData = {
+  tokenExchangeRate: BigNumber;
+  gasPrice: BigNumber;
+};
+
+export type DomainGasConfig = RemoteGasData & {
+  type: GasOracleContractType;
+  overhead: BigNumber;
+};
+
 export type IgpConfig = {
   owner: Address;
   beneficiary: Address;
   gasOracleType: ChainMap<GasOracleContractType>;
   oracleKey: Address;
-  overhead: ChainMap<number>;
+  oracleConfig: ChainMap<DomainGasConfig>;
 };
 
 export enum IgpViolationType {

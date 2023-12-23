@@ -4,16 +4,17 @@ import {
   InterchainGasPaymaster,
   ProxyAdmin,
   StorageGasOracle,
+  StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
-import { eqAddress } from '@hyperlane-xyz/utils';
+import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
+import { ChainMap, ChainName } from '../types';
 
 import { IgpFactories, igpFactories } from './contracts';
-import { IgpConfig } from './types';
+import { DomainGasConfig, IgpConfig } from './types';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   IgpConfig,
@@ -42,10 +43,10 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     );
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
-    const remotes = Object.keys(config.gasOracleType);
+    const remotes = Object.keys(config.oracleConfig);
     for (const remote of remotes) {
       const remoteId = this.multiProvider.getDomainId(remote);
-      const newGasOverhead = config.overhead[remote];
+      const newGasOverhead = config.oracleConfig[remote].overhead;
 
       const currentGasConfig = await igp.destinationGasConfigs(remoteId);
       if (
@@ -79,6 +80,64 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
   async deployStorageGasOracle(chain: ChainName): Promise<StorageGasOracle> {
     return this.deployContract(chain, 'storageGasOracle', []);
+  }
+
+  async configureStorageGasOracle(
+    chain: ChainName,
+    igp: InterchainGasPaymaster,
+    gasOracleConfig: ChainMap<DomainGasConfig>,
+  ): Promise<void> {
+    const remotes = Object.keys(gasOracleConfig);
+    const configsToSet: Record<
+      Address,
+      StorageGasOracle.RemoteGasDataConfigStruct[]
+    > = {};
+    for (const remote of remotes) {
+      const gasOracleAddress = (await igp.destinationGasConfigs(remote))
+        .gasOracle;
+      const gasOracle = StorageGasOracle__factory.connect(
+        gasOracleAddress,
+        this.multiProvider.getProvider(chain),
+      );
+      const remoteGasDataConfig = await gasOracle.remoteGasData(remote);
+      const desiredGasData = gasOracleConfig[remote];
+
+      if (
+        !remoteGasDataConfig.gasPrice.eq(desiredGasData.gasPrice) ||
+        !remoteGasDataConfig.tokenExchangeRate.eq(
+          desiredGasData.tokenExchangeRate,
+        )
+      ) {
+        configsToSet[gasOracleAddress].push({
+          remoteDomain: this.multiProvider.getDomainId(remote),
+          ...desiredGasData,
+        });
+      }
+    }
+
+    const gasOracles = Object.keys(configsToSet);
+    for (const gasOracle of gasOracles) {
+      const gasOracleContract = StorageGasOracle__factory.connect(
+        gasOracle,
+        this.multiProvider.getProvider(chain),
+      );
+      if (configsToSet[gasOracle].length > 0) {
+        this.logger(
+          `Setting gas oracle on ${gasOracle} for ${configsToSet[gasOracle].map(
+            (config) => config.remoteDomain,
+          )}`,
+        );
+        await this.runIfOwner(chain, gasOracleContract, async () =>
+          this.multiProvider.handleTx(
+            chain,
+            gasOracleContract.setRemoteGasDataConfigs(
+              configsToSet[gasOracle],
+              this.multiProvider.getTransactionOverrides(chain),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   async deployContracts(

@@ -95,12 +95,13 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
 
     const remotes = this.app.remoteChains(local);
     for (const remote of remotes) {
-      let expectedOverhead = this.configMap[local].overhead[remote];
+      let expectedOverhead =
+        this.configMap[local].oracleConfig[remote].overhead;
       if (!expectedOverhead) {
         this.app.logger(
           `No overhead configured for ${local} -> ${remote}, defaulting to 0`,
         );
-        expectedOverhead = 0;
+        expectedOverhead = BigNumber.from(0);
       }
 
       const remoteId = this.multiProvider.getDomainId(remote);
