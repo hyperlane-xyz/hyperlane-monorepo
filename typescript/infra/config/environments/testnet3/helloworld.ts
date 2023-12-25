@@ -20,7 +20,7 @@ export const hyperlaneHelloworld: HelloWorldConfig = {
     namespace: environment,
     runConfig: {
       mode: HelloWorldKathyRunMode.Service,
-      fullCycleTime: 1000 * 60 * 60 * 24, // every 24 hours
+      fullCycleTime: 1000 * 60 * 60 * 24 * 7, // every 7 days
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
