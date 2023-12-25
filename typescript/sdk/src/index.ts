@@ -101,6 +101,7 @@ export {
 export { IgpFactories, igpFactories } from './gas/contracts';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
+  DomainGasConfig,
   GasOracleContractType,
   IgpBeneficiaryViolation,
   IgpConfig,

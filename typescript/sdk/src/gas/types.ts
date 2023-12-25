@@ -23,7 +23,6 @@ export type DomainGasConfig = RemoteGasData & {
 export type IgpConfig = {
   owner: Address;
   beneficiary: Address;
-  gasOracleType: ChainMap<GasOracleContractType>;
   oracleKey: Address;
   oracleConfig: ChainMap<DomainGasConfig>;
 };

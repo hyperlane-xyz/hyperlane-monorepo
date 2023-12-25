@@ -40,12 +40,19 @@ export async function assertGasBalances(
 ) {
   await Promise.all(
     chains.map(async (chain) => {
-      const provider = multiProvider.getProvider(chain);
-      const gasPrice = await provider.getGasPrice();
+      const gasPrice = await getGasPrice(multiProvider, chain);
       const minBalanceWei = gasPrice.mul(minGas).toString();
       await assertNativeBalances(multiProvider, signer, [chain], minBalanceWei);
     }),
   );
+}
+
+export async function getGasPrice(
+  multiProvider: MultiProvider,
+  chain: ChainName,
+): Promise<ethers.BigNumber> {
+  const provider = multiProvider.getProvider(chain);
+  return await provider.getGasPrice();
 }
 
 export async function assertTokenBalance(

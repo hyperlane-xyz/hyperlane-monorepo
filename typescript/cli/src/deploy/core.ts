@@ -313,6 +313,7 @@ async function executeDeploy({
   const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   coreDeployer.cacheAddressesMap(mergedContractAddrs as any);
   const coreConfigs = buildCoreConfigMap(
+    multiProvider,
     owner,
     chains,
     defaultIsms,
@@ -376,6 +377,7 @@ function buildIsmConfig(
 }
 
 function buildCoreConfigMap(
+  multiProvider: MultiProvider,
   owner: Address,
   chains: ChainName[],
   defaultIsms: ChainMap<IsmConfig>,
@@ -386,6 +388,7 @@ function buildCoreConfigMap(
     const hooks =
       hooksConfig[chain] ??
       presetHookConfigs(
+        multiProvider,
         owner,
         chain,
         chains.filter((c) => c !== chain),

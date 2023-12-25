@@ -14,7 +14,7 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
 import { IgpFactories, igpFactories } from './contracts';
-import { DomainGasConfig, IgpConfig } from './types';
+import { DomainGasConfig, GasOracleContractType, IgpConfig } from './types';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   IgpConfig,
@@ -75,6 +75,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         ),
       );
     }
+
     return igp;
   }
 
@@ -93,6 +94,10 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       StorageGasOracle.RemoteGasDataConfigStruct[]
     > = {};
     for (const remote of remotes) {
+      const desiredGasData = gasOracleConfig[remote];
+      if (desiredGasData.type !== GasOracleContractType.StorageGasOracle) {
+        continue;
+      }
       const gasOracleAddress = (await igp.destinationGasConfigs(remote))
         .gasOracle;
       const gasOracle = StorageGasOracle__factory.connect(
@@ -100,7 +105,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         this.multiProvider.getProvider(chain),
       );
       const remoteGasDataConfig = await gasOracle.remoteGasData(remote);
-      const desiredGasData = gasOracleConfig[remote];
 
       if (
         !remoteGasDataConfig.gasPrice.eq(desiredGasData.gasPrice) ||
@@ -161,6 +165,11 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     // Configure oracle key for StorageGasOracle separately to keep 'hot'
     // for updating exchange rates regularly
+    await this.configureStorageGasOracle(
+      chain,
+      interchainGasPaymaster,
+      config.oracleConfig,
+    );
     await this.transferOwnershipOfContracts(chain, config.oracleKey, {
       storageGasOracle,
     });

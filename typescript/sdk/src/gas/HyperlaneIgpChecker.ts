@@ -143,7 +143,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     // also consider what the config says about non-Ethereum chains.
     const remotes = new Set([
       ...this.app.remoteChains(local),
-      ...Object.keys(this.configMap[local].gasOracleType),
+      ...Object.keys(this.configMap[local].oracleConfig),
     ]);
     for (const remote of remotes) {
       const remoteId = this.multiProvider.getDomainId(remote);
@@ -179,7 +179,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
 
   getGasOracleAddress(local: ChainName, remote: ChainName): Address {
     const config = this.configMap[local];
-    const gasOracleType = config.gasOracleType[remote];
+    const gasOracleType = config.oracleConfig[remote].type;
     if (!gasOracleType) {
       this.app.logger(
         `No gas oracle for local ${local} and remote ${remote}, defaulting to zero address`,
