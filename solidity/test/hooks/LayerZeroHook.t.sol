@@ -4,19 +4,24 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {LZEndpointMock} from "@layerzerolabs/solidity-examples/contracts/lzApp/mocks/LZEndpointMock.sol";
 import {OmniCounter} from "@layerzerolabs/solidity-examples/contracts/examples/OmniCounter.sol";
-
+import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {LayerZeroHook, LayerZeroMetadata} from "../../contracts/hooks/LayerZeroHook.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
+import "forge-std/console.sol";
+
 contract LayerZeroHookTest is Test {
+    using TypeCasts for address;
+
     OmniCounter crossChainCounterApp;
     LZEndpointMock lZEndpointMock;
     TestMailbox public mailbox;
     TestPostDispatchHook requiredHook;
     LayerZeroHook hook;
+    address alice = makeAddr("alice");
 
     function setUp() public {
         lZEndpointMock = new LZEndpointMock(uint16(block.chainid));
@@ -41,12 +46,15 @@ contract LayerZeroHookTest is Test {
     }
 
     function testParseLzMetadata_returnsCorrectData() public {
-        // format metadata
+        // format Lz metadata
         uint16 dstChainId = uint16(block.chainid);
-        address userApplication = makeAddr("user app");
-        address refundAddress = address(this);
-        bytes memory payload = "";
-        bytes memory destination = "";
+        address userApplication = address(crossChainCounterApp);
+        address refundAddress = alice;
+        bytes memory payload = "Hello World!";
+        bytes memory destination = abi.encodePacked(
+            userApplication,
+            address(lZEndpointMock)
+        ); // remoteAndLocalAddresses
         bytes memory adapterParam = "";
         LayerZeroMetadata memory layerZeroMetadata = LayerZeroMetadata(
             dstChainId,
@@ -81,13 +89,12 @@ contract LayerZeroHookTest is Test {
         returns (uint256 nativeFee, bytes memory metadata)
     {
         // Build metadata to include LZ-specific data
-        // format metadata
         uint16 dstChainId = uint16(block.chainid);
-        address userApplication = makeAddr("user app");
-        address refundAddress = address(this);
-        bytes memory payload = "";
+        address userApplication = address(crossChainCounterApp);
+        address refundAddress = alice;
+        bytes memory payload = "Hello World!";
         bytes memory destination = abi.encodePacked(
-            address(crossChainCounterApp),
+            userApplication,
             address(lZEndpointMock)
         ); // remoteAndLocalAddresses
         bytes memory adapterParam = "";
@@ -108,8 +115,13 @@ contract LayerZeroHookTest is Test {
             refundAddress,
             formattedLzMetadata
         );
+        bytes memory message = mailbox.buildOutboundMessage(
+            0,
+            address(lZEndpointMock).addressToBytes32(),
+            payload
+        );
+        nativeFee = hook.quoteDispatch(metadata, message);
 
-        nativeFee = hook.quoteDispatch(metadata, "");
         // It costs something
         assertGt(nativeFee, 0);
     }
@@ -122,8 +134,49 @@ contract LayerZeroHookTest is Test {
 
         // dispatch also executes L0 call to increment counter
         assertEq(crossChainCounterApp.counter(), 0);
-        mailbox.dispatch{value: nativeFee}(0, "", "", metadata, hook);
+        mailbox.dispatch{value: nativeFee}(
+            0,
+            "",
+            "Hello World!",
+            metadata,
+            hook
+        );
         assertEq(crossChainCounterApp.counter(), 1);
+    }
+
+    function testPostDispatch_notEnoughFee() public {
+        (
+            uint256 nativeFee,
+            bytes memory metadata
+        ) = testQuoteDispatch_returnsFeeAmount();
+
+        vm.expectRevert("LayerZeroMock: not enough native for fees");
+        mailbox.dispatch{value: nativeFee - 1}(
+            0,
+            "",
+            "Hello World!",
+            metadata,
+            hook
+        );
+    }
+
+    function testPostDispatch_refundExtraFee() public {
+        (
+            uint256 nativeFee,
+            bytes memory metadata
+        ) = testQuoteDispatch_returnsFeeAmount();
+
+        uint256 balanceBefore = address(alice).balance;
+        mailbox.dispatch{value: nativeFee + 1}(
+            0,
+            address(lZEndpointMock).addressToBytes32(),
+            "Hello World!",
+            metadata,
+            hook
+        );
+        uint256 balanceAfter = address(alice).balance;
+
+        assertEq(balanceAfter, balanceBefore + 1);
     }
 
     function testHookType() public {

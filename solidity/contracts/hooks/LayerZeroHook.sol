@@ -14,6 +14,7 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 import {Message} from "../libs/Message.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 import {Indexed} from "../libs/Indexed.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
@@ -23,13 +24,13 @@ import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 struct LayerZeroMetadata {
     /// @dev the destination chain identifier
     uint16 dstChainId;
-    /// @dev the user app address on this EVM chain
+    /// @dev the user app address on this EVM chain. Contract address that calls Endpoint.send(). Used for LZ user app config lookup
     address userApplication;
     /// @dev if the source transaction is cheaper than the amount of value passed, refund the additional amount to this address
     address refundAddress;
     /// @dev the custom message to send over LayerZero
     bytes payload;
-    /// @dev the address on destination chain (in bytes). address length/format may vary by chains
+    /// @dev the address on destination chain (in bytes). A 40 length byte with remote and local addresses concatenated.
     bytes destination;
     /// @dev  parameters for the adapter service, e.g. send some dust native token to dstChain
     bytes adapterParam;
@@ -70,6 +71,7 @@ interface ILayerZeroEndpoint {
 contract LayerZeroHook is AbstractPostDispatchHook, MailboxClient, Indexed {
     using StandardHookMetadata for bytes;
     using Message for bytes;
+    using TypeCasts for bytes32;
 
     ILayerZeroEndpoint immutable lZEndpoint;
 
@@ -103,18 +105,17 @@ contract LayerZeroHook is AbstractPostDispatchHook, MailboxClient, Indexed {
             uint16 dstChainId,
             ,
             address payable refundAddress,
-            bytes memory payload,
+            ,
             bytes memory destination,
             bytes memory adapterParam
         ) = parseLzMetadata(lZMetadata);
 
-        /// @dev _zroPaymentAddress is hardcoded to addr(0) because zro tokens should not be used
         lZEndpoint.send{value: msg.value}(
             dstChainId,
             destination,
-            payload,
+            message.body(),
             refundAddress,
-            address(0),
+            address(0), // _zroPaymentAddress is hardcoded to addr(0) because zro tokens should not be directly accepted
             adapterParam
         );
     }
@@ -127,18 +128,17 @@ contract LayerZeroHook is AbstractPostDispatchHook, MailboxClient, Indexed {
         bytes calldata lZMetadata = metadata.getCustomMetadata();
         (
             uint16 dstChainId,
-            address userApplication,
             ,
-            bytes memory payload,
+            ,
+            ,
             ,
             bytes memory adapterParam
         ) = parseLzMetadata(lZMetadata);
-
         (nativeFee, ) = lZEndpoint.estimateFees(
             dstChainId,
-            userApplication,
-            payload,
-            false,
+            message.recipient().bytes32ToAddress(),
+            message.body(),
+            false, // _payInZRO is hardcoded to false because zro tokens should not be directly accepted
             adapterParam
         );
     }
@@ -150,7 +150,7 @@ contract LayerZeroHook is AbstractPostDispatchHook, MailboxClient, Indexed {
      */
     function formatLzMetadata(
         LayerZeroMetadata calldata layerZeroMetadata
-    ) public view returns (bytes memory) {
+    ) public pure returns (bytes memory) {
         return
             abi.encode(
                 layerZeroMetadata.dstChainId,
@@ -170,7 +170,7 @@ contract LayerZeroHook is AbstractPostDispatchHook, MailboxClient, Indexed {
         bytes calldata lZMetadata
     )
         public
-        view
+        pure
         returns (
             uint16 dstChainId,
             address userApplication,
