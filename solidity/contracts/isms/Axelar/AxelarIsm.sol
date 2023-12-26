@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../libs/Message.sol";
 
@@ -13,7 +14,7 @@ interface IAxelarGateway {
     ) external returns (bool);
 }
 
-contract AxelarIsm is IInterchainSecurityModule {
+contract AxelarIsm is IInterchainSecurityModule, OwnableUpgradeable {
     using Message for bytes;
 
     IAxelarGateway public immutable AXELAR_GATEWAY;
@@ -22,12 +23,17 @@ contract AxelarIsm is IInterchainSecurityModule {
 
     mapping(bytes32 => bool) public validated;
 
-    constructor(
-        address axelarGateway,
+    constructor(address axelarGateway) {
+        AXELAR_GATEWAY = IAxelarGateway(axelarGateway);
+    }
+
+    /**
+     * @notice Initializes the hook with specific targets
+     */
+    function initializeSource(
         string memory sourceChain,
         string memory sourceAddress
-    ) {
-        AXELAR_GATEWAY = IAxelarGateway(axelarGateway);
+    ) external onlyOwner initializer {
         SOURCE_CHAIN = sourceChain;
         SOURCE_ADDRESS = sourceAddress;
     }

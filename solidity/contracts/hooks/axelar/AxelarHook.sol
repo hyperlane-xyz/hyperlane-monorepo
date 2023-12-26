@@ -5,7 +5,7 @@ pragma solidity >=0.8.0;
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import {BridgeAggregationHookMetadata} from "../libs/BridgeAggregationHookMetadata.sol";
-
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Message} from "../../libs/Message.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
 
@@ -39,15 +39,22 @@ contract AxelarHook is IPostDispatchHook, MailboxClient {
 
     constructor(
         address _mailbox,
-        string memory destinationChain,
-        string memory destionationContract,
         address axelarGateway,
         address axelarGasReceiver
     ) MailboxClient(_mailbox) {
-        DESTINATION_CHAIN = destinationChain;
-        DESTINATION_CONTRACT = destionationContract;
         AXELAR_GATEWAY = IAxelarGateway(axelarGateway);
         AXELAR_GAS_SERVICE = IAxelarGasService(axelarGasReceiver);
+    }
+
+    /**
+     * @notice Initializes the hook with specific targets
+     */
+    function initializeReceiver(
+        string memory destinationChain,
+        string memory destionationContract
+    ) external onlyOwner initializer {
+        DESTINATION_CHAIN = destinationChain;
+        DESTINATION_CONTRACT = destionationContract;
     }
 
     /**

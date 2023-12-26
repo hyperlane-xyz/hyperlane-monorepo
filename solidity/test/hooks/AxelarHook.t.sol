@@ -38,12 +38,24 @@ contract AxelarHookTest is Test {
 
         hook = new AxelarHook(
             address(mailbox),
-            destinationChain,
-            destionationContract,
             axelarGateway,
             axelarGasReceiver
         );
+        hook.initializeReceiver(destinationChain, destionationContract);
         testMessage = _encodeTestMessage();
+    }
+
+    function test_initialized() public {
+        string memory destChain = hook.DESTINATION_CHAIN();
+        string memory destContract = hook.DESTINATION_CONTRACT();
+        assertEq(destChain, destinationChain);
+        assertEq(destContract, destionationContract);
+    }
+
+    function test_iinitializeReceiver_revertsWhenCalledAgain() public {
+        vm.expectRevert("Initializable: contract is already initialized");
+
+        hook.initializeReceiver(destinationChain, destionationContract);
     }
 
     function test_quoteDispatch_revertsWithNoMetadata() public {
