@@ -12,7 +12,7 @@ pragma solidity >=0.8.0;
   @@@@@@@@@       @@@@@@@@@
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
-
+import {LzApp} from "@layerzerolabs/solidity-examples/contracts/lzApp/LzApp.sol";
 import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
@@ -20,6 +20,7 @@ import {Indexed} from "../libs/Indexed.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "./libs/AbstractPostDispatchHook.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
+import "forge-std/console.sol";
 
 struct LayerZeroMetadata {
     /// @dev the destination chain identifier
@@ -106,13 +107,12 @@ contract LayerZeroHook is AbstractPostDispatchHook, MailboxClient, Indexed {
             ,
             address payable refundAddress,
             ,
-            bytes memory destination,
+            ,
             bytes memory adapterParam
         ) = parseLzMetadata(lZMetadata);
-
         lZEndpoint.send{value: msg.value}(
             dstChainId,
-            destination,
+            abi.encodePacked(message.recipientAddress(), lZEndpoint),
             message.body(),
             refundAddress,
             address(0), // _zroPaymentAddress is hardcoded to addr(0) because zro tokens should not be directly accepted
@@ -136,7 +136,7 @@ contract LayerZeroHook is AbstractPostDispatchHook, MailboxClient, Indexed {
         ) = parseLzMetadata(lZMetadata);
         (nativeFee, ) = lZEndpoint.estimateFees(
             dstChainId,
-            message.recipient().bytes32ToAddress(),
+            message.recipientAddress(),
             message.body(),
             false, // _payInZRO is hardcoded to false because zro tokens should not be directly accepted
             adapterParam

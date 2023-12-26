@@ -136,7 +136,7 @@ contract LayerZeroHookTest is Test {
         assertEq(crossChainCounterApp.counter(), 0);
         mailbox.dispatch{value: nativeFee}(
             0,
-            "",
+            address(crossChainCounterApp).addressToBytes32(),
             "Hello World!",
             metadata,
             hook
@@ -153,7 +153,7 @@ contract LayerZeroHookTest is Test {
         vm.expectRevert("LayerZeroMock: not enough native for fees");
         mailbox.dispatch{value: nativeFee - 1}(
             0,
-            "",
+            address(crossChainCounterApp).addressToBytes32(),
             "Hello World!",
             metadata,
             hook
@@ -169,7 +169,7 @@ contract LayerZeroHookTest is Test {
         uint256 balanceBefore = address(alice).balance;
         mailbox.dispatch{value: nativeFee + 1}(
             0,
-            address(lZEndpointMock).addressToBytes32(),
+            address(crossChainCounterApp).addressToBytes32(),
             "Hello World!",
             metadata,
             hook
