@@ -3,7 +3,6 @@
   "description": "A yarn workspace of core Hyperlane packages",
   "version": "0.0.0",
   "devDependencies": {
-    "@layerzerolabs/solidity-examples": "github:LayerZero-Labs/solidity-examples",
     "@trivago/prettier-plugin-sort-imports": "^4.2.1",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
