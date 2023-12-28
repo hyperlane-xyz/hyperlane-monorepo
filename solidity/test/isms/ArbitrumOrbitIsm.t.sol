@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
 import {LibBit} from "../../contracts/libs/LibBit.sol";
