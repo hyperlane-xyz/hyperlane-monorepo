@@ -4296,6 +4296,7 @@ __metadata:
   dependencies:
     "@eth-optimism/contracts": "npm:^0.6.0"
     "@hyperlane-xyz/utils": "npm:3.5.0"
+    "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
     "@layerzerolabs/solidity-examples": "npm:^1.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.1"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -4700,6 +4701,35 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@layerzerolabs/lz-evm-messagelib-v2@npm:^2.0.2":
+  version: 2.0.6
+  resolution: "@layerzerolabs/lz-evm-messagelib-v2@npm:2.0.6"
+  dependencies:
+    "@layerzerolabs/lz-evm-protocol-v2": "npm:^2.0.6"
+  checksum: d0f0875470dde34bc6c5d5c0c621066c29ade6910507b853f9bd780537df546bff5c60c8c52a461621efde65d6e457c65cc73200bf7bdc2cee8d774b7e15e424
+  languageName: node
+  linkType: hard
+
+"@layerzerolabs/lz-evm-oapp-v2@npm:2.0.2":
+  version: 2.0.2
+  resolution: "@layerzerolabs/lz-evm-oapp-v2@npm:2.0.2"
+  dependencies:
+    "@layerzerolabs/lz-evm-messagelib-v2": "npm:^2.0.2"
+    "@layerzerolabs/lz-evm-protocol-v2": "npm:^2.0.2"
+    "@layerzerolabs/lz-evm-v1-0.7": "npm:^2.0.2"
+  peerDependencies:
+    solidity-bytes-utils: ^0.8.0
+  checksum: bc5a4bc5493f756931b150eefe6a6c31ffe8c691c418191d22eff044f8ca653043edc64dd746f30fc4b05f3230e667a6e3f5005ade7c324283bf8550bbaa32f5
+  languageName: node
+  linkType: hard
+
+"@layerzerolabs/lz-evm-protocol-v2@npm:^2.0.2, @layerzerolabs/lz-evm-protocol-v2@npm:^2.0.6":
+  version: 2.0.6
+  resolution: "@layerzerolabs/lz-evm-protocol-v2@npm:2.0.6"
+  checksum: 868797107856bc3da48f26f0851ca9f329293af1bc6d033d20ce907225bc9bf2f1d903c32a3a8612338e6ded6cab6f029150004ac540143cc413c1687b8de2cb
+  languageName: node
+  linkType: hard
+
 "@layerzerolabs/lz-evm-sdk-v1-0.7@npm:^1.5.14":
   version: 1.5.16
   resolution: "@layerzerolabs/lz-evm-sdk-v1-0.7@npm:1.5.16"
@@ -4707,6 +4737,13 @@ __metadata:
     "@openzeppelin/contracts": "npm:3.4.2-solc-0.7"
     "@openzeppelin/contracts-upgradeable": "npm:3.4.2-solc-0.7"
   checksum: 29b5dab860151a95da0e405085931a7b23de2e314dd6cd078067964f8e658a0221cbf2956467108483e8e75d820fd79e6f9e3d60043345a2726ebcb9cf1d492f
+  languageName: node
+  linkType: hard
+
+"@layerzerolabs/lz-evm-v1-0.7@npm:^2.0.2":
+  version: 2.0.6
+  resolution: "@layerzerolabs/lz-evm-v1-0.7@npm:2.0.6"
+  checksum: 76fc1788cfe4b13f1d42f60e3cf3a2e7501c1c689a4cc4b3dcee38521945d165de0cbe8972592e0bb3405e85bb541dd69956959a6efb134be899022871ebdc17
   languageName: node
   linkType: hard
 
