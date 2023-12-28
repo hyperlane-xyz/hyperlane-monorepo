@@ -53,7 +53,7 @@ contract AxelarHookTest is Test {
     }
 
     function test_iinitializeReceiver_revertsWhenCalledAgain() public {
-        vm.expectRevert("Initializable: contract is already initialized");
+        vm.expectRevert("Already initialized");
 
         hook.initializeReceiver(destinationChain, destionationContract);
     }

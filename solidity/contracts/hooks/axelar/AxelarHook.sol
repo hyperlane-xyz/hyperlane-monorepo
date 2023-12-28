@@ -7,7 +7,7 @@ import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import {BridgeAggregationHookMetadata} from "../libs/BridgeAggregationHookMetadata.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Message} from "../../libs/Message.sol";
-import {MailboxClient} from "../../client/MailboxClient.sol";
+import {IMailbox} from "../../interfaces/IMailbox.sol";
 
 interface IAxelarGateway {
     function callContract(
@@ -27,11 +27,12 @@ interface IAxelarGasService {
     ) external payable;
 }
 
-contract AxelarHook is IPostDispatchHook, MailboxClient {
+contract AxelarHook is IPostDispatchHook, Ownable {
     using StandardHookMetadata for bytes;
     using BridgeAggregationHookMetadata for bytes;
     using Message for bytes;
 
+    IMailbox public immutable MAILBOX;
     IAxelarGasService public immutable AXELAR_GAS_SERVICE;
     IAxelarGateway public immutable AXELAR_GATEWAY;
     string public DESTINATION_CHAIN;
@@ -41,7 +42,8 @@ contract AxelarHook is IPostDispatchHook, MailboxClient {
         address _mailbox,
         address axelarGateway,
         address axelarGasReceiver
-    ) MailboxClient(_mailbox) {
+    ) {
+        MAILBOX = IMailbox(_mailbox);
         AXELAR_GATEWAY = IAxelarGateway(axelarGateway);
         AXELAR_GAS_SERVICE = IAxelarGasService(axelarGasReceiver);
     }
@@ -52,7 +54,12 @@ contract AxelarHook is IPostDispatchHook, MailboxClient {
     function initializeReceiver(
         string memory destinationChain,
         string memory destionationContract
-    ) external onlyOwner initializer {
+    ) external onlyOwner {
+        require(
+            bytes(DESTINATION_CHAIN).length == 0 &&
+                bytes(DESTINATION_CONTRACT).length == 0,
+            "Already initialized"
+        );
         DESTINATION_CHAIN = destinationChain;
         DESTINATION_CONTRACT = destionationContract;
     }
@@ -145,5 +152,14 @@ contract AxelarHook is IPostDispatchHook, MailboxClient {
 
         // encode the version and return the payload
         return abi.encodePacked(version, gmpPayload);
+    }
+
+    /**
+     * @notice Helper function to check wether an ID is the latest dispatched by Mailbox
+     * @param _id The id to check.
+     * @return true if latest, false otherwise.
+     */
+    function _isLatestDispatched(bytes32 _id) internal view returns (bool) {
+        return MAILBOX.latestDispatchedId() == _id;
     }
 }
