@@ -45,7 +45,7 @@ contract LayerZeroV1HookTest is Test {
         );
     }
 
-    function testParseLzMetadata_returnsCorrectData() public {
+    function testLzV1Hook_ParseLzMetadata_returnsCorrectData() public {
         // format Lz metadata
         uint16 dstChainId = uint16(block.chainid);
         address userApplication = address(crossChainCounterApp);
@@ -84,7 +84,7 @@ contract LayerZeroV1HookTest is Test {
         assertEq(_adapterParam, adapterParam);
     }
 
-    function testQuoteDispatch_returnsFeeAmount()
+    function testLzV1Hook_QuoteDispatch_returnsFeeAmount()
         public
         returns (uint256 nativeFee, bytes memory metadata)
     {
@@ -126,11 +126,11 @@ contract LayerZeroV1HookTest is Test {
         assertGt(nativeFee, 0);
     }
 
-    function testPostDispatch_executesCrossChain() public {
+    function testLzV1Hook_PostDispatch_executesCrossChain() public {
         (
             uint256 nativeFee,
             bytes memory metadata
-        ) = testQuoteDispatch_returnsFeeAmount();
+        ) = testLzV1Hook_QuoteDispatch_returnsFeeAmount();
 
         // dispatch also executes L0 call to increment counter
         assertEq(crossChainCounterApp.counter(), 0);
@@ -144,11 +144,11 @@ contract LayerZeroV1HookTest is Test {
         assertEq(crossChainCounterApp.counter(), 1);
     }
 
-    function testPostDispatch_notEnoughFee() public {
+    function testLzV1Hook_PostDispatch_notEnoughFee() public {
         (
             uint256 nativeFee,
             bytes memory metadata
-        ) = testQuoteDispatch_returnsFeeAmount();
+        ) = testLzV1Hook_QuoteDispatch_returnsFeeAmount();
 
         vm.expectRevert("LayerZeroMock: not enough native for fees");
         mailbox.dispatch{value: nativeFee - 1}(
@@ -160,11 +160,11 @@ contract LayerZeroV1HookTest is Test {
         );
     }
 
-    function testPostDispatch_refundExtraFee() public {
+    function testLzV1Hook_PostDispatch_refundExtraFee() public {
         (
             uint256 nativeFee,
             bytes memory metadata
-        ) = testQuoteDispatch_returnsFeeAmount();
+        ) = testLzV1Hook_QuoteDispatch_returnsFeeAmount();
 
         uint256 balanceBefore = address(alice).balance;
         mailbox.dispatch{value: nativeFee + 1}(
@@ -180,7 +180,7 @@ contract LayerZeroV1HookTest is Test {
     }
 
     // TODO test failed/retry
-    function testHookType() public {
-        assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.LAYER_ZERO));
+    function testLzV1Hook_HookType() public {
+        assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.LAYER_ZERO_V1));
     }
 }
