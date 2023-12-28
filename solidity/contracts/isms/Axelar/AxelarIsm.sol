@@ -17,25 +17,23 @@ interface IAxelarGateway {
 contract AxelarIsm is IInterchainSecurityModule, OwnableUpgradeable {
     using Message for bytes;
 
-    IAxelarGateway public immutable AXELAR_GATEWAY;
+    IAxelarGateway public AXELAR_GATEWAY;
     string public SOURCE_CHAIN;
     string public SOURCE_ADDRESS;
 
     mapping(bytes32 => bool) public validated;
-
-    constructor(address axelarGateway) {
-        AXELAR_GATEWAY = IAxelarGateway(axelarGateway);
-    }
 
     /**
      * @notice Initializes the hook with specific targets
      */
     function initializeSource(
         string memory sourceChain,
-        string memory sourceAddress
+        string memory sourceAddress,
+        address axelarGateway
     ) external onlyOwner initializer {
         SOURCE_CHAIN = sourceChain;
         SOURCE_ADDRESS = sourceAddress;
+        AXELAR_GATEWAY = IAxelarGateway(axelarGateway);
     }
 
     /**

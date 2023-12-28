@@ -40,19 +40,17 @@ contract WormholeIsm is IInterchainSecurityModule, OwnableUpgradeable {
 
     mapping(bytes32 => bool) public validated;
 
-    constructor(address _wormhole) {
-        WORMHOLE = IWormhole(_wormhole);
-    }
-
     /**
      * @notice Initializes the hook with specific targets
      */
     function initializeSource(
         uint16 sourceChainId,
-        bytes32 sourceAddress
+        bytes32 sourceAddress,
+        address _wormhole
     ) external onlyOwner initializer {
         SOURCE_CHAIN_ID = sourceChainId;
         SOURCE_ADDRESS = sourceAddress;
+        WORMHOLE = IWormhole(_wormhole);
     }
 
     /**
