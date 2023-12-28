@@ -4,23 +4,23 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {LZEndpointMock} from "@layerzerolabs/solidity-examples/contracts/lzApp/mocks/LZEndpointMock.sol";
 import {OmniCounter} from "@layerzerolabs/solidity-examples/contracts/examples/OmniCounter.sol";
-import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
-import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
-import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
-import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
-import {LayerZeroHook, LayerZeroMetadata} from "../../contracts/hooks/LayerZeroHook.sol";
-import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
+import {TypeCasts} from "../../../contracts/libs/TypeCasts.sol";
+import {StandardHookMetadata} from "../../../contracts/hooks/libs/StandardHookMetadata.sol";
+import {TestMailbox} from "../../../contracts/test/TestMailbox.sol";
+import {TestPostDispatchHook} from "../../../contracts/test/TestPostDispatchHook.sol";
+import {LayerZeroV1Hook, LayerZeroMetadata} from "../../../contracts/hooks/layerzero/LayerZeroV1Hook.sol";
+import {IPostDispatchHook} from "../../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
 import "forge-std/console.sol";
 
-contract LayerZeroHookTest is Test {
+contract LayerZeroV1HookTest is Test {
     using TypeCasts for address;
 
     OmniCounter crossChainCounterApp;
     LZEndpointMock lZEndpointMock;
     TestMailbox public mailbox;
     TestPostDispatchHook requiredHook;
-    LayerZeroHook hook;
+    LayerZeroV1Hook hook;
     address alice = makeAddr("alice");
 
     function setUp() public {
@@ -28,7 +28,7 @@ contract LayerZeroHookTest is Test {
         crossChainCounterApp = new OmniCounter(address(lZEndpointMock));
         requiredHook = new TestPostDispatchHook();
         mailbox = new TestMailbox(0);
-        hook = new LayerZeroHook(address(mailbox), address(lZEndpointMock));
+        hook = new LayerZeroV1Hook(address(mailbox), address(lZEndpointMock));
 
         mailbox.setRequiredHook(address(requiredHook));
 
@@ -179,6 +179,7 @@ contract LayerZeroHookTest is Test {
         assertEq(balanceAfter, balanceBefore + 1);
     }
 
+    // TODO test failed/retry
     function testHookType() public {
         assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.LAYER_ZERO));
     }

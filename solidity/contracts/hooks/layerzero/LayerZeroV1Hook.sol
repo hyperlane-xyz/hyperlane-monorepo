@@ -13,13 +13,13 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 import {LzApp} from "@layerzerolabs/solidity-examples/contracts/lzApp/LzApp.sol";
-import {Message} from "../libs/Message.sol";
-import {TypeCasts} from "../libs/TypeCasts.sol";
-import {MailboxClient} from "../client/MailboxClient.sol";
-import {Indexed} from "../libs/Indexed.sol";
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {AbstractPostDispatchHook} from "./libs/AbstractPostDispatchHook.sol";
-import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
+import {Message} from "../../libs/Message.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
+import {Indexed} from "../../libs/Indexed.sol";
+import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
+import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import "forge-std/console.sol";
 
 struct LayerZeroMetadata {
@@ -69,7 +69,7 @@ interface ILayerZeroEndpoint {
     ) external view returns (uint nativeFee, uint zroFee);
 }
 
-contract LayerZeroHook is AbstractPostDispatchHook, MailboxClient, Indexed {
+contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient, Indexed {
     using StandardHookMetadata for bytes;
     using Message for bytes;
     using TypeCasts for bytes32;
