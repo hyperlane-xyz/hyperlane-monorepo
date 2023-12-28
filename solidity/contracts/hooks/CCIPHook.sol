@@ -14,7 +14,7 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {AbstractMessageIdAuthHook} from "./libs/AbstractMessageIdAuthHook.sol";
+import {MailboxClient} from "../client/MailboxClient.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
@@ -23,14 +23,13 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 // ============ External Imports ============
 import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
-import {CCIPReceiver} from "@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPReceiver.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title CCIPHook
  * @notice Message hook to inform the CCIP of messages published through CCIP.
  */
-contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
+contract CCIPHook is MailboxClient {
     using StandardHookMetadata for bytes;
     using Message for bytes;
 
@@ -38,8 +37,6 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
 
     error NotEnoughBalance(uint256 currentBalance, uint256 calculatedFees); // Used to make sure contract has enough balance.
     error DestinationChainNotAllowlisted(uint64 destinationChainSelector); // Used when the destination chain has not been allowlisted by the contract owner.
-    error SourceChainNotAllowlisted(uint64 sourceChainSelector); // Used when the source chain has not been allowlisted by the contract owner.
-    error SenderNotAllowlisted(address sender); // Used when the sender has not been allowlisted by the contract owner.
 
     // ============ Events ============
 
@@ -52,21 +49,7 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
         uint256 fees // The fees paid for sending the CCIP message.
     );
 
-    // Event emitted when a message is received from another chain.
-    event MessageReceived(
-        bytes32 indexed messageId, // The unique ID of the CCIP message.
-        uint64 indexed sourceChainSelector, // The chain selector of the source chain.
-        address sender, // The address of the sender from the source chain.
-        bytes payload // The payload that was received.
-    );
-
     // ============ Storage ============
-
-    // Mapping to keep track of allowlisted source chains.
-    mapping(uint64 => bool) public allowlistedSourceChains;
-
-    // Mapping to keep track of allowlisted senders.
-    mapping(address => bool) public allowlistedSenders;
 
     mapping(uint64 => bool) public allowlistedDestinationChains;
     IRouterClient internal immutable ccip_router;
@@ -78,26 +61,13 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
     /// @param _router The address of the CCIP router contract.
     constructor(
         address _router,
-        address _mailbox,
-        uint32 _destinationDomain,
-        bytes32 _ism
+        address _mailbox
     )
-        AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism)
-        CCIPReceiver(_router) {
+        MailboxClient(_mailbox) {
         ccip_router = IRouterClient(_router);
     }
 
     // ============ Modifiers ============
-
-    /// @dev Modifier that checks if the chain with the given sourceChainSelector is allowlisted and if the sender is allowlisted.
-    /// @param _sourceChainSelector The selector of the destination chain.
-    /// @param _sender The address of the sender.
-    modifier onlyAllowlisted(uint64 _sourceChainSelector, address _sender) {
-        if (!allowlistedSourceChains[_sourceChainSelector])
-            revert SourceChainNotAllowlisted(_sourceChainSelector);
-        if (!allowlistedSenders[_sender]) revert SenderNotAllowlisted(_sender);
-        _;
-    }
 
     /// @dev Modifier that checks if the chain with the given destinationChainSelector is allowlisted.
     /// @param _destinationChainSelector The selector of the destination chain.
@@ -126,6 +96,7 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
                 receiver: abi.encode(_receiver), // ABI-encoded receiver address
                 data: abi.encode(_callData), // ABI-encoded payload
                 tokenAmounts: new Client.EVMTokenAmount[](0), // Empty array aas no tokens are transferred
+                // extraArgs: "0x",
                 extraArgs: "",
                 // Set the feeToken to a feeTokenAddress, indicating specific asset will be used for fees
                 feeToken: _feeTokenAddress
@@ -181,43 +152,19 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
         return messageId;
     }
 
-    /// handle a received message
-    function _ccipReceive(
-        Client.Any2EVMMessage memory any2EvmMessage
-    )
-        internal
-        override
-        onlyAllowlisted(
-            any2EvmMessage.sourceChainSelector,
-            abi.decode(any2EvmMessage.sender, (address))
-        ) // Make sure source chain and sender are allowlisted
-    {
-        bytes memory lastReceivedPayload = any2EvmMessage.data;  
-        
-        (bool success, ) = ccipISM.call(lastReceivedPayload); // verifyMessageId(bytes32)
-        require (success, "Call to CCIP Ism failed");
-
-        emit MessageReceived(
-            any2EvmMessage.messageId,
-            any2EvmMessage.sourceChainSelector, // fetch the source chain identifier (aka selector)
-            abi.decode(any2EvmMessage.sender, (address)), // abi-decoding of the sender address,
-            lastReceivedPayload
-        );
-    }
-
     /// @notice Calculates the cost in native currency for the call
-    /// @param metadata StandartHookMetadata, which contains necessary data for CCIP message formation
+    /// @param metadata StandardHookMetadata, which contains necessary data for CCIP message formation
     /// @param message Hyperlane Message 
     /// @return Minimum wei required for this CCIP call
-    function _quoteDispatch(
+    function quoteDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal view override returns (uint256) {
+    ) public view returns (uint256) {
         // Retrieve custom metadata, which forms the CCIP message input
         bytes memory customMetadata = metadata.getCustomMetadata();
         (uint64 destinationChainSelector, address receiver) = abi.decode(customMetadata, (uint64, address));
         bytes32 _id = message.id();
-        bytes memory callData = abi.encodeWithSignature("verifyMessageId(bytes32)", _id);
+        bytes memory callData = abi.encode(_id);
         // Create an EVM2AnyMessage struct in memory with necessary information for sending a cross-chain message
         Client.EVM2AnyMessage memory evm2AnyMessage = _buildCCIPMessage(
             receiver,
@@ -231,15 +178,31 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
         return fees;
     }
 
-    /// @inheritdoc AbstractMessageIdAuthHook
-    function _sendMessageId(
+    function postDispatch(
         bytes calldata metadata,
-        bytes memory payload
-    ) internal override {
+        bytes calldata message
+    ) external payable {
+        bytes32 id = message.id();
+        require(
+            _isLatestDispatched(id),
+            "AbstractMessageIdAuthHook: message not latest dispatched"
+        );
+        
         bytes memory customMetadata = metadata.getCustomMetadata();
         (uint64 destinationChainSelector, address receiver) = abi.decode(customMetadata, (uint64, address));
+        bytes memory payload = abi.encode(id);
+
         _sendMessagePayNative(destinationChainSelector, receiver, payload);
     }
+
+    // function _sendMessageId(
+    //     bytes calldata metadata,
+    //     bytes memory payload
+    // ) internal {
+    //     bytes memory customMetadata = metadata.getCustomMetadata();
+    //     (uint64 destinationChainSelector, address receiver) = abi.decode(customMetadata, (uint64, address));
+    //     _sendMessagePayNative(destinationChainSelector, receiver, payload);
+    // }
 
     // ============ Public / External functions ============
 
@@ -251,19 +214,6 @@ contract CCIPHook is AbstractMessageIdAuthHook, CCIPReceiver {
         bool allowed
     ) external onlyOwner {
         allowlistedDestinationChains[_destinationChainSelector] = allowed;
-    }
-
-    /// @dev Updates the allowlist status of a source chain for transactions.
-    function addSourceChainToAllowlist(
-        uint64 _sourceChainSelector,
-        bool allowed
-    ) external onlyOwner {
-        allowlistedSourceChains[_sourceChainSelector] = allowed;
-    }
-
-    /// @dev Updates the allowlist status of a sender for transactions.
-    function addSenderToAllowlist(address _sender, bool allowed) external onlyOwner {
-        allowlistedSenders[_sender] = allowed;
     }
 
     /// @dev Sets the address for Ism to verify message
