@@ -47,7 +47,7 @@ contract WormholeHook is IPostDispatchHook {
         );
         // use 0 nonce, _isLatestDispatched is sufficient check.
         // 201 consistency level iis safest as it ensures finality is reached before bridging.
-        WORMHOLE.publishMessage{value: msg.value}(0, abi.encodePacked(id), 201);
+        WORMHOLE.publishMessage{value: msg.value}(0, abi.encodePacked(id), 202);
     }
 
     function quoteDispatch(
