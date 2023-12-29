@@ -12,15 +12,13 @@ pragma solidity >=0.8.0;
   @@@@@@@@@       @@@@@@@@@
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
-import {LzApp} from "@layerzerolabs/solidity-examples/contracts/lzApp/LzApp.sol";
 import {MessagingParams, MessagingFee, ILayerZeroEndpointV2} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
-
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
 import {Indexed} from "../../libs/Indexed.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
-import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
+import {AbstractMessageIdAuthHook} from "../libs/AbstractMessageIdAuthHook.sol";
 import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import "forge-std/console.sol";
 
@@ -33,38 +31,29 @@ struct LayerZeroV2Metadata {
     bytes options;
 }
 
-contract LayerZeroV2Hook is AbstractPostDispatchHook, MailboxClient, Indexed {
+contract LayerZeroV2Hook is AbstractMessageIdAuthHook, Indexed {
     using StandardHookMetadata for bytes;
     using Message for bytes;
     using TypeCasts for bytes32;
 
     ILayerZeroEndpointV2 immutable lZEndpoint;
 
-    // In bytes
-    uint8 private constant DST_CHAIN_ID_OFFSET = 0;
-    uint8 private constant USER_APP_ADDR_OFFSET = 2;
-    uint8 private constant REFUND_ADDR_OFFSET = 22;
-
-    constructor(address _mailbox, address _lZEndpoint) MailboxClient(_mailbox) {
+    constructor(
+        address _mailbox,
+        uint32 _destinationDomain,
+        bytes32 _ism,
+        address _lZEndpoint
+    ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
         lZEndpoint = ILayerZeroEndpointV2(_lZEndpoint);
     }
 
     // ============ External Functions ============
 
-    /// @inheritdoc IPostDispatchHook
-    function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.LAYER_ZERO_V2);
-    }
-
-    /// @inheritdoc AbstractPostDispatchHook
-    function _postDispatch(
+    /// @inheritdoc AbstractMessageIdAuthHook
+    function _sendMessageId(
         bytes calldata metadata,
-        bytes calldata message
-    ) internal virtual override {
-        // ensure hook only dispatches messages that are dispatched by the mailbox
-        bytes32 id = message.id();
-        require(_isLatestDispatched(id), "message not dispatched by mailbox");
-
+        bytes memory payload
+    ) internal override {
         bytes calldata lZMetadata = metadata.getCustomMetadata();
         (
             uint32 eid,
@@ -75,15 +64,14 @@ contract LayerZeroV2Hook is AbstractPostDispatchHook, MailboxClient, Indexed {
         // Build and send message
         MessagingParams memory msgParams = MessagingParams(
             eid,
-            message.recipient(),
-            message.body(),
+            ism,
+            payload,
             options,
             false
         );
         lZEndpoint.send{value: msg.value}(msgParams, refundAddress);
     }
 
-    /// @inheritdoc AbstractPostDispatchHook
     /// @dev payInZRO is hardcoed to false because zro tokens should not be directly accepted
     function _quoteDispatch(
         bytes calldata metadata,

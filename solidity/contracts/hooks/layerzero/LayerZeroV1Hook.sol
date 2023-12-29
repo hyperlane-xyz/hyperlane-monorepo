@@ -76,11 +76,6 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient, Indexed {
 
     ILayerZeroEndpoint immutable lZEndpoint;
 
-    // In bytes
-    uint8 private constant DST_CHAIN_ID_OFFSET = 0;
-    uint8 private constant USER_APP_ADDR_OFFSET = 2;
-    uint8 private constant REFUND_ADDR_OFFSET = 22;
-
     constructor(address _mailbox, address _lZEndpoint) MailboxClient(_mailbox) {
         lZEndpoint = ILayerZeroEndpoint(_lZEndpoint);
     }

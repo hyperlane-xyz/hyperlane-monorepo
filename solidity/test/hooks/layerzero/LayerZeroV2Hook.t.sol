@@ -10,6 +10,7 @@ import {TypeCasts} from "../../../contracts/libs/TypeCasts.sol";
 import {StandardHookMetadata} from "../../../contracts/hooks/libs/StandardHookMetadata.sol";
 import {TestMailbox} from "../../../contracts/test/TestMailbox.sol";
 import {TestPostDispatchHook} from "../../../contracts/test/TestPostDispatchHook.sol";
+import {TestIsm} from "../../../contracts/test/TestIsm.sol";
 import {LayerZeroTreasuryMock} from "../../../contracts/test/TestLayerZeroTreasury.sol";
 import {LayerZeroV2Hook, LayerZeroV2Metadata} from "../../../contracts/hooks/layerzero/LayerZeroV2Hook.sol";
 import {IPostDispatchHook} from "../../../contracts/interfaces/hooks/IPostDispatchHook.sol";
@@ -27,8 +28,10 @@ contract LayerZeroV2HookTest is Test {
     OmniCounter crossChainCounterApp;
     TestMailbox public mailbox;
     TestPostDispatchHook requiredHook;
+    TestIsm ism;
     LayerZeroV2Hook hook;
     address alice = makeAddr("alice");
+    uint8 constant HYPERLANE_DEST_DOMAIN = 1;
 
     function setUp() public {
         // Set up LZ
@@ -40,8 +43,14 @@ contract LayerZeroV2HookTest is Test {
 
         // Setup Hyperlane
         requiredHook = new TestPostDispatchHook();
-        mailbox = new TestMailbox(0);
-        hook = new LayerZeroV2Hook(address(mailbox), address(lZEndpointV2));
+        mailbox = new TestMailbox(HYPERLANE_DEST_DOMAIN);
+        ism = new TestIsm();
+        hook = new LayerZeroV2Hook(
+            address(mailbox),
+            HYPERLANE_DEST_DOMAIN,
+            address(ism).addressToBytes32(),
+            address(lZEndpointV2)
+        );
 
         mailbox.setRequiredHook(address(requiredHook));
     }
@@ -119,7 +128,7 @@ contract LayerZeroV2HookTest is Test {
             formattedLzMetadata
         );
         bytes memory message = mailbox.buildOutboundMessage(
-            0,
+            HYPERLANE_DEST_DOMAIN,
             address(lZEndpointV2).addressToBytes32(),
             payload
         );
@@ -145,7 +154,7 @@ contract LayerZeroV2HookTest is Test {
             )
         );
         mailbox.dispatch{value: nativeFee - 1}(
-            0,
+            HYPERLANE_DEST_DOMAIN,
             address(crossChainCounterApp).addressToBytes32(),
             "Hello World!",
             metadata,
@@ -153,7 +162,7 @@ contract LayerZeroV2HookTest is Test {
         );
     }
 
-    function testLzV2HookPostDispatch_refundExtraFee() public {
+    function testLzV2Hook_PostDispatch_refundExtraFee() public {
         (
             uint256 nativeFee,
             bytes memory metadata
@@ -161,7 +170,7 @@ contract LayerZeroV2HookTest is Test {
 
         uint256 balanceBefore = address(alice).balance;
         mailbox.dispatch{value: nativeFee + 1}(
-            0,
+            HYPERLANE_DEST_DOMAIN,
             address(crossChainCounterApp).addressToBytes32(),
             "Hello World!",
             metadata,
@@ -179,7 +188,7 @@ contract LayerZeroV2HookTest is Test {
         ) = testLzV2Hook_QuoteDispatch_returnsFeeAmount();
 
         mailbox.dispatch{value: nativeFee}(
-            0,
+            HYPERLANE_DEST_DOMAIN,
             address(crossChainCounterApp).addressToBytes32(),
             "Hello World!",
             metadata,
@@ -189,6 +198,6 @@ contract LayerZeroV2HookTest is Test {
 
     // TODO test failed/retry
     function testLzV2Hook_HookType() public {
-        assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.LAYER_ZERO_V2));
+        assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.ID_AUTH_ISM));
     }
 }
