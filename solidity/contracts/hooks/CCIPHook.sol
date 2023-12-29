@@ -194,16 +194,7 @@ contract CCIPHook is MailboxClient {
 
         _sendMessagePayNative(destinationChainSelector, receiver, payload);
     }
-
-    // function _sendMessageId(
-    //     bytes calldata metadata,
-    //     bytes memory payload
-    // ) internal {
-    //     bytes memory customMetadata = metadata.getCustomMetadata();
-    //     (uint64 destinationChainSelector, address receiver) = abi.decode(customMetadata, (uint64, address));
-    //     _sendMessagePayNative(destinationChainSelector, receiver, payload);
-    // }
-
+    
     // ============ Public / External functions ============
 
     /// @dev Updates the allowlist status of a destination chain for transactions.
