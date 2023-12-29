@@ -121,12 +121,9 @@ export class CwTokenAdapter
   }
 
   async getBalance(address: Address): Promise<string> {
-    const resp = await this.queryToken<BalanceResponse>({
-      balance: {
-        address,
-      },
-    });
-    return resp.balance;
+    const provider = await this.getProvider();
+    const balance = await provider.getBalance(address, this.addresses.token);
+    return balance.amount;
   }
 
   async getMetadata(): Promise<CW20Metadata> {
