@@ -25,6 +25,12 @@ import {IInbox, IBridge} from "@arbitrum/nitro-contracts/src/bridge/Inbox.sol";
 import {IOutbox} from "@arbitrum/nitro-contracts/src/bridge/Outbox.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
+/// @dev Documentation for `calculateRetryableSubmissionFee`: https://docs.arbitrum.io/arbos/l1-to-l2-messaging#submission
+/// @dev When making a `dispatch` call, you will need to specify parameters in `metadata`, specifically:
+/// * `uint256 l2CallValue`: The callvalue for retryable L2 message that is supplied within the deposit (l1CallValue)
+/// * `uint256 gasLimit`: Maximum amount of gas used to cover L2 execution of the ticket
+/// * `uint256 maxFeePerGas` (as custom metadata): The gas price bid for L2 execution of the ticket that is supplied within the deposit (l1CallValue)
+/// See the `createRetryableTicket` call below or ArbitrumDispatcher.s.sol for detail.
 contract ArbitrumOrbitHook is AbstractMessageIdAuthHook {
     using Message for bytes;
     using StandardHookMetadata for bytes;
@@ -77,8 +83,6 @@ contract ArbitrumOrbitHook is AbstractMessageIdAuthHook {
         );
 
         address refundAddress = metadata.refundAddress(address(0));
-        // Documentation for `calculateRetryableSubmissionFee`:
-        // https://docs.arbitrum.io/arbos/l1-to-l2-messaging#submission
         uint256 ticketID = baseInbox.createRetryableTicket{value: msg.value}(
             TypeCasts.bytes32ToAddress(ism),
             metadata.msgValue(0),
