@@ -17,7 +17,6 @@ contract ArbitrumDispatcher is Script {
     uint256 private sk = vm.deriveKey(vm.envString("SEEDPHRASE"), 0);
     // TODO: fill in an address.
     address private sender = address(0);
-    bytes32 private messageId;
     TestRecipient private testRecipient;
 
     // ========== CONSTANTS ==========
