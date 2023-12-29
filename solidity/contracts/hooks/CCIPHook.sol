@@ -16,9 +16,7 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {MailboxClient} from "../client/MailboxClient.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
-import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 // ============ External Imports ============
 import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
@@ -194,7 +192,7 @@ contract CCIPHook is MailboxClient {
 
         _sendMessagePayNative(destinationChainSelector, receiver, payload);
     }
-    
+
     // ============ Public / External functions ============
 
     /// @dev Updates the allowlist status of a destination chain for transactions.
