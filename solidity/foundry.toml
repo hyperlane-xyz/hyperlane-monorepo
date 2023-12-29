@@ -16,3 +16,5 @@ verbosity = 4
 mainnet = "https://rpc.ankr.com/eth"
 optimism = "https://rpc.ankr.com/optimism"
 arbitrum = "https://rpc.ankr.com/arbitrum"
+sepolia = "https://rpc.ankr.com/eth_sepolia"
+sepolia_arb = "https://arbitrum-sepolia.blockpi.network/v1/rpc/public"
