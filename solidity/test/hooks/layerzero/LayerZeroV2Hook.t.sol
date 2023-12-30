@@ -12,7 +12,7 @@ import {TestMailbox} from "../../../contracts/test/TestMailbox.sol";
 import {TestPostDispatchHook} from "../../../contracts/test/TestPostDispatchHook.sol";
 import {TestIsm} from "../../../contracts/test/TestIsm.sol";
 import {LayerZeroTreasuryMock} from "../../../contracts/test/TestLayerZeroTreasury.sol";
-import {LayerZeroV2Hook, LayerZeroV2Metadata} from "../../../contracts/hooks/layerzero/LayerZeroV2Hook.sol";
+import {LayerZeroV2Hook, LayerZeroV2Metadata} from "../../../contracts/hooks/layer-zero/LayerZeroV2Hook.sol";
 import {IPostDispatchHook} from "../../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
 import "forge-std/console.sol";

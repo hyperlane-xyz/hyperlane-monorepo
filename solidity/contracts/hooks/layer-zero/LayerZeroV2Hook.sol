@@ -20,7 +20,6 @@ import {Indexed} from "../../libs/Indexed.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractMessageIdAuthHook} from "../libs/AbstractMessageIdAuthHook.sol";
 import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
-import "forge-std/console.sol";
 
 struct LayerZeroV2Metadata {
     /// @dev the endpoint Id. prev dstChainId

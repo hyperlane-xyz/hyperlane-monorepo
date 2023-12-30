@@ -20,7 +20,6 @@ import {Indexed} from "../../libs/Indexed.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
-import "forge-std/console.sol";
 
 struct LayerZeroMetadata {
     /// @dev the destination chain identifier

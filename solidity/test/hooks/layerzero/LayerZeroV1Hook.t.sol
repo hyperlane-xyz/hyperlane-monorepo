@@ -8,7 +8,7 @@ import {TypeCasts} from "../../../contracts/libs/TypeCasts.sol";
 import {StandardHookMetadata} from "../../../contracts/hooks/libs/StandardHookMetadata.sol";
 import {TestMailbox} from "../../../contracts/test/TestMailbox.sol";
 import {TestPostDispatchHook} from "../../../contracts/test/TestPostDispatchHook.sol";
-import {LayerZeroV1Hook, LayerZeroMetadata} from "../../../contracts/hooks/layerzero/LayerZeroV1Hook.sol";
+import {LayerZeroV1Hook, LayerZeroMetadata} from "../../../contracts/hooks/layer-zero/LayerZeroV1Hook.sol";
 import {IPostDispatchHook} from "../../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
 import "forge-std/console.sol";
