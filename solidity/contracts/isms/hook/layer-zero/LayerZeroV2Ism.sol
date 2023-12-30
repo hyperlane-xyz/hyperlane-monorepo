@@ -53,18 +53,15 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
      *  - srcEid: The source chain endpoint ID.
      *  - sender: The sender address on the src chain.
      *  - nonce: The nonce of the message.
-     * @param _guid The unique identifier for the received LayerZero message.
      * @param _message The payload of the received message.
-     * @param _executor The address of the executor for the received message.
-     * @param _extraData Additional arbitrary data provided by the corresponding executor.
      *
      */
     function lzReceive(
         Origin calldata _origin,
-        bytes32 _guid,
+        bytes32,
         bytes calldata _message,
-        address _executor,
-        bytes calldata _extraData
+        address,
+        bytes calldata
     ) external payable {
         // Only if endpoint caller and authorized hook sender
         require(
@@ -90,14 +87,16 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
     /**
      * @notice check if endpoint authorized
      */
-    function _isAuthorizedEndPoint(address _endpoint) internal returns (bool) {
+    function _isAuthorizedEndPoint(
+        address _endpoint
+    ) internal view returns (bool) {
         return _endpoint == endpoint;
     }
 
     /**
      * @notice check if hook authorized
      */
-    function _isAuthorizedHook(bytes32 hook) internal returns (bool) {
+    function _isAuthorizedHook(bytes32 hook) internal view returns (bool) {
         return hook == authorizedHook;
     }
 
@@ -106,7 +105,7 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
      */
     function _isMessageVerifySelector(
         bytes calldata message
-    ) internal returns (bool) {
+    ) internal pure returns (bool) {
         return
             keccak256(abi.encode(bytes4(message))) ==
             keccak256(

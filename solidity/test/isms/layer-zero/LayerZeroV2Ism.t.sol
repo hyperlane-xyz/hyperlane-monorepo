@@ -16,6 +16,12 @@ contract LayerZeroV2IsmTest is Test {
     address endpoint;
     address hook;
 
+    bytes constant encodedFunctionCall =
+        abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.verifyMessageId,
+            (bytes32(""))
+        );
+
     function setUp() public {
         endpoint = makeAddr("endpointAddr");
         hook = makeAddr("hook");
@@ -30,6 +36,7 @@ contract LayerZeroV2IsmTest is Test {
         bytes memory _extraData
     )
         internal
+        pure
         returns (
             Origin memory origin,
             bytes32 guid,
@@ -73,7 +80,7 @@ contract LayerZeroV2IsmTest is Test {
 
         // Set endpoint
         vm.prank(endpoint);
-        lZIsm.lzReceive(origin, guid, message, executor, extraData);
+        lZIsm.lzReceive(origin, guid, encodedFunctionCall, executor, extraData);
     }
 
     function testLzV2Ism_lzReceive_RevertWhen_NotSentByHook(
@@ -103,7 +110,8 @@ contract LayerZeroV2IsmTest is Test {
         // Set hook
         vm.startPrank(endpoint);
         lZIsm.setAuthorizedHook(_hook.addressToBytes32());
-        lZIsm.lzReceive(origin, guid, message, executor, extraData);
+
+        lZIsm.lzReceive(origin, guid, encodedFunctionCall, executor, extraData);
         vm.stopPrank();
     }
 
@@ -111,7 +119,6 @@ contract LayerZeroV2IsmTest is Test {
         bytes calldata _message
     ) public {
         // Check the function signature
-        // bytes memory encodedFunctionCall = abi.encodeCall(AbstractMessageIdAuthorizedIsm.verifyMessageId, (bytes32("")));
         vm.assume(
             bytes4(_message) !=
                 bytes4(AbstractMessageIdAuthorizedIsm.verifyMessageId.selector)
@@ -140,10 +147,6 @@ contract LayerZeroV2IsmTest is Test {
 
         // Try with correct payload
         vm.startPrank(endpoint);
-        bytes memory encodedFunctionCall = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (bytes32(""))
-        );
         (origin, guid, message, executor, extraData) = _makeLzParameters(
             hook,
             bytes32(""),
@@ -169,10 +172,6 @@ contract LayerZeroV2IsmTest is Test {
 
         // Try through LZ Ism
         vm.startPrank(endpoint);
-        bytes memory encodedFunctionCall = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
         (
             Origin memory origin,
             bytes32 guid,
