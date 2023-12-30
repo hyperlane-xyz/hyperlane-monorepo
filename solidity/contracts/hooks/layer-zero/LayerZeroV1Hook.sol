@@ -98,7 +98,7 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient, Indexed {
         bytes calldata lZMetadata = metadata.getCustomMetadata();
         (
             uint16 dstChainId,
-            ,
+            address userApplication,
             address payable refundAddress,
             ,
             ,
@@ -106,7 +106,7 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient, Indexed {
         ) = parseLzMetadata(lZMetadata);
         lZEndpoint.send{value: msg.value}(
             dstChainId,
-            abi.encodePacked(message.recipientAddress(), lZEndpoint),
+            abi.encodePacked(userApplication, lZEndpoint),
             message.body(),
             refundAddress,
             address(0), // _zroPaymentAddress is hardcoded to addr(0) because zro tokens should not be directly accepted
@@ -122,7 +122,7 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient, Indexed {
         bytes calldata lZMetadata = metadata.getCustomMetadata();
         (
             uint16 dstChainId,
-            ,
+            address userApplication,
             ,
             ,
             ,
@@ -130,7 +130,7 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient, Indexed {
         ) = parseLzMetadata(lZMetadata);
         (nativeFee, ) = lZEndpoint.estimateFees(
             dstChainId,
-            message.recipientAddress(),
+            userApplication,
             message.body(),
             false, // _payInZRO is hardcoded to false because zro tokens should not be directly accepted
             adapterParam
