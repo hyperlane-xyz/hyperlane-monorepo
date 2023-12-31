@@ -31,14 +31,14 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
     using Message for bytes;
 
     // Layerzero endpoint address
-    address endpoint;
+    address public immutable endpoint;
 
     // ============ Constants ============
 
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.NULL);
 
-    // ============ Initializer ============
+    // ============ Constructor ============
     constructor(address _endpoint) {
         require(
             _endpoint != address(0),
