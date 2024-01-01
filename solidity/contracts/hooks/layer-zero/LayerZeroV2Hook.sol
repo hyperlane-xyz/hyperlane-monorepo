@@ -15,7 +15,6 @@ pragma solidity >=0.8.0;
 import {MessagingParams, MessagingFee, ILayerZeroEndpointV2} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
-import {MailboxClient} from "../../client/MailboxClient.sol";
 import {Indexed} from "../../libs/Indexed.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractMessageIdAuthHook} from "../libs/AbstractMessageIdAuthHook.sol";
@@ -35,7 +34,7 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook, Indexed {
     using Message for bytes;
     using TypeCasts for bytes32;
 
-    ILayerZeroEndpointV2 immutable lZEndpoint;
+    ILayerZeroEndpointV2 public immutable lZEndpoint;
 
     constructor(
         address _mailbox,

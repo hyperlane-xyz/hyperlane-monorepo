@@ -73,7 +73,7 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient, Indexed {
     using Message for bytes;
     using TypeCasts for bytes32;
 
-    ILayerZeroEndpoint immutable lZEndpoint;
+    ILayerZeroEndpoint public immutable lZEndpoint;
 
     constructor(address _mailbox, address _lZEndpoint) MailboxClient(_mailbox) {
         lZEndpoint = ILayerZeroEndpoint(_lZEndpoint);
