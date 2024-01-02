@@ -1,5 +1,13 @@
 # @hyperlane-xyz/helloworld
 
+## 3.5.1
+
+### Patch Changes
+
+- Updated dependencies [a04454d6d]
+  - @hyperlane-xyz/sdk@3.5.1
+  - @hyperlane-xyz/core@3.5.1
+
 ## 3.5.0
 
 ### Patch Changes
