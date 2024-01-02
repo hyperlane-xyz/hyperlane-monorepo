@@ -1,4 +1,4 @@
-use std::{fmt::Debug, marker::PhantomData, sync::Arc};
+use std::{collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc};
 
 use cursor::*;
 use derive_new::new;
@@ -31,7 +31,7 @@ pub struct ContractSync<T, D: HyperlaneLogStore<T>, I: Indexer<T>> {
 
 impl<T, D, I> ContractSync<T, D, I>
 where
-    T: Debug + Send + Sync + Clone + 'static,
+    T: Debug + Send + Sync + Clone + Eq + Hash + 'static,
     D: HyperlaneLogStore<T> + 'static,
     I: Indexer<T> + Clone + 'static,
 {
@@ -67,6 +67,8 @@ where
                     debug!(?range, "Looking for for events in index range");
 
                     let logs = self.indexer.fetch_logs(range.clone()).await?;
+                    let deduped_logs = HashSet::<_>::from_iter(logs);
+                    let logs = Vec::from_iter(deduped_logs);
 
                     info!(
                         ?range,
