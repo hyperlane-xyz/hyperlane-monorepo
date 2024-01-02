@@ -51,47 +51,32 @@ contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
     function _transferTo(
         address _recipient,
         uint256 _amount,
-        bytes calldata _metadata
+        bytes calldata
     ) internal virtual override {
-        _withdrawFromVault(_amount);
-        super._transferTo(_recipient, _amount, _metadata);
+        _withdrawFromVault(_amount, _recipient);
     }
 
     /**
      * @dev Withdraws from the vault and decrement assetDeposited
      * @param _amount amount to withdraw from vault
+     * @param _recipient address to deposit withdrawn underlying to
      */
-    function _withdrawFromVault(uint256 _amount) internal {
+    function _withdrawFromVault(uint256 _amount, address _recipient) internal {
         assetDeposited -= _amount;
-        vault.withdraw(_amount, address(this), address(this));
+        vault.withdraw(_amount, _recipient, address(this));
     }
 
     /**
      * @notice Allows the owner to redeem excess shares
      */
     function sweep() external onlyOwner {
-        if (_excessVaultShares() > 0) {
-            uint256 excessShares = vault.maxRedeem(address(this)) -
-                vault.convertToShares(assetDeposited);
-            uint256 assetsRedeemed = vault.redeem(
-                excessShares,
-                owner(),
-                address(this)
-            );
-            emit ExcessSharesSwept(excessShares, assetsRedeemed);
-        }
-    }
-
-    /**
-     * @notice Calculates excess vault shares using the converted assetDeposited and max redeemable shares
-     * @return excess vault shares or 0
-     */
-    function _excessVaultShares() internal view returns (uint256) {
-        return
-            vault.maxRedeem(address(this)) >
-                vault.convertToShares(assetDeposited)
-                ? vault.maxRedeem(address(this)) -
-                    vault.convertToShares(assetDeposited)
-                : 0;
+        uint256 excessShares = vault.maxRedeem(address(this)) -
+            vault.convertToShares(assetDeposited);
+        uint256 assetsRedeemed = vault.redeem(
+            excessShares,
+            owner(),
+            address(this)
+        );
+        emit ExcessSharesSwept(excessShares, assetsRedeemed);
     }
 }
