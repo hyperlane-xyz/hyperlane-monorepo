@@ -7,8 +7,6 @@ import { EnvironmentConfig } from '../../../src/config';
 import { agents } from './agent';
 import { testConfigs } from './chains';
 import { core } from './core';
-import { storageGasOracleConfig } from './gas-oracle';
-import { igp } from './igp';
 import { infra } from './infra';
 import { owners } from './owners';
 
@@ -17,7 +15,6 @@ export const environment: EnvironmentConfig = {
   chainMetadataConfigs: testConfigs,
   agents,
   core,
-  igp,
   owners,
   infra,
   // NOTE: Does not work from hardhat.config.ts
@@ -31,5 +28,4 @@ export const environment: EnvironmentConfig = {
   getKeys: async () => {
     throw new Error('Not implemented');
   },
-  storageGasOracleConfig,
 };

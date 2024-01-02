@@ -14,10 +14,21 @@ import {
 import { ProtocolFeeHookConfig } from '@hyperlane-xyz/sdk/src/hook/types';
 import { objMap } from '@hyperlane-xyz/utils';
 
+import { createIgpConfig } from '../../igp';
+
 import { aggregationIsm } from './aggregationIsm';
-import { igp } from './igp';
-import { chainToValidator } from './multisigIsm';
+import { chainNames } from './chains';
+import { storageGasOracleConfig } from './gas-oracle';
+import { chainToValidator, multisigIsm } from './multisigIsm';
 import { owners } from './owners';
+
+// Call createIgpConfig once before the loop
+const igpConfig = createIgpConfig(
+  chainNames,
+  storageGasOracleConfig,
+  multisigIsm,
+  owners,
+);
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const defaultIsm: RoutingIsmConfig = {
@@ -36,7 +47,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
 
   const igpHook: IgpHookConfig = {
     type: HookType.INTERCHAIN_GAS_PAYMASTER,
-    ...igp[local],
+    ...igpConfig[local],
   };
 
   const aggregationHook: AggregationHookConfig = {

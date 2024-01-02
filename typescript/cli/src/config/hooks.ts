@@ -10,6 +10,7 @@ import {
   GasOracleContractType,
   HookType,
   HooksConfig,
+  IgpHookConfig,
   MultiProvider,
   MultisigConfig,
   chainMetadata,
@@ -30,14 +31,6 @@ import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
 import { readChainConfigsIfExists } from './chain.js';
 
-const StorageGasOracleSchema = z.object({
-  type: z.literal(GasOracleContractType.StorageGasOracle),
-  overhead: z.string(),
-  tokenExchangeRate: z.string(),
-  gasPrice: z.string(),
-});
-export type StorageGasOracleConfig = z.infer<typeof StorageGasOracleSchema>;
-
 const ProtocolFeeSchema = z.object({
   type: z.literal(HookType.PROTOCOL_FEE),
   owner: z.string(),
@@ -50,14 +43,22 @@ const MerkleTreeSchema = z.object({
   type: z.literal(HookType.MERKLE_TREE),
 });
 
-const IGPSchema = z.object({
+const StorageGasOracleSchema = z.object({
+  type: z.literal(GasOracleContractType.StorageGasOracle),
+  overhead: z.string(),
+  tokenExchangeRate: z.string().optional(),
+  gasPrice: z.string().optional(),
+});
+export type StorageGasOracleConfig = z.infer<typeof StorageGasOracleSchema>;
+
+const IgpSchema = z.object({
   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
   owner: z.string(),
   beneficiary: z.string(),
-  overhead: z.record(z.number()),
-  gasOracleType: z.record(StorageGasOracleSchema),
+  oracleConfig: z.record(StorageGasOracleSchema),
   oracleKey: z.string(),
 });
+export type IgpConfig = z.infer<typeof IgpSchema>;
 
 const RoutingConfigSchema: z.ZodSchema<any> = z.lazy(() =>
   z.object({
@@ -77,7 +78,7 @@ const AggregationConfigSchema: z.ZodSchema<any> = z.lazy(() =>
 const HookConfigSchema = z.union([
   ProtocolFeeSchema,
   MerkleTreeSchema,
-  IGPSchema,
+  IgpSchema,
   RoutingConfigSchema,
   AggregationConfigSchema,
 ]);
@@ -92,6 +93,31 @@ export type HooksConfigMap = z.infer<typeof HooksConfigMapSchema>;
 
 export function isValidHookConfigMap(config: any) {
   return HooksConfigMapSchema.safeParse(config).success;
+}
+
+function processIgpConfig(igpConfig: IgpConfig): IgpHookConfig {
+  const domainGasConfig: ChainMap<DomainGasConfig> = {};
+  Object.keys(igpConfig.oracleConfig).forEach((chain) => {
+    const userDefinedGasConfig = igpConfig.oracleConfig[chain];
+    if (userDefinedGasConfig.tokenExchangeRate === undefined) {
+      domainGasConfig[chain].tokenExchangeRate = BigNumber.from('10000000000'); // Assign default value
+    }
+    if (userDefinedGasConfig.gasPrice === undefined) {
+      domainGasConfig[chain].gasPrice = BigNumber.from('100'); // Assign default value
+    }
+    domainGasConfig[chain].type = userDefinedGasConfig.type;
+    domainGasConfig[chain].overhead = BigNumber.from(
+      userDefinedGasConfig.overhead,
+    );
+  });
+  const trueIgpConfig: IgpHookConfig = {
+    type: HookType.INTERCHAIN_GAS_PAYMASTER,
+    owner: igpConfig.owner,
+    beneficiary: igpConfig.beneficiary,
+    oracleKey: igpConfig.oracleKey,
+    oracleConfig: domainGasConfig,
+  };
+  return trueIgpConfig;
 }
 
 export async function presetHookConfigs(
@@ -172,10 +198,27 @@ export function readHooksConfigMap(filePath: string) {
     );
   }
   const parsedConfig = result.data;
+
+  // special case for IGP
+  for (const chain of Object.keys(parsedConfig)) {
+    const hookConfig = parsedConfig[chain];
+    if (hookConfig.required.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
+      parsedConfig[chain].required = processIgpConfig(
+        hookConfig.required as IgpConfig,
+      );
+    }
+    if (hookConfig.default.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
+      parsedConfig[chain].default = processIgpConfig(
+        hookConfig.default as IgpConfig,
+      );
+    }
+  }
+
   const hooks: ChainMap<HooksConfig> = objMap(
     parsedConfig,
     (_, config) => config as HooksConfig,
   );
+
   logGreen(`All hook configs in ${filePath} are valid for ${hooks}`);
   return hooks;
 }
@@ -345,32 +388,31 @@ export async function createIGPConfig(
   }
   const beneficiaryAddress = normalizeAddressEvm(beneficiary);
   const oracleKeyAddress = normalizeAddressEvm(oracleKey);
-  const oracleConfigs: ChainMap<DomainGasConfig> = {};
+  const oracleConfigs: ChainMap<StorageGasOracleConfig> = {};
   for (const chain of remotes) {
-    const overhead = parseInt(
-      await input({
-        message: `Enter overhead for ${chain} (eg 75000)`,
-      }),
-    );
+    const overhead = await input({
+      message: `Enter overhead for ${chain} (eg 75000)`,
+    });
 
-    const tokenExchangeRate = parseInt(
-      await input({
-        message: `Enter token exchnage rate ${chain} compared to the origin (out of 1e10)`,
-      }),
-    );
-
-    const gasPrice = parseInt(
-      await input({
-        message: `Enter gas price for ${chain} (eg 45 wei)`,
-      }),
-    );
-
-    oracleConfigs[chain] = {
+    const oracleConfig: StorageGasOracleConfig = {
       type: GasOracleContractType.StorageGasOracle,
-      overhead: BigNumber.from(overhead),
-      tokenExchangeRate: BigNumber.from(tokenExchangeRate),
-      gasPrice: BigNumber.from(gasPrice),
+      overhead,
     };
+
+    const tokenExchangeRateInput = await input({
+      message: `Enter token exchange rate ${chain} compared to the origin (out of 1e10) or press ENTER to use 1e10`,
+    });
+    const gasPriceInput = await input({
+      message: `Enter gas price for ${chain} (eg 45 wei) or use the RPC gas price by pressing ENTER`,
+    });
+
+    if (tokenExchangeRateInput.trim() !== '') {
+      oracleConfig.tokenExchangeRate = tokenExchangeRateInput;
+    }
+    if (gasPriceInput.trim() !== '') {
+      oracleConfig.gasPrice = gasPriceInput;
+    }
+    oracleConfigs[chain] = oracleConfig;
   }
   return {
     type: HookType.INTERCHAIN_GAS_PAYMASTER,

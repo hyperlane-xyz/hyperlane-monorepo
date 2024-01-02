@@ -109,6 +109,7 @@ export {
   IgpOverheadViolation,
   IgpViolation,
   IgpViolationType,
+  RemoteGasData,
 } from './gas/types';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
 export {

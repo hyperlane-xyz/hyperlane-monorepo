@@ -41,6 +41,8 @@ anvil1:
               anvil2: 50000 # gas amount (number)
             gasOracleType:
               anvil2: StorageGasOracle
+            # oracleConfig:
+            #   anvil2:
 anvil2:
   required:
     type: protocolFee

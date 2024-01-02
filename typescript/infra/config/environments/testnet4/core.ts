@@ -18,9 +18,19 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { supportedChainNames } from './chains';
-import { igp } from './igp';
+import { createIgpConfig } from '../../igp';
+
+import { ethereumChainNames, supportedChainNames } from './chains';
+import { storageGasOracleConfig } from './gas-oracle';
 import { owners } from './owners';
+
+// chain should be the most restrictive chain (like excluding solana devnet)
+const igp = createIgpConfig(
+  ethereumChainNames,
+  storageGasOracleConfig,
+  defaultMultisigConfigs,
+  owners,
+);
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(

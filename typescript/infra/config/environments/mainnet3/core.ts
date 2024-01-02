@@ -8,14 +8,27 @@ import {
   IgpHookConfig,
   MerkleTreeHookConfig,
   ProtocolFeeHookConfig,
+  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../contexts';
+import { createIgpConfig } from '../../igp';
 import { routingIsm } from '../../routingIsm';
 
-import { igp } from './igp';
+import { ethereumChainNames } from './chains';
+import { storageGasOracleConfig } from './gas-oracle';
 import { owners, safes } from './owners';
+
+// chain should be the most restrictive chain (like excluding manta pacific)
+const DEPLOYER_ADDRESS = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+const igp = createIgpConfig(
+  ethereumChainNames,
+  storageGasOracleConfig,
+  defaultMultisigConfigs,
+  owners,
+  DEPLOYER_ADDRESS,
+);
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const defaultIsm = routingIsm('mainnet3', local, Contexts.Hyperlane);

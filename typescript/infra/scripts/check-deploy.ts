@@ -2,8 +2,6 @@ import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
   HyperlaneCore,
   HyperlaneCoreChecker,
-  HyperlaneIgp,
-  HyperlaneIgpChecker,
   HyperlaneIsmFactory,
   InterchainAccount,
   InterchainAccountChecker,
@@ -15,7 +13,6 @@ import { Contexts } from '../config/contexts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
 import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
-import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor';
 import { ProxiedRouterGovernor } from '../src/govern/ProxiedRouterGovernor';
 import { Role } from '../src/roles';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
@@ -69,11 +66,8 @@ async function check() {
       config.core,
       ismFactory,
     );
+    // TODO: core checker should check nested igp as hook if present
     governor = new HyperlaneCoreGovernor(checker, config.owners);
-  } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
-    const igp = HyperlaneIgp.fromEnvironment(env, multiProvider);
-    const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
-    governor = new HyperlaneIgpGovernor(checker, config.owners);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const ica = InterchainAccount.fromEnvironment(env, multiProvider);
     const checker = new InterchainAccountChecker(

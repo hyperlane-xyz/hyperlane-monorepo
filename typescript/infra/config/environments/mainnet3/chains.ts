@@ -68,7 +68,7 @@ export const ethereumChainNames = Object.keys(
 // Remove mantapacific, as it's not considered a "blessed"
 // chain. It's not included in the scraper domains table,
 // and we don't relay to mantapacific on the Hyperlane or RC contexts.
-const hyperlaneContextRelayChains = ethereumChainNames.filter(
+export const hyperlaneContextRelayChains = ethereumChainNames.filter(
   (chainName) => chainName !== chainMetadata.mantapacific.name,
 );
 

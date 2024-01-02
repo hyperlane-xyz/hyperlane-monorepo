@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { BigNumber } from 'ethers';
 
 import {
   ChainMap,
@@ -37,10 +38,14 @@ describe('readHooksConfigMap', () => {
                   beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-                  gasOracleType: {
-                    anvil2: GasOracleContractType.StorageGasOracle,
+                  oracleConfig: {
+                    anvil2: {
+                      type: GasOracleContractType.StorageGasOracle,
+                      tokenExchangeRate: BigNumber.from('1000000000000000000'),
+                      gasPrice: BigNumber.from('1000000000'),
+                      overhead: BigNumber.from('50000'),
+                    },
                   },
-                  overhead: { anvil2: 50000 },
                 },
               ],
             },
@@ -70,10 +75,14 @@ describe('readHooksConfigMap', () => {
                   beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-                  gasOracleType: {
-                    anvil1: GasOracleContractType.StorageGasOracle,
+                  oracleConfig: {
+                    anvil1: {
+                      type: GasOracleContractType.StorageGasOracle,
+                      tokenExchangeRate: BigNumber.from('1000000000000000000'),
+                      gasPrice: BigNumber.from('1000000000'),
+                      overhead: BigNumber.from('50000'),
+                    },
                   },
-                  overhead: { anvil1: 50000 },
                 },
               ],
             },

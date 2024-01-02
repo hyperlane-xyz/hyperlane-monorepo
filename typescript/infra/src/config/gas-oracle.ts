@@ -1,14 +1,9 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName, RemoteGasData } from '@hyperlane-xyz/sdk';
 import { convertDecimals } from '@hyperlane-xyz/utils';
 
 import { mustGetChainNativeTokenDecimals } from '../utils/utils';
-
-export type RemoteGasData = {
-  tokenExchangeRate: BigNumber;
-  gasPrice: BigNumber;
-};
 
 export type RemoteGasDataConfig = RemoteGasData & {
   remoteDomain: number;

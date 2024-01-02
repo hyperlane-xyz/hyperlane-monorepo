@@ -1,8 +1,7 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { MultiProvider, RemoteGasData } from '@hyperlane-xyz/sdk';
 
-import { RemoteGasData } from '../../src/config';
 import { RemoteGasDataConfig } from '../../src/config/gas-oracle';
 
 export function prettyRemoteGasDataConfig(

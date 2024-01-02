@@ -6,7 +6,6 @@ import {
   ChainName,
   CoreConfig,
   DeployedIsm,
-  GasOracleContractType,
   HooksConfig,
   HyperlaneAddressesMap,
   HyperlaneContractsMap,
@@ -15,7 +14,6 @@ import {
   HyperlaneDeploymentArtifacts,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
-  IgpConfig,
   IsmConfig,
   IsmType,
   MultiProvider,
@@ -24,7 +22,6 @@ import {
   buildAgentConfig,
   buildAggregationIsmConfigs,
   defaultMultisigConfigs,
-  multisigIsmVerificationCost,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
@@ -418,41 +415,6 @@ export function buildTestRecipientConfigMap(
     config[chain] = { interchainSecurityModule };
     return config;
   }, {});
-}
-
-export function buildIgpConfigMap(
-  owner: Address,
-  chains: ChainName[],
-  multisigConfigs: ChainMap<MultisigConfig>,
-): ChainMap<IgpConfig> {
-  const configMap: ChainMap<IgpConfig> = {};
-  for (const chain of chains) {
-    const overhead: ChainMap<number> = {};
-    const gasOracleType: ChainMap<GasOracleContractType> = {};
-    for (const remote of chains) {
-      if (chain === remote) continue;
-      // TODO: accurate estimate of gas from ChainMap<ISMConfig>
-      const threshold = multisigConfigs[remote]
-        ? multisigConfigs[remote].threshold
-        : 2;
-      const validatorsLength = multisigConfigs[remote]
-        ? multisigConfigs[remote].validators.length
-        : 3;
-      overhead[remote] = multisigIsmVerificationCost(
-        threshold,
-        validatorsLength,
-      );
-      gasOracleType[remote] = GasOracleContractType.StorageGasOracle;
-    }
-    configMap[chain] = {
-      owner,
-      beneficiary: owner,
-      gasOracleType,
-      overhead,
-      oracleKey: owner,
-    };
-  }
-  return configMap;
 }
 
 function writeMergedAddresses(
