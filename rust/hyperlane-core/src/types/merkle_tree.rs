@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use crate::{Decode, Encode, HyperlaneProtocolError, Sequenced, H256};
 
 /// Merkle Tree Hook insertion event
-#[derive(Debug, Copy, Clone, new, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, new, Eq, PartialEq, Hash)]
 pub struct MerkleTreeInsertion {
     leaf_index: u32,
     message_id: H256,

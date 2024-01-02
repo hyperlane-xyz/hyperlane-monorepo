@@ -49,7 +49,7 @@ mod test {
 
             let m = HyperlaneMessage {
                 nonce: 100,
-                version: 0,
+                version: 3,
                 origin: 10,
                 sender: H256::from_low_u64_be(4),
                 destination: 12,

@@ -10,13 +10,13 @@ import { ChainMetadata } from '../../metadata/chainMetadataTypes';
 import { ProviderMethod } from './ProviderMethods';
 import { HyperlaneSmartProvider } from './SmartProvider';
 
-const MIN_BLOCK_NUM = 10000000;
+const MIN_BLOCK_NUM = 10200000;
 const DEFAULT_ACCOUNT = '0x9d525E28Fe5830eE92d7Aa799c4D21590567B595';
 const WETH_CONTRACT = '0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6';
 const WETH_TRANSFER_TOPIC0 =
   '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 const WETH_TRANSFER_TOPIC1 =
-  '0x0000000000000000000000004648a43b2c14da09fdf82b161150d3f634f40491';
+  '0x00000000000000000000000022a9af161b9660f3dc1b996bf1e622a2c58b8558';
 const WETH_CALL_DATA =
   '0x70a082310000000000000000000000004f7a67464b5976d7547c860109e4432d50afb38e';
 const TRANSFER_TX_HASH =
@@ -61,7 +61,9 @@ describe('SmartProvider', () => {
 
   for (const [description, config] of configs) {
     describe(description, () => {
-      provider = HyperlaneSmartProvider.fromChainMetadata(config);
+      provider = HyperlaneSmartProvider.fromChainMetadata(config, {
+        debug: true,
+      });
 
       itDoesIfSupported(ProviderMethod.GetBlock, async () => {
         const latestBlock = await provider.getBlock('latest');

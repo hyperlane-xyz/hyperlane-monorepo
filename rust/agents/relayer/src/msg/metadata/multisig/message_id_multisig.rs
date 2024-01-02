@@ -9,12 +9,12 @@ use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
 use tracing::{debug, warn};
 
-use crate::msg::metadata::BaseMetadataBuilder;
+use crate::msg::metadata::MessageMetadataBuilder;
 
 use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 
 #[derive(Debug, Clone, Deref, new, AsRef)]
-pub struct MessageIdMultisigMetadataBuilder(BaseMetadataBuilder);
+pub struct MessageIdMultisigMetadataBuilder(MessageMetadataBuilder);
 
 #[async_trait]
 impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
@@ -46,6 +46,16 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
                 "No merkle leaf found for message id, must have not been enqueued in the tree"
             )
         );
+
+        // Update the validator latest checkpoint metrics.
+        let _ = checkpoint_syncer
+            .get_validator_latest_checkpoints_and_update_metrics(
+                validators,
+                self.origin_domain(),
+                self.destination_domain(),
+            )
+            .await;
+
         let quorum_checkpoint = unwrap_or_none_result!(
             checkpoint_syncer
                 .fetch_checkpoint(validators, threshold as usize, leaf_index)

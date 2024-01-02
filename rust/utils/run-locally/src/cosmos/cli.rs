@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, io::Write, path::PathBuf, process::Stdio};
 
+use hyperlane_cosmos::RawCosmosAmount;
 use k256::ecdsa::SigningKey;
 
 use crate::{
@@ -9,7 +10,7 @@ use crate::{
 
 use super::{
     crypto::KeyPair, default_keys, modify_toml, sed, types::BalanceResponse, wait_for_node, Codes,
-    Coin, TxResponse,
+    TxResponse,
 };
 
 const GENESIS_FUND: u128 = 1000000000000;
@@ -253,7 +254,7 @@ impl OsmosisCLI {
         sender: &str,
         contract: &str,
         execute_msg: T,
-        funds: Vec<Coin>,
+        funds: Vec<RawCosmosAmount>,
     ) -> TxResponse {
         let mut cmd = self
             .cli()

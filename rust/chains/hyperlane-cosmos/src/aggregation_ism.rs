@@ -1,15 +1,17 @@
 use std::str::FromStr;
 
 use crate::{
-    address::CosmosAddress,
     grpc::WasmProvider,
-    payloads::aggregate_ism::{ModulesAndThresholdRequest, ModulesAndThresholdResponse},
+    payloads::{
+        ism_routes::QueryIsmGeneralRequest,
+        multisig_ism::{VerifyInfoRequest, VerifyInfoRequestInner, VerifyInfoResponse},
+    },
     ConnectionConf, CosmosProvider, Signer,
 };
 use async_trait::async_trait;
 use hyperlane_core::{
     AggregationIsm, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, H256,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, RawHyperlaneMessage, H256,
 };
 use tracing::instrument;
 
@@ -66,15 +68,27 @@ impl AggregationIsm for CosmosAggregationIsm {
         &self,
         message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
-        let payload = ModulesAndThresholdRequest::new(message);
+        let payload = VerifyInfoRequest {
+            verify_info: VerifyInfoRequestInner {
+                message: hex::encode(RawHyperlaneMessage::from(message)),
+            },
+        };
 
-        let data = self.provider.grpc().wasm_query(payload, None).await?;
-        let response: ModulesAndThresholdResponse = serde_json::from_slice(&data)?;
+        let data = self
+            .provider
+            .grpc()
+            .wasm_query(QueryIsmGeneralRequest { ism: payload }, None)
+            .await?;
+        let response: VerifyInfoResponse = serde_json::from_slice(&data)?;
 
+        // Note that due to a misnomer in the CosmWasm implementation, the `modules` field is called `validators`.
         let modules: ChainResult<Vec<H256>> = response
-            .modules
-            .into_iter()
-            .map(|module| CosmosAddress::from_str(&module).map(|ca| ca.digest()))
+            .validators
+            .iter()
+            // The returned values are Bech32-decoded Cosmos addresses.
+            // Since they are not EOAs but rather contracts, they are 32 bytes long and
+            // need to be parsed directly as an `H256`.
+            .map(|module| H256::from_str(module).map_err(Into::into))
             .collect();
 
         Ok((modules?, response.threshold))

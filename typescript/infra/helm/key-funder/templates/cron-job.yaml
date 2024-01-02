@@ -10,6 +10,7 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
+      activeDeadlineSeconds: 14400 # 60 * 60 * 4 seconds = 4 hours
       template:
         spec:
           restartPolicy: Never

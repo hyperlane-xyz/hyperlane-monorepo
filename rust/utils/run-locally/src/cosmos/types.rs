@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use hpl_interface::types::bech32_decode;
+use hyperlane_cosmos::RawCosmosAmount;
 
 use super::{cli::OsmosisCLI, CosmosNetwork};
 
@@ -35,18 +36,13 @@ pub struct TxResponse {
     pub logs: Vec<TxLog>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Coin {
-    pub denom: String,
-    pub amount: String,
-}
-
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Codes {
     pub hpl_hook_merkle: u64,
     pub hpl_hook_routing: u64,
     pub hpl_igp: u64,
     pub hpl_igp_oracle: u64,
+    pub hpl_ism_aggregate: u64,
     pub hpl_ism_multisig: u64,
     pub hpl_ism_routing: u64,
     pub hpl_test_mock_ism: u64,
@@ -62,6 +58,7 @@ pub struct Deployments {
     pub hook_routing: String,
     pub igp: String,
     pub igp_oracle: String,
+    pub ism_aggregate: String,
     pub ism_routing: String,
     pub ism_multisig: String,
     pub mailbox: String,
@@ -73,7 +70,7 @@ pub struct Deployments {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct BalanceResponse {
-    pub balances: Vec<Coin>,
+    pub balances: Vec<RawCosmosAmount>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -125,6 +122,7 @@ pub struct AgentConfig {
     pub prefix: String,
     pub signer: AgentConfigSigner,
     pub index: AgentConfigIndex,
+    pub gas_price: RawCosmosAmount,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -163,6 +161,10 @@ impl AgentConfig {
                 typ: "cosmosKey".to_string(),
                 key: format!("0x{}", hex::encode(validator.priv_key.to_bytes())),
                 prefix: "osmo".to_string(),
+            },
+            gas_price: RawCosmosAmount {
+                denom: "uosmo".to_string(),
+                amount: "0.05".to_string(),
             },
             index: AgentConfigIndex {
                 from: 1,
