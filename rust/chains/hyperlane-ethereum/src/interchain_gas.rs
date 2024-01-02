@@ -84,6 +84,7 @@ impl<M> Indexer<InterchainGasPayment> for EthereumInterchainGasPaymasterIndexer<
 where
     M: Middleware + 'static,
 {
+    /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
