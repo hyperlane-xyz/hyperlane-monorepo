@@ -40,9 +40,9 @@ contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
      * @param _amount amount to deposit into vault
      */
     function _depositIntoVault(uint256 _amount) internal {
+        assetDeposited += _amount;
         wrappedToken.approve(address(vault), _amount);
         vault.deposit(_amount, address(this));
-        assetDeposited += _amount;
     }
 
     /**
@@ -63,8 +63,8 @@ contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
      * @param _amount amount to withdraw from vault
      */
     function _withdrawFromVault(uint256 _amount) internal {
-        vault.withdraw(_amount, address(this), address(this));
         assetDeposited -= _amount;
+        vault.withdraw(_amount, address(this), address(this));
     }
 
     /**
