@@ -1,5 +1,13 @@
 # @hyperlane-xyz/sdk
 
+## 3.5.1
+
+### Patch Changes
+
+- a04454d6d: Use getBalance instead of queryContractSmart for CwTokenAdapter
+  - @hyperlane-xyz/core@3.5.1
+  - @hyperlane-xyz/utils@3.5.1
+
 ## 3.5.0
 
 ### Minor Changes
