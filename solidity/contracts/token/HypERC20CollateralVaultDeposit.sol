@@ -21,6 +21,7 @@ contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
         address _mailbox
     ) HypERC20Collateral(_vault.asset(), _mailbox) {
         vault = _vault;
+        wrappedToken.approve(address(vault), type(uint256).max);
     }
 
     /**
@@ -40,7 +41,6 @@ contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
      */
     function _depositIntoVault(uint256 _amount) internal {
         assetDeposited += _amount;
-        wrappedToken.approve(address(vault), _amount);
         vault.deposit(_amount, address(this));
     }
 
