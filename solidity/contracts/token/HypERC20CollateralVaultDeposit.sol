@@ -17,11 +17,10 @@ contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
     event ExcessSharesSwept(uint256 amount, uint256 assetsRedeemed);
 
     constructor(
-        address _vault,
-        address erc20,
+        ERC4626 _vault,
         address _mailbox
-    ) HypERC20Collateral(erc20, _mailbox) {
-        vault = ERC4626(_vault);
+    ) HypERC20Collateral(_vault.asset(), _mailbox) {
+        vault = _vault;
     }
 
     /**
