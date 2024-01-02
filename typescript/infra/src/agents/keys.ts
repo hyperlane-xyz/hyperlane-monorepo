@@ -6,7 +6,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../config/contexts';
 import { DeployEnvironment } from '../config';
 import { Role } from '../roles';
-import { assertChain, assertContext, assertRole } from '../utils/utils';
+import { assertContext, assertRole } from '../utils/utils';
 
 import { parseKeyIdentifier } from './agent';
 
@@ -118,7 +118,7 @@ export class ReadOnlyCloudAgentKey extends BaseCloudAgentKey {
       assertRole(role),
       identifier,
       address,
-      chainName ? assertChain(chainName) : undefined,
+      chainName,
       index,
     );
   }
