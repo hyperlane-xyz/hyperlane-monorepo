@@ -55,7 +55,7 @@ jobs:
 
       # Compare outputs
       - name: Compare outputs
-        run: diff --unified solidity/base-storage solidity/HEAD-storage > layout.diff
+        run: diff --new-file --unified solidity/base-storage solidity/HEAD-storage > layout.diff
 
       - name: Comment PR with layout diff
         uses: yorhodes/actions-comment-pull-request@v2.4.6
