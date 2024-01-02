@@ -32,8 +32,7 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         vault = new ERC4626Test(address(primaryToken), "Regular Vault", "RV");
 
         localToken = new HypERC20CollateralVaultDeposit(
-            address(vault),
-            address(primaryToken),
+            vault,
             address(localMailbox)
         );
         erc20CollateralVaultDeposit = HypERC20CollateralVaultDeposit(
@@ -51,7 +50,7 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
-    function testRemoteTransfer_deposits_intoVault(
+    function testERC4626VaultDeposit_RemoteTransfer_deposits_intoVault(
         uint256 transferAmount
     ) public {
         vm.assume(transferAmount < TOTAL_SUPPLY);
@@ -74,7 +73,7 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         assertEq(erc20CollateralVaultDeposit.assetDeposited(), transferAmount);
     }
 
-    function testRemoteTransfer_withdraws_fromVault(
+    function testERC4626VaultDeposit_RemoteTransfer_withdraws_fromVault(
         uint256 transferAmount
     ) public {
         vm.assume(transferAmount < TOTAL_SUPPLY);
@@ -108,7 +107,7 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
     }
 
-    function testRemoteTransfer_withdraws_lessShares(
+    function testERC4626VaultDeposit_RemoteTransfer_withdraws_lessShares(
         uint256 rewardAmount
     ) public {
         // @dev a rewardAmount less than the DUST_AMOUNT will round down
@@ -148,20 +147,24 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         assertGt(vault.maxRedeem(address(erc20CollateralVaultDeposit)), 0);
     }
 
-    function testRemoteTransfer_sweep_revertNonOwner(
+    function testERC4626VaultDeposit_RemoteTransfer_sweep_revertNonOwner(
         uint256 rewardAmount
     ) public {
-        testRemoteTransfer_withdraws_lessShares(rewardAmount);
+        testERC4626VaultDeposit_RemoteTransfer_withdraws_lessShares(
+            rewardAmount
+        );
         vm.startPrank(BOB);
         vm.expectRevert(abi.encodePacked("Ownable: caller is not the owner"));
         erc20CollateralVaultDeposit.sweep();
         vm.stopPrank();
     }
 
-    function testRemoteTransfer_sweep_noExcessShares(
+    function testERC4626VaultDeposit_RemoteTransfer_sweep_noExcessShares(
         uint256 transferAmount
     ) public {
-        testRemoteTransfer_deposits_intoVault(transferAmount);
+        testERC4626VaultDeposit_RemoteTransfer_deposits_intoVault(
+            transferAmount
+        );
 
         uint256 ownerBalancePrev = primaryToken.balanceOf(
             erc20CollateralVaultDeposit.owner()
@@ -174,10 +177,12 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         );
     }
 
-    function testRemoteTransfer_sweep_excessShares(
+    function testERC4626VaultDeposit_RemoteTransfer_sweep_excessShares(
         uint256 rewardAmount
     ) public {
-        testRemoteTransfer_withdraws_lessShares(rewardAmount);
+        testERC4626VaultDeposit_RemoteTransfer_withdraws_lessShares(
+            rewardAmount
+        );
 
         uint256 ownerBalancePrev = primaryToken.balanceOf(
             erc20CollateralVaultDeposit.owner()
@@ -193,10 +198,12 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         );
     }
 
-    function testRemoteTransfer_sweep_excessSharesMultipleDeposit(
+    function testERC4626VaultDeposit_RemoteTransfer_sweep_excessSharesMultipleDeposit(
         uint256 rewardAmount
     ) public {
-        testRemoteTransfer_withdraws_lessShares(rewardAmount);
+        testERC4626VaultDeposit_RemoteTransfer_withdraws_lessShares(
+            rewardAmount
+        );
 
         uint256 ownerBalancePrev = primaryToken.balanceOf(
             erc20CollateralVaultDeposit.owner()
