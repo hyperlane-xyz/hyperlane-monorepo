@@ -9,12 +9,12 @@ use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
 use tracing::debug;
 
-use crate::msg::metadata::BaseMetadataBuilder;
+use crate::msg::metadata::MessageMetadataBuilder;
 
 use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 
 #[derive(Debug, Clone, Deref, new, AsRef)]
-pub struct MerkleRootMultisigMetadataBuilder(BaseMetadataBuilder);
+pub struct MerkleRootMultisigMetadataBuilder(MessageMetadataBuilder);
 #[async_trait]
 impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
     fn token_layout(&self) -> Vec<MetadataToken> {
@@ -55,7 +55,9 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                     validators,
                     threshold as usize,
                     leaf_index,
-                    highest_leaf_index
+                    highest_leaf_index,
+                    self.origin_domain(),
+                    self.destination_domain(),
                 )
                 .await
                 .context(CTX)?,

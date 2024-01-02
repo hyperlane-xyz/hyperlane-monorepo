@@ -5,11 +5,11 @@ use eyre::Context;
 use hyperlane_core::{HyperlaneMessage, H256};
 use tracing::instrument;
 
-use super::{BaseMetadataBuilder, MetadataBuilder};
+use super::{MessageMetadataBuilder, MetadataBuilder};
 
 #[derive(Clone, Debug, new, Deref)]
 pub struct RoutingIsmMetadataBuilder {
-    base: BaseMetadataBuilder,
+    base: MessageMetadataBuilder,
 }
 
 #[async_trait]

@@ -235,29 +235,36 @@ const GasPaymentEnforcementSchema = z.union([
 ]);
 export type GasPaymentEnforcement = z.infer<typeof GasPaymentEnforcementSchema>;
 
+const MetricAppContextSchema = z.object({
+  name: z.string().min(1),
+  matchingList: MatchingListSchema.describe(
+    'A matching list, any message that matches will be classified as this app context.',
+  ),
+});
+
 export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
   db: z
     .string()
-    .nonempty()
+    .min(1)
     .optional()
     .describe('The path to the relayer database.'),
   relayChains: CommaSeperatedChainList.describe(
     'Comma seperated list of chains to relay messages between.',
   ),
   gasPaymentEnforcement: z
-    .union([z.array(GasPaymentEnforcementSchema), z.string().nonempty()])
+    .union([z.array(GasPaymentEnforcementSchema), z.string().min(1)])
     .optional()
     .describe(
       'The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.',
     ),
   whitelist: z
-    .union([MatchingListSchema, z.string().nonempty()])
+    .union([MatchingListSchema, z.string().min(1)])
     .optional()
     .describe(
       'If no whitelist is provided ALL messages will be considered on the whitelist.',
     ),
   blacklist: z
-    .union([MatchingListSchema, z.string().nonempty()])
+    .union([MatchingListSchema, z.string().min(1)])
     .optional()
     .describe(
       'If no blacklist is provided ALL will be considered to not be on the blacklist.',
@@ -274,12 +281,18 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'If true, allows local storage based checkpoint syncers. Not intended for production use.',
     ),
+  metricAppContexts: z
+    .union([z.array(MetricAppContextSchema), z.string().min(1)])
+    .optional()
+    .describe(
+      'A list of app contexts and their matching lists to use for metrics. A message will be classified as the first matching app context.',
+    ),
 });
 
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;
 
 export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
-  db: z.string().nonempty().describe('Database connection string'),
+  db: z.string().min(1).describe('Database connection string'),
   chainsToScrape: CommaSeperatedChainList.describe(
     'Comma separated list of chain names to scrape',
   ),
@@ -290,32 +303,29 @@ export type ScraperConfig = z.infer<typeof ScraperAgentConfigSchema>;
 export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
   db: z
     .string()
-    .nonempty()
+    .min(1)
     .optional()
     .describe('The path to the validator database.'),
   originChainName: z
     .string()
-    .nonempty()
+    .min(1)
     .describe('Name of the chain to validate messages on'),
   validator: AgentSignerSchema.describe('The validator attestation signer'),
   checkpointSyncer: z.discriminatedUnion('type', [
     z
       .object({
         type: z.literal('localStorage'),
-        path: z
-          .string()
-          .nonempty()
-          .describe('Path to the local storage location'),
+        path: z.string().min(1).describe('Path to the local storage location'),
       })
       .describe('A local checkpoint syncer'),
     z
       .object({
         type: z.literal('s3'),
-        bucket: z.string().nonempty(),
-        region: z.string().nonempty(),
+        bucket: z.string().min(1),
+        region: z.string().min(1),
         folder: z
           .string()
-          .nonempty()
+          .min(1)
           .optional()
           .describe(
             'The folder/key-prefix to use, defaults to the root of the bucket',

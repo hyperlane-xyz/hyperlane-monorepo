@@ -34,7 +34,7 @@ use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     msg::{
         gas_payment::GasPaymentEnforcer,
-        metadata::BaseMetadataBuilder,
+        metadata::{AppContextClassifier, BaseMetadataBuilder},
         pending_message::{MessageContext, MessageSubmissionMetrics},
         pending_operation::DynPendingOperation,
         processor::{MessageProcessor, MessageProcessorMetrics},
@@ -212,6 +212,7 @@ impl BaseAgent for Relayer {
             for origin in &settings.origin_chains {
                 let db = dbs.get(origin).unwrap().clone();
                 let metadata_builder = BaseMetadataBuilder::new(
+                    origin.clone(),
                     destination_chain_setup.clone(),
                     prover_syncs[origin].clone(),
                     validator_announces[origin].clone(),
@@ -219,6 +220,10 @@ impl BaseAgent for Relayer {
                     core.metrics.clone(),
                     db,
                     5,
+                    AppContextClassifier::new(
+                        mailboxes[destination].clone(),
+                        settings.metric_app_contexts.clone(),
+                    ),
                 );
 
                 msg_ctxs.insert(
@@ -229,7 +234,7 @@ impl BaseAgent for Relayer {
                     Arc::new(MessageContext {
                         destination_mailbox: mailboxes[destination].clone(),
                         origin_db: dbs.get(origin).unwrap().clone(),
-                        metadata_builder,
+                        metadata_builder: Arc::new(metadata_builder),
                         origin_gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
                         transaction_gas_limit,
                         metrics: MessageSubmissionMetrics::new(&core_metrics, origin, destination),
