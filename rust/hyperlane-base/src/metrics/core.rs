@@ -1,14 +1,16 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, OnceLock};
 
 use eyre::Result;
+use hyperlane_core::{HyperlaneDomain, H160};
 use prometheus::{
     histogram_opts, labels, opts, register_counter_vec_with_registry,
     register_gauge_vec_with_registry, register_histogram_vec_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, CounterVec,
     Encoder, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
+use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tracing::warn;
 
@@ -37,7 +39,6 @@ pub struct CoreMetrics {
     span_counts: IntCounterVec,
     span_events: IntCounterVec,
     last_known_message_nonce: IntGaugeVec,
-    validator_checkpoint_index: IntGaugeVec,
     submitter_queue_length: IntGaugeVec,
 
     operations_processed_count: IntCounterVec,
@@ -51,6 +52,9 @@ pub struct CoreMetrics {
 
     /// Set of provider-specific metrics. These only need to get created once.
     provider_metrics: OnceLock<MiddlewareMetrics>,
+
+    /// Metrics that are used to observe validator sets.
+    pub validator_metrics: ValidatorObservabilityMetricManager,
 }
 
 impl CoreMetrics {
@@ -109,13 +113,18 @@ impl CoreMetrics {
             registry
         )?;
 
-        let validator_checkpoint_index = register_int_gauge_vec_with_registry!(
+        let observed_validator_latest_index = register_int_gauge_vec_with_registry!(
             opts!(
-                namespaced!("validator_checkpoint_index"),
-                "Observed signed checkpoint indices per validator",
+                namespaced!("observed_validator_latest_index"),
+                "The latest observed latest signed checkpoint indices per validator, from the perspective of the relayer",
                 const_labels_ref
             ),
-            &["origin", "validator"],
+            &[
+                "origin",
+                "destination",
+                "validator",
+                "app_context",
+            ],
             registry
         )?;
 
@@ -169,7 +178,6 @@ impl CoreMetrics {
             span_counts,
             span_events,
             last_known_message_nonce,
-            validator_checkpoint_index,
 
             submitter_queue_length,
 
@@ -180,6 +188,10 @@ impl CoreMetrics {
 
             json_rpc_client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
+
+            validator_metrics: ValidatorObservabilityMetricManager::new(
+                observed_validator_latest_index.clone(),
+            ),
         })
     }
 
@@ -296,14 +308,6 @@ impl CoreMetrics {
     ///   MessageProcessor loop.
     pub fn last_known_message_nonce(&self) -> IntGaugeVec {
         self.last_known_message_nonce.clone()
-    }
-
-    /// Gauge for reporting the most recent validator checkpoint index
-    /// Labels:
-    /// - `origin`: Origin chain
-    /// - `validator`: Address of the validator
-    pub fn validator_checkpoint_index(&self) -> IntGaugeVec {
-        self.validator_checkpoint_index.clone()
     }
 
     /// Latest message nonce in the validator.
@@ -466,5 +470,99 @@ impl Debug for CoreMetrics {
             "CoreMetrics {{ agent_name: {}, listen_port: {:?} }}",
             self.agent_name, self.listen_port
         )
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Hash)]
+struct AppContextKey {
+    origin: HyperlaneDomain,
+    destination: HyperlaneDomain,
+    app_context: String,
+}
+
+/// Manages metrics for observing sets of validators.
+pub struct ValidatorObservabilityMetricManager {
+    observed_validator_latest_index: IntGaugeVec,
+
+    app_context_validators: RwLock<HashMap<AppContextKey, HashSet<H160>>>,
+}
+
+impl ValidatorObservabilityMetricManager {
+    fn new(observed_validator_latest_index: IntGaugeVec) -> Self {
+        Self {
+            observed_validator_latest_index,
+            app_context_validators: RwLock::new(HashMap::new()),
+        }
+    }
+
+    /// Updates the metrics with the latest checkpoint index for each validator
+    /// in a given set.
+    pub async fn set_validator_latest_checkpoints(
+        &self,
+        origin: &HyperlaneDomain,
+        destination: &HyperlaneDomain,
+        app_context: String,
+        latest_checkpoints: &HashMap<H160, Option<u32>>,
+    ) {
+        let key = AppContextKey {
+            origin: origin.clone(),
+            destination: destination.clone(),
+            app_context: app_context.clone(),
+        };
+
+        let mut app_context_validators = self.app_context_validators.write().await;
+
+        // First, clear out all previous metrics for the app context.
+        // This is necessary because the set of validators may have changed.
+        if let Some(prev_validators) = app_context_validators.get(&key) {
+            for validator in prev_validators {
+                // We unwrap because an error here occurs if the # of labels
+                // provided is incorrect, and we'd like to loudly fail in e2e if that
+                // happens.
+                self.observed_validator_latest_index
+                    .remove_label_values(&[
+                        origin.as_ref(),
+                        destination.as_ref(),
+                        &format!("0x{:x}", validator).to_lowercase(),
+                        &app_context,
+                    ])
+                    .unwrap();
+            }
+        }
+
+        let mut set = HashSet::new();
+
+        // Then set the new metrics and update the cached set of validators.
+        for (validator, latest_checkpoint) in latest_checkpoints {
+            self.observed_validator_latest_index
+                .with_label_values(&[
+                    origin.as_ref(),
+                    destination.as_ref(),
+                    &format!("0x{:x}", validator).to_lowercase(),
+                    &app_context,
+                ])
+                // If the latest checkpoint is None, set to -1 to indicate that
+                // the validator did not provide a valid latest checkpoint index.
+                .set(latest_checkpoint.map(|i| i as i64).unwrap_or(-1));
+            set.insert(*validator);
+        }
+        app_context_validators.insert(key, set);
+    }
+
+    /// Gauge for reporting recently observed latest checkpoint indices for validator sets.
+    /// The entire set for an app context should be updated at once, and it should be updated
+    /// in a way that is robust to validator set changes.
+    /// Set to -1 to indicate a validator did not provide a valid latest checkpoint index.
+    /// Note that it's possible for an app to be using an aggregation ISM of more than one
+    /// validator set. If these sets are different, there is no label built into the metric
+    /// to distinguish them.
+    ///
+    /// Labels:
+    /// - `origin`: Origin chain
+    /// - `destination`: Destination chain
+    /// - `validator`: Address of the validator
+    /// - `app_context`: App context for the validator set
+    pub fn observed_validator_latest_index(&self) -> IntGaugeVec {
+        self.observed_validator_latest_index.clone()
     }
 }
