@@ -51,7 +51,6 @@ export enum DeprecatedChains {
   rinkeby = 'rinkeby',
   optimismkovan = 'optimismkovan',
   optimismrinkeby = 'optimismrinkeby',
-  neutrontestnet = 'neutrontestnet',
 }
 
 export const AllDeprecatedChains = Object.keys(DeprecatedChains) as string[];

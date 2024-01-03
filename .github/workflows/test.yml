@@ -219,7 +219,7 @@ jobs:
         working-directory: ./rust
 
       - name: agent tests with CosmWasm
-        run: RUST_BACKTRACE=1 cargo test --package run-locally --bin run-locally -- cosmos::test --nocapture
+        run: RUST_BACKTRACE=1 cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
         working-directory: ./rust
 
       - name: agent tests excluding CosmWasm
@@ -239,7 +239,7 @@ jobs:
     strategy:
       matrix:
         environment: [testnet4, mainnet3]
-        module: [ism, core, helloworld]
+        module: [ism, core, helloworld, igp]
 
     steps:
       - uses: actions/checkout@v3

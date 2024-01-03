@@ -103,14 +103,6 @@ export const arbitrum: ChainMetadata = {
 };
 
 export const arbitrumgoerli: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-goerli.arbiscan.io/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'Arbiscan',
-      url: 'https://goerli.arbiscan.io',
-    },
-  ],
   blocks: {
     confirmations: 1,
     estimateBlockTime: 3,
@@ -1017,11 +1009,6 @@ export const test3: ChainMetadata = {
 };
 
 export const viction: ChainMetadata = {
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 2,
-    reorgPeriod: 0,
-  },
   blockExplorers: [
     // {
     //   family: ExplorerFamily.Other,
@@ -1030,9 +1017,14 @@ export const viction: ChainMetadata = {
     //   apiUrl: '', // unknown
     // },
   ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 2,
+    reorgPeriod: 0,
+  },
   chainId: 88,
-  domainId: 88,
   displayName: 'Viction',
+  domainId: 88,
   name: Chains.viction,
   nativeToken: {
     decimals: 18,

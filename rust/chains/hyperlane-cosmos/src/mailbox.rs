@@ -144,9 +144,9 @@ impl Mailbox for CosmosMailbox {
             .await?;
         let response: mailbox::DefaultIsmResponse = serde_json::from_slice(&data)?;
 
-        // convert Hex to H256
-        let ism = H256::from_slice(&hex::decode(response.default_ism)?);
-        Ok(ism)
+        // convert bech32 to H256
+        let ism = CosmosAddress::from_str(&response.default_ism)?;
+        Ok(ism.digest())
     }
 
     #[instrument(err, ret, skip(self))]
@@ -166,7 +166,7 @@ impl Mailbox for CosmosMailbox {
             .await?;
         let response: mailbox::RecipientIsmResponse = serde_json::from_slice(&data)?;
 
-        // convert Hex to H256
+        // convert bech32 to H256
         let ism = CosmosAddress::from_str(&response.ism)?;
         Ok(ism.digest())
     }
@@ -215,7 +215,7 @@ impl Mailbox for CosmosMailbox {
 
         let result = TxCostEstimate {
             gas_limit: gas_limit.into(),
-            gas_price: U256::from(2500),
+            gas_price: self.provider.grpc().gas_price(),
             l2_gas_limit: None,
         };
 

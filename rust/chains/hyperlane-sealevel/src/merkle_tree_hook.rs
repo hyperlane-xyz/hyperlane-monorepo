@@ -4,13 +4,14 @@ use async_trait::async_trait;
 use derive_new::new;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    HyperlaneChain, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer,
+    HyperlaneChain, HyperlaneMessage, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion,
+    SequenceIndexer,
 };
 use hyperlane_sealevel_mailbox::accounts::OutboxAccount;
 use solana_sdk::commitment_config::CommitmentConfig;
 use tracing::instrument;
 
-use crate::SealevelMailbox;
+use crate::{SealevelMailbox, SealevelMailboxIndexer};
 
 #[async_trait]
 impl MerkleTreeHook for SealevelMailbox {
@@ -76,26 +77,38 @@ impl MerkleTreeHook for SealevelMailbox {
 }
 
 /// Struct that retrieves event data for a Sealevel merkle tree hook contract
+/// For now it's just a wrapper around the SealevelMailboxIndexer
 #[derive(Debug, new)]
-pub struct SealevelMerkleTreeHookIndexer {}
+pub struct SealevelMerkleTreeHookIndexer(SealevelMailboxIndexer);
 
 #[async_trait]
 impl Indexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
     async fn fetch_logs(
         &self,
-        _range: RangeInclusive<u32>,
+        range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(MerkleTreeInsertion, LogMeta)>> {
-        Ok(vec![])
+        let messages = Indexer::<HyperlaneMessage>::fetch_logs(&self.0, range).await?;
+        let merkle_tree_insertions = messages
+            .into_iter()
+            .map(|(m, meta)| (message_to_merkle_tree_insertion(&m), meta))
+            .collect();
+        Ok(merkle_tree_insertions)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(0)
+        Indexer::<HyperlaneMessage>::get_finalized_block_number(&self.0).await
     }
 }
 
 #[async_trait]
 impl SequenceIndexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        Ok((None, 0))
+        SequenceIndexer::<HyperlaneMessage>::sequence_and_tip(&self.0).await
     }
+}
+
+fn message_to_merkle_tree_insertion(message: &HyperlaneMessage) -> MerkleTreeInsertion {
+    let leaf_index = message.nonce;
+    let message_id = message.id();
+    MerkleTreeInsertion::new(leaf_index, message_id)
 }

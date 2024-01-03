@@ -93,9 +93,9 @@ async function main() {
     const routerConfig = core.getRouterConfig(owner);
     const syntheticConfig = {
       type: TokenType.synthetic,
-      name: 'ETH',
-      symbol: 'ETH',
-      decimals: 18,
+      name: 'USDT',
+      symbol: 'USDT',
+      decimals: 6,
       totalSupply: 0,
       ...routerConfig['ancient8testnet'],
     };

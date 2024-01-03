@@ -31,7 +31,6 @@ const gasPrices: ChainMap<BigNumber> = {
   polygonzkevmtestnet: ethers.utils.parseUnits('1', 'gwei'),
   chiado: ethers.utils.parseUnits('2', 'gwei'),
   // solanadevnet: ethers.BigNumber.from('28'),
-  neutrontestnet: ethers.utils.parseUnits('0.1', 'gwei'),
 };
 
 // Used to categorize rarity of testnet tokens & approximate exchange rates.
@@ -67,7 +66,6 @@ const chainTokenRarity: ChainMap<Rarity> = {
   polygonzkevmtestnet: Rarity.Common,
   chiado: Rarity.Common,
   // solanadevnet: Rarity.Common,
-  neutrontestnet: Rarity.Common,
 };
 
 // Gets the "value" of a testnet chain

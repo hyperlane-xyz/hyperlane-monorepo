@@ -121,8 +121,8 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
     /// instruction initializing the mint with the SPL token 2022 program.
     ///
     /// Accounts:
-    /// 0. [writable] The mint / mint authority PDA account.
-    /// 1. [writable] The ATA payer PDA account.
+    /// 0. `[writable]` The mint / mint authority PDA account.
+    /// 1. `[writable]` The ATA payer PDA account.
     fn initialize<'a, 'b>(
         program_id: &Pubkey,
         system_program: &'a AccountInfo<'b>,
@@ -187,9 +187,9 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
     /// Burns the tokens from the sender's associated token account.
     ///
     /// Accounts:
-    /// 0. [executable] The spl_token_2022 program.
-    /// 1. [writeable] The mint / mint authority PDA account.
-    /// 2. [writeable] The token sender's associated token account, from which tokens will be burned.
+    /// 0. `[executable]` The spl_token_2022 program.
+    /// 1. `[writeable]` The mint / mint authority PDA account.
+    /// 2. `[writeable]` The token sender's associated token account, from which tokens will be burned.
     fn transfer_in<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -244,11 +244,11 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
     /// result of a transfer to this chain from a remote chain.
     ///
     /// Accounts:
-    /// 0. [executable] SPL token 2022 program
-    /// 1. [executable] SPL associated token account
-    /// 2. [writeable] Mint account
-    /// 3. [writeable] Recipient associated token account
-    /// 4. [writeable] ATA payer PDA account.
+    /// 0. `[executable]` SPL token 2022 program
+    /// 1. `[executable]` SPL associated token account
+    /// 2. `[writeable]` Mint account
+    /// 3. `[writeable]` Recipient associated token account
+    /// 4. `[writeable]` ATA payer PDA account.
     fn transfer_out<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,

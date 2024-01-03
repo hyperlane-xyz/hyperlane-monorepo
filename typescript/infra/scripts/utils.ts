@@ -50,6 +50,7 @@ export const SDK_MODULES = [
   Modules.INTERCHAIN_GAS_PAYMASTER,
   Modules.INTERCHAIN_ACCOUNTS,
   Modules.INTERCHAIN_QUERY_SYSTEM,
+  Modules.TEST_RECIPIENT,
 ];
 
 export function getArgs() {

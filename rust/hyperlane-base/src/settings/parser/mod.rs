@@ -11,6 +11,7 @@ use std::{
 
 use convert_case::{Case, Casing};
 use eyre::{eyre, Context};
+use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, IndexMode,
 };
@@ -220,7 +221,7 @@ fn parse_chain(
         .end();
     let merkle_tree_hook = chain
         .chain(&mut err)
-        .get_opt_key("merkleTreeHook")
+        .get_key("merkleTreeHook")
         .parse_address_hash()
         .end();
 
@@ -233,7 +234,7 @@ fn parse_chain(
         default_rpc_consensus_type,
     );
 
-    cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce]);
+    cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
     err.into_result(ChainConf {
         domain,
         signer,
@@ -397,4 +398,23 @@ pub fn recase_json_value(mut val: Value, case: Case) -> Value {
         _ => {}
     }
     val
+}
+
+/// Expects AgentSigner.
+fn parse_cosmos_gas_price(gas_price: ValueParser) -> ConfigResult<RawCosmosAmount> {
+    let mut err = ConfigParsingError::default();
+
+    let amount = gas_price
+        .chain(&mut err)
+        .get_opt_key("amount")
+        .parse_string()
+        .end();
+
+    let denom = gas_price
+        .chain(&mut err)
+        .get_opt_key("denom")
+        .parse_string()
+        .end();
+    cfg_unwrap_all!(&gas_price.cwp, err: [denom, amount]);
+    err.into_result(RawCosmosAmount::new(denom.to_owned(), amount.to_owned()))
 }

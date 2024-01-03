@@ -60,6 +60,7 @@ export async function sendTestMessage({
     multiProvider,
     signer,
     minGas: MINIMUM_TEST_SEND_GAS,
+    chainsToGasCheck: [origin],
   });
 
   await timeout(
