@@ -229,8 +229,7 @@ export function capitalizeAddress(address: Address) {
   else return address.toUpperCase();
 }
 
-// For EVM addresses only, kept for backwards compatibility and convenience
-export function addressToBytes32(address: Address): string {
+export function addressToBytes32Evm(address: Address): string {
   return ethersUtils
     .hexZeroPad(ethersUtils.hexStripZeros(address), 32)
     .toLowerCase();
@@ -242,7 +241,7 @@ export function bytes32ToAddress(bytes32: HexString): Address {
 }
 
 export function addressToBytesEvm(address: Address): Uint8Array {
-  const addrBytes32 = addressToBytes32(address);
+  const addrBytes32 = addressToBytes32Evm(address);
   return Buffer.from(strip0x(addrBytes32), 'hex');
 }
 
@@ -254,7 +253,10 @@ export function addressToBytesCosmos(address: Address): Uint8Array {
   return fromBech32(address).data;
 }
 
-export function addressToBytes(address: Address, protocol?: ProtocolType) {
+export function addressToBytes(
+  address: Address,
+  protocol?: ProtocolType,
+): Uint8Array {
   return routeAddressUtil(
     {
       [ProtocolType.Ethereum]: addressToBytesEvm,
@@ -273,6 +275,23 @@ export function addressToByteHexString(
 ) {
   return ensure0x(
     Buffer.from(addressToBytes(address, protocol)).toString('hex'),
+  );
+}
+
+export function addressToBytes32(address: Address): string {
+  const protocol = getAddressProtocolType(address);
+  const bytes = addressToBytes(address, protocol);
+  return bytesToBytes32(bytes);
+}
+
+export function bytesToBytes32(bytes: Uint8Array): string {
+  if (bytes.length > 32) {
+    throw new Error('Bytes must be 32 bytes or less');
+  }
+  // This 0x-prefixes the hex string
+  return ethersUtils.hexZeroPad(
+    ensure0x(Buffer.from(bytes).toString('hex')),
+    32,
   );
 }
 

@@ -6,12 +6,17 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { RootAgentConfig, allAgentChainNames } from '../../../src/config';
-import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
+import {
+  GasPaymentEnforcementConfig,
+  routerMatchingList,
+} from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
 import { agentChainNames, environment } from './chains';
 import { validatorChainConfig } from './validators';
+import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
+import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
 
 // const releaseCandidateHelloworldMatchingList = routerMatchingList(
 //   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -129,6 +134,16 @@ const neutron: RootAgentConfig = {
         ],
       },
       ...gasPaymentEnforcement,
+    ],
+    metricAppContexts: [
+      {
+        name: 'manta_tia',
+        matchingList: routerMatchingList(mantaTIAAddresses),
+      },
+      {
+        name: 'arbitrum_tia',
+        matchingList: routerMatchingList(arbitrumTIAAddresses),
+      },
     ],
   },
 };
