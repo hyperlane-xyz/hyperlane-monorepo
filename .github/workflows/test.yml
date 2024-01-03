@@ -240,6 +240,11 @@ jobs:
       matrix:
         environment: [testnet4, mainnet3]
         module: [ism, core, helloworld, igp]
+        include:
+          - environment: testnet4
+            chain: ancient8testnet
+          - environment: mainnet3
+            chain: viction
 
     steps:
       - uses: actions/checkout@v3
@@ -256,7 +261,7 @@ jobs:
           key: ${{ github.sha }}
 
       - name: Test ${{ matrix.environment }} ${{ matrix.module }} deployment (check, deploy, govern, check again)
-        run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }}
+        run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}
 
   coverage:
     runs-on: ubuntu-latest
