@@ -99,7 +99,7 @@ async function main() {
       type: TokenType.synthetic,
       name: 'USDT',
       symbol: 'USDT',
-      decimals: 18,
+      decimals: 6,
       totalSupply: 0,
       gas: 75_000, // collateral overhead
       ...routerConfig['viction'],
