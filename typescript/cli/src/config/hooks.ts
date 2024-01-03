@@ -99,16 +99,15 @@ function processIgpConfig(igpConfig: IgpConfig): IgpHookConfig {
   const domainGasConfig: ChainMap<DomainGasConfig> = {};
   Object.keys(igpConfig.oracleConfig).forEach((chain) => {
     const userDefinedGasConfig = igpConfig.oracleConfig[chain];
-    if (userDefinedGasConfig.tokenExchangeRate === undefined) {
-      domainGasConfig[chain].tokenExchangeRate = BigNumber.from('10000000000'); // Assign default value
-    }
-    if (userDefinedGasConfig.gasPrice === undefined) {
-      domainGasConfig[chain].gasPrice = BigNumber.from('100'); // Assign default value
-    }
-    domainGasConfig[chain].type = userDefinedGasConfig.type;
-    domainGasConfig[chain].overhead = BigNumber.from(
-      userDefinedGasConfig.overhead,
-    );
+    domainGasConfig[chain] = {
+      ...(domainGasConfig[chain] || {}),
+      type: userDefinedGasConfig.type,
+      overhead: BigNumber.from(userDefinedGasConfig.overhead),
+      tokenExchangeRate: BigNumber.from(
+        userDefinedGasConfig.tokenExchangeRate || '10000000000',
+      ),
+      gasPrice: BigNumber.from(userDefinedGasConfig.gasPrice || '100'),
+    };
   });
   const trueIgpConfig: IgpHookConfig = {
     type: HookType.INTERCHAIN_GAS_PAYMASTER,
@@ -118,6 +117,20 @@ function processIgpConfig(igpConfig: IgpConfig): IgpHookConfig {
     oracleConfig: domainGasConfig,
   };
   return trueIgpConfig;
+}
+
+function processNestedIgpConfig(hookConfig: any): any {
+  if (hookConfig.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
+    return processIgpConfig(hookConfig as IgpConfig);
+  }
+
+  for (const key in hookConfig) {
+    if (typeof hookConfig[key] === 'object') {
+      hookConfig[key] = processNestedIgpConfig(hookConfig[key]);
+    }
+  }
+
+  return hookConfig;
 }
 
 export async function presetHookConfigs(
@@ -201,17 +214,7 @@ export function readHooksConfigMap(filePath: string) {
 
   // special case for IGP
   for (const chain of Object.keys(parsedConfig)) {
-    const hookConfig = parsedConfig[chain];
-    if (hookConfig.required.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
-      parsedConfig[chain].required = processIgpConfig(
-        hookConfig.required as IgpConfig,
-      );
-    }
-    if (hookConfig.default.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
-      parsedConfig[chain].default = processIgpConfig(
-        hookConfig.default as IgpConfig,
-      );
-    }
+    parsedConfig[chain] = processNestedIgpConfig(parsedConfig[chain]);
   }
 
   const hooks: ChainMap<HooksConfig> = objMap(

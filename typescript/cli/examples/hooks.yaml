@@ -37,12 +37,11 @@ anvil1:
             beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
             owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
             oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
-            overhead:
-              anvil2: 50000 # gas amount (number)
-            gasOracleType:
-              anvil2: StorageGasOracle
-            # oracleConfig:
-            #   anvil2:
+            oracleConfig:
+              anvil2:
+                type: StorageGasOracle # only type we support for now
+                overhead: '50000' # gas amount (number)
+                gasPrice: '12345' # gas price in wei (string)
 anvil2:
   required:
     type: protocolFee
@@ -62,7 +61,8 @@ anvil2:
             beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
             owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
             oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
-            overhead:
-              anvil1: 50000
-            gasOracleType:
-              anvil1: StorageGasOracle
+            oracleConfig:
+              anvil1:
+                type: StorageGasOracle
+                overhead: '50000'
+                gasPrice: '12345'

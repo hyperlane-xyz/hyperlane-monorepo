@@ -41,6 +41,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       [],
       [owner, beneficiary],
     );
+    console.log('igp: ', igp);
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
     const remotes = Object.keys(config.oracleConfig);
@@ -62,6 +63,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
           },
         });
       }
+      console.log('GasParamsToSet', JSON.stringify(gasParamsToSet, null, 2));
     }
 
     if (gasParamsToSet.length > 0) {
@@ -88,6 +90,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     igp: InterchainGasPaymaster,
     gasOracleConfig: ChainMap<DomainGasConfig>,
   ): Promise<void> {
+    this.logger(`Configuring gas oracles for ${chain}...`);
     const remotes = Object.keys(gasOracleConfig);
     const configsToSet: Record<
       Address,
@@ -98,13 +101,17 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       if (desiredGasData.type !== GasOracleContractType.StorageGasOracle) {
         continue;
       }
-      const gasOracleAddress = (await igp.destinationGasConfigs(remote))
+      const remoteId = this.multiProvider.getDomainId(remote);
+      const gasOracleAddress = (await igp.destinationGasConfigs(remoteId))
         .gasOracle;
       const gasOracle = StorageGasOracle__factory.connect(
         gasOracleAddress,
         this.multiProvider.getProvider(chain),
       );
-      const remoteGasDataConfig = await gasOracle.remoteGasData(remote);
+      if (!configsToSet[gasOracleAddress]) {
+        configsToSet[gasOracleAddress] = [];
+      }
+      const remoteGasDataConfig = await gasOracle.remoteGasData(remoteId);
 
       if (
         !remoteGasDataConfig.gasPrice.eq(desiredGasData.gasPrice) ||
@@ -119,12 +126,14 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       }
     }
 
+    console.log('works so far');
     const gasOracles = Object.keys(configsToSet);
     for (const gasOracle of gasOracles) {
       const gasOracleContract = StorageGasOracle__factory.connect(
         gasOracle,
         this.multiProvider.getProvider(chain),
       );
+      console.log('gasOracle', gasOracle, gasOracleContract);
       if (configsToSet[gasOracle].length > 0) {
         this.logger(
           `Setting gas oracle on ${gasOracle} for ${configsToSet[gasOracle].map(

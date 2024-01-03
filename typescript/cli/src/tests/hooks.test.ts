@@ -41,8 +41,8 @@ describe('readHooksConfigMap', () => {
                   oracleConfig: {
                     anvil2: {
                       type: GasOracleContractType.StorageGasOracle,
-                      tokenExchangeRate: BigNumber.from('1000000000000000000'),
-                      gasPrice: BigNumber.from('1000000000'),
+                      tokenExchangeRate: BigNumber.from('10000000000'),
+                      gasPrice: BigNumber.from('12345'),
                       overhead: BigNumber.from('50000'),
                     },
                   },
@@ -78,8 +78,8 @@ describe('readHooksConfigMap', () => {
                   oracleConfig: {
                     anvil1: {
                       type: GasOracleContractType.StorageGasOracle,
-                      tokenExchangeRate: BigNumber.from('1000000000000000000'),
-                      gasPrice: BigNumber.from('1000000000'),
+                      tokenExchangeRate: BigNumber.from('10000000000'),
+                      gasPrice: BigNumber.from('12345'),
                       overhead: BigNumber.from('50000'),
                     },
                   },
