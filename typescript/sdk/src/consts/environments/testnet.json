@@ -205,6 +205,8 @@
     "fallbackRoutingHook": "0x863E8c26621c52ACa1849C53500606e73BA272F0",
     "storageGasOracle": "0x6b1bb4ce664Bb4164AEB4d3D2E7DE7450DD8084C",
     "interchainGasPaymaster": "0x86fb9F1c124fB20ff130C41a79a432F770f67AFD",
-    "protocolFee": "0x267B6B6eAf6790faE5D5E9070F28a9cE64CbF279"
+    "protocolFee": "0x267B6B6eAf6790faE5D5E9070F28a9cE64CbF279",
+    "testRecipient": "0xb94F96D398eA5BAB5CA528EE9Fdc19afaA825818",
+    "testTokenRecipient": "0x51A0a100e7BC63Ea7821A3a023B6F17fb94FF011"
   }
 }
