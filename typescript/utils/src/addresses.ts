@@ -286,7 +286,7 @@ export function addressToBytes32(address: Address): string {
 
 export function bytesToBytes32(bytes: Uint8Array): string {
   if (bytes.length > 32) {
-    throw new Error('Bytes must be 32 bytes or less');
+    throw new Error('bytes must be 32 bytes or less');
   }
   // This 0x-prefixes the hex string
   return ethersUtils.hexZeroPad(
