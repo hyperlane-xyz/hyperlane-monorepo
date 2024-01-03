@@ -226,6 +226,8 @@
     "merkleTreeHook": "0x149db7afD694722747035d5AEC7007ccb6F8f112",
     "storageGasOracle": "0x19dc38aeae620380430C200a6E990D5Af5480117",
     "interchainGasPaymaster": "0x0D63128D887159d63De29497dfa45AFc7C699AE4",
-    "protocolFee": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638"
+    "protocolFee": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
+    "testRecipient": "0x17E216fBb22dF4ef8A6640ae9Cb147C92710ac84",
+    "testTokenRecipient": "0xe042D1fbDf59828dd16b9649Ede7abFc856F7a6c"
   }
 }
