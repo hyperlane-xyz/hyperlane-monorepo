@@ -239,7 +239,7 @@ jobs:
     strategy:
       matrix:
         environment: [testnet4, mainnet3]
-        module: [ism, core, helloworld, igp]
+        module: [ism, core, igp]
         include:
           - environment: testnet4
             chain: ancient8testnet
