@@ -11,11 +11,12 @@ import {
   getTokenExchangeRateFromValues,
 } from '../../../src/config/gas-oracle';
 
-import { TestnetChains, supportedChainNames } from './chains';
+import { supportedChainNames } from './chains';
 
 // Taken by looking at each testnet and overestimating gas prices
 const gasPrices: ChainMap<BigNumber> = {
   alfajores: ethers.utils.parseUnits('10', 'gwei'),
+  ancient8testnet: ethers.utils.parseUnits('0.1', 'gwei'),
   fuji: ethers.utils.parseUnits('30', 'gwei'),
   mumbai: ethers.utils.parseUnits('45', 'gwei'),
   bsctestnet: ethers.utils.parseUnits('15', 'gwei'),
@@ -50,6 +51,7 @@ const RARITY_APPROXIMATE_VALUE: Record<Rarity, BigNumber> = {
 
 const chainTokenRarity: ChainMap<Rarity> = {
   alfajores: Rarity.Common,
+  ancient8testnet: Rarity.Rare,
   fuji: Rarity.Rare,
   mumbai: Rarity.Rare,
   bsctestnet: Rarity.Rare,
@@ -67,7 +69,7 @@ const chainTokenRarity: ChainMap<Rarity> = {
 };
 
 // Gets the "value" of a testnet chain
-function getApproximateValue(chain: TestnetChains): BigNumber {
+function getApproximateValue(chain: ChainName): BigNumber {
   const rarity = chainTokenRarity[chain];
   return RARITY_APPROXIMATE_VALUE[rarity];
 }

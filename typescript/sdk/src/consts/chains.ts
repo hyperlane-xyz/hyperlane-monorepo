@@ -4,6 +4,7 @@
  */
 export enum Chains {
   alfajores = 'alfajores',
+  ancient8testnet = 'ancient8testnet',
   arbitrum = 'arbitrum',
   arbitrumgoerli = 'arbitrumgoerli',
   avalanche = 'avalanche',
@@ -75,6 +76,7 @@ export const Mainnets: Array<CoreChainName> = [
 
 export const Testnets: Array<CoreChainName> = [
   Chains.alfajores,
+  Chains.ancient8testnet,
   Chains.arbitrumgoerli,
   Chains.basegoerli,
   Chains.bsctestnet,

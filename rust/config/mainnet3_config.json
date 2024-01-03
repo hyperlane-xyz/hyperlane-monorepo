@@ -433,7 +433,7 @@
       "canonicalAsset": "untrn",
       "prefix": "neutron",
       "gasPrice": {
-        "amount": "0.5",
+        "amount": "0.57",
         "denom": "untrn"
       },
       "index": {
@@ -701,7 +701,8 @@
       "mailbox": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
       "validatorAnnounce": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
       "index": {
-        "from": 271840
+        "from": 426670,
+        "chunk": 999
       }
     },
     "viction": {
@@ -740,7 +741,8 @@
       "interchainGasPaymaster": "0x0D63128D887159d63De29497dfa45AFc7C699AE4",
       "protocolFee": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
       "index": {
-        "from": 73573878
+        "from": 73573878,
+        "chunk": 1000
       }
     }
   },

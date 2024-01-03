@@ -1,0 +1,8 @@
+{
+  "ancient8testnet": {
+    "router": "0x1b33611fCc073aB0737011d5512EF673Bff74962"
+  },
+  "goerli": {
+    "router": "0x0918293aadfa13F8c9F2cdE415811b6AD9ff4a2d"
+  }
+}

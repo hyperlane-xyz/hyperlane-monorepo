@@ -12,7 +12,7 @@ import {
 import { DeployEnvironment } from '../src/config';
 
 import { Contexts } from './contexts';
-import { ethereumChainNames as mainnet3Chains } from './environments/mainnet3/chains';
+import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/chains';
 import { owners as mainnet3Owners } from './environments/mainnet3/owners';
 import { owners as testOwners } from './environments/test/owners';
 import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains';

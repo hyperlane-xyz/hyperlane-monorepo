@@ -109,7 +109,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       if (
         !e.message.includes('already initialized') &&
         // Some RPC providers dont return the revert reason (nor allow ethers to parse it), so we have to check the message
-        !e.message.includes('Reverted 0x08c379a')
+        !e.message.includes('Reverted 0x08c379a') &&
+        // Handle situation where the gas estimation fails on the call function,
+        // then the real error reason is not available in `e.message`, but rather in `e.error.reason`
+        !e.error?.reason?.includes('already initialized')
       ) {
         throw e;
       }

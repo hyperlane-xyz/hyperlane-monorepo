@@ -12,7 +12,8 @@ use hyperlane_core::{HyperlaneMessage, MultisigSignedCheckpoint, H256};
 use strum::Display;
 use tracing::{debug, info};
 
-use crate::msg::metadata::BaseMetadataBuilder;
+use crate::msg::metadata::base::MessageMetadataBuilder;
+
 use crate::msg::metadata::MetadataBuilder;
 
 #[derive(new, AsRef, Deref)]
@@ -36,7 +37,7 @@ pub enum MetadataToken {
 }
 
 #[async_trait]
-pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
+pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Sync {
     async fn fetch_metadata(
         &self,
         validators: &[H256],
@@ -92,7 +93,6 @@ pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
 
 #[async_trait]
 impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
-    #[allow(clippy::async_yields_async)]
     async fn build(
         &self,
         ism_address: H256,
@@ -117,7 +117,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
 
         let checkpoint_syncer = self
             .as_ref()
-            .build_checkpoint_syncer(&validators)
+            .build_checkpoint_syncer(&validators, self.as_ref().app_context.clone())
             .await
             .context(CTX)?;
 
