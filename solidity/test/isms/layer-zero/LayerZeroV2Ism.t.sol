@@ -121,7 +121,7 @@ contract LayerZeroV2IsmTest is Test {
         // Check the function signature
         vm.assume(
             bytes4(_message) !=
-                bytes4(AbstractMessageIdAuthorizedIsm.verifyMessageId.selector)
+                AbstractMessageIdAuthorizedIsm.verifyMessageId.selector
         );
 
         // Set hook

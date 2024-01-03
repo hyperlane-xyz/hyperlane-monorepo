@@ -22,6 +22,7 @@ import {AbstractMessageIdAuthorizedIsm} from "../AbstractMessageIdAuthorizedIsm.
 
 // ============ External Imports ============
 import {Origin} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
+import "forge-std/console.sol";
 
 /**
  * @title OPStackIsm
@@ -107,12 +108,8 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
         bytes calldata message
     ) internal pure returns (bool) {
         return
-            keccak256(abi.encode(bytes4(message))) ==
-            keccak256(
-                abi.encode(
-                    AbstractMessageIdAuthorizedIsm.verifyMessageId.selector
-                )
-            );
+            bytes4(message) ==
+            AbstractMessageIdAuthorizedIsm.verifyMessageId.selector;
     }
 
     /**
