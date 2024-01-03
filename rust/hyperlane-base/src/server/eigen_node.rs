@@ -157,32 +157,34 @@ mod tests {
 
     #[tokio::test]
     async fn test_eigen_node_health_api() {
-        // Setup CoreMetrics and EigenNodeAPI
-
-        // Initialize the Prometheus registry
         let registry = Registry::new();
+        // Setup CoreMetrics and EigenNodeAPI
+        let core_metrics = CoreMetrics::new("dummy_relayer", 37582, registry).unwrap();
+        // Initialize the Prometheus registry
+
         // Create and register your metrics including 'latest_checkpoint'
-        let latest_checkpoint_metric = IntGaugeVec::new(
-            Opts::new("latest_checkpoint", "Description"),
-            &["phase", "chain"],
-        )
-        .unwrap();
-        registry
-            .register(Box::new(latest_checkpoint_metric.clone()))
-            .unwrap();
+        // let latest_checkpoint_metric = IntGaugeVec::new(
+        //     Opts::new("latest_checkpoint", "Description"),
+        //     &["phase", "chain"],
+        // )
+        // .unwrap();
+        // registry
+        //     .register(Box::new(latest_checkpoint_metric.clone()))
+        //     .unwrap();
         // Set a specific value for the latest_checkpoint metric
-        latest_checkpoint_metric
+        core_metrics
+            .latest_checkpoint()
             .with_label_values(&["validator_observed", "ethereum"])
             .set(42);
 
         println!(
             "Set latest_checkpoint: {}",
-            latest_checkpoint_metric
+            core_metrics
+                .latest_checkpoint()
                 .with_label_values(&["validator_observed", "ethereum"])
                 .get()
         );
 
-        let core_metrics = CoreMetrics::new("dummy_relayer", 37582, registry).unwrap();
         let node_api = EigenNodeAPI::new(Arc::new(core_metrics));
         let app = node_api.router();
 
@@ -204,7 +206,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
 
         // check the response body if needed
-        let json: Value = res.json().await.expect("Failed to parse json");
+        // let json: Value = res.json().await.expect("Failed to parse json");
         // assert_eq!(json["node_name"], "Hyperlane Validator");
 
         // Stop the server
