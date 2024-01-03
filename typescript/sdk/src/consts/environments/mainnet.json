@@ -211,7 +211,9 @@
     "aggregationHook": "0x8464aF853363B8d6844070F68b0AB34Cb6523d0F",
     "protocolFee": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
     "validatorAnnounce": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
-    "routingIsmFactory": "0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147"
+    "routingIsmFactory": "0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147",
+    "testRecipient": "0x4E1c88DD261BEe2941e6c1814597e30F53330428",
+    "testTokenRecipient": "0x5060eCD5dFAD300A90592C04e504600A7cdcF70b"
   },
   "viction": {
     "merkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
