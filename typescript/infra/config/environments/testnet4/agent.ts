@@ -62,6 +62,14 @@ const hyperlane: RootAgentConfig = {
       },
     ],
     gasPaymentEnforcement,
+    metricAppContexts: [
+      {
+        name: 'helloworld',
+        matchingList: routerMatchingList(
+          helloWorld[Contexts.Hyperlane].addresses,
+        ),
+      },
+    ],
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,

@@ -14,6 +14,7 @@ import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
 import { agentChainNames, environment } from './chains';
+import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
@@ -51,6 +52,14 @@ const hyperlane: RootAgentConfig = {
       tag: '8ccfdb7-20240103-084118',
     },
     gasPaymentEnforcement,
+    metricAppContexts: [
+      {
+        name: 'helloworld',
+        matchingList: routerMatchingList(
+          helloWorld[Contexts.Hyperlane].addresses,
+        ),
+      },
+    ],
   },
   validators: {
     docker: {
