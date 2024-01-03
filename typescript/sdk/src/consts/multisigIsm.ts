@@ -47,6 +47,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x64889519ad3ffc8f3ae436fcd63efc6b853fd63f', // staked
       '0x41188cb5a5493a961c467ba38a3f8b1f1d35ee63', // everstake
       '0xcff391b4e516452d424db66beb9052b041a9ed79', // dsrv
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
   },
 
