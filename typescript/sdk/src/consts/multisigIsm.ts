@@ -18,7 +18,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xec68258a7c882ac2fc46b81ce80380054ffb4ef2', // dsrv
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
       '0x092e1c19da58e87ea65198785ee83867fe4bb418', // everstake
-      // '0xc2d68e109a7e80e12098d50ac4ef9fa7b3061684', // staked (not yet announced)
+      '0xc2d68e109a7e80e12098d50ac4ef9fa7b3061684', // staked
     ],
   },
 
@@ -47,6 +47,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x64889519ad3ffc8f3ae436fcd63efc6b853fd63f', // staked
       '0x41188cb5a5493a961c467ba38a3f8b1f1d35ee63', // everstake
       '0xcff391b4e516452d424db66beb9052b041a9ed79', // dsrv
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
   },
 
@@ -85,6 +86,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x622e43baf06ad808ca8399360d9a2d9a1a12688b', // dsrv
       '0xf2c1e3888eb618f1f1a071ef3618f134715a9a49', // everstake
       '0x46ecbc794574727abb8f97f01dacd9db6135f47a', // staked
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
   },
 
@@ -104,7 +106,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x94438a7de38d4548ae54df5c6010c4ebc5239eae', // dsrv
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
       '0xce327111035dd38698c92c3778884dbbb0ca8103', // everstake
-      // '0xb2f5a6a6e6046e2ede213617e989329666a6c4bc', // staked (not yet announced)
+      '0xb2f5a6a6e6046e2ede213617e989329666a6c4bc', // staked
     ],
   },
 
