@@ -179,7 +179,7 @@ export {
   getChainIdNumber,
   getDomainId,
   isValidChainMetadata,
-  mustGetReorgPeriod,
+  getReorgPeriod,
 } from './metadata/chainMetadataTypes';
 export { ZHash } from './metadata/customZodTypes';
 export {
