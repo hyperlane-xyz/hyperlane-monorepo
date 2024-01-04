@@ -33,6 +33,12 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
       maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
     },
   },
+  bsctestnet: {
+    ...chainMetadata.bsctestnet,
+    transactionOverrides: {
+      gasPrice: 80 * 10 ** 9, // 8 gwei
+    },
+  },
 };
 
 export const supportedChainNames = Object.keys(testnetConfigs);

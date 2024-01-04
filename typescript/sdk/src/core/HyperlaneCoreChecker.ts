@@ -156,8 +156,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       contracts.mailbox.address,
       [
         BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH,
-        BytecodeHash.OPT_PROXY_ADMIN_BYTECODE_HASH,
         BytecodeHash.TRANSPARENT_PROXY_4_9_3_BYTECODE_HASH,
+        BytecodeHash.OPT_TRANSPARENT_PROXY_BYTECODE_HASH,
       ],
     );
     await this.checkBytecode(
