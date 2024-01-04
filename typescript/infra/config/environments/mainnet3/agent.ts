@@ -43,7 +43,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '34611f0-20231218-204504',
+      tag: '5423057-20240103-221936',
     },
     gasPaymentEnforcement,
   },
@@ -59,7 +59,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '34611f0-20231218-204504',
+      tag: '5423057-20240103-221936',
     },
   },
 };

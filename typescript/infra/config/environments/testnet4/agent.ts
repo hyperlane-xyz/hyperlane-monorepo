@@ -49,7 +49,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '34611f0-20231218-204504',
+      tag: '5423057-20240103-221936',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -74,7 +74,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '5423057-20240103-221936',
     },
   },
 };
