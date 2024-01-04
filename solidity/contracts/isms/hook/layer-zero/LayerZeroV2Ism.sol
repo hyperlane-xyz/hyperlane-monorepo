@@ -39,8 +39,8 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.NULL);
 
-    // @dev the offset of msg.data where the function parameters (as bytes) begins
-    uint8 constant FUNC_PARAMETER_OFFSET = 4;
+    // @dev the offset of msg.data where the function parameters (as bytes) begins. 4 bytes is always used when encoding the function selector
+    uint8 constant FUNC_SELECTOR_OFFSET = 4;
 
     // ============ Constructor ============
     constructor(address _endpoint) {
@@ -76,7 +76,7 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
     function _messageId(
         bytes calldata _message
     ) internal pure returns (bytes32) {
-        return bytes32(_message[FUNC_PARAMETER_OFFSET:]);
+        return bytes32(_message[FUNC_SELECTOR_OFFSET:]);
     }
 
     /**
@@ -105,7 +105,7 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
      */
     function _isAuthorizedHook() internal view returns (bool) {
         (Origin memory origin, , , , ) = abi.decode(
-            msg.data[FUNC_PARAMETER_OFFSET:],
+            msg.data[FUNC_SELECTOR_OFFSET:],
             (Origin, bytes32, bytes, address, bytes)
         );
 
@@ -117,7 +117,7 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
      */
     function _isVerifyMessageSelector() internal pure returns (bool) {
         (, , bytes memory message, , ) = abi.decode(
-            msg.data[FUNC_PARAMETER_OFFSET:],
+            msg.data[FUNC_SELECTOR_OFFSET:],
             (Origin, bytes32, bytes, address, bytes)
         );
         return
