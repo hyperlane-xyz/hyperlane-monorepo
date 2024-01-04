@@ -38,9 +38,15 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
 export const supportedChainNames = Object.keys(testnetConfigs);
 export const environment = 'testnet4';
 
+// Ancient8's domain ID is too high for the current schema used by
+// the scraper. See https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3121
+const scraperChains = supportedChainNames.filter(
+  (chain) => chain !== Chains.ancient8testnet,
+);
+
 // Hyperlane & RC context agent chain names.
 export const agentChainNames: AgentChainNames = {
   [Role.Validator]: supportedChainNames,
   [Role.Relayer]: supportedChainNames,
-  [Role.Scraper]: supportedChainNames,
+  [Role.Scraper]: scraperChains,
 };
