@@ -11,6 +11,7 @@ export enum HookType {
   OP_STACK = 'opStackHook',
   ROUTING = 'domainRoutingHook',
   FALLBACK_ROUTING = 'fallbackRoutingHook',
+  PAUSABLE = 'pausableHook',
 }
 
 export type MerkleTreeHookConfig = {
@@ -31,6 +32,11 @@ export type ProtocolFeeHookConfig = {
   maxProtocolFee: string;
   protocolFee: string;
   beneficiary: Address;
+  owner: Address;
+};
+
+export type PausableHookConfig = {
+  type: HookType.PAUSABLE;
   owner: Address;
 };
 
@@ -61,7 +67,8 @@ export type HookConfig =
   | ProtocolFeeHookConfig
   | OpStackHookConfig
   | DomainRoutingHookConfig
-  | FallbackRoutingHookConfig;
+  | FallbackRoutingHookConfig
+  | PausableHookConfig;
 
 export type HooksConfig = {
   required: HookConfig;

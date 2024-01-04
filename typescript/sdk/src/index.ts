@@ -120,6 +120,7 @@ export {
   IgpHookConfig,
   MerkleTreeHookConfig,
   OpStackHookConfig,
+  PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types';
 export {
@@ -140,6 +141,7 @@ export {
   MultisigConfig,
   MultisigIsmConfig,
   OpStackIsmConfig,
+  PausableIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
 export {

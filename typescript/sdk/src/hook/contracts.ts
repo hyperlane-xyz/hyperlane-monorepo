@@ -4,6 +4,7 @@ import {
   InterchainGasPaymaster__factory,
   MerkleTreeHook__factory,
   OPStackHook__factory,
+  PausableHook__factory,
   ProtocolFee__factory,
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
@@ -18,6 +19,7 @@ export const hookFactories = {
   [HookType.OP_STACK]: new OPStackHook__factory(),
   [HookType.ROUTING]: new DomainRoutingHook__factory(),
   [HookType.FALLBACK_ROUTING]: new FallbackDomainRoutingHook__factory(),
+  [HookType.PAUSABLE]: new PausableHook__factory(),
 };
 
 export type HookFactories = typeof hookFactories;

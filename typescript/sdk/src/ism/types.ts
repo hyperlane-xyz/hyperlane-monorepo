@@ -3,6 +3,7 @@ import {
   IMultisigIsm,
   IRoutingIsm,
   OPStackIsm,
+  PausableIsm,
   TestIsm,
 } from '@hyperlane-xyz/core';
 import type { Address, ValueOf } from '@hyperlane-xyz/utils';
@@ -31,6 +32,7 @@ export enum IsmType {
   MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
   MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm',
   TEST_ISM = 'testIsm',
+  PAUSABLE = 'pausableIsm',
 }
 
 // mapping between the two enums
@@ -50,6 +52,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.MESSAGE_ID_MULTISIG;
     case IsmType.TEST_ISM:
       return ModuleType.NULL;
+    case IsmType.PAUSABLE:
+      return ModuleType.NULL;
   }
 }
 
@@ -64,6 +68,11 @@ export type MultisigIsmConfig = MultisigConfig & {
 
 export type TestIsmConfig = {
   type: IsmType.TEST_ISM;
+};
+
+export type PausableIsmConfig = {
+  type: IsmType.PAUSABLE;
+  owner: Address;
 };
 
 export type RoutingIsmConfig = {
@@ -90,7 +99,8 @@ export type IsmConfig =
   | MultisigIsmConfig
   | AggregationIsmConfig
   | OpStackIsmConfig
-  | TestIsmConfig;
+  | TestIsmConfig
+  | PausableIsmConfig;
 
 export type DeployedIsmType = {
   [IsmType.ROUTING]: IRoutingIsm;
@@ -100,6 +110,7 @@ export type DeployedIsmType = {
   [IsmType.MESSAGE_ID_MULTISIG]: IMultisigIsm;
   [IsmType.OP_STACK]: OPStackIsm;
   [IsmType.TEST_ISM]: TestIsm;
+  [IsmType.PAUSABLE]: PausableIsm;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;
