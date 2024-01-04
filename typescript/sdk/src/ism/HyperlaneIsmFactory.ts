@@ -682,6 +682,17 @@ export async function moduleMatchesConfig(
       matches = true;
       break;
     }
+    case IsmType.PAUSABLE: {
+      const pausableIsm = PausableIsm__factory.connect(moduleAddress, provider);
+      const owner = await pausableIsm.owner();
+      matches = matches && eqAddress(owner, config.owner);
+
+      if (config.paused) {
+        const isPaused = await pausableIsm.paused();
+        matches = matches && config.paused === isPaused;
+      }
+      break;
+    }
     default: {
       throw new Error('Unsupported ModuleType');
     }

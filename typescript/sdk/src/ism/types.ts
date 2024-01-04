@@ -73,6 +73,7 @@ export type TestIsmConfig = {
 export type PausableIsmConfig = {
   type: IsmType.PAUSABLE;
   owner: Address;
+  paused?: boolean;
 };
 
 export type RoutingIsmConfig = {
