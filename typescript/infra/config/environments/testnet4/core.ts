@@ -5,17 +5,19 @@ import {
   AggregationIsmConfig,
   ChainMap,
   CoreConfig,
-  FallbackRoutingHookConfig,
   HookType,
   IgpHookConfig,
   IsmType,
   MerkleTreeHookConfig,
   MultisigConfig,
   MultisigIsmConfig,
+  PausableHookConfig,
+  PausableIsmConfig,
   ProtocolFeeHookConfig,
   RoutingIsmConfig,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
+import { DomainRoutingHookConfig } from '@hyperlane-xyz/sdk/src/hook/types';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { supportedChainNames } from './chains';
@@ -39,7 +41,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     ...multisig,
   });
 
-  const defaultIsm: RoutingIsmConfig = {
+  const routingIsm: RoutingIsmConfig = {
     type: IsmType.ROUTING,
     domains: objMap(
       originMultisigs,
@@ -52,6 +54,17 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     owner,
   };
 
+  const pausableIsm: PausableIsmConfig = {
+    type: IsmType.PAUSABLE,
+    owner,
+  };
+
+  const defaultIsm: AggregationIsmConfig = {
+    type: IsmType.AGGREGATION,
+    modules: [routingIsm, pausableIsm],
+    threshold: 2,
+  };
+
   const merkleHook: MerkleTreeHookConfig = {
     type: HookType.MERKLE_TREE,
   };
@@ -61,18 +74,22 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     ...igp[local],
   };
 
+  const pausableHook: PausableHookConfig = {
+    type: HookType.PAUSABLE,
+    owner,
+  };
+
   const aggregationHooks = objMap(
     originMultisigs,
     (_origin, _): AggregationHookConfig => ({
       type: HookType.AGGREGATION,
-      hooks: [igpHook, merkleHook],
+      hooks: [pausableHook, igpHook, merkleHook],
     }),
   );
 
-  const defaultHook: FallbackRoutingHookConfig = {
-    type: HookType.FALLBACK_ROUTING,
+  const defaultHook: DomainRoutingHookConfig = {
+    type: HookType.ROUTING,
     owner,
-    fallback: merkleHook,
     domains: aggregationHooks,
   };
 
