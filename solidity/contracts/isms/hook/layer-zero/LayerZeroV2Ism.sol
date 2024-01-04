@@ -22,7 +22,6 @@ import {AbstractMessageIdAuthorizedIsm} from "../AbstractMessageIdAuthorizedIsm.
 
 // ============ External Imports ============
 import {Origin} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
-import "forge-std/console.sol";
 
 /**
  * @title OPStackIsm
@@ -30,6 +29,7 @@ import "forge-std/console.sol";
  */
 contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
     using Message for bytes;
+    using TypeCasts for bytes32;
 
     // Layerzero endpoint address
     address public immutable endpoint;
@@ -38,6 +38,9 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
 
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.NULL);
+
+    // @dev the offset of msg.data where the function parameters (as bytes) begins
+    uint8 constant FUNC_PARAMETER_OFFSET = 4;
 
     // ============ Constructor ============
     constructor(address _endpoint) {
@@ -49,73 +52,83 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
     }
 
     /**
-     * @dev Entry point for receiving msg/packet from the LayerZero endpoint.
-     * @param _origin The origin information containing the source endpoint and sender address.
-     *  - srcEid: The source chain endpoint ID.
-     *  - sender: The sender address on the src chain.
-     *  - nonce: The nonce of the message.
+     * @notice Entry point for receiving msg/packet from the LayerZero endpoint.
      * @param _message The payload of the received message.
-     *
+     * @dev Authorization verifcation is done within verifyMessageId() -> _isAuthorized()
      */
     function lzReceive(
-        Origin calldata _origin,
+        Origin calldata,
         bytes32,
         bytes calldata _message,
         address,
         bytes calldata
     ) external payable {
-        // Only if endpoint caller and authorized hook sender
-        require(
-            _isAuthorizedEndPoint(msg.sender),
-            "LayerZeroV2Ism: endpoint is not authorized"
-        );
-        require(
-            _isAuthorizedHook(_origin.sender),
-            "LayerZeroV2Ism: hook is not authorized"
-        );
-        require(
-            _isMessageVerifySelector(_message),
-            "LayerZeroV2Ism: message payload is incorrect"
-        );
-
-        // call verifyMessageId(messageId)
-        (bool success, ) = address(this).call{value: msg.value}(_message);
-        require(success, "LayerZeroV2Ism: verifyMessageId call failed");
+        verifyMessageId(_messageId(_message));
     }
 
     // ============ Internal function ============
 
     /**
-     * @notice check if endpoint authorized
+     * @notice Slices the messageId from the message delivered from LayerZeroV2Hook
+     * @dev message is created as abi.encodeCall(AbstractMessageIdAuthorizedIsm.verifyMessageId, id)
+     * @dev _message will be 36 bytes (4 bytes for function selector, and 32 bytes for messageId)
      */
-    function _isAuthorizedEndPoint(
-        address _endpoint
-    ) internal view returns (bool) {
-        return _endpoint == endpoint;
+    function _messageId(
+        bytes calldata _message
+    ) internal pure returns (bytes32) {
+        return bytes32(_message[FUNC_PARAMETER_OFFSET:]);
     }
 
     /**
-     * @notice check if hook authorized
+     * @notice Validates criterias to verify a message
+     * @dev this is called by AbstractMessageIdAuthorizedIsm.verifyMessageId
+     * @dev parses msg.value to get parameters from lzReceive()
      */
-    function _isAuthorizedHook(bytes32 hook) internal view returns (bool) {
-        return hook == authorizedHook;
+    function _isAuthorized() internal view override returns (bool) {
+        require(_isAuthorizedHook(), "LayerZeroV2Ism: hook is not authorized");
+
+        require(
+            _isVerifyMessageSelector(),
+            "LayerZeroV2Ism: message payload is incorrect"
+        );
+
+        require(
+            _isAuthorizedEndPoint(),
+            "LayerZeroV2Ism: endpoint is not authorized"
+        );
+
+        return true;
+    }
+
+    /**
+     * @notice check if origin.sender is the authorized hook
+     */
+    function _isAuthorizedHook() internal view returns (bool) {
+        (Origin memory origin, , , , ) = abi.decode(
+            msg.data[FUNC_PARAMETER_OFFSET:],
+            (Origin, bytes32, bytes, address, bytes)
+        );
+
+        return origin.sender == authorizedHook;
     }
 
     /**
      * @notice check if the expected payload is the verifyMessageId selector, which is created in the authorized Hook
      */
-    function _isMessageVerifySelector(
-        bytes calldata message
-    ) internal pure returns (bool) {
+    function _isVerifyMessageSelector() internal pure returns (bool) {
+        (, , bytes memory message, , ) = abi.decode(
+            msg.data[FUNC_PARAMETER_OFFSET:],
+            (Origin, bytes32, bytes, address, bytes)
+        );
         return
             bytes4(message) ==
             AbstractMessageIdAuthorizedIsm.verifyMessageId.selector;
     }
 
     /**
-     * @notice Check if sender is this contract
+     * @notice check if LayerZero endpoint is authorized
      */
-    function _isAuthorized() internal view override returns (bool) {
-        return msg.sender == address(this);
+    function _isAuthorizedEndPoint() internal view returns (bool) {
+        return msg.sender == endpoint;
     }
 }

@@ -5,22 +5,28 @@ import {Test} from "forge-std/Test.sol";
 import {Origin} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
 import {TypeCasts} from "../../../contracts/libs/TypeCasts.sol";
 import {Message} from "../../../contracts/libs/Message.sol";
+import {LibBit} from "../../../contracts/libs/LibBit.sol";
 import {LayerZeroV2Ism} from "../../../contracts/isms/hook/layer-zero/LayerZeroV2Ism.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
-import "forge-std/console.sol";
 
 contract LayerZeroV2IsmTest is Test {
     using TypeCasts for address;
     using Message for bytes;
+    using LibBit for uint256;
+
     LayerZeroV2Ism lZIsm;
     address endpoint;
     address hook;
 
-    bytes constant encodedFunctionCall =
-        abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (bytes32(""))
-        );
+    function _encodedFunctionCall(
+        bytes32 _messageId
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodeCall(
+                AbstractMessageIdAuthorizedIsm.verifyMessageId,
+                (_messageId)
+            );
+    }
 
     function setUp() public {
         endpoint = makeAddr("endpointAddr");
@@ -69,7 +75,7 @@ contract LayerZeroV2IsmTest is Test {
         ) = _makeLzParameters(
                 hook,
                 bytes32(""),
-                bytes(""),
+                _encodedFunctionCall(bytes32("")),
                 makeAddr("executor"),
                 bytes("")
             );
@@ -80,45 +86,21 @@ contract LayerZeroV2IsmTest is Test {
 
         // Set endpoint
         vm.prank(endpoint);
-        lZIsm.lzReceive(origin, guid, encodedFunctionCall, executor, extraData);
-    }
-
-    function testLzV2Ism_lzReceive_RevertWhen_NotSentByHook(
-        address _hook
-    ) public {
-        vm.assume(_hook != address(0));
-
-        (
-            Origin memory origin,
-            bytes32 guid,
-            bytes memory message,
-            address executor,
-            bytes memory extraData
-        ) = _makeLzParameters(
-                _hook,
-                bytes32(""),
-                bytes(""),
-                makeAddr("executor"),
-                bytes("")
-            );
-
-        vm.startPrank(endpoint);
-        vm.expectRevert("LayerZeroV2Ism: hook is not authorized");
-        lZIsm.lzReceive(origin, guid, message, executor, extraData);
-        vm.stopPrank();
-
-        // Set hook
-        vm.startPrank(endpoint);
-        lZIsm.setAuthorizedHook(_hook.addressToBytes32());
-
-        lZIsm.lzReceive(origin, guid, encodedFunctionCall, executor, extraData);
-        vm.stopPrank();
+        lZIsm.lzReceive(
+            origin,
+            guid,
+            _encodedFunctionCall(bytes32("")),
+            executor,
+            extraData
+        );
     }
 
     function testLzV2Ism_lzReceive_RevertWhen_NotMessagePayloadIncorrect(
         bytes calldata _message
     ) public {
-        // Check the function signature
+        // Always a function signature
+        vm.assume(_message.length == 4);
+        // But not the required one
         vm.assume(
             bytes4(_message) !=
                 AbstractMessageIdAuthorizedIsm.verifyMessageId.selector
@@ -150,7 +132,7 @@ contract LayerZeroV2IsmTest is Test {
         (origin, guid, message, executor, extraData) = _makeLzParameters(
             hook,
             bytes32(""),
-            encodedFunctionCall,
+            _encodedFunctionCall(bytes32("")),
             makeAddr("executor"),
             bytes("")
         );
@@ -158,19 +140,48 @@ contract LayerZeroV2IsmTest is Test {
         vm.stopPrank();
     }
 
-    function testLzV2Ism_verifyMessageId_RevertWhen_NotCalledBySelf(
+    function testLzV2Ism_lzReceive_RevertWhen_NotSentByHook(
+        address _hook
+    ) public {
+        vm.assume(_hook != address(0));
+
+        (
+            Origin memory origin,
+            bytes32 guid,
+            bytes memory message,
+            address executor,
+            bytes memory extraData
+        ) = _makeLzParameters(
+                _hook,
+                bytes32(""),
+                _encodedFunctionCall(bytes32("")),
+                makeAddr("executor"),
+                bytes("")
+            );
+
+        vm.startPrank(endpoint);
+        vm.expectRevert("LayerZeroV2Ism: hook is not authorized");
+        lZIsm.lzReceive(origin, guid, message, executor, extraData);
+        vm.stopPrank();
+
+        // Set hook
+        vm.startPrank(endpoint);
+        lZIsm.setAuthorizedHook(_hook.addressToBytes32());
+
+        lZIsm.lzReceive(
+            origin,
+            guid,
+            _encodedFunctionCall(bytes32("")),
+            executor,
+            extraData
+        );
+        vm.stopPrank();
+    }
+
+    function testLzV2Ism_verifyMessageId_SetsCorrectMessageId(
         bytes32 messageId
     ) public {
         lZIsm.setAuthorizedHook(hook.addressToBytes32());
-
-        vm.startPrank(endpoint);
-        vm.expectRevert(
-            "AbstractMessageIdAuthorizedIsm: sender is not the hook"
-        );
-        lZIsm.verifyMessageId(messageId);
-        vm.stopPrank();
-
-        // Try through LZ Ism
         vm.startPrank(endpoint);
         (
             Origin memory origin,
@@ -181,11 +192,16 @@ contract LayerZeroV2IsmTest is Test {
         ) = _makeLzParameters(
                 hook,
                 bytes32(""),
-                encodedFunctionCall,
+                _encodedFunctionCall(messageId),
                 makeAddr("executor"),
                 bytes("")
             );
         lZIsm.lzReceive(origin, guid, message, executor, extraData);
         vm.stopPrank();
+
+        bool messageIdVerified = lZIsm.verifiedMessages(messageId).isBitSet(
+            lZIsm.VERIFIED_MASK_INDEX()
+        );
+        assertTrue(messageIdVerified);
     }
 }
