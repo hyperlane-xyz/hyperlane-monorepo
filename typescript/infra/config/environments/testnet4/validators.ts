@@ -1,4 +1,4 @@
-import { chainMetadata } from '@hyperlane-xyz/sdk';
+import { chainMetadata, mustGetReorgPeriod } from '@hyperlane-xyz/sdk';
 
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
@@ -13,7 +13,7 @@ export const validatorChainConfig = (
   return {
     alfajores: {
       interval: 5,
-      reorgPeriod: chainMetadata.alfajores.blocks!.reorgPeriod!,
+      reorgPeriod: mustGetReorgPeriod(chainMetadata.alfajores),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -33,7 +33,7 @@ export const validatorChainConfig = (
     },
     basegoerli: {
       interval: 5,
-      reorgPeriod: chainMetadata.basegoerli.blocks!.reorgPeriod!,
+      reorgPeriod: mustGetReorgPeriod(chainMetadata.alfajores),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -53,7 +53,7 @@ export const validatorChainConfig = (
     },
     fuji: {
       interval: 5,
-      reorgPeriod: chainMetadata.fuji.blocks!.reorgPeriod!,
+      reorgPeriod: mustGetReorgPeriod(chainMetadata.alfajores),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -73,7 +73,7 @@ export const validatorChainConfig = (
     },
     // chiado: {
     //   interval: 5,
-    //   reorgPeriod: chainMetadata.chiado.blocks!.reorgPeriod!,
+    //   reorgPeriod: mustGetReorgPeriod(chainMetadata.chiado),
     //   validators: validatorsConfig(
     //     {
     //       [Contexts.Hyperlane]: [
@@ -92,7 +92,7 @@ export const validatorChainConfig = (
     // },
     // lineagoerli: {
     //   interval: 5,
-    //   reorgPeriod: chainMetadata.lineagoerli.blocks!.reorgPeriod!,
+    //   reorgPeriod: mustGetReorgPeriod(chainMetadata.lineagoerli),
     //   validators: validatorsConfig(
     //     {
     //       [Contexts.Hyperlane]: [
@@ -111,7 +111,7 @@ export const validatorChainConfig = (
     // },
     mumbai: {
       interval: 5,
-      reorgPeriod: chainMetadata.mumbai.blocks!.reorgPeriod!,
+      reorgPeriod: mustGetReorgPeriod(chainMetadata.mumbai),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -131,7 +131,7 @@ export const validatorChainConfig = (
     },
     bsctestnet: {
       interval: 5,
-      reorgPeriod: chainMetadata.bsctestnet.blocks!.reorgPeriod!,
+      reorgPeriod: mustGetReorgPeriod(chainMetadata.bsctestnet),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -151,7 +151,7 @@ export const validatorChainConfig = (
     },
     goerli: {
       interval: 5,
-      reorgPeriod: chainMetadata.goerli.blocks!.reorgPeriod!,
+      reorgPeriod: mustGetReorgPeriod(chainMetadata.goerli),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -171,7 +171,7 @@ export const validatorChainConfig = (
     },
     scrollsepolia: {
       interval: 5,
-      reorgPeriod: chainMetadata.scrollsepolia.blocks!.reorgPeriod!,
+      reorgPeriod: mustGetReorgPeriod(chainMetadata.scrollsepolia),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -191,7 +191,7 @@ export const validatorChainConfig = (
     },
     sepolia: {
       interval: 5,
-      reorgPeriod: chainMetadata.sepolia.blocks!.reorgPeriod!,
+      reorgPeriod: mustGetReorgPeriod(chainMetadata.sepolia),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -211,7 +211,7 @@ export const validatorChainConfig = (
     },
     moonbasealpha: {
       interval: 5,
-      reorgPeriod: chainMetadata.moonbasealpha.blocks!.reorgPeriod!,
+      reorgPeriod: mustGetReorgPeriod(chainMetadata.moonbasealpha),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -231,7 +231,7 @@ export const validatorChainConfig = (
     },
     optimismgoerli: {
       interval: 5,
-      reorgPeriod: chainMetadata.optimismgoerli.blocks!.reorgPeriod!,
+      reorgPeriod: mustGetReorgPeriod(chainMetadata.optimismgoerli),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -251,7 +251,7 @@ export const validatorChainConfig = (
     },
     arbitrumgoerli: {
       interval: 5,
-      reorgPeriod: chainMetadata.arbitrumgoerli.blocks!.reorgPeriod!,
+      reorgPeriod: mustGetReorgPeriod(chainMetadata.arbitrumgoerli),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -271,7 +271,7 @@ export const validatorChainConfig = (
     },
     polygonzkevmtestnet: {
       interval: 5,
-      reorgPeriod: chainMetadata.polygonzkevmtestnet.blocks!.reorgPeriod!,
+      reorgPeriod: mustGetReorgPeriod(chainMetadata.polygonzkevmtestnet),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -291,7 +291,7 @@ export const validatorChainConfig = (
     },
     // proteustestnet: {
     //   interval: 5,
-    //   reorgPeriod: chainMetadata.proteustestnet.blocks!.reorgPeriod!,
+    //   reorgPeriod: mustGetReorgPeriod(chainMetadata.proteustestnet),
     //   validators: validatorsConfig(
     //     {
     //       [Contexts.Hyperlane]: [
@@ -308,7 +308,7 @@ export const validatorChainConfig = (
     // },
     // solanadevnet: {
     //   interval: 10,
-    //   reorgPeriod: chainMetadata.solanadevnet.blocks!.reorgPeriod!,
+    //   reorgPeriod: mustGetReorgPeriod(chainMetadata.solanadevnet),
     //   validators: validatorsConfig(
     //     {
     //       [Contexts.Hyperlane]: [

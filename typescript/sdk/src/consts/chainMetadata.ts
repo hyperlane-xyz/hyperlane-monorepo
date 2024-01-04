@@ -451,7 +451,7 @@ export const mantapacific: ChainMetadata = {
   blocks: {
     confirmations: 1,
     estimateBlockTime: 3,
-    reorgPeriod: 0,
+    reorgPeriod: 1,
   },
   chainId: 169,
   displayName: 'Manta Pacific',
