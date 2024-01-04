@@ -304,11 +304,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainName | number,
     tx: ContractTransaction | Promise<ContractTransaction>,
   ): Promise<ContractReceipt> {
-    let confirmations =
-      this.getChainMetadata(chainNameOrId).blocks?.confirmations;
-    if (confirmations === undefined) {
-      confirmations = 1;
-    }
+    const confirmations =
+      this.getChainMetadata(chainNameOrId).blocks?.confirmations ?? 1;
     const response = await tx;
     const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
     this.logger(
