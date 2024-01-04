@@ -16,6 +16,7 @@ import {
   MailboxClient__factory,
   OPStackIsm,
   OPStackIsm__factory,
+  PausableIsm__factory,
   StaticAddressSetFactory,
   StaticAggregationIsm__factory,
   StaticThresholdAddressSetFactory,
@@ -140,6 +141,18 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         break;
       case IsmType.OP_STACK:
         contract = await this.deployOpStackIsm(destination, config);
+        break;
+      case IsmType.PAUSABLE:
+        contract = await this.multiProvider.handleDeploy(
+          destination,
+          new PausableIsm__factory(),
+          [],
+        );
+        // TODO: do this in constructor?
+        await this.multiProvider.handleTx(
+          destination,
+          contract.transferOwnership(config.owner),
+        );
         break;
       case IsmType.TEST_ISM:
         contract = await this.multiProvider.handleDeploy(
@@ -766,8 +779,10 @@ export function collectValidators(
     aggregatedValidators.forEach((set) => {
       validators = validators.concat([...set]);
     });
-  } else if (config.type === IsmType.TEST_ISM) {
-    // This is just a TestISM
+  } else if (
+    config.type === IsmType.TEST_ISM ||
+    config.type === IsmType.PAUSABLE
+  ) {
     return new Set([]);
   } else {
     throw new Error('Unsupported ModuleType');
