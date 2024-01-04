@@ -57,14 +57,10 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
           ),
     );
 
-    await this.checkBytecode(
+    await this.checkProxy(
       chain,
       'InterchainGasPaymaster proxy',
       contracts.interchainGasPaymaster.address,
-      [
-        BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH,
-        BytecodeHash.OPT_TRANSPARENT_PROXY_BYTECODE_HASH,
-      ],
     );
   }
 
