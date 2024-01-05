@@ -6,6 +6,7 @@ export {
   BaseSealevelAdapter,
   MultiProtocolApp,
 } from './app/MultiProtocolApp';
+export { testChainNames } from './config/test/chains';
 export {
   chainIdToMetadata,
   chainMetadata,
@@ -89,7 +90,10 @@ export {
 export * as verificationUtils from './deploy/verify/utils';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
-export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer';
+export {
+  HyperlaneIgpDeployer,
+  getStorageGasOracleConfigs,
+} from './gas/HyperlaneIgpDeployer';
 export { SealevelOverheadIgpAdapter } from './gas/adapters/SealevelIgpAdapter';
 export {
   SealevelInterchainGasPaymasterConfig,
@@ -99,17 +103,15 @@ export {
   SealevelOverheadIgpDataSchema,
 } from './gas/adapters/serialization';
 export { IgpFactories, igpFactories } from './gas/contracts';
+export { RemoteGasData } from './gas/oracle/types';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
-  DomainGasConfig,
-  GasOracleContractType,
   IgpBeneficiaryViolation,
   IgpConfig,
   IgpGasOraclesViolation,
   IgpOverheadViolation,
   IgpViolation,
   IgpViolationType,
-  RemoteGasData,
 } from './gas/types';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
 export {

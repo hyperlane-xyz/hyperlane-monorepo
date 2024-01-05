@@ -9,12 +9,20 @@ import {
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
+import { CoreConfig } from '../core/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { HookConfig, HookType, IgpHookConfig } from '../hook/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
 import { IgpFactories, igpFactories } from './contracts';
-import { DomainGasConfig, GasOracleContractType, IgpConfig } from './types';
+import {
+  GasOracleContractType,
+  StorageGasOracleConfig,
+  StorageGasOraclesConfig,
+} from './oracle/types';
+import { prettyRemoteGasData } from './oracle/utils';
+import { IgpConfig } from './types';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   IgpConfig,
@@ -41,20 +49,21 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       [],
       [owner, beneficiary],
     );
-    console.log('igp: ', igp);
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
     const remotes = Object.keys(config.oracleConfig);
     for (const remote of remotes) {
       const remoteId = this.multiProvider.getDomainId(remote);
-      const newGasOverhead = config.oracleConfig[remote].overhead;
+      const newGasOverhead = config.overhead[remote];
 
       const currentGasConfig = await igp.destinationGasConfigs(remoteId);
       if (
         !eqAddress(currentGasConfig.gasOracle, storageGasOracle.address) ||
         !currentGasConfig.gasOverhead.eq(newGasOverhead)
       ) {
-        this.logger(`Setting gas params for ${remote} to ${newGasOverhead}`);
+        this.logger(
+          `Setting gas params for ${chain} -> ${remote}\ngasOverhead: ${newGasOverhead}\ngasOracle: ${storageGasOracle.address}`,
+        );
         gasParamsToSet.push({
           remoteDomain: remoteId,
           config: {
@@ -63,7 +72,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
           },
         });
       }
-      console.log('GasParamsToSet', JSON.stringify(gasParamsToSet, null, 2));
     }
 
     if (gasParamsToSet.length > 0) {
@@ -88,7 +96,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   async configureStorageGasOracle(
     chain: ChainName,
     igp: InterchainGasPaymaster,
-    gasOracleConfig: ChainMap<DomainGasConfig>,
+    gasOracleConfig: ChainMap<StorageGasOracleConfig>,
   ): Promise<void> {
     this.logger(`Configuring gas oracles for ${chain}...`);
     const remotes = Object.keys(gasOracleConfig);
@@ -96,21 +104,24 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       Address,
       StorageGasOracle.RemoteGasDataConfigStruct[]
     > = {};
+
     for (const remote of remotes) {
       const desiredGasData = gasOracleConfig[remote];
       if (desiredGasData.type !== GasOracleContractType.StorageGasOracle) {
         continue;
       }
       const remoteId = this.multiProvider.getDomainId(remote);
+      // each destination can have a different gas oracle
       const gasOracleAddress = (await igp.destinationGasConfigs(remoteId))
         .gasOracle;
       const gasOracle = StorageGasOracle__factory.connect(
         gasOracleAddress,
-        this.multiProvider.getProvider(chain),
+        this.multiProvider.getSigner(chain),
       );
       if (!configsToSet[gasOracleAddress]) {
         configsToSet[gasOracleAddress] = [];
       }
+      // return;
       const remoteGasDataConfig = await gasOracle.remoteGasData(remoteId);
 
       if (
@@ -119,6 +130,14 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
           desiredGasData.tokenExchangeRate,
         )
       ) {
+        this.logger(
+          `${chain} -> ${remote} existing gas data:\n`,
+          prettyRemoteGasData(remoteGasDataConfig),
+        );
+        this.logger(
+          `${chain} -> ${remote} desired gas data:\n`,
+          prettyRemoteGasData(desiredGasData),
+        );
         configsToSet[gasOracleAddress].push({
           remoteDomain: this.multiProvider.getDomainId(remote),
           ...desiredGasData,
@@ -126,14 +145,12 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       }
     }
 
-    console.log('works so far');
     const gasOracles = Object.keys(configsToSet);
     for (const gasOracle of gasOracles) {
       const gasOracleContract = StorageGasOracle__factory.connect(
         gasOracle,
-        this.multiProvider.getProvider(chain),
+        this.multiProvider.getSigner(chain),
       );
-      console.log('gasOracle', gasOracle, gasOracleContract);
       if (configsToSet[gasOracle].length > 0) {
         this.logger(
           `Setting gas oracle on ${gasOracle} for ${configsToSet[gasOracle].map(
@@ -162,12 +179,17 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
     const storageGasOracle = await this.deployStorageGasOracle(chain);
+    console.log(
+      "when deployed, storageGasOracle's address is",
+      storageGasOracle.address,
+    );
     const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
       chain,
       proxyAdmin,
       storageGasOracle,
       config,
     );
+    console.log("igp's address is", interchainGasPaymaster.address);
     await this.transferOwnershipOfContracts(chain, config.owner, {
       interchainGasPaymaster,
     });
@@ -189,4 +211,65 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       interchainGasPaymaster,
     };
   }
+}
+
+export function getStorageGasOracleConfigs(
+  coreConfig: ChainMap<CoreConfig>,
+): ChainMap<StorageGasOraclesConfig> {
+  const storageGasOracleConfigs: ChainMap<StorageGasOraclesConfig> = {};
+  for (const chain of Object.keys(coreConfig)) {
+    storageGasOracleConfigs[chain] = getStorageGasOracleConfig(
+      coreConfig[chain],
+    );
+  }
+  return storageGasOracleConfigs;
+}
+
+function getStorageGasOracleConfig(
+  coreConfig: CoreConfig,
+): StorageGasOraclesConfig {
+  const defaultIgpConfigs = getNestedIgpConfigs(coreConfig.defaultHook);
+  const requiredIgpConfigs = getNestedIgpConfigs(coreConfig.requiredHook);
+
+  const totalIgpConfigs = defaultIgpConfigs.concat(requiredIgpConfigs);
+  if (totalIgpConfigs.length === 0 || totalIgpConfigs.length > 1) {
+    throw Error(
+      `Incorrect number (${totalIgpConfigs.length}) of IGP configs found in core config. Please check your config.`,
+    );
+  } else if (totalIgpConfigs.length == 1 && requiredIgpConfigs.length > 0) {
+    throw Error(
+      'Both default and required IGP configs found in core config. Please check your config.',
+    );
+  }
+  return totalIgpConfigs[0].oracleConfig;
+}
+
+// function getIgpConfigs(core:)
+
+// fetching igp configs from core config
+// NB: returning a list of configs because of the possibility of nested configs
+function getNestedIgpConfigs(hookConfig: HookConfig): IgpHookConfig[] {
+  let igpConfigs: IgpHookConfig[] = [];
+
+  if (hookConfig.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
+    igpConfigs.push(hookConfig as IgpHookConfig);
+  } else if (hookConfig.type === HookType.AGGREGATION) {
+    for (const hook of hookConfig.hooks) {
+      igpConfigs = igpConfigs.concat(getNestedIgpConfigs(hook));
+    }
+  } else if (
+    hookConfig.type === HookType.ROUTING ||
+    hookConfig.type === HookType.FALLBACK_ROUTING
+  ) {
+    const domains = Object.values(hookConfig.domains); // Convert to array
+    for (const domain of domains) {
+      igpConfigs = igpConfigs.concat(getNestedIgpConfigs(domain));
+    }
+    igpConfigs =
+      hookConfig.type === HookType.FALLBACK_ROUTING
+        ? igpConfigs.concat(getNestedIgpConfigs(hookConfig.fallback))
+        : igpConfigs;
+  }
+
+  return igpConfigs;
 }

@@ -55,7 +55,7 @@ const IgpSchema = z.object({
   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
   owner: z.string(),
   beneficiary: z.string(),
-  oracleConfig: z.record(StorageGasOracleSchema),
+  gasConfig: z.record(StorageGasOracleSchema),
   oracleKey: z.string(),
 });
 export type IgpConfig = z.infer<typeof IgpSchema>;
@@ -97,8 +97,8 @@ export function isValidHookConfigMap(config: any) {
 
 function processIgpConfig(igpConfig: IgpConfig): IgpHookConfig {
   const domainGasConfig: ChainMap<DomainGasConfig> = {};
-  Object.keys(igpConfig.oracleConfig).forEach((chain) => {
-    const userDefinedGasConfig = igpConfig.oracleConfig[chain];
+  Object.keys(igpConfig.gasConfig).forEach((chain) => {
+    const userDefinedGasConfig = igpConfig.gasConfig[chain];
     domainGasConfig[chain] = {
       ...(domainGasConfig[chain] || {}),
       type: userDefinedGasConfig.type,
@@ -114,7 +114,7 @@ function processIgpConfig(igpConfig: IgpConfig): IgpHookConfig {
     owner: igpConfig.owner,
     beneficiary: igpConfig.beneficiary,
     oracleKey: igpConfig.oracleKey,
-    oracleConfig: domainGasConfig,
+    gasConfig: domainGasConfig,
   };
   return trueIgpConfig;
 }
@@ -140,7 +140,7 @@ export async function presetHookConfigs(
   destinationChains: ChainName[],
   multisigConfig?: MultisigConfig,
 ): Promise<HooksConfig> {
-  const oracleConfig: ChainMap<DomainGasConfig> = {};
+  const gasConfig: ChainMap<DomainGasConfig> = {};
 
   for (const chain of destinationChains) {
     const gasPrice = await getGasPrice(multiProvider, chain);
@@ -160,7 +160,7 @@ export async function presetHookConfigs(
       validatorCount = 3;
     }
 
-    oracleConfig[chain] = {
+    gasConfig[chain] = {
       // 1e10 - both the chains are using the same valued token
       // TODO: fix here
       tokenExchangeRate: BigNumber.from('1000000000'),
@@ -189,7 +189,7 @@ export async function presetHookConfigs(
           type: HookType.INTERCHAIN_GAS_PAYMASTER,
           owner: owner,
           beneficiary: owner,
-          oracleConfig,
+          gasConfig,
           oracleKey: owner,
         },
       ],
@@ -391,7 +391,7 @@ export async function createIGPConfig(
   }
   const beneficiaryAddress = normalizeAddressEvm(beneficiary);
   const oracleKeyAddress = normalizeAddressEvm(oracleKey);
-  const oracleConfigs: ChainMap<StorageGasOracleConfig> = {};
+  const gasConfigs: ChainMap<StorageGasOracleConfig> = {};
   for (const chain of remotes) {
     const overhead = await input({
       message: `Enter overhead for ${chain} (eg 75000)`,

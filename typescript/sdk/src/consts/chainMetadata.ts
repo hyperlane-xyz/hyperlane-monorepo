@@ -1,7 +1,7 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, ExplorerFamily } from '../metadata/chainMetadataTypes';
-import { ChainMap } from '../types';
+import { ChainMap, ChainName } from '../types';
 
 import { Chains, Mainnets, Testnets } from './chains';
 
@@ -1043,3 +1043,11 @@ export const solanaChainToClusterName: ChainMap<string> = {
   solanadevnet: 'devnet',
   solanatestnet: 'testnet',
 };
+
+export function getChainNativeTokenDecimals(chain: ChainName): number {
+  const metadata = chainMetadata[chain];
+  if (!metadata.nativeToken) {
+    throw new Error(`No native token for chain ${chain}`);
+  }
+  return metadata.nativeToken.decimals;
+}

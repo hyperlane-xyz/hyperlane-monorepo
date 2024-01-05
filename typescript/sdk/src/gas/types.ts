@@ -4,27 +4,15 @@ import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import type { CheckerViolation } from '../deploy/types';
+import { StorageGasOraclesConfig } from '../gas/oracle/types';
 import { ChainMap } from '../types';
-
-export enum GasOracleContractType {
-  StorageGasOracle = 'StorageGasOracle',
-}
-
-export type RemoteGasData = {
-  tokenExchangeRate: BigNumber;
-  gasPrice: BigNumber;
-};
-
-export type DomainGasConfig = RemoteGasData & {
-  type: GasOracleContractType;
-  overhead: BigNumber;
-};
 
 export type IgpConfig = {
   owner: Address;
   beneficiary: Address;
+  oracleConfig: StorageGasOraclesConfig;
   oracleKey: Address;
-  oracleConfig: ChainMap<DomainGasConfig>;
+  overhead: ChainMap<BigNumber>;
 };
 
 export enum IgpViolationType {

@@ -8,8 +8,8 @@ import { proxyImplementation } from '../deploy/proxy';
 import { ChainName } from '../types';
 
 import { HyperlaneIgp } from './HyperlaneIgp';
+import { GasOracleContractType } from './oracle/types';
 import {
-  GasOracleContractType,
   IgpBeneficiaryViolation,
   IgpConfig,
   IgpGasOraclesViolation,
@@ -95,8 +95,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
 
     const remotes = this.app.remoteChains(local);
     for (const remote of remotes) {
-      let expectedOverhead =
-        this.configMap[local].oracleConfig[remote].overhead;
+      let expectedOverhead = this.configMap[local].overhead[remote];
       if (!expectedOverhead) {
         this.app.logger(
           `No overhead configured for ${local} -> ${remote}, defaulting to 0`,

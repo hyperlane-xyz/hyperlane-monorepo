@@ -7,39 +7,31 @@ import {
   FallbackRoutingHookConfig,
   HookType,
   IgpHookConfig,
-  IsmType,
   MerkleTreeHookConfig,
   RoutingIsmConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolFeeHookConfig } from '@hyperlane-xyz/sdk/src/hook/types';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { createIgpConfig } from '../../igp';
+import { createIgpConfig } from '../igp';
+import { routingOverAggregation } from '../ism';
 
-import { aggregationIsm } from './aggregationIsm';
 import { chainNames } from './chains';
-import { storageGasOracleConfig } from './gas-oracle';
+import { storageGasOraclesConfig } from './gasOracle';
 import { chainToValidator, multisigIsm } from './multisigIsm';
 import { owners } from './owners';
 
-// Call createIgpConfig once before the loop
 const igpConfig = createIgpConfig(
   chainNames,
-  storageGasOracleConfig,
+  storageGasOraclesConfig,
   multisigIsm,
   owners,
 );
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
-  const defaultIsm: RoutingIsmConfig = {
-    type: IsmType.ROUTING,
-    owner,
-    domains: Object.fromEntries(
-      Object.entries(chainToValidator)
-        .filter(([chain, _]) => chain !== local)
-        .map(([chain, validatorKey]) => [chain, aggregationIsm(validatorKey)]),
-    ),
-  };
+  const defaultIsm: RoutingIsmConfig = routingOverAggregation(local, owners, [
+    chainToValidator[local],
+  ]);
 
   const merkleHook: MerkleTreeHookConfig = {
     type: HookType.MERKLE_TREE,
