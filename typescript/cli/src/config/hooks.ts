@@ -6,13 +6,13 @@ import { z } from 'zod';
 import {
   ChainMap,
   ChainName,
-  DomainGasConfig,
   GasOracleContractType,
   HookType,
   HooksConfig,
   IgpHookConfig,
   MultiProvider,
   MultisigConfig,
+  StorageGasOraclesConfig,
   chainMetadata,
   defaultMultisigConfigs,
   multisigIsmVerificationCost,
@@ -45,7 +45,6 @@ const MerkleTreeSchema = z.object({
 
 const StorageGasOracleSchema = z.object({
   type: z.literal(GasOracleContractType.StorageGasOracle),
-  overhead: z.string(),
   tokenExchangeRate: z.string().optional(),
   gasPrice: z.string().optional(),
 });
@@ -55,8 +54,9 @@ const IgpSchema = z.object({
   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
   owner: z.string(),
   beneficiary: z.string(),
-  gasConfig: z.record(StorageGasOracleSchema),
+  oracleConfig: z.record(StorageGasOracleSchema),
   oracleKey: z.string(),
+  overhead: z.record(z.string()),
 });
 export type IgpConfig = z.infer<typeof IgpSchema>;
 
@@ -96,13 +96,12 @@ export function isValidHookConfigMap(config: any) {
 }
 
 function processIgpConfig(igpConfig: IgpConfig): IgpHookConfig {
-  const domainGasConfig: ChainMap<DomainGasConfig> = {};
-  Object.keys(igpConfig.gasConfig).forEach((chain) => {
-    const userDefinedGasConfig = igpConfig.gasConfig[chain];
-    domainGasConfig[chain] = {
-      ...(domainGasConfig[chain] || {}),
+  const storageGasOracleConfig: StorageGasOraclesConfig = {};
+  Object.keys(igpConfig.oracleConfig).forEach((chain) => {
+    const userDefinedGasConfig = igpConfig.oracleConfig[chain];
+    storageGasOracleConfig[chain] = {
+      ...(storageGasOracleConfig[chain] || {}),
       type: userDefinedGasConfig.type,
-      overhead: BigNumber.from(userDefinedGasConfig.overhead),
       tokenExchangeRate: BigNumber.from(
         userDefinedGasConfig.tokenExchangeRate || '10000000000',
       ),
@@ -114,7 +113,10 @@ function processIgpConfig(igpConfig: IgpConfig): IgpHookConfig {
     owner: igpConfig.owner,
     beneficiary: igpConfig.beneficiary,
     oracleKey: igpConfig.oracleKey,
-    gasConfig: domainGasConfig,
+    overhead: objMap(igpConfig.overhead, (_, overhead) =>
+      BigNumber.from(overhead),
+    ),
+    oracleConfig: storageGasOracleConfig,
   };
   return trueIgpConfig;
 }
@@ -140,7 +142,8 @@ export async function presetHookConfigs(
   destinationChains: ChainName[],
   multisigConfig?: MultisigConfig,
 ): Promise<HooksConfig> {
-  const gasConfig: ChainMap<DomainGasConfig> = {};
+  const oracleConfig: StorageGasOraclesConfig = {};
+  const overheads: ChainMap<BigNumber> = {};
 
   for (const chain of destinationChains) {
     const gasPrice = await getGasPrice(multiProvider, chain);
@@ -160,17 +163,18 @@ export async function presetHookConfigs(
       validatorCount = 3;
     }
 
-    gasConfig[chain] = {
+    overheads[chain] = BigNumber.from(
+      multisigIsmVerificationCost(validatorThreshold, validatorCount),
+    );
+    oracleConfig[chain] = {
       // 1e10 - both the chains are using the same valued token
       // TODO: fix here
       tokenExchangeRate: BigNumber.from('1000000000'),
       gasPrice: BigNumber.from(gasPrice),
       type: GasOracleContractType.StorageGasOracle,
-      overhead: BigNumber.from(
-        multisigIsmVerificationCost(validatorThreshold, validatorCount),
-      ),
     };
   }
+
   return {
     required: {
       type: HookType.PROTOCOL_FEE,
@@ -189,7 +193,8 @@ export async function presetHookConfigs(
           type: HookType.INTERCHAIN_GAS_PAYMASTER,
           owner: owner,
           beneficiary: owner,
-          gasConfig,
+          oracleConfig,
+          overhead: overheads,
           oracleKey: owner,
         },
       ],
@@ -391,15 +396,16 @@ export async function createIGPConfig(
   }
   const beneficiaryAddress = normalizeAddressEvm(beneficiary);
   const oracleKeyAddress = normalizeAddressEvm(oracleKey);
-  const gasConfigs: ChainMap<StorageGasOracleConfig> = {};
+  const oracleConfigs: ChainMap<StorageGasOracleConfig> = {};
+  const overheads: ChainMap<string> = {};
   for (const chain of remotes) {
     const overhead = await input({
       message: `Enter overhead for ${chain} (eg 75000)`,
     });
+    overheads[chain] = overhead;
 
     const oracleConfig: StorageGasOracleConfig = {
       type: GasOracleContractType.StorageGasOracle,
-      overhead,
     };
 
     const tokenExchangeRateInput = await input({
@@ -423,6 +429,7 @@ export async function createIGPConfig(
     owner: ownerAddress,
     oracleKey: oracleKeyAddress,
     oracleConfig: oracleConfigs,
+    overhead: overheads,
   };
 }
 

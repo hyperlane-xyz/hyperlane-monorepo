@@ -30,6 +30,20 @@ export const messageIdMultisig = (
   };
 };
 
+export const routingIsm = (
+  local_chain: string,
+  multisigIsm: ChainMap<MultisigIsmConfig>,
+  owner: string,
+): RoutingIsmConfig => {
+  return {
+    type: IsmType.ROUTING,
+    owner,
+    domains: Object.fromEntries(
+      Object.entries(multisigIsm).filter(([chain]) => chain !== local_chain),
+    ),
+  };
+};
+
 export const aggregationIsm = (
   validators: Address[],
   multisigThreshold = validators.length,

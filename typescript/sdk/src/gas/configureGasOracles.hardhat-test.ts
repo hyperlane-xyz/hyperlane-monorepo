@@ -4,7 +4,7 @@ import { ethers } from 'hardhat';
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 
 import { createIgpConfig } from '../config/igp';
-import { chainNames } from '../config/test/chains';
+import { testChainNames } from '../config/test/chains';
 import { storageGasOraclesConfig } from '../config/test/gasOracle';
 import { multisigIsm } from '../config/test/multisigIsm';
 import { owners } from '../config/test/owners';
@@ -13,7 +13,7 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { HyperlaneIgpDeployer } from './HyperlaneIgpDeployer';
 
 const testIgpConfig = createIgpConfig(
-  chainNames,
+  testChainNames,
   storageGasOraclesConfig,
   multisigIsm,
   owners,

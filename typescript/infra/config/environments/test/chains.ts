@@ -1,3 +1,5 @@
+import { testChainNames } from '@hyperlane-xyz/sdk';
+
 import { AgentChainNames, Role } from '../../../src/roles';
 
 export const agentChainNames: AgentChainNames = {

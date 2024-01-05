@@ -1,21 +1,23 @@
 import { JsonRpcProvider } from '@ethersproject/providers';
 
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  MultiProvider,
+  testConfigs,
+  core as testCore,
+  owners as testOwners,
+} from '@hyperlane-xyz/sdk';
 
 import { EnvironmentConfig } from '../../../src/config';
 
 import { agents } from './agent';
-import { testConfigs } from './chains';
-import { core } from './core';
 import { infra } from './infra';
-import { owners } from './owners';
 
 export const environment: EnvironmentConfig = {
   environment: 'test',
   chainMetadataConfigs: testConfigs,
   agents,
-  core,
-  owners,
+  core: testCore,
+  owners: testOwners,
   infra,
   // NOTE: Does not work from hardhat.config.ts
   getMultiProvider: async () => {

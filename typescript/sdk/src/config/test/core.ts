@@ -16,13 +16,13 @@ import { objMap } from '@hyperlane-xyz/utils';
 import { createIgpConfig } from '../igp';
 import { routingOverAggregation } from '../ism';
 
-import { chainNames } from './chains';
+import { testChainNames } from './chains';
 import { storageGasOraclesConfig } from './gasOracle';
 import { chainToValidator, multisigIsm } from './multisigIsm';
 import { owners } from './owners';
 
 const igpConfig = createIgpConfig(
-  chainNames,
+  testChainNames,
   storageGasOraclesConfig,
   multisigIsm,
   owners,

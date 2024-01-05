@@ -6,7 +6,15 @@ export {
   BaseSealevelAdapter,
   MultiProtocolApp,
 } from './app/MultiProtocolApp';
-export { testChainNames } from './config/test/chains';
+export {
+  TOKEN_EXCHANGE_RATE_DECIMALS,
+  getAllStorageGasOracleConfigs,
+  getTokenExchangeRateFromValues,
+} from './config/gasOracle';
+export { createIgpConfig } from './config/igp';
+export { testChainNames, testConfigs } from './config/test/chains';
+export { core } from './config/test/core';
+export { owners } from './config/test/owners';
 export {
   chainIdToMetadata,
   chainMetadata,
@@ -103,7 +111,12 @@ export {
   SealevelOverheadIgpDataSchema,
 } from './gas/adapters/serialization';
 export { IgpFactories, igpFactories } from './gas/contracts';
-export { RemoteGasData } from './gas/oracle/types';
+export {
+  GasOracleContractType,
+  RemoteGasData,
+  StorageGasOracleConfig,
+  StorageGasOraclesConfig,
+} from './gas/oracle/types';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
   IgpBeneficiaryViolation,

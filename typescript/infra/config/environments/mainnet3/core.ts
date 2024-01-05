@@ -8,12 +8,12 @@ import {
   IgpHookConfig,
   MerkleTreeHookConfig,
   ProtocolFeeHookConfig,
+  createIgpConfig,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../contexts';
-import { createIgpConfig } from '../../igp';
 import { routingIsm } from '../../routingIsm';
 
 import { ethereumChainNames } from './chains';

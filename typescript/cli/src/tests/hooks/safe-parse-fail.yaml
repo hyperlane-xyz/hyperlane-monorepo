@@ -21,7 +21,8 @@ anvil1:
               anvil2:
                 type: StorageGasOracle # only type we support for now
                 overhead: '50000' # gas amount (number)
-                gasPrice: '12345' # gas price in wei (string)
+            overhead:
+              anvil2: '50000' # gas price in wei (string)
 anvil2:
   required:
     type: protocolFee
