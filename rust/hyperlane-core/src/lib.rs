@@ -33,7 +33,7 @@ pub mod metrics;
 mod types;
 
 mod chain;
-mod error;
+pub mod error;
 
 /// Enum for validity of a list of messages
 #[derive(Debug)]

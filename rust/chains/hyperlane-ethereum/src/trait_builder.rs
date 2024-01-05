@@ -1,8 +1,9 @@
-use std::fmt::Write;
+use std::fmt::{Debug, Write};
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use derive_new::new;
 use ethers::middleware::gas_oracle::{
     GasCategory, GasOracle, GasOracleMiddleware, Polygon, ProviderOracle,
 };
@@ -10,6 +11,8 @@ use ethers::prelude::{
     Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
     SignerMiddleware, WeightedProvider, Ws, WsClientError,
 };
+use ethers::providers::ProviderError;
+use ethers_core::types::U64;
 use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
 use reqwest::{Client, Url};
 use thiserror::Error;
@@ -277,4 +280,39 @@ where
         }
     };
     Ok(GasOracleMiddleware::new(provider, gas_oracle))
+}
+
+pub const BLOCK_NUMBER_RPC: &str = "eth_blockNumber";
+
+#[async_trait]
+pub trait BlockNumberGetter: Send + Sync + Debug {
+    async fn get(&self) -> Result<u64, ProviderError>;
+}
+
+#[derive(Debug, new)]
+pub struct JsonRpcBlockGetter<T: JsonRpcClient>(T);
+
+#[async_trait]
+impl<C> BlockNumberGetter for JsonRpcBlockGetter<C>
+where
+    C: JsonRpcClient + Clone,
+{
+    async fn get(&self) -> Result<u64, ProviderError> {
+        let res = self
+            .0
+            .request(BLOCK_NUMBER_RPC, ())
+            .await
+            .map(|r: U64| r.as_u64())
+            .map_err(Into::into)?;
+        Ok(res)
+    }
+}
+
+impl<C: JsonRpcClient + Clone + 'static> Into<Box<dyn BlockNumberGetter>>
+    for &PrometheusJsonRpcClient<C>
+{
+    fn into(self) -> Box<dyn BlockNumberGetter> {
+        let client = self.clone();
+        Box::new(JsonRpcBlockGetter(client))
+    }
 }

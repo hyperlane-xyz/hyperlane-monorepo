@@ -111,6 +111,16 @@ pub struct PrometheusJsonRpcClient<C> {
     config: PrometheusJsonRpcClientConfig,
 }
 
+impl<C: Clone> Clone for PrometheusJsonRpcClient<C> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            metrics: self.metrics.clone(),
+            config: self.config.clone(),
+        }
+    }
+}
+
 impl<C> Debug for PrometheusJsonRpcClient<C>
 where
     C: JsonRpcClient,

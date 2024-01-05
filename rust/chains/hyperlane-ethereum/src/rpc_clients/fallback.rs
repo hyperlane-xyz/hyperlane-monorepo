@@ -1,4 +1,5 @@
 use derive_new::new;
+use hyperlane_core::{error::HyperlaneCustomError, ChainCommunicationError};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -16,9 +17,9 @@ use tracing::{info, instrument, warn_span};
 use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClientConfigExt;
 
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
+use crate::BlockNumberGetter;
 
 const MAX_BLOCK_TIME: Duration = Duration::from_secs(2 * 60);
-const BLOCK_NUMBER_RPC: &str = "eth_blockNumber";
 
 #[derive(Clone, Copy, new)]
 struct PrioritizedProviderInner {
@@ -45,12 +46,17 @@ struct PrioritizedProviders<T> {
     priorities: RwLock<Vec<PrioritizedProviderInner>>,
 }
 
+// : Into<Box<dyn BlockNumberGetter>>
+
 /// A provider that bundles multiple providers and attempts to call the first,
 /// then the second, and so on until a response is received.
 pub struct FallbackProvider<T> {
     inner: Arc<PrioritizedProviders<T>>,
     max_block_time: Duration,
 }
+
+// in the fallback provider of the T, you want T to implement Into<Box<dyn BlockNumberGetter>>, so you can cast and then get the block number.
+// by requiring this Into impl means T can be anything and you can create the implementation in your own crate.
 
 impl<T> Clone for FallbackProvider<T> {
     fn clone(&self) -> Self {
@@ -90,7 +96,11 @@ where
     }
 }
 
-impl<T> FallbackProvider<T> {
+impl<T> FallbackProvider<T>
+where
+    T: Debug,
+    for<'a> &'a T: Into<Box<dyn BlockNumberGetter>>,
+{
     /// Convenience method for creating a `FallbackProviderBuilder` with same
     /// `JsonRpcClient` types
     pub fn builder() -> FallbackProviderBuilder<T> {
@@ -100,45 +110,6 @@ impl<T> FallbackProvider<T> {
     /// Create a new fallback provider
     pub fn new(providers: impl IntoIterator<Item = T>) -> Self {
         Self::builder().add_providers(providers).build()
-    }
-}
-
-impl<C> FallbackProvider<C>
-where
-    C: JsonRpcClient,
-{
-    async fn handle_stalled_provider(
-        &self,
-        priority: &PrioritizedProviderInner,
-        provider: &C,
-    ) -> Result<(), ProviderError> {
-        let now = Instant::now();
-        if now
-            .duration_since(priority.last_block_height.1)
-            .le(&self.max_block_time)
-        {
-            // Do nothing, it's too early to tell if the provider has stalled
-            return Ok(());
-        }
-
-        let current_block_height: u64 = provider
-            .request(BLOCK_NUMBER_RPC, ())
-            .await
-            .map(|r: U64| r.as_u64())
-            .unwrap_or(priority.last_block_height.0);
-        if current_block_height <= priority.last_block_height.0 {
-            // The `max_block_time` elapsed but the block number returned by the provider has not increased
-            self.deprioritize_provider(*priority).await;
-            info!(
-                provider_index=%priority.index,
-                ?provider,
-                "Deprioritizing an inner provider in FallbackProvider",
-            );
-        } else {
-            self.update_last_seen_block(priority.index, current_block_height)
-                .await;
-        }
-        Ok(())
     }
 
     async fn deprioritize_provider(&self, priority: PrioritizedProviderInner) {
@@ -161,7 +132,43 @@ where
         let read_lock = self.inner.priorities.read().await;
         (*read_lock).clone()
     }
+
+    async fn handle_stalled_provider(
+        &self,
+        priority: &PrioritizedProviderInner,
+        provider: &T,
+    ) -> Result<(), ProviderError> {
+        let now = Instant::now();
+        if now
+            .duration_since(priority.last_block_height.1)
+            .le(&self.max_block_time)
+        {
+            // Do nothing, it's too early to tell if the provider has stalled
+            return Ok(());
+        }
+
+        let block_getter: Box<dyn BlockNumberGetter> = (provider).into();
+        let current_block_height = block_getter
+            .get()
+            .await
+            .unwrap_or(priority.last_block_height.0);
+        if current_block_height <= priority.last_block_height.0 {
+            // The `max_block_time` elapsed but the block number returned by the provider has not increased
+            self.deprioritize_provider(*priority).await;
+            info!(
+                provider_index=%priority.index,
+                provider=?self.inner.providers[priority.index],
+                "Deprioritizing an inner provider in FallbackProvider",
+            );
+        } else {
+            self.update_last_seen_block(priority.index, current_block_height)
+                .await;
+        }
+        Ok(())
+    }
 }
+
+impl<C> FallbackProvider<C> where C: JsonRpcClient {}
 
 /// Builder to create a new fallback provider.
 #[derive(Debug, Clone)]
@@ -237,6 +244,7 @@ impl From<FallbackError> for ProviderError {
 impl<C> JsonRpcClient for FallbackProvider<C>
 where
     C: JsonRpcClient<Error = HttpClientError> + PrometheusJsonRpcClientConfigExt,
+    for<'a> &'a C: Into<Box<dyn BlockNumberGetter>>,
 {
     type Error = ProviderError;
 
@@ -281,10 +289,12 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::{JsonRpcBlockGetter, BLOCK_NUMBER_RPC};
+
     use super::*;
     use std::sync::Mutex;
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     struct ProviderMock {
         // Store requests as tuples of (method, params)
         // Even if the tests were single-threaded, need the arc-mutex
@@ -308,6 +318,12 @@ mod tests {
 
         fn requests(&self) -> Vec<(String, String)> {
             self.requests.lock().unwrap().clone()
+        }
+    }
+
+    impl Into<Box<dyn BlockNumberGetter>> for &ProviderMock {
+        fn into(self) -> Box<dyn BlockNumberGetter> {
+            Box::new(JsonRpcBlockGetter::new(self.clone()))
         }
     }
 
