@@ -10,21 +10,23 @@ import {
   InterchainAccountChecker,
   InterchainQuery,
   InterchainQueryChecker,
-  RouterApp,
+  TokenApp,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts';
+import warpConfig from '../config/environments/mainnet3/warp/config.json';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
 import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
 import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor';
-import { ProxiedRouterGovernor } from '../src/govern/ProxiedRouterGovernor';
+import { RouterGovernor } from '../src/govern/RouterGovernor';
 import { Role } from '../src/roles';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
 import { getHelloWorldApp } from './helloworld/utils';
 import {
   Modules,
+  getAddresses,
   getEnvironmentConfig,
   getArgs as getRootArgs,
   withContext,
@@ -52,7 +54,8 @@ async function check() {
         [fork]: { blocks: { confirmations: 0 } },
       });
 
-      const owner = config.core[fork].owner;
+      // TODO: revert
+      const owner = warpConfig.arbitrum.owner;
       const signer = await impersonateAccount(owner);
       multiProvider.setSigner(fork, signer);
     }
@@ -71,11 +74,11 @@ async function check() {
       config.core,
       ismFactory,
     );
-    governor = new HyperlaneCoreGovernor(checker, config.owners);
+    governor = new HyperlaneCoreGovernor(checker);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     const igp = HyperlaneIgp.fromEnvironment(env, multiProvider);
     const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
-    governor = new HyperlaneIgpGovernor(checker, config.owners);
+    governor = new HyperlaneIgpGovernor(checker);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const ica = InterchainAccount.fromEnvironment(env, multiProvider);
     const checker = new InterchainAccountChecker(
@@ -83,7 +86,7 @@ async function check() {
       ica,
       routerConfig,
     );
-    governor = new ProxiedRouterGovernor(checker, config.owners);
+    governor = new RouterGovernor(checker);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const iqs = InterchainQuery.fromEnvironment(env, multiProvider);
     const checker = new InterchainQueryChecker(
@@ -91,7 +94,7 @@ async function check() {
       iqs,
       routerConfig,
     );
-    governor = new ProxiedRouterGovernor(checker, config.owners);
+    governor = new RouterGovernor(checker);
   } else if (module === Modules.HELLO_WORLD) {
     const app = await getHelloWorldApp(
       config,
@@ -99,17 +102,23 @@ async function check() {
       Role.Deployer,
       Contexts.Hyperlane, // Owner should always be from the hyperlane context
     );
-    const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
     const checker = new HelloWorldChecker(
       multiProvider,
       app,
       routerConfig,
       ismFactory,
     );
-    governor = new ProxiedRouterGovernor(checker, config.owners);
+    governor = new RouterGovernor(checker);
   } else if (module === Modules.WARP) {
-    const app = RouterApp;
-    const checker = new HyperlaneRouterChecker(multiProvider);
+    const addresses = getAddresses(environment, Modules.WARP);
+    const app = TokenApp.fromAddresses(addresses, multiProvider);
+    const checker = new HyperlaneRouterChecker(
+      multiProvider,
+      app,
+      warpConfig,
+      ismFactory,
+    );
+    governor = new RouterGovernor(checker);
   } else {
     console.log(`Skipping ${module}, checker or governor unimplemented`);
     return;

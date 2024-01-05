@@ -1,8 +1,6 @@
 import {
-  ChainMap,
   ConnectionClientViolation,
   ConnectionClientViolationType,
-  HyperlaneAppChecker,
   OwnerViolation,
   RouterApp,
   RouterConfig,
@@ -10,21 +8,13 @@ import {
   RouterViolationType,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppGovernor } from './HyperlaneAppGovernor';
 
-export class ProxiedRouterGovernor<
+export class RouterGovernor<
   App extends RouterApp<any>,
   Config extends RouterConfig,
 > extends HyperlaneAppGovernor<App, Config> {
-  constructor(
-    checker: HyperlaneAppChecker<App, Config>,
-    owners: ChainMap<Address>,
-  ) {
-    super(checker, owners);
-  }
-
   protected async mapViolationsToCalls() {
     for (const violation of this.checker.violations) {
       switch (violation.type) {

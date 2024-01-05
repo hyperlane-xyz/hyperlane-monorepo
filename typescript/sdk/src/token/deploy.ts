@@ -137,9 +137,8 @@ export class HypERC20Deployer extends GasRouterDeployer<
     const factory = isFast
       ? new FastHypERC20Collateral__factory()
       : new HypERC20Collateral__factory();
-    const name = isFast ? 'FastHypERC20Collateral' : 'HypERC20Collateral';
 
-    return this.deployContractFromFactory(chain, factory, name, [
+    return this.deployContractFromFactory(chain, factory, 'router', [
       config.token,
       config.mailbox,
     ]);
@@ -154,7 +153,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       router = await this.deployContractFromFactory(
         chain,
         new HypNativeScaled__factory(),
-        'HypNativeScaled',
+        'router',
         [config.scale, config.mailbox],
       );
     } else {
@@ -172,16 +171,16 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20Config,
   ): Promise<HypERC20> {
-    const isFast = isFastConfig(config);
-    const factory = isFast
+    const factory = isFastConfig(config)
       ? new FastHypERC20__factory()
       : new HypERC20__factory();
-    const name = isFast ? 'FastHypERC20' : 'HypERC20';
 
-    const router = await this.deployContractFromFactory(chain, factory, name, [
-      config.decimals,
-      config.mailbox,
-    ]);
+    const router = await this.deployContractFromFactory(
+      chain,
+      factory,
+      'router',
+      [config.decimals, config.mailbox],
+    );
 
     try {
       await this.multiProvider.handleTx(

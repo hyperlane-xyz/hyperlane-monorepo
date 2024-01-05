@@ -5,6 +5,7 @@ import {
   ChainName,
   HyperlaneApp,
   HyperlaneAppChecker,
+  OwnableConfig,
   OwnerViolation,
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, objMap } from '@hyperlane-xyz/utils';
@@ -31,19 +32,16 @@ export type AnnotatedCallData = CallData & {
 
 export abstract class HyperlaneAppGovernor<
   App extends HyperlaneApp<any>,
-  Config,
+  Config extends OwnableConfig,
 > {
   readonly checker: HyperlaneAppChecker<App, Config>;
   private owners: ChainMap<Address>;
   private calls: ChainMap<AnnotatedCallData[]>;
   private canPropose: ChainMap<Map<string, boolean>>;
 
-  constructor(
-    checker: HyperlaneAppChecker<App, Config>,
-    owners: ChainMap<Address>,
-  ) {
+  constructor(checker: HyperlaneAppChecker<App, Config>) {
     this.checker = checker;
-    this.owners = owners;
+    this.owners = objMap(this.checker.configMap, (_, config) => config.owner);
     this.calls = objMap(this.checker.app.contractsMap, () => []);
     this.canPropose = objMap(this.checker.app.contractsMap, () => new Map());
   }

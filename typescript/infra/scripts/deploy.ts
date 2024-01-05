@@ -109,6 +109,7 @@ async function main() {
         gas: 600_000,
       },
     };
+
     deployer = new HypERC20Deployer(multiProvider, ismFactory);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;

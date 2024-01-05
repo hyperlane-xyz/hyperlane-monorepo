@@ -347,6 +347,7 @@ export {
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
 } from './token/adapters/serialization';
+export { TokenApp } from './token/app';
 export {
   CollateralConfig,
   ERC20Metadata,
