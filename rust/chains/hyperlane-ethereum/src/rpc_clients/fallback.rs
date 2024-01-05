@@ -98,8 +98,7 @@ where
 
 impl<T> FallbackProvider<T>
 where
-    T: Debug,
-    for<'a> &'a T: Into<Box<dyn BlockNumberGetter>>,
+    T: Debug + Into<Box<dyn BlockNumberGetter>> + Clone,
 {
     /// Convenience method for creating a `FallbackProviderBuilder` with same
     /// `JsonRpcClient` types
@@ -147,7 +146,7 @@ where
             return Ok(());
         }
 
-        let block_getter: Box<dyn BlockNumberGetter> = (provider).into();
+        let block_getter: Box<dyn BlockNumberGetter> = provider.clone().into();
         let current_block_height = block_getter
             .get()
             .await
@@ -243,8 +242,10 @@ impl From<FallbackError> for ProviderError {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl<C> JsonRpcClient for FallbackProvider<C>
 where
-    C: JsonRpcClient<Error = HttpClientError> + PrometheusJsonRpcClientConfigExt,
-    for<'a> &'a C: Into<Box<dyn BlockNumberGetter>>,
+    C: JsonRpcClient<Error = HttpClientError>
+        + PrometheusJsonRpcClientConfigExt
+        + Into<Box<dyn BlockNumberGetter>>
+        + Clone,
 {
     type Error = ProviderError;
 
@@ -321,7 +322,7 @@ mod tests {
         }
     }
 
-    impl Into<Box<dyn BlockNumberGetter>> for &ProviderMock {
+    impl Into<Box<dyn BlockNumberGetter>> for ProviderMock {
         fn into(self) -> Box<dyn BlockNumberGetter> {
             Box::new(JsonRpcBlockGetter::new(self.clone()))
         }

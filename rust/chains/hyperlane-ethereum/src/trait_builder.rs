@@ -295,7 +295,7 @@ pub struct JsonRpcBlockGetter<T: JsonRpcClient>(T);
 #[async_trait]
 impl<C> BlockNumberGetter for JsonRpcBlockGetter<C>
 where
-    C: JsonRpcClient + Clone,
+    C: JsonRpcClient,
 {
     async fn get(&self) -> Result<u64, ProviderError> {
         let res = self
@@ -308,11 +308,8 @@ where
     }
 }
 
-impl<C: JsonRpcClient + Clone + 'static> Into<Box<dyn BlockNumberGetter>>
-    for &PrometheusJsonRpcClient<C>
-{
+impl<C: JsonRpcClient + 'static> Into<Box<dyn BlockNumberGetter>> for PrometheusJsonRpcClient<C> {
     fn into(self) -> Box<dyn BlockNumberGetter> {
-        let client = self.clone();
-        Box::new(JsonRpcBlockGetter(client))
+        Box::new(JsonRpcBlockGetter(self))
     }
 }
