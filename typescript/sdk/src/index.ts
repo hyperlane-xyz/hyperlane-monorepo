@@ -13,7 +13,11 @@ export {
   getTokenExchangeRateFromValues,
 } from './config/gasOracle';
 export { createIgpConfig } from './config/igp';
-export { buildMultisigIsmConfigs, routingOverAggregation } from './config/ism';
+export {
+  buildAggregationIsmConfigs,
+  buildMultisigIsmConfigs,
+  buildRoutingOverAggregationIsmConfig,
+} from './config/ism';
 export { testChainNames, testConfigs } from './config/test/chains';
 export { core } from './config/test/core';
 export { owners } from './config/test/owners';
@@ -148,7 +152,6 @@ export {
   collectValidators,
   moduleCanCertainlyVerify,
 } from './ism/HyperlaneIsmFactory';
-export { buildAggregationIsmConfigs } from './ism/multisig';
 export {
   AggregationIsmConfig,
   DeployedIsm,

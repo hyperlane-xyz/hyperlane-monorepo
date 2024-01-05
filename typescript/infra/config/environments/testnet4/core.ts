@@ -10,9 +10,9 @@ import {
   MerkleTreeHookConfig,
   ProtocolFeeHookConfig,
   RoutingIsmConfig,
+  buildRoutingOverAggregationIsmConfig,
   createIgpConfig,
   defaultMultisigConfigs,
-  routingOverAggregation,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
@@ -29,7 +29,7 @@ const igp = createIgpConfig(
 );
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
-  const defaultIsm: RoutingIsmConfig = routingOverAggregation(
+  const defaultIsm: RoutingIsmConfig = buildRoutingOverAggregationIsmConfig(
     local,
     owners,
     defaultMultisigConfigs,

@@ -54,7 +54,7 @@ export const routingIsm = (
 // |              |
 // v              v
 // Merkle Root    Message ID
-export const aggregationIsm = (
+export const buildAggregationIsmConfig = (
   multisigConfig: MultisigConfig,
   aggregationThreshold = 2,
 ): AggregationIsmConfig => {
@@ -69,12 +69,28 @@ export const aggregationIsm = (
   };
 };
 
+// all chains except local
+export const buildAggregationIsmConfigs = (
+  local: ChainName,
+  chains: ChainName[],
+  multisigConfigs: ChainMap<MultisigConfig>,
+): ChainMap<AggregationIsmConfig> => {
+  return objMap(
+    objFilter(
+      multisigConfigs,
+      (chain, config): config is MultisigConfig =>
+        chain !== local && chains.includes(chain),
+    ),
+    (_, config) => buildAggregationIsmConfig(config),
+  ) as ChainMap<AggregationIsmConfig>;
+};
+
 // Routing ISM => Aggregation (t/2)
 //                 |              |
 //                 |              |
 //                 v              v
 //            Merkle Root    Message ID
-export const routingOverAggregation = (
+export const buildRoutingOverAggregationIsmConfig = (
   local: ChainName,
   owners: ChainMap<Address>,
   multisigConfigs: ChainMap<MultisigConfig>,
@@ -88,7 +104,10 @@ export const routingOverAggregation = (
       .reduce(
         (acc, chain) => ({
           ...acc,
-          [chain]: aggregationIsm(multisigConfigs[chain], aggregationThreshold),
+          [chain]: buildAggregationIsmConfig(
+            multisigConfigs[chain],
+            aggregationThreshold,
+          ),
         }),
         {},
       ),
