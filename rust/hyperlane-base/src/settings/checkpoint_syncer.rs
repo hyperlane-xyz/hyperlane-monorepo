@@ -1,12 +1,11 @@
 use core::str::FromStr;
-use std::{collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 
 use eyre::{eyre, Context, Report, Result};
-use hyperlane_core::H160;
-use prometheus::{IntGauge, IntGaugeVec};
+use prometheus::IntGauge;
 use rusoto_core::Region;
 
-use crate::{CheckpointSyncer, LocalStorage, MultisigCheckpointSyncer, S3Storage};
+use crate::{CheckpointSyncer, LocalStorage, S3Storage};
 
 /// Checkpoint Syncer types
 #[derive(Debug, Clone)]
@@ -81,33 +80,5 @@ impl CheckpointSyncerConf {
                 latest_index_gauge,
             )),
         })
-    }
-}
-
-/// Config for a MultisigCheckpointSyncer
-#[derive(Debug, Clone)]
-pub struct MultisigCheckpointSyncerConf {
-    /// The checkpoint syncer for each valid validator signer address
-    checkpointsyncers: HashMap<String, CheckpointSyncerConf>,
-}
-
-impl MultisigCheckpointSyncerConf {
-    /// Get a MultisigCheckpointSyncer from the config
-    pub fn build(
-        &self,
-        origin: &str,
-        validator_checkpoint_index: IntGaugeVec,
-    ) -> Result<MultisigCheckpointSyncer, Report> {
-        let mut checkpoint_syncers = HashMap::new();
-        for (key, value) in self.checkpointsyncers.iter() {
-            let gauge =
-                validator_checkpoint_index.with_label_values(&[origin, &key.to_lowercase()]);
-            if let Ok(conf) = value.build(Some(gauge)) {
-                checkpoint_syncers.insert(H160::from_str(key)?, conf.into());
-            } else {
-                continue;
-            }
-        }
-        Ok(MultisigCheckpointSyncer::new(checkpoint_syncers))
     }
 }

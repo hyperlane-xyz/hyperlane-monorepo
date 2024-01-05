@@ -125,6 +125,7 @@ where
         self.get_finalized_block_number().await
     }
 
+    /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
@@ -168,6 +169,7 @@ where
         self.get_finalized_block_number().await
     }
 
+    /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
     async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
         Ok(self

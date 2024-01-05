@@ -40,6 +40,7 @@ export {
   hyperlaneContractAddresses,
   hyperlaneEnvironments,
 } from './consts/environments';
+export { MAILBOX_VERSION } from './consts/mailbox';
 export { defaultMultisigConfigs } from './consts/multisigIsm';
 export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel';
 export {
