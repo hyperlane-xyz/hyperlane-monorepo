@@ -66,7 +66,6 @@ async function check() {
       config.core,
       ismFactory,
     );
-    // TODO: core checker should check nested igp as hook if present
     governor = new HyperlaneCoreGovernor(checker, config.owners);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const ica = InterchainAccount.fromEnvironment(env, multiProvider);

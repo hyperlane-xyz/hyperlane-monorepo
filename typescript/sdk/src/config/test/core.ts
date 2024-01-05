@@ -14,7 +14,7 @@ import {
 import { RoutingIsmConfig } from '../../ism/types';
 import { ChainMap } from '../../types';
 import { createIgpConfig } from '../igp';
-import { routingIsm } from '../ism';
+import { buildRoutingIsm } from '../ism';
 
 import { testChainNames } from './chains';
 import { storageGasOraclesConfig } from './gasOracle';
@@ -29,7 +29,7 @@ const igpConfig = createIgpConfig(
 );
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
-  const defaultIsm: RoutingIsmConfig = routingIsm(
+  const defaultIsm: RoutingIsmConfig = buildRoutingIsm(
     local,
     owners[local],
     multisigIsm,

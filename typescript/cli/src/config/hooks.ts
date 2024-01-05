@@ -127,14 +127,14 @@ async function processIgpConfig(
 
 async function processNestedIgpConfig(
   multiProvider: MultiProvider,
-  hookConfig: any,
+  hookConfig: HookConfig,
 ): Promise<any> {
   if (hookConfig.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
     return await processIgpConfig(multiProvider, hookConfig as IgpConfig);
   }
 
   for (const key in hookConfig) {
-    if (typeof hookConfig[key] === 'object') {
+    if (hookConfig[key] instanceof Object) {
       hookConfig[key] = await processNestedIgpConfig(
         multiProvider,
         hookConfig[key],
@@ -157,8 +157,6 @@ export async function presetHookConfigs(
 
   for (const chain of destinationChains) {
     const gasPrice = await multiProvider.getGasPrice(chain);
-    console.log('gas price', gasPrice.toString());
-
     let validatorThreshold: number;
     let validatorCount: number;
     if (multisigConfig) {
@@ -179,7 +177,6 @@ export async function presetHookConfigs(
     );
     oracleConfig[chain] = {
       // 1e10 - both the chains are using the same valued token
-      // TODO: fix here
       tokenExchangeRate: BigNumber.from('1000000000'),
       gasPrice: BigNumber.from(gasPrice),
       type: GasOracleContractType.StorageGasOracle,

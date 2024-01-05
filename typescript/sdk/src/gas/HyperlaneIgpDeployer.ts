@@ -62,7 +62,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         !currentGasConfig.gasOverhead.eq(newGasOverhead)
       ) {
         this.logger(
-          `Setting gas params for ${chain} -> ${remote}\ngasOverhead: ${newGasOverhead}\ngasOracle: ${storageGasOracle.address}`,
+          `Setting gas params for ${chain} -> ${remote}: gasOverhead = ${newGasOverhead} gasOracle = ${storageGasOracle.address}`,
         );
         gasParamsToSet.push({
           remoteDomain: remoteId,
@@ -121,7 +121,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       if (!configsToSet[gasOracleAddress]) {
         configsToSet[gasOracleAddress] = [];
       }
-      // return;
       const remoteGasDataConfig = await gasOracle.remoteGasData(remoteId);
 
       if (
@@ -179,17 +178,13 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
     const storageGasOracle = await this.deployStorageGasOracle(chain);
-    console.log(
-      "when deployed, storageGasOracle's address is",
-      storageGasOracle.address,
-    );
+
     const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
       chain,
       proxyAdmin,
       storageGasOracle,
       config,
     );
-    console.log("igp's address is", interchainGasPaymaster.address);
     await this.transferOwnershipOfContracts(chain, config.owner, {
       interchainGasPaymaster,
     });
@@ -213,6 +208,8 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   }
 }
 
+// recursively fetches storage gas oracle configs from core config
+// eg. test1: core.defaultHook.igpConfig.test1.oracleConfig
 export function getStorageGasOracleConfigs(
   coreConfig: ChainMap<CoreConfig>,
 ): ChainMap<StorageGasOraclesConfig> {

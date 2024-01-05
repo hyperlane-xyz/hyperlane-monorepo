@@ -155,7 +155,7 @@ async function main() {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
   }
-  return;
+
   const modulePath = getModuleDirectory(environment, module, context);
 
   console.log(`Deploying to ${modulePath}`);

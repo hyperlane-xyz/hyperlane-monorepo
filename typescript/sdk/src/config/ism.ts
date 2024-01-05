@@ -35,7 +35,8 @@ export const buildMultisigIsmConfigs = (
   );
 };
 
-export const routingIsm = (
+// Routing ---> Multisig
+export const buildRoutingIsm = (
   local_chain: string,
   owner: string,
   multisigIsm: ChainMap<MultisigIsmConfig>,
