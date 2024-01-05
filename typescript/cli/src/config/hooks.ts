@@ -25,7 +25,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen, logRed } from '../../logger.js';
-import { getGasPrice } from '../utils/balances.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
@@ -95,9 +94,12 @@ export function isValidHookConfigMap(config: any) {
   return HooksConfigMapSchema.safeParse(config).success;
 }
 
-function processIgpConfig(igpConfig: IgpConfig): IgpHookConfig {
+async function processIgpConfig(
+  multiProvider: MultiProvider,
+  igpConfig: IgpConfig,
+): Promise<IgpHookConfig> {
   const storageGasOracleConfig: StorageGasOraclesConfig = {};
-  Object.keys(igpConfig.oracleConfig).forEach((chain) => {
+  Object.keys(igpConfig.oracleConfig).forEach(async (chain) => {
     const userDefinedGasConfig = igpConfig.oracleConfig[chain];
     storageGasOracleConfig[chain] = {
       ...(storageGasOracleConfig[chain] || {}),
@@ -105,7 +107,9 @@ function processIgpConfig(igpConfig: IgpConfig): IgpHookConfig {
       tokenExchangeRate: BigNumber.from(
         userDefinedGasConfig.tokenExchangeRate || '10000000000',
       ),
-      gasPrice: BigNumber.from(userDefinedGasConfig.gasPrice || '100'),
+      gasPrice:
+        BigNumber.from(userDefinedGasConfig.gasPrice) ||
+        (await multiProvider.getGasPrice(chain)),
     };
   });
   const trueIgpConfig: IgpHookConfig = {
@@ -121,14 +125,20 @@ function processIgpConfig(igpConfig: IgpConfig): IgpHookConfig {
   return trueIgpConfig;
 }
 
-function processNestedIgpConfig(hookConfig: any): any {
+async function processNestedIgpConfig(
+  multiProvider: MultiProvider,
+  hookConfig: any,
+): Promise<any> {
   if (hookConfig.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
-    return processIgpConfig(hookConfig as IgpConfig);
+    return await processIgpConfig(multiProvider, hookConfig as IgpConfig);
   }
 
   for (const key in hookConfig) {
     if (typeof hookConfig[key] === 'object') {
-      hookConfig[key] = processNestedIgpConfig(hookConfig[key]);
+      hookConfig[key] = await processNestedIgpConfig(
+        multiProvider,
+        hookConfig[key],
+      );
     }
   }
 
@@ -146,7 +156,8 @@ export async function presetHookConfigs(
   const overheads: ChainMap<BigNumber> = {};
 
   for (const chain of destinationChains) {
-    const gasPrice = await getGasPrice(multiProvider, chain);
+    const gasPrice = await multiProvider.getGasPrice(chain);
+    console.log('gas price', gasPrice.toString());
 
     let validatorThreshold: number;
     let validatorCount: number;
@@ -202,7 +213,10 @@ export async function presetHookConfigs(
   };
 }
 
-export function readHooksConfigMap(filePath: string) {
+export async function readHooksConfigMap(
+  multiProvider: MultiProvider,
+  filePath: string,
+) {
   const config = readYamlOrJson(filePath);
   if (!config) {
     logRed(`No hook config found at ${filePath}`);
@@ -219,7 +233,10 @@ export function readHooksConfigMap(filePath: string) {
 
   // special case for IGP
   for (const chain of Object.keys(parsedConfig)) {
-    parsedConfig[chain] = processNestedIgpConfig(parsedConfig[chain]);
+    parsedConfig[chain] = await processNestedIgpConfig(
+      multiProvider,
+      parsedConfig[chain],
+    );
   }
 
   const hooks: ChainMap<HooksConfig> = objMap(

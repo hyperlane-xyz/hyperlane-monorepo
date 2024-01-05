@@ -99,7 +99,7 @@ export async function runCoreDeploy({
   const multisigConfigs = isIsmConfig
     ? defaultMultisigConfigs
     : (result as ChainMap<MultisigConfig>);
-  const hooksConfig = await runHookStep(chains, hookConfigPath);
+  const hooksConfig = await runHookStep(multiProvider, hookConfigPath);
 
   const deploymentParams: DeployParams = {
     chains,
@@ -207,11 +207,11 @@ async function runIsmStep(
 }
 
 async function runHookStep(
-  _selectedChains: ChainName[],
+  multiProvider: MultiProvider,
   hookConfigPath?: string,
 ) {
   if (!hookConfigPath) return {};
-  return readHooksConfigMap(hookConfigPath);
+  return readHooksConfigMap(multiProvider, hookConfigPath);
 }
 
 interface DeployParams {

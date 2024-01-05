@@ -6,16 +6,22 @@ import {
   GasOracleContractType,
   HookType,
   HooksConfig,
+  MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
 import { readHooksConfigMap } from '../config/hooks.js';
 
 describe('readHooksConfigMap', () => {
-  it('parses and validates example correctly', () => {
-    const hooks = readHooksConfigMap('examples/hooks.yaml');
+  let multiProvider: MultiProvider;
+
+  it('parses and validates example correctly', async () => {
+    const hooks = await readHooksConfigMap(
+      multiProvider, // only to compile, actually not being used
+      'src/tests/hooks/test-example.yaml',
+    );
 
     const exampleHooksConfig: ChainMap<HooksConfig> = {
-      anvil1: {
+      test1: {
         required: {
           type: HookType.PROTOCOL_FEE,
           owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
@@ -27,7 +33,7 @@ describe('readHooksConfigMap', () => {
           type: HookType.ROUTING,
           owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
           domains: {
-            anvil2: {
+            test2: {
               type: HookType.AGGREGATION,
               hooks: [
                 {
@@ -39,20 +45,20 @@ describe('readHooksConfigMap', () => {
                   owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   oracleConfig: {
-                    anvil2: {
+                    test2: {
                       type: GasOracleContractType.StorageGasOracle,
                       tokenExchangeRate: BigNumber.from('10000000000'),
                       gasPrice: BigNumber.from('12345'),
                     },
                   },
-                  overhead: { anvil2: BigNumber.from('50000') },
+                  overhead: { test2: BigNumber.from('50000') },
                 },
               ],
             },
           },
         },
       },
-      anvil2: {
+      test2: {
         required: {
           type: HookType.PROTOCOL_FEE,
           owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
@@ -64,7 +70,7 @@ describe('readHooksConfigMap', () => {
           type: HookType.ROUTING,
           owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
           domains: {
-            anvil1: {
+            test1: {
               type: HookType.AGGREGATION,
               hooks: [
                 {
@@ -76,13 +82,13 @@ describe('readHooksConfigMap', () => {
                   owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   oracleConfig: {
-                    anvil1: {
+                    test1: {
                       type: GasOracleContractType.StorageGasOracle,
                       tokenExchangeRate: BigNumber.from('10000000000'),
                       gasPrice: BigNumber.from('12345'),
                     },
                   },
-                  overhead: { anvil1: BigNumber.from('50000') },
+                  overhead: { test1: BigNumber.from('50000') },
                 },
               ],
             },
@@ -93,9 +99,17 @@ describe('readHooksConfigMap', () => {
     expect(hooks).to.deep.equal(exampleHooksConfig);
   });
 
-  it('parsing failure, missing internal key "overhead"', () => {
-    expect(() => {
-      readHooksConfigMap('src/tests/hooks/safe-parse-fail.yaml');
-    }).to.throw('Invalid hook config: anvil2,default => Invalid input');
+  it('parsing failure, missing internal key "overhead"', async () => {
+    try {
+      await readHooksConfigMap(
+        multiProvider,
+        'src/tests/hooks/safe-parse-fail.yaml',
+      );
+      throw new Error('Expected readHooksConfigMap to throw, but it did not');
+    } catch (err) {
+      expect((err as Error).message).to.equal(
+        'Invalid hook config: test2,default => Invalid input',
+      );
+    }
   });
 });

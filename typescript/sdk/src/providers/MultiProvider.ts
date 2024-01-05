@@ -356,6 +356,16 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   }
 
   /**
+   * returns a best guess of the Gas Price to use in a transaction.
+   * @param chainNameOrId chain name, chain id, or domain id
+   * @returns gas price in wei
+   */
+  async getGasPrice(chainNameOrId: ChainName | number): Promise<BigNumber> {
+    const provider = this.getProvider(chainNameOrId);
+    return provider.getGasPrice();
+  }
+
+  /**
    * Send a transaction and wait for confirmation
    * @throws if chain's metadata or signer has not been set or tx fails
    */
