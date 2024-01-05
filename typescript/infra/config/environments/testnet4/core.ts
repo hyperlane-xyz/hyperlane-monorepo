@@ -83,7 +83,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     originMultisigs,
     (_origin, _): AggregationHookConfig => ({
       type: HookType.AGGREGATION,
-      hooks: [pausableHook, igpHook, merkleHook],
+      hooks: [pausableHook, merkleHook, igpHook],
     }),
   );
 
