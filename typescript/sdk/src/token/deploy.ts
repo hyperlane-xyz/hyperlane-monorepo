@@ -183,10 +183,18 @@ export class HypERC20Deployer extends GasRouterDeployer<
       config.mailbox,
     ]);
 
-    await this.multiProvider.handleTx(
-      chain,
-      router.initialize(config.totalSupply, config.name, config.symbol),
-    );
+    try {
+      await this.multiProvider.handleTx(
+        chain,
+        router.initialize(config.totalSupply, config.name, config.symbol),
+      );
+    } catch (e: any) {
+      if (!e.message.includes('already initialized')) {
+        throw e;
+      }
+      this.logger('Router already initialized');
+    }
+
     return router;
   }
 

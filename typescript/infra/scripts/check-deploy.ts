@@ -5,10 +5,12 @@ import {
   HyperlaneIgp,
   HyperlaneIgpChecker,
   HyperlaneIsmFactory,
+  HyperlaneRouterChecker,
   InterchainAccount,
   InterchainAccountChecker,
   InterchainQuery,
   InterchainQueryChecker,
+  RouterApp,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts';
@@ -105,6 +107,9 @@ async function check() {
       ismFactory,
     );
     governor = new ProxiedRouterGovernor(checker, config.owners);
+  } else if (module === Modules.WARP) {
+    const app = RouterApp;
+    const checker = new HyperlaneRouterChecker(multiProvider);
   } else {
     console.log(`Skipping ${module}, checker or governor unimplemented`);
     return;
