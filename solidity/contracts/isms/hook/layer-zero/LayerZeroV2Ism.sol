@@ -24,8 +24,8 @@ import {AbstractMessageIdAuthorizedIsm} from "../AbstractMessageIdAuthorizedIsm.
 import {Origin} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
 
 /**
- * @title OPStackIsm
- * @notice Uses the native Optimism bridge to verify interchain messages.
+ * @title LayerZeroV2Ism
+ * @notice Uses LayerZero V2 deliver and verify a messages Id
  */
 contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
     using Message for bytes;
