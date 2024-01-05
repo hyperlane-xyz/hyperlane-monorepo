@@ -77,6 +77,7 @@ async function main() {
       getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,
     );
+
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.WARP) {
     const owner = deployerAddress;
@@ -154,7 +155,7 @@ async function main() {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
   }
-
+  return;
   const modulePath = getModuleDirectory(environment, module, context);
 
   console.log(`Deploying to ${modulePath}`);

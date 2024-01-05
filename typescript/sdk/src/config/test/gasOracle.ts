@@ -1,8 +1,7 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-
 import { StorageGasOraclesConfig } from '../../gas/oracle/types';
+import { ChainMap, ChainName } from '../../types';
 import {
   TOKEN_EXCHANGE_RATE_DECIMALS,
   getAllStorageGasOracleConfigs,

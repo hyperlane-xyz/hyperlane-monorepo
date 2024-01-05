@@ -27,12 +27,12 @@ describe('TokenPriceGetter', () => {
 
   describe('getTokenPrice', () => {
     it('returns a token price', async () => {
-      expect(await tokenPriceGetter.getTokenPrice(chainA)).to.equal(priceA);
+      expect(await tokenPriceGetter.getTokenPrice(chainA, [])).to.equal(priceA);
     });
 
     it('caches a token price', async () => {
       mockCoinGecko.setFail(chainA, true);
-      expect(await tokenPriceGetter.getTokenPrice(chainA)).to.equal(priceA);
+      expect(await tokenPriceGetter.getTokenPrice(chainA, [])).to.equal(priceA);
       mockCoinGecko.setFail(chainA, false);
     });
   });
@@ -42,6 +42,7 @@ describe('TokenPriceGetter', () => {
       const exchangeRate = await tokenPriceGetter.getTokenExchangeRate(
         chainA,
         chainB,
+        [],
       );
       const expectedExchangeRate = priceA / priceB;
       expect(exchangeRate).to.equal(expectedExchangeRate);

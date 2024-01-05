@@ -1,87 +1,88 @@
-// import { ethers } from 'ethers';
+import { ethers } from 'ethers';
 
-// import {
-//   ChainName,
-//   CoinGeckoTokenPriceGetter,
-//   HyperlaneCore,
-// } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  CoinGeckoTokenPriceGetter,
+  HyperlaneCore,
+  StorageGasOraclesConfig,
+  TOKEN_EXCHANGE_RATE_DECIMALS,
+  TOKEN_EXCHANGE_RATE_SCALE,
+  getStorageGasOracleConfigs,
+  prettyTokenExchangeRate,
+} from '@hyperlane-xyz/sdk';
 
-// import { StorageGasOracleConfig } from '../../src/config';
-// import { deployEnvToSdkEnv } from '../../src/config/environment';
-// import {
-//   TOKEN_EXCHANGE_RATE_DECIMALS,
-//   TOKEN_EXCHANGE_RATE_SCALE,
-// } from '../../src/config/gas-oracle';
-// import { getArgs, getEnvironmentConfig } from '../utils';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
+import { getArgs, getEnvironmentConfig } from '../utils';
 
-// import { prettyTokenExchangeRate } from './utils';
+// Compares the token exchange rate between chains according to the config
+// to the exchange rates using current Coingecko prices. The config exchange
+// rates apply the 30% spread / fee, so we expect config prices to be ~30% higher.
+async function main() {
+  const tokenPriceGetter = CoinGeckoTokenPriceGetter.withDefaultCoinGecko();
 
-// // Compares the token exchange rate between chains according to the config
-// // to the exchange rates using current Coingecko prices. The config exchange
-// // rates apply the 30% spread / fee, so we expect config prices to be ~30% higher.
-// async function main() {
-//   const tokenPriceGetter = CoinGeckoTokenPriceGetter.withDefaultCoinGecko();
+  const { environment } = await getArgs().argv;
+  const coreEnvConfig = getEnvironmentConfig(environment);
+  const multiProvider = await coreEnvConfig.getMultiProvider();
 
-//   const { environment } = await getArgs().argv;
-//   const coreEnvConfig = getEnvironmentConfig(environment);
-//   const multiProvider = await coreEnvConfig.getMultiProvider();
+  const storageGasOracleConfig = getStorageGasOracleConfigs(coreEnvConfig.core);
+  if (!storageGasOracleConfig) {
+    throw Error(`No storage gas oracle config for environment ${environment}`);
+  }
 
-//   const storageGasOracleConfig = coreEnvConfig.storageGasOracleConfig;
-//   if (!storageGasOracleConfig) {
-//     throw Error(`No storage gas oracle config for environment ${environment}`);
-//   }
+  const core = HyperlaneCore.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider,
+  );
 
-//   const core = HyperlaneCore.fromEnvironment(
-//     deployEnvToSdkEnv[environment],
-//     multiProvider,
-//   );
+  for (const chain of core.chains()) {
+    await compare(tokenPriceGetter, storageGasOracleConfig[chain], chain);
+    console.log('\n===========');
+  }
+}
 
-//   for (const chain of core.chains()) {
-//     await compare(tokenPriceGetter, storageGasOracleConfig[chain], chain);
-//     console.log('\n===========');
-//   }
-// }
+async function compare(
+  tokenPriceGetter: CoinGeckoTokenPriceGetter,
+  localStorageGasOracleConfig: StorageGasOraclesConfig,
+  local: ChainName,
+) {
+  for (const remoteStr of Object.keys(localStorageGasOracleConfig)) {
+    const remote = remoteStr as ChainName;
+    const configGasData = localStorageGasOracleConfig[remote]!;
+    const currentTokenExchangeRateNum =
+      await tokenPriceGetter.getTokenExchangeRate(remote, local, [
+        ...Object.keys(localStorageGasOracleConfig),
+        local,
+      ]);
+    const currentTokenExchangeRate = ethers.utils.parseUnits(
+      currentTokenExchangeRateNum.toFixed(TOKEN_EXCHANGE_RATE_DECIMALS),
+      TOKEN_EXCHANGE_RATE_DECIMALS,
+    );
 
-// async function compare(
-//   tokenPriceGetter: CoinGeckoTokenPriceGetter,
-//   localStorageGasOracleConfig: StorageGasOracleConfig,
-//   local: ChainName,
-// ) {
-//   for (const remoteStr in localStorageGasOracleConfig) {
-//     const remote = remoteStr as ChainName;
-//     const configGasData = localStorageGasOracleConfig[remote]!;
-//     const currentTokenExchangeRateNum =
-//       await tokenPriceGetter.getTokenExchangeRate(remote, local);
-//     const currentTokenExchangeRate = ethers.utils.parseUnits(
-//       currentTokenExchangeRateNum.toFixed(TOKEN_EXCHANGE_RATE_DECIMALS),
-//       TOKEN_EXCHANGE_RATE_DECIMALS,
-//     );
+    const diff = configGasData.tokenExchangeRate.sub(currentTokenExchangeRate);
+    const percentDiff = diff
+      .mul(TOKEN_EXCHANGE_RATE_SCALE)
+      .div(currentTokenExchangeRate)
+      .mul(100);
 
-//     const diff = configGasData.tokenExchangeRate.sub(currentTokenExchangeRate);
-//     const percentDiff = diff
-//       .mul(TOKEN_EXCHANGE_RATE_SCALE)
-//       .div(currentTokenExchangeRate)
-//       .mul(100);
+    console.log(`${local} -> ${remote}`);
+    console.log(
+      `\tConfig token exchange rate:\n\t\t${prettyTokenExchangeRate(
+        configGasData.tokenExchangeRate,
+      )}`,
+    );
+    console.log(
+      `\tCurrent token exchange rate:\n\t\t${prettyTokenExchangeRate(
+        currentTokenExchangeRate,
+      )}`,
+    );
+    console.log(
+      `Config tokenExchangeRate is ${ethers.utils.formatUnits(
+        percentDiff,
+        TOKEN_EXCHANGE_RATE_DECIMALS,
+      )}% different from the current value`,
+    );
+    console.log('------');
+  }
+}
 
-//     console.log(`${local} -> ${remote}`);
-//     console.log(
-//       `\tConfig token exchange rate:\n\t\t${prettyTokenExchangeRate(
-//         configGasData.tokenExchangeRate,
-//       )}`,
-//     );
-//     console.log(
-//       `\tCurrent token exchange rate:\n\t\t${prettyTokenExchangeRate(
-//         currentTokenExchangeRate,
-//       )}`,
-//     );
-//     console.log(
-//       `Config tokenExchangeRate is ${ethers.utils.formatUnits(
-//         percentDiff,
-//         TOKEN_EXCHANGE_RATE_DECIMALS,
-//       )}% different from the current value`,
-//     );
-//     console.log('------');
-//   }
-// }
-
-// main().catch((err: any) => console.error('Error:', err));
+main().catch((err: any) => console.error('Error:', err));

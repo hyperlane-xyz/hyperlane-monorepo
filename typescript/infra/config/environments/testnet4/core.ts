@@ -2,29 +2,25 @@ import { BigNumber, ethers } from 'ethers';
 
 import {
   AggregationHookConfig,
-  AggregationIsmConfig,
   ChainMap,
   CoreConfig,
   FallbackRoutingHookConfig,
   HookType,
   IgpHookConfig,
-  IsmType,
   MerkleTreeHookConfig,
-  MultisigConfig,
-  MultisigIsmConfig,
   ProtocolFeeHookConfig,
   RoutingIsmConfig,
+  createIgpConfig,
   defaultMultisigConfigs,
+  routingOverAggregation,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { createIgpConfig } from '../../igp';
-
-import { ethereumChainNames, supportedChainNames } from './chains';
+import { ethereumChainNames } from './chains';
 import { storageGasOracleConfig } from './gas-oracle';
 import { owners } from './owners';
 
-// chain should be the most restrictive chain (like excluding solana devnet)
+// chainNames should be the most restrictive chain (like excluding solana devnet)
 const igp = createIgpConfig(
   ethereumChainNames,
   storageGasOracleConfig,
@@ -33,35 +29,12 @@ const igp = createIgpConfig(
 );
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
-  const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
-    supportedChainNames
-      .filter((chain) => chain !== local)
-      .map((origin) => [origin, defaultMultisigConfigs[origin]]),
+  const defaultIsm: RoutingIsmConfig = routingOverAggregation(
+    local,
+    owners,
+    defaultMultisigConfigs,
+    1,
   );
-
-  const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig => ({
-    type: IsmType.MERKLE_ROOT_MULTISIG,
-    ...multisig,
-  });
-
-  const messageIdIsm = (multisig: MultisigConfig): MultisigIsmConfig => ({
-    type: IsmType.MESSAGE_ID_MULTISIG,
-    ...multisig,
-  });
-
-  const defaultIsm: RoutingIsmConfig = {
-    type: IsmType.ROUTING,
-    domains: objMap(
-      originMultisigs,
-      (_, multisig): AggregationIsmConfig => ({
-        type: IsmType.AGGREGATION,
-        modules: [messageIdIsm(multisig), merkleRoot(multisig)],
-        threshold: 1,
-      }),
-    ),
-    owner,
-  };
-
   const merkleHook: MerkleTreeHookConfig = {
     type: HookType.MERKLE_TREE,
   };
@@ -72,7 +45,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   };
 
   const aggregationHooks = objMap(
-    originMultisigs,
+    owners,
     (_origin, _): AggregationHookConfig => ({
       type: HookType.AGGREGATION,
       hooks: [igpHook, merkleHook],

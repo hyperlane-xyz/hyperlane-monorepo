@@ -1,20 +1,20 @@
 import { BigNumber, ethers } from 'ethers';
 
+import { ProtocolFeeHookConfig } from '@hyperlane-xyz/sdk/src/hook/types';
+import { objMap } from '@hyperlane-xyz/utils';
+
+import { CoreConfig } from '../../core/types';
 import {
   AggregationHookConfig,
-  ChainMap,
-  CoreConfig,
   FallbackRoutingHookConfig,
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
-  RoutingIsmConfig,
-} from '@hyperlane-xyz/sdk';
-import { ProtocolFeeHookConfig } from '@hyperlane-xyz/sdk/src/hook/types';
-import { objMap } from '@hyperlane-xyz/utils';
-
+} from '../../hook/types';
+import { RoutingIsmConfig } from '../../ism/types';
+import { ChainMap } from '../../types';
 import { createIgpConfig } from '../igp';
-import { routingOverAggregation } from '../ism';
+import { routingIsm } from '../ism';
 
 import { testChainNames } from './chains';
 import { storageGasOraclesConfig } from './gasOracle';
@@ -29,10 +29,11 @@ const igpConfig = createIgpConfig(
 );
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
-  const defaultIsm: RoutingIsmConfig = routingOverAggregation(local, owners, [
-    chainToValidator[local],
-  ]);
-
+  const defaultIsm: RoutingIsmConfig = routingIsm(
+    local,
+    owners[local],
+    multisigIsm,
+  );
   const merkleHook: MerkleTreeHookConfig = {
     type: HookType.MERKLE_TREE,
   };

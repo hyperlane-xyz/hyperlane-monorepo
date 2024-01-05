@@ -1,39 +1,44 @@
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AggregationIsmConfig,
   IsmType,
+  MultisigConfig,
   MultisigIsmConfig,
   RoutingIsmConfig,
 } from '../ism/types';
 import { ChainMap, ChainName } from '../types';
 
-export const merkleRootMultisig = (
-  validators: Address[],
-  threshold = validators.length,
+export const buildMultisigIsmConfig = (
+  type: MultisigIsmConfig['type'] = IsmType.MESSAGE_ID_MULTISIG,
+  multisigConfig: MultisigConfig,
 ): MultisigIsmConfig => {
   return {
-    type: IsmType.MERKLE_ROOT_MULTISIG,
-    validators,
-    threshold,
+    type,
+    ...multisigConfig,
   };
 };
 
-export const messageIdMultisig = (
-  validators: Address[],
-  threshold = validators.length,
-): MultisigIsmConfig => {
-  return {
-    type: IsmType.MESSAGE_ID_MULTISIG,
-    validators,
-    threshold,
-  };
+export const buildMultisigIsmConfigs = (
+  type: MultisigIsmConfig['type'],
+  local: ChainName,
+  chains: ChainName[],
+  multisigConfigs: ChainMap<MultisigConfig>,
+): ChainMap<MultisigIsmConfig> => {
+  return objMap(
+    objFilter(
+      multisigConfigs,
+      (chain, config): config is MultisigConfig =>
+        chain !== local && chains.includes(chain),
+    ),
+    (_, config) => buildMultisigIsmConfig(type, config),
+  );
 };
 
 export const routingIsm = (
   local_chain: string,
-  multisigIsm: ChainMap<MultisigIsmConfig>,
   owner: string,
+  multisigIsm: ChainMap<MultisigIsmConfig>,
 ): RoutingIsmConfig => {
   return {
     type: IsmType.ROUTING,
@@ -44,26 +49,35 @@ export const routingIsm = (
   };
 };
 
+// Aggregation (t/2)
+// |              |
+// |              |
+// v              v
+// Merkle Root    Message ID
 export const aggregationIsm = (
-  validators: Address[],
-  multisigThreshold = validators.length,
+  multisigConfig: MultisigConfig,
   aggregationThreshold = 2,
 ): AggregationIsmConfig => {
   return {
     type: IsmType.AGGREGATION,
     modules: [
-      merkleRootMultisig(validators, multisigThreshold),
-      messageIdMultisig(validators, multisigThreshold),
+      // Ordering matters to preserve determinism
+      buildMultisigIsmConfig(IsmType.MERKLE_ROOT_MULTISIG, multisigConfig),
+      buildMultisigIsmConfig(IsmType.MESSAGE_ID_MULTISIG, multisigConfig),
     ],
     threshold: aggregationThreshold,
   };
 };
 
+// Routing ISM => Aggregation (t/2)
+//                 |              |
+//                 |              |
+//                 v              v
+//            Merkle Root    Message ID
 export const routingOverAggregation = (
   local: ChainName,
   owners: ChainMap<Address>,
-  validators: Address[],
-  multisigThreshold = validators.length,
+  multisigConfigs: ChainMap<MultisigConfig>,
   aggregationThreshold = 2,
 ): RoutingIsmConfig => {
   return {
@@ -74,11 +88,7 @@ export const routingOverAggregation = (
       .reduce(
         (acc, chain) => ({
           ...acc,
-          [chain]: aggregationIsm(
-            validators,
-            multisigThreshold,
-            aggregationThreshold,
-          ),
+          [chain]: aggregationIsm(multisigConfigs[chain], aggregationThreshold),
         }),
         {},
       ),

@@ -1,15 +1,13 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-
 import {
-  AllStorageGasOracleConfigs,
-  getAllStorageGasOracleConfigs,
-} from '../../../src/config';
-import {
+  ChainMap,
+  ChainName,
+  StorageGasOraclesConfig,
   TOKEN_EXCHANGE_RATE_DECIMALS,
+  getAllStorageGasOracleConfigs,
   getTokenExchangeRateFromValues,
-} from '../../../src/config/gas-oracle';
+} from '@hyperlane-xyz/sdk';
 
 import { TestnetChains, supportedChainNames } from './chains';
 
@@ -80,7 +78,7 @@ function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
   return getTokenExchangeRateFromValues(local, localValue, remote, remoteValue);
 }
 
-export const storageGasOracleConfig: AllStorageGasOracleConfigs =
+export const storageGasOracleConfig: ChainMap<StorageGasOraclesConfig> =
   getAllStorageGasOracleConfigs(
     supportedChainNames,
     gasPrices,

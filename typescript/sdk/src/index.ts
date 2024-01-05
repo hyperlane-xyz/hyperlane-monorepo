@@ -8,10 +8,12 @@ export {
 } from './app/MultiProtocolApp';
 export {
   TOKEN_EXCHANGE_RATE_DECIMALS,
+  TOKEN_EXCHANGE_RATE_SCALE,
   getAllStorageGasOracleConfigs,
   getTokenExchangeRateFromValues,
 } from './config/gasOracle';
 export { createIgpConfig } from './config/igp';
+export { buildMultisigIsmConfigs, routingOverAggregation } from './config/ism';
 export { testChainNames, testConfigs } from './config/test/chains';
 export { core } from './config/test/core';
 export { owners } from './config/test/owners';
@@ -117,6 +119,7 @@ export {
   StorageGasOracleConfig,
   StorageGasOraclesConfig,
 } from './gas/oracle/types';
+export { prettyTokenExchangeRate } from './gas/oracle/utils';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
   IgpBeneficiaryViolation,
@@ -144,10 +147,7 @@ export {
   collectValidators,
   moduleCanCertainlyVerify,
 } from './ism/HyperlaneIsmFactory';
-export {
-  buildAggregationIsmConfigs,
-  buildMultisigIsmConfigs,
-} from './ism/multisig';
+export { buildAggregationIsmConfigs } from './ism/multisig';
 export {
   AggregationIsmConfig,
   DeployedIsm,

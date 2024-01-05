@@ -8,8 +8,12 @@ import { ChainMetadata } from '../metadata/chainMetadataTypes';
 import { ChainMap, ChainName } from '../types';
 
 export interface TokenPriceGetter {
-  getTokenPrice(chain: ChainName): Promise<number>;
-  getTokenExchangeRate(base: ChainName, quote: ChainName): Promise<number>;
+  getTokenPrice(chain: ChainName, cacheThemAll: ChainName[]): Promise<number>;
+  getTokenExchangeRate(
+    base: ChainName,
+    quote: ChainName,
+    cacheThemAll: ChainName[],
+  ): Promise<number>;
 }
 
 export type CoinGeckoInterface = Pick<CoinGecko, 'simple'>;
@@ -97,20 +101,30 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     );
   }
 
-  async getTokenPrice(chain: ChainName): Promise<number> {
-    const [price] = await this.getTokenPrices([chain]);
+  async getTokenPrice(
+    chain: ChainName,
+    cacheThemAll: ChainName[],
+  ): Promise<number> {
+    const [price] = await this.getTokenPrices([chain], cacheThemAll);
     return price;
   }
 
   async getTokenExchangeRate(
     base: ChainName,
     quote: ChainName,
+    cacheThemAll: ChainName[],
   ): Promise<number> {
-    const [basePrice, quotePrice] = await this.getTokenPrices([base, quote]);
+    const [basePrice, quotePrice] = await this.getTokenPrices(
+      [base, quote],
+      cacheThemAll,
+    );
     return basePrice / quotePrice;
   }
 
-  private async getTokenPrices(chains: ChainName[]): Promise<number[]> {
+  private async getTokenPrices(
+    chains: ChainName[],
+    cacheThemAll: ChainName[],
+  ): Promise<number[]> {
     // TODO improve PI support here?
     const isMainnet = chains.map((c) => Mainnets.includes(c as CoreChainName));
     const allMainnets = isMainnet.every((v) => v === true);
@@ -126,7 +140,7 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
       );
     }
 
-    const toQuery = chains.filter((c) => !this.cache.isFresh(c));
+    const toQuery = cacheThemAll.filter((c) => !this.cache.isFresh(c));
     if (toQuery.length > 0) {
       try {
         await this.queryTokenPrices(toQuery);

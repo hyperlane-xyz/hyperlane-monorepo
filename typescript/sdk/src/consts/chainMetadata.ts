@@ -457,6 +457,7 @@ export const mantapacific: ChainMetadata = {
   displayName: 'Manta Pacific',
   displayNameShort: 'Manta',
   domainId: 169,
+  gasCurrencyCoinGeckoId: 'ethereum',
   isTestnet: false,
   name: Chains.mantapacific,
   nativeToken: {

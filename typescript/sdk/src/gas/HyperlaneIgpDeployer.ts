@@ -244,8 +244,6 @@ function getStorageGasOracleConfig(
   return totalIgpConfigs[0].oracleConfig;
 }
 
-// function getIgpConfigs(core:)
-
 // fetching igp configs from core config
 // NB: returning a list of configs because of the possibility of nested configs
 function getNestedIgpConfigs(hookConfig: HookConfig): IgpHookConfig[] {

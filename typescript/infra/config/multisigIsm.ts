@@ -4,13 +4,13 @@ import {
   MultisigIsmConfig,
   buildMultisigIsmConfigs,
   defaultMultisigConfigs,
+  testChainNames as testChains,
 } from '@hyperlane-xyz/sdk';
 
 import { DeployEnvironment } from '../src/config';
 
 import { Contexts } from './contexts';
 import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/chains';
-import { chainNames as testChains } from './environments/test/chains';
 import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains';
 import { rcMultisigIsmConfigs } from './rcMultisigIsmConfigs';
 
