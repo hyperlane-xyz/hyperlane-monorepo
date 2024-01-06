@@ -1,17 +1,5 @@
 # @hyperlane-xyz/sdk
 
-## 3.6.0
-
-### Minor Changes
-
-- 0488ef31d: Add dsrv, staked and zeeprime as validators
-
-### Patch Changes
-
-- 612d4163a: Add mailbox version const to SDK
-  - @hyperlane-xyz/core@3.6.0
-  - @hyperlane-xyz/utils@3.6.0
-
 ## 3.5.1
 
 ### Patch Changes
