@@ -47,7 +47,13 @@ export class HyperlaneJsonRpcProvider
         ProviderMethod.GetBlockNumber,
       ].includes(method as ProviderMethod)
     ) {
-      this.logger(`Received 0x result from ${method} for reqId ${reqId}.`);
+      this.logger(
+        `Received 0x result from ${method} and params ${JSON.stringify(
+          params,
+          null,
+          2,
+        )} for reqId ${reqId}.`,
+      );
       throw new Error('Invalid response from provider');
     }
     return result;

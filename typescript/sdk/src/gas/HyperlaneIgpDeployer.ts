@@ -1,4 +1,5 @@
 import debug from 'debug';
+import { ethers } from 'ethers';
 
 import {
   InterchainGasPaymaster,
@@ -6,7 +7,7 @@ import {
   StorageGasOracle,
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, eqAddress, warn } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { CoreConfig } from '../core/types';
@@ -98,8 +99,10 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     igp: InterchainGasPaymaster,
     gasOracleConfig: ChainMap<StorageGasOracleConfig>,
   ): Promise<void> {
-    this.logger(`Configuring gas oracles for ${chain}...`);
     const remotes = Object.keys(gasOracleConfig);
+    this.logger(
+      `Configuring gas oracles for local ${chain} and remotes ${remotes}`,
+    );
     const configsToSet: Record<
       Address,
       StorageGasOracle.RemoteGasDataConfigStruct[]
@@ -114,6 +117,13 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       // each destination can have a different gas oracle
       const gasOracleAddress = (await igp.destinationGasConfigs(remoteId))
         .gasOracle;
+      // in case oracleConfig is provided but the igp doesn't have a config for the remote onchain
+      if (gasOracleAddress === ethers.constants.AddressZero) {
+        warn(
+          `No gas oracle configured for ${chain} -> ${remote}. Please check your config.`,
+        );
+        continue;
+      }
       const gasOracle = StorageGasOracle__factory.connect(
         gasOracleAddress,
         this.multiProvider.getSigner(chain),

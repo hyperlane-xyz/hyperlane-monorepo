@@ -96,6 +96,14 @@ export function withAgentRole<T>(args: yargs.Argv<T>) {
     .alias('r', 'role');
 }
 
+export function withFrequency<T>(args: yargs.Argv<T>) {
+  return args
+    .describe('frequency', 'frequency to check ina cron job')
+    .demandOption('frequency')
+    .alias('f', 'frequency')
+    .number('frequency');
+}
+
 export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
   return args
     .describe('role', 'key role')
