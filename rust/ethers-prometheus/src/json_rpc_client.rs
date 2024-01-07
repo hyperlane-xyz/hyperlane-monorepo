@@ -8,6 +8,9 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_new::new;
 use ethers::prelude::JsonRpcClient;
+use ethers_core::types::U64;
+use hyperlane_core::rpc_clients::fallback::BlockNumberGetter;
+use hyperlane_core::ChainCommunicationError;
 use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
 use serde::{de::DeserializeOwned, Serialize};
@@ -180,5 +183,32 @@ where
                 .inc_by((Instant::now() - start).as_secs_f64())
         };
         res
+    }
+}
+
+impl<C: JsonRpcClient + 'static> Into<Box<dyn BlockNumberGetter>> for PrometheusJsonRpcClient<C> {
+    fn into(self) -> Box<dyn BlockNumberGetter> {
+        Box::new(JsonRpcBlockGetter::new(self))
+    }
+}
+
+#[derive(Debug, new)]
+pub struct JsonRpcBlockGetter<T: JsonRpcClient>(T);
+
+pub const BLOCK_NUMBER_RPC: &str = "eth_blockNumber";
+
+#[async_trait]
+impl<C> BlockNumberGetter for JsonRpcBlockGetter<C>
+where
+    C: JsonRpcClient,
+{
+    async fn get(&self) -> Result<u64, ChainCommunicationError> {
+        let res = self
+            .0
+            .request(BLOCK_NUMBER_RPC, ())
+            .await
+            .map(|r: U64| r.as_u64())
+            .map_err(Into::into)?;
+        Ok(res)
     }
 }

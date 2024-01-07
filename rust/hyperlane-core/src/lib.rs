@@ -35,6 +35,8 @@ mod types;
 mod chain;
 pub mod error;
 
+pub mod rpc_clients;
+
 /// Enum for validity of a list of messages
 #[derive(Debug)]
 pub enum ListValidity {

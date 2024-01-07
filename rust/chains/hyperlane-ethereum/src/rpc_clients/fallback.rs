@@ -1,73 +1,34 @@
 use derive_new::new;
-use hyperlane_core::{error::HyperlaneCustomError, ChainCommunicationError};
+use hyperlane_core::rpc_clients::fallback::{BlockNumberGetter, FallbackProvider};
 use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
+use std::ops::Deref;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
+use thiserror::Error;
 
 use async_trait::async_trait;
 use ethers::providers::{HttpClientError, JsonRpcClient, ProviderError};
-use ethers_core::types::U64;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
-use thiserror::Error;
 use tokio::time::sleep;
 use tracing::{info, instrument, warn_span};
 
 use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClientConfigExt;
 
+use crate::error::HyperlaneEthereumError;
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
-use crate::BlockNumberGetter;
 
-const MAX_BLOCK_TIME: Duration = Duration::from_secs(2 * 60);
+#[derive(new)]
+pub struct EthereumFallbackProvider<C>(FallbackProvider<C>);
 
-#[derive(Clone, Copy, new)]
-struct PrioritizedProviderInner {
-    // Index into the `providers` field of `PrioritizedProviders`
-    index: usize,
-    // Tuple of the block number and the time when it was queried
-    #[new(value = "(0, Instant::now())")]
-    last_block_height: (u64, Instant),
-}
+impl<C> Deref for EthereumFallbackProvider<C> {
+    type Target = FallbackProvider<C>;
 
-impl PrioritizedProviderInner {
-    fn from_block_height(index: usize, block_height: u64) -> Self {
-        Self {
-            index,
-            last_block_height: (block_height, Instant::now()),
-        }
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
-struct PrioritizedProviders<T> {
-    /// Sorted list of providers this provider calls in order of most primary to
-    /// most fallback.
-    providers: Vec<T>,
-    priorities: RwLock<Vec<PrioritizedProviderInner>>,
-}
-
-// : Into<Box<dyn BlockNumberGetter>>
-
-/// A provider that bundles multiple providers and attempts to call the first,
-/// then the second, and so on until a response is received.
-pub struct FallbackProvider<T> {
-    inner: Arc<PrioritizedProviders<T>>,
-    max_block_time: Duration,
-}
-
-// in the fallback provider of the T, you want T to implement Into<Box<dyn BlockNumberGetter>>, so you can cast and then get the block number.
-// by requiring this Into impl means T can be anything and you can create the implementation in your own crate.
-
-impl<T> Clone for FallbackProvider<T> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            max_block_time: self.max_block_time,
-        }
-    }
-}
-
-impl<C> Debug for FallbackProvider<C>
+impl<C> Debug for EthereumFallbackProvider<C>
 where
     C: JsonRpcClient + PrometheusJsonRpcClientConfigExt,
 {
@@ -76,6 +37,7 @@ where
             .field(
                 "chain_name",
                 &self
+                    .0
                     .inner
                     .providers
                     .get(0)
@@ -85,6 +47,7 @@ where
             .field(
                 "hosts",
                 &self
+                    .0
                     .inner
                     .providers
                     .iter()
@@ -93,134 +56,6 @@ where
                     .join(", "),
             )
             .finish()
-    }
-}
-
-impl<T> FallbackProvider<T>
-where
-    T: Debug + Into<Box<dyn BlockNumberGetter>> + Clone,
-{
-    /// Convenience method for creating a `FallbackProviderBuilder` with same
-    /// `JsonRpcClient` types
-    pub fn builder() -> FallbackProviderBuilder<T> {
-        FallbackProviderBuilder::default()
-    }
-
-    /// Create a new fallback provider
-    pub fn new(providers: impl IntoIterator<Item = T>) -> Self {
-        Self::builder().add_providers(providers).build()
-    }
-
-    async fn deprioritize_provider(&self, priority: PrioritizedProviderInner) {
-        // De-prioritize the current provider by moving it to the end of the queue
-        let mut priorities = self.inner.priorities.write().await;
-        priorities.retain(|&p| p.index != priority.index);
-        priorities.push(priority);
-    }
-
-    async fn update_last_seen_block(&self, provider_index: usize, current_block_height: u64) {
-        let mut priorities = self.inner.priorities.write().await;
-        // Get provider position in the up-to-date priorities vec
-        if let Some(position) = priorities.iter().position(|p| p.index == provider_index) {
-            priorities[position] =
-                PrioritizedProviderInner::from_block_height(provider_index, current_block_height);
-        }
-    }
-
-    async fn take_priorities_snapshot(&self) -> Vec<PrioritizedProviderInner> {
-        let read_lock = self.inner.priorities.read().await;
-        (*read_lock).clone()
-    }
-
-    async fn handle_stalled_provider(
-        &self,
-        priority: &PrioritizedProviderInner,
-        provider: &T,
-    ) -> Result<(), ProviderError> {
-        let now = Instant::now();
-        if now
-            .duration_since(priority.last_block_height.1)
-            .le(&self.max_block_time)
-        {
-            // Do nothing, it's too early to tell if the provider has stalled
-            return Ok(());
-        }
-
-        let block_getter: Box<dyn BlockNumberGetter> = provider.clone().into();
-        let current_block_height = block_getter
-            .get()
-            .await
-            .unwrap_or(priority.last_block_height.0);
-        if current_block_height <= priority.last_block_height.0 {
-            // The `max_block_time` elapsed but the block number returned by the provider has not increased
-            self.deprioritize_provider(*priority).await;
-            info!(
-                provider_index=%priority.index,
-                provider=?self.inner.providers[priority.index],
-                "Deprioritizing an inner provider in FallbackProvider",
-            );
-        } else {
-            self.update_last_seen_block(priority.index, current_block_height)
-                .await;
-        }
-        Ok(())
-    }
-}
-
-impl<C> FallbackProvider<C> where C: JsonRpcClient {}
-
-/// Builder to create a new fallback provider.
-#[derive(Debug, Clone)]
-pub struct FallbackProviderBuilder<T> {
-    providers: Vec<T>,
-    max_block_time: Duration,
-}
-
-impl<T> Default for FallbackProviderBuilder<T> {
-    fn default() -> Self {
-        Self {
-            providers: Vec::new(),
-            max_block_time: MAX_BLOCK_TIME,
-        }
-    }
-}
-
-impl<T> FallbackProviderBuilder<T> {
-    /// Add a new provider to the set. Each new provider will be a lower
-    /// priority than the previous.
-    pub fn add_provider(mut self, provider: T) -> Self {
-        self.providers.push(provider);
-        self
-    }
-
-    /// Add many providers sorted by highest priority to lowest.
-    pub fn add_providers(mut self, providers: impl IntoIterator<Item = T>) -> Self {
-        self.providers.extend(providers);
-        self
-    }
-
-    #[cfg(test)]
-    pub fn with_max_block_time(mut self, max_block_time: Duration) -> Self {
-        self.max_block_time = max_block_time;
-        self
-    }
-
-    /// Create a fallback provider.
-    pub fn build(self) -> FallbackProvider<T> {
-        let provider_count = self.providers.len();
-        let prioritized_providers = PrioritizedProviders {
-            providers: self.providers,
-            // The order of `self.providers` gives the initial priority.
-            priorities: RwLock::new(
-                (0..provider_count)
-                    .map(PrioritizedProviderInner::new)
-                    .collect(),
-            ),
-        };
-        FallbackProvider {
-            inner: Arc::new(prioritized_providers),
-            max_block_time: self.max_block_time,
-        }
     }
 }
 
@@ -240,7 +75,7 @@ impl From<FallbackError> for ProviderError {
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-impl<C> JsonRpcClient for FallbackProvider<C>
+impl<C> JsonRpcClient for EthereumFallbackProvider<C>
 where
     C: JsonRpcClient<Error = HttpClientError>
         + PrometheusJsonRpcClientConfigExt
@@ -249,6 +84,7 @@ where
 {
     type Error = ProviderError;
 
+    // TODO: Refactor the reusable parts of this function when implementing the cosmos-specific logic
     #[instrument]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where
@@ -272,7 +108,7 @@ where
                     _ => provider.request(method, &params),
                 };
                 let resp = fut.await;
-                self.handle_stalled_provider(priority, provider).await?;
+                self.handle_stalled_provider(priority, provider).await;
                 let _span =
                     warn_span!("request_with_fallback", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
 
@@ -290,10 +126,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{JsonRpcBlockGetter, BLOCK_NUMBER_RPC};
+    use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, BLOCK_NUMBER_RPC};
+    use hyperlane_core::rpc_clients::fallback::FallbackProviderBuilder;
 
     use super::*;
-    use std::sync::Mutex;
+    use std::sync::{Arc, Mutex};
 
     #[derive(Debug, Clone)]
     struct ProviderMock {
@@ -385,11 +222,12 @@ mod tests {
             ProviderMock::new(),
         ];
         let fallback_provider = fallback_provider_builder.add_providers(providers).build();
-        fallback_provider
+        let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
+        ethereum_fallback_provider
             .request::<_, u64>(BLOCK_NUMBER_RPC, ())
             .await
             .unwrap();
-        let provider_call_count: Vec<_> = get_call_counts(&fallback_provider).await;
+        let provider_call_count: Vec<_> = get_call_counts(&ethereum_fallback_provider).await;
         assert_eq!(provider_call_count, vec![1, 0, 0]);
     }
 
@@ -405,12 +243,13 @@ mod tests {
             .add_providers(providers)
             .with_max_block_time(Duration::from_secs(0))
             .build();
-        fallback_provider
+        let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
+        ethereum_fallback_provider
             .request::<_, u64>(BLOCK_NUMBER_RPC, ())
             .await
             .unwrap();
 
-        let provider_call_count: Vec<_> = get_call_counts(&fallback_provider).await;
+        let provider_call_count: Vec<_> = get_call_counts(&ethereum_fallback_provider).await;
         assert_eq!(provider_call_count, vec![0, 0, 2]);
     }
 

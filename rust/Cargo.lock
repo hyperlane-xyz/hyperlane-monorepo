@@ -2786,6 +2786,7 @@ dependencies = [
  "derive-new",
  "derive_builder",
  "ethers",
+ "ethers-core",
  "futures",
  "hyperlane-core",
  "log",
@@ -4120,6 +4121,7 @@ dependencies = [
  "thiserror",
  "tiny-keccak",
  "tokio",
+ "tracing",
  "uint",
 ]
 

@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use derive_new::new;
 use ethers::middleware::gas_oracle::{
     GasCategory, GasOracle, GasOracleMiddleware, Polygon, ProviderOracle,
 };
@@ -11,9 +10,8 @@ use ethers::prelude::{
     Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
     SignerMiddleware, WeightedProvider, Ws, WsClientError,
 };
-use ethers::providers::ProviderError;
-use ethers_core::types::U64;
 use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
+use hyperlane_core::rpc_clients::fallback::FallbackProvider;
 use reqwest::{Client, Url};
 use thiserror::Error;
 
@@ -28,7 +26,8 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
 };
 
-use crate::{signers::Signers, ConnectionConf, FallbackProvider, RetryingProvider};
+use crate::EthereumFallbackProvider;
+use crate::{signers::Signers, ConnectionConf, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
 const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -117,8 +116,14 @@ pub trait BuildableWithProvider {
                     builder = builder.add_provider(metrics_provider);
                 }
                 let fallback_provider = builder.build();
-                self.build(fallback_provider, locator, signer, middleware_metrics)
-                    .await?
+                let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
+                self.build(
+                    ethereum_fallback_provider,
+                    locator,
+                    signer,
+                    middleware_metrics,
+                )
+                .await?
             }
             ConnectionConf::Http { url } => {
                 let http_client = Client::builder()
@@ -280,36 +285,4 @@ where
         }
     };
     Ok(GasOracleMiddleware::new(provider, gas_oracle))
-}
-
-pub const BLOCK_NUMBER_RPC: &str = "eth_blockNumber";
-
-#[async_trait]
-pub trait BlockNumberGetter: Send + Sync + Debug {
-    async fn get(&self) -> Result<u64, ProviderError>;
-}
-
-#[derive(Debug, new)]
-pub struct JsonRpcBlockGetter<T: JsonRpcClient>(T);
-
-#[async_trait]
-impl<C> BlockNumberGetter for JsonRpcBlockGetter<C>
-where
-    C: JsonRpcClient,
-{
-    async fn get(&self) -> Result<u64, ProviderError> {
-        let res = self
-            .0
-            .request(BLOCK_NUMBER_RPC, ())
-            .await
-            .map(|r: U64| r.as_u64())
-            .map_err(Into::into)?;
-        Ok(res)
-    }
-}
-
-impl<C: JsonRpcClient + 'static> Into<Box<dyn BlockNumberGetter>> for PrometheusJsonRpcClient<C> {
-    fn into(self) -> Box<dyn BlockNumberGetter> {
-        Box::new(JsonRpcBlockGetter(self))
-    }
 }
