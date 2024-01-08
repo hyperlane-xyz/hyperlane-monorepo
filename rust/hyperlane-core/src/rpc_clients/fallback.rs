@@ -1,3 +1,4 @@
+use async_rwlock::RwLock;
 use async_trait::async_trait;
 use derive_new::new;
 use std::{
@@ -5,7 +6,6 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use tokio::sync::RwLock;
 use tracing::info;
 
 use crate::ChainCommunicationError;
