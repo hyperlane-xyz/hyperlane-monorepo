@@ -95,51 +95,6 @@ contract LayerZeroV2IsmTest is Test {
         );
     }
 
-    function testLzV2Ism_lzReceive_RevertWhen_NotMessagePayloadIncorrect(
-        bytes calldata _message
-    ) public {
-        // Always a function signature
-        vm.assume(_message.length == 4);
-        // But not the required one
-        vm.assume(
-            bytes4(_message) !=
-                AbstractMessageIdAuthorizedIsm.verifyMessageId.selector
-        );
-
-        // Set hook
-        lZIsm.setAuthorizedHook(hook.addressToBytes32());
-        (
-            Origin memory origin,
-            bytes32 guid,
-            bytes memory message,
-            address executor,
-            bytes memory extraData
-        ) = _makeLzParameters(
-                hook,
-                bytes32(""),
-                _message,
-                makeAddr("executor"),
-                bytes("")
-            );
-
-        vm.startPrank(endpoint);
-        vm.expectRevert("LayerZeroV2Ism: message payload is incorrect");
-        lZIsm.lzReceive(origin, guid, message, executor, extraData);
-        vm.stopPrank();
-
-        // Try with correct payload
-        vm.startPrank(endpoint);
-        (origin, guid, message, executor, extraData) = _makeLzParameters(
-            hook,
-            bytes32(""),
-            _encodedFunctionCall(bytes32("")),
-            makeAddr("executor"),
-            bytes("")
-        );
-        lZIsm.lzReceive(origin, guid, message, executor, extraData);
-        vm.stopPrank();
-    }
-
     function testLzV2Ism_lzReceive_RevertWhen_NotSentByHook(
         address _hook
     ) public {

@@ -42,6 +42,9 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
     // @dev the offset of msg.data where the function parameters (as bytes) begins. 4 bytes is always used when encoding the function selector
     uint8 constant FUNC_SELECTOR_OFFSET = 4;
 
+    // @dev the offset of msg.data where Origin.sender begins. 32 is always used since calldata comes in 32 bytes.
+    uint8 constant ORIGIN_SENDER_OFFSET = FUNC_SELECTOR_OFFSET + 32;
+
     // ============ Constructor ============
     constructor(address _endpoint) {
         require(
@@ -88,11 +91,6 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
         require(_isAuthorizedHook(), "LayerZeroV2Ism: hook is not authorized");
 
         require(
-            _isVerifyMessageSelector(),
-            "LayerZeroV2Ism: message payload is incorrect"
-        );
-
-        require(
             _isAuthorizedEndPoint(),
             "LayerZeroV2Ism: endpoint is not authorized"
         );
@@ -104,25 +102,7 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
      * @notice check if origin.sender is the authorized hook
      */
     function _isAuthorizedHook() internal view returns (bool) {
-        (Origin memory origin, , , , ) = abi.decode(
-            msg.data[FUNC_SELECTOR_OFFSET:],
-            (Origin, bytes32, bytes, address, bytes)
-        );
-
-        return origin.sender == authorizedHook;
-    }
-
-    /**
-     * @notice check if the expected payload is the verifyMessageId selector, which is created in the authorized Hook
-     */
-    function _isVerifyMessageSelector() internal pure returns (bool) {
-        (, , bytes memory message, , ) = abi.decode(
-            msg.data[FUNC_SELECTOR_OFFSET:],
-            (Origin, bytes32, bytes, address, bytes)
-        );
-        return
-            bytes4(message) ==
-            AbstractMessageIdAuthorizedIsm.verifyMessageId.selector;
+        return bytes32(msg.data[ORIGIN_SENDER_OFFSET:]) == authorizedHook;
     }
 
     /**
