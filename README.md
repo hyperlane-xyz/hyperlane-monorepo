@@ -28,6 +28,24 @@ To read more about interchain applications, how the protocol works, and how to i
 
 ## Working on Hyperlane
 
+### Foundry
+
+First ensure you have Foundry installed on your machine.
+
+Run the following to install `foundryup`:
+
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+```
+
+Then run `foundryup` to install `forge`, `cast`, `anvil` and `chisel`.
+
+```bash
+foundryup
+```
+
+Check out the [Foundry Book](https://book.getfoundry.sh/getting-started/installation) for more information.
+
 ### Workspaces
 
 This monorepo uses [Yarn Workspaces](https://yarnpkg.com/features/workspaces). Installing dependencies, building, testing, and running prettier for all packages can be done from the root directory of the repository.
