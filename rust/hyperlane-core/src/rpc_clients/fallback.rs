@@ -10,18 +10,22 @@ use tracing::info;
 
 use crate::ChainCommunicationError;
 
+/// Read the current block number from a chain.
 #[async_trait]
 pub trait BlockNumberGetter: Send + Sync + Debug {
+    /// Latest block number getter
     async fn get(&self) -> Result<u64, ChainCommunicationError>;
 }
 
 const MAX_BLOCK_TIME: Duration = Duration::from_secs(2 * 60);
 
+/// Information about a provider in `PrioritizedProviders`
+
 #[derive(Clone, Copy, new)]
 pub struct PrioritizedProviderInner {
-    // Index into the `providers` field of `PrioritizedProviders`
+    /// Index into the `providers` field of `PrioritizedProviders`
     pub index: usize,
-    // Tuple of the block number and the time when it was queried
+    /// Tuple of the block number and the time when it was queried
     #[new(value = "(0, Instant::now())")]
     last_block_height: (u64, Instant),
 }
@@ -35,16 +39,18 @@ impl PrioritizedProviderInner {
     }
 }
 
+/// Sub-providers and priority information
 pub struct PrioritizedProviders<T> {
-    /// Sorted list of providers this provider calls in order of most primary to
-    /// most fallback.
+    /// Unsorted list of providers this provider calls
     pub providers: Vec<T>,
+    /// Sorted list of providers this provider calls, in descending order or reliability
     pub priorities: RwLock<Vec<PrioritizedProviderInner>>,
 }
 
 /// A provider that bundles multiple providers and attempts to call the first,
 /// then the second, and so on until a response is received.
 pub struct FallbackProvider<T> {
+    /// The sub-providers called by this provider
     pub inner: Arc<PrioritizedProviders<T>>,
     max_block_time: Duration,
 }
@@ -89,11 +95,13 @@ where
         }
     }
 
+    /// Used to iterate the providers in a non-blocking way
     pub async fn take_priorities_snapshot(&self) -> Vec<PrioritizedProviderInner> {
         let read_lock = self.inner.priorities.read().await;
         (*read_lock).clone()
     }
 
+    /// De-prioritize a provider that has either timed out or returned a bad response
     pub async fn handle_stalled_provider(&self, priority: &PrioritizedProviderInner, provider: &T) {
         let now = Instant::now();
         if now

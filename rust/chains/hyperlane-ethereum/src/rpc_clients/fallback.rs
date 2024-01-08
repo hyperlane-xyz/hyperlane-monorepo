@@ -1,8 +1,8 @@
 use derive_new::new;
-use hyperlane_core::rpc_clients::fallback::{BlockNumberGetter, FallbackProvider};
+use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
 use std::fmt::{Debug, Formatter};
 use std::ops::Deref;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use thiserror::Error;
 
 use async_trait::async_trait;
@@ -10,13 +10,13 @@ use ethers::providers::{HttpClientError, JsonRpcClient, ProviderError};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use tokio::time::sleep;
-use tracing::{info, instrument, warn_span};
+use tracing::{instrument, warn_span};
 
 use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClientConfigExt;
 
-use crate::error::HyperlaneEthereumError;
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 
+/// Wrapper of `FallbackProvider` for use in `hyperlane-ethereum`
 #[derive(new)]
 pub struct EthereumFallbackProvider<C>(FallbackProvider<C>);
 
@@ -127,7 +127,7 @@ where
 #[cfg(test)]
 mod tests {
     use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, BLOCK_NUMBER_RPC};
-    use hyperlane_core::rpc_clients::fallback::FallbackProviderBuilder;
+    use hyperlane_core::rpc_clients::FallbackProviderBuilder;
 
     use super::*;
     use std::sync::{Arc, Mutex};

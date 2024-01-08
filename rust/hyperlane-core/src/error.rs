@@ -6,7 +6,7 @@ use std::ops::Deref;
 use bigdecimal::ParseBigDecimalError;
 
 use crate::config::StrOrIntParseError;
-use crate::rpc_clients::error::RpcClientError;
+use crate::rpc_clients::RpcClientError;
 use std::string::FromUtf8Error;
 
 use crate::Error as PrimitiveTypeError;

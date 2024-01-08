@@ -1,2 +1,4 @@
-pub mod error;
-pub mod fallback;
+pub use self::{error::*, fallback::*};
+
+mod error;
+mod fallback;

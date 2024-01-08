@@ -9,7 +9,7 @@ use derive_builder::Builder;
 use derive_new::new;
 use ethers::prelude::JsonRpcClient;
 use ethers_core::types::U64;
-use hyperlane_core::rpc_clients::fallback::BlockNumberGetter;
+use hyperlane_core::rpc_clients::BlockNumberGetter;
 use hyperlane_core::ChainCommunicationError;
 use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
@@ -186,15 +186,17 @@ where
     }
 }
 
-impl<C: JsonRpcClient + 'static> Into<Box<dyn BlockNumberGetter>> for PrometheusJsonRpcClient<C> {
-    fn into(self) -> Box<dyn BlockNumberGetter> {
-        Box::new(JsonRpcBlockGetter::new(self))
+impl<C: JsonRpcClient + 'static> From<PrometheusJsonRpcClient<C>> for Box<dyn BlockNumberGetter> {
+    fn from(val: PrometheusJsonRpcClient<C>) -> Self {
+        Box::new(JsonRpcBlockGetter::new(val))
     }
 }
 
+/// Utility struct for implementing `BlockNumberGetter`
 #[derive(Debug, new)]
 pub struct JsonRpcBlockGetter<T: JsonRpcClient>(T);
 
+/// RPC method for getting the latest block number
 pub const BLOCK_NUMBER_RPC: &str = "eth_blockNumber";
 
 #[async_trait]

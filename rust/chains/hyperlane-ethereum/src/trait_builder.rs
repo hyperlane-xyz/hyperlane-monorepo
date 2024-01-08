@@ -11,7 +11,7 @@ use ethers::prelude::{
     SignerMiddleware, WeightedProvider, Ws, WsClientError,
 };
 use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
-use hyperlane_core::rpc_clients::fallback::FallbackProvider;
+use hyperlane_core::rpc_clients::FallbackProvider;
 use reqwest::{Client, Url};
 use thiserror::Error;
 
