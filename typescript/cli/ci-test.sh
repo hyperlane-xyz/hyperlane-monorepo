@@ -105,7 +105,7 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
 MESSAGE2_ID=`cat /tmp/message2 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
 echo "Message 2 ID: $MESSAGE2_ID"
 
-cd ./rust
+cd ../../rust
 echo "Pre-building validator with cargo"
 cargo build --bin validator
 
