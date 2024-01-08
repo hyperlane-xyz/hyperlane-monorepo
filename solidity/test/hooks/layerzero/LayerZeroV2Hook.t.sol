@@ -138,22 +138,25 @@ contract LayerZeroV2HookTest is Test {
         assertGt(nativeFee, 0);
     }
 
-    function testLzV2Hook_PostDispatch_notEnoughFee() public {
+    function testLzV2Hook_PostDispatch_notEnoughFee(uint256 balance) public {
         (
             uint256 nativeFee,
             bytes memory metadata
         ) = testLzV2Hook_QuoteDispatch_returnsFeeAmount();
 
+        vm.assume(balance < nativeFee - 1);
+
+        vm.deal(address(this), balance);
         vm.expectRevert(
             abi.encodeWithSelector(
                 Errors.InsufficientFee.selector,
                 100,
-                99,
+                balance,
                 0,
                 0
             )
         );
-        mailbox.dispatch{value: nativeFee - 1}(
+        mailbox.dispatch{value: balance}(
             HYPERLANE_DEST_DOMAIN,
             address(crossChainCounterApp).addressToBytes32(),
             "Hello World!",
@@ -162,23 +165,24 @@ contract LayerZeroV2HookTest is Test {
         );
     }
 
-    function testLzV2Hook_PostDispatch_refundExtraFee() public {
+    function testLzV2Hook_PostDispatch_refundExtraFee(uint256 balance) public {
         (
             uint256 nativeFee,
             bytes memory metadata
         ) = testLzV2Hook_QuoteDispatch_returnsFeeAmount();
+        vm.assume(balance > nativeFee);
 
-        uint256 balanceBefore = address(alice).balance;
-        mailbox.dispatch{value: nativeFee + 1}(
+        uint256 extraValue = balance - nativeFee;
+        vm.deal(address(this), balance);
+
+        mailbox.dispatch{value: balance}(
             HYPERLANE_DEST_DOMAIN,
             address(crossChainCounterApp).addressToBytes32(),
             "Hello World!",
             metadata,
             hook
         );
-        uint256 balanceAfter = address(alice).balance;
-
-        assertEq(balanceAfter, balanceBefore + 1);
+        assertEq(address(alice).balance, extraValue);
     }
 
     function testLzV2Hook_PostDispatch_executesCrossChain() public {
