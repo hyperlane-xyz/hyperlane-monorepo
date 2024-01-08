@@ -12,7 +12,6 @@ pragma solidity >=0.8.0;
   @@@@@@@@@       @@@@@@@@@
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
-import {LzApp} from "@layerzerolabs/solidity-examples/contracts/lzApp/LzApp.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
@@ -96,21 +95,16 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient, Indexed {
         require(_isLatestDispatched(id), "message not dispatched by mailbox");
 
         bytes calldata lZMetadata = metadata.getCustomMetadata();
-        (
-            uint16 dstChainId,
-            ,
-            address payable refundAddress,
-            bytes memory payload,
-            bytes memory destination,
-            bytes memory adapterParam
-        ) = parseLzMetadata(lZMetadata);
+        LayerZeroMetadata memory layerZeroMetadata = parseLzMetadata(
+            lZMetadata
+        );
         lZEndpoint.send{value: msg.value}(
-            dstChainId,
-            destination,
-            payload,
-            refundAddress,
+            layerZeroMetadata.dstChainId,
+            layerZeroMetadata.destination,
+            layerZeroMetadata.payload,
+            payable(layerZeroMetadata.refundAddress),
             address(0), // _zroPaymentAddress is hardcoded to addr(0) because zro tokens should not be directly accepted
-            adapterParam
+            layerZeroMetadata.adapterParam
         );
     }
 
@@ -120,20 +114,15 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient, Indexed {
         bytes calldata
     ) internal view virtual override returns (uint256 nativeFee) {
         bytes calldata lZMetadata = metadata.getCustomMetadata();
-        (
-            uint16 dstChainId,
-            address userApplication,
-            ,
-            bytes memory payload,
-            ,
-            bytes memory adapterParam
-        ) = parseLzMetadata(lZMetadata);
+        LayerZeroMetadata memory layerZeroMetadata = parseLzMetadata(
+            lZMetadata
+        );
         (nativeFee, ) = lZEndpoint.estimateFees(
-            dstChainId,
-            userApplication,
-            payload,
+            layerZeroMetadata.dstChainId,
+            layerZeroMetadata.userApplication,
+            layerZeroMetadata.payload,
             false, // _payInZRO is hardcoded to false because zro tokens should not be directly accepted
-            adapterParam
+            layerZeroMetadata.adapterParam
         );
     }
 
@@ -145,15 +134,7 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient, Indexed {
     function formatLzMetadata(
         LayerZeroMetadata calldata layerZeroMetadata
     ) public pure returns (bytes memory) {
-        return
-            abi.encode(
-                layerZeroMetadata.dstChainId,
-                layerZeroMetadata.userApplication,
-                layerZeroMetadata.refundAddress,
-                layerZeroMetadata.payload,
-                layerZeroMetadata.destination,
-                layerZeroMetadata.adapterParam
-            );
+        return abi.encode(layerZeroMetadata);
     }
 
     /**
@@ -162,28 +143,7 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient, Indexed {
      */
     function parseLzMetadata(
         bytes calldata lZMetadata
-    )
-        public
-        pure
-        returns (
-            uint16 dstChainId,
-            address userApplication,
-            address payable refundAddress,
-            bytes memory payload,
-            bytes memory destination,
-            bytes memory adapterParam
-        )
-    {
-        (
-            dstChainId,
-            userApplication,
-            refundAddress,
-            payload,
-            destination,
-            adapterParam
-        ) = abi.decode(
-            lZMetadata,
-            (uint16, address, address, bytes, bytes, bytes)
-        );
+    ) public pure returns (LayerZeroMetadata memory parsedLayerZeroMetadata) {
+        (parsedLayerZeroMetadata) = abi.decode(lZMetadata, (LayerZeroMetadata));
     }
 }

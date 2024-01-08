@@ -68,20 +68,15 @@ contract LayerZeroV1HookTest is Test {
             layerZeroMetadata
         );
 
-        (
-            uint16 _dstChainId,
-            address _userApplication,
-            address _refundAddress,
-            bytes memory _payload,
-            bytes memory _destination,
-            bytes memory _adapterParam
-        ) = hook.parseLzMetadata(formattedMetadata);
-        assertEq(_dstChainId, dstChainId);
-        assertEq(_userApplication, userApplication);
-        assertEq(_refundAddress, refundAddress);
-        assertEq(_payload, payload);
-        assertEq(_destination, destination);
-        assertEq(_adapterParam, adapterParam);
+        LayerZeroMetadata memory parsedLayerZeroMetadata = hook.parseLzMetadata(
+            formattedMetadata
+        );
+        assertEq(parsedLayerZeroMetadata.dstChainId, dstChainId);
+        assertEq(parsedLayerZeroMetadata.userApplication, userApplication);
+        assertEq(parsedLayerZeroMetadata.refundAddress, refundAddress);
+        assertEq(parsedLayerZeroMetadata.payload, payload);
+        assertEq(parsedLayerZeroMetadata.destination, destination);
+        assertEq(parsedLayerZeroMetadata.adapterParam, adapterParam);
     }
 
     function testLzV1Hook_QuoteDispatch_returnsFeeAmount()

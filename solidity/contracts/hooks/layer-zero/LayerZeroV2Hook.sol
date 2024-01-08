@@ -36,6 +36,11 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook, Indexed {
 
     ILayerZeroEndpointV2 public immutable lZEndpoint;
 
+    /// @dev offset for Layer Zero metadata parsing
+    uint8 constant EID_OFFSET = 0;
+    uint8 constant REFUND_ADDRESS_OFFSET = 4;
+    uint8 constant OPTIONS_OFFSET = 24;
+
     constructor(
         address _mailbox,
         uint32 _destinationDomain,
@@ -55,7 +60,7 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook, Indexed {
         bytes calldata lZMetadata = metadata.getCustomMetadata();
         (
             uint32 eid,
-            address payable refundAddress,
+            address refundAddress,
             bytes memory options
         ) = parseLzMetadata(lZMetadata);
 
@@ -103,7 +108,7 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook, Indexed {
         LayerZeroV2Metadata calldata layerZeroMetadata
     ) public pure returns (bytes memory) {
         return
-            abi.encode(
+            abi.encodePacked(
                 layerZeroMetadata.eid,
                 layerZeroMetadata.refundAddress,
                 layerZeroMetadata.options
@@ -119,15 +124,12 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook, Indexed {
     )
         public
         pure
-        returns (
-            uint32 eid,
-            address payable refundAddress,
-            bytes memory options
-        )
+        returns (uint32 eid, address refundAddress, bytes memory options)
     {
-        (eid, refundAddress, options) = abi.decode(
-            lZMetadata,
-            (uint32, address, bytes)
+        eid = uint32(bytes4(lZMetadata[EID_OFFSET:REFUND_ADDRESS_OFFSET]));
+        refundAddress = address(
+            bytes20(lZMetadata[REFUND_ADDRESS_OFFSET:OPTIONS_OFFSET])
         );
+        options = lZMetadata[OPTIONS_OFFSET:];
     }
 }
