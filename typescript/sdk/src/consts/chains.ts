@@ -17,7 +17,6 @@ export enum Chains {
   fuji = 'fuji',
   gnosis = 'gnosis',
   goerli = 'goerli',
-  inevm = 'inevm',
   injective = 'injective',
   lineagoerli = 'lineagoerli',
   mantapacific = 'mantapacific',
@@ -74,8 +73,6 @@ export const Mainnets: Array<CoreChainName> = [
   Chains.scroll,
   Chains.polygonzkevm,
   Chains.injective,
-  Chains.inevm,
-  Chains.viction,
   // Chains.solana,
 ];
 
