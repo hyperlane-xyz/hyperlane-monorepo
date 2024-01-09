@@ -10,6 +10,17 @@ use super::{
 };
 
 #[cw_serde]
+pub struct IsmMultisigInstantiateMsg {
+    pub owner: String,
+}
+
+#[cw_serde]
+pub struct IsmPausableInstantiateMsg {
+    pub owner: String,
+    pub paused: bool,
+}
+
+#[cw_serde]
 pub struct TestMockMsgReceiverInstantiateMsg {
     pub hrp: String,
 }
@@ -108,7 +119,7 @@ pub fn deploy_cw_hyperlane(
         &deployer,
         Some(deployer_addr),
         codes.hpl_ism_pausable,
-        ism::pausable::InstantiateMsg {
+        IsmPausableInstantiateMsg {
             owner: deployer_addr.clone(),
             paused: false,
         },
