@@ -1,12 +1,11 @@
 import debug from 'debug';
 
 import { TestRecipient, TestRecipient__factory } from '@hyperlane-xyz/core';
-import {
-  ChainName,
-  HyperlaneDeployer,
-  MultiProvider,
-} from '@hyperlane-xyz/sdk';
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
+
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { MultiProvider } from '../providers/MultiProvider';
+import { ChainName } from '../types';
 
 export type TestRecipientConfig = {
   interchainSecurityModule: Address;
@@ -39,7 +38,13 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: TestRecipientConfig,
   ): Promise<TestRecipientContracts> {
-    const testRecipient = await this.deployContract(chain, 'testRecipient', []);
+    const testRecipient = await this.deployContract(
+      chain,
+      'testRecipient',
+      [],
+      undefined,
+      false,
+    );
     try {
       this.logger(`Checking ISM ${chain}`);
       const ism = await testRecipient.interchainSecurityModule();
