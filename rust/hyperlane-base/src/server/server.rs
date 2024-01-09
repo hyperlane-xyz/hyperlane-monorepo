@@ -1,36 +1,18 @@
 use crate::{server::EigenNodeAPI, CoreMetrics};
-use axum::{
-    http::{Response, StatusCode},
-    routing::get,
-    Router,
-};
-use hyper::Body;
-use prometheus::{Encoder, Registry};
+use axum::{http::StatusCode, response::IntoResponse, routing::get, Router};
+use derive_new::new;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::task::JoinHandle;
 use tracing::warn;
 
 /// A server that serves agent-specific routes
+#[derive(new, Debug)]
 pub struct Server {
     listen_port: u16,
-    registry: Registry,
-    core_metrics: Option<Arc<CoreMetrics>>,
+    core_metrics: Arc<CoreMetrics>,
 }
 
 impl Server {
-    /// Create a new server instance.
-    pub fn new(
-        listen_port: u16,
-        registry: Registry,
-        core_metrics: Option<Arc<CoreMetrics>>,
-    ) -> Self {
-        Self {
-            listen_port,
-            registry,
-            core_metrics,
-        }
-    }
-
     /// Run an HTTP server serving agent-specific different routes
     ///
     /// routes:
@@ -40,34 +22,20 @@ impl Server {
         let port = self.listen_port;
         tracing::info!(port, "starting prometheus server on 0.0.0.0");
 
-        let server_clone = self.clone();
+        let core_metrics_clone = self.core_metrics.clone();
 
-        let app = Router::new().route(
-            "/metrics",
-            get(move || {
-                let server = server_clone.clone();
-                async move {
-                    match server.gather() {
-                        Ok(metrics) => Response::builder()
-                            // OpenMetrics specs demands "application/openmetrics-text;
-                            // version=1.0.0; charset=utf-8"
-                            // but the prometheus scraper itself doesn't seem to care?
-                            // try text/plain to make web browsers happy.
-                            .header("Content-Type", "text/plain; charset=utf-8")
-                            .body(Body::from(metrics))
-                            .unwrap(),
-                        Err(_) => Response::builder()
-                            .status(StatusCode::NOT_FOUND)
-                            .body(Body::from("Failed to encode metrics"))
-                            .unwrap(),
-                    }
-                }
-            }),
-        );
+        let app = Router::new()
+            .route(
+                "/metrics",
+                get(move || Self::gather_metrics(core_metrics_clone)),
+            )
+            .nest(
+                "/eigen",
+                EigenNodeAPI::new(self.core_metrics.clone()).router(),
+            );
 
         // let eigen_router = EigenNodeAPI::router();
         tokio::spawn(async move {
-            // .nest("/eigen", eigen_router);
             let addr = SocketAddr::from(([0, 0, 0, 0], port));
             axum::Server::bind(&addr)
                 .serve(app.into_make_service())
@@ -79,12 +47,18 @@ impl Server {
 
     /// Gather available metrics into an encoded (plaintext, OpenMetrics format)
     /// report.
-    pub fn gather(&self) -> prometheus::Result<Vec<u8>> {
-        let collected_metrics = self.registry.gather();
-        let mut out_buf = Vec::with_capacity(1024 * 64);
-        let encoder = prometheus::TextEncoder::new();
-        encoder.encode(&collected_metrics, &mut out_buf)?;
-        Ok(out_buf)
+    async fn gather_metrics(core_metrics: Arc<CoreMetrics>) -> impl IntoResponse {
+        match core_metrics.gather() {
+            Ok(metrics) => {
+                let metrics =
+                    String::from_utf8(metrics).unwrap_or_else(|_| "Invalid UTF-8 sequence".into());
+                (StatusCode::OK, metrics)
+            }
+            Err(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to gather metrics".into(),
+            ),
+        }
     }
 }
 
@@ -103,7 +77,10 @@ mod tests {
         mock_registry.register(Box::new(counter.clone())).unwrap();
         counter.inc();
 
-        let server = Server::new(8080, mock_registry, None);
+        let server = Server::new(
+            8080,
+            Arc::new(CoreMetrics::new("test", 8080, mock_registry).unwrap()),
+        );
         let server = Arc::new(server);
         let _run_server = server.run();
 

@@ -97,11 +97,7 @@ impl Settings {
 
     /// Create the server from the settings given the name of the agent.
     pub fn server(&self, core_metrics: Arc<CoreMetrics>) -> Result<Arc<Server>> {
-        Ok(Arc::new(Server::new(
-            self.metrics_port,
-            prometheus::Registry::new(),
-            Some(core_metrics),
-        )))
+        Ok(Arc::new(Server::new(self.metrics_port, core_metrics)))
     }
 
     /// Private to preserve linearity of AgentCore::from_settings -- creating an

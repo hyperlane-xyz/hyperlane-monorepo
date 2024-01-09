@@ -8,8 +8,6 @@ use prometheus::{
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, OnceLock};
-use tokio::task::JoinHandle;
-use tracing::warn;
 
 use ethers_prometheus::{json_rpc_client::JsonRpcClientMetrics, middleware::MiddlewareMetrics};
 
@@ -163,7 +161,6 @@ impl CoreMetrics {
             registry: registry.clone(),
             listen_port,
             const_labels,
-            // server: Arc::new(Server::new(listen_port, registry)),
             span_durations,
             span_counts,
             span_events,

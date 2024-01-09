@@ -4,11 +4,12 @@ use axum::{
     routing::{get, Router},
     Json,
 };
+use derive_new::new;
 use hyper::StatusCode;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 enum ServiceStatus {
     Up,
     Down,
@@ -23,7 +24,7 @@ struct NodeInfo {
     node_version: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct Service {
     id: String,
     name: String,
@@ -31,17 +32,13 @@ struct Service {
     status: ServiceStatus,
 }
 
+/// A server that serves EigenLayer specific routes
+#[derive(new)]
 pub struct EigenNodeAPI {
     core_metrics: Arc<CoreMetrics>,
 }
 
 impl EigenNodeAPI {
-    /// Create a new instance of the EigenNodeAPI
-    pub fn new(core_metrics: Arc<CoreMetrics>) -> Self {
-        // let core_metrics_weak = Arc::downgrade(&core_metrics);
-        Self { core_metrics }
-    }
-
     /// Function to create the eigen_node_router
     pub fn router(&self) -> Router {
         // let health_api_clone = self.clone();
@@ -53,11 +50,25 @@ impl EigenNodeAPI {
                 get(move || Self::node_health_handler(core_metrics_clone)),
             )
             .route("/node/services", get(Self::node_services_handler))
+            .route(
+                "/node/services/:service_id/health",
+                get(Self::service_health_handler),
+            )
             .route("/node", get(Self::node_info_handler))
     }
 
     /// Method to return the NodeInfo data
-    /// if signed_checkpoint == observed_checkpoint return 200 - healthy
+    pub async fn node_info_handler() -> impl IntoResponse {
+        let node_info = NodeInfo {
+            node_name: "Hyperlane Validator".to_string(),
+            spec_version: "0.1.0".to_string(),
+            node_version: "0.1.0".to_string(),
+        };
+        Json(node_info)
+    }
+
+    /// Method to return the NodeInfo data
+    /// if signed_checkpoint - observed_checkpoint <= 1 return 200 - healthy
     /// else if observed_checkpoint - signed_checkpoint <= 10 return 203 - partially healthy
     /// else return 503 - unhealthy
     pub async fn node_health_handler(core_metrics: Arc<CoreMetrics>) -> impl IntoResponse {
@@ -72,7 +83,7 @@ impl EigenNodeAPI {
             .get();
 
         // logic to check if the node is healthy
-        if observed_checkpoint == signed_checkpoint {
+        if observed_checkpoint - signed_checkpoint <= 1 {
             // 200 - healthy
             StatusCode::OK
         } else if observed_checkpoint - signed_checkpoint <= 10 {
@@ -85,6 +96,7 @@ impl EigenNodeAPI {
     }
 
     /// Method to return a list of services
+    /// NB: hardcoded for now
     pub async fn node_services_handler() -> impl IntoResponse {
         let services = vec![
             Service {
@@ -103,14 +115,12 @@ impl EigenNodeAPI {
         Json(services)
     }
 
-    /// Method to return the NodeInfo data
-    pub async fn node_info_handler() -> impl IntoResponse {
-        let node_info = NodeInfo {
-            node_name: "Hyperlane Validator".to_string(),
-            spec_version: "0.1.0".to_string(),
-            node_version: "0.1.0".to_string(),
-        };
-        Json(node_info)
+    /// Method to return the health of a service
+    pub async fn service_health_handler(service_id: String) -> impl IntoResponse {
+        // TODO: implement logic to check if the service is healthy
+        // now just return 200
+        format!("Health check for service: {}", service_id);
+        StatusCode::OK
     }
 }
 
@@ -118,14 +128,15 @@ impl EigenNodeAPI {
 mod tests {
     use super::*;
     use axum::http::StatusCode;
-    use prometheus::{IntGaugeVec, Opts, Registry};
+    use prometheus::Registry;
     use serde_json::Value;
 
     #[tokio::test]
     async fn test_eigen_node_api() {
-        let core_metrics = CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap();
+        let core_metrics =
+            Arc::new(CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap());
 
-        let node_api = EigenNodeAPI::new(Arc::new(core_metrics));
+        let node_api = EigenNodeAPI::new(core_metrics);
         let app = node_api.router();
 
         // Run the app in the background using a test server
@@ -159,33 +170,14 @@ mod tests {
     async fn test_eigen_node_health_api() {
         let registry = Registry::new();
         // Setup CoreMetrics and EigenNodeAPI
-        let core_metrics = CoreMetrics::new("dummy_relayer", 37582, registry).unwrap();
+        let core_metrics = Arc::new(CoreMetrics::new("dummy_relayer", 37582, registry).unwrap());
         // Initialize the Prometheus registry
-
-        // Create and register your metrics including 'latest_checkpoint'
-        // let latest_checkpoint_metric = IntGaugeVec::new(
-        //     Opts::new("latest_checkpoint", "Description"),
-        //     &["phase", "chain"],
-        // )
-        // .unwrap();
-        // registry
-        //     .register(Box::new(latest_checkpoint_metric.clone()))
-        //     .unwrap();
-        // Set a specific value for the latest_checkpoint metric
         core_metrics
             .latest_checkpoint()
             .with_label_values(&["validator_observed", "ethereum"])
             .set(42);
 
-        println!(
-            "Set latest_checkpoint: {}",
-            core_metrics
-                .latest_checkpoint()
-                .with_label_values(&["validator_observed", "ethereum"])
-                .get()
-        );
-
-        let node_api = EigenNodeAPI::new(Arc::new(core_metrics));
+        let node_api = EigenNodeAPI::new(core_metrics.clone());
         let app = node_api.router();
 
         // Run the app in the background using a test server
@@ -195,54 +187,117 @@ mod tests {
         let server_handle = tokio::spawn(server);
 
         // Create a client and make a request to the `/node/health` endpoint
+        // if signed_checkpoint - observed_checkpoint > 10 return 503 - unhealthy
         let client = reqwest::Client::new();
         let res = client
             .get(format!("http://{}/node/health", addr))
             .send()
             .await
             .expect("Failed to send request");
+        assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
 
-        // Check that the response status is as expected
+        // if signed_checkpoint - observed_checkpoint <= 10 return 206 - partially healthy
+        core_metrics
+            .latest_checkpoint()
+            .with_label_values(&["validator_processed", "ethereum"])
+            .set(34);
+        let res = client
+            .get(format!("http://{}/node/health", addr))
+            .send()
+            .await
+            .expect("Failed to send request");
+        assert_eq!(res.status(), StatusCode::PARTIAL_CONTENT);
+
+        // if signed_checkpoint - observed_checkpoint <= 1 return 200 - healthy
+        core_metrics
+            .latest_checkpoint()
+            .with_label_values(&["validator_processed", "ethereum"])
+            .set(42);
+        let res = client
+            .get(format!("http://{}/node/health", addr))
+            .send()
+            .await
+            .expect("Failed to send request");
         assert_eq!(res.status(), StatusCode::OK);
-
-        // check the response body if needed
-        // let json: Value = res.json().await.expect("Failed to parse json");
-        // assert_eq!(json["node_name"], "Hyperlane Validator");
 
         // Stop the server
         server_handle.abort();
     }
 
-    // #[tokio::test]
-    // async fn test_eigen_node_api_internal_error() {
-    //     // Setup the test environment to induce an error in get_node_info
-    //     // For example, set a global variable or use a feature flag
+    #[tokio::test]
+    async fn test_eigen_node_services_handler() {
+        let core_metrics =
+            Arc::new(CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap());
 
-    //     let app = EigenNodeAPI::router();
+        let node_api = EigenNodeAPI::new(core_metrics);
+        let app = node_api.router();
 
-    //     // Run the app in the background using a test server
-    //     let server = axum::Server::bind(&"127.0.0.1:0".parse().unwrap())
-    //         .serve(app.into_make_service());
-    //     let addr = server.local_addr();
-    //     let server_handle = tokio::spawn(server);
+        // Run the app in the background using a test server
+        let server =
+            axum::Server::bind(&"127.0.0.1:0".parse().unwrap()).serve(app.into_make_service());
+        let addr = server.local_addr();
+        let server_handle = tokio::spawn(server);
 
-    //     // Create a client and make a request to the `/node` endpoint
-    //     let client = reqwest::Client::new();
-    //     let res = client
-    //         .get(format!("http://{}/node", addr))
-    //         .send()
-    //         .await
-    //         .expect("Failed to send request");
+        // Create a client and make a request to the `/node/services` endpoint
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!("http://{}/node/services", addr))
+            .send()
+            .await
+            .expect("Failed to send request");
 
-    //     // Check that the response status is 500 Internal Server Error
+        // Check that the response status is OK
+        assert_eq!(res.status(), StatusCode::OK);
 
-    //     // Optionally, check the response body for the error message
-    //     // let json: Value = res.json().await.expect("Failed to parse json");
-    //     // assert_eq!(json["error"], "Internal Server Error");
+        // check the response body if needed
+        let json: Value = res.json().await.expect("Failed to parse json");
+        println!("{}", json);
+        assert_eq!(json[0]["id"], "hyperlane-validator-indexer");
+        assert_eq!(json[0]["name"], "indexer");
+        assert_eq!(
+            json[0]["description"],
+            "indexes the messages from the origin chain mailbox"
+        );
+        assert_eq!(json[0]["status"], "Up");
 
-    //     // Clean up the test environment if necessary
+        assert_eq!(json[1]["id"], "hyperlane-validator-submitter");
+        assert_eq!(json[1]["name"], "submitter");
+        assert_eq!(
+            json[1]["description"],
+            "signs messages indexed from the indexer"
+        );
+        assert_eq!(json[1]["status"], "Down");
 
-    //     // Stop the server
-    //     server_handle.abort();
-    // }
+        // Stop the server
+        server_handle.abort();
+    }
+
+    #[tokio::test]
+    async fn test_service_health_handler() {
+        let core_metrics =
+            Arc::new(CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap());
+
+        let node_api = EigenNodeAPI::new(core_metrics);
+        let app = node_api.router();
+        let server =
+            axum::Server::bind(&"127.0.0.1:0".parse().unwrap()).serve(app.into_make_service());
+        let addr = server.local_addr();
+        let server_handle = tokio::spawn(server);
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!(
+                "http://{}/node/services/hyperlane-validator-indexer/health",
+                addr
+            ))
+            .send()
+            .await
+            .expect("Failed to send request");
+
+        // Check that the response status is OK
+        assert_eq!(res.status(), StatusCode::OK);
+
+        // Stop the server
+        server_handle.abort();
+    }
 }

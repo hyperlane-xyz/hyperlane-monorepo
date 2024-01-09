@@ -11,7 +11,9 @@ use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
-    run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    run_all,
+    server::Server,
+    BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     SequencedDataContractSync,
 };
 
@@ -44,6 +46,7 @@ pub struct Validator {
     reorg_period: u64,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
+    server: Arc<Server>,
 }
 
 #[async_trait]
@@ -93,6 +96,9 @@ impl BaseAgent for Validator {
             .await?
             .into();
 
+        // TODO: make this configurable
+        let server = Arc::new(Server::new(8080, metrics.clone()));
+
         Ok(Self {
             origin_chain: settings.origin_chain,
             core,
@@ -106,12 +112,19 @@ impl BaseAgent for Validator {
             reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
+            server,
         })
     }
 
     #[allow(clippy::async_yields_async)]
     async fn run(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         let mut tasks = vec![];
+
+        // run server
+        let server = self.server.clone();
+        let server_task =
+            tokio::spawn(async move { server.run() }).instrument(info_span!("Server"));
+        // tasks.push(server_task);
 
         if let Some(signer_instance) = self.signer_instance.take() {
             tasks.push(
