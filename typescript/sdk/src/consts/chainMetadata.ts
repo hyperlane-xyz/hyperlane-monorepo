@@ -1010,12 +1010,12 @@ export const test3: ChainMetadata = {
 
 export const viction: ChainMetadata = {
   blockExplorers: [
-    // {
-    //   family: ExplorerFamily.Other,
-    //   name: 'Vicscan',
-    //   url: 'https://www.vicscan.xyz/',
-    //   apiUrl: '', // unknown
-    // },
+    {
+      apiUrl: 'https://www.vicscan.xyz/api',
+      family: ExplorerFamily.Other,
+      name: 'Vicscan',
+      url: 'https://www.vicscan.xyz/',
+    },
   ],
   blocks: {
     confirmations: 1,
