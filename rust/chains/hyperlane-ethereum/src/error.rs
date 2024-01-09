@@ -1,7 +1,7 @@
 use ethers::providers::ProviderError;
 use hyperlane_core::ChainCommunicationError;
 
-/// Errors from the crates specific to the hyperlane-cosmos
+/// Errors from the crates specific to the hyperlane-ethereum
 /// implementation.
 /// This error can then be converted into the broader error type
 /// in hyperlane-core using the `From` trait impl

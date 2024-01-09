@@ -28,6 +28,27 @@ impl<C> Deref for EthereumFallbackProvider<C> {
     }
 }
 
+impl<C> EthereumFallbackProvider<C>
+where
+    C: JsonRpcClient<Error = HttpClientError>
+        + PrometheusJsonRpcClientConfigExt
+        + Into<Box<dyn BlockNumberGetter>>
+        + Clone,
+{
+    async fn get_categorized_response(
+        provider: C,
+        method: &str,
+        params: &Value,
+    ) -> CategorizedResponse<Value> {
+        let fut = match params {
+            Value::Null => provider.request(method, ()),
+            _ => provider.request(method, params),
+        };
+        let resp: Result<Value, HttpClientError> = fut.await;
+        categorize_client_response(method, resp)
+    }
+}
+
 impl<C> Debug for EthereumFallbackProvider<C>
 where
     C: JsonRpcClient + PrometheusJsonRpcClientConfigExt,
@@ -93,6 +114,8 @@ where
     {
         use CategorizedResponse::*;
         let params = serde_json::to_value(params).expect("valid");
+        let categorized_response_closure =
+            |provider| async { Self::get_categorized_response(provider, method, &params).await };
 
         let mut errors = vec![];
         // make sure we do at least 4 total retries.
@@ -103,16 +126,12 @@ where
             let priorities_snapshot = self.take_priorities_snapshot().await;
             for (idx, priority) in priorities_snapshot.iter().enumerate() {
                 let provider = &self.inner.providers[priority.index];
-                let fut = match params {
-                    Value::Null => provider.request(method, ()),
-                    _ => provider.request(method, &params),
-                };
-                let resp = fut.await;
+                let cat_resp = categorized_response_closure(provider.clone()).await;
                 self.handle_stalled_provider(priority, provider).await;
                 let _span =
                     warn_span!("request_with_fallback", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
 
-                match categorize_client_response(method, resp) {
+                match cat_resp {
                     IsOk(v) => return Ok(serde_json::from_value(v)?),
                     RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
                     NonRetryableErr(e) => return Err(e.into()),

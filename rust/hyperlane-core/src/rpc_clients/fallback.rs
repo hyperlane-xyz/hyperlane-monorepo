@@ -3,10 +3,11 @@ use async_trait::async_trait;
 use derive_new::new;
 use std::{
     fmt::Debug,
+    future::Future,
     sync::Arc,
     time::{Duration, Instant},
 };
-use tracing::info;
+use tracing::{info, warn_span};
 
 use crate::ChainCommunicationError;
 
@@ -129,6 +130,36 @@ where
             self.update_last_seen_block(priority.index, current_block_height)
                 .await;
         }
+    }
+
+    pub async fn request<F, R, FR>(&self, categorized_response_closure: F)
+    where
+        F: Fn(T) -> FR,
+        FR: Future<Output = CategorizedResponse<R>>,
+    {
+        let mut errors = vec![];
+        // make sure we do at least 4 total retries.
+        while errors.len() <= 3 {
+            if !errors.is_empty() {
+                sleep(Duration::from_millis(100)).await;
+            }
+            let priorities_snapshot = self.take_priorities_snapshot().await;
+            for (idx, priority) in priorities_snapshot.iter().enumerate() {
+                let provider = &self.inner.providers[priority.index];
+                let cat_resp = categorized_response_closure(provider.clone()).await;
+                self.handle_stalled_provider(priority, provider).await;
+                let _span =
+                    warn_span!("request_with_fallback", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
+
+                match cat_resp {
+                    IsOk(v) => return Ok(serde_json::from_value(v)?),
+                    RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
+                    NonRetryableErr(e) => return Err(e.into()),
+                }
+            }
+        }
+
+        Err(FallbackError::AllProvidersFailed(errors).into())
     }
 }
 
