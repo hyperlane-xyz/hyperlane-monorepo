@@ -56,7 +56,11 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
         const tx = testRecipient.setInterchainSecurityModule(
           config.interchainSecurityModule,
         );
-        await this.multiProvider.handleTx(chain, tx);
+        await this.runIfOwner(
+          chain,
+          testRecipient,
+          async () => await this.multiProvider.handleTx(chain, tx),
+        );
       }
     } catch (error) {
       this.logger(`Failed to check/update ISM for ${chain}: ${error}`);
