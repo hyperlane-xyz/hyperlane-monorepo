@@ -29,15 +29,15 @@ export const chainToMultisig: ChainMap<MultisigConfig> = {
 export const multisigIsm: ChainMap<MultisigIsmConfig> = {
   // Validators are anvil accounts 4-6
   test1: buildMultisigIsmConfig(
-    IsmType.MESSAGE_ID_MULTISIG,
     chainToMultisig['test1'],
+    IsmType.MESSAGE_ID_MULTISIG,
   ),
   test2: buildMultisigIsmConfig(
-    IsmType.MERKLE_ROOT_MULTISIG,
     chainToMultisig['test2'],
+    IsmType.MERKLE_ROOT_MULTISIG,
   ),
   test3: buildMultisigIsmConfig(
-    IsmType.MESSAGE_ID_MULTISIG,
     chainToMultisig['test3'],
+    IsmType.MESSAGE_ID_MULTISIG,
   ),
 };

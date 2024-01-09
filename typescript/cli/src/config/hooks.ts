@@ -113,10 +113,8 @@ async function processIgpConfig(
     };
   });
   const trueIgpConfig: IgpHookConfig = {
+    ...igpConfig,
     type: HookType.INTERCHAIN_GAS_PAYMASTER,
-    owner: igpConfig.owner,
-    beneficiary: igpConfig.beneficiary,
-    oracleKey: igpConfig.oracleKey,
     overhead: objMap(igpConfig.overhead, (_, overhead) =>
       BigNumber.from(overhead),
     ),

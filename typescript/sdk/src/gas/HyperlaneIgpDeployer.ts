@@ -151,20 +151,20 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         this.multiProvider.getSigner(chain),
       );
       if (configsToSet[gasOracle].length > 0) {
-        this.logger(
-          `Setting gas oracle on ${gasOracle} for ${configsToSet[gasOracle].map(
-            (config) => config.remoteDomain,
-          )}`,
-        );
-        await this.runIfOwner(chain, gasOracleContract, async () =>
-          this.multiProvider.handleTx(
+        await this.runIfOwner(chain, gasOracleContract, async () => {
+          this.logger(
+            `Setting gas oracle on ${gasOracle} for ${configsToSet[
+              gasOracle
+            ].map((config) => config.remoteDomain)}`,
+          );
+          return this.multiProvider.handleTx(
             chain,
             gasOracleContract.setRemoteGasDataConfigs(
               configsToSet[gasOracle],
               this.multiProvider.getTransactionOverrides(chain),
             ),
-          ),
-        );
+          );
+        });
       }
     }
   }

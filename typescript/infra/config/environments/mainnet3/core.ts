@@ -18,7 +18,7 @@ import { ethereumChainNames } from './chains';
 import { storageGasOracleConfig } from './gas-oracle';
 import { owners as mainnetOwners, safes } from './owners';
 
-// chain should be the most restrictive chain (like excluding manta pacific)
+// mainnetOwners should be the most restrictive chain (like excluding manta pacific)
 const DEPLOYER_ADDRESS = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 const igp = createIgpConfig(
   ethereumChainNames,

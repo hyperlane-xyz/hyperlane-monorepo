@@ -5,6 +5,7 @@ import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
   Chains,
+  CoreConfig,
   HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
@@ -72,6 +73,11 @@ async function main() {
     config = objMap(envConfig.core, (_chain) => true);
     deployer = new HyperlaneProxyFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
+    for (const chain of Object.values(envConfig.core)) {
+      console.log(JSON.stringify((chain as CoreConfig).defaultIsm, null, 2));
+    }
+    return;
+
     config = envConfig.core;
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.PROXY_FACTORY),
@@ -155,6 +161,7 @@ async function main() {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
   }
+  return;
 
   const modulePath = getModuleDirectory(environment, module, context);
 

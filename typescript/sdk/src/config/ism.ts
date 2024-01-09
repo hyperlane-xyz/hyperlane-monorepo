@@ -2,6 +2,7 @@ import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AggregationIsmConfig,
+  IsmConfig,
   IsmType,
   MultisigConfig,
   MultisigIsmConfig,
@@ -10,8 +11,8 @@ import {
 import { ChainMap, ChainName } from '../types';
 
 export const buildMultisigIsmConfig = (
-  type: MultisigIsmConfig['type'] = IsmType.MESSAGE_ID_MULTISIG,
   multisigConfig: MultisigConfig,
+  type: MultisigIsmConfig['type'] = IsmType.MESSAGE_ID_MULTISIG,
 ): MultisigIsmConfig => {
   return {
     type,
@@ -31,7 +32,7 @@ export const buildMultisigIsmConfigs = (
       (chain, config): config is MultisigConfig =>
         chain !== local && chains.includes(chain),
     ),
-    (_, config) => buildMultisigIsmConfig(type, config),
+    (_, config) => buildMultisigIsmConfig(config, type),
   );
 };
 
@@ -39,13 +40,13 @@ export const buildMultisigIsmConfigs = (
 export const buildRoutingIsm = (
   local_chain: string,
   owner: string,
-  multisigIsm: ChainMap<MultisigIsmConfig>,
+  ism: ChainMap<IsmConfig>,
 ): RoutingIsmConfig => {
   return {
     type: IsmType.ROUTING,
     owner,
     domains: Object.fromEntries(
-      Object.entries(multisigIsm).filter(([chain]) => chain !== local_chain),
+      Object.entries(ism).filter(([chain]) => chain !== local_chain),
     ),
   };
 };
@@ -57,14 +58,14 @@ export const buildRoutingIsm = (
 // Merkle Root    Message ID
 export const buildAggregationIsmConfig = (
   multisigConfig: MultisigConfig,
-  aggregationThreshold = 2,
+  aggregationThreshold = 1,
 ): AggregationIsmConfig => {
   return {
     type: IsmType.AGGREGATION,
     modules: [
       // Ordering matters to preserve determinism
-      buildMultisigIsmConfig(IsmType.MERKLE_ROOT_MULTISIG, multisigConfig),
-      buildMultisigIsmConfig(IsmType.MESSAGE_ID_MULTISIG, multisigConfig),
+      buildMultisigIsmConfig(multisigConfig, IsmType.MERKLE_ROOT_MULTISIG),
+      buildMultisigIsmConfig(multisigConfig, IsmType.MESSAGE_ID_MULTISIG),
     ],
     threshold: aggregationThreshold,
   };
@@ -75,14 +76,10 @@ export const buildAggregationIsmConfigs = (
   local: ChainName,
   chains: ChainName[],
   multisigConfigs: ChainMap<MultisigConfig>,
+  aggregationThreshold = 1,
 ): ChainMap<AggregationIsmConfig> => {
-  return objMap(
-    objFilter(
-      multisigConfigs,
-      (chain, config): config is MultisigConfig =>
-        chain !== local && chains.includes(chain),
-    ),
-    (_, config) => buildAggregationIsmConfig(config),
+  return objMap(multisigConfigs, (_, config) =>
+    buildAggregationIsmConfig(config, aggregationThreshold),
   ) as ChainMap<AggregationIsmConfig>;
 };
 
@@ -95,22 +92,16 @@ export const buildRoutingOverAggregationIsmConfig = (
   local: ChainName,
   owners: ChainMap<Address>,
   multisigConfigs: ChainMap<MultisigConfig>,
-  aggregationThreshold = 2,
+  aggregationThreshold = 1,
 ): RoutingIsmConfig => {
-  return {
-    type: IsmType.ROUTING,
-    owner: owners[local],
-    domains: Object.keys(owners)
-      .filter((chain) => chain !== local)
-      .reduce(
-        (acc, chain) => ({
-          ...acc,
-          [chain]: buildAggregationIsmConfig(
-            multisigConfigs[chain],
-            aggregationThreshold,
-          ),
-        }),
-        {},
-      ),
-  };
+  return buildRoutingIsm(
+    local,
+    owners[local],
+    buildAggregationIsmConfigs(
+      local,
+      Object.keys(owners),
+      multisigConfigs,
+      aggregationThreshold,
+    ),
+  );
 };

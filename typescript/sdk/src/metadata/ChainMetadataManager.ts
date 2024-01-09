@@ -359,4 +359,12 @@ export class ChainMetadataManager<MetaExt = {}> {
 
     return { intersection, result };
   }
+
+  getChainNativeTokenDecimals(chain: ChainName): number {
+    const metadata = this.getChainMetadata(chain);
+    if (!metadata.nativeToken) {
+      throw new Error(`No native token for chain ${chain}`);
+    }
+    return metadata.nativeToken.decimals;
+  }
 }

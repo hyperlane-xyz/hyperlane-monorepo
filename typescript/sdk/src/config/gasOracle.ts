@@ -2,11 +2,12 @@ import { BigNumber, ethers } from 'ethers';
 
 import { convertDecimals } from '@hyperlane-xyz/utils';
 
-import { getChainNativeTokenDecimals } from '../consts/chainMetadata';
+import { chainMetadata } from '../consts/chainMetadata';
 import {
   GasOracleContractType,
   StorageGasOraclesConfig,
 } from '../gas/oracle/types';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
 import { ChainMap, ChainName } from '../types';
 
 export const TOKEN_EXCHANGE_RATE_DECIMALS = 10;
@@ -71,11 +72,12 @@ export function getTokenExchangeRateFromValues(
   const exchangeRate = remoteValue
     .mul(TOKEN_EXCHANGE_RATE_MULTIPLIER)
     .div(localValue);
+  const manager = new ChainMetadataManager(chainMetadata);
 
   return BigNumber.from(
     convertDecimals(
-      getChainNativeTokenDecimals(remote),
-      getChainNativeTokenDecimals(local),
+      manager.getChainNativeTokenDecimals(remote),
+      manager.getChainNativeTokenDecimals(local),
       exchangeRate.toString(),
     ),
   );
