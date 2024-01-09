@@ -60,11 +60,18 @@ describe('readHooksConfigMap', () => {
       },
       test2: {
         required: {
-          type: HookType.PROTOCOL_FEE,
-          owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+          type: HookType.INTERCHAIN_GAS_PAYMASTER,
           beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-          maxProtocolFee: '1000000000000000000',
-          protocolFee: '200000000000000',
+          owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+          oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+          oracleConfig: {
+            test1: {
+              type: GasOracleContractType.StorageGasOracle,
+              tokenExchangeRate: BigNumber.from('10000000000'),
+              gasPrice: BigNumber.from('12345'),
+            },
+          },
+          overhead: { test1: BigNumber.from('50000') },
         },
         default: {
           type: HookType.ROUTING,

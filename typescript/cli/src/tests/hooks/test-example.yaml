@@ -45,11 +45,17 @@ test1:
               test2: '50000' # gas price in wei (string)
 test2:
   required:
-    type: protocolFee
-    maxProtocolFee: '1000000000000000000'
-    protocolFee: '200000000000000'
+    type: interchainGasPaymaster
     beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
     owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+    oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+    oracleConfig:
+      test1:
+        type: StorageGasOracle
+        overhead: '50000'
+        gasPrice: '12345'
+    overhead:
+      test1: '50000' # gas price in wei (string)
   default:
     type: domainRoutingHook
     owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'

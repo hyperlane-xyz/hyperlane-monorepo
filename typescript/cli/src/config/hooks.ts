@@ -123,24 +123,41 @@ async function processIgpConfig(
   return trueIgpConfig;
 }
 
-async function processNestedIgpConfig(
+export async function processNestedIgpConfig(
   multiProvider: MultiProvider,
   hookConfig: HookConfig,
 ): Promise<any> {
+  let localConfig: HookConfig = hookConfig;
   if (hookConfig.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
-    return await processIgpConfig(multiProvider, hookConfig as IgpConfig);
-  }
-
-  for (const key in hookConfig) {
-    if (hookConfig[key] instanceof Object) {
-      hookConfig[key] = await processNestedIgpConfig(
+    localConfig = await processIgpConfig(
+      multiProvider,
+      hookConfig as IgpConfig,
+    );
+  } else if (hookConfig.type === HookType.AGGREGATION) {
+    hookConfig.hooks.forEach(async (hook: HookConfig, index: number) => {
+      localConfig.hooks[index] = await processNestedIgpConfig(
         multiProvider,
-        hookConfig[key],
+        hook,
+      );
+    });
+  } else if (
+    hookConfig.type === HookType.ROUTING ||
+    hookConfig.type === HookType.FALLBACK_ROUTING
+  ) {
+    for (const domain of Object.keys(hookConfig.domains)) {
+      localConfig.domains[domain] = await processNestedIgpConfig(
+        multiProvider,
+        localConfig.domains[domain],
+      );
+    }
+    if (hookConfig.type === HookType.FALLBACK_ROUTING) {
+      localConfig.fallback = await processNestedIgpConfig(
+        multiProvider,
+        localConfig.fallback,
       );
     }
   }
-
-  return hookConfig;
+  return localConfig;
 }
 
 export async function presetHookConfigs(
@@ -228,9 +245,13 @@ export async function readHooksConfigMap(
 
   // special case for IGP
   for (const chain of Object.keys(parsedConfig)) {
-    parsedConfig[chain] = await processNestedIgpConfig(
+    parsedConfig[chain].default = await processNestedIgpConfig(
       multiProvider,
-      parsedConfig[chain],
+      parsedConfig[chain].default,
+    );
+    parsedConfig[chain].required = await processNestedIgpConfig(
+      multiProvider,
+      parsedConfig[chain].required,
     );
   }
 
