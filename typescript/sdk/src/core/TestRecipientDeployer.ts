@@ -38,12 +38,27 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: TestRecipientConfig,
   ): Promise<TestRecipientContracts> {
+    const predeployed = this.readCache(
+      chain,
+      this.factories['testRecipient'],
+      'testRecipient',
+    );
+    let usePreviousDeployment = false;
+    if (
+      predeployed &&
+      eqAddress(
+        await predeployed.owner(),
+        await this.multiProvider.getSignerAddress(chain),
+      )
+    ) {
+      usePreviousDeployment = true;
+    }
     const testRecipient = await this.deployContract(
       chain,
       'testRecipient',
       [],
       undefined,
-      false,
+      usePreviousDeployment,
     );
     try {
       this.logger(`Checking ISM ${chain}`);
