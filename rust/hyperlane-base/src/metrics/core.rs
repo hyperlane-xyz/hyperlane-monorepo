@@ -1,3 +1,7 @@
+use std::collections::{HashMap, HashSet};
+use std::fmt::{Debug, Formatter};
+use std::sync::{Arc, OnceLock};
+
 use eyre::Result;
 use hyperlane_core::{HyperlaneDomain, H160};
 use prometheus::{
@@ -6,9 +10,9 @@ use prometheus::{
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, CounterVec,
     Encoder, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
-use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
-use std::sync::{Arc, OnceLock};
+use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
+use tracing::warn;
 
 use ethers_prometheus::{json_rpc_client::JsonRpcClientMetrics, middleware::MiddlewareMetrics};
 
@@ -166,17 +170,22 @@ impl CoreMetrics {
 
         Ok(Self {
             agent_name: for_agent.into(),
-            registry: registry.clone(),
+            registry,
             listen_port,
             const_labels,
+
             span_durations,
             span_counts,
             span_events,
             last_known_message_nonce,
+
             submitter_queue_length,
+
             operations_processed_count,
             messages_processed_count,
+
             latest_checkpoint,
+
             json_rpc_client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
 
@@ -405,10 +414,6 @@ impl CoreMetrics {
         encoder.encode(&collected_metrics, &mut out_buf)?;
         Ok(out_buf)
     }
-
-    // pub fn run_http_server(&self) -> JoinHandle<()> {
-    //     self.server.clone().run()
-    // }
 
     /// Get the name of this agent, e.g. "relayer"
     pub fn agent_name(&self) -> &str {
