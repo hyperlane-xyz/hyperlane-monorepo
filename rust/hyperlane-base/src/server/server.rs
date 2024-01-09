@@ -88,7 +88,7 @@ mod tests {
             Arc::new(CoreMetrics::new("test", 8080, mock_registry).unwrap()),
         );
         let server = Arc::new(server);
-        let _run_server = server.run();
+        let _run_server = server.run(true);
 
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
