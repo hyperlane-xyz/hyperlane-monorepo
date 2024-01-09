@@ -89,11 +89,11 @@ pub fn init_instruction(
     let ixn = Instruction::Init(init);
 
     // Accounts:
-    // 0.   [executable] The system program.
-    // 1.   [writable] The token PDA account.
-    // 2.   [writable] The dispatch authority PDA account.
-    // 3.   [signer] The payer and access control owner.
-    // 4..N [??..??] Plugin-specific accounts.
+    // 0.   `[executable]` The system program.
+    // 1.   `[writable]` The token PDA account.
+    // 2.   `[writable]` The dispatch authority PDA account.
+    // 3.   `[signer]` The payer and access control owner.
+    // 4..N `[??..??]` Plugin-specific accounts.
     let accounts = vec![
         AccountMeta::new_readonly(solana_program::system_program::id(), false),
         AccountMeta::new(token_key, false),
@@ -123,9 +123,9 @@ pub fn enroll_remote_routers_instruction(
     let ixn = Instruction::EnrollRemoteRouters(configs);
 
     // Accounts:
-    // 0. [executable] The system program.
-    // 1. [writeable] The token PDA account.
-    // 2. [signer] The owner.
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The token PDA account.
+    // 2. `[signer]` The owner.
     let accounts = vec![
         AccountMeta::new_readonly(solana_program::system_program::id(), false),
         AccountMeta::new(token_key, false),
@@ -154,9 +154,9 @@ pub fn set_destination_gas_configs(
     let ixn = Instruction::SetDestinationGasConfigs(configs);
 
     // Accounts:
-    // 0. [executable] The system program.
-    // 1. [writeable] The token PDA account.
-    // 2. [signer] The owner.
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The token PDA account.
+    // 2. `[signer]` The owner.
     let accounts = vec![
         AccountMeta::new_readonly(solana_program::system_program::id(), false),
         AccountMeta::new(token_key, false),
@@ -185,8 +185,8 @@ pub fn transfer_ownership_instruction(
     let ixn = Instruction::TransferOwnership(new_owner);
 
     // Accounts:
-    // 0. [writeable] The token PDA account.
-    // 1. [signer] The current owner.
+    // 0. `[writeable]` The token PDA account.
+    // 1. `[signer]` The current owner.
     let accounts = vec![
         AccountMeta::new(token_key, false),
         AccountMeta::new_readonly(owner_payer, true),
@@ -214,8 +214,8 @@ pub fn set_interchain_security_module_instruction(
     let ixn = Instruction::SetInterchainSecurityModule(new_interchain_security_module);
 
     // Accounts:
-    // 0. [writeable] The token PDA account.
-    // 1. [signer] The current owner.
+    // 0. `[writeable]` The token PDA account.
+    // 1. `[signer]` The current owner.
     let accounts = vec![
         AccountMeta::new(token_key, false),
         AccountMeta::new_readonly(owner_payer, true),
@@ -243,8 +243,8 @@ pub fn set_igp_instruction(
     let ixn = Instruction::SetInterchainGasPaymaster(igp_program_and_account);
 
     // Accounts:
-    // 0. [writeable] The token PDA account.
-    // 1. [signer] The current owner.
+    // 0. `[writeable]` The token PDA account.
+    // 1. `[signer]` The current owner.
     let accounts = vec![
         AccountMeta::new(token_key, false),
         AccountMeta::new_readonly(owner_payer, true),

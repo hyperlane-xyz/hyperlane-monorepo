@@ -1007,32 +1007,6 @@
       "index": {
         "from": 4558491
       }
-    },
-    "neutrontestnet": {
-      "name": "neutrontestnet",
-      "domainId": "33333",
-      "chainId": "duality-devnet",
-      "mailbox": "0xdb33c78ca39541dd740659fbfd86fdd601fe7225f10f26e87595c5b8df6bdcda",
-      "interchainGasPaymaster": "0xae38a168ced2b1cdafd7da5de2fbd22749b1ab52e88cd0b121f750a6c20a2814",
-      "validatorAnnounce": "0x29d5f702a35d4135d98abf52c62ddc0cfd74001663ec14d284edff7d0419fb58",
-      "merkleTreeHook": "0xb6aac0c4650129ded8e645e6ef8dcbba710623b826e5a1dae34158a27247c668",
-      "protocol": "cosmos",
-      "finalityBlocks": 1,
-      "rpcUrls": [
-        {
-          "http": "http://54.149.31.83:26657"
-        }
-      ],
-      "grpcUrl": "http://52.43.22.152:9090",
-      "canonicalAsset": "token",
-      "prefix": "dual",
-      "index": {
-        "from": 1,
-        "chunk": 100000
-      },
-      "blocks": {
-        "reorgPeriod": 1
-      }
     }
   },
   "defaultRpcConsensusType": "fallback"

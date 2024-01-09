@@ -52,9 +52,11 @@ export async function runWarpDeploy({
     chainConfigPath,
     coreConfig: { coreArtifactsPath },
     keyConfig: { key },
+    skipConfirmation,
   });
 
   if (!warpConfigPath || !isFile(warpConfigPath)) {
+    if (skipConfirmation) throw new Error('Warp config required');
     warpConfigPath = await runFileSelectionStep(
       './configs',
       'Warp config',
@@ -70,6 +72,7 @@ export async function runWarpDeploy({
     coreArtifacts,
     multiProvider,
     signer,
+    skipConfirmation,
   });
 
   const deploymentParams = {
@@ -95,11 +98,13 @@ async function runBuildConfigStep({
   multiProvider,
   signer,
   coreArtifacts,
+  skipConfirmation,
 }: {
   warpRouteConfig: WarpRouteConfig;
   multiProvider: MultiProvider;
   signer: ethers.Signer;
   coreArtifacts?: HyperlaneContractsMap<any>;
+  skipConfirmation: boolean;
 }) {
   log('Assembling token configs');
   const { base, synthetics } = warpRouteConfig;
@@ -164,6 +169,8 @@ async function runBuildConfigStep({
   for (const [chain, token] of Object.entries(configMap)) {
     for (const field of requiredRouterFields) {
       if (token[field]) continue;
+      if (skipConfirmation)
+        throw new Error(`Field ${field} for token on ${chain} required`);
       if (!hasShownInfo) {
         logBlue(
           'Some router fields are missing. Please enter them now, add them to your warp config, or use the --core flag to use deployment artifacts.',

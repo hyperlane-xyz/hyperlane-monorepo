@@ -113,6 +113,20 @@ pub fn deploy_cw_hyperlane(
         "hpl_ism_multisig",
     );
 
+    // deploy ism - aggregation
+    let ism_aggregate = cli.wasm_init(
+        &endpoint,
+        &deployer,
+        Some(deployer_addr),
+        codes.hpl_ism_aggregate,
+        ism::aggregate::InstantiateMsg {
+            owner: deployer_addr.clone(),
+            threshold: 1,
+            isms: vec![ism_multisig.clone()],
+        },
+        "hpl_ism_aggregate",
+    );
+
     // deploy merkle hook
     let hook_merkle = cli.wasm_init(
         &endpoint,
@@ -188,6 +202,7 @@ pub fn deploy_cw_hyperlane(
         hook_routing,
         igp,
         igp_oracle,
+        ism_aggregate,
         ism_routing,
         ism_multisig,
         mailbox,

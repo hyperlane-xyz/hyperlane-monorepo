@@ -80,9 +80,9 @@ pub fn init_instruction(
     });
 
     // Accounts:
-    // 0. [signer] The payer.
-    // 1. [executable] The system program.
-    // 2. [writable] The ValidatorAnnounce PDA account.
+    // 0. `[signer]` The payer.
+    // 1. `[executable]` The system program.
+    // 2. `[writable]` The ValidatorAnnounce PDA account.
     let accounts = vec![
         AccountMeta::new_readonly(payer, true),
         AccountMeta::new_readonly(solana_program::system_program::id(), false),

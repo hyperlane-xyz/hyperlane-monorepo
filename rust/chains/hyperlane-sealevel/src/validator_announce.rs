@@ -128,7 +128,7 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
             transaction_id: H512::zero(),
             executed: false,
             gas_used: U256::zero(),
-            gas_price: U256::zero(),
+            gas_price: U256::zero().try_into()?,
         })
     }
 }

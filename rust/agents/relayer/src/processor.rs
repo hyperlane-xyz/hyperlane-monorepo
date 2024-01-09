@@ -5,7 +5,7 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_core::HyperlaneDomain;
 use tokio::task::JoinHandle;
-use tracing::{info_span, instrument, instrument::Instrumented, Instrument};
+use tracing::instrument;
 
 #[async_trait]
 pub trait ProcessorExt: Send + Debug {
@@ -23,9 +23,8 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
-        let span = info_span!("MessageProcessor");
-        tokio::spawn(async move { self.main_loop().await }).instrument(span)
+    pub fn spawn(self) -> JoinHandle<Result<()>> {
+        tokio::spawn(async move { self.main_loop().await })
     }
 
     #[instrument(ret, err, skip(self), level = "info", fields(domain=%self.ticker.domain()))]

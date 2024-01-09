@@ -74,14 +74,6 @@ export const arbitrum: ChainMetadata = {
 };
 
 export const arbitrumgoerli: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-goerli.arbiscan.io/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'Arbiscan',
-      url: 'https://goerli.arbiscan.io',
-    },
-  ],
   blocks: {
     confirmations: 1,
     estimateBlockTime: 3,
@@ -617,6 +609,7 @@ export const neutron: ChainMetadata = {
     symbol: 'NTRN',
   },
   protocol: ProtocolType.Cosmos,
+  restUrls: [{ http: 'grpc-kralum.neutron-1.neutron.org:80' }],
   rpcUrls: [{ http: 'https://rpc-kralum.neutron-1.neutron.org' }],
   slip44: 118,
 };

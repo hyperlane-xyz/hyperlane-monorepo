@@ -107,6 +107,10 @@ export const ChainMetadataSchemaObject = z.object({
     .array(RpcUrlSchema)
     .nonempty()
     .describe('The list of RPC endpoints for interacting with the chain.'),
+  restUrls: z
+    .array(RpcUrlSchema)
+    .describe('For cosmos chains only, a list of Rest API URLs')
+    .optional(),
   blockExplorers: z
     .array(
       z.object({

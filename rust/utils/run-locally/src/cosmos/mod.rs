@@ -6,6 +6,7 @@ use std::{env, fs};
 
 use cosmwasm_schema::cw_serde;
 use hpl_interface::types::bech32_decode;
+use hyperlane_cosmos::RawCosmosAmount;
 use macro_rules_attribute::apply;
 use maplit::hashmap;
 use tempfile::tempdir;
@@ -506,7 +507,7 @@ fn run_locally() {
                         metadata: "".to_string(),
                     },
                 },
-                vec![Coin {
+                vec![RawCosmosAmount {
                     denom: "uosmo".to_string(),
                     amount: 25_000_000.to_string(),
                 }],
@@ -609,7 +610,7 @@ fn termination_invariants_met(
     Ok(true)
 }
 
-#[cfg(test)]
+#[cfg(feature = "cosmos")]
 mod test {
     use super::*;
 

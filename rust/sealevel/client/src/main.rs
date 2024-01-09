@@ -991,23 +991,23 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
             // Burns the tokens from the sender's associated token account and
             // then dispatches a message to the remote recipient.
             //
-            // 0.    [executable] The system program.
-            // 1.    [executable] The spl_noop program.
-            // 2.    [] The token PDA account.
-            // 3.    [executable] The mailbox program.
-            // 4.    [writeable] The mailbox outbox account.
-            // 5.    [] Message dispatch authority.
-            // 6.    [signer] The token sender and mailbox payer.
-            // 7.    [signer] Unique message / gas payment account.
-            // 8.    [writeable] Message storage PDA.
+            // 0.    `[executable]` The system program.
+            // 1.    `[executable]` The spl_noop program.
+            // 2.    `[]` The token PDA account.
+            // 3.    `[executable]` The mailbox program.
+            // 4.    `[writeable]` The mailbox outbox account.
+            // 5.    `[]` Message dispatch authority.
+            // 6.    `[signer]` The token sender and mailbox payer.
+            // 7.    `[signer]` Unique message / gas payment account.
+            // 8.    `[writeable]` Message storage PDA.
             //       ---- If using an IGP ----
-            // 9.    [executable] The IGP program.
-            // 10.   [writeable] The IGP program data.
-            // 11.   [writeable] Gas payment PDA.
-            // 12.   [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-            // 13.   [writeable] The IGP account.
+            // 9.    `[executable]` The IGP program.
+            // 10.   `[writeable]` The IGP program data.
+            // 11.   `[writeable]` Gas payment PDA.
+            // 12.   `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+            // 13.   `[writeable]` The IGP account.
             //       ---- End if ----
-            // 14..N [??..??] Plugin-specific accounts.
+            // 14..N `[??..??]` Plugin-specific accounts.
             let mut accounts = vec![
                 AccountMeta::new_readonly(system_program::id(), false),
                 AccountMeta::new_readonly(spl_noop::id(), false),
@@ -1059,8 +1059,8 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
 
             match xfer.token_type {
                 TokenType::Native => {
-                    // 5. [executable] The system program.
-                    // 6. [writeable] The native token collateral PDA account.
+                    // 5. `[executable]` The system program.
+                    // 6. `[writeable]` The native token collateral PDA account.
                     let (native_collateral_account, _native_collateral_bump) =
                         Pubkey::find_program_address(
                             hyperlane_token_native_collateral_pda_seeds!(),
@@ -1072,9 +1072,9 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
                     ]);
                 }
                 TokenType::Synthetic => {
-                    // 5. [executable] The spl_token_2022 program.
-                    // 6. [writeable] The mint / mint authority PDA account.
-                    // 7. [writeable] The token sender's associated token account, from which tokens will be burned.
+                    // 5. `[executable]` The spl_token_2022 program.
+                    // 6. `[writeable]` The mint / mint authority PDA account.
+                    // 7. `[writeable]` The token sender's associated token account, from which tokens will be burned.
                     let (mint_account, _mint_bump) = Pubkey::find_program_address(
                         hyperlane_token_mint_pda_seeds!(),
                         &xfer.program_id,
@@ -1092,10 +1092,10 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
                     ]);
                 }
                 TokenType::Collateral => {
-                    // 5. [executable] The SPL token program for the mint.
-                    // 6. [writeable] The mint.
-                    // 7. [writeable] The token sender's associated token account, from which tokens will be sent.
-                    // 8. [writeable] The escrow PDA account.
+                    // 5. `[executable]` The SPL token program for the mint.
+                    // 6. `[writeable]` The mint.
+                    // 7. `[writeable]` The token sender's associated token account, from which tokens will be sent.
+                    // 8. `[writeable]` The escrow PDA account.
                     let token = HyperlaneTokenAccount::<CollateralPlugin>::fetch(
                         &mut &fetched_token_account.data[..],
                     )
@@ -1266,11 +1266,11 @@ fn process_validator_announce_cmd(ctx: Context, cmd: ValidatorAnnounceCmd) {
             let ixn = ValidatorAnnounceInstruction::Announce(announce_instruction);
 
             // Accounts:
-            // 0. [signer] The payer.
-            // 1. [executable] The system program.
-            // 2. [] The ValidatorAnnounce PDA account.
-            // 3. [writeable] The validator-specific ValidatorStorageLocationsAccount PDA account.
-            // 4. [writeable] The ReplayProtection PDA account specific to the announcement being made.
+            // 0. `[signer]` The payer.
+            // 1. `[executable]` The system program.
+            // 2. `[]` The ValidatorAnnounce PDA account.
+            // 3. `[writeable]` The validator-specific ValidatorStorageLocationsAccount PDA account.
+            // 4. `[writeable]` The ReplayProtection PDA account specific to the announcement being made.
             let accounts = vec![
                 AccountMeta::new_readonly(ctx.payer_pubkey, true),
                 AccountMeta::new_readonly(system_program::id(), false),

@@ -1,6 +1,4 @@
-// TODO: this file can be removed if `CosmosAddress` can be imported from `hyperlane-cosmos`.
-// However, adding a hyperlane-cosmos dep creates a dep cycle.
-// Look into how this can be fixed.
+// TODO: this file can be removed by replacing `KeyPair` uses with `CosmosAddress`
 
 use k256::ecdsa::{SigningKey, VerifyingKey};
 use ripemd::Ripemd160;

@@ -19,7 +19,7 @@ import {
  */
 export const deployCommand: CommandModule = {
   command: 'deploy',
-  describe: 'Permisionslessly deploy a Hyperlane contracts or extensions',
+  describe: 'Permissionlessly deploy a Hyperlane contracts or extensions',
   builder: (yargs) =>
     yargs
       .command(coreCommand)

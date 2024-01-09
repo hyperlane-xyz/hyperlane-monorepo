@@ -23,14 +23,16 @@ export class HyperlaneJsonRpcProvider
   constructor(
     public readonly rpcConfig: RpcConfigWithConnectionInfo,
     network: providers.Networkish,
+    public readonly options?: { debug?: boolean },
   ) {
     super(rpcConfig.connection ?? rpcConfig.http, network);
   }
 
   async perform(method: string, params: any, reqId?: number): Promise<any> {
-    this.logger(
-      `HyperlaneJsonRpcProvider performing method ${method} for reqId ${reqId}`,
-    );
+    if (this.options?.debug)
+      this.logger(
+        `HyperlaneJsonRpcProvider performing method ${method} for reqId ${reqId}`,
+      );
     if (method === ProviderMethod.GetLogs) {
       return this.performGetLogs(params);
     }
