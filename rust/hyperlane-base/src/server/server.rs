@@ -18,21 +18,27 @@ impl Server {
     /// routes:
     ///   - metrics - serving OpenMetrics format reports on `/metrics`
     ///     (this is compatible with Prometheus, which ought to be configured to scrape this endpoint)
-    pub fn run(self: Arc<Self>) -> JoinHandle<()> {
+    ///  - eigen - serving agent-specific routes on `/eigen`
+    pub fn run(self: Arc<Self>, enable_eigen_api: bool) -> JoinHandle<()> {
         let port = self.listen_port;
         tracing::info!(port, "starting prometheus server on 0.0.0.0");
 
         let core_metrics_clone = self.core_metrics.clone();
 
-        let app = Router::new()
-            .route(
-                "/metrics",
-                get(move || Self::gather_metrics(core_metrics_clone)),
-            )
-            .nest(
+        let app = Router::new().route(
+            "/metrics",
+            get(move || Self::gather_metrics(core_metrics_clone)),
+        );
+
+        // conditionally nest the eigen API under /eigen
+        let app = if enable_eigen_api {
+            app.nest(
                 "/eigen",
                 EigenNodeAPI::new(self.core_metrics.clone()).router(),
-            );
+            )
+        } else {
+            app
+        };
 
         // let eigen_router = EigenNodeAPI::router();
         tokio::spawn(async move {

@@ -1,11 +1,11 @@
 use crate::CoreMetrics;
 use axum::{
+    http::StatusCode,
     response::IntoResponse,
     routing::{get, Router},
     Json,
 };
 use derive_new::new;
-use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 

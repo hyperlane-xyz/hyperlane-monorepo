@@ -123,7 +123,7 @@ impl BaseAgent for Validator {
         // run server
         let server = self.server.clone();
         let server_task =
-            tokio::spawn(async move { server.run() }).instrument(info_span!("Server"));
+            tokio::spawn(async move { server.run(true) }).instrument(info_span!("Server"));
         // tasks.push(server_task);
 
         if let Some(signer_instance) = self.signer_instance.take() {
