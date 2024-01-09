@@ -1,6 +1,9 @@
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
+// TODO: migrate ownership to safes
+const deployer = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+
 export const safes: ChainMap<Address> = {
   celo: '0x1DE69322B55AC7E0999F8e7738a1428C8b130E4d',
   ethereum: '0x12C5AB61Fe17dF9c65739DBa73dF294708f78d23',
@@ -13,14 +16,11 @@ export const safes: ChainMap<Address> = {
   gnosis: '0x36b0AA0e7d04e7b825D7E409FEa3c9A3d57E4C22',
   // solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
   // TODO: create gnosis safes here
-  base: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
-  scroll: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
-  polygonzkevm: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
-  viction: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
-  mantapacific: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+  base: deployer,
+  scroll: deployer,
+  polygonzkevm: deployer,
+  viction: deployer,
+  mantapacific: deployer,
 };
-
-// TODO: migrate ownership to safes
-const deployer = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
 export const owners = objMap(safes, (safe) => deployer);
