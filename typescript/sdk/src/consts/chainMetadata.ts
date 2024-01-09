@@ -415,6 +415,27 @@ export const gnosis: ChainMetadata = {
   ],
 };
 
+export const injective: ChainMetadata = {
+  blockExplorers: [],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 3,
+    reorgPeriod: 1,
+  },
+  chainId: 'injective-1',
+  domainId: 6909546,
+  displayName: 'Injective',
+  displayNameShort: 'Injective',
+  name: Chains.injective,
+  nativeToken: {
+    decimals: 6,
+    name: 'Injective',
+    symbol: 'INJ',
+  },
+  protocol: ProtocolType.Cosmos,
+  rpcUrls: [{ http: 'https://sentry.tm.injective.network:443' }],
+};
+
 export const lineagoerli: ChainMetadata = {
   blockExplorers: [
     {
