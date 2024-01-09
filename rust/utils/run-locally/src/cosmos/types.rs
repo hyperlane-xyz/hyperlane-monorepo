@@ -44,6 +44,7 @@ pub struct Codes {
     pub hpl_igp_oracle: u64,
     pub hpl_ism_aggregate: u64,
     pub hpl_ism_multisig: u64,
+    pub hpl_ism_pausable: u64,
     pub hpl_ism_routing: u64,
     pub hpl_test_mock_ism: u64,
     pub hpl_test_mock_hook: u64,
