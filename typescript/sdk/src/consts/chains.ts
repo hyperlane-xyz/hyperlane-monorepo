@@ -17,6 +17,7 @@ export enum Chains {
   fuji = 'fuji',
   gnosis = 'gnosis',
   goerli = 'goerli',
+  inevm = 'inevm',
   injective = 'injective',
   lineagoerli = 'lineagoerli',
   mantapacific = 'mantapacific',
