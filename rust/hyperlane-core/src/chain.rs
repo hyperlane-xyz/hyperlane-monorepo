@@ -84,7 +84,7 @@ pub enum KnownHyperlaneDomain {
 
     Neutron = 1853125230,
 
-    Injective = 11111,
+    Injective = 6909546,
 
     // -- Local test chains --
     /// Test1 local chain
