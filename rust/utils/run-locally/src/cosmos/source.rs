@@ -5,13 +5,13 @@ use tempfile::tempdir;
 use crate::{
     cosmos::{
         make_target,
-        utils::{download, untar},
+        utils::{download, untar, unzip},
     },
     logging::log,
     utils::concat_path,
 };
 
-use super::{CW_HYPERLANE_GIT, CW_HYPERLANE_VERSION, OSMOSIS_CLI_GIT, OSMOSIS_CLI_VERSION};
+use super::{CW_HYPERLANE_GIT, CW_HYPERLANE_VERSION, INJECTIVE_CLI_GIT, INJECTIVE_CLI_VERSION};
 
 pub enum CodeSource {
     Local { path: String },
@@ -103,9 +103,9 @@ pub enum CLISource {
 impl Default for CLISource {
     fn default() -> Self {
         if make_target().starts_with("darwin") {
-            Self::remote("https://github.com/hashableric/osmosis", "19.0.0-mnts")
+            Self::remote("https://github.com/hashableric/injective", "19.0.0-mnts")
         } else {
-            Self::remote(OSMOSIS_CLI_GIT, OSMOSIS_CLI_VERSION)
+            Self::remote(INJECTIVE_CLI_GIT, INJECTIVE_CLI_VERSION)
         }
     }
 }
@@ -135,17 +135,19 @@ impl CLISource {
         };
         let dir_path = dir_path.to_str().unwrap();
 
-        let release_name = format!("osmosisd-{version}-{target}");
-        let release_comp = format!("{release_name}.tar.gz");
+        let release_name = format!("injectived-{version}-{target}");
+        let release_comp = format!("{release_name}.zip");
 
-        log!("Downloading Osmosis CLI v{}", version);
-        let uri = format!("{git}/releases/download/v{version}/{release_comp}");
+        log!("Downloading Injective CLI");
+        // log!("Downloading Injective CLI v{}", version);
+        // let uri = format!("{git}/releases/download/v{version}/{release_comp}");
+        let uri = "https://github.com/InjectiveLabs/injective-chain-releases/releases/download/v1.11.6-1688984159/darwin-amd64.zip";
         download(&release_comp, &uri, dir_path);
 
-        log!("Uncompressing Osmosis release");
-        untar(&release_comp, dir_path);
+        log!("Uncompressing Injective release");
+        unzip(&release_comp, dir_path);
 
-        concat_path(dir_path, "osmosisd")
+        concat_path(dir_path, "injectived")
     }
 
     pub fn install(self, dir: Option<PathBuf>) -> PathBuf {

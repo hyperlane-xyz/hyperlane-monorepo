@@ -30,13 +30,13 @@ use crate::metrics::agent_balance_sum;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
 use crate::{fetch_metric, AGENT_BIN_PATH};
-use cli::{OsmosisCLI, OsmosisEndpoint};
+use cli::{InjectiveCLI, InjectiveEndpoint};
 
 use self::deploy::deploy_cw_hyperlane;
 use self::source::{CLISource, CodeSource};
 
-const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
-const OSMOSIS_CLI_VERSION: &str = "20.5.0";
+const INJECTIVE_CLI_GIT: &str = "https://github.com/injective-labs/injective";
+const INJECTIVE_CLI_VERSION: &str = "20.5.0";
 
 const KEY_HPL_VALIDATOR: (&str,&str) = ("hpl-validator", "guard evolve region sentence danger sort despair eye deputy brave trim actor left recipe debate document upgrade sustain bus cage afford half demand pigeon");
 const KEY_HPL_RELAYER: (&str,&str) = ("hpl-relayer", "moral item damp melt gloom vendor notice head assume balance doctor retire fashion trim find biology saddle undo switch fault cattle toast drip empty");
@@ -66,7 +66,7 @@ fn make_target() -> String {
     } else if cfg!(target_os = "macos") {
         "darwin"
     } else {
-        panic!("Current os is not supported by Osmosis")
+        panic!("Current os is not supported by Injective")
     };
 
     let arch = if cfg!(target_arch = "aarch64") {
@@ -134,15 +134,15 @@ pub fn install_cosmos(
     codes_dir: Option<PathBuf>,
     _codes_src: Option<CodeSource>,
 ) -> (PathBuf, BTreeMap<String, PathBuf>) {
-    let osmosisd = cli_src
+    let injectived = cli_src
         .unwrap_or(CLISource::Remote {
-            url: OSMOSIS_CLI_GIT.to_string(),
-            version: OSMOSIS_CLI_VERSION.to_string(),
+            url: INJECTIVE_CLI_GIT.to_string(),
+            version: INJECTIVE_CLI_VERSION.to_string(),
         })
         .install(cli_dir);
     let codes = install_codes(codes_dir, false);
 
-    (osmosisd, codes)
+    (injectived, codes)
 }
 
 #[derive(Clone)]
@@ -161,14 +161,14 @@ pub struct CosmosConfig {
 
 pub struct CosmosResp {
     pub node: AgentHandles,
-    pub endpoint: OsmosisEndpoint,
+    pub endpoint: InjectiveEndpoint,
     pub codes: Codes,
     pub home_path: PathBuf,
 }
 
 impl CosmosResp {
-    pub fn cli(&self, bin: &Path) -> OsmosisCLI {
-        OsmosisCLI::new(bin.to_path_buf(), self.home_path.to_str().unwrap())
+    pub fn cli(&self, bin: &Path) -> InjectiveCLI {
+        InjectiveCLI::new(bin.to_path_buf(), self.home_path.to_str().unwrap())
     }
 }
 
@@ -217,11 +217,13 @@ fn launch_cosmos_node(config: CosmosConfig) -> CosmosResp {
         Some(v) => v,
         None => tempdir().unwrap().into_path(),
     };
-    let cli = OsmosisCLI::new(config.cli_path, home_path.to_str().unwrap());
+    let cli = InjectiveCLI::new(config.cli_path, home_path.to_str().unwrap());
 
     cli.init(&config.moniker, &config.chain_id);
 
+    println!("~~~ starting node");
     let (node, endpoint) = cli.start(config.node_addr_base, config.node_port_base);
+    println!("~~~ node started");
     let codes = cli.store_codes(&endpoint, "validator", config.codes);
 
     CosmosResp {
@@ -299,7 +301,7 @@ fn launch_cosmos_relayer(
     relayer
 }
 
-const ENV_CLI_PATH_KEY: &str = "E2E_OSMOSIS_CLI_PATH";
+const ENV_CLI_PATH_KEY: &str = "E2E_INJECTIVE_CLI_PATH";
 const ENV_CW_HYPERLANE_PATH_KEY: &str = "E2E_CW_HYPERLANE_PATH";
 
 #[allow(dead_code)]
@@ -334,10 +336,10 @@ fn run_locally() {
             .unwrap_or_default(),
     );
 
-    let (osmosisd, codes) = install_cosmos(None, cli_src, None, code_src);
+    let (injectived, codes) = install_cosmos(None, cli_src, None, code_src);
     let addr_base = "tcp://0.0.0.0";
     let default_config = CosmosConfig {
-        cli_path: osmosisd.clone(),
+        cli_path: injectived.clone(),
         home_path: None,
 
         codes,
@@ -359,10 +361,10 @@ fn run_locally() {
             (
                 launch_cosmos_node(CosmosConfig {
                     node_port_base: port_start + (i * 10),
-                    chain_id: format!("cosmos-test-{}", i + domain_start),
+                    chain_id: format!("injective-{}", i + domain_start),
                     ..default_config.clone()
                 }),
-                format!("cosmos-test-{}", i + domain_start),
+                format!("injective-{}", i + domain_start),
                 metrics_port_start + i,
                 domain_start + i,
             )
@@ -379,7 +381,7 @@ fn run_locally() {
         .map(|v| (v.0.join(), v.1, v.2, v.3))
         .map(|(launch_resp, chain_id, metrics_port, domain)| {
             let deployments = deploy_cw_hyperlane(
-                launch_resp.cli(&osmosisd),
+                launch_resp.cli(&injectived),
                 launch_resp.endpoint.clone(),
                 deployer.to_string(),
                 launch_resp.codes.clone(),
@@ -409,7 +411,7 @@ fn run_locally() {
         }
 
         for target in targets {
-            link_networks(&osmosisd, linker, validator, node, target);
+            link_networks(&injectived, linker, validator, node, target);
         }
     }
 
@@ -433,8 +435,8 @@ fn run_locally() {
             .iter()
             .map(|v| {
                 (
-                    format!("cosmostest{}", v.domain),
-                    AgentConfig::new(osmosisd.clone(), validator, v),
+                    format!("injective-{}", v.domain),
+                    AgentConfig::new(injectived.clone(), validator, v),
                 )
             })
             .collect::<BTreeMap<String, AgentConfig>>(),
@@ -485,8 +487,8 @@ fn run_locally() {
 
         for target in targets {
             dispatched_messages += 1;
-            let cli = OsmosisCLI::new(
-                osmosisd.clone(),
+            let cli = InjectiveCLI::new(
+                injectived.clone(),
                 node.launch_resp.home_path.to_str().unwrap(),
             );
 
@@ -508,7 +510,7 @@ fn run_locally() {
                     },
                 },
                 vec![RawCosmosAmount {
-                    denom: "uosmo".to_string(),
+                    denom: "inj".to_string(),
                     amount: 25_000_000.to_string(),
                 }],
             );
@@ -595,7 +597,7 @@ fn termination_invariants_met(
     // Make sure the balance was correctly updated in the metrics.
     // Ideally, make sure that the difference is >= gas_per_tx * gas_cost, set here:
     // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/c2288eb31734ba1f2f997e2c6ecb30176427bc2c/rust/utils/run-locally/src/cosmos/cli.rs#L55
-    // What's stopping this is that the format returned by the `uosmo` balance query is a surprisingly low number (0.000003999999995184)
+    // What's stopping this is that the format returned by the `inj` balance query is a surprisingly low number (0.000003999999995184)
     // but then maybe the gas_per_tx is just very low - how can we check that? (maybe by simulating said tx)
     if starting_relayer_balance <= ending_relayer_balance {
         log!(

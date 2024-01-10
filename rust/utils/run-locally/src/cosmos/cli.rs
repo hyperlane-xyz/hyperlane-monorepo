@@ -13,16 +13,16 @@ use super::{
     TxResponse,
 };
 
-const GENESIS_FUND: u128 = 1000000000000;
+const GENESIS_FUND: u128 = 1000000000000000000000;
 
 #[derive(Clone)]
-pub struct OsmosisEndpoint {
+pub struct InjectiveEndpoint {
     pub addr: String,
     pub rpc_addr: String,
     pub grpc_addr: String,
 }
 
-impl OsmosisEndpoint {
+impl InjectiveEndpoint {
     fn wait_for_node(&self) {
         wait_for_node(&self.rpc_addr)
     }
@@ -32,13 +32,13 @@ impl OsmosisEndpoint {
     }
 }
 
-pub struct OsmosisCLI {
+pub struct InjectiveCLI {
     pub bin: PathBuf,
     pub home: String,
 }
 
 #[allow(dead_code)]
-impl OsmosisCLI {
+impl InjectiveCLI {
     pub fn new(bin: PathBuf, home: &str) -> Self {
         Self {
             bin,
@@ -53,8 +53,8 @@ impl OsmosisCLI {
     fn add_gas(&self, program: Program) -> Program {
         program
             .arg("gas", "auto")
-            .arg("gas-prices", "0.025uosmo")
-            .arg("gas-adjustment", "1.5")
+            .arg("gas-prices", "0inj")
+            // .arg("gas-adjustment", "1.5")
             .flag("yes")
     }
 
@@ -67,27 +67,33 @@ impl OsmosisCLI {
             .join();
 
         let genesis_path = concat_path(&self.home, "config/genesis.json");
-        sed("stake", "uosmo", genesis_path.to_str().unwrap());
+        // cat the content of the genesis json file:
+        sed("ustake", "inj", genesis_path.to_str().unwrap());
+        sed("\"stake\"", "\"inj\"", genesis_path.to_str().unwrap());
+        // Program::new("cat")
+        //     .cmd(genesis_path.to_str().unwrap())
+        //     .run()
+        //     .join();
 
         // modify node config
         let node_config_path = concat_path(&self.home, "config/config.toml");
-        modify_toml(
-            node_config_path,
-            Box::new(|v| {
-                v["p2p"]["pex"] = toml_edit::value(false);
-                v["consensus"]["timeout_commit"] = toml_edit::value("0.5s");
-            }),
-        );
+        // modify_toml(
+        //     node_config_path,
+        //     Box::new(|v| {
+        //         v["p2p"]["pex"] = toml_edit::value(false);
+        //         v["consensus"]["timeout_commit"] = toml_edit::value("0.5s");
+        //     }),
+        // );
 
         // modify app config
         let app_config_path = concat_path(&self.home, "config/app.toml");
         modify_toml(
             app_config_path,
             Box::new(|v| {
-                v["minimum-gas-prices"] = toml_edit::value("0.025uosmo");
-                v["pruning"] = toml_edit::value("nothing"); // archive
-                v["api"]["enable"] = toml_edit::value(false);
-                v["grpc-web"]["enable"] = toml_edit::value(false);
+                v["minimum-gas-prices"] = toml_edit::value("0inj");
+                // v["pruning"] = toml_edit::value("nothing"); // archive
+                // v["api"]["enable"] = toml_edit::value(false);
+                // v["grpc-web"]["enable"] = toml_edit::value(false);
             }),
         );
 
@@ -100,25 +106,25 @@ impl OsmosisCLI {
                 v["keyring-backend"] = toml_edit::value("test");
                 v["output"] = toml_edit::value("json");
                 v["chain-id"] = toml_edit::value(client_chain_id.clone());
-                v["broadcast-mode"] = toml_edit::value("block");
             }),
         );
 
         self.add_default_keys();
-        self.add_genesis_accs();
+        self.add_genesis_accs(chain_id);
 
         self.cli()
             .cmd("gentx")
             .cmd("validator")
-            .cmd(format!("{}uosmo", GENESIS_FUND))
+            .cmd(format!("{}inj", GENESIS_FUND))
             .arg("chain-id", chain_id)
+            .arg("keyring-backend", "test")
             .run()
             .join();
 
         self.cli().cmd("collect-gentxs").run().join();
     }
 
-    pub fn start(&self, addr_base: String, port_base: u32) -> (AgentHandles, OsmosisEndpoint) {
+    pub fn start(&self, addr_base: String, port_base: u32) -> (AgentHandles, InjectiveEndpoint) {
         if !addr_base.starts_with("tcp://") {
             panic!("invalid addr_base: {}", addr_base);
         }
@@ -133,10 +139,12 @@ impl OsmosisCLI {
         let addr = get_next_addr();
         let p2p_addr = get_next_addr();
         let rpc_addr = get_next_addr();
+        let api_addr = get_next_addr().replace("tcp://", "");
         let grpc_addr = get_next_addr().replace("tcp://", "");
+        let grpc_web_addr = get_next_addr().replace("tcp://", "");
         let pprof_addr = get_next_addr().replace("tcp://", "");
 
-        let endpoint = OsmosisEndpoint {
+        let endpoint = InjectiveEndpoint {
             addr,
             rpc_addr,
             grpc_addr,
@@ -150,8 +158,10 @@ impl OsmosisCLI {
             .arg("p2p.laddr", p2p_addr) // default is tcp://0.0.0.0:26655
             .arg("rpc.laddr", &endpoint.rpc_addr) // default is tcp://0.0.0.0:26657
             .arg("grpc.address", &endpoint.grpc_addr) // default is 0.0.0.0:9090
+            .arg("api.address", api_addr) // default is 0.0.0.0:9090
+            .arg("grpc-web.address", grpc_web_addr) // default is 0.0.0.0:9090
             .arg("rpc.pprof_laddr", pprof_addr) // default is localhost:6060
-            .arg("log_level", "panic")
+            .arg("log-level", "trace")
             .spawn("COSMOS");
 
         endpoint.wait_for_node();
@@ -161,7 +171,7 @@ impl OsmosisCLI {
 
     pub fn store_codes(
         &self,
-        endpoint: &OsmosisEndpoint,
+        endpoint: &InjectiveEndpoint,
         sender: &str,
         codes: BTreeMap<String, PathBuf>,
     ) -> Codes {
@@ -181,9 +191,11 @@ impl OsmosisCLI {
 
             let raw_output = cmd.run_with_output().join();
             println!("wasm store code res: {:?}", raw_output);
+            println!("raw output {:?}", raw_output);
 
             let wasm_store_tx_resp: TxResponse =
                 serde_json::from_str(raw_output.first().unwrap()).unwrap();
+            println!("wasm_store_tx_resp: {:?}", wasm_store_tx_resp);
 
             let store_code_log = wasm_store_tx_resp.logs.first().unwrap();
             let store_code_evt = store_code_log
@@ -202,7 +214,7 @@ impl OsmosisCLI {
 
     pub fn wasm_init<T: serde::ser::Serialize>(
         &self,
-        endpoint: &OsmosisEndpoint,
+        endpoint: &InjectiveEndpoint,
         sender: &str,
         admin: Option<&str>,
         code_id: u64,
@@ -250,7 +262,7 @@ impl OsmosisCLI {
 
     pub fn wasm_execute<T: serde::ser::Serialize>(
         &self,
-        endpoint: &OsmosisEndpoint,
+        endpoint: &InjectiveEndpoint,
         sender: &str,
         contract: &str,
         execute_msg: T,
@@ -292,7 +304,7 @@ impl OsmosisCLI {
     pub fn wasm_query<T: serde::ser::Serialize>(
         // U: serde::de::DeserializeOwned>(
         &self,
-        endpoint: &OsmosisEndpoint,
+        endpoint: &InjectiveEndpoint,
         contract: &str,
         query_msg: T,
     ) {
@@ -316,7 +328,7 @@ impl OsmosisCLI {
         // output.data
     }
 
-    pub fn query_balance(&self, endpoint: &OsmosisEndpoint, addr: &str) -> BalanceResponse {
+    pub fn query_balance(&self, endpoint: &InjectiveEndpoint, addr: &str) -> BalanceResponse {
         let cmd = endpoint
             .add_rpc(self.cli())
             .cmd("query")
@@ -333,7 +345,7 @@ impl OsmosisCLI {
 
     pub fn bank_send(
         &self,
-        endpoint: &OsmosisEndpoint,
+        endpoint: &InjectiveEndpoint,
         sender: &str,
         sender_addr: &str,
         addr: &str,
@@ -355,12 +367,13 @@ impl OsmosisCLI {
         cmd.run().join();
     }
 
-    fn add_genesis_accs(&self) {
+    fn add_genesis_accs(&self, chain_id: &str) {
         for name in default_keys().into_iter().map(|(name, _)| name) {
             self.cli()
                 .cmd("add-genesis-account")
+                .arg("chain-id", chain_id)
                 .cmd(self.get_addr(name))
-                .cmd(format!("{}uosmo", GENESIS_FUND * 2))
+                .cmd(format!("{}inj", GENESIS_FUND * 2))
                 .run()
                 .join();
         }

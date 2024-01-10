@@ -6,7 +6,7 @@ use hpl_interface::{
     ism::{self},
 };
 
-use super::{cli::OsmosisCLI, crypto::KeyPair, CosmosNetwork};
+use super::{cli::InjectiveCLI, crypto::KeyPair, CosmosNetwork};
 
 #[cw_serde]
 pub struct GeneralIsmMessage<T> {
@@ -80,7 +80,7 @@ pub struct SetValidatorsMsg {
 }
 
 fn link_network(
-    cli: &OsmosisCLI,
+    cli: &InjectiveCLI,
     network: &CosmosNetwork,
     hrp: &str,
     linker: &str,
@@ -222,7 +222,7 @@ fn link_network(
         linker,
         &validator_addr,
         "osmo1l83956lgpak5sun7ggupls7rk7p5cr95499jdf",
-        "10000000uosmo",
+        "10000000inj",
     );
 
     // TODO

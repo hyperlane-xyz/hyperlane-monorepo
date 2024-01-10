@@ -242,12 +242,14 @@ impl Program {
 
     pub fn spawn(self, log_prefix: &'static str) -> AgentHandles {
         let mut command = self.create_command();
-        command.stdout(Stdio::piped()).stderr(Stdio::piped());
+        println!("~~~ Running command: {:?}", &command);
+        // command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         log!("Spawning {}...", &self);
         let mut child = command
             .spawn()
             .unwrap_or_else(|e| panic!("Failed to start {:?} with error: {e}", &self));
+        // sleep(Duration::from_secs(10));
         let child_stdout = child.stdout.take().unwrap();
         let filter = self.get_filter();
         let stdout =

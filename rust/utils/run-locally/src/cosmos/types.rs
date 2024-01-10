@@ -3,29 +3,29 @@ use std::{collections::BTreeMap, path::PathBuf};
 use hpl_interface::types::bech32_decode;
 use hyperlane_cosmos::RawCosmosAmount;
 
-use super::{cli::OsmosisCLI, CosmosNetwork};
+use super::{cli::InjectiveCLI, CosmosNetwork};
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct TxEventAttr {
     pub key: String,
     pub value: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct TxEvent {
     #[serde(rename = "type")]
     pub typ: String,
     pub attributes: Vec<TxEventAttr>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct TxLog {
     pub msg_index: u32,
     pub log: String,
     pub events: Vec<TxEvent>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct TxResponse {
     pub height: String,
     pub txhash: String,
@@ -137,11 +137,11 @@ fn to_hex_addr(addr: &str) -> String {
 
 impl AgentConfig {
     pub fn new(bin: PathBuf, validator: &str, network: &CosmosNetwork) -> Self {
-        let cli = OsmosisCLI::new(bin, network.launch_resp.home_path.to_str().unwrap());
+        let cli = InjectiveCLI::new(bin, network.launch_resp.home_path.to_str().unwrap());
         let validator = cli.get_keypair(validator);
 
         AgentConfig {
-            name: format!("cosmostest{}", network.domain),
+            name: format!("injective-{}", network.domain),
             domain_id: network.domain,
             metrics_port: network.metrics_port,
             mailbox: to_hex_addr(&network.deployments.mailbox),
@@ -149,7 +149,7 @@ impl AgentConfig {
             validator_announce: to_hex_addr(&network.deployments.va),
             merkle_tree_hook: to_hex_addr(&network.deployments.hook_merkle),
             protocol: "cosmos".to_string(),
-            chain_id: format!("cosmos-test-{}", network.domain),
+            chain_id: format!("injective-{}", network.domain),
             rpc_urls: vec![AgentUrl {
                 http: format!(
                     "http://{}",
@@ -164,7 +164,7 @@ impl AgentConfig {
                 prefix: "osmo".to_string(),
             },
             gas_price: RawCosmosAmount {
-                denom: "uosmo".to_string(),
+                denom: "inj".to_string(),
                 amount: "0.05".to_string(),
             },
             index: AgentConfigIndex {

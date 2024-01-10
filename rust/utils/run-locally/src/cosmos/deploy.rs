@@ -5,7 +5,7 @@ use macro_rules_attribute::apply;
 use crate::utils::as_task;
 
 use super::{
-    cli::{OsmosisCLI, OsmosisEndpoint},
+    cli::{InjectiveCLI, InjectiveEndpoint},
     types::{Codes, Deployments},
 };
 
@@ -37,8 +37,8 @@ const PREFIX: &str = "osmo";
 
 #[apply(as_task)]
 pub fn deploy_cw_hyperlane(
-    cli: OsmosisCLI,
-    endpoint: OsmosisEndpoint,
+    cli: InjectiveCLI,
+    endpoint: InjectiveEndpoint,
     deployer: String,
     codes: Codes,
     domain: u32,
@@ -76,7 +76,7 @@ pub fn deploy_cw_hyperlane(
         GasOracleInitMsg {
             hrp: PREFIX.to_string(),
             owner: deployer_addr.clone(),
-            gas_token: "uosmo".to_string(),
+            gas_token: "inj".to_string(),
             beneficiary: deployer_addr.clone(),
             default_gas_usage: "25000".to_string(),
         },
