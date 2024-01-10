@@ -16,13 +16,12 @@ bech32 = { workspace = true }
 cosmrs = { workspace = true, features = ["cosmwasm", "tokio", "grpc", "rpc"] }
 derive-new = { workspace = true }
 hex = { workspace = true }
+hpl-interface.workspace = true
 http = { workspace = true }
-hyperlane-cosmwasm-interface.workspace = true
 hyper = { workspace = true }
 hyper-tls = { workspace = true }
 injective-protobuf = { workspace = true }
 injective-std = { workspace = true }
-itertools = { workspace = true }
 once_cell = { workspace = true }
 protobuf = { workspace = true }
 ripemd = { workspace = true }
@@ -38,9 +37,5 @@ tonic = { workspace = true, features = ["transport", "tls", "tls-roots","tls-roo
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
-injective-std = "0.1.5"
-injective-protobuf = "0.2.2"
-http = "0.2.9"
-protobuf = "2.28.0"
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["fallback-provider"]}
