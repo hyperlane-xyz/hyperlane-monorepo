@@ -6,7 +6,6 @@ use std::{
     ops::RangeInclusive,
     str::FromStr,
 };
-use tendermint_rpc::Client;
 
 use crate::payloads::mailbox::{
     GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
