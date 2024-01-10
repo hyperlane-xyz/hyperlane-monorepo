@@ -414,7 +414,7 @@ impl WasmProvider for WasmGrpcProvider {
 
         let msgs = vec![MsgExecuteContract {
             sender: signer.address.clone(),
-            contract: "inj18tw7z9hphd5h8gh0mjueavu6dg922kz2v4jcm4".into(), // contract_address.address(),
+            contract: contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
         }
@@ -462,7 +462,7 @@ impl WasmProvider for WasmGrpcProvider {
         })?;
         let msg = MsgExecuteContract {
             sender: signer.address.clone(),
-            contract: "inj18tw7z9hphd5h8gh0mjueavu6dg922kz2v4jcm4".into(), // contract_address.address(),
+            contract: contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
         };
