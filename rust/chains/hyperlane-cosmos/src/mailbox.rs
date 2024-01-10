@@ -490,7 +490,7 @@ async fn test_neutron_message_delivery() {
         .unwrap(),
     };
 
-    let signer = Signer::new(hex::decode("<REPLACE ME>>").unwrap(), "inj".into()).unwrap();
+    let signer = Signer::new(hex::decode("REPLACE ME").unwrap(), "inj".into()).unwrap();
 
     println!("signer addy {:?}", signer.address);
 
