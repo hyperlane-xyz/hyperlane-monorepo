@@ -24,7 +24,6 @@ import { Contexts } from '../config/contexts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
-import { TestRecipientDeployer } from '../src/deployment/testcontracts/testrecipient';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
 import {
@@ -138,8 +137,7 @@ async function main() {
     );
     deployer = new LiquidityLayerDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
-    config = objMap(envConfig.core, (_chain) => true);
-    deployer = new TestRecipientDeployer(multiProvider);
+    throw new Error('Test recipient is not supported. Use CLI instead.');
   } else if (module === Modules.TEST_QUERY_SENDER) {
     // Get query router addresses
     const queryAddresses = getAddresses(

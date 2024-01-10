@@ -14,7 +14,12 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
       maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
     },
   },
-  bsctestnet: chainMetadata.bsctestnet,
+  bsctestnet: {
+    ...chainMetadata.bsctestnet,
+    transactionOverrides: {
+      gasPrice: 80 * 10 ** 9, // 8 gwei
+    },
+  },
   goerli: chainMetadata.goerli,
   scrollsepolia: chainMetadata.scrollsepolia,
   sepolia: chainMetadata.sepolia,
