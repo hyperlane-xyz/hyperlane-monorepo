@@ -376,7 +376,7 @@ impl WasmGrpcProvider {
     }
 
     /// Injective-specific logic for querying an account.
-    pub async fn account_query_injective(&self, account: String) -> ChainResult<BaseAccount> {
+    async fn account_query_injective(&self, account: String) -> ChainResult<BaseAccount> {
         let request = tonic::Request::new(
             injective_std::types::cosmos::auth::v1beta1::QueryAccountRequest { address: account },
         );
