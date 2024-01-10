@@ -6,6 +6,7 @@ use std::{
     ops::RangeInclusive,
     str::FromStr,
 };
+use tendermint_rpc::Client;
 
 use crate::payloads::mailbox::{
     GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
@@ -434,4 +435,114 @@ mod tests {
         );
         assert_parsed_event(&base64_attrs);
     }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct NftBalanceOf {
+    owner_of: NftOwnerOf,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct NftOwnerOf {
+    token_id: String,
+    include_expired: Option<bool>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct TransferNft {
+    transfer_nft: TransferNftInner,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct TransferNftInner {
+    recipient: String,
+    token_id: String,
+}
+
+#[tokio::test]
+async fn test_neutron_message_delivery() {
+    let conf = ConnectionConf::new(
+        "https://sentry.chain.grpc.injective.network:443".into(),
+        "https://sentry.tm.injective.network:443".into(),
+        "injective-1".into(),
+        "inj".into(),
+        "uinj".into(),
+        crate::RawCosmosAmount {
+            amount: "0.5".into(),
+            denom: "inj".into(),
+        },
+    );
+    let domain = HyperlaneDomain::Unknown {
+        domain_id: 1853125230,
+        domain_name: "neutron".into(),
+        domain_type: hyperlane_core::HyperlaneDomainType::Mainnet,
+        domain_protocol: hyperlane_core::HyperlaneDomainProtocol::Cosmos,
+    };
+    let locator = ContractLocator {
+        domain: &domain,
+        // Random NFT's contract,
+        // found via https://explorer.injective.network/transaction/C8F1E737D2CD82ECC8932C2BDEE82242BFB57D847D14D51226D28293B5691C33/
+        address: H256::from_str(
+            // Using this won't actually work because it should be serialized as a 20 byte cosmos bech32 address,
+            // but our current logic sees it as an H256 and serializes it as 32 bytes :'(
+            "0x0000000000000000000000003adde116e1bb6973a2efdcb99eb39a6a0aa5584a",
+        )
+        .unwrap(),
+    };
+
+    let signer = Signer::new(hex::decode("<REPLACE ME>>").unwrap(), "inj".into()).unwrap();
+
+    println!("signer addy {:?}", signer.address);
+
+    let provider = CosmosProvider::new(
+        domain.clone(),
+        conf.clone(),
+        Some(locator.clone()),
+        Some(signer),
+    )
+    .unwrap();
+
+    let block = provider.rpc().block(56973456u32).await.unwrap();
+    println!("block {:?}", block);
+
+    // // This fails because the contract address is serialized as 32 bytes, but it should be 20 bytes
+    // // on injective. We need to fix this!
+    // let owner_of_nft = provider.grpc().wasm_query(
+    //     NftBalanceOf {
+    //     owner_of: NftOwnerOf {
+    //         token_id: "772".into(),
+    //         include_expired: Some(true),
+    //     },
+    // }, None).await.unwrap();
+
+    let owner_of_nft = provider
+        .grpc()
+        .wasm_query_to(
+            "inj18tw7z9hphd5h8gh0mjueavu6dg922kz2v4jcm4".into(),
+            NftBalanceOf {
+                owner_of: NftOwnerOf {
+                    token_id: "772".into(),
+                    include_expired: Some(true),
+                },
+            },
+            None,
+        )
+        .await
+        .unwrap();
+    println!("owner_of_nft {:?}", owner_of_nft);
+
+    // This fails with
+    // Err(Other(Protobuf(DecodeError { description: "invalid string value: data is not UTF-8 encoded", stack: [("BaseAccount", "address")] })))
+    // because we need to use their protobuf stuff
+    let estimate = provider
+        .grpc()
+        .wasm_estimate_gas(TransferNft {
+            transfer_nft: TransferNftInner {
+                recipient: "inj1t4t55nlfts8nmwu9uu8t9yw2hqn5zp8kt3y2f2".into(),
+                token_id: "772".into(),
+            },
+        })
+        .await;
+
+    println!("estimate {:?}", estimate);
 }
