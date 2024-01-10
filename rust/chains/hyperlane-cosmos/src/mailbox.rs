@@ -460,7 +460,7 @@ struct TransferNftInner {
 }
 
 #[tokio::test]
-async fn test_neutron_message_delivery() {
+async fn test_injective() {
     let conf = ConnectionConf::new(
         "https://sentry.chain.grpc.injective.network:443".into(),
         "https://sentry.tm.injective.network:443".into(),
