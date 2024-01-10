@@ -29,6 +29,7 @@ import {
   normalizeAddress,
   objFilter,
   objMap,
+  warn,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
@@ -207,8 +208,15 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     // filtering out domains which are not part of the multiprovider
     config.domains = objFilter(
       config.domains,
-      (domain, config): config is IsmConfig =>
-        this.multiProvider.tryGetDomainId(domain) !== null,
+      (domain, config): config is IsmConfig => {
+        const domainId = this.multiProvider.tryGetDomainId(domain);
+        if (domainId === null) {
+          warn(
+            `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
+          );
+        }
+        return domainId !== null;
+      },
     );
     const safeConfigDomains = Object.keys(config.domains).map((domain) =>
       this.multiProvider.getDomainId(domain),
@@ -437,7 +445,7 @@ export async function moduleCanCertainlyVerify(
 ): Promise<boolean> {
   const originDomainId = multiProvider.tryGetDomainId(origin);
   const destinationDomainId = multiProvider.tryGetDomainId(destination);
-  if (originDomainId === null || destinationDomainId === null) {
+  if (!originDomainId || !destinationDomainId) {
     return false;
   }
   const message = formatMessage(
