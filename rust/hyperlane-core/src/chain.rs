@@ -84,7 +84,7 @@ pub enum KnownHyperlaneDomain {
 
     Neutron = 1853125230,
 
-    Injective = 6909546,
+    Injective = 11111,
 
     // -- Local test chains --
     /// Test1 local chain
@@ -132,6 +132,10 @@ impl HyperlaneDomain {
             domain_type: HyperlaneDomainType::LocalTestChain,
             domain_protocol: HyperlaneDomainProtocol::Ethereum,
         }
+    }
+
+    pub const fn is_injective(&self) -> bool {
+        matches!(self, Self::Known(KnownHyperlaneDomain::Injective))
     }
 }
 

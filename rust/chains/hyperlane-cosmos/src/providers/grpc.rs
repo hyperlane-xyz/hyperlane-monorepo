@@ -26,7 +26,6 @@ use cosmrs::{
 };
 use derive_new::new;
 use hyperlane_core::{
-    rpc_clients::{BlockNumberGetter, FallbackProvider},
     ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, HyperlaneDomain, U256,
 };
 use protobuf::Message as _;
@@ -35,7 +34,6 @@ use tonic::{
     transport::{Channel, Endpoint},
     GrpcMethod, IntoRequest,
 };
-use url::Url;
 
 use crate::{address::CosmosAddress, CosmosAmount};
 use crate::{rpc_clients::CosmosFallbackProvider, HyperlaneCosmosError};
@@ -346,6 +344,8 @@ impl WasmGrpcProvider {
             return self.account_query_injective(account).await;
         }
 
+        let mut client = QueryAccountClient::new(self.channel.clone());
+
         let response = self
             .provider
             .call(move |provider| {
@@ -376,47 +376,33 @@ impl WasmGrpcProvider {
     }
 
     /// Injective-specific logic for querying an account.
-    async fn account_query_injective(&self, account: String) -> ChainResult<BaseAccount> {
-        let response = self
-            .provider
-            .call(move |provider| {
-                let address = account.clone();
-                let future = async move {
-                    let request = tonic::Request::new(
-                        injective_std::types::cosmos::auth::v1beta1::QueryAccountRequest {
-                            address,
-                        },
-                    );
+    pub async fn account_query_injective(&self, account: String) -> ChainResult<BaseAccount> {
+        let request = tonic::Request::new(
+            injective_std::types::cosmos::auth::v1beta1::QueryAccountRequest { address: account },
+        );
 
-                    // Borrowed from the logic of `QueryAccountClient` in `cosmrs`, but using injective types.
+        // Borrowed from the logic of `QueryAccountClient` in `cosmrs`, but using injective types.
 
-                    let mut grpc_client = tonic::client::Grpc::new(provider.channel.clone());
-                    grpc_client
-                        .ready()
-                        .await
-                        .map_err(Into::<HyperlaneCosmosError>::into)?;
+        let mut grpc_client = tonic::client::Grpc::new(self.channel.clone());
+        grpc_client
+            .ready()
+            .await
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
 
-                    let codec = tonic::codec::ProstCodec::default();
-                    let path =
-                        http::uri::PathAndQuery::from_static("/cosmos.auth.v1beta1.Query/Account");
-                    let mut req: tonic::Request<
-                        injective_std::types::cosmos::auth::v1beta1::QueryAccountRequest,
-                    > = request.into_request();
-                    req.extensions_mut()
-                        .insert(GrpcMethod::new("cosmos.auth.v1beta1.Query", "Account"));
+        let codec = tonic::codec::ProstCodec::default();
+        let path = http::uri::PathAndQuery::from_static("/cosmos.auth.v1beta1.Query/Account");
+        let mut req: tonic::Request<
+            injective_std::types::cosmos::auth::v1beta1::QueryAccountRequest,
+        > = request.into_request();
+        req.extensions_mut()
+            .insert(GrpcMethod::new("cosmos.auth.v1beta1.Query", "Account"));
 
-                    let response: tonic::Response<
-                        injective_std::types::cosmos::auth::v1beta1::QueryAccountResponse,
-                    > = grpc_client
-                        .unary(req, path, codec)
-                        .await
-                        .map_err(Into::<HyperlaneCosmosError>::into)?;
-
-                    Ok(response)
-                };
-                Box::pin(future)
-            })
-            .await?;
+        let response: tonic::Response<
+            injective_std::types::cosmos::auth::v1beta1::QueryAccountResponse,
+        > = grpc_client
+            .unary(req, path, codec)
+            .await
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
 
         let mut eth_account = injective_protobuf::proto::account::EthAccount::parse_from_bytes(
             response
@@ -535,7 +521,7 @@ impl WasmProvider for WasmGrpcProvider {
         })?;
         let msgs = vec![MsgExecuteContract {
             sender: signer.address.clone(),
-            contract: contract_address.address(),
+            contract: "inj18tw7z9hphd5h8gh0mjueavu6dg922kz2v4jcm4".into(), // contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
         }
@@ -590,7 +576,7 @@ impl WasmProvider for WasmGrpcProvider {
         })?;
         let msg = MsgExecuteContract {
             sender: signer.address.clone(),
-            contract: contract_address.address(),
+            contract: "inj18tw7z9hphd5h8gh0mjueavu6dg922kz2v4jcm4".into(), // contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
         };

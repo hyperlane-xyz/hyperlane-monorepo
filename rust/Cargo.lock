@@ -4183,7 +4183,6 @@ dependencies = [
  "thiserror",
  "tiny-keccak 2.0.2",
  "tokio",
- "tracing",
  "uint 0.9.5",
 ]
 
@@ -4197,14 +4196,13 @@ dependencies = [
  "cosmrs",
  "derive-new",
  "hex 0.4.3",
+ "hpl-interface",
  "http",
  "hyper",
  "hyper-tls",
  "hyperlane-core",
- "hyperlane-cosmwasm-interface",
  "injective-protobuf",
  "injective-std",
- "itertools 0.12.0",
  "once_cell",
  "protobuf",
  "ripemd",
