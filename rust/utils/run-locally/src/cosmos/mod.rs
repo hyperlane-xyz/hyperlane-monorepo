@@ -57,7 +57,7 @@ fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
     ]
 }
 
-const CW_HYPERLANE_GIT: &str = "https://github.com/yorhodes/cw-hyperlane";
+const CW_HYPERLANE_GIT: &str = "https://github.com/hyperlane/cosmwasm";
 const CW_HYPERLANE_VERSION: &str = "0.0.6-rc7";
 
 fn make_target() -> String {
