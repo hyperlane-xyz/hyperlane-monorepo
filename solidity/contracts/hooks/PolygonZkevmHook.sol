@@ -22,7 +22,8 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {IPolygonZkEVMBridge} from "../interfaces/polygonZkevm/IPolygonZkEvmBridge.sol";
+
+import {IPolygonZkEVMBridge} from "../interfaces/polygonzkevm/IPolygonZkEVMBridge.sol";
 
 /**
  * @title PolygonZkevmHook
@@ -71,7 +72,7 @@ contract PolygonZkevmHook is AbstractMessageIdAuthHook {
         zkEvmBridge.bridgeMessage(
             destinationDomain,
             TypeCasts.bytes32ToAddress(ism),
-            false,
+            true,
             payload
         );
     }
