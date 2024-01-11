@@ -36,6 +36,26 @@ pub struct TxResponse {
     pub logs: Vec<TxLog>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct InstantiatePermission {
+    permission: String,
+    address: String,
+    addresses: Vec<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct CodeId {
+    pub code_id: String,
+    pub creator: String,
+    pub data_hash: String,
+    pub instantiate_permission: InstantiatePermission,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct CodeInfos {
+    pub code_infos: Vec<CodeId>,
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Codes {
     pub hpl_hook_merkle: u64,
@@ -157,11 +177,11 @@ impl AgentConfig {
                 ),
             }],
             grpc_url: format!("http://{}", network.launch_resp.endpoint.grpc_addr),
-            prefix: "osmo".to_string(),
+            prefix: "inj".to_string(),
             signer: AgentConfigSigner {
                 typ: "cosmosKey".to_string(),
                 key: format!("0x{}", hex::encode(validator.priv_key.to_bytes())),
-                prefix: "osmo".to_string(),
+                prefix: "inj".to_string(),
             },
             gas_price: RawCosmosAmount {
                 denom: "inj".to_string(),

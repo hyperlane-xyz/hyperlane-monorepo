@@ -6933,6 +6933,7 @@ dependencies = [
 name = "run-locally"
 version = "0.1.0"
 dependencies = [
+ "cosmrs",
  "cosmwasm-schema",
  "ctrlc",
  "eyre",
@@ -6951,6 +6952,8 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "tempfile",
+ "tendermint-rpc",
+ "tokio",
  "toml_edit 0.19.15",
  "ureq",
  "which",

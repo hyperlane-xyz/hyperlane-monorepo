@@ -243,7 +243,7 @@ impl Program {
     pub fn spawn(self, log_prefix: &'static str) -> AgentHandles {
         let mut command = self.create_command();
         println!("~~~ Running command: {:?}", &command);
-        // command.stdout(Stdio::piped()).stderr(Stdio::piped());
+        command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         log!("Spawning {}...", &self);
         let mut child = command
@@ -255,6 +255,8 @@ impl Program {
         let stdout =
             spawn(move || prefix_log(child_stdout, log_prefix, &RUN_LOG_WATCHERS, filter, None));
         let child_stderr = child.stderr.take().unwrap();
+        let random = Program::new("echo").cmd("helloworld").run();
+        let random2 = Program::new("echo").cmd("helloworld2").run();
         let stderr =
             spawn(move || prefix_log(child_stderr, log_prefix, &RUN_LOG_WATCHERS, filter, None));
         (

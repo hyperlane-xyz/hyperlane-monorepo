@@ -13,7 +13,7 @@ mod libs;
 mod mailbox;
 mod merkle_tree_hook;
 mod multisig_ism;
-mod payloads;
+pub mod payloads;
 mod providers;
 mod routing_ism;
 mod signers;

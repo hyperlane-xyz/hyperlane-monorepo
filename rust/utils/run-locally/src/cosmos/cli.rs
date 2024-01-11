@@ -1,9 +1,23 @@
-use std::{collections::BTreeMap, io::Write, path::PathBuf, process::Stdio};
+use std::str::FromStr;
+use std::{
+    collections::BTreeMap, io::Write, path::PathBuf, process::Stdio, thread::sleep, time::Duration,
+};
 
-use hyperlane_cosmos::RawCosmosAmount;
+use cosmrs::tendermint::Hash;
+use hyperlane_cosmos::{payloads::general::Event, RawCosmosAmount};
+
+use cosmrs::rpc::endpoint::abci_query;
+use cosmrs::rpc::endpoint::broadcast;
+use cosmrs::rpc::endpoint::tx;
+use cosmrs::rpc::HttpClient;
 use k256::ecdsa::SigningKey;
+use tendermint_rpc::endpoint::tx::DialectResponse;
+use tendermint_rpc::Client;
+use tokio::runtime::Handle;
+use tokio::task::block_in_place;
 
 use crate::{
+    cosmos::types::{CodeId, CodeInfos},
     program::Program,
     utils::{concat_path, AgentHandles, TaskHandle},
 };
@@ -12,6 +26,9 @@ use super::{
     crypto::KeyPair, default_keys, modify_toml, sed, types::BalanceResponse, wait_for_node, Codes,
     TxResponse,
 };
+
+// #[derive(serde::Serialize, serde::Deserialize, Debug)]
+// struct TxQueryResponse(Response);
 
 const GENESIS_FUND: u128 = 1000000000000000000000;
 
@@ -53,8 +70,8 @@ impl InjectiveCLI {
     fn add_gas(&self, program: Program) -> Program {
         program
             .arg("gas", "auto")
-            .arg("gas-prices", "0inj")
-            // .arg("gas-adjustment", "1.5")
+            .arg("gas-prices", "1inj")
+            .arg("gas-adjustment", "1.5")
             .flag("yes")
     }
 
@@ -84,18 +101,6 @@ impl InjectiveCLI {
         //         v["consensus"]["timeout_commit"] = toml_edit::value("0.5s");
         //     }),
         // );
-
-        // modify app config
-        let app_config_path = concat_path(&self.home, "config/app.toml");
-        modify_toml(
-            app_config_path,
-            Box::new(|v| {
-                v["minimum-gas-prices"] = toml_edit::value("0inj");
-                // v["pruning"] = toml_edit::value("nothing"); // archive
-                // v["api"]["enable"] = toml_edit::value(false);
-                // v["grpc-web"]["enable"] = toml_edit::value(false);
-            }),
-        );
 
         // modify client config
         let client_chain_id = chain_id.to_string();
@@ -139,7 +144,7 @@ impl InjectiveCLI {
         let addr = get_next_addr();
         let p2p_addr = get_next_addr();
         let rpc_addr = get_next_addr();
-        let api_addr = get_next_addr().replace("tcp://", "");
+        let api_addr = get_next_addr();
         let grpc_addr = get_next_addr().replace("tcp://", "");
         let grpc_web_addr = get_next_addr().replace("tcp://", "");
         let pprof_addr = get_next_addr().replace("tcp://", "");
@@ -150,6 +155,20 @@ impl InjectiveCLI {
             grpc_addr,
         };
 
+        // modify app config
+        let app_config_path = concat_path(&self.home, "config/app.toml");
+        modify_toml(
+            app_config_path,
+            Box::new(move |v| {
+                v["minimum-gas-prices"] = toml_edit::value("1inj");
+                v["pruning"] = toml_edit::value("nothing"); // archive
+                v["api"]["enable"] = toml_edit::value(true);
+                // v["api"]["address"] = toml_edit::value(api_addr.clone());
+                // v["grpc-web"]["enable"] = toml_edit::value(false);
+            }),
+        );
+        println!("~~~ rpc addr: {}", endpoint.rpc_addr);
+
         let node = self
             .cli()
             .cmd("start")
@@ -158,10 +177,10 @@ impl InjectiveCLI {
             .arg("p2p.laddr", p2p_addr) // default is tcp://0.0.0.0:26655
             .arg("rpc.laddr", &endpoint.rpc_addr) // default is tcp://0.0.0.0:26657
             .arg("grpc.address", &endpoint.grpc_addr) // default is 0.0.0.0:9090
-            .arg("api.address", api_addr) // default is 0.0.0.0:9090
             .arg("grpc-web.address", grpc_web_addr) // default is 0.0.0.0:9090
             .arg("rpc.pprof_laddr", pprof_addr) // default is localhost:6060
-            .arg("log-level", "trace")
+            .arg("log-level", "debug")
+            .flag("trace")
             .spawn("COSMOS");
 
         endpoint.wait_for_node();
@@ -169,7 +188,7 @@ impl InjectiveCLI {
         (node, endpoint)
     }
 
-    pub fn store_codes(
+    pub async fn store_codes(
         &self,
         endpoint: &InjectiveEndpoint,
         sender: &str,
@@ -190,29 +209,43 @@ impl InjectiveCLI {
             let cmd = endpoint.add_rpc(cmd);
 
             let raw_output = cmd.run_with_output().join();
-            println!("wasm store code res: {:?}", raw_output);
-            println!("raw output {:?}", raw_output);
-
             let wasm_store_tx_resp: TxResponse =
                 serde_json::from_str(raw_output.first().unwrap()).unwrap();
             println!("wasm_store_tx_resp: {:?}", wasm_store_tx_resp);
+            sleep(Duration::from_secs(2));
 
-            let store_code_log = wasm_store_tx_resp.logs.first().unwrap();
-            let store_code_evt = store_code_log
+            let rpc_address = format!("http://localhost:{}", 26602);
+            let rpc_client = HttpClient::new(rpc_address.as_str()).unwrap();
+            let tx_hash = wasm_store_tx_resp.txhash;
+
+            let tx = rpc_client
+                .tx(Hash::from_str(&tx_hash).unwrap(), false)
+                .await
+                .unwrap();
+            println!("~~~ queried tx events: {:?}", tx.tx_result.events);
+
+            let code_id_attr = tx
+                .tx_result
                 .events
                 .iter()
-                .find(|v| v.typ == "store_code")
+                .flat_map(|event| event.attributes.iter())
+                .find(|&attr| attr.key == "code_id")
                 .unwrap();
+            let raw_event_id = code_id_attr.value.clone();
+            let event_id: String = raw_event_id
+                .chars()
+                .filter(|&c| c != '\\' && c != '\"')
+                .collect();
 
-            let code_id = &store_code_evt.attributes.last().unwrap().value;
-            let code_id = code_id.parse::<u64>().unwrap();
-
-            ret.insert(name, code_id);
+            // let code_id = &store_code_evt.attributes.last().unwrap().value;
+            // let code_id = code_id.parse::<u64>().unwrap();
+            println!("~~~ found event id: {:?}", event_id);
+            ret.insert(name, event_id.parse().unwrap());
         }
         serde_json::from_str(&serde_json::to_string(&ret).unwrap()).unwrap()
     }
 
-    pub fn wasm_init<T: serde::ser::Serialize>(
+    pub async fn wasm_init<T: serde::ser::Serialize>(
         &self,
         endpoint: &InjectiveEndpoint,
         sender: &str,
@@ -243,21 +276,30 @@ impl InjectiveCLI {
         let wasm_init_resp: TxResponse =
             serde_json::from_str(cmd.run_with_output().join().first().unwrap()).unwrap();
 
-        let init_log = wasm_init_resp.logs.first().unwrap();
-        let init_evt = init_log
+        println!("wasm_store_tx_resp: {:?}", wasm_init_resp);
+        sleep(Duration::from_secs(2));
+
+        let rpc_address = format!("http://localhost:{}", 26602);
+        let rpc_client = HttpClient::new(rpc_address.as_str()).unwrap();
+        let tx_hash = wasm_init_resp.txhash;
+
+        let tx = rpc_client
+            .tx(Hash::from_str(&tx_hash).unwrap(), false)
+            .await
+            .unwrap();
+        println!("~~~ queried tx events: {:?}", tx.tx_result.events);
+
+        let contract_addr = tx
+            .tx_result
             .events
             .iter()
-            .find(|v| v.typ == "instantiate")
-            .unwrap();
-
-        let contract_addr = &init_evt
-            .attributes
-            .iter()
-            .find(|v| v.key == "_contract_address")
+            .flat_map(|event| event.attributes.iter())
+            .find(|&attr| attr.key == "_contract_address")
             .unwrap()
-            .value;
-
-        contract_addr.to_string()
+            .value
+            .clone();
+        println!("~~~ found instiantiated contract addr: {:?}", contract_addr);
+        contract_addr
     }
 
     pub fn wasm_execute<T: serde::ser::Serialize>(

@@ -10,6 +10,7 @@ use hyperlane_cosmos::RawCosmosAmount;
 use macro_rules_attribute::apply;
 use maplit::hashmap;
 use tempfile::tempdir;
+use tokio;
 
 mod cli;
 mod crypto;
@@ -182,7 +183,7 @@ pub struct CosmosNetwork {
 
 impl Drop for CosmosNetwork {
     fn drop(&mut self) {
-        stop_child(&mut self.launch_resp.node.1);
+        // stop_child(&mut self.launch_resp.node.1);
     }
 }
 
@@ -211,8 +212,7 @@ impl Drop for CosmosHyperlaneStack {
     }
 }
 
-#[apply(as_task)]
-fn launch_cosmos_node(config: CosmosConfig) -> CosmosResp {
+async fn launch_cosmos_node(config: CosmosConfig) -> CosmosResp {
     let home_path = match config.home_path {
         Some(v) => v,
         None => tempdir().unwrap().into_path(),
@@ -223,8 +223,10 @@ fn launch_cosmos_node(config: CosmosConfig) -> CosmosResp {
 
     println!("~~~ starting node");
     let (node, endpoint) = cli.start(config.node_addr_base, config.node_port_base);
+    sleep(Duration::from_secs(10));
+    // tokio::time::sleep(Duration::from_secs(5)).await;
     println!("~~~ node started");
-    let codes = cli.store_codes(&endpoint, "validator", config.codes);
+    let codes = cli.store_codes(&endpoint, "validator", config.codes).await;
 
     CosmosResp {
         node,
@@ -304,10 +306,9 @@ fn launch_cosmos_relayer(
 const ENV_CLI_PATH_KEY: &str = "E2E_INJECTIVE_CLI_PATH";
 const ENV_CW_HYPERLANE_PATH_KEY: &str = "E2E_CW_HYPERLANE_PATH";
 
-#[allow(dead_code)]
-fn run_locally() {
+async fn run_locally() {
     const TIMEOUT_SECS: u64 = 60 * 10;
-    let debug = false;
+    let debug = true;
 
     log!("Building rust...");
     Program::new("cargo")
@@ -354,48 +355,45 @@ fn run_locally() {
     let port_start = 26600u32;
     let metrics_port_start = 9090u32;
     let domain_start = 99990u32;
-    let node_count = 2;
+    let node_count = 1;
 
-    let nodes = (0..node_count)
-        .map(|i| {
-            (
-                launch_cosmos_node(CosmosConfig {
-                    node_port_base: port_start + (i * 10),
-                    chain_id: format!("injective-{}", i + domain_start),
-                    ..default_config.clone()
-                }),
-                format!("injective-{}", i + domain_start),
-                metrics_port_start + i,
-                domain_start + i,
-            )
+    let mut nodes = vec![];
+    for i in (0..node_count) {
+        let cosmos_node = launch_cosmos_node(CosmosConfig {
+            node_port_base: port_start + (i * 10),
+            chain_id: format!("injective-{}", i + domain_start),
+            ..default_config.clone()
         })
-        .collect::<Vec<_>>();
+        .await;
+        nodes.push((
+            cosmos_node,
+            format!("injective-{}", i + domain_start),
+            metrics_port_start + i,
+            domain_start + i,
+        ));
+    }
 
     let deployer = "validator";
     let linker = "validator";
     let validator = "hpl-validator";
     let _relayer = "hpl-relayer";
 
-    let nodes = nodes
-        .into_iter()
-        .map(|v| (v.0.join(), v.1, v.2, v.3))
-        .map(|(launch_resp, chain_id, metrics_port, domain)| {
-            let deployments = deploy_cw_hyperlane(
-                launch_resp.cli(&injectived),
-                launch_resp.endpoint.clone(),
-                deployer.to_string(),
-                launch_resp.codes.clone(),
-                domain,
-            );
-
-            (launch_resp, deployments, chain_id, metrics_port, domain)
-        })
-        .collect::<Vec<_>>();
+    let mut nodes_deployed = vec![];
+    for (launch_resp, chain_id, metrics_port, domain) in nodes {
+        let deployments = deploy_cw_hyperlane(
+            launch_resp.cli(&injectived),
+            launch_resp.endpoint.clone(),
+            deployer.to_string(),
+            launch_resp.codes.clone(),
+            domain,
+        )
+        .await;
+        nodes_deployed.push((launch_resp, deployments, chain_id, metrics_port, domain))
+    }
 
     // nodes with base deployments
-    let nodes = nodes
+    let nodes = nodes_deployed
         .into_iter()
-        .map(|v| (v.0, v.1.join(), v.2, v.3, v.4))
         .map(|v| v.into())
         .collect::<Vec<CosmosNetwork>>();
 
@@ -616,8 +614,8 @@ fn termination_invariants_met(
 mod test {
     use super::*;
 
-    #[test]
-    fn test_run() {
-        run_locally()
+    #[tokio::test]
+    async fn test_run() {
+        run_locally().await
     }
 }

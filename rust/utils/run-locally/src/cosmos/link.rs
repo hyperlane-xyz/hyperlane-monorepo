@@ -251,6 +251,6 @@ pub fn link_networks(
 
     let keypair = src_cli.get_keypair(validator);
 
-    link_network(&src_cli, src, "osmo", linker, &keypair, dst.domain);
-    link_network(&dst_cli, dst, "osmo", linker, &keypair, src.domain);
+    link_network(&src_cli, src, "inj", linker, &keypair, dst.domain);
+    link_network(&dst_cli, dst, "inj", linker, &keypair, src.domain);
 }

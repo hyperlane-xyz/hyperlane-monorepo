@@ -100,15 +100,15 @@ where
 
 /// Attempt to kindly signal a child to stop running, and kill it if that fails.
 pub fn stop_child(child: &mut Child) {
-    if child.try_wait().unwrap().is_some() {
-        // already stopped
-        return;
-    }
-    let pid = Pid::from_raw(child.id() as pid_t);
-    if signal::kill(pid, Signal::SIGTERM).is_err() {
-        log!("Failed to send sigterm, killing");
-        if let Err(e) = child.kill() {
-            log!("{}", e);
-        }
-    };
+    // if child.try_wait().unwrap().is_some() {
+    //     // already stopped
+    //     return;
+    // }
+    // let pid = Pid::from_raw(child.id() as pid_t);
+    // if signal::kill(pid, Signal::SIGTERM).is_err() {
+    //     log!("Failed to send sigterm, killing");
+    //     if let Err(e) = child.kill() {
+    //         log!("{}", e);
+    //     }
+    // };
 }
