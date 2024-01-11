@@ -69,11 +69,14 @@ pub fn build_cosmos_connection_conf(
 
     let prefix = chain
         .chain(err)
-        .get_key("prefix")
+        .get_key("bech32Prefix")
         .parse_string()
         .end()
         .or_else(|| {
-            local_err.push(&chain.cwp + "prefix", eyre!("Missing prefix for chain"));
+            local_err.push(
+                &chain.cwp + "bech32Prefix",
+                eyre!("Missing bech32 prefix for chain"),
+            );
             None
         });
 
