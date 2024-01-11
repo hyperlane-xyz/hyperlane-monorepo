@@ -123,6 +123,7 @@ pub struct AgentConfig {
     pub signer: AgentConfigSigner,
     pub index: AgentConfigIndex,
     pub gas_price: RawCosmosAmount,
+    pub contract_address_bytes: usize,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -166,6 +167,7 @@ impl AgentConfig {
                 denom: "uosmo".to_string(),
                 amount: "0.05".to_string(),
             },
+            contract_address_bytes: 20,
             index: AgentConfigIndex {
                 from: 1,
                 chunk: 100,

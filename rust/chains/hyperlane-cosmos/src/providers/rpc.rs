@@ -77,6 +77,7 @@ impl CosmosWasmIndexer {
             contract_address: CosmosAddress::from_h256(
                 locator.address,
                 conf.get_prefix().as_str(),
+                conf.get_contract_address_bytes(),
             )?,
             target_event_kind: format!("{}-{}", Self::WASM_TYPE, event_type),
             reorg_period,

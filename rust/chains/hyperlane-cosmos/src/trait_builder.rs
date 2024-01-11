@@ -20,6 +20,10 @@ pub struct ConnectionConf {
     /// minimum price set by the validator.
     /// More details here: https://docs.cosmos.network/main/learn/beginner/gas-fees#antehandler
     gas_price: RawCosmosAmount,
+    /// The number of bytes used to represent a contract address.
+    /// Cosmos address lengths are sometimes less than 32 bytes, so this helps to serialize it in
+    /// bech32 with the appropriate length.
+    contract_address_bytes: usize,
 }
 
 /// Untyped cosmos amount
@@ -101,6 +105,11 @@ impl ConnectionConf {
         self.gas_price.clone()
     }
 
+    /// Get the number of bytes used to represent a contract address
+    pub fn get_contract_address_bytes(&self) -> usize {
+        self.contract_address_bytes
+    }
+
     /// Create a new connection configuration
     pub fn new(
         grpc_url: String,
@@ -109,6 +118,7 @@ impl ConnectionConf {
         prefix: String,
         canonical_asset: String,
         minimum_gas_price: RawCosmosAmount,
+        contract_address_bytes: usize,
     ) -> Self {
         Self {
             grpc_url,
@@ -117,6 +127,7 @@ impl ConnectionConf {
             prefix,
             canonical_asset,
             gas_price: minimum_gas_price,
+            contract_address_bytes,
         }
     }
 }

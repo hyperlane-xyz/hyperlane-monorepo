@@ -436,6 +436,7 @@
         "amount": "0.57",
         "denom": "untrn"
       },
+      "contractAddressBytes": 32,
       "index": {
         "from": 4000000,
         "chunk": 100000

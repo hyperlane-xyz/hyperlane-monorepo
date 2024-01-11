@@ -100,6 +100,12 @@ pub fn build_cosmos_connection_conf(
         .and_then(parse_cosmos_gas_price)
         .end();
 
+    let contract_address_bytes = chain
+        .chain(err)
+        .get_opt_key("contractAddressBytes")
+        .parse_u64()
+        .end();
+
     if !local_err.is_ok() {
         err.merge(local_err);
         None
@@ -111,6 +117,7 @@ pub fn build_cosmos_connection_conf(
             prefix.unwrap().to_string(),
             canonical_asset.unwrap(),
             gas_price.unwrap(),
+            contract_address_bytes.unwrap() as usize,
         )))
     }
 }
