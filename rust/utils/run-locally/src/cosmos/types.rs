@@ -176,7 +176,7 @@ impl AgentConfig {
                 denom: "uosmo".to_string(),
                 amount: "0.05".to_string(),
             },
-            contract_address_bytes: 32,
+            contract_address_bytes: 20,
             index: AgentConfigIndex {
                 from: 1,
                 chunk: 100,
