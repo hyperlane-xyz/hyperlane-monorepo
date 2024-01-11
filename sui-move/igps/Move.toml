@@ -1,0 +1,12 @@
+[package]
+name = "HyperlaneIGP"
+version = "0.0.1"
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
+
+[addresses]
+hp_igps = "0x0989"
+
+[dependencies.HyperlaneLibrary]
+local = "../library"

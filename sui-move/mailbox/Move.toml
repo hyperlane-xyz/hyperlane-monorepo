@@ -1,0 +1,21 @@
+[package]
+name = "HyperlaneMailBox"
+version = "0.0.1"
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
+
+[addresses]
+hp_mailbox = "0x0"
+
+[dependencies.HyperlaneLibrary]
+local = "../library"
+
+[dependencies.HyperlaneISM]
+local = "../isms"
+
+[dependencies.HyperlaneRouter]
+local = "../router"
+
+[dependencies.HyperlaneIGP]
+local = "../igps"
