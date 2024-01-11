@@ -108,7 +108,7 @@ impl WasmGrpcProvider {
             .map(|l| {
                 CosmosAddress::from_h256(
                     l.address,
-                    &conf.get_prefix(),
+                    &conf.get_bech32_prefix(),
                     conf.get_contract_address_bytes(),
                 )
             })

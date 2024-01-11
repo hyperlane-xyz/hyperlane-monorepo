@@ -64,8 +64,8 @@ impl CosmosMailbox {
     }
 
     /// Prefix used in the bech32 address encoding
-    pub fn prefix(&self) -> String {
-        self.config.get_prefix()
+    pub fn bech32_prefix(&self) -> String {
+        self.config.get_bech32_prefix()
     }
 
     fn contract_address_bytes(&self) -> usize {
@@ -155,9 +155,12 @@ impl Mailbox for CosmosMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let address =
-            CosmosAddress::from_h256(recipient, &self.prefix(), self.contract_address_bytes())?
-                .address();
+        let address = CosmosAddress::from_h256(
+            recipient,
+            &self.bech32_prefix(),
+            self.contract_address_bytes(),
+        )?
+        .address();
 
         let payload = mailbox::RecipientIsmRequest {
             recipient_ism: mailbox::RecipientIsmRequestInner {

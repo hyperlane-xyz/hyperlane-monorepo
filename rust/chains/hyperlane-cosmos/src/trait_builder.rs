@@ -12,8 +12,8 @@ pub struct ConnectionConf {
     rpc_url: String,
     /// The chain ID
     chain_id: String,
-    /// The prefix for the account address
-    prefix: String,
+    /// The human readable address prefix for the chains using bech32.
+    bech32_prefix: String,
     /// Canoncial Assets Denom
     canonical_asset: String,
     /// The gas price set by the cosmos-sdk validator. Note that this represents the
@@ -90,9 +90,9 @@ impl ConnectionConf {
         self.chain_id.clone()
     }
 
-    /// Get the prefix
-    pub fn get_prefix(&self) -> String {
-        self.prefix.clone()
+    /// Get the bech32 prefix
+    pub fn get_bech32_prefix(&self) -> String {
+        self.bech32_prefix.clone()
     }
 
     /// Get the asset
@@ -115,7 +115,7 @@ impl ConnectionConf {
         grpc_url: String,
         rpc_url: String,
         chain_id: String,
-        prefix: String,
+        bech32_prefix: String,
         canonical_asset: String,
         minimum_gas_price: RawCosmosAmount,
         contract_address_bytes: usize,
@@ -124,7 +124,7 @@ impl ConnectionConf {
             grpc_url,
             rpc_url,
             chain_id,
-            prefix,
+            bech32_prefix,
             canonical_asset,
             gas_price: minimum_gas_price,
             contract_address_bytes,

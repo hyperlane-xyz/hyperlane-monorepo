@@ -431,7 +431,7 @@
       ],
       "grpcUrl": "https://grpc-kralum.neutron-1.neutron.org:80",
       "canonicalAsset": "untrn",
-      "prefix": "neutron",
+      "bech32Prefix": "neutron",
       "gasPrice": {
         "amount": "0.57",
         "denom": "untrn"
