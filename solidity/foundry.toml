@@ -15,3 +15,4 @@ verbosity = 4
 [rpc_endpoints]
 mainnet = "https://rpc.ankr.com/eth"
 optimism = "https://rpc.ankr.com/optimism"
+polygon = "https://rpc.ankr.com/polygon"
