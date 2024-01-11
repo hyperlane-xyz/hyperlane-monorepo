@@ -56,7 +56,7 @@ pub fn deploy_cw_hyperlane(
         &deployer,
         Some(deployer_addr),
         codes.hpl_igp,
-        IgpInstantiateMsg {
+        GasOracleInitMsg {
             hrp: BECH32_PREFIX.to_string(),
             owner: deployer_addr.clone(),
             gas_token: "uosmo".to_string(),

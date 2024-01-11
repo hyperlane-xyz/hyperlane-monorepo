@@ -109,7 +109,7 @@ pub fn build_cosmos_connection_conf(
             prefix.unwrap().to_string(),
             canonical_asset.unwrap(),
             gas_price.unwrap(),
-            contract_address_bytes.unwrap() as usize,
+            contract_address_bytes.unwrap().try_into().unwrap(),
         )))
     }
 }
