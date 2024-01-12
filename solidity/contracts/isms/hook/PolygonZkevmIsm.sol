@@ -22,21 +22,30 @@ import {AbstractCcipReadIsm} from "../ccip-read/AbstractCcipReadIsm.sol";
 import {IMailbox} from "../../interfaces/IMailbox.sol";
 import {IPolygonZkEVMBridge} from "../../interfaces/polygonzkevm/IPolygonZkEVMBridge.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../hook/AbstractMessageIdAuthorizedIsm.sol";
+import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
+import {LibBit} from "../../libs/LibBit.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-contract PolygonZkevmIsm is AbstractCcipReadIsm {
+/**
+ * @title PolygonZkevmIsm
+ * @notice Polygon zkEVM chain Ism that uses the Polygon zkEVM bridge to verify messages
+ */
+contract PolygonZkevmIsm is ICcipReadIsm, AbstractMessageIdAuthorizedIsm {
     using Message for bytes;
+    using LibBit for uint256;
+
     IMailbox public mailbox;
     string[] public offchainUrls;
     uint256 public constant _DEPOSIT_CONTRACT_TREE_DEPTH = 32;
-    // ============ Constants ============
 
+    // ============ Constants ============
     IPolygonZkEVMBridge public immutable zkEvmBridge;
+    uint8 public constant override moduleType =
+        uint8(IInterchainSecurityModule.Types.CCIP_READ);
 
     // ============ Constructor ============
-
     constructor(
         address _zkEvmBridge,
         IMailbox _mailbox,
@@ -51,6 +60,11 @@ contract PolygonZkevmIsm is AbstractCcipReadIsm {
         offchainUrls = _offchainUrls;
     }
 
+    /// @inheritdoc AbstractMessageIdAuthorizedIsm
+    function _isAuthorized() internal view override returns (bool) {
+        return msg.sender == address(zkEvmBridge);
+    }
+
     function getOffchainVerifyInfo(
         bytes calldata _message
     ) external view override {
@@ -58,15 +72,19 @@ contract PolygonZkevmIsm is AbstractCcipReadIsm {
             address(this),
             offchainUrls,
             _message,
-            PolygonZkevmIsm.process.selector,
+            PolygonZkevmIsm.verify.selector,
             _message
         );
     }
 
     function verify(
         bytes calldata _metadata,
-        bytes calldata
-    ) external returns (bool) {
+        bytes calldata _message
+    )
+        external
+        override(AbstractMessageIdAuthorizedIsm, IInterchainSecurityModule)
+        returns (bool)
+    {
         (
             bytes32[_DEPOSIT_CONTRACT_TREE_DEPTH] memory smtProof,
             uint32 index,
@@ -93,6 +111,8 @@ contract PolygonZkevmIsm is AbstractCcipReadIsm {
                     bytes
                 )
             );
+
+        bytes32 messageId = _message.id();
         zkEvmBridge.claimMessage(
             smtProof,
             index,
@@ -105,13 +125,9 @@ contract PolygonZkevmIsm is AbstractCcipReadIsm {
             amount,
             payload
         );
+        verifiedMessages[messageId] = verifiedMessages[messageId].setBit(
+            VERIFIED_MASK_INDEX
+        );
         return true;
-    }
-
-    function process(
-        bytes calldata _metadata,
-        bytes calldata _message
-    ) external {
-        mailbox.process(_metadata, _message);
     }
 }
