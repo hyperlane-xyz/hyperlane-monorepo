@@ -54,6 +54,7 @@
     "storage": "./storage.sh",
     "prettier": "prettier --write ./contracts ./test",
     "test": "hardhat test && forge test -vvv",
+    "test:ci": "hardhat test && forge test --no-match-test testFork -vvv",
     "gas": "forge snapshot",
     "gas-ci": "yarn gas --check --tolerance 2 || (echo 'Manually update gas snapshot' && exit 1)",
     "slither": "slither ."

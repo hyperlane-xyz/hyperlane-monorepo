@@ -56,6 +56,7 @@
     "lint": "solhint contracts/**/*.sol && eslint . --ext .ts",
     "prettier": "prettier --write ./contracts ./src",
     "test": "hardhat test ./src/test/**/*.test.ts",
+    "test:ci": "yarn test",
     "sync": "ts-node scripts/sync-with-template-repo.ts"
   },
   "types": "dist/src/index.d.ts",
