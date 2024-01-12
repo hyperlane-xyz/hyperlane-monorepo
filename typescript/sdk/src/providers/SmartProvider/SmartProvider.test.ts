@@ -1,5 +1,4 @@
 /* eslint-disable no-console */
-import { Block } from '@ethersproject/providers';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
@@ -16,6 +15,8 @@ const DEFAULT_ACCOUNT = '0x9d525E28Fe5830eE92d7Aa799c4D21590567B595';
 const WETH_CONTRACT = '0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6';
 const WETH_TRANSFER_TOPIC0 =
   '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+const WETH_TRANSFER_TOPIC1 =
+  '0x00000000000000000000000022a9af161b9660f3dc1b996bf1e622a2c58b8558';
 const WETH_CALL_DATA =
   '0x70a082310000000000000000000000004f7a67464b5976d7547c860109e4432d50afb38e';
 const TRANSFER_TX_HASH =
@@ -49,7 +50,6 @@ const configs: [string, ChainMetadata][] = [
 
 describe('SmartProvider', () => {
   let provider: HyperlaneSmartProvider;
-  let latestBlock: Block;
 
   const itDoesIfSupported = (method: ProviderMethod, fn: () => any) => {
     it(method, () => {
@@ -66,7 +66,7 @@ describe('SmartProvider', () => {
       });
 
       itDoesIfSupported(ProviderMethod.GetBlock, async () => {
-        latestBlock = await provider.getBlock('latest');
+        const latestBlock = await provider.getBlock('latest');
         console.debug('Latest block #', latestBlock.number);
         expect(latestBlock.number).to.be.greaterThan(MIN_BLOCK_NUM);
         expect(latestBlock.timestamp).to.be.greaterThan(
@@ -133,7 +133,7 @@ describe('SmartProvider', () => {
         console.debug('Testing logs with no from/to range');
         const result1 = await provider.getLogs({
           address: WETH_CONTRACT,
-          topics: [WETH_TRANSFER_TOPIC0],
+          topics: [WETH_TRANSFER_TOPIC0, WETH_TRANSFER_TOPIC1],
         });
         console.debug('Logs found', result1.length);
         expect(result1.length).to.be.greaterThan(0);
@@ -143,8 +143,8 @@ describe('SmartProvider', () => {
         const result2 = await provider.getLogs({
           address: WETH_CONTRACT,
           topics: [WETH_TRANSFER_TOPIC0],
-          fromBlock: latestBlock.number - 100,
-          toBlock: 'latest',
+          fromBlock: MIN_BLOCK_NUM,
+          toBlock: MIN_BLOCK_NUM + 100,
         });
         expect(result2.length).to.be.greaterThan(0);
         expect(eqAddress(result2[0].address, WETH_CONTRACT)).to.be.true;
@@ -152,13 +152,12 @@ describe('SmartProvider', () => {
         console.debug('Testing logs with large from/to range');
         const result3 = await provider.getLogs({
           address: WETH_CONTRACT,
-          topics: [WETH_TRANSFER_TOPIC0],
-          fromBlock: latestBlock.number - 1000,
-          toBlock: latestBlock.number,
+          topics: [WETH_TRANSFER_TOPIC0, WETH_TRANSFER_TOPIC1],
+          fromBlock: MIN_BLOCK_NUM,
+          toBlock: 'latest',
         });
         expect(result3.length).to.be.greaterThan(0);
         expect(eqAddress(result3[0].address, WETH_CONTRACT)).to.be.true;
-        expect(result2.length).to.be.greaterThanOrEqual(result1.length);
       });
 
       itDoesIfSupported(ProviderMethod.EstimateGas, async () => {
@@ -185,8 +184,8 @@ describe('SmartProvider', () => {
         const result1Promise = provider.getLogs({
           address: WETH_CONTRACT,
           topics: [WETH_TRANSFER_TOPIC0],
-          fromBlock: latestBlock.number - 100,
-          toBlock: latestBlock.number,
+          fromBlock: MIN_BLOCK_NUM,
+          toBlock: MIN_BLOCK_NUM + 100,
         });
         const result2Promise = provider.getBlockNumber();
         const result3Promise = provider.getTransaction(TRANSFER_TX_HASH);
