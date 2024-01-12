@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::str::FromStr;
 use std::{
     collections::BTreeMap, io::Write, path::PathBuf, process::Stdio, thread::sleep, time::Duration,
@@ -31,6 +32,7 @@ use super::{
 // struct TxQueryResponse(Response);
 
 const GENESIS_FUND: u128 = 1000000000000000000000;
+const PRIVKEY_PASSWORD: &str = "12345678";
 
 #[derive(Clone)]
 pub struct InjectiveEndpoint {
@@ -114,7 +116,9 @@ impl InjectiveCLI {
             }),
         );
 
+        println!("~~~ adding default keys");
         self.add_default_keys();
+        println!("~~~ added default keys");
         self.add_genesis_accs(chain_id);
 
         self.cli()
@@ -162,7 +166,7 @@ impl InjectiveCLI {
             Box::new(move |v| {
                 v["minimum-gas-prices"] = toml_edit::value("1inj");
                 v["pruning"] = toml_edit::value("nothing"); // archive
-                v["api"]["enable"] = toml_edit::value(true);
+                v["api"]["enable"] = toml_edit::value(false);
                 // v["api"]["address"] = toml_edit::value(api_addr.clone());
                 // v["grpc-web"]["enable"] = toml_edit::value(false);
             }),
@@ -179,8 +183,7 @@ impl InjectiveCLI {
             .arg("grpc.address", &endpoint.grpc_addr) // default is 0.0.0.0:9090
             .arg("grpc-web.address", grpc_web_addr) // default is 0.0.0.0:9090
             .arg("rpc.pprof_laddr", pprof_addr) // default is localhost:6060
-            .arg("log-level", "debug")
-            .flag("trace")
+            .arg("log-level", "error")
             .spawn("COSMOS");
 
         endpoint.wait_for_node();
@@ -214,10 +217,12 @@ impl InjectiveCLI {
             println!("wasm_store_tx_resp: {:?}", wasm_store_tx_resp);
             sleep(Duration::from_secs(2));
 
-            let rpc_address = format!("http://localhost:{}", 26602);
+            // let rpc_address = format!("http://{}", endpoint.rpc_addr);
+            let rpc_address = endpoint.rpc_addr.replace("tcp://", "http://");
             let rpc_client = HttpClient::new(rpc_address.as_str()).unwrap();
             let tx_hash = wasm_store_tx_resp.txhash;
 
+            println!("~~~ the rpc address is: {}", rpc_address);
             let tx = rpc_client
                 .tx(Hash::from_str(&tx_hash).unwrap(), false)
                 .await
@@ -279,7 +284,7 @@ impl InjectiveCLI {
         println!("wasm_store_tx_resp: {:?}", wasm_init_resp);
         sleep(Duration::from_secs(2));
 
-        let rpc_address = format!("http://localhost:{}", 26602);
+        let rpc_address = endpoint.rpc_addr.replace("tcp://", "http://");
         let rpc_client = HttpClient::new(rpc_address.as_str()).unwrap();
         let tx_hash = wasm_init_resp.txhash;
 
@@ -336,6 +341,7 @@ impl InjectiveCLI {
         let run_result = cmd.run_with_output().join();
 
         println!("wasm execute res: {:?}", run_result);
+        sleep(Duration::from_secs(2));
 
         let output: Result<TxResponse, serde_json::Error> =
             serde_json::from_str(run_result.first().unwrap());
@@ -423,6 +429,7 @@ impl InjectiveCLI {
 
     fn add_default_keys(&self) {
         for (name, mnemonic) in default_keys() {
+            println!("~~~ adding default key: {}", name);
             self.add_key(name, mnemonic);
         }
     }
@@ -444,6 +451,13 @@ impl InjectiveCLI {
             .as_mut()
             .unwrap()
             .write_all(format!("{mnemonic}\n").as_bytes())
+            .unwrap();
+
+        child
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(format!("{}\n", PRIVKEY_PASSWORD).as_bytes())
             .unwrap();
 
         child.wait().unwrap();
@@ -474,15 +488,25 @@ impl InjectiveCLI {
             .create_command()
             .stderr(Stdio::piped())
             .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
             .spawn()
             .unwrap();
 
         proc.stdin.as_mut().unwrap().write_all(b"y\n").unwrap();
-        let proc_output = proc.wait_with_output().unwrap();
-        let proc_output_str = String::from_utf8_lossy(&proc_output.stderr).to_string();
+        proc.stdin
+            .as_mut()
+            .unwrap()
+            .write_all(format!("{}\n", PRIVKEY_PASSWORD).as_bytes())
+            .unwrap();
 
-        let priv_key =
-            SigningKey::from_slice(&hex::decode(proc_output_str.trim()).unwrap()).unwrap();
+        let mut output = String::new();
+        proc.stdout
+            .take()
+            .unwrap()
+            .read_to_string(&mut output)
+            .unwrap();
+
+        let priv_key = SigningKey::from_slice(&hex::decode(output.trim()).unwrap()).unwrap();
         let pub_key = *priv_key.verifying_key();
 
         KeyPair { priv_key, pub_key }

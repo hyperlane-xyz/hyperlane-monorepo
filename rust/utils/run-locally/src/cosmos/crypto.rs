@@ -29,6 +29,7 @@ pub fn pub_to_addr(pub_key: &[u8], prefix: &str) -> String {
     addr.to_string()
 }
 
+#[derive(Debug)]
 pub struct KeyPair {
     pub priv_key: SigningKey,
     pub pub_key: VerifyingKey,

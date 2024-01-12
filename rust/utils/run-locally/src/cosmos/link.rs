@@ -217,13 +217,13 @@ fn link_network(
         vec![],
     );
 
-    cli.bank_send(
-        &network.launch_resp.endpoint,
-        linker,
-        &validator_addr,
-        "osmo1l83956lgpak5sun7ggupls7rk7p5cr95499jdf",
-        "10000000inj",
-    );
+    // cli.bank_send(
+    //     &network.launch_resp.endpoint,
+    //     linker,
+    //     &validator_addr,
+    //     "inj1l83956lgpak5sun7ggupls7rk7p5cr95hhpxfr",
+    //     "10000000inj",
+    // );
 
     // TODO
     // cli.wasm_execute(

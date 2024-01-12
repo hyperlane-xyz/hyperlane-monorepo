@@ -161,7 +161,7 @@ impl AgentConfig {
         let validator = cli.get_keypair(validator);
 
         AgentConfig {
-            name: format!("injective-{}", network.domain),
+            name: format!("injective{}", network.domain),
             domain_id: network.domain,
             metrics_port: network.metrics_port,
             mailbox: to_hex_addr(&network.deployments.mailbox),
@@ -169,7 +169,7 @@ impl AgentConfig {
             validator_announce: to_hex_addr(&network.deployments.va),
             merkle_tree_hook: to_hex_addr(&network.deployments.hook_merkle),
             protocol: "cosmos".to_string(),
-            chain_id: format!("injective-{}", network.domain),
+            chain_id: format!("injective{}", network.domain),
             rpc_urls: vec![AgentUrl {
                 http: format!(
                     "http://{}",
@@ -185,7 +185,7 @@ impl AgentConfig {
             },
             gas_price: RawCosmosAmount {
                 denom: "inj".to_string(),
-                amount: "0.05".to_string(),
+                amount: "1".to_string(),
             },
             index: AgentConfigIndex {
                 from: 1,

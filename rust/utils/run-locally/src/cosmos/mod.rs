@@ -158,6 +158,7 @@ pub struct CosmosConfig {
 
     pub moniker: String,
     pub chain_id: String,
+    pub cli_chain_id: String,
 }
 
 pub struct CosmosResp {
@@ -183,7 +184,7 @@ pub struct CosmosNetwork {
 
 impl Drop for CosmosNetwork {
     fn drop(&mut self) {
-        // stop_child(&mut self.launch_resp.node.1);
+        stop_child(&mut self.launch_resp.node.1);
     }
 }
 
@@ -219,7 +220,7 @@ async fn launch_cosmos_node(config: CosmosConfig) -> CosmosResp {
     };
     let cli = InjectiveCLI::new(config.cli_path, home_path.to_str().unwrap());
 
-    cli.init(&config.moniker, &config.chain_id);
+    cli.init(&config.moniker, &config.cli_chain_id);
 
     println!("~~~ starting node");
     let (node, endpoint) = cli.start(config.node_addr_base, config.node_port_base);
@@ -350,6 +351,7 @@ async fn run_locally() {
 
         moniker: "localnet".to_string(),
         chain_id: "local-node".to_string(),
+        cli_chain_id: "local-node".to_string(),
     };
 
     let port_start = 26600u32;
@@ -361,13 +363,14 @@ async fn run_locally() {
     for i in (0..node_count) {
         let cosmos_node = launch_cosmos_node(CosmosConfig {
             node_port_base: port_start + (i * 10),
-            chain_id: format!("injective-{}", i + domain_start),
+            chain_id: format!("injective{}", i + domain_start),
+            cli_chain_id: format!("injective-{}", i + domain_start),
             ..default_config.clone()
         })
         .await;
         nodes.push((
             cosmos_node,
-            format!("injective-{}", i + domain_start),
+            format!("injective{}", i + domain_start),
             metrics_port_start + i,
             domain_start + i,
         ));
@@ -433,19 +436,22 @@ async fn run_locally() {
             .iter()
             .map(|v| {
                 (
-                    format!("injective-{}", v.domain),
+                    format!("injective{}", v.domain),
                     AgentConfig::new(injectived.clone(), validator, v),
                 )
             })
             .collect::<BTreeMap<String, AgentConfig>>(),
     };
+    println!(
+        "~~~ validator configs: {:?}",
+        agent_config_out.chains.values().collect::<Vec<_>>()
+    );
+
+    let json_agent_config = serde_json::to_string_pretty(&agent_config_out).unwrap();
+    println!("~~~ json agent config: {:?}", json_agent_config);
 
     let agent_config_path = concat_path(&config_dir, "config.json");
-    fs::write(
-        &agent_config_path,
-        serde_json::to_string_pretty(&agent_config_out).unwrap(),
-    )
-    .unwrap();
+    fs::write(&agent_config_path, json_agent_config).unwrap();
 
     let hpl_val = agent_config_out
         .chains

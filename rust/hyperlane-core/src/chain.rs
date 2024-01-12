@@ -102,8 +102,8 @@ pub enum KnownHyperlaneDomain {
     ScrollSepolia = 534351,
 
     /// Cosmos local chains
-    CosmosTest99990 = 99990,
-    CosmosTest99991 = 99991,
+    Injective99990 = 99990,
+    Injective99991 = 99991,
 }
 
 #[derive(Clone)]
@@ -201,7 +201,7 @@ impl KnownHyperlaneDomain {
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
                 Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia, Chiado
             ],
-            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991],
+            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, Injective99990, Injective99991],
         })
     }
 
@@ -216,7 +216,7 @@ impl KnownHyperlaneDomain {
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
-            HyperlaneDomainProtocol::Cosmos: [CosmosTest99990, CosmosTest99991],
+            HyperlaneDomainProtocol::Cosmos: [Injective99990, Injective99991],
         })
     }
 }

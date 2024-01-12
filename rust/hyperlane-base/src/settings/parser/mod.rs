@@ -76,6 +76,7 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
                 .map(|v| v.collect())
         }
         .unwrap_or_default();
+        println!("raw_chains: {:?}", raw_chains);
 
         let default_signer = p
             .chain(&mut err)
@@ -119,6 +120,7 @@ fn parse_chain(
     default_rpc_consensus_type: &str,
 ) -> ConfigResult<ChainConf> {
     let mut err = ConfigParsingError::default();
+    println!("~~~ parsing chain {:?}, name: {:?}", chain, name);
 
     let domain = parse_domain(chain.clone(), name).take_config_err(&mut err);
     let signer = chain
