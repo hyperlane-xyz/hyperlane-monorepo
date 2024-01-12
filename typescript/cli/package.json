@@ -35,6 +35,7 @@
     "lint": "eslint . --ext .ts",
     "prettier": "prettier --write ./src ./examples",
     "test": "mocha --config .mocharc.json",
+    "test:ci": "yarn test",
     "version:update": "echo \"export const VERSION = '$npm_package_version';\" > src/version.ts"
   },
   "files": [

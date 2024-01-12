@@ -30,7 +30,8 @@
     "clean": "rm -rf ./dist",
     "check": "tsc --noEmit",
     "prettier": "prettier --write ./src",
-    "test": "mocha --config .mocharc.json './src/**/*.test.ts'"
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
+    "test:ci": "yarn test"
   },
   "sideEffects": false,
   "types": "dist/index.d.ts",
