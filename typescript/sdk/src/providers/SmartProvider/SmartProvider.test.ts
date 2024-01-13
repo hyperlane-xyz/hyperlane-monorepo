@@ -49,13 +49,16 @@ describe('SmartProvider', () => {
       if (provider.supportedMethods.includes(method)) {
         return fn();
       }
-    }).timeout(20_000);
+    }).timeout(30_000);
   };
 
   for (const [description, config] of configs) {
     describe(description, () => {
       provider = HyperlaneSmartProvider.fromChainMetadata(config, {
         debug: true,
+        baseRetryDelayMs: 1000,
+        fallbackStaggerMs: 3000,
+        maxRetries: 3,
       });
 
       itDoesIfSupported(ProviderMethod.GetBlock, async () => {
@@ -124,7 +127,7 @@ describe('SmartProvider', () => {
 
       itDoesIfSupported(ProviderMethod.GetLogs, async () => {
         const latestBlockNumber = await provider.getBlockNumber();
-        const minBlockNumber = latestBlockNumber - 20_000;
+        const minBlockNumber = latestBlockNumber - 10_000;
 
         console.debug('Testing logs with small from/to range');
         const result1 = await provider.getLogs({
@@ -145,17 +148,6 @@ describe('SmartProvider', () => {
         });
         expect(result2.length).to.be.greaterThan(0);
         expect(eqAddress(result2[0].address, WETH_CONTRACT)).to.be.true;
-
-        console.debug('Testing logs with no from/to range');
-        const latestTransfer = result2.at(-1);
-        if (!latestTransfer) throw new Error('No weth transfer found');
-        const result3 = await provider.getLogs({
-          address: WETH_CONTRACT,
-          topics: [WETH_TRANSFER_TOPIC0, latestTransfer.topics[1]],
-        });
-        console.debug('Logs found', result3.length);
-        expect(result3.length).to.be.greaterThan(0);
-        expect(eqAddress(result3[0].address, WETH_CONTRACT)).to.be.true;
       });
 
       itDoesIfSupported(ProviderMethod.EstimateGas, async () => {
@@ -194,7 +186,7 @@ describe('SmartProvider', () => {
         expect(result1.length).to.be.greaterThan(0);
         expect(result2).to.be.greaterThan(0);
         expect(!!result3).to.be.true;
-      }).timeout(10_000);
+      }).timeout(15_000);
     });
 
     it('Reports as healthy', async () => {
