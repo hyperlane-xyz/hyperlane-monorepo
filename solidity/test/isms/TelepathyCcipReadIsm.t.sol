@@ -2,17 +2,32 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {TelepathyCcipReadIsm} from "../../contracts/isms/ccip-read/TelepathyCcipReadIsm.sol";
+import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
+import {TelepathyCcipReadIsm} from "../../contracts/isms/ccip-read/telepathy/TelepathyCcipReadIsm.sol";
 import {ICcipReadIsm} from "../../contracts/interfaces/isms/ICcipReadIsm.sol";
 import "forge-std/console.sol";
 
 contract TelepathyCcipReadIsmTest is Test {
     string[] urls = ["localhost:3001/telepathy-ccip/"];
     TelepathyCcipReadIsm internal telepathyCcipReadIsm;
+    MockMailbox mailbox;
 
     function setUp() public {
-        telepathyCcipReadIsm = new TelepathyCcipReadIsm();
-        telepathyCcipReadIsm.initialize(urls);
+        telepathyCcipReadIsm = new TelepathyCcipReadIsm({
+            genesisValidatorsRoot: bytes32(""),
+            genesisTime: 0,
+            secondsPerSlot: 12,
+            slotsPerPeriod: 8192,
+            syncCommitteePeriod: 0,
+            syncCommitteePoseidon: bytes32(""),
+            sourceChainId: 1,
+            finalityThreshold: 461,
+            stepFunctionId: bytes32(""),
+            rotateFunctionId: bytes32(""),
+            gatewayAddress: address(5)
+        });
+        mailbox = new MockMailbox(0);
+        telepathyCcipReadIsm.initialize(mailbox, urls);
     }
 
     function _copyUrls() internal view returns (string[] memory offChainUrls) {
@@ -53,4 +68,6 @@ contract TelepathyCcipReadIsmTest is Test {
         vm.expectRevert(offChainLookupError);
         telepathyCcipReadIsm.getOffchainVerifyInfo(_message);
     }
+
+    function testTelepathyCcip_verify_correctStorageRoot() public {}
 }
