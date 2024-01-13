@@ -91,12 +91,13 @@ contract PolygonZkevmHook is IPostDispatchHook, MailboxClient {
             metadata.msgValue(0) < 2 ** 255,
             "PolygonzkEVMHook: msgValue must be less than 2 ** 255"
         );
+        bytes32 messageId = message.id();
 
         zkEvmBridge.bridgeMessage(
             zkBridgeChainIdDestination,
             TypeCasts.bytes32ToAddress(ism),
             true,
-            message
+            abi.encodePacked(messageId)
         );
     }
 

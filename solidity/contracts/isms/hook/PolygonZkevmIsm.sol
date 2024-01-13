@@ -24,6 +24,7 @@ import {IPolygonZkEVMBridge} from "../../interfaces/polygonzkevm/IPolygonZkEVMBr
 import {AbstractMessageIdAuthorizedIsm} from "../hook/AbstractMessageIdAuthorizedIsm.sol";
 import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
 import {LibBit} from "../../libs/LibBit.sol";
+import {IBridgeMessageReceiver} from "../../interfaces/polygonzkevm/IBridgeMessageReceiver.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -32,13 +33,16 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @title PolygonZkevmIsm
  * @notice Polygon zkEVM chain Ism that uses the Polygon zkEVM bridge to verify messages
  */
-contract PolygonZkevmIsm is ICcipReadIsm, AbstractMessageIdAuthorizedIsm {
+contract PolygonZkevmIsm is
+    ICcipReadIsm,
+    AbstractMessageIdAuthorizedIsm,
+    IBridgeMessageReceiver
+{
     using Message for bytes;
     using LibBit for uint256;
 
     IMailbox public mailbox;
     string[] public offchainUrls;
-    uint256 public constant _DEPOSIT_CONTRACT_TREE_DEPTH = 32;
 
     // ============ Constants ============
     IPolygonZkEVMBridge public immutable zkEvmBridge;
@@ -68,10 +72,12 @@ contract PolygonZkevmIsm is ICcipReadIsm, AbstractMessageIdAuthorizedIsm {
     function getOffchainVerifyInfo(
         bytes calldata _message
     ) external view override {
+        bytes memory messageId = abi.encodePacked(_message.id());
+
         revert OffchainLookup(
             address(this),
             offchainUrls,
-            _message,
+            messageId,
             PolygonZkevmIsm.verify.selector,
             _message
         );
@@ -79,14 +85,18 @@ contract PolygonZkevmIsm is ICcipReadIsm, AbstractMessageIdAuthorizedIsm {
 
     function verify(
         bytes calldata _metadata,
-        bytes calldata _message
+        bytes calldata
     )
         external
-        override(AbstractMessageIdAuthorizedIsm, IInterchainSecurityModule)
+        override(
+            // bytes calldata _message
+            AbstractMessageIdAuthorizedIsm,
+            IInterchainSecurityModule
+        )
         returns (bool)
     {
         (
-            bytes32[_DEPOSIT_CONTRACT_TREE_DEPTH] memory smtProof,
+            bytes32[32] memory smtProof,
             uint32 index,
             bytes32 mainnetExitRoot,
             bytes32 rollupExitRoot,
@@ -112,7 +122,7 @@ contract PolygonZkevmIsm is ICcipReadIsm, AbstractMessageIdAuthorizedIsm {
                 )
             );
 
-        bytes32 messageId = _message.id();
+        // bytes32 messageId = _message.id();
         zkEvmBridge.claimMessage(
             smtProof,
             index,
@@ -125,9 +135,30 @@ contract PolygonZkevmIsm is ICcipReadIsm, AbstractMessageIdAuthorizedIsm {
             amount,
             payload
         );
+        // verifiedMessages[messageId] = verifiedMessages[messageId].setBit(
+        //     VERIFIED_MASK_INDEX
+        // );
+        return true;
+    }
+
+    /// @inheritdoc IBridgeMessageReceiver
+    function onMessageReceived(
+        address,
+        uint32 originNetwork,
+        bytes memory data
+    ) external payable override {
+        require(
+            originNetwork == 0,
+            "PolygonZkevmIsm: origin network must be 0"
+        );
+        require(data.length == 32, "PolygonZkevmIsm: data must be 32 bytes");
+        bytes32 messageId = abi.decode(data, (bytes32));
+        require(
+            !verifiedMessages[messageId].isBitSet(VERIFIED_MASK_INDEX),
+            "PolygonZkevmIsm: message already verified"
+        );
         verifiedMessages[messageId] = verifiedMessages[messageId].setBit(
             VERIFIED_MASK_INDEX
         );
-        return true;
     }
 }
