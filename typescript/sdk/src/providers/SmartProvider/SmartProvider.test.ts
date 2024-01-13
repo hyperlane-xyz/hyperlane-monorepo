@@ -21,7 +21,7 @@ const TRANSFER_TX_HASH =
 
 const pagination = { maxBlockRange: 1000 };
 const goerliRpcConfig1 = { ...chainMetadata.goerli.rpcUrls[0], pagination };
-const goerliRpcConfig2 = { ...chainMetadata.goerli.rpcUrls[2], pagination };
+const goerliRpcConfig2 = { ...chainMetadata.goerli.rpcUrls[1], pagination };
 const justExplorersConfig: ChainMetadata = {
   ...chainMetadata.goerli,
   rpcUrls: [] as any,
