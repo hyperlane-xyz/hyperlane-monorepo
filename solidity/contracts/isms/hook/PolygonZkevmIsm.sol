@@ -65,11 +65,14 @@ contract PolygonZkevmIsm is
         offchainUrls = _offchainUrls;
     }
 
+    /**
+     * @dev off-chain verification information for a given message.
+     * @param _message The message for which off-chain verification information is requested.
+     */
     function getOffchainVerifyInfo(
         bytes calldata _message
     ) external view override {
         bytes memory messageId = abi.encodePacked(_message.id());
-
         revert OffchainLookup(
             address(this),
             offchainUrls,
@@ -79,6 +82,11 @@ contract PolygonZkevmIsm is
         );
     }
 
+    /**
+     * @dev Calls the Polygon zkEVM bridge to claim the message.
+     * @param _metadata from CCIP call
+     * @return A boolean indicating whether the message was successfully verified and processed.
+     */
     function verify(
         bytes calldata _metadata,
         bytes calldata
@@ -114,7 +122,6 @@ contract PolygonZkevmIsm is
                 )
             );
 
-        // bytes32 messageId = _message.id();
         zkEvmBridge.claimMessage(
             smtProof,
             index,
@@ -127,13 +134,15 @@ contract PolygonZkevmIsm is
             amount,
             payload
         );
-        // verifiedMessages[messageId] = verifiedMessages[messageId].setBit(
-        //     VERIFIED_MASK_INDEX
-        // );
+
         return true;
     }
 
-    /// @inheritdoc IBridgeMessageReceiver
+    /**
+     * @dev Callback function for Zkevm bridge.
+     * Verifies the received message.
+     * @inheritdoc IBridgeMessageReceiver
+     */
     function onMessageReceived(
         address,
         uint32,
@@ -144,7 +153,10 @@ contract PolygonZkevmIsm is
         verifyMessageId(messageId);
     }
 
-    /// @inheritdoc AbstractMessageIdAuthorizedIsm
+    /**
+     * @dev Checks if the origin chain message sender is the hook address.
+     * @inheritdoc AbstractMessageIdAuthorizedIsm
+     */
     function _isAuthorized() internal view override returns (bool) {
         bytes32 originSender = abi.decode(msg.data[4:], (bytes32));
         return originSender == authorizedHook;
