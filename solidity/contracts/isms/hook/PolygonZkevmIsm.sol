@@ -40,6 +40,7 @@ contract PolygonZkevmIsm is
 {
     using Message for bytes;
     using LibBit for uint256;
+    using TypeCasts for bytes32;
 
     IMailbox public mailbox;
     string[] public offchainUrls;
@@ -64,11 +65,6 @@ contract PolygonZkevmIsm is
         offchainUrls = _offchainUrls;
     }
 
-    /// @inheritdoc AbstractMessageIdAuthorizedIsm
-    function _isAuthorized() internal view override returns (bool) {
-        return msg.sender == address(zkEvmBridge);
-    }
-
     function getOffchainVerifyInfo(
         bytes calldata _message
     ) external view override {
@@ -88,11 +84,7 @@ contract PolygonZkevmIsm is
         bytes calldata
     )
         external
-        override(
-            // bytes calldata _message
-            AbstractMessageIdAuthorizedIsm,
-            IInterchainSecurityModule
-        )
+        override(AbstractMessageIdAuthorizedIsm, IInterchainSecurityModule)
         returns (bool)
     {
         (
@@ -144,21 +136,17 @@ contract PolygonZkevmIsm is
     /// @inheritdoc IBridgeMessageReceiver
     function onMessageReceived(
         address,
-        uint32 originNetwork,
+        uint32,
         bytes memory data
     ) external payable override {
-        require(
-            originNetwork == 0,
-            "PolygonZkevmIsm: origin network must be 0"
-        );
         require(data.length == 32, "PolygonZkevmIsm: data must be 32 bytes");
         bytes32 messageId = abi.decode(data, (bytes32));
-        require(
-            !verifiedMessages[messageId].isBitSet(VERIFIED_MASK_INDEX),
-            "PolygonZkevmIsm: message already verified"
-        );
-        verifiedMessages[messageId] = verifiedMessages[messageId].setBit(
-            VERIFIED_MASK_INDEX
-        );
+        verifyMessageId(messageId);
+    }
+
+    /// @inheritdoc AbstractMessageIdAuthorizedIsm
+    function _isAuthorized() internal view override returns (bool) {
+        bytes32 originSender = abi.decode(msg.data[4:], (bytes32));
+        return originSender == authorizedHook;
     }
 }
