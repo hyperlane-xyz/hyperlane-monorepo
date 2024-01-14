@@ -75,8 +75,8 @@ contract OPStackIsmTest is Test {
 
     function setUp() public {
         // block numbers to fork from, chain data is cached to ../../forge-cache/
-        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 17_586_909);
-        optimismFork = vm.createFork(vm.rpcUrl("optimism"), 106_233_774);
+        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 18_992_500);
+        optimismFork = vm.createFork(vm.rpcUrl("optimism"), 114_696_811);
 
         testRecipient = new TestRecipient();
 

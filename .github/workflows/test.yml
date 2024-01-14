@@ -126,7 +126,7 @@ jobs:
           key: ${{ github.sha }}
 
       - name: Unit Tests
-        run: yarn test
+        run: yarn test:ci
 
   metadata-check:
     runs-on: ubuntu-latest
@@ -219,7 +219,7 @@ jobs:
         working-directory: ./rust
 
       - name: agent tests with CosmWasm
-        run: RUST_BACKTRACE=1 cargo test --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        run: RUST_BACKTRACE=1 cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
         working-directory: ./rust
 
       - name: agent tests excluding CosmWasm

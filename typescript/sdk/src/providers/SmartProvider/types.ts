@@ -50,4 +50,5 @@ export interface ProviderRetryOptions {
 export interface SmartProviderOptions extends ProviderRetryOptions {
   // The time to wait before attempting the next provider
   fallbackStaggerMs?: number;
+  debug?: boolean;
 }

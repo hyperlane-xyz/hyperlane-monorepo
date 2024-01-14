@@ -433,7 +433,7 @@
       "canonicalAsset": "untrn",
       "prefix": "neutron",
       "gasPrice": {
-        "amount": "0.5",
+        "amount": "0.57",
         "denom": "untrn"
       },
       "index": {

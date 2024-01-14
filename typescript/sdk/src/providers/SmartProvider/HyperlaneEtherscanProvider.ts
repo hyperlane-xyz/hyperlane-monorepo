@@ -30,6 +30,7 @@ export class HyperlaneEtherscanProvider
   constructor(
     public readonly explorerConfig: BlockExplorer,
     network: providers.Networkish,
+    public readonly options?: { debug?: boolean },
   ) {
     super(network, explorerConfig.apiKey);
     if (!explorerConfig.apiKey) {
@@ -80,9 +81,10 @@ export class HyperlaneEtherscanProvider
     const hostname = this.getHostname();
     let waitTime = this.getQueryWaitTime();
     while (waitTime > 0) {
-      this.logger(
-        `HyperlaneEtherscanProvider waiting ${waitTime}ms to avoid rate limit`,
-      );
+      if (this.options?.debug)
+        this.logger(
+          `HyperlaneEtherscanProvider waiting ${waitTime}ms to avoid rate limit`,
+        );
       await sleep(waitTime);
       waitTime = this.getQueryWaitTime();
     }
@@ -92,9 +94,10 @@ export class HyperlaneEtherscanProvider
   }
 
   async perform(method: string, params: any, reqId?: number): Promise<any> {
-    this.logger(
-      `HyperlaneEtherscanProvider performing method ${method} for reqId ${reqId}`,
-    );
+    if (this.options?.debug)
+      this.logger(
+        `HyperlaneEtherscanProvider performing method ${method} for reqId ${reqId}`,
+      );
     if (!this.supportedMethods.includes(method as ProviderMethod))
       throw new Error(`Unsupported method ${method}`);
 

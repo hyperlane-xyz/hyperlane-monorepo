@@ -97,6 +97,7 @@ export async function sendTestTransfer({
     multiProvider,
     signer,
     minGas: MINIMUM_TEST_SEND_GAS,
+    chainsToGasCheck: [origin],
   });
 
   await timeout(
