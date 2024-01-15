@@ -55,18 +55,9 @@ contract PolygonZkevmIsmTest is Test {
         testRecipient = new TestRecipient();
         testMailbox = new TestMailbox(ORIGIN_DOMAIN);
         zkEvmBridge = IPolygonZkEVMBridge(L0_POLYGON_ZK_EVM_BRIDGE);
-
-        isAccount = address(zkEvmBridge).code.length;
-
-        console.logAddress(address(zkEvmBridge));
-
-        console.logUint(isAccount);
-    }
-
-    function testFork_quoteDispatch() public {
         polygonZkevmIsm = new PolygonZkevmIsm(
-            IPolygonZkEVMBridge(zkEvmBridge),
-            testMailbox,
+            address(zkEvmBridge),
+            address(testMailbox),
             new string[](0)
         );
 
@@ -77,7 +68,14 @@ contract PolygonZkevmIsmTest is Test {
             L1_POLYGON_ZK_EVM_BRIDGE,
             0
         );
+        isAccount = address(zkEvmBridge).code.length;
 
+        console.logAddress(address(zkEvmBridge));
+
+        console.logUint(isAccount);
+    }
+
+    function testFork_quoteDispatch() public {
         // testMailbox.setHook(address(polygonZkevmHook));
         polygonZkevmIsm.setAuthorizedHook(
             TypeCasts.addressToBytes32(address(polygonZkevmHook))

@@ -53,15 +53,19 @@ contract PolygonZkevmIsm is
     // ============ Constructor ============
     constructor(
         address _zkEvmBridge,
-        IMailbox _mailbox,
+        address _mailbox,
         string[] memory _offchainUrls
     ) {
         require(
             Address.isContract(_zkEvmBridge),
-            "PolygonZkevmIsm: invalid L2Messenger"
+            "PolygonZkevmIsm: invalid ZkEVMBridge"
+        );
+        require(
+            Address.isContract(_zkEvmBridge),
+            "PolygonZkevmIsm: invalid IMailbox"
         );
         zkEvmBridge = IPolygonZkEVMBridge(_zkEvmBridge);
-        mailbox = _mailbox;
+        mailbox = IMailbox(_mailbox);
         offchainUrls = _offchainUrls;
     }
 
@@ -150,7 +154,17 @@ contract PolygonZkevmIsm is
     ) external payable override {
         require(data.length == 32, "PolygonZkevmIsm: data must be 32 bytes");
         bytes32 messageId = abi.decode(data, (bytes32));
-        verifyMessageId(messageId);
+        require(
+            _isAuthorized(),
+            "AbstractMessageIdAuthorizedIsm: sender is not the hook"
+        );
+        require(
+            msg.value < 2 ** VERIFIED_MASK_INDEX,
+            "AbstractMessageIdAuthorizedIsm: msg.value must be less than 2^255"
+        );
+
+        verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
+        emit ReceivedMessage(messageId);
     }
 
     /**

@@ -74,7 +74,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
         bytes calldata,
         /*_metadata*/
         bytes calldata message
-    ) external virtual returns (bool) {
+    ) external returns (bool) {
         bytes32 messageId = message.id();
 
         // check for the first bit (used for verification)
