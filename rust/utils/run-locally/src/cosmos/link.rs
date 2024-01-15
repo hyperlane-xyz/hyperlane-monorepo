@@ -69,18 +69,14 @@ pub struct MockQuoteDispatch {
 
 #[cw_serde]
 pub struct GeneralIsmValidatorMessage {
-    pub enroll_validator: EnrollValidatorMsg,
+    pub set_validators: SetValidatorsMsg,
 }
 
 #[cw_serde]
-pub struct EnrollValidatorMsg {
-    pub set: EnrollValidatorSet,
-}
-
-#[cw_serde]
-pub struct EnrollValidatorSet {
+pub struct SetValidatorsMsg {
     pub domain: u32,
-    pub validator: String,
+    pub threshold: u8,
+    pub validators: Vec<String>,
 }
 
 fn link_network(
@@ -115,24 +111,14 @@ fn link_network(
         linker,
         &network.deployments.ism_multisig,
         GeneralIsmValidatorMessage {
-            enroll_validator: EnrollValidatorMsg {
-                set: EnrollValidatorSet {
-                    domain: target_domain,
-                    validator: hex::encode(bytes).to_string(),
-                },
-            },
-        },
-        vec![],
-    );
-
-    cli.wasm_execute(
-        &network.launch_resp.endpoint,
-        linker,
-        &network.deployments.ism_multisig,
-        ism::multisig::ExecuteMsg::SetThreshold {
-            set: ism::multisig::ThresholdSet {
-                domain: target_domain,
+            set_validators: SetValidatorsMsg {
                 threshold: 1,
+                domain: target_domain,
+                validators: vec![
+                    // Bug in Multisig ISM where it requires the set to be larger than threshold
+                    hex::encode(bytes).to_string(),
+                    hex::encode(bytes).to_string(),
+                ],
             },
         },
         vec![],

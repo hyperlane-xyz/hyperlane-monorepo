@@ -15,6 +15,12 @@ pub struct IsmMultisigInstantiateMsg {
 }
 
 #[cw_serde]
+pub struct IsmPausableInstantiateMsg {
+    pub owner: String,
+    pub paused: bool,
+}
+
+#[cw_serde]
 pub struct TestMockMsgReceiverInstantiateMsg {
     pub hrp: String,
 }
@@ -113,6 +119,19 @@ pub fn deploy_cw_hyperlane(
         "hpl_ism_multisig",
     );
 
+    // deploy pausable ism
+    let ism_pausable = cli.wasm_init(
+        &endpoint,
+        &deployer,
+        Some(deployer_addr),
+        codes.hpl_ism_pausable,
+        IsmPausableInstantiateMsg {
+            owner: deployer_addr.clone(),
+            paused: false,
+        },
+        "hpl_ism_pausable",
+    );
+
     // deploy ism - aggregation
     let ism_aggregate = cli.wasm_init(
         &endpoint,
@@ -121,8 +140,8 @@ pub fn deploy_cw_hyperlane(
         codes.hpl_ism_aggregate,
         ism::aggregate::InstantiateMsg {
             owner: deployer_addr.clone(),
-            threshold: 1,
-            isms: vec![ism_multisig.clone()],
+            threshold: 2,
+            isms: vec![ism_multisig.clone(), ism_pausable.clone()],
         },
         "hpl_ism_aggregate",
     );
