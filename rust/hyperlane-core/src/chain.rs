@@ -133,10 +133,6 @@ impl HyperlaneDomain {
             domain_protocol: HyperlaneDomainProtocol::Ethereum,
         }
     }
-
-    pub const fn is_injective(&self) -> bool {
-        matches!(self, Self::Known(KnownHyperlaneDomain::Injective))
-    }
 }
 
 /// Types of Hyperlane domains.
