@@ -157,6 +157,7 @@ export function getAllCloudAgentKeys(
   agentConfig: RootAgentConfig,
 ): Array<CloudAgentKey> {
   const keysPerChain = getRoleKeyMapPerChain(agentConfig);
+  console.log('keysPerChain: ', JSON.stringify(keysPerChain, null, 2));
 
   const keysByIdentifier = Object.keys(keysPerChain).reduce(
     (acc, chainName) => {
@@ -303,6 +304,13 @@ export async function createAgentKeysIfNotExists(
   agentConfig: AgentContextConfig,
 ) {
   const keys = getAllCloudAgentKeys(agentConfig);
+  console.log(
+    `Creating ${keys.length} keys for ${JSON.stringify(
+      agentConfig,
+      null,
+      2,
+    )}, ${JSON.stringify(keys, null, 2)}`,
+  );
 
   await Promise.all(
     keys.map(async (key) => {
@@ -315,6 +323,8 @@ export async function createAgentKeysIfNotExists(
     agentConfig.context,
     keys.map((key) => key.serializeAsAddress()),
   );
+
+  return;
 }
 
 export async function deleteAgentKeys(agentConfig: AgentContextConfig) {

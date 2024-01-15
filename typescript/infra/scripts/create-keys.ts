@@ -1,10 +1,10 @@
-import { createAgentKeysIfNotExists } from '../src/agents/key-utils';
-
-import { getConfigsBasedOnArgs } from './utils';
+import { getAgentConfigsBasedOnArgs } from './utils';
 
 async function main() {
-  const { agentConfig } = await getConfigsBasedOnArgs();
-  return createAgentKeysIfNotExists(agentConfig);
+  console.log('before');
+  const { agentConfig } = await getAgentConfigsBasedOnArgs();
+  console.log('agentConfig', agentConfig);
+  // return createAgentKeysIfNotExists(agentConfig);
 }
 
 main().then(console.log).catch(console.error);

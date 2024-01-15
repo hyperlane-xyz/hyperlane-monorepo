@@ -15,7 +15,7 @@ import {
 import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
-import { environments } from '../config/environments';
+import { agents } from '../config/environments/agents';
 import { getCurrentKubernetesContext } from '../src/agents';
 import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
@@ -123,7 +123,7 @@ export function assertEnvironment(env: string): DeployEnvironment {
 }
 
 export function getEnvironmentConfig(environment: DeployEnvironment) {
-  return environments[environment];
+  return environment;
 }
 
 export async function getConfigsBasedOnArgs(argv?: {
@@ -134,27 +134,40 @@ export async function getConfigsBasedOnArgs(argv?: {
     ? argv
     : await withContext(getArgs()).argv;
   const envConfig = getEnvironmentConfig(environment);
-  const agentConfig = getAgentConfig(context, envConfig);
+  const agentConfig = getAgentConfigsBasedOnArgs({ environment, context });
   return { envConfig, agentConfig, context, environment };
+}
+
+export async function getAgentConfigsBasedOnArgs(argv?: {
+  environment: DeployEnvironment;
+  context: Contexts;
+}) {
+  console.log('getAgentConfigsBasedOnArgs, INIT');
+  const { environment, context = Contexts.Hyperlane } = argv
+    ? argv
+    : await withContext(getArgs()).argv;
+  return {
+    agentConfig: getAgentConfig(context, environment),
+    context,
+    environment,
+  };
 }
 
 // Gets the agent config of a specific context.
 export function getAgentConfig(
   context: Contexts,
-  environment: EnvironmentConfig | DeployEnvironment,
+  environment: DeployEnvironment,
 ): RootAgentConfig {
-  const coreConfig =
-    typeof environment == 'string'
-      ? getEnvironmentConfig(environment)
-      : environment;
-  const agentConfig = coreConfig.agents[context];
-  if (!agentConfig)
-    throw Error(
-      `Invalid context ${context} for environment, must be one of ${Object.keys(
-        coreConfig.agents,
-      )}.`,
+  const agentsForEnvironment = agents[environment] as Record<
+    Contexts,
+    RootAgentConfig
+  >;
+  if (!Object.keys(agents[environment]).includes(context)) {
+    throw new Error(
+      `Context ${context} does not exist in agents for environment ${environment}`,
     );
-  return agentConfig;
+  }
+  return agentsForEnvironment[context];
 }
 
 export function getKeyForRole(
@@ -164,8 +177,7 @@ export function getKeyForRole(
   role: Role,
   index?: number,
 ): CloudAgentKey {
-  const environmentConfig = environments[environment];
-  const agentConfig = getAgentConfig(context, environmentConfig);
+  const agentConfig = getAgentConfig(context, environment);
   return getCloudAgentKey(agentConfig, role, chain, index);
 }
 
