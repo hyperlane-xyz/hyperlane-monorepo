@@ -54,7 +54,7 @@ contract PolygonZkevmHook is IPostDispatchHook, MailboxClient {
     ) MailboxClient(_mailbox) {
         require(
             Address.isContract(_zkEvmBridge),
-            "PolygonzkEVMHook: invalid cpManager contract"
+            "PolygonzkEVMHook: invalid PolygonZkEVMBridge contract"
         );
         require(_ism != bytes32(0), "PolygonzkEVMHook: invalid ISM");
         require(
