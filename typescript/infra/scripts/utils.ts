@@ -134,7 +134,7 @@ export async function getConfigsBasedOnArgs(argv?: {
     ? argv
     : await withContext(getArgs()).argv;
   const envConfig = getEnvironmentConfig(environment);
-  const agentConfig = getAgentConfigsBasedOnArgs({ environment, context });
+  const agentConfig = getAgentConfig(context, environment);
   return { envConfig, agentConfig, context, environment };
 }
 

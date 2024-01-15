@@ -2,8 +2,6 @@ import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { getHelloWorldConfig } from '../../scripts/helloworld/utils';
-import { getEnvironmentConfig } from '../../scripts/utils';
 import {
   AgentContextConfig,
   DeployEnvironment,
@@ -99,23 +97,23 @@ function getRoleKeyMapPerChain(
     }
   };
 
-  const setKathyKeys = () => {
-    const envConfig = getEnvironmentConfig(agentConfig.runEnv);
-    const helloWorldConfig = getHelloWorldConfig(
-      envConfig,
-      agentConfig.context,
-    );
-    // Kathy is only needed on chains where the hello world contracts are deployed.
-    for (const chainName of Object.keys(helloWorldConfig.addresses)) {
-      const kathyKey = getKathyKeyForChain(agentConfig, chainName);
-      keysPerChain[chainName] = {
-        ...keysPerChain[chainName],
-        [Role.Kathy]: {
-          [kathyKey.identifier]: kathyKey,
-        },
-      };
-    }
-  };
+  // const setKathyKeys = () => {
+  //   const envConfig = getEnvironmentConfig(agentConfig.runEnv);
+  //   const helloWorldConfig = getHelloWorldConfig(
+  //     envConfig,
+  //     agentConfig.context,
+  //   );
+  //   // Kathy is only needed on chains where the hello world contracts are deployed.
+  //   for (const chainName of Object.keys(helloWorldConfig.addresses)) {
+  //     const kathyKey = getKathyKeyForChain(agentConfig, chainName);
+  //     keysPerChain[chainName] = {
+  //       ...keysPerChain[chainName],
+  //       [Role.Kathy]: {
+  //         [kathyKey.identifier]: kathyKey,
+  //       },
+  //     };
+  //   }
+  // };
 
   const setDeployerKeys = () => {
     const deployerKey = getDeployerKey(agentConfig);
@@ -138,12 +136,14 @@ function getRoleKeyMapPerChain(
       case Role.Relayer:
         setRelayerKeys();
         break;
-      case Role.Kathy:
-        setKathyKeys();
-        break;
+
       case Role.Deployer:
         setDeployerKeys();
         break;
+      case Role.Kathy:
+        break;
+      // setKathyKeys();
+      // break;
       default:
         throw Error(`Unsupported role with keys ${role}`);
     }
