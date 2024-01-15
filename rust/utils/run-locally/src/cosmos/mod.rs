@@ -360,7 +360,7 @@ async fn run_locally() {
     let node_count = 1;
 
     let mut nodes = vec![];
-    for i in (0..node_count) {
+    for i in 0..node_count {
         let cosmos_node = launch_cosmos_node(CosmosConfig {
             node_port_base: port_start + (i * 10),
             chain_id: format!("injective{}", i + domain_start),

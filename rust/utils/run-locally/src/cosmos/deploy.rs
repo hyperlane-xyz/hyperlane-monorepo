@@ -33,7 +33,7 @@ pub struct IGPOracleInstantiateMsg {
 #[cw_serde]
 pub struct EmptyMsg {}
 
-const PREFIX: &str = "inj";
+const BECH32_PREFIX: &str = "inj";
 
 pub async fn deploy_cw_hyperlane(
     cli: InjectiveCLI,
@@ -52,7 +52,7 @@ pub async fn deploy_cw_hyperlane(
             codes.hpl_mailbox,
             core::mailbox::InstantiateMsg {
                 owner: deployer_addr.to_string(),
-                hrp: PREFIX.to_string(),
+                hrp: BECH32_PREFIX.to_string(),
                 domain,
             },
             "hpl_mailbox",
@@ -76,7 +76,7 @@ pub async fn deploy_cw_hyperlane(
             Some(deployer_addr),
             codes.hpl_igp,
             GasOracleInitMsg {
-                hrp: PREFIX.to_string(),
+                hrp: BECH32_PREFIX.to_string(),
                 owner: deployer_addr.clone(),
                 gas_token: "inj".to_string(),
                 beneficiary: deployer_addr.clone(),
@@ -196,7 +196,7 @@ pub async fn deploy_cw_hyperlane(
             Some(deployer_addr),
             codes.hpl_validator_announce,
             core::va::InstantiateMsg {
-                hrp: PREFIX.to_string(),
+                hrp: BECH32_PREFIX.to_string(),
                 mailbox: mailbox.to_string(),
             },
             "hpl_validator_announce",
@@ -212,7 +212,7 @@ pub async fn deploy_cw_hyperlane(
             Some(deployer_addr),
             codes.hpl_test_mock_msg_receiver,
             TestMockMsgReceiverInstantiateMsg {
-                hrp: PREFIX.to_string(),
+                hrp: BECH32_PREFIX.to_string(),
             },
             "hpl_test_mock_msg_receiver",
         )

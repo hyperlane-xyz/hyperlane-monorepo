@@ -80,6 +80,12 @@ pub enum KnownHyperlaneDomain {
     Gnosis = 100,
     Chiado = 10200,
 
+    MantaPacific = 169,
+
+    Neutron = 1853125230,
+
+    Injective = 6909546,
+
     // -- Local test chains --
     /// Test1 local chain
     Test1 = 13371,
@@ -126,6 +132,10 @@ impl HyperlaneDomain {
             domain_type: HyperlaneDomainType::LocalTestChain,
             domain_protocol: HyperlaneDomainProtocol::Ethereum,
         }
+    }
+
+    pub const fn is_injective(&self) -> bool {
+        matches!(self, Self::Known(KnownHyperlaneDomain::Injective))
     }
 }
 
@@ -195,7 +205,7 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             Mainnet: [
                 Ethereum, Avalanche, Arbitrum, Polygon, Optimism, BinanceSmartChain, Celo,
-                Moonbeam, Gnosis
+                Moonbeam, Gnosis, MantaPacific, Neutron, Injective
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
@@ -212,11 +222,12 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainProtocol::Ethereum: [
                 Ethereum, Goerli, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
                 Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
-                Alfajores, Moonbeam, MoonbaseAlpha, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia, Chiado, Test1, Test2, Test3
+                Alfajores, Moonbeam, MoonbaseAlpha, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia,
+                Chiado, MantaPacific, Test1, Test2, Test3
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
-            HyperlaneDomainProtocol::Cosmos: [Injective99990, Injective99991],
+            HyperlaneDomainProtocol::Cosmos: [Injective99990, Injective99991, Neutron, Injective],
         })
     }
 }

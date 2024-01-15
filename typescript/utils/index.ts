@@ -18,6 +18,7 @@ export {
   eqAddressEvm,
   eqAddressSol,
   getAddressProtocolType,
+  isAddress,
   isAddressCosmos,
   isAddressEvm,
   isAddressSealevel,

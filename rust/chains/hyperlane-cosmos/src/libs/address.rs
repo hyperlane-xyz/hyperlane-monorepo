@@ -48,9 +48,20 @@ impl CosmosAddress {
     ///
     /// - digest: H256 digest (hex representation of address)
     /// - prefix: Bech32 prefix
-    pub fn from_h256(digest: H256, prefix: &str) -> ChainResult<Self> {
+    /// - byte_count: Number of bytes to truncate the digest to. Cosmos addresses can sometimes
+    ///     be less than 32 bytes, so this helps to serialize it in bech32 with the appropriate
+    ///     length.
+    pub fn from_h256(digest: H256, prefix: &str, byte_count: usize) -> ChainResult<Self> {
         // This is the hex-encoded version of the address
-        let bytes = digest.as_bytes();
+        let untruncated_bytes = digest.as_bytes();
+
+        if byte_count > untruncated_bytes.len() {
+            return Err(Overflow.into());
+        }
+
+        // Truncate the digest to the desired length
+        let bytes = &untruncated_bytes[untruncated_bytes.len() - byte_count..];
+
         // Bech32 encode it
         let account_id =
             AccountId::new(prefix, bytes).map_err(Into::<HyperlaneCosmosError>::into)?;
@@ -144,10 +155,19 @@ pub mod test {
         let hex_key = "0x1b16866227825a5166eb44031cdcf6568b3e80b52f2806e01b89a34dc90ae616";
         let key = hex_or_base58_to_h256(hex_key).unwrap();
         let prefix = "dual";
-        let addr = CosmosAddress::from_h256(key, prefix).expect("Cosmos address creation failed");
+        let addr =
+            CosmosAddress::from_h256(key, prefix, 32).expect("Cosmos address creation failed");
         assert_eq!(
             addr.address(),
             "dual1rvtgvc38sfd9zehtgsp3eh8k269naq949u5qdcqm3x35mjg2uctqfdn3yq"
+        );
+
+        // First 20 bytes only, which is 0x1cdcf6568b3e80b52f2806e01b89a34dc90ae616
+        let addr =
+            CosmosAddress::from_h256(key, prefix, 20).expect("Cosmos address creation failed");
+        assert_eq!(
+            addr.address(),
+            "dual1rnw0v45t86qt2tegqmsphzdrfhys4esk9ktul7"
         );
     }
 }
