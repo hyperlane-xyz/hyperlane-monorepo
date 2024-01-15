@@ -9,7 +9,7 @@ use tracing::{info, instrument};
 
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256};
 
-use super::{BaseMetadataBuilder, MetadataBuilder};
+use super::{MessageMetadataBuilder, MetadataBuilder};
 
 /// Bytes used to store one member of the (start, end) range tuple
 /// Copied from `AggregationIsmMetadata.sol`
@@ -17,7 +17,7 @@ const METADATA_RANGE_SIZE: usize = 4;
 
 #[derive(Clone, Debug, new, Deref)]
 pub struct AggregationIsmMetadataBuilder {
-    base: BaseMetadataBuilder,
+    base: MessageMetadataBuilder,
 }
 
 #[derive(Clone, Debug, new, PartialEq, Eq)]

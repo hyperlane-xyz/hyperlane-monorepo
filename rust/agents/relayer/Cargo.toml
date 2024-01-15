@@ -39,6 +39,7 @@ hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 
 [dev-dependencies]
+once_cell.workspace = true
 tokio-test.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }

@@ -79,10 +79,10 @@ pub fn process_instruction(
 /// Initializes the Mailbox.
 ///
 /// Accounts:
-/// 0. [executable] The system program.
-/// 1. [signer, writable] The payer account and owner of the Mailbox.
-/// 2. [writable] The inbox PDA account.
-/// 3. [writable] The outbox PDA account.
+/// 0. `[executable]` The system program.
+/// 1. `[signer, writable]` The payer account and owner of the Mailbox.
+/// 2. `[writable]` The inbox PDA account.
+/// 3. `[writable]` The outbox PDA account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -164,16 +164,16 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 /// Process a message. Non-reentrant through the use of a RefMut.
 ///
 // Accounts:
-// 0.      [signer] Payer account. This pays for the creation of the processed message PDA.
-// 1.      [executable] The system program.
-// 2.      [writable] Inbox PDA account.
-// 3.      [] Mailbox process authority specific to the message recipient.
-// 4.      [writable] Processed message PDA.
+// 0.      `[signer]` Payer account. This pays for the creation of the processed message PDA.
+// 1.      `[executable]` The system program.
+// 2.      `[writable]` Inbox PDA account.
+// 3.      `[]` Mailbox process authority specific to the message recipient.
+// 4.      `[writable]` Processed message PDA.
 // 5..N    [??] Accounts required to invoke the recipient's InterchainSecurityModule instruction.
-// N+1.    [executable] SPL noop
-// N+2.    [executable] ISM
+// N+1.    `[executable]` SPL noop
+// N+2.    `[executable]` ISM
 // N+2..M. [??] Accounts required to invoke the ISM's Verify instruction.
-// M+1.    [executable] Recipient program.
+// M+1.    `[executable]` Recipient program.
 // M+2..K. [??] Accounts required to invoke the recipient's Handle instruction.
 fn inbox_process(
     program_id: &Pubkey,
@@ -414,8 +414,8 @@ fn inbox_process(
 /// Gets the ISM to use for a recipient program and sets it as return data.
 ///
 /// Accounts:
-/// 0.    [] - The Inbox PDA.
-/// 1.    [] - The recipient program.
+/// 0.    `[]` - The Inbox PDA.
+/// 1.    `[]` - The recipient program.
 /// 2..N. [??] - The accounts required to make the CPI into the recipient program.
 ///             These can be retrieved from the recipient using the
 ///             `MessageRecipientInstruction::InterchainSecurityModuleAccountMetas` instruction.
@@ -505,9 +505,9 @@ fn get_recipient_ism(
 /// Sets the default ISM.
 ///
 /// Accounts:
-/// 0. [writeable] - The Inbox PDA account.
-/// 1. [] - The Outbox PDA account.
-/// 2. [signer] - The owner of the Mailbox.
+/// 0. `[writeable]` - The Inbox PDA account.
+/// 1. `[]` - The Outbox PDA account.
+/// 2. `[signer]` - The owner of the Mailbox.
 fn inbox_set_default_ism(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -549,13 +549,13 @@ fn inbox_set_default_ism(
 /// Sets the ID of the message as return data.
 ///
 /// Accounts:
-/// 0. [writeable] Outbox PDA.
-/// 1. [signer] Message sender signer.
-/// 2. [executable] System program.
-/// 3. [executable] SPL Noop program.
-/// 4. [signer] Payer.
-/// 5. [signer] Unique message account.
-/// 6. [writeable] Dispatched message PDA. An empty message PDA relating to the seeds
+/// 0. `[writeable]` Outbox PDA.
+/// 1. `[signer]` Message sender signer.
+/// 2. `[executable]` System program.
+/// 3. `[executable]` SPL Noop program.
+/// 4. `[signer]` Payer.
+/// 5. `[signer]` Unique message account.
+/// 6. `[writeable]` Dispatched message PDA. An empty message PDA relating to the seeds
 ///    `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
 fn outbox_dispatch(
     program_id: &Pubkey,
@@ -712,7 +712,7 @@ fn outbox_dispatch(
 /// Gets the number of dispatched messages as little endian encoded return data.
 ///
 /// Accounts:
-/// 0. [] Outbox PDA account.
+/// 0. `[]` Outbox PDA account.
 fn outbox_get_count(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -743,7 +743,7 @@ fn outbox_get_count(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramRes
 /// Gets the latest checkpoint as return data.
 ///
 /// Accounts:
-/// 0. [] Outbox PDA account.
+/// 0. `[]` Outbox PDA account.
 fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -779,7 +779,7 @@ fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -
 /// Gets the root as return data.
 ///
 /// Accounts:
-/// 0. [] Outbox PDA account.
+/// 0. `[]` Outbox PDA account.
 fn outbox_get_root(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 

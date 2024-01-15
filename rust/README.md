@@ -15,6 +15,14 @@ info: This is the version for the rustup toolchain manager, not the rustc compil
 info: The currently active `rustc` version is `rustc 1.72.1 (d5c2e9c34 2023-09-13)`
 ```
 
+#### Apple Silicon
+
+If your device has an Apple Silicon processor, you may need to install Rosetta 2:
+
+```bash
+softwareupdate --install-rosetta --agree-to-license
+```
+
 ### Running Locally
 
 To run the validator, run:

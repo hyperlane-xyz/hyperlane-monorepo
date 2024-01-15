@@ -54,6 +54,8 @@ pub struct RelayerSettings {
     /// If true, allows local storage based checkpoint syncers.
     /// Not intended for production use.
     pub allow_local_checkpoint_syncers: bool,
+    /// App contexts used for metrics.
+    pub metric_app_contexts: Vec<(MatchingList, String)>,
 }
 
 /// Config for gas payment enforcement
@@ -118,32 +120,17 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_from_str("Expected database path")
             .unwrap_or_else(|| std::env::current_dir().unwrap().join("hyperlane_db"));
 
-        let (raw_gas_payment_enforcement_path, raw_gas_payment_enforcement) = match p
+        let (raw_gas_payment_enforcement_path, raw_gas_payment_enforcement) = p
             .get_opt_key("gasPaymentEnforcement")
             .take_config_err_flat(&mut err)
-        {
-            None => None,
-            Some(ValueParser {
-                val: Value::String(policy_str),
-                cwp,
-            }) => serde_json::from_str::<Value>(policy_str)
-                .context("Expected JSON string")
-                .take_err(&mut err, || cwp.clone())
-                .map(|v| (cwp, recase_json_value(v, Case::Flat))),
-            Some(ValueParser {
-                val: value @ Value::Array(_),
-                cwp,
-            }) => Some((cwp, value.clone())),
-            Some(_) => Err(eyre!("Expected JSON array or stringified JSON"))
-                .take_err(&mut err, || cwp.clone()),
-        }
-        .unwrap_or_else(|| (&p.cwp + "gas_payment_enforcement", Value::Array(vec![])));
+            .and_then(parse_json_array)
+            .unwrap_or_else(|| (&p.cwp + "gas_payment_enforcement", Value::Array(vec![])));
 
         let gas_payment_enforcement_parser = ValueParser::new(
             raw_gas_payment_enforcement_path,
             &raw_gas_payment_enforcement,
         );
-        let gas_payment_enforcement = gas_payment_enforcement_parser.into_array_iter().map(|itr| {
+        let mut gas_payment_enforcement = gas_payment_enforcement_parser.into_array_iter().map(|itr| {
             itr.filter_map(|policy| {
                 let policy_type = policy.chain(&mut err).get_opt_key("type").parse_string().end();
                 let minimum_is_defined = matches!(policy.get_opt_key("minimum"), Ok(Some(_)));
@@ -187,7 +174,11 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                     matching_list,
                 })
             }).collect_vec()
-        }).unwrap_or_else(|_| vec![GasPaymentEnforcementConf::default()]);
+        }).unwrap_or_default();
+
+        if gas_payment_enforcement.is_empty() {
+            gas_payment_enforcement.push(GasPaymentEnforcementConf::default());
+        }
 
         let whitelist = p
             .chain(&mut err)
@@ -243,6 +234,32 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             })
             .collect();
 
+        let (raw_metric_app_contexts_path, raw_metric_app_contexts) = p
+            .get_opt_key("metricAppContexts")
+            .take_config_err_flat(&mut err)
+            .and_then(parse_json_array)
+            .unwrap_or_else(|| (&p.cwp + "metric_app_contexts", Value::Array(vec![])));
+
+        let metric_app_contexts_parser =
+            ValueParser::new(raw_metric_app_contexts_path, &raw_metric_app_contexts);
+        let metric_app_contexts = metric_app_contexts_parser
+            .into_array_iter()
+            .map(|itr| {
+                itr.filter_map(|policy| {
+                    let name = policy.chain(&mut err).get_key("name").parse_string().end();
+
+                    let matching_list = policy
+                        .chain(&mut err)
+                        .get_key("matchingList")
+                        .and_then(parse_matching_list)
+                        .unwrap_or_default();
+
+                    name.map(|name| (matching_list, name.to_owned()))
+                })
+                .collect_vec()
+            })
+            .unwrap_or_default();
+
         err.into_result(RelayerSettings {
             base,
             db,
@@ -254,28 +271,35 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers,
+            metric_app_contexts,
         })
+    }
+}
+
+fn parse_json_array(p: ValueParser) -> Option<(ConfigPath, Value)> {
+    let mut err = ConfigParsingError::default();
+
+    match p {
+        ValueParser {
+            val: Value::String(array_str),
+            cwp,
+        } => serde_json::from_str::<Value>(array_str)
+            .context("Expected JSON string")
+            .take_err(&mut err, || cwp.clone())
+            .map(|v| (cwp, recase_json_value(v, Case::Flat))),
+        ValueParser {
+            val: value @ Value::Array(_),
+            cwp,
+        } => Some((cwp, value.clone())),
+        _ => Err(eyre!("Expected JSON array or stringified JSON"))
+            .take_err(&mut err, || p.cwp.clone()),
     }
 }
 
 fn parse_matching_list(p: ValueParser) -> ConfigResult<MatchingList> {
     let mut err = ConfigParsingError::default();
 
-    let raw_list = match &p {
-        ValueParser {
-            val: Value::String(matching_list_str),
-            cwp,
-        } => serde_json::from_str::<Value>(matching_list_str)
-            .context("Expected JSON string")
-            .take_err(&mut err, || cwp.clone())
-            .map(|v| recase_json_value(v, Case::Flat)),
-        ValueParser {
-            val: value @ Value::Array(_),
-            ..
-        } => Some((*value).clone()),
-        _ => Err(eyre!("Expected JSON array or stringified JSON"))
-            .take_err(&mut err, || p.cwp.clone()),
-    };
+    let raw_list = parse_json_array(p.clone()).map(|(_, v)| v);
     let Some(raw_list) = raw_list else {
         return err.into_result(MatchingList::default());
     };

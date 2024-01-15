@@ -300,20 +300,23 @@ export abstract class HyperlaneDeployer<
     contractName: string,
     constructorArgs: Parameters<F['deploy']>,
     initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>,
+    shouldRecover = true,
   ): Promise<ReturnType<F['deploy']>> {
-    const cachedContract = this.readCache(chain, factory, contractName);
-    if (cachedContract) {
-      if (this.recoverVerificationInputs) {
-        const recoveredInputs = await this.recoverVerificationArtifacts(
-          chain,
-          contractName,
-          cachedContract,
-          constructorArgs,
-          initializeArgs,
-        );
-        this.addVerificationArtifacts(chain, recoveredInputs);
+    if (shouldRecover) {
+      const cachedContract = this.readCache(chain, factory, contractName);
+      if (cachedContract) {
+        if (this.recoverVerificationInputs) {
+          const recoveredInputs = await this.recoverVerificationArtifacts(
+            chain,
+            contractName,
+            cachedContract,
+            constructorArgs,
+            initializeArgs,
+          );
+          this.addVerificationArtifacts(chain, recoveredInputs);
+        }
+        return cachedContract;
       }
-      return cachedContract;
     }
 
     this.logger(`Deploy ${contractName} on ${chain}`);
@@ -347,6 +350,7 @@ export abstract class HyperlaneDeployer<
     initializeArgs?: Parameters<
       Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
     >,
+    shouldRecover = true,
   ): Promise<HyperlaneContracts<Factories>[K]> {
     const contract = await this.deployContractFromFactory(
       chain,
@@ -354,6 +358,7 @@ export abstract class HyperlaneDeployer<
       contractName.toString(),
       constructorArgs,
       initializeArgs,
+      shouldRecover,
     );
     this.writeCache(chain, contractName, contract.address);
     return contract;

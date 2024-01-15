@@ -13,10 +13,10 @@ export const safes: ChainMap<Address> = {
   gnosis: '0x36b0AA0e7d04e7b825D7E409FEa3c9A3d57E4C22',
   // solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
   // TODO: create gnosis safes here
-  base: '',
-  scroll: '',
-  polygonzkevm: '',
-  mantapacific: '',
+  base: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+  scroll: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+  polygonzkevm: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+  mantapacific: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
 };
 
 // export const owners = safes;

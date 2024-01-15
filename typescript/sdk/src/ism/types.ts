@@ -5,7 +5,7 @@ import {
   OPStackIsm,
   TestIsm,
 } from '@hyperlane-xyz/core';
-import type { Address, ValueOf } from '@hyperlane-xyz/utils';
+import type { Address, Domain, ValueOf } from '@hyperlane-xyz/utils';
 
 import { ChainMap } from '../types';
 
@@ -33,7 +33,7 @@ export enum IsmType {
   TEST_ISM = 'testIsm',
 }
 
-// mapping betweent the two enums
+// mapping between the two enums
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   switch (ismType) {
     case IsmType.OP_STACK:
@@ -103,3 +103,11 @@ export type DeployedIsmType = {
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;
+
+// for finding the difference between the onchain deployment and the config provided
+export type RoutingIsmDelta = {
+  domainsToUnenroll: Domain[]; // new or updated isms for the domain
+  domainsToEnroll: Domain[]; // isms to remove
+  owner?: Address; // is the owner different
+  mailbox?: Address; // is the mailbox different (only for fallback routing)
+};

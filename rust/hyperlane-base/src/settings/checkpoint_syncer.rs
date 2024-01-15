@@ -1,14 +1,12 @@
+use crate::{
+    CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage, GCS_SERVICE_ACCOUNT_KEY,
+    GCS_USER_SECRET,
+};
 use core::str::FromStr;
 use eyre::{eyre, Context, Report, Result};
-use hyperlane_core::H160;
-use prometheus::{IntGauge, IntGaugeVec};
+use prometheus::IntGauge;
 use rusoto_core::Region;
-use std::{collections::HashMap, env, path::PathBuf};
-
-use crate::{
-    CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, MultisigCheckpointSyncer, S3Storage,
-    GCS_SERVICE_ACCOUNT_KEY, GCS_USER_SECRET,
-};
+use std::{env, path::PathBuf};
 
 /// Checkpoint Syncer types
 #[derive(Debug, Clone)]
@@ -130,33 +128,5 @@ impl CheckpointSyncerConf {
                 .await?,
             ),
         })
-    }
-}
-
-/// Config for a MultisigCheckpointSyncer
-#[derive(Debug, Clone)]
-pub struct MultisigCheckpointSyncerConf {
-    /// The checkpoint syncer for each valid validator signer address
-    checkpointsyncers: HashMap<String, CheckpointSyncerConf>,
-}
-
-impl MultisigCheckpointSyncerConf {
-    /// Get a MultisigCheckpointSyncer from the config
-    pub async fn build(
-        &self,
-        origin: &str,
-        validator_checkpoint_index: IntGaugeVec,
-    ) -> Result<MultisigCheckpointSyncer, Report> {
-        let mut checkpoint_syncers = HashMap::new();
-        for (key, value) in self.checkpointsyncers.iter() {
-            let gauge =
-                validator_checkpoint_index.with_label_values(&[origin, &key.to_lowercase()]);
-            if let Ok(conf) = value.build(Some(gauge)).await {
-                checkpoint_syncers.insert(H160::from_str(key)?, conf.into());
-            } else {
-                continue;
-            }
-        }
-        Ok(MultisigCheckpointSyncer::new(checkpoint_syncers))
     }
 }
