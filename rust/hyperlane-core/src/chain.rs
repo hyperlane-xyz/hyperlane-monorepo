@@ -133,10 +133,6 @@ impl HyperlaneDomain {
             domain_protocol: HyperlaneDomainProtocol::Ethereum,
         }
     }
-
-    pub const fn is_injective(&self) -> bool {
-        matches!(self, Self::Known(KnownHyperlaneDomain::Injective))
-    }
 }
 
 /// Types of Hyperlane domains.
@@ -374,13 +370,17 @@ impl HyperlaneDomain {
         }
     }
 
-    pub fn is_arbitrum_nitro(&self) -> bool {
+    pub const fn is_arbitrum_nitro(&self) -> bool {
         matches!(
             self,
             HyperlaneDomain::Known(
                 KnownHyperlaneDomain::Arbitrum | KnownHyperlaneDomain::ArbitrumGoerli,
             )
         )
+    }
+
+    pub const fn is_injective(&self) -> bool {
+        matches!(self, Self::Known(KnownHyperlaneDomain::Injective))
     }
 
     pub const fn index_mode(&self) -> IndexMode {
