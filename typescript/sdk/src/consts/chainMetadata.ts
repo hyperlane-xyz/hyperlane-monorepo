@@ -461,7 +461,8 @@ export const injective: ChainMetadata = {
     symbol: 'INJ',
   },
   protocol: ProtocolType.Cosmos,
-  rpcUrls: [{ http: 'https://sentry.tm.injective.network:443' }],
+  // temporarily testnet
+  rpcUrls: [{ http: 'https://k8s.testnet.tm.injective.network/' }],
 };
 
 export const lineagoerli: ChainMetadata = {
@@ -1050,6 +1051,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   gnosis,
   goerli,
   lineagoerli,
+  injective,
   mantapacific,
   moonbasealpha,
   moonbeam,
