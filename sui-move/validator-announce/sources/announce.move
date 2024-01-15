@@ -52,7 +52,7 @@ module hp_validator::validator_announce {
     transfer::transfer(AdminCap { id: object::new(ctx) }, sender);
   }
 
-  public entry fun initialize(
+  public entry fun create_state(
     _admin_cap: &AdminCap,
     mailbox: address,
     domain: u32,
@@ -166,16 +166,24 @@ module hp_validator::validator_announce {
   #[test_only]
   use hp_library::test_utils;
 
-  #[test(aptos = @0x1, announce_signer = @hp_validator, bob = @0xb0b)]
-  fun verify_signature_test(aptos: signer, announce_signer: signer, bob: signer) acquires ValidatorState {
+  #[test]
+  fun verify_signature_test() {
+    
+    let admin = @0xA;
+    let scenario_val = scenario();
+    let scenario = &mut scenario_val;
+    
     let mailbox: address = @0x35231d4c2d8b8adcb5617a638a0c4548684c7c70;
     let domain: u32 = 1;
     let validator: address = @0x4c327ccb881a7542be77500b2833dc84c839e7b7;
     let storage_location: String = string::utf8(b"s3://hyperlane-mainnet2-ethereum-validator-0/us-east-1");
-    // init envs
-    test_utils::setup(&aptos, &announce_signer, vector[]);
-    init_module(&announce_signer);
-    initialize(&announce_signer, mailbox, domain);
+    
+    next_tx(scenario, admin);
+    {
+      // init envs
+      init(&announce_signer);
+      create_state(&announce_signer, mailbox, domain);
+    };
 
     let signature = x"20ac937917284eaa3d67287278fc51875874241fffab5eb5fd8ae899a7074c5679be15f0bdb5b4f7594cefc5cba17df59b68ba3c55836053a23307db5a95610d1b";
     let validator_state = borrow_global_mut<ValidatorState>(@hp_validator);
@@ -197,8 +205,8 @@ module hp_validator::validator_announce {
     assert!(get_announced_storage_locations(vector[validator]) == vector[vector[storage_location]], 2);
   }
 
-  #[test(aptos = @0x1, announce_signer = @hp_validator, bob = @0xb0b)]
-  fun announce_test(aptos: signer, announce_signer: signer, bob: signer) acquires ValidatorState {
+  #[test]
+  fun announce_test() {
     let mailbox: address = @0x476307c25c54b76b331a4e3422ae293ada422f5455efed1553cf4de1222a108f;
     let domain: u32 = 14411;
     let validator: address = @0x598264ff31f198f6071226b2b7e9ce360163accd;
