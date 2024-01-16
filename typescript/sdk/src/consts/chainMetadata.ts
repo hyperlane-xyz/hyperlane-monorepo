@@ -467,6 +467,7 @@ export const injective: ChainMetadata = {
   protocol: ProtocolType.Cosmos,
   restUrls: [{ http: 'https://sentry.chain.grpc.injective.network:443' }],
   rpcUrls: [{ http: 'https://rpc-injective.goldenratiostaking.net:443' }],
+  slip44: 118,
 };
 
 export const lineagoerli: ChainMetadata = {
