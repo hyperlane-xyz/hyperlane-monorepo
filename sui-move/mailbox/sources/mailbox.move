@@ -92,7 +92,7 @@ module hp_mailbox::mailbox {
 
     // Entry Functions
     /// Initialize state of Mailbox 
-    public entry fun initialize(
+    public entry fun create_state(
       _admin_cap: &AdminCap,
       domain: u32,
       ctx: &mut TxContext
@@ -267,5 +267,10 @@ module hp_mailbox::mailbox {
     /// Returns the number of inserted leaves in the tree
     public fun outbox_get_count(mailbox: &MailBoxState): u32 {
       (merkle_tree::count(&mailbox.tree) as u32)
+    }
+    
+    #[test_only]
+    public fun init_for_test(ctx: &mut TxContext) {
+      init(ctx)
     }
 }

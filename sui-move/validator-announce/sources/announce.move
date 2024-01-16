@@ -164,7 +164,11 @@ module hp_validator::validator_announce {
   }
 
   #[test_only]
-  use hp_library::test_utils;
+  use hp_library::test_utils::{Self, scenario};
+
+  #[test_only]
+  use sui::test_scenario::{Self, Scenario, next_tx, ctx};
+
 
   #[test]
   fun verify_signature_test() {
@@ -180,61 +184,51 @@ module hp_validator::validator_announce {
     
     next_tx(scenario, admin);
     {
+      let ctx = test_scenario::ctx(scenario);
       // init envs
-      init(&announce_signer);
-      create_state(&announce_signer, mailbox, domain);
+      init(ctx);
+    };
+
+    
+    next_tx(scenario, admin);
+    {
+      let admin_cap = test_scenario::take_from_address<AdminCap>(scenario, admin);
+      create_state(&admin_cap, mailbox, domain, test_scenario::ctx(scenario));
+      test_scenario::return_to_address(admin, admin_cap);
     };
 
     let signature = x"20ac937917284eaa3d67287278fc51875874241fffab5eb5fd8ae899a7074c5679be15f0bdb5b4f7594cefc5cba17df59b68ba3c55836053a23307db5a95610d1b";
-    let validator_state = borrow_global_mut<ValidatorState>(@hp_validator);
-    verify_validator_signed_announcement_internal(
-      validator_state,
-      validator,
-      signature,
-      storage_location
-    );
-
-    announce(
-      &bob,
-      validator,
-      signature,
-      storage_location
-    );
     
-    assert!(get_announced_validators() == vector[validator], 1);
-    assert!(get_announced_storage_locations(vector[validator]) == vector[vector[storage_location]], 2);
+    next_tx(scenario, admin);
+    {
+      let validator_state = test_scenario::take_shared<ValidatorState>(scenario);
+      verify_validator_signed_announcement_internal(
+        &mut validator_state,
+        validator,
+        signature,
+        storage_location
+      );
+      test_scenario::return_shared(validator_state);
+    };
+
+
+    next_tx(scenario, admin);
+    {
+      let validator_state = test_scenario::take_shared<ValidatorState>(scenario);
+
+      announce(
+        &mut validator_state,
+        validator,
+        signature,
+        storage_location,
+        test_scenario::ctx(scenario)
+      );
+      
+      assert!(get_announced_validators(&validator_state) == vector[validator], 1);
+      assert!(get_announced_storage_locations(&validator_state, vector[validator]) == vector[vector[storage_location]], 2);
+      test_scenario::return_shared(validator_state);
+    };
+
+    test_scenario::end(scenario_val);
   }
-
-  #[test]
-  fun announce_test() {
-    let mailbox: address = @0x476307c25c54b76b331a4e3422ae293ada422f5455efed1553cf4de1222a108f;
-    let domain: u32 = 14411;
-    let validator: address = @0x598264ff31f198f6071226b2b7e9ce360163accd;
-    let storage_location: String = string::utf8(b"file:///tmp/hyperlane-validator-signatures-APTOSLOCALNET1-1");
-    // init envs
-    test_utils::setup(&aptos, &announce_signer, vector[]);
-    init_module(&announce_signer);
-    initialize(&announce_signer, mailbox, domain);
-
-    let signature = x"d512c8e5c2861f33c909a72369155518e5388ff2a707b25b62ad72db78eec65f648e65313cda5a5144e787102ae1b801ea8720960f737ddc8020e7bdb6608fff1c";
-    let validator_state = borrow_global_mut<ValidatorState>(@hp_validator);
-    verify_validator_signed_announcement_internal(
-      validator_state,
-      validator,
-      signature,
-      storage_location
-    );
-
-    announce(
-      &bob,
-      validator,
-      signature,
-      storage_location
-    );
-    
-    assert!(get_announced_validators() == vector[validator], 1);
-    assert!(get_announced_storage_locations(vector[validator]) == vector[vector[storage_location]], 2);
-  }
-
-  
 }
