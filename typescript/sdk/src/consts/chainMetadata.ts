@@ -430,8 +430,8 @@ export const inevm: ChainMetadata = {
     reorgPeriod: 0,
   },
   chainId: 2525,
-  domainId: 2525,
   displayName: 'Injective EVM',
+  domainId: 2525,
   displayNameShort: 'inEVM',
   name: Chains.inevm,
   nativeToken: {
@@ -444,6 +444,7 @@ export const inevm: ChainMetadata = {
 };
 
 export const injective: ChainMetadata = {
+  bech32Prefix: 'inj',
   blockExplorers: [],
   blocks: {
     confirmations: 1,
@@ -453,7 +454,6 @@ export const injective: ChainMetadata = {
   chainId: 'injective-1',
   domainId: 6909546,
   displayName: 'Injective',
-  displayNameShort: 'Injective',
   name: Chains.injective,
   nativeToken: {
     decimals: 6,
@@ -461,7 +461,8 @@ export const injective: ChainMetadata = {
     symbol: 'INJ',
   },
   protocol: ProtocolType.Cosmos,
-  rpcUrls: [{ http: 'https://sentry.tm.injective.network:443' }],
+  restUrls: [{ http: 'https://sentry.chain.grpc.injective.network:443' }],
+  rpcUrls: [{ http: 'https://rpc-injective.goldenratiostaking.net:443' }],
 };
 
 export const lineagoerli: ChainMetadata = {
