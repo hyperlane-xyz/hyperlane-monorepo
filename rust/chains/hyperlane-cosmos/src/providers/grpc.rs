@@ -34,6 +34,8 @@ use tonic::{
     GrpcMethod, IntoRequest,
 };
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+
 use crate::HyperlaneCosmosError;
 use crate::{address::CosmosAddress, CosmosAmount};
 use crate::{signers::Signer, ConnectionConf};
@@ -332,7 +334,13 @@ impl WasmGrpcProvider {
         .map_err(Into::<HyperlaneCosmosError>::into)?;
 
         let base_account = eth_account.take_base_account();
-        let pub_key = base_account.pub_key.into_option();
+        let pub_key = base_account.clone().pub_key.into_option();
+        println!("~~~ sending tx with base account: {:?}", base_account);
+        // let pub_ley = self.signer.clone().map(|s| {
+        //     s.public_key.to_bytes()
+        // }).unwrap();
+        // let path = "/cosmos.crypto.secp256k1.PubKey";
+        // println!("~~~ using pubkey: {:?}", pub_ley);
 
         Ok(BaseAccount {
             address: base_account.address,
@@ -440,8 +448,9 @@ impl WasmProvider for WasmGrpcProvider {
             }
         });
 
+        let tx_bytes = self.generate_raw_signed_tx(msgs, gas_limit).await?;
         let tx_req = BroadcastTxRequest {
-            tx_bytes: self.generate_raw_signed_tx(msgs, gas_limit).await?,
+            tx_bytes: BASE64.encode(tx_bytes).as_bytes().to_vec(),
             mode: BroadcastMode::Sync as i32,
         };
 

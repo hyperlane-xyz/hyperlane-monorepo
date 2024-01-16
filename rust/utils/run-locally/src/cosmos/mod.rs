@@ -47,18 +47,20 @@ const KEY_ACCOUNTS1: (&str,&str) = ("account1", "stomach employ hidden risk fork
 const KEY_ACCOUNTS2: (&str,&str) = ("account2", "say merry worry steak hedgehog sing spike fold empower pluck feel grass omit finish biology traffic dog sea ozone hint region service one gown");
 const KEY_ACCOUNTS3: (&str,&str) = ("account3", "maple often cargo polar eager jaguar eight inflict once nest nice swamp weasel address swift physical valid culture cheese trumpet find dinosaur curve tray");
 
+const ADDR_LENGTH: usize = 32;
+
 fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
     [
-        KEY_HPL_VALIDATOR,
         KEY_HPL_RELAYER,
         KEY_VALIDATOR,
         KEY_ACCOUNTS1,
         KEY_ACCOUNTS2,
         KEY_ACCOUNTS3,
+        KEY_HPL_VALIDATOR,
     ]
 }
 
-const CW_HYPERLANE_GIT: &str = "https://github.com/hyperlane/cosmwasm";
+const CW_HYPERLANE_GIT: &str = "https://github.com/yorhodes/cw-hyperlane";
 const CW_HYPERLANE_VERSION: &str = "0.0.6-rc7";
 
 fn make_target() -> String {
@@ -269,7 +271,7 @@ fn launch_cosmos_validator(
         .hyp_env("METRICSPORT", agent_config.metrics_port.to_string())
         .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
         .hyp_env("VALIDATOR_KEY", agent_config.signer.key.clone())
-        .hyp_env("VALIDATOR_PREFIX", "osmo")
+        .hyp_env("VALIDATOR_PREFIX", "inj")
         .hyp_env("SIGNER_SIGNER_TYPE", "hexKey")
         .hyp_env("SIGNER_KEY", agent_config.signer.key)
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
@@ -357,7 +359,7 @@ async fn run_locally() {
     let port_start = 26600u32;
     let metrics_port_start = 9090u32;
     let domain_start = 99990u32;
-    let node_count = 1;
+    let node_count = 2;
 
     let mut nodes = vec![];
     for i in 0..node_count {
@@ -498,6 +500,10 @@ async fn run_locally() {
 
             let msg_body: &[u8; 5] = b"hello";
 
+            let recipient_addr = bech32_decode(&target.deployments.mock_receiver).unwrap();
+            let left_padded_zeroes = ADDR_LENGTH - recipient_addr.len();
+            let recipient_addr = [vec![0u8; left_padded_zeroes], recipient_addr].concat();
+
             cli.wasm_execute(
                 &node.launch_resp.endpoint,
                 linker,
@@ -505,9 +511,7 @@ async fn run_locally() {
                 MockDispatch {
                     dispatch: MockDispatchInner {
                         dest_domain: target.domain,
-                        recipient_addr: hex::encode(
-                            bech32_decode(&target.deployments.mock_receiver).unwrap(),
-                        ),
+                        recipient_addr: hex::encode(recipient_addr),
                         msg_body: hex::encode(msg_body),
                         hook: None,
                         metadata: "".to_string(),

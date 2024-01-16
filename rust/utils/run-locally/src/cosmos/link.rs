@@ -217,13 +217,15 @@ fn link_network(
         vec![],
     );
 
-    // cli.bank_send(
-    //     &network.launch_resp.endpoint,
-    //     linker,
-    //     &validator_addr,
-    //     "inj1l83956lgpak5sun7ggupls7rk7p5cr95hhpxfr",
-    //     "10000000inj",
-    // );
+    println!("~~~ funding validator for va tx");
+    cli.bank_send(
+        &network.launch_resp.endpoint,
+        linker,
+        &validator_addr,
+        "inj188uey3kwf2ykqsu0lp9m9q02q3sm0yz4gl8sx2",
+        "10000000inj",
+    );
+    // inj1pp6wsz0ukd7axlndm880gxru499n3e8k63lckg
 
     // TODO
     // cli.wasm_execute(

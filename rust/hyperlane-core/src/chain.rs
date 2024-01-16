@@ -123,8 +123,8 @@ pub enum HyperlaneDomain {
     },
 }
 
-#[cfg(any(test, feature = "test-utils"))]
 impl HyperlaneDomain {
+    #[cfg(any(test, feature = "test-utils"))]
     pub fn new_test_domain(name: &str) -> Self {
         Self::Unknown {
             domain_id: 0,
@@ -135,7 +135,14 @@ impl HyperlaneDomain {
     }
 
     pub const fn is_injective(&self) -> bool {
-        matches!(self, Self::Known(KnownHyperlaneDomain::Injective))
+        matches!(
+            self,
+            Self::Known(
+                KnownHyperlaneDomain::Injective
+                    | KnownHyperlaneDomain::Injective99990
+                    | KnownHyperlaneDomain::Injective99991
+            )
+        )
     }
 }
 

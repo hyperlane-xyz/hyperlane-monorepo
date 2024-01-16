@@ -1,3 +1,4 @@
+use std::env::args;
 use std::io::Read;
 use std::str::FromStr;
 use std::{
@@ -148,7 +149,7 @@ impl InjectiveCLI {
         let addr = get_next_addr();
         let p2p_addr = get_next_addr();
         let rpc_addr = get_next_addr();
-        let api_addr = get_next_addr();
+        // let api_addr = get_next_addr();
         let grpc_addr = get_next_addr().replace("tcp://", "");
         let grpc_web_addr = get_next_addr().replace("tcp://", "");
         let pprof_addr = get_next_addr().replace("tcp://", "");
@@ -164,11 +165,11 @@ impl InjectiveCLI {
         modify_toml(
             app_config_path,
             Box::new(move |v| {
-                v["minimum-gas-prices"] = toml_edit::value("1inj");
+                v["minimum-gas-prices"] = toml_edit::value("0inj");
                 v["pruning"] = toml_edit::value("nothing"); // archive
                 v["api"]["enable"] = toml_edit::value(false);
                 // v["api"]["address"] = toml_edit::value(api_addr.clone());
-                // v["grpc-web"]["enable"] = toml_edit::value(false);
+                v["grpc-web"]["enable"] = toml_edit::value(false);
             }),
         );
         println!("~~~ rpc addr: {}", endpoint.rpc_addr);
@@ -184,6 +185,7 @@ impl InjectiveCLI {
             .arg("grpc-web.address", grpc_web_addr) // default is 0.0.0.0:9090
             .arg("rpc.pprof_laddr", pprof_addr) // default is localhost:6060
             .arg("log-level", "error")
+            // .flag("trace")
             .spawn("COSMOS");
 
         endpoint.wait_for_node();
@@ -441,6 +443,8 @@ impl InjectiveCLI {
             .cmd("add")
             .cmd(name)
             .flag("recover")
+            .flag("key-type")
+            .cmd("secp256k1")
             .create_command()
             .stdin(Stdio::piped())
             .spawn()
@@ -510,5 +514,28 @@ impl InjectiveCLI {
         let pub_key = *priv_key.verifying_key();
 
         KeyPair { priv_key, pub_key }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use k256::ecdsa::SigningKey;
+
+    use crate::cosmos::crypto::KeyPair;
+
+    #[test]
+    fn test_priv_key() {
+        let pk = "22f98602b45b640475d6149cffbccb9c9a59eafe3b0c8f4ea0046dd0f5b782cb";
+        let priv_key = SigningKey::from_slice(&hex::decode(pk).unwrap()).unwrap();
+        let pub_key = *priv_key.verifying_key();
+        let keypair = KeyPair { priv_key, pub_key };
+        println!("~~~ keypair: {:?}", keypair.addr("inj"));
+
+        let pk = "cd05c14571b3236af5e6ade4a803f4de6144a89e8bf680d29fab01f3943f98e1";
+        let priv_key = SigningKey::from_slice(&hex::decode(pk).unwrap()).unwrap();
+        let pub_key = *priv_key.verifying_key();
+        let keypair = KeyPair { priv_key, pub_key };
+        // println!("pubkey: {}", keypair.pub_key.to_sec1_bytes());
+        println!("~~~ keypair: {:?}", keypair.addr("inj"));
     }
 }

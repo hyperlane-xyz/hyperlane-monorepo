@@ -255,8 +255,6 @@ impl Program {
         let stdout =
             spawn(move || prefix_log(child_stdout, log_prefix, &RUN_LOG_WATCHERS, filter, None));
         let child_stderr = child.stderr.take().unwrap();
-        let random = Program::new("echo").cmd("helloworld").run();
-        let random2 = Program::new("echo").cmd("helloworld2").run();
         let stderr =
             spawn(move || prefix_log(child_stderr, log_prefix, &RUN_LOG_WATCHERS, filter, None));
         (

@@ -141,8 +141,8 @@ impl CLISource {
         log!("Downloading Injective CLI");
         // log!("Downloading Injective CLI v{}", version);
         // let uri = format!("{git}/releases/download/v{version}/{release_comp}");
-        // let uri = "https://github.com/InjectiveLabs/injective-chain-releases/releases/download/v1.11.6-1688984159/darwin-amd64.zip";
-        let uri = "file:///Users/dan/Downloads/darwin-amd64.zip";
+        let uri = "https://github.com/InjectiveLabs/injective-chain-releases/releases/download/v1.12.0-1704530206/darwin-amd64.zip";
+        // let uri = "file:///Users/dan/Downloads/darwin-amd64.zip";
         download(&release_comp, &uri, dir_path);
 
         log!("Uncompressing Injective release");

@@ -186,7 +186,7 @@ impl AgentConfig {
             },
             gas_price: RawCosmosAmount {
                 denom: "inj".to_string(),
-                amount: "1".to_string(),
+                amount: "0".to_string(),
             },
             contract_address_bytes: 20,
             index: AgentConfigIndex {

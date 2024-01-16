@@ -43,7 +43,7 @@ pub fn announcement_domain_hash(address: H256, domain: impl Into<u32>) -> H256 {
     H256::from_slice(
         Keccak256::new()
             .chain(domain.into().to_be_bytes())
-            .chain(address)
+            .chain(H160::from(address))
             .chain("HYPERLANE_ANNOUNCEMENT")
             .finalize()
             .as_slice(),
