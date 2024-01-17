@@ -260,7 +260,7 @@ jobs:
 
   coverage:
     runs-on: ubuntu-latest
-    needs: [yarn-build]
+    needs: [yarn-test]
 
     steps:
       - uses: actions/checkout@v3
