@@ -14,7 +14,7 @@ export type OwnableConfig<Keys extends string = string> = {
   ownerOverrides?: Partial<Record<Keys, Address>>;
 };
 
-export function isOwnableConfig(config: Object): config is OwnableConfig {
+export function isOwnableConfig(config: object): config is OwnableConfig {
   return 'owner' in config;
 }
 
