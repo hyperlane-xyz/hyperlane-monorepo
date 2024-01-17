@@ -1,5 +1,19 @@
 # @hyperlane-xyz/sdk
 
+## 3.6.0
+
+### Minor Changes
+
+- 0488ef31d: Add dsrv, staked and zeeprime as validators
+- 8d8ba3f7a: HyperlaneIsmFactory is now wary of (try)getDomainId or (try)getChainName calls which may fail and handles them appropriately.
+
+### Patch Changes
+
+- 67a6d971e: Added `shouldRecover` flag to deployContractFromFactory so that the `TestRecipientDeployer` can deploy new contracts if it's not the owner of the prior deployments (We were recovering the SDK artifacts which meant the deployer won't be able to set the ISM as they needed)
+- 612d4163a: Add mailbox version const to SDK
+  - @hyperlane-xyz/core@3.6.0
+  - @hyperlane-xyz/utils@3.6.0
+
 ## 3.5.1
 
 ### Patch Changes

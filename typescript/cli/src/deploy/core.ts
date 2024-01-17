@@ -21,6 +21,8 @@ import {
   MultiProvider,
   MultisigConfig,
   RoutingIsmConfig,
+  TestRecipientConfig,
+  TestRecipientDeployer,
   buildAgentConfig,
   buildAggregationIsmConfigs,
   defaultMultisigConfigs,
@@ -47,10 +49,6 @@ import {
   writeJson,
 } from '../utils/files.js';
 
-import {
-  TestRecipientConfig,
-  TestRecipientDeployer,
-} from './TestRecipientDeployer.js';
 import {
   isISMConfig,
   isZODISMConfig,
