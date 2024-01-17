@@ -82,6 +82,7 @@ export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer';
 export {
   CheckerViolation,
+  OwnableConfig,
   OwnerViolation,
   ViolationType,
 } from './deploy/types';
@@ -125,6 +126,7 @@ export {
   IgpHookConfig,
   MerkleTreeHookConfig,
   OpStackHookConfig,
+  PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types';
 export {
@@ -145,6 +147,7 @@ export {
   MultisigConfig,
   MultisigIsmConfig,
   OpStackIsmConfig,
+  PausableIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
 export {
@@ -303,7 +306,6 @@ export {
   GasConfig,
   GasRouterConfig,
   MailboxClientConfig,
-  OwnableConfig,
   ProxiedFactories,
   ProxiedRouterConfig,
   RouterAddress,
