@@ -82,6 +82,7 @@ export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer';
 export {
   CheckerViolation,
+  OwnableConfig,
   OwnerViolation,
   ViolationType,
 } from './deploy/types';
@@ -305,7 +306,6 @@ export {
   GasConfig,
   GasRouterConfig,
   MailboxClientConfig,
-  OwnableConfig,
   ProxiedFactories,
   ProxiedRouterConfig,
   RouterAddress,

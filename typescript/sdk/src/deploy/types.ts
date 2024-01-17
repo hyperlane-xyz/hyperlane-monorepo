@@ -5,8 +5,18 @@ import type {
   Ownable,
   TimelockController,
 } from '@hyperlane-xyz/core';
+import { Address } from '@hyperlane-xyz/utils';
 
 import type { ChainName } from '../types';
+
+export type OwnableConfig<Keys extends string = string> = {
+  owner: Address;
+  ownerOverrides?: Partial<Record<Keys, Address>>;
+};
+
+export function isOwnableConfig(config: Object): config is OwnableConfig {
+  return 'owner' in config;
+}
 
 export interface CheckerViolation {
   chain: ChainName;

@@ -19,7 +19,6 @@ import {
   ClientViolation,
   ClientViolationType,
   MailboxClientConfig,
-  OwnableConfig,
   RouterConfig,
   RouterViolation,
   RouterViolationType,
@@ -49,7 +48,7 @@ export class HyperlaneRouterChecker<
     const router = this.app.router(this.app.getContracts(chain));
 
     const checkMailboxClientProperty = async (
-      property: keyof (MailboxClientConfig & OwnableConfig),
+      property: keyof MailboxClientConfig,
       actual: string,
       violationType: ClientViolationType,
     ) => {
