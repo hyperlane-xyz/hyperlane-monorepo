@@ -629,7 +629,7 @@ export async function moduleMatchesConfig(
       );
       // Check that the RoutingISM owner matches the config
       const owner = await routingIsm.owner();
-      matches = matches && eqAddress(owner, config.owner);
+      matches &&= eqAddress(owner, config.owner);
       // check if the mailbox matches the config for fallback routing
       if (config.type === IsmType.FALLBACK_ROUTING) {
         const client = MailboxClient__factory.connect(moduleAddress, provider);
@@ -666,8 +666,8 @@ export async function moduleMatchesConfig(
       const [subModules, threshold] = await aggregationIsm.modulesAndThreshold(
         '0x',
       );
-      matches = matches && threshold === config.threshold;
-      matches = matches && subModules.length === config.modules.length;
+      matches &&= threshold === config.threshold;
+      matches &&= subModules.length === config.modules.length;
 
       const configIndexMatched = new Map();
       for (const subModule of subModules) {
@@ -679,12 +679,12 @@ export async function moduleMatchesConfig(
         // The submodule returned by the ISM must match exactly one
         // entry in the config.
         const count = subModuleMatchesConfig.filter(Boolean).length;
-        matches = matches && count === 1;
+        matches &&= count === 1;
 
         // That entry in the config should not have been matched already.
         subModuleMatchesConfig.forEach((matched, index) => {
           if (matched) {
-            matches = matches && !configIndexMatched.has(index);
+            matches &&= !configIndexMatched.has(index);
             configIndexMatched.set(index, true);
           }
         });
@@ -694,7 +694,7 @@ export async function moduleMatchesConfig(
     case IsmType.OP_STACK: {
       const opStackIsm = OPStackIsm__factory.connect(moduleAddress, provider);
       const type = await opStackIsm.moduleType();
-      matches = matches && type === ModuleType.NULL;
+      matches &&= type === ModuleType.NULL;
       break;
     }
     case IsmType.TEST_ISM: {
@@ -705,11 +705,11 @@ export async function moduleMatchesConfig(
     case IsmType.PAUSABLE: {
       const pausableIsm = PausableIsm__factory.connect(moduleAddress, provider);
       const owner = await pausableIsm.owner();
-      matches = matches && eqAddress(owner, config.owner);
+      matches &&= eqAddress(owner, config.owner);
 
       if (config.paused) {
         const isPaused = await pausableIsm.paused();
-        matches = matches && config.paused === isPaused;
+        matches &&= config.paused === isPaused;
       }
       break;
     }
