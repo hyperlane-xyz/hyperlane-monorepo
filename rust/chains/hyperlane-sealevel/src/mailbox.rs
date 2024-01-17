@@ -497,7 +497,7 @@ impl Mailbox for SealevelMailbox {
             .map_err(ChainCommunicationError::from_other)?;
 
         // Hack
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(5000)).await;
 
         let txn = Transaction::new_signed_with_payer(
             &instructions,
