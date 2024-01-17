@@ -8,6 +8,7 @@ import {
 } from '@hyperlane-xyz/core';
 import type { Address, Domain, ValueOf } from '@hyperlane-xyz/utils';
 
+import { OwnableConfig } from '../deploy/types';
 import { ChainMap } from '../types';
 
 // this enum should match the IInterchainSecurityModule.sol enum
@@ -70,15 +71,13 @@ export type TestIsmConfig = {
   type: IsmType.TEST_ISM;
 };
 
-export type PausableIsmConfig = {
+export type PausableIsmConfig = OwnableConfig & {
   type: IsmType.PAUSABLE;
-  owner: Address;
   paused?: boolean;
 };
 
-export type RoutingIsmConfig = {
+export type RoutingIsmConfig = OwnableConfig & {
   type: IsmType.ROUTING | IsmType.FALLBACK_ROUTING;
-  owner: Address;
   domains: ChainMap<IsmConfig>;
 };
 
