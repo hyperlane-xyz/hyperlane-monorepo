@@ -1,5 +1,5 @@
 # generates lcov.info
-forge coverage --report lcov
+forge coverage --report lcov --no-match-test testFork
 
 if ! command -v lcov &>/dev/null; then
     echo "lcov is not installed. Installing..."
