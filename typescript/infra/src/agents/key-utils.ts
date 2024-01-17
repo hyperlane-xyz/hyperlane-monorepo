@@ -326,7 +326,10 @@ export async function createAgentKeysIfNotExists(
     if (!key.chainName) continue;
     if (!multisigValidatorKeys[key.chainName]) {
       multisigValidatorKeys[key.chainName] = {
-        threshold: newThresholds?.[key.chainName] ?? 1,
+        threshold:
+          newThresholds?.[key.chainName] ??
+          defaultMultisigConfigs[key.chainName].threshold ??
+          1,
         validators: [],
       };
     }
@@ -399,7 +402,6 @@ export async function persistAddressesToSDKArtifacts(
 ) {
   for (const chain of Object.keys(fetchedValidatorAddresses)) {
     defaultMultisigConfigs[chain] = {
-      ...defaultMultisigConfigs[chain], // old config
       ...fetchedValidatorAddresses[chain], // fresh from aws
     };
   }

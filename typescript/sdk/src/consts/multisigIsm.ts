@@ -3,7 +3,7 @@ import { ChainMap } from '../types';
 
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   alfajores: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       '0x2233a5ce12f814bd64c9cdd73410bb8693124d40',
       '0xba279f965489d90f90490e3c49e860e0b43c2ae6',
@@ -21,7 +21,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
   arbitrumgoerli: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       '0x071c8d135845ae5a2cb73f98d681d519014c0a8b',
       '0x1bcf03360989f15cbeb174c188288f2c6d2760d7',
@@ -47,7 +47,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
   basegoerli: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       '0xf6eddda696dcd3bf10f7ce8a02db31ef2e775a03',
       '0x5a7d05cebf5db4dde9b2fedcefa76fb58fa05071',
@@ -72,7 +72,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
   bsctestnet: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       '0x242d8a855a8c932dec51f7999ae7d1e48b10c95e',
       '0xf620f5e3d25a3ae848fec74bccae5de3edcd8796',
@@ -108,7 +108,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
   fuji: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       '0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e',
       '0x895ae30bc83ff1493b9cf7781b0b813d23659857',
@@ -125,7 +125,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
   goerli: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       '0x05a9b5efe9f61f9142453d8e9f61565f333c6768',
       '0x43a96c7dfbd8187c95013d6ee8665650cbdb2673',
@@ -153,7 +153,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
   moonbasealpha: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       '0x521877064bd7ac7500d300f162c8c47c256a2f9c',
       '0xbc1c70f58ae0459d4b8a013245420a893837d568',
@@ -170,7 +170,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
   mumbai: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       '0xebc301013b6cd2548e347c28d2dc43ec20c068f2',
       '0x315db9868fc8813b221b1694f8760ece39f45447',
@@ -196,7 +196,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
   optimismgoerli: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       '0x79e58546e2faca865c6732ad5f6c4951051c4d67',
       '0x7bbfe1bb7146aad7df309c637987d856179ebbc1',
@@ -221,7 +221,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
   polygonzkevmtestnet: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       '0x3f06b725bc9648917eb11c414e9f8d76fd959550',
       '0x27bfc57679d9dd4ab2e870f5ed7ec0b339a0b636',
@@ -238,7 +238,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
   scrollsepolia: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       '0xbe18dbd758afb367180260b524e6d4bcd1cb6d05',
       '0x9a11ed23ae962974018ab45bc133caabff7b3271',
@@ -246,7 +246,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
   sepolia: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       '0xb22b65f202558adf86a8bb2847b76ae1036686a5',
       '0x469f0940684d147defc44f3647146cb90dd0bc8e',
