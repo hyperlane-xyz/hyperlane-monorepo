@@ -3,28 +3,32 @@ pragma solidity >=0.8.0;
 import {Test} from "forge-std/Test.sol";
 import "../../contracts/libs/StateProofHelpers.sol";
 
-import "forge-std/console.sol";
-
 /**
  * @title Test of StateProofHelper
  * @notice This test uses https://www.quicknode.com/docs/ethereum/eth_getProof Given:
  * address: 0xc005dc82818d67AF737725bD4bf75435d065D239 (Mailbox on mainnet)
- * storageKey: 0x65 (slot for nonce)
+ * storageSlot: 0x6A (slot for Mailbox.deliveries)
  * blockNumber: 1221E88 (19013256)
  * stateRoot: 0x46bdf4dd846f5342e246c2d5a1d321750f9f0937f4cb1de57bef56dea23c89f6 (sourced from https://etherscan.io/block/19013256)
  *
+ * To query eth_getProof:
+ * curl https://docs-demo.quiknode.pro/ \
+ * -X POST \
+ * -H "Content-Type: application/json" \
+ * --data '{"method":"eth_getProof","params":["0xc005dc82818d67af737725bd4bf75435d065d239",["0x4374c903375ef1c6c66e6a9dc57b72742c6311d6569fb6fe2903a2172f8c31ff"],"0x1221E88"],"id":1,"jsonrpc":"2.0"}'
  */
 contract StateProofHelpersTest is Test {
-    address constant mailbox = 0xc005dc82818d67AF737725bD4bf75435d065D239;
+    uint256 constant DELIVERIES_SLOT = 106;
+    address constant mailboxAddr = 0xc005dc82818d67AF737725bD4bf75435d065D239;
     bytes32 constant stateRoot =
         bytes32(
             0x46bdf4dd846f5342e246c2d5a1d321750f9f0937f4cb1de57bef56dea23c89f6
         );
-    bytes executionStateRoot;
     bytes[] accountProof;
     bytes[] storageProof;
 
-    function setUp() public {
+    function setUProofs() public {
+        // Account Proof
         accountProof.push(
             hex"f90211a0867c5349d2a1072808cdfa545d6cabda6f254580fcb39b438c3eccf775c189cea0caee5ec00eb09ba1c7dc6f75ae281f5971fc28b65be01b31794e8b65c7977e29a0707f3921dd60dbfbfad2ca1034f4af8df31930669e43d7319cc4588c95a003f8a0e7b7b8731e9faf6b84298b239c6ebd2686fd6335f8084f30b5b09af4b37ae43fa08d29aebea721caf31b53413bcc3fae6da577ba12969208a2dec4a73f6e286302a0c7f68167cee9c2a6558c94d88d3b44a43d70da5f095e00aa08060b5f97b94ed6a00e2a88861de09294096d866a51c96d7cb362ff285e139b6e8377aa1942f7a9c6a00cfbdc838b4d531086188be0a10a533668612fb980dd1842d52a35535848770aa0ab9d3c876e5002755d60de8778aa14036350aff51d3ec5622267aa22303e66a8a08ae78abfe9b24a98e064ecbc5d8f98915fd05a05df2a7b96d50e3a6ed204d4a3a0cb011b885b17e332de1c2c5d320dbe71c0774a932ea23d2e7cbc97c430b0c4caa09d6839f9c6d34e8fa3a5a464c863301c71aecba0a75ab8be8ffe55a75a496662a0bf194d46c580f4ae738a3dfd4268da8029f6fe6730dd980cda66232f62321687a0c8137eed6aa1c9ab63a5136bbaff4c2b51fdd8e579d1fd4db3fc96ff5adbf24ea078f4943b9cd456fbb237656683f300c8875c647d3a64ee92b363bd060a47b8c8a0ed6eea5554aaf2a8326b615c18c8667b8e0fdc6949f5ce2f85199969b745554d80"
         );
@@ -53,31 +57,41 @@ contract StateProofHelpersTest is Test {
             hex"f8669d20d53723059c0487d3de0d1b3a4f4c2dcb2289e3853412b57f31fa6345b846f8440180a0e8ee0076df3bad9943911947bc470049dc9c86d715a1e03bf6e8552089eee773a0f412acae2beb37527f1be3f47a70bc921e02f2f8fe4735333b9b33a356b3c494"
         );
 
+        // Storage Proof
         storageProof.push(
             hex"f90211a038b6bc6668ece7e82157098b372a92dc326b8c28c95279270cbbab1fdc343214a00f405b6bcd010ab469ad94e44680e3bfff97afc821c5eb995e58a3c555020f5fa042f92a6ad228e71fa5d82947bd936060bf48b3ddf8080838868a9c257f04681aa093a6feb490c577eb6143f594d2e77354b0c50219dcbf5859a76268de05c1aa2fa0b57103499934a5c28a2891c4dca45b2cafe0a71d6e81d9fb75c02863c78ab809a07c6af2ae8abd095cee0fe1b6aaec872e6ac93fa5c95800c476e7ab31256ea2baa0d7e0f7418efd49a08370db30013a5ed1e1840334092cac194227f43e470b7d1fa07310b4f9fa4e6b12353b22f7eaeebab4fb462daec2308412f4ca97a7b0256207a0ac6ef22e8e5bb30aa97cf451d01f0bbd33a6ae03e16efd8345dc071b3e4b6a36a0ff13df651e2bbab62e024848dcb785a0a5a023654111066f7949c006c796d547a0eea745230ce770a077c55cfa2e6c40f0bf33ccb64672d91021cc513ea142a5c1a09c695fb4275d22435f93eabbee1c064b68304a13919b98342ba50eebe33e1e9ea021ea99ba3307327fd67816b9c1af17b04ee846a8bc767665d4d3e65195c668aba0b86fc30d1bf151c61694c6f563fb7bc9ea86bff909b2f2d14354e95053689940a0708053148c3bb7bc4a3b4c192393492c78e9961b614d4821d424e921ac6ae15ba0efb2af2632ba93f07bba132ad147e0144b5f6d98799e1426a7c6cef860f6cd1880"
         );
         storageProof.push(
-            hex"f901b1a058ee3457136111131b1278527f9e8ef219fbe3e9b13d121493fcc7ca6006dee280a0da507f745061141307d86a61cf059b0003dc3ee6255e19865cbf0cea40ba420ba0e8fc63264ce347aef86588dd1e2e60a90d8a32aa6b57e73c1ef2b3a5813a4dfa80a0b0a33f09453bc8166c61fbe1181bbcf55b73bf3bc75589c458d71bca17e14f6ba0fd90ccddfc371abb0e5bac858943563b98dd71ea193758f4e151773b625f93efa0e573fd575b460203ef9d34dfca229fd3dec9fd9beff9fb0fab0b697ad2b0a666a049a6bf9c402f2262b231cf5025848866ff43d52fd2291bb2b8f8b53f39a9f32a80a0a74950d376bb61d44babd87ef2afd9d895977201ef29b7dfd3eca229644b76ada0dd6b4aa8fcc9d96ff68cce8b89f22d6686488450ed0a26b550d3522a9122327fa0940f41713c1d072b459ed6837fe37cee65206976034fa96910943624240466e9a0584a160c8440d5831702e82b31765ff3cf90ade15ee5f737c4530dc6695ba394a0502bef32fa4e160c057362ea733b818f42b1b56fde40c28d05a7f5b91e3fdf2da08c08a864a1933b86571db4709e758bca28340768b543cb9ef1a770fbf53a762580"
+            hex"f90151a085d8fc3fa62760ad1ade0ab424752ecc71007294be300100679089ca6ea5b43ba0039fdb2815a6d3b34df2411d93a92abd883ba11dac491792e442f4c29797b08080a0cd3132b9b1baf41122036762772a400906dbf3c64510485ff1259b677962eb01a055c6b801abea32bef6ab3cdc98f095b31adac788443336fbd7e13085de8ac6268080a0b24f2b7a1d4ef020539ebb156bcff971f64968264d21828cbc73159d89a43edc8080a0806232ea8851f05c592a06c1f6ff3126a4f95c42c5ddd3df6ddbaafb1da77843a0bdcb6f184ab7193daa20f138e3132393821e5bc9e44718b2fd3d5535c4a35c4980a08cf21d7df38a0dfce8c7fd0fd97543e993dcc56291847917be104466d33b79eea0b0683bb95116dcaa30cdef7b5660d026716d9e2eff58a137235a13e5c89f8c0ea0ce968d1c9da76e06b99bc3b9a6c872a12891881c0ed8a4fdca3774b5e99b0e5f80"
         );
         storageProof.push(
-            hex"e5a020f97419363ffd7000167f130ef7168fbea05faf9251824ca5043f113cc6a7c783820127"
+            hex"f83ba0202a0a19c3369851dec7bc58b8fa22c633bb6e805227bccaaee30fa3b75f1c3399980121eedc74cae0ecc47b02ed9b9d32e000fd70b9417970c5"
         );
     }
 
-    function testStateProofHelpersTest_getStorageRoot_returnsCorrectValues()
+    function setUp() public virtual {
+        setUProofs();
+    }
+
+    function testStateProofHelpersTest_getStorageRoot_setsDeliveriesValue()
         public
     {
         bytes32 storageRoot = StorageProof.getStorageRoot(
-            mailbox,
+            mailboxAddr,
             accountProof,
             stateRoot
         );
-        bytes32 slotKey = keccak256(abi.encode(101));
-        uint256 slotValue = StorageProof.getStorageValue(
-            slotKey,
+        bytes32 messageId = hex"44EFC92481301DB306CB0D8FF7E5FF5B2ABFFEA428677BC37BFFB8DE2B7D7D5F";
+        bytes32 deliveriesSlotKey = keccak256(
+            abi.encode(keccak256(abi.encode(messageId, DELIVERIES_SLOT)))
+        );
+        uint256 delivery = StorageProof.getStorageValue(
+            deliveriesSlotKey,
             storageProof,
             storageRoot
         );
-        assertEq(slotValue, 295);
+
+        // The result of delivery is Deliveries[messageId]
+        assertTrue(bytes32(delivery) != bytes32(0));
     }
 }

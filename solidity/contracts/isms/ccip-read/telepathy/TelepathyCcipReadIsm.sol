@@ -1,17 +1,38 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
+// ============ Internal Imports ============
+
 import {AbstractCcipReadIsm} from "../AbstractCcipReadIsm.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Message} from "../../../libs/Message.sol";
 import {Mailbox} from "../../../Mailbox.sol";
 import {LightClient} from "./LightClient.sol";
+import {StorageProof} from "../../../libs/StateProofHelpers.sol";
+
+// ============ External Imports ============
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 contract TelepathyCcipReadIsm is
     AbstractCcipReadIsm,
     OwnableUpgradeable,
     LightClient
 {
+    using Message for bytes;
+
     Mailbox public mailbox;
+    uint256 mailboxSlot;
     string[] public offchainUrls;
 
     constructor(
@@ -43,12 +64,19 @@ contract TelepathyCcipReadIsm is
         )
     {}
 
+    /**
+     * @param _mailbox the source chain mailbox address
+     * @param _mailboxSlot the source chain mailbox slot number to do a storage proof for
+     * @param _offchainUrls urls to make ccip read queries
+     */
     function initialize(
         Mailbox _mailbox,
+        uint256 _mailboxSlot,
         string[] memory _offchainUrls
     ) external initializer {
         __Ownable_init();
         mailbox = _mailbox;
+        mailboxSlot = _mailboxSlot;
         offchainUrls = _offchainUrls;
     }
 
@@ -57,9 +85,8 @@ contract TelepathyCcipReadIsm is
     }
 
     /**
-     * @notice Defines a security model responsible for verifying interchain
-     * messages based on the provided metadata.
-     * the security model encoded by the module (e.g. validator signatures)
+     * @notice Sets the offchain urls used by CCIP read.
+     * The first url will be used and if the request fails, the next one will be used, and so on
      * @param _urls an allowlist of urls that will get passed into the Gateway
      */
     function setOffchainUrls(string[] memory _urls) external onlyOwner {
@@ -68,8 +95,8 @@ contract TelepathyCcipReadIsm is
     }
 
     /**
-     * @notice Defines a security model responsible for verifying interchain
-     * messages based on the provided metadata.
+     * @notice Verifies that the message nonce is valid by using the headers by Succinct and eth_getProof
+     * @dev Basically, this checks if the message nonce has been commited on the source chain
      * @param _proofs accountProof and storageProof from eth_getProof
      * @param _message Hyperlane encoded interchain message
      * @return True if the message was verified
@@ -77,27 +104,60 @@ contract TelepathyCcipReadIsm is
     function verify(
         bytes calldata _proofs,
         bytes calldata _message
-    ) external returns (bool) {
-        //> Take the accountProof and storageProof from eth_getProof
+    ) external view returns (bool) {
         (bytes[] memory accountProof, bytes[] memory storageProof) = abi.decode(
             _proofs,
             (bytes[], bytes[])
         );
 
-        //> Take the executionStateRoot from the store
-        //> Calculate the storageRoot using accountProof, source Endpoint, executionStateRoot
-        //> Get the storageValue of the nonce
-        //> Check if it is message.nonce - 1
+        // Calculate the slot key using mapping encoding rules. The extra hashing is a requirement of MerkleTrie library
+        bytes32 mailboxSlotKey = keccak256(
+            abi.encode(keccak256(abi.encode(_message.id(), mailboxSlot)))
+        );
+
+        // Get the slot value as bytes
+        bytes memory deliveriesValue = getSlotValue(
+            accountProof,
+            storageProof,
+            mailboxSlotKey
+        );
+
+        return keccak256(deliveriesValue) != bytes32("");
+    }
+
+    /**
+     * @notice Gets the slot value of Mailbox.deliveries mapping given a slot key and proofs
+     * @param _accountProof the account proof
+     * @param _storageProof the storage proof
+     * @param _mailboxSlotKey hash of the source chain mailbox slot number to do a storage proof for
+     */
+    function getSlotValue(
+        bytes[] memory _accountProof,
+        bytes[] memory _storageProof,
+        bytes32 _mailboxSlotKey
+    ) public view returns (bytes memory) {
+        bytes32 storageRoot = StorageProof.getStorageRoot(
+            address(mailbox),
+            _accountProof,
+            executionStateRoots[head]
+        );
+        return
+            StorageProof.getStorageBytes(
+                _mailboxSlotKey,
+                _storageProof,
+                storageRoot
+            );
     }
 
     /**
      * @notice Reverts with the data needed to query Succinct for header proofs
      * @dev See https://eips.ethereum.org/EIPS/eip-3668 for more information
      * @param _message data that will help construct the offchain query
+     *
+     * @dev In the future, check if fees have been paid before request a proof from Succinct.
+     * For now this feature is not complete according to the Succinct team.
      */
     function getOffchainVerifyInfo(bytes calldata _message) external view {
-        // Todo: In the future, check if fees have been paid before request a proof from Succinct.
-
         revert OffchainLookup(
             address(this),
             offchainUrls,
@@ -115,6 +175,6 @@ contract TelepathyCcipReadIsm is
      * @param _message data that will help construct the offchain query
      */
     function process(bytes calldata _proofs, bytes calldata _message) external {
-        // mailbox.process(_metadata, _message);
+        mailbox.process(_proofs, _message);
     }
 }

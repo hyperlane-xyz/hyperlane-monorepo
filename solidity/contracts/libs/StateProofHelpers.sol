@@ -24,6 +24,20 @@ library StorageProof {
         return valueRlpBytes.toRLPItem().readUint256();
     }
 
+    function getStorageBytes(
+        bytes32 slotHash,
+        bytes[] memory _stateProof,
+        bytes32 storageRoot
+    ) internal pure returns (bytes memory) {
+        bytes memory valueRlpBytes = MerkleTrie.get(
+            abi.encodePacked(slotHash),
+            _stateProof,
+            storageRoot
+        );
+        require(valueRlpBytes.length > 0, "Storage value does not exist");
+        return valueRlpBytes.toRLPItem().readBytes();
+    }
+
     function getStorageRoot(
         address contractAddress,
         bytes[] memory proof,
