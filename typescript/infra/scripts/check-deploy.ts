@@ -22,11 +22,11 @@ import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
 import {
   Modules,
-  getEnvironmentConfig,
   getArgs as getRootArgs,
   withContext,
   withModuleAndFork,
 } from './agent-utils';
+import { getEnvironmentConfig } from './core-utils';
 import { getHelloWorldApp } from './helloworld/utils';
 
 function getArgs() {

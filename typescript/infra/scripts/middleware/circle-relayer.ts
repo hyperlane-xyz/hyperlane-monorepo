@@ -9,11 +9,8 @@ import {
 import { objFilter } from '@hyperlane-xyz/utils';
 
 import { readJSON, sleep } from '../../src/utils/utils';
-import {
-  getArgs,
-  getEnvironmentConfig,
-  getEnvironmentDirectory,
-} from '../agent-utils';
+import { getArgs, getEnvironmentDirectory } from '../agent-utils';
+import { getEnvironmentConfig } from '../core-utils';
 
 async function check() {
   const { environment } = await getArgs().argv;

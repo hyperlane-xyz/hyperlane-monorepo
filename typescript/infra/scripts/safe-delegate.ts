@@ -8,7 +8,8 @@ import { AllChains } from '@hyperlane-xyz/sdk';
 
 import { getSafeDelegates, getSafeService } from '../src/utils/safe';
 
-import { getEnvironmentConfig, getArgs as getRootArgs } from './agent-utils';
+import { getArgs as getRootArgs } from './agent-utils';
+import { getEnvironmentConfig } from './core-utils';
 
 function getArgs() {
   return getRootArgs()

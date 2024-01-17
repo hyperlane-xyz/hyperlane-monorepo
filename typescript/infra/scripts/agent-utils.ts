@@ -135,7 +135,6 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
   context: Contexts;
   'new-chains': string;
 }) {
-  console.log('getAgentConfigsBasedOnArgs, INIT');
   const {
     environment,
     context = Contexts.Hyperlane,

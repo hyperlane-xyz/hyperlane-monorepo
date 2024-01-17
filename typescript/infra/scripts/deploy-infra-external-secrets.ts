@@ -1,11 +1,8 @@
 import { runExternalSecretsHelmCommand } from '../src/infrastructure/external-secrets/external-secrets';
 import { HelmCommand } from '../src/utils/helm';
 
-import {
-  assertCorrectKubeContext,
-  getArgs,
-  getEnvironmentConfig,
-} from './agent-utils';
+import { assertCorrectKubeContext, getArgs } from './agent-utils';
+import { getEnvironmentConfig } from './core-utils';
 
 async function main() {
   const { environment } = await getArgs().argv;

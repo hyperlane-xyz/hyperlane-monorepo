@@ -1,4 +1,5 @@
-import { getArgs, getEnvironmentConfig } from './agent-utils';
+import { getArgs } from './agent-utils';
+import { getEnvironmentConfig } from './core-utils';
 
 // This script exists to print the chain metadata configs for a given environment
 // so they can easily be copied into the Sealevel tooling. :'(

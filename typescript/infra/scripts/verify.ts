@@ -7,11 +7,8 @@ import {
 import { fetchGCPSecret } from '../src/utils/gcloud';
 import { execCmd, readFileAtPath, readJSONAtPath } from '../src/utils/utils';
 
-import {
-  assertEnvironment,
-  getArgs,
-  getEnvironmentConfig,
-} from './agent-utils';
+import { assertEnvironment, getArgs } from './agent-utils';
+import { getEnvironmentConfig } from './core-utils';
 
 // Requires https://github.com/crytic/solc-select to be installed and
 // present in your $PATH. The current solc compiler version should

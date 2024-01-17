@@ -10,7 +10,8 @@ import {
 } from '../../src/funding/deterministic-keys';
 import { Role } from '../../src/roles';
 import { assertChain } from '../../src/utils/utils';
-import { getArgs, getEnvironmentConfig } from '../agent-utils';
+import { getArgs } from '../agent-utils';
+import { getEnvironmentConfig } from '../core-utils';
 
 async function main() {
   const argv = await getArgs()

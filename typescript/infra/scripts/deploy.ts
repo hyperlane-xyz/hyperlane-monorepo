@@ -32,11 +32,11 @@ import {
   getAddresses,
   getArgs,
   getContractAddressesSdkFilepath,
-  getEnvironmentConfig,
   getModuleDirectory,
   withContext,
   withModuleAndFork,
 } from './agent-utils';
+import { getEnvironmentConfig } from './core-utils';
 
 async function main() {
   const {

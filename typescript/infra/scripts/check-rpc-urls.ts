@@ -4,7 +4,8 @@ import { debug, error } from '@hyperlane-xyz/utils';
 
 import { getSecretRpcEndpoint } from '../src/agents';
 
-import { getArgs, getEnvironmentConfig } from './agent-utils';
+import { getArgs } from './agent-utils';
+import { getEnvironmentConfig } from './core-utils';
 
 // TODO remove this script as part of migration to CLI
 // It's redundant with metadata-check.ts in the SDK

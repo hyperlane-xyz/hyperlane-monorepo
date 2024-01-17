@@ -1,11 +1,7 @@
 import { getAllCloudAgentKeys } from '../src/agents/key-utils';
 
-import {
-  getArgs,
-  getConfigsBasedOnArgs,
-  withContext,
-  withProtocol,
-} from './agent-utils';
+import { getArgs, withContext, withProtocol } from './agent-utils';
+import { getConfigsBasedOnArgs } from './core-utils';
 
 async function main() {
   const argv = await withProtocol(withContext(getArgs())).argv;

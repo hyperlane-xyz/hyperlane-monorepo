@@ -74,7 +74,7 @@ async function main() {
       throw new Error(`Unknown location type %{location}`);
     }
   } else {
-    const agentConfig = getAgentConfig(context, config);
+    const agentConfig = getAgentConfig(context, environment);
     if (agentConfig.validators == undefined) {
       console.warn('No validators provided for context');
       return;

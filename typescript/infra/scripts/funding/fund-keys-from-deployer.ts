@@ -38,7 +38,8 @@ import {
   isEthereumProtocolChain,
   readJSONAtPath,
 } from '../../src/utils/utils';
-import { getAgentConfig, getArgs, getEnvironmentConfig } from '../agent-utils';
+import { getAgentConfig, getArgs } from '../agent-utils';
+import { getEnvironmentConfig } from '../core-utils';
 
 import * as L1ETHGateway from './utils/L1ETHGateway.json';
 import * as L1MessageQueue from './utils/L1MessageQueue.json';

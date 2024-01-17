@@ -4,7 +4,8 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { RemoteGasData, StorageGasOracleConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { RemoteGasDataConfig } from '../../src/config/gas-oracle';
-import { getArgs, getEnvironmentConfig } from '../agent-utils';
+import { getArgs } from '../agent-utils';
+import { getEnvironmentConfig } from '../core-utils';
 
 import {
   eqRemoteGasData,
