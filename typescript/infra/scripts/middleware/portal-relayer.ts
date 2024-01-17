@@ -13,7 +13,7 @@ import {
   getArgs,
   getEnvironmentConfig,
   getEnvironmentDirectory,
-} from '../utils';
+} from '../agent-utils';
 
 async function relayPortalTransfers() {
   const { environment } = await getArgs().argv;

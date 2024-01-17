@@ -20,7 +20,6 @@ function getGasOracles(local: TestChains) {
 }
 
 export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, owner) => {
-  console.log('IGP chain', chain);
   const overhead = Object.fromEntries(
     exclude(chain, chainNames).map((remote) => [
       remote,

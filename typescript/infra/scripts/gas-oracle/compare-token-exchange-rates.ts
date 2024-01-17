@@ -12,7 +12,7 @@ import {
   TOKEN_EXCHANGE_RATE_DECIMALS,
   TOKEN_EXCHANGE_RATE_SCALE,
 } from '../../src/config/gas-oracle';
-import { getArgs, getEnvironmentConfig } from '../utils';
+import { getArgs, getEnvironmentConfig } from '../agent-utils';
 
 import { prettyTokenExchangeRate } from './utils';
 

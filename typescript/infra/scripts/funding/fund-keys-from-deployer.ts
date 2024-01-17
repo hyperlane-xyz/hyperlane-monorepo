@@ -22,7 +22,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { parseKeyIdentifier } from '../../src/agents/agent';
 import { KeyAsAddress, getRoleKeysPerChain } from '../../src/agents/key-utils';
 import {
   BaseCloudAgentKey,
@@ -39,7 +38,7 @@ import {
   isEthereumProtocolChain,
   readJSONAtPath,
 } from '../../src/utils/utils';
-import { getAgentConfig, getArgs, getEnvironmentConfig } from '../utils';
+import { getAgentConfig, getArgs, getEnvironmentConfig } from '../agent-utils';
 
 import * as L1ETHGateway from './utils/L1ETHGateway.json';
 import * as L1MessageQueue from './utils/L1MessageQueue.json';

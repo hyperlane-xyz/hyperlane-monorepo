@@ -5,7 +5,7 @@ import {
   getConfigsBasedOnArgs,
   withContext,
   withProtocol,
-} from './utils';
+} from './agent-utils';
 
 async function main() {
   const argv = await withProtocol(withContext(getArgs())).argv;

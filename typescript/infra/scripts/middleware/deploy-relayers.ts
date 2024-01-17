@@ -4,7 +4,10 @@ import {
   runLiquidityLayerRelayerHelmCommand,
 } from '../../src/middleware/liquidity-layer-relayer';
 import { HelmCommand } from '../../src/utils/helm';
-import { assertCorrectKubeContext, getConfigsBasedOnArgs } from '../utils';
+import {
+  assertCorrectKubeContext,
+  getConfigsBasedOnArgs,
+} from '../agent-utils';
 
 async function main() {
   const { agentConfig, envConfig, context } = await getConfigsBasedOnArgs();

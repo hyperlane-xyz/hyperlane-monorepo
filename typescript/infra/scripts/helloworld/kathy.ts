@@ -40,7 +40,7 @@ import { DeployEnvironment } from '../../src/config/environment';
 import { Role } from '../../src/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { getArgs, getEnvironmentConfig, withContext } from '../utils';
+import { getArgs, getEnvironmentConfig, withContext } from '../agent-utils';
 
 import { getHelloWorldMultiProtocolApp } from './utils';
 

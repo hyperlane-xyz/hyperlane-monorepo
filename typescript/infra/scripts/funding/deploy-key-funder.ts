@@ -4,7 +4,10 @@ import {
   runKeyFunderHelmCommand,
 } from '../../src/funding/key-funder';
 import { HelmCommand } from '../../src/utils/helm';
-import { assertCorrectKubeContext, getConfigsBasedOnArgs } from '../utils';
+import {
+  assertCorrectKubeContext,
+  getConfigsBasedOnArgs,
+} from '../agent-utils';
 
 async function main() {
   const { agentConfig, envConfig } = await getConfigsBasedOnArgs();

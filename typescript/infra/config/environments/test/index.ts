@@ -12,26 +12,24 @@ import { igp } from './igp';
 import { infra } from './infra';
 import { owners } from './owners';
 
-export function environment(): EnvironmentConfig {
-  return {
-    environment: 'test',
-    chainMetadataConfigs: testConfigs,
-    agents,
-    core,
-    igp,
-    owners,
-    infra,
-    // NOTE: Does not work from hardhat.config.ts
-    getMultiProvider: async () => {
-      const mp = MultiProvider.createTestMultiProvider();
-      const provider = mp.getProvider('test1') as JsonRpcProvider;
-      const signer = provider.getSigner(0);
-      mp.setSharedSigner(signer);
-      return mp;
-    },
-    getKeys: async () => {
-      throw new Error('Not implemented');
-    },
-    storageGasOracleConfig,
-  };
-}
+export const environment: EnvironmentConfig = {
+  environment: 'test',
+  chainMetadataConfigs: testConfigs,
+  agents,
+  core,
+  igp,
+  owners,
+  infra,
+  // NOTE: Does not work from hardhat.config.ts
+  getMultiProvider: async () => {
+    const mp = MultiProvider.createTestMultiProvider();
+    const provider = mp.getProvider('test1') as JsonRpcProvider;
+    const signer = provider.getSigner(0);
+    mp.setSharedSigner(signer);
+    return mp;
+  },
+  getKeys: async () => {
+    throw new Error('Not implemented');
+  },
+  storageGasOracleConfig,
+};

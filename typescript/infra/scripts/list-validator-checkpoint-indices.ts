@@ -4,7 +4,11 @@ import { S3Validator } from '../src/agents/aws/validator';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { concurrentMap } from '../src/utils/utils';
 
-import { getArgs, getEnvironmentConfig, getValidatorsByChain } from './utils';
+import {
+  getArgs,
+  getEnvironmentConfig,
+  getValidatorsByChain,
+} from './agent-utils';
 
 async function main() {
   const { environment } = await getArgs().argv;

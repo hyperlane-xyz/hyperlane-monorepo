@@ -11,10 +11,10 @@ import { deployEnvToSdkEnv } from '../src/config/environment';
 
 import {
   getAgentConfig,
-  getEnvironmentConfig,
   getArgs as getRootArgs,
   withContext,
-} from './utils';
+} from './agent-utils';
+import { getEnvironmentConfig } from './core-utils';
 
 function getArgs() {
   return withContext(getRootArgs())

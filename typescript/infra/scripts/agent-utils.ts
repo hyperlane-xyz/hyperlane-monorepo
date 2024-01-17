@@ -130,22 +130,6 @@ export function assertEnvironment(env: string): DeployEnvironment {
   );
 }
 
-export function getEnvironmentConfig(environment: DeployEnvironment) {
-  return environment;
-}
-
-export async function getConfigsBasedOnArgs(argv?: {
-  environment: DeployEnvironment;
-  context: Contexts;
-}) {
-  const { environment, context = Contexts.Hyperlane } = argv
-    ? argv
-    : await withContext(getArgs()).argv;
-  const envConfig = getEnvironmentConfig(environment);
-  const agentConfig = getAgentConfig(context, environment);
-  return { envConfig, agentConfig, context, environment };
-}
-
 export async function getAgentConfigsBasedOnArgs(argv?: {
   environment: DeployEnvironment;
   context: Contexts;

@@ -4,7 +4,7 @@ import { HyperlaneIgp } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { deployEnvToSdkEnv } from '../../src/config/environment';
-import { getArgs, getEnvironmentConfig } from '../utils';
+import { getArgs, getEnvironmentConfig } from '../agent-utils';
 
 // Some arbitrary threshold for now
 const RECLAIM_BALANCE_THRESHOLD = BigNumber.from(10).pow(17);

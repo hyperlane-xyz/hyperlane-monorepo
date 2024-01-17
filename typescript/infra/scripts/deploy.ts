@@ -36,7 +36,7 @@ import {
   getModuleDirectory,
   withContext,
   withModuleAndFork,
-} from './utils';
+} from './agent-utils';
 
 async function main() {
   const {

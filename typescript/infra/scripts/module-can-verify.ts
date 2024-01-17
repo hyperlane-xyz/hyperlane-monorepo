@@ -3,7 +3,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
 
-import { getArgs, getEnvironmentConfig } from './utils';
+import { getArgs, getEnvironmentConfig } from './agent-utils';
 
 async function main() {
   const args = await getArgs().argv;

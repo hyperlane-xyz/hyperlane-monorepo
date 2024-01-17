@@ -3,7 +3,7 @@ import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 import {
   getKeysForRole,
   getMultiProviderForRole,
-} from '../../../scripts/utils';
+} from '../../../scripts/agent-utils';
 import { EnvironmentConfig } from '../../../src/config';
 import { Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
@@ -20,38 +20,36 @@ import { bridgeAdapterConfigs } from './liquidityLayer';
 import { liquidityLayerRelayerConfig } from './middleware';
 import { owners } from './owners';
 
-export function environment(): EnvironmentConfig {
-  return {
-    environment: environmentName,
-    chainMetadataConfigs: testnetConfigs,
-    getMultiProvider: (
-      context: Contexts = Contexts.Hyperlane,
-      role: Role = Role.Deployer,
-      connectionType?: RpcConsensusType,
-    ) =>
-      getMultiProviderForRole(
-        testnetConfigs,
-        environmentName,
-        context,
-        role,
-        undefined,
-        connectionType,
-      ),
-    getKeys: (
-      context: Contexts = Contexts.Hyperlane,
-      role: Role = Role.Deployer,
-    ) => getKeysForRole(testnetConfigs, environmentName, context, role),
-    agents,
-    core,
-    igp,
-    infra: infrastructure,
-    helloWorld,
-    owners,
-    keyFunderConfig,
-    liquidityLayerConfig: {
-      bridgeAdapters: bridgeAdapterConfigs,
-      relayer: liquidityLayerRelayerConfig,
-    },
-    storageGasOracleConfig,
-  };
-}
+export const environment: EnvironmentConfig = {
+  environment: environmentName,
+  chainMetadataConfigs: testnetConfigs,
+  getMultiProvider: (
+    context: Contexts = Contexts.Hyperlane,
+    role: Role = Role.Deployer,
+    connectionType?: RpcConsensusType,
+  ) =>
+    getMultiProviderForRole(
+      testnetConfigs,
+      environmentName,
+      context,
+      role,
+      undefined,
+      connectionType,
+    ),
+  getKeys: (
+    context: Contexts = Contexts.Hyperlane,
+    role: Role = Role.Deployer,
+  ) => getKeysForRole(testnetConfigs, environmentName, context, role),
+  agents,
+  core,
+  igp,
+  infra: infrastructure,
+  helloWorld,
+  owners,
+  keyFunderConfig,
+  liquidityLayerConfig: {
+    bridgeAdapters: bridgeAdapterConfigs,
+    relayer: liquidityLayerRelayerConfig,
+  },
+  storageGasOracleConfig,
+};

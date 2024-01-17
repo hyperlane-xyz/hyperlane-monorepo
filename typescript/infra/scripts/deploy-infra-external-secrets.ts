@@ -5,7 +5,7 @@ import {
   assertCorrectKubeContext,
   getArgs,
   getEnvironmentConfig,
-} from './utils';
+} from './agent-utils';
 
 async function main() {
   const { environment } = await getArgs().argv;

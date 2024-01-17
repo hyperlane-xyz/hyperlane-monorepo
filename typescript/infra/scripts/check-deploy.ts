@@ -20,14 +20,14 @@ import { ProxiedRouterGovernor } from '../src/govern/ProxiedRouterGovernor';
 import { Role } from '../src/roles';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
-import { getHelloWorldApp } from './helloworld/utils';
 import {
   Modules,
   getEnvironmentConfig,
   getArgs as getRootArgs,
   withContext,
   withModuleAndFork,
-} from './utils';
+} from './agent-utils';
+import { getHelloWorldApp } from './helloworld/utils';
 
 function getArgs() {
   return withModuleAndFork(withContext(getRootArgs()))
