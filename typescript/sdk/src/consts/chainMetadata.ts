@@ -435,8 +435,8 @@ export const inevm: ChainMetadata = {
   },
   chainId: 2525,
   displayName: 'Injective EVM',
-  domainId: 2525,
   displayNameShort: 'inEVM',
+  domainId: 2525,
   name: Chains.inevm,
   nativeToken: {
     decimals: 18,
@@ -456,8 +456,8 @@ export const injective: ChainMetadata = {
     reorgPeriod: 1,
   },
   chainId: 'injective-1',
-  domainId: 6909546,
   displayName: 'Injective',
+  domainId: 6909546,
   name: Chains.injective,
   nativeToken: {
     decimals: 6,
