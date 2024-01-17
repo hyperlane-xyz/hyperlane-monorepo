@@ -16,6 +16,7 @@ import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { agents } from '../config/environments/agents';
+import { validatorBaseConfigsFn } from '../config/environments/utils';
 import { getCurrentKubernetesContext } from '../src/agents';
 import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
@@ -113,6 +114,13 @@ export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
     .alias('i', 'index');
 }
 
+export function withMissingChains<T>(args: yargs.Argv<T>) {
+  return args
+    .describe('new-chains', 'new chains to add')
+    .string('new-chains')
+    .alias('n', 'new-chains');
+}
+
 export function assertEnvironment(env: string): DeployEnvironment {
   if (EnvironmentNames.includes(env)) {
     return env as DeployEnvironment;
@@ -141,15 +149,62 @@ export async function getConfigsBasedOnArgs(argv?: {
 export async function getAgentConfigsBasedOnArgs(argv?: {
   environment: DeployEnvironment;
   context: Contexts;
+  'new-chains': string;
 }) {
   console.log('getAgentConfigsBasedOnArgs, INIT');
-  const { environment, context = Contexts.Hyperlane } = argv
-    ? argv
-    : await withContext(getArgs()).argv;
+  const {
+    environment,
+    context = Contexts.Hyperlane,
+    'new-chains': newChains,
+  } = argv ? argv : await withMissingChains(withContext(getArgs())).argv;
+
+  const newValidatorCounts: ChainMap<number> = {};
+  const newThresholds: ChainMap<number> = {};
+  if (newChains) {
+    const chains = newChains.split(',');
+    for (const chain of chains) {
+      const [chainName, threshold] = chain.split('=');
+      const [newThreshold, newValidatorCount] = threshold.split('/');
+      newThresholds[chainName] = Number(newThreshold);
+      newValidatorCounts[chainName] = Number(newValidatorCount);
+    }
+  }
+
+  const agentConfig = getAgentConfig(context, environment);
+  const missingChains = checkIfValidatorsArePresisted(agentConfig);
+
+  for (const chain of missingChains) {
+    if (!Object.keys(newValidatorCounts).includes(chain)) {
+      throw new Error(`Missing chain ${chain} not specified in new-chains`);
+    }
+    const baseConfig = {
+      [Contexts.Hyperlane]: [],
+      [Contexts.ReleaseCandidate]: [],
+      [Contexts.Neutron]: [],
+    };
+    const validatorsConfig = validatorBaseConfigsFn(environment, context);
+    const validators = validatorsConfig(
+      {
+        ...baseConfig,
+        [context]: Array.from(
+          { length: newValidatorCounts[chain] },
+          () => '0x0',
+        ),
+      },
+      chain as Chains,
+    );
+    agentConfig.validators!.chains[chain] = {
+      interval: 1,
+      reorgPeriod: 0,
+      validators,
+    };
+  }
+
   return {
-    agentConfig: getAgentConfig(context, environment),
+    agentConfig,
     context,
     environment,
+    newThresholds,
   };
 }
 
@@ -168,6 +223,16 @@ export function getAgentConfig(
     );
   }
   return agentsForEnvironment[context];
+}
+
+export function checkIfValidatorsArePresisted(
+  agentConfig: RootAgentConfig,
+): Set<ChainName> {
+  const supportedChainNames = agentConfig.contextChainNames.validator;
+  const persistedChainNames = Object.keys(agentConfig.validators?.chains || {});
+  return new Set(
+    supportedChainNames.filter((x) => !persistedChainNames.includes(x)),
+  );
 }
 
 export function getKeyForRole(

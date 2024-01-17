@@ -1,5 +1,4 @@
 import {
-  Chains,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,

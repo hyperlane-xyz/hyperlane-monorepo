@@ -1,8 +1,4 @@
-import {
-  encodeSecp256k1Pubkey,
-  pubkeyToAddress,
-  rawSecp256k1PubkeyToRawAddress,
-} from '@cosmjs/amino';
+import { encodeSecp256k1Pubkey, pubkeyToAddress } from '@cosmjs/amino';
 import { Keypair } from '@solana/web3.js';
 import { Wallet, ethers } from 'ethers';
 
@@ -56,8 +52,10 @@ export class AgentGCPKey extends CloudAgentKey {
   async createIfNotExists() {
     try {
       await this.fetch();
+      console.log('fetched', this.remoteKey);
     } catch (err) {
       await this.create();
+      console.log('created');
     }
   }
 

@@ -1,7 +1,21 @@
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+// ==================
+// Functions for managing keys
+// ==================
+import fs from 'fs';
+import path from 'path';
+import { promisify } from 'util';
+
+import {
+  ChainMap,
+  ChainName,
+  MultisigConfig,
+  defaultMultisigConfigs,
+} from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
+import { helloworld } from '../../config/environments/helloworld';
+import { getJustHelloWorldConfig } from '../../scripts/helloworld/utils';
 import {
   AgentContextConfig,
   DeployEnvironment,
@@ -20,9 +34,7 @@ export interface KeyAsAddress {
   address: string;
 }
 
-// ==================
 // Functions for getting keys
-// ==================
 
 // Returns a nested object of the shape:
 // {
@@ -63,9 +75,8 @@ function getRoleKeyMapPerChain(
     const validators = agentConfig.validators;
     for (const chainName of agentConfig.contextChainNames.validator) {
       let chainValidatorKeys = {};
-
       const validatorCount =
-        validators?.chains[chainName].validators.length ?? 0;
+        validators?.chains[chainName]?.validators.length ?? 1;
       for (let index = 0; index < validatorCount; index++) {
         const { validator, chainSigner } = getValidatorKeysForChain(
           agentConfig,
@@ -97,23 +108,22 @@ function getRoleKeyMapPerChain(
     }
   };
 
-  // const setKathyKeys = () => {
-  //   const envConfig = getEnvironmentConfig(agentConfig.runEnv);
-  //   const helloWorldConfig = getHelloWorldConfig(
-  //     envConfig,
-  //     agentConfig.context,
-  //   );
-  //   // Kathy is only needed on chains where the hello world contracts are deployed.
-  //   for (const chainName of Object.keys(helloWorldConfig.addresses)) {
-  //     const kathyKey = getKathyKeyForChain(agentConfig, chainName);
-  //     keysPerChain[chainName] = {
-  //       ...keysPerChain[chainName],
-  //       [Role.Kathy]: {
-  //         [kathyKey.identifier]: kathyKey,
-  //       },
-  //     };
-  //   }
-  // };
+  const setKathyKeys = () => {
+    const helloWorldConfig = getJustHelloWorldConfig(
+      helloworld[agentConfig.runEnv as 'mainnet3' | 'testnet4'],
+      agentConfig.context,
+    );
+    // Kathy is only needed on chains where the hello world contracts are deployed.
+    for (const chainName of Object.keys(helloWorldConfig.addresses)) {
+      const kathyKey = getKathyKeyForChain(agentConfig, chainName);
+      keysPerChain[chainName] = {
+        ...keysPerChain[chainName],
+        [Role.Kathy]: {
+          [kathyKey.identifier]: kathyKey,
+        },
+      };
+    }
+  };
 
   const setDeployerKeys = () => {
     const deployerKey = getDeployerKey(agentConfig);
@@ -141,9 +151,8 @@ function getRoleKeyMapPerChain(
         setDeployerKeys();
         break;
       case Role.Kathy:
+        setKathyKeys();
         break;
-      // setKathyKeys();
-      // break;
       default:
         throw Error(`Unsupported role with keys ${role}`);
     }
@@ -157,7 +166,6 @@ export function getAllCloudAgentKeys(
   agentConfig: RootAgentConfig,
 ): Array<CloudAgentKey> {
   const keysPerChain = getRoleKeyMapPerChain(agentConfig);
-  console.log('keysPerChain: ', JSON.stringify(keysPerChain, null, 2));
 
   const keysByIdentifier = Object.keys(keysPerChain).reduce(
     (acc, chainName) => {
@@ -256,6 +264,11 @@ export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
   return new AgentGCPKey(agentConfig.runEnv, Contexts.Hyperlane, Role.Deployer);
 }
 
+// export function createDummyValidatorKeys(
+//   agentConfig: AgentContextConfig,
+//   newChains: ChainMap<number>,
+// );
+
 // Returns the validator signer key and the chain signer key for the given validator for
 // the given chain and index.
 // The validator signer key is used to sign checkpoints and can be AWS regardless of the
@@ -297,28 +310,70 @@ export function getValidatorKeysForChain(
 }
 
 // ==================
-// Functions for managing keys
+
 // ==================
+
+const writeFile = promisify(fs.writeFile);
+
+export async function persistAddressesToSDKArtifacts(
+  fetchedValidatorAddresses: ChainMap<MultisigConfig>,
+) {
+  for (const chain of Object.keys(fetchedValidatorAddresses)) {
+    defaultMultisigConfigs[chain] = {
+      ...defaultMultisigConfigs[chain],
+      ...fetchedValidatorAddresses[chain],
+    };
+  }
+  const sortedMultisigConfigs = Object.keys(defaultMultisigConfigs)
+    .sort()
+    .reduce((obj, key) => {
+      obj[key] = defaultMultisigConfigs[key];
+      return obj;
+    }, {} as typeof defaultMultisigConfigs);
+
+  // Resolve the relative path
+  const filePath = path.resolve(
+    __dirname,
+    '../../../sdk/src/consts/multisigIsm.ts',
+  );
+
+  // Write the updated object back to the file
+  await writeFile(
+    filePath,
+    `import { MultisigConfig } from '../ism/types';\nimport { ChainMap } from '../types';\nexport const defaultMultisigConfigs: ChainMap<MultisigConfig> = ${JSON.stringify(
+      sortedMultisigConfigs,
+      null,
+      2,
+    )}`,
+  );
+}
 
 export async function createAgentKeysIfNotExists(
   agentConfig: AgentContextConfig,
+  newThresholds?: ChainMap<number>,
 ) {
   const keys = getAllCloudAgentKeys(agentConfig);
-  console.log(
-    `Creating ${keys.length} keys for ${JSON.stringify(
-      agentConfig,
-      null,
-      2,
-    )}, ${JSON.stringify(keys, null, 2)}`,
-  );
 
   await Promise.all(
     keys.map(async (key) => {
       return key.createIfNotExists();
     }),
   );
+  const multisigValidatorKeys: ChainMap<MultisigConfig> = {};
+  for (const key of keys) {
+    if (!key.chainName) continue;
+    if (!multisigValidatorKeys[key.chainName]) {
+      multisigValidatorKeys[key.chainName] = {
+        threshold: newThresholds?.[key.chainName] ?? 1,
+        validators: [],
+      };
+    }
+    if (key.chainName)
+      multisigValidatorKeys[key.chainName].validators.push(key.address);
+  }
 
-  await persistAddresses(
+  await persistAddressesToSDKArtifacts(multisigValidatorKeys);
+  await persistAddressesToGcp(
     agentConfig.runEnv,
     agentConfig.context,
     keys.map((key) => key.serializeAsAddress()),
@@ -355,14 +410,14 @@ export async function rotateKey(
   });
 
   filteredAddresses.push(key.serializeAsAddress());
-  await persistAddresses(
+  await persistAddressesToGcp(
     agentConfig.runEnv,
     agentConfig.context,
     filteredAddresses,
   );
 }
 
-async function persistAddresses(
+async function persistAddressesToGcp(
   environment: DeployEnvironment,
   context: Contexts,
   keys: KeyAsAddress[],
