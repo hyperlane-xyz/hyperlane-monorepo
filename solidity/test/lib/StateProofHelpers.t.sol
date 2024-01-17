@@ -88,13 +88,13 @@ contract StateProofHelpersTest is Test {
         bytes32 deliveriesSlotKey = keccak256(
             abi.encode(keccak256(abi.encode(messageId, DELIVERIES_SLOT)))
         );
-        uint256 delivery = StorageProof.getStorageValue(
+        bytes memory delivery = StorageProof.getStorageBytes(
             deliveriesSlotKey,
             storageProof,
             storageRoot
         );
 
         // The result of delivery should not be a null value
-        assertTrue(bytes32(delivery) != bytes32(0));
+        assertTrue(keccak256(delivery) != bytes32(0));
     }
 }

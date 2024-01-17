@@ -5,24 +5,10 @@ import {RLPReader} from "./rlp/RLPReader.sol";
 import {RLPWriter} from "./rlp/RLPWriter.sol";
 import {MerkleTrie} from "./MerkleTrie.sol";
 
-/// @notice Storage Proof library from Succinct (https://github.com/succinctlabs)
+/// @notice Storage Proof library inspired by Succinct (https://github.com/succinctlabs)
 library StorageProof {
     using RLPReader for RLPReader.RLPItem;
     using RLPReader for bytes;
-
-    function getStorageValue(
-        bytes32 slotHash,
-        bytes[] memory _stateProof,
-        bytes32 storageRoot
-    ) internal pure returns (uint256) {
-        bytes memory valueRlpBytes = MerkleTrie.get(
-            abi.encodePacked(slotHash),
-            _stateProof,
-            storageRoot
-        );
-        require(valueRlpBytes.length > 0, "Storage value does not exist");
-        return valueRlpBytes.toRLPItem().readUint256();
-    }
 
     function getStorageBytes(
         bytes32 slotHash,
