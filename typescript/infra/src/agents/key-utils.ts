@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { promisify } from 'util';
 
 import {
   ChainMap,
@@ -8,10 +7,11 @@ import {
   MultisigConfig,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { helloworld } from '../../config/environments/helloworld';
+import relayerAddresses from '../../config/relayer.json';
 import { getJustHelloWorldConfig } from '../../scripts/helloworld/utils';
 import {
   AgentContextConfig,
@@ -25,8 +25,6 @@ import { execCmd, isEthereumProtocolChain } from '../utils/utils';
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { CloudAgentKey } from './keys';
-
-const writeFile = promisify(fs.writeFile);
 
 export interface KeyAsAddress {
   identifier: string;
@@ -322,9 +320,19 @@ export async function createAgentKeysIfNotExists(
 
   // recent keys fetched from aws saved to sdk artifacts
   const multisigValidatorKeys: ChainMap<MultisigConfig> = {};
+  let relayer: Address = '';
+
   for (const key of keys) {
+    if (key.role === Role.Relayer) {
+      relayer = key.address;
+    }
     if (!key.chainName) continue;
     if (!multisigValidatorKeys[key.chainName]) {
+      console.log(
+        `for chain ${key.chainName} key is ${
+          defaultMultisigConfigs[key.chainName].threshold
+        }`,
+      );
       multisigValidatorKeys[key.chainName] = {
         threshold:
           newThresholds?.[key.chainName] ??
@@ -332,12 +340,20 @@ export async function createAgentKeysIfNotExists(
           1,
         validators: [],
       };
+      console.log(
+        'after change: ',
+        multisigValidatorKeys[key.chainName].threshold,
+      );
     }
     if (key.chainName)
       multisigValidatorKeys[key.chainName].validators.push(key.address);
   }
-
-  await persistAddressesToSDKArtifacts(multisigValidatorKeys);
+  await persistRelayerAddressesToSDKArtifacts(
+    relayer,
+    agentConfig.runEnv,
+    agentConfig.context,
+  );
+  await persistValidatorAddressesToSDKArtifacts(multisigValidatorKeys);
   await persistAddressesToGcp(
     agentConfig.runEnv,
     agentConfig.context,
@@ -397,7 +413,21 @@ async function persistAddressesToGcp(
   );
 }
 
-export async function persistAddressesToSDKArtifacts(
+export async function persistRelayerAddressesToSDKArtifacts(
+  fetchRelayerAddress: Address,
+  environment: DeployEnvironment,
+  context: Contexts,
+) {
+  relayerAddresses[environment][context] = fetchRelayerAddress;
+  console.log('relayerAddresses===', JSON.stringify(relayerAddresses, null, 2));
+
+  // Resolve the relative path
+  const filePath = path.resolve(__dirname, '../../config/relayer.json');
+
+  fs.writeFileSync(filePath, JSON.stringify(relayerAddresses, null, 2));
+}
+
+export async function persistValidatorAddressesToSDKArtifacts(
   fetchedValidatorAddresses: ChainMap<MultisigConfig>,
 ) {
   for (const chain of Object.keys(fetchedValidatorAddresses)) {
@@ -405,29 +435,15 @@ export async function persistAddressesToSDKArtifacts(
       ...fetchedValidatorAddresses[chain], // fresh from aws
     };
   }
-  // sort for the linting on multisigIsm.ts
-  const sortedMultisigConfigs = Object.keys(defaultMultisigConfigs)
-    .sort()
-    .reduce((obj, key) => {
-      obj[key] = defaultMultisigConfigs[key];
-      return obj;
-    }, {} as typeof defaultMultisigConfigs);
 
   // Resolve the relative path
   const filePath = path.resolve(
     __dirname,
-    '../../../sdk/src/consts/multisigIsm.ts',
+    '../../../sdk/src/consts/multisigIsm.json',
   );
 
   // Write the updated object back to the file
-  await writeFile(
-    filePath,
-    `import { MultisigConfig } from '../ism/types';\nimport { ChainMap } from '../types';\nexport const defaultMultisigConfigs: ChainMap<MultisigConfig> = ${JSON.stringify(
-      sortedMultisigConfigs,
-      null,
-      2,
-    )}`,
-  );
+  fs.writeFileSync(filePath, JSON.stringify(defaultMultisigConfigs, null, 2));
 }
 
 async function fetchGCPKeyAddresses(
