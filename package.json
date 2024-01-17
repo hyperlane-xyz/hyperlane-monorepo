@@ -24,7 +24,7 @@
     "lint": "yarn workspaces foreach --since --parallel run lint",
     "test": "yarn workspaces foreach --all --parallel run test",
     "test:ci": "yarn workspaces foreach --all --parallel run test:ci",
-    "coverage": "yarn workspaces foreach --since --parallel run coverage",
+    "coverage": "yarn workspaces foreach --all --parallel run coverage",
     "version:prepare": "yarn changeset version && yarn workspaces foreach --all --parallel run version:update && yarn install --no-immutable",
     "version:check": "yarn changeset status",
     "release": "yarn build && yarn changeset publish",

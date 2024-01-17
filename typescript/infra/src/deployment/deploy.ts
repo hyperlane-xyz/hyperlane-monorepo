@@ -20,7 +20,7 @@ import {
   writeMergedJSONAtPath,
 } from '../utils/utils';
 
-export async function deployWithArtifacts<Config>(
+export async function deployWithArtifacts<Config extends object>(
   configMap: ChainMap<Config>,
   deployer: HyperlaneDeployer<Config, any>,
   cache: {
@@ -71,7 +71,7 @@ export async function deployWithArtifacts<Config>(
   await postDeploy(deployer, cache, agentConfig);
 }
 
-export async function postDeploy<Config>(
+export async function postDeploy<Config extends object>(
   deployer: HyperlaneDeployer<Config, any>,
   cache: {
     addresses: string;
