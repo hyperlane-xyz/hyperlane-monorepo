@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # generates lcov.info
 forge coverage --report lcov --no-match-test testFork
 
