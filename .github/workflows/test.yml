@@ -283,6 +283,9 @@ jobs:
             !./rust
           key: ${{ github.sha }}
 
+      - name: foundry-install
+        uses: onbjerg/foundry-toolchain@v1
+
       - name: Run tests with coverage
         run: yarn coverage
         env:
