@@ -3890,7 +3890,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@nomicfoundation/hardhat-verify@npm:^2.0.0":
+"@nomicfoundation/hardhat-verify@npm:^2.0.0, @nomicfoundation/hardhat-verify@npm:^2.0.3":
   version: 2.0.3
   resolution: "@nomicfoundation/hardhat-verify@npm:2.0.3"
   dependencies:
@@ -4029,7 +4029,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@nomiclabs/hardhat-ethers@npm:^2.2.1":
+"@nomiclabs/hardhat-ethers@npm:^2.2.1, @nomiclabs/hardhat-ethers@npm:^2.2.3":
   version: 2.2.3
   resolution: "@nomiclabs/hardhat-ethers@npm:2.2.3"
   peerDependencies:
@@ -8974,7 +8974,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ethers@npm:^6.9.2":
+"ethers@npm:^6.10.0":
   version: 6.10.0
   resolution: "ethers@npm:6.10.0"
   dependencies:
@@ -10113,7 +10113,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"hardhat@npm:^2.12.4, hardhat@npm:^2.19.0":
+"hardhat@npm:^2.19.0, hardhat@npm:^2.19.4":
   version: 2.19.4
   resolution: "hardhat@npm:2.19.4"
   dependencies:
@@ -16878,14 +16878,16 @@ __metadata:
     "@matterlabs/hardhat-zksync-solc": "npm:^1.0.6"
     "@matterlabs/hardhat-zksync-verify": "npm:^1.2.2"
     "@matterlabs/zksync-contracts": "npm:^0.6.1"
+    "@nomicfoundation/hardhat-verify": "npm:^2.0.3"
+    "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-etherscan": "npm:^3.1.7"
     "@openzeppelin/contracts": "npm:^4.6.0"
     "@types/chai": "npm:^4.3.4"
     "@types/mocha": "npm:^10.0.1"
     chai: "npm:^4.3.7"
     dotenv: "npm:^16.0.3"
-    ethers: "npm:^6.9.2"
-    hardhat: "npm:^2.12.4"
+    ethers: "npm:^6.10.0"
+    hardhat: "npm:^2.19.4"
     mocha: "npm:^10.2.0"
     ts-node: "npm:^10.9.1"
     typescript: "npm:^4.9.5"

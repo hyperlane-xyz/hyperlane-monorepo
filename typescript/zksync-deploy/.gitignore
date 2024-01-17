@@ -1,3 +1,8 @@
+# This contracts is duplicate of contracts folder in solidity folder. 
+# yarn prebuild script copys contracts folder from there
+# The reason for this is zkSync generate its own artifacts
+contracts 
+
 # Logs
 logs
 *.log
