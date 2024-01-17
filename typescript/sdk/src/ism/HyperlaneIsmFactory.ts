@@ -150,12 +150,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         contract = await this.multiProvider.handleDeploy(
           destination,
           new PausableIsm__factory(),
-          [],
-        );
-        // TODO: do this in constructor?
-        await this.multiProvider.handleTx(
-          destination,
-          contract.transferOwnership(config.owner),
+          [config.owner],
         );
         break;
       case IsmType.TEST_ISM:
