@@ -1,6 +1,3 @@
-// ==================
-// Functions for managing keys
-// ==================
 import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
@@ -29,12 +26,16 @@ import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { CloudAgentKey } from './keys';
 
+const writeFile = promisify(fs.writeFile);
+
 export interface KeyAsAddress {
   identifier: string;
   address: string;
 }
 
+// ==================
 // Functions for getting keys
+// ==================
 
 // Returns a nested object of the shape:
 // {
@@ -110,7 +111,7 @@ function getRoleKeyMapPerChain(
 
   const setKathyKeys = () => {
     const helloWorldConfig = getJustHelloWorldConfig(
-      helloworld[agentConfig.runEnv as 'mainnet3' | 'testnet4'],
+      helloworld[agentConfig.runEnv as 'mainnet3' | 'testnet4'], // test doesn't have hello world configs
       agentConfig.context,
     );
     // Kathy is only needed on chains where the hello world contracts are deployed.
@@ -146,12 +147,11 @@ function getRoleKeyMapPerChain(
       case Role.Relayer:
         setRelayerKeys();
         break;
-
-      case Role.Deployer:
-        setDeployerKeys();
-        break;
       case Role.Kathy:
         setKathyKeys();
+        break;
+      case Role.Deployer:
+        setDeployerKeys();
         break;
       default:
         throw Error(`Unsupported role with keys ${role}`);
@@ -264,11 +264,6 @@ export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
   return new AgentGCPKey(agentConfig.runEnv, Contexts.Hyperlane, Role.Deployer);
 }
 
-// export function createDummyValidatorKeys(
-//   agentConfig: AgentContextConfig,
-//   newChains: ChainMap<number>,
-// );
-
 // Returns the validator signer key and the chain signer key for the given validator for
 // the given chain and index.
 // The validator signer key is used to sign checkpoints and can be AWS regardless of the
@@ -310,43 +305,8 @@ export function getValidatorKeysForChain(
 }
 
 // ==================
-
+// Functions for managing keys
 // ==================
-
-const writeFile = promisify(fs.writeFile);
-
-export async function persistAddressesToSDKArtifacts(
-  fetchedValidatorAddresses: ChainMap<MultisigConfig>,
-) {
-  for (const chain of Object.keys(fetchedValidatorAddresses)) {
-    defaultMultisigConfigs[chain] = {
-      ...defaultMultisigConfigs[chain],
-      ...fetchedValidatorAddresses[chain],
-    };
-  }
-  const sortedMultisigConfigs = Object.keys(defaultMultisigConfigs)
-    .sort()
-    .reduce((obj, key) => {
-      obj[key] = defaultMultisigConfigs[key];
-      return obj;
-    }, {} as typeof defaultMultisigConfigs);
-
-  // Resolve the relative path
-  const filePath = path.resolve(
-    __dirname,
-    '../../../sdk/src/consts/multisigIsm.ts',
-  );
-
-  // Write the updated object back to the file
-  await writeFile(
-    filePath,
-    `import { MultisigConfig } from '../ism/types';\nimport { ChainMap } from '../types';\nexport const defaultMultisigConfigs: ChainMap<MultisigConfig> = ${JSON.stringify(
-      sortedMultisigConfigs,
-      null,
-      2,
-    )}`,
-  );
-}
 
 export async function createAgentKeysIfNotExists(
   agentConfig: AgentContextConfig,
@@ -359,6 +319,8 @@ export async function createAgentKeysIfNotExists(
       return key.createIfNotExists();
     }),
   );
+
+  // recent keys fetched from aws saved to sdk artifacts
   const multisigValidatorKeys: ChainMap<MultisigConfig> = {};
   for (const key of keys) {
     if (!key.chainName) continue;
@@ -429,6 +391,40 @@ async function persistAddressesToGcp(
       environment,
       context,
     },
+  );
+}
+
+export async function persistAddressesToSDKArtifacts(
+  fetchedValidatorAddresses: ChainMap<MultisigConfig>,
+) {
+  for (const chain of Object.keys(fetchedValidatorAddresses)) {
+    defaultMultisigConfigs[chain] = {
+      ...defaultMultisigConfigs[chain], // old config
+      ...fetchedValidatorAddresses[chain], // fresh from aws
+    };
+  }
+  // sort for the linting on multisigIsm.ts
+  const sortedMultisigConfigs = Object.keys(defaultMultisigConfigs)
+    .sort()
+    .reduce((obj, key) => {
+      obj[key] = defaultMultisigConfigs[key];
+      return obj;
+    }, {} as typeof defaultMultisigConfigs);
+
+  // Resolve the relative path
+  const filePath = path.resolve(
+    __dirname,
+    '../../../sdk/src/consts/multisigIsm.ts',
+  );
+
+  // Write the updated object back to the file
+  await writeFile(
+    filePath,
+    `import { MultisigConfig } from '../ism/types';\nimport { ChainMap } from '../types';\nexport const defaultMultisigConfigs: ChainMap<MultisigConfig> = ${JSON.stringify(
+      sortedMultisigConfigs,
+      null,
+      2,
+    )}`,
   );
 }
 

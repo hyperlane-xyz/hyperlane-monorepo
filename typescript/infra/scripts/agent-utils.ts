@@ -114,6 +114,7 @@ export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
     .alias('i', 'index');
 }
 
+// missing chains are chains needed which are not as part of defaultMultisigConfigs in sdk/src/consts/ but are in chainMetadata
 export function withMissingChains<T>(args: yargs.Argv<T>) {
   return args
     .describe('new-chains', 'new chains to add')
@@ -130,6 +131,7 @@ export function assertEnvironment(env: string): DeployEnvironment {
   );
 }
 
+// not requiring to build coreConfig to get agentConfig
 export async function getAgentConfigsBasedOnArgs(argv?: {
   environment: DeployEnvironment;
   context: Contexts;
@@ -154,6 +156,7 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
   }
 
   const agentConfig = getAgentConfig(context, environment);
+  // check if new chains are needed
   const missingChains = checkIfValidatorsArePresisted(agentConfig);
 
   for (const chain of missingChains) {
@@ -165,7 +168,9 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
       [Contexts.ReleaseCandidate]: [],
       [Contexts.Neutron]: [],
     };
+    // supplementing with dummy addresses for validator as part of missingChains
     const validatorsConfig = validatorBaseConfigsFn(environment, context);
+
     const validators = validatorsConfig(
       {
         ...baseConfig,
@@ -176,9 +181,11 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
       },
       chain as Chains,
     );
+    // the hardcoded fields are not strictly necessary to be accurate for create-keys.ts
+    // ideally would still get them from the chainMetadata
     agentConfig.validators!.chains[chain] = {
-      interval: 1,
-      reorgPeriod: 0,
+      interval: 1, // chainMetadata.estimateBlockNumber is optional
+      reorgPeriod: 0, // chainMetadata.reorgPeriod is optional
       validators,
     };
   }
@@ -192,6 +199,7 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
 }
 
 // Gets the agent config of a specific context.
+// without fetching environment config
 export function getAgentConfig(
   context: Contexts,
   environment: DeployEnvironment,
@@ -208,6 +216,7 @@ export function getAgentConfig(
   return agentsForEnvironment[context];
 }
 
+// check if validators are persisted in agentConfig
 export function checkIfValidatorsArePresisted(
   agentConfig: RootAgentConfig,
 ): Set<ChainName> {

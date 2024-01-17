@@ -4,6 +4,8 @@ import { DeployEnvironment } from '../src/config';
 
 import { getAgentConfig, getArgs, withContext } from './agent-utils';
 
+// utils which use both environment configs
+
 export function getEnvironmentConfig(environment: DeployEnvironment) {
   return environments[environment];
 }

@@ -6,7 +6,6 @@ import { AgentChainNames, Role } from '../../../src/roles';
 export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
   alfajores: chainMetadata.alfajores,
   basegoerli: chainMetadata.basegoerli,
-  basesepolia: chainMetadata.basesepolia,
   fuji: chainMetadata.fuji,
   mumbai: {
     ...chainMetadata.mumbai,

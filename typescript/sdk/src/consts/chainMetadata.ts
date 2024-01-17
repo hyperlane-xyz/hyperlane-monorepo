@@ -181,33 +181,6 @@ export const basegoerli: ChainMetadata = {
   ],
 };
 
-export const basesepolia: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-goerli.basescan.org/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'BaseScan',
-      url: 'https://goerli.basescan.org',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
-  },
-  chainId: 84532,
-  displayName: 'Base Goerli',
-  domainId: 84532,
-  isTestnet: true,
-  name: Chains.basesepolia,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [
-    { http: 'https://base-goerli.publicnode.com' },
-    { http: 'https://goerli.base.org' },
-  ],
-};
-
 export const bsc: ChainMetadata = {
   blockExplorers: [
     {
@@ -1019,7 +992,6 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   avalanche,
   base,
   basegoerli,
-  basesepolia,
   bsc,
   bsctestnet,
   celo,

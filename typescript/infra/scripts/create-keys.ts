@@ -4,7 +4,8 @@ import { getAgentConfigsBasedOnArgs } from './agent-utils';
 
 async function main() {
   const { agentConfig, newThresholds } = await getAgentConfigsBasedOnArgs();
-  return createAgentKeysIfNotExists(agentConfig, newThresholds);
+  await createAgentKeysIfNotExists(agentConfig, newThresholds);
+  return 'Keys created successfully!';
 }
 
 main().then(console.log).catch(console.error);

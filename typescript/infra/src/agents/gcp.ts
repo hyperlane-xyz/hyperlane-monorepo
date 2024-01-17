@@ -52,10 +52,8 @@ export class AgentGCPKey extends CloudAgentKey {
   async createIfNotExists() {
     try {
       await this.fetch();
-      console.log('fetched', this.remoteKey);
     } catch (err) {
       await this.create();
-      console.log('created');
     }
   }
 
