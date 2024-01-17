@@ -21,6 +21,7 @@ solana-transaction-status.workspace = true
 thiserror.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
+tokio.workspace = true
 url.workspace = true
 
 account-utils = { path = "../../sealevel/libraries/account-utils" }

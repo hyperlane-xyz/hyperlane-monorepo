@@ -29,6 +29,8 @@ pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
         .get_latest_blockhash_with_commitment(commitment)
         .await
         .map_err(ChainCommunicationError::from_other)?;
+    // Hack
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     let return_data = rpc_client
         .simulate_transaction(&Transaction::new_unsigned(Message::new_with_blockhash(
             &[instruction],
