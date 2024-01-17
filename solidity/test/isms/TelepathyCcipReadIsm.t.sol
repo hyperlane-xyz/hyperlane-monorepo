@@ -119,17 +119,17 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
         telepathyCcipReadIsm.getOffchainVerifyInfo(_message);
     }
 
-    function testTelepathyCcip_verify_withIncorrectMessageId(
-        bytes calldata _messageId
+    function testTelepathyCcip_verify_withMessage(
+        bytes calldata _incorrectMessageId
     ) public {
         bytes memory correctMessage = _encodeTestMessage();
-        vm.assume(keccak256(_messageId) != keccak256(correctMessage));
+        vm.assume(keccak256(_incorrectMessageId) != keccak256(correctMessage));
 
         // Incorrect message
         vm.expectRevert();
         bool verified = telepathyCcipReadIsm.verify(
             _encodeProofs(),
-            _messageId
+            _incorrectMessageId
         );
 
         // Correct message

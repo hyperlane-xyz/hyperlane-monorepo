@@ -24,6 +24,10 @@ import {StorageProof} from "../../../libs/StateProofHelpers.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
+/**
+ * @title TelepathyCcipReadIsm
+ * @notice Uses Succinct to verify that a message was delivered via a Hyperlane Mailbox
+ */
 contract TelepathyCcipReadIsm is
     AbstractCcipReadIsm,
     OwnableUpgradeable,
@@ -32,7 +36,7 @@ contract TelepathyCcipReadIsm is
     using Message for bytes;
 
     Mailbox public mailbox;
-    uint256 mailboxSlot;
+    uint256 deliveriesSlot;
     string[] public offchainUrls;
 
     constructor(
@@ -66,17 +70,17 @@ contract TelepathyCcipReadIsm is
 
     /**
      * @param _mailbox the source chain mailbox address
-     * @param _mailboxSlot the source chain mailbox slot number to do a storage proof for
+     * @param _deliveriesSlot the source chain mailbox slot number for deliveries mapping
      * @param _offchainUrls urls to make ccip read queries
      */
     function initialize(
         Mailbox _mailbox,
-        uint256 _mailboxSlot,
+        uint256 _deliveriesSlot,
         string[] memory _offchainUrls
     ) external initializer {
         __Ownable_init();
         mailbox = _mailbox;
-        mailboxSlot = _mailboxSlot;
+        deliveriesSlot = _deliveriesSlot;
         offchainUrls = _offchainUrls;
     }
 
@@ -95,8 +99,8 @@ contract TelepathyCcipReadIsm is
     }
 
     /**
-     * @notice Verifies that the message nonce is valid by using the headers by Succinct and eth_getProof
-     * @dev Basically, this checks if the message nonce has been commited on the source chain
+     * @notice Verifies that the message id is valid by using the headers by Succinct and eth_getProof
+     * @dev Basically, this checks if the Mailbox.deliveries[messageId] has been commited on the source chain
      * @param _proofs accountProof and storageProof from eth_getProof
      * @param _message Hyperlane encoded interchain message
      * @return True if the message was verified
@@ -111,15 +115,15 @@ contract TelepathyCcipReadIsm is
         );
 
         // Calculate the slot key using mapping encoding rules. The extra hashing is a requirement of MerkleTrie library
-        bytes32 mailboxSlotKey = keccak256(
-            abi.encode(keccak256(abi.encode(_message.id(), mailboxSlot)))
+        bytes32 deliveriesSlotKey = keccak256(
+            abi.encode(keccak256(abi.encode(_message.id(), deliveriesSlot)))
         );
 
         // Get the slot value as bytes
-        bytes memory deliveriesValue = getSlotValue(
+        bytes memory deliveriesValue = getDeliveriesValue(
             accountProof,
             storageProof,
-            mailboxSlotKey
+            deliveriesSlotKey
         );
 
         return keccak256(deliveriesValue) != bytes32("");
@@ -129,12 +133,13 @@ contract TelepathyCcipReadIsm is
      * @notice Gets the slot value of Mailbox.deliveries mapping given a slot key and proofs
      * @param _accountProof the account proof
      * @param _storageProof the storage proof
-     * @param _mailboxSlotKey hash of the source chain mailbox slot number to do a storage proof for
+     * @param _deliveriesSlotKey hash of the source chain mailbox slot number to do a storage proof for
+     * @return byte value of the deliveries[slotKey]
      */
-    function getSlotValue(
+    function getDeliveriesValue(
         bytes[] memory _accountProof,
         bytes[] memory _storageProof,
-        bytes32 _mailboxSlotKey
+        bytes32 _deliveriesSlotKey
     ) public view returns (bytes memory) {
         bytes32 storageRoot = StorageProof.getStorageRoot(
             address(mailbox),
@@ -143,7 +148,7 @@ contract TelepathyCcipReadIsm is
         );
         return
             StorageProof.getStorageBytes(
-                _mailboxSlotKey,
+                _deliveriesSlotKey,
                 _storageProof,
                 storageRoot
             );

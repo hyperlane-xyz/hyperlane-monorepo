@@ -76,11 +76,14 @@ contract StateProofHelpersTest is Test {
     function testStateProofHelpersTest_getStorageRoot_setsDeliveriesValue()
         public
     {
+        // Calculate the storage root
         bytes32 storageRoot = StorageProof.getStorageRoot(
             mailboxAddr,
             accountProof,
             stateRoot
         );
+
+        // Calculate the deliveries value
         bytes32 messageId = hex"44EFC92481301DB306CB0D8FF7E5FF5B2ABFFEA428677BC37BFFB8DE2B7D7D5F";
         bytes32 deliveriesSlotKey = keccak256(
             abi.encode(keccak256(abi.encode(messageId, DELIVERIES_SLOT)))
@@ -91,7 +94,7 @@ contract StateProofHelpersTest is Test {
             storageRoot
         );
 
-        // The result of delivery is Deliveries[messageId]
+        // The result of delivery should not be a null value
         assertTrue(bytes32(delivery) != bytes32(0));
     }
 }
