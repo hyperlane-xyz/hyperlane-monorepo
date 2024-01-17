@@ -31,7 +31,14 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
-import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
+import {
+  log,
+  logBlue,
+  logBoldRed,
+  logGray,
+  logGreen,
+  logRed,
+} from '../../logger.js';
 import { runDeploymentArtifactStep } from '../config/artifacts.js';
 import { presetHookConfigs, readHooksConfigMap } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
@@ -161,6 +168,10 @@ async function runIsmStep(
   const isIsm = isZODISMConfig(ismConfigPath);
   // separate flow for 'ism' and 'ism-advanced' options
   if (isIsm) {
+    logBoldRed('WARNING: YOU ARE DEPLOYING WITH AN ADVANCED ISM CONFIG');
+    logRed(
+      'Advanced ISM config means you need to be very comfortable with different ISM types and how they work together topologically. If you are not, please use the basic ISM config instead.',
+    );
     const ismConfig = readIsmConfig(ismConfigPath);
     const requiredIsms = objFilter(
       ismConfig,
