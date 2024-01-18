@@ -11,10 +11,7 @@ import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchH
 import {Message} from "../../contracts/libs/Message.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 
-import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
-
 import {PolygonZkevmHook} from "../../contracts/hooks/PolygonZkevmHook.sol";
-import {PolygonZkevmIsm} from "../../contracts/isms/hook/PolygonZkevmIsm.sol";
 
 import "forge-std/console.sol";
 
@@ -27,7 +24,7 @@ contract PolygonZkEVMBridge {
     ) external payable {}
 }
 
-contract PolygonZkevmIsmtest is Test {
+contract PolygonZkevmHooktest is Test {
     using TypeCasts for bytes32;
     using StandardHookMetadata for bytes;
     using Message for bytes;
@@ -35,13 +32,12 @@ contract PolygonZkevmIsmtest is Test {
     // Contracts
     TestPostDispatchHook public requiredHook;
     TestMailbox public mailbox;
-    PolygonZkevmIsm public ism;
+    TestIsm public ism;
+    PolygonZkevmHook public hook;
 
     TestRecipient internal testRecipient;
 
     PolygonZkEVMBridge internal polygonZkevmBridge;
-
-    address internal hook;
 
     bytes internal testMessage =
         abi.encodePacked("Hello from the other chain!");
@@ -52,32 +48,38 @@ contract PolygonZkevmIsmtest is Test {
         // Setup Hyperlane
         requiredHook = new TestPostDispatchHook();
         mailbox = new TestMailbox(0);
+        ism = new TestIsm();
         polygonZkevmBridge = new PolygonZkEVMBridge();
-        ism = new PolygonZkevmIsm(
-            address(polygonZkevmBridge),
+        hook = new PolygonZkevmHook(
             address(mailbox),
-            new string[](0)
-        );
-        hook = address(0x1);
-        ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
-        testRecipient = new TestRecipient();
-    }
-
-    function test_moduleType() public {
-        assertEq(
-            ism.moduleType(),
-            uint8(IInterchainSecurityModule.Types.CCIP_READ)
+            1,
+            address(ism),
+            address(polygonZkevmBridge),
+            1
         );
     }
 
-    function test_verify() public {
-        bytes memory message = testMessage;
-        bytes memory metadata = testMetadata;
+    function test_postDispatch() public {
+        vm.expectCall(
+            address(polygonZkevmBridge),
+            abi.encodeCall(
+                polygonZkevmBridge.bridgeMessage,
+                (uint32(1), address(ism), true, abi.encode(testMessage.id()))
+            )
+        );
 
-        // verify message
-        bool verified = ism.verify(metadata, message);
+        hook.postDispatch(testMetadata, testMessage);
+    }
 
-        // check that message is verified
-        assertEq(verified, true);
+    function test_postDispatch_msgValue() public {
+        vm.expectRevert(
+            "PolygonzkEVMHook: msgValue must be less than 2 ** 255"
+        );
+        testMetadata = StandardHookMetadata.overrideMsgValue(2 ** 255);
+        hook.postDispatch(testMetadata, testMessage);
+    }
+
+    function test_postDispatch_supportsMetadata() public {
+        assertTrue(hook.supportsMetadata(testMetadata));
     }
 }

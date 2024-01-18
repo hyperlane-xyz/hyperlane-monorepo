@@ -39,24 +39,23 @@ contract PolygonZkevmHook is IPostDispatchHook, MailboxClient {
     IPolygonZkEVMBridge public immutable zkEvmBridge;
 
     // left-padded address for ISM to verify messages
-    bytes32 public immutable ism;
+    address public immutable ism;
     // Domain of chain on which the ISM is deployed
     uint32 public immutable destinationDomain;
-
-    uint32 public immutable zkBridgeChainIdDestination;
+    // Polygon ZkevmBridge uses networkId 0 for Mainnet and 1 for rollup
+    uint32 public immutable zkEvmBridgeDestinationNetId;
 
     constructor(
         address _mailbox,
         uint32 _destinationDomain,
-        bytes32 _ism,
+        address _ism,
         address _zkEvmBridge,
-        uint32 _zkBridgeChainId
+        uint32 _zkEvmBridgeDestinationNetId
     ) MailboxClient(_mailbox) {
         require(
             Address.isContract(_zkEvmBridge),
             "PolygonzkEVMHook: invalid PolygonZkEVMBridge contract"
         );
-        require(_ism != bytes32(0), "PolygonzkEVMHook: invalid ISM");
         require(
             _destinationDomain != 0,
             "PolygonzkEVMHook: invalid destination domain"
@@ -64,7 +63,7 @@ contract PolygonZkevmHook is IPostDispatchHook, MailboxClient {
         ism = _ism;
         destinationDomain = _destinationDomain;
         zkEvmBridge = IPolygonZkEVMBridge(_zkEvmBridge);
-        zkBridgeChainIdDestination = uint8(_zkBridgeChainId);
+        zkEvmBridgeDestinationNetId = uint8(_zkEvmBridgeDestinationNetId);
     }
 
     /// @inheritdoc IPostDispatchHook
@@ -94,8 +93,8 @@ contract PolygonZkevmHook is IPostDispatchHook, MailboxClient {
         bytes32 messageId = message.id();
 
         zkEvmBridge.bridgeMessage(
-            zkBridgeChainIdDestination,
-            TypeCasts.bytes32ToAddress(ism),
+            zkEvmBridgeDestinationNetId,
+            address(ism),
             true,
             abi.encodePacked(messageId)
         );

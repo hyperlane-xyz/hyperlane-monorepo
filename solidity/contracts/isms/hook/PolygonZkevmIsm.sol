@@ -61,8 +61,8 @@ contract PolygonZkevmIsm is
             "PolygonZkevmIsm: invalid ZkEVMBridge"
         );
         require(
-            Address.isContract(_zkEvmBridge),
-            "PolygonZkevmIsm: invalid IMailbox"
+            Address.isContract(_mailbox),
+            "PolygonZkevmIsm: invalid Mailbox"
         );
         zkEvmBridge = IPolygonZkEVMBridge(_zkEvmBridge);
         mailbox = IMailbox(_mailbox);
@@ -153,7 +153,6 @@ contract PolygonZkevmIsm is
         bytes memory data
     ) external payable override {
         require(data.length == 32, "PolygonZkevmIsm: data must be 32 bytes");
-        bytes32 messageId = abi.decode(data, (bytes32));
         require(
             _isAuthorized(),
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
@@ -163,6 +162,7 @@ contract PolygonZkevmIsm is
             "AbstractMessageIdAuthorizedIsm: msg.value must be less than 2^255"
         );
 
+        bytes32 messageId = abi.decode(data, (bytes32));
         verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
         emit ReceivedMessage(messageId);
     }
@@ -172,6 +172,11 @@ contract PolygonZkevmIsm is
      * @inheritdoc AbstractMessageIdAuthorizedIsm
      */
     function _isAuthorized() internal view override returns (bool) {
+        require(
+            msg.sender == address(zkEvmBridge),
+            "PolygonZkevmIsm: invalid sender"
+        );
+
         bytes32 originSender = abi.decode(msg.data[4:], (bytes32));
         return originSender == authorizedHook;
     }
