@@ -37,7 +37,6 @@ where
             .field(
                 "chain_name",
                 &self
-                    .0
                     .inner
                     .providers
                     .get(0)
@@ -47,7 +46,6 @@ where
             .field(
                 "hosts",
                 &self
-                    .0
                     .inner
                     .providers
                     .iter()

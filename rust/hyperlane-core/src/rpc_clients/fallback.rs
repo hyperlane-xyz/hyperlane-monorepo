@@ -14,7 +14,7 @@ use crate::ChainCommunicationError;
 #[async_trait]
 pub trait BlockNumberGetter: Send + Sync + Debug {
     /// Latest block number getter
-    async fn get(&self) -> Result<u64, ChainCommunicationError>;
+    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError>;
 }
 
 const MAX_BLOCK_TIME: Duration = Duration::from_secs(2 * 60);
@@ -114,7 +114,7 @@ where
 
         let block_getter: Box<dyn BlockNumberGetter> = provider.clone().into();
         let current_block_height = block_getter
-            .get()
+            .get_block_number()
             .await
             .unwrap_or(priority.last_block_height.0);
         if current_block_height <= priority.last_block_height.0 {

@@ -204,7 +204,7 @@ impl<C> BlockNumberGetter for JsonRpcBlockGetter<C>
 where
     C: JsonRpcClient,
 {
-    async fn get(&self) -> Result<u64, ChainCommunicationError> {
+    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
         let res = self
             .0
             .request(BLOCK_NUMBER_RPC, ())
