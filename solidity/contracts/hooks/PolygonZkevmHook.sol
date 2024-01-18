@@ -60,6 +60,10 @@ contract PolygonZkevmHook is IPostDispatchHook, MailboxClient {
             _destinationDomain != 0,
             "PolygonzkEVMHook: invalid destination domain"
         );
+        require(
+            _zkEvmBridgeDestinationNetId <= 1,
+            "PolygonZkevmIsm: invalid ZkEVMBridge destination network id"
+        );
         ism = _ism;
         destinationDomain = _destinationDomain;
         zkEvmBridge = IPolygonZkEVMBridge(_zkEvmBridge);
@@ -92,7 +96,7 @@ contract PolygonZkevmHook is IPostDispatchHook, MailboxClient {
         );
         bytes32 messageId = message.id();
 
-        zkEvmBridge.bridgeMessage(
+        zkEvmBridge.bridgeMessage{value: msg.value}(
             zkEvmBridgeDestinationNetId,
             address(ism),
             true,

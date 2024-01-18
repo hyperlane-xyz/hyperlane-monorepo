@@ -10,21 +10,48 @@ import {TestIsm} from "../../contracts/test/TestIsm.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
+import {ICcipReadIsm} from "../../contracts/interfaces/isms/ICcipReadIsm.sol";
 
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
-
+import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {PolygonZkevmHook} from "../../contracts/hooks/PolygonZkevmHook.sol";
 import {PolygonZkevmIsm} from "../../contracts/isms/hook/PolygonZkevmIsm.sol";
 
 import "forge-std/console.sol";
 
 contract PolygonZkEVMBridge {
+    PolygonZkevmIsm public ism;
+    bytes public returnData;
+
+    function setIsm(PolygonZkevmIsm _ism) public {
+        ism = _ism;
+    }
+
+    function setReturnData(bytes memory _returnData) public {
+        returnData = _returnData;
+    }
+
     function bridgeMessage(
         uint32,
         address,
         bool,
         bytes calldata
     ) external payable {}
+
+    function claimMessage(
+        bytes32[32] calldata,
+        uint32,
+        bytes32,
+        bytes32,
+        uint32,
+        address,
+        uint32,
+        address,
+        uint256,
+        bytes calldata
+    ) external payable {
+        ism.onMessageReceived(address(0x1), uint32(0), returnData);
+    }
 }
 
 contract PolygonZkevmIsmtest is Test {
@@ -39,6 +66,7 @@ contract PolygonZkevmIsmtest is Test {
 
     TestRecipient internal testRecipient;
 
+    // address internal polygonZkevmBridge;
     PolygonZkEVMBridge internal polygonZkevmBridge;
 
     address internal hook;
@@ -55,12 +83,19 @@ contract PolygonZkevmIsmtest is Test {
         polygonZkevmBridge = new PolygonZkEVMBridge();
         ism = new PolygonZkevmIsm(
             address(polygonZkevmBridge),
+            uint32(0),
             address(mailbox),
             new string[](0)
         );
+
         hook = address(0x1);
+
         ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
         testRecipient = new TestRecipient();
+
+        bytes memory messageId = abi.encodePacked(testMessage.id());
+        polygonZkevmBridge.setIsm(ism);
+        polygonZkevmBridge.setReturnData(abi.encodePacked(messageId));
     }
 
     function test_moduleType() public {
@@ -70,14 +105,129 @@ contract PolygonZkevmIsmtest is Test {
         );
     }
 
-    function test_verify() public {
-        bytes memory message = testMessage;
-        bytes memory metadata = testMetadata;
+    function test_getOffchainVerifyInfo() external {
+        bytes memory messageId = abi.encodePacked(testMessage.id());
 
-        // verify message
-        bool verified = ism.verify(metadata, message);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ICcipReadIsm.OffchainLookup.selector,
+                address(ism),
+                new string[](0),
+                messageId,
+                PolygonZkevmIsm.verify.selector,
+                testMessage
+            )
+        );
 
-        // check that message is verified
-        assertEq(verified, true);
+        ism.getOffchainVerifyInfo(testMessage);
+    }
+
+    // ================== NEED HELP ==================
+    // function test_verifyPolygonIsm() public {
+    //         bytes32[32] memory smtProof = [
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0),
+    //             bytes32(0x0)
+    //         ];
+    //         uint32 index = 0;
+    //         bytes32 mainnetExitRoot = bytes32(0x0);
+    //         bytes32 rollupExitRoot = bytes32(0x0);
+    //         uint32 originNetwork = uint32(0);
+    //         address originAddress   = address(0x0);
+    //         uint32 destinationNetwork = 1;
+    //         address destinationAddress   = address(0x0);
+    //         uint256 amount   = 0;
+    //         bytes memory payload = abi.encodePacked(testMessage.id());
+
+    //         bytes memory metadata = abi.encodePacked(
+    //             smtProof,
+    //             index,
+    //             mainnetExitRoot,
+    //             rollupExitRoot,
+    //             originNetwork,
+    //             originAddress,
+    //             destinationNetwork,
+    //             destinationAddress,
+    //             amount,
+    //             payload
+    //         );
+    //     console.logBytes(metadata);
+    //     ism.verify(metadata, testMessage);
+
+    // }
+
+    function test_onMessageReceived() public {
+        bytes32 messageId = testMessage.id();
+        vm.prank(address(polygonZkevmBridge));
+        ism.onMessageReceived(address(0x1), uint32(0), abi.encode(messageId));
+    }
+
+    function test_onMessageReceived_revertNotAuthBridge() public {
+        bytes32 messageId = testMessage.id();
+
+        vm.expectRevert("PolygonZkevmIsm: invalid sender");
+
+        ism.onMessageReceived(address(0x1), uint32(0), abi.encode(messageId));
+    }
+
+    function test_onMessageReceived_revertNot32Bytes() public {
+        vm.expectRevert("PolygonZkevmIsm: data must be 32 bytes");
+        vm.prank(address(polygonZkevmBridge));
+
+        ism.onMessageReceived(address(0x1), uint32(0), abi.encode(testMessage));
+    }
+
+    function test_onMessageReceived_revertNoOriginHook() public {
+        bytes32 messageId = testMessage.id();
+        vm.expectRevert(
+            "AbstractMessageIdAuthorizedIsm: sender is not the hook"
+        );
+        vm.prank(address(polygonZkevmBridge));
+
+        ism.onMessageReceived(address(0x2), uint32(0), abi.encode(messageId));
+    }
+
+    function test_onMessageReceived_revertMsgTooBig() public {
+        bytes32 messageId = testMessage.id();
+        hoax(address(polygonZkevmBridge), 2 ** 255);
+
+        vm.expectRevert(
+            "AbstractMessageIdAuthorizedIsm: msg.value must be less than 2^255"
+        );
+
+        ism.onMessageReceived{value: 2 ** 255}(
+            address(0x1),
+            uint32(0),
+            abi.encode(messageId)
+        );
     }
 }

@@ -15,18 +15,21 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {LibBit} from "../../libs/LibBit.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
+
 import {AbstractCcipReadIsm} from "../ccip-read/AbstractCcipReadIsm.sol";
-import {IMailbox} from "../../interfaces/IMailbox.sol";
-import {IPolygonZkEVMBridge} from "../../interfaces/polygonzkevm/IPolygonZkEVMBridge.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../hook/AbstractMessageIdAuthorizedIsm.sol";
+
+import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {IMailbox} from "../../interfaces/IMailbox.sol";
 import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
-import {LibBit} from "../../libs/LibBit.sol";
-import {IBridgeMessageReceiver} from "../../interfaces/polygonzkevm/IBridgeMessageReceiver.sol";
 
 // ============ External Imports ============
+
+import {IPolygonZkEVMBridge} from "../../interfaces/polygonzkevm/IPolygonZkEVMBridge.sol";
+import {IBridgeMessageReceiver} from "../../interfaces/polygonzkevm/IBridgeMessageReceiver.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
@@ -41,6 +44,7 @@ contract PolygonZkevmIsm is
     using Message for bytes;
     using LibBit for uint256;
     using TypeCasts for bytes32;
+    using Address for address payable;
 
     IMailbox public mailbox;
     string[] public offchainUrls;
@@ -49,10 +53,12 @@ contract PolygonZkevmIsm is
     IPolygonZkEVMBridge public immutable zkEvmBridge;
     uint8 public constant override moduleType =
         uint8(IInterchainSecurityModule.Types.CCIP_READ);
+    uint32 public immutable zkEvmBridgeDestinationNetId;
 
     // ============ Constructor ============
     constructor(
         address _zkEvmBridge,
+        uint32 _zkEvmBridgeDestinationNetId,
         address _mailbox,
         string[] memory _offchainUrls
     ) {
@@ -64,6 +70,11 @@ contract PolygonZkevmIsm is
             Address.isContract(_mailbox),
             "PolygonZkevmIsm: invalid Mailbox"
         );
+        require(
+            _zkEvmBridgeDestinationNetId <= 1,
+            "PolygonZkevmIsm: invalid ZkEVMBridge destination network id"
+        );
+        zkEvmBridgeDestinationNetId = _zkEvmBridgeDestinationNetId;
         zkEvmBridge = IPolygonZkEVMBridge(_zkEvmBridge);
         mailbox = IMailbox(_mailbox);
         offchainUrls = _offchainUrls;
@@ -93,12 +104,13 @@ contract PolygonZkevmIsm is
      */
     function verify(
         bytes calldata _metadata,
-        bytes calldata
+        bytes calldata _message
     )
         external
         override(AbstractMessageIdAuthorizedIsm, IInterchainSecurityModule)
         returns (bool)
     {
+        bytes32 messageId = _message.id();
         (
             bytes32[32] memory smtProof,
             uint32 index,
@@ -106,8 +118,8 @@ contract PolygonZkevmIsm is
             bytes32 rollupExitRoot,
             uint32 originNetwork,
             address originAddress,
-            uint32 destinationNetwork,
-            address destinationAddress,
+            ,
+            ,
             uint256 amount,
             bytes memory payload
         ) = abi.decode(
@@ -125,7 +137,10 @@ contract PolygonZkevmIsm is
                     bytes
                 )
             );
-
+        require(
+            messageId == abi.decode(payload, (bytes32)),
+            "PolygonZkevmIsm: message id does not match payload"
+        );
         zkEvmBridge.claimMessage(
             smtProof,
             index,
@@ -133,11 +148,18 @@ contract PolygonZkevmIsm is
             rollupExitRoot,
             originNetwork,
             originAddress,
-            destinationNetwork,
-            destinationAddress,
+            zkEvmBridgeDestinationNetId,
+            address(this),
             amount,
             payload
         );
+        uint256 _msgValue = verifiedMessages[messageId].clearBit(
+            VERIFIED_MASK_INDEX
+        );
+        if (_msgValue > 0) {
+            verifiedMessages[messageId] -= _msgValue;
+            payable(_message.recipientAddress()).sendValue(_msgValue);
+        }
 
         return true;
     }
@@ -152,6 +174,10 @@ contract PolygonZkevmIsm is
         uint32,
         bytes memory data
     ) external payable override {
+        require(
+            msg.sender == address(zkEvmBridge),
+            "PolygonZkevmIsm: invalid sender"
+        );
         require(data.length == 32, "PolygonZkevmIsm: data must be 32 bytes");
         require(
             _isAuthorized(),
@@ -164,6 +190,7 @@ contract PolygonZkevmIsm is
 
         bytes32 messageId = abi.decode(data, (bytes32));
         verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
+
         emit ReceivedMessage(messageId);
     }
 
@@ -172,11 +199,6 @@ contract PolygonZkevmIsm is
      * @inheritdoc AbstractMessageIdAuthorizedIsm
      */
     function _isAuthorized() internal view override returns (bool) {
-        require(
-            msg.sender == address(zkEvmBridge),
-            "PolygonZkevmIsm: invalid sender"
-        );
-
         bytes32 originSender = abi.decode(msg.data[4:], (bytes32));
         return originSender == authorizedHook;
     }
