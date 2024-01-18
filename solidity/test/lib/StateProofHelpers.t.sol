@@ -18,7 +18,6 @@ import "../../contracts/libs/StateProofHelpers.sol";
  * --data '{"method":"eth_getProof","params":["0xc005dc82818d67af737725bd4bf75435d065d239",["0x4374c903375ef1c6c66e6a9dc57b72742c6311d6569fb6fe2903a2172f8c31ff"],"0x1221E88"],"id":1,"jsonrpc":"2.0"}'
  */
 contract StateProofHelpersTest is Test {
-    uint256 constant DELIVERIES_SLOT = 106;
     address constant mailboxAddr = 0xc005dc82818d67AF737725bD4bf75435d065D239;
     bytes32 constant stateRoot =
         bytes32(
@@ -26,6 +25,9 @@ contract StateProofHelpersTest is Test {
         );
     bytes[] accountProof;
     bytes[] storageProof;
+
+    uint256 constant DELIVERIES_SLOT = 106;
+    bytes32 constant EMPTY_BYTES32 = bytes32("");
 
     function setUProofs() public {
         // Account Proof
@@ -95,6 +97,6 @@ contract StateProofHelpersTest is Test {
         );
 
         // The result of delivery should not be a null value
-        assertTrue(keccak256(delivery) != bytes32(0));
+        assertTrue(keccak256(delivery) != EMPTY_BYTES32);
     }
 }

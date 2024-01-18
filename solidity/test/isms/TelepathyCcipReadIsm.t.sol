@@ -18,22 +18,23 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
 
     address internal alice = address(0x1);
     string[] urls = ["localhost:3001/telepathy-ccip/"];
+
     TelepathyCcipReadIsm internal telepathyCcipReadIsm;
     MockMailbox mailbox;
 
     function setUp() public override {
         super.setUp();
         telepathyCcipReadIsm = new TelepathyCcipReadIsm({
-            genesisValidatorsRoot: bytes32(""),
+            genesisValidatorsRoot: EMPTY_BYTES32,
             genesisTime: 0,
             secondsPerSlot: 12,
             slotsPerPeriod: 8192,
             syncCommitteePeriod: 0,
-            syncCommitteePoseidon: bytes32(""),
+            syncCommitteePoseidon: EMPTY_BYTES32,
             sourceChainId: 1,
             finalityThreshold: 461,
-            stepFunctionId: bytes32(""),
-            rotateFunctionId: bytes32(""),
+            stepFunctionId: EMPTY_BYTES32,
+            rotateFunctionId: EMPTY_BYTES32,
             gatewayAddress: address(5)
         });
         deployCodeTo("MockMailbox.sol", abi.encode(0), mailboxAddr);
