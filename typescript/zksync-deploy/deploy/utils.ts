@@ -6,6 +6,8 @@ import { ethers } from 'ethers';
 import * as hre from 'hardhat';
 import { Provider, Wallet } from 'zksync-ethers';
 
+import { Address, DeployContractOptions } from './types';
+
 // Load env file
 dotenv.config();
 
@@ -65,20 +67,6 @@ export const verifyContract = async (data: {
   return verificationRequestId;
 };
 
-type DeployContractOptions = {
-  /**
-   * If true, the deployment process will not print any logs
-   */
-  silent?: boolean;
-  /**
-   * If true, the contract will not be verified on Block Explorer
-   */
-  noVerify?: boolean;
-  /**
-   * If specified, the contract will be deployed using this wallet
-   */
-  wallet?: Wallet;
-};
 export const deployContract = async (
   contractArtifactName: string,
   constructorArguments?: any[],
@@ -141,6 +129,60 @@ export const deployContract = async (
 
   return contract;
 };
+
+/* const deployProxy<C extends ethers.Contract> = (
+  implementation: C,
+  proxyAdmin: string,
+  initializeArgs?: Parameters<C['initialize']>,
+) => {
+  const isProxied = await isProxy(
+    this.multiProvider.getProvider(chain),
+    implementation.address,
+  );
+  if (isProxied) {
+    // if the implementation is already a proxy, do not deploy a new proxy
+    return implementation;
+  }
+
+  const constructorArgs = proxyConstructorArgs(
+    implementation,
+    proxyAdmin,
+    initializeArgs,
+  );
+  const proxy = await this.deployContractFromFactory(
+    chain,
+    new TransparentUpgradeableProxy__factory(),
+    'TransparentUpgradeableProxy',
+    constructorArgs,
+  );
+
+  return implementation.attach(proxy.address) as C;
+} */
+
+/**
+ * Deploys the Implementation and Proxy for a given contract
+ *
+ */
+/* export const deployProxiedContract = async (
+  contractName: string,
+  proxyAdmin: Address,
+) => {
+  // Try to initialize the implementation even though it may not be necessary
+  const implementation = await deployContract(
+    contractName,
+    constructorArgs,
+    initializeArgs,
+  );
+
+  // Initialize the proxy the same way
+  const contract = await this.deployProxy(
+    chain,
+    implementation,
+    proxyAdmin,
+    initializeArgs,
+  );
+  return contract;
+}; */
 
 /**
  * Rich wallets can be used for testing purposes.
