@@ -59,6 +59,10 @@ export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
 export { MultiProtocolCore } from './core/MultiProtocolCore';
 export { TestCoreApp } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
+export {
+  TestRecipientConfig,
+  TestRecipientDeployer,
+} from './core/TestRecipientDeployer';
 export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter';
 export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter';
 export { ICoreAdapter } from './core/adapters/types';
@@ -78,6 +82,7 @@ export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer';
 export {
   CheckerViolation,
+  OwnableConfig,
   OwnerViolation,
   ViolationType,
 } from './deploy/types';
@@ -121,6 +126,7 @@ export {
   IgpHookConfig,
   MerkleTreeHookConfig,
   OpStackHookConfig,
+  PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types';
 export {
@@ -141,6 +147,7 @@ export {
   MultisigConfig,
   MultisigIsmConfig,
   OpStackIsmConfig,
+  PausableIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
 export {
@@ -299,7 +306,6 @@ export {
   GasConfig,
   GasRouterConfig,
   MailboxClientConfig,
-  OwnableConfig,
   ProxiedFactories,
   ProxiedRouterConfig,
   RouterAddress,
