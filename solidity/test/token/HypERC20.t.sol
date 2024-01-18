@@ -103,16 +103,16 @@ abstract contract HypTokenTest is Test {
         );
     }
 
-    function _handleLocalTransfer(uint256 transferAmount) internal {
+    function _handleLocalTransfer(uint256 _transferAmount) internal {
         vm.prank(address(localMailbox));
         localToken.handle(
             DESTINATION,
             address(remoteToken).addressToBytes32(),
-            abi.encodePacked(ALICE.addressToBytes32(), transferAmount)
+            abi.encodePacked(ALICE.addressToBytes32(), _transferAmount)
         );
     }
 
-    function _mintAndApprove(address _account, uint256 _amount) internal {
+    function _mintAndApprove(uint256 _amount, address _account) internal {
         primaryToken.mint(_amount);
         primaryToken.approve(_account, _amount);
     }

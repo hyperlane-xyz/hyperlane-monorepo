@@ -52,7 +52,7 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
 
     function _transferRoundTripAndIncreaseYields(
         uint256 transferAmount,
-        uint256 rewardAmount
+        uint256 yieldAmount
     ) internal {
         // Transfer from Alice to Bob
         vm.prank(ALICE);
@@ -60,7 +60,7 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         _performRemoteTransfer(0, transferAmount);
 
         // Increase vault balance, which will reduce share redeemed for the same amount
-        primaryToken.mintTo(address(vault), rewardAmount);
+        primaryToken.mintTo(address(vault), yieldAmount);
 
         // Transfer back from Bob to Alice
         vm.prank(BOB);
@@ -75,9 +75,9 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         uint256 transferAmount
     ) public {
         transferAmount = bound(transferAmount, 0, TOTAL_SUPPLY);
-        vm.startPrank(ALICE);
-        _mintAndApprove(address(localToken), transferAmount);
-        vm.stopPrank();
+
+        vm.prank(ALICE);
+        _mintAndApprove(transferAmount, address(localToken));
 
         // Check vault shares balance before and after transfer
         assertEq(vault.maxRedeem(address(erc20CollateralVaultDeposit)), 0);
@@ -96,10 +96,9 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         uint256 transferAmount
     ) public {
         transferAmount = bound(transferAmount, 0, TOTAL_SUPPLY);
-        vm.startPrank(ALICE);
-        _mintAndApprove(address(localToken), transferAmount);
-        vm.stopPrank();
 
+        vm.prank(ALICE);
+        _mintAndApprove(transferAmount, address(localToken));
         _transferRoundTripAndIncreaseYields(transferAmount, DUST_AMOUNT);
 
         // Check Alice's local token balance
@@ -115,6 +114,7 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
     ) public {
         // @dev a rewardAmount less than the DUST_AMOUNT will round down
         rewardAmount = bound(rewardAmount, DUST_AMOUNT, TOTAL_SUPPLY);
+
         _transferRoundTripAndIncreaseYields(TRANSFER_AMT, rewardAmount);
 
         // Check Alice's local token balance
@@ -163,6 +163,7 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
     ) public {
         // @dev a rewardAmount less than the DUST_AMOUNT will round down
         rewardAmount = bound(rewardAmount, DUST_AMOUNT, TOTAL_SUPPLY);
+
         _transferRoundTripAndIncreaseYields(TRANSFER_AMT, rewardAmount);
         _handleLocalTransfer(TRANSFER_AMT);
 
@@ -185,6 +186,7 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
     ) public {
         // @dev a rewardAmount less than the DUST_AMOUNT will round down
         rewardAmount = bound(rewardAmount, DUST_AMOUNT, TOTAL_SUPPLY);
+
         _transferRoundTripAndIncreaseYields(TRANSFER_AMT, rewardAmount);
         _handleLocalTransfer(TRANSFER_AMT);
 
