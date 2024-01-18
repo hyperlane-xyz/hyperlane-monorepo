@@ -23,4 +23,8 @@ contract ERC20Test is ERC20 {
     function mint(uint256 amount) public {
         _mint(msg.sender, amount);
     }
+
+    function mintTo(address account, uint256 amount) public {
+        _mint(account, amount);
+    }
 }
