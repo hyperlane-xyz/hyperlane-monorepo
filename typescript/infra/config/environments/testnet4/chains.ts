@@ -31,7 +31,8 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
 
 // Blessed non-Ethereum chains.
 export const nonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
-  // solanadevnet: chainMetadata.solanadevnet,
+  solanatestnet: chainMetadata.solanatestnet,
+  eclipsetestnet: chainMetadata.eclipsetestnet,
 };
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {
