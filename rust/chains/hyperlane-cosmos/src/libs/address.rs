@@ -59,8 +59,9 @@ impl CosmosAddress {
             return Err(Overflow.into());
         }
 
-        // Truncate the digest to the desired length
-        let bytes = &untruncated_bytes[untruncated_bytes.len() - byte_count..];
+        let remainder_bytes_start = untruncated_bytes.len() - byte_count;
+        // Left-truncate the digest to the desired length
+        let bytes = &untruncated_bytes[remainder_bytes_start..];
 
         // Bech32 encode it
         let account_id =
