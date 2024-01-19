@@ -288,7 +288,8 @@ export function addressToBytes32(
   address: Address,
   protocol?: ProtocolType,
 ): string {
-  // If the address is already bytes32, just return.
+  // If the address is already bytes32, just return, avoiding a regression
+  // where an already bytes32 address cannot be categorized as a protocol address.
   if (HEX_BYTES32_REGEX.test(ensure0x(address))) return ensure0x(address);
 
   const bytes = addressToBytes(address, protocol);
