@@ -395,7 +395,5 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';
-// replace './types' with the actual path to your types
-
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> =
   multisigIsm as ChainMap<MultisigConfig>;
