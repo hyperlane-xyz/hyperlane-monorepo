@@ -1,10 +1,10 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "3.5.1",
+  "version": "3.6.0",
   "dependencies": {
     "@eth-optimism/contracts": "^0.6.0",
-    "@hyperlane-xyz/utils": "3.5.1",
+    "@hyperlane-xyz/utils": "3.6.0",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^v4.9.3"
   },
@@ -54,6 +54,7 @@
     "storage": "./storage.sh",
     "prettier": "prettier --write ./contracts ./test",
     "test": "hardhat test && forge test -vvv",
+    "test:ci": "hardhat test && forge test --no-match-test testFork -vvv",
     "gas": "forge snapshot",
     "gas-ci": "yarn gas --check --tolerance 2 || (echo 'Manually update gas snapshot' && exit 1)",
     "slither": "slither ."

@@ -1,5 +1,18 @@
 # @hyperlane-xyz/infra
 
+## 3.6.0
+
+### Patch Changes
+
+- 67a6d971e: Added `shouldRecover` flag to deployContractFromFactory so that the `TestRecipientDeployer` can deploy new contracts if it's not the owner of the prior deployments (We were recovering the SDK artifacts which meant the deployer won't be able to set the ISM as they needed)
+- Updated dependencies [67a6d971e]
+- Updated dependencies [612d4163a]
+- Updated dependencies [0488ef31d]
+- Updated dependencies [8d8ba3f7a]
+  - @hyperlane-xyz/sdk@3.6.0
+  - @hyperlane-xyz/helloworld@3.6.0
+  - @hyperlane-xyz/utils@3.6.0
+
 ## 3.5.1
 
 ### Patch Changes
