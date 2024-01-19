@@ -6,12 +6,18 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { RootAgentConfig, allAgentChainNames } from '../../../src/config';
-import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
+import {
+  GasPaymentEnforcementConfig,
+  routerMatchingList,
+} from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
 import { agentChainNames, environment } from './chains';
+import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
+import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
+import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
 
 // const releaseCandidateHelloworldMatchingList = routerMatchingList(
 //   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -43,14 +49,22 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '8ccfdb7-20240103-084118',
     },
     gasPaymentEnforcement,
+    metricAppContexts: [
+      {
+        name: 'helloworld',
+        matchingList: routerMatchingList(
+          helloWorld[Contexts.Hyperlane].addresses,
+        ),
+      },
+    ],
   },
   validators: {
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '8ccfdb7-20240103-084118',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -59,7 +73,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '8ccfdb7-20240103-084118',
     },
   },
 };
@@ -72,7 +86,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '8ccfdb7-20240103-084118',
     },
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
@@ -84,7 +98,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '8ccfdb7-20240103-084118',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -108,7 +122,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '67585a2-20231220-223937',
+      tag: '8ccfdb7-20240103-084118',
     },
     gasPaymentEnforcement: [
       {
@@ -129,6 +143,16 @@ const neutron: RootAgentConfig = {
         ],
       },
       ...gasPaymentEnforcement,
+    ],
+    metricAppContexts: [
+      {
+        name: 'manta_tia',
+        matchingList: routerMatchingList(mantaTIAAddresses),
+      },
+      {
+        name: 'arbitrum_tia',
+        matchingList: routerMatchingList(arbitrumTIAAddresses),
+      },
     ],
   },
 };
