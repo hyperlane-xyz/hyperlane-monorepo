@@ -7,6 +7,8 @@ import { Address, HexString, ProtocolType } from './types';
 const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SEALEVEL_ADDRESS_REGEX = /^[a-zA-Z0-9]{36,44}$/;
 
+const HEX_BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
+
 // https://github.com/cosmos/cosmos-sdk/blob/84c33215658131d87daf3c629e909e12ed9370fa/types/coin.go#L601C17-L601C44
 const COSMOS_DENOM_PATTERN = `[a-zA-Z][a-zA-Z0-9]{2,127}`;
 // https://en.bitcoin.it/wiki/BIP_0173
@@ -282,8 +284,13 @@ export function addressToByteHexString(
   );
 }
 
-export function addressToBytes32(address: Address): string {
-  const protocol = getAddressProtocolType(address);
+export function addressToBytes32(
+  address: Address,
+  protocol?: ProtocolType,
+): string {
+  // If the address is already bytes32, just return.
+  if (HEX_BYTES32_REGEX.test(ensure0x(address))) return ensure0x(address);
+
   const bytes = addressToBytes(address, protocol);
   return bytesToBytes32(bytes);
 }
