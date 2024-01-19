@@ -143,11 +143,13 @@ pub mod test {
             addr.address(),
             "neutron1kknekjxg0ear00dky5ykzs8wwp2gz62z9s6aaj"
         );
-        // TODO: watch out for this edge case. This check will fail unless
-        // the first 12 bytes are removed from the digest.
-        // let digest = addr.digest();
-        // let addr2 = CosmosAddress::from_h256(digest, prefix).expect("Cosmos address creation failed");
-        // assert_eq!(addr.address(), addr2.address());
+
+        // Create an address with the same digest & explicitly set the byte count to 20,
+        // which should have the same result as the above.
+        let digest = addr.digest();
+        let addr2 =
+            CosmosAddress::from_h256(digest, prefix, 20).expect("Cosmos address creation failed");
+        assert_eq!(addr.address(), addr2.address());
     }
 
     #[test]
@@ -162,7 +164,7 @@ pub mod test {
             "dual1rvtgvc38sfd9zehtgsp3eh8k269naq949u5qdcqm3x35mjg2uctqfdn3yq"
         );
 
-        // First 20 bytes only, which is 0x1cdcf6568b3e80b52f2806e01b89a34dc90ae616
+        // Last 20 bytes only, which is 0x1cdcf6568b3e80b52f2806e01b89a34dc90ae616
         let addr =
             CosmosAddress::from_h256(key, prefix, 20).expect("Cosmos address creation failed");
         assert_eq!(
