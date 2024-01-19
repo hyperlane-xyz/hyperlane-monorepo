@@ -11,7 +11,8 @@ import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { helloworld } from '../../config/environments/helloworld';
-import relayerAddresses from '../../config/relayer.json';
+import localKathyAddresses from '../../config/kathy.json';
+import localRelayerAddresses from '../../config/relayer.json';
 import { getJustHelloWorldConfig } from '../../scripts/helloworld/utils';
 import {
   AgentContextConfig,
@@ -25,6 +26,15 @@ import { execCmd, isEthereumProtocolChain } from '../utils/utils';
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { CloudAgentKey } from './keys';
+
+export type LocalRoleAddresses = Record<
+  DeployEnvironment,
+  Record<Contexts, Address>
+>;
+export const relayerAddresses: LocalRoleAddresses =
+  localRelayerAddresses as LocalRoleAddresses;
+export const kathyAddresses: LocalRoleAddresses =
+  localKathyAddresses as LocalRoleAddresses;
 
 export interface KeyAsAddress {
   identifier: string;
@@ -320,19 +330,20 @@ export async function createAgentKeysIfNotExists(
 
   // recent keys fetched from aws saved to sdk artifacts
   const multisigValidatorKeys: ChainMap<MultisigConfig> = {};
-  let relayer: Address = '';
-
+  let relayer, kathy;
   for (const key of keys) {
     if (key.role === Role.Relayer) {
+      if (relayer)
+        throw new Error('More than one Relayer found in gcpCloudAgentKeys');
       relayer = key.address;
+    }
+    if (key.role === Role.Kathy) {
+      if (kathy)
+        throw new Error('More than one Kathy found in gcpCloudAgentKeys');
+      kathy = key.address;
     }
     if (!key.chainName) continue;
     if (!multisigValidatorKeys[key.chainName]) {
-      console.log(
-        `for chain ${key.chainName} key is ${
-          defaultMultisigConfigs[key.chainName].threshold
-        }`,
-      );
       multisigValidatorKeys[key.chainName] = {
         threshold:
           newThresholds?.[key.chainName] ??
@@ -340,18 +351,25 @@ export async function createAgentKeysIfNotExists(
           1,
         validators: [],
       };
-      console.log(
-        'after change: ',
-        multisigValidatorKeys[key.chainName].threshold,
-      );
     }
     if (key.chainName)
       multisigValidatorKeys[key.chainName].validators.push(key.address);
   }
-  await persistRelayerAddressesToSDKArtifacts(
-    relayer,
+  if (!relayer) throw new Error('No Relayer found in gcpCloudAgentKeys');
+  if (!kathy) throw new Error('No Kathy found in gcpCloudAgentKeys');
+  await persistRoleAddressesToLocalArtifacts(
+    Role.Relayer,
     agentConfig.runEnv,
     agentConfig.context,
+    relayer,
+    relayerAddresses,
+  );
+  await persistRoleAddressesToLocalArtifacts(
+    Role.Kathy,
+    agentConfig.runEnv,
+    agentConfig.context,
+    kathy,
+    kathyAddresses,
   );
   await persistValidatorAddressesToSDKArtifacts(multisigValidatorKeys);
   await persistAddressesToGcp(
@@ -413,20 +431,23 @@ async function persistAddressesToGcp(
   );
 }
 
-export async function persistRelayerAddressesToSDKArtifacts(
-  fetchRelayerAddress: Address,
+// non-validator roles
+export async function persistRoleAddressesToLocalArtifacts(
+  role: Role,
   environment: DeployEnvironment,
   context: Contexts,
+  updated: Address,
+  addresses: Record<DeployEnvironment, Record<Contexts, Address>>,
 ) {
-  relayerAddresses[environment][context] = fetchRelayerAddress;
-  console.log('relayerAddresses===', JSON.stringify(relayerAddresses, null, 2));
+  addresses[environment][context] = updated;
 
   // Resolve the relative path
-  const filePath = path.resolve(__dirname, '../../config/relayer.json');
+  const filePath = path.resolve(__dirname, `../../config/${role}.json`);
 
-  fs.writeFileSync(filePath, JSON.stringify(relayerAddresses, null, 2));
+  fs.writeFileSync(filePath, JSON.stringify(addresses, null, 2));
 }
 
+// maintaining the schema and requires a threshold
 export async function persistValidatorAddressesToSDKArtifacts(
   fetchedValidatorAddresses: ChainMap<MultisigConfig>,
 ) {
@@ -435,13 +456,11 @@ export async function persistValidatorAddressesToSDKArtifacts(
       ...fetchedValidatorAddresses[chain], // fresh from aws
     };
   }
-
   // Resolve the relative path
   const filePath = path.resolve(
     __dirname,
     '../../../sdk/src/consts/multisigIsm.json',
   );
-
   // Write the updated object back to the file
   fs.writeFileSync(filePath, JSON.stringify(defaultMultisigConfigs, null, 2));
 }
