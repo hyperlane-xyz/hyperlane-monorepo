@@ -186,6 +186,7 @@ export {
   getChainIdNumber,
   getDomainId,
   isValidChainMetadata,
+  getReorgPeriod,
 } from './metadata/chainMetadataTypes';
 export { ZHash } from './metadata/customZodTypes';
 export {
