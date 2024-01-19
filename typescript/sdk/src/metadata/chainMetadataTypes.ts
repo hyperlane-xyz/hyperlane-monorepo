@@ -243,7 +243,7 @@ export function getChainIdNumber(chainMetadata: ChainMetadata): number {
 }
 
 export function getReorgPeriod(chainMetadata: ChainMetadata): number {
-  if (chainMetadata.blocks?.reorgPeriod)
+  if (chainMetadata.blocks?.reorgPeriod !== undefined)
     return chainMetadata.blocks.reorgPeriod;
   else throw new Error('Chain has no reorg period');
 }
