@@ -3,6 +3,7 @@
     "outDir": "./dist/",
     "rootDir": "./",
     "noUnusedLocals": false,
+    "resolveJsonModule": true
   },
   "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
   "extends": "../tsconfig.json",
