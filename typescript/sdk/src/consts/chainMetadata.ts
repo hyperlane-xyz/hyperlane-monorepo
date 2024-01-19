@@ -601,7 +601,7 @@ export const neutron: ChainMetadata = {
   chainId: 'neutron-1',
   displayName: 'Neutron',
   domainId: 1853125230,
-  gRpcUrls: [{ http: 'grpc-kralum.neutron-1.neutron.org:80' }],
+  grpcUrls: [{ http: 'grpc-kralum.neutron-1.neutron.org:80' }],
   isTestnet: false,
   name: Chains.neutron,
   nativeToken: {

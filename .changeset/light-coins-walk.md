@@ -2,4 +2,4 @@
 '@hyperlane-xyz/sdk': patch
 ---
 
-Add optional gRpcUrl field to ChainMetadata
+Add optional grpcUrl field to ChainMetadata

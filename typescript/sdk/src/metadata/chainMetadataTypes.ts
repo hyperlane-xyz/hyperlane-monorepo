@@ -111,7 +111,7 @@ export const ChainMetadataSchemaObject = z.object({
     .array(RpcUrlSchema)
     .describe('For cosmos chains only, a list of Rest API URLs')
     .optional(),
-  gRpcUrls: z
+  grpcUrls: z
     .array(RpcUrlSchema)
     .describe('For cosmos chains only, a list of gRPC API URLs')
     .optional(),
@@ -225,14 +225,14 @@ export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
     (metadata) => {
       if (
         metadata.protocol === ProtocolType.Cosmos &&
-        (!metadata.restUrls || !metadata.gRpcUrls)
+        (!metadata.restUrls || !metadata.grpcUrls)
       )
         return false;
       else return true;
     },
     {
       message: 'Rest and gRPC URLs required for Cosmos chains',
-      path: ['restUrls', 'gRpcUrls'],
+      path: ['restUrls', 'grpcUrls'],
     },
   );
 

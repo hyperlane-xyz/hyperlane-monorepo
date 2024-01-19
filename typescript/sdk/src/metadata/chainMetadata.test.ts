@@ -61,7 +61,7 @@ describe('ChainMetadataSchema', () => {
         bech32Prefix: 'cosmos',
         slip44: 118,
         restUrls: [],
-        gRpcUrls: [],
+        grpcUrls: [],
       }),
     ).to.eq(true);
   });
