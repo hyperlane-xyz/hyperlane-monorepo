@@ -53,6 +53,10 @@ export function getAddressProtocolType(address: Address) {
   }
 }
 
+export function isAddress(address: Address) {
+  return !!getAddressProtocolType(address);
+}
+
 function routeAddressUtil<T>(
   fns: Partial<Record<ProtocolType, (param: string) => T>>,
   param: string,
