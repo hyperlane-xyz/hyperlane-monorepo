@@ -241,3 +241,9 @@ export function getChainIdNumber(chainMetadata: ChainMetadata): number {
   if (typeof chainMetadata.chainId === 'number') return chainMetadata.chainId;
   else throw new Error('ChainId is not a number, chain may be of Cosmos type');
 }
+
+export function getReorgPeriod(chainMetadata: ChainMetadata): number {
+  if (chainMetadata.blocks?.reorgPeriod !== undefined)
+    return chainMetadata.blocks.reorgPeriod;
+  else throw new Error('Chain has no reorg period');
+}

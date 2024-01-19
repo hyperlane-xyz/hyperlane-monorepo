@@ -53,7 +53,7 @@ export interface DeployerOptions {
 }
 
 export abstract class HyperlaneDeployer<
-  Config,
+  Config extends object,
   Factories extends HyperlaneFactories,
 > {
   public verificationInputs: ChainMap<ContractVerificationInput[]> = {};
