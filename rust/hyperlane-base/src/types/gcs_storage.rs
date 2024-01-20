@@ -114,7 +114,7 @@ impl GcsStorageClient {
     }
     // #test only method[s]
     #[cfg(test)]
-    pub(crate) async fn get_by_bath(&self, path: impl AsRef<str>) -> Result<()> {
+    pub(crate) async fn get_by_path(&self, path: impl AsRef<str>) -> Result<()> {
         self.inner.get_object(&self.bucket, path).await?;
         Ok(())
     }
@@ -167,8 +167,7 @@ impl CheckpointSyncer for GcsStorageClient {
             .inner
             .get_object(&self.bucket, GcsStorageClient::get_checkpoint_key(index))
             .await?;
-        let scwmi = serde_json::from_slice(res.as_ref())?;
-        Ok(Some(scwmi))
+        Ok(Some(serde_json::from_slice(res.as_ref())?))
     }
 
     /// Write the signed (checkpoint, messageId) tuple to this syncer
@@ -206,11 +205,11 @@ impl CheckpointSyncer for GcsStorageClient {
 
 #[tokio::test]
 async fn public_landset_no_auth_works_test() {
-    const LANDSET_BUCKET: &str = "gcp-public-data-landsat";
-    const LANDSET_KEY: &str = "LC08/01/001/003/LC08_L1GT_001003_20140812_20170420_01_T2/LC08_L1GT_001003_20140812_20170420_01_T2_B3.TIF";
+    const LANDSAT_BUCKET: &str = "gcp-public-data-landsat";
+    const LANDSAT_KEY: &str = "LC08/01/001/003/LC08_L1GT_001003_20140812_20170420_01_T2/LC08_L1GT_001003_20140812_20170420_01_T2_B3.TIF";
     let client = GcsStorageClientBuilder::new(None, None)
-        .build(LANDSET_BUCKET, None)
+        .build(LANDSAT_BUCKET, None)
         .await
         .unwrap();
-    assert!(client.get_by_bath(LANDSET_KEY).await.is_ok());
+    assert!(client.get_by_path(LANDSAT_KEY).await.is_ok());
 }
