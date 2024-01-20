@@ -7,6 +7,7 @@ use eyre::{eyre, Context, Report, Result};
 use prometheus::IntGauge;
 use rusoto_core::Region;
 use std::{env, path::PathBuf};
+use ya_gcp::{AuthFlow, ServiceAccountAuth};
 
 /// Checkpoint Syncer types
 #[derive(Debug, Clone)]
@@ -119,14 +120,22 @@ impl CheckpointSyncerConf {
                 folder,
                 service_account_key,
                 user_secrets,
-            } => Box::new(
-                GcsStorageClientBuilder::new(
-                    service_account_key.to_owned(),
-                    user_secrets.to_owned(),
+            } => {
+                let auth = if let Some(path) = service_account_key {
+                    AuthFlow::ServiceAccount(ServiceAccountAuth::Path(path.into()))
+                } else if let Some(path) = user_secrets {
+                    AuthFlow::UserAccount(path.into())
+                } else {
+                    // Public data access only - no `insert`
+                    AuthFlow::NoAuth
+                };
+
+                Box::new(
+                    GcsStorageClientBuilder::new(auth)
+                        .build(bucket, folder.to_owned())
+                        .await?,
                 )
-                .build(bucket, folder.to_owned())
-                .await?,
-            ),
+            }
         })
     }
 }

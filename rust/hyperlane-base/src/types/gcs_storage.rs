@@ -4,9 +4,7 @@ use derive_new::new;
 use eyre::{bail, Result};
 use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
 use std::fmt;
-use ya_gcp::{
-    storage::StorageClient, AuthFlow, ClientBuilder, ClientBuilderConfig, ServiceAccountAuth,
-};
+use ya_gcp::{storage::StorageClient, AuthFlow, ClientBuilder, ClientBuilderConfig};
 
 const LATEST_INDEX_KEY: &str = "gcsLatestIndexKey";
 const ANNOUNCEMENT_KEY: &str = "gcsAnnouncementKey";
@@ -16,19 +14,19 @@ pub const GCS_USER_SECRET: &str = "GCS_USER_SECRET";
 pub const GCS_SERVICE_ACCOUNT_KEY: &str = "GCS_SERVICE_ACCOUNT_KEY";
 
 /// Google Cloud Storage client builder
-/// Provide `(None, None)` for no-auth access to public bucket[s]
-/// # Example 1 - anonymous client with access to public bucket[s]
+/// Provide `AuthFlow::NoAuth` for no-auth access to public bucket
+/// # Example 1 - anonymous client with access to public bucket
 /// ```
 ///    use hyperlane_base::GcsStorageClientBuilder;
 /// #  #[tokio::main]
 /// #  async fn main() {
-///    let client = GcsStorageClientBuilder::new(None, None)
+///    let client = GcsStorageClientBuilder::new(AuthFlow::NoAuth)
 ///        .build("HyperlaneBucket", None)
 ///        .await.expect("failed to instantiate anonymous client");
 /// #  }
 ///```
 ///
-/// For authenticated write access to bucket[s] proper file path must be provided.
+/// For authenticated write access to bucket proper file path must be provided.
 /// # WARN: panic-s if file path is incorrect or data in it as faulty
 ///
 /// # Example 2 - service account key
@@ -36,7 +34,10 @@ pub const GCS_SERVICE_ACCOUNT_KEY: &str = "GCS_SERVICE_ACCOUNT_KEY";
 ///    use hyperlane_base::GcsStorageClientBuilder;
 /// #  #[tokio::main]
 /// #  async fn main() {
-///    let client = GcsStorageClientBuilder::new(Some("path/to/sac.json".into()), None)
+///    let auth =
+///        AuthFlow::ServiceAccount(ServiceAccountAuth::Path("path/to/sac.json".into()));
+///
+///    let client = GcsStorageClientBuilder::new(auth)
 ///        .build("HyperlaneBucket", None)
 ///        .await.expect("failed to instantiate anonymous client");
 /// #  }
@@ -46,23 +47,17 @@ pub const GCS_SERVICE_ACCOUNT_KEY: &str = "GCS_SERVICE_ACCOUNT_KEY";
 ///    use hyperlane_base::GcsStorageClientBuilder;
 /// #  #[tokio::main]
 /// #  async fn main() {
-///    let client = GcsStorageClientBuilder::new(None, Some("path/to/user_secret.json".into()))
+///    let auth =
+///        AuthFlow::UserAccount("path/to/user_secret.json".into());
+///
+///    let client = GcsStorageClientBuilder::new(auth)
 ///        .build("HyperlaneBucket", None)
 ///        .await.expect("failed to instantiate anonymous client");
 /// #  }
 ///```
 #[derive(Debug, new)]
 pub struct GcsStorageClientBuilder {
-    /// A path to the oauth service account key json file.
-    ///
-    /// If this is not provided, `user_secrets` must be.
-    service_account_key: Option<String>,
-
-    /// Path to oauth user secrets, like those created by
-    /// `gcloud auth application-default login`
-    ///
-    /// If this is not provided, `service_account_key` must be.
-    user_secrets: Option<String>,
+    auth: AuthFlow,
 }
 
 /// Google Cloud Storage client
@@ -85,16 +80,7 @@ impl GcsStorageClientBuilder {
         bucket_name: impl Into<String>,
         folder: Option<String>,
     ) -> Result<GcsStorageClient> {
-        let auth = if let Some(path) = self.service_account_key {
-            AuthFlow::ServiceAccount(ServiceAccountAuth::Path(path.into()))
-        } else if let Some(path) = self.user_secrets {
-            AuthFlow::UserAccount(path.into())
-        } else {
-            // Public data access only - no `insert`
-            AuthFlow::NoAuth
-        };
-
-        let inner = ClientBuilder::new(ClientBuilderConfig::new().auth_flow(auth))
+        let inner = ClientBuilder::new(ClientBuilderConfig::new().auth_flow(self.auth))
             .await?
             .build_storage_client();
         let bucket = if let Some(folder) = folder {
@@ -207,7 +193,7 @@ impl CheckpointSyncer for GcsStorageClient {
 async fn public_landset_no_auth_works_test() {
     const LANDSAT_BUCKET: &str = "gcp-public-data-landsat";
     const LANDSAT_KEY: &str = "LC08/01/001/003/LC08_L1GT_001003_20140812_20170420_01_T2/LC08_L1GT_001003_20140812_20170420_01_T2_B3.TIF";
-    let client = GcsStorageClientBuilder::new(None, None)
+    let client = GcsStorageClientBuilder::new(AuthFlow::NoAuth)
         .build(LANDSAT_BUCKET, None)
         .await
         .unwrap();
