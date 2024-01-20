@@ -36,7 +36,7 @@ module hp_mailbox::mailbox_tests {
       mailbox::init_for_test(ctx);
     };
     
-    next_tx(scenario, admin);
+    next_tx(scenario, @hp_mailbox);
     {
       let admin_cap = test_scenario::take_from_address<AdminCap>(scenario, admin);
       mailbox::create_state(&admin_cap, APTOS_TESTNET_DOMAIN, test_scenario::ctx(scenario));
@@ -44,14 +44,14 @@ module hp_mailbox::mailbox_tests {
     };
 
     
-    next_tx(scenario, admin);
+    next_tx(scenario, @hp_router);
     {
       // init router module
       router::init_for_test(test_scenario::ctx(scenario));
     };
 
 
-    next_tx(scenario, admin);
+    next_tx(scenario, @hp_mailbox);
     {
       let router_registry = test_scenario::take_shared<RouterRegistry>(scenario);
       // init router
@@ -62,7 +62,7 @@ module hp_mailbox::mailbox_tests {
       test_scenario::return_shared(router_registry);
     };
 
-    next_tx(scenario, admin);
+    next_tx(scenario, @hp_mailbox);
     {
       let router_registry = test_scenario::take_shared<RouterRegistry>(scenario);
 
@@ -81,17 +81,17 @@ module hp_mailbox::mailbox_tests {
     // do `dispatch`
     let message_body = vector[0, 0, 0, 0];
     
-    next_tx(scenario, admin);
+    next_tx(scenario, @hp_mailbox);
     {
       let mailbox_state = test_scenario::take_shared<MailBoxState>(scenario);
       let router_registry = test_scenario::take_shared<RouterRegistry>(scenario);
-      let cap_wrapper = test_scenario::take_from_address<RouterCapWrapper<TestRouter>>(scenario, admin);
+      let cap_wrapper = test_scenario::take_from_address<RouterCapWrapper<TestRouter>>(scenario, @hp_mailbox);
       mailbox::dispatch<TestRouter>(&mut mailbox_state, &router_registry, BSC_TESTNET_DOMAIN, message_body, &cap_wrapper.router_cap, test_scenario::ctx(scenario));
       // check if mailbox count increased
       assert!(mailbox::outbox_get_count(&mailbox_state) == 1, 0);
       test_scenario::return_shared(router_registry);
       test_scenario::return_shared(mailbox_state);
-      test_scenario::return_to_address(admin, cap_wrapper);
+      test_scenario::return_to_address(@hp_mailbox, cap_wrapper);
     };
 
     test_scenario::end(scenario_val);

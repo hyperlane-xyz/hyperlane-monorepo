@@ -1,10 +1,13 @@
 module hp_library::utils {
   use std::vector;
   use std::bcs;
+  use std::ascii;
   use std::option::{Self, Option};
   use std::string;
+  
   use sui::hash;
   use sui::ecdsa_k1;
+  use sui::address;
 
   /// Aptos Module Version
   const VERSION: u8 = 0;
@@ -190,6 +193,51 @@ module hp_library::utils {
     };
     vector::reverse(&mut result);
     result
+  }
+
+  /* 1/19 patch. these 3 functions are needed to change string address to real address
+    ex: "3fbd" => 0x3fbd.
+    I couldn't find a simple sui function to achieve this.
+   */
+  public fun string_to_addy(str: &ascii::String): address {
+    let bytes = ascii::as_bytes(str);
+
+    let result: vector<u8> = vector::empty();
+    let i = 0;
+    while (i < vector::length(bytes)) {
+      let x = *vector::borrow(bytes, i);
+      x = ascii2val(x) << 4;
+      let y = *vector::borrow(bytes, i+1);
+      y = ascii2val(y);
+      
+      vector::push_back(&mut result, x + y);
+      i = i + 2;
+    };
+
+    std::debug::print<vector<u8>>(&result);
+    address::from_bytes(result)
+  }
+
+  fun chbyte(v: &vector<u8>): u8 {
+    let s = ascii::string(*v);
+    ascii::byte(ascii::pop_char(&mut s))
+  }
+
+  fun ascii2val(x: u8): u8 {
+    if (x >= chbyte(&b"0") && x <= chbyte(&b"9")) {
+      x - 0x30
+    } else if (x >= chbyte(&b"A") && x <= chbyte(&b"Z")) {
+      x - 55
+    } else {
+      x - 87
+    }
+  }
+  /* end */
+
+  #[test]
+  fun string_to_addy_test() {
+    let v1 = ascii::string(b"f821d3483fc7725ebafaa5a3d12373d49901bdfce1484f219daa7066a30df77d");
+    assert!(string_to_addy(&v1) == @0xf821d3483fc7725ebafaa5a3d12373d49901bdfce1484f219daa7066a30df77d, 0);
   }
 
   #[test]

@@ -23,7 +23,7 @@ module hp_router::router_tests {
   #[test]
   fun enroll_router_test() {
 
-    let admin = @0xA;
+    let admin = @hp_router;
     let scenario_val = scenario();
     let scenario = &mut scenario_val;
     
@@ -95,7 +95,7 @@ module hp_router::router_tests {
   // Test will fail due to duplicated package address
   #[test]
   fun get_module_name_test() {
-    let admin = @0xA;
+    let admin = @hp_router;
     let scenario_val = scenario();
     let scenario = &mut scenario_val;
 

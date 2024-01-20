@@ -5,6 +5,7 @@ module hp_router::router {
   use std::ascii;
   use std::type_name::{Self, TypeName};
   use sui::address;
+  use sui::bcs;
   use sui::vec_map::{Self, VecMap};
   use sui::object::{Self, ID, UID};
   use sui::transfer;
@@ -12,6 +13,7 @@ module hp_router::router {
   use sui::event;
 
   use hp_library::msg_utils;
+  use hp_library::utils;
   use hp_library::h256;
 
   //
@@ -188,7 +190,7 @@ module hp_router::router {
   /// Get address of type T
   public fun type_address<T>(): address {
     let addr = type_name::get_address(&type_name::get<T>());
-    address::from_bytes(ascii::into_bytes(addr))
+    utils::string_to_addy(&addr)
   }
 
   /// Get module name of type T

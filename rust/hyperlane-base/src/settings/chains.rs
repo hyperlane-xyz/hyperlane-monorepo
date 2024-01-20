@@ -19,6 +19,7 @@ use hyperlane_ethereum::{
 };
 use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
+use hyperlane_sui as h_sui;
 
 use crate::{
     metrics::AgentMetricsConf,
@@ -427,6 +428,11 @@ impl ChainConf {
 
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
+            ChainConnectionConf::Sui(conf) => {
+                let keypair = self.sui_signer().await.context("Announcing Validator")?;
+                let va = Box::new(h_sui::SuiValidatorAnnounce::new(conf, locator, keypair));
+                Ok(va as Box<dyn ValidatorAnnounce>)
+            }
         }
         .context("Building ValidatorAnnounce")
     }
@@ -643,6 +649,10 @@ impl ChainConf {
     }
 
     async fn cosmos_signer(&self) -> Result<Option<h_cosmos::Signer>> {
+        self.signer().await
+    }
+
+    async fn sui_signer(&self) -> Result<Option<h_sui::Keypair>> {
         self.signer().await
     }
 

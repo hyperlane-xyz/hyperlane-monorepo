@@ -1,0 +1,25 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-sui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+borsh.workspace = true
+jsonrpc-core.workspace = true
+num-traits.workspace = true
+serde.workspace = true
+solana-account-decoder.workspace = true
+solana-client.workspace = true
+solana-sdk.workspace = true
+solana-transaction-status.workspace = true
+thiserror.workspace = true
+tracing-futures.workspace = true
+tracing.workspace = true
+url.workspace = true
+tokio.workspace = true
+derive-new.workspace = true
