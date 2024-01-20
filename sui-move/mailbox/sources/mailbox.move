@@ -269,6 +269,50 @@ module hp_mailbox::mailbox {
       (merkle_tree::count(&mailbox.tree) as u32)
     }
     
+    #[view]
+    /// Calculates and returns tree's current root
+    public fun outbox_get_tree(mailbox: &MailBoxState): MerkleTree {
+      mailbox.tree
+    }
+
+    #[view]
+    public fun get_default_ism(): address {
+      @hp_isms
+    }
+
+    #[view]
+    /// Returns module_name of recipient package
+    public fun recipient_module_name(registry: &RouterRegistry, recipient: address): vector<u8> {
+      router::fetch_module_name(registry, recipient)
+    }
+
+    #[view]
+    /// Returns a checkpoint representing the current merkle tree.
+    public fun outbox_latest_checkpoint(mailbox: &MailBoxState): (vector<u8>, u32) {
+      let count = outbox_get_count(mailbox);
+      if (count > 1) count = count - 1;
+      (outbox_get_root(mailbox),  count)
+    }
+
+    #[view]
+    /// Calculates and returns tree's current root
+    public fun outbox_get_root(mailbox: &MailBoxState): vector<u8> {
+      merkle_tree::root(&mailbox.tree)
+    }
+
+    #[view]
+    /// Returns current local domain
+    public fun local_domain(mailbox: &MailBoxState): u32 {
+      mailbox.local_domain
+    }
+    
+    #[view]
+    /// Returns if message is delivered here
+    public fun delivered(mailbox: &MailBoxState, message_id: vector<u8>): bool {
+      vec_map::contains(&mailbox.delivered, &message_id)
+    }
+
+
     #[test_only]
     public fun init_for_test(ctx: &mut TxContext) {
       init(ctx)
