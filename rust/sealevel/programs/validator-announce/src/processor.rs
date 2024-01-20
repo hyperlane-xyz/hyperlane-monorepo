@@ -48,10 +48,10 @@ pub fn process_instruction(
 
 /// Initializes the program.
 ///
-/// `acounts`:
-/// 0: `signer` The payer.
-/// 1: `executable` The system program.
-/// 2: `writable` The ValidatorAnnounce PDA account.
+/// Accounts:
+/// 0. `[signer]` The payer.
+/// 1. `[executable]` The system program.
+/// 2. `[writable]` The ValidatorAnnounce PDA account.
 pub fn process_init(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
