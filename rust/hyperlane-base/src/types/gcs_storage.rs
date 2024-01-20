@@ -70,35 +70,6 @@ pub struct GcsStorageClientBuilder {
 /// For anonymous access to public data provide `(None, None)` to Builder
 pub struct GcsStorageClient {
     // GCS storage client
-    // # Read methods:
-    //
-    // * `get_object(&self,
-    //        bucket_name: impl AsRef<str>,
-    //        object_name: impl AsRef<str>
-    //    ) -> Result<Bytes, ObjectError>`
-    //
-    // * `get_metadata(
-    //        &self,
-    //        bucket_name: impl AsRef<str>,
-    //        object_name: impl AsRef<str>
-    //   ) -> Result<Metadata, ObjectError>`
-    //
-    // # Write methods:
-    //
-    // * `insert_object(
-    //        &self,
-    //        bucket_name: impl AsRef<str>,
-    //        object_name: impl AsRef<str>,
-    //        data: impl Into<Bytes>
-    //    ) -> Result<Metadata, ObjectError>`
-    //
-    // * `insert_with_metadata(
-    //        &self,
-    //        bucket_name: impl AsRef<str>,
-    //        metadata: &Metadata,
-    //        data: impl Into<Bytes>
-    //    ) -> Result<Metadata, ObjectError>`
-    //
     // # Details: <https://docs.rs/ya-gcp/latest/ya_gcp/storage/struct.StorageClient.html>
     inner: StorageClient,
     // bucket name of this client's storage
