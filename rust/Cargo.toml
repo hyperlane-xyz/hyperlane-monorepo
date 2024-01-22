@@ -7,6 +7,7 @@ members = [
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
   "chains/hyperlane-sealevel",
+  "chains/hyperlane-sui",
   "ethers-prometheus",
   "hyperlane-base",
   "hyperlane-core",
@@ -158,6 +159,7 @@ spl-type-length-value = "=0.1.0"
 static_assertions = "1.1"
 strum = "0.25.0"
 strum_macros = "0.25.2"
+sui-sdk = { git = "https://github.com/mystenlabs/sui", package = "sui-sdk" }
 tempfile = "3.3"
 tendermint = "0.32.2"
 tendermint-rpc = { version = "0.32.0", features = ["http-client", "tokio"] }

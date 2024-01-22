@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use anyhow::Error;
 use async_trait::async_trait;
 use solana_sdk::signature::Keypair;
 use tracing::info;
@@ -28,16 +29,19 @@ pub struct SuiValidatorAnnounce {
 
 impl SuiValidatorAnnounce {
     /// Create a new Sui ValidatorAnnounce
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator, payer: Option<Keypair>) -> Self {
-        let sui_client = SuiRpcClient::new(conf.url.to_string());
-        let package_address =
-            SuiAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
-        Self {
+    pub async fn new(
+        conf: ConnectionConf,
+        locator: ContractLocator<'_>,
+        payer: Option<Keypair>,
+    ) -> Result<Self, Error> {
+        let sui_client = SuiRpcClient::new(conf.url.to_string()).await?;
+        let package_address = SuiAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
+        Ok(Self {
             package_address,
             sui_client,
             payer,
             domain: locator.domain.clone(),
-        }
+        })
     }
 
     /// Returns a ContractCall that processes the provided message.
