@@ -58,7 +58,7 @@ fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
 }
 
 const CW_HYPERLANE_GIT: &str = "https://github.com/hyperlane-xyz/cosmwasm";
-const CW_HYPERLANE_VERSION: &str = "0.0.6-rc7";
+const CW_HYPERLANE_VERSION: &str = "injective-testnet";
 
 fn make_target() -> String {
     let os = if cfg!(target_os = "linux") {
@@ -101,18 +101,22 @@ pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, Path
     if !local {
         let dir_path_str = dir_path.to_str().unwrap();
 
-        let release_comp = format!("wasm_codes.zip");
+        let release_comp = "wasm_codes.zip";
 
-        log!("Downloading cw-hyperlane v{}", CW_HYPERLANE_VERSION);
+        log!(
+            "Downloading {} @ {}",
+            CW_HYPERLANE_GIT,
+            CW_HYPERLANE_VERSION
+        );
         let uri =
-            format!("{CW_HYPERLANE_GIT}/releases/download/v{CW_HYPERLANE_VERSION}/${release_comp}");
+            format!("{CW_HYPERLANE_GIT}/releases/download/{CW_HYPERLANE_VERSION}/{release_comp}");
         download(&release_comp, &uri, dir_path_str);
 
-        log!("Uncompressing cw-hyperlane release");
+        log!("Uncompressing {} release", CW_HYPERLANE_GIT);
         unzip(&release_comp, dir_path_str);
     }
 
-    log!("Installing cw-hyperlane in Path: {:?}", dir_path);
+    log!("Installing {} in Path: {:?}", CW_HYPERLANE_GIT, dir_path);
 
     // make contract_name => path map
     fs::read_dir(dir_path)
