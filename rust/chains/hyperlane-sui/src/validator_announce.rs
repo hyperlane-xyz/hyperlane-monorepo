@@ -5,8 +5,7 @@ use solana_sdk::signature::Keypair;
 use tracing::info;
 use tracing::{instrument, warn};
 
-use crate::{SuiRpcClient};
-use crate::{ConnectionConf};
+use crate::{SuiRpcClient, ConnectionConf};
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, SignedType, TxOutcome, ValidatorAnnounce, H256, H512, U256,
@@ -16,11 +15,12 @@ use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
 use std::str::FromStr;
 use url::Url;
+use::sui_sdk::types::base_types::SuiAddress;
 
 /// A reference to a ValidatorAnnounce contract on Sui chain
 #[derive(Debug)]
 pub struct SuiValidatorAnnounce {
-    package_address: AccountAddress,
+    package_address: SuiAddress,
     sui_client: SuiRpcClient,
     payer: Option<Keypair>,
     domain: HyperlaneDomain,
@@ -31,7 +31,7 @@ impl SuiValidatorAnnounce {
     pub fn new(conf: &ConnectionConf, locator: ContractLocator, payer: Option<Keypair>) -> Self {
         let sui_client = SuiRpcClient::new(conf.url.to_string());
         let package_address =
-            AccountAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
+            SuiAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
         Self {
             package_address,
             sui_client,

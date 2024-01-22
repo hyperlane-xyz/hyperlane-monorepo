@@ -15,7 +15,7 @@ impl SuiRpcClient {
 }
 
 impl std::ops::Deref for SuiRpcClient {
-    type Target = Client;
+    type Target = SuiClient;
 
     fn deref(&self) -> &Self::Target {
         &self.0

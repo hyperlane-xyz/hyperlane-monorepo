@@ -1,9 +1,6 @@
 use url::Url;
 
-use hyperlane_core::{
-    config::{ConfigErrResultExt, ConfigResult, FromRawConf},
-    ChainCommunicationError,
-};
+use hyperlane_core::config::{ConfigErrResultExt, ConfigResult, FromRawConf, ConfigPath};
 /// Sui connection configuration 
 
 #[derive(Debug, Clone)]
@@ -18,7 +15,7 @@ pub struct DeprecatedRawConnectionConf {
     url: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(thiserror::Error, Debug)]
 pub enum ConnectionConfError {
     /// Missing `url` for connection configuration
     #[error("Missing `url` for connection configuration")]
