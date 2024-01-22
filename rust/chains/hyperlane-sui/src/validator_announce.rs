@@ -1,12 +1,12 @@
 #![allow(unused)]
 
+use anyhow::Error;
 use async_trait::async_trait;
 use solana_sdk::signature::Keypair;
 use tracing::info;
 use tracing::{instrument, warn};
 
-use crate::{SuiRpcClient};
-use crate::{ConnectionConf};
+use crate::{SuiRpcClient, ConnectionConf};
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, SignedType, TxOutcome, ValidatorAnnounce, H256, H512, U256,
@@ -16,6 +16,7 @@ use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
 use std::str::FromStr;
 use url::Url;
+use::sui_sdk::types::base_types::SuiAddress;
 
 /// A reference to a ValidatorAnnounce contract on Sui chain
 #[derive(Debug)]
@@ -28,16 +29,19 @@ pub struct SuiValidatorAnnounce {
 
 impl SuiValidatorAnnounce {
     /// Create a new Sui ValidatorAnnounce
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator, payer: Option<Keypair>) -> Self {
-        let sui_client = SuiRpcClient::new(conf.url.to_string());
-        let package_address =
-        SuiAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
-        Self {
+    pub async fn new(
+        conf: ConnectionConf,
+        locator: ContractLocator<'_>,
+        payer: Option<Keypair>,
+    ) -> Result<Self, Error> {
+        let sui_client = SuiRpcClient::new(conf.url.to_string()).await?;
+        let package_address = SuiAddress::from_bytes(<[u8; 32]>::from(locator.address)).unwrap();
+        Ok(Self {
             package_address,
             sui_client,
             payer,
             domain: locator.domain.clone(),
-        }
+        })
     }
 
     /// Returns a ContractCall that processes the provided message.
