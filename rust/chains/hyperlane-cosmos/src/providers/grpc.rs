@@ -22,13 +22,17 @@ use cosmrs::{
         traits::Message,
     },
     tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
-    Coin,
+    Any, Coin,
 };
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, U256,
+    ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, HyperlaneDomain, U256,
 };
+use protobuf::Message as _;
 use serde::Serialize;
-use tonic::transport::{Channel, Endpoint};
+use tonic::{
+    transport::{Channel, Endpoint},
+    GrpcMethod, IntoRequest,
+};
 
 use crate::HyperlaneCosmosError;
 use crate::{address::CosmosAddress, CosmosAmount};
@@ -80,6 +84,8 @@ pub trait WasmProvider: Send + Sync {
 #[derive(Debug, Clone)]
 /// CosmWasm GRPC provider.
 pub struct WasmGrpcProvider {
+    /// Hyperlane domain, used for special cases depending on the chain.
+    domain: HyperlaneDomain,
     /// Connection configuration.
     conf: ConnectionConf,
     /// A contract address that can be used as the default
@@ -96,6 +102,7 @@ pub struct WasmGrpcProvider {
 impl WasmGrpcProvider {
     /// Create new CosmWasm GRPC Provider.
     pub fn new(
+        domain: HyperlaneDomain,
         conf: ConnectionConf,
         gas_price: CosmosAmount,
         locator: Option<ContractLocator>,
@@ -109,6 +116,7 @@ impl WasmGrpcProvider {
             .transpose()?;
 
         Ok(Self {
+            domain,
             conf,
             contract_address,
             signer,
@@ -251,7 +259,13 @@ impl WasmGrpcProvider {
     }
 
     /// Queries an account.
-    async fn account_query(&self, account: String) -> ChainResult<BaseAccount> {
+    pub async fn account_query(&self, account: String) -> ChainResult<BaseAccount> {
+        // Injective is a special case where their account query requires
+        // the use of different protobuf types.
+        if self.domain.is_injective() {
+            return self.account_query_injective(account).await;
+        }
+
         let mut client = QueryAccountClient::new(self.channel.clone());
 
         let request = tonic::Request::new(QueryAccountRequest { address: account });
@@ -270,6 +284,59 @@ impl WasmGrpcProvider {
         )
         .map_err(Into::<HyperlaneCosmosError>::into)?;
         Ok(account)
+    }
+
+    /// Injective-specific logic for querying an account.
+    async fn account_query_injective(&self, account: String) -> ChainResult<BaseAccount> {
+        let request = tonic::Request::new(
+            injective_std::types::cosmos::auth::v1beta1::QueryAccountRequest { address: account },
+        );
+
+        // Borrowed from the logic of `QueryAccountClient` in `cosmrs`, but using injective types.
+
+        let mut grpc_client = tonic::client::Grpc::new(self.channel.clone());
+        grpc_client
+            .ready()
+            .await
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
+
+        let codec = tonic::codec::ProstCodec::default();
+        let path = http::uri::PathAndQuery::from_static("/cosmos.auth.v1beta1.Query/Account");
+        let mut req: tonic::Request<
+            injective_std::types::cosmos::auth::v1beta1::QueryAccountRequest,
+        > = request.into_request();
+        req.extensions_mut()
+            .insert(GrpcMethod::new("cosmos.auth.v1beta1.Query", "Account"));
+
+        let response: tonic::Response<
+            injective_std::types::cosmos::auth::v1beta1::QueryAccountResponse,
+        > = grpc_client
+            .unary(req, path, codec)
+            .await
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
+
+        let mut eth_account = injective_protobuf::proto::account::EthAccount::parse_from_bytes(
+            response
+                .into_inner()
+                .account
+                .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
+                .value
+                .as_slice(),
+        )
+        .map_err(Into::<HyperlaneCosmosError>::into)?;
+
+        let base_account = eth_account.take_base_account();
+        let pub_key = base_account.pub_key.into_option();
+
+        Ok(BaseAccount {
+            address: base_account.address,
+            pub_key: pub_key.map(|pub_key| Any {
+                type_url: pub_key.type_url,
+                value: pub_key.value,
+            }),
+            account_number: base_account.account_number,
+            sequence: base_account.sequence,
+        })
     }
 }
 
