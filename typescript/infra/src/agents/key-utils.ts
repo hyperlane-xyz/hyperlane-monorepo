@@ -475,17 +475,17 @@ async function fetchGCPKeyAddresses(
   return addresses as KeyAsAddress[];
 }
 
-export function fetchLocalKeyAddresses(
-  role: Role,
-  environment: DeployEnvironment,
-  context: Contexts,
-): Address {
-  // Resolve the relative path
-  const filePath = path.resolve(__dirname, `../../config/${role}.json`);
-  const data = fs.readFileSync(filePath, 'utf8');
-  const addresses: LocalRoleAddresses = JSON.parse(data);
+export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {
+  try {
+    // Resolve the relative path
+    const filePath = path.resolve(__dirname, `../../config/${role}.json`);
+    const data = fs.readFileSync(filePath, 'utf8');
+    const addresses: LocalRoleAddresses = JSON.parse(data);
 
-  return addresses[environment][context];
+    return addresses;
+  } catch (err) {
+    throw Error(`Error fetching ${role} addresses: ${err}`);
+  }
 }
 
 function addressesIdentifier(

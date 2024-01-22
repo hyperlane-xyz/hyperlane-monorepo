@@ -28,8 +28,6 @@ spec:
 {{- range $context, $roles := .Values.hyperlane.contextsAndRolesToFund }}
             - --contexts-and-roles
             - {{ $context }}={{ join "," $roles }}
-            - -f
-            - /addresses-secret/{{ $context }}-addresses.json
 {{- end }}
 {{- if .Values.hyperlane.connectionType }}
             - --connection-type
@@ -41,11 +39,3 @@ spec:
             envFrom:
             - secretRef:
                 name: key-funder-env-var-secret
-            volumeMounts:
-            - name: key-funder-addresses-secret
-              mountPath: /addresses-secret
-          volumes:
-          - name: key-funder-addresses-secret
-            secret:
-              secretName: key-funder-addresses-secret
-              defaultMode: 0400
