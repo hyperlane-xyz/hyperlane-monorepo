@@ -601,6 +601,7 @@ export const neutron: ChainMetadata = {
   chainId: 'neutron-1',
   displayName: 'Neutron',
   domainId: 1853125230,
+  grpcUrls: [{ http: 'grpc-kralum.neutron-1.neutron.org:80' }],
   isTestnet: false,
   name: Chains.neutron,
   nativeToken: {
@@ -609,7 +610,7 @@ export const neutron: ChainMetadata = {
     symbol: 'NTRN',
   },
   protocol: ProtocolType.Cosmos,
-  restUrls: [{ http: 'grpc-kralum.neutron-1.neutron.org:80' }],
+  restUrls: [{ http: 'https://rest-lb.neutron.org' }],
   rpcUrls: [{ http: 'https://rpc-kralum.neutron-1.neutron.org' }],
   slip44: 118,
 };
