@@ -1052,6 +1052,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   goerli,
   lineagoerli,
   injective,
+  inevm,
   mantapacific,
   moonbasealpha,
   moonbeam,
