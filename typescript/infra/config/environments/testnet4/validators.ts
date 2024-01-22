@@ -311,7 +311,7 @@ export const validatorChainConfig = (
       reorgPeriod: chainMetadata.solanatestnet.blocks!.reorgPeriod!,
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: [''],
+          [Contexts.Hyperlane]: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
@@ -323,7 +323,7 @@ export const validatorChainConfig = (
       reorgPeriod: chainMetadata.eclipsetestnet.blocks!.reorgPeriod!,
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: [''],
+          [Contexts.Hyperlane]: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
