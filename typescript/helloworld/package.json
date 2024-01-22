@@ -1,10 +1,10 @@
 {
   "name": "@hyperlane-xyz/helloworld",
   "description": "A basic skeleton of an Hyperlane app",
-  "version": "3.5.1",
+  "version": "3.6.0",
   "dependencies": {
-    "@hyperlane-xyz/core": "3.5.1",
-    "@hyperlane-xyz/sdk": "3.5.1",
+    "@hyperlane-xyz/core": "3.6.0",
+    "@hyperlane-xyz/sdk": "3.6.0",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
     "ethers": "^5.7.2"
   },
@@ -56,6 +56,7 @@
     "lint": "solhint contracts/**/*.sol && eslint . --ext .ts",
     "prettier": "prettier --write ./contracts ./src",
     "test": "hardhat test ./src/test/**/*.test.ts",
+    "test:ci": "yarn test",
     "sync": "ts-node scripts/sync-with-template-repo.ts"
   },
   "types": "dist/src/index.d.ts",
