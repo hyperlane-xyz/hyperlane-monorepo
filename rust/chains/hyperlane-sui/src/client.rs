@@ -1,4 +1,4 @@
-use sui_sdk::{ SuiClientBuilder, SuiClient };
+use sui_sdk::{SuiClientBuilder, SuiClient};
 use std::str::FromStr;
 use url::Url;
 
