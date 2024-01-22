@@ -57,7 +57,7 @@ fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
     ]
 }
 
-const CW_HYPERLANE_GIT: &str = "https://github.com/hyperlane/cosmwasm";
+const CW_HYPERLANE_GIT: &str = "https://github.com/hyperlane-xyz/cosmwasm";
 const CW_HYPERLANE_VERSION: &str = "0.0.6-rc7";
 
 fn make_target() -> String {
@@ -101,12 +101,11 @@ pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, Path
     if !local {
         let dir_path_str = dir_path.to_str().unwrap();
 
-        let release_name = format!("cw-hyperlane-v{CW_HYPERLANE_VERSION}");
-        let release_comp = format!("{release_name}.zip");
+        let release_comp = format!("wasm_codes.zip");
 
         log!("Downloading cw-hyperlane v{}", CW_HYPERLANE_VERSION);
         let uri =
-            format!("{CW_HYPERLANE_GIT}/releases/download/v{CW_HYPERLANE_VERSION}/{release_comp}");
+            format!("{CW_HYPERLANE_GIT}/releases/download/v{CW_HYPERLANE_VERSION}/${release_comp}");
         download(&release_comp, &uri, dir_path_str);
 
         log!("Uncompressing cw-hyperlane release");

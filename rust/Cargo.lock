@@ -3876,9 +3876,8 @@ dependencies = [
 
 [[package]]
 name = "hpl-interface"
-version = "0.0.6-rc3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9124bd88d88aba044ae790007bcbf25493b93424156e8759523c9c5d02229b0c"
+version = "0.0.6-rc6"
+source = "git+https://github.com/hyperlane-xyz/cosmwasm.git?tag=injective-testnet#94fed0f53931c0e94173252e34b018b1c31eb21b"
 dependencies = [
  "bech32 0.9.1",
  "cosmwasm-schema",

@@ -10,24 +10,8 @@ use super::{
 };
 
 #[cw_serde]
-pub struct IsmMultisigInstantiateMsg {
-    pub owner: String,
-}
-
-#[cw_serde]
-pub struct IsmPausableInstantiateMsg {
-    pub owner: String,
-    pub paused: bool,
-}
-
-#[cw_serde]
 pub struct TestMockMsgReceiverInstantiateMsg {
     pub hrp: String,
-}
-
-#[cw_serde]
-pub struct IGPOracleInstantiateMsg {
-    pub owner: String,
 }
 
 #[cw_serde]
@@ -58,27 +42,17 @@ pub fn deploy_cw_hyperlane(
         "hpl_mailbox",
     );
 
-    // deploy igp set
-    #[cw_serde]
-    pub struct GasOracleInitMsg {
-        pub hrp: String,
-        pub owner: String,
-        pub gas_token: String,
-        pub beneficiary: String,
-        pub default_gas_usage: String,
-    }
-
     let igp = cli.wasm_init(
         &endpoint,
         &deployer,
         Some(deployer_addr),
         codes.hpl_igp,
-        GasOracleInitMsg {
+        igp::core::InstantiateMsg {
             hrp: PREFIX.to_string(),
             owner: deployer_addr.clone(),
             gas_token: "uosmo".to_string(),
             beneficiary: deployer_addr.clone(),
-            default_gas_usage: "25000".to_string(),
+            default_gas_usage: 25000,
         },
         "hpl_igp",
     );
@@ -113,7 +87,7 @@ pub fn deploy_cw_hyperlane(
         &deployer,
         Some(deployer_addr),
         codes.hpl_ism_multisig,
-        IsmMultisigInstantiateMsg {
+        ism::multisig::InstantiateMsg {
             owner: deployer_addr.clone(),
         },
         "hpl_ism_multisig",
@@ -125,7 +99,7 @@ pub fn deploy_cw_hyperlane(
         &deployer,
         Some(deployer_addr),
         codes.hpl_ism_pausable,
-        IsmPausableInstantiateMsg {
+        ism::pausable::InstantiateMsg {
             owner: deployer_addr.clone(),
             paused: false,
         },
@@ -153,7 +127,6 @@ pub fn deploy_cw_hyperlane(
         Some(deployer_addr),
         codes.hpl_hook_merkle,
         hook::merkle::InstantiateMsg {
-            owner: deployer_addr.clone(),
             mailbox: mailbox.to_string(),
         },
         "hpl_hook_merkle",
