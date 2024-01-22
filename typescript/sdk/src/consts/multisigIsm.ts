@@ -138,6 +138,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  injective: {
+    threshold: 1,
+    validators: ['0x10686BEe585491A0DA5bfCd5ABfbB95Ab4d6c86d'],
+  },
+
   lineagoerli: {
     threshold: 2,
     validators: [

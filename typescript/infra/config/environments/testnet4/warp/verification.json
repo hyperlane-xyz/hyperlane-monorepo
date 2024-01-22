@@ -1,0 +1,10 @@
+{
+  "goerli": [
+    {
+      "name": "HypERC20",
+      "address": "0x896C0CD729ba18297DDc91ec448C2CC75bE5C0aB",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000000600000000000000000000000049cfd6ef774acab14814d699e3f7ee36fdfba932",
+      "isProxy": false
+    }
+  ]
+}

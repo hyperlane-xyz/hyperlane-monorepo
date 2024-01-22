@@ -32,6 +32,8 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
 // Blessed non-Ethereum chains.
 export const nonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
   // solanadevnet: chainMetadata.solanadevnet,
+  // temporarily testnet
+  // injective: chainMetadata.injective
 };
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {

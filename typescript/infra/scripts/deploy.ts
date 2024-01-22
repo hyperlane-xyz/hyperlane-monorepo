@@ -4,7 +4,6 @@ import { prompt } from 'prompts';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
-  Chains,
   HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
@@ -21,6 +20,7 @@ import { TokenDecimals, TokenType } from '@hyperlane-xyz/sdk/dist/token/config';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
+import { aggregationIsm } from '../config/routingIsm';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -80,16 +80,16 @@ async function main() {
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.WARP) {
     const owner = deployerAddress;
-    const neutronRouter =
-      '6b04c49fcfd98bc4ea9c05cd5790462a39537c00028333474aebe6ddf20b73a3';
+    const injectiveRouter =
+      '100CB5F11F19D5FCA88157C3D0167869884E4966C95C397AC86DA36297D800AD';
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,
     );
     const tokenConfig: TokenConfig & TokenDecimals = {
       type: TokenType.synthetic,
-      name: 'Eclipse Fi',
-      symbol: 'ECLIP',
+      name: 'Injective',
+      symbol: 'INJ',
       decimals: 6,
       totalSupply: 0,
     };
@@ -98,16 +98,18 @@ async function main() {
       multiProvider,
     );
     const routerConfig = core.getRouterConfig(owner);
-    const targetChains = [Chains.arbitrum];
     config = {
-      arbitrum: {
-        ...routerConfig['arbitrum'],
+      goerli: {
+        ...routerConfig['goerli'],
         ...tokenConfig,
-        interchainSecurityModule: '0x53A5c239d62ff35c98E0EC9612c86517748ffF59',
+        interchainSecurityModule: aggregationIsm(
+          'injective',
+          Contexts.Hyperlane,
+        ),
         gas: 600_000,
       },
-      neutron: {
-        foreignDeployment: neutronRouter,
+      injective: {
+        foreignDeployment: injectiveRouter,
       },
     };
     deployer = new HypERC20Deployer(multiProvider, ismFactory);

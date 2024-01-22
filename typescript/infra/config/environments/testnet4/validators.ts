@@ -289,6 +289,18 @@ export const validatorChainConfig = (
         'polygonzkevmtestnet',
       ),
     },
+    injective: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod(chainMetadata.injective),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x10686BEe585491A0DA5bfCd5ABfbB95Ab4d6c86d'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'injective',
+      ),
+    },
     // proteustestnet: {
     //   interval: 5,
     //   reorgPeriod: getReorgPeriod(chainMetadata.proteustestnet),

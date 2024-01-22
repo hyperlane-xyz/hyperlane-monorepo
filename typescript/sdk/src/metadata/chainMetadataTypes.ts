@@ -245,6 +245,7 @@ export type BlockExplorer = Exclude<
 >[number];
 
 export function isValidChainMetadata(c: ChainMetadata): boolean {
+  ChainMetadataSchema.parse(c);
   return ChainMetadataSchema.safeParse(c).success;
 }
 

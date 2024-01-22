@@ -461,8 +461,12 @@ export const injective: ChainMetadata = {
     symbol: 'INJ',
   },
   protocol: ProtocolType.Cosmos,
+  slip44: 118,
+  bech32Prefix: 'inj',
   // temporarily testnet
+  grpcUrls: [{ http: 'testnet.sentry.chain.grpc.injective.network:443' }],
   rpcUrls: [{ http: 'https://k8s.testnet.tm.injective.network/' }],
+  restUrls: [{ http: 'https://testnet.sentry.lcd.injective.network' }],
 };
 
 export const lineagoerli: ChainMetadata = {
