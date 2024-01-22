@@ -12,7 +12,7 @@ import { TestMessage, TestMessage__factory } from '../types';
 
 const remoteDomain = 1000;
 const localDomain = 2000;
-const version = 0;
+const version = 3;
 const nonce = 11;
 
 describe('Message', async () => {
