@@ -10,7 +10,10 @@ mod interchain_gas;
 mod provider;
 mod validator_announce;
 mod trait_builder;
+mod types;
+mod utils;
 
 pub use self::{
     client::*, interchain_gas::*, provider::*, trait_builder::*, validator_announce::*,
+    utils::*, types::*,
 };

@@ -5,19 +5,29 @@ use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta, H256
 };
+use sui_sdk::types::digests::TransactionDigest;
 use tracing::{info, instrument};
-use crate::{get_filtered_events, ConnectionConf, SuiHpProvider, SuiRpcClient};
+use hex;
+use crate::{ConnectionConf, SuiHpProvider, SuiRpcClient};
 use::sui_sdk::types::base_types::SuiAddress;
 
-trait ToBytes {
+/// Format an address to bytes and hex literal. 
+pub trait AddressFormatter {
+    /// Convert an address to bytes.
     fn to_bytes(&self) -> [u8; 32];
+    /// Convert an address to hex literal.
+    fn to_hex_literal(&self) -> String;
 }
 
-impl ToBytes for SuiAddress {
+impl AddressFormatter for SuiAddress {
     fn to_bytes(&self) -> [u8; 32] {
         let mut bytes = [0u8; 32];
         bytes.copy_from_slice(self.to_vec().as_slice());
         bytes
+    }
+
+    fn to_hex_literal(&self) -> String {
+        format!("0x{}", hex::encode(self.to_vec()))
     }
 }
 
@@ -94,8 +104,18 @@ impl Indexer<InterchainGasPayment> for SuiInterchainGasPaymasterIndexer {
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
-        range: RangeInclusive<u32>,
+        digest: TransactionDigest,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        get_filtered_events::<InterchainGasPayment, GasPaymentEventData>
+        let events = self.sui_client.event_api().get_events(digest).await?;
+        Ok(events)
+    }
+
+    #[instrument(level = "debug", err, ret, skip(self))]
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        // Sui is a DAG-based blockchain and uses checkpoints for node 
+        // synchronization and global transaction ordering.
+        let latest_checkpoint = self
+            .sui_client.read_api().get_latest_checkpoint_sequence_number().await?;
+        Ok(latest_checkpoint as u32)
     }
 }
