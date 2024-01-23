@@ -389,6 +389,8 @@ export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 
+// Note this works well for EVM chains only, and likely needs some love
+// before being useful for non-EVM chains.
 export function buildAgentConfig(
   chains: ChainName[],
   multiProvider: MultiProvider,
