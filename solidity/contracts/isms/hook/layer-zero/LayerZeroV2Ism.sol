@@ -62,11 +62,11 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
     function lzReceive(
         Origin calldata,
         bytes32,
-        bytes calldata _message,
+        bytes calldata _lzMessage,
         address,
         bytes calldata
     ) external payable {
-        verifyMessageId(_messageId(_message));
+        verifyMessageId(_messageId(_lzMessage));
     }
 
     // ============ Internal function ============

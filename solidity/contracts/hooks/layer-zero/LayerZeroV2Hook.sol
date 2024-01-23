@@ -70,12 +70,12 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook, Indexed {
             ism,
             payload,
             options,
-            false
+            false // payInLzToken
         );
         lZEndpoint.send{value: msg.value}(msgParams, refundAddress);
     }
 
-    /// @dev payInZRO is hardcoed to false because zro tokens should not be directly accepted
+    /// @dev payInZRO is hardcoded to false because zro tokens should not be directly accepted
     function _quoteDispatch(
         bytes calldata metadata,
         bytes calldata message
@@ -89,7 +89,7 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook, Indexed {
             message.recipient(),
             message.body(),
             options,
-            false
+            false // payInLzToken
         );
         MessagingFee memory msgFee = lZEndpoint.quote(
             msgParams,
