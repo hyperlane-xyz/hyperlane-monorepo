@@ -39,3 +39,11 @@ spec:
             envFrom:
             - secretRef:
                 name: key-funder-env-var-secret
+            volumeMounts:
+            - name: key-funder-addresses-secret
+              mountPath: /addresses-secret
+          volumes:
+          - name: key-funder-addresses-secret
+            secret:
+              secretName: key-funder-addresses-secret
+              defaultMode: 0400
