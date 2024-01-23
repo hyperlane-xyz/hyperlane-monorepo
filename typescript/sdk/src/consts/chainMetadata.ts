@@ -929,6 +929,33 @@ export const solanadevnet: ChainMetadata = {
   rpcUrls: [{ http: 'https://api.devnet.solana.com' }],
 };
 
+export const eclipsetestnet: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://testnet.dev2.eclipsenetwork.xyz',
+      family: ExplorerFamily.Other,
+      name: 'Eclipse Testnet Explorer',
+      url: 'https://explorer.dev.eclipsenetwork.xyz/?cluster=testnet',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 0.4,
+    reorgPeriod: 0,
+  },
+  chainId: 239092742,
+  displayName: 'Eclipse Testnet',
+  domainId: 239092742,
+  isTestnet: true,
+  name: 'eclipsetestnet',
+  nativeToken: {
+    ...etherToken,
+    decimals: 9,
+  },
+  protocol: ProtocolType.Sealevel,
+  rpcUrls: [{ http: 'https://testnet.dev2.eclipsenetwork.xyz' }],
+};
+
 export const test1: ChainMetadata = {
   blockExplorers: [],
   blocks: {
@@ -997,6 +1024,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   bsctestnet,
   celo,
   chiado,
+  eclipsetestnet,
   ethereum,
   fuji,
   gnosis,
