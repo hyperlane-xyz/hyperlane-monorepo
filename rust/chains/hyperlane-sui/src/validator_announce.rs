@@ -23,6 +23,7 @@ use::sui_sdk::types::base_types::SuiAddress;
 pub struct SuiValidatorAnnounce {
     package_address: SuiAddress,
     sui_client: SuiRpcClient,
+    client_url: String,
     payer: Option<Keypair>,
     domain: HyperlaneDomain,
 }
@@ -39,6 +40,7 @@ impl SuiValidatorAnnounce {
         Ok(Self {
             package_address,
             sui_client,
+            client_url: conf.url.to_string().clone(),
             payer,
             domain: locator.domain.clone(),
         })
@@ -78,7 +80,10 @@ impl HyperlaneChain for SuiValidatorAnnounce {
        let sui_provider = tokio::runtime::Runtime::new()
             .expect("Failed to create runtime")
             .block_on(async {
-                SuiHpProvider::new(self.domain.clone(), self.sui_client.clone()).await
+                SuiHpProvider::new(
+                    self.domain.clone(), 
+                    self.client_url.clone(),
+                ).await
             }).expect("Failed to create SuiHpProvider");
         Box::new(sui_provider) 
     }

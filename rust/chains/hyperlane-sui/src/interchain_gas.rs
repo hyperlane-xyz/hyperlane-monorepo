@@ -3,7 +3,7 @@ use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta, H256
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta, H256
 };
 use sui_sdk::types::digests::TransactionDigest;
 use tracing::{info, instrument};
@@ -104,18 +104,28 @@ impl Indexer<InterchainGasPayment> for SuiInterchainGasPaymasterIndexer {
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
-        digest: TransactionDigest,
+        range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        let events = self.sui_client.event_api().get_events(digest).await?;
-        Ok(events)
+        //@TODO: We need a TransactionDigest to get events from sui, so we may need to make
+        //range some generic type. Revist.
+        //let events = self.sui_client.event_api().get_events(digest).await?;
+        //Ok(events)
+        todo!()
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         // Sui is a DAG-based blockchain and uses checkpoints for node 
         // synchronization and global transaction ordering.
-        let latest_checkpoint = self
-            .sui_client.read_api().get_latest_checkpoint_sequence_number().await?;
-        Ok(latest_checkpoint as u32)
+        // We need Indexer of different type for Sui. Revist.
+
+        // let latest_checkpoint = match self
+        //     .sui_client.read_api().get_checkpoint(latest_checkpoint).await {
+        //         Ok(checkpoint) => checkpoint,
+        //         Err(e) => return Err(ChainCommunicationError::from_other(e).into()),
+        //     };
+
+        //Ok(latest_checkpoint as u32)
+        todo!()
     }
 }
