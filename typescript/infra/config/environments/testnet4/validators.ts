@@ -330,5 +330,17 @@ export const validatorChainConfig = (
         'eclipsetestnet',
       ),
     },
+    injectivetestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod(chainMetadata.injectivetestnet),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xc4ba975dc8c373142ca9f156400df8a8bc031573'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'injectivetestnet',
+      ),
+    },
   };
 };

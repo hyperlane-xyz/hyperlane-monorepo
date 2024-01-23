@@ -104,6 +104,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
   },
 
+  injectivetestnet: {
+    threshold: 1,
+    validators: ['0xc4ba975dc8c373142ca9f156400df8a8bc031573'],
+  },
+
   ethereum: {
     threshold: 3,
     validators: [

@@ -466,6 +466,29 @@ export const injective: ChainMetadata = {
   slip44: 118,
 };
 
+export const injectivetestnet: ChainMetadata = {
+  bech32Prefix: 'inj',
+  blockExplorers: [],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 3,
+    reorgPeriod: 1,
+  },
+  chainId: 'injective-888',
+  displayName: 'Injective Testnet',
+  domainId: 6909546,
+  name: Chains.injective,
+  nativeToken: {
+    decimals: 6,
+    name: 'Injective',
+    symbol: 'INJ',
+  },
+  protocol: ProtocolType.Cosmos,
+  restUrls: [{ http: 'https://k8s.testnet.lcd.injective.network' }],
+  rpcUrls: [{ http: 'https://injective-testnet-rpc.polkachu.com' }],
+  slip44: 60,
+};
+
 export const lineagoerli: ChainMetadata = {
   blockExplorers: [
     {
@@ -1080,6 +1103,9 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   fuji,
   gnosis,
   goerli,
+  inevm,
+  injective,
+  injectivetestnet,
   lineagoerli,
   mantapacific,
   moonbasealpha,

@@ -33,6 +33,7 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
 export const nonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
   solanatestnet: chainMetadata.solanatestnet,
   eclipsetestnet: chainMetadata.eclipsetestnet,
+  injectivetestnet: chainMetadata.injectivetestnet,
 };
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {

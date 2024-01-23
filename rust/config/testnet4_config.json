@@ -586,6 +586,41 @@
         "from": 9954053
       }
     },
+    "injectivetestnet": {
+      "name": "injectivetestnet",
+      "domainId": "6909546",
+      "chainId": "injective-888",
+      "mailbox": "0x1db4f78992139e40e4e02d15adea2df703657208",
+      "interchainGasPaymaster": "0x0bc0ae13f39b14ad18282de67913e97a48563899",
+      "validatorAnnounce": "0x622f328bbeb34c1918f7962cc3eb3ebfbd6fbc6a",
+      "merkleTreeHook": "0x8bb046a2d5f6fd5b541cc0285ffaa882aa5e505b",
+      "protocol": "cosmos",
+      "finalityBlocks": 1,
+      "grpcUrl": "http://injective-testnet-grpc.polkachu.com:14390",
+      "rpcUrls": [
+        {
+          "http": "https://injective-testnet-rpc.polkachu.com"
+        }
+      ],
+      "canonicalAsset": "inj",
+      "bech32Prefix": "inj",
+      "gasPrice": {
+        "amount": "500000000",
+        "denom": "inj"
+      },
+      "contractAddressBytes": 20,
+      "index": {
+        "from": 4000000,
+        "chunk": 100000
+      },
+      "blocks": {
+        "reorgPeriod": 1
+      },
+      "signer": {
+        "type": "cosmosKey",
+        "prefix": "inj"
+      }
+    },
     "moonbasealpha": {
       "chainId": 1287,
       "domainId": 1287,
