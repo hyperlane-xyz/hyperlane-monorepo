@@ -8,21 +8,26 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import testCases from '../../vectors/message.json';
-import { TestMessage, TestMessage__factory } from '../types';
+import { Mailbox__factory, TestMessage, TestMessage__factory } from '../types';
 
 const remoteDomain = 1000;
 const localDomain = 2000;
-const version = 3;
 const nonce = 11;
 
 describe('Message', async () => {
   let messageLib: TestMessage;
+  let version: number;
 
   before(async () => {
     const [signer] = await ethers.getSigners();
 
     const Message = new TestMessage__factory(signer);
     messageLib = await Message.deploy();
+
+    // For consistency with the Mailbox version
+    const Mailbox = new Mailbox__factory(signer);
+    const mailbox = await Mailbox.deploy(localDomain);
+    version = await mailbox.VERSION();
   });
 
   it('Returns fields from a message', async () => {
