@@ -99,6 +99,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  eclipsetestnet: {
+    threshold: 1,
+    validators: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
+  },
+
   ethereum: {
     threshold: 3,
     validators: [
@@ -285,10 +290,5 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   solanatestnet: {
     threshold: 1,
     validators: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
-  },
-
-  eclipsetestnet: {
-    threshold: 1,
-    validators: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
   },
 };
