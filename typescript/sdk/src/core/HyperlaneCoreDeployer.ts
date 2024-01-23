@@ -6,6 +6,7 @@ import { Address } from '@hyperlane-xyz/utils';
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer';
+import { DeployedHook } from '../hook/contracts';
 import { HookConfig } from '../hook/types';
 import {
   HyperlaneIsmFactory,
@@ -100,8 +101,8 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         mailbox.initialize(
           config.owner,
           defaultIsm,
-          defaultHook,
-          requiredHook,
+          defaultHook.address,
+          requiredHook.address,
           this.multiProvider.getTransactionOverrides(chain),
         ),
       );
@@ -165,7 +166,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: HookConfig,
     coreAddresses: Partial<CoreAddresses>,
-  ): Promise<Address> {
+  ): Promise<DeployedHook> {
     const hooks = await this.hookDeployer.deployContracts(
       chain,
       config,
@@ -176,7 +177,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       this.hookDeployer.deployedContracts[chain],
       this.hookDeployer.verificationInputs[chain],
     );
-    return hooks[config.type].address;
+    return hooks[config.type];
   }
 
   async deployIsm(

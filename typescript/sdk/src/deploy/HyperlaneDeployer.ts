@@ -2,6 +2,8 @@ import { Debugger, debug } from 'debug';
 import { Contract, PopulatedTransaction, ethers } from 'ethers';
 
 import {
+  IPostDispatchHook,
+  IPostDispatchHook__factory,
   ITransparentUpgradeableProxy,
   MailboxClient,
   Ownable,
@@ -240,27 +242,32 @@ export abstract class HyperlaneDeployer<
   protected async configureHook<C extends Ownable>(
     chain: ChainName,
     contract: C,
-    targetHook: Address,
+    targetHook: IPostDispatchHook,
     getHook: (contract: C) => Promise<Address>,
     setHook: (contract: C, hook: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
     const configuredHook = await getHook(contract);
-    if (!eqAddress(targetHook, configuredHook)) {
-      await this.runIfOwner(chain, contract, async () => {
+    if (!eqAddress(targetHook.address, configuredHook)) {
+      const result = await this.runIfOwner(chain, contract, async () => {
         this.logger(
-          `Set hook on ${chain} to ${targetHook}, currently is ${configuredHook}`,
+          `Set hook on ${chain} to ${targetHook.address}, currently is ${configuredHook}`,
         );
         await this.multiProvider.sendTransaction(
           chain,
-          setHook(contract, targetHook),
+          setHook(contract, targetHook.address),
         );
         const actualHook = await getHook(contract);
-        if (!eqAddress(targetHook, actualHook)) {
+        if (!eqAddress(targetHook.address, actualHook)) {
           throw new Error(
-            `Set hook failed on ${chain}, wanted ${targetHook}, got ${actualHook}`,
+            `Set hook failed on ${chain}, wanted ${targetHook.address}, got ${actualHook}`,
           );
         }
+        return true;
       });
+      // if the signer is not the owner, saving the hook address in the artifacts for later use for sending test messages, etc
+      if (!result) {
+        this.addDeployedContracts(chain, { customHook: targetHook });
+      }
     }
   }
 
@@ -274,7 +281,10 @@ export abstract class HyperlaneDeployer<
       await this.configureHook(
         local,
         client,
-        config.hook,
+        IPostDispatchHook__factory.connect(
+          config.hook,
+          this.multiProvider.getSignerOrProvider(local),
+        ),
         (_client) => _client.hook(),
         (_client, _hook) => _client.populateTransaction.setHook(_hook),
       );

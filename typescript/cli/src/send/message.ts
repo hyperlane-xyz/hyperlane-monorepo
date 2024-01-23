@@ -6,7 +6,7 @@ import {
   HyperlaneCore,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
+import { Address, addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
@@ -96,6 +96,15 @@ async function executeDelivery({
   );
   const mailbox = core.getContracts(origin).mailbox;
 
+  let hook: Address;
+  try {
+    hook = mergedContractAddrs[origin].customHook;
+    logBlue(`Using custom hook ${hook} for ${origin} -> ${destination}`);
+  } catch (e) {
+    hook = await mailbox.defaultHook();
+    logBlue(`Using default hook ${hook} for ${origin} -> ${destination}`);
+  }
+
   const destinationDomain = multiProvider.getDomainId(destination);
   let txReceipt: ethers.ContractReceipt;
   try {
@@ -106,19 +115,29 @@ async function executeDelivery({
     const formattedRecipient = addressToBytes32(recipient);
 
     log('Getting gas quote');
-    const value = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
+    const value = await mailbox[
+      'quoteDispatch(uint32,bytes32,bytes,bytes,address)'
+    ](
       destinationDomain,
       formattedRecipient,
       MESSAGE_BODY,
+      ethers.utils.hexlify([]),
+      hook,
     );
     log(`Paying for gas with ${value} wei`);
 
     log('Dispatching message');
-    const messageTx = await mailbox['dispatch(uint32,bytes32,bytes)'](
+    const messageTx = await mailbox[
+      'dispatch(uint32,bytes32,bytes,bytes,address)'
+    ](
       destinationDomain,
       formattedRecipient,
       MESSAGE_BODY,
-      { value },
+      ethers.utils.hexlify([]),
+      hook,
+      {
+        value,
+      },
     );
     txReceipt = await multiProvider.handleTx(origin, messageTx);
     const message = core.getDispatchedMessages(txReceipt)[0];
