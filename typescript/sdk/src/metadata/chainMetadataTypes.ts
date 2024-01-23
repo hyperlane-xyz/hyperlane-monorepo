@@ -111,6 +111,10 @@ export const ChainMetadataSchemaObject = z.object({
     .array(RpcUrlSchema)
     .describe('For cosmos chains only, a list of Rest API URLs')
     .optional(),
+  grpcUrls: z
+    .array(RpcUrlSchema)
+    .describe('For cosmos chains only, a list of gRPC API URLs')
+    .optional(),
   blockExplorers: z
     .array(
       z.object({
@@ -215,6 +219,20 @@ export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
     {
       message: 'Bech32Prefix and Slip44 required for Cosmos chains',
       path: ['bech32Prefix', 'slip44'],
+    },
+  )
+  .refine(
+    (metadata) => {
+      if (
+        metadata.protocol === ProtocolType.Cosmos &&
+        (!metadata.restUrls || !metadata.grpcUrls)
+      )
+        return false;
+      else return true;
+    },
+    {
+      message: 'Rest and gRPC URLs required for Cosmos chains',
+      path: ['restUrls', 'grpcUrls'],
     },
   );
 
