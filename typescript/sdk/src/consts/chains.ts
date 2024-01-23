@@ -89,6 +89,8 @@ export const Testnets: Array<CoreChainName> = [
   Chains.scrollsepolia,
   Chains.sepolia,
   Chains.solanadevnet,
+  Chains.solanatestnet,
+  Chains.eclipsetestnet,
 ];
 
 export const TestChains: Array<CoreChainName> = [

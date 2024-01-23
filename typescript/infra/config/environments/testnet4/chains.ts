@@ -55,6 +55,6 @@ export const agentChainNames: AgentChainNames = {
   // Run validators for all chains.
   [Role.Validator]: supportedChainNames,
   // Only run relayers for Ethereum chains at the moment.
-  [Role.Relayer]: ethereumChainNames,
+  [Role.Relayer]: supportedChainNames,
   [Role.Scraper]: ethereumChainNames,
 };
