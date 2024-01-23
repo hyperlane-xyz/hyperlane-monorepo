@@ -1,2 +1,3 @@
 /target
 environments/**/deploy-logs.txt
+**/**/keys

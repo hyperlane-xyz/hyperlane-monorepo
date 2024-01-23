@@ -4314,6 +4314,7 @@ dependencies = [
  "borsh 0.9.3",
  "bs58 0.5.0",
  "clap 4.4.11",
+ "ethers",
  "hex 0.4.3",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
