@@ -84,7 +84,7 @@ pub enum KnownHyperlaneDomain {
 
     Neutron = 1853125230,
 
-    Injective = 6909546,
+    InjectiveTestnet = 6909546,
 
     // -- Local test chains --
     /// Test1 local chain
@@ -201,11 +201,11 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             Mainnet: [
                 Ethereum, Avalanche, Arbitrum, Polygon, Optimism, BinanceSmartChain, Celo,
-                Moonbeam, Gnosis, MantaPacific, Neutron, Injective
+                Moonbeam, Gnosis, MantaPacific, Neutron
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
-                Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia, Chiado
+                Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia, Chiado, InjectiveTestnet
             ],
             LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991],
         })
@@ -223,7 +223,7 @@ impl KnownHyperlaneDomain {
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
-            HyperlaneDomainProtocol::Cosmos: [CosmosTest99990, CosmosTest99991, Neutron, Injective],
+            HyperlaneDomainProtocol::Cosmos: [CosmosTest99990, CosmosTest99991, Neutron, InjectiveTestnet],
         })
     }
 }
@@ -380,7 +380,7 @@ impl HyperlaneDomain {
     }
 
     pub const fn is_injective(&self) -> bool {
-        matches!(self, Self::Known(KnownHyperlaneDomain::Injective))
+        matches!(self, Self::Known(KnownHyperlaneDomain::InjectiveTestnet))
     }
 
     pub const fn index_mode(&self) -> IndexMode {
