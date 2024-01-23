@@ -1,12 +1,15 @@
 import debug from 'debug';
 
-import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
+import {
+  IPostDispatchHook,
+  Mailbox,
+  ValidatorAnnounce,
+} from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer';
-import { DeployedHook } from '../hook/contracts';
 import { HookConfig } from '../hook/types';
 import {
   HyperlaneIsmFactory,
@@ -166,7 +169,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: HookConfig,
     coreAddresses: Partial<CoreAddresses>,
-  ): Promise<DeployedHook> {
+  ): Promise<IPostDispatchHook> {
     const hooks = await this.hookDeployer.deployContracts(
       chain,
       config,
