@@ -3,15 +3,16 @@ import { BigNumber } from 'ethers';
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
-import type { CheckerViolation } from '../deploy/types';
+import type { CheckerViolation, OwnableConfig } from '../deploy/types';
 import { ChainMap } from '../types';
+
+import { IgpFactories } from './contracts';
 
 export enum GasOracleContractType {
   StorageGasOracle = 'StorageGasOracle',
 }
 
-export type IgpConfig = {
-  owner: Address;
+export type IgpConfig = OwnableConfig<keyof IgpFactories> & {
   beneficiary: Address;
   gasOracleType: ChainMap<GasOracleContractType>;
   oracleKey: Address;
