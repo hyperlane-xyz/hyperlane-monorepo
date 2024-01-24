@@ -69,11 +69,14 @@ pub fn build_cosmos_connection_conf(
 
     let prefix = chain
         .chain(err)
-        .get_key("prefix")
+        .get_key("bech32Prefix")
         .parse_string()
         .end()
         .or_else(|| {
-            local_err.push(&chain.cwp + "prefix", eyre!("Missing prefix for chain"));
+            local_err.push(
+                &chain.cwp + "bech32Prefix",
+                eyre!("Missing bech32 prefix for chain"),
+            );
             None
         });
 
@@ -100,6 +103,12 @@ pub fn build_cosmos_connection_conf(
         .and_then(parse_cosmos_gas_price)
         .end();
 
+    let contract_address_bytes = chain
+        .chain(err)
+        .get_opt_key("contractAddressBytes")
+        .parse_u64()
+        .end();
+
     if !local_err.is_ok() {
         err.merge(local_err);
         None
@@ -111,6 +120,7 @@ pub fn build_cosmos_connection_conf(
             prefix.unwrap().to_string(),
             canonical_asset.unwrap(),
             gas_price.unwrap(),
+            contract_address_bytes.unwrap().try_into().unwrap(),
         )))
     }
 }

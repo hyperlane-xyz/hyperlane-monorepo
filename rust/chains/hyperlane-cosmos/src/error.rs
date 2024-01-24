@@ -31,9 +31,12 @@ pub enum HyperlaneCosmosError {
     /// Tendermint RPC Error
     #[error(transparent)]
     TendermintError(#[from] tendermint_rpc::error::Error),
-    /// protobuf error
+    /// Prost error
     #[error("{0}")]
-    Protobuf(#[from] prost::DecodeError),
+    Prost(#[from] prost::DecodeError),
+    /// Protobuf error
+    #[error("{0}")]
+    Protobuf(#[from] protobuf::ProtobufError),
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {

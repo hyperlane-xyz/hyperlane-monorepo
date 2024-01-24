@@ -306,22 +306,29 @@ export const validatorChainConfig = (
     //     'proteustestnet',
     //   ),
     // },
-    // solanadevnet: {
-    //   interval: 10,
-    //   reorgPeriod: getReorgPeriod(chainMetadata.solanadevnet),
-    //   validators: validatorsConfig(
-    //     {
-    //       [Contexts.Hyperlane]: [
-    //         '0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43',
-    //         '0x9c20a149dfa09ea9f77f5a7ca09ed44f9c025133',
-    //         '0x967c5ecdf2625ae86580bd203b630abaaf85cd62',
-    //       ],
-    //       [Contexts.ReleaseCandidate]: [
-    //         '0x21b9eff4d1a6d3122596c7fb80315bf094b6e5c2',
-    //       ],
-    //     },
-    //     'solanadevnet',
-    //   ),
-    // },
+    solanatestnet: {
+      interval: 1,
+      reorgPeriod: getReorgPeriod(chainMetadata.solanatestnet),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'solanatestnet',
+      ),
+    },
+    eclipsetestnet: {
+      interval: 1,
+      reorgPeriod: getReorgPeriod(chainMetadata.eclipsetestnet),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'eclipsetestnet',
+      ),
+    },
   };
 };
