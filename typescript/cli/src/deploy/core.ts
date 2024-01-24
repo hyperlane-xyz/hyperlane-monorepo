@@ -309,7 +309,7 @@ async function executeDeploy({
   logBlue(`Deploying core contracts to ${chains.join(', ')}`);
   const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   coreDeployer.cacheAddressesMap(mergedContractAddrs as any);
-  const coreConfigs = buildCoreConfigMap(
+  const coreConfigs = await buildCoreConfigMap(
     multiProvider,
     owner,
     chains,
@@ -373,32 +373,33 @@ function buildIsmConfig(
   };
 }
 
-function buildCoreConfigMap(
+async function buildCoreConfigMap(
   multiProvider: MultiProvider,
   owner: Address,
   chains: ChainName[],
   defaultIsms: ChainMap<IsmConfig>,
   hooksConfig: ChainMap<HooksConfig>,
   multisigConfigs: ChainMap<MultisigConfig>,
-): ChainMap<CoreConfig> {
-  return chains.reduce<ChainMap<CoreConfig>>((config, chain) => {
+): Promise<ChainMap<CoreConfig>> {
+  const config: ChainMap<CoreConfig> = {};
+  for (const chain of chains) {
     const hooks =
       hooksConfig[chain] ??
-      presetHookConfigs(
+      (await presetHookConfigs(
         multiProvider,
         owner,
         chain,
         chains.filter((c) => c !== chain),
         multisigConfigs[chain], // if no multisig config, uses default 2/3
-      );
+      ));
     config[chain] = {
       owner,
       defaultIsm: defaultIsms[chain],
       defaultHook: hooks.default,
       requiredHook: hooks.required,
     };
-    return config;
-  }, {});
+  }
+  return config;
 }
 
 export function buildTestRecipientConfigMap(

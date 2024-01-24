@@ -78,7 +78,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     const hookAddresses = { mailbox: mailbox.address, proxyAdmin };
 
-    this.logger('Deploying default hook');
+    this.logger(`Deploying default hook on ${chain} ...`);
     const defaultHook = await this.deployHook(
       chain,
       config.defaultHook,
