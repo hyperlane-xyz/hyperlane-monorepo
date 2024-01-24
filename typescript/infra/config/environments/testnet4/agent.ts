@@ -3,6 +3,7 @@ import {
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
+  getDomainId,
 } from '@hyperlane-xyz/sdk';
 
 import {
@@ -59,6 +60,24 @@ const hyperlane: RootAgentConfig = {
         // from spam txs to the old TestRecipient before we were charging for
         // gas, we blacklist the old TestRecipient address.
         recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
+      },
+      // OptimismGoerli griefers:
+      {
+        destinationDomain: getDomainId(chainMetadata.optimismgoerli),
+        recipientAddress: [
+          '0xed4de02c6f4cb1161bdfefdb2fcdeef4546fa36c',
+          '0x723192fc414fe536b414117a4b2c5a7b71f912e3',
+          '0xed4de02c6f4cb1161bdfefdb2fcdeef4546fa36c',
+        ],
+      },
+      // Goerli griefers:
+      {
+        destinationDomain: getDomainId(chainMetadata.goerli),
+        recipientAddress: [
+          '0x0461c69ff7f29cfb5efd36b9d377fdfc95418c2b',
+          '0xe747c82ed8560ba137b24a3a97ff7504b50c3e91',
+          '0x6ad92511ee4a3835bde9b1bfd7063023b56a8c56',
+        ],
       },
     ],
     gasPaymentEnforcement,
