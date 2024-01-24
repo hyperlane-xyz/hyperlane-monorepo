@@ -37,7 +37,7 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
             rotateFunctionId: EMPTY_BYTES32,
             gatewayAddress: address(5)
         });
-        deployCodeTo("MockMailbox.sol", abi.encode(0), mailboxAddr);
+        // deployCode("MockMailbox.sol", abi.encode(0), mailboxAddr);
         mailbox = MockMailbox(mailboxAddr);
         telepathyCcipReadIsm.initialize(mailbox, DELIVERIES_SLOT, urls);
 
