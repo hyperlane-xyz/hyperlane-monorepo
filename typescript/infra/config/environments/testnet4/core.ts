@@ -5,6 +5,7 @@ import {
   AggregationIsmConfig,
   ChainMap,
   CoreConfig,
+  FallbackRoutingHookConfig,
   HookType,
   IgpHookConfig,
   IsmType,
@@ -17,7 +18,6 @@ import {
   RoutingIsmConfig,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
-import { DomainRoutingHookConfig } from '@hyperlane-xyz/sdk/src/hook/types';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { supportedChainNames } from './chains';
@@ -87,10 +87,11 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     }),
   );
 
-  const defaultHook: DomainRoutingHookConfig = {
-    type: HookType.ROUTING,
+  const defaultHook: FallbackRoutingHookConfig = {
+    type: HookType.FALLBACK_ROUTING,
     owner,
     domains: aggregationHooks,
+    fallback: merkleHook,
   };
 
   const requiredHook: ProtocolFeeHookConfig = {
