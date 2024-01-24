@@ -150,15 +150,16 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
     for (const chain of chains) {
       const [chainName, threshold] = chain.split('=');
       const [newThreshold, newValidatorCount] = threshold.split('/');
-      newThresholds[chainName] = Number(newThreshold);
-      newValidatorCounts[chainName] = Number(newValidatorCount);
+      newThresholds[chainName] = parseInt(newThreshold);
+      newValidatorCounts[chainName] = parseInt(newValidatorCount);
     }
   }
 
   const agentConfig = getAgentConfig(context, environment);
   // check if new chains are needed
-  const missingChains = checkIfValidatorsArePresisted(agentConfig);
+  const missingChains = checkIfValidatorsArePersisted(agentConfig);
 
+  // if you include a chain in chainMetadata but not in the multisig.json, you need to specify the new chain in new-chains
   for (const chain of missingChains) {
     if (!Object.keys(newValidatorCounts).includes(chain)) {
       throw new Error(`Missing chain ${chain} not specified in new-chains`);
@@ -217,7 +218,7 @@ export function getAgentConfig(
 }
 
 // check if validators are persisted in agentConfig
-export function checkIfValidatorsArePresisted(
+export function checkIfValidatorsArePersisted(
   agentConfig: RootAgentConfig,
 ): Set<ChainName> {
   const supportedChainNames = agentConfig.contextChainNames.validator;

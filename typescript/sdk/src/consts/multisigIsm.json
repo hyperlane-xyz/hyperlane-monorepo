@@ -51,14 +51,6 @@
       "0x9260a6c7d54cbcbed28f8668679cd1fa3a203b25"
     ]
   },
-  "basesepolia": {
-    "threshold": 2,
-    "validators": [
-      "0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921",
-      "0x9f89793956a363996f0310758a34e7131be0afaf",
-      "0x89e6ad203db2981690c8de2dcc5433ccf35ed5f9"
-    ]
-  },
   "bsc": {
     "threshold": 2,
     "validators": [
@@ -92,6 +84,12 @@
       "0x06c3757a4b7a912828e523bb8a5f980ddc297356",
       "0x0874967a145d70b799ebe9ed861ab7c93faef95a",
       "0xd767ea1206b8295d7e1267ddd00e56d34f278db6"
+    ]
+  },
+  "eclipsetestnet": {
+    "threshold": 1,
+    "validators": [
+      "0xf344f34abca9a444545b5295066348a0ae22dda3"
     ]
   },
   "ethereum": {
@@ -256,6 +254,12 @@
       "0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43",
       "0x9c20a149dfa09ea9f77f5a7ca09ed44f9c025133",
       "0x967c5ecdf2625ae86580bd203b630abaaf85cd62"
+    ]
+  },
+  "solanatestnet": {
+    "threshold": 1,
+    "validators": [
+      "0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"
     ]
   }
 }
