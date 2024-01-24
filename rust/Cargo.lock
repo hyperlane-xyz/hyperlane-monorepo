@@ -4652,6 +4652,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-swisstronik"
+version = "0.1.0"
+dependencies = [
+ "abigen",
+ "async-trait",
+ "derive-new",
+ "ethers",
+ "ethers-contract",
+ "ethers-core",
+ "ethers-prometheus",
+ "ethers-signers",
+ "futures-util",
+ "hex 0.4.3",
+ "hyperlane-core",
+ "num 0.4.1",
+ "num-traits",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-futures",
+ "url",
+]
+
+[[package]]
 name = "hyperlane-test"
 version = "0.1.0"
 dependencies = [
