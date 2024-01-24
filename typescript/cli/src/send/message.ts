@@ -14,14 +14,13 @@ import { getContext, getMergedContractAddresses } from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 
-const MESSAGE_BODY = '0x48656c6c6f21'; // Hello!'
-
 export async function sendTestMessage({
   key,
   chainConfigPath,
   coreArtifactsPath,
   origin,
   destination,
+  messageBody,
   timeoutSec,
   skipWaitForDelivery,
 }: {
@@ -30,6 +29,7 @@ export async function sendTestMessage({
   coreArtifactsPath?: string;
   origin?: ChainName;
   destination?: ChainName;
+  messageBody: string;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
 }) {
@@ -67,6 +67,7 @@ export async function sendTestMessage({
     executeDelivery({
       origin,
       destination,
+      messageBody,
       multiProvider,
       coreArtifacts,
       skipWaitForDelivery,
@@ -79,12 +80,14 @@ export async function sendTestMessage({
 async function executeDelivery({
   origin,
   destination,
+  messageBody,
   multiProvider,
   coreArtifacts,
   skipWaitForDelivery,
 }: {
   origin: ChainName;
   destination: ChainName;
+  messageBody: string;
   multiProvider: MultiProvider;
   coreArtifacts?: HyperlaneContractsMap<any>;
   skipWaitForDelivery: boolean;
@@ -120,7 +123,7 @@ async function executeDelivery({
     ](
       destinationDomain,
       formattedRecipient,
-      MESSAGE_BODY,
+      messageBody,
       ethers.utils.hexlify([]),
       hook,
     );
@@ -132,7 +135,7 @@ async function executeDelivery({
     ](
       destinationDomain,
       formattedRecipient,
-      MESSAGE_BODY,
+      messageBody,
       ethers.utils.hexlify([]),
       hook,
       {

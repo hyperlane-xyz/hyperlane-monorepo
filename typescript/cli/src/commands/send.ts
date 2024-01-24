@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import { CommandModule, Options } from 'yargs';
 
 import { TokenType } from '@hyperlane-xyz/sdk';
@@ -52,6 +53,11 @@ const messageOptions: { [k: string]: Options } = {
     description: 'Skip wait for message to be delivered',
     default: false,
   },
+  messageBody: {
+    type: 'string',
+    description: 'Optional Message body',
+    default: 'Hello!',
+  },
 };
 
 const messageCommand: CommandModule = {
@@ -66,12 +72,14 @@ const messageCommand: CommandModule = {
     const destination: string | undefined = argv.destination;
     const timeoutSec: number = argv.timeout;
     const skipWaitForDelivery: boolean = argv.quick;
+    const messageBody: string = argv.messageBody;
     await sendTestMessage({
       key,
       chainConfigPath,
       coreArtifactsPath,
       origin,
       destination,
+      messageBody: ethers.utils.hexlify(ethers.utils.toUtf8Bytes(messageBody)),
       timeoutSec,
       skipWaitForDelivery,
     });
