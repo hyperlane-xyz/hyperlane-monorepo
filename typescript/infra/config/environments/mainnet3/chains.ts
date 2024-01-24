@@ -42,12 +42,14 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
   moonbeam: chainMetadata.moonbeam,
   gnosis: chainMetadata.gnosis,
   mantapacific: chainMetadata.mantapacific,
+  inevm: chainMetadata.inevm,
 };
 
 // Blessed non-Ethereum chains.
 export const nonEthereumMainnetConfigs: ChainMap<ChainMetadata> = {
   // solana: chainMetadata.solana,
   neutron: chainMetadata.neutron,
+  injective: chainMetadata.injective,
 };
 
 export const mainnetConfigs: ChainMap<ChainMetadata> = {

@@ -31,14 +31,14 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
 
 // Blessed non-Ethereum chains.
 export const nonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
-  // solanadevnet: chainMetadata.solanadevnet,
+  solanadevnet: chainMetadata.solanadevnet,
   // temporarily testnet
-  // injective: chainMetadata.injective
+  injective: chainMetadata.injective,
 };
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {
   ...ethereumTestnetConfigs,
-  ...nonEthereumTestnetConfigs,
+  // ...nonEthereumTestnetConfigs,
 };
 
 export type TestnetChains = keyof typeof testnetConfigs;

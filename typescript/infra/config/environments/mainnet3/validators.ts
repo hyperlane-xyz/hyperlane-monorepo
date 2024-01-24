@@ -175,6 +175,30 @@ export const validatorChainConfig = (
         'base',
       ),
     },
+    injective: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod(chainMetadata.injective),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['', '', ''],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'injective',
+      ),
+    },
+    inevm: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod(chainMetadata.inevm),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['', '', ''],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'inevm',
+      ),
+    },
     scroll: {
       interval: 5,
       reorgPeriod: getReorgPeriod(chainMetadata.scroll),
