@@ -8,7 +8,7 @@ allow_paths = ["../node_modules"]
 solc = '0.8.19'
 optimizer = true
 optimizer_runs = 999_999
-fs_permissions = [{ access = "read", path = "./test/test-data"}]
+fs_permissions = [{ access = "read", path = "./"}]
 
 [profile.ci]
 verbosity = 4
