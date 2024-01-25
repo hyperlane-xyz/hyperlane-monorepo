@@ -4405,6 +4405,7 @@ dependencies = [
  "hyperlane-ethereum",
  "hyperlane-fuel",
  "hyperlane-sealevel",
+ "hyperlane-swisstronik",
  "hyperlane-test",
  "itertools 0.11.0",
  "maplit",
