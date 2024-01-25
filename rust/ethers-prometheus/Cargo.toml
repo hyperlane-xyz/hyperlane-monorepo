@@ -13,7 +13,8 @@ version.workspace = true
 async-trait.workspace = true
 derive-new.workspace = true
 derive_builder.workspace = true
-ethers.workspace = true
+ethers = { workspace = true, optional = true }
+swisstronik-ethers = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", features = [], optional = true, package = "ethers"}
 futures.workspace = true
 log.workspace = true
 maplit.workspace = true
@@ -32,5 +33,6 @@ hyperlane-core = { path = "../hyperlane-core", features = ["agent", "float"] }
 abigen = { path = "../utils/abigen", features = ["ethers"] }
 
 [features]
-default = []
-serde = ["dep:serde"]
+default = ["ethers"]
+serde = ["dep:serde", "ethers"]
+swisstronik = ["dep:serde", "swisstronik-ethers"]

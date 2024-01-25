@@ -105,6 +105,28 @@ impl From<Signature> for ethers_core::types::Signature {
     }
 }
 
+#[cfg(feature = "swisstronik")]
+impl From<swisstronik_ethers_core::types::Signature> for Signature {
+    fn from(value: swisstronik_ethers_core::types::Signature) -> Self {
+        Self {
+            r: value.r.into(),
+            s: value.s.into(),
+            v: value.v,
+        }
+    }
+}
+
+#[cfg(feature = "swisstronik")]
+impl From<Signature> for swisstronik_ethers_core::types::Signature {
+    fn from(value: Signature) -> Self {
+        Self {
+            r: value.r.into(),
+            s: value.s.into(),
+            v: value.v,
+        }
+    }
+}
+
 /// Key for the gas payment
 #[derive(Debug, Copy, Clone)]
 pub struct GasPaymentKey {

@@ -23,6 +23,9 @@ derive_more.workspace = true
 ethers-contract = { workspace = true, optional = true }
 ethers-core = { workspace = true, optional = true }
 ethers-providers = { workspace = true, optional = true }
+swisstronik-ethers-contract = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", package = "ethers-contract", optional = true}
+swisstronik-ethers-core = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", package = "ethers-core", optional = true}
+swisstronik-ethers-providers = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", package = "ethers-providers", optional = true}
 eyre.workspace = true
 fixed-hash.workspace = true
 getrandom.workspace = true
@@ -51,4 +54,5 @@ test-utils = ["dep:config"]
 agent = ["ethers", "strum"]
 strum = ["dep:strum"]
 ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers", "dep:primitive-types"]
+swisstronik = ["dep:swisstronik-ethers-core", "dep:swisstronik-ethers-contract", "dep:swisstronik-ethers-providers", "dep:primitive-types"]
 solana = ["dep:solana-sdk"]
