@@ -53,17 +53,20 @@ const messageOptions: { [k: string]: Options } = {
     description: 'Skip wait for message to be delivered',
     default: false,
   },
-  messageBody: {
-    type: 'string',
-    description: 'Optional Message body',
-    default: 'Hello!',
-  },
 };
 
 const messageCommand: CommandModule = {
   command: 'message',
   describe: 'Send a test message to a remote chain',
-  builder: (yargs) => yargs.options(messageOptions),
+  builder: (yargs) =>
+    yargs.options({
+      ...messageOptions,
+      messageBody: {
+        type: 'string',
+        description: 'Optional Message body',
+        default: 'Hello!',
+      },
+    }),
   handler: async (argv: any) => {
     const key: string = argv.key || process.env.HYP_KEY;
     const chainConfigPath: string = argv.chains;
