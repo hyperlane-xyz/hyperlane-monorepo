@@ -6,7 +6,7 @@ import {
   HyperlaneCore,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { Address, addressToBytes32, timeout } from '@hyperlane-xyz/utils';
+import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
@@ -99,11 +99,10 @@ async function executeDelivery({
   );
   const mailbox = core.getContracts(origin).mailbox;
 
-  let hook: Address;
-  try {
-    hook = mergedContractAddrs[origin].customHook;
+  let hook = mergedContractAddrs[origin]?.customHook;
+  if (hook) {
     logBlue(`Using custom hook ${hook} for ${origin} -> ${destination}`);
-  } catch (e) {
+  } else {
     hook = await mailbox.defaultHook();
     logBlue(`Using default hook ${hook} for ${origin} -> ${destination}`);
   }
