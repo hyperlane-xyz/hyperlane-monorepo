@@ -271,20 +271,17 @@ export const validatorChainConfig = (
         'mantapacific',
       ),
     },
-    viction: {
+
+    injective: {
       interval: 5,
-      reorgPeriod: 0,
+      reorgPeriod: getReorgPeriod(chainMetadata.injective),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: [
-            '0x1f87c368f8e05a85ef9126d984a980a20930cb9c',
-            '0x4a2ebbe07cd546cfd2b213d41f2d7814f9386157',
-            '0x00271cf10759e4c6d2f8ca46183ab10d360474b4',
-          ],
+          [Contexts.Hyperlane]: ['0xbfb8911b72cfb138c7ce517c57d9c691535dc517'],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
-        'viction',
+        'injective',
       ),
     },
   };
