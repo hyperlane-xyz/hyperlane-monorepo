@@ -11,10 +11,10 @@ use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
 use serde::{de::DeserializeOwned, Serialize};
 
-#[cfg(not(feature = "swisstronik"))]
+#[cfg(feature = "ethereum")]
 use ethers::prelude::JsonRpcClient;
 
-#[cfg(feature = "swisstronik")]
+#[cfg(all(feature = "swisstronik", not(feature = "ethereum")))]
 use swisstronik_ethers::prelude::JsonRpcClient;
 
 pub use crate::ChainInfo;
@@ -177,6 +177,7 @@ where
         res
     }
 
+    #[cfg(all(feature = "swisstronik", not(feature = "ethereum")))]
     fn connection(&self) -> String {
         self.inner.connection()
     }

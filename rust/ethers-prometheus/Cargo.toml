@@ -33,6 +33,7 @@ hyperlane-core = { path = "../hyperlane-core", features = ["agent", "float"] }
 abigen = { path = "../utils/abigen", features = ["ethers"] }
 
 [features]
-default = ["ethers"]
-serde = ["dep:serde", "ethers"]
-swisstronik = ["dep:serde", "swisstronik-ethers"]
+default = ["ethereum"]
+serde = ["dep:serde", "dep:ethers"]
+ethereum = ["dep:serde", "dep:ethers"]
+swisstronik = ["dep:serde", "dep:swisstronik-ethers"]
