@@ -46,6 +46,10 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
       maxPriorityFeePerGas: 5 * 10 ** 9, // gwei
     },
   },
+  moonbeam: chainMetadata.moonbeam,
+  gnosis: chainMetadata.gnosis,
+  mantapacific: chainMetadata.mantapacific,
+  inevm: chainMetadata.inevm,
 };
 
 // Blessed non-Ethereum chains.
@@ -71,15 +75,14 @@ export const ethereumChainNames = Object.keys(
 ) as MainnetChains[];
 
 // Remove mantapacific, as it's not considered a "blessed"
-// chain - we don't relay to mantapacific on the Hyperlane or RC contexts.
-const hyperlaneContextRelayChains = ethereumChainNames.filter(
-  (chainName) => chainName !== Chains.mantapacific,
+// chain. It's not included in the scraper domains table,
+// and we don't relay to mantapacific on the Hyperlane or RC contexts.
+const hyperlaneContextRelayChains = supportedChainNames.filter(
+  (chainName) => chainName !== chainMetadata.mantapacific.name,
 );
 
-// Skip viction, as it returns incorrect block hashes for eth_getLogs RPCs,
-// which breaks the scraper.
-const scraperChains = ethereumChainNames.filter(
-  (chainName) => chainName !== Chains.viction,
+const scraperHyperlaneContextRelayChains = ethereumChainNames.filter(
+  (chainName) => chainName !== chainMetadata.mantapacific.name,
 );
 
 // Hyperlane & RC context agent chain names.
@@ -87,5 +90,5 @@ export const agentChainNames: AgentChainNames = {
   // Run validators for all chains.
   [Role.Validator]: supportedChainNames,
   [Role.Relayer]: hyperlaneContextRelayChains,
-  [Role.Scraper]: scraperChains,
+  [Role.Scraper]: scraperHyperlaneContextRelayChains,
 };
