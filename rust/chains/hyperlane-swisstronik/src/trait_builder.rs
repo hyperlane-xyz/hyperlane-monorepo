@@ -4,14 +4,13 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::middleware::gas_oracle::{
-    GasCategory, GasOracle, GasOracleMiddleware, Polygon, ProviderOracle,
+    GasOracle, GasOracleMiddleware, ProviderOracle,
 };
 use ethers::prelude::{
     Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider,
     SignerMiddleware, Ws, WsClientError,
 };
 
-use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
 use reqwest::{Client, Url};
 use thiserror::Error;
 
@@ -140,17 +139,7 @@ pub trait BuildableWithProvider {
         P: JsonRpcClient + 'static,
     {
         let provider = wrap_with_gas_oracle(Provider::new(client), locator.domain)?;
-
-        Ok(if let Some(metrics) = metrics {
-            let provider = Arc::new(PrometheusMiddleware::new(provider, metrics.0, metrics.1));
-            // TODO: This task is spawned each time `.build_ethereum(...)` is called, which is about 15 times,
-            // in spite of it doing the same thing, wasting resources.
-            // Only spawn this once along with the other agent tasks.
-            tokio::spawn(provider.start_updating_on_interval(METRICS_SCRAPE_INTERVAL));
-            self.build_with_signer(provider, locator, signer).await?
-        } else {
-            self.build_with_signer(provider, locator, signer).await?
-        })
+        Ok(self.build_with_signer(provider, locator, signer).await?)
     }
 
     /// Wrap the provider creation with a signing provider if signers were
@@ -195,13 +184,6 @@ async fn wrap_with_signer<M: Middleware>(
     Ok(signing_provider)
 }
 
-fn build_polygon_gas_oracle(chain: ethers_core::types::Chain) -> ChainResult<Box<dyn GasOracle>> {
-    let gas_oracle = Polygon::new(chain)
-        .map_err(ChainCommunicationError::from_other)?
-        .category(GasCategory::Standard);
-    Ok(Box::new(gas_oracle) as Box<dyn GasOracle>)
-}
-
 /// Wrap the provider with a gas oracle middleware.
 /// Polygon and Mumbai require using the Polygon gas oracle, see discussion here
 /// https://github.com/foundry-rs/foundry/issues/1703.
@@ -214,16 +196,6 @@ where
     M: Middleware + 'static,
 {
     let provider = Arc::new(provider);
-    let gas_oracle: Box<dyn GasOracle> = {
-        match domain {
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Polygon) => {
-                build_polygon_gas_oracle(ethers_core::types::Chain::Polygon)?
-            }
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Mumbai) => {
-                build_polygon_gas_oracle(ethers_core::types::Chain::PolygonMumbai)?
-            }
-            _ => Box::new(ProviderOracle::new(provider.clone())),
-        }
-    };
+    let gas_oracle: Box<dyn GasOracle> = Box::new(ProviderOracle::new(provider.clone()));
     Ok(GasOracleMiddleware::new(provider, gas_oracle))
 }

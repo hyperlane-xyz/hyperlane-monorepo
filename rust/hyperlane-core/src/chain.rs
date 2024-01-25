@@ -86,6 +86,8 @@ pub enum KnownHyperlaneDomain {
 
     Injective = 6909546,
 
+    SwisstronikTestnet = 1291,
+
     // -- Local test chains --
     /// Test1 local chain
     Test1 = 13371,
@@ -175,13 +177,16 @@ pub enum HyperlaneDomainProtocol {
     Sealevel,
     /// A Cosmos-based chain type which uses hyperlane-cosmos.
     Cosmos,
+    /// An EVM-based chain type with encrypted transactions uses hyperlane-swisstronik
+    Swisstronik,
 }
 
 impl HyperlaneDomainProtocol {
     pub fn fmt_address(&self, addr: H256) -> String {
         use HyperlaneDomainProtocol::*;
         match self {
-            Ethereum => format!("{:?}", H160::from(addr)),
+            Ethereum |
+            Swisstronik => format!("{:?}", H160::from(addr)),
             Fuel => format!("{:?}", addr),
             Sealevel => format!("{:?}", addr),
             Cosmos => format!("{:?}", addr),
@@ -205,7 +210,7 @@ impl KnownHyperlaneDomain {
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
-                Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia, Chiado
+                Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia, Chiado, SwisstronikTestnet
             ],
             LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991],
         })
@@ -224,6 +229,7 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
             HyperlaneDomainProtocol::Cosmos: [CosmosTest99990, CosmosTest99991, Neutron, Injective],
+            HyperlaneDomainProtocol::Swisstronik: [SwisstronikTestnet],
         })
     }
 }
@@ -387,7 +393,7 @@ impl HyperlaneDomain {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
         many_to_one!(match protocol {
-            IndexMode::Block: [Ethereum, Cosmos], // TODO: Is cosmos index-mode is correct?
+            IndexMode::Block: [Ethereum, Cosmos, Swisstronik], // TODO: Is cosmos index-mode is correct?
             IndexMode::Sequence : [Sealevel, Fuel],
         })
     }
