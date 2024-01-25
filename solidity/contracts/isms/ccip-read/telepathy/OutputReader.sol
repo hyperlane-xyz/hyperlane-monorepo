@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.16;
 
+// Taken from https://github.com/succinctlabs/telepathyx. Cannot directly import because repo is not ready (missing dependencies).
 library OutputReader {
     function readUint256(
         bytes memory _output,

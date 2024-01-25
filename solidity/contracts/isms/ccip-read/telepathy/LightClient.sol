@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 import {ISuccinctGateway} from "./interfaces/ISuccinctGateway.sol";
 import {OutputReader} from "./OutputReader.sol";
 
+// Taken from https://github.com/succinctlabs/telepathyx. Cannot directly import because repo is not ready (missing dependencies).
 contract LightClient {
     bytes32 public immutable GENESIS_VALIDATORS_ROOT;
     uint256 public immutable GENESIS_TIME;

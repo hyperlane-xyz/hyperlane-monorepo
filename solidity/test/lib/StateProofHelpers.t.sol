@@ -41,7 +41,7 @@ contract StateProofHelpersTest is Test {
     function setUp() public virtual {
         proofsJson = vm.readFile("./test/test-data/getProof-data.json");
         accountProof = getAccountProofs();
-        storageProof = getStorageProofsSingle();
+        storageProof = getStorageProofs();
     }
 
     function getAccountProofs()
