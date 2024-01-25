@@ -1,4 +1,6 @@
 @openzeppelin=../node_modules/@openzeppelin
 @eth-optimism=../node_modules/@eth-optimism
+@telepathyx/=lib/telepathyx/contracts/src/
+lib/telepathyx/contracts:succinctx/=lib/succinctx/contracts/src/
 ds-test/=lib/forge-std/lib/ds-test/src/
 forge-std/=lib/forge-std/src/

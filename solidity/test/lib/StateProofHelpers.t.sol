@@ -61,7 +61,11 @@ contract StateProofHelpersTest is Test {
         return accountProof_;
     }
 
-    function getStorageProofs() public returns (bytes[] memory storageProof_) {
+    function getStorageProofs()
+        public
+        view
+        returns (bytes[] memory storageProof_)
+    {
         storageProof_ = new bytes[](STORAGE_PROOF_LENGTH);
         string memory prefix;
 

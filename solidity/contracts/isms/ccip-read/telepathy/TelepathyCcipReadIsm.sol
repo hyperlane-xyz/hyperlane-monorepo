@@ -18,7 +18,7 @@ pragma solidity >=0.8.0;
 import {AbstractCcipReadIsm} from "../AbstractCcipReadIsm.sol";
 import {Message} from "../../../libs/Message.sol";
 import {Mailbox} from "../../../Mailbox.sol";
-import {LightClient} from "./LightClient.sol";
+import {LightClient} from "@telepathyx/LightClient.sol";
 import {StorageProof} from "../../../libs/StateProofHelpers.sol";
 
 // ============ External Imports ============
