@@ -1,7 +1,7 @@
 export type DeploymentList = {
   [key: string]: string;
 };
-
+export type ChainName = string;
 export type Address = string;
 
 export type DeployContractOptions = {

@@ -6,8 +6,8 @@ const validatorAnnounce
 import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
+import { ChainMap, ChainName } from '../../types';
 import { HyperlaneContracts } from '../contracts/types';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer';
 import { HookConfig } from '../hook/types';
 import {
@@ -16,10 +16,15 @@ import {
 } from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
 
+import { HyperlaneDeployer } from './HyperlaneDeployer';
 import { CoreAddresses, CoreFactories, coreFactories } from './contracts';
 import { CoreConfig } from './types';
+
+export async function executeDeploy() {
+  // 1. Deploy ISM factories to all deployable chains that don't have them.
+  const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+}
 
 export class HyperlaneCoreDeployer {
   /**

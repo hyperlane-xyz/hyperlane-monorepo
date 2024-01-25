@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import * as hre from 'hardhat';
 
-import { getWallet } from './utils';
+import { getWallet } from './_utils';
 
 // Address of the contract to interact with
 const CONTRACT_ADDRESS = '';

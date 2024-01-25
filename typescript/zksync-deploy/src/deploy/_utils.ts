@@ -4,9 +4,9 @@ import '@matterlabs/hardhat-zksync-verify/dist/src/type-extensions';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import * as hre from 'hardhat';
-import { Provider, Wallet } from 'zksync-ethers';
+import { Contract, Provider, Wallet } from 'zksync-ethers';
 
-import { Address, DeployContractOptions } from './types';
+import { Address, DeployContractOptions } from '../types';
 
 // Load env file
 dotenv.config();
@@ -163,10 +163,10 @@ export const deployContract = async (
  * Deploys the Implementation and Proxy for a given contract
  *
  */
-/* export const deployProxiedContract = async (
+/* export const deployProxiedContract = async(
   contractName: string,
   proxyAdmin: Address,
-) => {
+): Promise<Contract> => {
   // Try to initialize the implementation even though it may not be necessary
   const implementation = await deployContract(
     contractName,
@@ -176,7 +176,6 @@ export const deployContract = async (
 
   // Initialize the proxy the same way
   const contract = await this.deployProxy(
-    chain,
     implementation,
     proxyAdmin,
     initializeArgs,
@@ -188,7 +187,7 @@ export const deployContract = async (
  * Rich wallets can be used for testing purposes.
  * Available on zkSync In-memory node and Dockerized node.
  */
-export const LOCAL_RICH_WALLETS = [
+/* export const LOCAL_RICH_WALLETS = [
   {
     address: '0x36615Cf349d7F6344891B1e7CA7C72883F5dc049',
     privateKey:
@@ -239,4 +238,4 @@ export const LOCAL_RICH_WALLETS = [
     privateKey:
       '0x3eb15da85647edd9a1159a4a13b9e7c56877c4eb33f614546d4db06a51868b1c',
   },
-];
+]; */

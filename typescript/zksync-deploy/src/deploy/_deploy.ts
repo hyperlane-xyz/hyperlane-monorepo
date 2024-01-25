@@ -1,4 +1,4 @@
-import { deployContract } from './utils';
+import { deployContract } from './_utils';
 
 // An example of a basic deploy script
 // It will deploy a Greeter contract to selected network

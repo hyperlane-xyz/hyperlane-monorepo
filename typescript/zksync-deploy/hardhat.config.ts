@@ -2,9 +2,12 @@ import '@matterlabs/hardhat-zksync-deploy';
 import '@matterlabs/hardhat-zksync-node';
 import '@matterlabs/hardhat-zksync-solc';
 import '@matterlabs/hardhat-zksync-verify';
-import { HardhatUserConfig } from 'hardhat/config';
+import '@typechain/hardhat';
 
-const config: HardhatUserConfig = {
+/**
+ * @type import('hardhat/config').HardhatUserConfig
+ */
+module.exports = {
   defaultNetwork: 'zkSyncSepoliaTestnet',
   networks: {
     zkSyncSepoliaTestnet: {
@@ -53,6 +56,9 @@ const config: HardhatUserConfig = {
   solidity: {
     version: '0.8.17',
   },
+  typechain: {
+    outDir: './types',
+    target: 'ethers-v5',
+    alwaysGenerateOverloads: true,
+  },
 };
-
-export default config;
