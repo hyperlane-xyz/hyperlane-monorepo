@@ -135,7 +135,10 @@ pub fn build_connection_conf(
     match domain_protocol {
         HyperlaneDomainProtocol::Ethereum => {
             build_ethereum_connection_conf(rpcs, chain, err, default_rpc_consensus_type)
-        }
+        },
+        HyperlaneDomainProtocol::Swisstronik => {
+            build_ethereum_connection_conf(rpcs, chain, err, default_rpc_consensus_type)
+        },
         HyperlaneDomainProtocol::Fuel => rpcs
             .iter()
             .next()
