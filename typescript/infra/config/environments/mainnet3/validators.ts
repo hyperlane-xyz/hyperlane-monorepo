@@ -263,5 +263,21 @@ export const validatorChainConfig = (
         'mantapacific',
       ),
     },
+    inevm: {
+      interval: 5,
+      reorgPeriod: 0,
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [
+            '0xf9e35ee88e4448a3673b4676a4e153e3584a08eb',
+            '0xae3e6bb6b3ece1c425aa6f47adc8cb0453c1f9a2',
+            '0xd98c9522cd9d3e3e00bee05ff76c34b91b266ec3',
+          ],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'inevm',
+      ),
+    },
   };
 };

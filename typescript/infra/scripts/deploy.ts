@@ -69,10 +69,10 @@ async function main() {
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
   if (module === Modules.PROXY_FACTORY) {
-    config = objMap(envConfig.core, (_chain) => true);
+    config = { inevm: true };
     deployer = new HyperlaneProxyFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
-    config = envConfig.core;
+    config['inevm'] = envConfig.core['inevm'];
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,
