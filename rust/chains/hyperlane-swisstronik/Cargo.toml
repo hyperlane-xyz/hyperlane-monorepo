@@ -13,10 +13,12 @@ version.workspace = true
 # Main block
 async-trait.workspace = true
 derive-new.workspace = true
-ethers-contract.workspace = true
-ethers-core.workspace = true
-ethers-signers.workspace = true
-ethers.workspace = true
+ethers-contract = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", features = []}
+ethers-core = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", features = ["legacy"]}
+ethers-signers = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", features = ["aws"]}
+ethers = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", features = []}
+ethers-providers = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", features = []}
+
 futures-util.workspace = true
 hex.workspace = true
 num.workspace = true

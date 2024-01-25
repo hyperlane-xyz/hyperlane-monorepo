@@ -10,6 +10,7 @@ use ethers::prelude::{
     Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
     SignerMiddleware, WeightedProvider, Ws, WsClientError,
 };
+
 use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
 use reqwest::{Client, Url};
 use thiserror::Error;
