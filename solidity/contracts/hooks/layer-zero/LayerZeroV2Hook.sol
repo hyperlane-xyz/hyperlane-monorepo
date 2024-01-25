@@ -29,7 +29,7 @@ struct LayerZeroV2Metadata {
     bytes options;
 }
 
-contract LayerZeroV2Hook is AbstractMessageIdAuthHook, Indexed {
+contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
     using StandardHookMetadata for bytes;
     using Message for bytes;
     using TypeCasts for bytes32;

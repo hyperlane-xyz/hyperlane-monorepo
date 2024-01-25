@@ -36,7 +36,7 @@ struct LayerZeroMetadata {
     bytes adapterParam;
 }
 
-contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient, Indexed {
+contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient {
     using StandardHookMetadata for bytes;
     using Message for bytes;
     using TypeCasts for bytes32;
