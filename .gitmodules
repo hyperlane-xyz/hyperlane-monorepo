@@ -4,3 +4,6 @@
 [submodule "solidity/lib/telepathyx"]
 	path = solidity/lib/telepathyx
 	url = https://github.com/succinctlabs/telepathyx
+[submodule "solidity/lib/succinctx"]
+	path = solidity/lib/succinctx
+	url = https://github.com/succinctlabs/succinctx
