@@ -194,6 +194,10 @@ impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
         })
         .await
     }
+
+    fn connection(&self) -> String {
+        self.inner.inner().connection()
+    }
 }
 
 impl<P> FromStr for RetryingProvider<P>

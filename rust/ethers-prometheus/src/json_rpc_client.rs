@@ -7,10 +7,15 @@ use std::time::Instant;
 use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_new::new;
-use ethers::prelude::JsonRpcClient;
 use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
 use serde::{de::DeserializeOwned, Serialize};
+
+#[cfg(not(feature = "swisstronik"))]
+use ethers::prelude::JsonRpcClient;
+
+#[cfg(feature = "swisstronik")]
+use swisstronik_ethers::prelude::JsonRpcClient;
 
 pub use crate::ChainInfo;
 
@@ -170,5 +175,9 @@ where
                 .inc_by((Instant::now() - start).as_secs_f64())
         };
         res
+    }
+
+    fn connection(&self) -> String {
+        self.inner.connection()
     }
 }

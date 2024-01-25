@@ -1,6 +1,11 @@
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
+
+#[cfg(not(feature = "swisstronik"))]
+use ethers::prelude::FromErr;
+
+#[cfg(feature = "swisstronik")]
 use ethers::prelude::FromErr;
 
 /// For now this is just a thin wrapper around the underlying error type. Might

@@ -7,8 +7,8 @@ use ethers::middleware::gas_oracle::{
     GasCategory, GasOracle, GasOracleMiddleware, Polygon, ProviderOracle,
 };
 use ethers::prelude::{
-    Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
-    SignerMiddleware, WeightedProvider, Ws, WsClientError,
+    Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider,
+    SignerMiddleware, Ws, WsClientError,
 };
 
 use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
@@ -26,7 +26,7 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
 };
 
-use crate::{signers::Signers, ConnectionConf, FallbackProvider, RetryingProvider};
+use crate::{signers::Signers, ConnectionConf, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
 const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -66,58 +66,6 @@ pub trait BuildableWithProvider {
         middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> ChainResult<Self::Output> {
         Ok(match conn {
-            ConnectionConf::HttpQuorum { urls } => {
-                let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
-                let http_client = Client::builder()
-                    .timeout(HTTP_CLIENT_TIMEOUT)
-                    .build()
-                    .map_err(EthereumProviderConnectionError::from)?;
-                for url in urls {
-                    let http_provider = Http::new_with_client(url.clone(), http_client.clone());
-                    // Wrap the inner providers as RetryingProviders rather than the QuorumProvider.
-                    // We've observed issues where the QuorumProvider will first get the latest
-                    // block number and then submit an RPC at that block height,
-                    // sometimes resulting in the second RPC getting serviced by
-                    // a node that isn't aware of the requested block
-                    // height yet. Retrying at the QuorumProvider level will result in both those
-                    // RPCs being retried, while retrying at the inner provider
-                    // level will result in only the second RPC being retried
-                    // (the one with the error), which is the desired behavior.
-                    let metrics_provider = self.wrap_rpc_with_metrics(
-                        http_provider,
-                        url.clone(),
-                        &rpc_metrics,
-                        &middleware_metrics,
-                    );
-                    let retrying_provider =
-                        RetryingProvider::new(metrics_provider, Some(5), Some(1000));
-                    let weighted_provider = WeightedProvider::new(retrying_provider);
-                    builder = builder.add_provider(weighted_provider);
-                }
-                let quorum_provider = builder.build();
-                self.build(quorum_provider, locator, signer, middleware_metrics)
-                    .await?
-            }
-            ConnectionConf::HttpFallback { urls } => {
-                let mut builder = FallbackProvider::builder();
-                let http_client = Client::builder()
-                    .timeout(HTTP_CLIENT_TIMEOUT)
-                    .build()
-                    .map_err(EthereumProviderConnectionError::from)?;
-                for url in urls {
-                    let http_provider = Http::new_with_client(url.clone(), http_client.clone());
-                    let metrics_provider = self.wrap_rpc_with_metrics(
-                        http_provider,
-                        url.clone(),
-                        &rpc_metrics,
-                        &middleware_metrics,
-                    );
-                    builder = builder.add_provider(metrics_provider);
-                }
-                let fallback_provider = builder.build();
-                self.build(fallback_provider, locator, signer, middleware_metrics)
-                    .await?
-            }
             ConnectionConf::Http { url } => {
                 let http_client = Client::builder()
                     .timeout(HTTP_CLIENT_TIMEOUT)
