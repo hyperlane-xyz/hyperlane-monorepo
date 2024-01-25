@@ -1,4 +1,4 @@
-use std::{ops::RangeInclusive, time::Duration};
+use std::{fmt, ops::RangeInclusive, time::Duration};
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
@@ -26,4 +26,13 @@ pub enum CursorAction {
     Query(RangeInclusive<u32>),
     /// Direct the contract_sync task to sleep for a duration
     Sleep(Duration),
+}
+
+impl fmt::Debug for CursorAction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CursorAction::Query(range) => write!(f, "Query({:?})", range),
+            CursorAction::Sleep(duration) => write!(f, "Sleep({:?})", duration),
+        }
+    }
 }

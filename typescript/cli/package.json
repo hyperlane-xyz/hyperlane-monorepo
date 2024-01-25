@@ -1,0 +1,66 @@
+{
+  "name": "@hyperlane-xyz/cli",
+  "version": "3.6.1",
+  "description": "A command-line utility for common Hyperlane operations",
+  "dependencies": {
+    "@hyperlane-xyz/sdk": "3.6.1",
+    "@hyperlane-xyz/utils": "3.6.1",
+    "@inquirer/prompts": "^3.0.0",
+    "bignumber.js": "^9.1.1",
+    "chalk": "^5.3.0",
+    "ethers": "^5.7.2",
+    "terminal-link": "^3.0.0",
+    "yaml": "^2.3.1",
+    "yargs": "^17.7.2",
+    "zod": "^3.21.2"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^18.14.5",
+    "@types/yargs": "^17.0.24",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^5.62.0",
+    "chai": "^4.3.6",
+    "eslint": "^8.43.0",
+    "eslint-config-prettier": "^8.8.0",
+    "mocha": "^10.2.0",
+    "prettier": "^2.8.8",
+    "typescript": "^5.1.6"
+  },
+  "scripts": {
+    "hyperlane": "node ./dist/cli.js",
+    "build": "yarn version:update && tsc",
+    "dev": "yarn version:update && tsc --watch",
+    "clean": "rm -rf ./dist",
+    "lint": "eslint . --ext .ts",
+    "prettier": "prettier --write ./src ./examples",
+    "test": "mocha --config .mocharc.json",
+    "test:ci": "yarn test",
+    "version:update": "echo \"export const VERSION = '$npm_package_version';\" > src/version.ts"
+  },
+  "files": [
+    "./dist",
+    "./examples",
+    "package.json"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "bin": {
+    "hyperlane": "./dist/cli.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hyperlane-xyz/hyperlane-monorepo"
+  },
+  "license": "Apache 2.0",
+  "homepage": "https://www.hyperlane.xyz",
+  "keywords": [
+    "Hyperlane",
+    "CLI",
+    "Permissionless",
+    "Deployment",
+    "Typescript"
+  ],
+  "packageManager": "yarn@4.0.1"
+}

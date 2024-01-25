@@ -4,6 +4,8 @@ import { prompt } from 'prompts';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
+  Chains,
+  HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
@@ -13,14 +15,15 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
+  TokenConfig,
 } from '@hyperlane-xyz/sdk';
+import { TokenDecimals, TokenType } from '@hyperlane-xyz/sdk/dist/token/config';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
-import { TestRecipientDeployer } from '../src/deployment/testcontracts/testrecipient';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
 import {
@@ -77,6 +80,39 @@ async function main() {
       multiProvider,
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
+  } else if (module === Modules.WARP) {
+    const owner = deployerAddress;
+    const neutronRouter =
+      '6b04c49fcfd98bc4ea9c05cd5790462a39537c00028333474aebe6ddf20b73a3';
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      getAddresses(environment, Modules.PROXY_FACTORY),
+      multiProvider,
+    );
+    const tokenConfig: TokenConfig & TokenDecimals = {
+      type: TokenType.synthetic,
+      name: 'Eclipse Fi',
+      symbol: 'ECLIP',
+      decimals: 6,
+      totalSupply: 0,
+    };
+    const core = HyperlaneCore.fromEnvironment(
+      deployEnvToSdkEnv[environment],
+      multiProvider,
+    );
+    const routerConfig = core.getRouterConfig(owner);
+    const targetChains = [Chains.arbitrum];
+    config = {
+      arbitrum: {
+        ...routerConfig['arbitrum'],
+        ...tokenConfig,
+        interchainSecurityModule: '0x53A5c239d62ff35c98E0EC9612c86517748ffF59',
+        gas: 600_000,
+      },
+      neutron: {
+        foreignDeployment: neutronRouter,
+      },
+    };
+    deployer = new HypERC20Deployer(multiProvider, ismFactory);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
@@ -103,8 +139,7 @@ async function main() {
     );
     deployer = new LiquidityLayerDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
-    config = objMap(envConfig.core, (_chain) => true);
-    deployer = new TestRecipientDeployer(multiProvider);
+    throw new Error('Test recipient is not supported. Use CLI instead.');
   } else if (module === Modules.TEST_QUERY_SENDER) {
     // Get query router addresses
     const queryAddresses = getAddresses(

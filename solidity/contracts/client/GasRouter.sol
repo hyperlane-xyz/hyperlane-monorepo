@@ -47,18 +47,11 @@ abstract contract GasRouter is Router {
         return _quoteDispatch(_destinationDomain, "");
     }
 
-    function _refundAddress(uint32) internal view virtual returns (address) {
-        return msg.sender;
-    }
-
     function _metadata(
         uint32 _destination
     ) internal view virtual override returns (bytes memory) {
         return
-            StandardHookMetadata.formatMetadata(
-                destinationGas[_destination],
-                _refundAddress(_destination)
-            );
+            StandardHookMetadata.overrideGasLimit(destinationGas[_destination]);
     }
 
     function _setDestinationGas(uint32 domain, uint256 gas) internal {

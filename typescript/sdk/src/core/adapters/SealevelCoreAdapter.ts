@@ -57,7 +57,7 @@ export class SealevelCoreAdapter
     destination: ChainName,
     delayMs?: number,
     maxAttempts?: number,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const pda = SealevelCoreAdapter.deriveMailboxMessageProcessedPda(
       this.addresses.mailbox,
       messageId,
@@ -75,6 +75,8 @@ export class SealevelCoreAdapter
       delayMs,
       maxAttempts,
     );
+
+    return true;
   }
 
   static parseMessageDispatchLogs(

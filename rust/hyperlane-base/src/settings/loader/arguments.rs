@@ -155,7 +155,7 @@ impl Iterator for ArgumentParser {
 impl ArgumentParser {
     #[inline(never)]
     fn find_next_kv_pair(&mut self) -> Result<Option<(String, String, PairKind, usize)>, Error> {
-        unwrap_or_none_result!(idx, self.index_of_next_key());
+        let idx = unwrap_or_none_result!(self.index_of_next_key());
         // full term without leading '--'
         let term = &os_to_str(&self.0[idx])?[2..];
         if term.is_empty() {

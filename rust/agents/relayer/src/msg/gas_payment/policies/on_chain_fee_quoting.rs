@@ -64,6 +64,7 @@ impl GasPaymentPolicy for GasPaymentPolicyOnChainFeeQuoting {
 #[cfg(test)]
 mod test {
     use hyperlane_core::H256;
+    use once_cell::sync::Lazy;
 
     use super::*;
 
@@ -85,11 +86,11 @@ mod test {
     }
 
     const MIN: U256 = U256([1000, 0, 0, 0]);
-    const COST_ESTIMATE: TxCostEstimate = TxCostEstimate {
+    static COST_ESTIMATE: Lazy<TxCostEstimate> = Lazy::new(|| TxCostEstimate {
         gas_limit: U256([2000, 0, 0, 0]), // MIN * 2
-        gas_price: U256([100001, 0, 0, 0]),
+        gas_price: U256([100001, 0, 0, 0]).try_into().unwrap(),
         l2_gas_limit: None,
-    };
+    });
 
     #[test]
     fn ensure_little_endian() {
@@ -203,7 +204,7 @@ mod test {
 
         let tx_cost_estimate = TxCostEstimate {
             gas_limit: MIN * 100, // Large gas limit
-            gas_price: COST_ESTIMATE.gas_price,
+            gas_price: COST_ESTIMATE.gas_price.clone().try_into().unwrap(),
             l2_gas_limit: Some(MIN * 2),
         };
 
@@ -217,7 +218,7 @@ mod test {
                     &current_expenditure(0),
                     &TxCostEstimate {
                         l2_gas_limit: None,
-                        ..tx_cost_estimate
+                        ..tx_cost_estimate.clone()
                     }
                 )
                 .await

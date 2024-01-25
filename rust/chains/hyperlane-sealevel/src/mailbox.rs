@@ -9,9 +9,9 @@ use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
-    MerkleTreeHook, SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
+    ContractLocator, Decode as _, Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta,
+    Mailbox, MerkleTreeHook, SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -69,8 +69,7 @@ pub struct SealevelMailbox {
     pub(crate) program_id: Pubkey,
     inbox: (Pubkey, u8),
     pub(crate) outbox: (Pubkey, u8),
-    pub(crate) rpc_client: RpcClient,
-    pub(crate) domain: HyperlaneDomain,
+    pub(crate) provider: SealevelProvider,
     payer: Option<Keypair>,
 }
 
@@ -81,10 +80,7 @@ impl SealevelMailbox {
         locator: ContractLocator,
         payer: Option<Keypair>,
     ) -> ChainResult<Self> {
-        // Set the `processed` commitment at rpc level
-        let rpc_client =
-            RpcClient::new_with_commitment(conf.url.to_string(), CommitmentConfig::processed());
-
+        let provider = SealevelProvider::new(locator.domain.clone(), conf);
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
         let inbox = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &program_id);
@@ -99,8 +95,7 @@ impl SealevelMailbox {
             program_id,
             inbox,
             outbox,
-            rpc_client,
-            domain: locator.domain.clone(),
+            provider,
             payer,
         })
     }
@@ -112,6 +107,10 @@ impl SealevelMailbox {
         self.outbox
     }
 
+    pub fn rpc(&self) -> &RpcClientWithDebug {
+        self.provider.rpc()
+    }
+
     /// Simulates an instruction, and attempts to deserialize it into a T.
     /// If no return data at all was returned, returns Ok(None).
     /// If some return data was returned but deserialization was unsuccesful,
@@ -121,7 +120,7 @@ impl SealevelMailbox {
         instruction: Instruction,
     ) -> ChainResult<Option<T>> {
         simulate_instruction(
-            &self.rpc_client,
+            &self.rpc(),
             self.payer
                 .as_ref()
                 .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
@@ -136,7 +135,7 @@ impl SealevelMailbox {
         instruction: Instruction,
     ) -> ChainResult<Vec<AccountMeta>> {
         get_account_metas(
-            &self.rpc_client,
+            &self.rpc(),
             self.payer
                 .as_ref()
                 .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
@@ -263,11 +262,11 @@ impl HyperlaneContract for SealevelMailbox {
 
 impl HyperlaneChain for SealevelMailbox {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.domain
+        &self.provider.domain()
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(SealevelProvider::new(self.domain.clone()))
+        self.provider.provider()
     }
 }
 
@@ -295,7 +294,7 @@ impl Mailbox for SealevelMailbox {
             );
 
         let account = self
-            .rpc_client
+            .rpc()
             .get_account_with_commitment(
                 &processed_message_account_key,
                 CommitmentConfig::finalized(),
@@ -309,7 +308,7 @@ impl Mailbox for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
         let inbox_account = self
-            .rpc_client
+            .rpc()
             .get_account(&self.inbox.0)
             .await
             .map_err(ChainCommunicationError::from_other)?;
@@ -436,7 +435,7 @@ impl Mailbox for SealevelMailbox {
         };
         instructions.push(inbox_instruction);
         let (recent_blockhash, _) = self
-            .rpc_client
+            .rpc()
             .get_latest_blockhash_with_commitment(commitment)
             .await
             .map_err(ChainCommunicationError::from_other)?;
@@ -451,7 +450,7 @@ impl Mailbox for SealevelMailbox {
         tracing::info!(?txn, "Created sealevel transaction to process message");
 
         let signature = self
-            .rpc_client
+            .rpc()
             .send_and_confirm_transaction(&txn)
             .await
             .map_err(ChainCommunicationError::from_other)?;
@@ -459,7 +458,7 @@ impl Mailbox for SealevelMailbox {
         tracing::info!(?txn, ?signature, "Sealevel transaction sent");
 
         let executed = self
-            .rpc_client
+            .rpc()
             .confirm_transaction_with_commitment(&signature, commitment)
             .await
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
@@ -471,7 +470,7 @@ impl Mailbox for SealevelMailbox {
             transaction_id: txid,
             executed,
             // TODO use correct data upon integrating IGP support
-            gas_price: U256::zero(),
+            gas_price: U256::zero().try_into()?,
             gas_used: U256::zero(),
         })
     }
@@ -485,7 +484,7 @@ impl Mailbox for SealevelMailbox {
         // TODO use correct data upon integrating IGP support
         Ok(TxCostEstimate {
             gas_limit: U256::zero(),
-            gas_price: U256::zero(),
+            gas_price: FixedPointNumber::zero(),
             l2_gas_limit: None,
         })
     }
@@ -498,7 +497,6 @@ impl Mailbox for SealevelMailbox {
 /// Struct that retrieves event data for a Sealevel Mailbox contract
 #[derive(Debug)]
 pub struct SealevelMailboxIndexer {
-    rpc_client: RpcClientWithDebug,
     mailbox: SealevelMailbox,
     program_id: Pubkey,
 }
@@ -506,18 +504,20 @@ pub struct SealevelMailboxIndexer {
 impl SealevelMailboxIndexer {
     pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
-        let rpc_client = RpcClientWithDebug::new(conf.url.to_string());
         let mailbox = SealevelMailbox::new(conf, locator, None)?;
         Ok(Self {
             program_id,
-            rpc_client,
             mailbox,
         })
     }
 
+    fn rpc(&self) -> &RpcClientWithDebug {
+        &self.mailbox.rpc()
+    }
+
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         let height = self
-            .rpc_client
+            .rpc()
             .get_block_height()
             .await
             .map_err(ChainCommunicationError::from_other)?
@@ -560,7 +560,7 @@ impl SealevelMailboxIndexer {
             with_context: Some(false),
         };
         let accounts = self
-            .rpc_client
+            .rpc()
             .get_program_accounts_with_config(&self.mailbox.program_id, config)
             .await
             .map_err(ChainCommunicationError::from_other)?;
@@ -595,7 +595,7 @@ impl SealevelMailboxIndexer {
 
         // Now that we have the valid message storage PDA pubkey, we can get the full account data.
         let account = self
-            .rpc_client
+            .rpc()
             .get_account_with_commitment(
                 &valid_message_storage_pda_pubkey,
                 CommitmentConfig::finalized(),
@@ -633,7 +633,7 @@ impl SealevelMailboxIndexer {
 impl SequenceIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     #[instrument(err, skip(self))]
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
+        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         // TODO: need to make sure the call and tip are at the same height?
         let count = Mailbox::count(&self.mailbox, None).await?;
         Ok((Some(count), tip))
@@ -660,7 +660,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        get_finalized_block_number(&self.rpc_client).await
+        get_finalized_block_number(&self.rpc()).await
     }
 }
 

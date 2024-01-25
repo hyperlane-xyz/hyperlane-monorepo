@@ -4,19 +4,23 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
 use futures_util::future::ready;
+
+use tokio::{task::JoinHandle, time::sleep};
+use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
+
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
+    metrics::AgentMetrics,
     run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-    WatermarkContractSync,
+    SequencedDataContractSync,
 };
+
 use hyperlane_core::{
     Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
     HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, TxOutcome, ValidatorAnnounce,
     H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
-use tokio::{task::JoinHandle, time::sleep};
-use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use crate::{
     settings::ValidatorSettings,
@@ -30,7 +34,7 @@ pub struct Validator {
     #[as_ref]
     core: HyperlaneAgentCore,
     db: HyperlaneRocksDB,
-    merkle_tree_hook_sync: Arc<WatermarkContractSync<MerkleTreeInsertion>>,
+    merkle_tree_hook_sync: Arc<SequencedDataContractSync<MerkleTreeInsertion>>,
     mailbox: Arc<dyn Mailbox>,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
@@ -48,7 +52,11 @@ impl BaseAgent for Validator {
 
     type Settings = ValidatorSettings;
 
-    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
+    async fn from_settings(
+        settings: Self::Settings,
+        metrics: Arc<CoreMetrics>,
+        _agent_metrics: AgentMetrics,
+    ) -> Result<Self>
     where
         Self: Sized,
     {
@@ -151,7 +159,9 @@ impl Validator {
         let index_settings =
             self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
         let contract_sync = self.merkle_tree_hook_sync.clone();
-        let cursor = contract_sync.rate_limited_cursor(index_settings).await;
+        let cursor = contract_sync
+            .forward_backward_message_sync_cursor(index_settings)
+            .await;
         tokio::spawn(async move { contract_sync.clone().sync("merkle_tree_hook", cursor).await })
             .instrument(info_span!("MerkleTreeHookSyncer"))
     }
@@ -199,14 +209,21 @@ impl Validator {
         tasks
     }
 
-    fn log_on_announce_failure(result: ChainResult<TxOutcome>) {
+    fn log_on_announce_failure(result: ChainResult<TxOutcome>, chain_signer: &String) {
         match result {
             Ok(outcome) => {
-                if !outcome.executed {
+                if outcome.executed {
+                    info!(
+                        tx_outcome=?outcome,
+                        ?chain_signer,
+                        "Successfully announced validator",
+                    );
+                } else {
                     error!(
                         txid=?outcome.transaction_id,
                         gas_used=?outcome.gas_used,
                         gas_price=?outcome.gas_price,
+                        ?chain_signer,
                         "Transaction attempting to announce validator reverted. Make sure you have enough funds in your account to pay for transaction fees."
                     );
                 }
@@ -214,19 +231,23 @@ impl Validator {
             Err(err) => {
                 error!(
                     ?err,
-                    "Failed to announce validator. Make sure you have enough ETH in your account to pay for gas."
+                    ?chain_signer,
+                    "Failed to announce validator. Make sure you have enough funds in your account to pay for gas."
                 );
             }
         }
     }
 
     async fn announce(&self) -> Result<()> {
+        let address = self.signer.eth_address();
+        let announcement_location = self.checkpoint_syncer.announcement_location();
+
         // Sign and post the validator announcement
         let announcement = Announcement {
-            validator: self.signer.eth_address(),
+            validator: address,
             mailbox_address: self.mailbox.address(),
             mailbox_domain: self.mailbox.domain().id(),
-            storage_location: self.checkpoint_syncer.announcement_location(),
+            storage_location: announcement_location.clone(),
         };
         let signed_announcement = self.signer.sign(announcement.clone()).await?;
         self.checkpoint_syncer
@@ -237,7 +258,7 @@ impl Validator {
         // the main validator submit loop. This is to avoid a situation in
         // which the validator is signing checkpoints but has not announced
         // their locations, which makes them functionally unusable.
-        let validators: [H256; 1] = [self.signer.eth_address().into()];
+        let validators: [H256; 1] = [address.into()];
         loop {
             info!("Checking for validator announcement");
             if let Some(locations) = self
@@ -246,8 +267,12 @@ impl Validator {
                 .await?
                 .first()
             {
-                if locations.contains(&self.checkpoint_syncer.announcement_location()) {
-                    info!("Validator has announced signature storage location");
+                if locations.contains(&announcement_location) {
+                    info!(
+                        ?locations,
+                        ?announcement_location,
+                        "Validator has announced signature storage location"
+                    );
                     break;
                 }
                 info!(
@@ -255,10 +280,12 @@ impl Validator {
                     "Validator has not announced signature storage location"
                 );
 
-                if self.core.settings.chains[self.origin_chain.name()]
-                    .signer
-                    .is_some()
+                if let Some(chain_signer) = self.core.settings.chains[self.origin_chain.name()]
+                    .chain_signer()
+                    .await?
                 {
+                    let chain_signer = chain_signer.address_string();
+                    info!(eth_validator_address=?announcement.validator, ?chain_signer, "Attempting self announce");
                     let balance_delta = self
                         .validator_announce
                         .announce_tokens_needed(signed_announcement.clone())
@@ -267,15 +294,16 @@ impl Validator {
                     if balance_delta > U256::zero() {
                         warn!(
                             tokens_needed=%balance_delta,
-                            validator_address=?announcement.validator,
-                            "Please send tokens to the validator address to announce",
+                            eth_validator_address=?announcement.validator,
+                            ?chain_signer,
+                            "Please send tokens to your chain signer address to announce",
                         );
                     } else {
                         let result = self
                             .validator_announce
                             .announce(signed_announcement.clone(), None)
                             .await;
-                        Self::log_on_announce_failure(result);
+                        Self::log_on_announce_failure(result, &chain_signer);
                     }
                 } else {
                     warn!(origin_chain=%self.origin_chain, "Cannot announce validator without a signer; make sure a signer is set for the origin chain");
@@ -287,6 +315,3 @@ impl Validator {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod test {}

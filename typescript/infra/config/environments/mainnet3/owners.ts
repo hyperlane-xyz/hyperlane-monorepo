@@ -16,6 +16,7 @@ export const safes: ChainMap<Address | undefined> = {
   base: undefined,
   scroll: undefined,
   polygonzkevm: undefined,
+  mantapacific: undefined,
 };
 
 // export const owners = safes;

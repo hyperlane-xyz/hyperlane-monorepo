@@ -5,10 +5,6 @@ import { deployEnvToSdkEnv } from '../src/config/environment';
 
 import { getArgs, getEnvironmentConfig } from './utils';
 
-// Hacky temporary script just to make sure that default ISMs are correct.
-// Testnet3 has already been updated, mainnet3 hasn't, so the above cache
-// is used for mainnet3.
-
 async function main() {
   const args = await getArgs().argv;
 

@@ -13,7 +13,7 @@ if [[ -z $TAG ]]; then
   # compatible with our K8s infrastructure.
   # More info: https://stackoverflow.com/a/71102144
   if [[ $USE_DEFAULT_PLATFORM != "true" ]]; then
-    PLATFORM="--platform=linux/amd64"
+    PLATFORM="--platform=linux/amd64/v8"
   fi
 fi
 

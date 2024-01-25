@@ -7,16 +7,16 @@
 [codecov-badge]: https://img.shields.io/codecov/c/github/hyperlane-xyz/hyperlane-monorepo
 [foundry]: https://getfoundry.sh/
 [foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
-[license]: https://opensource.org/licenses/MIT
-[license-badge]: https://img.shields.io/badge/License-MIT-blue.svg
+[license]: https://www.apache.org/licenses/LICENSE-2.0
+[license-badge]: https://img.shields.io/badge/License-Apache-blue.svg
 
 ## Versioning
 
 Note this is the branch for Hyperlane v3.
 
-V2 is on the main branch but is eventually being phased out.
+V2 is still in operation but is not being actively developed. The code for V2 can be found in the [v2](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v2) branch.
 
-V1 has since been deprecated in favor of V2, but if you are looking for code relating to the existing V1 deployments of the `testnet2` or `mainnet` environments, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
+V1 has since been deprecated in favor of V2, but if you are looking for code relating to the existing V1 deployments, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
 
 ## Overview
 
@@ -27,6 +27,24 @@ Developers can use Hyperlane to share state between blockchains, allowing them t
 To read more about interchain applications, how the protocol works, and how to integrate with Hyperlane, please see the [documentation](https://docs.hyperlane.xyz).
 
 ## Working on Hyperlane
+
+### Foundry
+
+First ensure you have Foundry installed on your machine.
+
+Run the following to install `foundryup`:
+
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+```
+
+Then run `foundryup` to install `forge`, `cast`, `anvil` and `chisel`.
+
+```bash
+foundryup
+```
+
+Check out the [Foundry Book](https://book.getfoundry.sh/getting-started/installation) for more information.
 
 ### Workspaces
 
@@ -49,38 +67,6 @@ If you are using [VSCode](https://code.visualstudio.com/), you can launch the [m
 ### Rust
 
 See [`rust/README.md`](rust/README.md)
-
-### Publishing JS/TS Packages
-
-Packages can be versioned and published all at once with commands from the root.
-
-First, increment the version to the desired value:
-
-```bash
-# An example of a prerelease version
-yarn version:prepare 1.1.0-beta0
-# Or a release version
-yarn version:prepare 1.1.0
-```
-
-Commit this preparation so that it is clear which commit the release is from.
-
-Next, ensure packages are cleaned and rebuilt:
-
-```bash
-yarn clean && yarn build
-```
-
-Finally, publish the packages to NPM
-
-```bash
-# Note: If you have not yet logged in, first run yarn npm login
-yarn publish:all --otp YOUR_OTP_HERE
-# Or for a pre-release, include the tag
-yarn publish:all --otp YOUR_OTP_HERE --tag beta
-```
-
-Tag the commit with the appropriate version, and then create a github release with a changelog against the previous version https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/new
 
 ### Release Agents
 

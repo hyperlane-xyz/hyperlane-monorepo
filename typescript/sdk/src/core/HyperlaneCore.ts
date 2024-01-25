@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import type { TransactionReceipt as ViemTxReceipt } from 'viem';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
@@ -99,7 +100,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     destination: ChainName,
     delayMs?: number,
     maxAttempts?: number,
-  ): Promise<void> {
+  ): Promise<true> {
     await pollAsync(
       async () => {
         this.logger(`Checking if message ${messageId} was processed`);
@@ -107,7 +108,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         const delivered = await mailbox.delivered(messageId);
         if (delivered) {
           this.logger(`Message ${messageId} was processed`);
-          return;
+          return true;
         } else {
           throw new Error(`Message ${messageId} not yet processed`);
         }
@@ -115,11 +116,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       delayMs,
       maxAttempts,
     );
-    return;
+    return true;
   }
 
   waitForMessageProcessing(
-    sourceTx: ethers.ContractReceipt,
+    sourceTx: ethers.ContractReceipt | ViemTxReceipt,
   ): Promise<ethers.ContractReceipt[]> {
     const messages = HyperlaneCore.getDispatchedMessages(sourceTx);
     return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
@@ -127,7 +128,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   // TODO consider renaming this, all the waitForMessage* methods are confusing
   async waitForMessageProcessed(
-    sourceTx: ethers.ContractReceipt,
+    sourceTx: ethers.ContractReceipt | ViemTxReceipt,
     delay?: number,
     maxAttempts?: number,
   ): Promise<void> {
@@ -142,15 +143,18 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         ),
       ),
     );
+    this.logger(`All messages processed for tx ${sourceTx.transactionHash}`);
   }
 
   // Redundant with static method but keeping for backwards compatibility
-  getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
+  getDispatchedMessages(
+    sourceTx: ethers.ContractReceipt | ViemTxReceipt,
+  ): DispatchedMessage[] {
     return HyperlaneCore.getDispatchedMessages(sourceTx);
   }
 
   static getDispatchedMessages(
-    sourceTx: ethers.ContractReceipt,
+    sourceTx: ethers.ContractReceipt | ViemTxReceipt,
   ): DispatchedMessage[] {
     const mailbox = Mailbox__factory.createInterface();
     const dispatchLogs = sourceTx.logs

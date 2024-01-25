@@ -3,8 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use derive_more::AsRef;
 use hyperlane_base::{
-    run_all, settings::IndexSettings, BaseAgent, ContractSyncMetrics, CoreMetrics,
-    HyperlaneAgentCore,
+    metrics::AgentMetrics, run_all, settings::IndexSettings, BaseAgent, ContractSyncMetrics,
+    CoreMetrics, HyperlaneAgentCore,
 };
 use hyperlane_core::HyperlaneDomain;
 use tokio::task::JoinHandle;
@@ -38,6 +38,7 @@ impl BaseAgent for Scraper {
     async fn from_settings(
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
+        _agent_metrics: AgentMetrics,
     ) -> eyre::Result<Self>
     where
         Self: Sized,

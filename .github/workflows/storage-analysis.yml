@@ -1,0 +1,67 @@
+name: Check Storage Layout Changes
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'solidity/**'
+  workflow_dispatch:
+
+jobs:
+  diff-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the PR branch
+      - name: Checkout PR branch
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          submodules: recursive
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: yarn-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .yarn
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+
+      - name: yarn-install
+        run: yarn install
+
+      - name: foundry-install
+        uses: onbjerg/foundry-toolchain@v1
+
+      # Run the command on PR branch
+      - name: Run command on PR branch
+        run: yarn workspace @hyperlane-xyz/core storage HEAD-storage
+
+      # Checkout the target branch (base)
+      - name: Checkout target branch (base) contracts
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch origin $BASE_REF
+          git checkout $BASE_REF -- solidity/contracts
+
+      # Run the command on the target branch
+      - name: Run command on target branch
+        run: yarn workspace @hyperlane-xyz/core storage base-storage
+
+      # Compare outputs
+      - name: Compare outputs
+        continue-on-error: true # diff exits with 1 if files differ
+        run: diff --unified solidity/base-storage solidity/HEAD-storage > layout.diff
+
+      - name: Comment PR with layout diff
+        uses: yorhodes/actions-comment-pull-request@v2.4.6
+        with:
+          header: Storage Layout Diff
+          filePath: layout.diff
+          mdLanguage: diff
+          comment_tag: storagelayoutdiff

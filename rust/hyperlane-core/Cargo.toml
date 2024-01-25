@@ -2,16 +2,17 @@ cargo-features = ["workspace-inheritance"]
 
 [package]
 name = "hyperlane-core"
-documentation.workspace = true
-edition.workspace = true
-homepage.workspace = true
-license-file.workspace = true
-publish.workspace = true
-version.workspace = true
+documentation = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license-file = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
 
 [dependencies]
 async-trait.workspace = true
 auto_impl.workspace = true
+bigdecimal.workspace = true
 borsh.workspace = true
 bs58.workspace = true
 bytes = { workspace = true, features = ["serde"] }
@@ -30,13 +31,13 @@ itertools.workspace = true
 num = { workspace = true, features = ["serde"] }
 num-derive.workspace = true
 num-traits.workspace = true
-primitive-types = { workspace = true, optional = true }
-serde.workspace = true
-serde_json.workspace = true
-sha3.workspace = true
-solana-sdk = { workspace = true, optional = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha3 = { workspace = true }
 strum = { workspace = true, optional = true, features = ["derive"] }
-thiserror.workspace = true
+thiserror = { workspace = true }
+primitive-types = { workspace = true, optional = true }
+solana-sdk = { workspace = true, optional = true }
 tiny-keccak = { workspace = true, features = ["keccak"]}
 uint.workspace = true
 

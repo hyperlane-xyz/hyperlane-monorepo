@@ -22,6 +22,8 @@ abstract contract MailboxClient is OwnableUpgradeable {
 
     IInterchainSecurityModule public interchainSecurityModule;
 
+    uint256[48] private __GAP; // gap for upgrade safety
+
     // ============ Modifiers ============
     modifier onlyContract(address _contract) {
         require(

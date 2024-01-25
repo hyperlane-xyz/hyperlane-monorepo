@@ -13,5 +13,5 @@ export interface ICoreAdapter extends BaseAppAdapter {
     destination: ChainName,
     delayMs?: number,
     maxAttempts?: number,
-  ): Promise<void>;
+  ): Promise<boolean>;
 }

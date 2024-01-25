@@ -18,6 +18,7 @@ export {
   eqAddressEvm,
   eqAddressSol,
   getAddressProtocolType,
+  isAddress,
   isAddressCosmos,
   isAddressEvm,
   isAddressSealevel,
@@ -39,7 +40,6 @@ export {
 } from './src/addresses';
 export {
   convertDecimals,
-  convertDecimalsEthersBigNumber,
   eqAmountApproximate,
   fromWei,
   fromWeiRounded,
@@ -49,6 +49,7 @@ export {
 export { chunk, exclude } from './src/arrays';
 export {
   pollAsync,
+  raceWithContext,
   retryAsync,
   runWithTimeout,
   sleep,
@@ -84,6 +85,7 @@ export {
 export {
   ValueOf,
   arrayToObject,
+  deepCopy,
   deepEquals,
   invertKeysAndValues,
   isObject,

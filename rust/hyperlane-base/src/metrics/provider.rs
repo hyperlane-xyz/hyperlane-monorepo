@@ -46,10 +46,5 @@ pub(crate) fn create_provider_metrics(metrics: &CoreMetrics) -> Result<Middlewar
             TRANSACTION_SEND_TOTAL_HELP,
             TRANSACTION_SEND_TOTAL_LABELS,
         )?)
-        .wallet_balance(metrics.new_gauge(
-            "wallet_balance",
-            WALLET_BALANCE_HELP,
-            WALLET_BALANCE_LABELS,
-        )?)
         .build()?)
 }

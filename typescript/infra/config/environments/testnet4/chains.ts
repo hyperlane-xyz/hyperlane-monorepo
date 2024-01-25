@@ -14,7 +14,12 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
       maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
     },
   },
-  bsctestnet: chainMetadata.bsctestnet,
+  bsctestnet: {
+    ...chainMetadata.bsctestnet,
+    transactionOverrides: {
+      gasPrice: 80 * 10 ** 9, // 8 gwei
+    },
+  },
   goerli: chainMetadata.goerli,
   scrollsepolia: chainMetadata.scrollsepolia,
   sepolia: chainMetadata.sepolia,
@@ -25,13 +30,14 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
 };
 
 // Blessed non-Ethereum chains.
-// export const nonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
-//   solanadevnet: chainMetadata.solanadevnet,
-// };
+export const nonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
+  solanatestnet: chainMetadata.solanatestnet,
+  eclipsetestnet: chainMetadata.eclipsetestnet,
+};
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {
   ...ethereumTestnetConfigs,
-  // ...nonEthereumTestnetConfigs,
+  ...nonEthereumTestnetConfigs,
 };
 
 export type TestnetChains = keyof typeof testnetConfigs;
@@ -43,15 +49,12 @@ export const environment = 'testnet4';
 export const ethereumChainNames = Object.keys(
   ethereumTestnetConfigs,
 ) as TestnetChains[];
-const validatorChainNames = [
-  ...supportedChainNames,
-  // chainMetadata.solanadevnet.name,
-  // chainMetadata.proteustestnet.name,
-];
-const relayerChainNames = validatorChainNames;
 
+// Hyperlane & RC context agent chain names.
 export const agentChainNames: AgentChainNames = {
-  [Role.Validator]: validatorChainNames,
-  [Role.Relayer]: relayerChainNames,
+  // Run validators for all chains.
+  [Role.Validator]: supportedChainNames,
+  // Only run relayers for Ethereum chains at the moment.
+  [Role.Relayer]: supportedChainNames,
   [Role.Scraper]: ethereumChainNames,
 };

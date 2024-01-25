@@ -86,7 +86,7 @@ where
             announcement.value.storage_location,
             serialized_signature.into(),
         );
-        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone(), self.domain.id()).await
+        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone()).await
     }
 }
 

@@ -1,6 +1,10 @@
 import debug from 'debug';
 
-import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
+import {
+  IPostDispatchHook,
+  Mailbox,
+  ValidatorAnnounce,
+} from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
@@ -22,7 +26,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,
   CoreFactories
 > {
-  startingBlockNumbers: ChainMap<number | undefined> = {};
   hookDeployer: HyperlaneHookDeployer;
 
   constructor(
@@ -69,8 +72,13 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     );
     if (!matches) {
       this.logger('Deploying default ISM');
-      defaultIsm = await this.deployIsm(chain, config.defaultIsm);
+      defaultIsm = await this.deployIsm(
+        chain,
+        config.defaultIsm,
+        mailbox.address,
+      );
     }
+    this.cachedAddresses[chain].interchainSecurityModule = defaultIsm;
 
     const hookAddresses = { mailbox: mailbox.address, proxyAdmin };
 
@@ -96,13 +104,20 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         mailbox.initialize(
           config.owner,
           defaultIsm,
-          defaultHook,
-          requiredHook,
+          defaultHook.address,
+          requiredHook.address,
           this.multiProvider.getTransactionOverrides(chain),
         ),
       );
     } catch (e: any) {
-      if (!e.message.includes('already initialized')) {
+      if (
+        !e.message.includes('already initialized') &&
+        // Some RPC providers dont return the revert reason (nor allow ethers to parse it), so we have to check the message
+        !e.message.includes('Reverted 0x08c379a') &&
+        // Handle situation where the gas estimation fails on the call function,
+        // then the real error reason is not available in `e.message`, but rather in `e.error.reason`
+        !e.error?.reason?.includes('already initialized')
+      ) {
         throw e;
       }
 
@@ -154,7 +169,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: HookConfig,
     coreAddresses: Partial<CoreAddresses>,
-  ): Promise<Address> {
+  ): Promise<IPostDispatchHook> {
     const hooks = await this.hookDeployer.deployContracts(
       chain,
       config,
@@ -165,11 +180,19 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       this.hookDeployer.deployedContracts[chain],
       this.hookDeployer.verificationInputs[chain],
     );
-    return hooks[config.type].address;
+    return hooks[config.type];
   }
 
-  async deployIsm(chain: ChainName, config: IsmConfig): Promise<Address> {
-    const ism = await this.ismFactory.deploy(chain, config);
+  async deployIsm(
+    chain: ChainName,
+    config: IsmConfig,
+    mailbox: Address,
+  ): Promise<Address> {
+    const ism = await this.ismFactory.deploy({
+      destination: chain,
+      config,
+      mailbox,
+    });
     this.addDeployedContracts(chain, this.ismFactory.deployedIsms[chain]);
     return ism.address;
   }
@@ -186,10 +209,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
     const mailbox = await this.deployMailbox(chain, config, proxyAdmin.address);
-
-    // TODO: remove once agents fetch deployedBlock from mailbox
-    const deployedBlock = await mailbox.deployedBlock();
-    this.startingBlockNumbers[chain] = deployedBlock.toNumber();
 
     const validatorAnnounce = await this.deployValidatorAnnounce(
       chain,

@@ -1,26 +1,33 @@
-import { BigNumber, BigNumberish, FixedNumber, constants } from 'ethers';
+import BigNumber from 'bignumber.js';
+import { FixedNumber } from 'ethers';
 
-import { isNullish } from './typeof';
+// Use toString(10) on bignumber.js to prevent ethers.js bigNumber error
+// when parsing exponential string over e21
 
-export function isBigNumberish(value: any): value is BigNumberish {
+/**
+ * Check if a value is bigNumberish (e.g. valid numbers, bigNumber).
+ * @param value The value to check.
+ * @returns true/false.
+ */
+export function isBigNumberish(
+  value: BigNumber.Value | undefined | null,
+): boolean {
   try {
-    if (isNullish(value)) return false;
-    return BigNumber.from(value)._isBigNumber;
+    const val = BigNumber(value!);
+    return !val.isNaN() && val.isFinite() && BigNumber.isBigNumber(val);
   } catch (error) {
     return false;
   }
 }
 
-// If a value (e.g. hex string or number) is zeroish (0, 0x0, 0x00, etc.)
-export function isZeroish(value: BigNumberish) {
+/**
+ * Check if a value (e.g. hex string or number) is zeroish (0, 0x0, 0x00, etc.).
+ * @param value The value to check.
+ * @returns true/false.
+ */
+export function isZeroish(value: BigNumber.Value): boolean {
   try {
-    if (
-      !value ||
-      value === constants.HashZero ||
-      value === constants.AddressZero
-    )
-      return true;
-    return BigNumber.from(value).isZero();
+    return BigNumber(value).isZero();
   } catch (error) {
     return false;
   }
@@ -31,8 +38,8 @@ export function isZeroish(value: BigNumberish) {
  * @param big The BigNumber to convert.
  * @returns A FixedNumber representation of a BigNumber.
  */
-export function bigToFixed(big: BigNumber): FixedNumber {
-  return FixedNumber.from(big.toString());
+export function bigToFixed(big: BigNumber.Value): FixedNumber {
+  return FixedNumber.from(big.toString(10));
 }
 
 /**
@@ -43,7 +50,7 @@ export function bigToFixed(big: BigNumber): FixedNumber {
  */
 export function fixedToBig(fixed: FixedNumber, ceil = false): BigNumber {
   const fixedAsInteger = ceil ? fixed.ceiling() : fixed.floor();
-  return BigNumber.from(fixedAsInteger.toFormat('fixed256x0').toString());
+  return BigNumber(fixedAsInteger.toFormat('fixed256x0').toString());
 }
 
 /**
@@ -51,21 +58,40 @@ export function fixedToBig(fixed: FixedNumber, ceil = false): BigNumber {
  * @param big The BigNumber to multiply.
  * @param fixed The FixedNumber to multiply.
  * @param ceil If true, the ceiling of the product is used. Otherwise, the floor is used.
- * @returns The BigNumber product.
+ * @returns The BigNumber product in string type.
  */
 export function mulBigAndFixed(
-  big: BigNumber,
+  big: BigNumber.Value,
   fixed: FixedNumber,
   ceil = false,
-): BigNumber {
+): string {
   // Converts big to a FixedNumber, multiplies it by fixed, and converts the product back
   // to a BigNumber.
-  return fixedToBig(fixed.mulUnsafe(bigToFixed(big)), ceil);
+  return fixedToBig(fixed.mulUnsafe(bigToFixed(big)), ceil).toString(10);
 }
 
-export function BigNumberMin(bn1: BigNumber, bn2: BigNumber) {
-  return bn1.gte(bn2) ? bn2 : bn1;
+/**
+ * Return the smaller in the given two BigNumbers.
+ * @param bn1 The BigNumber to compare.
+ * @param bn2 The BigNumber to compare.
+ * @returns The smaller BigNumber in string type.
+ */
+export function BigNumberMin(
+  bn1: BigNumber.Value,
+  bn2: BigNumber.Value,
+): string {
+  return BigNumber(bn1).gte(bn2) ? bn2.toString(10) : bn1.toString(10);
 }
-export function BigNumberMax(bn1: BigNumber, bn2: BigNumber) {
-  return bn1.lte(bn2) ? bn2 : bn1;
+
+/**
+ * Return the bigger in the given two BigNumbers.
+ * @param bn1 The BigNumber to compare.
+ * @param bn2 The BigNumber to compare.
+ * @returns The bigger BigNumber in string type.
+ */
+export function BigNumberMax(
+  bn1: BigNumber.Value,
+  bn2: BigNumber.Value,
+): string {
+  return BigNumber(bn1).lte(bn2) ? bn2.toString(10) : bn1.toString(10);
 }

@@ -1,9 +1,8 @@
 name: rust
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    branches: [main]
     paths:
       - 'rust/**'
       - .github/workflows/rust.yml
@@ -25,7 +24,7 @@ defaults:
 
 jobs:
   test-rs:
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
 
     steps:
       - uses: actions/checkout@v3
@@ -51,7 +50,7 @@ jobs:
         run: cargo test
 
   lint-rs:
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
 
     steps:
       - uses: actions/checkout@v3
@@ -76,7 +75,7 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       - name: Check
-        run: cargo check --all-features --all-targets
+        run: cargo check --release --all-features --all-targets
       - name: Rustfmt
         run: cargo fmt --all -- --check
       - name: Clippy
@@ -84,4 +83,4 @@ jobs:
       - name: Setup WASM
         run: rustup target add wasm32-unknown-unknown
       - name: Check WASM
-        run: cargo check -p hyperlane-core --features=strum,test-utils --target wasm32-unknown-unknown
+        run: cargo check --release -p hyperlane-core --features=strum,test-utils --target wasm32-unknown-unknown

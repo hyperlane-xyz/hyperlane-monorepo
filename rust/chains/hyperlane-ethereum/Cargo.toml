@@ -20,6 +20,7 @@ ethers.workspace = true
 futures-util.workspace = true
 hex.workspace = true
 num.workspace = true
+num-traits.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -31,7 +32,6 @@ url.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core" }
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
-num-traits.workspace = true
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["ethers"] }

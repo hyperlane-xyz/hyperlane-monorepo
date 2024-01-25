@@ -9,12 +9,12 @@ use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
 use tracing::debug;
 
-use crate::msg::metadata::BaseMetadataBuilder;
+use crate::msg::metadata::MessageMetadataBuilder;
 
 use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 
 #[derive(Debug, Clone, Deref, new, AsRef)]
-pub struct MerkleRootMultisigMetadataBuilder(BaseMetadataBuilder);
+pub struct MerkleRootMultisigMetadataBuilder(MessageMetadataBuilder);
 #[async_trait]
 impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
     fn token_layout(&self) -> Vec<MetadataToken> {
@@ -36,13 +36,11 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MerkleRootMultisig metadata";
-        unwrap_or_none_result!(
-            highest_leaf_index,
+        let highest_leaf_index = unwrap_or_none_result!(
             self.highest_known_leaf_index().await,
             debug!("Couldn't get highest known leaf index")
         );
-        unwrap_or_none_result!(
-            leaf_index,
+        let leaf_index = unwrap_or_none_result!(
             self.get_merkle_leaf_id_by_message_id(message.id())
                 .await
                 .context(CTX)?,
@@ -51,14 +49,15 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                 "No merkle leaf found for message id, must have not been enqueued in the tree"
             )
         );
-        unwrap_or_none_result!(
-            quorum_checkpoint,
+        let quorum_checkpoint = unwrap_or_none_result!(
             checkpoint_syncer
                 .fetch_checkpoint_in_range(
                     validators,
                     threshold as usize,
                     leaf_index,
-                    highest_leaf_index
+                    highest_leaf_index,
+                    self.origin_domain(),
+                    self.destination_domain(),
                 )
                 .await
                 .context(CTX)?,

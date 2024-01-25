@@ -51,7 +51,7 @@ contract OPStackIsmTest is Test {
     bytes internal testMessage =
         abi.encodePacked("Hello from the other chain!");
     bytes internal testMetadata =
-        StandardHookMetadata.formatMetadata(0, 0, address(this), "");
+        StandardHookMetadata.overrideRefundAddress(address(this));
 
     bytes internal encodedMessage;
     bytes32 internal messageId;
@@ -75,8 +75,8 @@ contract OPStackIsmTest is Test {
 
     function setUp() public {
         // block numbers to fork from, chain data is cached to ../../forge-cache/
-        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 17_586_909);
-        optimismFork = vm.createFork(vm.rpcUrl("optimism"), 106_233_774);
+        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 18_992_500);
+        optimismFork = vm.createFork(vm.rpcUrl("optimism"), 114_696_811);
 
         testRecipient = new TestRecipient();
 
@@ -195,12 +195,8 @@ contract OPStackIsmTest is Test {
         vm.selectFork(mainnetFork);
 
         vm.deal(address(this), uint256(2 ** 255 + 1));
-        bytes memory excessValueMetadata = StandardHookMetadata.formatMetadata(
-            uint256(2 ** 255 + 1),
-            DEFAULT_GAS_LIMIT,
-            address(this),
-            ""
-        );
+        bytes memory excessValueMetadata = StandardHookMetadata
+            .overrideMsgValue(uint256(2 ** 255 + 1));
 
         l1Mailbox.updateLatestDispatchedId(messageId);
         vm.expectRevert("OPStackHook: msgValue must be less than 2 ** 255");

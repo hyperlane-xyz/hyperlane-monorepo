@@ -162,7 +162,7 @@ export class SealevelTokenAdapter
 // we generously request 1M units.
 const TRANSFER_REMOTE_COMPUTE_LIMIT = 1_000_000;
 
-abstract class SealevelHypTokenAdapter
+export abstract class SealevelHypTokenAdapter
   extends SealevelTokenAdapter
   implements IHypTokenAdapter
 {
@@ -302,7 +302,7 @@ abstract class SealevelHypTokenAdapter
     return tx;
   }
 
-  async getIgpKeys() {
+  async getIgpKeys(): Promise<KeyListParams['igp']> {
     const tokenData = await this.getTokenAccountData();
     if (!tokenData.interchain_gas_paymaster) return undefined;
     const igpConfig = tokenData.interchain_gas_paymaster;

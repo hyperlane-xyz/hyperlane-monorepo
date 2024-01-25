@@ -4,9 +4,9 @@ use paste::paste;
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
-    GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneMessageStore,
-    HyperlaneWatermarkedLogStore, InterchainGasExpenditure, InterchainGasPayment,
-    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, H256,
+    GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
+    HyperlaneSequenceIndexerStore, HyperlaneWatermarkedLogStore, InterchainGasExpenditure,
+    InterchainGasPayment, InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, H256,
 };
 
 use super::{
@@ -28,6 +28,8 @@ const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
     "pending_message_retry_count_for_message_id_";
 const MERKLE_TREE_INSERTION: &str = "merkle_tree_insertion_";
 const MERKLE_LEAF_INDEX_BY_MESSAGE_ID: &str = "merkle_leaf_index_by_message_id_";
+const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
+    "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 
 type DbResult<T> = std::result::Result<T, DbError>;
@@ -137,17 +139,27 @@ impl HyperlaneRocksDB {
     }
 
     /// Store the merkle tree insertion event, and also store a mapping from message_id to leaf_index
-    pub fn process_tree_insertion(&self, insertion: &MerkleTreeInsertion) -> DbResult<bool> {
+    pub fn process_tree_insertion(
+        &self,
+        insertion: &MerkleTreeInsertion,
+        insertion_block_number: u64,
+    ) -> DbResult<bool> {
         if let Ok(Some(_)) = self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index()) {
             debug!(insertion=?insertion, "Tree insertion already stored in db");
             return Ok(false);
         }
+
         // even if double insertions are ok, store the leaf by `leaf_index` (guaranteed to be unique)
         // rather than by `message_id` (not guaranteed to be recurring), so that leaves can be retrieved
         // based on insertion order.
         self.store_merkle_tree_insertion_by_leaf_index(&insertion.index(), insertion)?;
 
         self.store_merkle_leaf_index_by_message_id(&insertion.message_id(), &insertion.index())?;
+
+        self.store_merkle_tree_insertion_block_number_by_leaf_index(
+            &insertion.index(),
+            &insertion_block_number,
+        )?;
         // Return true to indicate the tree insertion was processed
         Ok(true)
     }
@@ -259,8 +271,8 @@ impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     #[instrument(skip_all)]
     async fn store_logs(&self, leaves: &[(MerkleTreeInsertion, LogMeta)]) -> Result<u32> {
         let mut insertions = 0;
-        for (insertion, _meta) in leaves {
-            if self.process_tree_insertion(insertion)? {
+        for (insertion, meta) in leaves {
+            if self.process_tree_insertion(insertion, meta.block_number)? {
                 insertions += 1;
             }
         }
@@ -269,16 +281,31 @@ impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
 }
 
 #[async_trait]
-impl HyperlaneMessageStore for HyperlaneRocksDB {
-    /// Gets a message by nonce.
-    async fn retrieve_message_by_nonce(&self, nonce: u32) -> Result<Option<HyperlaneMessage>> {
-        let message = self.retrieve_message_by_nonce(nonce)?;
+impl HyperlaneSequenceIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
+    /// Gets data by its sequence.
+    async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<HyperlaneMessage>> {
+        let message = self.retrieve_message_by_nonce(sequence)?;
         Ok(message)
     }
 
-    /// Retrieve dispatched block number by message nonce
-    async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {
-        let number = self.retrieve_dispatched_block_number_by_nonce(&nonce)?;
+    /// Gets the block number at which the log occurred.
+    async fn retrieve_log_block_number(&self, sequence: u32) -> Result<Option<u64>> {
+        let number = self.retrieve_dispatched_block_number_by_nonce(&sequence)?;
+        Ok(number)
+    }
+}
+
+#[async_trait]
+impl HyperlaneSequenceIndexerStore<MerkleTreeInsertion> for HyperlaneRocksDB {
+    /// Gets data by its sequence.
+    async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<MerkleTreeInsertion>> {
+        let insertion = self.retrieve_merkle_tree_insertion_by_leaf_index(&sequence)?;
+        Ok(insertion)
+    }
+
+    /// Gets the block number at which the log occurred.
+    async fn retrieve_log_block_number(&self, sequence: u32) -> Result<Option<u64>> {
+        let number = self.retrieve_merkle_tree_insertion_block_number_by_leaf_index(&sequence)?;
         Ok(number)
     }
 }
@@ -355,4 +382,11 @@ make_store_and_retrieve!(
     MERKLE_LEAF_INDEX_BY_MESSAGE_ID,
     H256,
     u32
+);
+make_store_and_retrieve!(
+    pub,
+    merkle_tree_insertion_block_number_by_leaf_index,
+    MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX,
+    u32,
+    u64
 );

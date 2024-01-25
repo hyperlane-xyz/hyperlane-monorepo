@@ -65,7 +65,8 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .end();
 
         let origin_chain_name_set = origin_chain_name.map(|s| HashSet::from([s]));
-        let base = p
+
+        let base: Option<Settings> = p
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 origin_chain_name_set.as_ref(),
                 "Expected valid base agent configuration",

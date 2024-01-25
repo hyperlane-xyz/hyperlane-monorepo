@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::{info, instrument};
 
-use super::{BaseMetadataBuilder, MetadataBuilder};
+use super::{base::MessageMetadataBuilder, MetadataBuilder};
 
 #[derive(Serialize, Deserialize)]
 struct OffchainResponse {
@@ -20,7 +20,7 @@ struct OffchainResponse {
 
 #[derive(Clone, Debug, new, Deref)]
 pub struct CcipReadIsmMetadataBuilder {
-    base: BaseMetadataBuilder,
+    base: MessageMetadataBuilder,
 }
 
 #[async_trait]

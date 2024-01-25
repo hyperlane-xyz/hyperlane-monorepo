@@ -52,6 +52,8 @@ interface IMailbox {
 
     function defaultHook() external view returns (IPostDispatchHook);
 
+    function requiredHook() external view returns (IPostDispatchHook);
+
     function latestDispatchedId() external view returns (bytes32);
 
     function dispatch(

@@ -1,10 +1,10 @@
 {
   "name": "@hyperlane-xyz/helloworld",
   "description": "A basic skeleton of an Hyperlane app",
-  "version": "3.1.0-beta3",
+  "version": "3.6.1",
   "dependencies": {
-    "@hyperlane-xyz/core": "3.1.0-beta3",
-    "@hyperlane-xyz/sdk": "3.1.0-beta3",
+    "@hyperlane-xyz/core": "3.6.1",
+    "@hyperlane-xyz/sdk": "3.6.1",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
     "ethers": "^5.7.2"
   },
@@ -14,12 +14,11 @@
     "@trivago/prettier-plugin-sort-imports": "^4.2.1",
     "@typechain/ethers-v5": "^10.0.0",
     "@typechain/hardhat": "^6.0.0",
-    "@types/mocha": "^9.1.0",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
-    "chai": "^4.3.0",
-    "eslint": "^8.16.0",
-    "eslint-config-prettier": "^8.5.0",
+    "chai": "^4.3.6",
+    "eslint": "^8.43.0",
+    "eslint-config-prettier": "^8.8.0",
     "ethereum-waffle": "^4.0.10",
     "hardhat": "^2.19.0",
     "hardhat-gas-reporter": "^1.0.9",
@@ -45,10 +44,10 @@
   ],
   "license": "Apache-2.0",
   "main": "dist/src/index.js",
-  "packageManager": "yarn@3.2.0",
+  "packageManager": "yarn@4.0.1",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hyperlane-xyz/hyperlane-app-template"
+    "url": "https://github.com/hyperlane-xyz/hyperlane-monorepo"
   },
   "scripts": {
     "build": "hardhat compile && tsc",
@@ -57,10 +56,10 @@
     "lint": "solhint contracts/**/*.sol && eslint . --ext .ts",
     "prettier": "prettier --write ./contracts ./src",
     "test": "hardhat test ./src/test/**/*.test.ts",
+    "test:ci": "yarn test",
     "sync": "ts-node scripts/sync-with-template-repo.ts"
   },
   "types": "dist/src/index.d.ts",
-  "stableVersion": "1.5.0",
   "peerDependencies": {
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",

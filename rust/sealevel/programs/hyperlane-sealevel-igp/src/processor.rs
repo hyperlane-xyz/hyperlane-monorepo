@@ -89,9 +89,9 @@ pub fn process_instruction(
 /// Initializes the program.
 ///
 /// Accounts:
-/// 0. [executable] The system program.
-/// 1. [signer] The payer account.
-/// 2. [writeable] The program data PDA account.
+/// 0. `[executable]` The system program.
+/// 1. `[signer]` The payer account.
+/// 2. `[writeable]` The program data PDA account.
 fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -147,9 +147,9 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 /// Initialize a new IGP account.
 ///
 /// Accounts:
-/// 0. [executable] The system program.
-/// 1. [signer] The payer account.
-/// 2. [writeable] The IGP account to initialize.
+/// 0. `[executable]` The system program.
+/// 1. `[signer]` The payer account.
+/// 2. `[writeable]` The IGP account to initialize.
 fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> ProgramResult {
     let igp_key = init_igp_variant(
         program_id,
@@ -175,9 +175,9 @@ fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> Pro
 /// Initialize a new overhead IGP account.
 ///
 /// Accounts:
-/// 0. [executable] The system program.
-/// 1. [signer] The payer account.
-/// 2. [writeable] The Overhead IGP account to initialize.
+/// 0. `[executable]` The system program.
+/// 1. `[signer]` The payer account.
+/// 2. `[writeable]` The Overhead IGP account to initialize.
 fn init_overhead_igp(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -258,13 +258,13 @@ fn init_igp_variant<T: account_utils::DiscriminatorPrefixedData + SizedData>(
 /// Pay for gas.
 ///
 /// Accounts:
-/// 0. [executable] The system program.
-/// 1. [signer] The payer.
-/// 2. [writeable] The IGP program data.
-/// 3. [signer] Unique gas payment account.
-/// 4. [writeable] Gas payment PDA.
-/// 5. [writeable] The IGP account.
-/// 6. [] Overhead IGP account (optional).
+/// 0. `[executable]` The system program.
+/// 1. `[signer]` The payer.
+/// 2. `[writeable]` The IGP program data.
+/// 3. `[signer]` Unique gas payment account.
+/// 4. `[writeable]` Gas payment PDA.
+/// 5. `[writeable]` The IGP account.
+/// 6. `[]` Overhead IGP account (optional).
 fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -407,9 +407,9 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
 /// Quotes the required payment for a given gas amount and destination domain.
 ///
 /// Accounts:
-/// 0. [executable] The system program.
-/// 1. [] The IGP account.
-/// 2. [] The overhead IGP account (optional).
+/// 0. `[executable]` The system program.
+/// 1. `[]` The IGP account.
+/// 2. `[]` The overhead IGP account (optional).
 fn quote_gas_payment(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -463,8 +463,8 @@ fn quote_gas_payment(
 /// Sets the beneficiary of an IGP.
 ///
 /// Accounts:
-/// 0. [] The IGP.
-/// 1. [signer] The owner of the IGP account.
+/// 0. `[]` The IGP.
+/// 1. `[signer]` The owner of the IGP account.
 fn set_igp_beneficiary(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -485,8 +485,8 @@ fn set_igp_beneficiary(
 /// Transfers ownership of an IGP variant.
 ///
 /// Accounts:
-/// 0. [writeable] The IGP or OverheadIGP.
-/// 1. [signer] The owner of the IGP account.
+/// 0. `[writeable]` The IGP or OverheadIGP.
+/// 1. `[signer]` The owner of the IGP account.
 fn transfer_igp_variant_ownership<T: account_utils::DiscriminatorPrefixedData + AccessControl>(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -506,8 +506,8 @@ fn transfer_igp_variant_ownership<T: account_utils::DiscriminatorPrefixedData + 
 /// Gets an IGP variant and verifies the owner.
 ///
 /// Accounts:
-/// 0. [] The IGP variant.
-/// 1. [signer] The owner of the IGP variant.
+/// 0. `[]` The IGP variant.
+/// 1. `[signer]` The owner of the IGP variant.
 fn get_igp_variant_and_verify_owner<
     'a,
     'b,
@@ -536,9 +536,9 @@ fn get_igp_variant_and_verify_owner<
 /// Sends funds accrued in an IGP to its beneficiary.
 ///
 /// Accounts:
-/// 0. [executable] The system program.
-/// 1. [writeable] The IGP.
-/// 2. [writeable] The IGP beneficiary.
+/// 0. `[executable]` The system program.
+/// 1. `[writeable]` The IGP.
+/// 2. `[writeable]` The IGP beneficiary.
 fn claim(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -583,9 +583,9 @@ fn claim(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 /// Sets destination gas overheads for an OverheadIGP.
 ///
 /// Accounts:
-/// 0. [executable] The system program.
-/// 1. [writeable] The OverheadIGP.
-/// 2. [signer] The OverheadIGP owner.
+/// 0. `[executable]` The system program.
+/// 1. `[writeable]` The OverheadIGP.
+/// 2. `[signer]` The OverheadIGP owner.
 fn set_destination_gas_overheads(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -629,9 +629,9 @@ fn set_destination_gas_overheads(
 /// Sets gas oracle configs for an IGP.
 ///
 /// Accounts:
-/// 0. [executable] The system program.
-/// 1. [writeable] The IGP.
-/// 2. [signer] The IGP owner.
+/// 0. `[executable]` The system program.
+/// 1. `[writeable]` The IGP.
+/// 2. `[signer]` The IGP owner.
 fn set_gas_oracle_configs(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

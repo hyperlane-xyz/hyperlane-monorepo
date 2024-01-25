@@ -128,7 +128,7 @@ export async function getHelloWorldMultiProtocolApp(
     }),
   );
   const app = new HelloMultiProtocolApp(
-    multiProtocolProvider,
+    multiProtocolProvider.intersect(Object.keys(routersAndMailboxes)).result,
     routersAndMailboxes,
   );
 

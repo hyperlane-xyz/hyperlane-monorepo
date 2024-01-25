@@ -1,10 +1,10 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "3.1.0-beta3",
+  "version": "3.6.1",
   "dependencies": {
     "@eth-optimism/contracts": "^0.6.0",
-    "@hyperlane-xyz/utils": "3.1.0-beta3",
+    "@hyperlane-xyz/utils": "3.6.1",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^v4.9.3"
   },
@@ -13,7 +13,7 @@
     "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@typechain/ethers-v5": "^10.0.0",
     "@typechain/hardhat": "^6.0.0",
-    "chai": "^4.3.0",
+    "chai": "^4.3.6",
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.2",
     "hardhat": "^2.19.0",
@@ -51,14 +51,15 @@
     "coverage": "./coverage.sh",
     "docs": "forge doc",
     "flatten": "./flatten.sh",
+    "storage": "./storage.sh",
     "prettier": "prettier --write ./contracts ./test",
     "test": "hardhat test && forge test -vvv",
+    "test:ci": "hardhat test && forge test --no-match-test testFork -vvv",
     "gas": "forge snapshot",
     "gas-ci": "yarn gas --check --tolerance 2 || (echo 'Manually update gas snapshot' && exit 1)",
     "slither": "slither ."
   },
   "types": "dist/index.d.ts",
-  "stableVersion": "1.5.0",
   "peerDependencies": {
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",

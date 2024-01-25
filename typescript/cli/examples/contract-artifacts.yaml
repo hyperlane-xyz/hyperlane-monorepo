@@ -1,0 +1,20 @@
+# Artifacts representing contract addresses
+# Typically not written by hand but generated as JSON by the deploy command
+# Consists of a map of chain names to contract names to addresses
+---
+anvil1:
+  storageGasOracle: '0xD9A9966E7dA9a7f0032bF449FB12696a638E673C'
+  validatorAnnounce: '0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524'
+  proxyAdmin: '0x90f9a2E9eCe93516d65FdaB726a3c62F5960a1b9'
+  mailbox: '0x35231d4c2D8B8ADcB5617A638A0c4548684c7C70'
+  interchainGasPaymaster: '0x6cA0B6D22da47f091B7613223cD4BB03a2d77918'
+  defaultIsmInterchainGasPaymaster: '0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc'
+  multisigIsm: '0x9bDE63104EE030d9De419EEd6bA7D14b86D6fE3f'
+  testRecipient: '0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35'
+  interchainAccountIsm: '0x5e8ee6840caa4f367aff1FF28aA36D5B1b836d35'
+  aggregationIsmFactory: '0xc864fa3B662613cA5051f41e157d0a997f9a5A87'
+  routingIsmFactory: '0x1fdfD1486b8339638C6b92f8a96D698D8182D2b1'
+  interchainQueryRouter: '0xA837e38C3F7D509DF3a7a0fCf65E3814DB6c2618'
+  interchainAccountRouter: '0x9521291A43ebA3aD3FD24d610F4b7F7543C8d761'
+  merkleRootMultisigIsmFactory: '0x82140b2ddAd4E4dd7e1D6757Fb5F9485c230B79d'
+  messageIdMultisigIsmFactory: '0x1079056da3EC7D55521F27e1E094015C0d39Cc65'

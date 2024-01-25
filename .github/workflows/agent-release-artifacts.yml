@@ -16,7 +16,7 @@ env:
 
 jobs:
   prepare:
-    runs-on: ubuntu-latest
+    runs-on: larger-runner
     outputs:
       tag_date: ${{ steps.taggen.outputs.TAG_DATE }}
       tag_sha: ${{ steps.taggen.outputs.TAG_SHA }}
@@ -33,7 +33,7 @@ jobs:
       matrix:
         include:
           - TARGET: x86_64-unknown-linux-gnu
-            OS: ubuntu-latest
+            OS: larger-runner
           - TARGET: x86_64-apple-darwin
             OS: macos-latest
           - TARGET: aarch64-apple-darwin
@@ -45,7 +45,7 @@ jobs:
       - name: checkout
         uses: actions/checkout@v3
       - name: ubuntu setup
-        if: ${{ matrix.OS == 'ubuntu-latest' }}
+        if: ${{ matrix.OS == 'larger-runner' }}
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq crossbuild-essential-arm64 crossbuild-essential-armhf
@@ -70,7 +70,7 @@ jobs:
         run: cargo build --release --target ${{ matrix.TARGET }} --bin relayer --bin scraper --bin validator
         working-directory: ./rust
       - name: make executable
-        if: ${{ matrix.OS == 'ubuntu-latest' || matrix.OS == 'macos-latest' }}
+        if: ${{ matrix.OS == 'larger-runner' || matrix.OS == 'macos-latest' }}
         run: chmod ug+x,-w relayer scraper validator
         working-directory: rust/target/${{ matrix.TARGET }}/release
       - name: upload binaries

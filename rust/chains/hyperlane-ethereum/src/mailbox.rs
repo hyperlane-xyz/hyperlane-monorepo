@@ -125,6 +125,7 @@ where
         self.get_finalized_block_number().await
     }
 
+    /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
@@ -168,6 +169,7 @@ where
         self.get_finalized_block_number().await
     }
 
+    /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
     async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
         Ok(self
@@ -264,7 +266,7 @@ where
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
-        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone(), message.destination).await
+        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone()).await
     }
 }
 
@@ -373,15 +375,16 @@ where
             None
         };
 
-        let gas_price = self
+        let gas_price: U256 = self
             .provider
             .get_gas_price()
             .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .map_err(ChainCommunicationError::from_other)?
+            .into();
 
         Ok(TxCostEstimate {
             gas_limit: gas_limit.into(),
-            gas_price: gas_price.into(),
+            gas_price: gas_price.try_into()?,
             l2_gas_limit: l2_gas_limit.map(|v| v.into()),
         })
     }
@@ -484,7 +487,7 @@ mod test {
             tx_cost_estimate,
             TxCostEstimate {
                 gas_limit: estimated_gas_limit,
-                gas_price,
+                gas_price: gas_price.try_into().unwrap(),
                 l2_gas_limit: Some(l2_gas_limit),
             },
         );

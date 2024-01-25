@@ -1,11 +1,10 @@
-use std::fmt::{Debug, Formatter};
-
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 use serde::{
     ser::{SerializeStruct, Serializer},
     Deserialize, Serialize,
 };
+use std::fmt::{Debug, Formatter};
 
 use crate::utils::fmt_bytes;
 use crate::{Signature, H160, H256};
@@ -53,6 +52,7 @@ impl<S: HyperlaneSigner> HyperlaneSignerExt for S {
     ) -> Result<SignedType<T>, HyperlaneSignerError> {
         let signing_hash = value.signing_hash();
         let signature = self.sign_hash(&signing_hash).await?;
+
         Ok(SignedType { value, signature })
     }
 
@@ -110,6 +110,7 @@ impl<T: Signable> SignedType<T> {
     pub fn recover(&self) -> Result<H160, crate::HyperlaneProtocolError> {
         let hash = ethers_core::types::H256::from(self.value.eth_signed_message_hash());
         let sig = ethers_core::types::Signature::from(self.signature);
+
         Ok(sig.recover(hash)?.into())
     }
 
@@ -153,7 +154,6 @@ mod hashes {
 
         let mut eth_message = format!("{PREFIX}{}", message.len()).into_bytes();
         eth_message.extend_from_slice(message);
-
         keccak256(&eth_message).into()
     }
 

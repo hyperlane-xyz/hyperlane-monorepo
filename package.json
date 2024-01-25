@@ -6,25 +6,29 @@
     "@trivago/prettier-plugin-sort-imports": "^4.2.1",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
-    "eslint": "^8.16.0",
-    "eslint-config-prettier": "^8.5.0",
+    "eslint": "^8.43.0",
+    "eslint-config-prettier": "^8.8.0",
     "husky": "^8.0.0",
     "lint-staged": "^12.4.3",
     "prettier": "^2.8.8"
   },
-  "packageManager": "yarn@4.0.1",
+  "dependencies": {
+    "@changesets/cli": "^2.26.2"
+  },
+  "packageManager": "yarn@4.0.2",
   "private": true,
   "scripts": {
     "build": "yarn workspaces foreach --all --parallel --topological run build",
     "clean": "yarn workspaces foreach --all --parallel run clean",
-    "prettier": "yarn workspaces foreach --all --parallel run prettier",
-    "lint": "yarn workspaces foreach --all --parallel run lint",
+    "prettier": "yarn workspaces foreach --since --parallel run prettier",
+    "lint": "yarn workspaces foreach --since --parallel run lint",
     "test": "yarn workspaces foreach --all --parallel run test",
+    "test:ci": "yarn workspaces foreach --all --parallel run test:ci",
     "coverage": "yarn workspaces foreach --all --parallel run coverage",
-    "version:prepare": "yarn workspaces foreach --all --no-private --topological version --immediate",
-    "publish:all": "yarn workspaces foreach --all --no-private --topological npm publish --access public",
-    "postinstall": "husky install",
-    "version:check": "yarn version check --interactive"
+    "version:prepare": "yarn changeset version && yarn workspaces foreach --all --parallel run version:update && yarn install --no-immutable",
+    "version:check": "yarn changeset status",
+    "release": "yarn build && yarn changeset publish",
+    "postinstall": "husky install"
   },
   "workspaces": [
     "solidity",
@@ -37,6 +41,7 @@
     "lodash": "^4.17.21",
     "recursive-readdir": "^2.2.3",
     "underscore": "^1.13",
-    "undici": "^5.11"
+    "undici": "^5.11",
+    "@trivago/prettier-plugin-sort-imports/@babel/parser": "^7.22.7"
   }
 }

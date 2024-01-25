@@ -18,9 +18,6 @@ export enum Chains {
   gnosis = 'gnosis',
   goerli = 'goerli',
   lineagoerli = 'lineagoerli',
-  scroll = 'scroll',
-  scrollsepolia = 'scrollsepolia',
-  sepolia = 'sepolia',
   mantapacific = 'mantapacific',
   moonbasealpha = 'moonbasealpha',
   moonbeam = 'moonbeam',
@@ -33,8 +30,13 @@ export enum Chains {
   polygonzkevm = 'polygonzkevm',
   polygonzkevmtestnet = 'polygonzkevmtestnet',
   proteustestnet = 'proteustestnet',
+  scroll = 'scroll',
+  scrollsepolia = 'scrollsepolia',
+  sepolia = 'sepolia',
   solana = 'solana',
   solanadevnet = 'solanadevnet',
+  solanatestnet = 'solanatestnet',
+  eclipsetestnet = 'eclipsetestnet',
   test1 = 'test1',
   test2 = 'test2',
   test3 = 'test3',
@@ -87,6 +89,8 @@ export const Testnets: Array<CoreChainName> = [
   Chains.scrollsepolia,
   Chains.sepolia,
   Chains.solanadevnet,
+  Chains.solanatestnet,
+  Chains.eclipsetestnet,
 ];
 
 export const TestChains: Array<CoreChainName> = [

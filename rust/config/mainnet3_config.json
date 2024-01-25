@@ -45,7 +45,7 @@
       "mailbox": "0x979Ca5202784112f4738403dBec5D0F3B9daabB9",
       "validatorAnnounce": "0x1df063280C4166AF9a725e3828b4dAC6c7113B08",
       "index": {
-        "from": 145551152
+        "from": 143699718
       }
     },
     "avalanche": {
@@ -97,7 +97,7 @@
       "mailbox": "0xFf06aFcaABaDDd1fb08371f9ccA15D73D51FeBD6",
       "validatorAnnounce": "0x9Cad0eC82328CEE2386Ec14a12E81d070a27712f",
       "index": {
-        "from": 37133307
+        "from": 36881761
       }
     },
     "base": {
@@ -150,7 +150,7 @@
       "protocolFee": "0x99ca8c74cE7Cfa9d72A51fbb05F9821f5f826b3a",
       "validatorAnnounce": "0x182E8d7c5F1B06201b102123FC7dF0EaeB445a7B",
       "index": {
-        "from": 5959667
+        "from": 5702757
       }
     },
     "bsc": {
@@ -205,7 +205,7 @@
       "protocolFee": "0xA8Aa5f14a5463a78E45CC068F11c867949F3E367",
       "validatorAnnounce": "0x7024078130D9c2100fEA474DAD009C2d1703aCcd",
       "index": {
-        "from": 33068482
+        "from": 32897848
       }
     },
     "celo": {
@@ -258,7 +258,7 @@
       "mailbox": "0x50da3B3907A08a24fe4999F4Dcf337E8dC7954bb",
       "validatorAnnounce": "0xCeF677b65FDaA6804d4403083bb12B8dB3991FE1",
       "index": {
-        "from": 22208016
+        "from": 22105253
       }
     },
     "ethereum": {
@@ -318,7 +318,7 @@
       "mailbox": "0xc005dc82818d67AF737725bD4bf75435d065D239",
       "validatorAnnounce": "0xCe74905e51497b4adD3639366708b821dcBcff96",
       "index": {
-        "from": 18466263
+        "from": 18423787
       }
     },
     "gnosis": {
@@ -370,7 +370,84 @@
       "protocolFee": "0x9c2214467Daf9e2e1F45b36d08ce0b9C65BFeA88",
       "validatorAnnounce": "0x87ED6926abc9E38b9C7C19f835B41943b622663c",
       "index": {
-        "from": 30715963
+        "from": 30623434
+      }
+    },
+    "mantapacific": {
+      "protocol": "ethereum",
+      "domainId": 169,
+      "chainId": 169,
+      "name": "mantapacific",
+      "displayName": "Manta Pacific",
+      "displayNameShort": "Manta",
+      "nativeToken": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "blocks": {
+        "confirmations": 1,
+        "reorgPeriod": 1,
+        "estimateBlockTime": 3
+      },
+      "rpcUrls": [
+        {
+          "http": "https://pacific-rpc.manta.network/http"
+        }
+      ],
+      "isTestnet": false,
+      "merkleRootMultisigIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
+      "messageIdMultisigIsmFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "aggregationIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+      "aggregationHookFactory": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
+      "routingIsmFactory": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
+      "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
+      "mailbox": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
+      "domainRoutingIsm": "0xDEed16fe4b1c9b2a93483EDFf34C77A9b57D31Ff",
+      "storageGasOracle": "0x19dc38aeae620380430C200a6E990D5Af5480117",
+      "interchainGasPaymaster": "0x0D63128D887159d63De29497dfa45AFc7C699AE4",
+      "merkleTreeHook": "0x149db7afD694722747035d5AEC7007ccb6F8f112",
+      "aggregationHook": "0x8464aF853363B8d6844070F68b0AB34Cb6523d0F",
+      "protocolFee": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
+      "validatorAnnounce": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
+      "index": {
+        "from": 437384
+      }
+    },
+    "neutron": {
+      "name": "neutron",
+      "domainId": "1853125230",
+      "chainId": "neutron-1",
+      "mailbox": "0x848426d50eb2104d5c6381ec63757930b1c14659c40db8b8081e516e7c5238fc",
+      "interchainGasPaymaster": "0x504ee9ac43ec5814e00c7d21869a90ec52becb489636bdf893b7df9d606b5d67",
+      "validatorAnnounce": "0xf3aa0d652226e21ae35cd9035c492ae41725edc9036edf0d6a48701b153b90a0",
+      "merkleTreeHook": "0xcd30a0001cc1f436c41ef764a712ebabc5a144140e3fd03eafe64a9a24e4e27c",
+      "protocol": "cosmos",
+      "finalityBlocks": 1,
+      "rpcUrls": [
+        {
+          "http": "https://rpc-kralum.neutron-1.neutron.org"
+        }
+      ],
+      "grpcUrl": "https://grpc-kralum.neutron-1.neutron.org:80",
+      "canonicalAsset": "untrn",
+      "bech32Prefix": "neutron",
+      "gasPrice": {
+        "amount": "0.57",
+        "denom": "untrn"
+      },
+      "contractAddressBytes": 32,
+      "index": {
+        "from": 4000000,
+        "chunk": 100000
+      },
+      "blocks": {
+        "reorgPeriod": 1
+      },
+      "signer": {
+        "type": "cosmosKey",
+        "key": "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26",
+        "prefix": "neutron"
       }
     },
     "moonbeam": {
@@ -417,7 +494,7 @@
       "protocolFee": "0xCd3e29A9D293DcC7341295996a118913F7c582c0",
       "validatorAnnounce": "0x8c1001eBee6F25b31863A55EadfF149aF88B356F",
       "index": {
-        "from": 4763137
+        "from": 4720894
       }
     },
     "optimism": {
@@ -465,7 +542,7 @@
       "mailbox": "0xd4C1905BB1D26BC93DAC913e13CaCC278CdCC80D",
       "validatorAnnounce": "0x30f5b08e01808643221528BB2f7953bf2830Ef38",
       "index": {
-        "from": 111554952
+        "from": 111298042
       }
     },
     "polygon": {
@@ -524,7 +601,7 @@
       "protocolFee": "0xF8F3629e308b4758F8396606405989F8D8C9c578",
       "validatorAnnounce": "0x454E1a1E1CA8B51506090f1b5399083658eA4Fc5",
       "index": {
-        "from": 49352047
+        "from": 49114872
       }
     },
     "polygonzkevm": {
@@ -576,7 +653,7 @@
       "mailbox": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
       "validatorAnnounce": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
       "index": {
-        "from": 6789061
+        "from": 6581140
       }
     },
     "scroll": {
@@ -625,7 +702,8 @@
       "mailbox": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
       "validatorAnnounce": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
       "index": {
-        "from": 426670
+        "from": 426670,
+        "chunk": 999
       }
     }
   },

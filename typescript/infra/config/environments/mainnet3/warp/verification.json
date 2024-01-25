@@ -1,0 +1,10 @@
+{
+  "arbitrum": [
+    {
+      "name": "HypERC20",
+      "address": "0x93ca0d85837FF83158Cd14D65B169CdB223b1921",
+      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000006000000000000000000000000979ca5202784112f4738403dbec5d0f3b9daabb9",
+      "isProxy": false
+    }
+  ]
+}

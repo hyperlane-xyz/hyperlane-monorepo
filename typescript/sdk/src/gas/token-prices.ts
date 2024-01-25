@@ -1,6 +1,6 @@
 import CoinGecko from 'coingecko-api';
 
-import { warn } from '@hyperlane-xyz/utils';
+import { sleep, warn } from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { CoreChainName, Mainnets } from '../consts/chains';
@@ -70,23 +70,31 @@ class TokenPriceCache {
 export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   protected coinGecko: CoinGeckoInterface;
   protected cache: TokenPriceCache;
+  protected sleepMsBetweenRequests: number;
   protected metadata: ChainMap<ChainMetadata>;
 
   constructor(
     coinGecko: CoinGeckoInterface,
     expirySeconds?: number,
+    sleepMsBetweenRequests = 5000,
     chainMetadata = defaultChainMetadata,
   ) {
     this.coinGecko = coinGecko;
     this.cache = new TokenPriceCache(expirySeconds);
     this.metadata = chainMetadata;
+    this.sleepMsBetweenRequests = sleepMsBetweenRequests;
   }
 
   static withDefaultCoinGecko(
     expirySeconds?: number,
+    sleepMsBetweenRequests = 5000,
   ): CoinGeckoTokenPriceGetter {
     const coinGecko = new CoinGecko();
-    return new CoinGeckoTokenPriceGetter(coinGecko, expirySeconds);
+    return new CoinGeckoTokenPriceGetter(
+      coinGecko,
+      expirySeconds,
+      sleepMsBetweenRequests,
+    );
   }
 
   async getTokenPrice(chain: ChainName): Promise<number> {
@@ -136,6 +144,8 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     const ids = chains.map(
       (chain) => this.metadata[chain].gasCurrencyCoinGeckoId || chain,
     );
+    // Coingecko rate limits, so we are adding this sleep
+    await sleep(this.sleepMsBetweenRequests);
     const response = await this.coinGecko.simple.price({
       ids,
       vs_currencies: [currency],

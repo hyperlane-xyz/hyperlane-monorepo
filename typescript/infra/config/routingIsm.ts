@@ -4,30 +4,31 @@ import {
   ChainName,
   IsmConfig,
   IsmType,
+  ModuleType,
   RoutingIsmConfig,
+  TestChains,
 } from '@hyperlane-xyz/sdk';
 
 import { DeployEnvironment } from '../src/config';
 
-import { aggregationIsm } from './aggregationIsm';
 import { Contexts } from './contexts';
-import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/chains';
+import { ethereumChainNames as mainnet3Chains } from './environments/mainnet3/chains';
 import { owners as mainnet3Owners } from './environments/mainnet3/owners';
-import { chainNames as testChains } from './environments/test/chains';
 import { owners as testOwners } from './environments/test/owners';
 import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains';
 import { owners as testnet4Owners } from './environments/testnet4/owners';
-
-const chains = {
-  mainnet3: mainnet3Chains,
-  testnet4: testnet4Chains,
-  test: testChains,
-};
+import { multisigIsm } from './multisigIsm';
 
 const owners = {
+  test: testOwners,
   testnet4: testnet4Owners,
   mainnet3: mainnet3Owners,
-  test: testOwners,
+};
+
+const chains = {
+  test: TestChains,
+  testnet4: testnet4Chains,
+  mainnet3: mainnet3Chains.filter((_) => _ !== 'mantapacific'),
 };
 
 // Intended to be the "entrypoint" ISM.
@@ -42,7 +43,7 @@ export const routingIsm = (
   context: Contexts,
 ): RoutingIsmConfig | string => {
   const aggregationIsms: ChainMap<AggregationIsmConfig> = chains[environment]
-    .filter((_) => _ !== local)
+    .filter((chain) => chain !== local)
     .reduce(
       (acc, chain) => ({
         ...acc,
@@ -58,16 +59,38 @@ export const routingIsm = (
   };
 };
 
+// Aggregation (1/2)
+// |              |
+// |              |
+// v              v
+// Merkle Root    Message ID
+export const aggregationIsm = (
+  remote: ChainName,
+  context: Contexts,
+): AggregationIsmConfig => {
+  return {
+    type: IsmType.AGGREGATION,
+    modules: [
+      // Ordering matters to preserve determinism
+      multisigIsm(remote, IsmType.MERKLE_ROOT_MULTISIG, context),
+      multisigIsm(remote, IsmType.MESSAGE_ID_MULTISIG, context),
+    ],
+    threshold: 1,
+  };
+};
+
 const replacerEnum = (key: string, value: any) => {
   if (key === 'type') {
     switch (value) {
-      case IsmType.AGGREGATION:
+      case ModuleType.AGGREGATION:
         return 'AGGREGATION';
-      case IsmType.ROUTING:
+      case ModuleType.ROUTING:
         return 'ROUTING';
-      case IsmType.MERKLE_ROOT_MULTISIG:
+      case ModuleType.MERKLE_ROOT_MULTISIG:
         return 'MERKLE_ROOT_MULTISIG';
-      case IsmType.MESSAGE_ID_MULTISIG:
+      case ModuleType.LEGACY_MULTISIG:
+        return 'LEGACY_MULTISIG';
+      case ModuleType.MESSAGE_ID_MULTISIG:
         return 'MESSAGE_ID_MULTISIG';
       default:
         return value;

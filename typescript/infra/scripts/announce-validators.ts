@@ -95,6 +95,7 @@ async function main() {
                 contracts.mailbox.address,
                 validatorBaseConfig.checkpointSyncer.bucket,
                 validatorBaseConfig.checkpointSyncer.region,
+                undefined,
               );
               announcements.push({
                 storageLocation: validator.storageLocation(),

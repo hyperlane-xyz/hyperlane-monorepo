@@ -2,9 +2,9 @@ import {
   ChainMap,
   ChainName,
   MultisigIsmConfig,
-  defaultMultisigIsmConfigs,
+  buildMultisigIsmConfigs,
+  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
-import { objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../src/config';
 
@@ -25,20 +25,13 @@ export const multisigIsms = (
   local: ChainName,
   type: MultisigIsmConfig['type'],
   context: Contexts,
-): ChainMap<MultisigIsmConfig> =>
-  objMap(
-    objFilter(
-      context === Contexts.ReleaseCandidate
-        ? rcMultisigIsmConfigs
-        : defaultMultisigIsmConfigs,
-      (chain, config): config is MultisigIsmConfig =>
-        chain !== local && chains[env].includes(chain),
-    ),
-    (_, config) => ({
-      ...config,
-      type,
-    }),
-  );
+): ChainMap<MultisigIsmConfig> => {
+  const multisigConfigs =
+    context === Contexts.ReleaseCandidate
+      ? rcMultisigIsmConfigs
+      : defaultMultisigConfigs;
+  return buildMultisigIsmConfigs(type, local, chains[env], multisigConfigs);
+};
 
 export const multisigIsm = (
   remote: ChainName,
@@ -48,7 +41,7 @@ export const multisigIsm = (
   const configs =
     context === Contexts.ReleaseCandidate
       ? rcMultisigIsmConfigs
-      : defaultMultisigIsmConfigs;
+      : defaultMultisigConfigs;
 
   return {
     ...configs[remote],

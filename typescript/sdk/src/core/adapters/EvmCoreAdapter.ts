@@ -60,7 +60,7 @@ export class EvmCoreAdapter extends BaseEvmAdapter implements ICoreAdapter {
     destination: ChainName,
     delayMs?: number,
     maxAttempts?: number,
-  ): Promise<void> {
+  ): Promise<boolean> {
     return this.core.waitForMessageIdProcessed(
       messageId,
       destination,

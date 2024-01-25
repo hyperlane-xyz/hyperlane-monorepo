@@ -3,7 +3,12 @@ use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
+use bigdecimal::ParseBigDecimalError;
+
 use crate::config::StrOrIntParseError;
+use std::string::FromUtf8Error;
+
+use crate::Error as PrimitiveTypeError;
 use crate::HyperlaneProviderError;
 use crate::H256;
 
@@ -78,6 +83,51 @@ pub enum ChainCommunicationError {
     /// Failed to parse strings or integers
     #[error("Data parsing error {0:?}")]
     StrOrIntParseError(#[from] StrOrIntParseError),
+    /// BlockNotFoundError
+    #[error("Block not found: {0:?}")]
+    BlockNotFound(H256),
+    /// utf8 error
+    #[error("{0}")]
+    Utf8(#[from] FromUtf8Error),
+    /// Serde JSON error
+    #[error("{0}")]
+    JsonParseError(#[from] serde_json::Error),
+    /// String hex parsing error
+    #[error("{0}")]
+    HexParseError(#[from] hex::FromHexError),
+    /// Uint hex parsing error
+    #[error("{0}")]
+    UintParseError(#[from] uint::FromHexError),
+    /// Decimal string parsing error
+    #[error("{0}")]
+    FromDecStrError(#[from] uint::FromDecStrErr),
+    /// Int string parsing error
+    #[error("{0}")]
+    ParseIntError(#[from] std::num::ParseIntError),
+    /// Hash string parsing error
+    #[error("{0}")]
+    HashParsingError(#[from] fixed_hash::rustc_hex::FromHexError),
+    /// Invalid Request
+    #[error("Invalid Request: {msg:?}")]
+    InvalidRequest {
+        /// Error message
+        msg: String,
+    },
+    /// Parse Error
+    #[error("ParseError: {msg:?}")]
+    ParseError {
+        /// Error message
+        msg: String,
+    },
+    /// Failed to estimate transaction gas cost.
+    #[error("Failed to estimate transaction gas cost {0}")]
+    TxCostEstimateError(String),
+    /// Primitive type error
+    #[error(transparent)]
+    PrimitiveTypeError(#[from] PrimitiveTypeError),
+    /// Big decimal parsing error
+    #[error(transparent)]
+    ParseBigDecimalError(#[from] ParseBigDecimalError),
 }
 
 impl ChainCommunicationError {

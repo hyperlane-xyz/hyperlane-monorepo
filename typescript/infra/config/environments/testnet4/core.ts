@@ -5,17 +5,19 @@ import {
   AggregationIsmConfig,
   ChainMap,
   CoreConfig,
-  FallbackRoutingHookConfig,
   HookType,
   IgpHookConfig,
   IsmType,
   MerkleTreeHookConfig,
   MultisigConfig,
   MultisigIsmConfig,
+  PausableHookConfig,
+  PausableIsmConfig,
   ProtocolFeeHookConfig,
   RoutingIsmConfig,
-  defaultMultisigIsmConfigs,
+  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
+import { DomainRoutingHookConfig } from '@hyperlane-xyz/sdk/src/hook/types';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { supportedChainNames } from './chains';
@@ -26,7 +28,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
     supportedChainNames
       .filter((chain) => chain !== local)
-      .map((origin) => [origin, defaultMultisigIsmConfigs[origin]]),
+      .map((origin) => [origin, defaultMultisigConfigs[origin]]),
   );
 
   const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig => ({
@@ -39,7 +41,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     ...multisig,
   });
 
-  const defaultIsm: RoutingIsmConfig = {
+  const routingIsm: RoutingIsmConfig = {
     type: IsmType.ROUTING,
     domains: objMap(
       originMultisigs,
@@ -52,6 +54,17 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     owner,
   };
 
+  const pausableIsm: PausableIsmConfig = {
+    type: IsmType.PAUSABLE,
+    owner,
+  };
+
+  const defaultIsm: AggregationIsmConfig = {
+    type: IsmType.AGGREGATION,
+    modules: [routingIsm, pausableIsm],
+    threshold: 2,
+  };
+
   const merkleHook: MerkleTreeHookConfig = {
     type: HookType.MERKLE_TREE,
   };
@@ -61,25 +74,29 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     ...igp[local],
   };
 
+  const pausableHook: PausableHookConfig = {
+    type: HookType.PAUSABLE,
+    owner,
+  };
+
   const aggregationHooks = objMap(
     originMultisigs,
     (_origin, _): AggregationHookConfig => ({
       type: HookType.AGGREGATION,
-      hooks: [igpHook, merkleHook],
+      hooks: [pausableHook, merkleHook, igpHook],
     }),
   );
 
-  const defaultHook: FallbackRoutingHookConfig = {
-    type: HookType.FALLBACK_ROUTING,
+  const defaultHook: DomainRoutingHookConfig = {
+    type: HookType.ROUTING,
     owner,
-    fallback: merkleHook,
     domains: aggregationHooks,
   };
 
   const requiredHook: ProtocolFeeHookConfig = {
     type: HookType.PROTOCOL_FEE,
-    maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'), // 1 gwei of native token
-    protocolFee: BigNumber.from(1), // 1 wei
+    maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
+    protocolFee: BigNumber.from(1).toString(), // 1 wei of native token
     beneficiary: owner,
     owner,
   };

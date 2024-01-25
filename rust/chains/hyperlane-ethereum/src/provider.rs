@@ -6,7 +6,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
-use hyperlane_core::ethers_core_types;
+use ethers_core::abi::Address;
+use hyperlane_core::{ethers_core_types, U256};
 use tokio::time::sleep;
 use tracing::instrument;
 
@@ -104,6 +105,19 @@ where
             .await
             .map_err(ChainCommunicationError::from_other)?;
         Ok(!code.is_empty())
+    }
+
+    #[instrument(err, skip(self))]
+    async fn get_balance(&self, address: String) -> ChainResult<U256> {
+        // Can't use the address directly as a string, because ethers interprets it
+        // as an ENS name rather than an address.
+        let addr: Address = address.parse()?;
+        let balance = self
+            .provider
+            .get_balance(addr, None)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(balance.into())
     }
 }
 

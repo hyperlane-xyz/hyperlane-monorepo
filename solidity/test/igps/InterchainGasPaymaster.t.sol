@@ -410,11 +410,8 @@ contract InterchainGasPaymasterTest is Test {
             TEST_GAS_PRICE
         );
 
-        bytes memory metadata = StandardHookMetadata.formatMetadata(
-            0,
-            uint256(testGasLimit), // gas limit
-            testRefundAddress, // refund address,
-            bytes("")
+        bytes memory metadata = StandardHookMetadata.overrideGasLimit(
+            uint256(testGasLimit)
         );
         // 150 * (300_000 + 123_000) = 45_000_000
         assertEq(igp.quoteDispatch(metadata, testEncodedMessage), 63_450_000);
@@ -524,11 +521,8 @@ contract InterchainGasPaymasterTest is Test {
             igp.destinationGasLimit(testDestinationDomain, testGasLimit)
         );
 
-        bytes memory metadata = StandardHookMetadata.formatMetadata(
-            0,
-            uint256(testGasLimit), // gas limit
-            testRefundAddress, // refund address
-            bytes("")
+        bytes memory metadata = StandardHookMetadata.overrideGasLimit(
+            uint256(testGasLimit)
         );
         bytes memory message = _encodeTestMessage();
         igp.postDispatch{value: _quote}(metadata, message);
