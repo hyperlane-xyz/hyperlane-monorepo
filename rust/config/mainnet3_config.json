@@ -516,20 +516,16 @@
           "http": "https://rpc-injective.goldenratiostaking.net:443"
         }
       ],
-      "grpcUrls": [
-        {
-          "http": "https://injective-grpc.goldenratiostaking.net:443"
-        }
-      ],
-      "canonicalAsset": "inj",
-      "bech32Prefix": "inj",
+      "grpcUrl": "TODO",
+      "canonicalAsset": "untrn",
+      "bech32Prefix": "neutron",
       "gasPrice": {
-        "amount": "700000000",
-        "denom": "inj"
+        "amount": "0.57",
+        "denom": "untrn"
       },
-      "contractAddressBytes": 20,
+      "contractAddressBytes": 32,
       "index": {
-        "from": 58419500,
+        "from": 4000000,
         "chunk": 100000
       },
       "blocks": {
