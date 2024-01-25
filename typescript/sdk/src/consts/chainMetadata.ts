@@ -456,7 +456,7 @@ export const injective: ChainMetadata = {
   displayNameShort: 'Injective',
   name: Chains.injective,
   nativeToken: {
-    decimals: 6,
+    decimals: 18,
     name: 'Injective',
     symbol: 'INJ',
   },
