@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import { CommandModule, Options } from 'yargs';
 
 import { TokenType } from '@hyperlane-xyz/sdk';
@@ -57,7 +58,15 @@ const messageOptions: { [k: string]: Options } = {
 const messageCommand: CommandModule = {
   command: 'message',
   describe: 'Send a test message to a remote chain',
-  builder: (yargs) => yargs.options(messageOptions),
+  builder: (yargs) =>
+    yargs.options({
+      ...messageOptions,
+      messageBody: {
+        type: 'string',
+        description: 'Optional Message body',
+        default: 'Hello!',
+      },
+    }),
   handler: async (argv: any) => {
     const key: string = argv.key || process.env.HYP_KEY;
     const chainConfigPath: string = argv.chains;
@@ -66,12 +75,14 @@ const messageCommand: CommandModule = {
     const destination: string | undefined = argv.destination;
     const timeoutSec: number = argv.timeout;
     const skipWaitForDelivery: boolean = argv.quick;
+    const messageBody: string = argv.messageBody;
     await sendTestMessage({
       key,
       chainConfigPath,
       coreArtifactsPath,
       origin,
       destination,
+      messageBody: ethers.utils.hexlify(ethers.utils.toUtf8Bytes(messageBody)),
       timeoutSec,
       skipWaitForDelivery,
     });

@@ -12,14 +12,18 @@ pub struct ConnectionConf {
     rpc_url: String,
     /// The chain ID
     chain_id: String,
-    /// The prefix for the account address
-    prefix: String,
+    /// The human readable address prefix for the chains using bech32.
+    bech32_prefix: String,
     /// Canoncial Assets Denom
     canonical_asset: String,
     /// The gas price set by the cosmos-sdk validator. Note that this represents the
     /// minimum price set by the validator.
     /// More details here: https://docs.cosmos.network/main/learn/beginner/gas-fees#antehandler
     gas_price: RawCosmosAmount,
+    /// The number of bytes used to represent a contract address.
+    /// Cosmos address lengths are sometimes less than 32 bytes, so this helps to serialize it in
+    /// bech32 with the appropriate length.
+    contract_address_bytes: usize,
 }
 
 /// Untyped cosmos amount
@@ -86,9 +90,9 @@ impl ConnectionConf {
         self.chain_id.clone()
     }
 
-    /// Get the prefix
-    pub fn get_prefix(&self) -> String {
-        self.prefix.clone()
+    /// Get the bech32 prefix
+    pub fn get_bech32_prefix(&self) -> String {
+        self.bech32_prefix.clone()
     }
 
     /// Get the asset
@@ -101,22 +105,29 @@ impl ConnectionConf {
         self.gas_price.clone()
     }
 
+    /// Get the number of bytes used to represent a contract address
+    pub fn get_contract_address_bytes(&self) -> usize {
+        self.contract_address_bytes
+    }
+
     /// Create a new connection configuration
     pub fn new(
         grpc_url: String,
         rpc_url: String,
         chain_id: String,
-        prefix: String,
+        bech32_prefix: String,
         canonical_asset: String,
         minimum_gas_price: RawCosmosAmount,
+        contract_address_bytes: usize,
     ) -> Self {
         Self {
             grpc_url,
             rpc_url,
             chain_id,
-            prefix,
+            bech32_prefix,
             canonical_asset,
             gas_price: minimum_gas_price,
+            contract_address_bytes,
         }
     }
 }

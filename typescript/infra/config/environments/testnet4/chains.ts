@@ -14,7 +14,12 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
       maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
     },
   },
-  bsctestnet: chainMetadata.bsctestnet,
+  bsctestnet: {
+    ...chainMetadata.bsctestnet,
+    transactionOverrides: {
+      gasPrice: 80 * 10 ** 9, // 8 gwei
+    },
+  },
   goerli: chainMetadata.goerli,
   scrollsepolia: chainMetadata.scrollsepolia,
   sepolia: chainMetadata.sepolia,
@@ -26,7 +31,8 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
 
 // Blessed non-Ethereum chains.
 export const nonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
-  // solanadevnet: chainMetadata.solanadevnet,
+  solanatestnet: chainMetadata.solanatestnet,
+  eclipsetestnet: chainMetadata.eclipsetestnet,
 };
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {
@@ -49,6 +55,6 @@ export const agentChainNames: AgentChainNames = {
   // Run validators for all chains.
   [Role.Validator]: supportedChainNames,
   // Only run relayers for Ethereum chains at the moment.
-  [Role.Relayer]: ethereumChainNames,
+  [Role.Relayer]: supportedChainNames,
   [Role.Scraper]: ethereumChainNames,
 };

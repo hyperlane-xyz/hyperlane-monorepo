@@ -305,7 +305,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     tx: ContractTransaction | Promise<ContractTransaction>,
   ): Promise<ContractReceipt> {
     const confirmations =
-      this.getChainMetadata(chainNameOrId).blocks?.confirmations || 1;
+      this.getChainMetadata(chainNameOrId).blocks?.confirmations ?? 1;
     const response = await tx;
     const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
     this.logger(

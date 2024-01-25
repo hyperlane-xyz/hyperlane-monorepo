@@ -1,12 +1,11 @@
 import debug from 'debug';
 
 import { TestRecipient, TestRecipient__factory } from '@hyperlane-xyz/core';
-import {
-  ChainName,
-  HyperlaneDeployer,
-  MultiProvider,
-} from '@hyperlane-xyz/sdk';
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
+
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { MultiProvider } from '../providers/MultiProvider';
+import { ChainName } from '../types';
 
 export type TestRecipientConfig = {
   interchainSecurityModule: Address;
@@ -39,7 +38,28 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: TestRecipientConfig,
   ): Promise<TestRecipientContracts> {
-    const testRecipient = await this.deployContract(chain, 'testRecipient', []);
+    const predeployed = this.readCache(
+      chain,
+      this.factories['testRecipient'],
+      'testRecipient',
+    );
+    let usePreviousDeployment = false;
+    if (
+      predeployed &&
+      eqAddress(
+        await predeployed.owner(),
+        await this.multiProvider.getSignerAddress(chain),
+      )
+    ) {
+      usePreviousDeployment = true;
+    }
+    const testRecipient = await this.deployContract(
+      chain,
+      'testRecipient',
+      [],
+      undefined,
+      usePreviousDeployment,
+    );
     try {
       this.logger(`Checking ISM ${chain}`);
       const ism = await testRecipient.interchainSecurityModule();
@@ -51,7 +71,11 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
         const tx = testRecipient.setInterchainSecurityModule(
           config.interchainSecurityModule,
         );
-        await this.multiProvider.handleTx(chain, tx);
+        await this.runIfOwner(
+          chain,
+          testRecipient,
+          async () => await this.multiProvider.handleTx(chain, tx),
+        );
       }
     } catch (error) {
       this.logger(`Failed to check/update ISM for ${chain}: ${error}`);

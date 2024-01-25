@@ -16,6 +16,7 @@ import {
   MailboxClient__factory,
   OPStackIsm,
   OPStackIsm__factory,
+  PausableIsm__factory,
   StaticAddressSetFactory,
   StaticAggregationIsm__factory,
   StaticThresholdAddressSetFactory,
@@ -23,9 +24,13 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  Domain,
   eqAddress,
   formatMessage,
   normalizeAddress,
+  objFilter,
+  objMap,
+  warn,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
@@ -141,6 +146,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       case IsmType.OP_STACK:
         contract = await this.deployOpStackIsm(destination, config);
         break;
+      case IsmType.PAUSABLE:
+        contract = await this.multiProvider.handleDeploy(
+          destination,
+          new PausableIsm__factory(),
+          [config.owner],
+        );
+        break;
       case IsmType.TEST_ISM:
         contract = await this.multiProvider.handleDeploy(
           destination,
@@ -201,6 +213,22 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     const overrides = this.multiProvider.getTransactionOverrides(destination);
     const routingIsmFactory = this.getContracts(destination).routingIsmFactory;
     let routingIsm: DomainRoutingIsm | DefaultFallbackRoutingIsm;
+    // filtering out domains which are not part of the multiprovider
+    config.domains = objFilter(
+      config.domains,
+      (domain, config): config is IsmConfig => {
+        const domainId = this.multiProvider.tryGetDomainId(domain);
+        if (domainId === null) {
+          warn(
+            `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
+          );
+        }
+        return domainId !== null;
+      },
+    );
+    const safeConfigDomains = Object.keys(config.domains).map((domain) =>
+      this.multiProvider.getDomainId(domain),
+    );
     const delta: RoutingIsmDelta = existingIsmAddress
       ? await routingModuleDelta(
           destination,
@@ -212,7 +240,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         )
       : {
           domainsToUnenroll: [],
-          domainsToEnroll: Object.keys(config.domains),
+          domainsToEnroll: safeConfigDomains,
         };
 
     const signer = this.multiProvider.getSigner(destination);
@@ -227,13 +255,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     }
     // reconfiguring existing routing ISM
     if (existingIsmAddress && isOwner && !delta.mailbox) {
-      const isms: ChainMap<Address> = {};
+      const isms: Record<Domain, Address> = {};
       routingIsm = DomainRoutingIsm__factory.connect(
         existingIsmAddress,
         this.multiProvider.getSigner(destination),
       );
       // deploying all the ISMs which have to be updated
-      for (const origin of delta.domainsToEnroll) {
+      for (const originDomain of delta.domainsToEnroll) {
+        const origin = this.multiProvider.getChainName(originDomain); // already filtered to only include domains in the multiprovider
         logger(
           `Reconfiguring preexisting routing ISM at for origin ${origin}...`,
         );
@@ -243,23 +272,20 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           origin,
           mailbox,
         });
-        isms[origin] = ism.address;
+        isms[originDomain] = ism.address;
         const tx = await routingIsm.set(
-          this.multiProvider.getDomainId(origin),
-          isms[origin],
+          originDomain,
+          isms[originDomain],
           overrides,
         );
         await this.multiProvider.handleTx(destination, tx);
       }
       // unenrolling domains if needed
-      for (const origin of delta.domainsToUnenroll) {
+      for (const originDomain of delta.domainsToUnenroll) {
         logger(
-          `Unenrolling origin ${origin} from preexisting routing ISM at ${existingIsmAddress}...`,
+          `Unenrolling originDomain ${originDomain} from preexisting routing ISM at ${existingIsmAddress}...`,
         );
-        const tx = await routingIsm.remove(
-          this.multiProvider.getDomainId(origin),
-          overrides,
-        );
+        const tx = await routingIsm.remove(originDomain, overrides);
         await this.multiProvider.handleTx(destination, tx);
       }
       // transfer ownership if needed
@@ -280,9 +306,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         isms[origin] = ism.address;
       }
       const submoduleAddresses = Object.values(isms);
-      const domains = Object.keys(isms).map((chain) =>
-        this.multiProvider.getDomainId(chain),
-      );
       let receipt: ethers.providers.TransactionReceipt;
       if (config.type === IsmType.FALLBACK_ROUTING) {
         // deploying new fallback routing ISM
@@ -302,7 +325,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           destination,
           routingIsm['initialize(address,uint32[],address[])'](
             config.owner,
-            domains,
+            safeConfigDomains,
             submoduleAddresses,
             overrides,
           ),
@@ -311,7 +334,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         // deploying new domain routing ISM
         const tx = await routingIsmFactory.deploy(
           config.owner,
-          domains,
+          safeConfigDomains,
           submoduleAddresses,
           overrides,
         );
@@ -428,12 +451,17 @@ export async function moduleCanCertainlyVerify(
   origin: ChainName,
   destination: ChainName,
 ): Promise<boolean> {
+  const originDomainId = multiProvider.tryGetDomainId(origin);
+  const destinationDomainId = multiProvider.tryGetDomainId(destination);
+  if (!originDomainId || !destinationDomainId) {
+    return false;
+  }
   const message = formatMessage(
     0,
     0,
-    multiProvider.getDomainId(origin),
+    originDomainId,
     ethers.constants.AddressZero,
-    multiProvider.getDomainId(destination),
+    destinationDomainId,
     ethers.constants.AddressZero,
     '0x',
   );
@@ -596,7 +624,7 @@ export async function moduleMatchesConfig(
       );
       // Check that the RoutingISM owner matches the config
       const owner = await routingIsm.owner();
-      matches = matches && eqAddress(owner, config.owner);
+      matches &&= eqAddress(owner, config.owner);
       // check if the mailbox matches the config for fallback routing
       if (config.type === IsmType.FALLBACK_ROUTING) {
         const client = MailboxClient__factory.connect(moduleAddress, provider);
@@ -633,8 +661,8 @@ export async function moduleMatchesConfig(
       const [subModules, threshold] = await aggregationIsm.modulesAndThreshold(
         '0x',
       );
-      matches = matches && threshold === config.threshold;
-      matches = matches && subModules.length === config.modules.length;
+      matches &&= threshold === config.threshold;
+      matches &&= subModules.length === config.modules.length;
 
       const configIndexMatched = new Map();
       for (const subModule of subModules) {
@@ -646,12 +674,12 @@ export async function moduleMatchesConfig(
         // The submodule returned by the ISM must match exactly one
         // entry in the config.
         const count = subModuleMatchesConfig.filter(Boolean).length;
-        matches = matches && count === 1;
+        matches &&= count === 1;
 
         // That entry in the config should not have been matched already.
         subModuleMatchesConfig.forEach((matched, index) => {
           if (matched) {
-            matches = matches && !configIndexMatched.has(index);
+            matches &&= !configIndexMatched.has(index);
             configIndexMatched.set(index, true);
           }
         });
@@ -661,12 +689,23 @@ export async function moduleMatchesConfig(
     case IsmType.OP_STACK: {
       const opStackIsm = OPStackIsm__factory.connect(moduleAddress, provider);
       const type = await opStackIsm.moduleType();
-      matches = matches && type === ModuleType.NULL;
+      matches &&= type === ModuleType.NULL;
       break;
     }
     case IsmType.TEST_ISM: {
       // This is just a TestISM
       matches = true;
+      break;
+    }
+    case IsmType.PAUSABLE: {
+      const pausableIsm = PausableIsm__factory.connect(moduleAddress, provider);
+      const owner = await pausableIsm.owner();
+      matches &&= eqAddress(owner, config.owner);
+
+      if (config.paused) {
+        const isPaused = await pausableIsm.paused();
+        matches &&= config.paused === isPaused;
+      }
       break;
     }
     default: {
@@ -689,7 +728,11 @@ export async function routingModuleDelta(
   const routingIsm = DomainRoutingIsm__factory.connect(moduleAddress, provider);
   const owner = await routingIsm.owner();
   const deployedDomains = (await routingIsm.domains()).map((domain) =>
-    multiProvider.getChainName(domain.toNumber()),
+    domain.toNumber(),
+  );
+  // config.domains is already filtered to only include domains in the multiprovider
+  const safeConfigDomains = objMap(config.domains, (domain) =>
+    multiProvider.getDomainId(domain),
   );
 
   const delta: RoutingIsmDelta = {
@@ -707,16 +750,15 @@ export async function routingModuleDelta(
   }
   // check for exclusion of domains in the config
   delta.domainsToUnenroll = deployedDomains.filter(
-    (domain) => !Object.keys(config.domains).includes(domain),
+    (domain) => !Object.values(safeConfigDomains).includes(domain),
   );
   // check for inclusion of domains in the config
   for (const [origin, subConfig] of Object.entries(config.domains)) {
-    if (!deployedDomains.includes(origin)) {
-      delta.domainsToEnroll.push(origin);
+    const originDomain = safeConfigDomains[origin];
+    if (!deployedDomains.includes(originDomain)) {
+      delta.domainsToEnroll.push(originDomain);
     } else {
-      const subModule = await routingIsm.module(
-        multiProvider.getDomainId(origin),
-      );
+      const subModule = await routingIsm.module(originDomain);
       // Recursively check that the submodule for each configured
       // domain matches the submodule config.
       const subModuleMatches = await moduleMatchesConfig(
@@ -725,9 +767,9 @@ export async function routingModuleDelta(
         subConfig,
         multiProvider,
         contracts,
-        origin,
+        mailbox,
       );
-      if (!subModuleMatches) delta.domainsToEnroll.push(origin);
+      if (!subModuleMatches) delta.domainsToEnroll.push(originDomain);
     }
   }
   return delta;
@@ -766,8 +808,10 @@ export function collectValidators(
     aggregatedValidators.forEach((set) => {
       validators = validators.concat([...set]);
     });
-  } else if (config.type === IsmType.TEST_ISM) {
-    // This is just a TestISM
+  } else if (
+    config.type === IsmType.TEST_ISM ||
+    config.type === IsmType.PAUSABLE
+  ) {
     return new Set([]);
   } else {
     throw new Error('Unsupported ModuleType');
