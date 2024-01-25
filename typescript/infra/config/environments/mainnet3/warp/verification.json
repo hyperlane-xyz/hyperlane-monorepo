@@ -12,5 +12,19 @@
       "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000006000000000000000000000000979ca5202784112f4738403dbec5d0f3b9daabb9",
       "isProxy": false
     }
+  ],
+  "inevm": [
+    {
+      "name": "HypERC20",
+      "address": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
+      "constructorArguments": "00000000000000000000000000000000000000000000000000000000000000120000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
+      "isProxy": false
+    },
+    {
+      "name": "HypNative",
+      "address": "0xaad207a0Fd7a4e3C927Ccc78ac8134baF586B852",
+      "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
+      "isProxy": false
+    }
   ]
 }

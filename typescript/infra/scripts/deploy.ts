@@ -81,17 +81,14 @@ async function main() {
   } else if (module === Modules.WARP) {
     const owner = deployerAddress;
     const injectiveRouter =
-      '100CB5F11F19D5FCA88157C3D0167869884E4966C95C397AC86DA36297D800AD';
+      'CCECE22C7F562110EAD32E98EA8E9B138152C49D94CDCA0554CD1959B3EEB00C';
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,
     );
     const tokenConfig: TokenConfig & TokenDecimals = {
-      type: TokenType.synthetic,
-      name: 'Injective',
-      symbol: 'INJ',
-      decimals: 6,
-      totalSupply: 0,
+      type: TokenType.native,
+      decimals: 18,
     };
     const core = HyperlaneCore.fromEnvironment(
       deployEnvToSdkEnv[environment],
@@ -99,8 +96,8 @@ async function main() {
     );
     const routerConfig = core.getRouterConfig(owner);
     config = {
-      goerli: {
-        ...routerConfig['goerli'],
+      inevm: {
+        ...routerConfig['inevm'],
         ...tokenConfig,
         interchainSecurityModule: aggregationIsm(
           'injective',
