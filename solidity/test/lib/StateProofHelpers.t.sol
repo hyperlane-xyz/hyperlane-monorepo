@@ -41,10 +41,14 @@ contract StateProofHelpersTest is Test {
     function setUp() public virtual {
         proofsJson = vm.readFile("./test/test-data/getProof-data.json");
         accountProof = getAccountProofs();
-        storageProof = getStorageProofs();
+        storageProof = getStorageProofsSingle();
     }
 
-    function getAccountProofs() public returns (bytes[] memory accountProof_) {
+    function getAccountProofs()
+        public
+        view
+        returns (bytes[] memory accountProof_)
+    {
         accountProof_ = new bytes[](ACCOUNT_PROOF_LENGTH);
         string memory prefix;
         for (uint i = 0; i < ACCOUNT_PROOF_LENGTH; i++) {

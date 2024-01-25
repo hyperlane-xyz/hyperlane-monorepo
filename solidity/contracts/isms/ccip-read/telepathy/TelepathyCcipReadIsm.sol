@@ -68,6 +68,16 @@ contract TelepathyCcipReadIsm is
         )
     {}
 
+    /// @dev Not implemented because we will not be using Succinct's off chain client
+    function requestStep(uint256) external payable override {
+        revert("Not Implemented");
+    }
+
+    /// @dev Not implemented because we will not be using Succinct's off chain client
+    function requestRotate(uint256) external payable override {
+        revert("Not Implemented");
+    }
+
     /**
      * @param _mailbox the source chain mailbox address
      * @param _deliveriesSlot the source chain mailbox slot number for deliveries mapping
