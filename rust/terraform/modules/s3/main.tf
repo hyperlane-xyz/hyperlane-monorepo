@@ -38,13 +38,18 @@ resource "aws_s3_bucket_policy" "validator_bucket_policy" {
       {
         Effect = "Allow",
         Principal = {
-          AWS = var.validator_execution_role_arn  # IAM role ARN with additional permissions
+          AWS = var.validator_iam_user_arn  # IAM user ARN of validator
         },
         Action = [
+          "s3:PutObject",  # Allows uploading of new objects to the bucket
+          "s3:GetObject",  # Allows retrieval of objects from the bucket
+          "s3:ListBucket",  # Allows listing of the objects within the bucket
           "s3:DeleteObject",  # Allows deletion of objects within the bucket
-          "s3:PutObject"  # Allows uploading of new objects to the bucket
         ],
-        Resource = "${aws_s3_bucket.validator_bucket.arn}/*"  # All objects within the bucket
+        Resource = [
+          "${aws_s3_bucket.validator_bucket.arn}",  # Bucket ARN
+          "${aws_s3_bucket.validator_bucket.arn}/*"  # All objects within the bucket
+        ]
       }
     ]
   })
@@ -57,36 +62,4 @@ resource "aws_s3_bucket_versioning" "validator_bucket_versioning" {
   versioning_configuration {
     status = "Enabled"  # Enables versioning for the specified bucket
   }
-}
-
-# This resource creates an IAM policy that grants permissions to perform specific actions on the S3 bucket.
-# The policy is used to restrict write access to the bucket, allowing only certain actions like putting and getting objects.
-resource "aws_iam_policy" "s3_access_policy" {
-  name        = "${var.validator_name}-s3-access-policy"
-  description = "IAM policy for uploading logs to S3"
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action = [
-          "s3:PutObject",  # Allows uploading of new objects to the bucket
-          "s3:GetObject",  # Allows retrieval of objects from the bucket
-          "s3:ListBucket"  # Allows listing of the objects within the bucket
-        ],
-        Resource = [
-          aws_s3_bucket.validator_bucket.arn,  # Bucket ARN
-          "${aws_s3_bucket.validator_bucket.arn}/*"  # All objects within the bucket
-        ],
-        Effect = "Allow"  # Specifies that the actions are allowed
-      }
-    ]
-  })
-}
-
-# This resource attaches the previously defined IAM policy to a specific IAM user.
-# It grants the IAM user the permissions defined in the `s3_access_policy` to interact with the S3 bucket.
-resource "aws_iam_user_policy_attachment" "ecs_user_s3_policy_attachment" {
-  user       = var.validator_execution_user_name  # IAM user to attach the policy to
-  policy_arn = aws_iam_policy.s3_access_policy.arn  # ARN of the IAM policy to attach
 }

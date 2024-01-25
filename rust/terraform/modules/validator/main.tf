@@ -14,18 +14,17 @@ module "iam_kms" {
 module "s3" {
   source = "../s3"
 
-  validator_name                = var.validator_name
-  validator_execution_user_name = module.iam_kms.ecs_user_name
-  validator_execution_role_arn  = module.iam_kms.validator_execution_role_arn
+  validator_name         = var.validator_name
+  validator_iam_user_arn = module.iam_kms.ecs_user_arn
 }
 
 # Creates file system and mounting point for the validator task
 module "efs" {
   source = "../efs"
 
-  creation_token         = "${var.validator_name}-db-fs"
-  subnet_id              = var.validator_subnet_id
-  security_group_ids     = [var.validator_sg_id]
+  creation_token     = "${var.validator_name}-db-fs"
+  subnet_id          = var.validator_subnet_id
+  security_group_ids = [var.validator_sg_id]
 }
 
 # A template for running the validator task
