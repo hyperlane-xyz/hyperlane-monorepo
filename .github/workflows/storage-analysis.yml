@@ -55,6 +55,7 @@ jobs:
 
       # Compare outputs
       - name: Compare outputs
+        continue-on-error: true # diff exits with 1 if files differ
         run: diff --unified solidity/base-storage solidity/HEAD-storage > layout.diff
 
       - name: Comment PR with layout diff
