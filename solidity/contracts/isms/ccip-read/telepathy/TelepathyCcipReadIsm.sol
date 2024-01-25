@@ -13,12 +13,14 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+// ============ External Imports ============
+import {LightClient} from "@telepathyx/LightClient.sol";
+
 // ============ Internal Imports ============
 
 import {AbstractCcipReadIsm} from "../AbstractCcipReadIsm.sol";
 import {Message} from "../../../libs/Message.sol";
 import {Mailbox} from "../../../Mailbox.sol";
-import {LightClient} from "@telepathyx/LightClient.sol";
 import {StorageProof} from "../../../libs/StateProofHelpers.sol";
 
 // ============ External Imports ============
