@@ -33,7 +33,6 @@ tracing.workspace = true
 url.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core" }
-ethers-prometheus = { path = "../../ethers-prometheus", features = ["swisstronik"] }
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["ethers"] }

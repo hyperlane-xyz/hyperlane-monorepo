@@ -10,12 +10,7 @@ use derive_new::new;
 use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
 use serde::{de::DeserializeOwned, Serialize};
-
-#[cfg(feature = "ethereum")]
 use ethers::prelude::JsonRpcClient;
-
-#[cfg(all(feature = "swisstronik", not(feature = "ethereum")))]
-use swisstronik_ethers::prelude::JsonRpcClient;
 
 pub use crate::ChainInfo;
 
@@ -175,10 +170,5 @@ where
                 .inc_by((Instant::now() - start).as_secs_f64())
         };
         res
-    }
-
-    #[cfg(all(feature = "swisstronik", not(feature = "ethereum")))]
-    fn connection(&self) -> String {
-        self.inner.connection()
     }
 }

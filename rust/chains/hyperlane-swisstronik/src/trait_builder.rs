@@ -14,13 +14,6 @@ use ethers::prelude::{
 use reqwest::{Client, Url};
 use thiserror::Error;
 
-use ethers_prometheus::json_rpc_client::{
-    JsonRpcClientMetrics, JsonRpcClientMetricsBuilder, NodeInfo, PrometheusJsonRpcClient,
-    PrometheusJsonRpcClientConfig,
-};
-use ethers_prometheus::middleware::{
-    MiddlewareMetrics, PrometheusMiddleware, PrometheusMiddlewareConf,
-};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
 };
@@ -61,8 +54,6 @@ pub trait BuildableWithProvider {
         conn: &ConnectionConf,
         locator: &ContractLocator,
         signer: Option<Signers>,
-        rpc_metrics: Option<JsonRpcClientMetrics>,
-        middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> ChainResult<Self::Output> {
         Ok(match conn {
             ConnectionConf::Http { url } => {
@@ -71,59 +62,17 @@ pub trait BuildableWithProvider {
                     .build()
                     .map_err(EthereumProviderConnectionError::from)?;
                 let http_provider = Http::new_with_client(url.clone(), http_client);
-                let metrics_provider = self.wrap_rpc_with_metrics(
-                    http_provider,
-                    url.clone(),
-                    &rpc_metrics,
-                    &middleware_metrics,
-                );
-                let retrying_http_provider = RetryingProvider::new(metrics_provider, None, None);
-                self.build(retrying_http_provider, locator, signer, middleware_metrics)
+                let retrying_http_provider = RetryingProvider::new(http_provider, None, None);
+                self.build(retrying_http_provider, locator, signer)
                     .await?
             }
             ConnectionConf::Ws { url } => {
                 let ws = Ws::connect(url)
                     .await
                     .map_err(EthereumProviderConnectionError::from)?;
-                self.build(ws, locator, signer, middleware_metrics).await?
+                self.build(ws, locator, signer).await?
             }
         })
-    }
-
-    /// Wrap a JsonRpcClient with metrics for use with a quorum provider.
-    fn wrap_rpc_with_metrics<C>(
-        &self,
-        client: C,
-        url: Url,
-        rpc_metrics: &Option<JsonRpcClientMetrics>,
-        middleware_metrics: &Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
-    ) -> PrometheusJsonRpcClient<C> {
-        PrometheusJsonRpcClient::new(
-            client,
-            rpc_metrics
-                .clone()
-                .unwrap_or_else(|| JsonRpcClientMetricsBuilder::default().build().unwrap()),
-            PrometheusJsonRpcClientConfig {
-                node: Some(NodeInfo {
-                    host: {
-                        let mut s = String::new();
-                        if let Some(host) = url.host_str() {
-                            s.push_str(host);
-                            if let Some(port) = url.port() {
-                                write!(&mut s, ":{port}").unwrap();
-                            }
-                            Some(s)
-                        } else {
-                            None
-                        }
-                    },
-                }),
-                // steal the chain info from the middleware conf
-                chain: middleware_metrics
-                    .as_ref()
-                    .and_then(|(_, v)| v.chain.clone()),
-            },
-        )
     }
 
     /// Create the provider, applying any middlewares (e.g. gas oracle, signer, metrics) as needed,
@@ -133,7 +82,6 @@ pub trait BuildableWithProvider {
         client: P,
         locator: &ContractLocator,
         signer: Option<Signers>,
-        metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> ChainResult<Self::Output>
     where
         P: JsonRpcClient + 'static,

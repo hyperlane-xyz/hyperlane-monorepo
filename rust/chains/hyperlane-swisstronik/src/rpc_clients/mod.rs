@@ -1,9 +1,8 @@
 use ethers::providers::HttpClientError;
 use tracing::{info, trace, warn};
 
-pub use self::{fallback::*, retrying::*};
+pub use self::retrying::*;
 
-mod fallback;
 mod retrying;
 
 enum CategorizedResponse<R> {

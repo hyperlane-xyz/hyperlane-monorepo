@@ -3,9 +3,6 @@ use std::{fmt::Debug, str::FromStr, time::Duration};
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 use async_trait::async_trait;
 use ethers::providers::{Http, JsonRpcClient, ProviderError};
-use ethers_prometheus::json_rpc_client::{
-    PrometheusJsonRpcClient, PrometheusJsonRpcClientConfigExt,
-};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -165,10 +162,9 @@ where
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
-    type Error = RetryingProviderError<PrometheusJsonRpcClient<Http>>;
+impl JsonRpcClient for RetryingProvider<Http> {
+    type Error = RetryingProviderError<Http>;
 
-    #[instrument(skip(self), fields(provider_host = %self.inner.node_host(), chain_name = %self.inner.chain_name()))]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where
         T: Debug + Serialize + Send + Sync,
@@ -196,7 +192,7 @@ impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
     }
 
     fn connection(&self) -> String {
-        self.inner.inner().connection()
+        self.inner.connection()
     }
 }
 
