@@ -23,7 +23,7 @@ derive_more.workspace = true
 ethers-contract = { workspace = true, optional = true }
 ethers-core = { workspace = true, optional = true }
 ethers-providers = { workspace = true, optional = true }
-swisstronik-ethers-contract = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", package = "ethers-contract", optional = true}
+swisstronik-ethers-contract = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", package = "ethers-contract", optional = true, features = ["legacy"]}
 swisstronik-ethers-core = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", package = "ethers-core", optional = true}
 swisstronik-ethers-providers = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", package = "ethers-providers", optional = true}
 eyre.workspace = true

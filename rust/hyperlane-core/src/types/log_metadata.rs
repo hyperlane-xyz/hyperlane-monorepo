@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "ethers")]
 use ethers_contract::LogMeta as EthersLogMeta;
 
+#[cfg(feature = "swisstronik")]
+use swisstronik_ethers_contract::LogMeta as SwisstronikEthersLogMeta;
+
 use crate::{H256, H512, U256};
 
 /// A close clone of the Ethereum `LogMeta`, this is designed to be a more
@@ -41,6 +44,27 @@ impl From<EthersLogMeta> for LogMeta {
 #[cfg(feature = "ethers")]
 impl From<&EthersLogMeta> for LogMeta {
     fn from(v: &EthersLogMeta) -> Self {
+        Self {
+            address: v.address.into(),
+            block_number: v.block_number.as_u64(),
+            block_hash: v.block_hash.into(),
+            transaction_id: v.transaction_hash.into(),
+            transaction_index: v.transaction_index.as_u64(),
+            log_index: v.log_index.into(),
+        }
+    }
+}
+
+#[cfg(feature = "swisstronik")]
+impl From<SwisstronikEthersLogMeta> for LogMeta {
+    fn from(v: SwisstronikEthersLogMeta) -> Self {
+        Self::from(&v)
+    }
+}
+
+#[cfg(feature = "swisstronik")]
+impl From<&SwisstronikEthersLogMeta> for LogMeta {
+    fn from(v: &SwisstronikEthersLogMeta) -> Self {
         Self {
             address: v.address.into(),
             block_number: v.block_number.as_u64(),
