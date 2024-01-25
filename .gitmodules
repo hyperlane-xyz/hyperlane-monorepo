@@ -7,3 +7,6 @@
 [submodule "solidity/lib/succinctx"]
 	path = solidity/lib/succinctx
 	url = https://github.com/succinctlabs/succinctx
+[submodule "solidity/lib/optimism-bedrock-contracts"]
+	path = solidity/lib/optimism-bedrock-contracts
+	url = https://github.com/succinctlabs/optimism-bedrock-contracts
