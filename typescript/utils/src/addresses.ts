@@ -2,6 +2,7 @@ import { fromBech32, normalizeBech32, toBech32 } from '@cosmjs/encoding';
 import { PublicKey } from '@solana/web3.js';
 import { utils as ethersUtils } from 'ethers';
 
+import { isNullish } from './typeof';
 import { Address, HexString, ProtocolType } from './types';
 
 const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
@@ -67,7 +68,7 @@ function routeAddressUtil<T>(
 ) {
   protocol ||= getAddressProtocolType(param);
   if (protocol && fns[protocol]) return fns[protocol]!(param);
-  else if (fallback) return fallback;
+  else if (!isNullish(fallback)) return fallback;
   else throw new Error(`Unsupported protocol ${protocol}`);
 }
 

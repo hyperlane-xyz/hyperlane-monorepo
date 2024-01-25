@@ -1,5 +1,15 @@
 # @hyperlane-xyz/core
 
+## 3.6.1
+
+### Patch Changes
+
+- e4e4f93fc: Support pausable ISM in deployer and checker
+- Updated dependencies [3c298d064]
+- Updated dependencies [df24eec8b]
+- Updated dependencies [78e50e7da]
+  - @hyperlane-xyz/utils@3.6.1
+
 ## 3.6.0
 
 ### Patch Changes
