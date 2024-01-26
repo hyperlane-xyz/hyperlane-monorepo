@@ -20,6 +20,7 @@ import { TokenDecimals, TokenType } from '@hyperlane-xyz/sdk/dist/token/config';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
+import { supportedChainNames } from '../config/environments/mainnet3/chains';
 import { aggregationIsm } from '../config/routingIsm';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
@@ -63,10 +64,10 @@ async function main() {
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
   if (module === Modules.PROXY_FACTORY) {
-    config = { inevm: true };
+    config = Object.fromEntries(supportedChainNames.map((k) => [k, true]));
     deployer = new HyperlaneProxyFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
-    config['inevm'] = envConfig.core['inevm'];
+    config = { inevm: envConfig.core.inevm };
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,

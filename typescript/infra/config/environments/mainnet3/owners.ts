@@ -31,7 +31,7 @@ export const owners: ChainMap<OwnableConfig> = objMap(
   (local, __) => ({
     owner: deployer, // TODO: change this to the safe
     ownerOverrides: {
-      proxyAdmin: timelocks[local] ?? safes[local] ?? deployer,
+      proxyAdmin: timelocks[local] ?? safes[local],
     },
   }),
 );

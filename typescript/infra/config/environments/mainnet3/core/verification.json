@@ -1447,6 +1447,18 @@
       "address": "0x15ab173bDB6832f9b64276bA128659b0eD77730B",
       "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
       "isProxy": false
+    },
+    {
+      "name": "PausableHook",
+      "address": "0xBDa330Ea8F3005C421C8088e638fBB64fA71b9e0",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "PausableHook",
+      "address": "0xBDa330Ea8F3005C421C8088e638fBB64fA71b9e0",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ]
 }
