@@ -119,12 +119,14 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
       this.logger('Mailbox already initialized');
 
+      const overrides = this.multiProvider.getTransactionOverrides(chain);
       await this.configureHook(
         chain,
         mailbox,
         defaultHook,
         (_mailbox) => _mailbox.defaultHook(),
-        (_mailbox, _hook) => _mailbox.populateTransaction.setDefaultHook(_hook),
+        (_mailbox, _hook) =>
+          _mailbox.populateTransaction.setDefaultHook(_hook, { ...overrides }),
       );
 
       await this.configureHook(
@@ -133,7 +135,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         requiredHook,
         (_mailbox) => _mailbox.requiredHook(),
         (_mailbox, _hook) =>
-          _mailbox.populateTransaction.setRequiredHook(_hook),
+          _mailbox.populateTransaction.setRequiredHook(_hook, { ...overrides }),
       );
 
       await this.configureIsm(

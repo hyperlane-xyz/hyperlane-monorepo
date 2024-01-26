@@ -204,7 +204,11 @@ export const bsc: ChainMetadata = {
   name: Chains.bsc,
   nativeToken: bnbToken,
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.ankr.com/bsc' }],
+  rpcUrls: [
+    { http: 'https://rpc.ankr.com/bsc' },
+    { http: 'https://bsc.drpc.org' },
+    { http: 'https://bscrpc.com' },
+  ],
 };
 
 export const bsctestnet: ChainMetadata = {
@@ -700,6 +704,7 @@ export const polygon: ChainMetadata = {
       },
     },
     { http: 'https://polygon-rpc.com' },
+    { http: 'https://rpc.ankr.com/polygon' },
   ],
 };
 
@@ -726,7 +731,10 @@ export const polygonzkevm: ChainMetadata = {
   name: Chains.polygonzkevm,
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.ankr.com/polygon_zkevm' }],
+  rpcUrls: [
+    { http: 'https://rpc.ankr.com/polygon_zkevm' },
+    { http: 'https://polygon-zkevm.drpc.org' },
+  ],
 };
 
 export const polygonzkevmtestnet: ChainMetadata = {
