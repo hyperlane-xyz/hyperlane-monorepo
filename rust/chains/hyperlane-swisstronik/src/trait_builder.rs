@@ -1,4 +1,3 @@
-use std::fmt::Write;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -11,11 +10,11 @@ use ethers::prelude::{
     SignerMiddleware, Ws, WsClientError,
 };
 
-use reqwest::{Client, Url};
+use reqwest::Client;
 use thiserror::Error;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain,
 };
 
 use crate::{signers::Signers, ConnectionConf, RetryingProvider};

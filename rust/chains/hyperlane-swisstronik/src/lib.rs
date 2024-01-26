@@ -8,6 +8,8 @@ use std::collections::HashMap;
 use ethers::abi::FunctionExt;
 use ethers::prelude::{abi, Lazy, Middleware};
 
+pub use ethers;
+
 #[cfg(not(doctest))]
 pub use self::{
     aggregation_ism::*, ccip_read_ism::*, config::*, config::*, interchain_gas::*,
