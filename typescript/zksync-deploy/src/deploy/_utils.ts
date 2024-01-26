@@ -6,7 +6,11 @@ import { ethers } from 'ethers';
 import * as hre from 'hardhat';
 import { Contract, Provider, Wallet } from 'zksync-ethers';
 
+import { chainMetadata } from '../const/chainMetadata';
+import { ChainMetadata } from '../metadata/chainMetadataTypes';
+import { MultiProvider } from '../providers/MultiProvider';
 import { Address, DeployContractOptions } from '../types';
+import { ChainMap } from '../types';
 
 // Load env file
 dotenv.config();
@@ -129,6 +133,16 @@ export const deployContract = async (
 
   return contract;
 };
+
+export function getMultiProvider(
+  customChains: ChainMap<ChainMetadata>,
+  signer?: ethers.Signer,
+) {
+  const chainConfigs = { ...chainMetadata, ...customChains };
+  const mp = new MultiProvider(chainConfigs);
+  if (signer) mp.setSharedSigner(signer);
+  return mp;
+}
 
 /* const deployProxy<C extends ethers.Contract> = (
   implementation: C,

@@ -15,13 +15,14 @@ import {
   moduleMatchesConfig,
 } from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
-import { MultiProvider } from '../providers/MultiProvider';
 
-import { HyperlaneDeployer } from './HyperlaneDeployer';
+import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer';
+import { getMultiProvider } from './_utils';
 import { CoreAddresses, CoreFactories, coreFactories } from './contracts';
-import { CoreConfig } from './types';
 
 export async function executeDeploy() {
+  const multiProvider = getMultiProvider(customChains, signer);
+
   // 1. Deploy ISM factories to all deployable chains that don't have them.
   const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
 }
