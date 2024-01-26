@@ -1,5 +1,9 @@
-import { ChainMap } from '@hyperlane-xyz/sdk';
+import { ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
 import { Address, objMap } from '@hyperlane-xyz/utils';
+
+export const timelocks: ChainMap<Address | undefined> = {
+  arbitrum: '0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01',
+};
 
 export const safes: ChainMap<Address | undefined> = {
   celo: '0x1DE69322B55AC7E0999F8e7738a1428C8b130E4d',
@@ -19,8 +23,10 @@ export const safes: ChainMap<Address | undefined> = {
   mantapacific: undefined,
 };
 
-// export const owners = safes;
-
-// temporarily keep ownership on deployer key
 const deployer = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
-export const owners = objMap(safes, (_, __) => deployer);
+export const owners: ChainMap<OwnableConfig> = objMap(safes, (local, __) => ({
+  owner: deployer, // TODO: change this to the safe
+  ownerOverrides: {
+    proxyAdmin: timelocks[local] ?? safes[local] ?? deployer,
+  },
+}));

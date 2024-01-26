@@ -12,6 +12,7 @@ import {
 import { DeployEnvironment } from '../src/config';
 
 import { Contexts } from './contexts';
+import { environments } from './environments';
 import { ethereumChainNames as mainnet3Chains } from './environments/mainnet3/chains';
 import { owners as mainnet3Owners } from './environments/mainnet3/owners';
 import { owners as testOwners } from './environments/test/owners';
@@ -55,7 +56,7 @@ export const routingIsm = (
   return {
     type: IsmType.ROUTING,
     domains: aggregationIsms,
-    owner: owners[environment][local],
+    owner: environments[environment].core[local].owner,
   };
 };
 
