@@ -120,10 +120,11 @@ pub struct AgentConfig {
     pub chain_id: String,
     pub rpc_urls: Vec<AgentUrl>,
     pub grpc_url: String,
-    pub prefix: String,
+    pub bech32_prefix: String,
     pub signer: AgentConfigSigner,
     pub index: AgentConfigIndex,
     pub gas_price: RawCosmosAmount,
+    pub contract_address_bytes: usize,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -157,7 +158,7 @@ impl AgentConfig {
                 ),
             }],
             grpc_url: format!("http://{}", network.launch_resp.endpoint.grpc_addr),
-            prefix: "osmo".to_string(),
+            bech32_prefix: "osmo".to_string(),
             signer: AgentConfigSigner {
                 typ: "cosmosKey".to_string(),
                 key: format!("0x{}", hex::encode(validator.priv_key.to_bytes())),
@@ -167,6 +168,7 @@ impl AgentConfig {
                 denom: "uosmo".to_string(),
                 amount: "0.05".to_string(),
             },
+            contract_address_bytes: 32,
             index: AgentConfigIndex {
                 from: 1,
                 chunk: 100,

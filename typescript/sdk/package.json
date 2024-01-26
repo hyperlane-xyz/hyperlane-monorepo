@@ -1,12 +1,12 @@
 {
   "name": "@hyperlane-xyz/sdk",
   "description": "The official SDK for the Hyperlane Network",
-  "version": "3.6.0",
+  "version": "3.6.1",
   "dependencies": {
     "@cosmjs/cosmwasm-stargate": "^0.31.3",
     "@cosmjs/stargate": "^0.31.3",
-    "@hyperlane-xyz/core": "3.6.0",
-    "@hyperlane-xyz/utils": "3.6.0",
+    "@hyperlane-xyz/core": "3.6.1",
+    "@hyperlane-xyz/utils": "3.6.1",
     "@solana/spl-token": "^0.3.8",
     "@solana/web3.js": "^1.78.0",
     "@types/coingecko-api": "^1.0.10",

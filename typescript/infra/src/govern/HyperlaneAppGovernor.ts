@@ -5,6 +5,7 @@ import {
   ChainName,
   HyperlaneApp,
   HyperlaneAppChecker,
+  OwnableConfig,
   OwnerViolation,
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, objMap } from '@hyperlane-xyz/utils';
@@ -31,19 +32,14 @@ export type AnnotatedCallData = CallData & {
 
 export abstract class HyperlaneAppGovernor<
   App extends HyperlaneApp<any>,
-  Config,
+  Config extends OwnableConfig,
 > {
   readonly checker: HyperlaneAppChecker<App, Config>;
-  private owners: ChainMap<Address>;
   private calls: ChainMap<AnnotatedCallData[]>;
   private canPropose: ChainMap<Map<string, boolean>>;
 
-  constructor(
-    checker: HyperlaneAppChecker<App, Config>,
-    owners: ChainMap<Address>,
-  ) {
+  constructor(checker: HyperlaneAppChecker<App, Config>) {
     this.checker = checker;
-    this.owners = owners;
     this.calls = objMap(this.checker.app.contractsMap, () => []);
     this.canPropose = objMap(this.checker.app.contractsMap, () => new Map());
   }
@@ -120,7 +116,11 @@ export abstract class HyperlaneAppGovernor<
     );
     await sendCallsForType(
       SubmissionType.SAFE,
-      new SafeMultiSend(this.checker.multiProvider, chain, this.owners[chain]),
+      new SafeMultiSend(
+        this.checker.multiProvider,
+        chain,
+        this.checker.configMap[chain].owner,
+      ),
     );
     await sendCallsForType(SubmissionType.MANUAL, new ManualMultiSend(chain));
   }
@@ -162,7 +162,7 @@ export abstract class HyperlaneAppGovernor<
     }
 
     // 2. Check if the call will succeed via Gnosis Safe.
-    const safeAddress = this.owners[chain];
+    const safeAddress = this.checker.configMap[chain].owner;
     if (!safeAddress) throw new Error(`Owner address not found for ${chain}`);
     // 2a. Confirm that the signer is a Safe owner or delegate.
     // This should implicitly check whether or not the owner is a gnosis

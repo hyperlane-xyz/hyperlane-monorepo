@@ -112,7 +112,13 @@ impl WasmGrpcProvider {
             Endpoint::new(conf.get_grpc_url()).map_err(Into::<HyperlaneCosmosError>::into)?;
         let channel = endpoint.connect_lazy();
         let contract_address = locator
-            .map(|l| CosmosAddress::from_h256(l.address, &conf.get_prefix()))
+            .map(|l| {
+                CosmosAddress::from_h256(
+                    l.address,
+                    &conf.get_bech32_prefix(),
+                    conf.get_contract_address_bytes(),
+                )
+            })
             .transpose()?;
 
         Ok(Self {
