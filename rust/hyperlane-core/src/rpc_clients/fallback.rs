@@ -3,11 +3,10 @@ use async_trait::async_trait;
 use derive_new::new;
 use std::{
     fmt::Debug,
-    future::Future,
     sync::Arc,
     time::{Duration, Instant},
 };
-use tracing::{info, warn_span};
+use tracing::info;
 
 use crate::ChainCommunicationError;
 
@@ -15,7 +14,7 @@ use crate::ChainCommunicationError;
 #[async_trait]
 pub trait BlockNumberGetter: Send + Sync + Debug {
     /// Latest block number getter
-    async fn get(&self) -> Result<u64, ChainCommunicationError>;
+    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError>;
 }
 
 const MAX_BLOCK_TIME: Duration = Duration::from_secs(2 * 60);
@@ -115,7 +114,7 @@ where
 
         let block_getter: Box<dyn BlockNumberGetter> = provider.clone().into();
         let current_block_height = block_getter
-            .get()
+            .get_block_number()
             .await
             .unwrap_or(priority.last_block_height.0);
         if current_block_height <= priority.last_block_height.0 {
@@ -130,36 +129,6 @@ where
             self.update_last_seen_block(priority.index, current_block_height)
                 .await;
         }
-    }
-
-    pub async fn request<F, R, FR>(&self, categorized_response_closure: F)
-    where
-        F: Fn(T) -> FR,
-        FR: Future<Output = CategorizedResponse<R>>,
-    {
-        let mut errors = vec![];
-        // make sure we do at least 4 total retries.
-        while errors.len() <= 3 {
-            if !errors.is_empty() {
-                sleep(Duration::from_millis(100)).await;
-            }
-            let priorities_snapshot = self.take_priorities_snapshot().await;
-            for (idx, priority) in priorities_snapshot.iter().enumerate() {
-                let provider = &self.inner.providers[priority.index];
-                let cat_resp = categorized_response_closure(provider.clone()).await;
-                self.handle_stalled_provider(priority, provider).await;
-                let _span =
-                    warn_span!("request_with_fallback", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
-
-                match cat_resp {
-                    IsOk(v) => return Ok(serde_json::from_value(v)?),
-                    RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
-                    NonRetryableErr(e) => return Err(e.into()),
-                }
-            }
-        }
-
-        Err(FallbackError::AllProvidersFailed(errors).into())
     }
 }
 

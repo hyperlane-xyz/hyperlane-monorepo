@@ -35,6 +35,8 @@ export enum Chains {
   sepolia = 'sepolia',
   solana = 'solana',
   solanadevnet = 'solanadevnet',
+  solanatestnet = 'solanatestnet',
+  eclipsetestnet = 'eclipsetestnet',
   test1 = 'test1',
   test2 = 'test2',
   test3 = 'test3',
@@ -87,6 +89,8 @@ export const Testnets: Array<CoreChainName> = [
   Chains.scrollsepolia,
   Chains.sepolia,
   Chains.solanadevnet,
+  Chains.solanatestnet,
+  Chains.eclipsetestnet,
 ];
 
 export const TestChains: Array<CoreChainName> = [

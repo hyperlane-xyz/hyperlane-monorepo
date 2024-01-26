@@ -3,11 +3,13 @@ import {
   IMultisigIsm,
   IRoutingIsm,
   OPStackIsm,
+  PausableIsm,
   TestIsm,
 } from '@hyperlane-xyz/core';
-import type { Address, ValueOf } from '@hyperlane-xyz/utils';
+import type { Address, Domain, ValueOf } from '@hyperlane-xyz/utils';
 
-import { ChainMap, ChainName } from '../types';
+import { OwnableConfig } from '../deploy/types';
+import { ChainMap } from '../types';
 
 // this enum should match the IInterchainSecurityModule.sol enum
 // meant for the relayer
@@ -31,6 +33,7 @@ export enum IsmType {
   MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
   MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm',
   TEST_ISM = 'testIsm',
+  PAUSABLE = 'pausableIsm',
 }
 
 // mapping between the two enums
@@ -50,6 +53,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.MESSAGE_ID_MULTISIG;
     case IsmType.TEST_ISM:
       return ModuleType.NULL;
+    case IsmType.PAUSABLE:
+      return ModuleType.NULL;
   }
 }
 
@@ -66,9 +71,13 @@ export type TestIsmConfig = {
   type: IsmType.TEST_ISM;
 };
 
-export type RoutingIsmConfig = {
+export type PausableIsmConfig = OwnableConfig & {
+  type: IsmType.PAUSABLE;
+  paused?: boolean;
+};
+
+export type RoutingIsmConfig = OwnableConfig & {
   type: IsmType.ROUTING | IsmType.FALLBACK_ROUTING;
-  owner: Address;
   domains: ChainMap<IsmConfig>;
 };
 
@@ -90,7 +99,8 @@ export type IsmConfig =
   | MultisigIsmConfig
   | AggregationIsmConfig
   | OpStackIsmConfig
-  | TestIsmConfig;
+  | TestIsmConfig
+  | PausableIsmConfig;
 
 export type DeployedIsmType = {
   [IsmType.ROUTING]: IRoutingIsm;
@@ -100,14 +110,15 @@ export type DeployedIsmType = {
   [IsmType.MESSAGE_ID_MULTISIG]: IMultisigIsm;
   [IsmType.OP_STACK]: OPStackIsm;
   [IsmType.TEST_ISM]: TestIsm;
+  [IsmType.PAUSABLE]: PausableIsm;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;
 
 // for finding the difference between the onchain deployment and the config provided
 export type RoutingIsmDelta = {
-  domainsToUnenroll: ChainName[]; // new or updated isms for the domain
-  domainsToEnroll: ChainName[]; // isms to remove
+  domainsToUnenroll: Domain[]; // new or updated isms for the domain
+  domainsToEnroll: Domain[]; // isms to remove
   owner?: Address; // is the owner different
   mailbox?: Address; // is the mailbox different (only for fallback routing)
 };

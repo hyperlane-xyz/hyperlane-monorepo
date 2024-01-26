@@ -33,6 +33,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     const config = this.configMap[chain];
 
     const ownableOverrides: Record<string, string> = {
+      ...config.ownerOverrides,
       storageGasOracle: config.oracleKey,
     };
     await super.checkOwnership(chain, config.owner, ownableOverrides);
@@ -48,7 +49,10 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       chain,
       'InterchainGasPaymaster implementation',
       implementation,
-      [BytecodeHash.INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH],
+      [
+        BytecodeHash.INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
+        BytecodeHash.OPT_INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
+      ],
       (bytecode) =>
         bytecode // We persist the block number in the bytecode now too, so we have to strip it
           .replaceAll(

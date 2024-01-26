@@ -1,5 +1,26 @@
 # @hyperlane-xyz/helloworld
 
+## 3.6.1
+
+### Patch Changes
+
+- Updated dependencies [ae4476ad0]
+- Updated dependencies [f3b7ddb69]
+- Updated dependencies [e4e4f93fc]
+  - @hyperlane-xyz/sdk@3.6.1
+  - @hyperlane-xyz/core@3.6.1
+
+## 3.6.0
+
+### Patch Changes
+
+- Updated dependencies [67a6d971e]
+- Updated dependencies [612d4163a]
+- Updated dependencies [0488ef31d]
+- Updated dependencies [8d8ba3f7a]
+  - @hyperlane-xyz/sdk@3.6.0
+  - @hyperlane-xyz/core@3.6.0
+
 ## 3.5.1
 
 ### Patch Changes

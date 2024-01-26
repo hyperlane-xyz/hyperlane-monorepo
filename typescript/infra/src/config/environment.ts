@@ -7,9 +7,9 @@ import {
   HyperlaneEnvironment,
   IgpConfig,
   MultiProvider,
+  OwnableConfig,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
@@ -38,7 +38,7 @@ export type EnvironmentConfig = {
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
   igp: ChainMap<IgpConfig>;
-  owners: ChainMap<Address>;
+  owners: ChainMap<OwnableConfig>;
   infra: InfrastructureConfig;
   getMultiProvider: (
     context?: Contexts,
