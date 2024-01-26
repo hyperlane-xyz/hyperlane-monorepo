@@ -347,3 +347,56 @@ pub fn transfer_igp_account_ownership_instruction(
     };
     Ok(instruction)
 }
+
+/// Gets an instruction to claim funds from an IGP to the beneficiary.
+pub fn claim_instruction(
+    program_id: Pubkey,
+    igp: Pubkey,
+    beneficiary: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::Claim;
+
+    // Accounts:
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The IGP.
+    // 2. `[writeable]` The IGP beneficiary.
+    let accounts = vec![
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new(igp, false),
+        AccountMeta::new(beneficiary, false),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.try_to_vec()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Gets an instruction to claim funds from an IGP to the beneficiary.
+pub fn set_beneficiary_instruction(
+    program_id: Pubkey,
+    igp: Pubkey,
+    igp_owner: Pubkey,
+    new_beneficiary: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::SetIgpBeneficiary(new_beneficiary);
+
+    // Accounts:
+    // 0. `[]` The IGP.
+    // 1. `[signer]` The owner of the IGP account.
+    let accounts = vec![
+        AccountMeta::new(igp, false),
+        AccountMeta::new(igp_owner, true),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.try_to_vec()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}

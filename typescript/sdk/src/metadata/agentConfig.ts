@@ -92,6 +92,30 @@ export type AgentSignerCosmosKey = z.infer<typeof AgentSignerNodeSchema>;
 export type AgentSignerNode = z.infer<typeof AgentSignerNodeSchema>;
 export type AgentSigner = z.infer<typeof AgentSignerSchema>;
 
+// Additional chain metadata for Cosmos chains required by the agents.
+const AgentCosmosChainMetadataSchema = z.object({
+  canonicalAsset: z
+    .string()
+    .describe(
+      'The name of the canonical asset for this chain, usually in "micro" form, e.g. untrn',
+    ),
+  gasPrice: z.object({
+    denom: z
+      .string()
+      .describe('The coin denom, usually in "micro" form, e.g. untrn'),
+    amount: z
+      .string()
+      .regex(/^(\d*[.])?\d+$/)
+      .describe('The the gas price, in denom, to pay for each unit of gas'),
+  }),
+  contractAddressBytes: z
+    .number()
+    .int()
+    .positive()
+    .lte(32)
+    .describe('The number of bytes used to represent a contract address.'),
+});
+
 export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
   HyperlaneDeploymentArtifactsSchema,
 )
@@ -126,6 +150,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
       })
       .optional(),
   })
+  .merge(AgentCosmosChainMetadataSchema.partial())
   .refine((metadata) => {
     // Make sure that the signer is valid for the protocol
 
@@ -138,25 +163,47 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
 
     switch (metadata.protocol) {
       case ProtocolType.Ethereum:
-        return [
-          AgentSignerKeyType.Hex,
-          signerType === AgentSignerKeyType.Aws,
-          signerType === AgentSignerKeyType.Node,
-        ].includes(signerType);
+        if (
+          ![
+            AgentSignerKeyType.Hex,
+            signerType === AgentSignerKeyType.Aws,
+            signerType === AgentSignerKeyType.Node,
+          ].includes(signerType)
+        ) {
+          return false;
+        }
+        break;
 
       case ProtocolType.Cosmos:
-        return [AgentSignerKeyType.Cosmos].includes(signerType);
+        if (![AgentSignerKeyType.Cosmos].includes(signerType)) {
+          return false;
+        }
+        break;
 
       case ProtocolType.Sealevel:
-        return [AgentSignerKeyType.Hex].includes(signerType);
+        if (![AgentSignerKeyType.Hex].includes(signerType)) {
+          return false;
+        }
+        break;
 
       case ProtocolType.Fuel:
-        return [AgentSignerKeyType.Hex].includes(signerType);
+        if (![AgentSignerKeyType.Hex].includes(signerType)) {
+          return false;
+        }
+        break;
 
       default:
-        // Just default to true if we don't know the protocol
-        return true;
+      // Just accept it if we don't know the protocol
     }
+
+    // If the protocol type is Cosmos, require everything in AgentCosmosChainMetadataSchema
+    if (metadata.protocol === ProtocolType.Cosmos) {
+      if (!AgentCosmosChainMetadataSchema.safeParse(metadata).success) {
+        return false;
+      }
+    }
+
+    return true;
   });
 
 export type AgentChainMetadata = z.infer<typeof AgentChainMetadataSchema>;
@@ -342,6 +389,8 @@ export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 
+// Note this works well for EVM chains only, and likely needs some love
+// before being useful for non-EVM chains.
 export function buildAgentConfig(
   chains: ChainName[],
   multiProvider: MultiProvider,
