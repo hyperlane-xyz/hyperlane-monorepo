@@ -1,5 +1,4 @@
 import {
-  ChainMap,
   CoreConfig,
   CoreViolationType,
   HyperlaneCore,
@@ -9,7 +8,6 @@ import {
   OwnerViolation,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor';
 
@@ -17,11 +15,8 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
   HyperlaneCore,
   CoreConfig
 > {
-  constructor(
-    readonly checker: HyperlaneCoreChecker,
-    owners: ChainMap<Address>,
-  ) {
-    super(checker, owners);
+  constructor(readonly checker: HyperlaneCoreChecker) {
+    super(checker);
   }
 
   protected async handleMailboxViolation(violation: MailboxViolation) {
