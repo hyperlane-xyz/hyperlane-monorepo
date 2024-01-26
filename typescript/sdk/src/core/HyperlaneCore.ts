@@ -18,6 +18,7 @@ import {
 } from '../consts/environments';
 import { appFromAddressesMapHelper } from '../contracts/contracts';
 import { HyperlaneAddressesMap } from '../contracts/types';
+import { OwnableConfig } from '../deploy/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
@@ -50,14 +51,12 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   }
 
   getRouterConfig = (
-    owners: Address | ChainMap<Address>,
+    owners: Address | ChainMap<OwnableConfig>,
   ): ChainMap<RouterConfig> =>
-    objMap(this.contractsMap, (chain, contracts) => {
-      return {
-        mailbox: contracts.mailbox.address,
-        owner: typeof owners === 'string' ? owners : owners[chain],
-      };
-    });
+    objMap(this.contractsMap, (chain, contracts) => ({
+      mailbox: contracts.mailbox.address,
+      owner: typeof owners === 'string' ? owners : owners[chain].owner,
+    }));
 
   quoteGasPayment = (
     origin: ChainName,
