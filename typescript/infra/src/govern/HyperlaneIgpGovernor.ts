@@ -2,18 +2,16 @@ import { BigNumber, ethers } from 'ethers';
 
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import {
-  ChainMap,
   ChainName,
   HyperlaneIgp,
-  HyperlaneIgpChecker,
   IgpBeneficiaryViolation,
   IgpConfig,
   IgpGasOraclesViolation,
   IgpOverheadViolation,
   IgpViolation,
   IgpViolationType,
+  OwnerViolation,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor';
 
@@ -21,15 +19,15 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
   HyperlaneIgp,
   IgpConfig
 > {
-  constructor(checker: HyperlaneIgpChecker, owners: ChainMap<Address>) {
-    super(checker, owners);
-  }
-
   protected async mapViolationsToCalls() {
     for (const violation of this.checker.violations) {
       switch (violation.type) {
         case 'InterchainGasPaymaster': {
           this.handleIgpViolation(violation as IgpViolation);
+          break;
+        }
+        case 'Owner': {
+          super.handleOwnerViolation(violation as OwnerViolation);
           break;
         }
         default:
