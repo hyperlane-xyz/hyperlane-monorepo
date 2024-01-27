@@ -159,6 +159,18 @@ export abstract class HyperlaneDeployer<
     return undefined;
   }
 
+  // returns if ownable is owned by the signer
+  protected async checkIfOwner(
+    chain: ChainName,
+    ownable: Ownable,
+  ): Promise<boolean | undefined> {
+    return this.runIf(
+      chain,
+      await ownable.callStatic.owner(),
+      async () => true,
+    );
+  }
+
   protected async runIfOwner<T>(
     chain: ChainName,
     ownable: Ownable,

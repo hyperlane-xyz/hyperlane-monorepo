@@ -7,6 +7,7 @@ import {
   IL1CrossDomainMessenger__factory,
   OPStackHook,
   OPStackIsm,
+  Ownable__factory,
   ProtocolFee,
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
@@ -49,9 +50,35 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     });
   }
 
-  cacheAddressesMap(addressesMap: ChainMap<CoreAddresses>): void {
-    this.igpDeployer.cacheAddressesMap(addressesMap);
-    super.cacheAddressesMap(addressesMap);
+  async cacheAddressesMap(
+    addressesMap: ChainMap<CoreAddresses>,
+  ): Promise<void> {
+    // filter out artifacts for hooks which are not owned by the deployer
+    // to prevent PI deployments from using ownable core deployments which will fail for all runIfOwner calls
+    // note: this only filters out artifacts in hookFactories, not their respective dependencies like storageGasOracle for interchainGasPaymaster
+    const filteredAddressMap: ChainMap<CoreAddresses> = {};
+    for (const [chain, coreAddresses] of Object.entries(addressesMap)) {
+      for (const [addressKey, coreAddress] of Object.entries(coreAddresses)) {
+        const ownable = Ownable__factory.connect(
+          coreAddress,
+          this.multiProvider.getProvider(chain),
+        );
+        let isOwner = false;
+        try {
+          isOwner = (await this.checkIfOwner(chain, ownable)) || false;
+        } catch (e) {
+          // if not ownable
+        }
+        if (!Object.keys(hookFactories).includes(addressKey) || isOwner) {
+          filteredAddressMap[chain] = {
+            ...filteredAddressMap[chain],
+            [addressKey]: coreAddresses[addressKey as keyof CoreAddresses],
+          };
+        }
+      }
+    }
+    this.igpDeployer.cacheAddressesMap(filteredAddressMap);
+    super.cacheAddressesMap(filteredAddressMap);
   }
 
   async deployContracts(
