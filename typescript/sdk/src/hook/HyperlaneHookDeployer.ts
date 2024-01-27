@@ -63,13 +63,19 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
           coreAddress,
           this.multiProvider.getProvider(chain),
         );
-        let isOwner = false;
+        let isOwnableOwner = false;
         try {
-          isOwner = (await this.checkIfOwner(chain, ownable)) || false;
+          // if ownable, then recover if owner
+          isOwnableOwner = (await this.checkIfOwner(chain, ownable)) || false;
         } catch (e) {
-          // if not ownable
+          // conditional fallacy implies tautological statement
+          // if !ownable, then recover
+          isOwnableOwner = true;
         }
-        if (!Object.keys(hookFactories).includes(addressKey) || isOwner) {
+        if (
+          !Object.keys(hookFactories).includes(addressKey) ||
+          isOwnableOwner
+        ) {
           filteredAddressMap[chain] = {
             ...filteredAddressMap[chain],
             [addressKey]: coreAddresses[addressKey as keyof CoreAddresses],
