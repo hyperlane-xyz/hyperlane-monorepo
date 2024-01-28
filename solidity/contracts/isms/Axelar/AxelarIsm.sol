@@ -77,8 +77,8 @@ contract AxelarIsm is IInterchainSecurityModule, OwnableUpgradeable {
             "Unexpected Axelar source address"
         );
 
-        //TODO get hyperlane ID. verify Axelar gmp input. this is a placeholder zero-value.
-        bytes32 hyperlaneId; // bytes32(payload[:32]);
+        //get hyperlane ID, decode into bytes32 from byte array
+        bytes32 hyperlaneId = abi.decode(payload, (bytes32));
 
         validated[hyperlaneId] = true;
     }
