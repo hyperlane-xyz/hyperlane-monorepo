@@ -79,7 +79,6 @@ contract AxelarIsm is IInterchainSecurityModule, OwnableUpgradeable {
 
         //get hyperlane ID, decode into bytes32 from byte array
         bytes32 hyperlaneId = abi.decode(payload, (bytes32));
-
         validated[hyperlaneId] = true;
     }
 
