@@ -134,6 +134,7 @@ mod tests {
 
     #[derive(Debug, Clone)]
     struct EthereumProviderMock(ProviderMock);
+
     impl Deref for EthereumProviderMock {
         type Target = ProviderMock;
 
@@ -141,11 +142,13 @@ mod tests {
             &self.0
         }
     }
+
     impl Default for EthereumProviderMock {
         fn default() -> Self {
             Self(ProviderMock::default())
         }
     }
+
     impl EthereumProviderMock {
         fn new(request_sleep: Option<Duration>) -> Self {
             Self(ProviderMock::new(request_sleep))
@@ -194,6 +197,18 @@ mod tests {
         }
     }
 
+    impl<C> EthereumFallbackProvider<C>
+    where
+        C: JsonRpcClient<Error = HttpClientError>
+            + PrometheusJsonRpcClientConfigExt
+            + Into<Box<dyn BlockNumberGetter>>
+            + Clone,
+    {
+        async fn low_level_test_call(&self) {
+            self.request::<_, u64>(BLOCK_NUMBER_RPC, ()).await.unwrap();
+        }
+    }
+
     #[tokio::test]
     async fn test_first_provider_is_attempted() {
         let fallback_provider_builder = FallbackProviderBuilder::default();
@@ -204,10 +219,7 @@ mod tests {
         ];
         let fallback_provider = fallback_provider_builder.add_providers(providers).build();
         let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
-        ethereum_fallback_provider
-            .request::<_, u64>(BLOCK_NUMBER_RPC, ())
-            .await
-            .unwrap();
+        ethereum_fallback_provider.low_level_test_call().await;
         let provider_call_count: Vec<_> =
             ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
         assert_eq!(provider_call_count, vec![1, 0, 0]);
@@ -226,15 +238,11 @@ mod tests {
             .with_max_block_time(Duration::from_secs(0))
             .build();
         let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
-        ethereum_fallback_provider
-            .request::<_, u64>(BLOCK_NUMBER_RPC, ())
-            .await
-            .unwrap();
-
+        ethereum_fallback_provider.low_level_test_call().await;
         let provider_call_count: Vec<_> =
             ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
-        // TODO: figure out why there are 2 BLOCK_NUMBER_RPC calls to the stalled provider instead of just one. This could be because
-        // of how ethers work under the hood.
+        // TODO: figure out why there are 2 BLOCK_NUMBER_RPC calls to the stalled provider instead of just one.
+        // This is most likely due to how ethers works, because the cosmrs test does only have one call.
         assert_eq!(provider_call_count, vec![0, 0, 2]);
     }
 

@@ -190,7 +190,6 @@ impl<T> FallbackProviderBuilder<T> {
 
 pub mod test {
     use super::*;
-    use serde::Serialize;
     use std::{
         ops::Deref,
         sync::{Arc, Mutex},
@@ -222,7 +221,7 @@ pub mod test {
             }
         }
 
-        pub fn push<T: Send + Sync + Serialize + Debug>(&self, method: &str, params: T) {
+        pub fn push<T: Debug>(&self, method: &str, params: T) {
             self.requests
                 .lock()
                 .unwrap()
@@ -248,7 +247,6 @@ pub mod test {
                 .iter()
                 .map(|p| {
                     let provider = &fallback_provider.inner.providers[p.index];
-                    println!("Provider has {:?}", provider.requests());
                     provider.requests().len()
                 })
                 .collect()

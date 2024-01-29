@@ -25,7 +25,8 @@ use cosmrs::{
     Any, Coin,
 };
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, HyperlaneDomain, U256,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, ContractLocator,
+    FixedPointNumber, HyperlaneDomain, U256,
 };
 use protobuf::Message as _;
 use serde::Serialize;
@@ -480,5 +481,12 @@ impl WasmProvider for WasmGrpcProvider {
             .await?;
 
         Ok(response)
+    }
+}
+
+#[async_trait]
+impl BlockNumberGetter for WasmGrpcProvider {
+    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
+        self.latest_block_height().await
     }
 }
