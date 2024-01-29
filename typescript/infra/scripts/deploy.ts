@@ -183,6 +183,7 @@ async function main() {
 
   // prompt for confirmation in production environments
   if (environment !== 'test' && !fork) {
+    console.dir(config);
     const { value: confirmed } = await prompt({
       type: 'confirm',
       name: 'value',

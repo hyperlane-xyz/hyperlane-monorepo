@@ -19,6 +19,12 @@
       "address": "0xaad207a0Fd7a4e3C927Ccc78ac8134baF586B852",
       "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
       "isProxy": false
+    },
+    {
+      "name": "HypNative",
+      "address": "0x26f32245fCF5Ad53159E875d5Cae62aEcf19c2d4",
+      "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
+      "isProxy": false
     }
   ]
 }
