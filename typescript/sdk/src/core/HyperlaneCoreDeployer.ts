@@ -44,9 +44,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     );
   }
 
-  cacheAddressesMap(addressesMap: ChainMap<CoreAddresses>): void {
-    this.hookDeployer.cacheAddressesMap(addressesMap);
-    super.cacheAddressesMap(addressesMap);
+  async cacheAddressesMap(
+    addressesMap: ChainMap<CoreAddresses>,
+  ): Promise<void> {
+    await this.hookDeployer.cacheAddressesMap(addressesMap);
+    await super.cacheAddressesMap(addressesMap);
   }
 
   async deployMailbox(

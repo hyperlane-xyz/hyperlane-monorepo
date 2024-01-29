@@ -76,7 +76,9 @@ export abstract class HyperlaneDeployer<
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
   }
 
-  cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
+  async cacheAddressesMap(
+    addressesMap: HyperlaneAddressesMap<any>,
+  ): Promise<void> {
     this.cachedAddresses = addressesMap;
   }
 

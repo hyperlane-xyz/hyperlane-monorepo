@@ -44,7 +44,7 @@ export async function deployWithArtifacts<Config extends object>(
       console.error('Failed to load cached addresses');
     }
 
-    deployer.cacheAddressesMap(addressesMap);
+    await deployer.cacheAddressesMap(addressesMap);
   }
 
   process.on('SIGINT', async () => {

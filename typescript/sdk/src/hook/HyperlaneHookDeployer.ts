@@ -83,8 +83,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         }
       }
     }
-    this.igpDeployer.cacheAddressesMap(filteredAddressMap);
-    super.cacheAddressesMap(filteredAddressMap);
+    await this.igpDeployer.cacheAddressesMap(filteredAddressMap);
+    await super.cacheAddressesMap(filteredAddressMap);
   }
 
   async deployContracts(
