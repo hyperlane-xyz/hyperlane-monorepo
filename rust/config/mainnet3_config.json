@@ -450,6 +450,37 @@
         "prefix": "neutron"
       }
     },
+    "injective": {
+      "name": "injective",
+      "domainId": "6909546",
+      "chainId": "injective-1",
+      "mailbox": "0x0f7fb53961d70687e352aa55cb329ca76edc0c19",
+      "interchainGasPaymaster": "0x27ae52298e5b53b34b7ae0ca63e05845c31e1f59",
+      "validatorAnnounce": "0x1fb225b2fcfbe75e614a1d627de97ff372242eed",
+      "merkleTreeHook": "0x568ad3638447f07def384969f4ea39fae3802962",
+      "protocol": "cosmos",
+      "finalityBlocks": 1,
+      "rpcUrls": [
+        {
+          "http": "https://rpc-injective.goldenratiostaking.net:443"
+        }
+      ],
+      "grpcUrl": "injective-grpc.lavenderfive.com:443",
+      "canonicalAsset": "inj",
+      "bech32Prefix": "inj",
+      "gasPrice": {
+        "amount": "700000000",
+        "denom": "inj"
+      },
+      "contractAddressBytes": 20,
+      "index": {
+        "from": 58419500,
+        "chunk": 100000
+      },
+      "blocks": {
+        "reorgPeriod": 1
+      }
+    },
     "moonbeam": {
       "chainId": 1284,
       "domainId": 1284,
