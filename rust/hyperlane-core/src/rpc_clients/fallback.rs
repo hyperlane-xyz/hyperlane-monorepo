@@ -187,3 +187,71 @@ impl<T> FallbackProviderBuilder<T> {
         }
     }
 }
+
+pub mod test {
+    use super::*;
+    use serde::Serialize;
+    use std::{
+        ops::Deref,
+        sync::{Arc, Mutex},
+    };
+
+    #[derive(Debug, Clone)]
+    pub struct ProviderMock {
+        // Store requests as tuples of (method, params)
+        // Even if the tests were single-threaded, need the arc-mutex
+        // for interior mutability in `JsonRpcClient::request`
+        requests: Arc<Mutex<Vec<(String, String)>>>,
+        request_sleep: Option<Duration>,
+    }
+
+    impl Default for ProviderMock {
+        fn default() -> Self {
+            Self {
+                requests: Arc::new(Mutex::new(vec![])),
+                request_sleep: None,
+            }
+        }
+    }
+
+    impl ProviderMock {
+        pub fn new(request_sleep: Option<Duration>) -> Self {
+            Self {
+                request_sleep,
+                ..Default::default()
+            }
+        }
+
+        pub fn push<T: Send + Sync + Serialize + Debug>(&self, method: &str, params: T) {
+            self.requests
+                .lock()
+                .unwrap()
+                .push((method.to_owned(), format!("{:?}", params)));
+        }
+
+        pub fn requests(&self) -> Vec<(String, String)> {
+            self.requests.lock().unwrap().clone()
+        }
+
+        pub fn request_sleep(&self) -> Option<Duration> {
+            self.request_sleep
+        }
+
+        pub async fn get_call_counts<T: Deref<Target = ProviderMock>>(
+            fallback_provider: &FallbackProvider<T>,
+        ) -> Vec<usize> {
+            fallback_provider
+                .inner
+                .priorities
+                .read()
+                .await
+                .iter()
+                .map(|p| {
+                    let provider = &fallback_provider.inner.providers[p.index];
+                    println!("Provider has {:?}", provider.requests());
+                    provider.requests().len()
+                })
+                .collect()
+        }
+    }
+}
