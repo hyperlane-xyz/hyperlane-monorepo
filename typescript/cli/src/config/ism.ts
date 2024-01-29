@@ -7,7 +7,7 @@ import {
   errorRed,
   log,
   logBlue,
-  logBoldRed,
+  logBoldUnderlinedRed,
   logGreen,
   logRed,
 } from '../../logger.js';
@@ -116,7 +116,7 @@ export async function createIsmConfigMap({
   chainConfigPath: string;
 }) {
   logBlue('Creating a new advanced ISM config');
-  logBoldRed('WARNING: USE AT YOUR RISK.');
+  logBoldUnderlinedRed('WARNING: USE AT YOUR RISK.');
   logRed(
     'Advanced ISM configs require knowledge of different ISM types and how they work together topologically. If possible, use the basic ISM configs are recommended.',
   );

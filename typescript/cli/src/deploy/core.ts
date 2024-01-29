@@ -34,7 +34,7 @@ import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 import {
   log,
   logBlue,
-  logBoldRed,
+  logBoldUnderlinedRed,
   logGray,
   logGreen,
   logRed,
@@ -165,10 +165,12 @@ async function runIsmStep(
     );
   }
 
-  const isIsm = isZODISMConfig(ismConfigPath);
+  const isAdvancedIsm = isZODISMConfig(ismConfigPath);
   // separate flow for 'ism' and 'ism-advanced' options
-  if (isIsm) {
-    logBoldRed('WARNING: YOU ARE DEPLOYING WITH AN ADVANCED ISM CONFIG');
+  if (isAdvancedIsm) {
+    logBoldUnderlinedRed(
+      'WARNING: YOU ARE DEPLOYING WITH AN ADVANCED ISM CONFIG',
+    );
     logRed(
       'Advanced ISM configs require knowledge of different ISM types and how they work together topologically. If possible, use the basic ISM configs are recommended.',
     );
