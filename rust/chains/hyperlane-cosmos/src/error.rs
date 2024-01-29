@@ -29,6 +29,9 @@ pub enum HyperlaneCosmosError {
     /// Tonic error
     #[error("{0}")]
     Tonic(#[from] tonic::transport::Error),
+    /// Tonic codegen error
+    #[error("{0}")]
+    TonicGenError(#[from] tonic::codegen::StdError),
     /// Tendermint RPC Error
     #[error(transparent)]
     TendermintError(#[from] tendermint_rpc::error::Error),

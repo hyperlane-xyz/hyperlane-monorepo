@@ -4226,6 +4226,7 @@ dependencies = [
  "hyperlane-core",
  "injective-protobuf",
  "injective-std",
+ "itertools 0.11.0",
  "once_cell",
  "protobuf",
  "ripemd",

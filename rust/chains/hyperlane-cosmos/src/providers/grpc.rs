@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use async_trait::async_trait;
 use cosmrs::{
     proto::{
@@ -24,9 +26,10 @@ use cosmrs::{
     tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
     Any, Coin,
 };
+use derive_new::new;
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, ContractLocator,
-    FixedPointNumber, HyperlaneDomain, U256,
+    rpc_clients::{BlockNumberGetter, FallbackProvider},
+    ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, HyperlaneDomain, U256,
 };
 use protobuf::Message as _;
 use serde::Serialize;
@@ -35,8 +38,8 @@ use tonic::{
     GrpcMethod, IntoRequest,
 };
 
-use crate::HyperlaneCosmosError;
 use crate::{address::CosmosAddress, CosmosAmount};
+use crate::{rpc_clients::CosmosFallbackProvider, HyperlaneCosmosError};
 use crate::{signers::Signer, ConnectionConf};
 
 /// A multiplier applied to a simulated transaction's gas usage to
@@ -45,6 +48,45 @@ const GAS_ESTIMATE_MULTIPLIER: f64 = 1.25;
 /// The number of blocks in the future in which a transaction will
 /// be valid for.
 const TIMEOUT_BLOCKS: u64 = 1000;
+
+#[derive(Debug, Clone, new)]
+struct GrpcChannel(Channel);
+
+impl Into<GrpcChannel> for Channel {
+    fn into(self) -> GrpcChannel {
+        GrpcChannel::new(self)
+    }
+}
+
+impl Deref for GrpcChannel {
+    type Target = Channel;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[async_trait]
+impl BlockNumberGetter for GrpcChannel {
+    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
+        let mut client = ServiceClient::new(self.0.clone());
+        let request = tonic::Request::new(GetLatestBlockRequest {});
+
+        let response = client
+            .get_latest_block(request)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+        let height = response
+            .block
+            .ok_or_else(|| ChainCommunicationError::from_other_str("block not present"))?
+            .header
+            .ok_or_else(|| ChainCommunicationError::from_other_str("header not present"))?
+            .height;
+
+        Ok(height as u64)
+    }
+}
 
 #[async_trait]
 /// Cosmwasm GRPC Provider
@@ -96,7 +138,7 @@ pub struct WasmGrpcProvider {
     signer: Option<Signer>,
     /// GRPC Channel that can be cheaply cloned.
     /// See `<https://docs.rs/tonic/latest/tonic/transport/struct.Channel.html#multiplexing-requests>`
-    channel: Channel,
+    provider: CosmosFallbackProvider<Channel, GrpcChannel>,
     gas_price: CosmosAmount,
 }
 
@@ -109,9 +151,25 @@ impl WasmGrpcProvider {
         locator: Option<ContractLocator>,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
+        // get all the configured grpc urls and convert them to a Vec<Endpoint>
         let endpoint =
             Endpoint::new(conf.get_grpc_url()).map_err(Into::<HyperlaneCosmosError>::into)?;
+        // create a vec of channels. Replace single Client instantiations with an instantiation over all channels, and then wrapping them in a fallback provider.
+        // However, in this case the fallback provider wouldn't be able to memorize the prioritization across calls
+        // Alternatively, could create a struct Clients that wraps all client types; we'd have one Clients instance per channel and should be straightforward to read blocks this way too.
+
+        // Alternatively, could try wrapping the channels directly in a fallback provider, and reprioritizing that way
+
+        // Looks like the way to go is to create a (Channel, BlockReaderClient) tuple and implement `GrpcService` for it
         let channel = endpoint.connect_lazy();
+
+        // Another option is to create
+
+        let mut builder = FallbackProvider::builder();
+        builder = builder.add_provider(channel);
+        let fallback_provider = builder.build();
+        let provider = CosmosFallbackProvider::new(fallback_provider);
+
         let contract_address = locator
             .map(|l| {
                 CosmosAddress::from_h256(
@@ -127,7 +185,7 @@ impl WasmGrpcProvider {
             conf,
             contract_address,
             signer,
-            channel,
+            provider,
             gas_price,
         })
     }
@@ -227,7 +285,7 @@ impl WasmGrpcProvider {
             signatures: vec![vec![]],
         };
 
-        let mut client = TxServiceClient::new(self.channel.clone());
+        let mut client = TxServiceClient::new(self.provider.clone());
         let tx_bytes = raw_tx
             .to_bytes()
             .map_err(ChainCommunicationError::from_other)?;

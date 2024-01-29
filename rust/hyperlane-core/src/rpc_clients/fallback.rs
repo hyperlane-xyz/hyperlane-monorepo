@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use std::{
     fmt::Debug,
+    marker::PhantomData,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -49,28 +50,31 @@ pub struct PrioritizedProviders<T> {
 
 /// A provider that bundles multiple providers and attempts to call the first,
 /// then the second, and so on until a response is received.
-pub struct FallbackProvider<T> {
+pub struct FallbackProvider<T, B> {
     /// The sub-providers called by this provider
     pub inner: Arc<PrioritizedProviders<T>>,
     max_block_time: Duration,
+    _phantom: PhantomData<B>,
 }
 
-impl<T> Clone for FallbackProvider<T> {
+impl<T, B> Clone for FallbackProvider<T, B> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
             max_block_time: self.max_block_time,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<T> FallbackProvider<T>
+impl<T, B> FallbackProvider<T, B>
 where
-    T: Into<Box<dyn BlockNumberGetter>> + Debug + Clone,
+    T: Into<B> + Debug + Clone,
+    B: BlockNumberGetter,
 {
     /// Convenience method for creating a `FallbackProviderBuilder` with same
     /// `JsonRpcClient` types
-    pub fn builder() -> FallbackProviderBuilder<T> {
+    pub fn builder() -> FallbackProviderBuilder<T, B> {
         FallbackProviderBuilder::default()
     }
 
@@ -112,7 +116,7 @@ where
             return;
         }
 
-        let block_getter: Box<dyn BlockNumberGetter> = provider.clone().into();
+        let block_getter: B = provider.clone().into();
         let current_block_height = block_getter
             .get_block_number()
             .await
@@ -134,21 +138,23 @@ where
 
 /// Builder to create a new fallback provider.
 #[derive(Debug, Clone)]
-pub struct FallbackProviderBuilder<T> {
+pub struct FallbackProviderBuilder<T, B> {
     providers: Vec<T>,
     max_block_time: Duration,
+    _phantom: PhantomData<B>,
 }
 
-impl<T> Default for FallbackProviderBuilder<T> {
+impl<T, B> Default for FallbackProviderBuilder<T, B> {
     fn default() -> Self {
         Self {
             providers: Vec::new(),
             max_block_time: MAX_BLOCK_TIME,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<T> FallbackProviderBuilder<T> {
+impl<T, B> FallbackProviderBuilder<T, B> {
     /// Add a new provider to the set. Each new provider will be a lower
     /// priority than the previous.
     pub fn add_provider(mut self, provider: T) -> Self {
@@ -170,7 +176,7 @@ impl<T> FallbackProviderBuilder<T> {
     }
 
     /// Create a fallback provider.
-    pub fn build(self) -> FallbackProvider<T> {
+    pub fn build(self) -> FallbackProvider<T, B> {
         let provider_count = self.providers.len();
         let prioritized_providers = PrioritizedProviders {
             providers: self.providers,
@@ -184,6 +190,7 @@ impl<T> FallbackProviderBuilder<T> {
         FallbackProvider {
             inner: Arc::new(prioritized_providers),
             max_block_time: self.max_block_time,
+            _phantom: PhantomData,
         }
     }
 }
@@ -236,8 +243,8 @@ pub mod test {
             self.request_sleep
         }
 
-        pub async fn get_call_counts<T: Deref<Target = ProviderMock>>(
-            fallback_provider: &FallbackProvider<T>,
+        pub async fn get_call_counts<T: Deref<Target = ProviderMock>, B>(
+            fallback_provider: &FallbackProvider<T, B>,
         ) -> Vec<usize> {
             fallback_provider
                 .inner

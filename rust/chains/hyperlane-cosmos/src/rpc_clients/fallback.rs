@@ -1,6 +1,7 @@
 use std::{
-    fmt::Debug,
+    fmt::{Debug, Formatter},
     future::Future,
+    marker::PhantomData,
     ops::Deref,
     pin::Pin,
     task::{Context, Poll},
@@ -9,43 +10,67 @@ use std::{
 
 use derive_new::new;
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
+use itertools::Itertools;
 use tokio::time::sleep;
-use tonic::client::GrpcService;
+use tonic::{body::BoxBody, client::GrpcService, codegen::StdError, transport::Channel};
 use tracing::warn_span;
 
 use crate::HyperlaneCosmosError;
-
 /// Wrapper of `FallbackProvider` for use in `hyperlane-cosmos`
 #[derive(new, Clone)]
-pub struct CosmosFallbackProvider<T>(FallbackProvider<T>);
+pub struct CosmosFallbackProvider<T, B> {
+    fallback_provider: FallbackProvider<T, B>,
+    _phantom: PhantomData<B>,
+}
 
-impl<T> Deref for CosmosFallbackProvider<T> {
-    type Target = FallbackProvider<T>;
+impl<T, B> Deref for CosmosFallbackProvider<T, B> {
+    type Target = FallbackProvider<T, B>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.fallback_provider
     }
 }
 
-impl<T, ReqBody> GrpcService<ReqBody> for CosmosFallbackProvider<T>
+impl<C, B> Debug for CosmosFallbackProvider<C, B>
 where
-    T: GrpcService<ReqBody> + Clone + Debug + Into<Box<dyn BlockNumberGetter>> + 'static,
-    <T as GrpcService<ReqBody>>::Error: Into<HyperlaneCosmosError>,
-    ReqBody: Clone + 'static,
+    C: Debug,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        // iterate the inner providers and write them to the formatter
+        f.debug_struct("FallbackProvider")
+            .field(
+                "providers",
+                &self
+                    .fallback_provider
+                    .inner
+                    .providers
+                    .iter()
+                    .map(|v| format!("{:?}", v))
+                    .join(", "),
+            )
+            .finish()
+    }
+}
+
+impl<T, B> GrpcService<BoxBody> for CosmosFallbackProvider<T, B>
+where
+    T: GrpcService<BoxBody> + Clone + Debug + Into<Box<dyn BlockNumberGetter>> + 'static,
+    <T as GrpcService<BoxBody>>::Error: Into<StdError>,
+    <T as GrpcService<BoxBody>>::ResponseBody:
+        tonic::codegen::Body<Data = tonic::codegen::Bytes> + Send + 'static,
+    <T::ResponseBody as tonic::codegen::Body>::Error: Into<StdError> + Send,
 {
     type ResponseBody = T::ResponseBody;
-    type Error = HyperlaneCosmosError;
+    type Error = T::Error;
     type Future =
         Pin<Box<dyn Future<Output = Result<http::Response<Self::ResponseBody>, Self::Error>>>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let mut provider = (*self.inner.providers)[0].clone();
-        provider
-            .poll_ready(cx)
-            .map_err(Into::<HyperlaneCosmosError>::into)
+        provider.poll_ready(cx)
     }
 
-    fn call(&mut self, request: http::Request<ReqBody>) -> Self::Future {
+    fn call(&mut self, request: http::Request<BoxBody>) -> Self::Future {
         // use CategorizedResponse::*;
         let request = clone_request(&request);
         let cloned_self = self.clone();
@@ -79,10 +104,7 @@ where
     }
 }
 
-fn clone_request<ReqBody>(request: &http::Request<ReqBody>) -> http::Request<ReqBody>
-where
-    ReqBody: Clone + 'static,
-{
+fn clone_request(request: &http::Request<BoxBody>) -> http::Request<BoxBody> {
     let builder = http::Request::builder()
         .uri(request.uri().clone())
         .method(request.method().clone())
@@ -169,7 +191,7 @@ mod tests {
         }
     }
 
-    impl CosmosFallbackProvider<CosmosProviderMock> {
+    impl<B> CosmosFallbackProvider<CosmosProviderMock, B> {
         async fn low_level_test_call(&mut self) -> Result<(), ChainCommunicationError> {
             let request = http::Request::builder()
                 .uri("http://localhost:1234")
