@@ -5,6 +5,7 @@ import {
   AggregationIsmConfig,
   ChainMap,
   CoreConfig,
+  FallbackRoutingHookConfig,
   HookType,
   IgpHookConfig,
   IsmType,
@@ -21,7 +22,7 @@ import { objMap } from '@hyperlane-xyz/utils';
 
 import { supportedChainNames } from './chains';
 import { igp } from './igp';
-import { owners, safes } from './owners';
+import { owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
@@ -50,12 +51,12 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
         threshold: 1,
       }),
     ),
-    owner,
+    ...owner,
   };
 
   const pausableIsm: PausableIsmConfig = {
     type: IsmType.PAUSABLE,
-    owner,
+    ...owner,
   };
 
   const defaultIsm: AggregationIsmConfig = {
@@ -75,32 +76,34 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
 
   const pausableHook: PausableHookConfig = {
     type: HookType.PAUSABLE,
-    owner,
+    ...owner,
   };
-
-  const defaultHook: AggregationHookConfig = {
-    type: HookType.AGGREGATION,
-    hooks: [pausableHook, merkleHook, igpHook],
+  const aggregationHooks = objMap(
+    originMultisigs,
+    (_origin, _): AggregationHookConfig => ({
+      type: HookType.AGGREGATION,
+      hooks: [pausableHook, merkleHook, igpHook],
+    }),
+  );
+  const defaultHook: FallbackRoutingHookConfig = {
+    type: HookType.FALLBACK_ROUTING,
+    ...owner,
+    domains: aggregationHooks,
+    fallback: merkleHook,
   };
 
   const requiredHook: ProtocolFeeHookConfig = {
     type: HookType.PROTOCOL_FEE,
     maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
     protocolFee: BigNumber.from(0).toString(), // 0 wei
-    beneficiary: owner,
-    owner,
+    beneficiary: owner.owner,
+    ...owner,
   };
 
   return {
-    owner,
     defaultIsm,
     defaultHook,
     requiredHook,
-    ownerOverrides: {
-      proxyAdmin:
-        local === 'arbitrum'
-          ? `0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01`
-          : safes[local] ?? owner,
-    },
+    ...owner,
   };
 });
