@@ -118,7 +118,7 @@ export async function createIsmConfigMap({
   logBlue('Creating a new advanced ISM config');
   logBoldRed('WARNING: USE AT YOUR RISK.');
   logRed(
-    'Advanced ISM config means you need to be very comfortable with different ISM types and how they work together topologically. If you are not, please use the basic ISM config instead.',
+    'Advanced ISM configs require knowledge of different ISM types and how they work together topologically. If possible, use the basic ISM configs are recommended.',
   );
   const customChains = readChainConfigsIfExists(chainConfigPath);
   const chains = await runMultiChainSelectionStep(

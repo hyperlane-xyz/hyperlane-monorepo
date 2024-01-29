@@ -170,7 +170,7 @@ async function runIsmStep(
   if (isIsm) {
     logBoldRed('WARNING: YOU ARE DEPLOYING WITH AN ADVANCED ISM CONFIG');
     logRed(
-      'Advanced ISM config means you need to be very comfortable with different ISM types and how they work together topologically. If you are not, please use the basic ISM config instead.',
+      'Advanced ISM configs require knowledge of different ISM types and how they work together topologically. If possible, use the basic ISM configs are recommended.',
     );
     const ismConfig = readIsmConfig(ismConfigPath);
     const requiredIsms = objFilter(
