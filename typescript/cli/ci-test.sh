@@ -73,6 +73,7 @@ echo "Sending test message"
 yarn workspace @hyperlane-xyz/cli run hyperlane send message \
     --origin anvil1 \
     --destination anvil2 \
+    --messageBody "Howdy!" \
     --chains ./examples/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
     --quick \

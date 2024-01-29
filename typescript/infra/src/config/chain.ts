@@ -1,6 +1,7 @@
 import { providers } from 'ethers';
 
 import {
+  ChainMetadataManager,
   ChainName,
   HyperlaneSmartProvider,
   ProviderRetryOptions,
@@ -22,9 +23,17 @@ export async function fetchProvider(
   chainName: ChainName,
   connectionType: RpcConsensusType = RpcConsensusType.Single,
 ): Promise<providers.Provider> {
-  const chainId = chainMetadata[chainName].chainId;
+  const cmm = new ChainMetadataManager(chainMetadata);
+  const chainData = cmm.tryGetChainMetadata(chainName);
+  if (!chainData) {
+    throw Error(`Unsupported chain: ${chainName}`);
+  }
+  const chainId = chainData.chainId;
   const single = connectionType === RpcConsensusType.Single;
-  const rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
+  let rpcData = chainData.rpcUrls.map((url) => url.http);
+  if (rpcData.length === 0) {
+    rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
+  }
 
   if (connectionType === RpcConsensusType.Single) {
     return HyperlaneSmartProvider.fromRpcUrl(chainId, rpcData[0], defaultRetry);

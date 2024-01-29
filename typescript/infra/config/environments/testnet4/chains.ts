@@ -31,7 +31,8 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
 
 // Blessed non-Ethereum chains.
 export const nonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
-  // solanadevnet: chainMetadata.solanadevnet,
+  solanatestnet: chainMetadata.solanatestnet,
+  eclipsetestnet: chainMetadata.eclipsetestnet,
 };
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {
@@ -54,6 +55,6 @@ export const agentChainNames: AgentChainNames = {
   // Run validators for all chains.
   [Role.Validator]: supportedChainNames,
   // Only run relayers for Ethereum chains at the moment.
-  [Role.Relayer]: ethereumChainNames,
+  [Role.Relayer]: supportedChainNames,
   [Role.Scraper]: ethereumChainNames,
 };

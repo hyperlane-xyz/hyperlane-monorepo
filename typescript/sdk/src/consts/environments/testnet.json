@@ -7,12 +7,9 @@
     "proxyAdmin": "0x05Ea36Caee7d92C173334C9D97DcD39ABdCB2b69",
     "mailbox": "0x58483b754Abb1E8947BE63d6b95DF75b8249543A",
     "validatorAnnounce": "0x679Dc08cC3A4acFeea2f7CAFAa37561aE0b41Ce7",
-    "merkleTreeHook": "0x5821f3B6eE05F3dC62b43B74AB1C8F8E6904b1C8",
     "storageGasOracle": "0x267B6B6eAf6790faE5D5E9070F28a9cE64CbF279",
     "interchainGasPaymaster": "0x28B02B97a850872C4D33C3E024fab6499ad96564",
-    "aggregationHook": "0x168e606fE4A9c8d7F83a3aAA132E831f153e4bAa",
     "protocolFee": "0xEe421285728284000ec6c6C55C6F9161faeFfa99",
-    "fallbackRoutingHook": "0x2C6dD6768E669EDB7b53f26067C1C4534862c3de",
     "testRecipient": "0x54Bd02f0f20677e9846F8E9FdB1Abc7315C49C38",
     "testTokenRecipient": "0x5e65279Fb7293a058776e37587398fcc3E9184b1",
     "routingIsmFactory": "0xb6242d549d4b19a20684397790AFa555b16Bc979"

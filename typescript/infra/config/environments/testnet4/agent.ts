@@ -3,6 +3,7 @@ import {
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
+  getDomainId,
 } from '@hyperlane-xyz/sdk';
 
 import {
@@ -50,7 +51,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: 'c9ef41c-20240126-172723',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -60,14 +61,40 @@ const hyperlane: RootAgentConfig = {
         // gas, we blacklist the old TestRecipient address.
         recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
       },
+      // OptimismGoerli griefers:
+      {
+        destinationDomain: getDomainId(chainMetadata.optimismgoerli),
+        recipientAddress: [
+          '0xed4de02c6f4cb1161bdfefdb2fcdeef4546fa36c',
+          '0x723192fc414fe536b414117a4b2c5a7b71f912e3',
+          '0x5a48723d80a7ee3be6855ca293059b5287ee6689',
+        ],
+      },
+      // Goerli griefers:
+      {
+        destinationDomain: getDomainId(chainMetadata.goerli),
+        recipientAddress: [
+          '0x0461c69ff7f29cfb5efd36b9d377fdfc95418c2b',
+          '0xe747c82ed8560ba137b24a3a97ff7504b50c3e91',
+          '0x6ad92511ee4a3835bde9b1bfd7063023b56a8c56',
+        ],
+      },
     ],
     gasPaymentEnforcement,
+    metricAppContexts: [
+      {
+        name: 'helloworld',
+        matchingList: routerMatchingList(
+          helloWorld[Contexts.Hyperlane].addresses,
+        ),
+      },
+    ],
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: 'c9ef41c-20240126-172723',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -75,7 +102,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '8ccfdb7-20240103-084118',
     },
   },
 };
@@ -88,7 +115,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: 'c9ef41c-20240126-172723',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
@@ -101,7 +128,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: 'c9ef41c-20240126-172723',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },

@@ -10,6 +10,7 @@ borsh.workspace = true
 bs58.workspace = true
 bincode.workspace = true
 clap = { workspace = true, features = ["derive"] }
+ethers.workspace = true
 hex.workspace = true
 pretty_env_logger.workspace = true
 serde.workspace = true
