@@ -187,7 +187,11 @@ export abstract class HyperlaneAppChecker<
     }
   }
 
-  protected async checkProxy(chain: ChainName, name: string, address: string) {
+  protected async checkProxy(
+    chain: ChainName,
+    name: string,
+    address: string,
+  ): Promise<void> {
     return this.checkBytecode(chain, name, address, [
       BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH,
       BytecodeHash.TRANSPARENT_PROXY_4_9_3_BYTECODE_HASH,
