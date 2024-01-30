@@ -295,4 +295,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
   },
+
+  viction: {
+    threshold: 2,
+    validators: [
+      '0x1f87c368f8e05a85ef9126d984a980a20930cb9c',
+      '0x4a2ebbe07cd546cfd2b213d41f2d7814f9386157',
+      '0x00271cf10759e4c6d2f8ca46183ab10d360474b4',
+    ],
+  },
 };

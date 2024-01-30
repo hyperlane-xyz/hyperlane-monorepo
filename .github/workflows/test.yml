@@ -245,6 +245,9 @@ jobs:
             chain: sepolia
           - environment: mainnet3
             chain: arbitrum
+          - environment: mainnet3
+            chain: viction
+            module: core
 
     steps:
       - uses: actions/checkout@v3

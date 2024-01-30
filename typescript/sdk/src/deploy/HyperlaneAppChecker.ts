@@ -11,6 +11,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
+import { BytecodeHash } from '../consts/bytecode';
 import { filterOwnableContracts } from '../contracts/contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -184,6 +185,18 @@ export abstract class HyperlaneAppChecker<
         name,
       } as BytecodeMismatchViolation);
     }
+  }
+
+  protected async checkProxy(
+    chain: ChainName,
+    name: string,
+    address: string,
+  ): Promise<void> {
+    return this.checkBytecode(chain, name, address, [
+      BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH,
+      BytecodeHash.TRANSPARENT_PROXY_4_9_3_BYTECODE_HASH,
+      BytecodeHash.OPT_TRANSPARENT_PROXY_BYTECODE_HASH,
+    ]);
   }
 
   async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
