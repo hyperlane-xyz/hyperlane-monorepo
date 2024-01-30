@@ -4,12 +4,16 @@ use derive_new::new;
 use std::{
     fmt::Debug,
     marker::PhantomData,
+    pin::Pin,
     sync::Arc,
     time::{Duration, Instant},
 };
+use tokio;
 use tracing::info;
 
 use crate::ChainCommunicationError;
+
+use super::RpcClientError;
 
 /// Read the current block number from a chain.
 #[async_trait]
@@ -39,7 +43,6 @@ impl PrioritizedProviderInner {
         }
     }
 }
-
 /// Sub-providers and priority information
 pub struct PrioritizedProviders<T> {
     /// Unsorted list of providers this provider calls
@@ -134,6 +137,36 @@ where
                 .await;
         }
     }
+
+    /// Call the first provider, then the second, and so on (in order of priority) until a response is received.
+    /// If all providers fail, return an error.
+    pub async fn call<V>(
+        &self,
+        mut f: impl FnMut(
+            T,
+        ) -> Pin<
+            Box<dyn std::future::Future<Output = Result<V, ChainCommunicationError>> + Send>,
+        >,
+    ) -> Result<V, ChainCommunicationError> {
+        let mut errors = vec![];
+        // make sure we do at least 4 total retries.
+        while errors.len() <= 3 {
+            if !errors.is_empty() {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            let priorities_snapshot = self.take_priorities_snapshot().await;
+            for (_idx, priority) in priorities_snapshot.iter().enumerate() {
+                let provider = &self.inner.providers[priority.index];
+                self.handle_stalled_provider(priority, provider).await;
+                match f(provider.clone()).await {
+                    Ok(v) => return Ok(v),
+                    Err(e) => errors.push(e),
+                }
+            }
+        }
+
+        Err(RpcClientError::FallbackProvidersFailed(errors).into())
+    }
 }
 
 /// Builder to create a new fallback provider.
@@ -195,6 +228,7 @@ impl<T, B> FallbackProviderBuilder<T, B> {
     }
 }
 
+/// Utilities to import when testing chain-specific fallback providers
 pub mod test {
     use super::*;
     use std::{
@@ -202,6 +236,7 @@ pub mod test {
         sync::{Arc, Mutex},
     };
 
+    /// Provider that stores requests and optionally sleeps before returning a dummy value
     #[derive(Debug, Clone)]
     pub struct ProviderMock {
         // Store requests as tuples of (method, params)
@@ -221,6 +256,7 @@ pub mod test {
     }
 
     impl ProviderMock {
+        /// Create a new provider
         pub fn new(request_sleep: Option<Duration>) -> Self {
             Self {
                 request_sleep,
@@ -228,6 +264,7 @@ pub mod test {
             }
         }
 
+        /// Push a request to the internal store for later inspection
         pub fn push<T: Debug>(&self, method: &str, params: T) {
             self.requests
                 .lock()
@@ -235,14 +272,17 @@ pub mod test {
                 .push((method.to_owned(), format!("{:?}", params)));
         }
 
+        /// Get the stored requests
         pub fn requests(&self) -> Vec<(String, String)> {
             self.requests.lock().unwrap().clone()
         }
 
+        /// Set the sleep duration
         pub fn request_sleep(&self) -> Option<Duration> {
             self.request_sleep
         }
 
+        /// Get how many times each provider was called
         pub async fn get_call_counts<T: Deref<Target = ProviderMock>, B>(
             fallback_provider: &FallbackProvider<T, B>,
         ) -> Vec<usize> {

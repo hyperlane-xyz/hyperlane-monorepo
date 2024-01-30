@@ -16,8 +16,8 @@ use reqwest::{Client, Url};
 use thiserror::Error;
 
 use ethers_prometheus::json_rpc_client::{
-    JsonRpcClientMetrics, JsonRpcClientMetricsBuilder, NodeInfo, PrometheusJsonRpcClient,
-    PrometheusJsonRpcClientConfig,
+    JsonRpcBlockGetter, JsonRpcClientMetrics, JsonRpcClientMetricsBuilder, NodeInfo,
+    PrometheusJsonRpcClient, PrometheusJsonRpcClientConfig,
 };
 use ethers_prometheus::middleware::{
     MiddlewareMetrics, PrometheusMiddleware, PrometheusMiddlewareConf,
@@ -116,7 +116,10 @@ pub trait BuildableWithProvider {
                     builder = builder.add_provider(metrics_provider);
                 }
                 let fallback_provider = builder.build();
-                let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
+                let ethereum_fallback_provider = EthereumFallbackProvider::<
+                    _,
+                    JsonRpcBlockGetter<PrometheusJsonRpcClient<Http>>,
+                >::new(fallback_provider);
                 self.build(
                     ethereum_fallback_provider,
                     locator,

@@ -1,37 +1,27 @@
 use std::{
     fmt::{Debug, Formatter},
-    future::Future,
-    marker::PhantomData,
     ops::Deref,
-    pin::Pin,
-    task::{Context, Poll},
-    time::Duration,
 };
 
 use derive_new::new;
-use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
+use hyperlane_core::rpc_clients::FallbackProvider;
 use itertools::Itertools;
-use tokio::time::sleep;
-use tonic::{body::BoxBody, client::GrpcService, codegen::StdError, transport::Channel};
-use tracing::warn_span;
 
-use crate::HyperlaneCosmosError;
 /// Wrapper of `FallbackProvider` for use in `hyperlane-cosmos`
 #[derive(new, Clone)]
-pub struct CosmosFallbackProvider<T, B> {
-    fallback_provider: FallbackProvider<T, B>,
-    _phantom: PhantomData<B>,
+pub struct CosmosFallbackProvider<T> {
+    fallback_provider: FallbackProvider<T, T>,
 }
 
-impl<T, B> Deref for CosmosFallbackProvider<T, B> {
-    type Target = FallbackProvider<T, B>;
+impl<T> Deref for CosmosFallbackProvider<T> {
+    type Target = FallbackProvider<T, T>;
 
     fn deref(&self) -> &Self::Target {
         &self.fallback_provider
     }
 }
 
-impl<C, B> Debug for CosmosFallbackProvider<C, B>
+impl<C> Debug for CosmosFallbackProvider<C>
 where
     C: Debug,
 {
@@ -52,68 +42,68 @@ where
     }
 }
 
-impl<T, B> GrpcService<BoxBody> for CosmosFallbackProvider<T, B>
-where
-    T: GrpcService<BoxBody> + Clone + Debug + Into<Box<dyn BlockNumberGetter>> + 'static,
-    <T as GrpcService<BoxBody>>::Error: Into<StdError>,
-    <T as GrpcService<BoxBody>>::ResponseBody:
-        tonic::codegen::Body<Data = tonic::codegen::Bytes> + Send + 'static,
-    <T::ResponseBody as tonic::codegen::Body>::Error: Into<StdError> + Send,
-{
-    type ResponseBody = T::ResponseBody;
-    type Error = T::Error;
-    type Future =
-        Pin<Box<dyn Future<Output = Result<http::Response<Self::ResponseBody>, Self::Error>>>>;
+// impl<T> GrpcService<BoxBody> for CosmosFallbackProvider<T>
+// where
+//     T: GrpcService<BoxBody> + Clone + Debug + Into<Box<dyn BlockNumberGetter>> + 'static,
+//     <T as GrpcService<BoxBody>>::Error: Into<StdError>,
+//     <T as GrpcService<BoxBody>>::ResponseBody:
+//         tonic::codegen::Body<Data = tonic::codegen::Bytes> + Send + 'static,
+//     <T::ResponseBody as tonic::codegen::Body>::Error: Into<StdError> + Send,
+// {
+//     type ResponseBody = T::ResponseBody;
+//     type Error = T::Error;
+//     type Future =
+//         Pin<Box<dyn Future<Output = Result<http::Response<Self::ResponseBody>, Self::Error>>>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let mut provider = (*self.inner.providers)[0].clone();
-        provider.poll_ready(cx)
-    }
+//     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+//         let mut provider = (*self.inner.providers)[0].clone();
+//         provider.poll_ready(cx)
+//     }
 
-    fn call(&mut self, request: http::Request<BoxBody>) -> Self::Future {
-        // use CategorizedResponse::*;
-        let request = clone_request(&request);
-        let cloned_self = self.clone();
-        let f = async move {
-            let mut errors = vec![];
-            // make sure we do at least 4 total retries.
-            while errors.len() <= 3 {
-                if !errors.is_empty() {
-                    sleep(Duration::from_millis(100)).await
-                }
-                let priorities_snapshot = cloned_self.take_priorities_snapshot().await;
-                for (idx, priority) in priorities_snapshot.iter().enumerate() {
-                    let mut provider = cloned_self.inner.providers[priority.index].clone();
-                    let resp = provider.call(clone_request(&request)).await;
-                    cloned_self
-                        .handle_stalled_provider(priority, &provider)
-                        .await;
-                    let _span =
-                        warn_span!("request", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
+//     fn call(&mut self, request: http::Request<BoxBody>) -> Self::Future {
+//         // use CategorizedResponse::*;
+//         let request = clone_request(&request);
+//         let cloned_self = self.clone();
+//         let f = async move {
+//             let mut errors = vec![];
+//             // make sure we do at least 4 total retries.
+//             while errors.len() <= 3 {
+//                 if !errors.is_empty() {
+//                     sleep(Duration::from_millis(100)).await
+//                 }
+//                 let priorities_snapshot = cloned_self.take_priorities_snapshot().await;
+//                 for (idx, priority) in priorities_snapshot.iter().enumerate() {
+//                     let mut provider = cloned_self.inner.providers[priority.index].clone();
+//                     let resp = provider.call(clone_request(&request)).await;
+//                     cloned_self
+//                         .handle_stalled_provider(priority, &provider)
+//                         .await;
+//                     let _span =
+//                         warn_span!("request", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
 
-                    match resp {
-                        Ok(r) => return Ok(r),
-                        Err(e) => errors.push(e.into()),
-                    }
-                }
-            }
+//                     match resp {
+//                         Ok(r) => return Ok(r),
+//                         Err(e) => errors.push(e.into()),
+//                     }
+//                 }
+//             }
 
-            Err(HyperlaneCosmosError::FallbackProvidersFailed(errors))
-        };
-        Box::pin(f)
-    }
-}
+//             Err(HyperlaneCosmosError::FallbackProvidersFailed(errors))
+//         };
+//         Box::pin(f)
+//     }
+// }
 
-fn clone_request(request: &http::Request<BoxBody>) -> http::Request<BoxBody> {
-    let builder = http::Request::builder()
-        .uri(request.uri().clone())
-        .method(request.method().clone())
-        .version(request.version());
-    let builder = request.headers().iter().fold(builder, |builder, (k, v)| {
-        builder.header(k.clone(), v.clone())
-    });
-    builder.body(request.body().clone()).unwrap()
-}
+// fn clone_request(request: &http::Request<BoxBody>) -> http::Request<BoxBody> {
+//     let builder = http::Request::builder()
+//         .uri(request.uri().clone())
+//         .method(request.method().clone())
+//         .version(request.version());
+//     let builder = request.headers().iter().fold(builder, |builder, (k, v)| {
+//         builder.header(k.clone(), v.clone())
+//     });
+//     builder.body(request.body().clone()).unwrap()
+// }
 
 #[cfg(test)]
 mod tests {
@@ -160,45 +150,21 @@ mod tests {
         }
     }
 
-    impl<ReqBody> GrpcService<ReqBody> for CosmosProviderMock
-    where
-        ReqBody: Clone + 'static,
-    {
-        type ResponseBody = tonic::body::BoxBody;
-        type Error = HyperlaneCosmosError;
-        type Future =
-            Pin<Box<dyn Future<Output = Result<http::Response<Self::ResponseBody>, Self::Error>>>>;
-
-        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-            todo!()
-        }
-
-        fn call(&mut self, request: http::Request<ReqBody>) -> Self::Future {
-            self.push(
-                Default::default(),
-                format!("method: {:?}, uri: {:?}", request.method(), request.uri()),
-            );
-            let body = tonic::body::BoxBody::default();
-            let self_clone = self.clone();
-            let f = async move {
-                let response = http::Response::builder().status(200).body(body).unwrap();
-                if let Some(sleep_duration) = self_clone.request_sleep() {
-                    sleep(sleep_duration).await;
-                }
-                Ok(response)
-            };
-            Box::pin(f)
-        }
-    }
-
-    impl<B> CosmosFallbackProvider<CosmosProviderMock, B> {
+    impl CosmosFallbackProvider<CosmosProviderMock> {
         async fn low_level_test_call(&mut self) -> Result<(), ChainCommunicationError> {
-            let request = http::Request::builder()
-                .uri("http://localhost:1234")
-                .method("GET")
-                .body(())
-                .unwrap();
-            self.call(request).await?;
+            self.call(|provider| {
+                provider.push("GET", "http://localhost:1234");
+                let future = async move {
+                    let body = tonic::body::BoxBody::default();
+                    let response = http::Response::builder().status(200).body(body).unwrap();
+                    if let Some(sleep_duration) = provider.request_sleep() {
+                        sleep(sleep_duration).await;
+                    }
+                    Ok(response)
+                };
+                Pin::from(Box::from(future))
+            })
+            .await?;
             Ok(())
         }
     }

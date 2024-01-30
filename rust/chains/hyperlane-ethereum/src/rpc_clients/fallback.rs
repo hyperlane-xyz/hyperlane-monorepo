@@ -12,23 +12,23 @@ use serde_json::Value;
 use tokio::time::sleep;
 use tracing::{instrument, warn_span};
 
-use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClientConfigExt;
+use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, PrometheusJsonRpcClientConfigExt};
 
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 
 /// Wrapper of `FallbackProvider` for use in `hyperlane-ethereum`
 #[derive(new)]
-pub struct EthereumFallbackProvider<C>(FallbackProvider<C>);
+pub struct EthereumFallbackProvider<C, B>(FallbackProvider<C, B>);
 
-impl<C> Deref for EthereumFallbackProvider<C> {
-    type Target = FallbackProvider<C>;
+impl<C, B> Deref for EthereumFallbackProvider<C, B> {
+    type Target = FallbackProvider<C, B>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<C> Debug for EthereumFallbackProvider<C>
+impl<C, B> Debug for EthereumFallbackProvider<C, B>
 where
     C: JsonRpcClient + PrometheusJsonRpcClientConfigExt,
 {
@@ -75,12 +75,13 @@ impl From<FallbackError> for ProviderError {
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-impl<C> JsonRpcClient for EthereumFallbackProvider<C>
+impl<C> JsonRpcClient for EthereumFallbackProvider<C, JsonRpcBlockGetter<C>>
 where
     C: JsonRpcClient<Error = HttpClientError>
+        + Into<JsonRpcBlockGetter<C>>
         + PrometheusJsonRpcClientConfigExt
-        + Into<Box<dyn BlockNumberGetter>>
         + Clone,
+    JsonRpcBlockGetter<C>: BlockNumberGetter,
 {
     type Error = ProviderError;
 
@@ -155,9 +156,9 @@ mod tests {
         }
     }
 
-    impl Into<Box<dyn BlockNumberGetter>> for EthereumProviderMock {
-        fn into(self) -> Box<dyn BlockNumberGetter> {
-            Box::new(JsonRpcBlockGetter::new(self.clone()))
+    impl Into<JsonRpcBlockGetter<EthereumProviderMock>> for EthereumProviderMock {
+        fn into(self) -> JsonRpcBlockGetter<EthereumProviderMock> {
+            JsonRpcBlockGetter::new(self)
         }
     }
 
@@ -197,12 +198,13 @@ mod tests {
         }
     }
 
-    impl<C> EthereumFallbackProvider<C>
+    impl<C> EthereumFallbackProvider<C, JsonRpcBlockGetter<C>>
     where
         C: JsonRpcClient<Error = HttpClientError>
             + PrometheusJsonRpcClientConfigExt
-            + Into<Box<dyn BlockNumberGetter>>
+            + Into<JsonRpcBlockGetter<C>>
             + Clone,
+        JsonRpcBlockGetter<C>: BlockNumberGetter,
     {
         async fn low_level_test_call(&self) {
             self.request::<_, u64>(BLOCK_NUMBER_RPC, ()).await.unwrap();
