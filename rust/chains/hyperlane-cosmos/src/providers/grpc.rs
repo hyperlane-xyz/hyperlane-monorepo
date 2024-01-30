@@ -149,11 +149,15 @@ impl WasmGrpcProvider {
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
         // get all the configured grpc urls and convert them to a Vec<Endpoint>
-        let endpoint =
-            Endpoint::new(conf.get_grpc_url()).map_err(Into::<HyperlaneCosmosError>::into)?;
-        let channel = endpoint.connect_lazy();
+        let endpoints: Result<Vec<Endpoint>, _> = conf
+            .get_grpc_urls()
+            .into_iter()
+            .map(|url| Endpoint::new(url).map_err(Into::<HyperlaneCosmosError>::into))
+            .collect();
+        let channels: Vec<CosmosChannel> =
+            endpoints?.iter().map(|e| e.connect_lazy().into()).collect();
         let mut builder = FallbackProvider::builder();
-        builder = builder.add_provider(CosmosChannel::from(channel));
+        builder = builder.add_providers(channels);
         let fallback_provider = builder.build();
         let provider = CosmosFallbackProvider::new(fallback_provider);
 

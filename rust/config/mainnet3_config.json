@@ -480,7 +480,11 @@
           "http": "https://rpc-injective.goldenratiostaking.net:443"
         }
       ],
-      "grpcUrl": "https://injective-grpc.publicnode.com/",
+      "grpcUrls": [
+        {
+          "http": "https://injective-grpc.goldenratiostaking.net:443"
+        }
+      ],
       "canonicalAsset": "inj",
       "bech32Prefix": "inj",
       "gasPrice": {

@@ -1,6 +1,7 @@
 use eyre::eyre;
 use hyperlane_core::config::ConfigErrResultExt;
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
+use itertools::Itertools;
 use url::Url;
 
 use crate::settings::envs::*;
@@ -44,18 +45,20 @@ pub fn build_cosmos_connection_conf(
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
 
-    let grpc_url = chain
+    let grpc_urls = chain
         .chain(&mut local_err)
-        .get_key("grpcUrl")
-        .parse_string()
-        .end()
-        .or_else(|| {
-            local_err.push(
-                &chain.cwp + "grpc_url",
-                eyre!("Missing grpc definitions for chain"),
-            );
-            None
-        });
+        .get_key("grpcUrls")
+        .into_array_iter()
+        .map(|urls| {
+            urls.filter_map(|v| {
+                v.chain(err)
+                    .get_key("http")
+                    .parse_from_str("Invalid http url")
+                    .end()
+            })
+            .collect_vec()
+        })
+        .unwrap_or_default();
 
     let chain_id = chain
         .chain(&mut local_err)
@@ -114,7 +117,7 @@ pub fn build_cosmos_connection_conf(
         None
     } else {
         Some(ChainConnectionConf::Cosmos(h_cosmos::ConnectionConf::new(
-            grpc_url.unwrap().to_string(),
+            grpc_urls,
             rpcs.first().unwrap().to_string(),
             chain_id.unwrap().to_string(),
             prefix.unwrap().to_string(),

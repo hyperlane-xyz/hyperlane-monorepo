@@ -7,7 +7,7 @@ use hyperlane_core::{ChainCommunicationError, FixedPointNumber};
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// The GRPC url to connect to
-    grpc_url: String,
+    grpc_urls: Vec<String>,
     /// The RPC url to connect to
     rpc_url: String,
     /// The chain ID
@@ -76,8 +76,8 @@ pub enum ConnectionConfError {
 
 impl ConnectionConf {
     /// Get the GRPC url
-    pub fn get_grpc_url(&self) -> String {
-        self.grpc_url.clone()
+    pub fn get_grpc_urls(&self) -> Vec<String> {
+        self.grpc_urls.clone()
     }
 
     /// Get the RPC url
@@ -112,7 +112,7 @@ impl ConnectionConf {
 
     /// Create a new connection configuration
     pub fn new(
-        grpc_url: String,
+        grpc_urls: Vec<String>,
         rpc_url: String,
         chain_id: String,
         bech32_prefix: String,
@@ -121,7 +121,7 @@ impl ConnectionConf {
         contract_address_bytes: usize,
     ) -> Self {
         Self {
-            grpc_url,
+            grpc_urls,
             rpc_url,
             chain_id,
             bech32_prefix,
