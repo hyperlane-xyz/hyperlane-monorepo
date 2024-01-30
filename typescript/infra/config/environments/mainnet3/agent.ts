@@ -13,7 +13,7 @@ import {
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
-import { agentChainNames, environment } from './chains';
+import { agentChainNames, environment, ethereumChainNames } from './chains';
 import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
@@ -49,7 +49,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8ccfdb7-20240103-084118',
+      tag: '8fe2483-20240130-211959',
     },
     gasPaymentEnforcement,
     metricAppContexts: [
@@ -81,12 +81,16 @@ const hyperlane: RootAgentConfig = {
 const releaseCandidate: RootAgentConfig = {
   ...contextBase,
   context: Contexts.ReleaseCandidate,
+  contextChainNames: {
+    ...contextBase.contextChainNames,
+    [Role.Validator]: ethereumChainNames,
+  },
   rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8ccfdb7-20240103-084118',
+      tag: '8fe2483-20240130-211959',
     },
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
@@ -98,7 +102,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '8ccfdb7-20240103-084118',
+      tag: '8fe2483-20240130-211959',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),

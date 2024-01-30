@@ -1,4 +1,5 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { ChainMetadata, RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { ProtocolType, objFilter } from '@hyperlane-xyz/utils';
 
 import {
   getKeysForRole,
@@ -26,15 +27,22 @@ export const environment: EnvironmentConfig = {
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
     connectionType?: RpcConsensusType,
-  ) =>
-    getMultiProviderForRole(
+  ) => {
+    const config = objFilter(
       mainnetConfigs,
+      (_, chainMetadata): chainMetadata is ChainMetadata =>
+        chainMetadata.protocol === ProtocolType.Ethereum,
+    );
+
+    return getMultiProviderForRole(
+      config,
       environmentName,
       context,
       role,
       undefined,
       connectionType,
-    ),
+    );
+  },
   getKeys: (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,

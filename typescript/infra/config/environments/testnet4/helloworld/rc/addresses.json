@@ -1,32 +1,38 @@
 {
-  "alfajores": {
-    "router": "0x40Adcb03F3C58170b4751c4140636FC6085Ff475"
-  },
-  "fuji": {
-    "router": "0xAc003FcDD0EE223664F2A000B5A59D082745700b"
-  },
-  "mumbai": {
-    "router": "0xaB0892029C3E7dD4c0235590dc296E618A7b4d03"
-  },
-  "bsctestnet": {
-    "router": "0xd259b0e793535325786675542aB296c451535c27"
-  },
-  "goerli": {
-    "router": "0x03e9531ae74e8F0f96DE26788a22d35bdaD24185"
-  },
-  "moonbasealpha": {
-    "router": "0xE9D6317a10860340f035f3d09052D9d376855bE8"
-  },
-  "optimismgoerli": {
-    "router": "0x057d38d184d74192B96840D8FbB37e584dDb569A"
+  "basegoerli": {
+    "router": "0xC83e12EF2627ACE445C298e6eC418684918a6002"
   },
   "arbitrumgoerli": {
-    "router": "0xaAF1BF6f2BfaE290ea8615066fd167e396a2f578"
+    "router": "0xEAb4d0A8ba9F1d3a3A665b3F1DE05890A72135D3"
+  },
+  "optimismgoerli": {
+    "router": "0x7A4A358bF134a55920B4E2cdEbB62961C7a48D19"
+  },
+  "scrollsepolia": {
+    "router": "0xA9425D5cBcD2c83EB2a5BF453EAA18968db3ef77"
+  },
+  "alfajores": {
+    "router": "0x4D1d8394cBb445A75aE63fDd24421A353B73FF25"
+  },
+  "polygonzkevmtestnet": {
+    "router": "0xb3D796584fDeBE2321894eeF31e0C3ec52169C61"
   },
   "sepolia": {
-    "router": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217"
+    "router": "0xEB25e6e42B743a815E5C0409007993a828a0565f"
   },
-  "solanadevnet": {
-    "router": "DdTMkk9nuqH5LnD56HLkPiKMV3yB3BNEYSQfgmJHa5i7"
+  "fuji": {
+    "router": "0x29d70a6753D3F3E756502dE6dCd393fE85a97b73"
+  },
+  "bsctestnet": {
+    "router": "0x643C7A37FB191A8a63BAB40264B251714F527AED"
+  },
+  "goerli": {
+    "router": "0x916e550aF85E0Ee7A28FAf54b3E1d87f8f4c0Cdd"
+  },
+  "moonbasealpha": {
+    "router": "0xabB6e0A30acEB8327EcC6D25bABf409081fDF2DA"
+  },
+  "mumbai": {
+    "router": "0x4d8323Bb5cD72148e826fCAb9B4A9dd09f77C905"
   }
 }
