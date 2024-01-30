@@ -11,7 +11,7 @@ use hyperlane_core::{
 };
 pub use metrics::ContractSyncMetrics;
 use tokio::time::sleep;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::settings::IndexSettings;
 
@@ -19,7 +19,7 @@ mod cursor;
 mod eta_calculator;
 mod metrics;
 
-const SLEEP_MS: u64 = 5_000;
+const SLEEP_DURATION: Duration = Duration::from_secs(5);
 
 /// Entity that drives the syncing of an agent's db with on-chain data.
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
@@ -64,15 +64,22 @@ where
         loop {
             indexed_height.set(cursor.latest_block() as i64);
             let Ok((action, eta)) = cursor.next_action().await else {
-                sleep(Duration::from_millis(SLEEP_MS)).await;
+                sleep(SLEEP_DURATION).await;
                 continue;
             };
             let sleep_duration = match action {
+                // Use `loop` but always break - this allows for returning a value
+                // from the loop (the sleep duration)
+                #[allow(clippy::never_loop)]
                 CursorAction::Query(range) => loop {
                     debug!(?range, "Looking for for events in index range");
 
-                    let Ok(logs) = self.indexer.fetch_logs(range.clone()).await else {
-                        break SLEEP_MS;
+                    let logs = match self.indexer.fetch_logs(range.clone()).await {
+                        Ok(logs) => logs,
+                        Err(err) => {
+                            warn!(?err, "Failed to fetch logs");
+                            break SLEEP_DURATION;
+                        }
                     };
                     let deduped_logs = HashSet::<_>::from_iter(logs);
                     let logs = Vec::from_iter(deduped_logs);
@@ -84,22 +91,25 @@ where
                         "Found log(s) in index range"
                     );
                     // Store deliveries
-                    let Ok(stored) = self.db.store_logs(&logs).await else {
-                        break SLEEP_MS;
+                    let stored = match self.db.store_logs(&logs).await {
+                        Ok(stored) => stored,
+                        Err(err) => {
+                            warn!(?err, "Failed to store logs in db");
+                            break SLEEP_DURATION;
+                        }
                     };
                     // Report amount of deliveries stored into db
                     stored_logs.inc_by(stored as u64);
                     // Update cursor
-                    let Ok(_) = cursor.update(logs).await else {
-                        break SLEEP_MS;
+                    if let Err(err) = cursor.update(logs).await {
+                        warn!(?err, "Failed to store logs in db");
+                        break SLEEP_DURATION;
                     };
-                    Default::default()
+                    break Default::default();
                 },
-                CursorAction::Sleep(duration) => {
-                    duration.as_millis().try_into().unwrap_or(SLEEP_MS)
-                }
+                CursorAction::Sleep(duration) => duration,
             };
-            sleep(Duration::from_millis(sleep_duration)).await;
+            sleep(sleep_duration).await;
         }
     }
 }
