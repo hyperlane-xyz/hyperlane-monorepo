@@ -14,7 +14,10 @@
     "validatorAnnounce": "0x454E1a1E1CA8B51506090f1b5399083658eA4Fc5",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-    "routingIsmFactory": "0x0d0E816eE4557689d34fAd5885C53b9393C1D9fA"
+    "routingIsmFactory": "0x0d0E816eE4557689d34fAd5885C53b9393C1D9fA",
+    "interchainSecurityModule": "0x9a795fB62f86146ec06e2377e3C95Af65c7C20eB",
+    "fallbackRoutingHook": "0xca4cCe24E7e06241846F5EA0cda9947F0507C40C",
+    "pausableHook": "0x748040afB89B8FdBb992799808215419d36A0930"
   },
   "bsc": {
     "storageGasOracle": "0x91d23D603d60445411C06e6443d81395593B7940",
@@ -31,7 +34,10 @@
     "validatorAnnounce": "0x7024078130D9c2100fEA474DAD009C2d1703aCcd",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-    "routingIsmFactory": "0xe6Af5720d34213C805C08e2470aea979e3F72F75"
+    "routingIsmFactory": "0xe6Af5720d34213C805C08e2470aea979e3F72F75",
+    "interchainSecurityModule": "0xab3df354baBee6c2B88E2CeD3b2e030e31aA5e61",
+    "fallbackRoutingHook": "0x237E81f87F57Badad9e09f13CC676D986cA852e7",
+    "pausableHook": "0x7DBdAd1b4A922B65d37d7258a4227b6658344b7f"
   },
   "arbitrum": {
     "storageGasOracle": "0xD3805207b65d99C075ceA938Fa7c0587026a5DF5",
@@ -48,7 +54,10 @@
     "validatorAnnounce": "0x1df063280C4166AF9a725e3828b4dAC6c7113B08",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-    "routingIsmFactory": "0xa2931C37957f3079d3B21b877d56E1db930e02a5"
+    "routingIsmFactory": "0xa2931C37957f3079d3B21b877d56E1db930e02a5",
+    "pausableHook": "0xEf30f29Dcd3FCB1DCcDA9C7Cbf2A5957E8Ee9Cc3",
+    "fallbackRoutingHook": "0x9e8fFb1c26099e75Dd5D794030e2E9AA51471c25",
+    "interchainSecurityModule": "0xD0DBBF922076352cC50B285A0023536561F00EEa"
   },
   "optimism": {
     "storageGasOracle": "0x27e88AeB8EA4B159d81df06355Ea3d20bEB1de38",
@@ -65,7 +74,10 @@
     "validatorAnnounce": "0x30f5b08e01808643221528BB2f7953bf2830Ef38",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-    "routingIsmFactory": "0xD2e905108c5e44dADA680274740f896Ea96Cf2Fb"
+    "routingIsmFactory": "0xD2e905108c5e44dADA680274740f896Ea96Cf2Fb",
+    "pausableHook": "0xf753CA2269c8A7693ce1808b5709Fbf36a65D47A",
+    "fallbackRoutingHook": "0xD4b132C6d4AA93A4247F1A91e1ED929c0572a43d",
+    "interchainSecurityModule": "0x04938856bE60c8e734ffDe5f720E2238302BE8D2"
   },
   "moonbeam": {
     "storageGasOracle": "0x448b7ADB0dA36d41AA2AfDc9d63b97541A7b3819",
@@ -82,7 +94,10 @@
     "validatorAnnounce": "0x8c1001eBee6F25b31863A55EadfF149aF88B356F",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-    "routingIsmFactory": "0x8061Af3A459093540d17823D651BC5E2A92669a7"
+    "routingIsmFactory": "0x8061Af3A459093540d17823D651BC5E2A92669a7",
+    "pausableHook": "0xe28f2AEEB42ee83CAd068D9A9a449c8b868C137f",
+    "fallbackRoutingHook": "0x6C2D6eA0969F7Aa0A850CCA88c7BFACa563B2361",
+    "interchainSecurityModule": "0x373836DFa82f2D27ec79Ca32A197Aa1665F0E1e9"
   },
   "gnosis": {
     "storageGasOracle": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9",
@@ -99,7 +114,10 @@
     "validatorAnnounce": "0x87ED6926abc9E38b9C7C19f835B41943b622663c",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-    "routingIsmFactory": "0xbB5Df000113e767dE11343A16f83De733e5bCC0F"
+    "routingIsmFactory": "0xbB5Df000113e767dE11343A16f83De733e5bCC0F",
+    "pausableHook": "0xf728C884De5275a608dEC222dACd0f2BF2E23AB6",
+    "fallbackRoutingHook": "0x24f5E353dD03E103Ba2372F7D6FC0cf3A66f849c",
+    "interchainSecurityModule": "0x8e1aa0687B6d939D5a44304D13B7c922ebB012f1"
   },
   "base": {
     "merkleRootMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
@@ -114,7 +132,10 @@
     "aggregationHook": "0x13f3d4B0Ee0a713430fded9E18f7fb6c91A6E41F",
     "protocolFee": "0x99ca8c74cE7Cfa9d72A51fbb05F9821f5f826b3a",
     "validatorAnnounce": "0x182E8d7c5F1B06201b102123FC7dF0EaeB445a7B",
-    "routingIsmFactory": "0x7E27456a839BFF31CA642c060a2b68414Cb6e503"
+    "routingIsmFactory": "0x7E27456a839BFF31CA642c060a2b68414Cb6e503",
+    "pausableHook": "0x46fa3A5780e5B90Eaf34BDED554d5353B5ABE9E7",
+    "fallbackRoutingHook": "0x4Eb82Ee35b0a1c1d776E3a3B547f9A9bA6FCC9f2",
+    "interchainSecurityModule": "0x5D1e7D7c5B9e6dDC8439F67F10c578f2A1084f6F"
   },
   "scroll": {
     "merkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -129,7 +150,10 @@
     "protocolFee": "0xc3F23848Ed2e04C0c6d41bd7804fa8f89F940B94",
     "mailbox": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
     "validatorAnnounce": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
-    "routingIsmFactory": "0xe03dad16074BC5EEA9A9311257BF02Eb0B6AAA2b"
+    "routingIsmFactory": "0xe03dad16074BC5EEA9A9311257BF02Eb0B6AAA2b",
+    "pausableHook": "0x4Eb82Ee35b0a1c1d776E3a3B547f9A9bA6FCC9f2",
+    "fallbackRoutingHook": "0xDa7cECb05C4aeB02c1aFDE277d4306a2da7Bd762",
+    "interchainSecurityModule": "0xaDc0cB48E8DB81855A930C0C1165ea3dCe4Ba5C7"
   },
   "polygonzkevm": {
     "merkleRootMultisigIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
@@ -144,7 +168,10 @@
     "protocolFee": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
     "mailbox": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
     "validatorAnnounce": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
-    "routingIsmFactory": "0xe4057c5B0c43Dc18E36b08C39B419F190D29Ac2d"
+    "routingIsmFactory": "0xe4057c5B0c43Dc18E36b08C39B419F190D29Ac2d",
+    "interchainSecurityModule": "0xf2BEE9D2c15Ba9D7e06799B5912dE1F05533c141",
+    "fallbackRoutingHook": "0x01aE937A7B05d187bBCBE80F44F41879D3D335a4",
+    "pausableHook": "0xc2FbB9411186AB3b1a6AFCCA702D1a80B48b197c"
   },
   "celo": {
     "storageGasOracle": "0xD9A9966E7dA9a7f0032bF449FB12696a638E673C",
@@ -161,7 +188,13 @@
     "validatorAnnounce": "0xCeF677b65FDaA6804d4403083bb12B8dB3991FE1",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-    "routingIsmFactory": "0x2A2c22B0a8615ad24839fA6Af302E896Af32d1a3"
+    "routingIsmFactory": "0x2A2c22B0a8615ad24839fA6Af302E896Af32d1a3",
+    "domainRoutingIsm": "0xf18E32428dad0802C5D6F723cB80A6Da889777c4",
+    "pausableIsm": "0x6Bc4437ce69696C9461Cbc89582c259AC8847A58",
+    "staticAggregationIsm": "0x99e8E56Dce3402D6E09A82718937fc1cA2A9491E",
+    "interchainSecurityModule": "0x99e8E56Dce3402D6E09A82718937fc1cA2A9491E",
+    "fallbackRoutingHook": "0xDC98a856fb9112894c2fE32267DA8bF35645FAF3",
+    "pausableHook": "0x80672c5D9Fd26B235654C24adc1CFcDeb8d15115"
   },
   "ethereum": {
     "storageGasOracle": "0xc9a103990A8dB11b4f627bc5CD1D0c2685484Ec5",
@@ -178,7 +211,10 @@
     "validatorAnnounce": "0xCe74905e51497b4adD3639366708b821dcBcff96",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-    "routingIsmFactory": "0x28fA9552F19039b450498B0d8e5DEAe0d0aAc559"
+    "routingIsmFactory": "0x28fA9552F19039b450498B0d8e5DEAe0d0aAc559",
+    "pausableHook": "0x3A66Dc852e56d3748838b3C27CF381105b83705b",
+    "fallbackRoutingHook": "0x571f1435613381208477ac5d6974310d88AC7cB7",
+    "interchainSecurityModule": "0x43Ce4Eb4aE3585dDe9Ac6967Db5b06f7f6764C8a"
   },
   "avalanche": {
     "storageGasOracle": "0x175821F30AdCAA4bbB72Ce98eF76C2E0De2C3f21",
@@ -195,7 +231,10 @@
     "validatorAnnounce": "0x9Cad0eC82328CEE2386Ec14a12E81d070a27712f",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-    "routingIsmFactory": "0x28F7907911C7E321c596686AE6D1F20516450037"
+    "routingIsmFactory": "0x28F7907911C7E321c596686AE6D1F20516450037",
+    "pausableHook": "0x239eB860770F1C48ABAC9bE9825d20e3E7c018df",
+    "fallbackRoutingHook": "0x61D15D571D5f7A9eF0D1938f072f430bBF024747",
+    "interchainSecurityModule": "0xA36B02a83564f52d9244310Ea439ee6F6AfeFb60"
   },
   "mantapacific": {
     "merkleRootMultisigIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
@@ -211,6 +250,28 @@
     "aggregationHook": "0x8464aF853363B8d6844070F68b0AB34Cb6523d0F",
     "protocolFee": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
     "validatorAnnounce": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
-    "routingIsmFactory": "0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147"
+    "routingIsmFactory": "0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147",
+    "testRecipient": "0x4E1c88DD261BEe2941e6c1814597e30F53330428",
+    "testTokenRecipient": "0x5060eCD5dFAD300A90592C04e504600A7cdcF70b",
+    "pausableHook": "0x7556a0E61d577D921Cba8Fca0d7D6299d36E607E",
+    "fallbackRoutingHook": "0xD1E267d2d7876e97E217BfE61c34AB50FEF52807",
+    "interchainSecurityModule": "0xDEed16fe4b1c9b2a93483EDFf34C77A9b57D31Ff"
+  },
+  "viction": {
+    "merkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
+    "messageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+    "aggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
+    "aggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+    "routingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+    "mailbox": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
+    "proxyAdmin": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
+    "validatorAnnounce": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
+    "interchainSecurityModule": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
+    "merkleTreeHook": "0x149db7afD694722747035d5AEC7007ccb6F8f112",
+    "storageGasOracle": "0x19dc38aeae620380430C200a6E990D5Af5480117",
+    "interchainGasPaymaster": "0x0D63128D887159d63De29497dfa45AFc7C699AE4",
+    "protocolFee": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
+    "testRecipient": "0x17E216fBb22dF4ef8A6640ae9Cb147C92710ac84",
+    "testTokenRecipient": "0xe042D1fbDf59828dd16b9649Ede7abFc856F7a6c"
   }
 }

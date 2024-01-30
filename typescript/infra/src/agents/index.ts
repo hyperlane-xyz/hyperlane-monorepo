@@ -1,7 +1,6 @@
 import fs from 'fs';
 
 import { ChainName, RpcConsensusType, chainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import {

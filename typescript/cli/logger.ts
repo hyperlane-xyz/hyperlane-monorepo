@@ -50,6 +50,8 @@ export const logPink = (...args: any) =>
 export const logGray = (...args: any) => console.log(chalk.gray(...args));
 export const logGreen = (...args: any) => console.log(chalk.green(...args));
 export const logRed = (...args: any) => console.log(chalk.red(...args));
+export const logBoldUnderlinedRed = (...args: any) =>
+  console.log(chalk.red.bold.underline(...args));
 export const logTip = (...args: any) => console.log(chalk.bgYellow(...args));
 export const errorRed = (...args: any) => console.error(chalk.red(...args));
 export const log = (...args: any) => console.log(...args);
