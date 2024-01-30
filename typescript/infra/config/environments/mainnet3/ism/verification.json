@@ -2177,82 +2177,70 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
-      "address": "0x8061Af3A459093540d17823D651BC5E2A92669a7",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
       "name": "DomaingRoutingIsm",
-      "address": "0x2214b2AC96215d2FF1fffC84E4Af295d7497B013",
-      "constructorArguments": "",
-      "isProxy": true
-    },
-    {
-      "name": "StaticMerkleRootMultisigIsm",
-      "address": "0x28336d2b8783f2373bCFc173058EA932bf3b901C",
-      "constructorArguments": "",
-      "isProxy": true
-    },
-    {
-      "name": "StaticMessageIdMultisigIsm",
-      "address": "0x76FD8c164F380107631160d8Fd1f4Edc2719004D",
-      "constructorArguments": "",
-      "isProxy": true
-    },
-    {
-      "name": "StaticAggregationIsm",
-      "address": "0xd5FF00DD9E737c9d1a197246738876fAF43e4aC0",
-      "constructorArguments": "",
-      "isProxy": true
-    },
-    {
-      "name": "StaticAggregationHook",
-      "address": "0x568De5f1639Fe7c9eba67f1191DE19eeCc77985B",
-      "constructorArguments": "",
-      "isProxy": true
-    },
-    {
-      "name": "DomaingRoutingIsm",
-      "address": "0x2214b2AC96215d2FF1fffC84E4Af295d7497B013",
+      "address": "0xE8d610DC4Baf01070FD2f223d45f84d8801D90B1",
       "constructorArguments": "",
       "isProxy": true
     }
   ],
-  "mantapacific": [
+  "viction": [
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
+      "constructorArguments": "",
+      "isProxy": false
+    },
     {
       "name": "StaticMerkleRootMultisigIsm",
+      "address": "0x4725F7b8037513915aAf6D6CBDE2920E28540dDc",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMessageIdMultisigIsm",
+      "address": "0xAF03386044373E2fe26C5b1dCedF5a7e854a7a3F",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationIsm",
       "address": "0x882CD0C5D50b6dD74b36Da4BDb059507fddEDdf2",
       "constructorArguments": "",
       "isProxy": true
     },
     {
-      "name": "StaticMessageIdMultisigIsm",
+      "name": "AggregationHookFactory",
+      "address": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationHook",
       "address": "0x19930232E9aFC4f4F09d09fe2375680fAc2100D0",
       "constructorArguments": "",
       "isProxy": true
     },
     {
-      "name": "StaticAggregationIsm",
-      "address": "0x12Ed1BbA182CbC63692F813651BD493B7445C874",
-      "constructorArguments": "",
-      "isProxy": true
-    },
-    {
-      "name": "StaticAggregationHook",
-      "address": "0x3b9f24fD2ecfed0d3A88fa7f0E4e5747671981D7",
-      "constructorArguments": "",
-      "isProxy": true
-    },
-    {
       "name": "RoutingIsmFactory",
-      "address": "0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147",
+      "address": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "constructorArguments": "",
       "isProxy": false
     },
     {
       "name": "DomaingRoutingIsm",
-      "address": "0x6C360932873629929ff3D9ffB70bD4cbC1606541",
+      "address": "0x12Ed1BbA182CbC63692F813651BD493B7445C874",
       "constructorArguments": "",
       "isProxy": true
     }

@@ -11,7 +11,7 @@ import {
   getTokenExchangeRateFromValues,
 } from '../../../src/config/gas-oracle';
 
-import { TestnetChains, supportedChainNames } from './chains';
+import { supportedChainNames } from './chains';
 
 // Taken by looking at each testnet and overestimating gas prices
 const gasPrices: ChainMap<BigNumber> = {
@@ -69,7 +69,7 @@ const chainTokenRarity: ChainMap<Rarity> = {
 };
 
 // Gets the "value" of a testnet chain
-function getApproximateValue(chain: TestnetChains): BigNumber {
+function getApproximateValue(chain: ChainName): BigNumber {
   const rarity = chainTokenRarity[chain];
   return RARITY_APPROXIMATE_VALUE[rarity];
 }

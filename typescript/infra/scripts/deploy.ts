@@ -4,7 +4,6 @@ import { prompt } from 'prompts';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
-  HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
@@ -14,14 +13,11 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
-  TokenConfig,
 } from '@hyperlane-xyz/sdk';
-import { TokenDecimals, TokenType } from '@hyperlane-xyz/sdk/dist/token/config';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { supportedChainNames } from '../config/environments/mainnet3/chains';
-import { aggregationIsm } from '../config/routingIsm';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -37,6 +33,7 @@ import {
   getModuleDirectory,
   withContext,
   withModuleAndFork,
+  withNetwork,
 } from './utils';
 
 async function main() {
@@ -45,7 +42,8 @@ async function main() {
     module,
     fork,
     environment,
-  } = await withContext(withModuleAndFork(getArgs())).argv;
+    network,
+  } = await withContext(withNetwork(withModuleAndFork(getArgs()))).argv;
   const envConfig = getEnvironmentConfig(environment);
   const env = deployEnvToSdkEnv[environment];
 
@@ -74,36 +72,7 @@ async function main() {
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.WARP) {
-    const injectiveRouter =
-      'CCECE22C7F562110EAD32E98EA8E9B138152C49D94CDCA0554CD1959B3EEB00C';
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.PROXY_FACTORY),
-      multiProvider,
-    );
-    const tokenConfig: TokenConfig & TokenDecimals = {
-      type: TokenType.native,
-      decimals: 18,
-    };
-    const core = HyperlaneCore.fromEnvironment(
-      deployEnvToSdkEnv[environment],
-      multiProvider,
-    );
-    const routerConfig = core.getRouterConfig(envConfig.owners);
-    config = {
-      inevm: {
-        ...routerConfig['inevm'],
-        ...tokenConfig,
-        interchainSecurityModule: aggregationIsm(
-          'injective',
-          Contexts.Hyperlane,
-        ),
-        gas: 600_000,
-      },
-      injective: {
-        foreignDeployment: injectiveRouter,
-      },
-    };
-    deployer = new HypERC20Deployer(multiProvider, ismFactory);
+    throw new Error('Warp is not supported. Use CLI instead.');
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
@@ -183,7 +152,8 @@ async function main() {
 
   // prompt for confirmation in production environments
   if (environment !== 'test' && !fork) {
-    console.dir(config);
+    const confirmConfig = network ? config[network] : config;
+    console.log(JSON.stringify(confirmConfig, null, 2));
     const { value: confirmed } = await prompt({
       type: 'confirm',
       name: 'value',
@@ -195,7 +165,13 @@ async function main() {
     }
   }
 
-  await deployWithArtifacts(config, deployer, cache, fork, agentConfig);
+  await deployWithArtifacts(
+    config,
+    deployer,
+    cache,
+    network ?? fork,
+    agentConfig,
+  );
 }
 
 main()

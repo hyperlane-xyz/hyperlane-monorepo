@@ -39,6 +39,7 @@ export enum Chains {
   solanadevnet = 'solanadevnet',
   solanatestnet = 'solanatestnet',
   eclipsetestnet = 'eclipsetestnet',
+  viction = 'viction',
   test1 = 'test1',
   test2 = 'test2',
   test3 = 'test3',
@@ -74,6 +75,7 @@ export const Mainnets: Array<CoreChainName> = [
   Chains.polygonzkevm,
   Chains.injective,
   Chains.inevm,
+  Chains.viction,
   // Chains.solana,
 ];
 
@@ -84,8 +86,8 @@ export const Testnets: Array<CoreChainName> = [
   Chains.bsctestnet,
   Chains.chiado,
   Chains.fuji,
-  Chains.lineagoerli,
   Chains.goerli,
+  Chains.lineagoerli,
   Chains.moonbasealpha,
   Chains.mumbai,
   Chains.optimismgoerli,
