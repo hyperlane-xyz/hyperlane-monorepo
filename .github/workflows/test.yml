@@ -246,9 +246,6 @@ jobs:
             chain: arbitrum
             module: core
           - environment: mainnet3
-            chain: injective
-            module: core
-          - environment: mainnet3
             chain: inevm
             module: core
           - environment: mainnet3

@@ -745,7 +745,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://rpc.ankr.com/polygon_zkevm"
+          "http": "https://polygon-zkevm.drpc.org"
         }
       ],
       "merkleRootMultisigIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
