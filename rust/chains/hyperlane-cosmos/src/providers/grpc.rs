@@ -151,18 +151,7 @@ impl WasmGrpcProvider {
         // get all the configured grpc urls and convert them to a Vec<Endpoint>
         let endpoint =
             Endpoint::new(conf.get_grpc_url()).map_err(Into::<HyperlaneCosmosError>::into)?;
-        // create a vec of channels. Replace single Client instantiations with an instantiation over all channels, and then wrapping them in a fallback provider.
-
-        // However, in this case the fallback provider wouldn't be able to memorize the prioritization across calls
-        // Alternatively, could create a struct Clients that wraps all client types; we'd have one Clients instance per channel and should be straightforward to read blocks this way too.
-
-        // Alternatively, could try wrapping the channels directly in a fallback provider, and reprioritizing that way
-
-        // Looks like the way to go is to create a (Channel, BlockReaderClient) tuple and implement `GrpcService` for it
         let channel = endpoint.connect_lazy();
-
-        // Another option is to create
-
         let mut builder = FallbackProvider::builder();
         builder = builder.add_provider(CosmosChannel::from(channel));
         let fallback_provider = builder.build();

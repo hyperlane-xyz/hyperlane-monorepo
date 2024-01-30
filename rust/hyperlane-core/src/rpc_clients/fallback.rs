@@ -9,7 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio;
-use tracing::info;
+use tracing::{info, warn_span};
 
 use crate::ChainCommunicationError;
 
@@ -155,10 +155,13 @@ where
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
             let priorities_snapshot = self.take_priorities_snapshot().await;
-            for (_idx, priority) in priorities_snapshot.iter().enumerate() {
+            for (idx, priority) in priorities_snapshot.iter().enumerate() {
                 let provider = &self.inner.providers[priority.index];
+                let resp = f(provider.clone()).await;
                 self.handle_stalled_provider(priority, provider).await;
-                match f(provider.clone()).await {
+                let _span =
+                    warn_span!("FallbackProvider::call", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
+                match resp {
                     Ok(v) => return Ok(v),
                     Err(e) => errors.push(e),
                 }
