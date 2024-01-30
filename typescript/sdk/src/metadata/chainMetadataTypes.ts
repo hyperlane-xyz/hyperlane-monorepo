@@ -251,7 +251,6 @@ export function safeParseChainMetadata(
 }
 
 export function isValidChainMetadata(c: ChainMetadata): boolean {
-  ChainMetadataSchema.parse(c);
   return ChainMetadataSchema.safeParse(c).success;
 }
 
