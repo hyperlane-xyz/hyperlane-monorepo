@@ -46,10 +46,6 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
       maxPriorityFeePerGas: 5 * 10 ** 9, // gwei
     },
   },
-  moonbeam: chainMetadata.moonbeam,
-  gnosis: chainMetadata.gnosis,
-  mantapacific: chainMetadata.mantapacific,
-  inevm: chainMetadata.inevm,
 };
 
 // Blessed non-Ethereum chains.
