@@ -31,18 +31,6 @@ export const validatorChainConfig = (
         'alfajores',
       ),
     },
-    ancient8testnet: {
-      interval: 5,
-      reorgPeriod: chainMetadata.ancient8testnet.blocks!.reorgPeriod!,
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x2233a5ce12f814bd64c9cdd73410bb8693124d40'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'ancient8testnet',
-      ),
-    },
     basegoerli: {
       interval: 5,
       reorgPeriod: getReorgPeriod(chainMetadata.alfajores),
