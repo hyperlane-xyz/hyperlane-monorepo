@@ -46,35 +46,6 @@ export const alfajores: ChainMetadata = {
   rpcUrls: [{ http: 'https://alfajores-forno.celo-testnet.org' }],
 };
 
-export const ancient8testnet: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://testnet.a8scan.io/api',
-      family: ExplorerFamily.Blockscout,
-      name: 'a8scan',
-      url: 'https://testnet.a8scan.io',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 2,
-    reorgPeriod: 0,
-  },
-  chainId: 2863311531,
-  displayName: 'Ancient 8 Testnet',
-  displayNameShort: 'A8 Testnet',
-  domainId: 2863311531,
-  isTestnet: true,
-  name: Chains.ancient8testnet,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [
-    {
-      http: 'https://rpc-testnet.ancient8.gg',
-    },
-  ],
-};
-
 export const arbitrum: ChainMetadata = {
   blockExplorers: [
     {
@@ -1079,7 +1050,6 @@ export const viction: ChainMetadata = {
  */
 export const chainMetadata: ChainMap<ChainMetadata> = {
   alfajores,
-  ancient8testnet,
   arbitrum,
   arbitrumgoerli,
   avalanche,

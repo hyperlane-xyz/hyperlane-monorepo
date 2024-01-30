@@ -100,11 +100,6 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     ...owner,
   };
 
-  const ownerOverrides =
-    local === 'arbitrum'
-      ? { proxyAdmin: `0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01` } // time lock controller
-      : undefined;
-
   return {
     defaultIsm,
     defaultHook,
