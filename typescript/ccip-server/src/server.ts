@@ -1,11 +1,8 @@
 import { Server } from '@chainlink/ccip-read-server';
-import dotenvFlow from 'dotenv-flow';
 
 import { SuccinctProverServiceAbi } from './abis/SuccinctProverServiceAbi';
 import * as config from './config';
 import { SuccinctProverService } from './services/SuccinctProverService';
-
-dotenvFlow.config();
 
 const succinctProverService = new SuccinctProverService(
   config.RPC_ADDRESS,
