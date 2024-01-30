@@ -17,7 +17,6 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
-import { supportedChainNames } from '../config/environments/mainnet3/chains';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -62,10 +61,10 @@ async function main() {
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
   if (module === Modules.PROXY_FACTORY) {
-    config = Object.fromEntries(supportedChainNames.map((k) => [k, true]));
+    config = objMap(envConfig.core, (_chain) => true);
     deployer = new HyperlaneProxyFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
-    config = { inevm: envConfig.core.inevm };
+    config = envConfig.core;
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,
