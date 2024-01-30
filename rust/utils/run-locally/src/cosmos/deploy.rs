@@ -48,7 +48,7 @@ pub fn deploy_cw_hyperlane(
         Some(deployer_addr),
         codes.hpl_igp,
         igp::core::InstantiateMsg {
-            hrp: PREFIX.to_string(),
+            hrp: BECH32_PREFIX.to_string(),
             owner: deployer_addr.clone(),
             gas_token: "uosmo".to_string(),
             beneficiary: deployer_addr.clone(),
