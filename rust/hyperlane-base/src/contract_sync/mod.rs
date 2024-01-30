@@ -1,4 +1,6 @@
-use std::{collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc};
+use std::{
+    collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
+};
 
 use cursor::*;
 use derive_new::new;
@@ -16,6 +18,8 @@ use crate::settings::IndexSettings;
 mod cursor;
 mod eta_calculator;
 mod metrics;
+
+const SLEEP_MS: u64 = 5_000;
 
 /// Entity that drives the syncing of an agent's db with on-chain data.
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
@@ -60,13 +64,16 @@ where
         loop {
             indexed_height.set(cursor.latest_block() as i64);
             let Ok((action, eta)) = cursor.next_action().await else {
+                sleep(Duration::from_millis(SLEEP_MS)).await;
                 continue;
             };
-            match action {
-                CursorAction::Query(range) => {
+            let sleep_duration = match action {
+                CursorAction::Query(range) => loop {
                     debug!(?range, "Looking for for events in index range");
 
-                    let logs = self.indexer.fetch_logs(range.clone()).await?;
+                    let Ok(logs) = self.indexer.fetch_logs(range.clone()).await else {
+                        break SLEEP_MS;
+                    };
                     let deduped_logs = HashSet::<_>::from_iter(logs);
                     let logs = Vec::from_iter(deduped_logs);
 
@@ -77,16 +84,22 @@ where
                         "Found log(s) in index range"
                     );
                     // Store deliveries
-                    let stored = self.db.store_logs(&logs).await?;
+                    let Ok(stored) = self.db.store_logs(&logs).await else {
+                        break SLEEP_MS;
+                    };
                     // Report amount of deliveries stored into db
                     stored_logs.inc_by(stored as u64);
                     // Update cursor
-                    cursor.update(logs).await?;
-                }
+                    let Ok(_) = cursor.update(logs).await else {
+                        break SLEEP_MS;
+                    };
+                    Default::default()
+                },
                 CursorAction::Sleep(duration) => {
-                    sleep(duration).await;
+                    duration.as_millis().try_into().unwrap_or(SLEEP_MS)
                 }
-            }
+            };
+            sleep(Duration::from_millis(sleep_duration)).await;
         }
     }
 }
