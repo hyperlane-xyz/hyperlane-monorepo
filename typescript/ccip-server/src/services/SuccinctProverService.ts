@@ -25,24 +25,14 @@ type Proof = {
 };
 
 class SuccinctProverService {
-  provider: ethers.providers.JsonRpcProvider;
-  lightClient: ethers.Contract;
-
   constructor(
-    private readonly rpcAddress: string,
-    private readonly lightClientAddress: string,
+    private readonly provider: ethers.providers.JsonRpcProvider,
+    private readonly lightClient: ethers.Contract,
     private readonly stepFunctionId: string,
     private readonly chainId: string,
     private readonly platformUrl: string,
     private readonly platformApiKey: string,
-  ) {
-    this.provider = new ethers.providers.JsonRpcProvider(rpcAddress);
-    this.lightClient = new ethers.Contract(
-      lightClientAddress,
-      telepathyCcipReadIsmAbi,
-      this.provider,
-    );
-  }
+  ) {}
 
   private getSyncCommitteePeriod(slot: bigint): bigint {
     return slot / 8192n; // Slots Per Period
@@ -51,8 +41,8 @@ class SuccinctProverService {
   /**
    * Gets Succinct proof, state proof, and returns account and storage proof
    * @dev Note that the abi encoding will happen within ccip-read-server
-   * @param address
-   * @param storageKeys
+   * @param address contract address to get the proof for
+   * @param storageKeys storage keys to get the proof for
    * @param block
    * @returns
    */
@@ -74,7 +64,7 @@ class SuccinctProverService {
       storageKeys,
       block,
     );
-    // Abi encode the proofs
+
     return [[result.accountProof, result.storageProof[0].proof]];
   };
 
@@ -101,7 +91,7 @@ class SuccinctProverService {
     const telepathyIface = new utils.Interface(telepathyCcipReadIsmAbi);
     const body = {
       chainId: this.chainId,
-      to: this.lightClientAddress,
+      to: this.lightClient.address,
       data: telepathyIface.encodeFunctionData('step', [slot]),
       functionId: this.stepFunctionId,
       input: utils.defaultAbiCoder.encode(
@@ -132,15 +122,15 @@ class SuccinctProverService {
   getProofsFromProvider = async (
     address: string,
     storageKeys: string[],
-    block = 'latest',
+    block: string,
   ): Promise<Proof> => {
-    const { data } = await axios.post(this.rpcAddress, {
-      method: 'eth_getProof',
-      params: [address, storageKeys, block],
-      id: 1,
-      jsonrpc: '2.0',
-    });
-    return data;
+    const results = await this.provider.send('eth_getProof', [
+      address,
+      storageKeys,
+      block,
+    ]);
+
+    return results;
   };
 }
 

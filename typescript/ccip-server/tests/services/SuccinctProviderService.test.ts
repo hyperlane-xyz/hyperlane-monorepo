@@ -1,20 +1,23 @@
-import { constants } from 'ethers';
+import { ethers } from 'ethers';
 
+import { telepathyCcipReadIsmAbi } from '../../src/abis/TelepathyCcipReadIsmAbi';
+import * as config from '../../src/config';
 import { SuccinctProverService } from '../../src/services/SuccinctProverService';
 
-const RPC_ADDRESS =
-  process.env.RPC_ADDRESS || 'https://docs-demo.quiknode.pro/'; // TODO parameterize this
-const PLATFORM_URL =
-  process.env.PLATFORM_URL || 'https://alpha.succinct.xyz/api/request/new';
-
 describe('getProofs', () => {
+  const provider = new ethers.providers.JsonRpcProvider(config.RPC_ADDRESS);
+  const lightClient = new ethers.Contract(
+    config.LIGHT_CLIENT_ADDR,
+    telepathyCcipReadIsmAbi,
+    provider,
+  );
   const succinctProverService = new SuccinctProverService(
-    RPC_ADDRESS, // rpcAddress
-    constants.AddressZero, // lightClientAddress
-    constants.HashZero, // stepFunctionId
-    constants.One.toString(), // chainId
-    PLATFORM_URL, // platformUrl
-    '', // platformApiKey
+    provider,
+    lightClient,
+    config.STEP_FN_ID,
+    config.CHAIN_ID,
+    config.SUCCINCT_PLATFORM_URL,
+    config.SUCCINCT_PLATFORM_URL,
   );
 
   test('should return the proofs from api', async () => {
@@ -27,7 +30,7 @@ describe('getProofs', () => {
     expect(proofs).not.toBeNull();
   });
 
-  test('should verify with the correct proofs onchain', async () => {
+  test('should return account and storage proof', async () => {
     // Calls TelepathyCcipReadIsm.verify() with state root
   });
 });
