@@ -30,7 +30,8 @@ const gasPrices: ChainMap<BigNumber> = {
   lineagoerli: ethers.utils.parseUnits('1', 'gwei'),
   polygonzkevmtestnet: ethers.utils.parseUnits('1', 'gwei'),
   chiado: ethers.utils.parseUnits('2', 'gwei'),
-  // solanadevnet: ethers.BigNumber.from('28'),
+  solanatestnet: ethers.BigNumber.from('28'),
+  eclipsetestnet: ethers.BigNumber.from('28'),
 };
 
 // Used to categorize rarity of testnet tokens & approximate exchange rates.
@@ -65,7 +66,8 @@ const chainTokenRarity: ChainMap<Rarity> = {
   lineagoerli: Rarity.Rare,
   polygonzkevmtestnet: Rarity.Common,
   chiado: Rarity.Common,
-  // solanadevnet: Rarity.Common,
+  solanatestnet: Rarity.Common,
+  eclipsetestnet: Rarity.Common,
 };
 
 // Gets the "value" of a testnet chain

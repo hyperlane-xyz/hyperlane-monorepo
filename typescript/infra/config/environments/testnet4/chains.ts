@@ -9,7 +9,6 @@ import { AgentChainNames, Role } from '../../../src/roles';
 
 const selectedChains = [
   Chains.alfajores,
-  Chains.ancient8testnet,
   Chains.arbitrumgoerli,
   Chains.basegoerli,
   Chains.bsctestnet,
@@ -44,15 +43,10 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
 export const supportedChainNames = Object.keys(testnetConfigs);
 export const environment = 'testnet4';
 
-// Ancient8's domain ID is too high for the current schema used by
-// the scraper. See https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3121
-const scraperChains = supportedChainNames.filter(
-  (chain) => chain !== Chains.ancient8testnet,
-);
-
 // Hyperlane & RC context agent chain names.
 export const agentChainNames: AgentChainNames = {
   [Role.Validator]: supportedChainNames,
+  // Only run relayers for Ethereum chains at the moment.
   [Role.Relayer]: supportedChainNames,
-  [Role.Scraper]: scraperChains,
+  [Role.Scraper]: supportedChainNames,
 };

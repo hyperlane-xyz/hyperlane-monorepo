@@ -4,7 +4,6 @@ import { prompt } from 'prompts';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
-  HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
@@ -15,15 +14,12 @@ import {
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
 } from '@hyperlane-xyz/sdk';
-import { TokenType } from '@hyperlane-xyz/sdk/dist/token/config';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
-import { aggregationIsm } from '../config/routingIsm';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
-import { TestRecipientDeployer } from '../src/deployment/testcontracts/testrecipient';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
 import {
@@ -52,19 +48,13 @@ async function main() {
 
   let multiProvider = await envConfig.getMultiProvider();
 
-  // TODO: make this more generic
-  const deployerAddress =
-    environment === 'testnet4'
-      ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
-      : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
-
   if (fork) {
     multiProvider = multiProvider.extendChainMetadata({
       [fork]: { blocks: { confirmations: 0 } },
     });
     await useLocalProvider(multiProvider, fork);
 
-    const signer = await impersonateAccount(deployerAddress);
+    const signer = await impersonateAccount(envConfig.owners[fork].owner);
     multiProvider.setSharedSigner(signer);
   }
 
@@ -81,37 +71,7 @@ async function main() {
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.WARP) {
-    const owner = deployerAddress;
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.PROXY_FACTORY),
-      multiProvider,
-    );
-    const core = HyperlaneCore.fromEnvironment(
-      deployEnvToSdkEnv[environment],
-      multiProvider,
-    );
-    const routerConfig = core.getRouterConfig(owner);
-    const syntheticConfig = {
-      type: TokenType.synthetic,
-      name: 'USDT',
-      symbol: 'USDT',
-      decimals: 6,
-      totalSupply: 0,
-      ...routerConfig['ancient8testnet'],
-    };
-    const collateralConfig = {
-      type: TokenType.native,
-      ...routerConfig['goerli'],
-      interchainSecurityModule: aggregationIsm(
-        'ancient8testnet',
-        Contexts.Hyperlane,
-      ),
-    };
-    config = {
-      ancient8testnet: syntheticConfig,
-      goerli: collateralConfig,
-    };
-    deployer = new HypERC20Deployer(multiProvider, ismFactory);
+    throw new Error('Warp is not supported. Use CLI instead.');
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
@@ -138,8 +98,7 @@ async function main() {
     );
     deployer = new LiquidityLayerDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
-    config = objMap(envConfig.core, (_chain) => true);
-    deployer = new TestRecipientDeployer(multiProvider);
+    throw new Error('Test recipient is not supported. Use CLI instead.');
   } else if (module === Modules.TEST_QUERY_SENDER) {
     // Get query router addresses
     const queryAddresses = getAddresses(
@@ -152,7 +111,7 @@ async function main() {
     deployer = new TestQuerySenderDeployer(multiProvider);
   } else if (module === Modules.HELLO_WORLD) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
-    config = core.getRouterConfig(deployerAddress);
+    config = core.getRouterConfig(envConfig.owners);
     deployer = new HelloWorldDeployer(multiProvider);
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
@@ -178,7 +137,7 @@ async function main() {
     addresses,
     verification,
     read: environment !== 'test',
-    write: true,
+    write: !fork,
   };
   // Don't write agent config in fork tests
   const agentConfig =
@@ -190,9 +149,9 @@ async function main() {
         }
       : undefined;
 
-  // prompt for confirmation
-  if ((environment === 'mainnet3' || environment === 'testnet4') && !fork) {
-    let confirmConfig = network ? config[network] : config;
+  // prompt for confirmation in production environments
+  if (environment !== 'test' && !fork) {
+    const confirmConfig = network ? config[network] : config;
     console.log(JSON.stringify(confirmConfig, null, 2));
     const { value: confirmed } = await prompt({
       type: 'confirm',

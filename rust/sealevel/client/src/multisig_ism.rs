@@ -45,8 +45,10 @@ impl From<MultisigIsmConfig> for ValidatorsAndThreshold {
 pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessageIdCmd) {
     match cmd.cmd {
         MultisigIsmMessageIdSubCmd::Deploy(deploy) => {
-            let environments_dir =
-                create_new_directory(&deploy.environments_dir, &deploy.environment);
+            let environments_dir = create_new_directory(
+                &deploy.env_args.environments_dir,
+                &deploy.env_args.environment,
+            );
             let ism_dir = create_new_directory(&environments_dir, "multisig-ism-message-id");
             let chain_dir = create_new_directory(&ism_dir, &deploy.chain);
             let context_dir = create_new_directory(&chain_dir, &deploy.context);

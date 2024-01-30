@@ -30,8 +30,8 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
       confirmations: 3,
     },
     transactionOverrides: {
-      maxFeePerGas: 500 * 10 ** 9, // 500 gwei
-      maxPriorityFeePerGas: 100 * 10 ** 9, // 100 gwei
+      maxFeePerGas: 1000 * 10 ** 9, // 500 gwei
+      maxPriorityFeePerGas: 200 * 10 ** 9, // 100 gwei
       // gasPrice: 50 * 10 ** 9, // 50 gwei
     },
   },

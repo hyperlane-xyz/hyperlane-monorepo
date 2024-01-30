@@ -233,7 +233,11 @@ export const bsc: ChainMetadata = {
   name: Chains.bsc,
   nativeToken: bnbToken,
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.ankr.com/bsc' }],
+  rpcUrls: [
+    { http: 'https://rpc.ankr.com/bsc' },
+    { http: 'https://bsc.drpc.org' },
+    { http: 'https://bscrpc.com' },
+  ],
 };
 
 export const bsctestnet: ChainMetadata = {
@@ -349,7 +353,7 @@ export const ethereum: ChainMetadata = {
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
-    { http: 'https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161' },
+    { http: 'https://ethereum.publicnode.com' },
     { http: 'https://cloudflare-eth.com' },
   ],
 };
@@ -480,7 +484,7 @@ export const mantapacific: ChainMetadata = {
   blocks: {
     confirmations: 1,
     estimateBlockTime: 3,
-    reorgPeriod: 0,
+    reorgPeriod: 1,
   },
   chainId: 169,
   displayName: 'Manta Pacific',
@@ -630,6 +634,7 @@ export const neutron: ChainMetadata = {
   chainId: 'neutron-1',
   displayName: 'Neutron',
   domainId: 1853125230,
+  grpcUrls: [{ http: 'grpc-kralum.neutron-1.neutron.org:80' }],
   isTestnet: false,
   name: Chains.neutron,
   nativeToken: {
@@ -638,7 +643,7 @@ export const neutron: ChainMetadata = {
     symbol: 'NTRN',
   },
   protocol: ProtocolType.Cosmos,
-  restUrls: [{ http: 'grpc-kralum.neutron-1.neutron.org:80' }],
+  restUrls: [{ http: 'https://rest-lb.neutron.org' }],
   rpcUrls: [{ http: 'https://rpc-kralum.neutron-1.neutron.org' }],
   slip44: 118,
 };
@@ -720,14 +725,10 @@ export const polygon: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
     {
-      http: 'https://rpc-mainnet.matic.quiknode.pro',
-      pagination: {
-        // Needs to be low to avoid RPC timeouts
-        maxBlockRange: 10000,
-        minBlockNumber: 19657100,
-      },
+      http: 'https://polygon-bor.publicnode.com',
     },
     { http: 'https://polygon-rpc.com' },
+    { http: 'https://rpc.ankr.com/polygon' },
   ],
 };
 
@@ -754,7 +755,11 @@ export const polygonzkevm: ChainMetadata = {
   name: Chains.polygonzkevm,
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.ankr.com/polygon_zkevm' }],
+  rpcUrls: [
+    { http: 'https://zkevm-rpc.com' },
+    { http: 'https://polygonzkevm-mainnet.g.alchemy.com/v2/demo' },
+    { http: 'https://rpc.ankr.com/polygon_zkevm' },
+  ],
 };
 
 export const polygonzkevmtestnet: ChainMetadata = {
@@ -957,6 +962,33 @@ export const solanadevnet: ChainMetadata = {
   rpcUrls: [{ http: 'https://api.devnet.solana.com' }],
 };
 
+export const eclipsetestnet: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://testnet.dev2.eclipsenetwork.xyz',
+      family: ExplorerFamily.Other,
+      name: 'Eclipse Testnet Explorer',
+      url: 'https://explorer.dev.eclipsenetwork.xyz/?cluster=testnet',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 0.4,
+    reorgPeriod: 0,
+  },
+  chainId: 239092742,
+  displayName: 'Eclipse Testnet',
+  domainId: 239092742,
+  isTestnet: true,
+  name: 'eclipsetestnet',
+  nativeToken: {
+    ...etherToken,
+    decimals: 9,
+  },
+  protocol: ProtocolType.Sealevel,
+  rpcUrls: [{ http: 'https://testnet.dev2.eclipsenetwork.xyz' }],
+};
+
 export const test1: ChainMetadata = {
   blockExplorers: [],
   blocks: {
@@ -1057,6 +1089,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   bsctestnet,
   celo,
   chiado,
+  eclipsetestnet,
   ethereum,
   fuji,
   gnosis,

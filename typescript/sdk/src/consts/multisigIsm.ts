@@ -11,11 +11,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  ancient8testnet: {
-    threshold: 1,
-    validators: ['0x75dd01dca4b6ad6bd59d8226aa071a03a8f9e46f'],
-  },
-
   arbitrum: {
     threshold: 3,
     validators: [
@@ -23,7 +18,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xec68258a7c882ac2fc46b81ce80380054ffb4ef2', // dsrv
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
       '0x092e1c19da58e87ea65198785ee83867fe4bb418', // everstake
-      // '0xc2d68e109a7e80e12098d50ac4ef9fa7b3061684', // staked (not yet announced)
+      '0xc2d68e109a7e80e12098d50ac4ef9fa7b3061684', // staked
     ],
   },
 
@@ -52,6 +47,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x64889519ad3ffc8f3ae436fcd63efc6b853fd63f', // staked
       '0x41188cb5a5493a961c467ba38a3f8b1f1d35ee63', // everstake
       '0xcff391b4e516452d424db66beb9052b041a9ed79', // dsrv
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
   },
 
@@ -90,6 +86,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x622e43baf06ad808ca8399360d9a2d9a1a12688b', // dsrv
       '0xf2c1e3888eb618f1f1a071ef3618f134715a9a49', // everstake
       '0x46ecbc794574727abb8f97f01dacd9db6135f47a', // staked
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
   },
 
@@ -102,6 +99,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  eclipsetestnet: {
+    threshold: 1,
+    validators: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
+  },
+
   ethereum: {
     threshold: 3,
     validators: [
@@ -109,7 +111,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x94438a7de38d4548ae54df5c6010c4ebc5239eae', // dsrv
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
       '0xce327111035dd38698c92c3778884dbbb0ca8103', // everstake
-      // '0xb2f5a6a6e6046e2ede213617e989329666a6c4bc', // staked (not yet announced)
+      '0xb2f5a6a6e6046e2ede213617e989329666a6c4bc', // staked
     ],
   },
 
@@ -192,11 +194,15 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   neutron: {
-    threshold: 2,
+    threshold: 4,
     validators: [
       '0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0',
-      '0x60e890b34cb44ce3fa52f38684f613f31b47a1a6',
-      '0x7885fae56dbcf5176657f54adbbd881dc6714132',
+      '0xb65438a014fb05fbadcfe35bc6e25d372b6ba460', // cosmostation
+      '0x42fa752defe92459370a052b6387a87f7de9b80c', // p2p
+      '0xc79503a3e3011535a9c60f6d21f76f59823a38bd', // neutron
+      '0x47aa126e05933b95c5eb90b26e6b668d84f4b25a', // dsrv
+      '0x54b2cca5091b098a1a993dec03c4d1ee9af65999', // cosmos spaces
+      '0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf', // sg-1
     ],
   },
 
@@ -292,5 +298,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x4a2ebbe07cd546cfd2b213d41f2d7814f9386157',
       '0x00271cf10759e4c6d2f8ca46183ab10d360474b4',
     ],
+  },
+
+  solanatestnet: {
+    threshold: 1,
+    validators: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
   },
 };
