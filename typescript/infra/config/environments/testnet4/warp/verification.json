@@ -1,18 +1,4 @@
 {
-  "ancient8testnet": [
-    {
-      "name": "HypERC20",
-      "address": "0x28B02B97a850872C4D33C3E024fab6499ad96564",
-      "constructorArguments": "00000000000000000000000000000000000000000000000000000000000000120000000000000000000000006966b0e55883d49bfb24539356a2f8a673e02039",
-      "isProxy": false
-    },
-    {
-      "name": "HypERC20",
-      "address": "0x1b33611fCc073aB0737011d5512EF673Bff74962",
-      "constructorArguments": "00000000000000000000000000000000000000000000000000000000000000120000000000000000000000006966b0e55883d49bfb24539356a2f8a673e02039",
-      "isProxy": false
-    }
-  ],
   "goerli": [
     {
       "name": "HypERC20Collateral",
