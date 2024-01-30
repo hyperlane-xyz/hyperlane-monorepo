@@ -210,23 +210,5 @@
     "testRecipient": "0xF45A4D54223DA32bf7b5D43a9a460Ef3C94C713B",
     "testTokenRecipient": "0x57d098e6952B6C1c85Ce0B68C9Deada3dCf7D05A",
     "routingIsmFactory": "0x832Ea28749C93C05E5AaF8207E4e61Bd56aE3877"
-  },
-  "ancient8testnet": {
-    "merkleRootMultisigIsmFactory": "0x6E7b29CB2A7617405B4d30C6f84bBD51b4Bb4be8",
-    "messageIdMultisigIsmFactory": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
-    "aggregationIsmFactory": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
-    "aggregationHookFactory": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
-    "routingIsmFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
-    "mailbox": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
-    "proxyAdmin": "0x44b764045BfDC68517e10e783E69B376cef196B2",
-    "validatorAnnounce": "0xD0680F80F4f947968206806C2598Cbc5b6FE5b03",
-    "interchainSecurityModule": "0x4ac19e0bafc2aF6B98094F0a1B817dF196551219",
-    "merkleTreeHook": "0x3707bc8C7342aA6f693bCe1Bd7671Fca146F7F0A",
-    "fallbackRoutingHook": "0x863E8c26621c52ACa1849C53500606e73BA272F0",
-    "storageGasOracle": "0x6b1bb4ce664Bb4164AEB4d3D2E7DE7450DD8084C",
-    "interchainGasPaymaster": "0x86fb9F1c124fB20ff130C41a79a432F770f67AFD",
-    "protocolFee": "0x267B6B6eAf6790faE5D5E9070F28a9cE64CbF279",
-    "testRecipient": "0xb94F96D398eA5BAB5CA528EE9Fdc19afaA825818",
-    "testTokenRecipient": "0x51A0a100e7BC63Ea7821A3a023B6F17fb94FF011"
   }
 }
