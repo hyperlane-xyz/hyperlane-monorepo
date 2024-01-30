@@ -434,9 +434,9 @@ export const inevm: ChainMetadata = {
     reorgPeriod: 0,
   },
   chainId: 2525,
-  domainId: 2525,
   displayName: 'Injective EVM',
   displayNameShort: 'inEVM',
+  domainId: 2525,
   name: Chains.inevm,
   nativeToken: {
     decimals: 18,
@@ -448,6 +448,7 @@ export const inevm: ChainMetadata = {
 };
 
 export const injective: ChainMetadata = {
+  bech32Prefix: 'inj',
   blockExplorers: [],
   blocks: {
     confirmations: 1,
@@ -455,8 +456,9 @@ export const injective: ChainMetadata = {
     reorgPeriod: 1,
   },
   chainId: 'injective-1',
-  domainId: 6909546,
   displayName: 'Injective',
+  domainId: 6909546,
+  grpcUrls: [{ http: 'sentry.chain.grpc.injective.network:443' }],
   name: Chains.injective,
   nativeToken: {
     decimals: 18,
@@ -464,11 +466,9 @@ export const injective: ChainMetadata = {
     symbol: 'INJ',
   },
   protocol: ProtocolType.Cosmos,
-  slip44: 118,
-  bech32Prefix: 'inj',
-  grpcUrls: [{ http: 'sentry.chain.grpc.injective.network:443' }],
-  rpcUrls: [{ http: 'https://sentry.tm.injective.network:443' }],
   restUrls: [{ http: 'https://sentry.lcd.injective.network:443' }],
+  rpcUrls: [{ http: 'https://sentry.tm.injective.network:443' }],
+  slip44: 118,
 };
 
 export const lineagoerli: ChainMetadata = {
@@ -1116,9 +1116,9 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   fuji,
   gnosis,
   goerli,
-  lineagoerli,
-  injective,
   inevm,
+  injective,
+  lineagoerli,
   mantapacific,
   moonbasealpha,
   moonbeam,
