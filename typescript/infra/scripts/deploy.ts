@@ -13,14 +13,16 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
+  RouterConfig,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
+import { isEthereumProtocolChain } from '../src/utils/utils';
 
 import {
   Modules,
@@ -111,7 +113,10 @@ async function main() {
     deployer = new TestQuerySenderDeployer(multiProvider);
   } else if (module === Modules.HELLO_WORLD) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
-    config = core.getRouterConfig(envConfig.owners);
+    config = objFilter(
+      core.getRouterConfig(envConfig.owners),
+      (chainName, _): _ is RouterConfig => isEthereumProtocolChain(chainName),
+    );
     deployer = new HelloWorldDeployer(multiProvider);
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);

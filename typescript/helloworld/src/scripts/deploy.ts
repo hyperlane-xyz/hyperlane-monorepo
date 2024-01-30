@@ -3,8 +3,11 @@ import { Wallet } from 'ethers';
 import {
   HyperlaneCore,
   MultiProvider,
+  RouterConfig,
+  chainMetadata,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType, objFilter } from '@hyperlane-xyz/utils';
 
 import { prodConfigs } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
@@ -18,7 +21,11 @@ async function main() {
   multiProvider.setSharedSigner(signer);
 
   const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
-  const config = core.getRouterConfig(signer.address);
+  const config = objFilter(
+    core.getRouterConfig(signer.address),
+    (chainName, _): _ is RouterConfig =>
+      chainMetadata[chainName].protocol === ProtocolType.Ethereum,
+  );
 
   const deployer = new HelloWorldDeployer(multiProvider);
   const chainToContracts = await deployer.deploy(config);
