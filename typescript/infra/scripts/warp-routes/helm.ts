@@ -11,19 +11,17 @@ export async function runWarpRouteHelmCommand(
   const envConfig = getEnvironmentConfig(runEnv);
   await assertCorrectKubeContext(envConfig);
   const values = getWarpRoutesHelmValues(configFilePath);
+  const releaseName = getHelmReleaseName(configFilePath);
   return execCmd(
-    `helm ${helmCommand} ${getHelmReleaseName(
-      configFilePath,
-    )} ./helm/warp-routes --namespace ${runEnv} ${values.join(
+    `helm ${helmCommand} ${releaseName} ./helm/warp-routes --namespace ${runEnv} ${values.join(
       ' ',
-    )} --set fullnameOverride="${getHelmReleaseName(configFilePath)}"`,
+    )} --set fullnameOverride="${releaseName}"`,
   );
 }
 
 function getHelmReleaseName(route: string): string {
   const match = route.match(/\/([^/]+)-deployments\.yaml$/);
   const name = match ? match[1] : route;
-  console.log(`helm release name: hyperlane-warp-route-${name}`);
   return `hyperlane-warp-route-${name}`;
 }
 
@@ -31,7 +29,7 @@ function getWarpRoutesHelmValues(configFilePath: string) {
   const values = {
     image: {
       repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: 'ae8ce44-20231101-012032',
+      tag: 'a84e439-20240131-224743',
     },
     configFilePath: configFilePath,
   };
