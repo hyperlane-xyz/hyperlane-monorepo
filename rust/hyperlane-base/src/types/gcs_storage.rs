@@ -18,6 +18,7 @@ pub const GCS_SERVICE_ACCOUNT_KEY: &str = "GCS_SERVICE_ACCOUNT_KEY";
 /// # Example 1 - anonymous client with access to public bucket
 /// ```
 ///    use hyperlane_base::GcsStorageClientBuilder;
+///    use ya_gcp::AuthFlow;
 /// #  #[tokio::main]
 /// #  async fn main() {
 ///    let client = GcsStorageClientBuilder::new(AuthFlow::NoAuth)
@@ -32,6 +33,7 @@ pub const GCS_SERVICE_ACCOUNT_KEY: &str = "GCS_SERVICE_ACCOUNT_KEY";
 /// # Example 2 - service account key
 /// ```should_panic
 ///    use hyperlane_base::GcsStorageClientBuilder;
+///    use ya_gcp::{AuthFlow, ServiceAccountAuth};
 /// #  #[tokio::main]
 /// #  async fn main() {
 ///    let auth =
@@ -45,6 +47,7 @@ pub const GCS_SERVICE_ACCOUNT_KEY: &str = "GCS_SERVICE_ACCOUNT_KEY";
 /// # Example 3 - user secret access
 /// ```should_panic
 ///    use hyperlane_base::GcsStorageClientBuilder;
+///    use ya_gcp::AuthFlow;
 /// #  #[tokio::main]
 /// #  async fn main() {
 ///    let auth =
