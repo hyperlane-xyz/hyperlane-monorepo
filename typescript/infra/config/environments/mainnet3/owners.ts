@@ -21,9 +21,11 @@ export const safes: ChainMap<Address | undefined> = {
   scroll: undefined,
   polygonzkevm: undefined,
   mantapacific: undefined,
+  viction: undefined,
 };
 
 const deployer = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+
 export const owners: ChainMap<OwnableConfig> = objMap(safes, (local, __) => ({
   owner: deployer, // TODO: change this to the safe
   ownerOverrides: {

@@ -206,7 +206,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         let domain_id = chain_config.domain_id();
 
         // TODO: consider pulling the setting of defaults into router.rs,
-        // and possibly have a more distinct connection client abstration.
+        // and possibly have a more distinct connection client abstraction.
 
         let mailbox = app_config
             .router_config()
@@ -286,7 +286,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     collateral_info
                         .spl_token_program
                         .as_ref()
-                        .expect("Cannot initalize collateral warp route without SPL token program")
+                        .expect("Cannot initialize collateral warp route without SPL token program")
                         .program_id(),
                     collateral_info.mint.parse().expect("Invalid mint address"),
                 )
