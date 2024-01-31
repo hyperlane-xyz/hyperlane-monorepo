@@ -33,6 +33,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     const config = this.configMap[chain];
 
     const ownableOverrides: Record<string, string> = {
+      ...config.ownerOverrides,
       storageGasOracle: config.oracleKey,
     };
     await super.checkOwnership(chain, config.owner, ownableOverrides);
@@ -60,14 +61,10 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
           ),
     );
 
-    await this.checkBytecode(
+    await this.checkProxy(
       chain,
       'InterchainGasPaymaster proxy',
       contracts.interchainGasPaymaster.address,
-      [
-        BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH,
-        BytecodeHash.OPT_TRANSPARENT_PROXY_BYTECODE_HASH,
-      ],
     );
   }
 

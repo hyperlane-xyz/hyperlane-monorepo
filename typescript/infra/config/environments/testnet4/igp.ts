@@ -1,5 +1,6 @@
 import {
   ChainMap,
+  ChainName,
   GasOracleContractType,
   IgpConfig,
   defaultMultisigConfigs,
@@ -7,10 +8,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { exclude, objMap } from '@hyperlane-xyz/utils';
 
-import { TestnetChains, supportedChainNames } from './chains';
+import { supportedChainNames } from './chains';
 import { owners } from './owners';
 
-function getGasOracles(local: TestnetChains) {
+function getGasOracles(local: ChainName) {
   return Object.fromEntries(
     exclude(local, supportedChainNames).map((name) => [
       name,
@@ -19,11 +20,11 @@ function getGasOracles(local: TestnetChains) {
   );
 }
 
-export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, owner) => {
+export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, ownerConfig) => {
   return {
-    owner,
-    oracleKey: owner,
-    beneficiary: owner,
+    ...ownerConfig,
+    oracleKey: ownerConfig.owner,
+    beneficiary: ownerConfig.owner,
     gasOracleType: getGasOracles(chain),
     overhead: Object.fromEntries(
       exclude(chain, supportedChainNames).map((remote) => [

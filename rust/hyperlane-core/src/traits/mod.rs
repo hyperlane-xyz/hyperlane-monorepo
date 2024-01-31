@@ -15,7 +15,7 @@ pub use routing_ism::*;
 pub use signing::*;
 pub use validator_announce::*;
 
-use crate::{FixedPointNumber, U256};
+use crate::{FixedPointNumber, H512, U256};
 
 mod aggregation_ism;
 mod ccip_read_ism;
@@ -38,11 +38,11 @@ mod validator_announce;
 #[derive(Debug, Clone)]
 pub struct TxOutcome {
     /// The transaction identifier/hash
-    pub transaction_id: crate::H512,
+    pub transaction_id: H512,
     /// True if executed, false otherwise (reverted, etc.)
     pub executed: bool,
     /// Amount of gas used on this transaction.
-    pub gas_used: crate::U256,
+    pub gas_used: U256,
     /// Price paid for the gas
     pub gas_price: FixedPointNumber,
     // TODO: more? What can be abstracted across all chains?
@@ -54,7 +54,7 @@ impl From<ethers_core::types::TransactionReceipt> for TxOutcome {
         Self {
             transaction_id: t.transaction_hash.into(),
             executed: t.status.unwrap().low_u32() == 1,
-            gas_used: t.gas_used.map(Into::into).unwrap_or(crate::U256::zero()),
+            gas_used: t.gas_used.map(Into::into).unwrap_or(U256::zero()),
             gas_price: t
                 .effective_gas_price
                 .and_then(|price| U256::from(price).try_into().ok())

@@ -150,15 +150,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       );
     }
 
-    await this.checkBytecode(
-      chain,
-      'Mailbox proxy',
-      contracts.mailbox.address,
-      [
-        BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH,
-        BytecodeHash.OPT_TRANSPARENT_PROXY_BYTECODE_HASH,
-      ],
-    );
+    await this.checkProxy(chain, 'Mailbox proxy', contracts.mailbox.address);
+
     await this.checkBytecode(
       chain,
       'ProxyAdmin',

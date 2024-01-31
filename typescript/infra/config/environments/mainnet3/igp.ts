@@ -28,7 +28,7 @@ function getGasOracles(local: MainnetChains) {
 }
 
 export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, owner) => ({
-  owner,
+  ...owner,
   oracleKey: DEPLOYER_ADDRESS,
   beneficiary: KEY_FUNDER_ADDRESS,
   gasOracleType: getGasOracles(chain),

@@ -11,6 +11,7 @@ version = { workspace = true }
 
 [dependencies]
 async-trait.workspace = true
+async-rwlock.workspace = true
 auto_impl.workspace = true
 bigdecimal.workspace = true
 borsh.workspace = true
@@ -39,6 +40,7 @@ serde_json = { workspace = true }
 sha3 = { workspace = true }
 strum = { workspace = true, optional = true, features = ["derive"] }
 thiserror = { workspace = true }
+tracing.workspace = true
 primitive-types = { workspace = true, optional = true }
 solana-sdk = { workspace = true, optional = true }
 tiny-keccak = { workspace = true, features = ["keccak"]}

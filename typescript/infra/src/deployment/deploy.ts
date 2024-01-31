@@ -29,7 +29,7 @@ export async function deployWithArtifacts<Config extends object>(
     read: boolean;
     write: boolean;
   },
-  fork?: ChainName,
+  targetNetwork?: ChainName,
   agentConfig?: {
     multiProvider: MultiProvider;
     addresses: string;
@@ -56,11 +56,9 @@ export async function deployWithArtifacts<Config extends object>(
   });
 
   try {
-    if (fork) {
-      deployer.deployedContracts[fork] = await deployer.deployContracts(
-        fork,
-        configMap[fork],
-      );
+    if (targetNetwork) {
+      deployer.deployedContracts[targetNetwork] =
+        await deployer.deployContracts(targetNetwork, configMap[targetNetwork]);
     } else {
       await deployer.deploy(configMap);
     }
@@ -90,7 +88,6 @@ export async function postDeploy<Config extends object>(
     const deployedAddresses = serializeContractsMap(deployer.deployedContracts);
     const cachedAddresses = deployer.cachedAddresses;
     const addresses = objMerge(deployedAddresses, cachedAddresses);
-    console.log(addresses);
 
     // cache addresses of deployed contracts
     writeMergedJSONAtPath(cache.addresses, addresses);

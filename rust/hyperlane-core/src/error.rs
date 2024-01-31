@@ -6,6 +6,7 @@ use std::ops::Deref;
 use bigdecimal::ParseBigDecimalError;
 
 use crate::config::StrOrIntParseError;
+use crate::rpc_clients::RpcClientError;
 use std::string::FromUtf8Error;
 
 use crate::Error as PrimitiveTypeError;
@@ -128,6 +129,9 @@ pub enum ChainCommunicationError {
     /// Big decimal parsing error
     #[error(transparent)]
     ParseBigDecimalError(#[from] ParseBigDecimalError),
+    /// Rpc client error
+    #[error(transparent)]
+    RpcClientError(#[from] RpcClientError),
 }
 
 impl ChainCommunicationError {

@@ -204,7 +204,11 @@ export const bsc: ChainMetadata = {
   name: Chains.bsc,
   nativeToken: bnbToken,
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.ankr.com/bsc' }],
+  rpcUrls: [
+    { http: 'https://rpc.ankr.com/bsc' },
+    { http: 'https://bsc.drpc.org' },
+    { http: 'https://bscrpc.com' },
+  ],
 };
 
 export const bsctestnet: ChainMetadata = {
@@ -320,7 +324,7 @@ export const ethereum: ChainMetadata = {
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
-    { http: 'https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161' },
+    { http: 'https://ethereum.publicnode.com' },
     { http: 'https://cloudflare-eth.com' },
   ],
 };
@@ -692,14 +696,10 @@ export const polygon: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
     {
-      http: 'https://rpc-mainnet.matic.quiknode.pro',
-      pagination: {
-        // Needs to be low to avoid RPC timeouts
-        maxBlockRange: 10000,
-        minBlockNumber: 19657100,
-      },
+      http: 'https://polygon-bor.publicnode.com',
     },
     { http: 'https://polygon-rpc.com' },
+    { http: 'https://rpc.ankr.com/polygon' },
   ],
 };
 
@@ -726,7 +726,11 @@ export const polygonzkevm: ChainMetadata = {
   name: Chains.polygonzkevm,
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.ankr.com/polygon_zkevm' }],
+  rpcUrls: [
+    { http: 'https://zkevm-rpc.com' },
+    { http: 'https://polygonzkevm-mainnet.g.alchemy.com/v2/demo' },
+    { http: 'https://rpc.ankr.com/polygon_zkevm' },
+  ],
 };
 
 export const polygonzkevmtestnet: ChainMetadata = {
@@ -1007,6 +1011,37 @@ export const test3: ChainMetadata = {
   rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
 };
 
+export const viction: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://www.vicscan.xyz/api',
+      family: ExplorerFamily.Other,
+      name: 'Vicscan',
+      url: 'https://www.vicscan.xyz/',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 2,
+    reorgPeriod: 0,
+  },
+  chainId: 88,
+  displayName: 'Viction',
+  domainId: 88,
+  name: Chains.viction,
+  nativeToken: {
+    decimals: 18,
+    name: 'Viction',
+    symbol: 'VIC',
+  },
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [
+    {
+      http: 'https://viction.blockpi.network/v1/rpc/public',
+    },
+  ],
+};
+
 /**
  * Collection maps
  *
@@ -1051,6 +1086,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   test1,
   test2,
   test3,
+  viction,
 };
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<

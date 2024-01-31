@@ -326,6 +326,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-rwlock"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "261803dcc39ba9e72760ba6e16d0199b1eef9fc44e81bffabbebb9f5aea3906c"
+dependencies = [
+ "async-mutex",
+ "event-listener",
+]
+
+[[package]]
 name = "async-stream"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3039,6 +3049,7 @@ dependencies = [
  "derive-new",
  "derive_builder",
  "ethers 1.0.2 (git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-11-29-02)",
+ "ethers-core 1.0.2 (git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-11-29-02)",
  "futures",
  "hyperlane-core",
  "log",
@@ -4436,6 +4447,7 @@ dependencies = [
 name = "hyperlane-core"
 version = "0.1.0"
 dependencies = [
+ "async-rwlock",
  "async-trait",
  "auto_impl 1.1.0",
  "bigdecimal 0.4.2",
@@ -4469,6 +4481,7 @@ dependencies = [
  "thiserror",
  "tiny-keccak 2.0.2",
  "tokio",
+ "tracing",
  "uint 0.9.5",
 ]
 

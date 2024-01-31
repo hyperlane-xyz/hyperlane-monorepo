@@ -2,7 +2,7 @@
  * The types defined here are the source of truth for chain metadata.
  * ANY CHANGES HERE NEED TO BE REFLECTED IN HYPERLANE-BASE CONFIG PARSING.
  */
-import { z } from 'zod';
+import { SafeParseReturnType, z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -243,6 +243,12 @@ export type BlockExplorer = Exclude<
   ChainMetadata['blockExplorers'],
   undefined
 >[number];
+
+export function safeParseChainMetadata(
+  c: ChainMetadata,
+): SafeParseReturnType<ChainMetadata, ChainMetadata> {
+  return ChainMetadataSchema.safeParse(c);
+}
 
 export function isValidChainMetadata(c: ChainMetadata): boolean {
   return ChainMetadataSchema.safeParse(c).success;
