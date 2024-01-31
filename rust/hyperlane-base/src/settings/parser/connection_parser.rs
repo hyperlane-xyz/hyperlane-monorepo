@@ -45,7 +45,7 @@ pub fn build_cosmos_connection_conf(
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
 
-    let grpc_urls = chain
+    let grpcs_base = chain
         .chain(&mut local_err)
         .get_key("grpcUrls")
         .into_array_iter()
@@ -59,6 +59,33 @@ pub fn build_cosmos_connection_conf(
             .collect_vec()
         })
         .unwrap_or_default();
+
+    let grpc_overrides = chain
+        .chain(&mut local_err)
+        .get_opt_key("customGrpcUrls")
+        .parse_string()
+        .end()
+        .map(|urls| {
+            urls.split(',')
+                .filter_map(|url| {
+                    url.parse()
+                        .take_err(&mut local_err, || &chain.cwp + "customGrpcUrls")
+                })
+                .collect_vec()
+        });
+
+    let grpcs = grpc_overrides.unwrap_or(grpcs_base);
+
+    if grpcs.is_empty() {
+        err.push(
+            &chain.cwp + "grpc_urls",
+            eyre!("Missing base grpc definitions for chain"),
+        );
+        err.push(
+            &chain.cwp + "custom_grpc_urls",
+            eyre!("Also missing grpc overrides for chain"),
+        );
+    }
 
     let chain_id = chain
         .chain(&mut local_err)
@@ -117,7 +144,7 @@ pub fn build_cosmos_connection_conf(
         None
     } else {
         Some(ChainConnectionConf::Cosmos(h_cosmos::ConnectionConf::new(
-            grpc_urls,
+            grpcs,
             rpcs.first().unwrap().to_string(),
             chain_id.unwrap().to_string(),
             prefix.unwrap().to_string(),
