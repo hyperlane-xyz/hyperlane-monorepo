@@ -104,7 +104,7 @@ impl From<Signature> for ethers_core::types::Signature {
 }
 
 /// A payment of a message's gas costs.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct InterchainGasPayment {
     /// Id of the message
     pub message_id: H256,
