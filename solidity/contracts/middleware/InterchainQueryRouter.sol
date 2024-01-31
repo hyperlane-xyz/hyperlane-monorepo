@@ -5,6 +5,7 @@ pragma solidity ^0.8.13;
 import {Router} from "../client/Router.sol";
 import {CallLib} from "./libs/Call.sol";
 import {InterchainQueryMessage} from "./libs/InterchainQueryMessage.sol";
+import {IInterchainQueryRouter} from "../interfaces/IInterchainQueryRouter.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
 // ============ External Imports ============
@@ -16,7 +17,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @title Interchain Query Router that performs remote view calls on other chains and returns the result.
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
-contract InterchainQueryRouter is Router {
+contract InterchainQueryRouter is IInterchainQueryRouter, Router {
     using TypeCasts for address;
     using TypeCasts for bytes32;
     using InterchainQueryMessage for bytes;
