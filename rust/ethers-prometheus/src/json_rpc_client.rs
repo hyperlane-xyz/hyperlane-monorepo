@@ -14,7 +14,6 @@ use hyperlane_core::ChainCommunicationError;
 use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
 use serde::{de::DeserializeOwned, Serialize};
-use ethers::prelude::JsonRpcClient;
 
 pub use crate::ChainInfo;
 
