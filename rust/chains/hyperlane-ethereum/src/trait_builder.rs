@@ -1,4 +1,4 @@
-use std::fmt::Write;
+use std::fmt::{Debug, Write};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -11,6 +11,7 @@ use ethers::prelude::{
     SignerMiddleware, WeightedProvider, Ws, WsClientError,
 };
 use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
+use hyperlane_core::rpc_clients::FallbackProvider;
 use reqwest::{Client, Url};
 use thiserror::Error;
 
@@ -25,7 +26,8 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
 };
 
-use crate::{signers::Signers, ConnectionConf, FallbackProvider, RetryingProvider};
+use crate::EthereumFallbackProvider;
+use crate::{signers::Signers, ConnectionConf, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
 const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -114,8 +116,14 @@ pub trait BuildableWithProvider {
                     builder = builder.add_provider(metrics_provider);
                 }
                 let fallback_provider = builder.build();
-                self.build(fallback_provider, locator, signer, middleware_metrics)
-                    .await?
+                let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
+                self.build(
+                    ethereum_fallback_provider,
+                    locator,
+                    signer,
+                    middleware_metrics,
+                )
+                .await?
             }
             ConnectionConf::Http { url } => {
                 let http_client = Client::builder()

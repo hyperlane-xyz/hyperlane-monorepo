@@ -2,7 +2,7 @@
  * The types defined here are the source of truth for chain metadata.
  * ANY CHANGES HERE NEED TO BE REFLECTED IN HYPERLANE-BASE CONFIG PARSING.
  */
-import { z } from 'zod';
+import { SafeParseReturnType, z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -111,6 +111,10 @@ export const ChainMetadataSchemaObject = z.object({
     .array(RpcUrlSchema)
     .describe('For cosmos chains only, a list of Rest API URLs')
     .optional(),
+  grpcUrls: z
+    .array(RpcUrlSchema)
+    .describe('For cosmos chains only, a list of gRPC API URLs')
+    .optional(),
   blockExplorers: z
     .array(
       z.object({
@@ -216,6 +220,20 @@ export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
       message: 'Bech32Prefix and Slip44 required for Cosmos chains',
       path: ['bech32Prefix', 'slip44'],
     },
+  )
+  .refine(
+    (metadata) => {
+      if (
+        metadata.protocol === ProtocolType.Cosmos &&
+        (!metadata.restUrls || !metadata.grpcUrls)
+      )
+        return false;
+      else return true;
+    },
+    {
+      message: 'Rest and gRPC URLs required for Cosmos chains',
+      path: ['restUrls', 'grpcUrls'],
+    },
   );
 
 export type ChainMetadata<Ext = object> = z.infer<typeof ChainMetadataSchema> &
@@ -225,6 +243,12 @@ export type BlockExplorer = Exclude<
   ChainMetadata['blockExplorers'],
   undefined
 >[number];
+
+export function safeParseChainMetadata(
+  c: ChainMetadata,
+): SafeParseReturnType<ChainMetadata, ChainMetadata> {
+  return ChainMetadataSchema.safeParse(c);
+}
 
 export function isValidChainMetadata(c: ChainMetadata): boolean {
   return ChainMetadataSchema.safeParse(c).success;
@@ -240,4 +264,10 @@ export function getDomainId(chainMetadata: ChainMetadata): number {
 export function getChainIdNumber(chainMetadata: ChainMetadata): number {
   if (typeof chainMetadata.chainId === 'number') return chainMetadata.chainId;
   else throw new Error('ChainId is not a number, chain may be of Cosmos type');
+}
+
+export function getReorgPeriod(chainMetadata: ChainMetadata): number {
+  if (chainMetadata.blocks?.reorgPeriod !== undefined)
+    return chainMetadata.blocks.reorgPeriod;
+  else throw new Error('Chain has no reorg period');
 }
