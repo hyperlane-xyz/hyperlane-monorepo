@@ -64,5 +64,5 @@ The warp-routes container
   - -l 
   - "10000"
   - -c
-  - {{ .Values.config }}
+  - {{ .Values.configFilePath }}
 {{- end }}
