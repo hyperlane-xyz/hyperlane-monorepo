@@ -102,36 +102,36 @@
       }
     },
     "arbitrumgoerli": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://api-goerli.arbiscan.io/api",
+          "family": "etherscan",
+          "name": "Arbiscan",
+          "url": "https://goerli.arbiscan.io"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 3,
+        "reorgPeriod": 1
+      },
       "chainId": 421613,
-      "domainId": 421613,
-      "name": "arbitrumgoerli",
-      "protocol": "ethereum",
       "displayName": "Arbitrum Goerli",
       "displayNameShort": "Arb. Goerli",
+      "domainId": 421613,
+      "isTestnet": true,
+      "name": "arbitrumgoerli",
       "nativeToken": {
+        "decimals": 18,
         "name": "Ether",
-        "symbol": "ETH",
-        "decimals": 18
+        "symbol": "ETH"
       },
+      "protocol": "ethereum",
       "rpcUrls": [
         {
           "http": "https://goerli-rollup.arbitrum.io/rpc"
         }
       ],
-      "blockExplorers": [
-        {
-          "name": "Arbiscan",
-          "url": "https://goerli.arbiscan.io",
-          "apiUrl": "https://api-goerli.arbiscan.io/api",
-          "family": "etherscan"
-        }
-      ],
-      "blocks": {
-        "confirmations": 1,
-        "reorgPeriod": 1,
-        "estimateBlockTime": 3
-      },
-      "isTestnet": true,
       "merkleRootMultisigIsmFactory": "0x17D58eBb5Ea0E2d360c877E119FAef4C4052e6B9",
       "messageIdMultisigIsmFactory": "0x922CeEe9e8832a047e6aD68Df4F079F271b73Ac3",
       "aggregationIsmFactory": "0xC5Bb8CDD44B6c56695df45c7AA8012a97dD6ED13",
@@ -140,13 +140,12 @@
       "proxyAdmin": "0x00DFB81Bfc45fa03060b605273147F274ea807E5",
       "mailbox": "0x13dABc0351407d5aAa0A50003a166A73b4febfDc",
       "validatorAnnounce": "0x4a01EEBa1CC20F47A2e60aE4ec932051601FcB9e",
-      "defaultIsm": "0x8C841784947dEa42f78263D54bec15c0cF65fA22",
       "merkleTreeHook": "0xf0A38e1eEA49dAc7968F470c3aA0BDE2565A5d80",
       "storageGasOracle": "0xFc8229ADB46D96056A6e451Fb3c55d60FFeD056f",
       "interchainGasPaymaster": "0x76189acFA212298d7022624a4633411eE0d2f26F",
       "aggregationHook": "0xf852EB6b98d84A4296754043a56759a0Ae0E06df",
       "protocolFee": "0x0358ba0D90ED2d90fB8cBb610F27C274D8077a0B",
-      "fallbackRoutingHook": "0x3Ce607F6FcE5Dfb9821f33504d86E04A4CD0C75f",
+      "fallbackRoutingHook": "0xEdA6f85f4761A1f9e42FD40CA5a4E8Ce1C764015",
       "index": {
         "from": 50669378
       }

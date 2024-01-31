@@ -74,7 +74,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       );
       hook = interchainGasPaymaster;
     } else if (config.type === HookType.AGGREGATION) {
-      return this.deployAggregation(chain, config, coreAddresses); // deploy from factory
+      hook = (await this.deployAggregation(chain, config, coreAddresses))
+        .aggregationHook; // deploy from factory
     } else if (config.type === HookType.PROTOCOL_FEE) {
       hook = await this.deployProtocolFee(chain, config);
     } else if (config.type === HookType.OP_STACK) {
@@ -294,9 +295,12 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       }
     }
 
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
     await this.multiProvider.handleTx(
       chain,
-      routingHook.setHooks(routingConfigs),
+      routingHook.setHooks(routingConfigs, {
+        ...overrides,
+      }),
     );
 
     return routingHook;

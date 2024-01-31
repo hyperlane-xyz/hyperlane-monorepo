@@ -5,6 +5,7 @@ import {
   AggregationIsmConfig,
   ChainMap,
   CoreConfig,
+  FallbackRoutingHookConfig,
   HookType,
   IgpHookConfig,
   IsmType,
@@ -77,10 +78,18 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     type: HookType.PAUSABLE,
     ...owner,
   };
-
-  const defaultHook: AggregationHookConfig = {
-    type: HookType.AGGREGATION,
-    hooks: [pausableHook, merkleHook, igpHook],
+  const aggregationHooks = objMap(
+    originMultisigs,
+    (_origin, _): AggregationHookConfig => ({
+      type: HookType.AGGREGATION,
+      hooks: [pausableHook, merkleHook, igpHook],
+    }),
+  );
+  const defaultHook: FallbackRoutingHookConfig = {
+    type: HookType.FALLBACK_ROUTING,
+    ...owner,
+    domains: aggregationHooks,
+    fallback: merkleHook,
   };
 
   const requiredHook: ProtocolFeeHookConfig = {
