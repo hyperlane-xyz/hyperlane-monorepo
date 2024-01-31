@@ -52,12 +52,9 @@ const TIMEOUT_BLOCKS: u64 = 1000;
 #[derive(Debug, Clone, new)]
 struct CosmosChannel {
     channel: Channel,
-}
-
-impl From<Channel> for CosmosChannel {
-    fn from(channel: Channel) -> Self {
-        Self { channel }
-    }
+    /// The url that this channel is connected to.
+    /// Not explicitly used, but useful for debugging.
+    _url: String,
 }
 
 #[async_trait]
@@ -149,15 +146,17 @@ impl WasmGrpcProvider {
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
         // get all the configured grpc urls and convert them to a Vec<Endpoint>
-        let endpoints: Result<Vec<Endpoint>, _> = conf
+        let channels: Result<Vec<CosmosChannel>, _> = conf
             .get_grpc_urls()
             .into_iter()
-            .map(|url| Endpoint::new(url).map_err(Into::<HyperlaneCosmosError>::into))
+            .map(|url| {
+                Endpoint::new(url.clone())
+                    .map(|e| CosmosChannel::new(e.connect_lazy(), url))
+                    .map_err(Into::<HyperlaneCosmosError>::into)
+            })
             .collect();
-        let channels: Vec<CosmosChannel> =
-            endpoints?.iter().map(|e| e.connect_lazy().into()).collect();
         let mut builder = FallbackProvider::builder();
-        builder = builder.add_providers(channels);
+        builder = builder.add_providers(channels?);
         let fallback_provider = builder.build();
         let provider = CosmosFallbackProvider::new(fallback_provider);
 

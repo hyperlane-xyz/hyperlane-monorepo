@@ -156,9 +156,15 @@ impl AgentConfig {
                     network.launch_resp.endpoint.rpc_addr.replace("tcp://", "")
                 ),
             }],
-            grpc_urls: vec![AgentUrl {
-                http: format!("http://{}", network.launch_resp.endpoint.grpc_addr),
-            }],
+            grpc_urls: vec![
+                // The first url points to a nonexistent node, but is used for checking fallback provider logic
+                AgentUrl {
+                    http: "localhost:1337".to_string(),
+                },
+                AgentUrl {
+                    http: format!("http://{}", network.launch_resp.endpoint.grpc_addr),
+                },
+            ],
             bech32_prefix: "osmo".to_string(),
             signer: AgentConfigSigner {
                 typ: "cosmosKey".to_string(),

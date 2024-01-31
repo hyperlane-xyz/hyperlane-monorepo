@@ -9,7 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio;
-use tracing::{info, warn_span};
+use tracing::{info, trace, warn_span};
 
 use crate::ChainCommunicationError;
 
@@ -163,7 +163,13 @@ where
                     warn_span!("FallbackProvider::call", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
                 match resp {
                     Ok(v) => return Ok(v),
-                    Err(e) => errors.push(e),
+                    Err(e) => {
+                        trace!(
+                            error=?e,
+                            "Got error from inner fallback provider",
+                        );
+                        errors.push(e)
+                    }
                 }
             }
         }
