@@ -15,6 +15,15 @@ pub struct TestMockMsgReceiverInstantiateMsg {
 }
 
 #[cw_serde]
+struct IgpInstantiateMsg {
+    pub hrp: String,
+    pub owner: String,
+    pub gas_token: String,
+    pub beneficiary: String,
+    pub default_gas_usage: String, // u128 doesnt work with cw_serde
+}
+
+#[cw_serde]
 pub struct EmptyMsg {}
 
 const BECH32_PREFIX: &str = "osmo";
@@ -47,12 +56,12 @@ pub fn deploy_cw_hyperlane(
         &deployer,
         Some(deployer_addr),
         codes.hpl_igp,
-        igp::core::InstantiateMsg {
+        IgpInstantiateMsg {
             hrp: BECH32_PREFIX.to_string(),
             owner: deployer_addr.clone(),
             gas_token: "uosmo".to_string(),
             beneficiary: deployer_addr.clone(),
-            default_gas_usage: 25000,
+            default_gas_usage: "25000".to_string(),
         },
         "hpl_igp",
     );
