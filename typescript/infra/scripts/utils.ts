@@ -195,9 +195,9 @@ export async function getMultiProviderForRole(
   // TODO: rename to consensusType?
   connectionType?: RpcConsensusType,
 ): Promise<MultiProvider> {
-  debugLog(`Get multiprovider for ${role} role`);
+  debugLog(`Getting multiprovider for ${role} role`);
   if (process.env.CI === 'true') {
-    debugLog('Return multiprovider with default RPCs in CI');
+    debugLog('Returning multiprovider with default RPCs in CI');
     return new MultiProvider(); // use default RPCs
   }
   const multiProvider = new MultiProvider(txConfigs);
