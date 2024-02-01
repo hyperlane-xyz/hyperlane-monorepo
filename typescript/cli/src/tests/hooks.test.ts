@@ -9,13 +9,13 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
-import { readHooksConfigMap } from '../config/hooks.js';
+import { getHooksConfigMap } from '../config/hooks.js';
 
-describe('readHooksConfigMap', () => {
+describe('getHooksConfigMap', () => {
   let multiProvider: MultiProvider;
 
   it('parses and validates example correctly', async () => {
-    const hooks = await readHooksConfigMap(
+    const hooks = await getHooksConfigMap(
       multiProvider, // only to compile, actually not being used
       'src/tests/hooks/test-example.yaml',
     );
@@ -108,11 +108,11 @@ describe('readHooksConfigMap', () => {
 
   it('parsing failure, missing internal key "overhead"', async () => {
     try {
-      await readHooksConfigMap(
+      await getHooksConfigMap(
         multiProvider,
         'src/tests/hooks/safe-parse-fail.yaml',
       );
-      throw new Error('Expected readHooksConfigMap to throw, but it did not');
+      throw new Error('Expected getHooksConfigMap to throw, but it did not');
     } catch (err) {
       expect((err as Error).message).to.equal(
         'Invalid hook config: test2,default => Invalid input',

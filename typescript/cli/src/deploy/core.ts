@@ -28,7 +28,7 @@ import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
 import { runDeploymentArtifactStep } from '../config/artifacts.js';
-import { presetHookConfigs, readHooksConfigMap } from '../config/hooks.js';
+import { getHooksConfigMap, presetHookConfigs } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
@@ -211,7 +211,7 @@ async function runHookStep(
   hookConfigPath?: string,
 ) {
   if (!hookConfigPath) return {};
-  return readHooksConfigMap(multiProvider, hookConfigPath);
+  return await getHooksConfigMap(multiProvider, hookConfigPath);
 }
 
 interface DeployParams {

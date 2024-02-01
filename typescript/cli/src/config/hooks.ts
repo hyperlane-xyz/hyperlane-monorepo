@@ -94,7 +94,12 @@ export function isValidHookConfigMap(config: any) {
   return HooksConfigMapSchema.safeParse(config).success;
 }
 
-async function processIgpConfig(
+// the ZOD and the static igp configs are not identical
+// points of difference:
+// 1. tokenExchangeRate is optional in ZOD and if not provided by the user, it is set to 1e10 which is when the origin and remote chain are using the same valued token
+// 2. gasPrice is optional in ZOD and if not provided by the user, it is set to the RPC gas price of the remote chain
+// 3. gasPrice, tokenExchangeRate, and gasOverhead are all strings in ZOD but in the static config, they are all BigNumbers to be future proof for chains which have more than 18 decimals
+async function formatIgpConfig(
   multiProvider: MultiProvider,
   igpConfig: IgpConfig,
 ): Promise<IgpHookConfig> {
@@ -112,7 +117,7 @@ async function processIgpConfig(
         (await multiProvider.getGasPrice(chain)),
     };
   });
-  const trueIgpConfig: IgpHookConfig = {
+  const formattedIgpConfig: IgpHookConfig = {
     ...igpConfig,
     type: HookType.INTERCHAIN_GAS_PAYMASTER,
     overhead: objMap(igpConfig.overhead, (_, overhead) =>
@@ -120,22 +125,19 @@ async function processIgpConfig(
     ),
     oracleConfig: storageGasOracleConfig,
   };
-  return trueIgpConfig;
+  return formattedIgpConfig;
 }
 
-export async function processNestedIgpConfig(
+export async function formatNestedIgpConfig(
   multiProvider: MultiProvider,
   hookConfig: HookConfig,
 ): Promise<any> {
   let localConfig: HookConfig = hookConfig;
   if (hookConfig.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
-    localConfig = await processIgpConfig(
-      multiProvider,
-      hookConfig as IgpConfig,
-    );
+    localConfig = await formatIgpConfig(multiProvider, hookConfig as IgpConfig);
   } else if (hookConfig.type === HookType.AGGREGATION) {
     hookConfig.hooks.forEach(async (hook: HookConfig, index: number) => {
-      localConfig.hooks[index] = await processNestedIgpConfig(
+      localConfig.hooks[index] = await formatNestedIgpConfig(
         multiProvider,
         hook,
       );
@@ -145,13 +147,13 @@ export async function processNestedIgpConfig(
     hookConfig.type === HookType.FALLBACK_ROUTING
   ) {
     for (const domain of Object.keys(hookConfig.domains)) {
-      localConfig.domains[domain] = await processNestedIgpConfig(
+      localConfig.domains[domain] = await formatNestedIgpConfig(
         multiProvider,
         localConfig.domains[domain],
       );
     }
     if (hookConfig.type === HookType.FALLBACK_ROUTING) {
-      localConfig.fallback = await processNestedIgpConfig(
+      localConfig.fallback = await formatNestedIgpConfig(
         multiProvider,
         localConfig.fallback,
       );
@@ -160,6 +162,15 @@ export async function processNestedIgpConfig(
   return localConfig;
 }
 
+// We provide a default hook config for the user to use in case they don't want to provide their own
+// schema:
+// required: ProtocolFeeHook { 0 wei fee }
+// default: AggregationHook
+//           |           |
+//    MerkleTreeHook   IGPHook
+//                       |- tokenExchangeRate: 1e10
+//                       |- gasPrice: RPC gas price
+//                       |- overhead: cost of verifying 2/3 multisig ISM
 export async function presetHookConfigs(
   multiProvider: MultiProvider,
   owner: Address,
@@ -187,6 +198,7 @@ export async function presetHookConfigs(
       validatorCount = 3;
     }
 
+    // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3211
     overheads[chain] = BigNumber.from(
       multisigIsmVerificationCost(validatorThreshold, validatorCount),
     );
@@ -225,14 +237,11 @@ export async function presetHookConfigs(
   };
 }
 
-export async function readHooksConfigMap(
-  multiProvider: MultiProvider,
-  filePath: string,
-) {
+export function readHooksConfigMap(filePath: string): HooksConfigMap {
   const config = readYamlOrJson(filePath);
   if (!config) {
     logRed(`No hook config found at ${filePath}`);
-    return;
+    throw new Error('No hook config found');
   }
   const result = HooksConfigMapSchema.safeParse(config);
   if (!result.success) {
@@ -241,15 +250,23 @@ export async function readHooksConfigMap(
       `Invalid hook config: ${firstIssue.path} => ${firstIssue.message}`,
     );
   }
-  const parsedConfig = result.data;
+  return result.data;
+}
 
-  // special case for IGP
+export async function getHooksConfigMap(
+  // multiProvider is used to get the gas price of the remote chains in case the user doesn't provide it
+  multiProvider: MultiProvider,
+  filePath: string,
+) {
+  const parsedConfig = readHooksConfigMap(filePath); // Add this line to await the promise and get the actual object
+
+  // special case for the IGP hook config parsing - mentioned above
   for (const chain of Object.keys(parsedConfig)) {
-    parsedConfig[chain].default = await processNestedIgpConfig(
+    parsedConfig[chain].default = await formatNestedIgpConfig(
       multiProvider,
       parsedConfig[chain].default,
     );
-    parsedConfig[chain].required = await processNestedIgpConfig(
+    parsedConfig[chain].required = await formatNestedIgpConfig(
       multiProvider,
       parsedConfig[chain].required,
     );
