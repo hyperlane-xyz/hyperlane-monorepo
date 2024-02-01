@@ -1,9 +1,6 @@
-import {
-  encodeSecp256k1Pubkey,
-  pubkeyToAddress,
-  rawSecp256k1PubkeyToRawAddress,
-} from '@cosmjs/amino';
+import { encodeSecp256k1Pubkey, pubkeyToAddress } from '@cosmjs/amino';
 import { Keypair } from '@solana/web3.js';
+import { Debugger, debug } from 'debug';
 import { Wallet, ethers } from 'ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
@@ -42,6 +39,8 @@ interface FetchedKey {
 type RemoteKey = UnfetchedKey | FetchedKey;
 
 export class AgentGCPKey extends CloudAgentKey {
+  protected logger: Debugger;
+
   constructor(
     environment: DeployEnvironment,
     context: Contexts,
@@ -51,18 +50,23 @@ export class AgentGCPKey extends CloudAgentKey {
     private remoteKey: RemoteKey = { fetched: false },
   ) {
     super(environment, context, role, chainName, index);
+    this.logger = debug(`infra:agents:key:gcp:${this.identifier}`);
   }
 
   async createIfNotExists() {
+    this.logger('Checking if key exists and creating if not');
     try {
       await this.fetch();
+      this.logger('Key already exists');
     } catch (err) {
+      this.logger('Key does not exist, creating new key');
       await this.create();
     }
   }
 
   serializeAsAddress() {
     this.requireFetched();
+    this.logger('Serializing key as address');
     return {
       identifier: this.identifier,
       // @ts-ignore
@@ -98,6 +102,7 @@ export class AgentGCPKey extends CloudAgentKey {
 
   addressForProtocol(protocol: ProtocolType): string | undefined {
     this.requireFetched();
+    this.logger(`Getting address for protocol: ${protocol}`);
 
     switch (protocol) {
       case ProtocolType.Ethereum:
@@ -106,7 +111,7 @@ export class AgentGCPKey extends CloudAgentKey {
         return Keypair.fromSeed(
           Buffer.from(strip0x(this.privateKey), 'hex'),
         ).publicKey.toBase58();
-      case ProtocolType.Cosmos:
+      case ProtocolType.Cosmos: {
         const compressedPubkey = ethers.utils.computePublicKey(
           this.privateKey,
           true,
@@ -117,12 +122,15 @@ export class AgentGCPKey extends CloudAgentKey {
         // TODO support other prefixes?
         // https://cosmosdrops.io/en/tools/bech32-converter is useful for converting to other prefixes.
         return pubkeyToAddress(encodedPubkey, 'neutron');
+      }
       default:
+        this.logger(`Unsupported protocol: ${protocol}`);
         return undefined;
     }
   }
 
   async fetch() {
+    this.logger('Fetching key');
     const secret: SecretManagerPersistedKeys = (await fetchGCPSecret(
       this.identifier,
     )) as any;
@@ -131,25 +139,34 @@ export class AgentGCPKey extends CloudAgentKey {
       privateKey: secret.privateKey,
       address: secret.address,
     };
+    this.logger(`Key fetched successfully: ${secret.address}`);
   }
 
   async create() {
+    this.logger('Creating new key');
     this.remoteKey = await this._create(false);
+    this.logger('Key created successfully');
   }
 
   async update() {
+    this.logger('Updating key');
     this.remoteKey = await this._create(true);
+    this.logger('Key updated successfully');
     return this.address;
   }
 
   async delete() {
+    this.logger('Deleting key');
     await execCmd(`gcloud secrets delete ${this.identifier} --quiet`);
+    this.logger('Key deleted successfully');
   }
 
   async getSigner(
     provider?: ethers.providers.Provider,
   ): Promise<ethers.Signer> {
+    this.logger('Getting signer');
     if (!this.remoteKey.fetched) {
+      this.logger('Key not fetched, fetching now');
       await this.fetch();
     }
     return new Wallet(this.privateKey, provider);
@@ -157,12 +174,14 @@ export class AgentGCPKey extends CloudAgentKey {
 
   private requireFetched() {
     if (!this.remoteKey.fetched) {
+      this.logger('Key not fetched, throwing error');
       throw new Error("Can't persist without address");
     }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async _create(rotate: boolean) {
+    this.logger(`Creating key with rotation: ${rotate}`);
     const wallet = Wallet.createRandom();
     const address = await wallet.getAddress();
     const identifier = this.identifier;
@@ -187,6 +206,7 @@ export class AgentGCPKey extends CloudAgentKey {
         }),
       },
     );
+    this.logger('Key creation data persisted to GCP');
 
     return {
       fetched: true,

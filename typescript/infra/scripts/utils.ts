@@ -1,3 +1,4 @@
+import debug from 'debug';
 import path from 'path';
 import yargs from 'yargs';
 
@@ -29,6 +30,8 @@ import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { Role } from '../src/roles';
 import { assertContext, assertRole, readJSON } from '../src/utils/utils';
+
+const debugLog = debug('infra:scripts:utils');
 
 export enum Modules {
   // TODO: change
@@ -131,6 +134,7 @@ export function assertEnvironment(env: string): DeployEnvironment {
 }
 
 export function getEnvironmentConfig(environment: DeployEnvironment) {
+  debugLog(`Getting environment config for ${environment}`);
   return environments[environment];
 }
 
@@ -155,12 +159,17 @@ export function getAgentConfig(
     typeof environment == 'string'
       ? getEnvironmentConfig(environment)
       : environment;
+
+  debugLog(
+    `Getting agent config for ${context} context in ${coreConfig.environment} environment`,
+  );
+
   const agentConfig = coreConfig.agents[context];
   if (!agentConfig)
     throw Error(
-      `Invalid context ${context} for environment, must be one of ${Object.keys(
-        coreConfig.agents,
-      )}.`,
+      `Invalid context ${context} for ${
+        coreConfig.environment
+      } environment, must be one of ${Object.keys(coreConfig.agents)}.`,
     );
   return agentConfig;
 }
@@ -172,6 +181,7 @@ export function getKeyForRole(
   role: Role,
   index?: number,
 ): CloudAgentKey {
+  debugLog(`Getting key for ${role} role`);
   const environmentConfig = environments[environment];
   const agentConfig = getAgentConfig(context, environmentConfig);
   return getCloudAgentKey(agentConfig, role, chain, index);
@@ -186,7 +196,9 @@ export async function getMultiProviderForRole(
   // TODO: rename to consensusType?
   connectionType?: RpcConsensusType,
 ): Promise<MultiProvider> {
+  debugLog(`Getting multiprovider for ${role} role`);
   if (process.env.CI === 'true') {
+    debugLog('Returning multiprovider with default RPCs in CI');
     return new MultiProvider(); // use default RPCs
   }
   const multiProvider = new MultiProvider(txConfigs);
@@ -219,6 +231,7 @@ export async function getKeysForRole(
   index?: number,
 ): Promise<ChainMap<CloudAgentKey>> {
   if (process.env.CI === 'true') {
+    debugLog('No keys to return in CI');
     return {};
   }
 
