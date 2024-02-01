@@ -39,7 +39,7 @@ pub fn build_ethereum_connection_conf(
 
 pub fn build_swisstronik_connection_conf(
     rpcs: &[Url],
-    chain: &ValueParser,
+    _chain: &ValueParser,
 ) -> Option<ChainConnectionConf> {
     let Some(first_url) = rpcs.to_owned().clone().into_iter().next() else {
         return None;

@@ -137,7 +137,7 @@ async fn wrap_with_signer<M: Middleware>(
 /// Defaults to using the provider's gas oracle.
 fn wrap_with_gas_oracle<M>(
     provider: M,
-    domain: &HyperlaneDomain,
+    _domain: &HyperlaneDomain,
 ) -> ChainResult<GasOracleMiddleware<Arc<M>, Box<dyn GasOracle>>>
 where
     M: Middleware + 'static,
