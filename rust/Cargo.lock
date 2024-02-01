@@ -3961,7 +3961,7 @@ dependencies = [
 [[package]]
 name = "hpl-interface"
 version = "0.0.6-rc6"
-source = "git+https://github.com/hyperlane-xyz/cosmwasm.git?tag=injective-testnet#94fed0f53931c0e94173252e34b018b1c31eb21b"
+source = "git+https://github.com/hyperlane-xyz/cosmwasm.git?tag=v0.0.6#c4485e00c89c2d57315503955946bf7f155e7a47"
 dependencies = [
  "bech32 0.9.1",
  "cosmwasm-schema",
