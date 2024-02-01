@@ -126,7 +126,9 @@ async function main() {
     const announced = announcedLocations[0].includes(location);
     if (!announced) {
       const signature = ethers.utils.joinSignature(announcement.signature);
-      console.log(`Announcing ${address} checkpoints at ${location}`);
+      console.log(
+        `[${chain}] Announcing ${address} checkpoints at ${location}`,
+      );
       await validatorAnnounce.announce(
         address,
         location,
@@ -134,7 +136,9 @@ async function main() {
         multiProvider.getTransactionOverrides(chain),
       );
     } else {
-      console.log(`Already announced ${address} checkpoints at ${location}`);
+      console.log(
+        `[${chain}] Already announced ${address} checkpoints at ${location}`,
+      );
     }
   }
 }
