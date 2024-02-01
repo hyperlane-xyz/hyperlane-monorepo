@@ -458,6 +458,9 @@ export const injective: ChainMetadata = {
   chainId: 'injective-1',
   displayName: 'Injective',
   domainId: 6909546,
+  grpcUrls: [
+    { http: 'http://k8s.global.mainnet.chain.grpc.injective.network:443' },
+  ],
   name: Chains.injective,
   nativeToken: {
     decimals: 6,
