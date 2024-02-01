@@ -180,7 +180,7 @@ export function getKeyForRole(
   role: Role,
   index?: number,
 ): CloudAgentKey {
-  debugLog(`Get key for ${role} role`);
+  debugLog(`Getting key for ${role} role`);
   const environmentConfig = environments[environment];
   const agentConfig = getAgentConfig(context, environmentConfig);
   return getCloudAgentKey(agentConfig, role, chain, index);
