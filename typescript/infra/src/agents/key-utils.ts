@@ -19,7 +19,7 @@ import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { CloudAgentKey } from './keys';
 
-const debugLog = debug('infra:scripts:utils');
+const debugLog = debug('infra:agents:key:utils');
 
 export interface KeyAsAddress {
   identifier: string;
