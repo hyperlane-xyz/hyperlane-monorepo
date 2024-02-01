@@ -60,7 +60,7 @@ export class AgentAwsKey extends CloudAgentKey {
 
   get privateKey(): string {
     this.logger(
-      'Attempt to access private key, which is unavailable for AWS keys',
+      'Attempting to access private key, which is unavailable for AWS keys',
     );
     throw new Error('Private key unavailable for AWS keys');
   }
