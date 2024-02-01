@@ -201,7 +201,5 @@ function iamConditionsEqual(
   if (a === undefined && b === undefined) {
     return true;
   }
-  const isEqual =
-    a && b && a.title === b.title && a.expression === b.expression;
-  return isEqual;
+  return a && b && a.title === b.title && a.expression === b.expression;
 }

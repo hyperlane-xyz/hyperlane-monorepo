@@ -89,7 +89,7 @@ export class AgentAwsKey extends CloudAgentKey {
 
   get keyConfig(): AwsKeyConfig {
     return {
-      type: AgentSignerKeyType.Aws, // Ensure this is the specific enum value expected
+      type: AgentSignerKeyType.Aws,
       id: this.identifier,
       region: this.region,
     };
