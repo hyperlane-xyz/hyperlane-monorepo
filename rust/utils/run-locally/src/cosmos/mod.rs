@@ -110,10 +110,10 @@ pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, Path
         );
         let uri =
             format!("{CW_HYPERLANE_GIT}/releases/download/{CW_HYPERLANE_VERSION}/{release_comp}");
-        download(&release_comp, &uri, dir_path_str);
+        download(release_comp, &uri, dir_path_str);
 
         log!("Uncompressing {} release", CW_HYPERLANE_GIT);
-        unzip(&release_comp, dir_path_str);
+        unzip(release_comp, dir_path_str);
     }
 
     log!("Installing {} in Path: {:?}", CW_HYPERLANE_GIT, dir_path);
