@@ -1,5 +1,13 @@
 # @hyperlane-xyz/cli
 
+## 3.6.2
+
+### Patch Changes
+
+- 99fe93a5b: Removed IGP from preset hook config
+  - @hyperlane-xyz/sdk@3.6.2
+  - @hyperlane-xyz/utils@3.6.2
+
 ## 3.6.1
 
 ### Patch Changes
