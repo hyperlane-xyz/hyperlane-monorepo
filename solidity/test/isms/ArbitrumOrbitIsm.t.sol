@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
 pragma solidity ^0.8.0;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 import {LibBit} from "../../contracts/libs/LibBit.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
@@ -12,9 +12,12 @@ import {MessageUtils} from "./IsmTestUtils.sol";
 import {ArbitrumOrbitIsm} from "../../contracts/isms/hook/ArbitrumOrbitIsm.sol";
 import {ArbitrumOrbitHook} from "../../contracts/hooks/ArbitrumOrbitHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
-import {NotCrossChainCall} from "@openzeppelin/contracts/crosschain/errors.sol";
-import {AddressAliasHelper} from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
 import {IInbox} from "@arbitrum/nitro-contracts/src/bridge/Inbox.sol";
+import {IArbSys} from "@openzeppelin/contracts/vendor/arbitrum/IArbSys.sol";
+
+interface IArbRetryableTx {
+    function redeem(bytes32 ticketId) external returns (bytes32);
+}
 
 contract ArbitrumOrbitIsmTest is Test {
     uint256 private mainnetFork;
@@ -44,9 +47,11 @@ contract ArbitrumOrbitIsmTest is Test {
     // From https://docs.hyperlane.xyz/docs/reference/contract-addresses.
     address private constant MAILBOX =
         0xc005dc82818d67AF737725bD4bf75435d065D239;
+    address private constant IGP = 0x9e6B1022bE9BBF5aFd152483DAD9b88911bC8611;
 
     event InboxMessageDelivered(uint256 indexed messageNum, bytes data);
     event RetryableTicketCreated(uint256 indexed ticketId);
+    event ReceivedMessage(bytes32 indexed messageId);
 
     ///////////////////////////////////////////////////////////////////
     ///                         SET UP                              ///
@@ -60,7 +65,8 @@ contract ArbitrumOrbitIsmTest is Test {
             address(baseMailbox),
             ARBITRUM_DOMAIN,
             TypeCasts.addressToBytes32(address(arbISM)),
-            BASE_INBOX
+            BASE_INBOX,
+            IGP
         );
     }
 
@@ -105,16 +111,7 @@ contract ArbitrumOrbitIsmTest is Test {
     ///                         TESTS                               ///
     ///////////////////////////////////////////////////////////////////
 
-    /// Test we can dispatch from origin chain.
-    function test_Dispatch() public {
-        uint256 maxFeePerGas = 0.5e9;
-        bytes memory metadata = StandardHookMetadata.formatMetadata(
-            testMsgValue,
-            10_000_000,
-            address(this),
-            abi.encodePacked(maxFeePerGas)
-        );
-
+    function _dispatchVerification(bytes memory metadata) private {
         // Assert retryable ticket created.
         vm.expectEmit(false, false, false, false);
         bytes memory data;
@@ -131,5 +128,65 @@ contract ArbitrumOrbitIsmTest is Test {
             metadata,
             arbHook
         );
+    }
+
+    function test_DispatchNoMaxFeePerGas() public {
+        bytes memory metadata = StandardHookMetadata.formatMetadata(
+            testMsgValue,
+            10_000_000,
+            address(this),
+            ""
+        );
+        _dispatchVerification(metadata);
+    }
+
+    function test_DispatchOraclizedGas() public {
+        uint256 maxFeePerGas = 0.5e9;
+        bytes memory metadata = StandardHookMetadata.formatMetadata(
+            testMsgValue,
+            10_000_000,
+            address(this),
+            abi.encodePacked(maxFeePerGas)
+        );
+        _dispatchVerification(metadata);
+    }
+
+    /// Test we can receive the message on the destination chain.
+    function test_Verify() public {
+        vm.selectFork(arbitrumFork);
+
+        // 1. verify message id
+
+        // Mocking cross chain sender check because unknown error.
+        // Seems related, from LibArbitrumL2.sol which the ISM depends on:
+        // """WARNING: There is currently a bug in Arbitrum that causes this contract to
+        // fail to detect cross-chain calls when deployed behind a proxy. This will be
+        // fixed when the network is upgraded to Arbitrum Nitro, currently scheduled for
+        // August 31st 2022."""
+        address ARBSYS = 0x0000000000000000000000000000000000000064;
+        vm.mockCall(
+            ARBSYS,
+            abi.encodeWithSelector(IArbSys.wasMyCallersAddressAliased.selector),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            ARBSYS,
+            abi.encodeWithSelector(
+                IArbSys.myCallersAddressWithoutAliasing.selector
+            ),
+            abi.encode(address(arbHook))
+        );
+        vm.expectEmit(true, false, false, false);
+        emit ReceivedMessage(messageId);
+
+        arbISM.verifyMessageId(messageId);
+
+        // 2. relay
+        assertTrue(arbISM.verify("", encodedMessage));
+    }
+
+    function test_UnauthorizedVerify() public {
+        vm.selectFork(arbitrumFork);
+        assertFalse(arbISM.verify("", encodedMessage));
     }
 }
