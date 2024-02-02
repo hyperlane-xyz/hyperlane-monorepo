@@ -15,11 +15,6 @@ type ProofResult = {
   nonce: string;
   storageHash: string;
 };
-type Proof = {
-  jsonrpc: string;
-  id: number;
-  result: ProofResult;
-};
 
 class RPCService {
   provider: ethers.providers.JsonRpcProvider;
@@ -38,7 +33,7 @@ class RPCService {
     address: string,
     storageKeys: string[],
     block: string,
-  ): Promise<Proof> => {
+  ): Promise<ProofResult> => {
     const results = await this.provider.send('eth_getProof', [
       address,
       storageKeys,
@@ -49,4 +44,4 @@ class RPCService {
   };
 }
 
-export { RPCService };
+export { RPCService, ProofResult };
