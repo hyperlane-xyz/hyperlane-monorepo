@@ -29,11 +29,11 @@ class RPCService {
    * @param block
    * @returns
    */
-  getProofs = async (
+  async getProofs(
     address: string,
     storageKeys: string[],
     block: string,
-  ): Promise<ProofResult> => {
+  ): Promise<ProofResult> {
     const results = await this.provider.send('eth_getProof', [
       address,
       storageKeys,
@@ -41,7 +41,7 @@ class RPCService {
     ]);
 
     return results;
-  };
+  }
 }
 
 export { RPCService, ProofResult };

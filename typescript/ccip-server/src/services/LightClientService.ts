@@ -35,19 +35,19 @@ class LightClientService extends Requestor {
    * @param slot
    * @returns
    */
-  getSyncCommitteePoseidons = async (slot: bignumber): Promise<string> => {
+  async getSyncCommitteePoseidons(slot: bignumber): Promise<string> {
     console.log(lightClientContract);
     return await this.lightClientContract.syncCommitteePoseidons(
       this.getSyncCommitteePeriod(slot),
     );
-  };
+  }
 
   /**
    * Request the proof from Succinct.
    * @param slot
    * @param syncCommitteePoseidon
    */
-  requestProof = async (syncCommitteePoseidon: string, slot: bignumber) => {
+  async requestProof(syncCommitteePoseidon: string, slot: bignumber) {
     if (!this.pendingProofId) {
       // Request a Proof, set pendingProofId
       // Note that Succinct will asynchronously call step() on the ISM/LightClient
@@ -85,7 +85,7 @@ class LightClientService extends Requestor {
       // Proof is not ready. Force the Relayer to re-check.
       throw new Error('Proof is not ready');
     }
-  };
+  }
 }
 
 export { LightClientService, ProofStatus };

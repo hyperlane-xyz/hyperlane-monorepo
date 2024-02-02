@@ -4,9 +4,10 @@ import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi';
 
 import { LightClientService } from './LightClientService';
 import { ProofResult, RPCService } from './RPCService';
+import { HandlerDescriptionEnumerated } from './common/HandlerDescriptionEnumerated';
 
 // Service that requests proofs from Succinct and RPC Provider
-class ProofsService {
+class ProofsService extends HandlerDescriptionEnumerated {
   rpcService: RPCService;
   lightClientService: LightClientService;
 
@@ -18,6 +19,7 @@ class ProofsService {
     readonly succinctPlatformUrl: string,
     readonly succinctPlatformApiKey: string,
   ) {
+    super();
     this.rpcService = new RPCService(rpcAddress);
     const lightClientContract = new ethers.Contract(
       lightClientAddress,
@@ -41,17 +43,15 @@ class ProofsService {
    * @param block block to get the proof for. Will decode as a BigNumber.
    * @returns
    */
-  getProofs = async ([
-    address,
-    storageKeys,
-    block,
-  ]: ethers.utils.Result): Promise<Array<any>> => {
+  async getProofs([address, storageKeys, block]: ethers.utils.Result): Promise<
+    Array<[string[], string[]]>
+  > {
     // TODO fix any
     // Gets the sync committee poseidon associated with the slot
-    const slot = 0n; // TODO figure out which slot to use
+    // const slot = 0n; // TODO figure out which slot to use
     // @ts-ignore
-    const syncCommitteePoseidon =
-      await this.lightClientService.getSyncCommitteePoseidons(slot);
+    // const syncCommitteePoseidon =
+    //   await this.lightClientService.getSyncCommitteePoseidons(slot);
 
     // No Sync committee poseidon for this slot, return empty proof
     // if (syncCommitteePoseidon == constants.HashZero) return constants.HashZero;
@@ -65,7 +65,7 @@ class ProofsService {
       );
 
     return [[accountProof, storageProof[0].proof]];
-  };
+  }
 }
 
 export { ProofsService };

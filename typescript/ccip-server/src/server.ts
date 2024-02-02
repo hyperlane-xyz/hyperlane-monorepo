@@ -4,6 +4,7 @@ import { ProofsServiceAbi } from './abis/ProofsServiceAbi';
 import * as config from './config';
 import { ProofsService } from './services/ProofsService';
 
+// Initalize Services
 const proofsService = new ProofsService(
   config.LIGHT_CLIENT_ADDR,
   config.RPC_ADDRESS,
@@ -13,14 +14,12 @@ const proofsService = new ProofsService(
   config.SUCCINCT_API_KEY,
 );
 
+// Initalize Server and add Service handlers
 const server = new Server();
-server.add(ProofsServiceAbi, [
-  {
-    type: 'getProofs',
-    func: proofsService.getProofs,
-  },
-]);
 
+server.add(ProofsServiceAbi, [proofsService.handler('getProofs')]);
+
+// Start Server
 const app = server.makeApp(config.SERVER_URL_PREFIX);
 app.listen(config.SERVER_PORT, () =>
   console.log(`Listening on port ${config.SERVER_PORT}`),
