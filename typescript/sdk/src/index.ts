@@ -107,6 +107,7 @@ export { HyperlaneIgp } from './gas/HyperlaneIgp';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
 export {
   HyperlaneIgpDeployer,
+  getIgpConfigs,
   getStorageGasOracleConfigs,
 } from './gas/HyperlaneIgpDeployer';
 export { SealevelOverheadIgpAdapter } from './gas/adapters/SealevelIgpAdapter';

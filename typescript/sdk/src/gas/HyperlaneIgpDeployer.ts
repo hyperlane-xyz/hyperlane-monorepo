@@ -16,11 +16,7 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
 import { IgpFactories, igpFactories } from './contracts';
-import {
-  GasOracleContractType,
-  StorageGasOracleConfig,
-  StorageGasOraclesConfig,
-} from './oracle/types';
+import { GasOracleContractType, StorageGasOracleConfig } from './oracle/types';
 import { prettyRemoteGasData } from './oracle/utils';
 import { IgpConfig } from './types';
 
@@ -210,26 +206,42 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
 // recursively fetches storage gas oracle configs from core config
 // eg. test1: core.defaultHook.igpConfig.test1.oracleConfig
-export function getStorageGasOracleConfigs(
-  coreConfig: ChainMap<CoreConfig>,
-): ChainMap<StorageGasOraclesConfig> {
-  const storageGasOracleConfigs: ChainMap<StorageGasOraclesConfig> = {};
-  for (const chain of Object.keys(coreConfig)) {
-    storageGasOracleConfigs[chain] = getStorageGasOracleConfig(
-      coreConfig[chain],
-    );
-  }
-  return storageGasOracleConfigs;
+export const getStorageGasOracleConfigs = generateConfigGetter((coreConfig) =>
+  getIgpOrStorageGasOracleConfig(
+    coreConfig,
+    (igpConfig) => igpConfig.oracleConfig,
+  ),
+);
+
+// recursively fetches storage gas oracle configs from core config
+// eg. test1: core.defaultHook.igpConfig
+export const getIgpConfigs = generateConfigGetter((coreConfig) =>
+  getIgpOrStorageGasOracleConfig(coreConfig, (igpConfig) => igpConfig),
+);
+
+// Higher-order function to generate getStorageGasOracleConfigs and getIgpConfigs
+function generateConfigGetter<T>(
+  getConfig: (coreConfig: CoreConfig) => T,
+): (coreConfig: ChainMap<CoreConfig>) => ChainMap<T> {
+  return (coreConfig: ChainMap<CoreConfig>): ChainMap<T> => {
+    const configs: ChainMap<T> = {};
+    for (const chain of Object.keys(coreConfig)) {
+      configs[chain] = getConfig(coreConfig[chain]);
+    }
+    return configs;
+  };
 }
 
-function getStorageGasOracleConfig(
+// Common function to get IGP config or StorageGasOracle config
+function getIgpOrStorageGasOracleConfig<T>(
   coreConfig: CoreConfig,
-): StorageGasOraclesConfig {
+  getConfig: (igpConfig: IgpHookConfig) => T,
+): T {
   const defaultIgpConfigs = getNestedIgpConfigs(coreConfig.defaultHook);
   const requiredIgpConfigs = getNestedIgpConfigs(coreConfig.requiredHook);
 
   const totalIgpConfigs = defaultIgpConfigs.concat(requiredIgpConfigs);
-  if (totalIgpConfigs.length === 0 || totalIgpConfigs.length > 1) {
+  if (totalIgpConfigs.length !== 1) {
     throw Error(
       `Incorrect number (${totalIgpConfigs.length}) of IGP configs found in core config. Please check your config.`,
     );
@@ -238,7 +250,7 @@ function getStorageGasOracleConfig(
       'Both default and required IGP configs found in core config. Please check your config.',
     );
   }
-  return totalIgpConfigs[0].oracleConfig;
+  return getConfig(totalIgpConfigs[0]);
 }
 
 // fetching igp configs from core config

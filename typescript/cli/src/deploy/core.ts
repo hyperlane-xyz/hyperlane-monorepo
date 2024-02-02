@@ -99,7 +99,7 @@ export async function runCoreDeploy({
   const multisigConfigs = isIsmConfig
     ? defaultMultisigConfigs
     : (result as ChainMap<MultisigConfig>);
-  const hooksConfig = await runHookStep(multiProvider, hookConfigPath);
+  const hooksConfig = runHookStep(hookConfigPath);
 
   const deploymentParams: DeployParams = {
     chains,
@@ -206,12 +206,9 @@ async function runIsmStep(
   }
 }
 
-async function runHookStep(
-  multiProvider: MultiProvider,
-  hookConfigPath?: string,
-) {
+function runHookStep(hookConfigPath?: string) {
   if (!hookConfigPath) return {};
-  return readHooksConfigMap(multiProvider, hookConfigPath);
+  return readHooksConfigMap(hookConfigPath);
 }
 
 interface DeployParams {
@@ -309,13 +306,11 @@ async function executeDeploy({
   logBlue(`Deploying core contracts to ${chains.join(', ')}`);
   const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   coreDeployer.cacheAddressesMap(mergedContractAddrs as any);
-  const coreConfigs = await buildCoreConfigMap(
-    multiProvider,
+  const coreConfigs = buildCoreConfigMap(
     owner,
     chains,
     defaultIsms,
     hooksConfig,
-    multisigConfigs,
   );
   const coreContracts = await coreDeployer.deploy(coreConfigs);
 
@@ -373,25 +368,15 @@ function buildIsmConfig(
   };
 }
 
-async function buildCoreConfigMap(
-  multiProvider: MultiProvider,
+function buildCoreConfigMap(
   owner: Address,
   chains: ChainName[],
   defaultIsms: ChainMap<IsmConfig>,
   hooksConfig: ChainMap<HooksConfig>,
-  multisigConfigs: ChainMap<MultisigConfig>,
-): Promise<ChainMap<CoreConfig>> {
+): ChainMap<CoreConfig> {
   const config: ChainMap<CoreConfig> = {};
   for (const chain of chains) {
-    const hooks =
-      hooksConfig[chain] ??
-      (await presetHookConfigs(
-        multiProvider,
-        owner,
-        chain,
-        chains.filter((c) => c !== chain),
-        multisigConfigs[chain], // if no multisig config, uses default 2/3
-      ));
+    const hooks = hooksConfig[chain] ?? presetHookConfigs(owner);
     config[chain] = {
       owner,
       defaultIsm: defaultIsms[chain],

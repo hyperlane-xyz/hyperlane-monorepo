@@ -1,8 +1,8 @@
 test1:
   required:
     type: protocolFee
-    maxProtocolFee: '1000000000000000000'
-    protocolFee: '200000000000000'
+    maxProtocolFee: '1000000000000000000' # in wei (string)
+    protocolFee: '200000000000000' # in wei (string)
     beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
     owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
   default:
@@ -20,14 +20,15 @@ test1:
             oracleConfig:
               test2:
                 type: StorageGasOracle # only type we support for now
-                overhead: '50000' # gas amount (number)
+                gasPrice: '12345'
+                tokenExchangeRate: '10000000000' # in wei (string)
             overhead:
               test2: '50000' # gas price in wei (string)
 test2:
   required:
     type: protocolFee
-    maxProtocolFee: '1000000000000000000'
-    protocolFee: '200000000000000'
+    maxProtocolFee: '1000000000000000000' # in wei (string)
+    protocolFee: '200000000000000' # in wei (string)
     beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
     owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
   default:
@@ -46,3 +47,4 @@ test2:
               test1:
                 type: StorageGasOracle
                 gasPrice: '12345'
+                tokenExchangeRate: '10000000000' # in wei (string)

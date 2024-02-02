@@ -10,12 +10,8 @@ import {
   HookType,
   HooksConfig,
   IgpHookConfig,
-  MultiProvider,
-  MultisigConfig,
   StorageGasOraclesConfig,
   chainMetadata,
-  defaultMultisigConfigs,
-  multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -24,7 +20,7 @@ import {
   toWei,
 } from '@hyperlane-xyz/utils';
 
-import { errorRed, log, logBlue, logGreen, logRed } from '../../logger.js';
+import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
@@ -44,8 +40,8 @@ const MerkleTreeSchema = z.object({
 
 const StorageGasOracleSchema = z.object({
   type: z.literal(GasOracleContractType.StorageGasOracle),
-  tokenExchangeRate: z.string().optional(),
-  gasPrice: z.string().optional(),
+  tokenExchangeRate: z.string(),
+  gasPrice: z.string(),
 });
 export type StorageGasOracleConfig = z.infer<typeof StorageGasOracleSchema>;
 
@@ -94,25 +90,20 @@ export function isValidHookConfigMap(config: any) {
   return HooksConfigMapSchema.safeParse(config).success;
 }
 
-async function processIgpConfig(
-  multiProvider: MultiProvider,
-  igpConfig: IgpConfig,
-): Promise<IgpHookConfig> {
+// the ZOD and the static igp configs are not identical
+// gasPrice, tokenExchangeRate, and gasOverhead are all strings in ZOD but in the static config, they are all BigNumbers to be future proof for chains which have more than 18 decimals
+function formatIgpConfig(igpConfig: IgpConfig): IgpHookConfig {
   const storageGasOracleConfig: StorageGasOraclesConfig = {};
   Object.keys(igpConfig.oracleConfig).forEach(async (chain) => {
     const userDefinedGasConfig = igpConfig.oracleConfig[chain];
     storageGasOracleConfig[chain] = {
       ...(storageGasOracleConfig[chain] || {}),
       type: userDefinedGasConfig.type,
-      tokenExchangeRate: BigNumber.from(
-        userDefinedGasConfig.tokenExchangeRate || '10000000000',
-      ),
-      gasPrice:
-        BigNumber.from(userDefinedGasConfig.gasPrice) ||
-        (await multiProvider.getGasPrice(chain)),
+      tokenExchangeRate: BigNumber.from(userDefinedGasConfig.tokenExchangeRate),
+      gasPrice: BigNumber.from(userDefinedGasConfig.gasPrice),
     };
   });
-  const trueIgpConfig: IgpHookConfig = {
+  const formattedIgpConfig: IgpHookConfig = {
     ...igpConfig,
     type: HookType.INTERCHAIN_GAS_PAYMASTER,
     overhead: objMap(igpConfig.overhead, (_, overhead) =>
@@ -120,84 +111,38 @@ async function processIgpConfig(
     ),
     oracleConfig: storageGasOracleConfig,
   };
-  return trueIgpConfig;
+  return formattedIgpConfig;
 }
 
-export async function processNestedIgpConfig(
-  multiProvider: MultiProvider,
-  hookConfig: HookConfig,
-): Promise<any> {
+export function formatNestedIgpConfig(hookConfig: HookConfig): HookConfig {
   let localConfig: HookConfig = hookConfig;
   if (hookConfig.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
-    localConfig = await processIgpConfig(
-      multiProvider,
-      hookConfig as IgpConfig,
-    );
+    localConfig = formatIgpConfig(hookConfig);
   } else if (hookConfig.type === HookType.AGGREGATION) {
     hookConfig.hooks.forEach(async (hook: HookConfig, index: number) => {
-      localConfig.hooks[index] = await processNestedIgpConfig(
-        multiProvider,
-        hook,
-      );
+      localConfig.hooks[index] = formatIgpConfig(hook);
     });
   } else if (
     hookConfig.type === HookType.ROUTING ||
     hookConfig.type === HookType.FALLBACK_ROUTING
   ) {
     for (const domain of Object.keys(hookConfig.domains)) {
-      localConfig.domains[domain] = await processNestedIgpConfig(
-        multiProvider,
+      localConfig.domains[domain] = formatNestedIgpConfig(
         localConfig.domains[domain],
       );
     }
     if (hookConfig.type === HookType.FALLBACK_ROUTING) {
-      localConfig.fallback = await processNestedIgpConfig(
-        multiProvider,
-        localConfig.fallback,
-      );
+      localConfig.fallback = formatNestedIgpConfig(localConfig.fallback);
     }
   }
   return localConfig;
 }
 
-export async function presetHookConfigs(
-  multiProvider: MultiProvider,
-  owner: Address,
-  local: ChainName,
-  destinationChains: ChainName[],
-  multisigConfig?: MultisigConfig,
-): Promise<HooksConfig> {
-  const oracleConfig: StorageGasOraclesConfig = {};
-  const overheads: ChainMap<BigNumber> = {};
-
-  for (const chain of destinationChains) {
-    const gasPrice = await multiProvider.getGasPrice(chain);
-    let validatorThreshold: number;
-    let validatorCount: number;
-    if (multisigConfig) {
-      validatorThreshold = multisigConfig.threshold;
-      validatorCount = multisigConfig.validators.length;
-    } else if (local in defaultMultisigConfigs) {
-      validatorThreshold = defaultMultisigConfigs[local].threshold;
-      validatorCount = defaultMultisigConfigs[local].validators.length;
-    } else {
-      // default values
-      // fix here: https://github.com/hyperlane-xyz/issues/issues/773
-      validatorThreshold = 2;
-      validatorCount = 3;
-    }
-
-    overheads[chain] = BigNumber.from(
-      multisigIsmVerificationCost(validatorThreshold, validatorCount),
-    );
-    oracleConfig[chain] = {
-      // 1e10 - both the chains are using the same valued token
-      tokenExchangeRate: BigNumber.from('1000000000'),
-      gasPrice: BigNumber.from(gasPrice),
-      type: GasOracleContractType.StorageGasOracle,
-    };
-  }
-
+// We provide a default hook config for the user to use in case they don't want to provide their own
+// schema:
+// required: ProtocolFeeHook { 0 wei fee }
+// default: MerkleTreeHook
+export async function presetHookConfigs(owner: Address): Promise<HooksConfig> {
   return {
     required: {
       type: HookType.PROTOCOL_FEE,
@@ -207,32 +152,15 @@ export async function presetHookConfigs(
       owner: owner,
     },
     default: {
-      type: HookType.AGGREGATION,
-      hooks: [
-        {
-          type: HookType.MERKLE_TREE,
-        },
-        {
-          type: HookType.INTERCHAIN_GAS_PAYMASTER,
-          owner: owner,
-          beneficiary: owner,
-          oracleConfig,
-          overhead: overheads,
-          oracleKey: owner,
-        },
-      ],
+      type: HookType.MERKLE_TREE,
     },
   };
 }
 
-export async function readHooksConfigMap(
-  multiProvider: MultiProvider,
-  filePath: string,
-) {
+export function readHooksConfigMap(filePath: string): ChainMap<HooksConfig> {
   const config = readYamlOrJson(filePath);
   if (!config) {
-    logRed(`No hook config found at ${filePath}`);
-    return;
+    throw new Error('No hook config found');
   }
   const result = HooksConfigMapSchema.safeParse(config);
   if (!result.success) {
@@ -243,14 +171,11 @@ export async function readHooksConfigMap(
   }
   const parsedConfig = result.data;
 
-  // special case for IGP
   for (const chain of Object.keys(parsedConfig)) {
-    parsedConfig[chain].default = await processNestedIgpConfig(
-      multiProvider,
+    parsedConfig[chain].default = formatNestedIgpConfig(
       parsedConfig[chain].default,
     );
-    parsedConfig[chain].required = await processNestedIgpConfig(
-      multiProvider,
+    parsedConfig[chain].required = formatNestedIgpConfig(
       parsedConfig[chain].required,
     );
   }
@@ -437,23 +362,21 @@ export async function createIGPConfig(
     });
     overheads[chain] = overhead;
 
+    const tokenExchangeRateInput = parseInt(
+      await input({
+        message: `Enter token exchange rate ${chain} compared to the origin (out of 1e10) or press ENTER to use 1e10`,
+      }),
+    );
+    const gasPriceInput = parseInt(
+      await input({
+        message: `Enter gas price for ${chain} (eg 45 wei) or use the RPC gas price by pressing ENTER`,
+      }),
+    );
     const oracleConfig: StorageGasOracleConfig = {
       type: GasOracleContractType.StorageGasOracle,
+      tokenExchangeRate: tokenExchangeRateInput.toString(),
+      gasPrice: gasPriceInput.toString(),
     };
-
-    const tokenExchangeRateInput = await input({
-      message: `Enter token exchange rate ${chain} compared to the origin (out of 1e10) or press ENTER to use 1e10`,
-    });
-    const gasPriceInput = await input({
-      message: `Enter gas price for ${chain} (eg 45 wei) or use the RPC gas price by pressing ENTER`,
-    });
-
-    if (tokenExchangeRateInput.trim() !== '') {
-      oracleConfig.tokenExchangeRate = tokenExchangeRateInput;
-    }
-    if (gasPriceInput.trim() !== '') {
-      oracleConfig.gasPrice = gasPriceInput;
-    }
     oracleConfigs[chain] = oracleConfig;
   }
   return {

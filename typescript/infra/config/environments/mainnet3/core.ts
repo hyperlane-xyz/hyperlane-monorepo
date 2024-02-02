@@ -18,16 +18,19 @@ import { ethereumChainNames } from './chains';
 import { storageGasOracleConfig } from './gas-oracle';
 import { owners as mainnetOwners, safes } from './owners';
 
-// mainnetOwners should be the most restrictive chain (like excluding manta pacific)
 const DEPLOYER_ADDRESS = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 const igp = createIgpConfig(
   ethereumChainNames,
   storageGasOracleConfig,
   defaultMultisigConfigs,
   mainnetOwners,
+  mainnetOwners,
+  mainnetOwners,
   DEPLOYER_ADDRESS,
 );
 
+// mainnetOwners should be the most restrictive chain (like excluding manta pacific)
+// since the below iterates over the mainnetOwners with objMap for setting the config for each chain
 export const core: ChainMap<CoreConfig> = objMap(
   mainnetOwners,
   (local, owner) => {

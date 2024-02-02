@@ -13,6 +13,8 @@ export function createIgpConfig(
   storageGasOracleConfig: ChainMap<StorageGasOraclesConfig>,
   multisigIsm: ChainMap<MultisigConfig>,
   owners: ChainMap<Address>,
+  oracleKeys: ChainMap<Address> = owners,
+  beneficiaries: ChainMap<Address> = owners,
   deployerAddress?: Address,
 ): ChainMap<IgpConfig> {
   return objMap(owners, (chain, owner) => {
@@ -29,8 +31,8 @@ export function createIgpConfig(
     );
     return {
       owner,
-      oracleKey: deployerAddress ?? owner,
-      beneficiary: deployerAddress ?? owner,
+      oracleKey: deployerAddress ?? oracleKeys[chain],
+      beneficiary: deployerAddress ?? beneficiaries[chain],
       oracleConfig: storageGasOracleConfig[chain],
       overhead,
     };

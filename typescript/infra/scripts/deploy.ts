@@ -4,18 +4,18 @@ import { prompt } from 'prompts';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
-  Chains,
-  CoreConfig,
   HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
+  HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
   TokenConfig,
+  getIgpConfigs,
 } from '@hyperlane-xyz/sdk';
 import { TokenDecimals, TokenType } from '@hyperlane-xyz/sdk/dist/token/config';
 import { objMap } from '@hyperlane-xyz/utils';
@@ -24,7 +24,6 @@ import { Contexts } from '../config/contexts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
-import { TestRecipientDeployer } from '../src/deployment/testcontracts/testrecipient';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
 import {
@@ -51,19 +50,13 @@ async function main() {
 
   let multiProvider = await envConfig.getMultiProvider();
 
-  // TODO: make this more generic
-  const deployerAddress =
-    environment === 'testnet4'
-      ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
-      : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
-
   if (fork) {
     multiProvider = multiProvider.extendChainMetadata({
       [fork]: { blocks: { confirmations: 0 } },
     });
     await useLocalProvider(multiProvider, fork);
 
-    const signer = await impersonateAccount(deployerAddress);
+    const signer = await impersonateAccount(envConfig.owners[fork]);
     multiProvider.setSharedSigner(signer);
   }
 
@@ -73,20 +66,13 @@ async function main() {
     config = objMap(envConfig.core, (_chain) => true);
     deployer = new HyperlaneProxyFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
-    for (const chain of Object.values(envConfig.core)) {
-      console.log(JSON.stringify((chain as CoreConfig).defaultIsm, null, 2));
-    }
-    return;
-
     config = envConfig.core;
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,
     );
-
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.WARP) {
-    const owner = deployerAddress;
     const neutronRouter =
       '6b04c49fcfd98bc4ea9c05cd5790462a39537c00028333474aebe6ddf20b73a3';
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
@@ -104,8 +90,7 @@ async function main() {
       deployEnvToSdkEnv[environment],
       multiProvider,
     );
-    const routerConfig = core.getRouterConfig(owner);
-    const targetChains = [Chains.arbitrum];
+    const routerConfig = core.getRouterConfig(envConfig.owners);
     config = {
       arbitrum: {
         ...routerConfig['arbitrum'],
@@ -118,6 +103,9 @@ async function main() {
       },
     };
     deployer = new HypERC20Deployer(multiProvider, ismFactory);
+  } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
+    config = getIgpConfigs(envConfig.core);
+    deployer = new HyperlaneIgpDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
@@ -141,8 +129,7 @@ async function main() {
     );
     deployer = new LiquidityLayerDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
-    config = objMap(envConfig.core, (_chain) => true);
-    deployer = new TestRecipientDeployer(multiProvider);
+    throw new Error('Test recipient is not supported. Use CLI instead.');
   } else if (module === Modules.TEST_QUERY_SENDER) {
     // Get query router addresses
     const queryAddresses = getAddresses(
@@ -155,13 +142,12 @@ async function main() {
     deployer = new TestQuerySenderDeployer(multiProvider);
   } else if (module === Modules.HELLO_WORLD) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
-    config = core.getRouterConfig(deployerAddress);
+    config = core.getRouterConfig(envConfig.owners);
     deployer = new HelloWorldDeployer(multiProvider);
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
   }
-  return;
 
   const modulePath = getModuleDirectory(environment, module, context);
 
@@ -182,7 +168,7 @@ async function main() {
     addresses,
     verification,
     read: environment !== 'test',
-    write: true,
+    write: !fork,
   };
   // Don't write agent config in fork tests
   const agentConfig =
@@ -194,9 +180,8 @@ async function main() {
         }
       : undefined;
 
-  // prompt for confirmation
-  if ((environment === 'mainnet3' || environment === 'testnet4') && !fork) {
-    console.log(JSON.stringify(config, null, 2));
+  // prompt for confirmation in production environments
+  if (environment !== 'test' && !fork) {
     const { value: confirmed } = await prompt({
       type: 'confirm',
       name: 'value',
