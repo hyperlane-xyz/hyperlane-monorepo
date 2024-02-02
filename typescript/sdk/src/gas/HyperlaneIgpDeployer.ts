@@ -4,19 +4,25 @@ import {
   InterchainGasPaymaster,
   ProxyAdmin,
   StorageGasOracle,
+  StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
-import { eqAddress } from '@hyperlane-xyz/utils';
+import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
+import { ChainMap, ChainName } from '../types';
 
 import { IgpFactories, igpFactories } from './contracts';
-import { IgpConfig } from './types';
+import {
+  StorageGasOracleConfig,
+  StorageGasOraclesConfig,
+} from './oracle/types';
+import { prettyRemoteGasData } from './oracle/utils';
+import { GasOracleContractType, IgpConfig } from './types';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
-  IgpConfig,
+  IgpConfig & ChainMap<StorageGasOraclesConfig>,
   IgpFactories
 > {
   constructor(multiProvider: MultiProvider) {
@@ -52,7 +58,9 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         !eqAddress(currentGasConfig.gasOracle, storageGasOracle.address) ||
         !currentGasConfig.gasOverhead.eq(newGasOverhead)
       ) {
-        this.logger(`Setting gas params for ${remote} to ${newGasOverhead}`);
+        this.logger(
+          `Setting gas params for ${chain} -> ${remote}: gasOverhead = ${newGasOverhead} gasOracle = ${storageGasOracle.address}`,
+        );
         gasParamsToSet.push({
           remoteDomain: remoteId,
           config: {
@@ -81,9 +89,84 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     return this.deployContract(chain, 'storageGasOracle', []);
   }
 
+  async configureStorageGasOracle(
+    chain: ChainName,
+    igp: InterchainGasPaymaster,
+    gasOracleConfig: ChainMap<StorageGasOracleConfig>,
+  ): Promise<void> {
+    this.logger(`Configuring gas oracles for ${chain}...`);
+    const remotes = Object.keys(gasOracleConfig);
+    const configsToSet: Record<
+      Address,
+      StorageGasOracle.RemoteGasDataConfigStruct[]
+    > = {};
+
+    for (const remote of remotes) {
+      const desiredGasData = gasOracleConfig[remote];
+      if (desiredGasData.type !== GasOracleContractType.StorageGasOracle) {
+        continue;
+      }
+      const remoteId = this.multiProvider.getDomainId(remote);
+      // each destination can have a different gas oracle
+      const gasOracleAddress = (await igp.destinationGasConfigs(remoteId))
+        .gasOracle;
+      const gasOracle = StorageGasOracle__factory.connect(
+        gasOracleAddress,
+        this.multiProvider.getSigner(chain),
+      );
+      if (!configsToSet[gasOracleAddress]) {
+        configsToSet[gasOracleAddress] = [];
+      }
+      const remoteGasDataConfig = await gasOracle.remoteGasData(remoteId);
+
+      if (
+        !remoteGasDataConfig.gasPrice.eq(desiredGasData.gasPrice) ||
+        !remoteGasDataConfig.tokenExchangeRate.eq(
+          desiredGasData.tokenExchangeRate,
+        )
+      ) {
+        this.logger(
+          `${chain} -> ${remote} existing gas data:\n`,
+          prettyRemoteGasData(remoteGasDataConfig),
+        );
+        this.logger(
+          `${chain} -> ${remote} desired gas data:\n`,
+          prettyRemoteGasData(desiredGasData),
+        );
+        configsToSet[gasOracleAddress].push({
+          remoteDomain: this.multiProvider.getDomainId(remote),
+          ...desiredGasData,
+        });
+      }
+    }
+    const gasOracles = Object.keys(configsToSet);
+    for (const gasOracle of gasOracles) {
+      const gasOracleContract = StorageGasOracle__factory.connect(
+        gasOracle,
+        this.multiProvider.getSigner(chain),
+      );
+      if (configsToSet[gasOracle].length > 0) {
+        await this.runIfOwner(chain, gasOracleContract, async () => {
+          this.logger(
+            `Setting gas oracle on ${gasOracle} for ${configsToSet[
+              gasOracle
+            ].map((config) => config.remoteDomain)}`,
+          );
+          return this.multiProvider.handleTx(
+            chain,
+            gasOracleContract.setRemoteGasDataConfigs(
+              configsToSet[gasOracle],
+              this.multiProvider.getTransactionOverrides(chain),
+            ),
+          );
+        });
+      }
+    }
+  }
+
   async deployContracts(
     chain: ChainName,
-    config: IgpConfig,
+    config: IgpConfig & ChainMap<StorageGasOraclesConfig>,
   ): Promise<HyperlaneContracts<IgpFactories>> {
     // NB: To share ProxyAdmins with HyperlaneCore, ensure the ProxyAdmin
     // is loaded into the contract cache.
@@ -96,6 +179,14 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       storageGasOracle,
       config,
     );
+
+    // Configure storage gas oracle with remote gas data
+    await this.configureStorageGasOracle(
+      chain,
+      interchainGasPaymaster,
+      config[chain],
+    );
+
     await this.transferOwnershipOfContracts(chain, config.owner, {
       interchainGasPaymaster,
     });
