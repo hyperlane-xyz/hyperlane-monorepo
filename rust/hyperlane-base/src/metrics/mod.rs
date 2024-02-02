@@ -7,8 +7,8 @@ pub const NAMESPACE: &str = "hyperlane";
 
 mod core;
 
-mod agent_metrics;
+mod custom_metrics;
 mod json_rpc_client;
 mod provider;
 
-pub use self::agent_metrics::*;
+pub use self::custom_metrics::*;

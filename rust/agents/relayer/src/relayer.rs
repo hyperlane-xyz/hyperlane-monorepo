@@ -9,11 +9,11 @@ use derive_more::AsRef;
 use eyre::Result;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
-    metrics::{AgentMetrics, AgentMetricsUpdater},
+    metrics::{AgentMetrics, MetricsUpdater},
     run_all,
     settings::ChainConf,
-    BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, SequencedDataContractSync,
-    WatermarkContractSync,
+    BaseAgent, ChainMetrics, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    SequencedDataContractSync, WatermarkContractSync,
 };
 use hyperlane_core::{
     metrics::agent::METRICS_SCRAPE_INTERVAL, HyperlaneDomain, HyperlaneMessage,
@@ -72,7 +72,10 @@ pub struct Relayer {
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
     core_metrics: Arc<CoreMetrics>,
+    // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct
+    // or move them in `core_metrics`, like the validator metrics
     agent_metrics: AgentMetrics,
+    chain_metrics: ChainMetrics,
 }
 
 impl Debug for Relayer {
@@ -102,6 +105,7 @@ impl BaseAgent for Relayer {
         settings: Self::Settings,
         core_metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
+        chain_metrics: ChainMetrics,
     ) -> Result<Self>
     where
         Self: Sized,
@@ -260,6 +264,7 @@ impl BaseAgent for Relayer {
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
             core_metrics,
             agent_metrics,
+            chain_metrics,
         })
     }
 
@@ -280,21 +285,22 @@ impl BaseAgent for Relayer {
                 .agent_metrics_conf(Self::AGENT_NAME.to_string())
                 .await
                 .unwrap();
-            let agent_metrics_fetcher = dest_conf.build_provider(&self.core_metrics).await.unwrap();
-            let agent_metrics = AgentMetricsUpdater::new(
+            let provider = dest_conf.build_provider(&self.core_metrics).await.unwrap();
+            let metrics_updater = MetricsUpdater::new(
                 self.agent_metrics.clone(),
+                self.chain_metrics.clone(),
                 agent_metrics_conf,
-                agent_metrics_fetcher,
+                provider,
             );
 
-            let fetcher_task = tokio::spawn(async move {
-                agent_metrics
+            let metrics_updater_task = tokio::spawn(async move {
+                metrics_updater
                     .start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
                     .await;
                 Ok(())
             })
-            .instrument(info_span!("AgentMetrics"));
-            tasks.push(fetcher_task);
+            .instrument(info_span!("MetricsUpdater"));
+            tasks.push(metrics_updater_task);
         }
 
         for origin in &self.origin_chains {

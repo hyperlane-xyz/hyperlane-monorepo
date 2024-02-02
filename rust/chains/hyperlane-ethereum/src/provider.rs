@@ -6,8 +6,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
-use ethers_core::abi::Address;
-use hyperlane_core::{ethers_core_types, U256};
+use ethers_core::{abi::Address, types::BlockNumber};
+use hyperlane_core::{ethers_core_types, ChainInfo, HyperlaneCustomErrorWrapper, U256};
 use tokio::time::sleep;
 use tracing::instrument;
 
@@ -16,15 +16,12 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
 };
 
-use crate::BuildableWithProvider;
+use crate::{error::HyperlaneEthereumError, BuildableWithProvider};
 
 /// Connection to an ethereum provider. Useful for querying information about
 /// the blockchain.
 #[derive(Debug, Clone, new)]
-pub struct EthereumProvider<M>
-where
-    M: Middleware,
-{
+pub struct EthereumProvider<M> {
     provider: Arc<M>,
     domain: HyperlaneDomain,
 }
@@ -118,6 +115,38 @@ where
             .await
             .map_err(ChainCommunicationError::from_other)?;
         Ok(balance.into())
+    }
+
+    async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
+        let Some(block) = self
+            .provider
+            .get_block(BlockNumber::Latest)
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
+            })?
+        else {
+            return Ok(None);
+        };
+
+        let chain_metrics = ChainInfo::new(
+            BlockInfo {
+                hash: block
+                    .hash
+                    .ok_or(HyperlaneEthereumError::MissingBlockDetails)?
+                    .into(),
+                timestamp: block.timestamp.as_u64(),
+                number: block
+                    .number
+                    .ok_or(HyperlaneEthereumError::MissingBlockDetails)?
+                    .as_u64(),
+            },
+            block
+                .base_fee_per_gas
+                .ok_or(HyperlaneEthereumError::MissingBlockDetails)?
+                .into(),
+        );
+        Ok(Some(chain_metrics))
     }
 }
 

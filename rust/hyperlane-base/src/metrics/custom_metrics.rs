@@ -3,12 +3,15 @@ use std::time::Duration;
 use derive_builder::Builder;
 use derive_new::new;
 use eyre::Result;
+use hyperlane_core::metrics::agent::decimals_by_protocol;
 use hyperlane_core::metrics::agent::u256_as_scaled_f64;
 use hyperlane_core::HyperlaneDomain;
 use hyperlane_core::HyperlaneProvider;
 use maplit::hashmap;
 use prometheus::GaugeVec;
+use prometheus::IntGaugeVec;
 use tokio::time::MissedTickBehavior;
+use tracing::debug;
 use tracing::{trace, warn};
 
 use crate::CoreMetrics;
@@ -25,6 +28,17 @@ pub const WALLET_BALANCE_LABELS: &[&str] = &[
 /// Help string for the metric.
 pub const WALLET_BALANCE_HELP: &str =
     "Current native token balance for the wallet addresses in the `wallets` set";
+
+/// Expected label names for the `block_height` metric.
+pub const BLOCK_HEIGHT_LABELS: &[&str] = &["chain"];
+/// Help string for the metric.
+pub const BLOCK_HEIGHT_HELP: &str = "Tracks the current block height of the chain";
+
+/// Expected label names for the `gas_price` metric.
+pub const GAS_PRICE_LABELS: &[&str] = &["chain"];
+/// Help string for the metric.
+pub const GAS_PRICE_HELP: &str =
+    "Tracks the current gas price of the chain, in the lowest denomination (e.g. gwei)";
 
 /// Agent-specific metrics
 #[derive(Clone, Builder)]
@@ -52,6 +66,34 @@ pub(crate) fn create_agent_metrics(metrics: &CoreMetrics) -> Result<AgentMetrics
         .build()?)
 }
 
+/// Chain-specific metrics
+#[derive(Clone, Builder)]
+pub struct ChainMetrics {
+    /// Tracks the current block height of the chain.
+    /// - `chain`: the chain name (or ID if the name is unknown) of the chain
+    ///   the block number refers to.
+    #[builder(setter(into, strip_option), default)]
+    pub block_height: Option<IntGaugeVec>,
+
+    /// Tracks the current gas price of the chain. Uses the base_fee_per_gas if
+    /// available or else the median of the transactions.
+    /// - `chain`: the chain name (or chain ID if the name is unknown) of the
+    ///   chain the gas price refers to.
+    #[builder(setter(into, strip_option), default)]
+    pub gas_price: Option<GaugeVec>,
+}
+
+pub(crate) fn create_chain_metrics(metrics: &CoreMetrics) -> Result<ChainMetrics> {
+    Ok(ChainMetricsBuilder::default()
+        .block_height(metrics.new_int_gauge(
+            "block_height",
+            BLOCK_HEIGHT_HELP,
+            BLOCK_HEIGHT_LABELS,
+        )?)
+        .gas_price(metrics.new_gauge("gas_price", GAS_PRICE_HELP, GAS_PRICE_LABELS)?)
+        .build()?)
+}
+
 /// Configuration for the prometheus middleware. This can be loaded via serde.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
@@ -68,38 +110,38 @@ pub struct AgentMetricsConf {
     pub name: String,
 }
 
-/// Utility struct to update agent metrics for a given chain
+/// Utility struct to update various metrics using a standalone tokio task
 #[derive(new)]
-pub struct AgentMetricsUpdater {
-    metrics: AgentMetrics,
+pub struct MetricsUpdater {
+    agent_metrics: AgentMetrics,
+    chain_metrics: ChainMetrics,
     conf: AgentMetricsConf,
     provider: Box<dyn HyperlaneProvider>,
 }
 
-impl AgentMetricsUpdater {
-    async fn update_wallet_balances(&self) {
+impl MetricsUpdater {
+    async fn update_agent_metrics(&self) {
         let Some(wallet_addr) = self.conf.address.clone() else {
             return;
         };
         let wallet_name = self.conf.name.clone();
-        let Some(wallet_balance_metric) = self.metrics.wallet_balance.clone() else {
+        let Some(wallet_balance_metric) = self.agent_metrics.wallet_balance.clone() else {
             return;
         };
         let chain = self.conf.domain.name();
 
         match self.provider.get_balance(wallet_addr.clone()).await {
             Ok(balance) => {
-                // Okay, so the native type is not a token, but whatever, close enough.
-                // Note: This is ETH for many chains, but not all so that is why we use `N` and `Native`
-                // TODO: can we get away with scaling as 18 in all cases here? I am guessing not.
+                // TODO: can we get away with scaling as 18 in all cases here?
                 let balance = u256_as_scaled_f64(balance, self.conf.domain.domain_protocol());
                 trace!("Wallet {wallet_name} ({wallet_addr}) on chain {chain} balance is {balance} of the native currency");
                 wallet_balance_metric
-                    .with(&hashmap! {
+                .with(&hashmap! {
                     "chain" => chain,
                     "wallet_address" => wallet_addr.as_str(),
                     "wallet_name" => wallet_name.as_str(),
                     "token_address" => "none",
+                    // Note: Whatever this `chain`'s native currency is
                     "token_symbol" => "Native",
                     "token_name" => "Native"
                 }).set(balance)
@@ -108,12 +150,41 @@ impl AgentMetricsUpdater {
         }
     }
 
+    async fn update_block_details(&self) {
+        let block_height = self.chain_metrics.block_height.clone();
+        let gas_price = self.chain_metrics.gas_price.clone();
+        if let HyperlaneDomain::Unknown { .. } = self.conf.domain {
+            return;
+        };
+        let chain = self.conf.domain.name();
+        debug!("Updating metrics for chain ({:?})", chain);
+        let Ok(Some(current_block)) = self.provider.get_chain_metrics().await else {
+            return;
+        };
+
+        if let Some(block_height) = block_height {
+            let height = current_block.latest_block.number as i64;
+            trace!("Block height for chain {chain} is {height}");
+            block_height
+                .with(&hashmap! { "chain" => chain })
+                .set(height);
+        }
+        if let Some(gas_price) = gas_price {
+            let protocol = self.conf.domain.domain_protocol();
+            let decimals_scale = 10f64.powf(decimals_by_protocol(protocol).into());
+            let gas = u256_as_scaled_f64(current_block.gas_price, protocol) * decimals_scale;
+            trace!("Gas price for chain {chain} is {gas:.1} (lowest denomination)");
+            gas_price.with(&hashmap! { "chain" => chain }).set(gas);
+        }
+    }
+
     /// Periodically updates the metrics
     pub async fn start_updating_on_interval(self, period: Duration) {
         let mut interval = tokio::time::interval(period);
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
         loop {
-            self.update_wallet_balances().await;
+            self.update_agent_metrics().await;
+            self.update_block_details().await;
             interval.tick().await;
         }
     }
