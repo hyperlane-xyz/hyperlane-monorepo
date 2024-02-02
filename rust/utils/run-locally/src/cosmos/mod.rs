@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 use std::{env, fs};
 
 use cosmwasm_schema::cw_serde;
-use hpl_interface::types::bech32_decode;
 use hyperlane_cosmos::RawCosmosAmount;
+use hyperlane_cosmwasm_interface::types::bech32_decode;
 use macro_rules_attribute::apply;
 use maplit::hashmap;
 use tempfile::tempdir;
