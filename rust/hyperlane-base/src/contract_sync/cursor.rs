@@ -22,7 +22,7 @@ use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
 /// Time window for the moving average used in the eta calculator in seconds.
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
 
-const MAX_SEQUENCE_RANGE: u32 = 100;
+const MAX_SEQUENCE_RANGE: u32 = 5;
 
 /// A struct that holds the data needed for forwards and backwards
 /// message sync cursors.
