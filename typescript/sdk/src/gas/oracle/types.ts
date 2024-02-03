@@ -16,3 +16,7 @@ export type StorageGasOracleConfig = RemoteGasData & {
 };
 // StorageGasOracleConfig for each local chain
 export type StorageGasOraclesConfig = ChainMap<StorageGasOracleConfig>;
+
+export type OracleConfig = {
+  oracleConfig: StorageGasOraclesConfig;
+};

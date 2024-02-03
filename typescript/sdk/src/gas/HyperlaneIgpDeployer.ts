@@ -14,15 +14,12 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
 import { IgpFactories, igpFactories } from './contracts';
-import {
-  StorageGasOracleConfig,
-  StorageGasOraclesConfig,
-} from './oracle/types';
+import { OracleConfig, StorageGasOracleConfig } from './oracle/types';
 import { prettyRemoteGasData } from './oracle/utils';
 import { GasOracleContractType, IgpConfig } from './types';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
-  IgpConfig & ChainMap<StorageGasOraclesConfig>,
+  IgpConfig & Partial<OracleConfig>,
   IgpFactories
 > {
   constructor(multiProvider: MultiProvider) {
@@ -166,7 +163,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
   async deployContracts(
     chain: ChainName,
-    config: IgpConfig & ChainMap<StorageGasOraclesConfig>,
+    config: IgpConfig & Partial<OracleConfig>,
   ): Promise<HyperlaneContracts<IgpFactories>> {
     // NB: To share ProxyAdmins with HyperlaneCore, ensure the ProxyAdmin
     // is loaded into the contract cache.
@@ -180,12 +177,14 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       config,
     );
 
-    // Configure storage gas oracle with remote gas data
-    await this.configureStorageGasOracle(
-      chain,
-      interchainGasPaymaster,
-      config[chain],
-    );
+    // Configure storage gas oracle with remote gas data if provided
+    if (config.oracleConfig) {
+      await this.configureStorageGasOracle(
+        chain,
+        interchainGasPaymaster,
+        config.oracleConfig,
+      );
+    }
 
     await this.transferOwnershipOfContracts(chain, config.owner, {
       interchainGasPaymaster,
