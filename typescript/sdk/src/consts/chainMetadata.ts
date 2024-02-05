@@ -853,6 +853,7 @@ export const sepolia: ChainMetadata = {
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
+    { http: 'https://ethereum-sepolia.publicnode.com' },
     { http: 'https://ethereum-sepolia.blockpi.network/v1/rpc/public' },
     { http: 'https://rpc.sepolia.org' },
   ],
@@ -1036,6 +1037,9 @@ export const viction: ChainMetadata = {
   },
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
+    {
+      http: 'https://rpc.tomochain.com/',
+    },
     {
       http: 'https://viction.blockpi.network/v1/rpc/public',
     },
