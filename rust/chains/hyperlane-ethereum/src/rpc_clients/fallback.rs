@@ -241,8 +241,6 @@ mod tests {
         ethereum_fallback_provider.low_level_test_call().await;
         let provider_call_count: Vec<_> =
             ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
-        // TODO: figure out why there are 2 BLOCK_NUMBER_RPC calls to the stalled provider instead of just one.
-        // This is most likely due to how ethers works, because the cosmrs test does only have one call.
         assert_eq!(provider_call_count, vec![0, 0, 2]);
     }
 
