@@ -1,5 +1,6 @@
 import { BigNumber, ethers } from 'ethers';
 
+import { TOKEN_EXCHANGE_RATE_EXPONENT } from '../../consts/igp';
 import { ChainName } from '../../types';
 
 import { RemoteGasData } from './types';
@@ -20,6 +21,6 @@ export function prettyRemoteGasData(data: RemoteGasData): string {
 export function prettyTokenExchangeRate(tokenExchangeRate: BigNumber): string {
   return `${tokenExchangeRate.toString()} (${ethers.utils.formatUnits(
     tokenExchangeRate,
-    10,
+    TOKEN_EXCHANGE_RATE_EXPONENT,
   )})`;
 }
