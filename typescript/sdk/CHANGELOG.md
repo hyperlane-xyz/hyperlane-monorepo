@@ -1,5 +1,12 @@
 # @hyperlane-xyz/sdk
 
+## 3.6.2
+
+### Patch Changes
+
+- @hyperlane-xyz/core@3.6.2
+- @hyperlane-xyz/utils@3.6.2
+
 ## 3.6.1
 
 ### Patch Changes
