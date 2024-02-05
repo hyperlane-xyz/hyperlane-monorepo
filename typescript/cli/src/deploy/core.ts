@@ -472,18 +472,20 @@ async function writeAgentConfig(
   multiProvider: MultiProvider,
 ) {
   const startBlocks: ChainMap<number> = {};
+  const core = HyperlaneCore.fromAddressesMap(artifacts, multiProvider);
+
   for (const chain of chains) {
-    const core = HyperlaneCore.fromAddressesMap(artifacts, multiProvider);
     const mailbox = core.getContracts(chain).mailbox;
     startBlocks[chain] = (await mailbox.deployedBlock()).toNumber();
   }
+
   const mergedAddressesMap = objMerge(
     sdkContractAddressesMap,
     artifacts,
   ) as ChainMap<HyperlaneDeploymentArtifacts>;
 
   const agentConfig = buildAgentConfig(
-    Object.keys(mergedAddressesMap),
+    chains, // Use only the chains that were deployed to
     multiProvider,
     mergedAddressesMap,
     startBlocks,
