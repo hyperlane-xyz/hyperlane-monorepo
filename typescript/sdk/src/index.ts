@@ -105,6 +105,10 @@ export {
   SealevelOverheadIgpDataSchema,
 } from './gas/adapters/serialization';
 export { IgpFactories, igpFactories } from './gas/contracts';
+export {
+  prettyRemoteGasData,
+  prettyTokenExchangeRate,
+} from './gas/oracle/logging';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
   GasOracleContractType,
@@ -185,8 +189,8 @@ export {
   RpcUrlSchema,
   getChainIdNumber,
   getDomainId,
-  isValidChainMetadata,
   getReorgPeriod,
+  isValidChainMetadata,
 } from './metadata/chainMetadataTypes';
 export { ZHash } from './metadata/customZodTypes';
 export {

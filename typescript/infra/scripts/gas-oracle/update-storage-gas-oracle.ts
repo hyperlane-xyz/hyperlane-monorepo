@@ -1,4 +1,9 @@
-import { ChainName, HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  HyperlaneIgp,
+  MultiProvider,
+  prettyRemoteGasData,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { RemoteGasData, StorageGasOracleConfig } from '../../src/config';
@@ -6,11 +11,7 @@ import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { RemoteGasDataConfig } from '../../src/config/gas-oracle';
 import { getArgs, getEnvironmentConfig, withNetwork } from '../utils';
 
-import {
-  eqRemoteGasData,
-  prettyRemoteGasData,
-  prettyRemoteGasDataConfig,
-} from './utils';
+import { eqRemoteGasData, prettyRemoteGasDataConfig } from './utils';
 
 /**
  * Idempotent. Use `--dry-run` to not send any transactions.
@@ -73,7 +74,7 @@ async function setStorageGasOracleValues(
 
   const configsToSet: RemoteGasDataConfig[] = [];
 
-  for (const remote in localStorageGasOracleConfig) {
+  for (const remote of Object.keys(localStorageGasOracleConfig)) {
     const desiredGasData = localStorageGasOracleConfig[remote]!;
     const remoteId = multiProvider.getDomainId(remote);
 
