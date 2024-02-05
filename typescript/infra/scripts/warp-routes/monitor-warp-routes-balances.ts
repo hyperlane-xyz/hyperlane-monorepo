@@ -44,10 +44,10 @@ export function readWarpRouteConfig(filePath: string) {
   if (!config) throw new Error(`No warp config found at ${filePath}`);
   const result = WarpRouteConfigSchema.safeParse(config);
   if (!result.success) {
-    const firstIssue = result.error.issues[0];
-    throw new Error(
-      `Invalid warp config: ${firstIssue.path} => ${firstIssue.message}`,
+    const errorMessages = result.error.issues.map(
+      (issue: any) => `${issue.path} => ${issue.message}`,
     );
+    throw new Error(`Invalid warp config:\n ${errorMessages.join('\n')}`);
   }
   return result.data;
 }
