@@ -9,10 +9,7 @@ import {
   GasOracleContractType,
   HookType,
   HooksConfig,
-  MultisigConfig,
   chainMetadata,
-  defaultMultisigConfigs,
-  multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -83,41 +80,7 @@ export function isValidHookConfigMap(config: any) {
   return HooksConfigMapSchema.safeParse(config).success;
 }
 
-export function presetHookConfigs(
-  owner: Address,
-  local: ChainName,
-  destinationChains: ChainName[],
-  multisigConfig?: MultisigConfig,
-): HooksConfig {
-  const gasOracleType = destinationChains.reduce<
-    ChainMap<GasOracleContractType>
-  >((acc, chain) => {
-    acc[chain] = GasOracleContractType.StorageGasOracle;
-    return acc;
-  }, {});
-  const overhead = destinationChains.reduce<ChainMap<number>>((acc, chain) => {
-    let validatorThreshold: number;
-    let validatorCount: number;
-    if (multisigConfig) {
-      validatorThreshold = multisigConfig.threshold;
-      validatorCount = multisigConfig.validators.length;
-    } else if (local in defaultMultisigConfigs) {
-      validatorThreshold = defaultMultisigConfigs[local].threshold;
-      validatorCount = defaultMultisigConfigs[local].validators.length;
-    } else {
-      // default values
-      // fix here: https://github.com/hyperlane-xyz/issues/issues/773
-      validatorThreshold = 2;
-      validatorCount = 3;
-    }
-    acc[chain] = multisigIsmVerificationCost(
-      validatorThreshold,
-      validatorCount,
-    );
-    return acc;
-  }, {});
-
-  // TODO improve types here to avoid need for `as` casts
+export function presetHookConfigs(owner: Address): HooksConfig {
   return {
     required: {
       type: HookType.PROTOCOL_FEE,
@@ -127,20 +90,7 @@ export function presetHookConfigs(
       owner: owner,
     },
     default: {
-      type: HookType.AGGREGATION,
-      hooks: [
-        {
-          type: HookType.MERKLE_TREE,
-        },
-        {
-          type: HookType.INTERCHAIN_GAS_PAYMASTER,
-          owner: owner,
-          beneficiary: owner,
-          gasOracleType,
-          overhead,
-          oracleKey: owner,
-        },
-      ],
+      type: HookType.MERKLE_TREE,
     },
   };
 }

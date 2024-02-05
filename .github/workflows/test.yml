@@ -28,6 +28,7 @@ jobs:
 
       - uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
       - name: yarn-cache
@@ -54,6 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
 
@@ -71,7 +73,7 @@ jobs:
           path: |
             ./*
             !./rust
-          key: ${{ github.sha }}
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: build
         run: yarn build
@@ -82,6 +84,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           # check out full history
           fetch-depth: 0
 
@@ -111,6 +114,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
 
@@ -123,7 +127,7 @@ jobs:
           path: |
             ./*
             !./rust
-          key: ${{ github.sha }}
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Unit Tests
         run: yarn test:ci
@@ -134,6 +138,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
 
@@ -151,7 +156,7 @@ jobs:
           path: |
             ./*
             !./rust
-          key: ${{ github.sha }}
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Metadata Health Check
         run: yarn workspace @hyperlane-xyz/sdk run test:metadata
@@ -166,6 +171,7 @@ jobs:
 
       - uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
       - name: foundry-install
@@ -205,7 +211,7 @@ jobs:
           path: |
             ./*
             !./rust
-          key: ${{ github.sha }}
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: cargo-cache
         uses: actions/cache@v3
@@ -245,9 +251,14 @@ jobs:
             chain: sepolia
           - environment: mainnet3
             chain: arbitrum
+          - environment: mainnet3
+            chain: viction
+            module: core
 
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: foundry-install
         uses: onbjerg/foundry-toolchain@v1
@@ -258,7 +269,7 @@ jobs:
           path: |
             ./*
             !./rust
-          key: ${{ github.sha }}
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment
         run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}
@@ -270,6 +281,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: yarn-cache
@@ -286,7 +298,7 @@ jobs:
           path: |
             ./*
             !./rust
-          key: ${{ github.sha }}
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: foundry-install
         uses: onbjerg/foundry-toolchain@v1

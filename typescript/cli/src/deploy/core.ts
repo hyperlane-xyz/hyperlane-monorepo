@@ -328,7 +328,6 @@ async function executeDeploy({
     chains,
     defaultIsms,
     hooksConfig,
-    multisigConfigs,
   );
   const coreContracts = await coreDeployer.deploy(coreConfigs);
 
@@ -391,17 +390,9 @@ function buildCoreConfigMap(
   chains: ChainName[],
   defaultIsms: ChainMap<IsmConfig>,
   hooksConfig: ChainMap<HooksConfig>,
-  multisigConfigs: ChainMap<MultisigConfig>,
 ): ChainMap<CoreConfig> {
   return chains.reduce<ChainMap<CoreConfig>>((config, chain) => {
-    const hooks =
-      hooksConfig[chain] ??
-      presetHookConfigs(
-        owner,
-        chain,
-        chains.filter((c) => c !== chain),
-        multisigConfigs[chain], // if no multisig config, uses default 2/3
-      );
+    const hooks = hooksConfig[chain] ?? presetHookConfigs(owner);
     config[chain] = {
       owner,
       defaultIsm: defaultIsms[chain],
