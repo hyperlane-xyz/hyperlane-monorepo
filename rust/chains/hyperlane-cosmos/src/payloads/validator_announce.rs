@@ -2,17 +2,17 @@ use serde::{Deserialize, Serialize};
 
 use super::general::EmptyStruct;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetAnnouncedValidatorsRequest {
     pub get_announced_validators: EmptyStruct,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetAnnounceStorageLocationsRequest {
     pub get_announce_storage_locations: GetAnnounceStorageLocationsRequestInner,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetAnnounceStorageLocationsRequestInner {
     pub validators: Vec<String>,
 }

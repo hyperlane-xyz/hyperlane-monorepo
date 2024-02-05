@@ -124,7 +124,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
       .string()
       .optional()
       .describe(
-        'Specify a comma seperated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
+        'Specify a comma separated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
       ),
     rpcConsensusType: z
       .nativeEnum(RpcConsensusType)
