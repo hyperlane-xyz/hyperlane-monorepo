@@ -14,8 +14,8 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
 import { IgpFactories, igpFactories } from './contracts';
+import { prettyRemoteGasData } from './oracle/logging';
 import { OracleConfig, StorageGasOracleConfig } from './oracle/types';
-import { prettyRemoteGasData } from './oracle/utils';
 import { GasOracleContractType, IgpConfig } from './types';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
@@ -111,9 +111,8 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         gasOracleAddress,
         this.multiProvider.getSigner(chain),
       );
-      if (!configsToSet[gasOracleAddress]) {
-        configsToSet[gasOracleAddress] = [];
-      }
+      configsToSet[gasOracleAddress] ||= [];
+
       const remoteGasDataConfig = await gasOracle.remoteGasData(remoteId);
 
       if (
@@ -136,8 +135,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         });
       }
     }
-    const gasOracles = Object.keys(configsToSet);
-    for (const gasOracle of gasOracles) {
+    for (const gasOracle of Object.keys(configsToSet)) {
       const gasOracleContract = StorageGasOracle__factory.connect(
         gasOracle,
         this.multiProvider.getSigner(chain),
