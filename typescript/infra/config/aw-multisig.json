@@ -13,13 +13,6 @@
       "0x9260a6c7d54cbcbed28f8668679cd1fa3a203b25"
     ]
   },
-  "basesepolia": {
-    "validators": [
-      "0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921",
-      "0x9f89793956a363996f0310758a34e7131be0afaf",
-      "0x89e6ad203db2981690c8de2dcc5433ccf35ed5f9"
-    ]
-  },
   "fuji": {
     "validators": [
       "0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e",
