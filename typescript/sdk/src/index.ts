@@ -185,8 +185,8 @@ export {
   RpcUrlSchema,
   getChainIdNumber,
   getDomainId,
-  getReorgPeriod,
   isValidChainMetadata,
+  getReorgPeriod,
 } from './metadata/chainMetadataTypes';
 export { ZHash } from './metadata/customZodTypes';
 export {
@@ -194,10 +194,6 @@ export {
   HyperlaneDeploymentArtifactsSchema,
 } from './metadata/deploymentArtifacts';
 export { MatchingList } from './metadata/matchingList';
-export {
-  WarpRouteConfig,
-  WarpRouteConfigSchema,
-} from './metadata/warpRouteConfig';
 export { InterchainAccount } from './middleware/account/InterchainAccount';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker';
 export {
