@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use hpl_interface::{core, hook, igp, ism};
+use hyperlane_cosmwasm_interface::{core, hook, igp, ism};
 use macro_rules_attribute::apply;
 
 use crate::utils::as_task;

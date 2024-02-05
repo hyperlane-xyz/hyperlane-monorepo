@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use cosmwasm_schema::cw_serde;
-use hpl_interface::{
+use hyperlane_cosmwasm_interface::{
     core,
     ism::{self},
 };
@@ -101,7 +101,7 @@ fn link_network(
     let public_key = validator.priv_key.verifying_key().to_encoded_point(false);
     let public_key = public_key.as_bytes();
 
-    let hash = hpl_interface::types::keccak256_hash(&public_key[1..]);
+    let hash = hyperlane_cosmwasm_interface::types::keccak256_hash(&public_key[1..]);
 
     let mut bytes = [0u8; 20];
     bytes.copy_from_slice(&hash.as_slice()[12..]);
