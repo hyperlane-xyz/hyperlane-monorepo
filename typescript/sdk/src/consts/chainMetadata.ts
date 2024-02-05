@@ -1037,6 +1037,9 @@ export const viction: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
     {
+      http: 'https://rpc.tomochain.com/',
+    },
+    {
       http: 'https://viction.blockpi.network/v1/rpc/public',
     },
   ],
