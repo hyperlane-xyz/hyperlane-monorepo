@@ -39,6 +39,8 @@ mod error;
 /// Implementations of custom rpc client logic (e.g. fallback)
 pub mod rpc_clients;
 
+pub const DEFAULT_BLOCK_TIME: u32 = 12;
+
 /// Enum for validity of a list of messages
 #[derive(Debug)]
 pub enum ListValidity {

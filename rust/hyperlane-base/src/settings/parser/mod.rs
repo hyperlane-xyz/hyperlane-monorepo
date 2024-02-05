@@ -14,6 +14,7 @@ use eyre::{eyre, Context};
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, IndexMode,
+    DEFAULT_BLOCK_TIME,
 };
 use itertools::Itertools;
 use serde::Deserialize;
@@ -134,6 +135,13 @@ fn parse_chain(
         .parse_u32()
         .unwrap_or(1);
 
+    let estimate_block_time = chain
+        .chain(&mut err)
+        .get_opt_key("blocks")
+        .get_key("reorgPeriod")
+        .parse_u32()
+        .unwrap_or(DEFAULT_BLOCK_TIME);
+
     let rpcs_base = chain
         .chain(&mut err)
         .get_key("rpcUrls")
@@ -239,6 +247,7 @@ fn parse_chain(
         domain,
         signer,
         reorg_period,
+        estimate_block_time,
         addresses: CoreContractAddresses {
             mailbox,
             interchain_gas_paymaster,

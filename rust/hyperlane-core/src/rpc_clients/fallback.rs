@@ -8,7 +8,7 @@ use std::{
 };
 use tracing::info;
 
-use crate::ChainCommunicationError;
+use crate::{ChainCommunicationError, DEFAULT_BLOCK_TIME};
 
 /// Read the current block number from a chain.
 #[async_trait]
@@ -17,10 +17,7 @@ pub trait BlockNumberGetter: Send + Sync + Debug {
     async fn get_block_number(&self) -> Result<u64, ChainCommunicationError>;
 }
 
-const MAX_BLOCK_TIME: Duration = Duration::from_secs(2 * 60);
-
 /// Information about a provider in `PrioritizedProviders`
-
 #[derive(Clone, Copy, new)]
 pub struct PrioritizedProviderInner {
     /// Index into the `providers` field of `PrioritizedProviders`
@@ -143,7 +140,7 @@ impl<T> Default for FallbackProviderBuilder<T> {
     fn default() -> Self {
         Self {
             providers: Vec::new(),
-            max_block_time: MAX_BLOCK_TIME,
+            max_block_time: Duration::from_secs(DEFAULT_BLOCK_TIME.into()),
         }
     }
 }

@@ -38,6 +38,8 @@ pub struct ChainConf {
     pub signer: Option<SignerConf>,
     /// The reorg period of the chain, i.e. the number of blocks until finality
     pub reorg_period: u32,
+    /// The estimate_block_time in seconds
+    pub estimate_block_time: u32,
     /// Addresses of contracts on the chain
     pub addresses: CoreContractAddresses,
     /// The chain connection details
