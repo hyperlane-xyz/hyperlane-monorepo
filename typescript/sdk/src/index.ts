@@ -1,7 +1,3 @@
-import multisigIsm from './consts/multisigIsm.json';
-import { MultisigConfig } from './ism/types';
-import { ChainMap } from './types';
-
 export { HyperlaneApp } from './app/HyperlaneApp';
 export {
   AdapterClassType,
@@ -34,6 +30,7 @@ export {
   hyperlaneEnvironments,
 } from './consts/environments';
 export { MAILBOX_VERSION } from './consts/mailbox';
+export { defaultMultisigConfigs } from './consts/multisigIsm';
 export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel';
 export {
   attachContracts,
@@ -85,6 +82,7 @@ export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer';
 export {
   CheckerViolation,
+  OwnableConfig,
   OwnerViolation,
   ViolationType,
 } from './deploy/types';
@@ -128,6 +126,7 @@ export {
   IgpHookConfig,
   MerkleTreeHookConfig,
   OpStackHookConfig,
+  PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types';
 export {
@@ -148,6 +147,7 @@ export {
   MultisigConfig,
   MultisigIsmConfig,
   OpStackIsmConfig,
+  PausableIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
 export {
@@ -186,6 +186,7 @@ export {
   getChainIdNumber,
   getDomainId,
   isValidChainMetadata,
+  getReorgPeriod,
 } from './metadata/chainMetadataTypes';
 export { ZHash } from './metadata/customZodTypes';
 export {
@@ -306,7 +307,6 @@ export {
   GasConfig,
   GasRouterConfig,
   MailboxClientConfig,
-  OwnableConfig,
   ProxiedFactories,
   ProxiedRouterConfig,
   RouterAddress,
@@ -395,5 +395,3 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';
-export const defaultMultisigConfigs: ChainMap<MultisigConfig> =
-  multisigIsm as ChainMap<MultisigConfig>;

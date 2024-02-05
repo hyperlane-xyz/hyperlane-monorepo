@@ -144,14 +144,11 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
   } = argv ? argv : await withMissingChains(withContext(getArgs())).argv;
 
   const newValidatorCounts: ChainMap<number> = {};
-  const newThresholds: ChainMap<number> = {};
   if (newChains) {
     const chains = newChains.split(',');
     for (const chain of chains) {
-      const [chainName, threshold] = chain.split('=');
-      const [newThreshold, newValidatorCount] = threshold.split('/');
-      newThresholds[chainName] = parseInt(newThreshold);
-      newValidatorCounts[chainName] = parseInt(newValidatorCount);
+      const [chainName, newValidatorCount] = chain.split('=');
+      newValidatorCounts[chainName] = parseInt(newValidatorCount, 10);
     }
   }
 
@@ -159,7 +156,7 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
   // check if new chains are needed
   const missingChains = checkIfValidatorsArePersisted(agentConfig);
 
-  // if you include a chain in chainMetadata but not in the multisig.json, you need to specify the new chain in new-chains
+  // if you include a chain in chainMetadata but not in the aw-multisig.json, you need to specify the new chain in new-chains
   for (const chain of missingChains) {
     if (!Object.keys(newValidatorCounts).includes(chain)) {
       throw new Error(`Missing chain ${chain} not specified in new-chains`);
@@ -195,7 +192,6 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
     agentConfig,
     context,
     environment,
-    newThresholds,
   };
 }
 

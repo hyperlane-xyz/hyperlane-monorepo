@@ -17,7 +17,6 @@ import {
   RootAgentConfig,
 } from '../config';
 import { Role } from '../roles';
-import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd, isEthereumProtocolChain } from '../utils/utils';
 
 import { AgentAwsKey } from './aws/key';
@@ -326,50 +325,7 @@ export async function createAgentKeysIfNotExists(
     }),
   );
 
-  // recent keys fetched from aws saved to sdk artifacts
-  const multisigValidatorKeys: ChainMap<{ validators: Address[] }> = {};
-  let relayer, kathy;
-  for (const key of keys) {
-    if (key.role === Role.Relayer) {
-      if (relayer)
-        throw new Error('More than one Relayer found in gcpCloudAgentKeys');
-      relayer = key.address;
-    }
-    if (key.role === Role.Kathy) {
-      if (kathy)
-        throw new Error('More than one Kathy found in gcpCloudAgentKeys');
-      kathy = key.address;
-    }
-    if (!key.chainName) continue;
-    multisigValidatorKeys[key.chainName] ||= {
-      validators: [],
-    };
-    if (key.chainName)
-      multisigValidatorKeys[key.chainName].validators.push(key.address);
-  }
-  if (!relayer) throw new Error('No Relayer found in gcpCloudAgentKeys');
-  if (!kathy) throw new Error('No Kathy found in gcpCloudAgentKeys');
-  await persistRoleAddressesToLocalArtifacts(
-    Role.Relayer,
-    agentConfig.runEnv,
-    agentConfig.context,
-    relayer,
-    relayerAddresses,
-  );
-  await persistRoleAddressesToLocalArtifacts(
-    Role.Kathy,
-    agentConfig.runEnv,
-    agentConfig.context,
-    kathy,
-    kathyAddresses,
-  );
-  await persistValidatorAddressesToLocalArtifacts(multisigValidatorKeys);
-  await persistAddressesToGcp(
-    agentConfig.runEnv,
-    agentConfig.context,
-    keys.map((key) => key.serializeAsAddress()),
-  );
-
+  await persistAddressesLocally(agentConfig, keys);
   return;
 }
 
@@ -391,36 +347,51 @@ export async function rotateKey(
 ) {
   const key = getCloudAgentKey(agentConfig, role, chainName);
   await key.update();
-  const keyIdentifier = key.identifier;
-  const addresses = await fetchGCPKeyAddresses(
-    agentConfig.runEnv,
-    agentConfig.context,
-  );
-  const filteredAddresses = addresses.filter((_) => {
-    return _.identifier !== keyIdentifier;
-  });
-
-  filteredAddresses.push(key.serializeAsAddress());
-  await persistAddressesToGcp(
-    agentConfig.runEnv,
-    agentConfig.context,
-    filteredAddresses,
-  );
+  await persistAddressesLocally(agentConfig, [key]);
 }
 
-async function persistAddressesToGcp(
-  environment: DeployEnvironment,
-  context: Contexts,
-  keys: KeyAsAddress[],
+async function persistAddressesLocally(
+  agentConfig: AgentContextConfig,
+  keys: CloudAgentKey[],
 ) {
-  await setGCPSecret(
-    addressesIdentifier(environment, context),
-    JSON.stringify(keys),
-    {
-      environment,
-      context,
-    },
+  // recent keys fetched from aws saved to local artifacts
+  const multisigValidatorKeys: ChainMap<{ validators: Address[] }> = {};
+  let relayer, kathy;
+  for (const key of keys) {
+    if (key.role === Role.Relayer) {
+      if (relayer)
+        throw new Error('More than one Relayer found in gcpCloudAgentKeys');
+      relayer = key.address;
+    }
+    if (key.role === Role.Kathy) {
+      if (kathy)
+        throw new Error('More than one Kathy found in gcpCloudAgentKeys');
+      kathy = key.address;
+    }
+    if (!key.chainName) continue;
+    multisigValidatorKeys[key.chainName] ||= {
+      validators: [],
+    };
+    if (key.chainName)
+      multisigValidatorKeys[key.chainName].validators.push(key.address);
+  }
+  if (!relayer) throw new Error('No Relayer found in awsCloudAgentKeys');
+  if (!kathy) throw new Error('No Kathy found in awsCloudAgentKeys');
+  await persistRoleAddressesToLocalArtifacts(
+    Role.Relayer,
+    agentConfig.runEnv,
+    agentConfig.context,
+    relayer,
+    relayerAddresses,
   );
+  await persistRoleAddressesToLocalArtifacts(
+    Role.Kathy,
+    agentConfig.runEnv,
+    agentConfig.context,
+    kathy,
+    kathyAddresses,
+  );
+  await persistValidatorAddressesToLocalArtifacts(multisigValidatorKeys);
 }
 
 // non-validator roles
@@ -452,16 +423,6 @@ export async function persistValidatorAddressesToLocalArtifacts(
   const filePath = path.resolve(__dirname, '../../config/aw-multisig.json');
   // Write the updated object back to the file
   fs.writeFileSync(filePath, JSON.stringify(awMultsigAddresses, null, 2));
-}
-
-async function fetchGCPKeyAddresses(
-  environment: DeployEnvironment,
-  context: Contexts,
-) {
-  const addresses = await fetchGCPSecret(
-    addressesIdentifier(environment, context),
-  );
-  return addresses as KeyAsAddress[];
 }
 
 export function fetchLocalKeyAddresses(
