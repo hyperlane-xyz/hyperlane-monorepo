@@ -97,7 +97,7 @@ hyper = "0.14"
 hyper-tls = "0.5.0"
 injective-protobuf = "0.2.2"
 injective-std = "0.1.5"
-itertools = "0.11.0"
+itertools = "*"
 jobserver = "=0.1.26"
 jsonrpc-core = "18.0"
 k256 = { version = "0.13.1", features = ["std", "ecdsa"] }
