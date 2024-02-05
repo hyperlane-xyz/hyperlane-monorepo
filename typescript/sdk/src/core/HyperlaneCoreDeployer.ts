@@ -1,6 +1,10 @@
 import debug from 'debug';
 
-import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
+import {
+  IPostDispatchHook,
+  Mailbox,
+  ValidatorAnnounce,
+} from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
@@ -100,8 +104,8 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         mailbox.initialize(
           config.owner,
           defaultIsm,
-          defaultHook,
-          requiredHook,
+          defaultHook.address,
+          requiredHook.address,
           this.multiProvider.getTransactionOverrides(chain),
         ),
       );
@@ -119,12 +123,14 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
       this.logger('Mailbox already initialized');
 
+      const overrides = this.multiProvider.getTransactionOverrides(chain);
       await this.configureHook(
         chain,
         mailbox,
         defaultHook,
         (_mailbox) => _mailbox.defaultHook(),
-        (_mailbox, _hook) => _mailbox.populateTransaction.setDefaultHook(_hook),
+        (_mailbox, _hook) =>
+          _mailbox.populateTransaction.setDefaultHook(_hook, { ...overrides }),
       );
 
       await this.configureHook(
@@ -133,7 +139,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         requiredHook,
         (_mailbox) => _mailbox.requiredHook(),
         (_mailbox, _hook) =>
-          _mailbox.populateTransaction.setRequiredHook(_hook),
+          _mailbox.populateTransaction.setRequiredHook(_hook, { ...overrides }),
       );
 
       await this.configureIsm(
@@ -165,7 +171,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: HookConfig,
     coreAddresses: Partial<CoreAddresses>,
-  ): Promise<Address> {
+  ): Promise<IPostDispatchHook> {
     const hooks = await this.hookDeployer.deployContracts(
       chain,
       config,
@@ -176,7 +182,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       this.hookDeployer.deployedContracts[chain],
       this.hookDeployer.verificationInputs[chain],
     );
-    return hooks[config.type].address;
+    return hooks[config.type];
   }
 
   async deployIsm(

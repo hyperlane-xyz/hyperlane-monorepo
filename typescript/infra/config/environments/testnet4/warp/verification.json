@@ -1,0 +1,16 @@
+{
+  "goerli": [
+    {
+      "name": "HypERC20Collateral",
+      "address": "0xEF2a1f411d919878159303D9E3fe00D001F7D1D0",
+      "constructorArguments": "00000000000000000000000007865c6e87b9f70255377e024ace6630c1eaa37f00000000000000000000000049cfd6ef774acab14814d699e3f7ee36fdfba932",
+      "isProxy": false
+    },
+    {
+      "name": "HypNative",
+      "address": "0x0918293aadfa13F8c9F2cdE415811b6AD9ff4a2d",
+      "constructorArguments": "00000000000000000000000049cfd6ef774acab14814d699e3f7ee36fdfba932",
+      "isProxy": false
+    }
+  ]
+}

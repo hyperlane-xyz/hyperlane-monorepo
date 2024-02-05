@@ -1,3 +1,4 @@
+#[cfg(feature = "fuels")]
 use fuels_code_gen::ProgramType;
 use std::collections::BTreeSet;
 use std::ffi::OsStr;

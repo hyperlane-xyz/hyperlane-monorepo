@@ -186,8 +186,8 @@ impl<'de> Visitor<'de> for FilterVisitor<H256> {
         A: SeqAccess<'de>,
     {
         let mut values = Vec::new();
-        while let Some(i) = seq.next_element::<&str>()? {
-            values.push(parse_addr(i)?)
+        while let Some(i) = seq.next_element::<String>()? {
+            values.push(parse_addr(&i)?)
         }
         Ok(Self::Value::Enumerated(values))
     }
@@ -453,5 +453,20 @@ mod test {
         serde_json::from_str::<MatchingList>(
             r#"[{"origindomain":1399811151,"senderaddress":"DdTMkk9nuqH5LnD56HLkPiKMV3yB3BNEYSQfgmJHa5i7","destinationdomain":11155111,"recipientaddress":"0x6AD4DEBA8A147d000C09de6465267a9047d1c217"}]"#,
         ).unwrap();
+    }
+
+    #[test]
+    fn supports_sequence_h256s() {
+        let json_str = r#"[{"origindomain":1399811151,"senderaddress":["0x6AD4DEBA8A147d000C09de6465267a9047d1c217","0x6AD4DEBA8A147d000C09de6465267a9047d1c218"],"destinationdomain":11155111,"recipientaddress":["0x6AD4DEBA8A147d000C09de6465267a9047d1c217","0x6AD4DEBA8A147d000C09de6465267a9047d1c218"]}]"#;
+
+        // Test parsing directly into MatchingList
+        serde_json::from_str::<MatchingList>(json_str).unwrap();
+
+        // Test parsing into a Value and then into MatchingList, which is the path used
+        // by the agent config parser.
+        let val: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let value_parser =
+            hyperlane_base::settings::parser::ValueParser::new(Default::default(), &val);
+        crate::settings::parse_matching_list(value_parser).unwrap();
     }
 }

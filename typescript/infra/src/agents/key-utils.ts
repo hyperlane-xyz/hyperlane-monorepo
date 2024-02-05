@@ -1,8 +1,10 @@
+import debug from 'debug';
 import fs from 'fs';
 import path from 'path';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { objMap } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import localAWMultisigAddresses from '../../config/aw-multisig.json';
 // AW - Abacus Works
@@ -33,6 +35,8 @@ export const kathyAddresses: LocalRoleAddresses =
   localKathyAddresses as LocalRoleAddresses;
 export const awMultsigAddresses: ChainMap<{ validators: Address[] }> =
   localAWMultisigAddresses as ChainMap<{ validators: Address[] }>;
+
+const debugLog = debug('infra:agents:key:utils');
 
 export interface KeyAsAddress {
   identifier: string;
@@ -171,6 +175,7 @@ function getRoleKeyMapPerChain(
 export function getAllCloudAgentKeys(
   agentConfig: RootAgentConfig,
 ): Array<CloudAgentKey> {
+  debugLog('Retrieving all cloud agent keys');
   const keysPerChain = getRoleKeyMapPerChain(agentConfig);
 
   const keysByIdentifier = Object.keys(keysPerChain).reduce(
@@ -205,21 +210,22 @@ export function getCloudAgentKey(
   chainName?: ChainName,
   index?: number,
 ): CloudAgentKey {
+  debugLog(`Retrieving cloud agent key for ${role} on ${chainName}`);
   switch (role) {
     case Role.Validator:
       if (chainName === undefined || index === undefined) {
-        throw Error(`Must provide chainName and index for validator key`);
+        throw Error('Must provide chainName and index for validator key');
       }
       // For now just get the validator key, and not the chain signer.
       return getValidatorKeysForChain(agentConfig, chainName, index).validator;
     case Role.Relayer:
       if (chainName === undefined) {
-        throw Error(`Must provide chainName for relayer key`);
+        throw Error('Must provide chainName for relayer key');
       }
       return getRelayerKeyForChain(agentConfig, chainName);
     case Role.Kathy:
       if (chainName === undefined) {
-        throw Error(`Must provide chainName for kathy key`);
+        throw Error('Must provide chainName for kathy key');
       }
       return getKathyKeyForChain(agentConfig, chainName);
     case Role.Deployer:
@@ -238,6 +244,7 @@ export function getRelayerKeyForChain(
   agentConfig: AgentContextConfig,
   chainName: ChainName,
 ): CloudAgentKey {
+  debugLog(`Retrieving relayer key for ${chainName}`);
   // If AWS is enabled and the chain is an Ethereum-based chain, we want to use
   // an AWS key.
   if (agentConfig.aws && isEthereumProtocolChain(chainName)) {
@@ -255,6 +262,7 @@ export function getKathyKeyForChain(
   agentConfig: AgentContextConfig,
   chainName: ChainName,
 ): CloudAgentKey {
+  debugLog(`Retrieving kathy key for ${chainName}`);
   // If AWS is enabled and the chain is an Ethereum-based chain, we want to use
   // an AWS key.
   if (agentConfig.aws && isEthereumProtocolChain(chainName)) {
@@ -267,6 +275,7 @@ export function getKathyKeyForChain(
 // Returns the deployer key. This is always a GCP key, not chain specific,
 // and in the Hyperlane context.
 export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
+  debugLog('Retrieving deployer key');
   return new AgentGCPKey(agentConfig.runEnv, Contexts.Hyperlane, Role.Deployer);
 }
 
@@ -282,6 +291,7 @@ export function getValidatorKeysForChain(
   validator: CloudAgentKey;
   chainSigner: CloudAgentKey;
 } {
+  debugLog(`Retrieving validator keys for ${chainName}`);
   const validator = agentConfig.aws
     ? new AgentAwsKey(agentConfig, Role.Validator, chainName, index)
     : new AgentGCPKey(
@@ -294,15 +304,19 @@ export function getValidatorKeysForChain(
 
   // If the chain is Ethereum-based, we can just use the validator key (even if it's AWS-based)
   // as the chain signer. Otherwise, we need to use a GCP key.
-  const chainSigner = isEthereumProtocolChain(chainName)
-    ? validator
-    : new AgentGCPKey(
-        agentConfig.runEnv,
-        agentConfig.context,
-        Role.Validator,
-        chainName,
-        index,
-      );
+  let chainSigner;
+  if (isEthereumProtocolChain(chainName)) {
+    chainSigner = validator;
+  } else {
+    debugLog(`Retrieving GCP key for ${chainName}, as it is not EVM`);
+    chainSigner = new AgentGCPKey(
+      agentConfig.runEnv,
+      agentConfig.context,
+      Role.Validator,
+      chainName,
+      index,
+    );
+  }
 
   return {
     validator,
@@ -317,6 +331,7 @@ export function getValidatorKeysForChain(
 export async function createAgentKeysIfNotExists(
   agentConfig: AgentContextConfig,
 ) {
+  debugLog('Creating agent keys if none exist');
   const keys = getAllCloudAgentKeys(agentConfig);
 
   await Promise.all(
@@ -330,6 +345,7 @@ export async function createAgentKeysIfNotExists(
 }
 
 export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
+  debugLog('Deleting agent keys');
   const keys = getAllCloudAgentKeys(agentConfig);
   await Promise.all(keys.map((key) => key.delete()));
   await execCmd(
@@ -345,6 +361,7 @@ export async function rotateKey(
   role: Role,
   chainName: ChainName,
 ) {
+  debugLog(`Rotating key for ${role} on ${chainName}`);
   const key = getCloudAgentKey(agentConfig, role, chainName);
   await key.update();
   await persistAddressesLocally(agentConfig, [key]);
@@ -354,6 +371,9 @@ async function persistAddressesLocally(
   agentConfig: AgentContextConfig,
   keys: CloudAgentKey[],
 ) {
+  debugLog(
+    `Persisting addresses to GCP for ${agentConfig.context} context in ${agentConfig.runEnv} environment`,
+  );
   // recent keys fetched from aws saved to local artifacts
   const multisigValidatorKeys: ChainMap<{ validators: Address[] }> = {};
   let relayer, kathy;
@@ -435,6 +455,9 @@ export function fetchLocalKeyAddresses(
   const data = fs.readFileSync(filePath, 'utf8');
   const addresses: LocalRoleAddresses = JSON.parse(data);
 
+  debugLog(
+    `Fetching addresses from GCP for ${context} context in ${environment} environment`,
+  );
   return addresses[environment][context];
 }
 
