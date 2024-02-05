@@ -5,7 +5,6 @@ use std::{
 
 use derive_new::new;
 use hyperlane_core::rpc_clients::FallbackProvider;
-use itertools::Itertools;
 
 /// Wrapper of `FallbackProvider` for use in `hyperlane-cosmos`
 #[derive(new, Clone)]
@@ -26,25 +25,12 @@ where
     C: Debug,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        // iterate the inner providers and write them to the formatter
-        f.debug_struct("FallbackProvider")
-            .field(
-                "providers",
-                &self
-                    .fallback_provider
-                    .inner
-                    .providers
-                    .iter()
-                    .map(|v| format!("{:?}", v))
-                    .join(", "),
-            )
-            .finish()
+        self.fallback_provider.fmt(f)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::pin::Pin;
     use std::time::Duration;
 
     use async_trait::async_trait;
@@ -103,7 +89,7 @@ mod tests {
                     }
                     Ok(response)
                 };
-                Pin::from(Box::from(future))
+                Box::pin(future)
             })
             .await?;
             Ok(())

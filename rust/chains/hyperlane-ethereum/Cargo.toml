@@ -27,7 +27,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing-futures.workspace = true
-tracing = { workspace = true, features = ["log"] }
+tracing = { workspace = true }
 url.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core" }

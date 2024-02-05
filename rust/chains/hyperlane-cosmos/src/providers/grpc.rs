@@ -1,5 +1,3 @@
-use std::pin::Pin;
-
 use async_trait::async_trait;
 use cosmrs::{
     proto::{
@@ -37,6 +35,7 @@ use tonic::{
     transport::{Channel, Endpoint},
     GrpcMethod, IntoRequest,
 };
+use url::Url;
 
 use crate::{address::CosmosAddress, CosmosAmount};
 use crate::{rpc_clients::CosmosFallbackProvider, HyperlaneCosmosError};
@@ -54,7 +53,7 @@ struct CosmosChannel {
     channel: Channel,
     /// The url that this channel is connected to.
     /// Not explicitly used, but useful for debugging.
-    _url: String,
+    _url: Url,
 }
 
 #[async_trait]
@@ -150,7 +149,7 @@ impl WasmGrpcProvider {
             .get_grpc_urls()
             .into_iter()
             .map(|url| {
-                Endpoint::new(url.clone())
+                Endpoint::new(url.to_string())
                     .map(|e| CosmosChannel::new(e.connect_lazy(), url))
                     .map_err(Into::<HyperlaneCosmosError>::into)
             })
@@ -301,7 +300,7 @@ impl WasmGrpcProvider {
 
                     Ok(gas_used)
                 };
-                Pin::from(Box::from(future))
+                Box::pin(future)
             })
             .await?;
 
@@ -328,7 +327,7 @@ impl WasmGrpcProvider {
                         .into_inner();
                     Ok(response)
                 };
-                Pin::from(Box::from(future))
+                Box::pin(future)
             })
             .await?;
 
@@ -361,7 +360,7 @@ impl WasmGrpcProvider {
                         .into_inner();
                     Ok(response)
                 };
-                Pin::from(Box::from(future))
+                Box::pin(future)
             })
             .await?;
 
@@ -415,7 +414,7 @@ impl WasmGrpcProvider {
 
                     Ok(response)
                 };
-                Pin::from(Box::from(future))
+                Box::pin(future)
             })
             .await?;
 
@@ -460,7 +459,7 @@ impl WasmProvider for WasmGrpcProvider {
                         .into_inner();
                     Ok(response)
                 };
-                Pin::from(Box::from(future))
+                Box::pin(future)
             })
             .await?;
 
@@ -519,7 +518,7 @@ impl WasmProvider for WasmGrpcProvider {
                         .into_inner();
                     Ok(response)
                 };
-                Pin::from(Box::from(future))
+                Box::pin(future)
             })
             .await?;
 
@@ -573,7 +572,7 @@ impl WasmProvider for WasmGrpcProvider {
                         .tx_response
                         .ok_or_else(|| ChainCommunicationError::from_other_str("Empty tx_response"))
                 };
-                Pin::from(Box::from(future))
+                Box::pin(future)
             })
             .await?;
         Ok(tx_res)

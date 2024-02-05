@@ -119,7 +119,7 @@ export const ChainMetadataSchemaObject = z.object({
     .string()
     .optional()
     .describe(
-      'Specify a comma seperated list of custom GRPC URLs to use for this chain. If not specified, the default GRPC urls will be used.',
+      'Specify a comma separated list of custom GRPC URLs to use for this chain. If not specified, the default GRPC urls will be used.',
     ),
   blockExplorers: z
     .array(

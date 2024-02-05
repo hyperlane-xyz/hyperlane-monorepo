@@ -83,7 +83,7 @@ where
 {
     type Error = ProviderError;
 
-    // TODO: Refactor the reusable parts of this function when implementing the cosmos-specific logic
+    // TODO: Refactor to use `FallbackProvider::call`
     #[instrument]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where

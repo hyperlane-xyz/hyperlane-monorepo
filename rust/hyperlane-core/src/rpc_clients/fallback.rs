@@ -1,8 +1,10 @@
 use async_rwlock::RwLock;
 use async_trait::async_trait;
 use derive_new::new;
+use itertools::Itertools;
 use std::{
-    fmt::Debug,
+    fmt::{Debug, Formatter},
+    future::Future,
     marker::PhantomData,
     pin::Pin,
     sync::Arc,
@@ -53,6 +55,11 @@ pub struct PrioritizedProviders<T> {
 
 /// A provider that bundles multiple providers and attempts to call the first,
 /// then the second, and so on until a response is received.
+///
+/// Although no trait bounds are used in the struct definition, the intended purpose of `B`
+/// is to be bound by `BlockNumberGetter` and have `T` be convertible to `B`. That is,
+/// inner providers should be able to get the current block number, or be convertible into
+/// something that is.
 pub struct FallbackProvider<T, B> {
     /// The sub-providers called by this provider
     pub inner: Arc<PrioritizedProviders<T>>,
@@ -67,6 +74,26 @@ impl<T, B> Clone for FallbackProvider<T, B> {
             max_block_time: self.max_block_time,
             _phantom: PhantomData,
         }
+    }
+}
+
+impl<T, B> Debug for FallbackProvider<T, B>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        // iterate the inner providers and write them to the formatter
+        f.debug_struct("FallbackProvider")
+            .field(
+                "providers",
+                &self
+                    .inner
+                    .providers
+                    .iter()
+                    .map(|v| format!("{:?}", v))
+                    .join(", "),
+            )
+            .finish()
     }
 }
 
@@ -142,11 +169,7 @@ where
     /// If all providers fail, return an error.
     pub async fn call<V>(
         &self,
-        mut f: impl FnMut(
-            T,
-        ) -> Pin<
-            Box<dyn std::future::Future<Output = Result<V, ChainCommunicationError>> + Send>,
-        >,
+        mut f: impl FnMut(T) -> Pin<Box<dyn Future<Output = Result<V, ChainCommunicationError>> + Send>>,
     ) -> Result<V, ChainCommunicationError> {
         let mut errors = vec![];
         // make sure we do at least 4 total retries.

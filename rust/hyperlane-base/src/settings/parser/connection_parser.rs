@@ -1,13 +1,12 @@
 use eyre::eyre;
 use hyperlane_core::config::ConfigErrResultExt;
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
-use itertools::Itertools;
 use url::Url;
 
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
 
-use super::{parse_cosmos_gas_price, ValueParser};
+use super::{parse_base_and_override_urls, parse_cosmos_gas_price, ValueParser};
 
 pub fn build_ethereum_connection_conf(
     rpcs: &[Url],
@@ -44,48 +43,8 @@ pub fn build_cosmos_connection_conf(
     err: &mut ConfigParsingError,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
-
-    let grpcs_base = chain
-        .chain(&mut local_err)
-        .get_key("grpcUrls")
-        .into_array_iter()
-        .map(|urls| {
-            urls.filter_map(|v| {
-                v.chain(err)
-                    .get_key("http")
-                    .parse_from_str("Invalid http url")
-                    .end()
-            })
-            .collect_vec()
-        })
-        .unwrap_or_default();
-
-    let grpc_overrides = chain
-        .chain(&mut local_err)
-        .get_opt_key("customGrpcUrls")
-        .parse_string()
-        .end()
-        .map(|urls| {
-            urls.split(',')
-                .filter_map(|url| {
-                    url.parse()
-                        .take_err(&mut local_err, || &chain.cwp + "customGrpcUrls")
-                })
-                .collect_vec()
-        });
-
-    let grpcs = grpc_overrides.unwrap_or(grpcs_base);
-
-    if grpcs.is_empty() {
-        err.push(
-            &chain.cwp + "grpc_urls",
-            eyre!("Missing base grpc definitions for chain"),
-        );
-        err.push(
-            &chain.cwp + "custom_grpc_urls",
-            eyre!("Also missing grpc overrides for chain"),
-        );
-    }
+    let grpcs =
+        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
 
     let chain_id = chain
         .chain(&mut local_err)
