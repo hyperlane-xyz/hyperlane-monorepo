@@ -1,6 +1,7 @@
 ENVIRONMENT=$1
 MODULE=$2
 CHAIN=$3
+BLOCK_NUMBER=$4
 
 if [ -z "$ENVIRONMENT" ] || [ -z "$MODULE" ] || [ -z "$CHAIN" ]; then
   echo "Usage: fork.sh <environment> <module> <chain>"
@@ -15,7 +16,16 @@ set -e
 
 RPC_URL=`yarn ts-node ./scripts/print-chain-metadatas.ts -e $ENVIRONMENT | jq -r ".$CHAIN.rpcUrls[0].http"`
 
-anvil --fork-url $RPC_URL --fork-retry-backoff 3 --compute-units-per-second 200 --gas-price 1 --silent &
+# use latest if none is provided
+if [ -z "$BLOCK_NUMBER" ]; then
+  BLOCK_NUMBER=$(cast block-number --rpc-url $RPC_URL)
+fi
+
+anvil --fork-url $RPC_URL \
+  --fork-block-number $BLOCK_NUMBER \
+  --fork-retry-backoff 3 \
+  --compute-units-per-second 200 \
+  --silent &
 ANVIL_PID=$!
 
 while ! cast bn &> /dev/null; do
