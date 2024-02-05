@@ -1,14 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 
-import {
-  ChainMap,
-  ChainName,
-  MultisigConfig,
-  defaultMultisigConfigs,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
+import localAWMultisigAddresses from '../../config/aw-multisig.json';
+// AW - Abacus Works
 import { Contexts } from '../../config/contexts';
 import { helloworld } from '../../config/environments/helloworld';
 import localKathyAddresses from '../../config/kathy.json';
@@ -35,6 +32,8 @@ export const relayerAddresses: LocalRoleAddresses =
   localRelayerAddresses as LocalRoleAddresses;
 export const kathyAddresses: LocalRoleAddresses =
   localKathyAddresses as LocalRoleAddresses;
+export const awMultsigAddresses: ChainMap<{ validators: Address[] }> =
+  localAWMultisigAddresses as ChainMap<{ validators: Address[] }>;
 
 export interface KeyAsAddress {
   identifier: string;
@@ -318,7 +317,6 @@ export function getValidatorKeysForChain(
 
 export async function createAgentKeysIfNotExists(
   agentConfig: AgentContextConfig,
-  newThresholds?: ChainMap<number>,
 ) {
   const keys = getAllCloudAgentKeys(agentConfig);
 
@@ -329,7 +327,7 @@ export async function createAgentKeysIfNotExists(
   );
 
   // recent keys fetched from aws saved to sdk artifacts
-  const multisigValidatorKeys: ChainMap<MultisigConfig> = {};
+  const multisigValidatorKeys: ChainMap<{ validators: Address[] }> = {};
   let relayer, kathy;
   for (const key of keys) {
     if (key.role === Role.Relayer) {
@@ -343,15 +341,9 @@ export async function createAgentKeysIfNotExists(
       kathy = key.address;
     }
     if (!key.chainName) continue;
-    if (!multisigValidatorKeys[key.chainName]) {
-      multisigValidatorKeys[key.chainName] = {
-        threshold:
-          newThresholds?.[key.chainName] ??
-          defaultMultisigConfigs[key.chainName].threshold ??
-          1,
-        validators: [],
-      };
-    }
+    multisigValidatorKeys[key.chainName] ||= {
+      validators: [],
+    };
     if (key.chainName)
       multisigValidatorKeys[key.chainName].validators.push(key.address);
   }
@@ -371,7 +363,7 @@ export async function createAgentKeysIfNotExists(
     kathy,
     kathyAddresses,
   );
-  await persistValidatorAddressesToSDKArtifacts(multisigValidatorKeys);
+  await persistValidatorAddressesToLocalArtifacts(multisigValidatorKeys);
   await persistAddressesToGcp(
     agentConfig.runEnv,
     agentConfig.context,
@@ -447,22 +439,19 @@ export async function persistRoleAddressesToLocalArtifacts(
   fs.writeFileSync(filePath, JSON.stringify(addresses, null, 2));
 }
 
-// maintaining the schema and requires a threshold
-export async function persistValidatorAddressesToSDKArtifacts(
-  fetchedValidatorAddresses: ChainMap<MultisigConfig>,
+// maintaining the multisigIsm schema sans threshold
+export async function persistValidatorAddressesToLocalArtifacts(
+  fetchedValidatorAddresses: ChainMap<{ validators: Address[] }>,
 ) {
   for (const chain of Object.keys(fetchedValidatorAddresses)) {
-    defaultMultisigConfigs[chain] = {
-      ...fetchedValidatorAddresses[chain], // fresh from aws
+    awMultsigAddresses[chain] = {
+      validators: fetchedValidatorAddresses[chain].validators, // fresh from aws
     };
   }
   // Resolve the relative path
-  const filePath = path.resolve(
-    __dirname,
-    '../../../sdk/src/consts/multisigIsm.json',
-  );
+  const filePath = path.resolve(__dirname, '../../config/aw-multisig.json');
   // Write the updated object back to the file
-  fs.writeFileSync(filePath, JSON.stringify(defaultMultisigConfigs, null, 2));
+  fs.writeFileSync(filePath, JSON.stringify(awMultsigAddresses, null, 2));
 }
 
 async function fetchGCPKeyAddresses(
