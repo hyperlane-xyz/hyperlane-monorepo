@@ -421,7 +421,7 @@ mod test {
                 .iter()
                 .zip(msg_retries_to_set.iter())
                 .for_each(|(pm, expected_retries)| {
-                    // Round up the actuall backoff because it was calculated with an `Instant::now()` that was a fraction of a second ago
+                    // Round up the actual backoff because it was calculated with an `Instant::now()` that was a fraction of a second ago
                     let expected_backoff = PendingMessage::calculate_msg_backoff(*expected_retries)
                         .map(|b| b.as_secs_f32().round());
                     let actual_backoff = pm._next_attempt_after().map(|instant| {

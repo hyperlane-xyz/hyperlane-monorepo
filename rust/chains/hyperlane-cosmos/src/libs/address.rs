@@ -36,7 +36,7 @@ impl CosmosAddress {
         Ok(CosmosAddress::new(account_id, digest))
     }
 
-    /// Creates a wrapper arround a cosmrs AccountId from a private key byte array
+    /// Creates a wrapper around a cosmrs AccountId from a private key byte array
     pub fn from_privkey(priv_key: &[u8], prefix: &str) -> ChainResult<Self> {
         let pubkey = SigningKey::from_slice(priv_key)
             .map_err(Into::<HyperlaneCosmosError>::into)?
@@ -44,7 +44,7 @@ impl CosmosAddress {
         Self::from_pubkey(pubkey, prefix)
     }
 
-    /// Creates a wrapper arround a cosmrs AccountId from a H256 digest
+    /// Creates a wrapper around a cosmrs AccountId from a H256 digest
     ///
     /// - digest: H256 digest (hex representation of address)
     /// - prefix: Bech32 prefix
