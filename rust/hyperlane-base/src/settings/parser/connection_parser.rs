@@ -37,6 +37,18 @@ pub fn build_ethereum_connection_conf(
     .map(ChainConnectionConf::Ethereum)
 }
 
+pub fn build_swisstronik_connection_conf(
+    rpcs: &[Url],
+    _chain: &ValueParser,
+) -> Option<ChainConnectionConf> {
+    let Some(first_url) = rpcs.to_owned().clone().into_iter().next() else {
+        return None;
+    };
+
+    let connection_conf = h_swisstronik::ConnectionConf::Http { url: first_url };
+    Some(ChainConnectionConf::Swisstronik(connection_conf))
+}
+
 pub fn build_cosmos_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
@@ -135,7 +147,10 @@ pub fn build_connection_conf(
     match domain_protocol {
         HyperlaneDomainProtocol::Ethereum => {
             build_ethereum_connection_conf(rpcs, chain, err, default_rpc_consensus_type)
-        }
+        },
+        HyperlaneDomainProtocol::Swisstronik => {
+            build_swisstronik_connection_conf(rpcs, chain)
+        },
         HyperlaneDomainProtocol::Fuel => rpcs
             .iter()
             .next()

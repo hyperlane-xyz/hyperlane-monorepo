@@ -216,6 +216,22 @@ impl From<ethers_providers::ProviderError> for ChainCommunicationError {
     }
 }
 
+#[cfg(feature = "swisstronik")]
+impl<T: swisstronik_ethers_providers::Middleware + 'static> From<swisstronik_ethers_contract::ContractError<T>>
+for ChainCommunicationError
+{
+    fn from(err: swisstronik_ethers_contract::ContractError<T>) -> Self {
+        Self::ContractError(HyperlaneCustomErrorWrapper(Box::new(err)))
+    }
+}
+
+#[cfg(feature = "swisstronik")]
+impl From<swisstronik_ethers_providers::ProviderError> for ChainCommunicationError {
+    fn from(err: swisstronik_ethers_providers::ProviderError) -> Self {
+        Self::ContractError(HyperlaneCustomErrorWrapper(Box::new(err)))
+    }
+}
+
 /// Error types for the Hyperlane protocol
 #[derive(Debug, thiserror::Error)]
 pub enum HyperlaneProtocolError {

@@ -1,7 +1,7 @@
 cargo-features = ["workspace-inheritance"]
 
 [package]
-name = "hyperlane-ethereum"
+name = "hyperlane-swisstronik"
 documentation.workspace = true
 edition.workspace = true
 homepage.workspace = true
@@ -13,10 +13,12 @@ version.workspace = true
 # Main block
 async-trait.workspace = true
 derive-new.workspace = true
-ethers-contract.workspace = true
-ethers-core.workspace = true
-ethers-signers.workspace = true
-ethers.workspace = true
+ethers-contract = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", features = ["legacy"]}
+ethers-core = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", features = []}
+ethers-signers = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", features = ["aws"]}
+ethers = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", features = []}
+ethers-providers = {git = "https://github.com/SigmaGmbH/ethers-rs.git", branch = "publish", features = []}
+
 futures-util.workspace = true
 hex.workspace = true
 num.workspace = true
@@ -31,8 +33,7 @@ tracing.workspace = true
 url.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core" }
-ethers-prometheus = { path = "../../ethers-prometheus" }
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["ethers"] }
-hyperlane-core = { path = "../../hyperlane-core", features = ["test-utils"] }
+hyperlane-core = { path = "../../hyperlane-core", features = ["test-utils", "swisstronik"] }

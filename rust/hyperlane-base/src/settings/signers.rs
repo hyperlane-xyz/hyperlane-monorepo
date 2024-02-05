@@ -95,9 +95,49 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
     }
 }
 
+#[async_trait]
+impl BuildableWithSignerConf for hyperlane_swisstronik::Signers {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        Ok(match conf {
+            SignerConf::HexKey { key } => hyperlane_swisstronik::Signers::Local(hyperlane_swisstronik::ethers::prelude::LocalWallet::from(
+                hyperlane_swisstronik::ethers::core::k256::ecdsa::SigningKey::from(
+                    hyperlane_swisstronik::ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())
+                        .context("Invalid swisstronik signer key")?,
+                ),
+            )),
+            SignerConf::Aws { id, region } => {
+                let mut config = HttpConfig::new();
+                // see https://github.com/hyperium/hyper/issues/2136#issuecomment-589345238
+                config.pool_idle_timeout(Duration::from_secs(20));
+                let client = KmsClient::new_with_client(
+                    rusoto_core::Client::new_with(
+                        AwsChainCredentialsProvider::new(),
+                        HttpClient::new_with_config(config).unwrap(),
+                    ),
+                    region.clone(),
+                );
+
+                let signer = hyperlane_swisstronik::ethers::prelude::AwsSigner::new(client, id, 0).await?;
+                hyperlane_swisstronik::Signers::Aws(signer)
+            }
+            SignerConf::CosmosKey { .. } => {
+                bail!("cosmosKey signer is not supported by Ethereum")
+            }
+            SignerConf::Node => bail!("Node signer"),
+        })
+    }
+}
+
+
 impl ChainSigner for hyperlane_ethereum::Signers {
     fn address_string(&self) -> String {
         ethers::signers::Signer::address(self).encode_hex()
+    }
+}
+
+impl ChainSigner for hyperlane_swisstronik::Signers {
+    fn address_string(&self) -> String {
+        hyperlane_swisstronik::ethers::signers::Signer::address(self).encode_hex()
     }
 }
 

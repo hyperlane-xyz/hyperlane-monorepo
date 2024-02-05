@@ -62,3 +62,18 @@ impl From<ethers_core::types::TransactionReceipt> for TxOutcome {
         }
     }
 }
+
+#[cfg(feature = "swisstronik")]
+impl From<swisstronik_ethers_core::types::TransactionReceipt> for TxOutcome {
+    fn from(t: swisstronik_ethers_core::types::TransactionReceipt) -> Self {
+        Self {
+            transaction_id: t.transaction_hash.into(),
+            executed: t.status.unwrap().low_u32() == 1,
+            gas_used: t.gas_used.map(Into::into).unwrap_or(crate::U256::zero()),
+            gas_price: t
+                .effective_gas_price
+                .and_then(|price| U256::from(price).try_into().ok())
+                .unwrap_or(FixedPointNumber::zero()),
+        }
+    }
+}
