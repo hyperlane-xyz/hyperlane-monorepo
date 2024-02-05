@@ -258,7 +258,7 @@ jobs:
           - environment: mainnet3
             module: core
             chain: viction
-            block: 75692506
+            block: 75693314
 
     steps:
       - uses: actions/checkout@v3
