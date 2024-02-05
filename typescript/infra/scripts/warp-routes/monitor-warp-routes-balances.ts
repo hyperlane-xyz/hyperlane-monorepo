@@ -7,13 +7,10 @@ import { ERC20__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
-  CosmNativeTokenAdapter,
   CwNativeTokenAdapter,
   MultiProtocolProvider,
   SealevelHypCollateralAdapter,
   TokenType,
-  WarpRouteConfig,
-  WarpRouteConfigSchema,
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
@@ -22,8 +19,12 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
+import {
+  WarpTokenConfig,
+  nautilusList,
+  neutronList,
+} from '../../src/config/grafana_token_config';
 import { startMetricsServer } from '../../src/utils/metrics';
-import { readYaml } from '../../src/utils/utils';
 
 const metricsRegister = new Registry();
 const warpRouteTokenBalance = new Gauge({
@@ -39,36 +40,20 @@ const warpRouteTokenBalance = new Gauge({
   ],
 });
 
-export function readWarpRouteConfig(filePath: string) {
-  const config = readYaml(filePath);
-  if (!config) throw new Error(`No warp config found at ${filePath}`);
-  const result = WarpRouteConfigSchema.safeParse(config);
-  if (!result.success) {
-    const errorMessages = result.error.issues.map(
-      (issue: any) => `${issue.path} => ${issue.message}`,
-    );
-    throw new Error(`Invalid warp config:\n ${errorMessages.join('\n')}`);
-  }
-  return result.data;
-}
-
 async function main(): Promise<boolean> {
-  const { checkFrequency, filePath } = await yargs(process.argv.slice(2))
+  const { checkFrequency, config } = await yargs(process.argv.slice(2))
     .describe('checkFrequency', 'frequency to check balances in ms')
     .demandOption('checkFrequency')
-    .alias('v', 'checkFrequency') // v as in Greek letter nu
+    .alias('l', 'checkFrequency')
     .number('checkFrequency')
-    .alias('f', 'filePath')
-    .describe(
-      'filePath',
-      'indicate the filepatch to the warp route yaml file relative to typescript/infra',
-    )
-    .demandOption('filePath')
-    .string('filePath')
+    .alias('c', 'config')
+    .describe('config', 'choose warp token config')
+    .demandOption('config')
+    .choices('config', ['neutron', 'nautilus'])
     .parse();
 
-  const tokenConfig: WarpRouteConfig =
-    readWarpRouteConfig(filePath).data.config;
+  const tokenList: WarpTokenConfig =
+    config === 'neutron' ? neutronList : nautilusList;
 
   startMetricsServer(metricsRegister);
 
@@ -78,8 +63,8 @@ async function main(): Promise<boolean> {
   setInterval(async () => {
     try {
       debug('Checking balances');
-      const balances = await checkBalance(tokenConfig, multiProtocolProvider);
-      updateTokenBalanceMetrics(tokenConfig, balances);
+      const balances = await checkBalance(tokenList, multiProtocolProvider);
+      updateTokenBalanceMetrics(tokenList, balances);
     } catch (e) {
       console.error('Error checking balances', e);
     }
@@ -89,18 +74,20 @@ async function main(): Promise<boolean> {
 
 // TODO: see issue https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2708
 async function checkBalance(
-  tokenConfig: WarpRouteConfig,
+  tokenConfig: WarpTokenConfig,
   multiProtocolProvider: MultiProtocolProvider,
 ): Promise<ChainMap<number>> {
-  const output = objMap(
+  const output: ChainMap<Promise<number>> = objMap(
     tokenConfig,
-    async (chain: ChainName, token: WarpRouteConfig[ChainName]) => {
+    async (chain: ChainName, token: WarpTokenConfig[ChainName]) => {
       switch (token.type) {
         case TokenType.native: {
           switch (token.protocolType) {
             case ProtocolType.Ethereum: {
               const provider = multiProtocolProvider.getEthersV5Provider(chain);
-              const nativeBalance = await provider.getBalance(token.hypAddress);
+              const nativeBalance = await provider.getBalance(
+                token.hypNativeAddress,
+              );
               return parseFloat(
                 ethers.utils.formatUnits(nativeBalance, token.decimals),
               );
@@ -108,20 +95,9 @@ async function checkBalance(
             case ProtocolType.Sealevel:
               // TODO - solana native
               return 0;
-            case ProtocolType.Cosmos: {
-              if (!token.ibcDenom)
-                throw new Error('IBC denom missing for native token');
-              const adapter = new CosmNativeTokenAdapter(
-                chain,
-                multiProtocolProvider,
-                {},
-                { ibcDenom: token.ibcDenom },
-              );
-              const tokenBalance = await adapter.getBalance(token.hypAddress);
-              return parseFloat(
-                ethers.utils.formatUnits(tokenBalance, token.decimals),
-              );
-            }
+            case ProtocolType.Cosmos:
+              // TODO - cosmos native
+              return 0;
           }
           break;
         }
@@ -129,14 +105,12 @@ async function checkBalance(
           switch (token.protocolType) {
             case ProtocolType.Ethereum: {
               const provider = multiProtocolProvider.getEthersV5Provider(chain);
-              if (!token.tokenAddress)
-                throw new Error('Token address missing for collateral token');
               const tokenContract = ERC20__factory.connect(
-                token.tokenAddress,
+                token.address,
                 provider,
               );
               const collateralBalance = await tokenContract.balanceOf(
-                token.hypAddress,
+                token.hypCollateralAddress,
               );
 
               return parseFloat(
@@ -144,21 +118,19 @@ async function checkBalance(
               );
             }
             case ProtocolType.Sealevel: {
-              if (!token.tokenAddress)
-                throw new Error('Token address missing for synthetic token');
               const adapter = new SealevelHypCollateralAdapter(
                 chain,
                 multiProtocolProvider,
                 {
-                  token: token.tokenAddress,
-                  warpRouter: token.hypAddress,
+                  token: token.address,
+                  warpRouter: token.hypCollateralAddress,
                   // Mailbox only required for transfers, using system as placeholder
                   mailbox: SystemProgram.programId.toBase58(),
                 },
-                token?.isSpl2022 ?? false,
+                token.isSpl2022,
               );
               const collateralBalance = ethers.BigNumber.from(
-                await adapter.getBalance(token.hypAddress),
+                await adapter.getBalance(token.hypCollateralAddress),
               );
               return parseFloat(
                 ethers.utils.formatUnits(collateralBalance, token.decimals),
@@ -169,12 +141,12 @@ async function checkBalance(
                 chain,
                 multiProtocolProvider,
                 {
-                  token: token.hypAddress,
+                  token: token.address,
                 },
-                token.tokenAddress,
+                token.address,
               );
               const collateralBalance = ethers.BigNumber.from(
-                await adapter.getBalance(token.hypAddress),
+                await adapter.getBalance(token.hypCollateralAddress),
               );
               return parseFloat(
                 ethers.utils.formatUnits(collateralBalance, token.decimals),
@@ -188,7 +160,7 @@ async function checkBalance(
             case ProtocolType.Ethereum: {
               const provider = multiProtocolProvider.getEthersV5Provider(chain);
               const tokenContract = ERC20__factory.connect(
-                token.hypAddress,
+                token.hypSyntheticAddress,
                 provider,
               );
               const syntheticBalance = await tokenContract.totalSupply();
@@ -206,24 +178,36 @@ async function checkBalance(
           break;
         }
       }
-      return 0;
     },
   );
 
   return await promiseObjAll(output);
 }
 
-export function updateTokenBalanceMetrics(
-  tokenConfig: WarpRouteConfig,
+function updateTokenBalanceMetrics(
+  tokenConfig: WarpTokenConfig,
   balances: ChainMap<number>,
 ) {
-  objMap(tokenConfig, (chain: ChainName, token: WarpRouteConfig[ChainName]) => {
+  objMap(tokenConfig, (chain: ChainName, token: WarpTokenConfig[ChainName]) => {
+    const tokenAddress =
+      token.type === TokenType.native
+        ? ethers.constants.AddressZero
+        : token.type === TokenType.collateral
+        ? token.address
+        : token.hypSyntheticAddress;
+    const walletAddress =
+      token.type === TokenType.native
+        ? token.hypNativeAddress
+        : token.type === TokenType.collateral
+        ? token.hypCollateralAddress
+        : token.hypSyntheticAddress;
+
     warpRouteTokenBalance
       .labels({
         chain_name: chain,
-        token_address: token.tokenAddress ?? ethers.constants.AddressZero,
+        token_address: tokenAddress,
         token_name: token.name,
-        wallet_address: token.hypAddress,
+        wallet_address: walletAddress,
         token_type: token.type,
       })
       .set(balances[chain]);

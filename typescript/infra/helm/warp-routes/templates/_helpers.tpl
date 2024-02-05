@@ -61,8 +61,8 @@ The warp-routes container
   command:
   - ./node_modules/.bin/ts-node
   - ./typescript/infra/scripts/warp-routes/monitor-warp-routes-balances.ts
-  - -v 
+  - -l 
   - "10000"
-  - -f
-  - {{ .Values.configFilePath }}
+  - -c
+  - {{ .Values.config }}
 {{- end }}
