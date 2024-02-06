@@ -3959,28 +3959,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hpl-interface"
-version = "0.0.6-rc3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9124bd88d88aba044ae790007bcbf25493b93424156e8759523c9c5d02229b0c"
-dependencies = [
- "bech32 0.9.1",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus",
- "cw2",
- "cw20",
- "cw20-base",
- "ripemd",
- "schemars",
- "serde",
- "sha2 0.10.8",
- "sha3 0.10.8",
- "thiserror",
-]
-
-[[package]]
 name = "http"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4145,7 +4123,7 @@ dependencies = [
  "hyperlane-fuel",
  "hyperlane-sealevel",
  "hyperlane-test",
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "maplit",
  "paste",
  "prometheus",
@@ -4192,7 +4170,7 @@ dependencies = [
  "fixed-hash 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "getrandom 0.2.11",
  "hex 0.4.3",
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "num 0.4.1",
  "num-derive 0.4.1",
  "num-traits",
@@ -4219,13 +4197,14 @@ dependencies = [
  "cosmrs",
  "derive-new",
  "hex 0.4.3",
- "hpl-interface",
  "http",
  "hyper",
  "hyper-tls",
  "hyperlane-core",
+ "hyperlane-cosmwasm-interface",
  "injective-protobuf",
  "injective-std",
+ "itertools 0.12.0",
  "once_cell",
  "protobuf",
  "ripemd",
@@ -4241,6 +4220,28 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "url",
+]
+
+[[package]]
+name = "hyperlane-cosmwasm-interface"
+version = "0.0.6-rc6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5e622014ab94f1e7f0acbe71df7c1384224261e2c76115807aaf24215970942"
+dependencies = [
+ "bech32 0.9.1",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-storage-plus",
+ "cw2",
+ "cw20",
+ "cw20-base",
+ "ripemd",
+ "schemars",
+ "serde",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
+ "thiserror",
 ]
 
 [[package]]
@@ -4438,7 +4439,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-message-recipient-interface",
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "log",
  "num-derive 0.4.1",
  "num-traits",
@@ -4464,7 +4465,7 @@ dependencies = [
  "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-test-send-receiver",
  "hyperlane-test-utils",
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "log",
  "num-derive 0.4.1",
  "num-traits",
@@ -4977,15 +4978,6 @@ name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
 dependencies = [
  "either",
 ]
@@ -6918,7 +6910,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-ethereum",
  "hyperlane-test",
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "num-derive 0.4.1",
  "num-traits",
  "once_cell",
@@ -7149,9 +7141,9 @@ dependencies = [
  "ctrlc",
  "eyre",
  "hex 0.4.3",
- "hpl-interface",
  "hyperlane-core",
  "hyperlane-cosmos",
+ "hyperlane-cosmwasm-interface",
  "jobserver",
  "k256 0.13.2",
  "macro_rules_attribute",
@@ -7565,7 +7557,7 @@ dependencies = [
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-test",
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "migration",
  "num-bigint 0.4.4",
  "prometheus",
