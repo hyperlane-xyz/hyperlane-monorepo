@@ -34,7 +34,7 @@ export const releaseCandidate: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: 'd9fa97c-20240131-161546',
+      tag: '0e3f73f-20240206-160718',
     },
     chainsToSkip: [],
     runEnv: environment,
