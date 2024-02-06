@@ -76,7 +76,9 @@ export abstract class HyperlaneDeployer<
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
   }
 
-  cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
+  async cacheAddressesMap(
+    addressesMap: HyperlaneAddressesMap<any>,
+  ): Promise<void> {
     this.cachedAddresses = addressesMap;
   }
 
@@ -157,6 +159,18 @@ export abstract class HyperlaneDeployer<
       this.logger(`Signer (${signer}) does not match ${label} (${address})`);
     }
     return undefined;
+  }
+
+  // returns if ownable is owned by the signer
+  protected async checkIfOwner(
+    chain: ChainName,
+    ownable: Ownable,
+  ): Promise<boolean | undefined> {
+    return this.runIf(
+      chain,
+      await ownable.callStatic.owner(),
+      async () => true,
+    );
   }
 
   protected async runIfOwner<T>(

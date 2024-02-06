@@ -288,7 +288,7 @@ async function executeDeploy({
   // 1. Deploy ISM factories to all deployable chains that don't have them.
   logBlue('Deploying ISM factory contracts');
   const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-  ismFactoryDeployer.cacheAddressesMap(mergedContractAddrs);
+  await ismFactoryDeployer.cacheAddressesMap(mergedContractAddrs);
 
   const ismFactoryConfig = chains.reduce((chainMap, curr) => {
     chainMap[curr] = {};
@@ -322,7 +322,7 @@ async function executeDeploy({
   // 4. Deploy core contracts to chains
   logBlue(`Deploying core contracts to ${chains.join(', ')}`);
   const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
-  coreDeployer.cacheAddressesMap(mergedContractAddrs as any);
+  await coreDeployer.cacheAddressesMap(mergedContractAddrs as any);
   const coreConfigs = buildCoreConfigMap(
     owner,
     chains,
@@ -347,7 +347,7 @@ async function executeDeploy({
   log('Deploying test recipient contracts');
   const testRecipientConfig = buildTestRecipientConfigMap(chains, artifacts);
   const testRecipientDeployer = new TestRecipientDeployer(multiProvider);
-  testRecipientDeployer.cacheAddressesMap(mergedContractAddrs);
+  await testRecipientDeployer.cacheAddressesMap(mergedContractAddrs);
   const testRecipients = await testRecipientDeployer.deploy(
     testRecipientConfig,
   );

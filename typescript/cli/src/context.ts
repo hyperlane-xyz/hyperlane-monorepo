@@ -10,7 +10,7 @@ import {
   chainMetadata,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
-import { objFilter, objMap, objMerge } from '@hyperlane-xyz/utils';
+import { objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { runDeploymentArtifactStep } from './config/artifacts.js';
 import { readChainConfigsIfExists } from './config/chain.js';
@@ -21,28 +21,27 @@ export const sdkContractAddressesMap: HyperlaneContractsMap<any> = {
   ...hyperlaneEnvironments.mainnet,
 };
 
+// this function filters contracts only for chains that are passed in if provided
 export function getMergedContractAddresses(
   artifacts?: HyperlaneContractsMap<any>,
   chains?: ChainName[],
 ) {
-  // if chains include non sdkContractAddressesMap chains, don't recover interchainGasPaymaster
-  let sdkContractsAddressesToRecover = sdkContractAddressesMap;
-  if (
-    chains?.some(
-      (chain) => !Object.keys(sdkContractAddressesMap).includes(chain),
-    )
-  ) {
-    sdkContractsAddressesToRecover = objMap(sdkContractAddressesMap, (_, v) =>
-      objFilter(
-        v as ChainMap<any>,
-        (key, v): v is any => key !== 'interchainGasPaymaster',
-      ),
-    );
-  }
-  return objMerge(
-    sdkContractsAddressesToRecover,
+  const completeContractMap = objMerge(
+    sdkContractAddressesMap,
     artifacts || {},
   ) as HyperlaneContractsMap<any>;
+  if (chains && chains.length !== 0) {
+    const filteredContractMap = objFilter(
+      completeContractMap,
+      (
+        chain: ChainName,
+        contractsMap,
+      ): contractsMap is HyperlaneContractsMap<any> => chains.includes(chain),
+    );
+    return filteredContractMap;
+  } else {
+    return completeContractMap;
+  }
 }
 
 interface ContextSettings {
