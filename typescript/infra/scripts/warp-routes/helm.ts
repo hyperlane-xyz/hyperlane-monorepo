@@ -6,32 +6,32 @@ import { assertCorrectKubeContext, getEnvironmentConfig } from '../utils';
 export async function runWarpRouteHelmCommand(
   helmCommand: HelmCommand,
   runEnv: DeployEnvironment,
-  config: string,
+  configFilePath: string,
 ) {
   const envConfig = getEnvironmentConfig(runEnv);
   await assertCorrectKubeContext(envConfig);
-  const values = getWarpRoutesHelmValues(config);
-
+  const values = getWarpRoutesHelmValues(configFilePath);
+  const releaseName = getHelmReleaseName(configFilePath);
   return execCmd(
-    `helm ${helmCommand} ${getHelmReleaseName(
-      config,
-    )} ./helm/warp-routes --namespace ${runEnv} ${values.join(
+    `helm ${helmCommand} ${releaseName} ./helm/warp-routes --namespace ${runEnv} ${values.join(
       ' ',
-    )} --set fullnameOverride="${getHelmReleaseName(config)}"`,
+    )} --set fullnameOverride="${releaseName}"`,
   );
 }
 
 function getHelmReleaseName(route: string): string {
-  return `hyperlane-warp-route-${route}`;
+  const match = route.match(/\/([^/]+)-deployments\.yaml$/);
+  const name = match ? match[1] : route;
+  return `hyperlane-warp-route-${name}`;
 }
 
-function getWarpRoutesHelmValues(config: string) {
+function getWarpRoutesHelmValues(configFilePath: string) {
   const values = {
     image: {
       repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: 'ae8ce44-20231101-012032',
+      tag: 'a84e439-20240131-224743',
     },
-    config: config, // nautilus or neutron
+    configFilePath: configFilePath,
   };
   return helmifyValues(values);
 }

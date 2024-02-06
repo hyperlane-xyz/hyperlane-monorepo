@@ -115,6 +115,12 @@ export const ChainMetadataSchemaObject = z.object({
     .array(RpcUrlSchema)
     .describe('For cosmos chains only, a list of gRPC API URLs')
     .optional(),
+  customGrpcUrls: z
+    .string()
+    .optional()
+    .describe(
+      'Specify a comma separated list of custom GRPC URLs to use for this chain. If not specified, the default GRPC urls will be used.',
+    ),
   blockExplorers: z
     .array(
       z.object({

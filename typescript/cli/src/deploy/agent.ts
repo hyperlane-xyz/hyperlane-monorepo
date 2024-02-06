@@ -69,6 +69,7 @@ export async function runKurtosisAgentDeploy({
   const kurtosisCloudLink = terminalLink(
     'Cmd+Click or Ctrl+Click here',
     kurtosisCloudUrl,
+    { fallback: () => kurtosisCloudUrl },
   );
 
   logGreen(
