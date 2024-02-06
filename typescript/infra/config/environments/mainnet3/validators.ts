@@ -237,7 +237,11 @@ export const validatorChainConfig = (
             '0xae3e6bb6b3ece1c425aa6f47adc8cb0453c1f9a2',
             '0xd98c9522cd9d3e3e00bee05ff76c34b91b266ec3',
           ],
-          [Contexts.ReleaseCandidate]: [],
+          [Contexts.ReleaseCandidate]: [
+            '0x52a0376903294c796c091c785a66c62943d99aa8',
+            '0xc2ea1799664f753bedb9872d617e3ebc60b2e0ab',
+            '0xe83d36fd00d9ef86243d9f7147b29e98d11df0ee',
+          ],
           [Contexts.Neutron]: [],
         },
         'inevm',

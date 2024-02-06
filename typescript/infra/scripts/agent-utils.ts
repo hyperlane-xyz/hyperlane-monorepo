@@ -18,7 +18,6 @@ import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { agents } from '../config/environments/agents';
-import { ethereumChainNames } from '../config/environments/mainnet3/chains';
 import { validatorBaseConfigsFn } from '../config/environments/utils';
 import { getCurrentKubernetesContext } from '../src/agents';
 import { getCloudAgentKey } from '../src/agents/key-utils';
@@ -266,7 +265,7 @@ export async function getMultiProviderForRole(
   const multiProvider = new MultiProvider(txConfigs);
   await promiseObjAll(
     objMap(txConfigs, async (chain, _) => {
-      if (ethereumChainNames.includes(chain)) {
+      if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
         const provider = await fetchProvider(
           environment,
           chain,
