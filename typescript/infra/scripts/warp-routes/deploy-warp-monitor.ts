@@ -1,12 +1,24 @@
+import yargs from 'yargs';
+
 import { HelmCommand } from '../../src/utils/helm';
 
 import { runWarpRouteHelmCommand } from './helm';
 
 async function main() {
+  const { filePath } = await yargs(process.argv.slice(2))
+    .alias('f', 'filePath')
+    .describe(
+      'filePath',
+      'indicate the filepatch to the warp route yaml file relative to typescript/infra',
+    )
+    .demandOption('filePath')
+    .string('filePath')
+    .parse();
+
   await runWarpRouteHelmCommand(
     HelmCommand.InstallOrUpgrade,
     'mainnet3',
-    'neutron',
+    filePath,
   );
 }
 

@@ -12,23 +12,23 @@ use serde_json::Value;
 use tokio::time::sleep;
 use tracing::{instrument, warn_span};
 
-use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClientConfigExt;
+use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, PrometheusJsonRpcClientConfigExt};
 
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 
 /// Wrapper of `FallbackProvider` for use in `hyperlane-ethereum`
 #[derive(new)]
-pub struct EthereumFallbackProvider<C>(FallbackProvider<C>);
+pub struct EthereumFallbackProvider<C, B>(FallbackProvider<C, B>);
 
-impl<C> Deref for EthereumFallbackProvider<C> {
-    type Target = FallbackProvider<C>;
+impl<C, B> Deref for EthereumFallbackProvider<C, B> {
+    type Target = FallbackProvider<C, B>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<C> Debug for EthereumFallbackProvider<C>
+impl<C, B> Debug for EthereumFallbackProvider<C, B>
 where
     C: JsonRpcClient + PrometheusJsonRpcClientConfigExt,
 {
@@ -73,16 +73,17 @@ impl From<FallbackError> for ProviderError {
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-impl<C> JsonRpcClient for EthereumFallbackProvider<C>
+impl<C> JsonRpcClient for EthereumFallbackProvider<C, JsonRpcBlockGetter<C>>
 where
     C: JsonRpcClient<Error = HttpClientError>
+        + Into<JsonRpcBlockGetter<C>>
         + PrometheusJsonRpcClientConfigExt
-        + Into<Box<dyn BlockNumberGetter>>
         + Clone,
+    JsonRpcBlockGetter<C>: BlockNumberGetter,
 {
     type Error = ProviderError;
 
-    // TODO: Refactor the reusable parts of this function when implementing the cosmos-specific logic
+    // TODO: Refactor to use `FallbackProvider::call`
     #[instrument]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where
@@ -108,7 +109,7 @@ where
                 let resp = fut.await;
                 self.handle_stalled_provider(priority, provider).await;
                 let _span =
-                    warn_span!("request_with_fallback", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
+                    warn_span!("request", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
 
                 match categorize_client_response(method, resp) {
                     IsOk(v) => return Ok(serde_json::from_value(v)?),
@@ -125,41 +126,37 @@ where
 #[cfg(test)]
 mod tests {
     use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, BLOCK_NUMBER_RPC};
+    use hyperlane_core::rpc_clients::test::ProviderMock;
     use hyperlane_core::rpc_clients::FallbackProviderBuilder;
 
     use super::*;
-    use std::sync::{Arc, Mutex};
 
     #[derive(Debug, Clone)]
-    struct ProviderMock {
-        // Store requests as tuples of (method, params)
-        // Even if the tests were single-threaded, need the arc-mutex
-        // for interior mutability in `JsonRpcClient::request`
-        requests: Arc<Mutex<Vec<(String, String)>>>,
-    }
+    struct EthereumProviderMock(ProviderMock);
 
-    impl ProviderMock {
-        fn new() -> Self {
-            Self {
-                requests: Arc::new(Mutex::new(vec![])),
-            }
-        }
+    impl Deref for EthereumProviderMock {
+        type Target = ProviderMock;
 
-        fn push<T: Send + Sync + Serialize + Debug>(&self, method: &str, params: T) {
-            self.requests
-                .lock()
-                .unwrap()
-                .push((method.to_owned(), format!("{:?}", params)));
-        }
-
-        fn requests(&self) -> Vec<(String, String)> {
-            self.requests.lock().unwrap().clone()
+        fn deref(&self) -> &Self::Target {
+            &self.0
         }
     }
 
-    impl Into<Box<dyn BlockNumberGetter>> for ProviderMock {
-        fn into(self) -> Box<dyn BlockNumberGetter> {
-            Box::new(JsonRpcBlockGetter::new(self.clone()))
+    impl Default for EthereumProviderMock {
+        fn default() -> Self {
+            Self(ProviderMock::default())
+        }
+    }
+
+    impl EthereumProviderMock {
+        fn new(request_sleep: Option<Duration>) -> Self {
+            Self(ProviderMock::new(request_sleep))
+        }
+    }
+
+    impl Into<JsonRpcBlockGetter<EthereumProviderMock>> for EthereumProviderMock {
+        fn into(self) -> JsonRpcBlockGetter<EthereumProviderMock> {
+            JsonRpcBlockGetter::new(self)
         }
     }
 
@@ -171,7 +168,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl JsonRpcClient for ProviderMock {
+    impl JsonRpcClient for EthereumProviderMock {
         type Error = HttpClientError;
 
         /// Pushes the `(method, params)` to the back of the `requests` queue,
@@ -182,12 +179,14 @@ mod tests {
             params: T,
         ) -> Result<R, Self::Error> {
             self.push(method, params);
-            sleep(Duration::from_millis(10)).await;
+            if let Some(sleep_duration) = self.request_sleep() {
+                sleep(sleep_duration).await;
+            }
             dummy_return_value()
         }
     }
 
-    impl PrometheusJsonRpcClientConfigExt for ProviderMock {
+    impl PrometheusJsonRpcClientConfigExt for EthereumProviderMock {
         fn node_host(&self) -> &str {
             todo!()
         }
@@ -197,35 +196,32 @@ mod tests {
         }
     }
 
-    async fn get_call_counts(fallback_provider: &FallbackProvider<ProviderMock>) -> Vec<usize> {
-        fallback_provider
-            .inner
-            .priorities
-            .read()
-            .await
-            .iter()
-            .map(|p| {
-                let provider = &fallback_provider.inner.providers[p.index];
-                provider.requests().len()
-            })
-            .collect()
+    impl<C> EthereumFallbackProvider<C, JsonRpcBlockGetter<C>>
+    where
+        C: JsonRpcClient<Error = HttpClientError>
+            + PrometheusJsonRpcClientConfigExt
+            + Into<JsonRpcBlockGetter<C>>
+            + Clone,
+        JsonRpcBlockGetter<C>: BlockNumberGetter,
+    {
+        async fn low_level_test_call(&self) {
+            self.request::<_, u64>(BLOCK_NUMBER_RPC, ()).await.unwrap();
+        }
     }
 
     #[tokio::test]
     async fn test_first_provider_is_attempted() {
         let fallback_provider_builder = FallbackProviderBuilder::default();
         let providers = vec![
-            ProviderMock::new(),
-            ProviderMock::new(),
-            ProviderMock::new(),
+            EthereumProviderMock::default(),
+            EthereumProviderMock::default(),
+            EthereumProviderMock::default(),
         ];
         let fallback_provider = fallback_provider_builder.add_providers(providers).build();
         let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
-        ethereum_fallback_provider
-            .request::<_, u64>(BLOCK_NUMBER_RPC, ())
-            .await
-            .unwrap();
-        let provider_call_count: Vec<_> = get_call_counts(&ethereum_fallback_provider).await;
+        ethereum_fallback_provider.low_level_test_call().await;
+        let provider_call_count: Vec<_> =
+            ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
         assert_eq!(provider_call_count, vec![1, 0, 0]);
     }
 
@@ -233,21 +229,18 @@ mod tests {
     async fn test_one_stalled_provider() {
         let fallback_provider_builder = FallbackProviderBuilder::default();
         let providers = vec![
-            ProviderMock::new(),
-            ProviderMock::new(),
-            ProviderMock::new(),
+            EthereumProviderMock::new(Some(Duration::from_millis(10))),
+            EthereumProviderMock::default(),
+            EthereumProviderMock::default(),
         ];
         let fallback_provider = fallback_provider_builder
             .add_providers(providers)
             .with_max_block_time(Duration::from_secs(0))
             .build();
         let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
-        ethereum_fallback_provider
-            .request::<_, u64>(BLOCK_NUMBER_RPC, ())
-            .await
-            .unwrap();
-
-        let provider_call_count: Vec<_> = get_call_counts(&ethereum_fallback_provider).await;
+        ethereum_fallback_provider.low_level_test_call().await;
+        let provider_call_count: Vec<_> =
+            ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
         assert_eq!(provider_call_count, vec![0, 0, 2]);
     }
 

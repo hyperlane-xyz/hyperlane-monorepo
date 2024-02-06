@@ -1,5 +1,7 @@
 import { ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
+
+import { ethereumChainNames } from './chains';
 
 export const timelocks: ChainMap<Address | undefined> = {
   arbitrum: '0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01',
@@ -16,19 +18,18 @@ export const safes: ChainMap<Address | undefined> = {
   moonbeam: '0xF0cb1f968Df01fc789762fddBfA704AE0F952197',
   gnosis: '0x36b0AA0e7d04e7b825D7E409FEa3c9A3d57E4C22',
   // solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
-  // TODO: create gnosis safes here
-  base: undefined,
-  scroll: undefined,
-  polygonzkevm: undefined,
-  mantapacific: undefined,
-  viction: undefined,
 };
 
 const deployer = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
-export const owners: ChainMap<OwnableConfig> = objMap(safes, (local, __) => ({
-  owner: deployer, // TODO: change this to the safe
-  ownerOverrides: {
-    proxyAdmin: timelocks[local] ?? safes[local] ?? deployer,
-  },
-}));
+export const owners: ChainMap<OwnableConfig> = Object.fromEntries(
+  ethereumChainNames.map((local) => [
+    local,
+    {
+      owner: deployer, // TODO: change this to the safe
+      ownerOverrides: {
+        proxyAdmin: timelocks[local] ?? safes[local] ?? deployer,
+      },
+    },
+  ]),
+);

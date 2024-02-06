@@ -97,6 +97,12 @@ cargo run --release --bin run-locally
 This will automatically build the agents, start a local node, build and deploy the contracts, and run a relayer and
 validator. By default, this test will run indefinitely, but can be stopped with `ctrl-c`.
 
+To run the tests for a specific VM, use the `--features` flag.
+
+```bash
+cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+```
+
 ### Building Agent Docker Images
 
 There exists a docker build for the agent binaries. These docker images are used for deploying the agents in a
