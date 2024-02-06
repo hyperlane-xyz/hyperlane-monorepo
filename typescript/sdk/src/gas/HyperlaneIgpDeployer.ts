@@ -1,4 +1,5 @@
 import debug from 'debug';
+import { ethers } from 'ethers';
 
 import {
   InterchainGasPaymaster,
@@ -6,7 +7,7 @@ import {
   StorageGasOracle,
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, eqAddress, warn } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
@@ -41,7 +42,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       'interchainGasPaymaster',
       proxyAdmin.address,
       [],
-      [owner, beneficiary],
+      [this.multiProvider.getSignerAddress(chain), beneficiary],
     );
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
@@ -79,6 +80,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         ),
       );
     }
+
     return igp;
   }
 
@@ -105,12 +107,18 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       // each destination can have a different gas oracle
       const gasOracleAddress = (await igp.destinationGasConfigs(remoteId))
         .gasOracle;
+
+      if (eqAddress(gasOracleAddress, ethers.constants.AddressZero)) {
+        warn(`No gas oracle set for ${chain} -> ${remote}, cannot configure`);
+        continue;
+      }
       const gasOracle = StorageGasOracle__factory.connect(
         gasOracleAddress,
         this.multiProvider.getSigner(chain),
       );
       configsToSet[gasOracleAddress] ||= [];
 
+      this.logger(`Checking gas oracle ${gasOracleAddress} for ${remote}...`);
       const remoteGasDataConfig = await gasOracle.remoteGasData(remoteId);
 
       if (
@@ -174,6 +182,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       config,
     );
 
+    console.log('config.oracleConfig', JSON.stringify(config, null, 2));
     // Configure storage gas oracle with remote gas data if provided
     if (config.oracleConfig) {
       await this.configureStorageGasOracle(

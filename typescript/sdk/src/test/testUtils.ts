@@ -1,18 +1,20 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneContractsMap } from '../contracts/types';
 import { CoreFactories } from '../core/contracts';
 import { CoreConfig } from '../core/types';
 import { IgpFactories } from '../gas/contracts';
+import { OracleConfig, StorageGasOraclesConfig } from '../gas/oracle/types';
 import {
   CoinGeckoInterface,
   CoinGeckoResponse,
   CoinGeckoSimpleInterface,
   CoinGeckoSimplePriceParams,
 } from '../gas/token-prices';
+import { GasOracleContractType, IgpConfig } from '../gas/types';
 import { HookType } from '../hook/types';
 import { IsmType } from '../ism/types';
 import { RouterConfig } from '../router/types';
@@ -66,6 +68,72 @@ export function testCoreConfig(
   };
 
   return Object.fromEntries(chains.map((local) => [local, chainConfig]));
+}
+
+// function testGasPrices(chains: ChainName[]) {
+//   return Object.fromEntries(
+//     chains.map((chain) => [chain, randomInt(1000, 1)]),
+//   );
+// }
+
+// function testExchangeRates(chains: ChainName[]) {
+//   return Object.fromEntries(
+//     chains.map((chain) => [chain, randomInt(1000, 1)]),
+//   );
+// }
+
+function testOracleConfigs(
+  chains: ChainName[],
+): ChainMap<StorageGasOraclesConfig> {
+  return Object.fromEntries(
+    chains.map((local) => [
+      local,
+      Object.fromEntries(
+        exclude(local, chains).map((remote) => [
+          remote,
+          {
+            gasPrice: ethers.utils.parseUnits('1', 'gwei'),
+            tokenExchangeRate: ethers.utils.parseUnits('1', 10),
+          },
+        ]),
+      ),
+    ]),
+  );
+}
+
+function getGasOracleTypes(chains: ChainName[], local: ChainName) {
+  return Object.fromEntries(
+    exclude(local, chains).map((remote) => [
+      remote,
+      GasOracleContractType.StorageGasOracle,
+    ]),
+  );
+}
+
+export function testIgpConfig(
+  chains: ChainName[],
+  owner = nonZeroAddress,
+): ChainMap<IgpConfig & Partial<OracleConfig>> {
+  console.log(
+    'testOracleConfigs(chains)',
+    JSON.stringify(testOracleConfigs(chains), null, 2),
+  );
+  const oracleConfig = testOracleConfigs(chains);
+  return Object.fromEntries(
+    chains.map((local) => [
+      local,
+      {
+        owner,
+        beneficiary: owner,
+        oracleKey: owner,
+        gasOracleType: getGasOracleTypes(chains, local),
+        overhead: Object.fromEntries(
+          exclude(local, chains).map((remote) => [remote, 60000]),
+        ),
+        oracleConfig: oracleConfig[local],
+      },
+    ]),
+  );
 }
 
 // A mock CoinGecko intended to be used by tests
