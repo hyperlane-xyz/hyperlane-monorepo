@@ -45,6 +45,20 @@
       "address": "0x4221a16A01F61c2b38A03C52d828a7041f6AAA49",
       "constructorArguments": "000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec7000000000000000000000000c005dc82818d67af737725bd4bf75435d065d239",
       "isProxy": false
+    },
+    {
+      "name": "HypERC20Collateral",
+      "address": "0xab852e67bf03E74C89aF67C4BA97dd1088D3dA19",
+      "constructorArguments": "000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec7000000000000000000000000c005dc82818d67af737725bd4bf75435d065d239",
+      "isProxy": false
+    }
+  ],
+  "inevm": [
+    {
+      "name": "HypERC20",
+      "address": "0x97423A68BAe94b5De52d767a17aBCc54c157c0E5",
+      "constructorArguments": "00000000000000000000000000000000000000000000000000000000000000060000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
+      "isProxy": false
     }
   ]
 }

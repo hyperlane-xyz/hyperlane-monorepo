@@ -4,6 +4,7 @@ import { prompt } from 'prompts';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
+  HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
@@ -13,6 +14,7 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
+  TokenType,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
@@ -71,7 +73,22 @@ async function main() {
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.WARP) {
-    throw new Error('Warp is not supported. Use CLI instead.');
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    const routerConfig = core.getRouterConfig(envConfig.owners);
+    const inevm = {
+      ...routerConfig.inevm,
+      type: TokenType.synthetic,
+    };
+    const ethereum = {
+      ...routerConfig.ethereum,
+      type: TokenType.collateral,
+      token: '0xdac17f958d2ee523a2206206994597c13d831ec7',
+    };
+    config = {
+      inevm,
+      ethereum,
+    };
+    deployer = new HypERC20Deployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
