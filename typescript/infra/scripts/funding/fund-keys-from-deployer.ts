@@ -168,6 +168,7 @@ const desiredKathyBalancePerChain: ChainMap<string> = {
   base: '0.05',
   polygonzkevm: '0.05',
   viction: '0.05',
+  inevm: '0.05',
 };
 
 // The balance threshold of the IGP contract that must be met for the key funder
