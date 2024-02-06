@@ -16,7 +16,7 @@ import { ChainMap, ChainName } from '../types';
 import { IgpFactories, igpFactories } from './contracts';
 import { prettyRemoteGasData } from './oracle/logging';
 import { OracleConfig, StorageGasOracleConfig } from './oracle/types';
-import { GasOracleContractType, IgpConfig } from './types';
+import { IgpConfig } from './types';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   IgpConfig & Partial<OracleConfig>,
@@ -98,11 +98,9 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       StorageGasOracle.RemoteGasDataConfigStruct[]
     > = {};
 
+    // For each remote, check if the gas oracle has the correct data
     for (const remote of remotes) {
       const desiredGasData = gasOracleConfig[remote];
-      if (desiredGasData.type !== GasOracleContractType.StorageGasOracle) {
-        continue;
-      }
       const remoteId = this.multiProvider.getDomainId(remote);
       // each destination can have a different gas oracle
       const gasOracleAddress = (await igp.destinationGasConfigs(remoteId))
@@ -135,6 +133,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         });
       }
     }
+    // loop through each gas oracle and batch set the remote gas data
     for (const gasOracle of Object.keys(configsToSet)) {
       const gasOracleContract = StorageGasOracle__factory.connect(
         gasOracle,
