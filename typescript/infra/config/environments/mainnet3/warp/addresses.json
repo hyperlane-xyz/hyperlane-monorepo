@@ -1,5 +1,9 @@
 {
-  "inevm": {
-    "router": "0x26f32245fCF5Ad53159E875d5Cae62aEcf19c2d4"
+  "ethereum": {
+    "HypERC20Collateral": "0x31Dca7762930f56D81292f85E65c9D67575804fE",
+    "router": "0x31Dca7762930f56D81292f85E65c9D67575804fE"
+  },
+  "viction": {
+    "HypERC20": "0xea820f9BCFD5E16a0dd42071EB61A29874Ad81A4"
   }
 }
