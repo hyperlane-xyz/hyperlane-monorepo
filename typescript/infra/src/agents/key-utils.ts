@@ -3,8 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import localAWMultisigAddresses from '../../config/aw-multisig.json';
 // AW - Abacus Works
@@ -33,7 +32,7 @@ export const relayerAddresses: LocalRoleAddresses =
   localRelayerAddresses as LocalRoleAddresses;
 export const kathyAddresses: LocalRoleAddresses =
   localKathyAddresses as LocalRoleAddresses;
-export const awMultsigAddresses: ChainMap<{ validators: Address[] }> =
+export const awMultisigAddresses: ChainMap<{ validators: Address[] }> =
   localAWMultisigAddresses as ChainMap<{ validators: Address[] }>;
 
 const debugLog = debug('infra:agents:key:utils');
@@ -435,14 +434,14 @@ export async function persistValidatorAddressesToLocalArtifacts(
   fetchedValidatorAddresses: ChainMap<{ validators: Address[] }>,
 ) {
   for (const chain of Object.keys(fetchedValidatorAddresses)) {
-    awMultsigAddresses[chain] = {
+    awMultisigAddresses[chain] = {
       validators: fetchedValidatorAddresses[chain].validators, // fresh from aws
     };
   }
   // Resolve the relative path
   const filePath = path.resolve(__dirname, '../../config/aw-multisig.json');
   // Write the updated object back to the file
-  fs.writeFileSync(filePath, JSON.stringify(awMultsigAddresses, null, 2));
+  fs.writeFileSync(filePath, JSON.stringify(awMultisigAddresses, null, 2));
 }
 
 export function fetchLocalKeyAddresses(

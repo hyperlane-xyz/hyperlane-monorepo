@@ -11,6 +11,7 @@ import {
   CoreConfig,
   MultiProvider,
   RpcConsensusType,
+  chainMetadata,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
@@ -127,9 +128,9 @@ export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
 // missing chains are chains needed which are not as part of defaultMultisigConfigs in sdk/src/consts/ but are in chainMetadata
 export function withMissingChains<T>(args: yargs.Argv<T>) {
   return args
-    .describe('new-chains', 'new chains to add')
-    .string('new-chains')
-    .alias('n', 'new-chains');
+    .describe('newChains', 'new chains to add')
+    .string('newChains')
+    .alias('n', 'newChains');
 }
 
 export function assertEnvironment(env: string): DeployEnvironment {
@@ -145,12 +146,12 @@ export function assertEnvironment(env: string): DeployEnvironment {
 export async function getAgentConfigsBasedOnArgs(argv?: {
   environment: DeployEnvironment;
   context: Contexts;
-  'new-chains': string;
+  newChains: string;
 }) {
   const {
     environment,
     context = Contexts.Hyperlane,
-    'new-chains': newChains,
+    newChains,
   } = argv ? argv : await withMissingChains(withContext(getArgs())).argv;
 
   const newValidatorCounts: ChainMap<number> = {};
@@ -182,18 +183,19 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
     const validators = validatorsConfig(
       {
         ...baseConfig,
-        [context]: Array.from(
-          { length: newValidatorCounts[chain] },
-          () => '0x0',
-        ),
+        [context]: Array(newValidatorCounts[chain]).fill('0x0'),
       },
       chain as Chains,
     );
     // the hardcoded fields are not strictly necessary to be accurate for create-keys.ts
     // ideally would still get them from the chainMetadata
-    agentConfig.validators!.chains[chain] = {
-      interval: chainMetadata.estimateBlockNumber ?? 1,
-      reorgPeriod: chainMetadata.reorgPeriod ?? 0,
+    if (!agentConfig.validators) {
+      throw new Error('AgentConfig does not have validators');
+    }
+
+    agentConfig.validators.chains[chain] = {
+      interval: chainMetadata[chain].blocks?.estimateBlockTime ?? 1, // dummy value
+      reorgPeriod: chainMetadata[chain].blocks?.reorgPeriod ?? 0, // dummy value
       validators,
     };
   }
