@@ -276,11 +276,7 @@ export const validatorChainConfig = (
       reorgPeriod: 0,
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: [
-            '0x1f87c368f8e05a85ef9126d984a980a20930cb9c',
-            '0x4a2ebbe07cd546cfd2b213d41f2d7814f9386157',
-            '0x00271cf10759e4c6d2f8ca46183ab10d360474b4',
-          ],
+          [Contexts.Hyperlane]: ['0x1f87c368f8e05a85ef9126d984a980a20930cb9c'],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
