@@ -4,7 +4,8 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { RemoteGasData, StorageGasOracleConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { RemoteGasDataConfig } from '../../src/config/gas-oracle';
-import { getArgs, getEnvironmentConfig, withNetwork } from '../utils';
+import { getArgs, withNetwork } from '../agent-utils';
+import { getEnvironmentConfig } from '../core-utils';
 
 import {
   eqRemoteGasData,
@@ -73,7 +74,7 @@ async function setStorageGasOracleValues(
 
   const configsToSet: RemoteGasDataConfig[] = [];
 
-  for (const remote in localStorageGasOracleConfig) {
+  for (const remote of Object.keys(localStorageGasOracleConfig)) {
     const desiredGasData = localStorageGasOracleConfig[remote]!;
     const remoteId = multiProvider.getDomainId(remote);
 
