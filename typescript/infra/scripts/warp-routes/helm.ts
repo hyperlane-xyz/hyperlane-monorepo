@@ -22,14 +22,14 @@ export async function runWarpRouteHelmCommand(
 function getHelmReleaseName(route: string): string {
   const match = route.match(/\/([^/]+)-deployments\.yaml$/);
   const name = match ? match[1] : route;
-  return `hyperlane-warp-route-${name}`;
+  return `hyperlane-warp-route-${name.toLowerCase()}`; // helm requires lower case release names
 }
 
 function getWarpRoutesHelmValues(configFilePath: string) {
   const values = {
     image: {
       repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: 'f8c8ae6-20240206-223343',
+      tag: '4a8f20f-20240207-232324',
     },
     configFilePath: configFilePath,
   };
