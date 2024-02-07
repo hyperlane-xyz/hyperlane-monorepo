@@ -70,18 +70,6 @@ export function testCoreConfig(
   return Object.fromEntries(chains.map((local) => [local, chainConfig]));
 }
 
-// function testGasPrices(chains: ChainName[]) {
-//   return Object.fromEntries(
-//     chains.map((chain) => [chain, randomInt(1000, 1)]),
-//   );
-// }
-
-// function testExchangeRates(chains: ChainName[]) {
-//   return Object.fromEntries(
-//     chains.map((chain) => [chain, randomInt(1000, 1)]),
-//   );
-// }
-
 function testOracleConfigs(
   chains: ChainName[],
 ): ChainMap<StorageGasOraclesConfig> {
@@ -114,10 +102,6 @@ export function testIgpConfig(
   chains: ChainName[],
   owner = nonZeroAddress,
 ): ChainMap<IgpConfig & Partial<OracleConfig>> {
-  console.log(
-    'testOracleConfigs(chains)',
-    JSON.stringify(testOracleConfigs(chains), null, 2),
-  );
   const oracleConfig = testOracleConfigs(chains);
   return Object.fromEntries(
     chains.map((local) => [

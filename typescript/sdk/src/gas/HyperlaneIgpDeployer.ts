@@ -35,14 +35,13 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     storageGasOracle: StorageGasOracle,
     config: IgpConfig,
   ): Promise<InterchainGasPaymaster> {
-    const owner = config.owner;
     const beneficiary = config.beneficiary;
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
       proxyAdmin.address,
       [],
-      [this.multiProvider.getSignerAddress(chain), beneficiary],
+      [await this.multiProvider.getSignerAddress(chain), beneficiary],
     );
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
@@ -182,7 +181,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       config,
     );
 
-    console.log('config.oracleConfig', JSON.stringify(config, null, 2));
     // Configure storage gas oracle with remote gas data if provided
     if (config.oracleConfig) {
       await this.configureStorageGasOracle(
