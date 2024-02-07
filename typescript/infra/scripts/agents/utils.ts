@@ -7,14 +7,13 @@ import {
 import { EnvironmentConfig, RootAgentConfig } from '../../src/config';
 import { Role } from '../../src/roles';
 import { HelmCommand } from '../../src/utils/helm';
-import { sleep } from '../../src/utils/utils';
 import {
   assertCorrectKubeContext,
   getArgs,
-  getConfigsBasedOnArgs,
   withAgentRole,
   withContext,
-} from '../utils';
+} from '../agent-utils';
+import { getConfigsBasedOnArgs } from '../core-utils';
 
 export class AgentCli {
   roles!: Role[];
