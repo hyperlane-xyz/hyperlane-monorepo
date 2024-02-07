@@ -73,7 +73,7 @@ export const ethereumChainNames = Object.keys(
 // Remove mantapacific, as it's not considered a "blessed"
 // chain and we don't relay to mantapacific on the Hyperlane or RC contexts.
 const relayerHyperlaneContextChains = supportedChainNames.filter(
-  (chainName) => chainName !== chainMetadata.mantapacific.name,
+  (chainName) => chainName !== Chains.mantapacific,
 );
 
 // Ethereum chains only.
