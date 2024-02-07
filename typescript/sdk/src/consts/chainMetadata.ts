@@ -419,6 +419,58 @@ export const gnosis: ChainMetadata = {
   ],
 };
 
+export const inevm: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://inevm.calderaexplorer.xyz/api',
+      family: ExplorerFamily.Blockscout,
+      name: 'Caldera inEVM Explorer',
+      url: 'https://inevm.calderaexplorer.xyz',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 3,
+    reorgPeriod: 0,
+  },
+  chainId: 2525,
+  displayName: 'Injective EVM',
+  displayNameShort: 'inEVM',
+  domainId: 2525,
+  name: Chains.inevm,
+  nativeToken: {
+    decimals: 18,
+    name: 'Injective',
+    symbol: 'INJ',
+  },
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [{ http: 'https://inevm.calderachain.xyz/http' }],
+};
+
+export const injective: ChainMetadata = {
+  bech32Prefix: 'inj',
+  blockExplorers: [],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 3,
+    reorgPeriod: 1,
+  },
+  chainId: 'injective-1',
+  displayName: 'Injective',
+  domainId: 6909546,
+  grpcUrls: [{ http: 'sentry.chain.grpc.injective.network:443' }],
+  name: Chains.injective,
+  nativeToken: {
+    decimals: 18,
+    name: 'Injective',
+    symbol: 'INJ',
+  },
+  protocol: ProtocolType.Cosmos,
+  restUrls: [{ http: 'https://sentry.lcd.injective.network:443' }],
+  rpcUrls: [{ http: 'https://sentry.tm.injective.network:443' }],
+  slip44: 118,
+};
+
 export const lineagoerli: ChainMetadata = {
   blockExplorers: [
     {
@@ -1068,6 +1120,8 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   fuji,
   gnosis,
   goerli,
+  inevm,
+  injective,
   lineagoerli,
   mantapacific,
   moonbasealpha,
