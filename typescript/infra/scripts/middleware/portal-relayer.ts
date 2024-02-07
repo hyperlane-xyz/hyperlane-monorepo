@@ -9,11 +9,8 @@ import { error, log } from '@hyperlane-xyz/utils';
 
 import { bridgeAdapterConfigs } from '../../config/environments/testnet4/token-bridge';
 import { readJSON, sleep } from '../../src/utils/utils';
-import {
-  getArgs,
-  getEnvironmentConfig,
-  getEnvironmentDirectory,
-} from '../utils';
+import { getArgs, getEnvironmentDirectory } from '../agent-utils';
+import { getEnvironmentConfig } from '../core-utils';
 
 async function relayPortalTransfers() {
   const { environment } = await getArgs().argv;

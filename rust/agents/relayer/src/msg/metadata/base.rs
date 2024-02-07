@@ -381,7 +381,7 @@ impl BaseMetadataBuilder {
                     continue;
                 }
 
-                match config.build(None) {
+                match config.build(None).await {
                     Ok(checkpoint_syncer) => {
                         // found the syncer for this validator
                         checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());

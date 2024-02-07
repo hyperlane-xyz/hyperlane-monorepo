@@ -3,7 +3,7 @@ import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 import {
   getKeysForRole,
   getMultiProviderForRole,
-} from '../../../scripts/utils';
+} from '../../../scripts/agent-utils';
 import { EnvironmentConfig } from '../../../src/config';
 import { Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';

@@ -1,9 +1,9 @@
 import { deleteAgentKeys } from '../src/agents/key-utils';
 
-import { getConfigsBasedOnArgs } from './utils';
+import { getAgentConfigsBasedOnArgs } from './agent-utils';
 
 async function main() {
-  const { agentConfig } = await getConfigsBasedOnArgs();
+  const { agentConfig } = await getAgentConfigsBasedOnArgs();
   return deleteAgentKeys(agentConfig);
 }
 

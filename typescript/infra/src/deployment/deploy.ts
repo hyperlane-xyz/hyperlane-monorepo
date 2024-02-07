@@ -11,7 +11,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap, objMerge, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { getAgentConfigDirectory } from '../../scripts/utils';
+import { getAgentConfigDirectory } from '../../scripts/agent-utils';
 import { DeployEnvironment } from '../config';
 import {
   readJSONAtPath,
