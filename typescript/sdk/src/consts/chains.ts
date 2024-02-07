@@ -75,6 +75,7 @@ export const Mainnets: Array<CoreChainName> = [
   Chains.polygonzkevm,
   Chains.injective,
   Chains.inevm,
+  Chains.viction,
   // Chains.solana,
 ];
 

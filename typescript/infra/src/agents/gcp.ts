@@ -111,7 +111,7 @@ export class AgentGCPKey extends CloudAgentKey {
         return Keypair.fromSeed(
           Buffer.from(strip0x(this.privateKey), 'hex'),
         ).publicKey.toBase58();
-      case ProtocolType.Cosmos:
+      case ProtocolType.Cosmos: {
         const compressedPubkey = ethers.utils.computePublicKey(
           this.privateKey,
           true,
@@ -121,7 +121,8 @@ export class AgentGCPKey extends CloudAgentKey {
         );
         // TODO support other prefixes?
         // https://cosmosdrops.io/en/tools/bech32-converter is useful for converting to other prefixes.
-        return pubkeyToAddress(encodedPubkey, 'inj');
+        return pubkeyToAddress(encodedPubkey, 'neutron');
+      }
       default:
         this.logger(`Unsupported protocol: ${protocol}`);
         return undefined;

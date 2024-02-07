@@ -50,8 +50,9 @@ const gasPrices: ChainMap<BigNumber> = {
   polygonzkevm: ethers.utils.parseUnits('2', 'gwei'),
   neutron: ethers.utils.parseUnits('1', 'gwei'),
   mantapacific: ethers.utils.parseUnits('1', 'gwei'),
-  injective: ethers.utils.parseUnits('1', 'gwei'),
   inevm: ethers.utils.parseUnits('1', 'gwei'),
+  injective: ethers.utils.parseUnits('1', 'gwei'),
+  viction: ethers.utils.parseUnits('0.25', 'gwei'),
 };
 
 // Accurate from coingecko as of Mar 9, 2023.
@@ -94,8 +95,11 @@ const tokenUsdPrices: ChainMap<BigNumber> = {
     '1619.00',
     TOKEN_EXCHANGE_RATE_DECIMALS,
   ),
+  // https://www.coingecko.com/en/coins/injective
   injective: ethers.utils.parseUnits('32.78', TOKEN_EXCHANGE_RATE_DECIMALS),
   inevm: ethers.utils.parseUnits('32.78', TOKEN_EXCHANGE_RATE_DECIMALS), // 1:1 injective
+  // https://www.coingecko.com/en/coins/viction
+  viction: ethers.utils.parseUnits('0.881', TOKEN_EXCHANGE_RATE_DECIMALS),
 };
 
 // Gets the exchange rate of the remote quoted in local tokens

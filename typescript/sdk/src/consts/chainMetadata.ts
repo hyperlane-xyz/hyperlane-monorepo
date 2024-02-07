@@ -425,7 +425,7 @@ export const inevm: ChainMetadata = {
       apiUrl: 'https://inevm.calderaexplorer.xyz/api',
       family: ExplorerFamily.Blockscout,
       name: 'Caldera inEVM Explorer',
-      url: 'https://inevm.calderaexplorer.xyz/',
+      url: 'https://inevm.calderaexplorer.xyz',
     },
   ],
   blocks: {
@@ -458,18 +458,16 @@ export const injective: ChainMetadata = {
   chainId: 'injective-1',
   displayName: 'Injective',
   domainId: 6909546,
-  grpcUrls: [
-    { http: 'http://k8s.global.mainnet.chain.grpc.injective.network:443' },
-  ],
+  grpcUrls: [{ http: 'sentry.chain.grpc.injective.network:443' }],
   name: Chains.injective,
   nativeToken: {
-    decimals: 6,
+    decimals: 18,
     name: 'Injective',
     symbol: 'INJ',
   },
   protocol: ProtocolType.Cosmos,
-  restUrls: [{ http: 'https://sentry.chain.grpc.injective.network:443' }],
-  rpcUrls: [{ http: 'https://rpc-injective.goldenratiostaking.net:443' }],
+  restUrls: [{ http: 'https://sentry.lcd.injective.network:443' }],
+  rpcUrls: [{ http: 'https://sentry.tm.injective.network:443' }],
   slip44: 118,
 };
 
