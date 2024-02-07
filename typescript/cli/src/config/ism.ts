@@ -3,7 +3,14 @@ import { z } from 'zod';
 
 import { ChainMap, ChainName, IsmType, ZHash } from '@hyperlane-xyz/sdk';
 
-import { errorRed, log, logBlue, logGreen } from '../../logger.js';
+import {
+  errorRed,
+  log,
+  logBlue,
+  logBoldUnderlinedRed,
+  logGreen,
+  logRed,
+} from '../../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
@@ -108,7 +115,11 @@ export async function createIsmConfigMap({
   outPath: string;
   chainConfigPath: string;
 }) {
-  logBlue('Creating a new ISM config');
+  logBlue('Creating a new advanced ISM config');
+  logBoldUnderlinedRed('WARNING: USE AT YOUR RISK.');
+  logRed(
+    'Advanced ISM configs require knowledge of different ISM types and how they work together topologically. If possible, use the basic ISM configs are recommended.',
+  );
   const customChains = readChainConfigsIfExists(chainConfigPath);
   const chains = await runMultiChainSelectionStep(
     customChains,

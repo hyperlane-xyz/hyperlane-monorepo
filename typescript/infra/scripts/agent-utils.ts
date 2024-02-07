@@ -1,3 +1,4 @@
+import debug from 'debug';
 import path from 'path';
 import yargs from 'yargs';
 
@@ -10,12 +11,14 @@ import {
   CoreConfig,
   MultiProvider,
   RpcConsensusType,
+  chainMetadata,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { agents } from '../config/environments/agents';
+import { ethereumChainNames } from '../config/environments/mainnet3/chains';
 import { validatorBaseConfigsFn } from '../config/environments/utils';
 import { getCurrentKubernetesContext } from '../src/agents';
 import { getCloudAgentKey } from '../src/agents/key-utils';
@@ -29,6 +32,8 @@ import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { Role } from '../src/roles';
 import { assertContext, assertRole, readJSON } from '../src/utils/utils';
+
+const debugLog = debug('infra:scripts:utils');
 
 export enum Modules {
   // TODO: change
@@ -70,6 +75,13 @@ export function withModuleAndFork<T>(args: yargs.Argv<T>) {
     .describe('fork', 'network to fork')
     .choices('fork', Object.values(Chains))
     .alias('f', 'fork');
+}
+
+export function withNetwork<T>(args: yargs.Argv<T>) {
+  return args
+    .describe('network', 'network to target')
+    .choices('network', Object.values(Chains))
+    .alias('n', 'network');
 }
 
 export function withContext<T>(args: yargs.Argv<T>) {
@@ -117,9 +129,9 @@ export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
 // missing chains are chains needed which are not as part of defaultMultisigConfigs in sdk/src/consts/ but are in chainMetadata
 export function withMissingChains<T>(args: yargs.Argv<T>) {
   return args
-    .describe('new-chains', 'new chains to add')
-    .string('new-chains')
-    .alias('n', 'new-chains');
+    .describe('newChains', 'new chains to add')
+    .string('newChains')
+    .alias('n', 'newChains');
 }
 
 export function assertEnvironment(env: string): DeployEnvironment {
@@ -135,30 +147,28 @@ export function assertEnvironment(env: string): DeployEnvironment {
 export async function getAgentConfigsBasedOnArgs(argv?: {
   environment: DeployEnvironment;
   context: Contexts;
-  'new-chains': string;
+  newChains: string;
 }) {
   const {
     environment,
     context = Contexts.Hyperlane,
-    'new-chains': newChains,
+    newChains,
   } = argv ? argv : await withMissingChains(withContext(getArgs())).argv;
 
   const newValidatorCounts: ChainMap<number> = {};
-  const newThresholds: ChainMap<number> = {};
   if (newChains) {
     const chains = newChains.split(',');
     for (const chain of chains) {
-      const [chainName, threshold] = chain.split('=');
-      const [newThreshold, newValidatorCount] = threshold.split('/');
-      newThresholds[chainName] = Number(newThreshold);
-      newValidatorCounts[chainName] = Number(newValidatorCount);
+      const [chainName, newValidatorCount] = chain.split('=');
+      newValidatorCounts[chainName] = parseInt(newValidatorCount, 10);
     }
   }
 
   const agentConfig = getAgentConfig(context, environment);
   // check if new chains are needed
-  const missingChains = checkIfValidatorsArePresisted(agentConfig);
+  const missingChains = checkIfValidatorsArePersisted(agentConfig);
 
+  // if you include a chain in chainMetadata but not in the aw-multisig.json, you need to specify the new chain in new-chains
   for (const chain of missingChains) {
     if (!Object.keys(newValidatorCounts).includes(chain)) {
       throw new Error(`Missing chain ${chain} not specified in new-chains`);
@@ -174,18 +184,19 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
     const validators = validatorsConfig(
       {
         ...baseConfig,
-        [context]: Array.from(
-          { length: newValidatorCounts[chain] },
-          () => '0x0',
-        ),
+        [context]: Array(newValidatorCounts[chain]).fill('0x0'),
       },
       chain as Chains,
     );
     // the hardcoded fields are not strictly necessary to be accurate for create-keys.ts
     // ideally would still get them from the chainMetadata
-    agentConfig.validators!.chains[chain] = {
-      interval: 1, // chainMetadata.estimateBlockNumber is optional
-      reorgPeriod: 0, // chainMetadata.reorgPeriod is optional
+    if (!agentConfig.validators) {
+      throw new Error('AgentConfig does not have validators');
+    }
+
+    agentConfig.validators.chains[chain] = {
+      interval: chainMetadata[chain].blocks?.estimateBlockTime ?? 1, // dummy value
+      reorgPeriod: chainMetadata[chain].blocks?.reorgPeriod ?? 0, // dummy value
       validators,
     };
   }
@@ -194,7 +205,6 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
     agentConfig,
     context,
     environment,
-    newThresholds,
   };
 }
 
@@ -217,7 +227,7 @@ export function getAgentConfig(
 }
 
 // check if validators are persisted in agentConfig
-export function checkIfValidatorsArePresisted(
+export function checkIfValidatorsArePersisted(
   agentConfig: RootAgentConfig,
 ): Set<ChainName> {
   const supportedChainNames = agentConfig.contextChainNames.validator;
@@ -234,6 +244,7 @@ export function getKeyForRole(
   role: Role,
   index?: number,
 ): CloudAgentKey {
+  debugLog(`Getting key for ${role} role`);
   const agentConfig = getAgentConfig(context, environment);
   return getCloudAgentKey(agentConfig, role, chain, index);
 }
@@ -247,17 +258,25 @@ export async function getMultiProviderForRole(
   // TODO: rename to consensusType?
   connectionType?: RpcConsensusType,
 ): Promise<MultiProvider> {
+  debugLog(`Getting multiprovider for ${role} role`);
   if (process.env.CI === 'true') {
+    debugLog('Returning multiprovider with default RPCs in CI');
     return new MultiProvider(); // use default RPCs
   }
   const multiProvider = new MultiProvider(txConfigs);
   await promiseObjAll(
     objMap(txConfigs, async (chain, _) => {
-      const provider = await fetchProvider(environment, chain, connectionType);
-      const key = getKeyForRole(environment, context, chain, role, index);
-      const signer = await key.getSigner(provider);
-      multiProvider.setProvider(chain, provider);
-      multiProvider.setSigner(chain, signer);
+      if (ethereumChainNames.includes(chain)) {
+        const provider = await fetchProvider(
+          environment,
+          chain,
+          connectionType,
+        );
+        const key = getKeyForRole(environment, context, chain, role, index);
+        const signer = await key.getSigner(provider);
+        multiProvider.setProvider(chain, provider);
+        multiProvider.setSigner(chain, signer);
+      }
     }),
   );
 
@@ -274,6 +293,7 @@ export async function getKeysForRole(
   index?: number,
 ): Promise<ChainMap<CloudAgentKey>> {
   if (process.env.CI === 'true') {
+    debugLog('No keys to return in CI');
     return {};
   }
 

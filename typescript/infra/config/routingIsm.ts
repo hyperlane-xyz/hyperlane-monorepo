@@ -12,23 +12,15 @@ import {
 import { DeployEnvironment } from '../src/config';
 
 import { Contexts } from './contexts';
+import { environments } from './environments';
 import { ethereumChainNames as mainnet3Chains } from './environments/mainnet3/chains';
-import { owners as mainnet3Owners } from './environments/mainnet3/owners';
-import { owners as testOwners } from './environments/test/owners';
 import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains';
-import { owners as testnet4Owners } from './environments/testnet4/owners';
 import { multisigIsm } from './multisigIsm';
-
-const owners = {
-  test: testOwners,
-  testnet4: testnet4Owners,
-  mainnet3: mainnet3Owners,
-};
 
 const chains = {
   test: TestChains,
   testnet4: testnet4Chains,
-  mainnet3: mainnet3Chains.filter((_) => _ !== 'mantapacific'),
+  mainnet3: mainnet3Chains,
 };
 
 // Intended to be the "entrypoint" ISM.
@@ -55,7 +47,7 @@ export const routingIsm = (
   return {
     type: IsmType.ROUTING,
     domains: aggregationIsms,
-    owner: owners[environment][local],
+    owner: environments[environment].core[local].owner,
   };
 };
 

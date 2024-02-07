@@ -204,7 +204,11 @@ export const bsc: ChainMetadata = {
   name: Chains.bsc,
   nativeToken: bnbToken,
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.ankr.com/bsc' }],
+  rpcUrls: [
+    { http: 'https://rpc.ankr.com/bsc' },
+    { http: 'https://bsc.drpc.org' },
+    { http: 'https://bscrpc.com' },
+  ],
 };
 
 export const bsctestnet: ChainMetadata = {
@@ -320,7 +324,7 @@ export const ethereum: ChainMetadata = {
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
-    { http: 'https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161' },
+    { http: 'https://ethereum.publicnode.com' },
     { http: 'https://cloudflare-eth.com' },
   ],
 };
@@ -415,6 +419,58 @@ export const gnosis: ChainMetadata = {
   ],
 };
 
+export const inevm: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://inevm.calderaexplorer.xyz/api',
+      family: ExplorerFamily.Blockscout,
+      name: 'Caldera inEVM Explorer',
+      url: 'https://inevm.calderaexplorer.xyz',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 3,
+    reorgPeriod: 0,
+  },
+  chainId: 2525,
+  displayName: 'Injective EVM',
+  displayNameShort: 'inEVM',
+  domainId: 2525,
+  name: Chains.inevm,
+  nativeToken: {
+    decimals: 18,
+    name: 'Injective',
+    symbol: 'INJ',
+  },
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [{ http: 'https://inevm.calderachain.xyz/http' }],
+};
+
+export const injective: ChainMetadata = {
+  bech32Prefix: 'inj',
+  blockExplorers: [],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 3,
+    reorgPeriod: 1,
+  },
+  chainId: 'injective-1',
+  displayName: 'Injective',
+  domainId: 6909546,
+  grpcUrls: [{ http: 'sentry.chain.grpc.injective.network:443' }],
+  name: Chains.injective,
+  nativeToken: {
+    decimals: 18,
+    name: 'Injective',
+    symbol: 'INJ',
+  },
+  protocol: ProtocolType.Cosmos,
+  restUrls: [{ http: 'https://sentry.lcd.injective.network:443' }],
+  rpcUrls: [{ http: 'https://sentry.tm.injective.network:443' }],
+  slip44: 118,
+};
+
 export const lineagoerli: ChainMetadata = {
   blockExplorers: [
     {
@@ -451,7 +507,7 @@ export const mantapacific: ChainMetadata = {
   blocks: {
     confirmations: 1,
     estimateBlockTime: 3,
-    reorgPeriod: 0,
+    reorgPeriod: 1,
   },
   chainId: 169,
   displayName: 'Manta Pacific',
@@ -601,6 +657,7 @@ export const neutron: ChainMetadata = {
   chainId: 'neutron-1',
   displayName: 'Neutron',
   domainId: 1853125230,
+  grpcUrls: [{ http: 'grpc-kralum.neutron-1.neutron.org:80' }],
   isTestnet: false,
   name: Chains.neutron,
   nativeToken: {
@@ -609,7 +666,7 @@ export const neutron: ChainMetadata = {
     symbol: 'NTRN',
   },
   protocol: ProtocolType.Cosmos,
-  restUrls: [{ http: 'grpc-kralum.neutron-1.neutron.org:80' }],
+  restUrls: [{ http: 'https://rest-lb.neutron.org' }],
   rpcUrls: [{ http: 'https://rpc-kralum.neutron-1.neutron.org' }],
   slip44: 118,
 };
@@ -691,14 +748,10 @@ export const polygon: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
     {
-      http: 'https://rpc-mainnet.matic.quiknode.pro',
-      pagination: {
-        // Needs to be low to avoid RPC timeouts
-        maxBlockRange: 10000,
-        minBlockNumber: 19657100,
-      },
+      http: 'https://polygon-bor.publicnode.com',
     },
     { http: 'https://polygon-rpc.com' },
+    { http: 'https://rpc.ankr.com/polygon' },
   ],
 };
 
@@ -725,7 +778,11 @@ export const polygonzkevm: ChainMetadata = {
   name: Chains.polygonzkevm,
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.ankr.com/polygon_zkevm' }],
+  rpcUrls: [
+    { http: 'https://zkevm-rpc.com' },
+    { http: 'https://polygonzkevm-mainnet.g.alchemy.com/v2/demo' },
+    { http: 'https://rpc.ankr.com/polygon_zkevm' },
+  ],
 };
 
 export const polygonzkevmtestnet: ChainMetadata = {
@@ -848,6 +905,7 @@ export const sepolia: ChainMetadata = {
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
+    { http: 'https://ethereum-sepolia.publicnode.com' },
     { http: 'https://ethereum-sepolia.blockpi.network/v1/rpc/public' },
     { http: 'https://rpc.sepolia.org' },
   ],
@@ -928,6 +986,33 @@ export const solanadevnet: ChainMetadata = {
   rpcUrls: [{ http: 'https://api.devnet.solana.com' }],
 };
 
+export const eclipsetestnet: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://testnet.dev2.eclipsenetwork.xyz',
+      family: ExplorerFamily.Other,
+      name: 'Eclipse Testnet Explorer',
+      url: 'https://explorer.dev.eclipsenetwork.xyz/?cluster=testnet',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 0.4,
+    reorgPeriod: 0,
+  },
+  chainId: 239092742,
+  displayName: 'Eclipse Testnet',
+  domainId: 239092742,
+  isTestnet: true,
+  name: 'eclipsetestnet',
+  nativeToken: {
+    ...etherToken,
+    decimals: 9,
+  },
+  protocol: ProtocolType.Sealevel,
+  rpcUrls: [{ http: 'https://testnet.dev2.eclipsenetwork.xyz' }],
+};
+
 export const test1: ChainMetadata = {
   blockExplorers: [],
   blocks: {
@@ -979,6 +1064,40 @@ export const test3: ChainMetadata = {
   rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
 };
 
+export const viction: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://www.vicscan.xyz/api',
+      family: ExplorerFamily.Other,
+      name: 'Vicscan',
+      url: 'https://www.vicscan.xyz/',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 2,
+    reorgPeriod: 0,
+  },
+  chainId: 88,
+  displayName: 'Viction',
+  domainId: 88,
+  name: Chains.viction,
+  nativeToken: {
+    decimals: 18,
+    name: 'Viction',
+    symbol: 'VIC',
+  },
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [
+    {
+      http: 'https://rpc.tomochain.com/',
+    },
+    {
+      http: 'https://viction.blockpi.network/v1/rpc/public',
+    },
+  ],
+};
+
 /**
  * Collection maps
  *
@@ -996,10 +1115,13 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   bsctestnet,
   celo,
   chiado,
+  eclipsetestnet,
   ethereum,
   fuji,
   gnosis,
   goerli,
+  inevm,
+  injective,
   lineagoerli,
   mantapacific,
   moonbasealpha,
@@ -1022,6 +1144,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   test1,
   test2,
   test3,
+  viction,
 };
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<

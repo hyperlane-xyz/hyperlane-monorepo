@@ -19,7 +19,7 @@ function getGasOracles(local: TestChains) {
   );
 }
 
-export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, owner) => {
+export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, ownerConfig) => {
   const overhead = Object.fromEntries(
     exclude(chain, chainNames).map((remote) => [
       remote,
@@ -30,10 +30,10 @@ export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, owner) => {
     ]),
   );
   return {
-    owner,
-    oracleKey: owner,
-    beneficiary: owner,
+    oracleKey: ownerConfig.owner,
+    beneficiary: ownerConfig.owner,
     gasOracleType: getGasOracles(chain),
     overhead,
+    ...ownerConfig,
   };
 });

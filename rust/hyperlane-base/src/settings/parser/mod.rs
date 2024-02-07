@@ -18,6 +18,7 @@ use hyperlane_core::{
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
+use url::Url;
 
 pub use self::json_value_parser::ValueParser;
 pub use super::envs::*;
@@ -134,47 +135,7 @@ fn parse_chain(
         .parse_u32()
         .unwrap_or(1);
 
-    let rpcs_base = chain
-        .chain(&mut err)
-        .get_key("rpcUrls")
-        .into_array_iter()
-        .map(|urls| {
-            urls.filter_map(|v| {
-                v.chain(&mut err)
-                    .get_key("http")
-                    .parse_from_str("Invalid http url")
-                    .end()
-            })
-            .collect_vec()
-        })
-        .unwrap_or_default();
-
-    let rpc_overrides = chain
-        .chain(&mut err)
-        .get_opt_key("customRpcUrls")
-        .parse_string()
-        .end()
-        .map(|urls| {
-            urls.split(',')
-                .filter_map(|url| {
-                    url.parse()
-                        .take_err(&mut err, || &chain.cwp + "customRpcUrls")
-                })
-                .collect_vec()
-        });
-
-    let rpcs = rpc_overrides.unwrap_or(rpcs_base);
-
-    if rpcs.is_empty() {
-        err.push(
-            &chain.cwp + "rpc_urls",
-            eyre!("Missing base rpc definitions for chain"),
-        );
-        err.push(
-            &chain.cwp + "custom_rpc_urls",
-            eyre!("Also missing rpc overrides for chain"),
-        );
-    }
+    let rpcs = parse_base_and_override_urls(&chain, "rpcUrls", "customRpcUrls", "http", &mut err);
 
     let from = chain
         .chain(&mut err)
@@ -417,4 +378,67 @@ fn parse_cosmos_gas_price(gas_price: ValueParser) -> ConfigResult<RawCosmosAmoun
         .end();
     cfg_unwrap_all!(&gas_price.cwp, err: [denom, amount]);
     err.into_result(RawCosmosAmount::new(denom.to_owned(), amount.to_owned()))
+}
+
+fn parse_urls(
+    chain: &ValueParser,
+    key: &str,
+    protocol: &str,
+    err: &mut ConfigParsingError,
+) -> Vec<Url> {
+    chain
+        .chain(err)
+        .get_key(key)
+        .into_array_iter()
+        .map(|urls| {
+            urls.filter_map(|v| {
+                v.chain(err)
+                    .get_key(protocol)
+                    .parse_from_str("Invalid url")
+                    .end()
+            })
+            .collect_vec()
+        })
+        .unwrap_or_default()
+}
+
+fn parse_custom_urls(
+    chain: &ValueParser,
+    key: &str,
+    err: &mut ConfigParsingError,
+) -> Option<Vec<Url>> {
+    chain
+        .chain(err)
+        .get_opt_key(key)
+        .parse_string()
+        .end()
+        .map(|urls| {
+            urls.split(',')
+                .filter_map(|url| url.parse().take_err(err, || &chain.cwp + "customGrpcUrls"))
+                .collect_vec()
+        })
+}
+
+fn parse_base_and_override_urls(
+    chain: &ValueParser,
+    base_key: &str,
+    override_key: &str,
+    protocol: &str,
+    err: &mut ConfigParsingError,
+) -> Vec<Url> {
+    let base = parse_urls(chain, base_key, protocol, err);
+    let overrides = parse_custom_urls(chain, override_key, err);
+    let combined = overrides.unwrap_or(base);
+
+    if combined.is_empty() {
+        err.push(
+            &chain.cwp + "rpc_urls",
+            eyre!("Missing base rpc definitions for chain"),
+        );
+        err.push(
+            &chain.cwp + "custom_rpc_urls",
+            eyre!("Also missing rpc overrides for chain"),
+        );
+    }
+    combined
 }

@@ -69,11 +69,11 @@ async function check() {
       config.core,
       ismFactory,
     );
-    governor = new HyperlaneCoreGovernor(checker, config.owners);
+    governor = new HyperlaneCoreGovernor(checker);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     const igp = HyperlaneIgp.fromEnvironment(env, multiProvider);
     const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
-    governor = new HyperlaneIgpGovernor(checker, config.owners);
+    governor = new HyperlaneIgpGovernor(checker);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const ica = InterchainAccount.fromEnvironment(env, multiProvider);
     const checker = new InterchainAccountChecker(
@@ -81,7 +81,7 @@ async function check() {
       ica,
       routerConfig,
     );
-    governor = new ProxiedRouterGovernor(checker, config.owners);
+    governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const iqs = InterchainQuery.fromEnvironment(env, multiProvider);
     const checker = new InterchainQueryChecker(
@@ -89,7 +89,7 @@ async function check() {
       iqs,
       routerConfig,
     );
-    governor = new ProxiedRouterGovernor(checker, config.owners);
+    governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.HELLO_WORLD) {
     const app = await getHelloWorldApp(
       config,
@@ -104,7 +104,7 @@ async function check() {
       routerConfig,
       ismFactory,
     );
-    governor = new ProxiedRouterGovernor(checker, config.owners);
+    governor = new ProxiedRouterGovernor(checker);
   } else {
     console.log(`Skipping ${module}, checker or governor unimplemented`);
     return;

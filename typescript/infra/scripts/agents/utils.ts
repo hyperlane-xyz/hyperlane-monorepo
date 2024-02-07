@@ -15,8 +15,6 @@ import {
 } from '../agent-utils';
 import { getConfigsBasedOnArgs } from '../core-utils';
 
-type GetConfigsArgv = NonNullable<Parameters<typeof getConfigsBasedOnArgs>[0]>;
-
 export class AgentCli {
   roles!: Role[];
   envConfig!: EnvironmentConfig;

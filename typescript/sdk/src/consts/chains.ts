@@ -17,6 +17,8 @@ export enum Chains {
   fuji = 'fuji',
   gnosis = 'gnosis',
   goerli = 'goerli',
+  inevm = 'inevm',
+  injective = 'injective',
   lineagoerli = 'lineagoerli',
   mantapacific = 'mantapacific',
   moonbasealpha = 'moonbasealpha',
@@ -35,6 +37,9 @@ export enum Chains {
   sepolia = 'sepolia',
   solana = 'solana',
   solanadevnet = 'solanadevnet',
+  solanatestnet = 'solanatestnet',
+  eclipsetestnet = 'eclipsetestnet',
+  viction = 'viction',
   test1 = 'test1',
   test2 = 'test2',
   test3 = 'test3',
@@ -68,6 +73,9 @@ export const Mainnets: Array<CoreChainName> = [
   Chains.base,
   Chains.scroll,
   Chains.polygonzkevm,
+  Chains.injective,
+  Chains.inevm,
+  Chains.viction,
   // Chains.solana,
 ];
 
@@ -78,8 +86,8 @@ export const Testnets: Array<CoreChainName> = [
   Chains.bsctestnet,
   Chains.chiado,
   Chains.fuji,
-  Chains.lineagoerli,
   Chains.goerli,
+  Chains.lineagoerli,
   Chains.moonbasealpha,
   Chains.mumbai,
   Chains.optimismgoerli,
@@ -87,6 +95,8 @@ export const Testnets: Array<CoreChainName> = [
   Chains.scrollsepolia,
   Chains.sepolia,
   Chains.solanadevnet,
+  Chains.solanatestnet,
+  Chains.eclipsetestnet,
 ];
 
 export const TestChains: Array<CoreChainName> = [

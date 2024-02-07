@@ -4,6 +4,7 @@ import { exec } from 'child_process';
 import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
+import { parse as yamlParse } from 'yaml';
 
 import {
   AllChains,
@@ -200,7 +201,11 @@ export function readJSON(directory: string, filename: string) {
   return readJSONAtPath(path.join(directory, filename));
 }
 
-export function assertRole(roleStr: string): Role {
+export function readYaml<T>(filepath: string): T {
+  return yamlParse(readFileAtPath(filepath)) as T;
+}
+
+export function assertRole(roleStr: string) {
   const role = roleStr as Role;
   if (!Object.values(Role).includes(role)) {
     throw Error(`Invalid role ${role}`);

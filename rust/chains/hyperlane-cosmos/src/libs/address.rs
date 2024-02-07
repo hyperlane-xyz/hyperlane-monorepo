@@ -36,7 +36,7 @@ impl CosmosAddress {
         Ok(CosmosAddress::new(account_id, digest))
     }
 
-    /// Creates a wrapper arround a cosmrs AccountId from a private key byte array
+    /// Creates a wrapper around a cosmrs AccountId from a private key byte array
     pub fn from_privkey(priv_key: &[u8], prefix: &str) -> ChainResult<Self> {
         let pubkey = SigningKey::from_slice(priv_key)
             .map_err(Into::<HyperlaneCosmosError>::into)?
@@ -44,13 +44,25 @@ impl CosmosAddress {
         Self::from_pubkey(pubkey, prefix)
     }
 
-    /// Creates a wrapper arround a cosmrs AccountId from a H256 digest
+    /// Creates a wrapper around a cosmrs AccountId from a H256 digest
     ///
     /// - digest: H256 digest (hex representation of address)
     /// - prefix: Bech32 prefix
-    pub fn from_h256(digest: H256, prefix: &str) -> ChainResult<Self> {
+    /// - byte_count: Number of bytes to truncate the digest to. Cosmos addresses can sometimes
+    ///     be less than 32 bytes, so this helps to serialize it in bech32 with the appropriate
+    ///     length.
+    pub fn from_h256(digest: H256, prefix: &str, byte_count: usize) -> ChainResult<Self> {
         // This is the hex-encoded version of the address
-        let bytes = digest.as_bytes();
+        let untruncated_bytes = digest.as_bytes();
+
+        if byte_count > untruncated_bytes.len() {
+            return Err(Overflow.into());
+        }
+
+        let remainder_bytes_start = untruncated_bytes.len() - byte_count;
+        // Left-truncate the digest to the desired length
+        let bytes = &untruncated_bytes[remainder_bytes_start..];
+
         // Bech32 encode it
         let account_id =
             AccountId::new(prefix, bytes).map_err(Into::<HyperlaneCosmosError>::into)?;
@@ -132,11 +144,13 @@ pub mod test {
             addr.address(),
             "neutron1kknekjxg0ear00dky5ykzs8wwp2gz62z9s6aaj"
         );
-        // TODO: watch out for this edge case. This check will fail unless
-        // the first 12 bytes are removed from the digest.
-        // let digest = addr.digest();
-        // let addr2 = CosmosAddress::from_h256(digest, prefix).expect("Cosmos address creation failed");
-        // assert_eq!(addr.address(), addr2.address());
+
+        // Create an address with the same digest & explicitly set the byte count to 20,
+        // which should have the same result as the above.
+        let digest = addr.digest();
+        let addr2 =
+            CosmosAddress::from_h256(digest, prefix, 20).expect("Cosmos address creation failed");
+        assert_eq!(addr.address(), addr2.address());
     }
 
     #[test]
@@ -144,10 +158,19 @@ pub mod test {
         let hex_key = "0x1b16866227825a5166eb44031cdcf6568b3e80b52f2806e01b89a34dc90ae616";
         let key = hex_or_base58_to_h256(hex_key).unwrap();
         let prefix = "dual";
-        let addr = CosmosAddress::from_h256(key, prefix).expect("Cosmos address creation failed");
+        let addr =
+            CosmosAddress::from_h256(key, prefix, 32).expect("Cosmos address creation failed");
         assert_eq!(
             addr.address(),
             "dual1rvtgvc38sfd9zehtgsp3eh8k269naq949u5qdcqm3x35mjg2uctqfdn3yq"
+        );
+
+        // Last 20 bytes only, which is 0x1cdcf6568b3e80b52f2806e01b89a34dc90ae616
+        let addr =
+            CosmosAddress::from_h256(key, prefix, 20).expect("Cosmos address creation failed");
+        assert_eq!(
+            addr.address(),
+            "dual1rnw0v45t86qt2tegqmsphzdrfhys4esk9ktul7"
         );
     }
 }
