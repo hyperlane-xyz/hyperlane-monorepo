@@ -77,7 +77,10 @@ const relayerHyperlaneContextChains = supportedChainNames.filter(
 );
 
 // Ethereum chains only.
-const scraperHyperlaneContextChains = ethereumChainNames;
+const scraperHyperlaneContextChains = ethereumChainNames.filter(
+  // Has RPC non-compliance that breaks scraping.
+  (chainName) => chainName !== Chains.viction,
+);
 
 // Hyperlane & RC context agent chain names.
 export const agentChainNames: AgentChainNames = {
