@@ -59,8 +59,9 @@ impl CosmosAddress {
             return Err(Overflow.into());
         }
 
-        // Truncate the digest to the desired length
-        let bytes = &untruncated_bytes[untruncated_bytes.len() - byte_count..];
+        let remainder_bytes_start = untruncated_bytes.len() - byte_count;
+        // Left-truncate the digest to the desired length
+        let bytes = &untruncated_bytes[remainder_bytes_start..];
 
         // Bech32 encode it
         let account_id =
@@ -164,7 +165,7 @@ pub mod test {
             "dual1rvtgvc38sfd9zehtgsp3eh8k269naq949u5qdcqm3x35mjg2uctqfdn3yq"
         );
 
-        // First 20 bytes only, which is 0x1cdcf6568b3e80b52f2806e01b89a34dc90ae616
+        // Last 20 bytes only, which is 0x1cdcf6568b3e80b52f2806e01b89a34dc90ae616
         let addr =
             CosmosAddress::from_h256(key, prefix, 20).expect("Cosmos address creation failed");
         assert_eq!(

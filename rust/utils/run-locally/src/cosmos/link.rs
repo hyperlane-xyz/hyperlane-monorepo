@@ -114,11 +114,7 @@ fn link_network(
             set_validators: SetValidatorsMsg {
                 threshold: 1,
                 domain: target_domain,
-                validators: vec![
-                    // Bug in Multisig ISM where it requires the set to be larger than threshold
-                    hex::encode(bytes).to_string(),
-                    hex::encode(bytes).to_string(),
-                ],
+                validators: vec![hex::encode(bytes).to_string()],
             },
         },
         vec![],

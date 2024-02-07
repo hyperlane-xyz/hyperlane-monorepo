@@ -119,7 +119,7 @@ pub struct AgentConfig {
     pub protocol: String,
     pub chain_id: String,
     pub rpc_urls: Vec<AgentUrl>,
-    pub grpc_url: String,
+    pub grpc_urls: Vec<AgentUrl>,
     pub bech32_prefix: String,
     pub signer: AgentConfigSigner,
     pub index: AgentConfigIndex,
@@ -157,7 +157,15 @@ impl AgentConfig {
                     network.launch_resp.endpoint.rpc_addr.replace("tcp://", "")
                 ),
             }],
-            grpc_url: format!("http://{}", network.launch_resp.endpoint.grpc_addr),
+            grpc_urls: vec![
+                // The first url points to a nonexistent node, but is used for checking fallback provider logic
+                AgentUrl {
+                    http: "localhost:1337".to_string(),
+                },
+                AgentUrl {
+                    http: format!("http://{}", network.launch_resp.endpoint.grpc_addr),
+                },
+            ],
             bech32_prefix: "osmo".to_string(),
             signer: AgentConfigSigner {
                 typ: "cosmosKey".to_string(),
@@ -168,7 +176,7 @@ impl AgentConfig {
                 denom: "uosmo".to_string(),
                 amount: "0.05".to_string(),
             },
-            contract_address_bytes: 20,
+            contract_address_bytes: 32,
             index: AgentConfigIndex {
                 from: 1,
                 chunk: 100,

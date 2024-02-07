@@ -41,6 +41,9 @@ pub enum HyperlaneCosmosError {
     /// Protobuf error
     #[error("{0}")]
     Protobuf(#[from] protobuf::ProtobufError),
+    /// Fallback providers failed
+    #[error("Fallback providers failed. (Errors: {0:?})")]
+    FallbackProvidersFailed(Vec<HyperlaneCosmosError>),
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {
