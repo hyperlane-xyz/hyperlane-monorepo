@@ -1120,8 +1120,6 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   eclipsetestnet,
   ethereum,
   fuji,
-  injective,
-  inevm,
   gnosis,
   goerli,
   inevm,
