@@ -17,6 +17,7 @@ import { agentChainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
+import injectiveInevmAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
 
 // const releaseCandidateHelloworldMatchingList = routerMatchingList(
@@ -58,6 +59,10 @@ const hyperlane: RootAgentConfig = {
         matchingList: routerMatchingList(
           helloWorld[Contexts.Hyperlane].addresses,
         ),
+      },
+      {
+        name: 'injective_inevm_inj',
+        matchingList: routerMatchingList(injectiveInevmAddresses),
       },
     ],
   },
