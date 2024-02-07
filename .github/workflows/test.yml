@@ -164,6 +164,11 @@ jobs:
   e2e:
     runs-on: larger-runner
     needs: [yarn-build]
+    strategy:
+      matrix:
+        include:
+          - hook: false
+          - hook: true
     steps:
       - uses: actions/setup-node@v3
         with:
@@ -236,8 +241,8 @@ jobs:
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
 
-      - name: cli e2e tests
-        run: ./typescript/cli/ci-test.sh
+      - name: cli e2e tests with hooks config turned ${{ matrix.hook }}
+        run: ./typescript/cli/ci-test.sh ${{ matrix.hook }}
 
   env-test:
     runs-on: ubuntu-latest
