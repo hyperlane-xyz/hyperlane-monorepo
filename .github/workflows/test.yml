@@ -164,11 +164,6 @@ jobs:
   e2e:
     runs-on: larger-runner
     needs: [yarn-build]
-    strategy:
-      matrix:
-        include:
-          - hook: false
-          - hook: true
     steps:
       - uses: actions/setup-node@v3
         with:
@@ -240,6 +235,70 @@ jobs:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
+
+  cli-e2e:
+    runs-on: larger-runner
+    needs: [yarn-build]
+    strategy:
+      matrix:
+        include:
+          - hook: false
+          - hook: true
+    steps:
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: foundry-install
+        uses: onbjerg/foundry-toolchain@v1
+
+      - name: setup rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Free disk space
+        run: |
+          # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+      - name: Install mold linker
+        uses: rui314/setup-mold@v1
+        with:
+          mold-version: 2.0.0
+          make-default: true
+
+      - name: yarn-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .yarn
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+
+      - name: build-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ./*
+            !./rust
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: cargo-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo
+          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
 
       - name: cli e2e tests with hooks config turned ${{ matrix.hook }}
         run: ./typescript/cli/ci-test.sh ${{ matrix.hook }}
