@@ -192,8 +192,8 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
     // the hardcoded fields are not strictly necessary to be accurate for create-keys.ts
     // ideally would still get them from the chainMetadata
     agentConfig.validators!.chains[chain] = {
-      interval: 1, // chainMetadata.estimateBlockNumber is optional
-      reorgPeriod: 0, // chainMetadata.reorgPeriod is optional
+      interval: chainMetadata.estimateBlockNumber ?? 1,
+      reorgPeriod: chainMetadata.reorgPeriod ?? 0,
       validators,
     };
   }
