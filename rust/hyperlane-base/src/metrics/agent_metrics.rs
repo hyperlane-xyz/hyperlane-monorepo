@@ -42,7 +42,7 @@ pub const BLOCK_HEIGHT_HELP: &str = "Tracks the current block height of the chai
 pub const GAS_PRICE_LABELS: &[&str] = &["chain"];
 /// Help string for the metric.
 pub const GAS_PRICE_HELP: &str =
-    "Tracks the current gas price of the chain, in the lowest denomination (e.g. gwei)";
+    "Tracks the current gas price of the chain, in the lowest denomination (e.g. wei)";
 
 /// Agent-specific metrics
 #[derive(Clone, Builder, Debug)]
@@ -76,8 +76,8 @@ pub struct ChainMetrics {
     /// Tracks the current block height of the chain.
     /// - `chain`: the chain name (or ID if the name is unknown) of the chain
     ///   the block number refers to.
-    #[builder(setter(into, strip_option), default)]
-    pub block_height: Option<IntGaugeVec>,
+    #[builder(setter(into))]
+    pub block_height: IntGaugeVec,
 
     /// Tracks the current gas price of the chain. Uses the base_fee_per_gas if
     /// available or else sets this to none.
@@ -155,7 +155,6 @@ impl MetricsUpdater {
 
         match self.provider.get_balance(wallet_addr.clone()).await {
             Ok(balance) => {
-                // TODO: can we get away with scaling as 18 in all cases here?
                 let balance = u256_as_scaled_f64(balance, self.conf.domain.domain_protocol());
                 trace!("Wallet {wallet_name} ({wallet_addr}) on chain {chain} balance is {balance} of the native currency");
                 wallet_balance_metric
@@ -191,13 +190,11 @@ impl MetricsUpdater {
             _ => return,
         };
 
-        if let Some(block_height) = block_height {
-            let height = chain_metrics.latest_block.number as i64;
-            trace!("Block height for chain {chain} is {height}");
-            block_height
-                .with(&hashmap! { "chain" => chain })
-                .set(height);
-        }
+        let height = chain_metrics.latest_block.number as i64;
+        trace!("Block height for chain {chain} is {height}");
+        block_height
+            .with(&hashmap! { "chain" => chain })
+            .set(height);
         if let Some(gas_price) = gas_price {
             let protocol = self.conf.domain.domain_protocol();
             let decimals_scale = 10f64.powf(decimals_by_protocol(protocol).into());

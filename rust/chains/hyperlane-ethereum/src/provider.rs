@@ -16,7 +16,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
 };
 
-use crate::{error::HyperlaneEthereumError, BuildableWithProvider};
+use crate::BuildableWithProvider;
 
 /// Connection to an ethereum provider. Useful for querying information about
 /// the blockchain.
@@ -129,7 +129,8 @@ where
             return Ok(None);
         };
 
-        // Since `block` is Some at this point, we're guaranteed to have its `hash` and `number` defined,
+        // Given the block is queried with `BlockNumber::Latest` rather than `BlockNumber::Pending`,
+        // if `block` is Some at this point, we're guaranteed to have its `hash` and `number` defined,
         // so it's safe to unwrap below
         // more info at <https://docs.rs/ethers/latest/ethers/core/types/struct.Block.html#structfield.number>
         let chain_metrics = ChainInfo::new(
@@ -138,12 +139,7 @@ where
                 timestamp: block.timestamp.as_u64(),
                 number: block.number.unwrap().as_u64(),
             },
-            Some(
-                block
-                    .base_fee_per_gas
-                    .ok_or(HyperlaneEthereumError::MissingBlockDetails)?
-                    .into(),
-            ),
+            block.base_fee_per_gas.map(Into::into),
         );
         Ok(Some(chain_metrics))
     }
