@@ -329,7 +329,6 @@ export function getValidatorKeysForChain(
 
 export async function createAgentKeysIfNotExists(
   agentConfig: AgentContextConfig,
-  newThresholds?: ChainMap<number>,
 ) {
   debugLog('Creating agent keys if none exist');
   const keys = getAllCloudAgentKeys(agentConfig);
@@ -445,22 +444,6 @@ export async function persistValidatorAddressesToLocalArtifacts(
   fs.writeFileSync(filePath, JSON.stringify(awMultisigAddresses, null, 2));
 }
 
-// export function fetchLocalKeyAddresses(
-//   role: Role,
-//   environment: DeployEnvironment,
-//   context: Contexts,
-// ): Address {
-//   // Resolve the relative path
-//   const filePath = path.resolve(__dirname, `../../config/${role}.json`);
-//   const data = fs.readFileSync(filePath, 'utf8');
-//   const addresses: LocalRoleAddresses = JSON.parse(data);
-
-//   debugLog(
-//     `Fetching addresses from GCP for ${context} context in ${environment} environment`,
-//   );
-//   return addresses[environment][context];
-// }
-
 export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {
   try {
     // Resolve the relative path
@@ -468,9 +451,10 @@ export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {
     const data = fs.readFileSync(filePath, 'utf8');
     const addresses: LocalRoleAddresses = JSON.parse(data);
 
+    debugLog(`Fetching addresses from GCP for ${role} role ...`);
     return addresses;
-  } catch (err) {
-    throw Error(`Error fetching ${role} addresses: ${err}`);
+  } catch (e) {
+    throw new Error(`Error fetching addresses locally for ${role} role: ${e}`);
   }
 }
 
