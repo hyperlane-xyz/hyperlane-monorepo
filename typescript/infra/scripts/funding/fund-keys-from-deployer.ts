@@ -277,15 +277,15 @@ async function main() {
   } else {
     const contexts = Object.keys(argv.contextsAndRoles) as Contexts[];
     contextFunders = await Promise.all(
-      contexts.map((context) => {
-        return ContextFunder.fromLocal(
+      contexts.map((context) =>
+        ContextFunder.fromLocal(
           environment,
           multiProvider,
           context,
           argv.contextsAndRoles[context]!,
           argv.skipIgpClaim,
-        );
-      }),
+        ),
+      ),
     );
   }
 
@@ -320,7 +320,6 @@ class ContextFunder {
     roleKeysPerChain = objFilter(
       roleKeysPerChain,
       (chain, _roleKeys): _roleKeys is Record<Role, BaseAgentKey[]> => {
-        console.log('constructor chain', chain, multiProvider.getSigner(chain));
         const valid =
           isEthereumProtocolChain(chain) &&
           multiProvider.tryGetChainName(chain) !== null;
@@ -429,6 +428,7 @@ class ContextFunder {
     rolesToFund: FundableRole[],
     skipIgpClaim: boolean,
   ) {
+    // only roles that are fundable keys ie. relayer and kathy
     const fundableRoleKeys: Record<FundableRole, Address> = {
       [Role.Relayer]: '',
       [Role.Kathy]: '',
@@ -461,7 +461,6 @@ class ContextFunder {
         ];
       }
     }
-    console.log('roleKeysPerChain', JSON.stringify(roleKeysPerChain, null, 2));
     return new ContextFunder(
       environment,
       multiProvider,
