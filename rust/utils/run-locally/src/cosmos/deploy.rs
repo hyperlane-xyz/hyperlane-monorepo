@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use hpl_interface::{core, hook, igp, ism};
+use hyperlane_cosmwasm_interface::{core, hook, igp, ism};
 use macro_rules_attribute::apply;
 
 use crate::utils::as_task;
@@ -10,18 +10,17 @@ use super::{
 };
 
 #[cw_serde]
-pub struct IsmMultisigInstantiateMsg {
-    pub owner: String,
-}
-
-#[cw_serde]
 pub struct TestMockMsgReceiverInstantiateMsg {
     pub hrp: String,
 }
 
 #[cw_serde]
-pub struct IGPOracleInstantiateMsg {
+struct IgpInstantiateMsg {
+    pub hrp: String,
     pub owner: String,
+    pub gas_token: String,
+    pub beneficiary: String,
+    pub default_gas_usage: String, // u128 doesnt work with cw_serde
 }
 
 #[cw_serde]
@@ -52,22 +51,12 @@ pub fn deploy_cw_hyperlane(
         "hpl_mailbox",
     );
 
-    // deploy igp set
-    #[cw_serde]
-    pub struct GasOracleInitMsg {
-        pub hrp: String,
-        pub owner: String,
-        pub gas_token: String,
-        pub beneficiary: String,
-        pub default_gas_usage: String,
-    }
-
     let igp = cli.wasm_init(
         &endpoint,
         &deployer,
         Some(deployer_addr),
         codes.hpl_igp,
-        GasOracleInitMsg {
+        IgpInstantiateMsg {
             hrp: BECH32_PREFIX.to_string(),
             owner: deployer_addr.clone(),
             gas_token: "uosmo".to_string(),
@@ -107,10 +96,23 @@ pub fn deploy_cw_hyperlane(
         &deployer,
         Some(deployer_addr),
         codes.hpl_ism_multisig,
-        IsmMultisigInstantiateMsg {
+        ism::multisig::InstantiateMsg {
             owner: deployer_addr.clone(),
         },
         "hpl_ism_multisig",
+    );
+
+    // deploy pausable ism
+    let ism_pausable = cli.wasm_init(
+        &endpoint,
+        &deployer,
+        Some(deployer_addr),
+        codes.hpl_ism_pausable,
+        ism::pausable::InstantiateMsg {
+            owner: deployer_addr.clone(),
+            paused: false,
+        },
+        "hpl_ism_pausable",
     );
 
     // deploy ism - aggregation
@@ -121,8 +123,8 @@ pub fn deploy_cw_hyperlane(
         codes.hpl_ism_aggregate,
         ism::aggregate::InstantiateMsg {
             owner: deployer_addr.clone(),
-            threshold: 1,
-            isms: vec![ism_multisig.clone()],
+            threshold: 2,
+            isms: vec![ism_multisig.clone(), ism_pausable.clone()],
         },
         "hpl_ism_aggregate",
     );
@@ -134,7 +136,6 @@ pub fn deploy_cw_hyperlane(
         Some(deployer_addr),
         codes.hpl_hook_merkle,
         hook::merkle::InstantiateMsg {
-            owner: deployer_addr.clone(),
             mailbox: mailbox.to_string(),
         },
         "hpl_hook_merkle",

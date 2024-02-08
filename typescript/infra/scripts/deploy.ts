@@ -28,12 +28,12 @@ import {
   getAddresses,
   getArgs,
   getContractAddressesSdkFilepath,
-  getEnvironmentConfig,
   getModuleDirectory,
   withContext,
   withModuleAndFork,
   withNetwork,
-} from './utils';
+} from './agent-utils';
+import { getEnvironmentConfig } from './core-utils';
 
 async function main() {
   const {

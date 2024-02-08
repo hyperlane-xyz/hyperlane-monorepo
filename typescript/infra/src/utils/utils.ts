@@ -4,6 +4,7 @@ import { exec } from 'child_process';
 import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
+import { parse as yamlParse } from 'yaml';
 
 import {
   AllChains,
@@ -198,6 +199,10 @@ export function readJSONAtPath(filepath: string) {
 
 export function readJSON(directory: string, filename: string) {
   return readJSONAtPath(path.join(directory, filename));
+}
+
+export function readYaml<T>(filepath: string): T {
+  return yamlParse(readFileAtPath(filepath)) as T;
 }
 
 export function assertRole(roleStr: string) {

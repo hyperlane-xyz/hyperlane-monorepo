@@ -186,9 +186,11 @@ where
     }
 }
 
-impl<C: JsonRpcClient + 'static> From<PrometheusJsonRpcClient<C>> for Box<dyn BlockNumberGetter> {
+impl<C: JsonRpcClient + 'static> From<PrometheusJsonRpcClient<C>>
+    for JsonRpcBlockGetter<PrometheusJsonRpcClient<C>>
+{
     fn from(val: PrometheusJsonRpcClient<C>) -> Self {
-        Box::new(JsonRpcBlockGetter::new(val))
+        JsonRpcBlockGetter::new(val)
     }
 }
 

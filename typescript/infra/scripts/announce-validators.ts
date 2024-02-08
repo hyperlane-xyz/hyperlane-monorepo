@@ -12,10 +12,10 @@ import { isEthereumProtocolChain } from '../src/utils/utils';
 
 import {
   getAgentConfig,
-  getEnvironmentConfig,
   getArgs as getRootArgs,
   withContext,
-} from './utils';
+} from './agent-utils';
+import { getEnvironmentConfig } from './core-utils';
 
 function getArgs() {
   return withContext(getRootArgs())
@@ -75,7 +75,7 @@ async function main() {
       throw new Error(`Unknown location type %{location}`);
     }
   } else {
-    const agentConfig = getAgentConfig(context, config);
+    const agentConfig = getAgentConfig(context, environment);
     if (agentConfig.validators == undefined) {
       console.warn('No validators provided for context');
       return;
@@ -126,7 +126,9 @@ async function main() {
     const announced = announcedLocations[0].includes(location);
     if (!announced) {
       const signature = ethers.utils.joinSignature(announcement.signature);
-      console.log(`Announcing ${address} checkpoints at ${location}`);
+      console.log(
+        `[${chain}] Announcing ${address} checkpoints at ${location}`,
+      );
       await validatorAnnounce.announce(
         address,
         location,
@@ -134,7 +136,9 @@ async function main() {
         multiProvider.getTransactionOverrides(chain),
       );
     } else {
-      console.log(`Already announced ${address} checkpoints at ${location}`);
+      console.log(
+        `[${chain}] Already announced ${address} checkpoints at ${location}`,
+      );
     }
   }
 }

@@ -328,7 +328,6 @@ async function executeDeploy({
     chains,
     defaultIsms,
     hooksConfig,
-    multisigConfigs,
   );
   const coreContracts = await coreDeployer.deploy(coreConfigs);
 
@@ -391,17 +390,9 @@ function buildCoreConfigMap(
   chains: ChainName[],
   defaultIsms: ChainMap<IsmConfig>,
   hooksConfig: ChainMap<HooksConfig>,
-  multisigConfigs: ChainMap<MultisigConfig>,
 ): ChainMap<CoreConfig> {
   return chains.reduce<ChainMap<CoreConfig>>((config, chain) => {
-    const hooks =
-      hooksConfig[chain] ??
-      presetHookConfigs(
-        owner,
-        chain,
-        chains.filter((c) => c !== chain),
-        multisigConfigs[chain], // if no multisig config, uses default 2/3
-      );
+    const hooks = hooksConfig[chain] ?? presetHookConfigs(owner);
     config[chain] = {
       owner,
       defaultIsm: defaultIsms[chain],
@@ -481,18 +472,20 @@ async function writeAgentConfig(
   multiProvider: MultiProvider,
 ) {
   const startBlocks: ChainMap<number> = {};
+  const core = HyperlaneCore.fromAddressesMap(artifacts, multiProvider);
+
   for (const chain of chains) {
-    const core = HyperlaneCore.fromAddressesMap(artifacts, multiProvider);
     const mailbox = core.getContracts(chain).mailbox;
     startBlocks[chain] = (await mailbox.deployedBlock()).toNumber();
   }
+
   const mergedAddressesMap = objMerge(
     sdkContractAddressesMap,
     artifacts,
   ) as ChainMap<HyperlaneDeploymentArtifacts>;
 
   const agentConfig = buildAgentConfig(
-    Object.keys(mergedAddressesMap),
+    chains, // Use only the chains that were deployed to
     multiProvider,
     mergedAddressesMap,
     startBlocks,
