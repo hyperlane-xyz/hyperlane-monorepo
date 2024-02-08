@@ -1,7 +1,3 @@
-import multisigIsm from './consts/multisigIsm.json';
-import { MultisigConfig } from './ism/types';
-import { ChainMap } from './types';
-
 export { HyperlaneApp } from './app/HyperlaneApp';
 export {
   AdapterClassType,
@@ -34,6 +30,7 @@ export {
   hyperlaneEnvironments,
 } from './consts/environments';
 export { MAILBOX_VERSION } from './consts/mailbox';
+export { defaultMultisigConfigs } from './consts/multisigIsm';
 export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel';
 export {
   attachContracts,
@@ -402,5 +399,3 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';
-export const defaultMultisigConfigs: ChainMap<MultisigConfig> =
-  multisigIsm as ChainMap<MultisigConfig>;

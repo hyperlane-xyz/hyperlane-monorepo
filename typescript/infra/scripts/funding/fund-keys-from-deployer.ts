@@ -285,13 +285,6 @@ async function main() {
           argv.contextsAndRoles[context]!,
           argv.skipIgpClaim,
         );
-        // return ContextFunder.fromContext(
-        //   environment,
-        //   multiProvider,
-        //   context,
-        //   argv.contextsAndRoles[context]!,
-        //   argv.skipIgpClaim,
-        // );
       }),
     );
   }
@@ -327,6 +320,7 @@ class ContextFunder {
     roleKeysPerChain = objFilter(
       roleKeysPerChain,
       (chain, _roleKeys): _roleKeys is Record<Role, BaseAgentKey[]> => {
+        console.log('constructor chain', chain, multiProvider.getSigner(chain));
         const valid =
           isEthereumProtocolChain(chain) &&
           multiProvider.tryGetChainName(chain) !== null;
@@ -427,7 +421,7 @@ class ContextFunder {
     );
   }
 
-  // the keys are retrived from the local artifacts in the infra/config/relayer.json
+  // the keys are retrived from the local artifacts in the infra/config/relayer.json or infra/config/kathy.json
   static async fromLocal(
     environment: DeployEnvironment,
     multiProvider: MultiProvider,
