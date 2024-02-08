@@ -67,7 +67,7 @@ impl BaseAgent for Validator {
         let (signer_instance, signer) = SingletonSigner::new(settings.validator.build().await?);
 
         let core = settings.build_hyperlane_core(metrics.clone());
-        let checkpoint_syncer = settings.checkpoint_syncer.build(None)?.into();
+        let checkpoint_syncer = settings.checkpoint_syncer.build(None).await?.into();
 
         let mailbox = settings
             .build_mailbox(&settings.origin_chain, &metrics)

@@ -30,8 +30,8 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
       confirmations: 3,
     },
     transactionOverrides: {
-      maxFeePerGas: 1000 * 10 ** 9, // 500 gwei
-      maxPriorityFeePerGas: 200 * 10 ** 9, // 100 gwei
+      maxFeePerGas: 250 * 10 ** 9, // 250 gwei
+      maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
       // gasPrice: 50 * 10 ** 9, // 50 gwei
     },
   },
@@ -71,14 +71,14 @@ export const ethereumChainNames = Object.keys(
 ) as MainnetChains[];
 
 // Remove mantapacific, as it's not considered a "blessed"
-// chain - we don't relay to mantapacific on the Hyperlane or RC contexts.
-const hyperlaneContextRelayChains = ethereumChainNames.filter(
+// chain and we don't relay to mantapacific on the Hyperlane or RC contexts.
+const relayerHyperlaneContextChains = supportedChainNames.filter(
   (chainName) => chainName !== Chains.mantapacific,
 );
 
-// Skip viction, as it returns incorrect block hashes for eth_getLogs RPCs,
-// which breaks the scraper.
-const scraperChains = ethereumChainNames.filter(
+// Ethereum chains only.
+const scraperHyperlaneContextChains = ethereumChainNames.filter(
+  // Has RPC non-compliance that breaks scraping.
   (chainName) => chainName !== Chains.viction,
 );
 
@@ -86,6 +86,6 @@ const scraperChains = ethereumChainNames.filter(
 export const agentChainNames: AgentChainNames = {
   // Run validators for all chains.
   [Role.Validator]: supportedChainNames,
-  [Role.Relayer]: hyperlaneContextRelayChains,
-  [Role.Scraper]: scraperChains,
+  [Role.Relayer]: relayerHyperlaneContextChains,
+  [Role.Scraper]: scraperHyperlaneContextChains,
 };

@@ -1,6 +1,6 @@
 import { createAgentKeysIfNotExists } from '../../src/agents/key-utils';
 import { HelmCommand } from '../../src/utils/helm';
-import { getConfigsBasedOnArgs } from '../utils';
+import { getConfigsBasedOnArgs } from '../core-utils';
 
 import { AgentCli } from './utils';
 

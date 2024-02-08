@@ -12,10 +12,10 @@ import { isEthereumProtocolChain } from '../src/utils/utils';
 
 import {
   getAgentConfig,
-  getEnvironmentConfig,
   getArgs as getRootArgs,
   withContext,
-} from './utils';
+} from './agent-utils';
+import { getEnvironmentConfig } from './core-utils';
 
 function getArgs() {
   return withContext(getRootArgs())
@@ -75,7 +75,7 @@ async function main() {
       throw new Error(`Unknown location type %{location}`);
     }
   } else {
-    const agentConfig = getAgentConfig(context, config);
+    const agentConfig = getAgentConfig(context, environment);
     if (agentConfig.validators == undefined) {
       console.warn('No validators provided for context');
       return;

@@ -223,6 +223,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "inevm",
+        token: "INJ",
+        domain: 2525,
+        chain_id: 2525,
+        is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "test1",
         token: "ETH",
         domain: 13371,

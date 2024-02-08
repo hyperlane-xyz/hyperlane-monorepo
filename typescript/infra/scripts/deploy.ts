@@ -30,12 +30,12 @@ import {
   getAddresses,
   getArgs,
   getContractAddressesSdkFilepath,
-  getEnvironmentConfig,
   getModuleDirectory,
   withContext,
   withModuleAndFork,
   withNetwork,
-} from './utils';
+} from './agent-utils';
+import { getEnvironmentConfig } from './core-utils';
 
 async function main() {
   const {
@@ -90,7 +90,10 @@ async function main() {
     };
     deployer = new HypERC20Deployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
-    config = envConfig.igp;
+    config = {
+      ...envConfig.igp,
+      oracleConfig: envConfig.storageGasOracleConfig,
+    };
     deployer = new HyperlaneIgpDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);

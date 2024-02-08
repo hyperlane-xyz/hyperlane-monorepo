@@ -4,6 +4,7 @@ import {
   ChainName,
   CoinGeckoTokenPriceGetter,
   HyperlaneCore,
+  prettyTokenExchangeRate,
 } from '@hyperlane-xyz/sdk';
 
 import { StorageGasOracleConfig } from '../../src/config';
@@ -12,9 +13,8 @@ import {
   TOKEN_EXCHANGE_RATE_DECIMALS,
   TOKEN_EXCHANGE_RATE_SCALE,
 } from '../../src/config/gas-oracle';
-import { getArgs, getEnvironmentConfig } from '../utils';
-
-import { prettyTokenExchangeRate } from './utils';
+import { getArgs } from '../agent-utils';
+import { getEnvironmentConfig } from '../core-utils';
 
 // Compares the token exchange rate between chains according to the config
 // to the exchange rates using current Coingecko prices. The config exchange
@@ -47,7 +47,7 @@ async function compare(
   localStorageGasOracleConfig: StorageGasOracleConfig,
   local: ChainName,
 ) {
-  for (const remoteStr in localStorageGasOracleConfig) {
+  for (const remoteStr of Object.keys(localStorageGasOracleConfig)) {
     const remote = remoteStr as ChainName;
     const configGasData = localStorageGasOracleConfig[remote]!;
     const currentTokenExchangeRateNum =

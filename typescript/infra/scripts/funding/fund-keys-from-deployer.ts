@@ -22,7 +22,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { parseKeyIdentifier } from '../../src/agents/agent';
 import { KeyAsAddress, getRoleKeysPerChain } from '../../src/agents/key-utils';
 import {
   BaseCloudAgentKey,
@@ -39,7 +38,8 @@ import {
   isEthereumProtocolChain,
   readJSONAtPath,
 } from '../../src/utils/utils';
-import { getAgentConfig, getArgs, getEnvironmentConfig } from '../utils';
+import { getAgentConfig, getArgs } from '../agent-utils';
+import { getEnvironmentConfig } from '../core-utils';
 
 import * as L1ETHGateway from './utils/L1ETHGateway.json';
 import * as L1MessageQueue from './utils/L1MessageQueue.json';
@@ -167,6 +167,8 @@ const desiredKathyBalancePerChain: ChainMap<string> = {
   scroll: '0.05',
   base: '0.05',
   polygonzkevm: '0.05',
+  viction: '0.05',
+  inevm: '0.05',
 };
 
 // The balance threshold of the IGP contract that must be met for the key funder
@@ -605,7 +607,7 @@ class ContextFunder {
       role === Role.Kathy && desiredKathyBalancePerChain[chain]
         ? desiredKathyBalancePerChain[chain]
         : desiredBalancePerChain[chain];
-    let desiredBalance = ethers.utils.parseEther(desiredBalanceEther);
+    let desiredBalance = ethers.utils.parseEther(desiredBalanceEther ?? '0');
     if (this.context === Contexts.ReleaseCandidate) {
       desiredBalance = desiredBalance
         .mul(RC_FUNDING_DISCOUNT_NUMERATOR)
