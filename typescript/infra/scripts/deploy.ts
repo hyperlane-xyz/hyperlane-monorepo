@@ -17,6 +17,8 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
+import { supportedChainNames as mainnet3Chains } from '../config/environments/mainnet3/chains';
+import { supportedChainNames as testnet4Chains } from '../config/environments/testnet4/chains';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -45,6 +47,13 @@ async function main() {
   } = await withContext(withNetwork(withModuleAndFork(getArgs()))).argv;
   const envConfig = getEnvironmentConfig(environment);
   const env = deployEnvToSdkEnv[environment];
+
+  const supportedChainNames =
+    environment === 'mainnet3'
+      ? mainnet3Chains
+      : environment === 'testnet4'
+      ? testnet4Chains
+      : undefined;
 
   let multiProvider = await envConfig.getMultiProvider();
 
@@ -113,7 +122,11 @@ async function main() {
     }));
     deployer = new TestQuerySenderDeployer(multiProvider);
   } else if (module === Modules.HELLO_WORLD) {
-    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    const core = HyperlaneCore.fromEnvironment(
+      env,
+      multiProvider,
+      supportedChainNames,
+    );
     config = core.getRouterConfig(envConfig.owners);
     deployer = new HelloWorldDeployer(multiProvider);
   } else {
