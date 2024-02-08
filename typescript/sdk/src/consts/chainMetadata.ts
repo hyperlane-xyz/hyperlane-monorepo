@@ -93,8 +93,9 @@ export const arbitrumgoerli: ChainMetadata = {
 export const avalanche: ChainMetadata = {
   blockExplorers: [
     {
-      apiUrl: 'https://api.snowtrace.io/api',
-      family: ExplorerFamily.Other,
+      apiUrl:
+        'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api',
+      family: ExplorerFamily.Routescan,
       name: 'SnowTrace',
       url: 'https://snowtrace.io',
     },
@@ -332,7 +333,8 @@ export const ethereum: ChainMetadata = {
 export const fuji: ChainMetadata = {
   blockExplorers: [
     {
-      apiUrl: 'https://api-testnet.snowtrace.io/api',
+      apiUrl:
+        'https://api.routescan.io/v2/network/testnet/evm/43113/etherscan/api',
       family: ExplorerFamily.Etherscan,
       name: 'SnowTrace',
       url: 'https://testnet.snowtrace.io',
