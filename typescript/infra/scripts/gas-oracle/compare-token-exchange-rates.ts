@@ -4,6 +4,7 @@ import {
   ChainName,
   CoinGeckoTokenPriceGetter,
   HyperlaneCore,
+  prettyTokenExchangeRate,
 } from '@hyperlane-xyz/sdk';
 
 import { StorageGasOracleConfig } from '../../src/config';
@@ -14,8 +15,6 @@ import {
 } from '../../src/config/gas-oracle';
 import { getArgs } from '../agent-utils';
 import { getEnvironmentConfig } from '../core-utils';
-
-import { prettyTokenExchangeRate } from './utils';
 
 // Compares the token exchange rate between chains according to the config
 // to the exchange rates using current Coingecko prices. The config exchange
