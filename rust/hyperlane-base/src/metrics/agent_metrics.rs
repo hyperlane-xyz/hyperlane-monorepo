@@ -1,3 +1,5 @@
+//! Metrics either related to the agents, or observed by them
+
 use std::time::Duration;
 
 use derive_builder::Builder;
@@ -76,7 +78,8 @@ pub struct ChainMetrics {
     pub block_height: Option<IntGaugeVec>,
 
     /// Tracks the current gas price of the chain. Uses the base_fee_per_gas if
-    /// available or else the median of the transactions.
+    /// available or else sets this to none.
+    /// TODO: use the median of the transactions.
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the
     ///   chain the gas price refers to.
     #[builder(setter(into, strip_option), default)]
@@ -157,13 +160,19 @@ impl MetricsUpdater {
             return;
         };
         let chain = self.conf.domain.name();
-        debug!("Updating metrics for chain ({:?})", chain);
-        let Ok(Some(current_block)) = self.provider.get_chain_metrics().await else {
-            return;
+        debug!(?chain, "Updating metrics");
+        let chain_metrics = match self.provider.get_chain_metrics().await {
+            Ok(Some(chain_metrics)) => chain_metrics,
+            Err(err) => {
+                trace!(?chain, ?err, "Failed to get chain metrics");
+                return;
+            }
+            // This is the case hit by chains with an empty impl, no need to log an error
+            _ => return,
         };
 
         if let Some(block_height) = block_height {
-            let height = current_block.latest_block.number as i64;
+            let height = chain_metrics.latest_block.number as i64;
             trace!("Block height for chain {chain} is {height}");
             block_height
                 .with(&hashmap! { "chain" => chain })
@@ -172,8 +181,13 @@ impl MetricsUpdater {
         if let Some(gas_price) = gas_price {
             let protocol = self.conf.domain.domain_protocol();
             let decimals_scale = 10f64.powf(decimals_by_protocol(protocol).into());
-            let gas = u256_as_scaled_f64(current_block.gas_price, protocol) * decimals_scale;
-            trace!("Gas price for chain {chain} is {gas:.1} (lowest denomination)");
+            let gas = u256_as_scaled_f64(chain_metrics.min_gas_price.unwrap_or_default(), protocol)
+                * decimals_scale;
+            trace!(
+                ?chain,
+                gas = format!("{gas:.2}"),
+                "Gas price updated for chain (using lowest denomination)"
+            );
             gas_price.with(&hashmap! { "chain" => chain }).set(gas);
         }
     }

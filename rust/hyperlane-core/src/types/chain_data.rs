@@ -18,8 +18,9 @@ pub struct BlockInfo {
 pub struct ChainInfo {
     /// Information about the latest block
     pub latest_block: BlockInfo,
-    /// The current gas price, in the lowest denomination (e.g. gwei)
-    pub gas_price: U256,
+    /// The current gas price, in the lowest denomination (e.g. wei)
+    /// Unless the chain implements an EIP-1559 style tx fee mechanism, this field will be `None`
+    pub min_gas_price: Option<U256>,
 }
 
 /// Information about a given transaction in the chain.

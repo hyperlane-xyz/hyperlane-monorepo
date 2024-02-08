@@ -129,22 +129,21 @@ where
             return Ok(None);
         };
 
+        // Since `block` is Some at this point, we're guaranteed to have its `hash` and `number` defined,
+        // so it's safe to unwrap below
+        // more info at <https://docs.rs/ethers/latest/ethers/core/types/struct.Block.html#structfield.number>
         let chain_metrics = ChainInfo::new(
             BlockInfo {
-                hash: block
-                    .hash
+                hash: block.hash.unwrap().into(),
+                timestamp: block.timestamp.as_u64(),
+                number: block.number.unwrap().as_u64(),
+            },
+            Some(
+                block
+                    .base_fee_per_gas
                     .ok_or(HyperlaneEthereumError::MissingBlockDetails)?
                     .into(),
-                timestamp: block.timestamp.as_u64(),
-                number: block
-                    .number
-                    .ok_or(HyperlaneEthereumError::MissingBlockDetails)?
-                    .as_u64(),
-            },
-            block
-                .base_fee_per_gas
-                .ok_or(HyperlaneEthereumError::MissingBlockDetails)?
-                .into(),
+            ),
         );
         Ok(Some(chain_metrics))
     }

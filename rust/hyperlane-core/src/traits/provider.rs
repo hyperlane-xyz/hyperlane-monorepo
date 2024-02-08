@@ -28,7 +28,7 @@ pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
     /// Fetch the balance of the wallet address associated with the chain provider.
     async fn get_balance(&self, address: String) -> ChainResult<U256>;
 
-    /// Fetch the balance of the wallet address associated with the chain provider.
+    /// Fetch metrics related to this chain
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>>;
 }
 
