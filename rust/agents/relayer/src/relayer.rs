@@ -16,8 +16,7 @@ use hyperlane_base::{
     SequencedDataContractSync, WatermarkContractSync,
 };
 use hyperlane_core::{
-    metrics::agent::METRICS_SCRAPE_INTERVAL, HyperlaneDomain, HyperlaneMessage,
-    InterchainGasPayment, MerkleTreeInsertion, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, U256,
 };
 use tokio::{
     sync::{
@@ -281,26 +280,16 @@ impl BaseAgent for Relayer {
 
             tasks.push(self.run_destination_submitter(dest_domain, receive_channel));
 
-            let agent_metrics_conf = dest_conf
-                .agent_metrics_conf(Self::AGENT_NAME.to_string())
-                .await
-                .unwrap();
-            let provider = dest_conf.build_provider(&self.core_metrics).await.unwrap();
             let metrics_updater = MetricsUpdater::new(
+                dest_conf,
+                self.core_metrics.clone(),
                 self.agent_metrics.clone(),
                 self.chain_metrics.clone(),
-                agent_metrics_conf,
-                provider,
-            );
-
-            let metrics_updater_task = tokio::spawn(async move {
-                metrics_updater
-                    .start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
-                    .await;
-                Ok(())
-            })
-            .instrument(info_span!("MetricsUpdater"));
-            tasks.push(metrics_updater_task);
+                Self::AGENT_NAME.to_string(),
+            )
+            .await
+            .unwrap();
+            tasks.push(metrics_updater.spawn());
         }
 
         for origin in &self.origin_chains {

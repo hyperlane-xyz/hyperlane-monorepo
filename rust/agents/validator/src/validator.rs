@@ -11,8 +11,10 @@ use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
-    run_all, BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
-    HyperlaneAgentCore, SequencedDataContractSync,
+    run_all,
+    settings::ChainConf,
+    BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
+    HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
 };
 
 use hyperlane_core::{
@@ -31,6 +33,7 @@ use crate::{
 #[derive(Debug, AsRef)]
 pub struct Validator {
     origin_chain: HyperlaneDomain,
+    origin_chain_conf: ChainConf,
     #[as_ref]
     core: HyperlaneAgentCore,
     db: HyperlaneRocksDB,
@@ -44,6 +47,9 @@ pub struct Validator {
     reorg_period: u64,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
+    core_metrics: Arc<CoreMetrics>,
+    agent_metrics: AgentMetrics,
+    chain_metrics: ChainMetrics,
 }
 
 #[async_trait]
@@ -55,8 +61,8 @@ impl BaseAgent for Validator {
     async fn from_settings(
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
-        _agent_metrics: AgentMetrics,
-        _chain_metrics: ChainMetrics,
+        agent_metrics: AgentMetrics,
+        chain_metrics: ChainMetrics,
     ) -> Result<Self>
     where
         Self: Sized,
@@ -82,6 +88,12 @@ impl BaseAgent for Validator {
             .build_validator_announce(&settings.origin_chain, &metrics)
             .await?;
 
+        let origin_chain_conf = core
+            .settings
+            .chain_setup(&settings.origin_chain)
+            .unwrap()
+            .clone();
+
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
         let merkle_tree_hook_sync = settings
@@ -96,6 +108,7 @@ impl BaseAgent for Validator {
 
         Ok(Self {
             origin_chain: settings.origin_chain,
+            origin_chain_conf,
             core,
             db: msg_db,
             mailbox: mailbox.into(),
@@ -107,6 +120,9 @@ impl BaseAgent for Validator {
             reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
+            agent_metrics,
+            chain_metrics,
+            core_metrics: metrics,
         })
     }
 
@@ -123,6 +139,17 @@ impl BaseAgent for Validator {
                 .instrument(info_span!("SingletonSigner")),
             );
         }
+
+        let metrics_updater = MetricsUpdater::new(
+            &self.origin_chain_conf,
+            self.core_metrics.clone(),
+            self.agent_metrics.clone(),
+            self.chain_metrics.clone(),
+            Self::AGENT_NAME.to_string(),
+        )
+        .await
+        .unwrap();
+        tasks.push(metrics_updater.spawn());
 
         // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");

@@ -1,21 +1,23 @@
 //! Metrics either related to the agents, or observed by them
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use derive_builder::Builder;
-use derive_new::new;
-use eyre::Result;
+use eyre::{Report, Result};
 use hyperlane_core::metrics::agent::decimals_by_protocol;
 use hyperlane_core::metrics::agent::u256_as_scaled_f64;
+use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
 use hyperlane_core::HyperlaneDomain;
 use hyperlane_core::HyperlaneProvider;
 use maplit::hashmap;
 use prometheus::GaugeVec;
 use prometheus::IntGaugeVec;
-use tokio::time::MissedTickBehavior;
-use tracing::debug;
-use tracing::{trace, warn};
+use tokio::{task::JoinHandle, time::MissedTickBehavior};
+use tracing::info_span;
+use tracing::{debug, instrument::Instrumented, trace, warn, Instrument};
 
+use crate::settings::ChainConf;
 use crate::CoreMetrics;
 
 /// Expected label names for the `wallet_balance` metric.
@@ -43,7 +45,7 @@ pub const GAS_PRICE_HELP: &str =
     "Tracks the current gas price of the chain, in the lowest denomination (e.g. gwei)";
 
 /// Agent-specific metrics
-#[derive(Clone, Builder)]
+#[derive(Clone, Builder, Debug)]
 pub struct AgentMetrics {
     /// Current balance of native tokens for the
     /// wallet address.
@@ -69,7 +71,7 @@ pub(crate) fn create_agent_metrics(metrics: &CoreMetrics) -> Result<AgentMetrics
 }
 
 /// Chain-specific metrics
-#[derive(Clone, Builder)]
+#[derive(Clone, Builder, Debug)]
 pub struct ChainMetrics {
     /// Tracks the current block height of the chain.
     /// - `chain`: the chain name (or ID if the name is unknown) of the chain
@@ -114,7 +116,6 @@ pub struct AgentMetricsConf {
 }
 
 /// Utility struct to update various metrics using a standalone tokio task
-#[derive(new)]
 pub struct MetricsUpdater {
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
@@ -123,6 +124,25 @@ pub struct MetricsUpdater {
 }
 
 impl MetricsUpdater {
+    /// Creates a new instance of the `MetricsUpdater`
+    pub async fn new(
+        chain_conf: &ChainConf,
+        core_metrics: Arc<CoreMetrics>,
+        agent_metrics: AgentMetrics,
+        chain_metrics: ChainMetrics,
+        agent_name: String,
+    ) -> Result<Self> {
+        let agent_metrics_conf = chain_conf.agent_metrics_conf(agent_name).await?;
+        let provider = chain_conf.build_provider(&core_metrics).await?;
+
+        Ok(Self {
+            agent_metrics,
+            chain_metrics,
+            conf: agent_metrics_conf,
+            provider,
+        })
+    }
+
     async fn update_agent_metrics(&self) {
         let Some(wallet_addr) = self.conf.address.clone() else {
             return;
@@ -201,5 +221,15 @@ impl MetricsUpdater {
             self.update_block_details().await;
             interval.tick().await;
         }
+    }
+
+    /// Spawns a tokio task to update the metrics
+    pub fn spawn(self) -> Instrumented<JoinHandle<Result<(), Report>>> {
+        tokio::spawn(async move {
+            self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
+                .await;
+            Ok(())
+        })
+        .instrument(info_span!("MetricsUpdater"))
     }
 }
