@@ -4,6 +4,7 @@ import { ethers } from 'ethers';
 
 import { sleep, strip0x } from '@hyperlane-xyz/utils';
 
+import { ExplorerFamily } from '../../metadata/chainMetadataTypes';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
 import { MultiGeneric } from '../../utils/MultiGeneric';
@@ -65,7 +66,12 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     action: ExplorerApiActions,
     options?: Record<string, string>,
   ): Promise<any> {
-    const apiUrl = new URL(this.multiProvider.getExplorerApiUrl(chain));
+    const { apiUrl, family } = this.multiProvider.getExplorerApi(chain);
+    if (family === ExplorerFamily.Other) {
+      this.logger(`[${chain}] Unsupported explorer: ${apiUrl}`);
+      return {};
+    }
+
     const isGetRequest =
       action === ExplorerApiActions.CHECK_STATUS ||
       action === ExplorerApiActions.CHECK_PROXY_STATUS ||
@@ -96,9 +102,15 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
       responseText = await response.text();
       result = JSON.parse(responseText);
     } catch (e) {
-      this.logger(`Failed to parse response from ${responseText}`, e);
+      this.logger(
+        `[${chain}] Failed to parse response from ${responseText}`,
+        e,
+      );
     }
-    if (result.message === 'NOTOK') {
+    if (result.message !== 'OK') {
+      const errorMessageBase = `[${chain}]`;
+      let errorMessage;
+
       switch (result.result) {
         case ExplorerApiErrors.VERIFICATION_PENDING:
           await sleep(5000); // wait 5 seconds
@@ -107,19 +119,21 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
         case ExplorerApiErrors.ALREADY_VERIFIED_ALT:
           return;
         case ExplorerApiErrors.PROXY_FAILED:
-          this.logger(`Proxy verification failed for, try manually?`);
-          return;
+          errorMessage = `${errorMessageBase} Proxy verification failed, try manually?`;
+          break;
         case ExplorerApiErrors.BYTECODE_MISMATCH:
-          this.logger(
-            `Compiled bytecode does not match deployed bytecode, check constructor arguments?`,
-          );
-          return;
+          errorMessage = `${errorMessageBase} Compiled bytecode does not match deployed bytecode, check constructor arguments?`;
+          break;
         default:
-          this.logger(
-            `Verification failed for some unknown reason on ${chain}`,
-            result,
-          );
-          throw new Error(`Verification failed: ${result.result}`);
+          errorMessage = `${errorMessageBase} Verification failed. ${
+            result.result ?? response.statusText
+          }`;
+          break;
+      }
+
+      if (errorMessage) {
+        this.logger(errorMessage);
+        throw new Error(errorMessage);
       }
     }
 
@@ -139,9 +153,11 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
           address: input.address,
         },
       );
-      return result[0].SourceCode !== '';
+      return !!result[0]?.SourceCode;
     } catch (error) {
-      this.logger(`Error checking if contract is already verified: ${error}`);
+      this.logger(
+        `[${chain}] [${input.name}] Error checking if contract is already verified: ${error}`,
+      );
       return false;
     }
   }
@@ -171,12 +187,12 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
             guid: proxyGuid,
           });
           this.logger(
-            `Successfully verified proxy ${addressUrl}#readProxyContract`,
+            `[${chain}] [${input.name}] Successfully verified proxy ${addressUrl}#readProxyContract`,
           );
         }
       } catch (error) {
         console.error(
-          `Verification of proxy at ${input.address} failed on ${chain}`,
+          `[${chain}] [${input.name}] Verification of proxy at ${input.address} failed`,
         );
         throw error;
       }
@@ -188,7 +204,7 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     input: ContractVerificationInput,
   ): Promise<void> {
     this.logger(
-      `Verifying ${input.name} implementation at ${input.address} on ${chain}`,
+      `[${chain}] [${input.name}] Verifying implementation at ${input.address}`,
     );
 
     const data = {
@@ -215,10 +231,12 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     if (guid) {
       try {
         await this.submitForm(chain, ExplorerApiActions.CHECK_STATUS, { guid });
-        this.logger(`Successfully verified ${addressUrl}#code`);
+        this.logger(
+          `[${chain}] [${input.name}] Successfully verified ${addressUrl}#code`,
+        );
       } catch (error) {
         console.error(
-          `Verifying implementation at ${input.address} failed on ${chain}`,
+          `[${chain}] [${input.name}] Verifying implementation at ${input.address} failed`,
         );
         throw error;
       }
@@ -234,7 +252,9 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     }
 
     if (Array.isArray(input.constructorArguments)) {
-      this.logger('Constructor arguments in legacy format, skipping');
+      this.logger(
+        `[${chain}] [${input.name}] Constructor arguments in legacy format, skipping`,
+      );
       return;
     }
 
@@ -244,7 +264,7 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
         input.address,
       );
       this.logger(
-        `Contract ${input.name} already verified on ${chain} at ${addressUrl}#code`,
+        `[${chain}] [${input.name}] Contract already verified at ${addressUrl}#code`,
       );
       // There is a rate limit of 5 requests per second
       await sleep(200);
