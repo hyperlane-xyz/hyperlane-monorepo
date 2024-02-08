@@ -21,7 +21,7 @@ export const keyFunderConfig: KeyFunderConfig = {
   contextFundingFrom: Contexts.Hyperlane,
   contextsAndRolesToFund: {
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
-    // [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
+    [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
   connectionType: RpcConsensusType.Single,
 };
