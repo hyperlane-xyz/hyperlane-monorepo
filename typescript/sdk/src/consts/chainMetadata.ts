@@ -477,7 +477,7 @@ export const lineagoerli: ChainMetadata = {
       apiUrl: 'https://explorer.goerli.linea.build/api',
       family: ExplorerFamily.Blockscout,
       name: 'Linea Explorer',
-      url: 'https://explorer.goerli.linea.build/',
+      url: 'https://explorer.goerli.linea.build',
     },
   ],
   blocks: {
@@ -780,7 +780,6 @@ export const polygonzkevm: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
     { http: 'https://zkevm-rpc.com' },
-    { http: 'https://polygonzkevm-mainnet.g.alchemy.com/v2/demo' },
     { http: 'https://rpc.ankr.com/polygon_zkevm' },
   ],
 };
