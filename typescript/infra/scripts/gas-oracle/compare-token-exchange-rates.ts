@@ -13,7 +13,8 @@ import {
   TOKEN_EXCHANGE_RATE_DECIMALS,
   TOKEN_EXCHANGE_RATE_SCALE,
 } from '../../src/config/gas-oracle';
-import { getArgs, getEnvironmentConfig } from '../utils';
+import { getArgs } from '../agent-utils';
+import { getEnvironmentConfig } from '../core-utils';
 
 // Compares the token exchange rate between chains according to the config
 // to the exchange rates using current Coingecko prices. The config exchange

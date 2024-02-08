@@ -244,13 +244,16 @@ jobs:
     needs: [yarn-build]
     strategy:
       matrix:
-        environment: [testnet4, mainnet3]
-        module: [core, igp, helloworld]
         include:
           - environment: testnet4
             chain: sepolia
+            module: core
           - environment: mainnet3
             chain: arbitrum
+            module: core
+          - environment: mainnet3
+            chain: inevm
+            module: core
           - environment: mainnet3
             chain: viction
             module: core

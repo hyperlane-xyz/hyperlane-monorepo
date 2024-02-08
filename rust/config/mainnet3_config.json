@@ -480,7 +480,11 @@
           "http": "https://rpc-kralum.neutron-1.neutron.org"
         }
       ],
-      "grpcUrl": "https://grpc-kralum.neutron-1.neutron.org:80",
+      "grpcUrls": [
+        {
+          "http": "https://grpc-kralum.neutron-1.neutron.org:80"
+        }
+      ],
       "canonicalAsset": "untrn",
       "bech32Prefix": "neutron",
       "gasPrice": {
@@ -516,7 +520,11 @@
           "http": "https://rpc-injective.goldenratiostaking.net:443"
         }
       ],
-      "grpcUrl": "https://injective-grpc.publicnode.com/",
+      "grpcUrls": [
+        {
+          "http": "https://injective-grpc.goldenratiostaking.net:443"
+        }
+      ],
       "canonicalAsset": "inj",
       "bech32Prefix": "inj",
       "gasPrice": {

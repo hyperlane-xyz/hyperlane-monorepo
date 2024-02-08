@@ -1,6 +1,7 @@
 import { runHelloworldKathyHelmCommand } from '../../src/helloworld/kathy';
 import { HelmCommand } from '../../src/utils/helm';
-import { assertCorrectKubeContext, getConfigsBasedOnArgs } from '../utils';
+import { assertCorrectKubeContext } from '../agent-utils';
+import { getConfigsBasedOnArgs } from '../core-utils';
 
 import { getHelloWorldConfig } from './utils';
 

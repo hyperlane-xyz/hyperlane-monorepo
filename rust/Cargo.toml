@@ -91,13 +91,13 @@ bech32 = "0.9.1"
 elliptic-curve = "0.12.3"
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
-hpl-interface = "=0.0.6-rc3"
 http = "*"
 hyper = "0.14"
 hyper-tls = "0.5.0"
+hyperlane-cosmwasm-interface = "=0.0.6-rc6"
 injective-protobuf = "0.2.2"
 injective-std = "0.1.5"
-itertools = "0.11.0"
+itertools = "*"
 jobserver = "=0.1.26"
 jsonrpc-core = "18.0"
 k256 = { version = "0.13.1", features = ["std", "ecdsa"] }
@@ -183,6 +183,7 @@ url = "2.3"
 walkdir = "2"
 warp = "0.3"
 which = "4.3"
+ya-gcp = { version = "0.11.1", features = ["storage"] }
 
 ## TODO: remove this
 cosmwasm-schema = "1.2.7"
