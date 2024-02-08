@@ -1,6 +1,7 @@
 use std::{
     cmp::Ordering,
     fmt::Debug,
+    iter::ExactSizeIterator,
     ops::RangeInclusive,
     sync::Arc,
     time::{Duration, Instant},
@@ -10,7 +11,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction,
+    ChainCommunicationError, ChainResult, ContractSyncCursor, ContractSyncCursorNew, CursorAction,
     HyperlaneSequenceIndexerStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta,
     SequenceIndexer, Sequenced,
 };
@@ -22,7 +23,114 @@ use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
 /// Time window for the moving average used in the eta calculator in seconds.
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
 
-const MAX_SEQUENCE_RANGE: u32 = 100;
+const MAX_SEQUENCE_RANGE: u32 = 20;
+
+/// A SequenceSyncCursor that syncs forwards in perpetuity.
+pub(crate) struct ForwardSequenceSyncCursorNew<T> {
+    next_sequence: u32,
+    indexer: Arc<dyn SequenceIndexer<T>>,
+    db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
+    // _phantom: std::marker::PhantomData<T>,
+}
+
+impl<T: Sequenced> ForwardSequenceSyncCursorNew<T> {
+    async fn get_next_range(&self) -> ChainResult<Option<RangeInclusive<u32>>> {
+        let (Some(mailbox_count), _tip) = self.indexer.sequence_and_tip().await? else {
+            return Ok(None);
+        };
+        let cursor_count = self.next_sequence;
+        Ok(match cursor_count.cmp(&mailbox_count) {
+            Ordering::Equal => {
+                // We are synced up to the latest sequence so we don't need to index anything.
+                None
+            }
+            Ordering::Less => {
+                // The cursor is behind the mailbox, so we need to index.
+                Some(cursor_count..=u32::min(mailbox_count, cursor_count + MAX_SEQUENCE_RANGE))
+            }
+            Ordering::Greater => {
+                // Providers may be internally inconsistent, e.g. RPC request A could hit a node
+                // whose tip is N and subsequent RPC request B could hit a node whose tip is < N.
+                debug!(
+                    cursor_count,
+                    mailbox_count, "Cursor count is greater than Mailbox count"
+                );
+                None
+            }
+        })
+    }
+}
+
+#[async_trait]
+impl<T: Sequenced> ContractSyncCursorNew<T> for ForwardSequenceSyncCursorNew<T> {
+    async fn fast_forward(&mut self) -> ChainResult<()> {
+        // Check if any new logs have been inserted into the DB,
+        // and update the cursor accordingly.
+        while self
+            .db
+            .retrieve_by_sequence(self.next_sequence)
+            .await
+            .map_err(|_e| ChainCommunicationError::from_other_str("todo"))?
+            .is_some()
+        {
+            self.next_sequence += 1;
+            debug!(
+                next_sequence = self.next_sequence,
+                "Fast forwarding next sequence"
+            );
+        }
+
+        Ok(())
+    }
+
+    async fn next_action(&self) -> ChainResult<(CursorAction, Duration)> {
+        // TODO: Fix ETA calculation
+        let eta = Duration::from_secs(0);
+        if let Some(range) = self.get_next_range().await? {
+            Ok((CursorAction::Query(range), eta))
+        } else {
+            // TODO: Define the sleep time from interval flag
+            Ok((CursorAction::Sleep(Duration::from_secs(5)), eta))
+        }
+    }
+
+    fn latest_block(&self) -> u32 {
+        0
+    }
+
+    /// If the previous block has been synced, rewind to the block number
+    /// at which it was dispatched.
+    /// Otherwise, rewind all the way back to the start block.
+    async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
+        // Expect the sequence in the logs to exactly match the range.
+        sequenced_data_logs_matches_range(logs, range.clone())?;
+
+        self.next_sequence = range.end() + 1;
+
+        Ok(())
+    }
+}
+
+fn sequenced_data_logs_matches_range<T: Sequenced>(
+    logs: Vec<(T, LogMeta)>,
+    range: RangeInclusive<u32>,
+) -> Result<()> {
+    // Sort the logs and remove any duplicates
+    let mut logs = logs;
+    logs.sort_by(|a, b| a.0.sequence().cmp(&b.0.sequence()));
+    logs.dedup_by(|a, b| a.0.sequence() == b.0.sequence());
+
+    for i in range {
+        if i >= logs.len() as u32 {
+            return Err(eyre::eyre!("Too few logs"));
+        }
+        if logs[i as usize].0.sequence() != i {
+            return Err(eyre::eyre!("Sequence mismatch"));
+        }
+    }
+
+    Ok(())
+}
 
 /// A struct that holds the data needed for forwards and backwards
 /// sequence sync cursors.

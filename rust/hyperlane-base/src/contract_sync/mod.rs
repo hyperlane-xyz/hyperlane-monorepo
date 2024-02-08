@@ -5,9 +5,9 @@ use std::{
 use cursor::*;
 use derive_new::new;
 use hyperlane_core::{
-    utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneSequenceIndexerStore, HyperlaneWatermarkedLogStore, Indexer, SequenceIndexer,
-    Sequenced,
+    utils::fmt_sync_time, ContractSyncCursor, ContractSyncCursorNew, CursorAction, HyperlaneDomain,
+    HyperlaneLogStore, HyperlaneSequenceIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
+    SequenceIndexer, Sequenced,
 };
 pub use metrics::ContractSyncMetrics;
 use tokio::time::sleep;
@@ -42,6 +42,100 @@ where
     /// The domain that this ContractSync is running on
     pub fn domain(&self) -> &HyperlaneDomain {
         &self.domain
+    }
+
+    /// Sync logs and write them to the LogStore
+    #[tracing::instrument(name = "ContractSync", fields(domain=self.domain().name()), skip(self, cursor))]
+    pub async fn sync_new(
+        &self,
+        label: &'static str,
+        mut cursor: Box<dyn ContractSyncCursorNew<T>>,
+    ) -> eyre::Result<()> {
+        let chain_name = self.domain.as_ref();
+        let indexed_height = self
+            .metrics
+            .indexed_height
+            .with_label_values(&[label, chain_name]);
+        let stored_logs = self
+            .metrics
+            .stored_events
+            .with_label_values(&[label, chain_name]);
+
+        loop {
+            // Step 1:
+            // Fast forward the cursor to prepare for the next action.
+            if let Err(err) = cursor.fast_forward().await {
+                warn!(?err, "Failed to fast forward cursor");
+                sleep(SLEEP_DURATION).await;
+                continue;
+            }
+
+            // Update any metrics:
+            // TODO: rm? or move?
+            indexed_height.set(cursor.latest_block() as i64);
+
+            // Step 2:
+            // Get the next action to take.
+            let Ok((action, eta)) = cursor.next_action().await else {
+                sleep(SLEEP_DURATION).await;
+                continue;
+            };
+
+            // Step 3:
+            // Take the action.
+            let sleep_duration = match action {
+                // Use `loop` but always break - this allows for returning a value
+                // from the loop (the sleep duration)
+                #[allow(clippy::never_loop)]
+                CursorAction::Query(range) => loop {
+                    debug!(?range, "Querying for events in index range");
+
+                    let logs = match self.indexer.fetch_logs(range.clone()).await {
+                        Ok(logs) => logs,
+                        Err(err) => {
+                            warn!(?err, "Failed to fetch logs");
+                            break SLEEP_DURATION;
+                        }
+                    };
+
+                    // Deduplicate logs.
+                    // TODO sort them?
+                    let deduped_logs = HashSet::<_>::from_iter(logs);
+                    let logs = Vec::from_iter(deduped_logs);
+
+                    info!(
+                        ?range,
+                        num_logs = logs.len(),
+                        estimated_time_to_sync = fmt_sync_time(eta),
+                        "Found log(s) in index range"
+                    );
+
+                    // Step 4:
+                    // Store the logs.
+                    let stored = match self.db.store_logs(&logs).await {
+                        Ok(stored) => stored,
+                        Err(err) => {
+                            warn!(?err, "Failed to store logs in db");
+                            break SLEEP_DURATION;
+                        }
+                    };
+
+                    // Step 5:
+                    // Update the cursor.
+                    if let Err(err) = cursor.update(logs, range).await {
+                        warn!(?err, "Failed to update cursor");
+                        break SLEEP_DURATION;
+                    };
+
+                    // Update metrics.
+                    stored_logs.inc_by(stored as u64);
+
+                    break Default::default();
+                },
+                CursorAction::Sleep(duration) => duration,
+            };
+            sleep(sleep_duration).await;
+        }
     }
 
     /// Sync logs and write them to the LogStore
