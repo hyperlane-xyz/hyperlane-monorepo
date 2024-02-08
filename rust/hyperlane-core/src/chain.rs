@@ -295,6 +295,12 @@ impl Debug for HyperlaneDomain {
     }
 }
 
+impl From<KnownHyperlaneDomain> for HyperlaneDomain {
+    fn from(domain: KnownHyperlaneDomain) -> Self {
+        HyperlaneDomain::Known(domain)
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum HyperlaneDomainConfigError {
     #[error("Domain name (`{0}`) does not match the name of a known domain id; the name is probably misspelled.")]

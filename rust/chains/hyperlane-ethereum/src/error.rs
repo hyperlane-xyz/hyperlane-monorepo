@@ -10,6 +10,10 @@ pub enum HyperlaneEthereumError {
     /// provider Error
     #[error("{0}")]
     ProviderError(#[from] ProviderError),
+
+    /// Some details from a queried block are missing
+    #[error("Some details from a queried block are missing")]
+    MissingBlockDetails,
 }
 
 impl From<HyperlaneEthereumError> for ChainCommunicationError {
