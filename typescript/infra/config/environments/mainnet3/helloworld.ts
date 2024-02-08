@@ -34,7 +34,7 @@ export const releaseCandidate: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '86b7f98-20231207-153806',
+      tag: '0e3f73f-20240206-160718',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -44,7 +44,7 @@ export const releaseCandidate: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: RpcConsensusType.Single,
+    connectionType: RpcConsensusType.Fallback,
   },
 };
 
