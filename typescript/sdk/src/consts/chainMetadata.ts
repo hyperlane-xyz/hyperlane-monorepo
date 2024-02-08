@@ -986,14 +986,6 @@ export const solanadevnet: ChainMetadata = {
 };
 
 export const eclipsetestnet: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://testnet.dev2.eclipsenetwork.xyz',
-      family: ExplorerFamily.Other,
-      name: 'Eclipse Testnet Explorer',
-      url: 'https://explorer.dev.eclipsenetwork.xyz/?cluster=testnet',
-    },
-  ],
   blocks: {
     confirmations: 1,
     estimateBlockTime: 0.4,
