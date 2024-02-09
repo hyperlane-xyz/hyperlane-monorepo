@@ -55,7 +55,8 @@ async function main() {
     ? readJSONAtPath(sourcePath).input
     : readFileAtPath(sourcePath);
 
-  // from solidity/core/hardhat.config.ts
+  // codeformat is required always
+  // other options are only used when source is flattened solidity
   const compilerOptions: CompilerOptions = {
     codeformat: isStandardJson
       ? 'solidity-standard-json-input'
