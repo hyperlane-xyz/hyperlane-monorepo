@@ -83,9 +83,7 @@ export function testIgpConfig(
       local,
       {
         owner,
-        ownerOverrides: {
-          storageGasOracle: owner,
-        },
+        oracleKey: owner,
         beneficiary: owner,
         // TODO: these should be one map
         overhead: Object.fromEntries(

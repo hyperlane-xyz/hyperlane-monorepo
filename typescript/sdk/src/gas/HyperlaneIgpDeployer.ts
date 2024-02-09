@@ -164,7 +164,15 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       interchainGasPaymaster,
     };
 
-    await this.transferOwnershipOfContracts(chain, config, contracts);
+    const ownerConfig = {
+      ...config,
+      ownerOverrides: {
+        ...config.ownerOverrides,
+        storageGasOracle: config.oracleKey, // TODO: merge this
+      },
+    };
+
+    await this.transferOwnershipOfContracts(chain, ownerConfig, contracts);
 
     return contracts;
   }

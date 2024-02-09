@@ -11,6 +11,7 @@ import { DestinationOracleConfig, GasOracleContractType } from './oracle/types';
 
 export type IgpConfig = OwnableConfig<keyof IgpFactories> & {
   beneficiary: Address;
+  oracleKey: Address;
   overhead: ChainMap<number>;
   // TODO: require this
   oracleConfig?: ChainMap<DestinationOracleConfig>;

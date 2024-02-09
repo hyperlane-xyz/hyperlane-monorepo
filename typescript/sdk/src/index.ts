@@ -118,6 +118,7 @@ export {
   IgpViolation,
   IgpViolationType,
 } from './gas/types';
+export { GasOracleContractType } from './gas/oracle/types';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
 export {
   AggregationHookConfig,
