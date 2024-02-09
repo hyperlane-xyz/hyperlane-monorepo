@@ -9,6 +9,7 @@ import {
 import { exclude, objMap } from '@hyperlane-xyz/utils';
 
 import { supportedChainNames } from './chains';
+import { storageGasOracleConfig } from './gas-oracle';
 import { owners } from './owners';
 
 function getGasOracles(local: ChainName) {
@@ -25,7 +26,7 @@ export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, ownerConfig) => {
     ...ownerConfig,
     oracleKey: ownerConfig.owner,
     beneficiary: ownerConfig.owner,
-    gasOracleType: getGasOracles(chain),
+    oracleConfig: storageGasOracleConfig[chain],
     overhead: Object.fromEntries(
       exclude(chain, supportedChainNames).map((remote) => [
         remote,

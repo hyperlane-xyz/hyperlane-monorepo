@@ -1,22 +1,14 @@
 import { BigNumber, ethers } from 'ethers';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import { DestinationOracleConfig } from '@hyperlane-xyz/sdk';
 import { convertDecimals } from '@hyperlane-xyz/utils';
 
 import { mustGetChainNativeTokenDecimals } from '../utils/utils';
 
-export type RemoteGasData = {
-  tokenExchangeRate: BigNumber;
-  gasPrice: BigNumber;
-};
-
-export type RemoteGasDataConfig = RemoteGasData & {
-  remoteDomain: number;
-};
-
-// Gas data to configure on a single local chain. Includes RemoteGasData
+// Gas data to configure on a single local chain. Includes DestinationOracleConfig
 // for each remote chain.
-export type StorageGasOracleConfig = ChainMap<RemoteGasData>;
+export type StorageGasOracleConfig = ChainMap<DestinationOracleConfig>;
 
 // StorageGasOracleConfigs for each local chain
 export type AllStorageGasOracleConfigs = ChainMap<StorageGasOracleConfig>;
