@@ -38,7 +38,7 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     verificationInputs: ChainMap<VerificationInput>,
     protected readonly multiProvider: MultiProvider,
     protected readonly apiKeys: ChainMap<string>,
-    protected readonly flattenedSource: string, // flattened source code from eg `hardhat flatten`
+    protected readonly source: string, // flattened source code from eg `hardhat flatten`
     protected readonly compilerOptions: CompilerOptions,
     supportedChainNames?: string[],
   ) {
@@ -48,7 +48,16 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
 
   verify(targets = this.chains()): Promise<PromiseSettledResult<void>[]> {
     return Promise.allSettled(
-      targets.map((chain) => this.verifyChain(chain, this.get(chain))),
+      targets.map((chain) => {
+        const { family } = this.multiProvider.getExplorerApi(chain);
+        if (family === ExplorerFamily.Other) {
+          this.logger(
+            `Skipping verification for ${chain} due to unsupported explorer family.`,
+          );
+          return Promise.resolve();
+        }
+        return this.verifyChain(chain, this.get(chain));
+      }),
     );
   }
 
@@ -68,17 +77,12 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     options?: Record<string, string>,
   ): Promise<any> {
     const { apiUrl, family } = this.multiProvider.getExplorerApi(chain);
-    if (family === ExplorerFamily.Other) {
-      this.logger(`[${chain}] Unsupported explorer: ${apiUrl}`);
-      return {};
-    }
-
     const isGetRequest =
       action === ExplorerApiActions.CHECK_STATUS ||
       action === ExplorerApiActions.CHECK_PROXY_STATUS ||
       action === ExplorerApiActions.GETSOURCECODE;
     const params = new URLSearchParams({
-      apikey: this.apiKeys[chain],
+      ...(this.apiKeys[chain] ? { apikey: this.apiKeys[chain] } : {}),
       module: 'contract',
       action,
       ...options,
@@ -88,13 +92,43 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     if (isGetRequest) {
       response = await fetch(`${apiUrl}?${params}`);
     } else {
-      response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params,
-      });
+      // For Blockscout explorers, we need to ensure module and action are always query params
+      if (family === ExplorerFamily.Blockscout) {
+        const formData = new URLSearchParams();
+        const urlWithParams = new URL(apiUrl);
+        urlWithParams.searchParams.append('module', 'contract');
+        urlWithParams.searchParams.append('action', action);
+
+        // remove any extraneous keys from body
+        for (const [key, value] of params) {
+          switch (key) {
+            case 'module':
+            case 'action':
+            case 'licenseType':
+            case 'apikey':
+              break;
+            default:
+              formData.append(key, value);
+              break;
+          }
+        }
+
+        response = await fetch(urlWithParams.toString(), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formData,
+        });
+      } else {
+        response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: params,
+        });
+      }
     }
 
     let result;
@@ -208,13 +242,18 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
       `[${chain}] [${input.name}] Verifying implementation at ${input.address}`,
     );
 
+    const { codeformat, compilerversion, ...otherCompilerOptions } =
+      this.compilerOptions;
+
     const data = {
-      sourceCode: this.flattenedSource,
+      sourceCode: this.source,
       contractname: input.name,
       contractaddress: input.address,
       // TYPO IS ENFORCED BY API
       constructorArguements: strip0x(input.constructorArguments ?? ''),
-      ...this.compilerOptions,
+      codeformat,
+      compilerversion,
+      ...(codeformat === 'solidity-single-file' ? otherCompilerOptions : {}),
     };
 
     const guid = await this.submitForm(
