@@ -1,4 +1,5 @@
 import debug from 'debug';
+import { ethers } from 'ethers';
 
 import {
   InterchainGasPaymaster,
@@ -7,13 +8,13 @@ import {
 } from '@hyperlane-xyz/core';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
+import { TOKEN_EXCHANGE_RATE_EXPONENT } from '../consts/igp';
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
 import { IgpFactories, igpFactories } from './contracts';
-import { prettyRemoteGasData } from './oracle/logging';
 import { IgpConfig } from './types';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
@@ -90,7 +91,9 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     }
 
     this.logger(`Configuring gas oracle from ${chain}...`);
-    const configsToSet: StorageGasOracle.RemoteGasDataConfigStruct[] = [];
+    const configsToSet: Array<
+      StorageGasOracle.RemoteGasDataConfigStruct & { remote: ChainName }
+    > = [];
 
     // For each remote, check if the gas oracle has the correct data
     for (const [remote, desiredGasData] of Object.entries(
@@ -98,7 +101,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     )) {
       const remoteId = this.multiProvider.getDomainId(remote);
 
-      this.logger(`Checking destination ${remote}...`);
       const remoteGasDataConfig = await gasOracle.remoteGasData(remoteId);
 
       if (
@@ -107,15 +109,8 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
           desiredGasData.tokenExchangeRate,
         )
       ) {
-        this.logger(
-          `${chain} -> ${remote} existing gas data:\n`,
-          prettyRemoteGasData(remoteGasDataConfig),
-        );
-        this.logger(
-          `${chain} -> ${remote} desired gas data:\n`,
-          prettyRemoteGasData(desiredGasData),
-        );
         configsToSet.push({
+          remote,
           remoteDomain: this.multiProvider.getDomainId(remote),
           ...desiredGasData,
         });
@@ -124,11 +119,18 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     if (configsToSet.length > 0) {
       await this.runIfOwner(chain, gasOracle, async () => {
-        this.logger(
-          `Setting rates for destinations ${configsToSet.map(
-            (v) => v.remoteDomain,
-          )}`,
-        );
+        configsToSet.forEach((v) => {
+          const exchangeRate = ethers.utils.formatUnits(
+            v.tokenExchangeRate as any,
+            TOKEN_EXCHANGE_RATE_EXPONENT,
+          );
+          const gasPrice = ethers.utils.formatUnits(v.gasPrice as any, 'gwei');
+          this.logger(
+            `Updating ${v.remote.padEnd(15)}\t${exchangeRate.padEnd(
+              10,
+            )}\t${gasPrice} gwei`,
+          );
+        });
         return this.multiProvider.handleTx(
           chain,
           gasOracle.setRemoteGasDataConfigs(
