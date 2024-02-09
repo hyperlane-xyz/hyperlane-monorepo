@@ -7,9 +7,13 @@ use cosmrs::rpc::query::Query;
 use cosmrs::rpc::Order;
 use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, U256};
-use tracing::{instrument, trace};
+use sha256::digest;
+use tendermint::hash::Algorithm;
+use tendermint::Hash;
+use tracing::{debug, instrument, trace};
 
 use crate::address::CosmosAddress;
+use crate::payloads::general::Events;
 use crate::{ConnectionConf, CosmosProvider, HyperlaneCosmosError};
 
 const PAGINATION_LIMIT: u8 = 100;
@@ -25,6 +29,15 @@ pub trait WasmIndexer: Send + Sync {
         &self,
         range: RangeInclusive<u32>,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
+    ) -> ChainResult<Vec<(T, LogMeta)>>
+    where
+        T: Send + Sync + PartialEq + 'static;
+
+    /// get event log
+    async fn get_event_log<T>(
+        &self,
+        block_number: u32,
+        parser: fn(Vec<EventAttribute>) -> Option<T>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
         T: Send + Sync + PartialEq + 'static;
@@ -227,6 +240,95 @@ impl WasmIndexer for CosmosWasmIndexer {
         }
 
         Ok(logs)
+    }
+
+    async fn get_event_log<T>(
+        &self,
+        block_number: u32,
+        parser: fn(Vec<EventAttribute>) -> Option<T>,
+    ) -> ChainResult<Vec<(T, LogMeta)>>
+    where
+        T: Send + Sync,
+    {
+        let client = self.provider.rpc().clone();
+
+        let block = client
+            .block(block_number)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        let block_result = client
+            .block_results(block_number)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+
+        let tx_hash: Vec<H256> = block
+            .block
+            .data
+            .into_iter()
+            .map(|tx| {
+                H256::from_slice(
+                    Hash::from_bytes(
+                        Algorithm::Sha256,
+                        hex::decode(digest(tx.as_slice())).unwrap().as_slice(),
+                    )
+                    .unwrap()
+                    .as_bytes(),
+                )
+            })
+            .collect();
+
+        let mut result: Vec<(T, LogMeta)> = vec![];
+        let tx_results = block_result.txs_results;
+
+        if tx_results.is_none() {
+            return Ok(result);
+        }
+
+        for (idx, tx) in tx_results.unwrap().iter().enumerate() {
+            let tx_hash = tx_hash[idx];
+            if tx.code.is_err() {
+                debug!(?tx_hash, "tx has failed. skipping");
+                continue;
+            }
+
+            let mut available = false;
+
+            let mut parse_result: Vec<(T, LogMeta)> = vec![];
+
+            let logs = serde_json::from_str::<Vec<Events>>(&tx.log)?;
+            let logs = logs.first().unwrap();
+
+            for (log_idx, event) in logs.events.clone().into_iter().enumerate() {
+                if event.typ.as_str().starts_with(Self::WASM_TYPE)
+                    && event.attributes[0].value == self.contract_address.address()
+                {
+                    available = true;
+                } else if event.typ.as_str() != self.target_event_kind {
+                    continue;
+                }
+
+                let attributes: Vec<EventAttribute> =
+                    event.attributes.into_iter().map(Into::into).collect();
+                if let Some(msg) = parser(attributes) {
+                    let meta = LogMeta {
+                        address: self.contract_address.digest(),
+                        block_number: block_number as u64,
+                        block_hash: H256::from_slice(block.block_id.hash.as_bytes()),
+                        transaction_id: H256::from_slice(tx_hash.as_bytes()).into(),
+                        transaction_index: idx as u64,
+                        log_index: U256::from(log_idx),
+                    };
+
+                    parse_result.push((msg, meta));
+                }
+            }
+
+            if available {
+                result.extend(parse_result);
+            }
+        }
+
+        Ok(result)
     }
 }
 
