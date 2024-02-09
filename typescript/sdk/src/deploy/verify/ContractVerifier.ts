@@ -40,8 +40,9 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     protected readonly apiKeys: ChainMap<string>,
     protected readonly flattenedSource: string, // flattened source code from eg `hardhat flatten`
     protected readonly compilerOptions: CompilerOptions,
+    supportedChainNames?: string[],
   ) {
-    super(verificationInputs);
+    super(verificationInputs, supportedChainNames);
     this.logger = debug('hyperlane:ContractVerifier');
   }
 
