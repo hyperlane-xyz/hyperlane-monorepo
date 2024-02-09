@@ -7,14 +7,13 @@ import { HyperlaneContractsMap } from '../contracts/types';
 import { CoreFactories } from '../core/contracts';
 import { CoreConfig } from '../core/types';
 import { IgpFactories } from '../gas/contracts';
-import { OracleConfig, StorageGasOraclesConfig } from '../gas/oracle/types';
 import {
   CoinGeckoInterface,
   CoinGeckoResponse,
   CoinGeckoSimpleInterface,
   CoinGeckoSimplePriceParams,
 } from '../gas/token-prices';
-import { GasOracleContractType, IgpConfig } from '../gas/types';
+import { IgpConfig } from '../gas/types';
 import { HookType } from '../hook/types';
 import { IsmType } from '../ism/types';
 import { RouterConfig } from '../router/types';
@@ -70,51 +69,31 @@ export function testCoreConfig(
   return Object.fromEntries(chains.map((local) => [local, chainConfig]));
 }
 
-function testOracleConfigs(
-  chains: ChainName[],
-): ChainMap<StorageGasOraclesConfig> {
-  return Object.fromEntries(
-    chains.map((local) => [
-      local,
-      Object.fromEntries(
-        exclude(local, chains).map((remote) => [
-          remote,
-          {
-            gasPrice: ethers.utils.parseUnits('1', 'gwei'),
-            tokenExchangeRate: ethers.utils.parseUnits('1', 10),
-          },
-        ]),
-      ),
-    ]),
-  );
-}
-
-function getGasOracleTypes(chains: ChainName[], local: ChainName) {
-  return Object.fromEntries(
-    exclude(local, chains).map((remote) => [
-      remote,
-      GasOracleContractType.StorageGasOracle,
-    ]),
-  );
-}
+const TEST_ORACLE_CONFIG = {
+  gasPrice: ethers.utils.parseUnits('1', 'gwei'),
+  tokenExchangeRate: ethers.utils.parseUnits('1', 10),
+};
 
 export function testIgpConfig(
   chains: ChainName[],
   owner = nonZeroAddress,
-): ChainMap<IgpConfig & Partial<OracleConfig>> {
-  const oracleConfig = testOracleConfigs(chains);
+): ChainMap<IgpConfig> {
   return Object.fromEntries(
     chains.map((local) => [
       local,
       {
         owner,
+        ownerOverrides: {
+          storageGasOracle: owner,
+        },
         beneficiary: owner,
-        oracleKey: owner,
-        gasOracleType: getGasOracleTypes(chains, local),
+        // TODO: these should be one map
         overhead: Object.fromEntries(
           exclude(local, chains).map((remote) => [remote, 60000]),
         ),
-        oracleConfig: oracleConfig[local],
+        oracleConfig: Object.fromEntries(
+          exclude(local, chains).map((remote) => [remote, TEST_ORACLE_CONFIG]),
+        ),
       },
     ]),
   );

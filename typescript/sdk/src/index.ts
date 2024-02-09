@@ -111,7 +111,6 @@ export {
 } from './gas/oracle/logging';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
-  GasOracleContractType,
   IgpBeneficiaryViolation,
   IgpConfig,
   IgpGasOraclesViolation,
