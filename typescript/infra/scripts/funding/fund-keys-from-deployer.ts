@@ -422,7 +422,7 @@ class ContextFunder {
     );
   }
 
-  // the keys are retrived from the local artifacts in the infra/config/relayer.json or infra/config/kathy.json
+  // the keys are retrieved from the local artifacts in the infra/config/relayer.json or infra/config/kathy.json
   static async fromLocal(
     environment: DeployEnvironment,
     multiProvider: MultiProvider,
