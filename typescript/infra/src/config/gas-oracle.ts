@@ -1,7 +1,10 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import { DestinationOracleConfig } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainName,
+  DestinationOracleConfig,
+} from '@hyperlane-xyz/sdk';
 import { convertDecimals } from '@hyperlane-xyz/utils';
 
 import { mustGetChainNativeTokenDecimals } from '../utils/utils';
@@ -19,11 +22,8 @@ export const TOKEN_EXCHANGE_RATE_SCALE = ethers.utils.parseUnits(
   TOKEN_EXCHANGE_RATE_DECIMALS,
 );
 
-// Overcharge by 30% to account for market making risk
-const TOKEN_EXCHANGE_RATE_MULTIPLIER = ethers.utils.parseUnits(
-  '1.30',
-  TOKEN_EXCHANGE_RATE_DECIMALS,
-);
+// Overcharge by 20% to account for market making risk (when assets are unequal)
+const EXCHANGE_RATE_MARGIN_PCT = 20;
 
 // Gets the StorageGasOracleConfig for a particular local chain
 function getLocalStorageGasOracleConfig(
@@ -71,9 +71,11 @@ export function getTokenExchangeRateFromValues(
   remoteValue: BigNumber,
 ): BigNumber {
   // This does not yet account for decimals!
-  const exchangeRate = remoteValue
-    .mul(TOKEN_EXCHANGE_RATE_MULTIPLIER)
-    .div(localValue);
+  let exchangeRate = remoteValue.mul(TOKEN_EXCHANGE_RATE_SCALE).div(localValue);
+  // use margin if exchange rate is not 1
+  if (!exchangeRate.eq(TOKEN_EXCHANGE_RATE_SCALE)) {
+    exchangeRate = exchangeRate.mul(100 + EXCHANGE_RATE_MARGIN_PCT).div(100);
+  }
 
   return BigNumber.from(
     convertDecimals(
