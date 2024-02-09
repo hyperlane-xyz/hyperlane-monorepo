@@ -20,7 +20,7 @@ import {
   hyperlaneEnvironments,
 } from '../consts/environments';
 import { appFromAddressesMapHelper } from '../contracts/contracts';
-import { HyperlaneAddresses, HyperlaneAddressesMap } from '../contracts/types';
+import { HyperlaneAddressesMap } from '../contracts/types';
 import { OwnableConfig } from '../deploy/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { RouterConfig } from '../router/types';
@@ -51,18 +51,16 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     multiProvider: MultiProvider,
     supportedChainNames?: string[],
   ): HyperlaneCore {
-    const filteredMap = supportedChainNames
-      ? objFilter(addressesMap, (chain, _): _ is HyperlaneAddresses<any> =>
-          supportedChainNames.includes(chain),
-        )
-      : addressesMap;
-
     const helper = appFromAddressesMapHelper(
-      filteredMap,
+      addressesMap,
       coreFactories,
       multiProvider,
     );
-    return new HyperlaneCore(helper.contractsMap, helper.multiProvider);
+    return new HyperlaneCore(
+      helper.contractsMap,
+      helper.multiProvider,
+      supportedChainNames,
+    );
   }
 
   getRouterConfig = (

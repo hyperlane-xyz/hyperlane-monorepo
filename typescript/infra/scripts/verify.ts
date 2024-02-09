@@ -2,8 +2,11 @@ import {
   ChainMap,
   CompilerOptions,
   ContractVerifier,
+  VerificationInput,
 } from '@hyperlane-xyz/sdk';
 
+import { supportedChainNames as mainnet3Chains } from '../config/environments/mainnet3/chains';
+import { supportedChainNames as testnet4Chains } from '../config/environments/testnet4/chains';
 import { fetchGCPSecret } from '../src/utils/gcloud';
 import { execCmd, readFileAtPath, readJSONAtPath } from '../src/utils/utils';
 
@@ -35,7 +38,15 @@ async function main() {
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
-  const verification = readJSONAtPath(argv.artifacts!);
+  const verification: ChainMap<VerificationInput> = readJSONAtPath(
+    argv.artifacts!,
+  );
+  const supportedChainNames =
+    environment === 'mainnet3'
+      ? mainnet3Chains
+      : environment === 'testnet4'
+      ? testnet4Chains
+      : undefined;
 
   const sourcePath = argv.source!;
   const flattenedSource = readFileAtPath(sourcePath);
@@ -72,6 +83,7 @@ async function main() {
     apiKeys,
     flattenedSource,
     compilerOptions,
+    supportedChainNames,
   );
 
   const failedResults = (

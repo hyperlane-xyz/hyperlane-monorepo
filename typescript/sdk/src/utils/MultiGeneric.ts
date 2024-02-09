@@ -3,7 +3,19 @@ import { ChainMap, ChainName } from '../types';
 
 // Generalized map container for chain name to some value
 export class MultiGeneric<Value> {
-  constructor(public readonly chainMap: ChainMap<Value>) {}
+  public readonly chainMap: ChainMap<Value>;
+
+  constructor(chainMap: ChainMap<Value>, supportedChainNames?: ChainName[]) {
+    if (supportedChainNames) {
+      this.chainMap = Object.fromEntries(
+        Object.entries(chainMap).filter(([chain]) =>
+          supportedChainNames.includes(chain as ChainName),
+        ),
+      ) as ChainMap<Value>;
+    } else {
+      this.chainMap = chainMap;
+    }
+  }
 
   /**
    * Get value for a chain

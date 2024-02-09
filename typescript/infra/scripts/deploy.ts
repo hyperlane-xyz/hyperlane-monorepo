@@ -77,6 +77,7 @@ async function main() {
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,
+      supportedChainNames,
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.WARP) {
@@ -88,15 +89,27 @@ async function main() {
     };
     deployer = new HyperlaneIgpDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    const core = HyperlaneCore.fromEnvironment(
+      env,
+      multiProvider,
+      supportedChainNames,
+    );
     config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainAccountDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
-    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    const core = HyperlaneCore.fromEnvironment(
+      env,
+      multiProvider,
+      supportedChainNames,
+    );
     config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainQueryDeployer(multiProvider);
   } else if (module === Modules.LIQUIDITY_LAYER) {
-    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    const core = HyperlaneCore.fromEnvironment(
+      env,
+      multiProvider,
+      supportedChainNames,
+    );
     const routerConfig = core.getRouterConfig(envConfig.owners);
     if (!envConfig.liquidityLayerConfig) {
       throw new Error(`No liquidity layer config for ${environment}`);
