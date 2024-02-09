@@ -278,7 +278,7 @@ export const ethereum: ChainMetadata = {
       url: 'https://etherscan.io',
     },
     {
-      apiUrl: 'https://blockscout.com/eth/mainnet/api',
+      apiUrl: 'https://eth.blockscout.com/api',
       family: ExplorerFamily.Blockscout,
       name: 'Blockscout',
       url: 'https://blockscout.com/eth/mainnet',
