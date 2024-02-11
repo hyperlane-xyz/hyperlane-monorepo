@@ -9,7 +9,7 @@ use hyperlane_core::{
     Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer, H256,
 };
 use once_cell::sync::Lazy;
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use crate::{
     grpc::WasmProvider,
@@ -285,10 +285,20 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(MerkleTreeInsertion, LogMeta)>> {
-        let result = self
-            .indexer
-            .get_range_event_logs(range, Self::merkle_tree_insertion_parser)
-            .await?;
+        let mut result: Vec<(MerkleTreeInsertion, LogMeta)> = vec![];
+
+        for block_number in range {
+            let logs = self
+                .indexer
+                .get_event_log(block_number, Self::merkle_tree_insertion_parser)
+                .await;
+
+            if let Err(e) = logs {
+                warn!("error: {:?}", e);
+                continue;
+            }
+            result.extend(logs.unwrap());
+        }
 
         Ok(result)
     }

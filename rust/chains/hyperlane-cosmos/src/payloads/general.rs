@@ -25,7 +25,6 @@ pub struct Event {
 pub struct EventAttribute {
     pub key: String,
     pub value: String,
-    pub index: bool,
 }
 
 impl From<EventAttribute> for cosmrs::tendermint::abci::EventAttribute {
@@ -33,7 +32,9 @@ impl From<EventAttribute> for cosmrs::tendermint::abci::EventAttribute {
         cosmrs::tendermint::abci::EventAttribute {
             key: val.key,
             value: val.value,
-            index: val.index,
+            // WARN: This value isn't present in the `EventAttribute` result returned by the neutron RPC.
+            // Seems irelevant so just setting it to `false`.
+            index: false,
         }
     }
 }

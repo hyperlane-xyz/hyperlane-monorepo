@@ -203,10 +203,17 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        let result = self
-            .indexer
-            .get_range_event_logs(range, Self::interchain_gas_payment_parser)
-            .await?;
+        let mut result: Vec<(InterchainGasPayment, LogMeta)> = vec![];
+        // let parser = |event_attrs| Self::interchain_gas_payment_parser(&event_attrs);
+
+        for block_number in range {
+            let logs = self
+                .indexer
+                .get_event_log(block_number, Self::interchain_gas_payment_parser)
+                .await?;
+            result.extend(logs);
+        }
+
         Ok(result)
     }
 

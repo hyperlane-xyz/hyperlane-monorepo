@@ -37,10 +37,10 @@ pub trait WasmIndexer: Send + Sync {
     async fn get_event_log<T>(
         &self,
         block_number: u32,
-        parser: fn(Vec<EventAttribute>) -> Option<T>,
+        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
-        T: Send + Sync + PartialEq + 'static;
+        T: Send + Sync + PartialEq;
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -57,6 +57,11 @@ impl<T: PartialEq> ParsedEvent<T> {
             contract_address,
             event,
         }
+    }
+
+    /// Get the inner event
+    pub fn inner(self) -> T {
+        self.event
     }
 }
 
@@ -245,10 +250,10 @@ impl WasmIndexer for CosmosWasmIndexer {
     async fn get_event_log<T>(
         &self,
         block_number: u32,
-        parser: fn(Vec<EventAttribute>) -> Option<T>,
+        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
-        T: Send + Sync,
+        T: Send + Sync + PartialEq,
     {
         let client = self.provider.rpc().clone();
 
@@ -309,7 +314,7 @@ impl WasmIndexer for CosmosWasmIndexer {
 
                 let attributes: Vec<EventAttribute> =
                     event.attributes.into_iter().map(Into::into).collect();
-                if let Some(msg) = parser(attributes) {
+                if let Ok(event) = parser(&attributes) {
                     let meta = LogMeta {
                         address: self.contract_address.digest(),
                         block_number: block_number as u64,
@@ -319,7 +324,7 @@ impl WasmIndexer for CosmosWasmIndexer {
                         log_index: U256::from(log_idx),
                     };
 
-                    parse_result.push((msg, meta));
+                    parse_result.push((event.inner(), meta));
                 }
             }
 
