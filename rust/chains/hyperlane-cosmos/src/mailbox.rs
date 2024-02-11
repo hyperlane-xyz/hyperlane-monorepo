@@ -7,10 +7,11 @@ use std::{
     str::FromStr,
 };
 
-use crate::payloads::mailbox::{
-    GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
-};
 use crate::payloads::{general, mailbox};
+use crate::payloads::{
+    general::EventAttribute,
+    mailbox::{GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner},
+};
 use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::CosmosProvider;
 use crate::{address::CosmosAddress, types::tx_response_to_outcome};
@@ -18,7 +19,6 @@ use crate::{grpc::WasmProvider, HyperlaneCosmosError};
 use crate::{signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-use cosmrs::tendermint::abci::EventAttribute;
 use once_cell::sync::Lazy;
 
 use crate::utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64};
@@ -410,7 +410,6 @@ impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
 
 #[cfg(test)]
 mod tests {
-    use cosmrs::tendermint::abci::EventAttribute;
     use hyperlane_core::HyperlaneMessage;
 
     use crate::{rpc::ParsedEvent, utils::event_attributes_from_str};

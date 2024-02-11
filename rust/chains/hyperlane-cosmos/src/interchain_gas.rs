@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment,
@@ -10,6 +9,7 @@ use once_cell::sync::Lazy;
 use std::ops::RangeInclusive;
 
 use crate::{
+    payloads::general::EventAttribute,
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
     signers::Signer,
     utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64},
@@ -267,7 +267,6 @@ impl TryInto<InterchainGasPayment> for IncompleteInterchainGasPayment {
 
 #[cfg(test)]
 mod tests {
-    use cosmrs::tendermint::abci::EventAttribute;
     use hyperlane_core::{InterchainGasPayment, H256, U256};
     use std::str::FromStr;
 

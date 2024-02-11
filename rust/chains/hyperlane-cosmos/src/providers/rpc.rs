@@ -1,22 +1,16 @@
-use std::ops::RangeInclusive;
-
 use async_trait::async_trait;
 use cosmrs::rpc::client::Client;
-use cosmrs::rpc::endpoint::{tx, tx_search::Response as TxSearchResponse};
-use cosmrs::rpc::query::Query;
-use cosmrs::rpc::Order;
-use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, U256};
 use sha256::digest;
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
-use tracing::{debug, instrument, trace};
+use tendermint_rpc::endpoint::block::Response as BlockResponse;
+use tendermint_rpc::endpoint::block_results::Response as BlockResultsResponse;
+use tracing::{debug, trace};
 
 use crate::address::CosmosAddress;
-use crate::payloads::general::Events;
+use crate::payloads::general::{EventAttribute, Events};
 use crate::{ConnectionConf, CosmosProvider, HyperlaneCosmosError};
-
-const PAGINATION_LIMIT: u8 = 100;
 
 #[async_trait]
 /// Trait for wasm indexer. Use rpc provider
@@ -25,22 +19,13 @@ pub trait WasmIndexer: Send + Sync {
     async fn get_finalized_block_number(&self) -> ChainResult<u32>;
 
     /// Get logs for the given range using the given parser.
-    async fn get_range_event_logs<T>(
-        &self,
-        range: RangeInclusive<u32>,
-        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
-    ) -> ChainResult<Vec<(T, LogMeta)>>
-    where
-        T: Send + Sync + PartialEq + 'static;
-
-    /// get event log
     async fn get_event_log<T>(
         &self,
         block_number: u32,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
-        T: Send + Sync + PartialEq;
+        T: Send + Sync + PartialEq + 'static;
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -104,40 +89,65 @@ impl CosmosWasmIndexer {
 }
 
 impl CosmosWasmIndexer {
-    #[instrument(level = "trace", err, skip(self))]
-    async fn tx_search(&self, query: Query, page: u32) -> ChainResult<TxSearchResponse> {
-        Ok(self
-            .provider
-            .rpc()
-            .tx_search(query, false, page, PAGINATION_LIMIT, Order::Ascending)
-            .await
-            .map_err(Into::<HyperlaneCosmosError>::into)?)
-    }
-
     // Iterate through all txs, filter out failed txs, find target events
     // in successful txs, and parse them.
     fn handle_txs<T>(
         &self,
-        txs: Vec<tx::Response>,
+        block: BlockResponse,
+        block_results: BlockResultsResponse,
+        block_number: u32,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
-    ) -> ChainResult<impl Iterator<Item = (T, LogMeta)> + '_>
+    ) -> ChainResult<Vec<(T, LogMeta)>>
     where
         T: PartialEq + 'static,
     {
-        let logs_iter = txs
+        let Some(tx_results) = block_results.txs_results else {
+            return Ok(vec![]);
+        };
+
+        let tx_hashes: Vec<H256> = block
+            .clone()
+            .block
+            .data
             .into_iter()
-            .filter(|tx| {
-                // Filter out failed txs
-                let tx_failed = tx.tx_result.code.is_err();
-                if tx_failed {
-                    trace!(tx_hash=?tx.hash, "Indexed tx has failed, skipping");
-                }
-                !tx_failed
+            .map(|tx| {
+                H256::from_slice(
+                    Hash::from_bytes(
+                        Algorithm::Sha256,
+                        hex::decode(digest(tx.as_slice())).unwrap().as_slice(),
+                    )
+                    .unwrap()
+                    .as_bytes(),
+                )
             })
-            .flat_map(move |tx| {
-                // Find target events in successful txs
-                self.handle_tx(tx, parser)
-            });
+            .collect();
+
+        let logs_iter = tx_results
+            .into_iter()
+            .enumerate()
+            .filter_map(move |(idx, tx)| {
+                let tx_hash = tx_hashes[idx];
+                if tx.code.is_err() {
+                    debug!(?tx_hash, "tx has failed. skipping");
+                    return None;
+                }
+                let Ok(logs) = serde_json::from_str::<Vec<Events>>(&tx.log) else {
+                    return None;
+                };
+                let Some(tx_events) = logs.first() else {
+                    return None;
+                };
+                Some(self.handle_tx(
+                    block.clone(),
+                    tx_events.clone(),
+                    tx_hash,
+                    block_number,
+                    idx,
+                    parser,
+                ))
+            })
+            .flatten()
+            .collect();
 
         Ok(logs_iter)
     }
@@ -146,22 +156,26 @@ impl CosmosWasmIndexer {
     // made by the contract we are indexing.
     fn handle_tx<T>(
         &self,
-        tx: tx::Response,
+        block: BlockResponse,
+        tx_events: Events,
+        tx_hash: H256,
+        block_number: u32,
+        transaction_index: usize,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> impl Iterator<Item = (T, LogMeta)> + '_
     where
         T: PartialEq + 'static,
     {
-        tx.tx_result.events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
-            if event.kind.as_str() != self.target_event_kind {
+        tx_events.events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
+            if event.typ.as_str() != self.target_event_kind || !event.typ.as_str().starts_with(Self::WASM_TYPE) {
                 return None;
             }
 
-            parser(&event.attributes)
+            parser(&event.attributes.clone())
                 .map_err(|err| {
                     // This can happen if we attempt to parse an event that just happens
                     // to have the same name but a different structure.
-                    tracing::trace!(?err, tx_hash=?tx.hash, log_idx, ?event, "Failed to parse event attributes");
+                    tracing::trace!(?err, tx_hash=?tx_hash, log_idx, ?event, "Failed to parse event attributes");
                 })
                 .ok()
                 .and_then(|parsed_event| {
@@ -170,18 +184,16 @@ impl CosmosWasmIndexer {
                     // Otherwise, we might index events from other contracts that happen
                     // to have the same target event name.
                     if parsed_event.contract_address != self.contract_address.address() {
-                        trace!(tx_hash=?tx.hash, log_idx, ?event, "Event contract address does not match indexer contract address");
+                        trace!(tx_hash=?tx_hash, log_idx, ?event, "Event contract address does not match indexer contract address");
                         return None;
                     }
 
                     Some((parsed_event.event, LogMeta {
                         address: self.contract_address.digest(),
-                        block_number: tx.height.value(),
-                        // FIXME: block_hash is not available in tx_search.
-                        // This isn't strictly required atm.
-                        block_hash: H256::zero(),
-                        transaction_id: H256::from_slice(tx.hash.as_bytes()).into(),
-                        transaction_index: tx.index.into(),
+                        block_number: block_number as u64,
+                        block_hash: H256::from_slice(block.block_id.hash.as_bytes()),
+                        transaction_id: H256::from_slice(tx_hash.as_bytes()).into(),
+                        transaction_index: transaction_index as u64,
                         log_index: U256::from(log_idx),
                     }))
                 })
@@ -207,53 +219,13 @@ impl WasmIndexer for CosmosWasmIndexer {
         Ok(latest_height.saturating_sub(self.reorg_period))
     }
 
-    #[instrument(err, skip(self, parser))]
-    async fn get_range_event_logs<T>(
-        &self,
-        range: RangeInclusive<u32>,
-        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
-    ) -> ChainResult<Vec<(T, LogMeta)>>
-    where
-        T: PartialEq + Send + Sync + 'static,
-    {
-        // Page starts from 1
-        let query = Query::default()
-            .and_gte("tx.height", *range.start() as u64)
-            .and_lte("tx.height", *range.end() as u64)
-            .and_eq(
-                format!("{}._contract_address", self.target_event_kind),
-                self.contract_address.address(),
-            );
-
-        let tx_search_result = self.tx_search(query.clone(), 1).await?;
-
-        // Using the first tx_search_result, we can calculate the total number of pages.
-        let total_count = tx_search_result.total_count;
-        let last_page = div_ceil(total_count, PAGINATION_LIMIT.into());
-
-        let mut logs = self
-            .handle_txs(tx_search_result.txs, parser)?
-            .collect::<Vec<_>>();
-
-        // If there are any more pages, fetch them and append to the result.
-        for page in 2..=last_page {
-            trace!(page, "Performing tx search");
-
-            let tx_search_result = self.tx_search(query.clone(), page).await?;
-
-            logs.extend(self.handle_txs(tx_search_result.txs, parser)?);
-        }
-
-        Ok(logs)
-    }
-
     async fn get_event_log<T>(
         &self,
         block_number: u32,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
-        T: Send + Sync + PartialEq,
+        T: Send + Sync + PartialEq + 'static,
     {
         let client = self.provider.rpc().clone();
 
@@ -261,83 +233,11 @@ impl WasmIndexer for CosmosWasmIndexer {
             .block(block_number)
             .await
             .map_err(ChainCommunicationError::from_other)?;
-        let block_result = client
+        let block_results = client
             .block_results(block_number)
             .await
             .map_err(ChainCommunicationError::from_other)?;
 
-        let tx_hash: Vec<H256> = block
-            .block
-            .data
-            .into_iter()
-            .map(|tx| {
-                H256::from_slice(
-                    Hash::from_bytes(
-                        Algorithm::Sha256,
-                        hex::decode(digest(tx.as_slice())).unwrap().as_slice(),
-                    )
-                    .unwrap()
-                    .as_bytes(),
-                )
-            })
-            .collect();
-
-        let mut result: Vec<(T, LogMeta)> = vec![];
-        let tx_results = block_result.txs_results;
-
-        if tx_results.is_none() {
-            return Ok(result);
-        }
-
-        for (idx, tx) in tx_results.unwrap().iter().enumerate() {
-            let tx_hash = tx_hash[idx];
-            if tx.code.is_err() {
-                debug!(?tx_hash, "tx has failed. skipping");
-                continue;
-            }
-
-            let mut available = false;
-
-            let mut parse_result: Vec<(T, LogMeta)> = vec![];
-
-            let logs = serde_json::from_str::<Vec<Events>>(&tx.log)?;
-            let logs = logs.first().unwrap();
-
-            for (log_idx, event) in logs.events.clone().into_iter().enumerate() {
-                if event.typ.as_str().starts_with(Self::WASM_TYPE)
-                    && event.attributes[0].value == self.contract_address.address()
-                {
-                    available = true;
-                } else if event.typ.as_str() != self.target_event_kind {
-                    continue;
-                }
-
-                let attributes: Vec<EventAttribute> =
-                    event.attributes.into_iter().map(Into::into).collect();
-                if let Ok(event) = parser(&attributes) {
-                    let meta = LogMeta {
-                        address: self.contract_address.digest(),
-                        block_number: block_number as u64,
-                        block_hash: H256::from_slice(block.block_id.hash.as_bytes()),
-                        transaction_id: H256::from_slice(tx_hash.as_bytes()).into(),
-                        transaction_index: idx as u64,
-                        log_index: U256::from(log_idx),
-                    };
-
-                    parse_result.push((event.inner(), meta));
-                }
-            }
-
-            if available {
-                result.extend(parse_result);
-            }
-        }
-
-        Ok(result)
+        self.handle_txs(block, block_results, block_number, parser)
     }
-}
-
-// TODO: just use div_ceil when upgrading from 1.72.1 to 1.73.0 or above
-fn div_ceil(numerator: u32, denominator: u32) -> u32 {
-    (numerator as f32 / denominator as f32).ceil() as u32
 }

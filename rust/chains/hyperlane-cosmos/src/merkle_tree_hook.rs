@@ -2,7 +2,6 @@ use std::{fmt::Debug, num::NonZeroU64, ops::RangeInclusive, str::FromStr};
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
@@ -14,7 +13,7 @@ use tracing::{instrument, warn};
 use crate::{
     grpc::WasmProvider,
     payloads::{
-        general::{self},
+        general::{self, EventAttribute},
         merkle_tree_hook,
     },
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
@@ -345,7 +344,6 @@ impl TryInto<MerkleTreeInsertion> for IncompleteMerkleTreeInsertion {
 
 #[cfg(test)]
 mod tests {
-    use cosmrs::tendermint::abci::EventAttribute;
     use hyperlane_core::H256;
     use std::str::FromStr;
 

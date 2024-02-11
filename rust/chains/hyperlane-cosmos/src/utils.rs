@@ -6,6 +6,9 @@ use once_cell::sync::Lazy;
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 
+#[cfg(test)]
+use crate::payloads::general::EventAttribute;
+
 /// The event attribute key for the contract address.
 pub(crate) const CONTRACT_ADDRESS_ATTRIBUTE_KEY: &str = "_contract_address";
 /// Base64 encoded version of the contract address attribute key, i.e.
@@ -32,15 +35,7 @@ pub(crate) async fn get_block_height_for_lag(
 }
 
 #[cfg(test)]
-/// Helper function to create a Vec<EventAttribute> from a JSON string -
-/// crate::payloads::general::EventAttribute has a Deserialize impl while
-/// cosmrs::tendermint::abci::EventAttribute does not.
-pub(crate) fn event_attributes_from_str(
-    attrs_str: &str,
-) -> Vec<cosmrs::tendermint::abci::EventAttribute> {
-    serde_json::from_str::<Vec<crate::payloads::general::EventAttribute>>(attrs_str)
-        .unwrap()
-        .into_iter()
-        .map(|attr| attr.into())
-        .collect()
+/// Helper function to create a Vec<EventAttribute> from a JSON string
+pub(crate) fn event_attributes_from_str(attrs_str: &str) -> Vec<EventAttribute> {
+    serde_json::from_str::<Vec<EventAttribute>>(attrs_str).unwrap()
 }
