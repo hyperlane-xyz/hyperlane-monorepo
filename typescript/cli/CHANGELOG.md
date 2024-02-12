@@ -1,5 +1,23 @@
 # @hyperlane-xyz/cli
 
+## 3.7.0
+
+### Minor Changes
+
+- 84e508039: Improve send transfer ergonomics by omitting token type flag
+- 7ff826a8f: Merged agent addresses will now include igp as the zero address if not configured as the hook
+
+### Patch Changes
+
+- ab17af5f7: Updating HyperlaneIgpDeployer to configure storage gas oracles as part of deployment
+- Updated dependencies [6f464eaed]
+- Updated dependencies [87151c62b]
+- Updated dependencies [ab17af5f7]
+- Updated dependencies [7b40232af]
+- Updated dependencies [54aeb6420]
+  - @hyperlane-xyz/sdk@3.7.0
+  - @hyperlane-xyz/utils@3.7.0
+
 ## 3.6.2
 
 ### Patch Changes
