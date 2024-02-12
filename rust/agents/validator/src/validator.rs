@@ -97,7 +97,7 @@ impl BaseAgent for Validator {
             .into();
 
         // TODO: make this configurable
-        let server = Arc::new(Server::new(8080, metrics.clone()));
+        let server = settings.server(metrics)?;
 
         Ok(Self {
             origin_chain: settings.origin_chain,

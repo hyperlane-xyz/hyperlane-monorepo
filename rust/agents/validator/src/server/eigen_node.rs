@@ -41,8 +41,9 @@ pub struct EigenNodeAPI {
 impl EigenNodeAPI {
     /// Function to create the eigen_node_router
     pub fn router(&self) -> Router {
-        // let health_api_clone = self.clone();
         let core_metrics_clone = self.core_metrics.clone();
+
+        tracing::info!("Serving the EigenNodeAPI routes...");
 
         Router::new()
             .route(
