@@ -452,8 +452,8 @@ export const injective: ChainMetadata = {
   blockExplorers: [],
   blocks: {
     confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
+    estimateBlockTime: 1,
+    reorgPeriod: 10,
   },
   chainId: 'injective-1',
   displayName: 'Injective',
