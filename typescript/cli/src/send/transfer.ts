@@ -90,10 +90,16 @@ export async function sendTestTransfer({
     );
   } else if (tokenType === TokenType.native) {
     await assertNativeBalances(multiProvider, signer, [origin], wei.toString());
-  } else {
-    throw new Error(
-      'Only collateral and native token types are currently supported in the CLI. For synthetic transfers, try the Warp UI.',
+  } else if (tokenType === TokenType.synthetic) {
+    await assertTokenBalance(
+      multiProvider,
+      signer,
+      origin,
+      routerAddress, // token address === router address for synthetics
+      wei.toString(),
     );
+  } else {
+    throw new Error(`${tokenType} not supported in the CLI, try the Warp UI?`);
   }
 
   await runPreflightChecks({
