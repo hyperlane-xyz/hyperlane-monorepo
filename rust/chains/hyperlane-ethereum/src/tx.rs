@@ -9,7 +9,7 @@ use ethers::{
 };
 use ethers_contract::builders::ContractCall;
 use ethers_core::types::BlockNumber;
-use hyperlane_core::{utils::fmt_bytes, ChainCommunicationError, ChainResult, H256, U256};
+use hyperlane_core::{utils::bytes_to_hex, ChainCommunicationError, ChainResult, H256, U256};
 use tracing::{error, info};
 
 use crate::Middleware;
@@ -26,7 +26,7 @@ where
     let data = tx
         .tx
         .data()
-        .map(|b| fmt_bytes(b))
+        .map(|b| bytes_to_hex(b))
         .unwrap_or_else(|| "None".into());
 
     let to = tx

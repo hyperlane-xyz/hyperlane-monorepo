@@ -57,8 +57,8 @@ pub fn fmt_address_for_domain(domain: u32, addr: H256) -> String {
         .unwrap_or_else(|_| format!("{addr:?}"))
 }
 
-/// Pretty print a byte slice for logging
-pub fn fmt_bytes(bytes: &[u8]) -> String {
+/// Pretty print a byte slice, including a hex prefix
+pub fn bytes_to_hex(bytes: &[u8]) -> String {
     format!("0x{}", hex::encode(bytes))
 }
 
