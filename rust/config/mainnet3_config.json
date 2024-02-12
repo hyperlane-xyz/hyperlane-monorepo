@@ -474,7 +474,6 @@
       "validatorAnnounce": "0xf3aa0d652226e21ae35cd9035c492ae41725edc9036edf0d6a48701b153b90a0",
       "merkleTreeHook": "0xcd30a0001cc1f436c41ef764a712ebabc5a144140e3fd03eafe64a9a24e4e27c",
       "protocol": "cosmos",
-      "finalityBlocks": 1,
       "rpcUrls": [
         {
           "http": "https://rpc-kralum.neutron-1.neutron.org"
@@ -514,7 +513,6 @@
       "validatorAnnounce": "0x1fb225b2fcfbe75e614a1d627de97ff372242eed",
       "merkleTreeHook": "0x568ad3638447f07def384969f4ea39fae3802962",
       "protocol": "cosmos",
-      "finalityBlocks": 1,
       "rpcUrls": [
         {
           "http": "https://rpc-injective.goldenratiostaking.net:443"
@@ -537,7 +535,7 @@
         "chunk": 100000
       },
       "blocks": {
-        "reorgPeriod": 1
+        "reorgPeriod": 10
       }
     },
     "moonbeam": {
