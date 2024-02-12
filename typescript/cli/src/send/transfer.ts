@@ -80,19 +80,24 @@ export async function sendTestTransfer({
   // 2. wrappedToken() call implies collateral
   // 3. if neither, it's native
   let tokenAddress: Address | undefined;
+  let tokenType: TokenType;
   const provider = multiProvider.getProvider(origin);
   try {
-    const tokenRouter = HypERC20__factory.connect(routerAddress, provider);
-    await tokenRouter.decimals();
+    const synthRouter = HypERC20__factory.connect(routerAddress, provider);
+    await synthRouter.decimals();
+    tokenType = TokenType.synthetic;
     tokenAddress = routerAddress;
   } catch (error) {
     try {
-      const tokenRouter = HypERC20Collateral__factory.connect(
+      const collateralRouter = HypERC20Collateral__factory.connect(
         routerAddress,
         provider,
       );
-      tokenAddress = await tokenRouter.wrappedToken();
-    } catch (error) {}
+      tokenAddress = await collateralRouter.wrappedToken();
+      tokenType = TokenType.collateral;
+    } catch (error) {
+      tokenType = TokenType.native;
+    }
   }
 
   if (tokenAddress) {
