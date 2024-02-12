@@ -83,7 +83,7 @@ async function main() {
       ...routerConfig.ethereum,
       type: TokenType.collateral,
       token: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-      hook: '0x9e6B1022bE9BBF5aFd152483DAD9b88911bC8611', // ethereum IGP
+      hook: '0xb87AC8EA4533AE017604E44470F7c1E550AC6F10', // aggregation of IGP and Merkle, arbitrary config not supported for now
     };
     config = {
       inevm,
