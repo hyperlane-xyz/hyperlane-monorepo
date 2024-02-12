@@ -4,6 +4,7 @@ import { BigNumber, ethers } from 'ethers';
 import {
   ERC20__factory,
   HypERC20Collateral__factory,
+  HypERC20__factory,
 } from '@hyperlane-xyz/core';
 import {
   ChainName,
@@ -30,7 +31,6 @@ export async function sendTestTransfer({
   origin,
   destination,
   routerAddress,
-  tokenType,
   wei,
   recipient,
   timeoutSec,
@@ -42,7 +42,6 @@ export async function sendTestTransfer({
   origin?: ChainName;
   destination?: ChainName;
   routerAddress?: Address;
-  tokenType: TokenType;
   wei: string;
   recipient?: string;
   timeoutSec: number;
@@ -75,12 +74,28 @@ export async function sendTestTransfer({
     });
   }
 
-  if (tokenType === TokenType.collateral) {
-    const collateralRouter = HypERC20Collateral__factory.connect(
-      routerAddress,
-      multiProvider.getProvider(origin),
-    );
-    const tokenAddress = await collateralRouter.wrappedToken();
+  // TODO: move to SDK token router app
+  // deduce TokenType
+  // 1. decimals() call implies synthetic
+  // 2. wrappedToken() call implies collateral
+  // 3. if neither, it's native
+  let tokenAddress: Address | undefined;
+  const provider = multiProvider.getProvider(origin);
+  try {
+    const tokenRouter = HypERC20__factory.connect(routerAddress, provider);
+    await tokenRouter.decimals();
+    tokenAddress = routerAddress;
+  } catch (error) {
+    try {
+      const tokenRouter = HypERC20Collateral__factory.connect(
+        routerAddress,
+        provider,
+      );
+      tokenAddress = await tokenRouter.wrappedToken();
+    } catch (error) {}
+  }
+
+  if (tokenAddress) {
     await assertTokenBalance(
       multiProvider,
       signer,
@@ -88,18 +103,8 @@ export async function sendTestTransfer({
       tokenAddress,
       wei.toString(),
     );
-  } else if (tokenType === TokenType.native) {
-    await assertNativeBalances(multiProvider, signer, [origin], wei.toString());
-  } else if (tokenType === TokenType.synthetic) {
-    await assertTokenBalance(
-      multiProvider,
-      signer,
-      origin,
-      routerAddress, // token address === router address for synthetics
-      wei.toString(),
-    );
   } else {
-    throw new Error(`${tokenType} not supported in the CLI, try the Warp UI?`);
+    await assertNativeBalances(multiProvider, signer, [origin], wei.toString());
   }
 
   await runPreflightChecks({
