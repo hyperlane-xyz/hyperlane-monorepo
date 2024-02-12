@@ -484,6 +484,12 @@ async function writeAgentConfig(
     artifacts,
   ) as ChainMap<HyperlaneDeploymentArtifacts>;
 
+  for (const chain of chains) {
+    if (!mergedAddressesMap[chain].interchainGasPaymaster) {
+      mergedAddressesMap[chain].interchainGasPaymaster =
+        ethers.constants.AddressZero;
+    }
+  }
   const agentConfig = buildAgentConfig(
     chains, // Use only the chains that were deployed to
     multiProvider,
