@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use derive_more::Deref;
 use derive_new::new;
-use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode, utils::hex::ToHex};
+use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
 use eyre::Context;
 use hyperlane_core::{utils::bytes_to_hex, HyperlaneMessage, RawHyperlaneMessage, H256};
 use hyperlane_ethereum::OffchainLookup;
