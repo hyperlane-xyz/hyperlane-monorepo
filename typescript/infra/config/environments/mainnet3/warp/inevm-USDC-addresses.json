@@ -1,8 +1,8 @@
 {
   "inevm": {
-    "router": "0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147"
+    "HypERC20": "0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147"
   },
   "ethereum": {
-    "router": "0xED56728fb977b0bBdacf65bCdD5e17Bb7e84504f"
+    "HypERC20Collateral": "0xED56728fb977b0bBdacf65bCdD5e17Bb7e84504f"
   }
 }
