@@ -16,7 +16,7 @@ bech32 = { workspace = true }
 cosmrs = { workspace = true, features = ["cosmwasm", "tokio", "grpc", "rpc"] }
 cosmwasm-std = { workspace = true }
 derive-new = { workspace = true }
-futures.workspace = true
+futures = { workspace = true }
 hex = { workspace = true }
 http = { workspace = true }
 hyperlane-cosmwasm-interface.workspace = true

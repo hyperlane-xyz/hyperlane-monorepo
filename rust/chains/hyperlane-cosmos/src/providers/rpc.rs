@@ -6,7 +6,7 @@ use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tendermint_rpc::endpoint::block::Response as BlockResponse;
 use tendermint_rpc::endpoint::block_results::Response as BlockResultsResponse;
-use tracing::{debug, trace};
+use tracing::{debug, instrument, trace};
 
 use crate::address::CosmosAddress;
 use crate::payloads::general::{EventAttribute, Events};
@@ -132,17 +132,16 @@ impl CosmosWasmIndexer {
                 let Ok(logs) = serde_json::from_str::<Vec<Events>>(&tx.log) else {
                     return None;
                 };
-                let Some(tx_events) = logs.first() else {
-                    return None;
-                };
-                Some(self.handle_tx(
-                    block.clone(),
-                    tx_events.clone(),
-                    tx_hash,
-                    block_number,
-                    idx,
-                    parser,
-                ))
+                logs.first().map(|tx_events| {
+                    self.handle_tx(
+                        block.clone(),
+                        tx_events.clone(),
+                        tx_hash,
+                        block_number,
+                        idx,
+                        parser,
+                    )
+                })
             })
             .flatten()
             .collect();
@@ -217,6 +216,7 @@ impl WasmIndexer for CosmosWasmIndexer {
         Ok(latest_height.saturating_sub(self.reorg_period))
     }
 
+    #[instrument(err, skip(self, parser))]
     async fn get_event_log<T>(
         &self,
         block_number: u32,
