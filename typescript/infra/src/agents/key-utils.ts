@@ -18,7 +18,12 @@ import {
   RootAgentConfig,
 } from '../config';
 import { Role } from '../roles';
-import { execCmd, isEthereumProtocolChain } from '../utils/utils';
+import {
+  execCmd,
+  isEthereumProtocolChain,
+  readJSON,
+  writeJSON,
+} from '../utils/utils';
 
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
@@ -438,18 +443,19 @@ export async function persistValidatorAddressesToLocalArtifacts(
       validators: fetchedValidatorAddresses[chain].validators, // fresh from aws
     };
   }
-  // Resolve the relative path
-  const filePath = path.resolve(__dirname, '../../config/aw-multisig.json');
   // Write the updated object back to the file
-  fs.writeFileSync(filePath, JSON.stringify(awMultisigAddresses, null, 2));
+  const dir = path.join(__dirname, '../../config');
+  writeJSON(
+    dir,
+    'aw-multisig.json',
+    JSON.stringify(awMultisigAddresses, null, 2),
+  );
 }
 
 export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {
   try {
-    // Resolve the relative path
-    const filePath = path.resolve(__dirname, `../../config/${role}.json`);
-    const data = fs.readFileSync(filePath, 'utf8');
-    const addresses: LocalRoleAddresses = JSON.parse(data);
+    const dir = path.join(__dirname, '../../config');
+    const addresses: LocalRoleAddresses = readJSON(dir, `${role}.json`);
 
     debugLog(`Fetching addresses from GCP for ${role} role ...`);
     return addresses;

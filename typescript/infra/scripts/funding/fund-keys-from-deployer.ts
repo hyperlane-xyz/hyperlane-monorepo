@@ -435,6 +435,8 @@ class ContextFunder {
       [Role.Relayer]: '',
       [Role.Kathy]: '',
     };
+    const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
+    const chains = getEnvironmentConfig(environment).chainMetadataConfigs;
     for (const role of rolesToFund) {
       assertFundableRole(role); // only the relayer and kathy are fundable keys
       const roleAddress = fetchLocalKeyAddresses(role)[environment][context];
@@ -444,18 +446,18 @@ class ContextFunder {
         );
       }
       fundableRoleKeys[role] = roleAddress;
-    }
-    const chains = getEnvironmentConfig(environment).chainMetadataConfigs;
-    const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
-    for (const chain of Object.keys(chains)) {
-      roleKeysPerChain[chain as ChainName] = {
-        [Role.Relayer]: [],
-        [Role.Kathy]: [],
-      };
-      for (const role of rolesToFund) {
+
+      for (const chain of Object.keys(chains)) {
+        if (!roleKeysPerChain[chain as ChainName]) {
+          roleKeysPerChain[chain as ChainName] = {
+            [Role.Relayer]: [],
+            [Role.Kathy]: [],
+          };
+        }
         roleKeysPerChain[chain][role] = [
           new LocalAgentKey(
             environment,
+            context,
             role,
             fundableRoleKeys[role as FundableRole],
             chain,
@@ -480,9 +482,6 @@ class ContextFunder {
     const promises = chainKeyEntries.map(async ([chain, keys]) => {
       let failureOccurred = false;
       if (keys.length > 0) {
-        for (const key of keys) {
-          console.log('chain', chain, 'key', key.role, 'address', key.address);
-        }
         if (!this.skipIgpClaim) {
           failureOccurred ||= await gracefullyHandleError(
             () => this.attemptToClaimFromIgp(chain),
@@ -867,7 +866,7 @@ async function getKeyInfo(
 ) {
   return {
     ...(await getAddressInfo(key.address, chain, provider)),
-    context: Contexts.Hyperlane, // TODO: fix
+    context: (key as LocalAgentKey).context,
     originChain: key.chainName,
     role: key.role,
   };
