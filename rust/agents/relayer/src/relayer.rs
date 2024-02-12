@@ -7,6 +7,8 @@ use std::{
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
+use futures;
+use futures_util::future::join_all;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
@@ -25,7 +27,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
-use tracing::{info, info_span, instrument::Instrumented, Instrument};
+use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
 
 use crate::merkle_tree::processor::{MerkleTreeProcessor, MerkleTreeProcessorMetrics};
 use crate::processor::{Processor, ProcessorExt};
@@ -268,7 +270,7 @@ impl BaseAgent for Relayer {
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(self) -> Instrumented<JoinHandle<Result<()>>> {
+    async fn run(self) {
         let mut tasks = vec![];
 
         // send channels by destination chain
@@ -304,15 +306,12 @@ impl BaseAgent for Relayer {
             tasks.push(self.run_merkle_tree_processor(origin));
         }
 
-        run_all(tasks)
+        join_all(tasks).await;
     }
 }
 
 impl Relayer {
-    async fn run_message_sync(
-        &self,
-        origin: &HyperlaneDomain,
-    ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+    async fn run_message_sync(&self, origin: &HyperlaneDomain) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
         let cursor = contract_sync
@@ -330,7 +329,7 @@ impl Relayer {
     async fn run_interchain_gas_payment_sync(
         &self,
         origin: &HyperlaneDomain,
-    ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+    ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self
             .interchain_gas_payment_syncs
@@ -345,7 +344,7 @@ impl Relayer {
     async fn run_merkle_tree_hook_syncs(
         &self,
         origin: &HyperlaneDomain,
-    ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+    ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
         let cursor = contract_sync
@@ -359,7 +358,7 @@ impl Relayer {
         &self,
         origin: &HyperlaneDomain,
         send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
-    ) -> Instrumented<JoinHandle<Result<()>>> {
+    ) -> Instrumented<JoinHandle<()>> {
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
             origin,
@@ -391,18 +390,20 @@ impl Relayer {
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
         let processor = Processor::new(Box::new(message_processor));
+        let origin = origin.clone();
         tokio::spawn(async move {
-            let res = tokio::try_join!(processor.spawn())?;
-            info!(?res, "try_join finished for message processor");
-            Ok(())
+            loop {
+                // the submitter runs forever, so we only need to handle error cases
+                if let Err(err) = tokio::try_join!(processor.spawn()) {
+                    warn!(?err, ?origin, "message processor failed, restarting it");
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                }
+            }
         })
         .instrument(span)
     }
 
-    fn run_merkle_tree_processor(
-        &self,
-        origin: &HyperlaneDomain,
-    ) -> Instrumented<JoinHandle<Result<()>>> {
+    fn run_merkle_tree_processor(&self, origin: &HyperlaneDomain) -> Instrumented<JoinHandle<()>> {
         let metrics = MerkleTreeProcessorMetrics::new();
         let merkle_tree_processor = MerkleTreeProcessor::new(
             self.dbs.get(origin).unwrap().clone(),
@@ -412,10 +413,15 @@ impl Relayer {
 
         let span = info_span!("MerkleTreeProcessor", origin=%merkle_tree_processor.domain());
         let processor = Processor::new(Box::new(merkle_tree_processor));
+        let origin = origin.clone();
         tokio::spawn(async move {
-            let res = tokio::try_join!(processor.spawn())?;
-            info!(?res, "try_join finished for merkle tree processor");
-            Ok(())
+            loop {
+                // the submitter runs forever, so we only need to handle error cases
+                if let Err(err) = tokio::try_join!(processor.spawn()) {
+                    warn!(?err, ?origin, "destination submitter failed, restarting it");
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                }
+            }
         })
         .instrument(span)
     }
@@ -426,7 +432,7 @@ impl Relayer {
         &self,
         destination: &HyperlaneDomain,
         receiver: UnboundedReceiver<Box<DynPendingOperation>>,
-    ) -> Instrumented<JoinHandle<Result<()>>> {
+    ) -> Instrumented<JoinHandle<()>> {
         let serial_submitter = SerialSubmitter::new(
             destination.clone(),
             receiver,
@@ -434,11 +440,19 @@ impl Relayer {
         );
         let span = info_span!("SerialSubmitter", destination=%destination);
         let submit_fut = serial_submitter.spawn();
-
+        let destination = destination.clone();
         tokio::spawn(async move {
-            let res = tokio::try_join!(submit_fut)?;
-            info!(?res, "try_join finished for submitter");
-            Ok(())
+            loop {
+                // the submitter runs forever, so we only need to handle error cases
+                if let Err(err) = tokio::try_join!(submit_fut) {
+                    warn!(
+                        ?err,
+                        ?destination,
+                        "destination submitter failed, restarting it"
+                    );
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                }
+            }
         })
         .instrument(span)
     }

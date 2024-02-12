@@ -52,7 +52,7 @@ pub trait BaseAgent: Send + Sync + Debug {
 
     /// Start running this agent.
     #[allow(clippy::async_yields_async)]
-    async fn run(self) -> Instrumented<JoinHandle<Result<()>>>;
+    async fn run(self);
 }
 
 /// Call this from `main` to fully initialize and run the agent for its entire
@@ -83,7 +83,9 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let agent = A::from_settings(settings, metrics.clone(), agent_metrics, chain_metrics).await?;
     metrics.run_http_server();
 
-    agent.run().await.await?
+    // This await will never end unless a panic occurs
+    agent.run().await;
+    Ok(())
 }
 
 /// Utility to run multiple tasks and shutdown if any one task ends.

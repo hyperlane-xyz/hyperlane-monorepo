@@ -76,6 +76,24 @@ pub fn fmt_domain(domain: u32) -> String {
     }
 }
 
+// #[cfg(feature = "fallback-provider")]
+// pub async fn run_permanent_task<T>(
+//     fut: tracing::instrument::Instrumented<tokio::task::JoinHandle<Result<T, eyre::Report>>>,
+//     destination: &crate::HyperlaneDomain,
+// ) where T: Clone {
+//     loop {
+//         // the submitter runs forever, so we only need to handle error cases
+//         if let Err(err) = tokio::try_join!(fut.clone()) {
+//             tracing::warn!(
+//                 ?err,
+//                 ?destination,
+//                 "destination submitter failed, restarting it"
+//             );
+//             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+//         }
+//     }
+// }
+
 /// Formats the duration in the most appropriate time units.
 #[cfg(feature = "float")]
 pub fn fmt_duration(dur: Duration) -> String {
