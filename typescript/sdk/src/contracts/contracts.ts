@@ -189,13 +189,26 @@ export async function filterOwnableContracts(
 }
 
 export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
-  addressesMap: HyperlaneAddressesMap<any>,
+  unfilteredAddressesMap: HyperlaneAddressesMap<any>,
   factories: F,
   multiProvider: MultiProvider,
+  supportedChainNames?: string[],
 ): {
   contractsMap: HyperlaneContractsMap<F>;
   multiProvider: MultiProvider;
 } {
+  let addressesMap;
+  if (supportedChainNames) {
+    addressesMap = objFilter(
+      unfilteredAddressesMap,
+      (chain, _): _ is HyperlaneAddresses<any> => {
+        return supportedChainNames.includes(chain);
+      },
+    );
+  } else {
+    addressesMap = unfilteredAddressesMap;
+  }
+
   // Hack to accommodate non-Ethereum artifacts, while still retaining their
   // presence in the addressesMap so that they are included in the list of chains
   // on the MultiProvider (needed for getting metadata). A non-Ethereum-style address

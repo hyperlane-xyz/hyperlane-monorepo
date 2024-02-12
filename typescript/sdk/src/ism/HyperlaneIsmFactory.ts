@@ -94,6 +94,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       addressesMap,
       proxyFactoryFactories,
       multiProvider,
+      supportedChainNames,
     );
     return new HyperlaneIsmFactory(
       helper.contractsMap,
