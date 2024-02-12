@@ -101,6 +101,7 @@ export async function sendTestTransfer({
   }
 
   if (tokenAddress) {
+    // checks token balances for collateral and synthetic
     await assertTokenBalance(
       multiProvider,
       signer,
