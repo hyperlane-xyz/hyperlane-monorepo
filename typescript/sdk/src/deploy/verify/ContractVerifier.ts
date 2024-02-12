@@ -38,7 +38,7 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     verificationInputs: ChainMap<VerificationInput>,
     protected readonly multiProvider: MultiProvider,
     protected readonly apiKeys: ChainMap<string>,
-    protected readonly source: string, // flattened source code from eg `hardhat flatten`
+    protected readonly source: string, // source e.g. either standard input json or flattened solidity
     protected readonly compilerOptions: CompilerOptions,
     supportedChainNames?: string[],
   ) {
