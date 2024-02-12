@@ -289,9 +289,22 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     factory: F,
     params: Parameters<F['deploy']>,
   ): Promise<Awaited<ReturnType<F['deploy']>>> {
+    // setup contract factory
     const overrides = this.getTransactionOverrides(chainNameOrId);
     const signer = this.getSigner(chainNameOrId);
-    const contract = await factory.connect(signer).deploy(...params, overrides);
+    const contractFactory = await factory.connect(signer);
+
+    // estimate gas
+    const deployTx = contractFactory.getDeployTransaction(...params, overrides);
+    const gasEstimated = await signer.estimateGas(deployTx);
+
+    // deploy with 10% buffer on gas limit
+    const contract = await contractFactory.deploy(...params, {
+      ...overrides,
+      gasLimit: gasEstimated.add(gasEstimated.div(10)), // 10% buffer
+    });
+
+    // wait for deploy tx to be confirmed
     await this.handleTx(chainNameOrId, contract.deployTransaction);
     return contract as Awaited<ReturnType<F['deploy']>>;
   }

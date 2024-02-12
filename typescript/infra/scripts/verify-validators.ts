@@ -4,7 +4,8 @@ import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 import { S3Validator } from '../src/agents/aws/validator';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 
-import { getArgs, getEnvironmentConfig, getValidatorsByChain } from './utils';
+import { getArgs, getValidatorsByChain } from './agent-utils';
+import { getEnvironmentConfig } from './core-utils';
 
 async function main() {
   const { environment } = await getArgs().argv;

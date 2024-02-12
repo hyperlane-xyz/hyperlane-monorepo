@@ -3,10 +3,11 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use derive_more::AsRef;
 use hyperlane_base::{
-    metrics::AgentMetrics, run_all, settings::IndexSettings, BaseAgent, ContractSyncMetrics,
-    CoreMetrics, HyperlaneAgentCore,
+    metrics::AgentMetrics, run_all, settings::IndexSettings, BaseAgent, ChainMetrics,
+    ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
 };
-use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
+use num_traits::cast::FromPrimitive;
 use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 
@@ -19,8 +20,11 @@ pub struct Scraper {
     #[as_ref]
     core: HyperlaneAgentCore,
     contract_sync_metrics: Arc<ContractSyncMetrics>,
-    metrics: Arc<CoreMetrics>,
     scrapers: HashMap<u32, ChainScraper>,
+    settings: ScraperSettings,
+    core_metrics: Arc<CoreMetrics>,
+    agent_metrics: AgentMetrics,
+    chain_metrics: ChainMetrics,
 }
 
 #[derive(Debug)]
@@ -38,7 +42,8 @@ impl BaseAgent for Scraper {
     async fn from_settings(
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
-        _agent_metrics: AgentMetrics,
+        agent_metrics: AgentMetrics,
+        chain_metrics: ChainMetrics,
     ) -> eyre::Result<Self>
     where
         Self: Sized,
@@ -76,9 +81,12 @@ impl BaseAgent for Scraper {
 
         Ok(Self {
             core,
-            metrics,
             contract_sync_metrics,
             scrapers,
+            settings,
+            core_metrics: metrics,
+            agent_metrics,
+            chain_metrics,
         })
     }
 
@@ -87,6 +95,19 @@ impl BaseAgent for Scraper {
         let mut tasks = Vec::with_capacity(self.scrapers.len());
         for domain in self.scrapers.keys() {
             tasks.push(self.scrape(*domain).await);
+
+            let domain = KnownHyperlaneDomain::from_u32(*domain).unwrap();
+            let chain_conf = self.settings.chain_setup(&domain.into()).unwrap();
+            let metrics_updater = MetricsUpdater::new(
+                chain_conf,
+                self.core_metrics.clone(),
+                self.agent_metrics.clone(),
+                self.chain_metrics.clone(),
+                Self::AGENT_NAME.to_string(),
+            )
+            .await
+            .unwrap();
+            tasks.push(metrics_updater.spawn());
         }
         run_all(tasks)
     }
@@ -105,7 +126,7 @@ impl Scraper {
         tasks.push(
             self.build_message_indexer(
                 domain.clone(),
-                self.metrics.clone(),
+                self.core_metrics.clone(),
                 self.contract_sync_metrics.clone(),
                 db.clone(),
                 index_settings.clone(),
@@ -115,7 +136,7 @@ impl Scraper {
         tasks.push(
             self.build_delivery_indexer(
                 domain.clone(),
-                self.metrics.clone(),
+                self.core_metrics.clone(),
                 self.contract_sync_metrics.clone(),
                 db.clone(),
                 index_settings.clone(),
@@ -125,7 +146,7 @@ impl Scraper {
         tasks.push(
             self.build_interchain_gas_payment_indexer(
                 domain,
-                self.metrics.clone(),
+                self.core_metrics.clone(),
                 self.contract_sync_metrics.clone(),
                 db,
                 index_settings.clone(),

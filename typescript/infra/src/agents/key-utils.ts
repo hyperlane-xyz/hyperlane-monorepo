@@ -1,23 +1,39 @@
 import debug from 'debug';
+import fs from 'fs';
+import path from 'path';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
+import localAWMultisigAddresses from '../../config/aw-multisig.json';
+// AW - Abacus Works
 import { Contexts } from '../../config/contexts';
-import { getHelloWorldConfig } from '../../scripts/helloworld/utils';
-import { getEnvironmentConfig } from '../../scripts/utils';
+import { helloworld } from '../../config/environments/helloworld';
+import localKathyAddresses from '../../config/kathy.json';
+import localRelayerAddresses from '../../config/relayer.json';
+import { getJustHelloWorldConfig } from '../../scripts/helloworld/utils';
 import {
   AgentContextConfig,
   DeployEnvironment,
   RootAgentConfig,
 } from '../config';
 import { Role } from '../roles';
-import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd, isEthereumProtocolChain } from '../utils/utils';
 
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { CloudAgentKey } from './keys';
+
+export type LocalRoleAddresses = Record<
+  DeployEnvironment,
+  Record<Contexts, Address>
+>;
+export const relayerAddresses: LocalRoleAddresses =
+  localRelayerAddresses as LocalRoleAddresses;
+export const kathyAddresses: LocalRoleAddresses =
+  localKathyAddresses as LocalRoleAddresses;
+export const awMultisigAddresses: ChainMap<{ validators: Address[] }> =
+  localAWMultisigAddresses as ChainMap<{ validators: Address[] }>;
 
 const debugLog = debug('infra:agents:key:utils');
 
@@ -69,9 +85,8 @@ function getRoleKeyMapPerChain(
     const validators = agentConfig.validators;
     for (const chainName of agentConfig.contextChainNames.validator) {
       let chainValidatorKeys = {};
-
       const validatorCount =
-        validators?.chains[chainName].validators.length ?? 0;
+        validators?.chains[chainName]?.validators.length ?? 1;
       for (let index = 0; index < validatorCount; index++) {
         const { validator, chainSigner } = getValidatorKeysForChain(
           agentConfig,
@@ -104,9 +119,8 @@ function getRoleKeyMapPerChain(
   };
 
   const setKathyKeys = () => {
-    const envConfig = getEnvironmentConfig(agentConfig.runEnv);
-    const helloWorldConfig = getHelloWorldConfig(
-      envConfig,
+    const helloWorldConfig = getJustHelloWorldConfig(
+      helloworld[agentConfig.runEnv as 'mainnet3' | 'testnet4'], // test doesn't have hello world configs
       agentConfig.context,
     );
     // Kathy is only needed on chains where the hello world contracts are deployed.
@@ -325,11 +339,8 @@ export async function createAgentKeysIfNotExists(
     }),
   );
 
-  await persistAddresses(
-    agentConfig.runEnv,
-    agentConfig.context,
-    keys.map((key) => key.serializeAsAddress()),
-  );
+  await persistAddressesLocally(agentConfig, keys);
+  return;
 }
 
 export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
@@ -352,52 +363,101 @@ export async function rotateKey(
   debugLog(`Rotating key for ${role} on ${chainName}`);
   const key = getCloudAgentKey(agentConfig, role, chainName);
   await key.update();
-  const keyIdentifier = key.identifier;
-  const addresses = await fetchGCPKeyAddresses(
-    agentConfig.runEnv,
-    agentConfig.context,
-  );
-  const filteredAddresses = addresses.filter((_) => {
-    return _.identifier !== keyIdentifier;
-  });
-
-  filteredAddresses.push(key.serializeAsAddress());
-  await persistAddresses(
-    agentConfig.runEnv,
-    agentConfig.context,
-    filteredAddresses,
-  );
+  await persistAddressesLocally(agentConfig, [key]);
 }
 
-async function persistAddresses(
-  environment: DeployEnvironment,
-  context: Contexts,
-  keys: KeyAsAddress[],
+async function persistAddressesLocally(
+  agentConfig: AgentContextConfig,
+  keys: CloudAgentKey[],
 ) {
   debugLog(
-    `Persisting addresses to GCP for ${context} context in ${environment} environment`,
+    `Persisting addresses to GCP for ${agentConfig.context} context in ${agentConfig.runEnv} environment`,
   );
-  await setGCPSecret(
-    addressesIdentifier(environment, context),
-    JSON.stringify(keys),
-    {
-      environment,
-      context,
-    },
+  // recent keys fetched from aws saved to local artifacts
+  const multisigValidatorKeys: ChainMap<{ validators: Address[] }> = {};
+  let relayer, kathy;
+  for (const key of keys) {
+    if (key.role === Role.Relayer) {
+      if (relayer)
+        throw new Error('More than one Relayer found in gcpCloudAgentKeys');
+      relayer = key.address;
+    }
+    if (key.role === Role.Kathy) {
+      if (kathy)
+        throw new Error('More than one Kathy found in gcpCloudAgentKeys');
+      kathy = key.address;
+    }
+    if (!key.chainName) continue;
+    multisigValidatorKeys[key.chainName] ||= {
+      validators: [],
+    };
+    if (key.chainName)
+      multisigValidatorKeys[key.chainName].validators.push(key.address);
+  }
+  if (!relayer) throw new Error('No Relayer found in awsCloudAgentKeys');
+  if (!kathy) throw new Error('No Kathy found in awsCloudAgentKeys');
+  await persistRoleAddressesToLocalArtifacts(
+    Role.Relayer,
+    agentConfig.runEnv,
+    agentConfig.context,
+    relayer,
+    relayerAddresses,
   );
+  await persistRoleAddressesToLocalArtifacts(
+    Role.Kathy,
+    agentConfig.runEnv,
+    agentConfig.context,
+    kathy,
+    kathyAddresses,
+  );
+  await persistValidatorAddressesToLocalArtifacts(multisigValidatorKeys);
 }
 
-async function fetchGCPKeyAddresses(
+// non-validator roles
+export async function persistRoleAddressesToLocalArtifacts(
+  role: Role,
   environment: DeployEnvironment,
   context: Contexts,
+  updated: Address,
+  addresses: Record<DeployEnvironment, Record<Contexts, Address>>,
 ) {
+  addresses[environment][context] = updated;
+
+  // Resolve the relative path
+  const filePath = path.resolve(__dirname, `../../config/${role}.json`);
+
+  fs.writeFileSync(filePath, JSON.stringify(addresses, null, 2));
+}
+
+// maintaining the multisigIsm schema sans threshold
+export async function persistValidatorAddressesToLocalArtifacts(
+  fetchedValidatorAddresses: ChainMap<{ validators: Address[] }>,
+) {
+  for (const chain of Object.keys(fetchedValidatorAddresses)) {
+    awMultisigAddresses[chain] = {
+      validators: fetchedValidatorAddresses[chain].validators, // fresh from aws
+    };
+  }
+  // Resolve the relative path
+  const filePath = path.resolve(__dirname, '../../config/aw-multisig.json');
+  // Write the updated object back to the file
+  fs.writeFileSync(filePath, JSON.stringify(awMultisigAddresses, null, 2));
+}
+
+export function fetchLocalKeyAddresses(
+  role: Role,
+  environment: DeployEnvironment,
+  context: Contexts,
+): Address {
+  // Resolve the relative path
+  const filePath = path.resolve(__dirname, `../../config/${role}.json`);
+  const data = fs.readFileSync(filePath, 'utf8');
+  const addresses: LocalRoleAddresses = JSON.parse(data);
+
   debugLog(
     `Fetching addresses from GCP for ${context} context in ${environment} environment`,
   );
-  const addresses = await fetchGCPSecret(
-    addressesIdentifier(environment, context),
-  );
-  return addresses as KeyAsAddress[];
+  return addresses[environment][context];
 }
 
 function addressesIdentifier(

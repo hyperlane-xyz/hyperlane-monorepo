@@ -1,7 +1,8 @@
 import { DeployEnvironment } from '../../src/config';
 import { HelmCommand, helmifyValues } from '../../src/utils/helm';
 import { execCmd } from '../../src/utils/utils';
-import { assertCorrectKubeContext, getEnvironmentConfig } from '../utils';
+import { assertCorrectKubeContext } from '../agent-utils';
+import { getEnvironmentConfig } from '../core-utils';
 
 export async function runWarpRouteHelmCommand(
   helmCommand: HelmCommand,

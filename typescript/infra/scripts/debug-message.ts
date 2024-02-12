@@ -10,7 +10,7 @@ import { bytes32ToAddress, ensure0x, messageId } from '@hyperlane-xyz/utils';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { assertChain } from '../src/utils/utils';
 
-import { getArgs } from './utils';
+import { getArgs } from './agent-utils';
 
 async function main() {
   const argv = await getArgs()
