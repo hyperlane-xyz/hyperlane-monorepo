@@ -110,14 +110,12 @@ impl CosmosWasmIndexer {
             .block
             .data
             .into_iter()
-            .map(|tx| {
+            .filter_map(|tx| hex::decode(digest(tx.as_slice())).ok())
+            .map(|hash| {
                 H256::from_slice(
-                    Hash::from_bytes(
-                        Algorithm::Sha256,
-                        hex::decode(digest(tx.as_slice())).unwrap().as_slice(),
-                    )
-                    .unwrap()
-                    .as_bytes(),
+                    Hash::from_bytes(Algorithm::Sha256, hash.as_slice())
+                        .unwrap()
+                        .as_bytes(),
                 )
             })
             .collect();
