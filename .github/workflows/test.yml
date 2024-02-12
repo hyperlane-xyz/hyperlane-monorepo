@@ -242,8 +242,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - hook: false
-          - hook: true
+          - hook: preset_hook_enabled
+          - hook: configure_hook_enabled
     steps:
       - uses: actions/setup-node@v3
         with:
@@ -300,8 +300,13 @@ jobs:
             ~/.cargo
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
 
-      - name: cli e2e tests with hooks config turned ${{ matrix.hook }}
-        run: ./typescript/cli/ci-test.sh ${{ matrix.hook }}
+      - name: cli e2e tests with preset hook config
+        run: ./typescript/cli/ci-test.sh false
+        if: matrix.hook == 'preset_hook_enabled'
+
+      - name: cli e2e tests with configured hook config
+        run: ./typescript/cli/ci-test.sh true
+        if: matrix.hook == 'configure_hook_enabled'
 
   env-test:
     runs-on: ubuntu-latest
