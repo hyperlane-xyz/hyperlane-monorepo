@@ -1,4 +1,5 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use futures::future;
 use std::{
     fmt::{Debug, Formatter},
     io::Cursor,
@@ -32,6 +33,7 @@ use hyperlane_core::{
 };
 use tracing::{instrument, warn};
 
+#[derive(Clone)]
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {
     config: ConnectionConf,
@@ -262,7 +264,7 @@ static MESSAGE_ATTRIBUTE_KEY_BASE64: Lazy<String> =
     Lazy::new(|| BASE64.encode(MESSAGE_ATTRIBUTE_KEY));
 
 /// Struct that retrieves event data for a Cosmos Mailbox contract
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CosmosMailboxIndexer {
     mailbox: CosmosMailbox,
     indexer: Box<CosmosWasmIndexer>,
@@ -352,20 +354,32 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let mut result: Vec<(HyperlaneMessage, LogMeta)> = vec![];
+        let logs_futures: Vec<_> = range
+            .map(|block_number| {
+                let self_clone = self.clone();
+                tokio::spawn(async move {
+                    self_clone
+                        .indexer
+                        .get_event_log(block_number, Self::hyperlane_message_parser)
+                        .await
+                })
+            })
+            .collect();
 
-        for block_number in range {
-            let logs = self
-                .indexer
-                .get_event_log(block_number, Self::hyperlane_message_parser)
-                .await;
-
-            if let Err(e) = logs {
-                warn!("error: {:?}", e);
-                continue;
-            }
-            result.extend(logs.unwrap());
-        }
+        // TODO: this can be refactored when we rework indexing, to be part of the block-by-block indexing
+        let result = future::join_all(logs_futures)
+            .await
+            .into_iter()
+            .flatten()
+            .filter_map(|res| match res {
+                Ok(logs) => Some(logs),
+                Err(err) => {
+                    warn!(?err, "Failed to fetch logs");
+                    None
+                }
+            })
+            .flatten()
+            .collect();
 
         Ok(result)
     }

@@ -2,6 +2,7 @@ use std::{fmt::Debug, num::NonZeroU64, ops::RangeInclusive, str::FromStr};
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use futures::future;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
@@ -24,7 +25,7 @@ use crate::{
     ConnectionConf, CosmosProvider, HyperlaneCosmosError, Signer,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// A reference to a MerkleTreeHook contract on some Cosmos chain
 pub struct CosmosMerkleTreeHook {
     /// Domain
@@ -183,7 +184,7 @@ const MESSAGE_ID_ATTRIBUTE_KEY: &str = "message_id";
 pub(crate) static MESSAGE_ID_ATTRIBUTE_KEY_BASE64: Lazy<String> =
     Lazy::new(|| BASE64.encode(MESSAGE_ID_ATTRIBUTE_KEY));
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// A reference to a MerkleTreeHookIndexer contract on some Cosmos chain
 pub struct CosmosMerkleTreeHookIndexer {
     /// The CosmosMerkleTreeHook
@@ -284,20 +285,32 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(MerkleTreeInsertion, LogMeta)>> {
-        let mut result: Vec<(MerkleTreeInsertion, LogMeta)> = vec![];
+        let logs_futures: Vec<_> = range
+            .map(|block_number| {
+                let self_clone = self.clone();
+                tokio::spawn(async move {
+                    self_clone
+                        .indexer
+                        .get_event_log(block_number, Self::merkle_tree_insertion_parser)
+                        .await
+                })
+            })
+            .collect();
 
-        for block_number in range {
-            let logs = self
-                .indexer
-                .get_event_log(block_number, Self::merkle_tree_insertion_parser)
-                .await;
-
-            if let Err(e) = logs {
-                warn!("error: {:?}", e);
-                continue;
-            }
-            result.extend(logs.unwrap());
-        }
+        // TODO: this can be refactored when we rework indexing, to be part of the block-by-block indexing
+        let result = future::join_all(logs_futures)
+            .await
+            .into_iter()
+            .flatten()
+            .filter_map(|res| match res {
+                Ok(logs) => Some(logs),
+                Err(err) => {
+                    warn!(?err, "Failed to fetch logs");
+                    None
+                }
+            })
+            .flatten()
+            .collect();
 
         Ok(result)
     }

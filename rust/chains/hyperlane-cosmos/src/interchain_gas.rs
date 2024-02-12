@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use futures::future;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment,
@@ -7,6 +8,7 @@ use hyperlane_core::{
 };
 use once_cell::sync::Lazy;
 use std::ops::RangeInclusive;
+use tracing::warn;
 
 use crate::{
     payloads::general::EventAttribute,
@@ -83,7 +85,7 @@ static DESTINATION_ATTRIBUTE_KEY_BASE64: Lazy<String> =
     Lazy::new(|| BASE64.encode(DESTINATION_ATTRIBUTE_KEY));
 
 /// A reference to a InterchainGasPaymasterIndexer contract on some Cosmos chain
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CosmosInterchainGasPaymasterIndexer {
     indexer: Box<CosmosWasmIndexer>,
 }
@@ -203,16 +205,32 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        let mut result: Vec<(InterchainGasPayment, LogMeta)> = vec![];
-        // let parser = |event_attrs| Self::interchain_gas_payment_parser(&event_attrs);
+        let logs_futures: Vec<_> = range
+            .map(|block_number| {
+                let self_clone = self.clone();
+                tokio::spawn(async move {
+                    self_clone
+                        .indexer
+                        .get_event_log(block_number, Self::interchain_gas_payment_parser)
+                        .await
+                })
+            })
+            .collect();
 
-        for block_number in range {
-            let logs = self
-                .indexer
-                .get_event_log(block_number, Self::interchain_gas_payment_parser)
-                .await?;
-            result.extend(logs);
-        }
+        // TODO: this can be refactored when we rework indexing, to be part of the block-by-block indexing
+        let result = future::join_all(logs_futures)
+            .await
+            .into_iter()
+            .flatten()
+            .filter_map(|res| match res {
+                Ok(logs) => Some(logs),
+                Err(err) => {
+                    warn!(?err, "Failed to fetch logs");
+                    None
+                }
+            })
+            .flatten()
+            .collect();
 
         Ok(result)
     }

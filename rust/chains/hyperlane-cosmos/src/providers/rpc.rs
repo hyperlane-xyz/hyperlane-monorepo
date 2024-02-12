@@ -50,7 +50,7 @@ impl<T: PartialEq> ParsedEvent<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Cosmwasm RPC Provider
 pub struct CosmosWasmIndexer {
     provider: CosmosProvider,
