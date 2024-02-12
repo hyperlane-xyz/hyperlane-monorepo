@@ -105,9 +105,9 @@ const transferCommand: CommandModule = {
       },
       type: {
         type: 'string',
-        description: 'Warp token type (native or collateral)',
+        description: 'Warp token type',
         default: TokenType.collateral,
-        choices: [TokenType.collateral, TokenType.native],
+        choices: [TokenType.collateral, TokenType.native, TokenType.synthetic],
       },
       wei: {
         type: 'string',
