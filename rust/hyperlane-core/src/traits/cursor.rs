@@ -28,7 +28,7 @@ pub trait ContractSyncCursorNew<T>: Send + Sync + 'static {
     async fn fast_forward(&mut self) -> ChainResult<()>;
 
     /// The next block range that should be queried.
-    async fn next_action(&self) -> ChainResult<(CursorAction, Duration)>;
+    async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)>;
 
     /// The latest block that has been queried
     fn latest_block(&self) -> u32;

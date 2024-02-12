@@ -42,3 +42,11 @@ pub trait SequenceIndexer<T>: Indexer<T> {
     /// Return the latest finalized sequence (if any) and block number
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
 }
+
+/// todo
+#[async_trait]
+#[auto_impl(&, Box, Arc)]
+pub trait LatestSequence: Send + Sync + Debug {
+    /// Return the latest finalized sequence (if any) and block number
+    async fn latest_sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
+}
