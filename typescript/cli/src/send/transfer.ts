@@ -78,7 +78,7 @@ export async function sendTestTransfer({
   if (tokenType === TokenType.collateral) {
     const collateralRouter = HypERC20Collateral__factory.connect(
       routerAddress,
-      signer,
+      multiProvider.getProvider(origin),
     );
     const tokenAddress = await collateralRouter.wrappedToken();
     await assertTokenBalance(
