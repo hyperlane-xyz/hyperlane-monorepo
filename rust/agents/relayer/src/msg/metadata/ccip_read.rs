@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use derive_more::Deref;
 use derive_new::new;
-use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
+use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode, utils::hex::ToHex};
 use eyre::Context;
-use hyperlane_core::{HyperlaneMessage, RawHyperlaneMessage, H256};
+use hyperlane_core::{utils::bytes_to_hex, HyperlaneMessage, RawHyperlaneMessage, H256};
 use hyperlane_ethereum::OffchainLookup;
 use regex::Regex;
 use reqwest::Client;
@@ -55,7 +55,10 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
 
         for url in info.urls.iter() {
             let interpolated_url = url
-                .replace("{sender}", &info.sender.to_string())
+                // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
+                // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
+                // the full address)
+                .replace("{sender}", &bytes_to_hex(info.sender.as_bytes()))
                 .replace("{data}", &info.call_data.to_string());
             let res = if !url.contains("{data}") {
                 let body = json!({
