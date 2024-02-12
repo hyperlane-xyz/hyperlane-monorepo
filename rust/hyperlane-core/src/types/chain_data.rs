@@ -1,7 +1,9 @@
+use derive_new::new;
+
 use crate::{H256, U256};
 
 /// Info about a given block in the chain.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BlockInfo {
     /// Hash of this block
     pub hash: H256,
@@ -9,6 +11,16 @@ pub struct BlockInfo {
     pub timestamp: u64,
     /// Block height or the nth block in the chain
     pub number: u64,
+}
+
+/// Metrics about the chain.
+#[derive(Debug, Clone, Default, new)]
+pub struct ChainInfo {
+    /// Information about the latest block
+    pub latest_block: BlockInfo,
+    /// The current gas price, in the lowest denomination (e.g. wei)
+    /// Unless the chain implements an EIP-1559 style tx fee mechanism, this field will be `None`
+    pub min_gas_price: Option<U256>,
 }
 
 /// Information about a given transaction in the chain.

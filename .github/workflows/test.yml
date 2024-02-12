@@ -159,7 +159,7 @@ jobs:
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Metadata Health Check
-        run: yarn workspace @hyperlane-xyz/sdk run test:metadata
+        run: DEBUG=hyperlane yarn workspace @hyperlane-xyz/sdk run test:metadata
 
   e2e:
     runs-on: larger-runner

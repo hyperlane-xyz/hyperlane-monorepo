@@ -1,4 +1,9 @@
-import { ChainName, HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  HyperlaneIgp,
+  MultiProvider,
+  prettyRemoteGasData,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { RemoteGasData, StorageGasOracleConfig } from '../../src/config';
@@ -7,11 +12,7 @@ import { RemoteGasDataConfig } from '../../src/config/gas-oracle';
 import { getArgs, withNetwork } from '../agent-utils';
 import { getEnvironmentConfig } from '../core-utils';
 
-import {
-  eqRemoteGasData,
-  prettyRemoteGasData,
-  prettyRemoteGasDataConfig,
-} from './utils';
+import { eqRemoteGasData, prettyRemoteGasDataConfig } from './utils';
 
 /**
  * Idempotent. Use `--dry-run` to not send any transactions.
