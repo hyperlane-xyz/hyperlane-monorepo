@@ -5,7 +5,6 @@ use std::ops::Deref;
 
 use bigdecimal::ParseBigDecimalError;
 use derive_new::new;
-use tokio::task::JoinError;
 
 use crate::config::StrOrIntParseError;
 use crate::rpc_clients::RpcClientError;
@@ -136,8 +135,9 @@ pub enum ChainCommunicationError {
     #[error(transparent)]
     RpcClientError(#[from] RpcClientError),
     /// Tokio join error
+    #[cfg(feature = "fallback-provider")]
     #[error(transparent)]
-    TokioJoinError(#[from] JoinError),
+    TokioJoinError(#[from] tokio::task::JoinError),
 }
 
 impl ChainCommunicationError {
