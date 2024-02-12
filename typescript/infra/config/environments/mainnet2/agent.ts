@@ -145,7 +145,7 @@ const hyperlane: RootAgentConfig = {
     },
     chainDockerOverrides: {
       [chainMetadata.solana.name]: {
-        tag: '3b0685f-20230815-110725',
+        tag: '49a581b-20240203-151524',
       },
       [chainMetadata.nautilus.name]: {
         tag: '3b0685f-20230815-110725',
