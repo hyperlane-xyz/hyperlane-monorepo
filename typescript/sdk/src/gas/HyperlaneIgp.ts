@@ -42,6 +42,7 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
       addressesMap,
       igpFactories,
       multiProvider,
+      supportedChainNames,
     );
     return new HyperlaneIgp(
       helper.contractsMap,

@@ -55,6 +55,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       addressesMap,
       coreFactories,
       multiProvider,
+      supportedChainNames,
     );
     return new HyperlaneCore(
       helper.contractsMap,
