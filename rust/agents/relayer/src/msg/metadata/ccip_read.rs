@@ -54,16 +54,18 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         };
 
         for url in info.urls.iter() {
+            // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
+            // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
+            // the full address)
+            let sender_as_bytes = &bytes_to_hex(info.sender.as_bytes());
+            let data_as_bytes = &info.call_data.to_string();
             let interpolated_url = url
-                // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
-                // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
-                // the full address)
-                .replace("{sender}", &bytes_to_hex(info.sender.as_bytes()))
-                .replace("{data}", &info.call_data.to_string());
+                .replace("{sender}", sender_as_bytes)
+                .replace("{data}", data_as_bytes);
             let res = if !url.contains("{data}") {
                 let body = json!({
-                    "data": info.call_data.to_string(),
-                    "sender": info.sender.to_string(),
+                    "sender": sender_as_bytes,
+                    "data": data_as_bytes
                 });
                 Client::new()
                     .post(interpolated_url)
