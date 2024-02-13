@@ -49,17 +49,21 @@ impl EigenNodeAPI {
 
         tracing::info!("Serving the EigenNodeAPI routes...");
 
-        Router::new()
-            .route(
-                "/node/health",
-                get(move || Self::node_health_handler(origin_chain, core_metrics_clone)),
-            )
-            .route("/node/services", get(Self::node_services_handler))
-            .route(
-                "/node/services/:service_id/health",
-                get(Self::service_health_handler),
-            )
-            .route("/node", get(Self::node_info_handler))
+        Router::new().nest(
+            "/node",
+            Router::new()
+                .route(
+                    "/health",
+                    get(move || Self::node_health_handler(origin_chain, core_metrics_clone)),
+                )
+                .nest(
+                    "/services",
+                    Router::new()
+                        .route("/", get(Self::node_services_handler))
+                        .route("/:service_id/health", get(Self::service_health_handler)),
+                )
+                .route("/", get(Self::node_info_handler)),
+        )
     }
 
     /// Method to return the NodeInfo data
@@ -126,17 +130,25 @@ impl EigenNodeAPI {
 
 #[cfg(test)]
 mod tests {
+    use std::net::SocketAddr;
+
     use super::*;
     use axum::http::StatusCode;
     use prometheus::Registry;
 
-    #[tokio::test]
-    async fn test_eigen_node_api() {
+    async fn setup_test_server() -> (reqwest::Client, SocketAddr, Arc<CoreMetrics>) {
         let core_metrics =
-            Arc::new(CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap());
+            Arc::new(CoreMetrics::new("dummy_validator", 37582, Registry::new()).unwrap());
+        // Initialize the Prometheus registry
+        core_metrics
+            .latest_checkpoint()
+            .with_label_values(&["validator_observed", "ethereum"])
+            .set(42);
 
-        let node_api =
-            EigenNodeAPI::new(HyperlaneDomain::new_test_domain("ethereum"), core_metrics);
+        let node_api = EigenNodeAPI::new(
+            HyperlaneDomain::new_test_domain("ethereum"),
+            Arc::clone(&core_metrics),
+        );
         let app = node_api.router();
 
         // Running the app in the background using a test server
@@ -145,8 +157,15 @@ mod tests {
         let addr = server.local_addr();
         tokio::spawn(server);
 
-        // Create a client and make a request to the `/node` endpoint
+        // Create a client
         let client = reqwest::Client::new();
+
+        (client, addr, core_metrics)
+    }
+
+    #[tokio::test]
+    async fn test_eigen_node_api() {
+        let (client, addr, _) = setup_test_server().await;
         let res = client
             .get(format!("http://{}/node", addr))
             .send()
@@ -170,30 +189,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_eigen_node_health_api() {
-        let registry = Registry::new();
-        // Setup CoreMetrics and EigenNodeAPI
-        let core_metrics = Arc::new(CoreMetrics::new("dummy_relayer", 37582, registry).unwrap());
-        // Initialize the Prometheus registry
-        core_metrics
-            .latest_checkpoint()
-            .with_label_values(&["validator_observed", "ethereum"])
-            .set(42);
-
-        let node_api = EigenNodeAPI::new(
-            HyperlaneDomain::new_test_domain("ethereum"),
-            core_metrics.clone(),
-        );
-        let app = node_api.router();
-
-        // Run the app in the background using a test server
-        let server =
-            axum::Server::bind(&"127.0.0.1:0".parse().unwrap()).serve(app.into_make_service());
-        let addr = server.local_addr();
-        let server_handle = tokio::spawn(server);
-
-        // Create a client and make a request to the `/node/health` endpoint
-        // if signed_checkpoint - observed_checkpoint > 10 return 503 - unhealthy
-        let client = reqwest::Client::new();
+        let (client, addr, core_metrics) = setup_test_server().await;
         let res = client
             .get(format!("http://{}/node/health", addr))
             .send()
@@ -224,28 +220,11 @@ mod tests {
             .await
             .expect("Failed to send request");
         assert_eq!(res.status(), StatusCode::OK);
-
-        // Stop the server
-        server_handle.abort();
     }
 
     #[tokio::test]
     async fn test_eigen_node_services_handler() {
-        let core_metrics =
-            Arc::new(CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap());
-
-        let node_api =
-            EigenNodeAPI::new(HyperlaneDomain::new_test_domain("ethereum"), core_metrics);
-        let app = node_api.router();
-
-        // Run the app in the background using a test server
-        let server =
-            axum::Server::bind(&"127.0.0.1:0".parse().unwrap()).serve(app.into_make_service());
-        let addr = server.local_addr();
-        let server_handle = tokio::spawn(server);
-
-        // Create a client and make a request to the `/node/services` endpoint
-        let client = reqwest::Client::new();
+        let (client, addr, _) = setup_test_server().await;
         let res = client
             .get(format!("http://{}/node/services", addr))
             .send()
@@ -270,28 +249,14 @@ mod tests {
             },
         ];
 
-        // check the response body if needed
+        // assert
         let services: Vec<Service> = res.json().await.expect("Failed to parse json");
         assert_eq!(services, expected_services);
-
-        // Stop the server
-        server_handle.abort();
     }
 
     #[tokio::test]
     async fn test_service_health_handler() {
-        let core_metrics =
-            Arc::new(CoreMetrics::new("dummy_validator", 37582, Registry::new()).unwrap());
-
-        let node_api =
-            EigenNodeAPI::new(HyperlaneDomain::new_test_domain("ethereum"), core_metrics);
-        let app = node_api.router();
-        let server =
-            axum::Server::bind(&"127.0.0.1:0".parse().unwrap()).serve(app.into_make_service());
-        let addr = server.local_addr();
-        let server_handle = tokio::spawn(server);
-
-        let client = reqwest::Client::new();
+        let (client, addr, _) = setup_test_server().await;
         let res = client
             .get(format!(
                 "http://{}/node/services/hyperlane-validator-indexer/health",
@@ -303,8 +268,5 @@ mod tests {
 
         // Check that the response status is OK
         assert_eq!(res.status(), StatusCode::OK);
-
-        // Stop the server
-        server_handle.abort();
     }
 }

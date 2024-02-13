@@ -28,7 +28,6 @@ maplit.workspace = true
 paste.workspace = true
 prometheus.workspace = true
 rocksdb.workspace = true
-reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 solana-sdk.worksapce = true

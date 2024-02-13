@@ -4070,7 +4070,6 @@ dependencies = [
  "maplit",
  "paste",
  "prometheus",
- "reqwest",
  "rocksdb",
  "rusoto_core",
  "rusoto_kms",
