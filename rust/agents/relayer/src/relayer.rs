@@ -7,12 +7,10 @@ use std::{
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
-use futures;
 use futures_util::future::join_all;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
-    run_all,
     settings::ChainConf,
     BaseAgent, ChainMetrics, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     SequencedDataContractSync, WatermarkContractSync,
@@ -30,7 +28,7 @@ use tokio::{
 use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
 
 use crate::merkle_tree::processor::{MerkleTreeProcessor, MerkleTreeProcessorMetrics};
-use crate::processor::{Processor, ProcessorExt};
+use crate::processor::Processor;
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     msg::{
