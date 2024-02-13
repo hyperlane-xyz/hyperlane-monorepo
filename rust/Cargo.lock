@@ -4049,7 +4049,6 @@ dependencies = [
  "backtrace",
  "backtrace-oneline",
  "bs58 0.5.0",
- "bytes",
  "color-eyre",
  "config",
  "convert_case 0.6.0",
@@ -10223,7 +10222,9 @@ name = "validator"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "axum",
  "config",
+ "derive-new",
  "derive_more",
  "ethers",
  "eyre",
@@ -10235,6 +10236,7 @@ dependencies = [
  "hyperlane-test",
  "k256 0.13.2",
  "prometheus",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror",

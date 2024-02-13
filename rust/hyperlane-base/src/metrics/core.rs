@@ -426,6 +426,21 @@ impl CoreMetrics {
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .collect()
     }
+
+    /// Get the difference between the latest observed checkpoint and the latest signed checkpoint.
+    ///
+    /// This is useful for reporting the health of the validator and reporting it via EigenNodeAPI
+    pub fn get_latest_checkpoint_validator_delta(&self, origin_chain: HyperlaneDomain) -> i64 {
+        let observed_checkpoint = self
+            .latest_checkpoint()
+            .with_label_values(&["validator_observed", origin_chain.name()])
+            .get();
+        let signed_checkpoint = self
+            .latest_checkpoint()
+            .with_label_values(&["validator_processed", origin_chain.name()])
+            .get();
+        observed_checkpoint - signed_checkpoint
+    }
 }
 
 impl Debug for CoreMetrics {

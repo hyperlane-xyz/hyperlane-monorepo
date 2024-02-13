@@ -12,7 +12,6 @@ version.workspace = true
 [dependencies]
 async-trait.workspace = true
 axum.workspace = true
-bytes.workspace = true
 bs58.workspace = true
 color-eyre = { workspace = true, optional = true }
 config.workspace = true

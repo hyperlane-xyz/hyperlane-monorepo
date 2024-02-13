@@ -3,7 +3,6 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
-    routing::MethodRouter,
     Router,
 };
 use derive_new::new;
@@ -24,7 +23,7 @@ impl Server {
     ///   - metrics - serving OpenMetrics format reports on `/metrics`
     ///     (this is compatible with Prometheus, which ought to be configured to scrape this endpoint)
     ///  - eigen - serving agent-specific routes on `/eigen`
-    pub fn run(self: Arc<Self>, additional_routes: Vec<(&str, MethodRouter)>) -> JoinHandle<()> {
+    pub fn run(self: Arc<Self>, additional_routes: Vec<(&str, Router)>) -> JoinHandle<()> {
         let port = self.listen_port;
         tracing::info!(port, "starting server on 0.0.0.0");
 
@@ -36,7 +35,7 @@ impl Server {
         );
 
         for (route, router) in additional_routes {
-            app = app.route(route, router);
+            app = app.nest(route, router);
         }
 
         tokio::spawn(async move {

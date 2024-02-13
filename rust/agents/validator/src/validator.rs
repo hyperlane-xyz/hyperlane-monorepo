@@ -1,5 +1,6 @@
 use std::{num::NonZeroU64, sync::Arc, time::Duration};
 
+use crate::server::eigen_node::{self, EigenNodeAPI};
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
@@ -120,11 +121,19 @@ impl BaseAgent for Validator {
     async fn run(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         let mut tasks = vec![];
 
+        let mut routes = vec![];
+        let eigen_node_api =
+            EigenNodeAPI::new(self.origin_chain.clone(), self.core.metrics.clone());
+        routes.push(("/eigen", eigen_node_api.router()));
+
         // run server
         let server = self.server.clone();
-        let server_task =
-            tokio::spawn(async move { server.run(true) }).instrument(info_span!("Server"));
-        // tasks.push(server_task);
+        let server_task = tokio::spawn(async move {
+            server.run(routes);
+            Ok(())
+        })
+        .instrument(info_span!("Server"));
+        tasks.push(server_task);
 
         if let Some(signer_instance) = self.signer_instance.take() {
             tasks.push(
