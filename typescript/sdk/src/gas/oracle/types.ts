@@ -27,15 +27,29 @@ const percentDifference = (
   expected: ethers.BigNumber,
 ): ethers.BigNumber => expected.sub(actual).mul(100).div(actual);
 
+const serializePercentDifference = (
+  actual: ethers.BigNumber,
+  expected: ethers.BigNumber,
+): string => {
+  if (actual.isZero()) {
+    return 'new';
+  }
+  const diff = percentDifference(actual, expected);
+  return diff.isNegative() ? `${diff.toString()}%` : `+${diff.toString()}%`;
+};
+
 export const serializeDifference = (
   actual: StorageGasOracleConfig,
   expected: StorageGasOracleConfig,
 ): string => {
-  const gasPriceDiff = percentDifference(actual.gasPrice, expected.gasPrice);
-  const tokenExchangeRateDiff = percentDifference(
+  const gasPriceDiff = serializePercentDifference(
+    actual.gasPrice,
+    expected.gasPrice,
+  );
+  const tokenExchangeRateDiff = serializePercentDifference(
     actual.tokenExchangeRate,
     expected.tokenExchangeRate,
-  ).toString();
+  );
   const formatted = formatGasOracleConfig(expected);
-  return `$ ${formatted.tokenExchangeRate} (${tokenExchangeRateDiff}%), ${formatted.gasPrice} gwei (${gasPriceDiff}%)`;
+  return `$ ${formatted.tokenExchangeRate} (${tokenExchangeRateDiff}), ${formatted.gasPrice} gwei (${gasPriceDiff})`;
 };
