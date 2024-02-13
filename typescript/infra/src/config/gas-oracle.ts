@@ -3,7 +3,7 @@ import { BigNumber, ethers } from 'ethers';
 import {
   ChainMap,
   ChainName,
-  DestinationOracleConfig,
+  StorageGasOracleConfig as DestinationOracleConfig,
 } from '@hyperlane-xyz/sdk';
 import { convertDecimals } from '@hyperlane-xyz/utils';
 

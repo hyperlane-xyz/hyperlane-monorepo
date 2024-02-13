@@ -13,7 +13,7 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
 import { IgpFactories, igpFactories } from './contracts';
-import { formatGasOracleConfig } from './oracle/types';
+import { serializeDifference } from './oracle/types';
 import { IgpConfig } from './types';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
@@ -97,13 +97,12 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       const remoteDomain = this.multiProvider.getDomainId(remote);
 
       const actual = await gasOracle.remoteGasData(remoteDomain);
-      this.logger(`${remote} actual: ${formatGasOracleConfig(actual)}`);
 
       if (
         !actual.gasPrice.eq(desired.gasPrice) ||
         !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
       ) {
-        this.logger(`${remote} update: ${formatGasOracleConfig(desired)}`);
+        this.logger(`-> ${remote} ${serializeDifference(actual, desired)}`);
         configsToSet.push({
           remoteDomain,
           ...desired,
