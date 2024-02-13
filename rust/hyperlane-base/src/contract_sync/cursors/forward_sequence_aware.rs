@@ -47,7 +47,7 @@ pub(crate) struct ForwardSequenceAwareSyncCursorNew<T> {
     latest_sequence_querier: Arc<dyn LatestSequence>,
     db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
     last_indexed_snapshot: SequenceAwareSyncSnapshot,
-    // TODO should this be next? or current
+    /// The current / next snapshot that is the starting point for the next range.
     current_indexing_snapshot: SequenceAwareSyncSnapshot,
     target_snapshot: Option<SequenceAwareSyncSnapshot>,
     index_mode: IndexMode,
@@ -63,18 +63,13 @@ impl<T: Sequenced> ForwardSequenceAwareSyncCursorNew<T> {
             return Ok(None);
         };
         let current_sequence = self.current_indexing_snapshot.sequence;
-        println!(
-            "cmp? {:?} {:?} {:?}",
-            current_sequence,
-            onchain_sequence_count,
-            current_sequence.cmp(&onchain_sequence_count)
-        );
         let range = match current_sequence.cmp(&onchain_sequence_count) {
             Ordering::Equal => {
                 // We are synced up to the latest sequence so we don't need to index anything.
 
-                // We can update the current indexing snapshot to the latest sequence and tip.
-                // This will let us only index blocks that are likely to have new logs.
+                // We can update the current indexing snapshot to the tip.
+                // This will let us only index blocks that are likely to have new logs once
+                // there's a new sequence to search for.
                 self.current_indexing_snapshot.at_block = tip;
 
                 None
@@ -87,6 +82,7 @@ impl<T: Sequenced> ForwardSequenceAwareSyncCursorNew<T> {
                 // have limits to the range size based off the chunk size), but we will use it
                 // as an eventual target.
                 self.target_snapshot = Some(SequenceAwareSyncSnapshot {
+                    // Minus one because this is the sequence we're targeting, not the count.
                     sequence: onchain_sequence_count.saturating_sub(1),
                     at_block: tip,
                 });
