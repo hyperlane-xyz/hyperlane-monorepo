@@ -6,6 +6,8 @@ export enum Role {
   Kathy = 'kathy',
 }
 
+export type FundableRole = Role.Relayer | Role.Kathy;
+
 export const ALL_KEY_ROLES = [
   Role.Validator,
   Role.Relayer,

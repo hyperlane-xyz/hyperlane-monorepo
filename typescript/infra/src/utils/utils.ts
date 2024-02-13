@@ -15,7 +15,7 @@ import {
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { Role } from '../roles';
+import { FundableRole, Role } from '../roles';
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -209,6 +209,14 @@ export function assertRole(roleStr: string) {
   const role = roleStr as Role;
   if (!Object.values(Role).includes(role)) {
     throw Error(`Invalid role ${role}`);
+  }
+  return role;
+}
+
+export function assertFundableRole(roleStr: string): FundableRole {
+  const role = roleStr as Role;
+  if (role !== Role.Relayer && role !== Role.Kathy) {
+    throw Error(`Invalid fundable role ${role}`);
   }
   return role;
 }
