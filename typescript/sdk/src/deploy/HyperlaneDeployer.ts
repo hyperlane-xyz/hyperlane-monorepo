@@ -43,6 +43,7 @@ import {
   proxyImplementation,
 } from './proxy';
 import { OwnableConfig } from './types';
+import { ContractVerifier } from './verify/ContractVerifier';
 import { ContractVerificationInput } from './verify/types';
 import {
   buildVerificationInput,
@@ -53,6 +54,7 @@ export interface DeployerOptions {
   logger?: Debugger;
   chainTimeoutMs?: number;
   ismFactory?: HyperlaneIsmFactory;
+  contractVerifier?: ContractVerifier;
 }
 
 export abstract class HyperlaneDeployer<
@@ -350,6 +352,12 @@ export abstract class HyperlaneDeployer<
       factory.bytecode,
     );
     this.addVerificationArtifacts(chain, [verificationInput]);
+
+    // if configured, verify contract
+    await this.options?.contractVerifier?.verifyContract(
+      chain,
+      verificationInput,
+    );
 
     return contract;
   }

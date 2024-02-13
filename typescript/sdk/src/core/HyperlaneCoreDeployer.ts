@@ -10,6 +10,7 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier';
 import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer';
 import { HookConfig } from '../hook/types';
 import {
@@ -37,11 +38,13 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   constructor(
     multiProvider: MultiProvider,
     readonly ismFactory: HyperlaneIsmFactory,
+    contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, coreFactories, {
       logger: debug('hyperlane:CoreDeployer'),
       chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
       ismFactory,
+      contractVerifier,
     });
     this.hookDeployer = new HyperlaneHookDeployer(
       multiProvider,

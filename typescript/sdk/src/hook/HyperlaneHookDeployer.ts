@@ -15,6 +15,7 @@ import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
 import { HyperlaneContracts } from '../contracts/types';
 import { CoreAddresses } from '../core/contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier';
 import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer';
 import { IgpFactories } from '../gas/contracts';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
@@ -43,9 +44,11 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     readonly core: ChainMap<Partial<CoreAddresses>>,
     readonly ismFactory: HyperlaneIsmFactory,
     readonly igpDeployer = new HyperlaneIgpDeployer(multiProvider),
+    contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, hookFactories, {
       logger: debug('hyperlane:HookDeployer'),
+      contractVerifier,
     });
   }
 
