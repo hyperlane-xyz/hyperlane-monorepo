@@ -73,6 +73,18 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
   }
 }
 
+export class LocalAgentKey extends BaseAgentKey {
+  constructor(
+    public readonly environment: DeployEnvironment,
+    public readonly context: Contexts,
+    public readonly role: Role,
+    public readonly address: string,
+    public readonly chainName?: ChainName,
+  ) {
+    super(environment, role, chainName);
+  }
+}
+
 // A read-only representation of a key managed internally.
 export class ReadOnlyCloudAgentKey extends BaseCloudAgentKey {
   constructor(
