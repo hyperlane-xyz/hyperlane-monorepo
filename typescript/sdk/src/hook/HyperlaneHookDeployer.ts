@@ -43,8 +43,11 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     multiProvider: MultiProvider,
     readonly core: ChainMap<Partial<CoreAddresses>>,
     readonly ismFactory: HyperlaneIsmFactory,
-    readonly igpDeployer = new HyperlaneIgpDeployer(multiProvider),
     contractVerifier?: ContractVerifier,
+    readonly igpDeployer = new HyperlaneIgpDeployer(
+      multiProvider,
+      contractVerifier,
+    ),
   ) {
     super(multiProvider, hookFactories, {
       logger: debug('hyperlane:HookDeployer'),

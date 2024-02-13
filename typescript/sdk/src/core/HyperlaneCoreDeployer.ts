@@ -50,6 +50,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       multiProvider,
       {},
       ismFactory,
+      contractVerifier,
     );
     this.testRecipient = new TestRecipientDeployer(multiProvider);
   }
