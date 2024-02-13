@@ -38,11 +38,10 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     verificationInputs: ChainMap<VerificationInput>,
     protected readonly multiProvider: MultiProvider,
     protected readonly apiKeys: ChainMap<string>,
-    protected readonly source: string, // source e.g. either standard input json or flattened solidity
+    protected readonly source: string, // solidity standard input json
     protected readonly compilerOptions: CompilerOptions,
-    supportedChainNames?: string[],
   ) {
-    super(verificationInputs, supportedChainNames);
+    super(verificationInputs);
     this.logger = debug('hyperlane:ContractVerifier');
   }
 
@@ -242,18 +241,13 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
       `[${chain}] [${input.name}] Verifying implementation at ${input.address}`,
     );
 
-    const { codeformat, compilerversion, ...otherCompilerOptions } =
-      this.compilerOptions;
-
     const data = {
       sourceCode: this.source,
       contractname: input.name,
       contractaddress: input.address,
       // TYPO IS ENFORCED BY API
       constructorArguements: strip0x(input.constructorArguments ?? ''),
-      codeformat,
-      compilerversion,
-      ...(codeformat === 'solidity-single-file' ? otherCompilerOptions : {}),
+      ...this.compilerOptions,
     };
 
     const guid = await this.submitForm(

@@ -21,13 +21,12 @@ export class HyperlaneApp<
   constructor(
     contractsMap: HyperlaneContractsMap<Factories>,
     public readonly multiProvider: MultiProvider,
-    supportedChainNames?: string[],
     public readonly logger = debug('hyperlane:App'),
   ) {
     const connectedContractsMap = objMap(contractsMap, (chain, contracts) =>
       connectContracts(contracts, multiProvider.getSignerOrProvider(chain)),
     );
-    super(connectedContractsMap, supportedChainNames);
+    super(connectedContractsMap);
     this.contractsMap = connectedContractsMap;
   }
 

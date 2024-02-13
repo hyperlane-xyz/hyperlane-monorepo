@@ -19,7 +19,4 @@ module.exports = {
     target: 'ethers-v5',
     alwaysGenerateOverloads: true,
   },
-  mocha: {
-    bail: true,
-  },
 };
