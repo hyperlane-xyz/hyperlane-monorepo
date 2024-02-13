@@ -17,23 +17,28 @@ import {
   log,
   objFilter,
   objMap,
-  promiseObjAll,
   warn,
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { KeyAsAddress, getRoleKeysPerChain } from '../../src/agents/key-utils';
 import {
-  BaseCloudAgentKey,
+  KeyAsAddress,
+  fetchLocalKeyAddresses,
+  getRoleKeysPerChain,
+} from '../../src/agents/key-utils';
+import {
+  BaseAgentKey,
+  LocalAgentKey,
   ReadOnlyCloudAgentKey,
 } from '../../src/agents/keys';
 import { DeployEnvironment } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
-import { Role } from '../../src/roles';
+import { FundableRole, Role } from '../../src/roles';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
   assertContext,
+  assertFundableRole,
   assertRole,
   isEthereumProtocolChain,
   readJSONAtPath,
@@ -275,7 +280,7 @@ async function main() {
     const contexts = Object.keys(argv.contextsAndRoles) as Contexts[];
     contextFunders = await Promise.all(
       contexts.map((context) =>
-        ContextFunder.fromContext(
+        ContextFunder.fromLocal(
           environment,
           multiProvider,
           context,
@@ -303,20 +308,20 @@ async function main() {
 class ContextFunder {
   igp: HyperlaneIgp;
 
-  keysToFundPerChain: ChainMap<BaseCloudAgentKey[]>;
+  keysToFundPerChain: ChainMap<BaseAgentKey[]>;
 
   constructor(
     public readonly environment: DeployEnvironment,
     public readonly multiProvider: MultiProvider,
-    roleKeysPerChain: ChainMap<Record<Role, BaseCloudAgentKey[]>>,
+    roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>>,
     public readonly context: Contexts,
-    public readonly rolesToFund: Role[],
+    public readonly rolesToFund: FundableRole[],
     public readonly skipIgpClaim: boolean,
   ) {
     // At the moment, only blessed EVM chains are supported
     roleKeysPerChain = objFilter(
       roleKeysPerChain,
-      (chain, _roleKeys): _roleKeys is Record<Role, BaseCloudAgentKey[]> => {
+      (chain, _roleKeys): _roleKeys is Record<Role, BaseAgentKey[]> => {
         const valid =
           isEthereumProtocolChain(chain) &&
           multiProvider.tryGetChainName(chain) !== null;
@@ -335,12 +340,12 @@ class ContextFunder {
     );
     this.keysToFundPerChain = objMap(roleKeysPerChain, (_chain, roleKeys) => {
       return Object.keys(roleKeys).reduce((agg, roleStr) => {
-        const role = roleStr as Role;
+        const role = roleStr as FundableRole;
         if (this.rolesToFund.includes(role)) {
           return [...agg, ...roleKeys[role]];
         }
         return agg;
-      }, [] as BaseCloudAgentKey[]);
+      }, [] as BaseAgentKey[]);
     });
   }
 
@@ -417,29 +422,49 @@ class ContextFunder {
     );
   }
 
-  // The keys here are not ReadOnlyCloudAgentKeys, instead they are AgentGCPKey or AgentAWSKeys,
-  // which require credentials to fetch. If you want to avoid requiring credentials, use
-  // fromSerializedAddressFile instead.
-  static async fromContext(
+  // the keys are retrieved from the local artifacts in the infra/config/relayer.json or infra/config/kathy.json
+  static async fromLocal(
     environment: DeployEnvironment,
     multiProvider: MultiProvider,
     context: Contexts,
-    rolesToFund: Role[],
+    rolesToFund: FundableRole[],
     skipIgpClaim: boolean,
   ) {
-    const agentConfig = getAgentConfig(context, environment);
-    const roleKeysPerChain = getRoleKeysPerChain(agentConfig);
-    // Fetch all the keys
-    await promiseObjAll(
-      objMap(roleKeysPerChain, (_chain, roleKeys) => {
-        return promiseObjAll(
-          objMap(roleKeys, (_role, keys) => {
-            return Promise.all(keys.map((key) => key.fetch()));
-          }),
+    // only roles that are fundable keys ie. relayer and kathy
+    const fundableRoleKeys: Record<FundableRole, Address> = {
+      [Role.Relayer]: '',
+      [Role.Kathy]: '',
+    };
+    const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
+    const chains = getEnvironmentConfig(environment).chainMetadataConfigs;
+    for (const role of rolesToFund) {
+      assertFundableRole(role); // only the relayer and kathy are fundable keys
+      const roleAddress = fetchLocalKeyAddresses(role)[environment][context];
+      if (!roleAddress) {
+        throw Error(
+          `Could not find address for ${role} in ${environment} ${context}`,
         );
-      }),
-    );
+      }
+      fundableRoleKeys[role] = roleAddress;
 
+      for (const chain of Object.keys(chains)) {
+        if (!roleKeysPerChain[chain as ChainName]) {
+          roleKeysPerChain[chain as ChainName] = {
+            [Role.Relayer]: [],
+            [Role.Kathy]: [],
+          };
+        }
+        roleKeysPerChain[chain][role] = [
+          new LocalAgentKey(
+            environment,
+            context,
+            role,
+            fundableRoleKeys[role as FundableRole],
+            chain,
+          ),
+        ];
+      }
+    }
     return new ContextFunder(
       environment,
       multiProvider,
@@ -499,7 +524,7 @@ class ContextFunder {
   }
 
   private async attemptToFundKey(
-    key: BaseCloudAgentKey,
+    key: BaseAgentKey,
     chain: ChainName,
   ): Promise<boolean> {
     const provider = this.multiProvider.tryGetProvider(chain);
@@ -620,7 +645,7 @@ class ContextFunder {
   // is lower than the desired balance by the min delta
   private async fundKeyIfRequired(
     chain: ChainName,
-    key: BaseCloudAgentKey,
+    key: BaseAgentKey,
     desiredBalance: BigNumber,
   ) {
     const fundingAmount = await this.getFundingAmount(
@@ -835,13 +860,13 @@ async function getAddressInfo(
 }
 
 async function getKeyInfo(
-  key: BaseCloudAgentKey,
+  key: BaseAgentKey,
   chain: ChainName,
   provider: ethers.providers.Provider,
 ) {
   return {
     ...(await getAddressInfo(key.address, chain, provider)),
-    context: key.context,
+    context: (key as LocalAgentKey).context,
     originChain: key.chainName,
     role: key.role,
   };
@@ -876,7 +901,9 @@ function parseContextAndRoles(str: string): ContextAndRoles {
   for (const role of roles) {
     if (!validRoles.has(role)) {
       throw Error(
-        `Invalid role ${role}, must be one of ${Array.from(validRoles)}`,
+        `Invalid fundable role ${role}, must be one of ${Array.from(
+          validRoles,
+        )}`,
       );
     }
   }

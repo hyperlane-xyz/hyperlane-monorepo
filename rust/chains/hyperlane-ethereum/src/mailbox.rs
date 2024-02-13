@@ -13,7 +13,7 @@ use ethers_contract::builders::ContractCall;
 use tracing::instrument;
 
 use hyperlane_core::{
-    utils::fmt_bytes, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
+    utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
     HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceIndexer,
     TxCostEstimate, TxOutcome, H160, H256, U256,
@@ -327,7 +327,7 @@ where
             .into())
     }
 
-    #[instrument(skip(self), fields(metadata=%fmt_bytes(metadata)))]
+    #[instrument(skip(self), fields(metadata=%bytes_to_hex(metadata)))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
@@ -341,7 +341,7 @@ where
         Ok(receipt.into())
     }
 
-    #[instrument(skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
+    #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,

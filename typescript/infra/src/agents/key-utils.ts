@@ -18,7 +18,12 @@ import {
   RootAgentConfig,
 } from '../config';
 import { Role } from '../roles';
-import { execCmd, isEthereumProtocolChain } from '../utils/utils';
+import {
+  execCmd,
+  isEthereumProtocolChain,
+  readJSON,
+  writeJSON,
+} from '../utils/utils';
 
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
@@ -41,6 +46,8 @@ export interface KeyAsAddress {
   identifier: string;
   address: string;
 }
+
+const CONFIG_DIRECTORY_PATH = path.join(__dirname, '../../config');
 
 // ==================
 // Functions for getting keys
@@ -438,26 +445,22 @@ export async function persistValidatorAddressesToLocalArtifacts(
       validators: fetchedValidatorAddresses[chain].validators, // fresh from aws
     };
   }
-  // Resolve the relative path
-  const filePath = path.resolve(__dirname, '../../config/aw-multisig.json');
   // Write the updated object back to the file
-  fs.writeFileSync(filePath, JSON.stringify(awMultisigAddresses, null, 2));
+  writeJSON(CONFIG_DIRECTORY_PATH, 'aw-multisig.json', awMultisigAddresses);
 }
 
-export function fetchLocalKeyAddresses(
-  role: Role,
-  environment: DeployEnvironment,
-  context: Contexts,
-): Address {
-  // Resolve the relative path
-  const filePath = path.resolve(__dirname, `../../config/${role}.json`);
-  const data = fs.readFileSync(filePath, 'utf8');
-  const addresses: LocalRoleAddresses = JSON.parse(data);
+export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {
+  try {
+    const addresses: LocalRoleAddresses = readJSON(
+      CONFIG_DIRECTORY_PATH,
+      `${role}.json`,
+    );
 
-  debugLog(
-    `Fetching addresses from GCP for ${context} context in ${environment} environment`,
-  );
-  return addresses[environment][context];
+    debugLog(`Fetching addresses from GCP for ${role} role ...`);
+    return addresses;
+  } catch (e) {
+    throw new Error(`Error fetching addresses locally for ${role} role: ${e}`);
+  }
 }
 
 function addressesIdentifier(
