@@ -31,7 +31,6 @@ export async function fetchGCPSecret(
     );
     output = envVarOverride;
   } else {
-    console.log('FETCHING GCP SECRET: ' + secretName);
     [output] = await execCmd(
       `gcloud secrets versions access latest --secret ${secretName}`,
     );

@@ -47,6 +47,8 @@ export interface KeyAsAddress {
   address: string;
 }
 
+const CONFIG_DIRECTORY_PATH = path.join(__dirname, '../../config');
+
 // ==================
 // Functions for getting keys
 // ==================
@@ -444,18 +446,15 @@ export async function persistValidatorAddressesToLocalArtifacts(
     };
   }
   // Write the updated object back to the file
-  const dir = path.join(__dirname, '../../config');
-  writeJSON(
-    dir,
-    'aw-multisig.json',
-    JSON.stringify(awMultisigAddresses, null, 2),
-  );
+  writeJSON(CONFIG_DIRECTORY_PATH, 'aw-multisig.json', awMultisigAddresses);
 }
 
 export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {
   try {
-    const dir = path.join(__dirname, '../../config');
-    const addresses: LocalRoleAddresses = readJSON(dir, `${role}.json`);
+    const addresses: LocalRoleAddresses = readJSON(
+      CONFIG_DIRECTORY_PATH,
+      `${role}.json`,
+    );
 
     debugLog(`Fetching addresses from GCP for ${role} role ...`);
     return addresses;
