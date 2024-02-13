@@ -6,7 +6,7 @@ use serde::{
 };
 use std::fmt::{Debug, Formatter};
 
-use crate::utils::fmt_bytes;
+use crate::utils::bytes_to_hex;
 use crate::{Signature, H160, H256};
 
 /// An error incurred by a signer
@@ -99,7 +99,7 @@ impl<T: Signable + Serialize> Serialize for SignedType<T> {
         state.serialize_field("value", &self.value)?;
         state.serialize_field("signature", &self.signature)?;
         let sig: [u8; 65] = self.signature.into();
-        state.serialize_field("serialized_signature", &fmt_bytes(&sig))?;
+        state.serialize_field("serialized_signature", &bytes_to_hex(&sig))?;
         state.end()
     }
 }
