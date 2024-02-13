@@ -106,12 +106,11 @@ export {
 } from './gas/adapters/serialization';
 export { IgpFactories, igpFactories } from './gas/contracts';
 export {
-  prettyRemoteGasData,
-  prettyTokenExchangeRate,
-} from './gas/oracle/logging';
+  GasOracleContractType,
+  StorageGasOracleConfig,
+} from './gas/oracle/types';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
-  GasOracleContractType,
   IgpBeneficiaryViolation,
   IgpConfig,
   IgpGasOraclesViolation,

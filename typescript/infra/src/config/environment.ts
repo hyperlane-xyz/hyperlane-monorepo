@@ -18,7 +18,6 @@ import { Role } from '../roles';
 
 import { RootAgentConfig } from './agent';
 import { KeyFunderConfig } from './funding';
-import { AllStorageGasOracleConfigs } from './gas-oracle';
 import { HelloWorldConfig } from './helloworld/types';
 import { InfrastructureConfig } from './infrastructure';
 import { LiquidityLayerRelayerConfig } from './middleware';
@@ -55,7 +54,6 @@ export type EnvironmentConfig = {
     bridgeAdapters: ChainMap<BridgeAdapterConfig>;
     relayer: LiquidityLayerRelayerConfig;
   };
-  storageGasOracleConfig?: AllStorageGasOracleConfigs;
 };
 
 export const deployEnvToSdkEnv: Record<
