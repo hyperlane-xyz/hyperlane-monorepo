@@ -23,13 +23,7 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     multiProvider: MultiProvider,
     foreignDeployments: ChainMap<Address> = {},
   ) {
-    super(
-      contractsMap,
-      multiProvider,
-      undefined,
-      undefined,
-      foreignDeployments,
-    );
+    super(contractsMap, multiProvider, undefined, foreignDeployments);
   }
 
   router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {

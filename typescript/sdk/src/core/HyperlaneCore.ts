@@ -33,35 +33,24 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
-    supportedChainNames?: string[],
   ): HyperlaneCore {
     const envAddresses = hyperlaneEnvironments[env];
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
-    return HyperlaneCore.fromAddressesMap(
-      envAddresses,
-      multiProvider,
-      supportedChainNames,
-    );
+    return HyperlaneCore.fromAddressesMap(envAddresses, multiProvider);
   }
 
   static fromAddressesMap(
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
-    supportedChainNames?: string[],
   ): HyperlaneCore {
     const helper = appFromAddressesMapHelper(
       addressesMap,
       coreFactories,
       multiProvider,
-      supportedChainNames,
     );
-    return new HyperlaneCore(
-      helper.contractsMap,
-      helper.multiProvider,
-      supportedChainNames,
-    );
+    return new HyperlaneCore(helper.contractsMap, helper.multiProvider);
   }
 
   getRouterConfig = (

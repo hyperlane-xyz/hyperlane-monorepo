@@ -17,8 +17,6 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
-import { supportedChainNames as mainnet3Chains } from '../config/environments/mainnet3/chains';
-import { supportedChainNames as testnet4Chains } from '../config/environments/testnet4/chains';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -48,13 +46,6 @@ async function main() {
   const envConfig = getEnvironmentConfig(environment);
   const env = deployEnvToSdkEnv[environment];
 
-  const supportedChainNames =
-    environment === 'mainnet3'
-      ? mainnet3Chains
-      : environment === 'testnet4'
-      ? testnet4Chains
-      : undefined;
-
   let multiProvider = await envConfig.getMultiProvider();
 
   if (fork) {
@@ -77,7 +68,6 @@ async function main() {
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,
-      supportedChainNames,
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.WARP) {
@@ -89,27 +79,15 @@ async function main() {
     };
     deployer = new HyperlaneIgpDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    const core = HyperlaneCore.fromEnvironment(
-      env,
-      multiProvider,
-      supportedChainNames,
-    );
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainAccountDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
-    const core = HyperlaneCore.fromEnvironment(
-      env,
-      multiProvider,
-      supportedChainNames,
-    );
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainQueryDeployer(multiProvider);
   } else if (module === Modules.LIQUIDITY_LAYER) {
-    const core = HyperlaneCore.fromEnvironment(
-      env,
-      multiProvider,
-      supportedChainNames,
-    );
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     const routerConfig = core.getRouterConfig(envConfig.owners);
     if (!envConfig.liquidityLayerConfig) {
       throw new Error(`No liquidity layer config for ${environment}`);
@@ -135,11 +113,7 @@ async function main() {
     }));
     deployer = new TestQuerySenderDeployer(multiProvider);
   } else if (module === Modules.HELLO_WORLD) {
-    const core = HyperlaneCore.fromEnvironment(
-      env,
-      multiProvider,
-      supportedChainNames,
-    );
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
     deployer = new HelloWorldDeployer(multiProvider);
   } else {

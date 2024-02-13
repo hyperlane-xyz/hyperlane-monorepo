@@ -258,8 +258,8 @@ export class ChainMetadataManager<MetaExt = {}> {
    */
   tryGetExplorerApi(chainNameOrId: ChainName | number): {
     apiUrl: string;
-    apiKey?: string | undefined;
-    family?: ExplorerFamily | undefined;
+    apiKey?: string;
+    family?: ExplorerFamily;
   } | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
@@ -272,8 +272,8 @@ export class ChainMetadataManager<MetaExt = {}> {
    */
   getExplorerApi(chainNameOrId: ChainName | number): {
     apiUrl: string;
-    apiKey?: string | undefined;
-    family?: ExplorerFamily | undefined;
+    apiKey?: string;
+    family?: ExplorerFamily;
   } {
     const url = this.tryGetExplorerApi(chainNameOrId);
     if (!url)
