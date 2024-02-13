@@ -1,8 +1,6 @@
 import { ethers } from 'ethers';
 import { CommandModule, Options } from 'yargs';
 
-import { TokenType } from '@hyperlane-xyz/sdk';
-
 import { log } from '../../logger.js';
 import { sendTestMessage } from '../send/message.js';
 import { sendTestTransfer } from '../send/transfer.js';
@@ -103,12 +101,6 @@ const transferCommand: CommandModule = {
         type: 'string',
         description: 'The address of the token router contract',
       },
-      type: {
-        type: 'string',
-        description: 'Warp token type (native or collateral)',
-        default: TokenType.collateral,
-        choices: [TokenType.collateral, TokenType.native],
-      },
       wei: {
         type: 'string',
         description: 'Amount in wei to send',
@@ -127,7 +119,6 @@ const transferCommand: CommandModule = {
     const destination: string | undefined = argv.destination;
     const timeoutSec: number = argv.timeout;
     const routerAddress: string | undefined = argv.router;
-    const tokenType: TokenType = argv.type;
     const wei: string = argv.wei;
     const recipient: string | undefined = argv.recipient;
     const skipWaitForDelivery: boolean = argv.quick;
@@ -138,7 +129,6 @@ const transferCommand: CommandModule = {
       origin,
       destination,
       routerAddress,
-      tokenType,
       wei,
       recipient,
       timeoutSec,
