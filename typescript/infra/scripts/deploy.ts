@@ -4,6 +4,7 @@ import { prompt } from 'prompts';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
+  HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
@@ -13,10 +14,12 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
+  TokenType,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
+import { aggregationIsm } from '../config/routingIsm';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -71,7 +74,28 @@ async function main() {
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.WARP) {
-    throw new Error('Warp is not supported. Use CLI instead.');
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      getAddresses(environment, Modules.PROXY_FACTORY),
+      multiProvider,
+    );
+    const routerConfig = core.getRouterConfig(envConfig.owners);
+    const inevm = {
+      ...routerConfig.inevm,
+      type: TokenType.synthetic,
+    };
+    const ethereum = {
+      ...routerConfig.ethereum,
+      type: TokenType.collateral,
+      token: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+      hook: '0xb87AC8EA4533AE017604E44470F7c1E550AC6F10', // aggregation of IGP and Merkle, arbitrary config not supported for now
+      interchainSecurityModule: aggregationIsm('inevm', Contexts.Hyperlane),
+    };
+    config = {
+      inevm,
+      ethereum,
+    };
+    deployer = new HypERC20Deployer(multiProvider, ismFactory);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
