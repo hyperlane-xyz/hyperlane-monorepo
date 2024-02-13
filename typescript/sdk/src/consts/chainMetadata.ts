@@ -452,8 +452,8 @@ export const injective: ChainMetadata = {
   blockExplorers: [],
   blocks: {
     confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
+    estimateBlockTime: 1,
+    reorgPeriod: 10,
   },
   chainId: 'injective-1',
   displayName: 'Injective',
@@ -477,7 +477,7 @@ export const lineagoerli: ChainMetadata = {
       apiUrl: 'https://explorer.goerli.linea.build/api',
       family: ExplorerFamily.Blockscout,
       name: 'Linea Explorer',
-      url: 'https://explorer.goerli.linea.build/',
+      url: 'https://explorer.goerli.linea.build',
     },
   ],
   blocks: {
@@ -780,7 +780,6 @@ export const polygonzkevm: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
     { http: 'https://zkevm-rpc.com' },
-    { http: 'https://polygonzkevm-mainnet.g.alchemy.com/v2/demo' },
     { http: 'https://rpc.ankr.com/polygon_zkevm' },
   ],
 };
@@ -987,14 +986,6 @@ export const solanadevnet: ChainMetadata = {
 };
 
 export const eclipsetestnet: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://testnet.dev2.eclipsenetwork.xyz',
-      family: ExplorerFamily.Other,
-      name: 'Eclipse Testnet Explorer',
-      url: 'https://explorer.dev.eclipsenetwork.xyz/?cluster=testnet',
-    },
-  ],
   blocks: {
     confirmations: 1,
     estimateBlockTime: 0.4,

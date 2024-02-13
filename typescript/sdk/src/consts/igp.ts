@@ -1,0 +1,1 @@
+export const TOKEN_EXCHANGE_RATE_EXPONENT = 10;
