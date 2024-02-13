@@ -1,4 +1,4 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { Chains, RpcConsensusType } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../../../src/config';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld/types';
