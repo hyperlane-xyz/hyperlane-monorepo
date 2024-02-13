@@ -337,6 +337,7 @@ export {
 } from './token/adapters/CosmosTokenAdapter';
 export {
   EvmHypCollateralAdapter,
+  EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,

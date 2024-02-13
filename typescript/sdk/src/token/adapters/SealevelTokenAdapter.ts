@@ -13,7 +13,6 @@ import {
   Transaction,
   TransactionInstruction,
 } from '@solana/web3.js';
-import BigNumber from 'bignumber.js';
 import { deserializeUnchecked, serialize } from 'borsh';
 
 import {
@@ -56,9 +55,9 @@ export class SealevelNativeTokenAdapter
   extends BaseSealevelAdapter
   implements ITokenAdapter
 {
-  async getBalance(address: Address): Promise<string> {
+  async getBalance(address: Address): Promise<bigint> {
     const balance = await this.getProvider().getBalance(new PublicKey(address));
-    return balance.toString();
+    return BigInt(balance.toString());
   }
 
   async getMetadata(): Promise<MinimalTokenMetadata> {
@@ -80,7 +79,7 @@ export class SealevelNativeTokenAdapter
       SystemProgram.transfer({
         fromPubkey: new PublicKey(fromAccountOwner),
         toPubkey: new PublicKey(recipient),
-        lamports: new BigNumber(weiAmountOrId).toNumber(),
+        lamports: BigInt(weiAmountOrId),
       }),
     );
   }
@@ -103,12 +102,12 @@ export class SealevelTokenAdapter
     this.tokenProgramPubKey = new PublicKey(addresses.token);
   }
 
-  async getBalance(owner: Address): Promise<string> {
+  async getBalance(owner: Address): Promise<bigint> {
     const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
     const response = await this.getProvider().getTokenAccountBalance(
       tokenPubKey,
     );
-    return response.value.amount;
+    return BigInt(response.value.amount);
   }
 
   async getMetadata(_isNft?: boolean): Promise<MinimalTokenMetadata> {
@@ -135,7 +134,7 @@ export class SealevelTokenAdapter
         new PublicKey(fromTokenAccount),
         new PublicKey(recipient),
         new PublicKey(fromAccountOwner),
-        new BigNumber(weiAmountOrId).toNumber(),
+        BigInt(weiAmountOrId),
       ),
     );
   }
@@ -235,9 +234,9 @@ export abstract class SealevelHypTokenAdapter
     }));
   }
 
-  async quoteGasPayment(_destination: Domain): Promise<string> {
+  async quoteGasPayment(_destination: Domain): Promise<bigint> {
     // TODO Solana support
-    return '0';
+    return 0n;
   }
 
   async populateTransferRemoteTx({
@@ -264,7 +263,7 @@ export abstract class SealevelHypTokenAdapter
       data: new SealevelTransferRemoteInstruction({
         destination_domain: destination,
         recipient: addressToBytes(recipient),
-        amount_or_id: new BigNumber(weiAmountOrId).toNumber(),
+        amount_or_id: BigInt(weiAmountOrId),
       }),
     });
     const serializedData = serialize(SealevelTransferRemoteSchema, value);
@@ -492,7 +491,7 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
     );
   }
 
-  override async getBalance(owner: Address): Promise<string> {
+  override async getBalance(owner: Address): Promise<bigint> {
     return this.wrappedNative.getBalance(owner);
   }
 
@@ -525,7 +524,7 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
 
 // Interacts with Hyp Collateral token programs
 export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
-  async getBalance(owner: Address): Promise<string> {
+  async getBalance(owner: Address): Promise<bigint> {
     // Special case where the owner is the warp route program ID.
     // This is because collateral warp routes don't hold escrowed collateral
     // tokens in their associated token account - instead, they hold them in
@@ -535,7 +534,7 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
       const response = await this.getProvider().getTokenAccountBalance(
         collateralAccount,
       );
-      return response.value.amount;
+      return BigInt(response.value.amount);
     }
 
     return super.getBalance(owner);
@@ -593,12 +592,12 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
     ];
   }
 
-  override async getBalance(owner: Address): Promise<string> {
+  override async getBalance(owner: Address): Promise<bigint> {
     const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
     const response = await this.getProvider().getTokenAccountBalance(
       tokenPubKey,
     );
-    return response.value.amount;
+    return BigInt(response.value.amount);
   }
 
   deriveMintAuthorityAccount(): PublicKey {

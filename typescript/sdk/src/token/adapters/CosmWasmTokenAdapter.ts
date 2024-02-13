@@ -1,6 +1,5 @@
 import { ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
 import { Coin } from '@cosmjs/stargate';
-import BigNumber from 'bignumber.js';
 
 import {
   Address,
@@ -47,15 +46,15 @@ export class CwNativeTokenAdapter
     public readonly chainName: string,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: Record<string, Address>,
-    public readonly ibcDenom: string = 'untrn',
+    public readonly denom: string,
   ) {
     super(chainName, multiProvider, addresses);
   }
 
-  async getBalance(address: Address): Promise<string> {
+  async getBalance(address: Address): Promise<bigint> {
     const provider = await this.getProvider();
-    const balance = await provider.getBalance(address, this.ibcDenom);
-    return balance.amount;
+    const balance = await provider.getBalance(address, this.denom);
+    return BigInt(balance.amount);
   }
 
   async getMetadata(): Promise<CW20Metadata> {
@@ -79,7 +78,7 @@ export class CwNativeTokenAdapter
       funds: [
         {
           amount: weiAmountOrId.toString(),
-          denom: this.ibcDenom,
+          denom: this.denom,
         },
       ],
     };
@@ -98,7 +97,7 @@ export class CwTokenAdapter
     public readonly chainName: string,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { token: Address },
-    public readonly denom = 'untrn',
+    public readonly denom: string,
   ) {
     super(chainName, multiProvider, addresses);
   }
@@ -120,10 +119,10 @@ export class CwTokenAdapter
     };
   }
 
-  async getBalance(address: Address): Promise<string> {
+  async getBalance(address: Address): Promise<bigint> {
     const provider = await this.getProvider();
     const balance = await provider.getBalance(address, this.addresses.token);
-    return balance.amount;
+    return BigInt(balance.amount);
   }
 
   async getMetadata(): Promise<CW20Metadata> {
@@ -181,9 +180,8 @@ export class CwHypSyntheticAdapter
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider<any>,
     public readonly addresses: { token: Address; warpRouter: Address },
-    public readonly gasDenom = 'untrn',
   ) {
-    super(chainName, multiProvider, addresses);
+    super(chainName, multiProvider, addresses, '');
   }
 
   async queryRouter<R extends TokenRouterResponse>(
@@ -205,7 +203,7 @@ export class CwHypSyntheticAdapter
     };
   }
 
-  async tokenType(): Promise<TokenType> {
+  async getTokenType(): Promise<TokenType> {
     const resp = await this.queryRouter<TokenTypeResponse>({
       token_default: {
         token_type: {},
@@ -214,11 +212,11 @@ export class CwHypSyntheticAdapter
     return resp.type;
   }
 
-  async interchainSecurityModule(): Promise<Address> {
+  async getInterchainSecurityModule(): Promise<Address> {
     throw new Error('Router does not support ISM config yet.');
   }
 
-  async owner(): Promise<Address> {
+  async getOwner(): Promise<Address> {
     const resp = await this.queryRouter<OwnerResponse>({
       ownable: {
         get_owner: {},
@@ -265,7 +263,7 @@ export class CwHypSyntheticAdapter
       }));
   }
 
-  quoteGasPayment(_destination: number): Promise<string> {
+  quoteGasPayment(_destination: Domain): Promise<bigint> {
     throw new Error('Method not implemented.');
   }
 
@@ -273,11 +271,12 @@ export class CwHypSyntheticAdapter
     destination,
     recipient,
     weiAmountOrId,
-    txValue,
+    interchainGas,
   }: TransferRemoteParams): ExecuteInstruction {
-    if (!txValue) {
-      throw new Error('txValue is required for native tokens');
+    if (!interchainGas) {
+      throw new Error('interchainGas is required for remote transfers');
     }
+
     return this.prepareRouter(
       {
         transfer_remote: {
@@ -288,8 +287,8 @@ export class CwHypSyntheticAdapter
       },
       [
         {
-          amount: txValue.toString(),
-          denom: this.gasDenom,
+          amount: interchainGas.amount.toString(),
+          denom: interchainGas.token.addressOrDenom,
         },
       ],
     );
@@ -306,30 +305,27 @@ export class CwHypNativeAdapter
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider<any>,
     public readonly addresses: { warpRouter: Address },
-    public readonly gasDenom = 'untrn',
   ) {
-    super(chainName, multiProvider, addresses, gasDenom);
-    this.cw20adapter = new CwHypSyntheticAdapter(
-      chainName,
-      multiProvider,
-      { token: '', warpRouter: addresses.warpRouter },
-      gasDenom,
-    );
+    super(chainName, multiProvider, addresses, '');
+    this.cw20adapter = new CwHypSyntheticAdapter(chainName, multiProvider, {
+      token: '',
+      warpRouter: addresses.warpRouter,
+    });
   }
 
-  async getBalance(address: string): Promise<string> {
+  async getBalance(address: string): Promise<bigint> {
     const provider = await this.getProvider();
-    const denom = await this.denom();
+    const denom = await this.getDenom();
     const balance = await provider.getBalance(address, denom);
-    return balance.amount;
+    return BigInt(balance.amount);
   }
 
-  async interchainSecurityModule(): Promise<Address> {
-    return this.cw20adapter.interchainSecurityModule();
+  async getInterchainSecurityModule(): Promise<Address> {
+    return this.cw20adapter.getInterchainSecurityModule();
   }
 
-  async owner(): Promise<Address> {
-    return this.cw20adapter.owner();
+  async getOwner(): Promise<Address> {
+    return this.cw20adapter.getOwner();
   }
 
   async getDomains(): Promise<Domain[]> {
@@ -344,12 +340,12 @@ export class CwHypNativeAdapter
     return this.cw20adapter.getAllRouters();
   }
 
-  quoteGasPayment(destination: number): Promise<string> {
+  quoteGasPayment(destination: Domain): Promise<bigint> {
     return this.cw20adapter.quoteGasPayment(destination);
   }
 
-  async denom(): Promise<string> {
-    const tokenType = await this.cw20adapter.tokenType();
+  async getDenom(): Promise<string> {
+    const tokenType = await this.cw20adapter.getTokenType();
     if ('native' in tokenType) {
       if ('fungible' in tokenType.native) {
         return tokenType.native.fungible.denom;
@@ -363,18 +359,19 @@ export class CwHypNativeAdapter
     destination,
     recipient,
     weiAmountOrId,
-    txValue,
+    interchainGas,
   }: TransferRemoteParams): Promise<ExecuteInstruction> {
-    if (!txValue) {
-      throw new Error('txValue is required for native tokens');
+    if (!interchainGas) {
+      throw new Error('interchainGas is required for remote transfers');
     }
-    const collateralDenom = await this.denom();
+    const collateralDenom = await this.getDenom();
+    const { token: igpToken, amount: igpAmount } = interchainGas;
 
     const funds: Coin[] =
-      collateralDenom === this.gasDenom
+      collateralDenom === igpToken.addressOrDenom
         ? [
             {
-              amount: new BigNumber(weiAmountOrId).plus(txValue).toFixed(0),
+              amount: (BigInt(weiAmountOrId) + igpAmount).toString(),
               denom: collateralDenom,
             },
           ]
@@ -384,8 +381,8 @@ export class CwHypNativeAdapter
               denom: collateralDenom,
             },
             {
-              amount: txValue.toString(),
-              denom: this.gasDenom,
+              amount: igpAmount.toString(),
+              denom: igpToken.addressOrDenom,
             },
           ];
 
@@ -410,8 +407,7 @@ export class CwHypCollateralAdapter
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider<any>,
     public readonly addresses: { warpRouter: Address; token: Address },
-    public readonly gasDenom = 'untrn',
   ) {
-    super(chainName, multiProvider, addresses, gasDenom);
+    super(chainName, multiProvider, addresses);
   }
 }

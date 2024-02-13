@@ -151,6 +151,11 @@ export class CosmIbcToWarpTokenAdapter
     super(chainName, multiProvider, addresses, properties);
   }
 
+  async quoteGasPayment(_destination: Domain): Promise<string> {
+    // TODO implement IBC interchain transfer gas estimation here
+    return '0';
+  }
+
   async populateTransferRemoteTx(
     transferParams: TransferRemoteParams,
   ): Promise<MsgTransferEncodeObject> {

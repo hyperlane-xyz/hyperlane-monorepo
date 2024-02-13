@@ -3,7 +3,7 @@ import { Address, Domain } from '@hyperlane-xyz/utils';
 import { MinimalTokenMetadata } from '../config';
 
 export interface TransferParams {
-  weiAmountOrId: string | number;
+  weiAmountOrId: string | number | bigint;
   recipient: Address;
 
   // Solana-specific params
@@ -14,11 +14,11 @@ export interface TransferParams {
 
 export interface TransferRemoteParams extends TransferParams {
   destination: Domain;
-  txValue?: string;
+  interchainGas?: TokenAmount;
 }
 
 export interface ITokenAdapter {
-  getBalance(address: Address): Promise<string>;
+  getBalance(address: Address): Promise<bigint>;
   getMetadata(isNft?: boolean): Promise<MinimalTokenMetadata>;
   populateApproveTx(TransferParams: TransferParams): unknown | Promise<unknown>;
   populateTransferTx(
@@ -30,7 +30,7 @@ export interface IHypTokenAdapter extends ITokenAdapter {
   getDomains(): Promise<Domain[]>;
   getRouterAddress(domain: Domain): Promise<Buffer>;
   getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>>;
-  quoteGasPayment(destination: Domain): Promise<string>;
+  quoteGasPayment(destination: Domain): Promise<bigint>;
   populateTransferRemoteTx(
     TransferParams: TransferRemoteParams,
   ): unknown | Promise<unknown>;

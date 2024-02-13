@@ -33,9 +33,9 @@ export class EvmNativeTokenAdapter
   extends BaseEvmAdapter
   implements ITokenAdapter
 {
-  async getBalance(address: Address): Promise<string> {
+  async getBalance(address: Address): Promise<bigint> {
     const balance = await this.getProvider().getBalance(address);
-    return balance.toString();
+    return BigInt(balance.toString());
   }
 
   async getMetadata(): Promise<MinimalTokenMetadata> {
@@ -53,7 +53,7 @@ export class EvmNativeTokenAdapter
     weiAmountOrId,
     recipient,
   }: TransferParams): Promise<PopulatedTransaction> {
-    const value = BigNumber.from(weiAmountOrId);
+    const value = BigNumber.from(weiAmountOrId.toString());
     return { value, to: recipient };
   }
 }
@@ -78,9 +78,9 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     );
   }
 
-  override async getBalance(address: Address): Promise<string> {
+  override async getBalance(address: Address): Promise<bigint> {
     const balance = await this.contract.balanceOf(address);
-    return balance.toString();
+    return BigInt(balance.toString());
   }
 
   override async getMetadata(isNft?: boolean): Promise<MinimalTokenMetadata> {
@@ -96,14 +96,20 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     weiAmountOrId,
     recipient,
   }: TransferParams): Promise<PopulatedTransaction> {
-    return this.contract.populateTransaction.approve(recipient, weiAmountOrId);
+    return this.contract.populateTransaction.approve(
+      recipient,
+      weiAmountOrId.toString(),
+    );
   }
 
   override populateTransferTx({
     weiAmountOrId,
     recipient,
   }: TransferParams): Promise<PopulatedTransaction> {
-    return this.contract.populateTransaction.transfer(recipient, weiAmountOrId);
+    return this.contract.populateTransaction.transfer(
+      recipient,
+      weiAmountOrId.toString(),
+    );
   }
 }
 
@@ -147,26 +153,38 @@ export class EvmHypSyntheticAdapter<T extends HypERC20 = HypERC20>
     return domains.map((d, i) => ({ domain: d, address: routers[i] }));
   }
 
-  async quoteGasPayment(destination: Domain): Promise<string> {
+  async quoteGasPayment(destination: Domain): Promise<bigint> {
     const gasPayment = await this.contract.quoteGasPayment(destination);
-    return gasPayment.toString();
+    return BigInt(gasPayment.toString());
   }
 
   populateTransferRemoteTx({
     weiAmountOrId,
     destination,
     recipient,
-    txValue,
+    interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
+
+    let txValue: bigint | undefined = undefined;
+    if (interchainGas) {
+      const { token: igpToken, amount: igpAmount } = interchainGas;
+      // If this is an EvmHypNative adapter and the igp token is native Eth
+      if (
+        !this.addresses.token &&
+        igpToken.standard === TokenStandard.EvmNative
+      ) {
+        txValue = igpAmount + BigInt(weiAmountOrId);
+      } else {
+        txValue = igpAmount;
+      }
+    }
+
     return this.contract.populateTransaction.transferRemote(
       destination,
       recipBytes32,
       weiAmountOrId,
-      {
-        // Note, typically the value is the gas payment as quoted by IGP
-        value: txValue,
-      },
+      { value: txValue?.toString() },
     );
   }
 }
@@ -206,5 +224,20 @@ export class EvmHypCollateralAdapter
     throw new Error(
       'Local transfer not supported for HypCollateral/HypNative contract.',
     );
+  }
+}
+
+export class EvmHypNativeAdapter
+  extends EvmHypCollateralAdapter
+  implements IHypTokenAdapter
+{
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    // EvmHypNatives don't require a token address so use a default of empty string here
+    public readonly addresses: { token: Address } = { token: '' },
+    public readonly contractFactory: any = HypERC20Collateral__factory,
+  ) {
+    super(chainName, multiProvider, addresses, contractFactory);
   }
 }
