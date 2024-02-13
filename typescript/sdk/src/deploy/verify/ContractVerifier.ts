@@ -13,7 +13,6 @@ import {
   ContractVerificationInput,
   ExplorerApiActions,
   ExplorerApiErrors,
-  ExplorerLicenseType,
   FormOptions,
 } from './types';
 
@@ -22,16 +21,16 @@ export class ContractVerifier {
   private compilerOptions: CompilerOptions;
 
   constructor(
-    private multiProvider: MultiProvider,
-    private readonly apiKeys: ChainMap<string>,
-    private source: string, // solidity standard input json
+    protected readonly multiProvider: MultiProvider,
+    protected readonly apiKeys: ChainMap<string>,
+    protected readonly source: string, // solidity standard input json
     compilerOptions: Partial<Omit<CompilerOptions, 'codeformat'>>,
   ) {
     this.compilerOptions = {
       codeformat: 'solidity-standard-json-input',
       compilerversion:
         compilerOptions?.compilerversion ?? 'v0.8.19+commit.7dd6d404',
-      licenseType: compilerOptions?.licenseType ?? ExplorerLicenseType.MIT,
+      licenseType: compilerOptions?.licenseType,
     };
   }
 

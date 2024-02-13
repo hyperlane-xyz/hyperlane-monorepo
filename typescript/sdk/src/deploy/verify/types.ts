@@ -28,7 +28,7 @@ export enum ExplorerLicenseType {
 export type CompilerOptions = {
   codeformat: 'solidity-standard-json-input';
   compilerversion: string; // see https://etherscan.io/solcversions for list of support versions
-  licenseType: ExplorerLicenseType;
+  licenseType?: ExplorerLicenseType;
 };
 
 export enum ExplorerApiActions {

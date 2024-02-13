@@ -1,11 +1,11 @@
 import {
   ChainMap,
+  ExplorerLicenseType,
   PostDeploymentContractVerifier,
   VerificationInput,
 } from '@hyperlane-xyz/sdk';
 
 import { extractSource, fetchExplorerApiKeys } from '../src/deployment/verify';
-import { fetchGCPSecret } from '../src/utils/gcloud';
 import { readJSONAtPath } from '../src/utils/utils';
 
 import {
@@ -51,7 +51,7 @@ async function main() {
     source,
     {
       compilerversion,
-      // MIT license by default
+      licenseType: ExplorerLicenseType.MIT,
     },
   );
 

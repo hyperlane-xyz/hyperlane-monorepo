@@ -6,6 +6,7 @@ import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
   ContractVerifier,
+  ExplorerLicenseType,
   HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
@@ -78,7 +79,7 @@ async function main() {
     // instantiate verifier
     contractVerifier = new ContractVerifier(multiProvider, apiKeys, source, {
       compilerversion,
-      // MIT license by default
+      licenseType: ExplorerLicenseType.MIT,
     });
   }
 
