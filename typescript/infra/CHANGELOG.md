@@ -1,5 +1,24 @@
 # @hyperlane-xyz/infra
 
+## 3.7.0
+
+### Minor Changes
+
+- 54aeb6420: Added warp route artifacts type adopting registry schema
+
+### Patch Changes
+
+- 87151c62b: Bumped injective reorg period
+- ab17af5f7: Updating HyperlaneIgpDeployer to configure storage gas oracles as part of deployment
+- Updated dependencies [6f464eaed]
+- Updated dependencies [87151c62b]
+- Updated dependencies [ab17af5f7]
+- Updated dependencies [7b40232af]
+- Updated dependencies [54aeb6420]
+  - @hyperlane-xyz/sdk@3.7.0
+  - @hyperlane-xyz/helloworld@3.7.0
+  - @hyperlane-xyz/utils@3.7.0
+
 ## 3.6.2
 
 ### Patch Changes

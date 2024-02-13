@@ -7,16 +7,16 @@ import type { CheckerViolation, OwnableConfig } from '../deploy/types';
 import { ChainMap } from '../types';
 
 import { IgpFactories } from './contracts';
-
-export enum GasOracleContractType {
-  StorageGasOracle = 'StorageGasOracle',
-}
+import { GasOracleContractType, StorageGasOracleConfig } from './oracle/types';
 
 export type IgpConfig = OwnableConfig<keyof IgpFactories> & {
   beneficiary: Address;
-  gasOracleType: ChainMap<GasOracleContractType>;
   oracleKey: Address;
   overhead: ChainMap<number>;
+  // TODO: require this
+  oracleConfig?: ChainMap<StorageGasOracleConfig>;
+  // DEPRECATED
+  gasOracleType?: ChainMap<GasOracleContractType>;
 };
 
 export enum IgpViolationType {

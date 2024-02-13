@@ -97,10 +97,7 @@ async function main() {
     };
     deployer = new HypERC20Deployer(multiProvider, ismFactory);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
-    config = {
-      ...envConfig.igp,
-      oracleConfig: envConfig.storageGasOracleConfig,
-    };
+    config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);

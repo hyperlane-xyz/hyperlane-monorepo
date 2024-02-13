@@ -2,4 +2,4 @@
 '@hyperlane-xyz/sdk': patch
 ---
 
-Remove unhealthy zkevm rpc
+Minor fixes for SDK cosmos logos
