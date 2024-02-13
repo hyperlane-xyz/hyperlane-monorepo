@@ -9,9 +9,7 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import type { ChainName } from '../types';
 
-type ValidKey = string | number | symbol;
-
-export type OwnableConfig<Keys extends ValidKey = ValidKey> = {
+export type OwnableConfig<Keys extends PropertyKey = PropertyKey> = {
   owner: Address;
   ownerOverrides?: Partial<Record<Keys, Address>>;
 };
