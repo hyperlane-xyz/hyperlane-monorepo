@@ -127,7 +127,7 @@ impl BaseAgent for Validator {
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(mut self) -> Instrumented<JoinHandle<Result<()>>> {
+    async fn run(mut self) {
         let mut tasks = vec![];
 
         if let Some(signer_instance) = self.signer_instance.take() {

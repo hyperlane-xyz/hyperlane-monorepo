@@ -23,7 +23,7 @@ use hyperlane_core::{
 use tokio::{
     sync::{
         mpsc::{self, UnboundedReceiver, UnboundedSender},
-        RwLock,
+        Mutex, RwLock,
     },
     task::JoinHandle,
 };
@@ -280,6 +280,7 @@ impl BaseAgent for Relayer {
                 mpsc::unbounded_channel::<Box<DynPendingOperation>>();
             send_channels.insert(dest_domain.id(), send_channel);
 
+            let receive_channel = Arc::new(Mutex::new(receive_channel));
             tasks.push(self.run_destination_submitter(dest_domain, receive_channel));
 
             let metrics_updater = MetricsUpdater::new(
@@ -359,12 +360,7 @@ impl Relayer {
         origin: &HyperlaneDomain,
         send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
     ) -> Instrumented<JoinHandle<()>> {
-        let metrics = MessageProcessorMetrics::new(
-            &self.core.metrics,
-            origin,
-            self.destination_chains.keys(),
-        );
-        let destination_ctxs = self
+        let destination_ctxs: HashMap<_, _> = self
             .destination_chains
             .keys()
             .filter(|&destination| destination != origin)
@@ -379,20 +375,27 @@ impl Relayer {
                 )
             })
             .collect();
-        let message_processor = MessageProcessor::new(
-            self.dbs.get(origin).unwrap().clone(),
-            self.whitelist.clone(),
-            self.blacklist.clone(),
-            metrics,
-            send_channels,
-            destination_ctxs,
-        );
 
-        let span = info_span!("MessageProcessor", origin=%message_processor.domain());
-        let processor = Processor::new(Box::new(message_processor));
         let origin = origin.clone();
+        let db = self.dbs.get(&origin).unwrap().clone();
+        let whitelist = self.whitelist.clone();
+        let blacklist = self.blacklist.clone();
+        let core_metrics = self.core.metrics.clone();
+        let destination_chains = self.destination_chains.clone();
+        let span = info_span!("MessageProcessor", origin=%db.domain());
         tokio::spawn(async move {
             loop {
+                let metrics =
+                    MessageProcessorMetrics::new(&core_metrics, &origin, destination_chains.keys());
+                let message_processor = MessageProcessor::new(
+                    db.clone(),
+                    whitelist.clone(),
+                    blacklist.clone(),
+                    metrics,
+                    send_channels.clone(),
+                    destination_ctxs.clone(),
+                );
+                let processor = Processor::new(Box::new(message_processor));
                 // the submitter runs forever, so we only need to handle error cases
                 if let Err(err) = tokio::try_join!(processor.spawn()) {
                     warn!(?err, ?origin, "message processor failed, restarting it");
@@ -404,18 +407,16 @@ impl Relayer {
     }
 
     fn run_merkle_tree_processor(&self, origin: &HyperlaneDomain) -> Instrumented<JoinHandle<()>> {
-        let metrics = MerkleTreeProcessorMetrics::new();
-        let merkle_tree_processor = MerkleTreeProcessor::new(
-            self.dbs.get(origin).unwrap().clone(),
-            metrics,
-            self.prover_syncs[origin].clone(),
-        );
-
-        let span = info_span!("MerkleTreeProcessor", origin=%merkle_tree_processor.domain());
-        let processor = Processor::new(Box::new(merkle_tree_processor));
+        let db = self.dbs.get(origin).unwrap().clone();
+        let prover_syncs = self.prover_syncs[origin].clone();
+        let span = info_span!("MerkleTreeProcessor", origin=%db.domain());
         let origin = origin.clone();
         tokio::spawn(async move {
             loop {
+                let metrics = MerkleTreeProcessorMetrics::new();
+                let merkle_tree_processor =
+                    MerkleTreeProcessor::new(db.clone(), metrics, prover_syncs.clone());
+                let processor = Processor::new(Box::new(merkle_tree_processor));
                 // the submitter runs forever, so we only need to handle error cases
                 if let Err(err) = tokio::try_join!(processor.spawn()) {
                     warn!(?err, ?origin, "destination submitter failed, restarting it");
@@ -431,20 +432,20 @@ impl Relayer {
     fn run_destination_submitter(
         &self,
         destination: &HyperlaneDomain,
-        receiver: UnboundedReceiver<Box<DynPendingOperation>>,
+        receiver: Arc<Mutex<UnboundedReceiver<Box<DynPendingOperation>>>>,
     ) -> Instrumented<JoinHandle<()>> {
-        let serial_submitter = SerialSubmitter::new(
-            destination.clone(),
-            receiver,
-            SerialSubmitterMetrics::new(&self.core.metrics, destination),
-        );
+        let core_metrics = self.core.metrics.clone();
         let span = info_span!("SerialSubmitter", destination=%destination);
-        let submit_fut = serial_submitter.spawn();
         let destination = destination.clone();
         tokio::spawn(async move {
             loop {
+                let serial_submitter = SerialSubmitter::new(
+                    destination.clone(),
+                    receiver.clone(),
+                    SerialSubmitterMetrics::new(&core_metrics, &destination),
+                );
                 // the submitter runs forever, so we only need to handle error cases
-                if let Err(err) = tokio::try_join!(submit_fut) {
+                if let Err(err) = tokio::try_join!(serial_submitter.spawn()) {
                     warn!(
                         ?err,
                         ?destination,
