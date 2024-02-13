@@ -22,7 +22,7 @@ impl Server {
     /// routes:
     ///   - metrics - serving OpenMetrics format reports on `/metrics`
     ///     (this is compatible with Prometheus, which ought to be configured to scrape this endpoint)
-    ///  - eigen - serving agent-specific routes on `/eigen`
+    ///  - additional_routes - additional routes to be served by the server as per the specific agent
     pub fn run(self: Arc<Self>, additional_routes: Vec<(&str, Router)>) -> JoinHandle<()> {
         let port = self.listen_port;
         tracing::info!(port, "starting server on 0.0.0.0");

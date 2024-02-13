@@ -97,7 +97,6 @@ impl BaseAgent for Validator {
             .await?
             .into();
 
-        // TODO: make this configurable
         let server = settings.server(metrics)?;
 
         Ok(Self {
@@ -121,6 +120,7 @@ impl BaseAgent for Validator {
     async fn run(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         let mut tasks = vec![];
 
+        // add routes for servering EigenLayer specific routes compliant with the spec here https://eigen.nethermind.io/docs/spec/api/
         let mut routes = vec![];
         let eigen_node_api =
             EigenNodeAPI::new(self.origin_chain.clone(), self.core.metrics.clone());
