@@ -16,6 +16,7 @@ use tracing::{debug, info, warn};
 use crate::settings::IndexSettings;
 
 mod cursor;
+mod cursors;
 mod eta_calculator;
 mod metrics;
 

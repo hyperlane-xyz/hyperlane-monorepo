@@ -177,6 +177,7 @@ tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-error = "0.2"
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false }
+tracing-test = "0.2.2"
 uint = "0.9.5"
 ureq = { version = "2.4", default-features = false }
 url = "2.3"
