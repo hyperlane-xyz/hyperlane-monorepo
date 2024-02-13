@@ -28,7 +28,7 @@ impl Processor {
     }
 
     #[instrument(ret, skip(self), level = "info", fields(domain=%self.ticker.domain()))]
-    async fn main_loop(mut self) -> () {
+    async fn main_loop(mut self) {
         loop {
             if let Err(err) = self.ticker.tick().await {
                 warn!(error=%err, "Error in processor tick");

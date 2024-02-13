@@ -394,7 +394,7 @@ impl Relayer {
                     destination_ctxs.clone(),
                 );
                 let processor = Processor::new(Box::new(message_processor));
-                // the submitter runs forever, so we only need to handle error cases
+                // the submitter runs forever, so we only need to handle error case
                 if let Err(err) = tokio::try_join!(processor.spawn()) {
                     warn!(?err, ?origin, "message processor failed, restarting it");
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
@@ -415,7 +415,7 @@ impl Relayer {
                 let merkle_tree_processor =
                     MerkleTreeProcessor::new(db.clone(), metrics, prover_syncs.clone());
                 let processor = Processor::new(Box::new(merkle_tree_processor));
-                // the submitter runs forever, so we only need to handle error cases
+                // the submitter runs forever, so we only need to handle error case
                 if let Err(err) = tokio::try_join!(processor.spawn()) {
                     warn!(?err, ?origin, "destination submitter failed, restarting it");
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
@@ -442,7 +442,7 @@ impl Relayer {
                     receiver.clone(),
                     SerialSubmitterMetrics::new(&core_metrics, &destination),
                 );
-                // the submitter runs forever, so we only need to handle error cases
+                // the submitter runs forever, so we only need to handle error case
                 if let Err(err) = tokio::try_join!(serial_submitter.spawn()) {
                     warn!(
                         ?err,

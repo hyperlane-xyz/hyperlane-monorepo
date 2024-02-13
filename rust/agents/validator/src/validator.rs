@@ -183,7 +183,10 @@ impl BaseAgent for Validator {
             }
         }
 
-        run_all(tasks).await.unwrap().unwrap();
+        run_all(tasks)
+            .await
+            .expect("Failed to run validator tasks")
+            .unwrap()
     }
 }
 
