@@ -86,11 +86,12 @@ export {
   OwnerViolation,
   ViolationType,
 } from './deploy/types';
-export { ContractVerifier } from './deploy/verify/ContractVerifier';
+export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier';
 export {
   CompilerOptions,
   ContractVerificationInput,
   VerificationInput,
+  ExplorerLicenseType,
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';

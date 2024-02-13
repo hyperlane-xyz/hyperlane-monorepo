@@ -1,7 +1,6 @@
 import {
   ChainMap,
-  CompilerOptions,
-  ContractVerifier,
+  PostDeploymentContractVerifier,
   VerificationInput,
 } from '@hyperlane-xyz/sdk';
 
@@ -25,57 +24,59 @@ async function main() {
     .string('network')
     .describe('network', 'optional target network').argv;
 
+  // set up multiprovider
   const environment = assertEnvironment(argv.e!);
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
+  // grab verification artifacts
   const verification: ChainMap<VerificationInput> = readJSONAtPath(
     argv.artifacts!,
   );
 
+  // check provided artifact is JSON
   const sourcePath = argv.source!;
   if (!sourcePath.endsWith('.json')) {
     throw new Error('Source must be a JSON file.');
   }
 
+  // parse build artifacts for std input json + solc version
   const buildArtifactJson = readJSONAtPath(sourcePath);
   const source = buildArtifactJson.input;
   const solcLongVersion = buildArtifactJson.solcLongVersion;
+  const compilerversion = `v${solcLongVersion}`;
 
-  // codeformat always json
-  // compiler version inferred from build artifact
-  // always use MIT license
-  const compilerOptions: CompilerOptions = {
-    codeformat: 'solidity-standard-json-input',
-    compilerversion: `v${solcLongVersion}`,
-    licenseType: '3',
-  };
-
+  // check solc version is in the right format
   const versionRegex = /v(\d.\d.\d+)\+commit.\w+/;
-  const matches = versionRegex.exec(compilerOptions.compilerversion);
+  const matches = versionRegex.exec(compilerversion);
   if (!matches) {
-    throw new Error(
-      `Invalid compiler version ${compilerOptions.compilerversion}`,
-    );
+    throw new Error(`Invalid compiler version ${compilerversion}`);
   }
 
+  // fetch API keys from GCP
   const apiKeys: ChainMap<string> = (await fetchGCPSecret(
     'explorer-api-keys',
     true,
   )) as any;
 
-  const verifier = new ContractVerifier(
+  // instantiate verifier
+  const verifier = new PostDeploymentContractVerifier(
     verification,
     multiProvider,
     apiKeys,
     source,
-    compilerOptions,
+    {
+      compilerversion,
+      // MIT license by default
+    },
   );
 
+  // verify all the things
   const failedResults = (
     await verifier.verify(argv.network ? [argv.network] : undefined)
   ).filter((result) => result.status === 'rejected');
 
+  // only log the failed verifications to console
   if (failedResults.length > 0) {
     console.error(
       'Verification failed for the following contracts:',
