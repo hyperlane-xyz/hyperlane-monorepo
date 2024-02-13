@@ -1,5 +1,4 @@
 import debug from 'debug';
-import { ethers } from 'ethers';
 
 import {
   InterchainGasPaymaster,
@@ -8,13 +7,13 @@ import {
 } from '@hyperlane-xyz/core';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
-import { TOKEN_EXCHANGE_RATE_EXPONENT } from '../consts/igp';
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
 import { IgpFactories, igpFactories } from './contracts';
+import { formatGasOracleConfig } from './oracle/types';
 import { IgpConfig } from './types';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
@@ -91,54 +90,37 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     }
 
     this.logger(`Configuring gas oracle from ${chain}...`);
-    const configsToSet: Array<
-      StorageGasOracle.RemoteGasDataConfigStruct & { remote: ChainName }
-    > = [];
+    const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
 
     // For each remote, check if the gas oracle has the correct data
-    for (const [remote, desiredGasData] of Object.entries(
-      config.oracleConfig,
-    )) {
-      const remoteId = this.multiProvider.getDomainId(remote);
+    for (const [remote, desired] of Object.entries(config.oracleConfig)) {
+      const remoteDomain = this.multiProvider.getDomainId(remote);
 
-      const remoteGasDataConfig = await gasOracle.remoteGasData(remoteId);
+      const actual = await gasOracle.remoteGasData(remoteDomain);
+      this.logger(`${remote} actual: ${formatGasOracleConfig(actual)}`);
 
       if (
-        !remoteGasDataConfig.gasPrice.eq(desiredGasData.gasPrice) ||
-        !remoteGasDataConfig.tokenExchangeRate.eq(
-          desiredGasData.tokenExchangeRate,
-        )
+        !actual.gasPrice.eq(desired.gasPrice) ||
+        !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
       ) {
+        this.logger(`${remote} update: ${formatGasOracleConfig(desired)}`);
         configsToSet.push({
-          remote,
-          remoteDomain: this.multiProvider.getDomainId(remote),
-          ...desiredGasData,
+          remoteDomain,
+          ...desired,
         });
       }
     }
 
     if (configsToSet.length > 0) {
-      await this.runIfOwner(chain, gasOracle, async () => {
-        configsToSet.forEach((v) => {
-          const exchangeRate = ethers.utils.formatUnits(
-            v.tokenExchangeRate as any,
-            TOKEN_EXCHANGE_RATE_EXPONENT,
-          );
-          const gasPrice = ethers.utils.formatUnits(v.gasPrice as any, 'gwei');
-          this.logger(
-            `Updating ${v.remote.padEnd(15)}\t${exchangeRate.padEnd(
-              10,
-            )}\t${gasPrice} gwei`,
-          );
-        });
-        return this.multiProvider.handleTx(
+      await this.runIfOwner(chain, gasOracle, async () =>
+        this.multiProvider.handleTx(
           chain,
           gasOracle.setRemoteGasDataConfigs(
             configsToSet,
             this.multiProvider.getTransactionOverrides(chain),
           ),
-        );
-      });
+        ),
+      );
     }
 
     return gasOracle;
@@ -170,7 +152,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       ...config,
       ownerOverrides: {
         ...config.ownerOverrides,
-        storageGasOracle: config.oracleKey, // TODO: merge this
+        storageGasOracle: config.oracleKey,
       },
     };
 

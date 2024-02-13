@@ -105,6 +105,10 @@ export {
   SealevelOverheadIgpDataSchema,
 } from './gas/adapters/serialization';
 export { IgpFactories, igpFactories } from './gas/contracts';
+export {
+  GasOracleContractType,
+  StorageGasOracleConfig,
+} from './gas/oracle/types';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
   IgpBeneficiaryViolation,
@@ -114,10 +118,6 @@ export {
   IgpViolation,
   IgpViolationType,
 } from './gas/types';
-export {
-  GasOracleContractType,
-  DestinationOracleConfig,
-} from './gas/oracle/types';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
 export {
   AggregationHookConfig,
