@@ -26,11 +26,10 @@ export abstract class RouterApp<
   constructor(
     contractsMap: HyperlaneContractsMap<Factories>,
     multiProvider: MultiProvider,
-    supportedChainNames?: string[],
     logger?: debug.Debugger,
     readonly foreignDeployments: ChainMap<Address> = {},
   ) {
-    super(contractsMap, multiProvider, supportedChainNames, logger);
+    super(contractsMap, multiProvider, logger);
   }
 
   abstract router(contracts: HyperlaneContracts<Factories>): Router;

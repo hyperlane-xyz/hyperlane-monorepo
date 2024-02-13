@@ -71,35 +71,27 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
-    supportedChainNames?: string[],
   ): HyperlaneIsmFactory {
     const envAddresses = hyperlaneEnvironments[env];
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
     /// @ts-ignore
-    return HyperlaneIsmFactory.fromAddressesMap(
-      envAddresses,
-      multiProvider,
-      supportedChainNames,
-    );
+    return HyperlaneIsmFactory.fromAddressesMap(envAddresses, multiProvider);
   }
 
   static fromAddressesMap(
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
-    supportedChainNames?: string[],
   ): HyperlaneIsmFactory {
     const helper = appFromAddressesMapHelper(
       addressesMap,
       proxyFactoryFactories,
       multiProvider,
-      supportedChainNames,
     );
     return new HyperlaneIsmFactory(
       helper.contractsMap,
       multiProvider,
-      supportedChainNames,
       debug('hyperlane:IsmFactoryApp'),
     );
   }

@@ -19,36 +19,25 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
   static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
-    supportedChainNames?: string[],
   ): HyperlaneIgp {
     const envAddresses = hyperlaneEnvironments[env];
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
     /// @ts-ignore
-    return HyperlaneIgp.fromAddressesMap(
-      envAddresses,
-      multiProvider,
-      supportedChainNames,
-    );
+    return HyperlaneIgp.fromAddressesMap(envAddresses, multiProvider);
   }
 
   static fromAddressesMap(
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
-    supportedChainNames?: string[],
   ): HyperlaneIgp {
     const helper = appFromAddressesMapHelper(
       addressesMap,
       igpFactories,
       multiProvider,
-      supportedChainNames,
     );
-    return new HyperlaneIgp(
-      helper.contractsMap,
-      helper.multiProvider,
-      supportedChainNames,
-    );
+    return new HyperlaneIgp(helper.contractsMap, helper.multiProvider);
   }
 
   /**
