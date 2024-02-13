@@ -107,9 +107,15 @@ impl BaseAgent for Scraper {
             )
             .await
             .unwrap();
-            tasks.push(metrics_updater.spawn());
+            tasks.push(
+                tokio::spawn(async move {
+                    metrics_updater.spawn().await.unwrap();
+                    Ok(())
+                })
+                .instrument(info_span!("MetricsUpdater")),
+            );
         }
-        let res = run_all(tasks);
+        let res = run_all(tasks).await.unwrap().unwrap();
     }
 }
 
@@ -185,7 +191,8 @@ macro_rules! spawn_sync_task {
                 tokio::spawn(async move {
                     sync
                         .sync($label, cursor)
-                        .await
+                        .await;
+                    Ok(())
                 })
                 .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=$label))
         }
@@ -223,9 +230,11 @@ impl Scraper {
         let cursor = sync
             .forward_message_sync_cursor(index_settings.clone(), latest_nonce.saturating_sub(1))
             .await;
-        tokio::spawn(async move { sync.sync("message_dispatch", cursor).await }).instrument(
-            info_span!("ChainContractSync", chain=%domain.name(), event="message_dispatch"),
-        )
+        tokio::spawn(async move {
+            sync.sync("message_dispatch", cursor).await;
+            Ok(())
+        })
+        .instrument(info_span!("ChainContractSync", chain=%domain.name(), event="message_dispatch"))
     }
 
     spawn_sync_task!(
