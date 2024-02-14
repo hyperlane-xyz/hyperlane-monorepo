@@ -105,9 +105,12 @@ export {
   SealevelOverheadIgpDataSchema,
 } from './gas/adapters/serialization';
 export { IgpFactories, igpFactories } from './gas/contracts';
-export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
   GasOracleContractType,
+  StorageGasOracleConfig,
+} from './gas/oracle/types';
+export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
+export {
   IgpBeneficiaryViolation,
   IgpConfig,
   IgpGasOraclesViolation,

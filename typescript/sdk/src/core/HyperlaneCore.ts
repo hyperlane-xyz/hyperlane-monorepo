@@ -5,13 +5,16 @@ import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   AddressBytes32,
+  ProtocolType,
   messageId,
+  objFilter,
   objMap,
   parseMessage,
   pollAsync,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
+import { chainMetadata } from '../consts/chainMetadata';
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
@@ -52,11 +55,19 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   getRouterConfig = (
     owners: Address | ChainMap<OwnableConfig>,
-  ): ChainMap<RouterConfig> =>
-    objMap(this.contractsMap, (chain, contracts) => ({
+  ): ChainMap<RouterConfig> => {
+    // get config
+    const config = objMap(this.contractsMap, (chain, contracts) => ({
       mailbox: contracts.mailbox.address,
       owner: typeof owners === 'string' ? owners : owners[chain].owner,
     }));
+    // filter for EVM chains
+    return objFilter(
+      config,
+      (chainName, _): _ is RouterConfig =>
+        chainMetadata[chainName].protocol === ProtocolType.Ethereum,
+    );
+  };
 
   quoteGasPayment = (
     origin: ChainName,

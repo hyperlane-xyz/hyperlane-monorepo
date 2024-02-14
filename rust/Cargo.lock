@@ -7623,6 +7623,7 @@ dependencies = [
  "itertools 0.12.0",
  "migration",
  "num-bigint 0.4.4",
+ "num-traits",
  "prometheus",
  "sea-orm",
  "serde",

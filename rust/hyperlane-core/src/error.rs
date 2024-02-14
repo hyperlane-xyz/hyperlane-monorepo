@@ -4,6 +4,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
 use bigdecimal::ParseBigDecimalError;
+use derive_new::new;
 
 use crate::config::StrOrIntParseError;
 use crate::rpc_clients::RpcClientError;
@@ -24,6 +25,7 @@ impl<E: StdError + Send + Sync + Any> HyperlaneCustomError for E {}
 /// Thin wrapper around a boxed HyperlaneCustomError; required to satisfy
 /// AsDynError implementations. Basically a trait-object adaptor.
 #[repr(transparent)]
+#[derive(new)]
 pub struct HyperlaneCustomErrorWrapper(Box<dyn HyperlaneCustomError>);
 
 impl Debug for HyperlaneCustomErrorWrapper {
