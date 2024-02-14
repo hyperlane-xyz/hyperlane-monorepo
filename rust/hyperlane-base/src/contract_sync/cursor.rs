@@ -1,5 +1,4 @@
 use std::{
-    cmp::Ordering,
     fmt::Debug,
     ops::RangeInclusive,
     sync::Arc,
@@ -11,11 +10,10 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction,
-    HyperlaneSequenceIndexerStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta,
-    SequenceAwareIndexer, Sequenced,
+    HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta, SequenceAwareIndexer,
 };
 use tokio::time::sleep;
-use tracing::{debug, warn};
+use tracing::warn;
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
 
@@ -23,15 +21,6 @@ use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
 
 const MAX_SEQUENCE_RANGE: u32 = 20;
-
-/// A struct that holds the data needed for forwards and backwards
-/// sequence sync cursors.
-#[derive(Debug, new)]
-pub(crate) struct SequenceSyncCursor<T> {
-    indexer: Arc<dyn SequenceAwareIndexer<T>>,
-    db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
-    sync_state: SyncState,
-}
 
 #[derive(Debug, new)]
 pub(crate) struct SyncState {
@@ -129,44 +118,7 @@ impl SyncState {
     }
 }
 
-impl<T: Sequenced> SequenceSyncCursor<T> {
-    async fn retrieve_by_sequence(&self, sequence: u32) -> Option<T> {
-        self.db.retrieve_by_sequence(sequence).await.ok().flatten()
-    }
-
-    async fn retrieve_log_block_number(&self, sequence: u32) -> Option<u32> {
-        self.db
-            .retrieve_log_block_number(sequence)
-            .await
-            .ok()
-            .flatten()
-            .map(|num| u32::try_from(num).unwrap())
-    }
-
-    async fn update(&mut self, logs: Vec<(T, LogMeta)>, prev_sequence: u32) -> Result<()> {
-        // If we found logs, but did *not* find the log we were looking for,
-        // we need to rewind to the block at which we found the last log.
-        if !logs.is_empty()
-            && !logs
-                .iter()
-                .any(|m| m.0.sequence() == self.sync_state.next_sequence)
-        {
-            warn!(next_sequence=?self.sync_state.next_sequence, "Target sequence not found, rewinding");
-            // If the previous sequence has been synced, rewind to the block number
-            // at which it was dispatched. Otherwise, rewind all the way back to the start block.
-            if let Some(block_number) = self.retrieve_log_block_number(prev_sequence).await {
-                self.sync_state.next_block = block_number;
-                warn!(block_number, "Rewound to previous known sequenced log");
-            } else {
-                self.sync_state.next_block = self.sync_state.start_block;
-            }
-            Ok(())
-        } else {
-            Ok(())
-        }
-    }
-}
-
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum SyncDirection {
     Forward,
