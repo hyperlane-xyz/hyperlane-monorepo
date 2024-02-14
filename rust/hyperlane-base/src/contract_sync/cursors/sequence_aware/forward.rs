@@ -112,14 +112,12 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
             .map_err(|_e| ChainCommunicationError::from_other_str("todo"))?
             .is_some()
         {
-            println!("dog? {:?}", self.current_indexing_snapshot);
             if let Some(block_number) = self
                 .db
                 .retrieve_log_block_number(self.current_indexing_snapshot.sequence)
                 .await
                 .map_err(|_e| ChainCommunicationError::from_other_str("todo"))?
             {
-                println!("bro? {:?}", self.current_indexing_snapshot);
                 self.last_indexed_snapshot = SequenceAwareSyncSnapshot {
                     sequence: self.current_indexing_snapshot.sequence,
                     at_block: block_number.try_into().expect("todo"),
@@ -133,8 +131,6 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
                 );
             }
         }
-
-        println!("homie? {:?}", self.current_indexing_snapshot);
 
         Ok(())
     }
