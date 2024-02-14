@@ -1,8 +1,21 @@
+/**
+ * The types defined here are the source of truth for chain metadata.
+ * ANY CHANGES HERE NEED TO BE REFLECTED IN HYPERLANE-BASE CONFIG PARSING.
+ */
 import { z } from 'zod';
 
-import { ProtocolType } from '../types';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ZNzUint, ZUint } from './customZodTypes';
+
+export enum ExplorerFamily {
+  Etherscan = 'etherscan',
+  Blockscout = 'blockscout',
+  Other = 'other',
+}
+
+// A type that also allows for literal values of the enum
+export type ExplorerFamilyValue = `${ExplorerFamily}`;
 
 export const RpcUrlSchema = z.object({
   http: z
@@ -41,12 +54,6 @@ export const RpcUrlSchema = z.object({
 });
 
 export type RpcUrl = z.infer<typeof RpcUrlSchema>;
-
-export enum ExplorerFamily {
-  Etherscan = 'etherscan',
-  Blockscout = 'blockscout',
-  Other = 'other',
-}
 
 /**
  * A collection of useful properties and settings for chains using Hyperlane
@@ -213,3 +220,24 @@ export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
 
 export type ChainMetadata<Ext = object> = z.infer<typeof ChainMetadataSchema> &
   Ext;
+
+export type BlockExplorer = Exclude<
+  ChainMetadata['blockExplorers'],
+  undefined
+>[number];
+
+export function isValidChainMetadata(c: ChainMetadata): boolean {
+  return ChainMetadataSchema.safeParse(c).success;
+}
+
+export function getDomainId(chainMetadata: ChainMetadata): number {
+  if (chainMetadata.domainId) return chainMetadata.domainId;
+  else if (typeof chainMetadata.chainId === 'number')
+    return chainMetadata.chainId;
+  else throw new Error('Invalid chain metadata, no valid domainId');
+}
+
+export function getChainIdNumber(chainMetadata: ChainMetadata): number {
+  if (typeof chainMetadata.chainId === 'number') return chainMetadata.chainId;
+  else throw new Error('ChainId is not a number, chain may be of Cosmos type');
+}

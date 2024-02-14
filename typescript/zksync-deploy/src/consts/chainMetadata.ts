@@ -1,6 +1,13 @@
 import { ChainMetadata, ExplorerFamily } from '../metadata/chainMetadataTypes';
 import { ChainMap } from '../types';
 
+import { Chains, ProtocolType } from './chains';
+
+/**
+ * Common native currencies
+ */
+export const etherToken = { decimals: 18, name: 'Ether', symbol: 'ETH' };
+
 // FIXME:
 export const zksyncera: ChainMetadata = {
   blockExplorers: [
@@ -23,7 +30,7 @@ export const zksyncera: ChainMetadata = {
   // ETH is used for gas
   gnosisSafeTransactionServiceUrl:
     'https://safe-transaction-arbitrum.safe.global/',
-  name: Chains.arbitrum,
+  name: Chains.zksyncera,
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'https://arb1.arbitrum.io/rpc' }],

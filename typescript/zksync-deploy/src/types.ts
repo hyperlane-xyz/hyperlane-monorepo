@@ -1,3 +1,9 @@
+import { Provider, Signer, Wallet } from 'zksync-ethers';
+
+export enum ProtocolType {
+  Zksyncera = 'zksyncera',
+}
+
 export type DeploymentList = {
   [key: string]: string;
 };
@@ -7,12 +13,7 @@ export type ChainName = string;
 export type ChainMap<Value> = Record<string, Value>;
 export type Address = string;
 
-export enum ProtocolType {
-  Ethereum = 'ethereum',
-  Sealevel = 'sealevel',
-  Fuel = 'fuel',
-  Cosmos = 'cosmos',
-}
+export type Connection = Provider | Signer; // TODO: Review this
 
 export type DeployContractOptions = {
   /**

@@ -3,35 +3,52 @@ const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 const mailbox = await this.deployMailbox(chain, config, proxyAdmin.address);
 const validatorAnnounce
 */
-import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
+
+/* import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { ChainMap, ChainName } from '../../types';
-import { HyperlaneContracts } from '../contracts/types';
-import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer';
-import { HookConfig } from '../hook/types';
-import {
+
+import { HyperlaneContracts } from '../contracts/types'; */
+// import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer';
+// import { HookConfig } from '../hook/types';
+
+/* import {
   HyperlaneIsmFactory,
   moduleMatchesConfig,
 } from '../ism/HyperlaneIsmFactory';
-import { IsmConfig } from '../ism/types';
+ */
+// import { IsmConfig } from '../ism/types';
+import { chainMetadata } from '../consts/chainMetadata';
+import { ChainMetadata } from '../metadata/chainMetadataTypes';
+// import { CoreAddresses, CoreFactories, coreFactories } from './contracts';
+import { ChainMap, ChainName } from '../types';
 
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer';
-import { getMultiProvider } from './_utils';
-import { CoreAddresses, CoreFactories, coreFactories } from './contracts';
+import { getMultiProvider } from './utils';
 
 export async function executeDeploy() {
-  const multiProvider = getMultiProvider(customChains, signer);
+  // init var
+  let key: string;
+  key = '0x61c382e3d00e76b315fa610b6f34c6744c217f899457070825bcde0dbf53037a';
+
+  // Config
+  const customChains: ChainMap<ChainMetadata> = chainMetadata;
+  // let signer = keyToSigner(key);
+
+  const multiProvider = getMultiProvider(customChains);
+  const chains: ChainName[] = ['zksyncera'];
 
   // 1. Deploy ISM factories to all deployable chains that don't have them.
   const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+  const ismFactoryConfig = chains.reduce((chainMap, curr) => {
+    chainMap[curr] = {};
+    return chainMap;
+  }, {} as ChainMap<{}>);
+  const ismFactoryContracts = await ismFactoryDeployer.deploy(ismFactoryConfig);
 }
 
-export class HyperlaneCoreDeployer {
-  /**
-   * Deploys the Implementation and Proxy for a given contract
-   *
-   */
+/* export class HyperlaneCoreDeployer {
+  
 
   async deployMailbox(
     chain: ChainName,
@@ -219,3 +236,4 @@ export class HyperlaneCoreDeployer {
     };
   }
 }
+ */

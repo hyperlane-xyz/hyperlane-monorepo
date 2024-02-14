@@ -9,14 +9,10 @@ import type { ChainMap, ChainName } from '../types';
 
 import { MultiProvider, MultiProviderOptions } from './MultiProvider';
 import {
-  CosmJsProvider,
-  CosmJsWasmProvider,
-  EthersV5Provider,
   ProviderMap,
   ProviderType,
-  SolanaWeb3Provider,
   TypedProvider,
-  ViemProvider,
+  zksynceraEthersV5Provider,
 } from './ProviderType';
 import {
   ProviderBuilderMap,
@@ -26,9 +22,7 @@ import {
 export const PROTOCOL_DEFAULT_PROVIDER_TYPE: Partial<
   Record<ProtocolType, ProviderType>
 > = {
-  [ProtocolType.Ethereum]: ProviderType.EthersV5,
-  [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
-  [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
+  [ProtocolType.Ethereum]: ProviderType.zksynceraEthersV5,
 };
 
 export interface MultiProtocolProviderOptions {
@@ -79,7 +73,7 @@ export class MultiProtocolProvider<
     const newMp = new MultiProtocolProvider<MetaExt>(mp.metadata, options);
 
     const typedProviders = objMap(mp.providers, (_, provider) => ({
-      type: ProviderType.EthersV5,
+      type: ProviderType.zksynceraEthersV5,
       provider,
     })) as ChainMap<TypedProvider>;
 
@@ -92,13 +86,14 @@ export class MultiProtocolProvider<
 
     const providers = objMap(
       this.providers,
-      (_, typeToProviders) => typeToProviders[ProviderType.EthersV5]?.provider,
-    ) as ChainMap<EthersV5Provider['provider'] | undefined>;
+      (_, typeToProviders) =>
+        typeToProviders[ProviderType.zksynceraEthersV5]?.provider,
+    ) as ChainMap<zksynceraEthersV5Provider['provider'] | undefined>;
 
     const filteredProviders = objFilter(
       providers,
-      (_, p): p is EthersV5Provider['provider'] => !!p,
-    ) as ChainMap<EthersV5Provider['provider']>;
+      (_, p): p is zksynceraEthersV5Provider['provider'] => !!p,
+    ) as ChainMap<zksynceraEthersV5Provider['provider']>;
 
     newMp.setProviders(filteredProviders);
     return newMp;
@@ -158,46 +153,12 @@ export class MultiProtocolProvider<
     return provider.provider as T;
   }
 
-  getEthersV5Provider(
+  getzksynceraEthersV5ProviderProvider(
     chainNameOrId: ChainName | number,
-  ): EthersV5Provider['provider'] {
-    return this.getSpecificProvider<EthersV5Provider['provider']>(
+  ): zksynceraEthersV5Provider['provider'] {
+    return this.getSpecificProvider<zksynceraEthersV5Provider['provider']>(
       chainNameOrId,
-      ProviderType.EthersV5,
-    );
-  }
-
-  getViemProvider(chainNameOrId: ChainName | number): ViemProvider['provider'] {
-    return this.getSpecificProvider<ViemProvider['provider']>(
-      chainNameOrId,
-      ProviderType.Viem,
-    );
-  }
-
-  getSolanaWeb3Provider(
-    chainNameOrId: ChainName | number,
-  ): SolanaWeb3Provider['provider'] {
-    return this.getSpecificProvider<SolanaWeb3Provider['provider']>(
-      chainNameOrId,
-      ProviderType.SolanaWeb3,
-    );
-  }
-
-  getCosmJsProvider(
-    chainNameOrId: ChainName | number,
-  ): CosmJsProvider['provider'] {
-    return this.getSpecificProvider<CosmJsProvider['provider']>(
-      chainNameOrId,
-      ProviderType.CosmJs,
-    );
-  }
-
-  getCosmJsWasmProvider(
-    chainNameOrId: ChainName | number,
-  ): CosmJsWasmProvider['provider'] {
-    return this.getSpecificProvider<CosmJsWasmProvider['provider']>(
-      chainNameOrId,
-      ProviderType.CosmJsWasm,
+      ProviderType.zksynceraEthersV5,
     );
   }
 

@@ -4,10 +4,8 @@ import {
   ContractFactory,
   ContractReceipt,
   ContractTransaction,
-  PopulatedTransaction,
-  Signer,
-  providers,
 } from 'ethers';
+import { Provider, Signer, types } from 'zksync-ethers';
 
 import { Address, pick } from '@hyperlane-xyz/utils';
 
@@ -18,8 +16,6 @@ import { ChainMetadata } from '../metadata/chainMetadataTypes';
 import { ChainMap, ChainName } from '../types';
 
 import { ProviderBuilderFn, defaultProviderBuilder } from './providerBuilders';
-
-type Provider = providers.Provider;
 
 export interface MultiProviderOptions {
   loggerName?: string;
@@ -82,10 +78,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (this.providers[name]) return this.providers[name];
 
     if (TestChains.includes(name as CoreChainName)) {
-      this.providers[name] = new providers.JsonRpcProvider(
-        'http://127.0.0.1:8545',
-        31337,
-      );
+      this.providers[name] = new Provider('http://127.0.0.1:8545', 31337);
     } else if (rpcUrls.length) {
       this.providers[name] = this.providerBuilder(rpcUrls, chainId);
     } else {
@@ -113,10 +106,6 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   setProvider(chainNameOrId: ChainName | number, provider: Provider): Provider {
     const chainName = this.getChainName(chainNameOrId);
     this.providers[chainName] = provider;
-    const signer = this.signers[chainName];
-    if (signer && signer.provider) {
-      this.setSigner(chainName, signer.connect(provider));
-    }
     return provider;
   }
 
@@ -141,9 +130,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const signer = this.signers[chainName];
     if (!signer) return null;
     if (signer.provider) return signer;
-    // Auto-connect the signer for convenience
-    const provider = this.tryGetProvider(chainName);
-    return provider ? signer.connect(provider) : signer;
+    return signer;
   }
 
   /**
@@ -276,7 +263,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   getTransactionOverrides(
     chainNameOrId: ChainName | number,
-  ): Partial<providers.TransactionRequest> {
+  ): Partial<types.TransactionRequest> {
     return this.getChainMetadata(chainNameOrId)?.transactionOverrides ?? {};
   }
 
@@ -322,9 +309,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async prepareTx(
     chainNameOrId: ChainName | number,
-    tx: PopulatedTransaction,
+    tx: types.TransactionRequest,
     from?: string,
-  ): Promise<providers.TransactionRequest> {
+  ): Promise<types.TransactionRequest> {
     const txFrom = from ? from : await this.getSignerAddress(chainNameOrId);
     const overrides = this.getTransactionOverrides(chainNameOrId);
     return {
@@ -340,7 +327,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async estimateGas(
     chainNameOrId: ChainName | number,
-    tx: PopulatedTransaction,
+    tx: types.TransactionRequest,
     from?: string,
   ): Promise<BigNumber> {
     const txReq = {
@@ -361,7 +348,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async sendTransaction(
     chainNameOrId: ChainName | number,
-    tx: PopulatedTransaction | Promise<PopulatedTransaction>,
+    tx: types.TransactionRequest | Promise<types.TransactionRequest>,
   ): Promise<ContractReceipt> {
     const txReq = await this.prepareTx(chainNameOrId, await tx);
     const signer = this.getSigner(chainNameOrId);

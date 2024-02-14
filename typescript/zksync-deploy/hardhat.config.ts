@@ -57,7 +57,7 @@ module.exports = {
     version: '0.8.17',
   },
   typechain: {
-    outDir: './types',
+    outDir: './src/types',
     target: 'ethers-v5',
     alwaysGenerateOverloads: true,
   },

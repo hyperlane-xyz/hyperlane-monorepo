@@ -4,12 +4,12 @@ import '@matterlabs/hardhat-zksync-verify/dist/src/type-extensions';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import * as hre from 'hardhat';
-import { Contract, Provider, Wallet } from 'zksync-ethers';
+import { Provider, Signer, Wallet } from 'zksync-ethers';
 
-import { chainMetadata } from '../const/chainMetadata';
+import { chainMetadata } from '../consts/chainMetadata';
 import { ChainMetadata } from '../metadata/chainMetadataTypes';
 import { MultiProvider } from '../providers/MultiProvider';
-import { Address, DeployContractOptions } from '../types';
+import { DeployContractOptions } from '../types';
 import { ChainMap } from '../types';
 
 // Load env file
@@ -134,9 +134,12 @@ export const deployContract = async (
   return contract;
 };
 
+/* 
+change: zksync Signer
+*/
 export function getMultiProvider(
   customChains: ChainMap<ChainMetadata>,
-  signer?: ethers.Signer,
+  signer?: Signer,
 ) {
   const chainConfigs = { ...chainMetadata, ...customChains };
   const mp = new MultiProvider(chainConfigs);

@@ -1,4 +1,10 @@
-import { deployContract } from './_utils';
+import { executeDeploy } from './deploy/core';
+
+export default async function () {
+  await executeDeploy();
+}
+
+/* import { deployContract } from './_utils';
 
 // An example of a basic deploy script
 // It will deploy a Greeter contract to selected network
@@ -8,3 +14,4 @@ export default async function () {
   const constructorArguments = ['Hi there!'];
   await deployContract(contractArtifactName, constructorArguments);
 }
+ */
