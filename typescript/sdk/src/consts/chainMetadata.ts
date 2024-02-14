@@ -524,35 +524,6 @@ export const mantapacific: ChainMetadata = {
   rpcUrls: [{ http: 'https://pacific-rpc.manta.network/http' }],
 };
 
-export const moonbasealpha: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-moonbase.moonscan.io/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'MoonScan',
-      url: 'https://moonbase.moonscan.io',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 12,
-    reorgPeriod: 1,
-  },
-  chainId: 1287,
-  displayName: 'Moonbase Alpha',
-  displayNameShort: 'Moonbase',
-  domainId: 1287,
-  isTestnet: true,
-  name: Chains.moonbasealpha,
-  nativeToken: {
-    decimals: 18,
-    name: 'DEV',
-    symbol: 'DEV',
-  },
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.api.moonbase.moonbeam.network' }],
-};
-
 export const moonbeam: ChainMetadata = {
   blockExplorers: [
     {
@@ -1101,7 +1072,6 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   arbitrumgoerli,
   avalanche,
   base,
-  basegoerli,
   bsc,
   bsctestnet,
   celo,
@@ -1115,7 +1085,6 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   injective,
   lineagoerli,
   mantapacific,
-  moonbasealpha,
   moonbeam,
   mumbai,
   nautilus,
