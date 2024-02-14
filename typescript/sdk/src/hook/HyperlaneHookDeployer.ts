@@ -87,7 +87,11 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       hook = await this.deployRouting(chain, config, coreAddresses);
     } else if (config.type === HookType.PAUSABLE) {
       hook = await this.deployContract(chain, config.type, []);
-      await this.transferOwnershipOfContracts(chain, config.owner, { hook });
+      await this.transferOwnershipOfContracts<HookType.PAUSABLE>(
+        chain,
+        config,
+        { [HookType.PAUSABLE]: hook },
+      );
     } else {
       throw new Error(`Unsupported hook config: ${config}`);
     }

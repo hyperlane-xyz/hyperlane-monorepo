@@ -1,18 +1,55 @@
-import { BigNumber } from 'ethers';
+import { ethers } from 'ethers';
 
-import { ChainMap } from '../../types';
+import { StorageGasOracle } from '@hyperlane-xyz/core';
+
+import { TOKEN_EXCHANGE_RATE_EXPONENT } from '../../consts/igp';
 
 export enum GasOracleContractType {
   StorageGasOracle = 'StorageGasOracle',
 }
-// Gas data to configure on a single destination chain.
-export type StorageGasOracleConfig = {
-  tokenExchangeRate: BigNumber;
-  gasPrice: BigNumber;
-};
-// StorageGasOracleConfig for each local chain
-export type StorageGasOraclesConfig = ChainMap<StorageGasOracleConfig>;
 
-export type OracleConfig = {
-  oracleConfig: StorageGasOraclesConfig;
+// Gas data to configure on a single destination chain.
+export type StorageGasOracleConfig = Pick<
+  StorageGasOracle.RemoteGasDataConfigStructOutput,
+  'gasPrice' | 'tokenExchangeRate'
+>;
+
+export const formatGasOracleConfig = (config: StorageGasOracleConfig) => ({
+  tokenExchangeRate: ethers.utils.formatUnits(
+    config.tokenExchangeRate,
+    TOKEN_EXCHANGE_RATE_EXPONENT,
+  ),
+  gasPrice: ethers.utils.formatUnits(config.gasPrice, 'gwei'),
+});
+
+const percentDifference = (
+  actual: ethers.BigNumber,
+  expected: ethers.BigNumber,
+): ethers.BigNumber => expected.sub(actual).mul(100).div(actual);
+
+const serializePercentDifference = (
+  actual: ethers.BigNumber,
+  expected: ethers.BigNumber,
+): string => {
+  if (actual.isZero()) {
+    return 'new';
+  }
+  const diff = percentDifference(actual, expected);
+  return diff.isNegative() ? `${diff.toString()}%` : `+${diff.toString()}%`;
+};
+
+export const serializeDifference = (
+  actual: StorageGasOracleConfig,
+  expected: StorageGasOracleConfig,
+): string => {
+  const gasPriceDiff = serializePercentDifference(
+    actual.gasPrice,
+    expected.gasPrice,
+  );
+  const tokenExchangeRateDiff = serializePercentDifference(
+    actual.tokenExchangeRate,
+    expected.tokenExchangeRate,
+  );
+  const formatted = formatGasOracleConfig(expected);
+  return `$ ${formatted.tokenExchangeRate} (${tokenExchangeRateDiff}), ${formatted.gasPrice} gwei (${gasPriceDiff})`;
 };
