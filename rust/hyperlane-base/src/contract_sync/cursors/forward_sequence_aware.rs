@@ -1,4 +1,6 @@
-use std::{cmp::Ordering, fmt::Debug, ops::RangeInclusive, sync::Arc, time::Duration};
+use std::{
+    cmp::Ordering, collections::HashSet, fmt::Debug, ops::RangeInclusive, sync::Arc, time::Duration,
+};
 
 use async_trait::async_trait;
 use derive_new::new;
@@ -10,7 +12,7 @@ use hyperlane_core::{
 use itertools::Itertools;
 use tracing::{debug, warn};
 
-use super::{sequences_missing_from_range, SequenceAwareSyncSnapshot};
+use super::SequenceAwareSyncSnapshot;
 
 /// A sequence-aware cursor that syncs forwards in perpetuity.
 #[derive(Debug, new)]
@@ -49,13 +51,16 @@ impl<T: Sequenced> ForwardSequenceAwareSyncCursorNew<T> {
             Ordering::Less => {
                 // The cursor is behind the onchain sequence count, so we need to index.
 
+                // Minus one because this is the sequence we're targeting, not the count.
+                let target_sequence = onchain_sequence_count.saturating_sub(1);
+
                 // Set the target to the latest sequence and tip.
                 // We don't necessarily expect to hit this target in the next query (because we
                 // have limits to the range size based off the chunk size), but we will use it
                 // as an eventual target.
                 self.target_snapshot = Some(SequenceAwareSyncSnapshot {
                     // Minus one because this is the sequence we're targeting, not the count.
-                    sequence: onchain_sequence_count.saturating_sub(1),
+                    sequence: target_sequence,
                     at_block: tip,
                 });
 
@@ -74,10 +79,7 @@ impl<T: Sequenced> ForwardSequenceAwareSyncCursorNew<T> {
                         // Query the sequence range starting from the cursor count.
                         Some(
                             current_sequence
-                                ..=u32::min(
-                                    onchain_sequence_count,
-                                    current_sequence + self.chunk_size,
-                                ),
+                                ..=u32::min(target_sequence, current_sequence + self.chunk_size),
                         )
                     }
                 }
@@ -157,17 +159,11 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for ForwardSequenceAwareSync
     /// Inconsistencies in the logs are not considered errors, instead they're handled
     /// by rewinding the cursor.
     async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
-        // Expect the sequence in the logs to exactly match the range.
-        // sequenced_data_logs_matches_range(logs, range.clone())?;
-
-        // self.next_sequence = range.end() + 1;
-
         // Pretty much:
         // If sequence based indexing, we expect a full match here.
-        // If block based indexing, we're tolerant of missing logs *if* the target snapshot's
-        // at_block exceeds the range's end.
+        // If block based indexing, we're tolerant of missing logs *if* the target snapshot's at_block exceeds the range's end.
 
-        // Remove any duplicates, filter out any logs preceding our current snapshot, and sort.
+        // Remove any duplicates, filter out any logs preceding our current snapshot, and sort in ascending order.
         let logs = logs
             .into_iter()
             .dedup_by(|(log_a, _), (log_b, _)| log_a.sequence() == log_b.sequence())
@@ -175,18 +171,29 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for ForwardSequenceAwareSync
             .sorted_by(|(log_a, _), (log_b, _)| log_a.sequence().cmp(&log_b.sequence()))
             .collect::<Vec<_>>();
 
+        let all_log_sequences = logs
+            .iter()
+            .map(|(log, _)| log.sequence())
+            .collect::<HashSet<_>>();
+
         Ok(match &self.index_mode {
             IndexMode::Sequence => {
-                if let Some(missing_sequences) = sequences_missing_from_range(&logs, range.clone())
-                {
+                // The sequences of all the logs, which are >= the current sequence.
+
+                // We require that we've gotten all sequences in the range.
+                let expected_sequences = range.clone().collect::<HashSet<_>>();
+                if all_log_sequences != expected_sequences {
                     warn!(
-                        ?missing_sequences,
+                        ?all_log_sequences,
+                        ?expected_sequences,
                         expected_sequence_range=?range,
+                        missing_expected_sequences=?expected_sequences.difference(&all_log_sequences).collect::<Vec<_>>(),
+                        unexpected_sequences=?all_log_sequences.difference(&expected_sequences).collect::<Vec<_>>(),
                         ?logs,
                         current_indexing_snapshot=?self.current_indexing_snapshot,
                         last_indexed_snapshot=?self.last_indexed_snapshot,
                         target_snapshot=?self.target_snapshot,
-                        "Log sequences don't match expected sequence range, rewinding to last snapshot",
+                        "Log sequences don't exactly match the expected sequence range, rewinding to last snapshot",
                     );
                     // If there are any missing sequences, rewind to the last snapshot.
                     // TODO should this allow any legit ones at the beginning? Probably
@@ -194,41 +201,38 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for ForwardSequenceAwareSync
                     return Ok(());
                 }
 
-                // TODO we need to make sure that any logs that exceed the range are also checked for consistency.
-                // Also wot about if logs is empty?
-
-                // This means we indexed at least the entire range.
+                // This means we indexed the entire range.
                 // We update the last snapshot accordingly and set ourselves up for the next sequence.
-                if let Some(last_log) = logs.last() {
-                    // Update the last snapshot accordingly.
-                    self.last_indexed_snapshot = SequenceAwareSyncSnapshot {
-                        sequence: last_log.0.sequence(),
-                        at_block: last_log.1.block_number.try_into().expect("todo"),
-                    };
-                    // Position the current snapshot to the next sequence.
-                    self.current_indexing_snapshot = self.last_indexed_snapshot.next();
-                    // TODO maybe?
-                    // // Reset the target.
-                    // self.target_snapshot = None;
-                }
+                // If we've gotten this far, we can assume that logs is non-empty.
+                let last_log = logs.last().expect("Logs must be non-empty");
+                // Update the last snapshot accordingly.
+                self.last_indexed_snapshot = SequenceAwareSyncSnapshot {
+                    sequence: last_log.0.sequence(),
+                    at_block: last_log.1.block_number.try_into().expect("todo"),
+                };
+                // Position the current snapshot to the next sequence.
+                self.current_indexing_snapshot = self.last_indexed_snapshot.next();
             }
             IndexMode::Block => {
                 // If the first log we got is a gap since the last snapshot, or there are gaps
                 // in the logs, rewind to the last snapshot.
-                let expected_sequence_range = self.current_indexing_snapshot.sequence
-                    ..(self.current_indexing_snapshot.sequence + logs.len() as u32);
 
-                if let Some(missing_sequences) =
-                    sequences_missing_from_range(&logs, expected_sequence_range.clone())
-                {
+                // We require no sequence gaps and to build upon the last snapshot.
+                let expected_sequences = (self.current_indexing_snapshot.sequence
+                    ..(self.current_indexing_snapshot.sequence + logs.len() as u32))
+                    .collect::<HashSet<_>>();
+                if all_log_sequences != expected_sequences {
                     warn!(
-                        ?missing_sequences,
-                        ?expected_sequence_range,
+                        ?all_log_sequences,
+                        ?expected_sequences,
+                        expected_sequence_range=?range,
+                        missing_expected_sequences=?expected_sequences.difference(&all_log_sequences).collect::<Vec<_>>(),
+                        unexpected_sequences=?all_log_sequences.difference(&expected_sequences).collect::<Vec<_>>(),
                         ?logs,
                         current_indexing_snapshot=?self.current_indexing_snapshot,
                         last_indexed_snapshot=?self.last_indexed_snapshot,
                         target_snapshot=?self.target_snapshot,
-                        "Log sequences don't match expected sequence range, rewinding to last snapshot",
+                        "Log sequences don't exactly match the expected sequence range, rewinding to last snapshot",
                     );
                     // If there are any missing sequences, rewind to just after the last indexed snapshot.
                     self.current_indexing_snapshot = self.last_indexed_snapshot.next();
@@ -358,9 +362,9 @@ mod test {
         }
     }
 
-    const CHUNK_SIZE: u32 = 100;
-
     fn get_test_forward_sequence_aware_sync_cursor(
+        mode: IndexMode,
+        chunk_size: u32,
     ) -> ForwardSequenceAwareSyncCursorNew<MockSequencedData> {
         let latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
             latest_sequence_count: Some(5),
@@ -384,383 +388,620 @@ mod test {
         };
 
         ForwardSequenceAwareSyncCursorNew::new(
-            CHUNK_SIZE,
+            chunk_size,
             latest_sequence_querier,
             db,
             last_indexed_snapshot.clone(),
             last_indexed_snapshot.clone(),
             None,
-            IndexMode::Block,
+            mode,
         )
     }
 
-    /// Tests successful fast forwarding & indexing where all ranges return logs.
-    #[tracing_test::traced_test]
-    #[tokio::test]
-    async fn test_forward_sequence_aware_sync_cursor_block_range_normal_indexing() {
-        let mut cursor = get_test_forward_sequence_aware_sync_cursor();
+    mod block_range {
+        use super::*;
 
-        // Fast forward
-        cursor.fast_forward().await.unwrap();
+        const INDEX_MODE: IndexMode = IndexMode::Block;
+        const CHUNK_SIZE: u32 = 100;
 
-        // We should have fast forwarded to sequence 5, block 90
-        assert_eq!(
-            cursor.current_indexing_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 5,
-                at_block: 90,
-            }
-        );
+        async fn get_cursor() -> ForwardSequenceAwareSyncCursorNew<MockSequencedData> {
+            let mut cursor = get_test_forward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE);
+            // Fast forwarded to sequence 5, block 90
+            cursor.fast_forward().await.unwrap();
 
-        // As the latest sequence count is 5 and the current indexing snapshot is sequence 5, we should
-        // expect no range to index.
-        let range = cursor.get_next_range().await.unwrap();
-        assert_eq!(range, None);
+            cursor
+        }
 
-        // Update the tip, expect to still not index anything.
-        cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
-            latest_sequence_count: Some(5),
-            tip: 110,
-        });
-        let range = cursor.get_next_range().await.unwrap();
-        assert_eq!(range, None);
+        /// Tests successful fast forwarding & indexing where all ranges return logs.
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_normal_indexing() {
+            // Starts with current snapshot at sequence 5, block 90
+            let mut cursor = get_cursor().await;
 
-        // Update the latest sequence count to 6, now we expect to index.
-        cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
-            latest_sequence_count: Some(6),
-            tip: 120,
-        });
+            // We should have fast forwarded to sequence 5, block 90
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 90,
+                }
+            );
 
-        // Expect the range to be:
-        // (last polled block where the sequence had already been indexed, tip)
-        let range = cursor.get_next_range().await.unwrap().unwrap();
-        let expected_range = 110..=120;
-        assert_eq!(range, expected_range);
+            // As the latest sequence count is 5 and the current indexing snapshot is sequence 5, we should
+            // expect no range to index.
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, None);
 
-        // Expect the target snapshot to be set to the latest sequence and tip.
-        assert_eq!(
-            cursor.target_snapshot,
-            Some(SequenceAwareSyncSnapshot {
-                sequence: 5,
-                at_block: 120,
-            })
-        );
+            // Update the tip, expect to still not index anything.
+            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(5),
+                tip: 110,
+            });
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, None);
 
-        // Getting the range again without updating the cursor should yield the same range.
-        let range = cursor.get_next_range().await.unwrap().unwrap();
-        assert_eq!(range, expected_range);
+            // Update the latest sequence count to 6, now we expect to index.
+            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(6),
+                tip: 120,
+            });
 
-        // Update the cursor with the found log.
-        cursor
-            .update(
-                vec![(MockSequencedData::new(5), log_meta_with_block(115))],
-                expected_range,
-            )
-            .await
-            .unwrap();
+            // Expect the range to be:
+            // (last polled block where the sequence had already been indexed, tip)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 110..=120;
+            assert_eq!(range, expected_range);
 
-        // Expect the cursor to have moved to the next sequence and updated the last indexed snapshot.
-        assert_eq!(
-            cursor.current_indexing_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 6,
-                at_block: 120,
-            }
-        );
-        assert_eq!(
-            cursor.last_indexed_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 5,
-                at_block: 115,
-            }
-        );
+            // Expect the target snapshot to be set to the latest sequence and tip.
+            assert_eq!(
+                cursor.target_snapshot,
+                Some(SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 120,
+                })
+            );
 
-        // And now we should get no range to index.
-        let range = cursor.get_next_range().await.unwrap();
-        assert_eq!(range, None);
+            // Getting the range again without updating the cursor should yield the same range.
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            assert_eq!(range, expected_range);
+
+            // Update the cursor with the found log.
+            cursor
+                .update(
+                    vec![(MockSequencedData::new(5), log_meta_with_block(115))],
+                    expected_range,
+                )
+                .await
+                .unwrap();
+
+            // Expect the cursor to have moved to the next sequence and updated the last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 6,
+                    at_block: 120,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 115,
+                }
+            );
+
+            // And now we should get no range to index.
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, None);
+        }
+
+        // Tests when the cursor is so behind the tip that it'll need to index multiple ranges (due to the
+        // chunk size) to catch up.
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_multiple_ranges_till_target() {
+            // Starts with current snapshot at sequence 5, block 90
+            let mut cursor = get_cursor().await;
+
+            // Pretend like the tip is 200, and a message occurred at block 195.
+
+            // Increase the latest sequence count, and with a tip that exceeds the chunk size.
+            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(6),
+                tip: 200,
+            });
+
+            // Expect the range to be:
+            // (start, start + chunk_size)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 90..=190;
+            assert_eq!(range, expected_range);
+
+            // Update the cursor. Update with no logs, because the log happened in block 195.
+            cursor.update(vec![], expected_range).await.unwrap();
+
+            // Expect the cursor to have moved the current indexing snapshot's block number (but not sequence),
+            // and made no changes to the last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 190,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 4,
+                    at_block: 90,
+                }
+            );
+
+            // Expect the range to be:
+            // (start, tip)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 190..=200;
+            assert_eq!(range, expected_range);
+
+            // Update the cursor with the found log.
+            cursor
+                .update(
+                    vec![(MockSequencedData::new(5), log_meta_with_block(195))],
+                    expected_range,
+                )
+                .await
+                .unwrap();
+
+            // Expect the current indexing snapshot to have moved to the next sequence and updated the last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 6,
+                    at_block: 200,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 195,
+                }
+            );
+
+            // And now we should get no range to index.
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, None);
+        }
+
+        /// Tests when the cursor is so behind the tip that it'll need to index multiple ranges, but by the time
+        /// it gets to the target snapshot, it realizes it missed a log and needs to rewind.
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_rewinds_for_missed_target_sequence() {
+            // Starts with current snapshot at sequence 5, block 90
+            let mut cursor = get_cursor().await;
+
+            // Pretend like the tip is 200, and a message occurred at block 195, but we somehow miss it.
+
+            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(6),
+                tip: 200,
+            });
+
+            // Expect the range to be:
+            // (start, start + chunk_size)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 90..=190;
+            assert_eq!(range, expected_range);
+
+            // Update the cursor with no found logs.
+            cursor.update(vec![], expected_range).await.unwrap();
+
+            // Expect the cursor to have moved the current indexing snapshot's block number (but not sequence),
+            // and made no changes to the last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 190,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 4,
+                    at_block: 90,
+                }
+            );
+
+            // Expect the range to be:
+            // (start, tip)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 190..=200;
+            assert_eq!(range, expected_range);
+
+            // Update the cursor with no found logs.
+            cursor.update(vec![], expected_range).await.unwrap();
+
+            // Expect a rewind to occur back to the last indexed snapshot's block number.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 90,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 4,
+                    at_block: 90,
+                }
+            );
+        }
+
+        /// Tests when the cursor is so behind the tip that it'll need to index multiple ranges. It successfully
+        /// finds a log in the second range, but missed log in the first range, showing a gap. It should rewind to the
+        /// last indexed snapshot.
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_rewinds_for_sequence_gap() {
+            // Starts with current snapshot at sequence 5, block 90
+            let mut cursor = get_cursor().await;
+
+            // Pretend like the tip is 200, a message occurred at block 150 that's missed,
+            // and another message at block 195 is found.
+
+            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                // 3 new messages since we last indexed have come in!
+                latest_sequence_count: Some(7),
+                tip: 200,
+            });
+
+            // Expect the range to be:
+            // (start, start + chunk_size)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 90..=190;
+            assert_eq!(range, expected_range);
+
+            // Update the cursor with no found logs. We should've found one here though!
+            cursor.update(vec![], expected_range).await.unwrap();
+
+            // Expect the cursor to have moved the current indexing snapshot's block number (but not sequence),
+            // and made no changes to the last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 190,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 4,
+                    at_block: 90,
+                }
+            );
+
+            // Expect the range to be:
+            // (start, tip)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 190..=200;
+            assert_eq!(range, expected_range);
+
+            // Update the cursor with no found logs.
+            cursor
+                .update(
+                    vec![
+                        // There's a gap - we missed a log at sequence 5.
+                        (MockSequencedData::new(6), log_meta_with_block(195)),
+                    ],
+                    expected_range,
+                )
+                .await
+                .unwrap();
+
+            // Expect a rewind to occur back to the last indexed snapshot's block number.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 90,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 4,
+                    at_block: 90,
+                }
+            );
+        }
+
+        /// Tests when the cursor is so behind the tip that it'll need to index multiple ranges, but by the time
+        /// it gets to the target snapshot, it realizes it missed a log and needs to rewind.
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_handles_unexpected_logs() {
+            // Starts with current snapshot at sequence 5, block 90
+            let mut cursor = get_cursor().await;
+
+            // Pretend like the tip is 100, and a message occurred at block 95.
+
+            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(6),
+                tip: 100,
+            });
+
+            // Expect the range to be:
+            // (start, start + chunk_size)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 90..=100;
+            assert_eq!(range, expected_range);
+
+            // Update the cursor with bogus logs:
+            // - A log at sequence 4, which was already indexed and should be ignored
+            // - Two logs of sequence 5, i.e. duplicated
+            // - A log at sequence 6, which is unexpected, but tolerated nonetheless
+            cursor
+                .update(
+                    vec![
+                        (MockSequencedData::new(4), log_meta_with_block(90)),
+                        (MockSequencedData::new(5), log_meta_with_block(95)),
+                        (MockSequencedData::new(5), log_meta_with_block(95)),
+                        (MockSequencedData::new(6), log_meta_with_block(100)),
+                    ],
+                    expected_range,
+                )
+                .await
+                .unwrap();
+
+            // Expect the cursor to have moved to the next sequence and updated the last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 7,
+                    at_block: 100,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 6,
+                    at_block: 100,
+                }
+            );
+        }
     }
 
-    // Tests when the cursor is so behind the tip that it'll need to index multiple ranges (due to the
-    // chunk size) to catch up.
-    #[tracing_test::traced_test]
-    #[tokio::test]
-    async fn test_forward_sequence_aware_sync_cursor_block_range_multiple_ranges_till_target() {
-        let mut cursor = get_test_forward_sequence_aware_sync_cursor();
-        // Fast forwarded to sequence 5, block 90
-        cursor.fast_forward().await.unwrap();
+    mod sequence_range {
+        use super::*;
 
-        // Pretend like the tip is 200, and a message occurred at block 195.
+        const INDEX_MODE: IndexMode = IndexMode::Sequence;
+        const CHUNK_SIZE: u32 = 10;
 
-        // Increase the latest sequence count, and with a tip that exceeds the chunk size.
-        cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
-            latest_sequence_count: Some(6),
-            tip: 200,
-        });
+        async fn get_cursor() -> ForwardSequenceAwareSyncCursorNew<MockSequencedData> {
+            let mut cursor = get_test_forward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE);
+            // Fast forwarded to sequence 5, block 90
+            cursor.fast_forward().await.unwrap();
 
-        // Expect the range to be:
-        // (start, start + chunk_size)
-        let range = cursor.get_next_range().await.unwrap().unwrap();
-        let expected_range = 90..=190;
-        assert_eq!(range, expected_range);
+            cursor
+        }
 
-        // Update the cursor. Update with no logs, because the log happened in block 195.
-        cursor.update(vec![], expected_range).await.unwrap();
+        /// Tests successful fast forwarding & successful indexing with a correct sequence range.
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_normal_indexing() {
+            let mut cursor = get_cursor().await;
 
-        // Expect the cursor to have moved the current indexing snapshot's block number (but not sequence),
-        // and made no changes to the last indexed snapshot.
-        assert_eq!(
-            cursor.current_indexing_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 5,
-                at_block: 190,
-            }
-        );
-        assert_eq!(
-            cursor.last_indexed_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 4,
-                at_block: 90,
-            }
-        );
+            // We should have fast forwarded to sequence 5, block 90
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 90,
+                }
+            );
 
-        // Expect the range to be:
-        // (start, tip)
-        let range = cursor.get_next_range().await.unwrap().unwrap();
-        let expected_range = 190..=200;
-        assert_eq!(range, expected_range);
+            // As the latest sequence count is 5 and the current indexing snapshot is sequence 5, we should
+            // expect no range to index.
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, None);
 
-        // Update the cursor with the found log.
-        cursor
-            .update(
-                vec![(MockSequencedData::new(5), log_meta_with_block(195))],
-                expected_range,
-            )
-            .await
-            .unwrap();
+            // Update the tip, expect to still not index anything.
+            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(5),
+                tip: 110,
+            });
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, None);
 
-        // Expect the current indexing snapshot to have moved to the next sequence and updated the last indexed snapshot.
-        assert_eq!(
-            cursor.current_indexing_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 6,
-                at_block: 200,
-            }
-        );
-        assert_eq!(
-            cursor.last_indexed_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 5,
-                at_block: 195,
-            }
-        );
+            // Update the latest sequence count to 6, now we expect to index.
+            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(6),
+                tip: 120,
+            });
 
-        // And now we should get no range to index.
-        let range = cursor.get_next_range().await.unwrap();
-        assert_eq!(range, None);
-    }
+            // Expect the range to be:
+            // (new sequence, new sequence)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 5..=5;
+            assert_eq!(range, expected_range);
 
-    /// Tests when the cursor is so behind the tip that it'll need to index multiple ranges, but by the time
-    /// it gets to the target snapshot, it realizes it missed a log and needs to rewind.
-    #[tracing_test::traced_test]
-    #[tokio::test]
-    async fn test_forward_sequence_aware_sync_cursor_block_range_rewinds_for_missed_target_sequence(
-    ) {
-        let mut cursor = get_test_forward_sequence_aware_sync_cursor();
-        // Fast forwarded to sequence 5, block 90
-        cursor.fast_forward().await.unwrap();
+            // Expect the target snapshot to be set to the latest sequence and tip.
+            assert_eq!(
+                cursor.target_snapshot,
+                Some(SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 120,
+                })
+            );
 
-        // Pretend like the tip is 200, and a message occurred at block 195, but we somehow miss it.
+            // Getting the range again without updating the cursor should yield the same range.
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            assert_eq!(range, expected_range);
 
-        cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
-            latest_sequence_count: Some(6),
-            tip: 200,
-        });
+            // Update the cursor with the found log.
+            cursor
+                .update(
+                    vec![(MockSequencedData::new(5), log_meta_with_block(115))],
+                    expected_range,
+                )
+                .await
+                .unwrap();
 
-        // Expect the range to be:
-        // (start, start + chunk_size)
-        let range = cursor.get_next_range().await.unwrap().unwrap();
-        let expected_range = 90..=190;
-        assert_eq!(range, expected_range);
+            // Expect the cursor to have moved to the next sequence and updated the last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 6,
+                    at_block: 115,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 115,
+                }
+            );
 
-        // Update the cursor with no found logs.
-        cursor.update(vec![], expected_range).await.unwrap();
+            // And now we should get no range to index.
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, None);
 
-        // Expect the cursor to have moved the current indexing snapshot's block number (but not sequence),
-        // and made no changes to the last indexed snapshot.
-        assert_eq!(
-            cursor.current_indexing_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 5,
-                at_block: 190,
-            }
-        );
-        assert_eq!(
-            cursor.last_indexed_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 4,
-                at_block: 90,
-            }
-        );
+            // Update the latest sequence count to 30 to test we use the chunk size.
+            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(30),
+                tip: 150,
+            });
 
-        // Expect the range to be:
-        // (start, tip)
-        let range = cursor.get_next_range().await.unwrap().unwrap();
-        let expected_range = 190..=200;
-        assert_eq!(range, expected_range);
+            // Expect the range to be:
+            // (next sequence, next sequence + chunk size)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 6..=16;
+            assert_eq!(range, expected_range);
+        }
 
-        // Update the cursor with no found logs.
-        cursor.update(vec![], expected_range).await.unwrap();
+        /// Tests getting no logs when a sequence range is expected.
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_rewinds_if_updated_with_no_logs() {
+            // Starts with current snapshot at sequence 5, block 90
+            let mut cursor = get_cursor().await;
 
-        // Expect a rewind to occur back to the last indexed snapshot's block number.
-        assert_eq!(
-            cursor.current_indexing_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 5,
-                at_block: 90,
-            }
-        );
-        assert_eq!(
-            cursor.last_indexed_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 4,
-                at_block: 90,
-            }
-        );
-    }
+            // Update the latest sequence count to 6, expecting to index.
+            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(6),
+                tip: 120,
+            });
 
-    /// Tests when the cursor is so behind the tip that it'll need to index multiple ranges. It successfully
-    /// finds a log in the second range, but missed log in the first range, showing a gap. It should rewind to the
-    /// last indexed snapshot.
-    #[tracing_test::traced_test]
-    #[tokio::test]
-    async fn test_forward_sequence_aware_sync_cursor_block_range_rewinds_for_sequence_gap() {
-        let mut cursor = get_test_forward_sequence_aware_sync_cursor();
-        // Fast forwarded to sequence 5, block 90
-        cursor.fast_forward().await.unwrap();
+            // Expect the range to be:
+            // (new sequence, new sequence)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 5..=5;
+            assert_eq!(range, expected_range);
 
-        // Pretend like the tip is 200, a message occurred at block 150 that's missed,
-        // and another message at block 195 is found.
+            // Update the cursor with no found logs.
+            cursor.update(vec![], expected_range).await.unwrap();
 
-        cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
-            // 3 new messages since we last indexed have come in!
-            latest_sequence_count: Some(7),
-            tip: 200,
-        });
+            // Expect the cursor to have rewound to the last indexed snapshot - really this is
+            // the same as not updating current indexing snapshot / last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 90,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 4,
+                    at_block: 90,
+                }
+            );
+        }
 
-        // Expect the range to be:
-        // (start, start + chunk_size)
-        let range = cursor.get_next_range().await.unwrap().unwrap();
-        let expected_range = 90..=190;
-        assert_eq!(range, expected_range);
+        /// Tests getting a gap in the expected logs
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_rewinds_if_gap_or_unexpected_logs() {
+            // Starts with current snapshot at sequence 5, block 90
+            let mut cursor = get_cursor().await;
 
-        // Update the cursor with no found logs. We should've found one here though!
-        cursor.update(vec![], expected_range).await.unwrap();
+            // Update the latest sequence count to 8, expecting to index 3 messages.
+            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(8),
+                tip: 120,
+            });
 
-        // Expect the cursor to have moved the current indexing snapshot's block number (but not sequence),
-        // and made no changes to the last indexed snapshot.
-        assert_eq!(
-            cursor.current_indexing_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 5,
-                at_block: 190,
-            }
-        );
-        assert_eq!(
-            cursor.last_indexed_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 4,
-                at_block: 90,
-            }
-        );
+            // Expect the range to be:
+            // (new sequence, new sequence)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 5..=7;
+            assert_eq!(range, expected_range);
 
-        // Expect the range to be:
-        // (start, tip)
-        let range = cursor.get_next_range().await.unwrap().unwrap();
-        let expected_range = 190..=200;
-        assert_eq!(range, expected_range);
+            // Update the cursor with sequence 5 and 7, but not 6.
+            cursor
+                .update(
+                    vec![
+                        (MockSequencedData::new(5), log_meta_with_block(115)),
+                        (MockSequencedData::new(7), log_meta_with_block(120)),
+                    ],
+                    expected_range.clone(),
+                )
+                .await
+                .unwrap();
 
-        // Update the cursor with no found logs.
-        cursor
-            .update(
-                vec![
-                    // There's a gap - we missed a log at sequence 5.
-                    (MockSequencedData::new(6), log_meta_with_block(195)),
-                ],
-                expected_range,
-            )
-            .await
-            .unwrap();
+            // Expect the cursor to have rewound to the last indexed snapshot - really this is
+            // the same as not updating current indexing snapshot / last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 90,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 4,
+                    at_block: 90,
+                }
+            );
 
-        // Expect a rewind to occur back to the last indexed snapshot's block number.
-        assert_eq!(
-            cursor.current_indexing_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 5,
-                at_block: 90,
-            }
-        );
-        assert_eq!(
-            cursor.last_indexed_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 4,
-                at_block: 90,
-            }
-        );
-    }
+            // Try updating the cursor with the correct sequences but also an unexpected sequence.
+            cursor
+                .update(
+                    vec![
+                        (MockSequencedData::new(5), log_meta_with_block(115)),
+                        (MockSequencedData::new(6), log_meta_with_block(115)),
+                        (MockSequencedData::new(7), log_meta_with_block(120)),
+                        (MockSequencedData::new(8), log_meta_with_block(125)),
+                    ],
+                    expected_range,
+                )
+                .await
+                .unwrap();
 
-    /// Tests when the cursor is so behind the tip that it'll need to index multiple ranges, but by the time
-    /// it gets to the target snapshot, it realizes it missed a log and needs to rewind.
-    #[tracing_test::traced_test]
-    #[tokio::test]
-    async fn test_forward_sequence_aware_sync_cursor_block_range_handles_unexpected_logs() {
-        let mut cursor = get_test_forward_sequence_aware_sync_cursor();
-        // Fast forwarded to sequence 5, block 90
-        cursor.fast_forward().await.unwrap();
-
-        // Pretend like the tip is 100, and a message occurred at block 95.
-
-        cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
-            latest_sequence_count: Some(6),
-            tip: 100,
-        });
-
-        // Expect the range to be:
-        // (start, start + chunk_size)
-        let range = cursor.get_next_range().await.unwrap().unwrap();
-        let expected_range = 90..=100;
-        assert_eq!(range, expected_range);
-
-        // Update the cursor with bogus logs:
-        // - A log at sequence 4, which was already indexed and should be ignored
-        // - Two logs of sequence 5, i.e. duplicated
-        // - A log at sequence 6, which is unexpected, but tolerated nonetheless
-        cursor
-            .update(
-                vec![
-                    (MockSequencedData::new(4), log_meta_with_block(90)),
-                    (MockSequencedData::new(5), log_meta_with_block(95)),
-                    (MockSequencedData::new(5), log_meta_with_block(95)),
-                    (MockSequencedData::new(6), log_meta_with_block(100)),
-                ],
-                expected_range,
-            )
-            .await
-            .unwrap();
-
-        // Expect the cursor to have moved to the next sequence and updated the last indexed snapshot.
-        assert_eq!(
-            cursor.current_indexing_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 7,
-                at_block: 100,
-            }
-        );
-        assert_eq!(
-            cursor.last_indexed_snapshot,
-            SequenceAwareSyncSnapshot {
-                sequence: 6,
-                at_block: 100,
-            }
-        );
+            // Expect the cursor to still have "rewound" to the last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 5,
+                    at_block: 90,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 4,
+                    at_block: 90,
+                }
+            );
+        }
     }
 }
