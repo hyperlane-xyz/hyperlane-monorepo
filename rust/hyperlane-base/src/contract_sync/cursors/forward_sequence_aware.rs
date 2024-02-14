@@ -286,15 +286,15 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for ForwardSequenceAwareSync
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use hyperlane_core::HyperlaneLogStore;
 
     use super::*;
 
     #[derive(Debug, Clone)]
-    struct MockLatestSequenceQuerier {
-        latest_sequence_count: Option<u32>,
-        tip: u32,
+    pub struct MockLatestSequenceQuerier {
+        pub latest_sequence_count: Option<u32>,
+        pub tip: u32,
     }
 
     #[async_trait]
@@ -305,8 +305,8 @@ mod test {
     }
 
     #[derive(Debug, Clone)]
-    struct MockHyperlaneSequenceIndexerStore<T> {
-        logs: Vec<(T, LogMeta)>,
+    pub struct MockHyperlaneSequenceIndexerStore<T> {
+        pub logs: Vec<(T, LogMeta)>,
     }
 
     #[async_trait]
@@ -338,8 +338,8 @@ mod test {
     }
 
     #[derive(Debug, Clone, new)]
-    struct MockSequencedData {
-        sequence: u32,
+    pub struct MockSequencedData {
+        pub sequence: u32,
     }
 
     impl Sequenced for MockSequencedData {
@@ -348,7 +348,7 @@ mod test {
         }
     }
 
-    fn log_meta_with_block(block_number: u64) -> LogMeta {
+    pub fn log_meta_with_block(block_number: u64) -> LogMeta {
         LogMeta {
             address: Default::default(),
             block_number,
@@ -738,7 +738,7 @@ mod test {
             let expected_range = 90..=100;
             assert_eq!(range, expected_range);
 
-            // Update the cursor with bogus logs:
+            // Update the cursor with some paritally bogus logs:
             // - A log at sequence 4, which was already indexed and should be ignored
             // - Two logs of sequence 5, i.e. duplicated
             // - A log at sequence 6, which is unexpected, but tolerated nonetheless
