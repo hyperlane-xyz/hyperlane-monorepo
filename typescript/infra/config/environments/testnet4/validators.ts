@@ -31,26 +31,6 @@ export const validatorChainConfig = (
         'alfajores',
       ),
     },
-    basegoerli: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.alfajores),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0xf6eddda696dcd3bf10f7ce8a02db31ef2e775a03',
-            '0x5a7d05cebf5db4dde9b2fedcefa76fb58fa05071',
-            '0x9260a6c7d54cbcbed28f8668679cd1fa3a203b25',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0x81983e03363351b63848867bd76687cc80b9ff37',
-            '0x36de434527b8f83851d83f1b1d72ec11a5903533',
-            '0x4b65f7527c267e420bf62a0c5a139cb8c3906277',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'basegoerli',
-      ),
-    },
     fuji: {
       interval: 5,
       reorgPeriod: getReorgPeriod(chainMetadata.alfajores),
@@ -207,26 +187,6 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'sepolia',
-      ),
-    },
-    moonbasealpha: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.moonbasealpha),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0x521877064bd7ac7500d300f162c8c47c256a2f9c',
-            '0xbc1c70f58ae0459d4b8a013245420a893837d568',
-            '0x01e42c2c44af81dda1ac16fec76fea2a7a54a44c',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0x376260b40b2ba2100890f27de1eb18a2774f54d1',
-            '0x776623e8be8d7218940b7c77d02162af4ff97985',
-            '0xb4c81facd992a6c7c4a187bcce35a6fc968399a0',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'moonbasealpha',
       ),
     },
     optimismgoerli: {
