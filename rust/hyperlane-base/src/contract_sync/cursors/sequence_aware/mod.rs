@@ -65,7 +65,6 @@ pub(crate) struct ForwardBackwardSequenceAwareSyncCursor<T> {
     forward: ForwardSequenceAwareSyncCursor<T>,
     backward: BackwardSequenceAwareSyncCursor<T>,
     direction: SyncDirection,
-    last_range: RangeInclusive<u32>,
 }
 
 impl<T: Sequenced + Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
@@ -96,7 +95,6 @@ impl<T: Sequenced + Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
             forward: forward_cursor,
             backward: backward_cursor,
             direction: SyncDirection::Forward,
-            last_range: 0..=0,
         })
     }
 }
@@ -109,13 +107,11 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardBackwardSequenceAwar
         // Prioritize forward syncing over backward syncing.
         if let Some(forward_range) = self.forward.get_next_range().await? {
             self.direction = SyncDirection::Forward;
-            self.last_range = forward_range.clone();
             return Ok((CursorAction::Query(forward_range), eta));
         }
 
         if let Some(backward_range) = self.backward.get_next_range().await? {
             self.direction = SyncDirection::Backward;
-            self.last_range = backward_range.clone();
             return Ok((CursorAction::Query(backward_range), eta));
         }
         // TODO: Define the sleep time from interval flag
