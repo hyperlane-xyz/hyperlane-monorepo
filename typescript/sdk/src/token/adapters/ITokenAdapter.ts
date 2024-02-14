@@ -1,5 +1,6 @@
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
+import { TokenAmount } from '../TokenAmount';
 import { MinimalTokenMetadata } from '../config';
 
 export interface TransferParams {

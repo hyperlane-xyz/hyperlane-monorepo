@@ -36,10 +36,10 @@ export class CosmNativeTokenAdapter
     super(chainName, multiProvider, addresses);
   }
 
-  async getBalance(address: string): Promise<string> {
+  async getBalance(address: string): Promise<bigint> {
     const provider = await this.getProvider();
     const coin = await provider.getBalance(address, this.properties.ibcDenom);
-    return coin.amount;
+    return BigInt(coin.amount);
   }
 
   getMetadata(): Promise<MinimalTokenMetadata> {
@@ -97,7 +97,7 @@ export class CosmIbcTokenAdapter
   > {
     throw new Error('Method not applicable to IBC adapters');
   }
-  quoteGasPayment(_destination: Domain): Promise<string> {
+  quoteGasPayment(_destination: Domain): Promise<bigint> {
     throw new Error('Method not applicable to IBC adapters');
   }
 
@@ -151,9 +151,9 @@ export class CosmIbcToWarpTokenAdapter
     super(chainName, multiProvider, addresses, properties);
   }
 
-  async quoteGasPayment(_destination: Domain): Promise<string> {
+  async quoteGasPayment(_destination: Domain): Promise<bigint> {
     // TODO implement IBC interchain transfer gas estimation here
-    return '0';
+    return 0n;
   }
 
   async populateTransferRemoteTx(
@@ -166,7 +166,6 @@ export class CosmIbcToWarpTokenAdapter
         token: this.properties.derivedIbcDenom,
         warpRouter: this.addresses.intermediateRouterAddress,
       },
-      this.properties.derivedIbcDenom,
     );
     const transfer = await cwAdapter.populateTransferRemoteTx(transferParams);
     const cwMemo = {

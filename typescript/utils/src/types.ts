@@ -23,6 +23,7 @@ export type AddressBytes32 = string;
 export type ChainCaip2Id = `${string}:${string}`; // e.g. ethereum:1 or sealevel:1399811149
 export type TokenCaip19Id = `${string}:${string}/${string}:${string}`; // e.g. ethereum:1/erc20:0x6b175474e89094c44da98b954eedeac495271d0f
 export type HexString = string;
+export type Numberish = number | string | bigint;
 
 // copied from node_modules/@ethersproject/bytes/src.ts/index.ts
 export type SignatureLike =

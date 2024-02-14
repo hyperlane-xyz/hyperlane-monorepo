@@ -117,6 +117,7 @@ export {
   InterchainSecurityModuleType,
   MerkleProof,
   MessageStatus,
+  Numberish,
   ParsedLegacyMultisigIsmMetadata,
   ParsedMessage,
   ProtocolSmallestUnit,

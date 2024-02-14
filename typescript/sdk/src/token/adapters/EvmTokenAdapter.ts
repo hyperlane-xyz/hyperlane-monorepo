@@ -19,6 +19,7 @@ import {
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import { ChainName } from '../../types';
+import { TokenStandard } from '../TokenStandard';
 import { MinimalTokenMetadata } from '../config';
 
 import {

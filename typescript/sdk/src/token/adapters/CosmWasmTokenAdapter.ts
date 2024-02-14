@@ -97,7 +97,6 @@ export class CwTokenAdapter
     public readonly chainName: string,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { token: Address },
-    public readonly denom: string,
   ) {
     super(chainName, multiProvider, addresses);
   }
@@ -181,7 +180,7 @@ export class CwHypSyntheticAdapter
     public readonly multiProvider: MultiProtocolProvider<any>,
     public readonly addresses: { token: Address; warpRouter: Address },
   ) {
-    super(chainName, multiProvider, addresses, '');
+    super(chainName, multiProvider, addresses);
   }
 
   async queryRouter<R extends TokenRouterResponse>(
