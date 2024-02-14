@@ -394,11 +394,14 @@ impl Relayer {
                     destination_ctxs.clone(),
                 );
                 let processor = Processor::new(Box::new(message_processor));
-                // the submitter runs forever, so we only need to handle error case
-                if let Err(err) = tokio::try_join!(processor.spawn()) {
-                    warn!(?err, ?origin, "message processor failed, restarting it");
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                }
+
+                // Propagate task panics
+                tokio::try_join!(processor.spawn()).unwrap_or_else(|err| {
+                    panic!(
+                        "message processor panicked for origin {}: {:?}",
+                        origin, err
+                    )
+                });
             }
         })
         .instrument(span)
@@ -415,11 +418,14 @@ impl Relayer {
                 let merkle_tree_processor =
                     MerkleTreeProcessor::new(db.clone(), metrics, prover_syncs.clone());
                 let processor = Processor::new(Box::new(merkle_tree_processor));
-                // the submitter runs forever, so we only need to handle error case
-                if let Err(err) = tokio::try_join!(processor.spawn()) {
-                    warn!(?err, ?origin, "destination submitter failed, restarting it");
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                }
+
+                // Propagate task panics
+                tokio::try_join!(processor.spawn()).unwrap_or_else(|err| {
+                    panic!(
+                        "merkle tree processor panicked for origin {}: {:?}",
+                        origin, err
+                    )
+                });
             }
         })
         .instrument(span)
@@ -442,15 +448,14 @@ impl Relayer {
                     receiver.clone(),
                     SerialSubmitterMetrics::new(&core_metrics, &destination),
                 );
-                // the submitter runs forever, so we only need to handle error case
-                if let Err(err) = tokio::try_join!(serial_submitter.spawn()) {
-                    warn!(
-                        ?err,
-                        ?destination,
-                        "destination submitter failed, restarting it"
-                    );
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                }
+
+                // Propagate task panics
+                tokio::try_join!(serial_submitter.spawn()).unwrap_or_else(|err| {
+                    panic!(
+                        "destination submitter panicked for destination {}: {:?}",
+                        destination, err
+                    )
+                });
             }
         })
         .instrument(span)

@@ -183,10 +183,15 @@ impl BaseAgent for Validator {
             }
         }
 
-        run_all(tasks)
+        if let Err(err) = run_all(tasks)
             .await
-            .expect("Failed to run validator tasks")
-            .unwrap()
+            .expect("One of the validator tasks panicked")
+        {
+            error!(
+                ?err,
+                "One of the validator tasks returned an error. Shutting down."
+            );
+        }
     }
 }
 
