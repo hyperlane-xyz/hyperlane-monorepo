@@ -4,7 +4,7 @@ use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment,
-    LatestSequenceCount, LogMeta, SequenceIndexer, H256, U256,
+    LogMeta, SequenceAwareIndexer, H256, U256,
 };
 use once_cell::sync::Lazy;
 use std::ops::RangeInclusive;
@@ -216,16 +216,7 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
 }
 
 #[async_trait]
-impl SequenceIndexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
-    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // TODO: implement when cosmwasm scraper support is implemented
-        let tip = self.get_finalized_block_number().await?;
-        Ok((None, tip))
-    }
-}
-
-#[async_trait]
-impl LatestSequenceCount for CosmosInterchainGasPaymasterIndexer {
+impl SequenceAwareIndexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when cosmwasm scraper support is implemented
         let tip = self.get_finalized_block_number().await?;

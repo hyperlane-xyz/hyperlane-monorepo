@@ -4,8 +4,7 @@ use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractSyncCursor, ContractSyncCursorNew, CursorAction,
-    HyperlaneSequenceIndexerStore, IndexMode, LatestSequenceCount, LogMeta, SequenceIndexer,
-    Sequenced,
+    HyperlaneSequenceIndexerStore, IndexMode, LogMeta, SequenceAwareIndexer, Sequenced,
 };
 use std::ops::RangeInclusive;
 
@@ -60,7 +59,7 @@ pub(crate) struct ForwardBackwardSequenceAwareSyncCursor<T> {
 impl<T: Sequenced> ForwardBackwardSequenceAwareSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
-        latest_sequence_querier: Arc<dyn SequenceIndexer<T>>,
+        latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
         db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
         chunk_size: u32,
         mode: IndexMode,

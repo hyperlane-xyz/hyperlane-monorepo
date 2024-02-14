@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use derive_new::new;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    HyperlaneChain, HyperlaneMessage, Indexer, LatestSequenceCount, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, SequenceIndexer,
+    HyperlaneChain, HyperlaneMessage, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion,
+    SequenceAwareIndexer,
 };
 use hyperlane_sealevel_mailbox::accounts::OutboxAccount;
 use solana_sdk::commitment_config::CommitmentConfig;
@@ -101,16 +101,9 @@ impl Indexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
 }
 
 #[async_trait]
-impl SequenceIndexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
+impl SequenceAwareIndexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        SequenceIndexer::<HyperlaneMessage>::latest_sequence_count_and_tip(&self.0).await
-    }
-}
-
-#[async_trait]
-impl LatestSequenceCount for SealevelMerkleTreeHookIndexer {
-    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        SequenceIndexer::<HyperlaneMessage>::latest_sequence_count_and_tip(&self.0).await
+        SequenceAwareIndexer::<HyperlaneMessage>::latest_sequence_count_and_tip(&self.0).await
     }
 }
 

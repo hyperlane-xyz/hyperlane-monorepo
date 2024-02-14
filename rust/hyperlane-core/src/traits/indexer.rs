@@ -38,15 +38,7 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
 /// Interface for indexing data in sequence.
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
-pub trait SequenceIndexer<T>: Indexer<T> {
+pub trait SequenceAwareIndexer<T>: Indexer<T> {
     /// Return the latest finalized sequence (if any) and block number
-    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
-}
-
-/// todo
-#[async_trait]
-#[auto_impl(&, Box, Arc)]
-pub trait LatestSequenceCount: Send + Sync + Debug {
-    /// Return the latest finalized sequence count (if any) and block number
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
 }

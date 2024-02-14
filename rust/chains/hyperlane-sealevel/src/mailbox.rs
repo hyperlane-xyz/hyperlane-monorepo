@@ -10,9 +10,8 @@ use tracing::{debug, info, instrument, warn};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer,
-    LatestSequenceCount, LogMeta, Mailbox, MerkleTreeHook, SequenceIndexer, TxCostEstimate,
-    TxOutcome, H256, H512, U256,
+    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta,
+    Mailbox, MerkleTreeHook, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -631,18 +630,7 @@ impl SealevelMailboxIndexer {
 }
 
 #[async_trait]
-impl SequenceIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
-    #[instrument(err, skip(self))]
-    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
-        // TODO: need to make sure the call and tip are at the same height?
-        let count = Mailbox::count(&self.mailbox, None).await?;
-        Ok((Some(count), tip))
-    }
-}
-
-#[async_trait]
-impl LatestSequenceCount for SealevelMailboxIndexer {
+impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     #[instrument(err, skip(self))]
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
@@ -688,7 +676,7 @@ impl Indexer<H256> for SealevelMailboxIndexer {
 }
 
 #[async_trait]
-impl SequenceIndexer<H256> for SealevelMailboxIndexer {
+impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when sealevel scraper support is implemented
         info!("Message delivery indexing not implemented");

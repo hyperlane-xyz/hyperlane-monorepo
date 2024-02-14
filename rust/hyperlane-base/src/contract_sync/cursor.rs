@@ -12,7 +12,7 @@ use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction,
     HyperlaneSequenceIndexerStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta,
-    SequenceIndexer, Sequenced,
+    SequenceAwareIndexer, Sequenced,
 };
 use tokio::time::sleep;
 use tracing::{debug, warn};
@@ -28,7 +28,7 @@ const MAX_SEQUENCE_RANGE: u32 = 20;
 /// sequence sync cursors.
 #[derive(Debug, new)]
 pub(crate) struct SequenceSyncCursor<T> {
-    indexer: Arc<dyn SequenceIndexer<T>>,
+    indexer: Arc<dyn SequenceAwareIndexer<T>>,
     db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
     sync_state: SyncState,
 }
@@ -174,7 +174,7 @@ pub(crate) struct ForwardSequenceSyncCursor<T> {
 
 impl<T: Sequenced> ForwardSequenceSyncCursor<T> {
     pub fn new(
-        indexer: Arc<dyn SequenceIndexer<T>>,
+        indexer: Arc<dyn SequenceAwareIndexer<T>>,
         db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
         chunk_size: u32,
         start_block: u32,
@@ -294,7 +294,7 @@ pub(crate) struct BackwardSequenceSyncCursor<T> {
 impl<T: Sequenced> BackwardSequenceSyncCursor<T> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        indexer: Arc<dyn SequenceIndexer<T>>,
+        indexer: Arc<dyn SequenceAwareIndexer<T>>,
         db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
         chunk_size: u32,
         start_block: u32,
@@ -390,7 +390,7 @@ pub(crate) struct ForwardBackwardSequenceSyncCursor<T> {
 impl<T: Sequenced> ForwardBackwardSequenceSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
-        indexer: Arc<dyn SequenceIndexer<T>>,
+        indexer: Arc<dyn SequenceAwareIndexer<T>>,
         db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
         chunk_size: u32,
         mode: IndexMode,
@@ -461,7 +461,7 @@ impl<T: Sequenced> ContractSyncCursor<T> for ForwardBackwardSequenceSyncCursor<T
 /// queried is and also handling rate limiting. Rate limiting is automatically
 /// performed by `next_action`.
 pub(crate) struct RateLimitedContractSyncCursor<T> {
-    indexer: Arc<dyn SequenceIndexer<T>>,
+    indexer: Arc<dyn SequenceAwareIndexer<T>>,
     db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
     tip: u32,
     max_sequence: Option<u32>,
@@ -473,7 +473,7 @@ pub(crate) struct RateLimitedContractSyncCursor<T> {
 impl<T> RateLimitedContractSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
-        indexer: Arc<dyn SequenceIndexer<T>>,
+        indexer: Arc<dyn SequenceAwareIndexer<T>>,
         db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
         chunk_size: u32,
         initial_height: u32,

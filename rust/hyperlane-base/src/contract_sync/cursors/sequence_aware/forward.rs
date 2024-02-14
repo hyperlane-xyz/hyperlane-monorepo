@@ -7,8 +7,7 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractSyncCursorNew, CursorAction,
-    HyperlaneSequenceIndexerStore, IndexMode, LatestSequenceCount, LogMeta, SequenceIndexer,
-    Sequenced,
+    HyperlaneSequenceIndexerStore, IndexMode, LogMeta, SequenceAwareIndexer, Sequenced,
 };
 use itertools::Itertools;
 use tracing::{debug, warn};
@@ -19,7 +18,7 @@ use super::SequenceAwareSyncSnapshot;
 #[derive(Debug, new)]
 pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     chunk_size: u32,
-    latest_sequence_querier: Arc<dyn SequenceIndexer<T>>,
+    latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
     db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
     last_indexed_snapshot: SequenceAwareSyncSnapshot,
     /// The current / next snapshot that is the starting point for the next range.
@@ -299,19 +298,12 @@ pub(crate) mod test {
     }
 
     #[async_trait]
-    impl LatestSequenceCount for MockLatestSequenceQuerier {
-        async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-            Ok((self.latest_sequence_count, self.tip))
-        }
-    }
-
-    #[async_trait]
-    impl<T> SequenceIndexer<T> for MockLatestSequenceQuerier
+    impl<T> SequenceAwareIndexer<T> for MockLatestSequenceQuerier
     where
         T: Sequenced + Debug,
     {
         async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-            LatestSequenceCount::latest_sequence_count_and_tip(self).await
+            Ok((self.latest_sequence_count, self.tip))
         }
     }
 
