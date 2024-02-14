@@ -3,7 +3,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction,
@@ -27,7 +26,7 @@ pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     index_mode: IndexMode,
 }
 
-impl<T> ForwardSequenceAwareSyncCursor<T> {
+impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
     pub fn new(
         chunk_size: u32,
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
@@ -58,9 +57,7 @@ impl<T> ForwardSequenceAwareSyncCursor<T> {
             index_mode,
         }
     }
-}
 
-impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
     pub async fn get_next_range(&mut self) -> ChainResult<Option<RangeInclusive<u32>>> {
         // Fast forward the cursor to the latest indexed sequence.
         self.fast_forward().await?;
@@ -319,6 +316,7 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
 
 #[cfg(test)]
 pub(crate) mod test {
+    use derive_new::new;
     use hyperlane_core::{HyperlaneLogStore, Indexer};
 
     use super::*;

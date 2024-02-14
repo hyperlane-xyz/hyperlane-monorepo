@@ -29,10 +29,13 @@ impl OptionalSequenceAwareSyncSnapshot {
         }
     }
 
-    fn previous(&self) -> SequenceAwareSyncSnapshot {
-        SequenceAwareSyncSnapshot {
-            sequence: self.sequence.unwrap_or(0),
-            at_block: self.at_block,
+    fn previous(&self) -> Option<SequenceAwareSyncSnapshot> {
+        match &self.sequence {
+            Some(0) | None => None,
+            Some(s) => Some(SequenceAwareSyncSnapshot {
+                sequence: s.saturating_sub(1),
+                at_block: self.at_block,
+            }),
         }
     }
 }
@@ -79,7 +82,7 @@ pub(crate) struct ForwardBackwardSequenceAwareSyncCursor<T> {
     last_range: RangeInclusive<u32>,
 }
 
-impl<T: Sequenced> ForwardBackwardSequenceAwareSyncCursor<T> {
+impl<T: Sequenced + Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
@@ -101,21 +104,8 @@ impl<T: Sequenced> ForwardBackwardSequenceAwareSyncCursor<T> {
             tip,
             mode,
         );
-        let backward_cursor = BackwardSequenceAwareSyncCursor::new(
-            chunk_size,
-            db.clone(),
-            // TODO?
-            SequenceAwareSyncSnapshot {
-                sequence: sequence_count.saturating_sub(1),
-                at_block: tip,
-            },
-            // TODO?
-            SequenceAwareSyncSnapshot {
-                sequence: sequence_count,
-                at_block: tip,
-            },
-            mode,
-        );
+        let backward_cursor =
+            BackwardSequenceAwareSyncCursor::new(chunk_size, db, sequence_count, tip, mode);
         Ok(Self {
             forward: forward_cursor,
             backward: backward_cursor,
