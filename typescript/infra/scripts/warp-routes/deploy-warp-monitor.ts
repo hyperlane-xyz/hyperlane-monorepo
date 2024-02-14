@@ -9,7 +9,7 @@ async function main() {
     .alias('f', 'filePath')
     .describe(
       'filePath',
-      'indicate the filepatch to the warp route yaml file relative to typescript/infra',
+      'indicate the filepath to the warp route yaml file relative to the monorepo root',
     )
     .demandOption('filePath')
     .string('filePath')
