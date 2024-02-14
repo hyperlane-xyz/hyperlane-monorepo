@@ -279,16 +279,5 @@ impl<T: Sequenced + Debug> SequencedDataContractSync<T> {
             .await
             .unwrap(),
         )
-
-        // Box::new(
-        //     ForwardBackwardSequenceSyncCursor::new(
-        //         self.indexer.clone(),
-        //         self.db.clone(),
-        //         index_settings.chunk_size,
-        //         index_settings.mode,
-        //     )
-        //     .await
-        //     .unwrap(),
-        // )
     }
 }
