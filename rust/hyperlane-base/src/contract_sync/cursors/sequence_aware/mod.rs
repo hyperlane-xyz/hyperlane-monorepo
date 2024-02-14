@@ -11,13 +11,13 @@ use std::ops::RangeInclusive;
 mod backward;
 mod forward;
 
-use backward::BackwardSequenceAwareSyncCursor;
-use forward::ForwardSequenceAwareSyncCursor;
+pub(crate) use backward::BackwardSequenceAwareSyncCursor;
+pub(crate) use forward::ForwardSequenceAwareSyncCursor;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SequenceAwareSyncSnapshot {
-    sequence: u32,
-    at_block: u32,
+    pub sequence: u32,
+    pub at_block: u32,
 }
 
 impl SequenceAwareSyncSnapshot {

@@ -20,7 +20,11 @@ mod cursors;
 mod eta_calculator;
 mod metrics;
 
-use cursors::sequence_aware::ForwardBackwardSequenceAwareSyncCursor;
+use cursors::sequence_aware::{
+    ForwardBackwardSequenceAwareSyncCursor, ForwardSequenceAwareSyncCursor,
+};
+
+use self::cursors::sequence_aware::SequenceAwareSyncSnapshot;
 
 const SLEEP_DURATION: Duration = Duration::from_secs(5);
 
@@ -164,14 +168,21 @@ impl<T: Sequenced + Debug> SequencedDataContractSync<T> {
         index_settings: IndexSettings,
         next_nonce: u32,
     ) -> Box<dyn ContractSyncCursor<T>> {
-        Box::new(ForwardSequenceSyncCursor::new(
+        Box::new(ForwardSequenceAwareSyncCursor::new(
+            index_settings.chunk_size,
             self.indexer.clone(),
             self.db.clone(),
-            index_settings.chunk_size,
-            index_settings.from,
-            index_settings.from,
+            // TODO
+            SequenceAwareSyncSnapshot {
+                sequence: next_nonce,
+                at_block: index_settings.from,
+            },
+            SequenceAwareSyncSnapshot {
+                sequence: next_nonce,
+                at_block: index_settings.from,
+            },
+            None,
             index_settings.mode,
-            next_nonce,
         ))
     }
 
