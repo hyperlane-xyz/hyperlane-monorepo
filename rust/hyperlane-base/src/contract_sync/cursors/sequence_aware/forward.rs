@@ -12,19 +12,52 @@ use hyperlane_core::{
 use itertools::Itertools;
 use tracing::{debug, warn};
 
-use super::SequenceAwareSyncSnapshot;
+use super::{OptionalSequenceAwareSyncSnapshot, SequenceAwareSyncSnapshot};
 
 /// A sequence-aware cursor that syncs forwards in perpetuity.
-#[derive(Debug, new)]
+#[derive(Debug)]
 pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     chunk_size: u32,
     latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
     db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
-    last_indexed_snapshot: SequenceAwareSyncSnapshot,
+    last_indexed_snapshot: OptionalSequenceAwareSyncSnapshot,
     /// The current / next snapshot that is the starting point for the next range.
     current_indexing_snapshot: SequenceAwareSyncSnapshot,
     target_snapshot: Option<SequenceAwareSyncSnapshot>,
     index_mode: IndexMode,
+}
+
+impl<T> ForwardSequenceAwareSyncCursor<T> {
+    pub fn new(
+        chunk_size: u32,
+        latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
+        db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
+        next_sequence: u32,
+        start_block: u32,
+        index_mode: IndexMode,
+    ) -> Self {
+        let last_indexed_snapshot = OptionalSequenceAwareSyncSnapshot {
+            sequence: if next_sequence == 0 {
+                None
+            } else {
+                Some(next_sequence.saturating_sub(1))
+            },
+            at_block: start_block,
+        };
+
+        Self {
+            chunk_size,
+            latest_sequence_querier,
+            db,
+            last_indexed_snapshot,
+            current_indexing_snapshot: SequenceAwareSyncSnapshot {
+                sequence: next_sequence,
+                at_block: start_block,
+            },
+            target_snapshot: None,
+            index_mode,
+        }
+    }
 }
 
 impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
@@ -118,8 +151,8 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
                 .await
                 .map_err(|_e| ChainCommunicationError::from_other_str("todo"))?
             {
-                self.last_indexed_snapshot = SequenceAwareSyncSnapshot {
-                    sequence: self.current_indexing_snapshot.sequence,
+                self.last_indexed_snapshot = OptionalSequenceAwareSyncSnapshot {
+                    sequence: Some(self.current_indexing_snapshot.sequence),
                     at_block: block_number.try_into().expect("todo"),
                 };
                 self.current_indexing_snapshot = self.last_indexed_snapshot.next();
@@ -202,8 +235,8 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
                 // If we've gotten this far, we can assume that logs is non-empty.
                 let last_log = logs.last().expect("Logs must be non-empty");
                 // Update the last snapshot accordingly.
-                self.last_indexed_snapshot = SequenceAwareSyncSnapshot {
-                    sequence: last_log.0.sequence(),
+                self.last_indexed_snapshot = OptionalSequenceAwareSyncSnapshot {
+                    sequence: Some(last_log.0.sequence()),
                     at_block: last_log.1.block_number.try_into().expect("todo"),
                 };
                 // Position the current snapshot to the next sequence.
@@ -243,8 +276,8 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
                 // This means we indexed at least one log that builds on the last snapshot.
                 if let Some(last_log) = logs.last() {
                     // Update the last snapshot.
-                    self.last_indexed_snapshot = SequenceAwareSyncSnapshot {
-                        sequence: last_log.0.sequence(),
+                    self.last_indexed_snapshot = OptionalSequenceAwareSyncSnapshot {
+                        sequence: Some(last_log.0.sequence()),
                         at_block: last_log.1.block_number.try_into().expect("todo"),
                     };
 
@@ -394,19 +427,13 @@ pub(crate) mod test {
             ],
         });
 
-        // We're starting at sequence 2, block 70.
-        let last_indexed_snapshot = SequenceAwareSyncSnapshot {
-            sequence: 2,
-            at_block: 70,
-        };
-
         ForwardSequenceAwareSyncCursor::new(
             chunk_size,
             latest_sequence_querier,
             db,
-            last_indexed_snapshot.clone(),
-            last_indexed_snapshot.clone(),
-            None,
+            // Start at sequence 3 and block 70 to illustrate fast forwarding
+            3,
+            70,
             mode,
         )
     }
@@ -498,8 +525,8 @@ pub(crate) mod test {
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                SequenceAwareSyncSnapshot {
-                    sequence: 5,
+                OptionalSequenceAwareSyncSnapshot {
+                    sequence: Some(5),
                     at_block: 115,
                 }
             );
@@ -545,8 +572,8 @@ pub(crate) mod test {
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                SequenceAwareSyncSnapshot {
-                    sequence: 4,
+                OptionalSequenceAwareSyncSnapshot {
+                    sequence: Some(4),
                     at_block: 90,
                 }
             );
@@ -576,8 +603,8 @@ pub(crate) mod test {
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                SequenceAwareSyncSnapshot {
-                    sequence: 5,
+                OptionalSequenceAwareSyncSnapshot {
+                    sequence: Some(5),
                     at_block: 195,
                 }
             );
@@ -622,8 +649,8 @@ pub(crate) mod test {
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                SequenceAwareSyncSnapshot {
-                    sequence: 4,
+                OptionalSequenceAwareSyncSnapshot {
+                    sequence: Some(4),
                     at_block: 90,
                 }
             );
@@ -647,8 +674,8 @@ pub(crate) mod test {
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                SequenceAwareSyncSnapshot {
-                    sequence: 4,
+                OptionalSequenceAwareSyncSnapshot {
+                    sequence: Some(4),
                     at_block: 90,
                 }
             );
@@ -692,8 +719,8 @@ pub(crate) mod test {
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                SequenceAwareSyncSnapshot {
-                    sequence: 4,
+                OptionalSequenceAwareSyncSnapshot {
+                    sequence: Some(4),
                     at_block: 90,
                 }
             );
@@ -726,8 +753,8 @@ pub(crate) mod test {
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                SequenceAwareSyncSnapshot {
-                    sequence: 4,
+                OptionalSequenceAwareSyncSnapshot {
+                    sequence: Some(4),
                     at_block: 90,
                 }
             );
@@ -781,8 +808,8 @@ pub(crate) mod test {
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                SequenceAwareSyncSnapshot {
-                    sequence: 6,
+                OptionalSequenceAwareSyncSnapshot {
+                    sequence: Some(6),
                     at_block: 100,
                 }
             );
@@ -875,8 +902,8 @@ pub(crate) mod test {
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                SequenceAwareSyncSnapshot {
-                    sequence: 5,
+                OptionalSequenceAwareSyncSnapshot {
+                    sequence: Some(5),
                     at_block: 115,
                 }
             );
@@ -931,8 +958,8 @@ pub(crate) mod test {
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                SequenceAwareSyncSnapshot {
-                    sequence: 4,
+                OptionalSequenceAwareSyncSnapshot {
+                    sequence: Some(4),
                     at_block: 90,
                 }
             );
@@ -980,8 +1007,8 @@ pub(crate) mod test {
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                SequenceAwareSyncSnapshot {
-                    sequence: 4,
+                OptionalSequenceAwareSyncSnapshot {
+                    sequence: Some(4),
                     at_block: 90,
                 }
             );
@@ -1010,8 +1037,8 @@ pub(crate) mod test {
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                SequenceAwareSyncSnapshot {
-                    sequence: 4,
+                OptionalSequenceAwareSyncSnapshot {
+                    sequence: Some(4),
                     at_block: 90,
                 }
             );

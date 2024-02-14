@@ -172,16 +172,8 @@ impl<T: Sequenced + Debug> SequencedDataContractSync<T> {
             index_settings.chunk_size,
             self.indexer.clone(),
             self.db.clone(),
-            // TODO
-            SequenceAwareSyncSnapshot {
-                sequence: next_nonce,
-                at_block: index_settings.from,
-            },
-            SequenceAwareSyncSnapshot {
-                sequence: next_nonce,
-                at_block: index_settings.from,
-            },
-            None,
+            next_nonce,
+            index_settings.from,
             index_settings.mode,
         ))
     }

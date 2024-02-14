@@ -14,6 +14,29 @@ mod forward;
 pub(crate) use backward::BackwardSequenceAwareSyncCursor;
 pub(crate) use forward::ForwardSequenceAwareSyncCursor;
 
+// TODO better name
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OptionalSequenceAwareSyncSnapshot {
+    pub sequence: Option<u32>,
+    pub at_block: u32,
+}
+
+impl OptionalSequenceAwareSyncSnapshot {
+    fn next(&self) -> SequenceAwareSyncSnapshot {
+        SequenceAwareSyncSnapshot {
+            sequence: self.sequence.map(|s| s + 1).unwrap_or(0),
+            at_block: self.at_block,
+        }
+    }
+
+    fn previous(&self) -> SequenceAwareSyncSnapshot {
+        SequenceAwareSyncSnapshot {
+            sequence: self.sequence.unwrap_or(0),
+            at_block: self.at_block,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SequenceAwareSyncSnapshot {
     pub sequence: u32,
@@ -64,27 +87,18 @@ impl<T: Sequenced> ForwardBackwardSequenceAwareSyncCursor<T> {
         chunk_size: u32,
         mode: IndexMode,
     ) -> Result<Self> {
-        let (sequence, tip) = latest_sequence_querier
+        let (sequence_count, tip) = latest_sequence_querier
             .latest_sequence_count_and_tip()
             .await?;
-        let sequence = sequence.ok_or(ChainCommunicationError::from_other_str(
+        let sequence_count = sequence_count.ok_or(ChainCommunicationError::from_other_str(
             "Failed to query sequence",
         ))?;
         let forward_cursor = ForwardSequenceAwareSyncCursor::new(
             chunk_size,
             latest_sequence_querier.clone(),
             db.clone(),
-            // TODO?
-            SequenceAwareSyncSnapshot {
-                sequence: sequence.saturating_sub(1),
-                at_block: tip,
-            },
-            // TODO?
-            SequenceAwareSyncSnapshot {
-                sequence,
-                at_block: tip,
-            },
-            None,
+            sequence_count,
+            tip,
             mode,
         );
         let backward_cursor = BackwardSequenceAwareSyncCursor::new(
@@ -92,12 +106,12 @@ impl<T: Sequenced> ForwardBackwardSequenceAwareSyncCursor<T> {
             db.clone(),
             // TODO?
             SequenceAwareSyncSnapshot {
-                sequence: sequence.saturating_sub(1),
+                sequence: sequence_count.saturating_sub(1),
                 at_block: tip,
             },
             // TODO?
             SequenceAwareSyncSnapshot {
-                sequence,
+                sequence: sequence_count,
                 at_block: tip,
             },
             mode,
