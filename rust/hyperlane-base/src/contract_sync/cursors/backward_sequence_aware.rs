@@ -1,13 +1,11 @@
-use std::{
-    cmp::Ordering, collections::HashSet, fmt::Debug, ops::RangeInclusive, sync::Arc, time::Duration,
-};
+use std::{collections::HashSet, fmt::Debug, ops::RangeInclusive, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractSyncCursorNew, CursorAction,
-    HyperlaneSequenceIndexerStore, IndexMode, LatestSequence, LogMeta, Sequenced,
+    HyperlaneSequenceIndexerStore, IndexMode, LogMeta, Sequenced,
 };
 use itertools::Itertools;
 use tracing::{debug, warn};
@@ -135,12 +133,11 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for BackwardSequenceAwareSyn
         // If block based indexing, we're tolerant of missing logs *if* the target snapshot's
         // at_block exceeds the range's end.
 
-        // Remove any duplicates, filter out any logs preceding our current snapshot, and sort.
+        // Remove any duplicates, filter out any logs with a higher sequance than our
+        // current snapshot, and sort in ascending order.
         let logs = logs
             .into_iter()
             .dedup_by(|(log_a, _), (log_b, _)| log_a.sequence() == log_b.sequence())
-            // TODO: note that this is <= and the forward is >=, may be an opportunity for
-            // code de-dupe beacuse of this
             .filter(|(log, _)| log.sequence() <= self.current_indexing_snapshot.sequence)
             .sorted_by(|(log_a, _), (log_b, _)| log_a.sequence().cmp(&log_b.sequence()))
             .collect::<Vec<_>>();
