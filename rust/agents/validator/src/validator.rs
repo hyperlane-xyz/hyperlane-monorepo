@@ -13,6 +13,7 @@ use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
     run_all,
+    server::Server,
     settings::ChainConf,
     BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
     HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
@@ -48,6 +49,7 @@ pub struct Validator {
     reorg_period: u64,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
+    server: Arc<Server>,
     core_metrics: Arc<CoreMetrics>,
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
@@ -107,7 +109,7 @@ impl BaseAgent for Validator {
             .await?
             .into();
 
-        let server = settings.server(metrics)?;
+        let server = settings.server(metrics.clone())?;
 
         Ok(Self {
             origin_chain: settings.origin_chain,
@@ -123,6 +125,7 @@ impl BaseAgent for Validator {
             reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
+            server,
             agent_metrics,
             chain_metrics,
             core_metrics: metrics,
