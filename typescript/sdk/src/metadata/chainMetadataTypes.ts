@@ -98,6 +98,7 @@ export const ChainMetadataSchemaObject = z.object({
       name: z.string(),
       symbol: z.string(),
       decimals: ZUint.lt(256),
+      denom: z.string().optional(),
     })
     .optional()
     .describe(

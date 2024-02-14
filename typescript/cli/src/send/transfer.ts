@@ -1,5 +1,5 @@
 import { input } from '@inquirer/prompts';
-import { BigNumber, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import {
   ERC20__factory,
@@ -13,6 +13,8 @@ import {
   HyperlaneCore,
   MultiProtocolProvider,
   MultiProvider,
+  Token,
+  TokenAmount,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 import { Address, timeout } from '@hyperlane-xyz/utils';
@@ -176,6 +178,9 @@ async function executeDelivery({
   const provider = multiProvider.getProvider(origin);
   const connectedSigner = signer.connect(provider);
 
+  // TODO replace all code below with WarpCore
+  // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3259
+
   if (tokenType === TokenType.collateral) {
     const wrappedToken = await getWrappedToken(routerAddress, provider);
     const token = ERC20__factory.connect(wrappedToken, connectedSigner);
@@ -186,23 +191,21 @@ async function executeDelivery({
     }
   }
 
-  // TODO move next section into MultiProtocolTokenApp when it exists
   const adapter = new EvmHypCollateralAdapter(
     origin,
     MultiProtocolProvider.fromMultiProvider(multiProvider),
     { token: routerAddress },
   );
   const destinationDomain = multiProvider.getDomainId(destination);
-  const gasPayment = await adapter.quoteGasPayment(destinationDomain);
-  const txValue =
-    tokenType === TokenType.native
-      ? BigNumber.from(gasPayment).add(wei).toString()
-      : gasPayment;
+  const gasAmount = await adapter.quoteGasPayment(destinationDomain);
+  const gasToken = Token.FromChainMetadataNativeToken(
+    multiProvider.getChainMetadata(origin),
+  );
   const transferTx = await adapter.populateTransferRemoteTx({
     weiAmountOrId: wei,
     destination: destinationDomain,
     recipient,
-    txValue,
+    interchainGas: new TokenAmount(gasAmount, gasToken),
   });
 
   const txResponse = await connectedSigner.sendTransaction(transferTx);

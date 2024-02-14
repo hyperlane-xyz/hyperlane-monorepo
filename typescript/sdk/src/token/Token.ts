@@ -49,11 +49,11 @@ export interface TokenArgs {
   chainName: ChainName;
   standard: TokenStandard;
   addressOrDenom: Address | string;
-  collateralAddressOrDenom?: Address | string;
-  igpTokenAddressOrDenom?: string;
   decimals: number;
   symbol: string;
   name: string;
+  collateralAddressOrDenom?: Address | string;
+  igpTokenAddressOrDenom?: string;
   logoURI?: string;
   connectedTokens?: Token[];
 
@@ -82,7 +82,7 @@ export class Token {
       protocol,
       chainName,
       standard: PROTOCOL_TO_NATIVE_STANDARD[protocol],
-      addressOrDenom: '',
+      addressOrDenom: nativeToken.denom ?? '',
       decimals: nativeToken.decimals,
       symbol: nativeToken.symbol,
       name: nativeToken.name,

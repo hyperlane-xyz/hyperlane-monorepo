@@ -462,6 +462,7 @@ export const injective: ChainMetadata = {
   name: Chains.injective,
   nativeToken: {
     decimals: 18,
+    denom: 'inj',
     name: 'Injective',
     symbol: 'INJ',
   },
@@ -662,6 +663,7 @@ export const neutron: ChainMetadata = {
   name: Chains.neutron,
   nativeToken: {
     decimals: 6,
+    denom: 'untrn',
     name: 'Neutron',
     symbol: 'NTRN',
   },
@@ -919,7 +921,6 @@ export const solana: ChainMetadata = {
       url: 'https://explorer.solana.com',
     },
   ],
-
   blocks: {
     confirmations: 1,
     estimateBlockTime: 0.4,
