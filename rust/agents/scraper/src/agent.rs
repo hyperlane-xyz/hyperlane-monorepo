@@ -158,7 +158,7 @@ impl Scraper {
         tokio::spawn(async move {
             join_all(tasks).await;
         })
-        .instrument(info_span!("MetricsUpdater"))
+        .instrument(info_span!("Scraper Tasks"))
     }
 }
 
