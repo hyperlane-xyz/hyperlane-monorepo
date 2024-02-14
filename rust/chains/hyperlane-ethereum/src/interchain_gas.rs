@@ -10,7 +10,7 @@ use ethers::prelude::Middleware;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, SequenceIndexer, H160, H256,
+    InterchainGasPayment, LatestSequenceCount, LogMeta, SequenceIndexer, H160, H256,
 };
 use tracing::instrument;
 
@@ -131,7 +131,24 @@ impl<M> SequenceIndexer<InterchainGasPayment> for EthereumInterchainGasPaymaster
 where
     M: Middleware + 'static,
 {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        // The InterchainGasPaymasterIndexerBuilder must return a `SequenceIndexer` type.
+        // It's fine if only a blanket implementation is provided for EVM chains, since their
+        // indexing only uses the `Index` trait, which is a supertrait of `SequenceIndexer`.
+        // TODO: if `SequenceIndexer` turns out to not depend on `Indexer` at all, then the supertrait
+        // dependency could be removed, even if the builder would still need to return a type that is both
+        // ``SequenceIndexer` and `Indexer`.
+        let tip = self.get_finalized_block_number().await?;
+        Ok((None, tip))
+    }
+}
+
+#[async_trait]
+impl<M> LatestSequenceCount for EthereumInterchainGasPaymasterIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // The InterchainGasPaymasterIndexerBuilder must return a `SequenceIndexer` type.
         // It's fine if only a blanket implementation is provided for EVM chains, since their
         // indexing only uses the `Index` trait, which is a supertrait of `SequenceIndexer`.

@@ -7,7 +7,8 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractSyncCursorNew, CursorAction,
-    HyperlaneSequenceIndexerStore, IndexMode, LatestSequence, LogMeta, Sequenced,
+    HyperlaneSequenceIndexerStore, IndexMode, LatestSequenceCount, LogMeta, SequenceIndexer,
+    Sequenced,
 };
 use itertools::Itertools;
 use tracing::{debug, warn};
@@ -16,9 +17,9 @@ use super::SequenceAwareSyncSnapshot;
 
 /// A sequence-aware cursor that syncs forwards in perpetuity.
 #[derive(Debug, new)]
-pub(crate) struct ForwardSequenceAwareSyncCursorNew<T> {
+pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     chunk_size: u32,
-    latest_sequence_querier: Arc<dyn LatestSequence>,
+    latest_sequence_querier: Arc<dyn SequenceIndexer<T>>,
     db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
     last_indexed_snapshot: SequenceAwareSyncSnapshot,
     /// The current / next snapshot that is the starting point for the next range.
@@ -27,8 +28,8 @@ pub(crate) struct ForwardSequenceAwareSyncCursorNew<T> {
     index_mode: IndexMode,
 }
 
-impl<T: Sequenced> ForwardSequenceAwareSyncCursorNew<T> {
-    async fn get_next_range(&mut self) -> ChainResult<Option<RangeInclusive<u32>>> {
+impl<T: Sequenced> ForwardSequenceAwareSyncCursor<T> {
+    pub async fn get_next_range(&mut self) -> ChainResult<Option<RangeInclusive<u32>>> {
         let (Some(onchain_sequence_count), tip) = self
             .latest_sequence_querier
             .latest_sequence_count_and_tip()
@@ -101,7 +102,7 @@ impl<T: Sequenced> ForwardSequenceAwareSyncCursorNew<T> {
 }
 
 #[async_trait]
-impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for ForwardSequenceAwareSyncCursorNew<T> {
+impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for ForwardSequenceAwareSyncCursor<T> {
     async fn fast_forward(&mut self) -> ChainResult<()> {
         // Check if any new logs have been inserted into the DB,
         // and update the cursor accordingly.
@@ -287,7 +288,7 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for ForwardSequenceAwareSync
 
 #[cfg(test)]
 pub(crate) mod test {
-    use hyperlane_core::HyperlaneLogStore;
+    use hyperlane_core::{HyperlaneLogStore, Indexer};
 
     use super::*;
 
@@ -298,9 +299,33 @@ pub(crate) mod test {
     }
 
     #[async_trait]
-    impl LatestSequence for MockLatestSequenceQuerier {
+    impl LatestSequenceCount for MockLatestSequenceQuerier {
         async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
             Ok((self.latest_sequence_count, self.tip))
+        }
+    }
+
+    #[async_trait]
+    impl<T> SequenceIndexer<T> for MockLatestSequenceQuerier
+    where
+        T: Sequenced + Debug,
+    {
+        async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+            LatestSequenceCount::latest_sequence_count_and_tip(self).await
+        }
+    }
+
+    #[async_trait]
+    impl<T> Indexer<T> for MockLatestSequenceQuerier
+    where
+        T: Sequenced + Debug,
+    {
+        async fn fetch_logs(&self, _range: RangeInclusive<u32>) -> ChainResult<Vec<(T, LogMeta)>> {
+            Ok(vec![])
+        }
+
+        async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+            Ok(self.tip)
         }
     }
 
@@ -362,7 +387,7 @@ pub(crate) mod test {
     fn get_test_forward_sequence_aware_sync_cursor(
         mode: IndexMode,
         chunk_size: u32,
-    ) -> ForwardSequenceAwareSyncCursorNew<MockSequencedData> {
+    ) -> ForwardSequenceAwareSyncCursor<MockSequencedData> {
         let latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
             latest_sequence_count: Some(5),
             tip: 100,
@@ -384,7 +409,7 @@ pub(crate) mod test {
             at_block: 70,
         };
 
-        ForwardSequenceAwareSyncCursorNew::new(
+        ForwardSequenceAwareSyncCursor::new(
             chunk_size,
             latest_sequence_querier,
             db,
@@ -401,7 +426,7 @@ pub(crate) mod test {
         const INDEX_MODE: IndexMode = IndexMode::Block;
         const CHUNK_SIZE: u32 = 100;
 
-        async fn get_cursor() -> ForwardSequenceAwareSyncCursorNew<MockSequencedData> {
+        async fn get_cursor() -> ForwardSequenceAwareSyncCursor<MockSequencedData> {
             let mut cursor = get_test_forward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE);
             // Fast forwarded to sequence 5, block 90
             cursor.fast_forward().await.unwrap();
@@ -779,7 +804,7 @@ pub(crate) mod test {
         const INDEX_MODE: IndexMode = IndexMode::Sequence;
         const CHUNK_SIZE: u32 = 10;
 
-        async fn get_cursor() -> ForwardSequenceAwareSyncCursorNew<MockSequencedData> {
+        async fn get_cursor() -> ForwardSequenceAwareSyncCursor<MockSequencedData> {
             let mut cursor = get_test_forward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE);
             // Fast forwarded to sequence 5, block 90
             cursor.fast_forward().await.unwrap();

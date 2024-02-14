@@ -14,7 +14,7 @@ use super::SequenceAwareSyncSnapshot;
 
 /// A sequence-aware cursor that syncs forwards in perpetuity.
 #[derive(Debug, new)]
-pub(crate) struct BackwardSequenceAwareSyncCursorNew<T> {
+pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     chunk_size: u32,
     db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
     last_indexed_snapshot: SequenceAwareSyncSnapshot,
@@ -24,8 +24,8 @@ pub(crate) struct BackwardSequenceAwareSyncCursorNew<T> {
     synced: bool,
 }
 
-impl<T: Sequenced> BackwardSequenceAwareSyncCursorNew<T> {
-    async fn get_next_range(&mut self) -> ChainResult<Option<RangeInclusive<u32>>> {
+impl<T: Sequenced> BackwardSequenceAwareSyncCursor<T> {
+    pub async fn get_next_range(&mut self) -> ChainResult<Option<RangeInclusive<u32>>> {
         if self.synced {
             return Ok(None);
         }
@@ -56,7 +56,7 @@ impl<T: Sequenced> BackwardSequenceAwareSyncCursorNew<T> {
 }
 
 #[async_trait]
-impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for BackwardSequenceAwareSyncCursorNew<T> {
+impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for BackwardSequenceAwareSyncCursor<T> {
     async fn fast_forward(&mut self) -> ChainResult<()> {
         if self.synced {
             return Ok(());
@@ -234,13 +234,13 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for BackwardSequenceAwareSyn
 
 #[cfg(test)]
 mod test {
-    use super::super::forward_sequence_aware::test::*;
+    use super::super::forward::test::*;
     use super::*;
 
     fn get_test_backward_sequence_aware_sync_cursor(
         mode: IndexMode,
         chunk_size: u32,
-    ) -> BackwardSequenceAwareSyncCursorNew<MockSequencedData> {
+    ) -> BackwardSequenceAwareSyncCursor<MockSequencedData> {
         let db = Arc::new(MockHyperlaneSequenceIndexerStore {
             logs: vec![
                 (MockSequencedData::new(100), log_meta_with_block(1000)),
@@ -255,7 +255,7 @@ mod test {
             at_block: 1000,
         };
 
-        BackwardSequenceAwareSyncCursorNew::new(
+        BackwardSequenceAwareSyncCursor::new(
             chunk_size,
             db,
             last_indexed_snapshot.clone(),
@@ -270,7 +270,7 @@ mod test {
         const INDEX_MODE: IndexMode = IndexMode::Block;
         const CHUNK_SIZE: u32 = 100;
 
-        async fn get_cursor() -> BackwardSequenceAwareSyncCursorNew<MockSequencedData> {
+        async fn get_cursor() -> BackwardSequenceAwareSyncCursor<MockSequencedData> {
             let mut cursor = get_test_backward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE);
             // Fast forwarded to sequence 99, block 1000
             cursor.fast_forward().await.unwrap();
@@ -583,7 +583,7 @@ mod test {
         const INDEX_MODE: IndexMode = IndexMode::Sequence;
         const CHUNK_SIZE: u32 = 5;
 
-        async fn get_cursor() -> BackwardSequenceAwareSyncCursorNew<MockSequencedData> {
+        async fn get_cursor() -> BackwardSequenceAwareSyncCursor<MockSequencedData> {
             let mut cursor = get_test_backward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE);
             // Fast forwarded to sequence 99, block 1000
             cursor.fast_forward().await.unwrap();

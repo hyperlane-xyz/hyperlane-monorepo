@@ -6,7 +6,8 @@ use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
-    Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer, H256,
+    Indexer, LatestSequenceCount, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer,
+    H256,
 };
 use once_cell::sync::Lazy;
 use tracing::instrument;
@@ -301,7 +302,20 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
 
 #[async_trait]
 impl SequenceIndexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = self.get_finalized_block_number().await?;
+        let sequence = self
+            .merkle_tree_hook
+            .count_at_block(Some(tip.into()))
+            .await?;
+
+        Ok((Some(sequence), tip))
+    }
+}
+
+#[async_trait]
+impl LatestSequenceCount for CosmosMerkleTreeHookIndexer {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = self.get_finalized_block_number().await?;
         let sequence = self
             .merkle_tree_hook

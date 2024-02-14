@@ -223,7 +223,9 @@ impl<T: Sequenced> ForwardSequenceSyncCursor<T> {
             self.cursor.sync_state.next_sequence += 1;
         }
 
-        let (Some(mailbox_count), tip) = self.cursor.indexer.sequence_and_tip().await? else {
+        let (Some(mailbox_count), tip) =
+            self.cursor.indexer.latest_sequence_count_and_tip().await?
+        else {
             return Ok(None);
         };
         let cursor_count = self.cursor.sync_state.next_sequence;
@@ -353,7 +355,7 @@ impl<T: Sequenced> BackwardSequenceSyncCursor<T> {
         }
 
         // Just keep going backwards.
-        let (count, tip) = self.cursor.indexer.sequence_and_tip().await?;
+        let (count, tip) = self.cursor.indexer.latest_sequence_count_and_tip().await?;
         self.cursor.sync_state.get_next_range(count, tip).await
     }
 
@@ -393,7 +395,7 @@ impl<T: Sequenced> ForwardBackwardSequenceSyncCursor<T> {
         chunk_size: u32,
         mode: IndexMode,
     ) -> Result<Self> {
-        let (sequence, tip) = indexer.sequence_and_tip().await?;
+        let (sequence, tip) = indexer.latest_sequence_count_and_tip().await?;
         let sequence = sequence.ok_or(ChainCommunicationError::from_other_str(
             "Failed to query sequence",
         ))?;
@@ -477,7 +479,7 @@ impl<T> RateLimitedContractSyncCursor<T> {
         initial_height: u32,
         mode: IndexMode,
     ) -> Result<Self> {
-        let (max_sequence, tip) = indexer.sequence_and_tip().await?;
+        let (max_sequence, tip) = indexer.latest_sequence_count_and_tip().await?;
         Ok(Self {
             indexer,
             db,
@@ -574,7 +576,7 @@ where
         if let Some(rate_limit) = rate_limit {
             return Ok((CursorAction::Sleep(rate_limit), eta));
         }
-        let (max_sequence, tip) = self.indexer.sequence_and_tip().await?;
+        let (max_sequence, tip) = self.indexer.latest_sequence_count_and_tip().await?;
         self.tip = tip;
         self.max_sequence = max_sequence;
         if let Some(range) = self.sync_state.get_next_range(max_sequence, tip).await? {

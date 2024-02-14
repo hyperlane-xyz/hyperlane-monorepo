@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer,
-    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceIndexer, H256, H512,
+    InterchainGasPaymaster, InterchainGasPayment, LatestSequenceCount, LogMeta, SequenceIndexer,
+    H256, H512,
 };
 use hyperlane_sealevel_igp::{
     accounts::{GasPaymentAccount, ProgramDataAccount},
@@ -275,7 +276,31 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
 #[async_trait]
 impl SequenceIndexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
     #[instrument(err, skip(self))]
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let program_data_account = self
+            .rpc_client
+            .get_account_with_commitment(&self.igp.data_pda_pubkey, CommitmentConfig::finalized())
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .value
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str("Could not find account data")
+            })?;
+        let program_data = ProgramDataAccount::fetch(&mut program_data_account.data.as_ref())
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+        let payment_count = program_data
+            .payment_count
+            .try_into()
+            .map_err(StrOrIntParseError::from)?;
+        let tip = get_finalized_block_number(&self.rpc_client).await?;
+        Ok((Some(payment_count), tip))
+    }
+}
+
+#[async_trait]
+impl LatestSequenceCount for SealevelInterchainGasPaymasterIndexer {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let program_data_account = self
             .rpc_client
             .get_account_with_commitment(&self.igp.data_pda_pubkey, CommitmentConfig::finalized())

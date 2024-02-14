@@ -10,8 +10,8 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, SequenceIndexer, H256,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, LatestSequenceCount, LogMeta,
+    MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer, H256,
 };
 
 use crate::contracts::merkle_tree_hook::{MerkleTreeHook as MerkleTreeHookContract, Tree};
@@ -151,7 +151,22 @@ where
     // TODO: if `SequenceIndexer` turns out to not depend on `Indexer` at all, then the supertrait
     // dependency could be removed, even if the builder would still need to return a type that is both
     // `SequenceIndexer` and `Indexer`.
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = self.get_finalized_block_number().await?;
+        let sequence = self.contract.count().block(u64::from(tip)).call().await?;
+        Ok((Some(sequence), tip))
+    }
+}
+
+#[async_trait]
+impl<M> LatestSequenceCount for EthereumMerkleTreeHookIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    // TODO: if `SequenceIndexer` turns out to not depend on `Indexer` at all, then the supertrait
+    // dependency could be removed, even if the builder would still need to return a type that is both
+    // `SequenceIndexer` and `Indexer`.
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = self.get_finalized_block_number().await?;
         let sequence = self.contract.count().block(u64::from(tip)).call().await?;
         Ok((Some(sequence), tip))

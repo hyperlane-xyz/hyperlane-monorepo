@@ -20,6 +20,8 @@ mod cursors;
 mod eta_calculator;
 mod metrics;
 
+use cursors::sequence_aware::ForwardBackwardSequenceAwareSyncCursor;
+
 const SLEEP_DURATION: Duration = Duration::from_secs(5);
 
 /// Entity that drives the syncing of an agent's db with on-chain data.
@@ -244,7 +246,7 @@ where
 /// A ContractSync for syncing messages using a SequenceSyncCursor
 pub type SequencedDataContractSync<T> =
     ContractSync<T, Arc<dyn HyperlaneSequenceIndexerStore<T>>, Arc<dyn SequenceIndexer<T>>>;
-impl<T: Sequenced> SequencedDataContractSync<T> {
+impl<T: Sequenced + Debug> SequencedDataContractSync<T> {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     pub async fn forward_message_sync_cursor(
         &self,
@@ -268,7 +270,7 @@ impl<T: Sequenced> SequencedDataContractSync<T> {
         index_settings: IndexSettings,
     ) -> Box<dyn ContractSyncCursor<T>> {
         Box::new(
-            ForwardBackwardSequenceSyncCursor::new(
+            ForwardBackwardSequenceAwareSyncCursor::new(
                 self.indexer.clone(),
                 self.db.clone(),
                 index_settings.chunk_size,
@@ -277,5 +279,16 @@ impl<T: Sequenced> SequencedDataContractSync<T> {
             .await
             .unwrap(),
         )
+
+        // Box::new(
+        //     ForwardBackwardSequenceSyncCursor::new(
+        //         self.indexer.clone(),
+        //         self.db.clone(),
+        //         index_settings.chunk_size,
+        //         index_settings.mode,
+        //     )
+        //     .await
+        //     .unwrap(),
+        // )
     }
 }

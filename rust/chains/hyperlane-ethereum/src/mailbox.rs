@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
+use hyperlane_core::LatestSequenceCount;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -153,7 +154,20 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
+        let sequence = self.contract.nonce().block(u64::from(tip)).call().await?;
+        Ok((Some(sequence), tip))
+    }
+}
+
+#[async_trait]
+impl<M> LatestSequenceCount for EthereumMailboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    #[instrument(err, skip(self))]
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         let sequence = self.contract.nonce().block(u64::from(tip)).call().await?;
         Ok((Some(sequence), tip))
@@ -190,7 +204,7 @@ impl<M> SequenceIndexer<H256> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // A blanket implementation for this trait is fine for the EVM.
         // TODO: Consider removing `Indexer` as a supertrait of `SequenceIndexer`
         let tip = Indexer::<H256>::get_finalized_block_number(self).await?;

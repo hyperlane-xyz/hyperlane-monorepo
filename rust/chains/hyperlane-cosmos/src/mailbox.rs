@@ -24,8 +24,8 @@ use once_cell::sync::Lazy;
 use crate::utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64};
 use hyperlane_core::{
     utils::bytes_to_hex, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
-    H256, U256,
+    HyperlaneMessage, HyperlaneProvider, Indexer, LatestSequenceCount, LogMeta, Mailbox,
+    TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_core::{
     ChainCommunicationError, ContractLocator, Decode, RawHyperlaneMessage, SequenceIndexer,
@@ -379,7 +379,7 @@ impl Indexer<H256> for CosmosMailboxIndexer {
 
 #[async_trait]
 impl SequenceIndexer<H256> for CosmosMailboxIndexer {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<H256>::get_finalized_block_number(&self).await?;
 
         // No sequence for message deliveries.
@@ -388,8 +388,19 @@ impl SequenceIndexer<H256> for CosmosMailboxIndexer {
 }
 
 #[async_trait]
+impl LatestSequenceCount for CosmosMailboxIndexer {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(&self).await?;
+
+        let sequence = self.mailbox.nonce_at_block(Some(tip.into())).await?;
+
+        Ok((Some(sequence), tip))
+    }
+}
+
+#[async_trait]
 impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(&self).await?;
 
         let sequence = self.mailbox.nonce_at_block(Some(tip.into())).await?;
