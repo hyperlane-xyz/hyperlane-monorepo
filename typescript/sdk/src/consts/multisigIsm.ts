@@ -299,9 +299,9 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   viction: {
     threshold: 2,
     validators: [
+      '0x4E53dA92cD5Bf0a032b6B4614b986926456756A7', // blockpi
+      '0xa3f93fe365bf99f431d8fde740b140615e24f99b', // rockx
       '0x1f87c368f8e05a85ef9126d984a980a20930cb9c',
-      '0x4a2ebbe07cd546cfd2b213d41f2d7814f9386157',
-      '0x00271cf10759e4c6d2f8ca46183ab10d360474b4',
     ],
   },
 };
