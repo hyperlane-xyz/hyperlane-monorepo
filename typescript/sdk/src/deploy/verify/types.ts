@@ -7,6 +7,14 @@ export type ContractVerificationInput = {
 
 export type VerificationInput = ContractVerificationInput[];
 
+export type SolidityStandardJsonInput = {
+  sources: {
+    [sourceName: string]: {
+      content: string;
+    };
+  };
+};
+
 // see https://etherscan.io/contract-license-types
 export enum ExplorerLicenseType {
   NO_LICENSE = '1',
@@ -45,6 +53,8 @@ export enum ExplorerApiErrors {
   VERIFICATION_PENDING = 'Pending in queue',
   PROXY_FAILED = 'A corresponding implementation contract was unfortunately not detected for the proxy address.',
   BYTECODE_MISMATCH = 'Fail - Unable to verify. Compiled contract deployment bytecode does NOT match the transaction deployment bytecode.',
+  UNABLE_TO_VERIFY = 'Fail - Unable to verify',
+  UNKNOWN_UID = 'Unknown UID',
 }
 
 export type FormOptions<Action extends ExplorerApiActions> =

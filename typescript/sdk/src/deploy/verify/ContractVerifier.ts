@@ -14,11 +14,15 @@ import {
   ExplorerApiActions,
   ExplorerApiErrors,
   FormOptions,
+  SolidityStandardJsonInput,
 } from './types';
 
 export class ContractVerifier {
   private logger = debug(`hyperlane:ContractVerifier`);
-  private compilerOptions: CompilerOptions;
+
+  private contractMap: { [contractName: string]: string } = {};
+
+  protected readonly compilerOptions: CompilerOptions;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -32,6 +36,20 @@ export class ContractVerifier {
         compilerOptions?.compilerversion ?? 'v0.8.19+commit.7dd6d404',
       licenseType: compilerOptions?.licenseType,
     };
+
+    const stdInputJson: SolidityStandardJsonInput = JSON.parse(this.source);
+    const contractRegex = /contract\s+([A-Z][a-zA-Z0-9]*)/g;
+
+    Object.entries(stdInputJson.sources).forEach(
+      ([sourceName, { content }]) => {
+        const matches = content.matchAll(contractRegex);
+        for (const match of matches) {
+          if (match[1]) {
+            this.contractMap[match[1]] = sourceName;
+          }
+        }
+      },
+    );
   }
 
   private async submitForm(
@@ -52,8 +70,8 @@ export class ContractVerifier {
       }
     }
 
-    // only include apikey if provided
-    if (this.apiKeys[chain]) {
+    // only include apikey if provided & not blockscout
+    if (family !== ExplorerFamily.Blockscout && this.apiKeys[chain]) {
       params.set('apikey', this.apiKeys[chain]);
     }
 
@@ -110,6 +128,19 @@ export class ContractVerifier {
         verificationLogger(errorMessage);
         throw new Error(`[${chain}] ${errorMessage}`);
       }
+    }
+
+    if (result.result === ExplorerApiErrors.UNKNOWN_UID) {
+      await sleep(1000); // wait 1 second
+      return this.submitForm(chain, action, verificationLogger, options);
+    }
+
+    if (result.result === ExplorerApiErrors.UNABLE_TO_VERIFY) {
+      const errorMessage = `Verification failed. ${
+        result.result ?? response.statusText
+      }`;
+      verificationLogger(errorMessage);
+      throw new Error(`[${chain}] ${errorMessage}`);
     }
 
     return result.result;
@@ -184,9 +215,16 @@ export class ContractVerifier {
   ): Promise<void> {
     verificationLogger(`Verifying implementation at ${input.address}`);
 
+    const sourceName = this.contractMap[input.name];
+    if (!sourceName) {
+      const errorMessage = `Contract '${input.name}' not found in provided build artifact`;
+      verificationLogger(errorMessage);
+      throw new Error(`[${chain}] ${errorMessage}`);
+    }
+
     const data = {
       sourceCode: this.source,
-      contractname: input.name,
+      contractname: `${sourceName}:${input.name}`,
       contractaddress: input.address,
       // TYPO IS ENFORCED BY API
       constructorArguements: strip0x(input.constructorArguments ?? ''),

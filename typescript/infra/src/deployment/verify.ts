@@ -16,7 +16,7 @@ export function extractSource(buildArtifact: string): {
 
   // parse build artifacts for std input json + solc version
   const buildArtifactJson = readJSONAtPath(sourcePath);
-  const source = buildArtifactJson.input;
+  const source = JSON.stringify(buildArtifactJson.input);
   const solcLongVersion = buildArtifactJson.solcLongVersion;
   const compilerversion = `v${solcLongVersion}`;
 

@@ -354,10 +354,15 @@ export abstract class HyperlaneDeployer<
     this.addVerificationArtifacts(chain, [verificationInput]);
 
     // if configured, verify contract
-    await this.options?.contractVerifier?.verifyContract(
-      chain,
-      verificationInput,
-    );
+    try {
+      await this.options?.contractVerifier?.verifyContract(
+        chain,
+        verificationInput,
+      );
+    } catch (error) {
+      // log error but keep deploying, can also verify post-deployment if needed
+      this.logger(`Error verifying contract: ${error}`);
+    }
 
     return contract;
   }
