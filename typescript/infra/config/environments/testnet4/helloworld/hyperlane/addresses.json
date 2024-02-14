@@ -1,7 +1,4 @@
 {
-  "basegoerli": {
-    "router": "0x086E902d2f99BcCEAa28B31747eC6Dc5fd43B1bE"
-  },
   "arbitrumgoerli": {
     "router": "0xFd1e3710347659703962934d2381970ae0022227"
   },
@@ -19,9 +16,6 @@
   },
   "fuji": {
     "router": "0x0B1C1B54f45e02552331D3106e71f5e0b573D5D4"
-  },
-  "moonbasealpha": {
-    "router": "0x3Ce607F6FcE5Dfb9821f33504d86E04A4CD0C75f"
   },
   "mumbai": {
     "router": "0x04980C17e2CE26578C82f81207e706e4505FaE3B"
