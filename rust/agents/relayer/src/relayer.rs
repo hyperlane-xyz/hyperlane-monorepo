@@ -27,7 +27,6 @@ use tokio::{
 };
 use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
 
-use crate::merkle_tree::processor::{MerkleTreeProcessor, MerkleTreeProcessorMetrics};
 use crate::processor::Processor;
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -40,6 +39,10 @@ use crate::{
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
     },
     settings::{matching_list::MatchingList, RelayerSettings},
+};
+use crate::{
+    merkle_tree::processor::{MerkleTreeProcessor, MerkleTreeProcessorMetrics},
+    processor::ProcessorExt,
 };
 
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
@@ -358,6 +361,11 @@ impl Relayer {
         origin: &HyperlaneDomain,
         send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
     ) -> Instrumented<JoinHandle<()>> {
+        let metrics = MessageProcessorMetrics::new(
+            &self.core.metrics,
+            origin,
+            self.destination_chains.keys(),
+        );
         let destination_ctxs: HashMap<_, _> = self
             .destination_chains
             .keys()
@@ -374,59 +382,50 @@ impl Relayer {
             })
             .collect();
 
-        let origin = origin.clone();
-        let db = self.dbs.get(&origin).unwrap().clone();
-        let whitelist = self.whitelist.clone();
-        let blacklist = self.blacklist.clone();
-        let core_metrics = self.core.metrics.clone();
-        let destination_chains = self.destination_chains.clone();
-        let span = info_span!("MessageProcessor", origin=%db.domain());
-        tokio::spawn(async move {
-            loop {
-                let metrics =
-                    MessageProcessorMetrics::new(&core_metrics, &origin, destination_chains.keys());
-                let message_processor = MessageProcessor::new(
-                    db.clone(),
-                    whitelist.clone(),
-                    blacklist.clone(),
-                    metrics,
-                    send_channels.clone(),
-                    destination_ctxs.clone(),
-                );
-                let processor = Processor::new(Box::new(message_processor));
+        let message_processor = MessageProcessor::new(
+            self.dbs.get(origin).unwrap().clone(),
+            self.whitelist.clone(),
+            self.blacklist.clone(),
+            metrics,
+            send_channels,
+            destination_ctxs,
+        );
 
-                // Propagate task panics
-                tokio::try_join!(processor.spawn()).unwrap_or_else(|err| {
-                    panic!(
-                        "message processor panicked for origin {}: {:?}",
-                        origin, err
-                    )
-                });
-            }
+        let span = info_span!("MessageProcessor", origin=%message_processor.domain());
+        let processor = Processor::new(Box::new(message_processor));
+
+        let origin = origin.clone();
+        tokio::spawn(async move {
+            // Propagate task panics
+            processor.spawn().await.unwrap_or_else(|err| {
+                panic!(
+                    "message processor panicked for origin {}: {:?}",
+                    origin, err
+                )
+            });
         })
         .instrument(span)
     }
 
     fn run_merkle_tree_processor(&self, origin: &HyperlaneDomain) -> Instrumented<JoinHandle<()>> {
-        let db = self.dbs.get(origin).unwrap().clone();
-        let prover_syncs = self.prover_syncs[origin].clone();
-        let span = info_span!("MerkleTreeProcessor", origin=%db.domain());
+        let metrics = MerkleTreeProcessorMetrics::new();
+        let merkle_tree_processor = MerkleTreeProcessor::new(
+            self.dbs.get(origin).unwrap().clone(),
+            metrics,
+            self.prover_syncs[origin].clone(),
+        );
+
+        let span = info_span!("MerkleTreeProcessor", origin=%merkle_tree_processor.domain());
+        let processor = Processor::new(Box::new(merkle_tree_processor));
         let origin = origin.clone();
         tokio::spawn(async move {
-            loop {
-                let metrics = MerkleTreeProcessorMetrics::new();
-                let merkle_tree_processor =
-                    MerkleTreeProcessor::new(db.clone(), metrics, prover_syncs.clone());
-                let processor = Processor::new(Box::new(merkle_tree_processor));
-
-                // Propagate task panics
-                tokio::try_join!(processor.spawn()).unwrap_or_else(|err| {
-                    panic!(
-                        "merkle tree processor panicked for origin {}: {:?}",
-                        origin, err
-                    )
-                });
-            }
+            // Propagate task panics
+            processor.spawn().await.unwrap_or_else(|err| {
+                panic!(
+                    "merkle tree processor panicked for origin {}: {:?}",
+                    origin, err
+                )
+            });
         })
         .instrument(span)
     }
@@ -438,25 +437,21 @@ impl Relayer {
         destination: &HyperlaneDomain,
         receiver: Arc<Mutex<UnboundedReceiver<Box<DynPendingOperation>>>>,
     ) -> Instrumented<JoinHandle<()>> {
-        let core_metrics = self.core.metrics.clone();
+        let serial_submitter = SerialSubmitter::new(
+            destination.clone(),
+            receiver,
+            SerialSubmitterMetrics::new(&self.core.metrics, destination),
+        );
         let span = info_span!("SerialSubmitter", destination=%destination);
         let destination = destination.clone();
         tokio::spawn(async move {
-            loop {
-                let serial_submitter = SerialSubmitter::new(
-                    destination.clone(),
-                    receiver.clone(),
-                    SerialSubmitterMetrics::new(&core_metrics, &destination),
-                );
-
-                // Propagate task panics
-                tokio::try_join!(serial_submitter.spawn()).unwrap_or_else(|err| {
-                    panic!(
-                        "destination submitter panicked for destination {}: {:?}",
-                        destination, err
-                    )
-                });
-            }
+            // Propagate task panics
+            serial_submitter.spawn().await.unwrap_or_else(|err| {
+                panic!(
+                    "destination submitter panicked for destination {}: {:?}",
+                    destination, err
+                )
+            });
         })
         .instrument(span)
     }
