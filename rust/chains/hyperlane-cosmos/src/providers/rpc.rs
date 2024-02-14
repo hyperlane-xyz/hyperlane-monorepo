@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use cosmrs::rpc::client::Client;
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, U256};
 use sha256::digest;
+use tendermint::abci::{Event, EventAttribute};
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tendermint_rpc::endpoint::block::Response as BlockResponse;
@@ -9,7 +10,6 @@ use tendermint_rpc::endpoint::block_results::Response as BlockResultsResponse;
 use tracing::{debug, instrument, trace};
 
 use crate::address::CosmosAddress;
-use crate::payloads::general::{EventAttribute, Events};
 use crate::{ConnectionConf, CosmosProvider, HyperlaneCosmosError};
 
 #[async_trait]
@@ -111,32 +111,27 @@ impl CosmosWasmIndexer {
             .data
             .into_iter()
             .filter_map(|tx| hex::decode(digest(tx.as_slice())).ok())
-            .map(|hash| {
-                H256::from_slice(
-                    Hash::from_bytes(Algorithm::Sha256, hash.as_slice())
-                        .unwrap()
-                        .as_bytes(),
-                )
+            .filter_map(|hash| {
+                Hash::from_bytes(Algorithm::Sha256, hash.as_slice())
+                    .ok()
+                    .map(|hash| H256::from_slice(hash.as_bytes()))
             })
             .collect();
 
-        let logs_iter = tx_results
+        let logs = tx_results
             .into_iter()
             .enumerate()
             .filter_map(move |(idx, tx)| {
-                let tx_hash = tx_hashes[idx];
+                let tx_hash = tx_hashes.get(idx);
                 if tx.code.is_err() {
-                    debug!(?tx_hash, "tx has failed. skipping");
+                    debug!(?tx_hash, "Not indexing failed transaction");
                     return None;
                 }
-                let Ok(logs) = serde_json::from_str::<Vec<Events>>(&tx.log) else {
-                    return None;
-                };
-                logs.first().map(|tx_events| {
+                tx_hash.map(|tx_hash| {
                     self.handle_tx(
                         block.clone(),
-                        tx_events.clone(),
-                        tx_hash,
+                        tx.events,
+                        *tx_hash,
                         block_number,
                         idx,
                         parser,
@@ -146,7 +141,7 @@ impl CosmosWasmIndexer {
             .flatten()
             .collect();
 
-        Ok(logs_iter)
+        Ok(logs)
     }
 
     // Iter through all events in the tx, looking for any target events
@@ -154,7 +149,7 @@ impl CosmosWasmIndexer {
     fn handle_tx<T>(
         &self,
         block: BlockResponse,
-        tx_events: Events,
+        tx_events: Vec<Event>,
         tx_hash: H256,
         block_number: u32,
         transaction_index: usize,
@@ -163,12 +158,12 @@ impl CosmosWasmIndexer {
     where
         T: PartialEq + 'static,
     {
-        tx_events.events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
-            if event.typ.as_str() != self.target_event_kind || !event.typ.as_str().starts_with(Self::WASM_TYPE) {
+        tx_events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
+            if event.kind.as_str() != self.target_event_kind || !event.kind.as_str().starts_with(Self::WASM_TYPE) {
                 return None;
             }
 
-            parser(&event.attributes.clone())
+            parser(&event.attributes)
                 .map_err(|err| {
                     // This can happen if we attempt to parse an event that just happens
                     // to have the same name but a different structure.

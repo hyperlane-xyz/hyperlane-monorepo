@@ -9,12 +9,13 @@ use hyperlane_core::{
     Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceIndexer, H256,
 };
 use once_cell::sync::Lazy;
+use tendermint::abci::EventAttribute;
 use tracing::{instrument, warn};
 
 use crate::{
     grpc::WasmProvider,
     payloads::{
-        general::{self, EventAttribute},
+        general::{self},
         merkle_tree_hook,
     },
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},

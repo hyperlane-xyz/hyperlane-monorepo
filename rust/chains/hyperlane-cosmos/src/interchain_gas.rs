@@ -8,10 +8,10 @@ use hyperlane_core::{
 };
 use once_cell::sync::Lazy;
 use std::ops::RangeInclusive;
+use tendermint::abci::EventAttribute;
 use tracing::warn;
 
 use crate::{
-    payloads::general::EventAttribute,
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
     signers::Signer,
     utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64},
@@ -209,10 +209,11 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
             .map(|block_number| {
                 let self_clone = self.clone();
                 tokio::spawn(async move {
-                    self_clone
+                    let event_log = self_clone
                         .indexer
                         .get_event_log(block_number, Self::interchain_gas_payment_parser)
-                        .await
+                        .await;
+                    (event_log, block_number)
                 })
             })
             .collect();
@@ -222,10 +223,10 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
             .await
             .into_iter()
             .flatten()
-            .filter_map(|res| match res {
+            .filter_map(|(res, block_no)| match res {
                 Ok(logs) => Some(logs),
                 Err(err) => {
-                    warn!(?err, "Failed to fetch logs");
+                    warn!(?err, ?block_no, "Failed to fetch logs for block");
                     None
                 }
             })
