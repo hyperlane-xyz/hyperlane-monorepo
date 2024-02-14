@@ -182,11 +182,11 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for ForwardSequenceAwareSync
                 let expected_sequences = range.clone().collect::<HashSet<_>>();
                 if all_log_sequences != expected_sequences {
                     warn!(
-                        ?all_log_sequences,
-                        ?expected_sequences,
+                        all_log_sequences=?all_log_sequences.iter().sorted().collect::<Vec<_>>(),
+                        expected_sequences=?expected_sequences.iter().sorted().collect::<Vec<_>>(),
                         expected_sequence_range=?range,
-                        missing_expected_sequences=?expected_sequences.difference(&all_log_sequences).collect::<Vec<_>>(),
-                        unexpected_sequences=?all_log_sequences.difference(&expected_sequences).collect::<Vec<_>>(),
+                        missing_expected_sequences=?expected_sequences.difference(&all_log_sequences).sorted().collect::<Vec<_>>(),
+                        unexpected_sequences=?all_log_sequences.difference(&expected_sequences).sorted().collect::<Vec<_>>(),
                         ?logs,
                         current_indexing_snapshot=?self.current_indexing_snapshot,
                         last_indexed_snapshot=?self.last_indexed_snapshot,
@@ -220,11 +220,11 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for ForwardSequenceAwareSync
                     .collect::<HashSet<_>>();
                 if all_log_sequences != expected_sequences {
                     warn!(
-                        ?all_log_sequences,
-                        ?expected_sequences,
+                        all_log_sequences=?all_log_sequences.iter().sorted().collect::<Vec<_>>(),
+                        expected_sequences=?expected_sequences.iter().sorted().collect::<Vec<_>>(),
                         expected_sequence_range=?range,
-                        missing_expected_sequences=?expected_sequences.difference(&all_log_sequences).collect::<Vec<_>>(),
-                        unexpected_sequences=?all_log_sequences.difference(&expected_sequences).collect::<Vec<_>>(),
+                        missing_expected_sequences=?expected_sequences.difference(&all_log_sequences).sorted().collect::<Vec<_>>(),
+                        unexpected_sequences=?all_log_sequences.difference(&expected_sequences).sorted().collect::<Vec<_>>(),
                         ?logs,
                         current_indexing_snapshot=?self.current_indexing_snapshot,
                         last_indexed_snapshot=?self.last_indexed_snapshot,
@@ -925,7 +925,7 @@ pub(crate) mod test {
         /// Tests getting a gap in the expected logs
         #[tracing_test::traced_test]
         #[tokio::test]
-        async fn test_rewinds_if_gap_or_unexpected_logs() {
+        async fn test_rewinds_if_gap_in_logs() {
             // Starts with current snapshot at sequence 5, block 90
             let mut cursor = get_cursor().await;
 

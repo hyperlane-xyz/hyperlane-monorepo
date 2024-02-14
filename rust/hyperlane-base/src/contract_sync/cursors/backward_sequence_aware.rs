@@ -156,11 +156,11 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for BackwardSequenceAwareSyn
                 let expected_sequences = range.clone().collect::<HashSet<_>>();
                 if all_log_sequences != expected_sequences {
                     warn!(
-                        ?all_log_sequences,
-                        ?expected_sequences,
+                        all_log_sequences=?all_log_sequences.iter().sorted().collect::<Vec<_>>(),
+                        expected_sequences=?expected_sequences.iter().sorted().collect::<Vec<_>>(),
                         expected_sequence_range=?range,
-                        missing_expected_sequences=?expected_sequences.difference(&all_log_sequences).collect::<Vec<_>>(),
-                        unexpected_sequences=?all_log_sequences.difference(&expected_sequences).collect::<Vec<_>>(),
+                        missing_expected_sequences=?expected_sequences.difference(&all_log_sequences).sorted().collect::<Vec<_>>(),
+                        unexpected_sequences=?all_log_sequences.difference(&expected_sequences).sorted().collect::<Vec<_>>(),
                         ?logs,
                         current_indexing_snapshot=?self.current_indexing_snapshot,
                         last_indexed_snapshot=?self.last_indexed_snapshot,
@@ -173,8 +173,11 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for BackwardSequenceAwareSyn
 
                 // This means we indexed the entire range.
                 // We update the last snapshot accordingly and set ourselves up for the next sequence.
+
                 // If we've gotten this far, we can assume that logs is non-empty.
-                let last_log = logs.last().expect("Logs must be non-empty");
+                // Recall logs is sorted in ascending order, so the last log is the "oldest" / "earliest"
+                // log in the range.
+                let last_log = logs.first().expect("Logs must be non-empty");
                 // Update the last snapshot accordingly.
                 self.last_indexed_snapshot = SequenceAwareSyncSnapshot {
                     sequence: last_log.0.sequence(),
@@ -188,20 +191,17 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for BackwardSequenceAwareSyn
                 // in the logs, rewind to the last snapshot.
 
                 // We require no sequence gaps and to build upon the last snapshot.
-                let expected_sequences = ((self
-                    .current_indexing_snapshot
-                    .sequence
+                let expected_sequences = ((self.current_indexing_snapshot.sequence + 1)
                     .saturating_sub(logs.len() as u32)
-                    + 1)
                     ..(self.current_indexing_snapshot.sequence + 1))
                     .collect::<HashSet<_>>();
                 if all_log_sequences != expected_sequences {
                     warn!(
-                        ?all_log_sequences,
-                        ?expected_sequences,
+                        all_log_sequences=?all_log_sequences.iter().sorted().collect::<Vec<_>>(),
+                        expected_sequences=?expected_sequences.iter().sorted().collect::<Vec<_>>(),
                         expected_sequence_range=?range,
-                        missing_expected_sequences=?expected_sequences.difference(&all_log_sequences).collect::<Vec<_>>(),
-                        unexpected_sequences=?all_log_sequences.difference(&expected_sequences).collect::<Vec<_>>(),
+                        missing_expected_sequences=?expected_sequences.difference(&all_log_sequences).sorted().collect::<Vec<_>>(),
+                        unexpected_sequences=?all_log_sequences.difference(&expected_sequences).sorted().collect::<Vec<_>>(),
                         ?logs,
                         current_indexing_snapshot=?self.current_indexing_snapshot,
                         last_indexed_snapshot=?self.last_indexed_snapshot,
@@ -486,30 +486,10 @@ mod test {
             // Starts with current snapshot at sequence 99, block 1000
             let mut cursor = get_cursor().await;
 
-            // We should have fast forwarded to sequence 99, block 1000
-            assert_eq!(
-                cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
-                    sequence: 99,
-                    at_block: 1000,
-                }
-            );
-            assert_eq!(
-                cursor.last_indexed_snapshot,
-                SequenceAwareSyncSnapshot {
-                    sequence: 100,
-                    at_block: 1000,
-                }
-            );
-
             // Expect the range to be:
             // (current - chunk_size, current)
             let range = cursor.get_next_range().await.unwrap().unwrap();
             let expected_range = 900..=1000;
-            assert_eq!(range, expected_range);
-
-            // Calling get_next_range again should yield the same range.
-            let range = cursor.get_next_range().await.unwrap().unwrap();
             assert_eq!(range, expected_range);
 
             // Update the cursor with some paritally bogus logs:
@@ -542,6 +522,275 @@ mod test {
                     at_block: 990,
                 }
             );
+        }
+
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_stops_after_indexing_sequence_0() {
+            // Starts with current snapshot at sequence 99, block 1000
+            let mut cursor = get_cursor().await;
+
+            // Expect the range to be:
+            // (current - chunk_size, current)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 900..=1000;
+            assert_eq!(range, expected_range);
+
+            // Update the with all the missing logs.
+            cursor
+                .update(
+                    (0..=99)
+                        .map(|i| {
+                            (
+                                MockSequencedData::new(i),
+                                log_meta_with_block(900 + i as u64),
+                            )
+                        })
+                        .collect(),
+                    expected_range,
+                )
+                .await
+                .unwrap();
+
+            // Expect the cursor to have moved to the previous sequence and updated the last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 0,
+                    at_block: 900,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 0,
+                    at_block: 900,
+                }
+            );
+
+            // Fast forward the cursor
+            cursor.fast_forward().await.unwrap();
+
+            // Expect the cursor to be synced
+            assert!(cursor.synced);
+
+            // Expect the range to be None
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, None);
+        }
+    }
+
+    mod sequence_range {
+        use super::*;
+
+        const INDEX_MODE: IndexMode = IndexMode::Sequence;
+        const CHUNK_SIZE: u32 = 5;
+
+        async fn get_cursor() -> BackwardSequenceAwareSyncCursorNew<MockSequencedData> {
+            let mut cursor = get_test_backward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE);
+            // Fast forwarded to sequence 99, block 1000
+            cursor.fast_forward().await.unwrap();
+
+            cursor
+        }
+
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_normal_indexing() {
+            // Starts with current snapshot at sequence 99, block 1000
+            let mut cursor = get_cursor().await;
+
+            // We should have fast forwarded to sequence 99, block 1000
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 99,
+                    at_block: 1000,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 100,
+                    at_block: 1000,
+                }
+            );
+
+            // Expect the range to be:
+            // (current - chunk_size, current)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 94..=99;
+            assert_eq!(range, expected_range);
+
+            // Calling get_next_range again should yield the same range.
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            assert_eq!(range, expected_range);
+
+            // Update the cursor with some found logs.
+            cursor
+                .update(
+                    vec![
+                        (MockSequencedData::new(94), log_meta_with_block(940)),
+                        (MockSequencedData::new(95), log_meta_with_block(950)),
+                        (MockSequencedData::new(96), log_meta_with_block(960)),
+                        (MockSequencedData::new(97), log_meta_with_block(970)),
+                        (MockSequencedData::new(98), log_meta_with_block(980)),
+                        (MockSequencedData::new(99), log_meta_with_block(990)),
+                    ],
+                    expected_range,
+                )
+                .await
+                .unwrap();
+
+            // Expect the cursor to have moved to the previous sequence and updated the last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 93,
+                    at_block: 940,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 94,
+                    at_block: 940,
+                }
+            );
+        }
+
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_rewinds_if_updated_with_no_logs() {
+            // Starts with current snapshot at sequence 99, block 1000
+            let mut cursor = get_cursor().await;
+
+            // Expect the range to be:
+            // (current - chunk_size, current)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 94..=99;
+            assert_eq!(range, expected_range);
+
+            // Update the cursor with no found logs.
+            cursor.update(vec![], expected_range).await.unwrap();
+
+            // Expect the cursor to have "rewound", i.e. no changes to the current indexing snapshot or last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 99,
+                    at_block: 1000,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 100,
+                    at_block: 1000,
+                }
+            );
+        }
+
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_rewinds_if_gap_or_unexpected_logs() {
+            // Starts with current snapshot at sequence 99, block 1000
+            let mut cursor = get_cursor().await;
+
+            // Expect the range to be:
+            // (current - chunk_size, current)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 94..=99;
+            assert_eq!(range, expected_range);
+
+            // Update the cursor with a gap (missing sequence 97)
+            cursor
+                .update(
+                    vec![
+                        (MockSequencedData::new(94), log_meta_with_block(940)),
+                        (MockSequencedData::new(95), log_meta_with_block(950)),
+                        (MockSequencedData::new(96), log_meta_with_block(960)),
+                        (MockSequencedData::new(98), log_meta_with_block(980)),
+                        (MockSequencedData::new(99), log_meta_with_block(990)),
+                    ],
+                    expected_range,
+                )
+                .await
+                .unwrap();
+
+            // Expect the cursor to have "rewound", i.e. no changes to the current indexing snapshot or last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 99,
+                    at_block: 1000,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 100,
+                    at_block: 1000,
+                }
+            );
+        }
+
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_stops_after_indexing_sequence_0() {
+            // Starts with current snapshot at sequence 99, block 1000
+            let mut cursor = get_cursor().await;
+
+            // Set the chunk size to 100 to make it easier to test.
+            cursor.chunk_size = 100;
+
+            // Expect the range to be:
+            // (current - chunk_size, current)
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            let expected_range = 0..=99;
+            assert_eq!(range, expected_range);
+
+            // Update the with all the missing logs.
+            cursor
+                .update(
+                    (0..=99)
+                        .map(|i| {
+                            (
+                                MockSequencedData::new(i),
+                                log_meta_with_block(900 + i as u64),
+                            )
+                        })
+                        .collect(),
+                    expected_range,
+                )
+                .await
+                .unwrap();
+
+            // Expect the cursor to have moved to the previous sequence and updated the last indexed snapshot.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 0,
+                    at_block: 900,
+                }
+            );
+            assert_eq!(
+                cursor.last_indexed_snapshot,
+                SequenceAwareSyncSnapshot {
+                    sequence: 0,
+                    at_block: 900,
+                }
+            );
+
+            // Fast forward the cursor
+            cursor.fast_forward().await.unwrap();
+
+            // Expect the cursor to be synced
+            assert!(cursor.synced);
+
+            // Expect the range to be None
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, None);
         }
     }
 }
