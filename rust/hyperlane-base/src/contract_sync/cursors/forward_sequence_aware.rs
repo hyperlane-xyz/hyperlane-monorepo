@@ -178,8 +178,6 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for ForwardSequenceAwareSync
 
         Ok(match &self.index_mode {
             IndexMode::Sequence => {
-                // The sequences of all the logs, which are >= the current sequence.
-
                 // We require that we've gotten all sequences in the range.
                 let expected_sequences = range.clone().collect::<HashSet<_>>();
                 if all_log_sequences != expected_sequences {
@@ -196,7 +194,6 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for ForwardSequenceAwareSync
                         "Log sequences don't exactly match the expected sequence range, rewinding to last snapshot",
                     );
                     // If there are any missing sequences, rewind to the last snapshot.
-                    // TODO should this allow any legit ones at the beginning? Probably
                     self.current_indexing_snapshot = self.last_indexed_snapshot.next();
                     return Ok(());
                 }
