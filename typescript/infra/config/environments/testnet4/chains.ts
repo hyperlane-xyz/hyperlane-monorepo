@@ -10,7 +10,6 @@ import { AgentChainNames, Role } from '../../../src/roles';
 const selectedChains = [
   Chains.alfajores,
   Chains.arbitrumgoerli,
-  Chains.basegoerli,
   Chains.bsctestnet,
   Chains.fuji,
   Chains.goerli,
