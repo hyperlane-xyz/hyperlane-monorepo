@@ -390,8 +390,8 @@ export { HypERC20Deployer, HypERC721Deployer } from './token/deploy';
 export {
   ChainMap,
   ChainName,
+  ChainNameOrId,
   Connection,
-  NameOrDomain,
   TestChainNames,
 } from './types';
 export { MultiGeneric } from './utils/MultiGeneric';

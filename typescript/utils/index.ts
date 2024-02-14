@@ -110,6 +110,7 @@ export {
   AddressBytes32,
   CallData,
   ChainCaip2Id,
+  ChainId,
   Checkpoint,
   Domain,
   HexString,

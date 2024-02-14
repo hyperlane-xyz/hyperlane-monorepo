@@ -17,6 +17,7 @@ export const ProtocolSmallestUnit = {
 
 /********* BASIC TYPES *********/
 export type Domain = number;
+export type ChainId = string | number;
 export type Address = string;
 export type AddressBytes32 = string;
 export type ChainCaip2Id = `${string}:${string}`; // e.g. ethereum:1 or sealevel:1399811149
