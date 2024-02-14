@@ -11,7 +11,7 @@ use hyperlane_core::{
 use itertools::Itertools;
 use tracing::{debug, warn};
 
-use super::{OptionalSequenceAwareSyncSnapshot, SequenceAwareSyncSnapshot};
+use super::{LastIndexedSnapshot, TargetSnapshot};
 
 /// A sequence-aware cursor that syncs forwards in perpetuity.
 #[derive(Debug)]
@@ -19,10 +19,10 @@ pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     chunk_size: u32,
     latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
     db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
-    last_indexed_snapshot: OptionalSequenceAwareSyncSnapshot,
+    last_indexed_snapshot: LastIndexedSnapshot,
     /// The current / next snapshot that is the starting point for the next range.
-    current_indexing_snapshot: SequenceAwareSyncSnapshot,
-    target_snapshot: Option<SequenceAwareSyncSnapshot>,
+    current_indexing_snapshot: TargetSnapshot,
+    target_snapshot: Option<TargetSnapshot>,
     index_mode: IndexMode,
 }
 
@@ -35,7 +35,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
         start_block: u32,
         index_mode: IndexMode,
     ) -> Self {
-        let last_indexed_snapshot = OptionalSequenceAwareSyncSnapshot {
+        let last_indexed_snapshot = LastIndexedSnapshot {
             sequence: if next_sequence == 0 {
                 None
             } else {
@@ -49,7 +49,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
             latest_sequence_querier,
             db,
             last_indexed_snapshot,
-            current_indexing_snapshot: SequenceAwareSyncSnapshot {
+            current_indexing_snapshot: TargetSnapshot {
                 sequence: next_sequence,
                 at_block: start_block,
             },
@@ -91,7 +91,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
                 // We don't necessarily expect to hit this target in the next query (because we
                 // have limits to the range size based off the chunk size), but we will use it
                 // as an eventual target.
-                self.target_snapshot = Some(SequenceAwareSyncSnapshot {
+                self.target_snapshot = Some(TargetSnapshot {
                     // Minus one because this is the sequence we're targeting, not the count.
                     sequence: target_sequence,
                     at_block: tip,
@@ -148,11 +148,11 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
                 .await
                 .map_err(|_e| ChainCommunicationError::from_other_str("todo"))?
             {
-                self.last_indexed_snapshot = OptionalSequenceAwareSyncSnapshot {
+                self.last_indexed_snapshot = LastIndexedSnapshot {
                     sequence: Some(self.current_indexing_snapshot.sequence),
                     at_block: block_number.try_into().expect("todo"),
                 };
-                self.current_indexing_snapshot = self.last_indexed_snapshot.next();
+                self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
 
                 debug!(
                     last_indexed_snapshot=?self.last_indexed_snapshot,
@@ -223,7 +223,7 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
                         "Log sequences don't exactly match the expected sequence range, rewinding to last snapshot",
                     );
                     // If there are any missing sequences, rewind to the last snapshot.
-                    self.current_indexing_snapshot = self.last_indexed_snapshot.next();
+                    self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
                     return Ok(());
                 }
 
@@ -232,12 +232,12 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
                 // If we've gotten this far, we can assume that logs is non-empty.
                 let last_log = logs.last().expect("Logs must be non-empty");
                 // Update the last snapshot accordingly.
-                self.last_indexed_snapshot = OptionalSequenceAwareSyncSnapshot {
+                self.last_indexed_snapshot = LastIndexedSnapshot {
                     sequence: Some(last_log.0.sequence()),
                     at_block: last_log.1.block_number.try_into().expect("todo"),
                 };
                 // Position the current snapshot to the next sequence.
-                self.current_indexing_snapshot = self.last_indexed_snapshot.next();
+                self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
             }
             IndexMode::Block => {
                 // If the first log we got is a gap since the last snapshot, or there are gaps
@@ -261,11 +261,11 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
                         "Log sequences don't exactly match the expected sequence range, rewinding to last snapshot",
                     );
                     // If there are any missing sequences, rewind to just after the last indexed snapshot.
-                    self.current_indexing_snapshot = self.last_indexed_snapshot.next();
+                    self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
                     return Ok(());
                 }
 
-                self.current_indexing_snapshot = SequenceAwareSyncSnapshot {
+                self.current_indexing_snapshot = TargetSnapshot {
                     sequence: self.current_indexing_snapshot.sequence + logs.len() as u32,
                     at_block: *range.end(),
                 };
@@ -273,7 +273,7 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
                 // This means we indexed at least one log that builds on the last snapshot.
                 if let Some(last_log) = logs.last() {
                     // Update the last snapshot.
-                    self.last_indexed_snapshot = OptionalSequenceAwareSyncSnapshot {
+                    self.last_indexed_snapshot = LastIndexedSnapshot {
                         sequence: Some(last_log.0.sequence()),
                         at_block: last_log.1.block_number.try_into().expect("todo"),
                     };
@@ -292,7 +292,7 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
                             target_snapshot=?self.target_snapshot,
                             "Log sequences don't match expected sequence range, rewinding to last snapshot",
                         );
-                        self.current_indexing_snapshot = self.last_indexed_snapshot.next();
+                        self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
                         return Ok(());
                     }
                 } else if *range.end() >= self.target_snapshot.as_ref().expect("todo").at_block {
@@ -306,7 +306,7 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
                         target_snapshot=?self.target_snapshot,
                         "Log sequences don't match expected sequence range, rewinding to last snapshot",
                     );
-                    self.current_indexing_snapshot = self.last_indexed_snapshot.next();
+                    self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
                     return Ok(());
                 }
             }
@@ -460,7 +460,7 @@ pub(crate) mod test {
             // We should have fast forwarded to sequence 5, block 90
             assert_eq!(
                 cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
+                TargetSnapshot {
                     sequence: 5,
                     at_block: 90,
                 }
@@ -494,7 +494,7 @@ pub(crate) mod test {
             // Expect the target snapshot to be set to the latest sequence and tip.
             assert_eq!(
                 cursor.target_snapshot,
-                Some(SequenceAwareSyncSnapshot {
+                Some(TargetSnapshot {
                     sequence: 5,
                     at_block: 120,
                 })
@@ -516,14 +516,14 @@ pub(crate) mod test {
             // Expect the cursor to have moved to the next sequence and updated the last indexed snapshot.
             assert_eq!(
                 cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
+                TargetSnapshot {
                     sequence: 6,
                     at_block: 120,
                 }
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                OptionalSequenceAwareSyncSnapshot {
+                LastIndexedSnapshot {
                     sequence: Some(5),
                     at_block: 115,
                 }
@@ -563,14 +563,14 @@ pub(crate) mod test {
             // and made no changes to the last indexed snapshot.
             assert_eq!(
                 cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
+                TargetSnapshot {
                     sequence: 5,
                     at_block: 190,
                 }
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                OptionalSequenceAwareSyncSnapshot {
+                LastIndexedSnapshot {
                     sequence: Some(4),
                     at_block: 90,
                 }
@@ -594,14 +594,14 @@ pub(crate) mod test {
             // Expect the current indexing snapshot to have moved to the next sequence and updated the last indexed snapshot.
             assert_eq!(
                 cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
+                TargetSnapshot {
                     sequence: 6,
                     at_block: 200,
                 }
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                OptionalSequenceAwareSyncSnapshot {
+                LastIndexedSnapshot {
                     sequence: Some(5),
                     at_block: 195,
                 }
@@ -640,14 +640,14 @@ pub(crate) mod test {
             // and made no changes to the last indexed snapshot.
             assert_eq!(
                 cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
+                TargetSnapshot {
                     sequence: 5,
                     at_block: 190,
                 }
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                OptionalSequenceAwareSyncSnapshot {
+                LastIndexedSnapshot {
                     sequence: Some(4),
                     at_block: 90,
                 }
@@ -665,14 +665,14 @@ pub(crate) mod test {
             // Expect a rewind to occur back to the last indexed snapshot's block number.
             assert_eq!(
                 cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
+                TargetSnapshot {
                     sequence: 5,
                     at_block: 90,
                 }
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                OptionalSequenceAwareSyncSnapshot {
+                LastIndexedSnapshot {
                     sequence: Some(4),
                     at_block: 90,
                 }
@@ -710,14 +710,14 @@ pub(crate) mod test {
             // and made no changes to the last indexed snapshot.
             assert_eq!(
                 cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
+                TargetSnapshot {
                     sequence: 5,
                     at_block: 190,
                 }
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                OptionalSequenceAwareSyncSnapshot {
+                LastIndexedSnapshot {
                     sequence: Some(4),
                     at_block: 90,
                 }
@@ -744,14 +744,14 @@ pub(crate) mod test {
             // Expect a rewind to occur back to the last indexed snapshot's block number.
             assert_eq!(
                 cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
+                TargetSnapshot {
                     sequence: 5,
                     at_block: 90,
                 }
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                OptionalSequenceAwareSyncSnapshot {
+                LastIndexedSnapshot {
                     sequence: Some(4),
                     at_block: 90,
                 }
@@ -799,14 +799,14 @@ pub(crate) mod test {
             // Expect the cursor to have moved to the next sequence and updated the last indexed snapshot.
             assert_eq!(
                 cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
+                TargetSnapshot {
                     sequence: 7,
                     at_block: 100,
                 }
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                OptionalSequenceAwareSyncSnapshot {
+                LastIndexedSnapshot {
                     sequence: Some(6),
                     at_block: 100,
                 }
@@ -837,7 +837,7 @@ pub(crate) mod test {
             // We should have fast forwarded to sequence 5, block 90
             assert_eq!(
                 cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
+                TargetSnapshot {
                     sequence: 5,
                     at_block: 90,
                 }
@@ -871,7 +871,7 @@ pub(crate) mod test {
             // Expect the target snapshot to be set to the latest sequence and tip.
             assert_eq!(
                 cursor.target_snapshot,
-                Some(SequenceAwareSyncSnapshot {
+                Some(TargetSnapshot {
                     sequence: 5,
                     at_block: 120,
                 })
@@ -893,14 +893,14 @@ pub(crate) mod test {
             // Expect the cursor to have moved to the next sequence and updated the last indexed snapshot.
             assert_eq!(
                 cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
+                TargetSnapshot {
                     sequence: 6,
                     at_block: 115,
                 }
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                OptionalSequenceAwareSyncSnapshot {
+                LastIndexedSnapshot {
                     sequence: Some(5),
                     at_block: 115,
                 }
@@ -949,14 +949,14 @@ pub(crate) mod test {
             // the same as not updating current indexing snapshot / last indexed snapshot.
             assert_eq!(
                 cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
+                TargetSnapshot {
                     sequence: 5,
                     at_block: 90,
                 }
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                OptionalSequenceAwareSyncSnapshot {
+                LastIndexedSnapshot {
                     sequence: Some(4),
                     at_block: 90,
                 }
@@ -998,14 +998,14 @@ pub(crate) mod test {
             // the same as not updating current indexing snapshot / last indexed snapshot.
             assert_eq!(
                 cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
+                TargetSnapshot {
                     sequence: 5,
                     at_block: 90,
                 }
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                OptionalSequenceAwareSyncSnapshot {
+                LastIndexedSnapshot {
                     sequence: Some(4),
                     at_block: 90,
                 }
@@ -1028,14 +1028,14 @@ pub(crate) mod test {
             // Expect the cursor to still have "rewound" to the last indexed snapshot.
             assert_eq!(
                 cursor.current_indexing_snapshot,
-                SequenceAwareSyncSnapshot {
+                TargetSnapshot {
                     sequence: 5,
                     at_block: 90,
                 }
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
-                OptionalSequenceAwareSyncSnapshot {
+                LastIndexedSnapshot {
                     sequence: Some(4),
                     at_block: 90,
                 }

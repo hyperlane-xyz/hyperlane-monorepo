@@ -24,8 +24,6 @@ use cursors::sequence_aware::{
     ForwardBackwardSequenceAwareSyncCursor, ForwardSequenceAwareSyncCursor,
 };
 
-use self::cursors::sequence_aware::SequenceAwareSyncSnapshot;
-
 const SLEEP_DURATION: Duration = Duration::from_secs(5);
 
 /// Entity that drives the syncing of an agent's db with on-chain data.

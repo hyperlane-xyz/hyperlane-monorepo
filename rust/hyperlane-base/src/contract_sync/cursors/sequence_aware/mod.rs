@@ -14,25 +14,33 @@ mod forward;
 pub(crate) use backward::BackwardSequenceAwareSyncCursor;
 pub(crate) use forward::ForwardSequenceAwareSyncCursor;
 
-// TODO better name
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct OptionalSequenceAwareSyncSnapshot {
+struct LastIndexedSnapshot {
+    /// The last sequence that was indexed.
+    /// It's possible for this to be None if nothing has been indexed yet
+    /// e.g. upon first starting up or if no sequenced data exists yet.
     pub sequence: Option<u32>,
+    /// The block number at which the last sequence was indexed.
+    /// If the sequence is None, this can be thought of as the starting block
+    /// number to index from.
     pub at_block: u32,
 }
 
-impl OptionalSequenceAwareSyncSnapshot {
-    fn next(&self) -> SequenceAwareSyncSnapshot {
-        SequenceAwareSyncSnapshot {
+impl LastIndexedSnapshot {
+    fn next_target(&self) -> TargetSnapshot {
+        TargetSnapshot {
+            // If we haven't indexed anything yet, we start at 0, otherwise we increment.
             sequence: self.sequence.map(|s| s + 1).unwrap_or(0),
             at_block: self.at_block,
         }
     }
 
-    fn previous(&self) -> Option<SequenceAwareSyncSnapshot> {
+    fn previous_target(&self) -> Option<TargetSnapshot> {
         match &self.sequence {
+            // A previous target doesn't exist if we're trying to go backward
+            // from sequence 0 or if nothing has been indexed yet.
             Some(0) | None => None,
-            Some(s) => Some(SequenceAwareSyncSnapshot {
+            Some(s) => Some(TargetSnapshot {
                 sequence: s.saturating_sub(1),
                 at_block: self.at_block,
             }),
@@ -41,31 +49,9 @@ impl OptionalSequenceAwareSyncSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct SequenceAwareSyncSnapshot {
+pub(crate) struct TargetSnapshot {
     pub sequence: u32,
     pub at_block: u32,
-}
-
-impl SequenceAwareSyncSnapshot {
-    fn next(&self) -> Self {
-        Self {
-            sequence: self.sequence + 1,
-            // It's possible that the next sequence would be in the same block,
-            // so we refrain from incrementing the block number and instead
-            // accept that we'll end up re-indexing the same block.
-            at_block: self.at_block,
-        }
-    }
-
-    fn previous(&self) -> Self {
-        Self {
-            sequence: self.sequence.saturating_sub(1),
-            // It's possible that the next sequence would be in the same block,
-            // so we refrain from incrementing the block number and instead
-            // accept that we'll end up re-indexing the same block.
-            at_block: self.at_block,
-        }
-    }
 }
 
 #[derive(Debug)]
