@@ -41,4 +41,4 @@ tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
 
-hyperlane-core = { path = "../../hyperlane-core", features = ["fallback-provider"]}
+hyperlane-core = { path = "../../hyperlane-core", features = ["async"]}

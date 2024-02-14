@@ -135,7 +135,7 @@ pub enum ChainCommunicationError {
     #[error(transparent)]
     RpcClientError(#[from] RpcClientError),
     /// Tokio join error
-    #[cfg(feature = "fallback-provider")]
+    #[cfg(feature = "async")]
     #[error(transparent)]
     TokioJoinError(#[from] tokio::task::JoinError),
 }

@@ -226,15 +226,13 @@ impl WasmIndexer for CosmosWasmIndexer {
         T: Send + Sync + PartialEq + 'static,
     {
         let client = self.provider.rpc().clone();
-        let block_fut = tokio::spawn(async move { client.block(block_number).await });
 
-        let client = self.provider.rpc().clone();
-        let block_results_fut =
-            tokio::spawn(async move { client.block_results(block_number).await });
-
-        let (block_res, block_results_res) = tokio::join!(block_fut, block_results_fut);
-        let block = block_res?.map_err(ChainCommunicationError::from_other)?;
-        let block_results = block_results_res?.map_err(ChainCommunicationError::from_other)?;
+        let (block_res, block_results_res) = tokio::join!(
+            client.block(block_number),
+            client.block_results(block_number)
+        );
+        let block = block_res.map_err(ChainCommunicationError::from_other)?;
+        let block_results = block_results_res.map_err(ChainCommunicationError::from_other)?;
 
         self.handle_txs(block, block_results, block_number, parser)
     }
