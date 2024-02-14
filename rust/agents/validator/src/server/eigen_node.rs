@@ -1,3 +1,17 @@
+//! A server that serves EigenLayer specific routes
+//! compliant with the spec here https://eigen.nethermind.io/docs/spec/api/
+//!
+//! Base URL /eigen
+//! Routes
+//! - /node - Node Info
+//!   eg. response {"node_name":"Hyperlane Validator","spec_version":"0.1.0","node_version":"0.1.0"}
+//! - /node/health - Node Health
+//!  eg. response 200 - healthy, 206 - partially healthy, 503 - unhealthy
+//! - /node/services - List of Services
+//!  eg. response [{"id":"hyperlane-validator-indexer","name":"indexer","description":"indexes the messages from the origin chain mailbox","status":"up"},{"id":"hyperlane-validator-submitter","name":"submitter","description":"signs messages indexed from the indexer","status":"up"}]
+//! - /node/services/:service_id/health - Service Health
+//! eg. response 200 - healthy, 503 - unhealthy  
+
 use axum::{
     http::StatusCode,
     response::IntoResponse,
@@ -17,7 +31,6 @@ enum ServiceStatus {
     Initializing,
 }
 
-// struct for body of /node
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 struct NodeInfo {
     node_name: String,
@@ -25,7 +38,6 @@ struct NodeInfo {
     node_version: String,
 }
 
-// struct for body of /node/services
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 struct Service {
     id: String,
@@ -34,7 +46,6 @@ struct Service {
     status: ServiceStatus,
 }
 
-/// A server that serves EigenLayer specific routes
 #[derive(new)]
 pub struct EigenNodeAPI {
     origin_chain: HyperlaneDomain,
@@ -42,31 +53,27 @@ pub struct EigenNodeAPI {
 }
 
 impl EigenNodeAPI {
-    /// Function to create the eigen_node_router
     pub fn router(&self) -> Router {
         let core_metrics_clone = self.core_metrics.clone();
         let origin_chain = self.origin_chain.clone();
 
         tracing::info!("Serving the EigenNodeAPI routes...");
 
-        Router::new().nest(
-            "/node",
-            Router::new()
-                .route(
-                    "/health",
-                    get(move || Self::node_health_handler(origin_chain, core_metrics_clone)),
-                )
-                .nest(
-                    "/services",
-                    Router::new()
-                        .route("/", get(Self::node_services_handler))
-                        .route("/:service_id/health", get(Self::service_health_handler)),
-                )
-                .route("/", get(Self::node_info_handler)),
-        )
+        let health_route = get(move || {
+            Self::node_health_handler(origin_chain.clone(), core_metrics_clone.clone())
+        });
+        let services_route = Router::new()
+            .route("/", get(Self::node_services_handler))
+            .route("/:service_id/health", get(Self::service_health_handler));
+
+        let node_route = Router::new()
+            .route("/health", health_route)
+            .nest("/services", services_route)
+            .route("/", get(Self::node_info_handler));
+
+        Router::new().nest("/node", node_route)
     }
 
-    /// Method to return the NodeInfo data
     pub async fn node_info_handler() -> impl IntoResponse {
         let node_info = NodeInfo {
             node_name: "Hyperlane Validator".to_string(),
@@ -120,10 +127,9 @@ impl EigenNodeAPI {
     }
 
     /// Method to return the health of a service
-    pub async fn service_health_handler(service_id: String) -> impl IntoResponse {
+    pub async fn service_health_handler(_service_id: String) -> impl IntoResponse {
         // TODO: implement logic to check if the service is healthy
         // now just return 200
-        format!("Health check for service: {}", service_id);
         StatusCode::OK
     }
 }
@@ -136,6 +142,9 @@ mod tests {
     use axum::http::StatusCode;
     use prometheus::Registry;
 
+    const PARTIALLY_HEALTHY_OBSERVED_CHECKPOINT: i64 = 34;
+    const HEALTHY_OBSERVED_CHECKPOINT: i64 = 42;
+
     async fn setup_test_server() -> (reqwest::Client, SocketAddr, Arc<CoreMetrics>) {
         let core_metrics =
             Arc::new(CoreMetrics::new("dummy_validator", 37582, Registry::new()).unwrap());
@@ -143,7 +152,7 @@ mod tests {
         core_metrics
             .latest_checkpoint()
             .with_label_values(&["validator_observed", "ethereum"])
-            .set(42);
+            .set(HEALTHY_OBSERVED_CHECKPOINT);
 
         let node_api = EigenNodeAPI::new(
             HyperlaneDomain::new_test_domain("ethereum"),
@@ -197,11 +206,10 @@ mod tests {
             .expect("Failed to send request");
         assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
 
-        // if signed_checkpoint - observed_checkpoint <= 10 return 206 - partially healthy
         core_metrics
             .latest_checkpoint()
             .with_label_values(&["validator_processed", "ethereum"])
-            .set(34);
+            .set(PARTIALLY_HEALTHY_OBSERVED_CHECKPOINT);
         let res = client
             .get(format!("http://{}/node/health", addr))
             .send()
@@ -209,11 +217,10 @@ mod tests {
             .expect("Failed to send request");
         assert_eq!(res.status(), StatusCode::PARTIAL_CONTENT);
 
-        // if signed_checkpoint - observed_checkpoint <= 1 return 200 - healthy
         core_metrics
             .latest_checkpoint()
             .with_label_values(&["validator_processed", "ethereum"])
-            .set(42);
+            .set(HEALTHY_OBSERVED_CHECKPOINT);
         let res = client
             .get(format!("http://{}/node/health", addr))
             .send()
@@ -230,8 +237,6 @@ mod tests {
             .send()
             .await
             .expect("Failed to send request");
-
-        // Check that the response status is OK
         assert_eq!(res.status(), StatusCode::OK);
 
         let expected_services = vec![
@@ -248,8 +253,6 @@ mod tests {
                 status: ServiceStatus::Up,
             },
         ];
-
-        // assert
         let services: Vec<Service> = res.json().await.expect("Failed to parse json");
         assert_eq!(services, expected_services);
     }

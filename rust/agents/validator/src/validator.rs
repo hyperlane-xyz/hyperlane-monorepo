@@ -1,6 +1,6 @@
 use std::{num::NonZeroU64, sync::Arc, time::Duration};
 
-use crate::server::eigen_node::{self, EigenNodeAPI};
+use crate::server::server::ValidatorServer;
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
@@ -120,11 +120,8 @@ impl BaseAgent for Validator {
     async fn run(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         let mut tasks = vec![];
 
-        // add routes for servering EigenLayer specific routes compliant with the spec here https://eigen.nethermind.io/docs/spec/api/
-        let mut routes = vec![];
-        let eigen_node_api =
-            EigenNodeAPI::new(self.origin_chain.clone(), self.core.metrics.clone());
-        routes.push(("/eigen", eigen_node_api.router()));
+        let routes =
+            ValidatorServer::new(self.origin_chain.clone(), self.core.metrics.clone()).routes;
 
         // run server
         let server = self.server.clone();

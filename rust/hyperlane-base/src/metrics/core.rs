@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 
 use eyre::Result;
 use hyperlane_core::{HyperlaneDomain, H160};
@@ -11,8 +11,6 @@ use prometheus::{
     Encoder, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
 use tokio::sync::RwLock;
-use tokio::task::JoinHandle;
-use tracing::warn;
 
 use ethers_prometheus::{json_rpc_client::JsonRpcClientMetrics, middleware::MiddlewareMetrics};
 

@@ -1,10 +1,5 @@
 use crate::CoreMetrics;
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    routing::get,
-    Router,
-};
+use axum::{http::StatusCode, response::IntoResponse, routing::get, Router};
 use derive_new::new;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::task::JoinHandle;
@@ -50,7 +45,7 @@ impl Server {
     /// Gather available metrics into an encoded (plaintext, OpenMetrics format)
     /// report.
     async fn gather_metrics(core_metrics: Arc<CoreMetrics>) -> impl IntoResponse {
-        tracing::info!("Tranversing route for /metrics endpoint for serving Prometheus metrics");
+        tracing::debug!("Traversing route for /metrics endpoint for serving Prometheus metrics");
         match core_metrics.gather() {
             Ok(metrics) => {
                 let metrics = match String::from_utf8(metrics) {
