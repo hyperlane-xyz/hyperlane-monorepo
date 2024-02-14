@@ -1,6 +1,35 @@
 use hyperlane_core::{LogMeta, Sequenced};
 
+mod backward_sequence_aware;
 mod forward_sequence_aware;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SequenceAwareSyncSnapshot {
+    sequence: u32,
+    at_block: u32,
+}
+
+impl SequenceAwareSyncSnapshot {
+    fn next(&self) -> Self {
+        Self {
+            sequence: self.sequence + 1,
+            // It's possible that the next sequence would be in the same block,
+            // so we refrain from incrementing the block number and instead
+            // accept that we'll end up re-indexing the same block.
+            at_block: self.at_block,
+        }
+    }
+
+    fn previous(&self) -> Self {
+        Self {
+            sequence: self.sequence.saturating_sub(1),
+            // It's possible that the next sequence would be in the same block,
+            // so we refrain from incrementing the block number and instead
+            // accept that we'll end up re-indexing the same block.
+            at_block: self.at_block,
+        }
+    }
+}
 
 // Note this tolerates logs that *exceed* the range.
 pub(crate) fn sequences_missing_from_range<T: Sequenced>(
