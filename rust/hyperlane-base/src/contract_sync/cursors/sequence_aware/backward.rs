@@ -79,16 +79,6 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
     }
 
     async fn fast_forward(&mut self) -> ChainResult<()> {
-        // if self.synced {
-        //     return Ok(());
-        // }
-
-        // // TODO consider indexing start range too?
-        // if self.last_indexed_snapshot.sequence == 0 || self.last_indexed_snapshot.at_block == 0 {
-        //     self.synced = true;
-        //     return Ok(());
-        // }
-
         if let Some(current_indexing_snapshot) = self.current_indexing_snapshot.clone() {
             // Check if any new logs have been inserted into the DB,
             // and update the cursor accordingly.
@@ -149,15 +139,9 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCu
     /// Inconsistencies in the logs are not considered errors, instead they're handled
     /// by rewinding the cursor.
     async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
-        // Expect the sequence in the logs to exactly match the range.
-        // sequenced_data_logs_matches_range(logs, range.clone())?;
-
-        // self.next_sequence = range.end() + 1;
-
         // Pretty much:
         // If sequence based indexing, we expect a full match here.
-        // If block based indexing, we're tolerant of missing logs *if* the target snapshot's
-        // at_block exceeds the range's end.
+        // If block based indexing, we're tolerant of missing logs but no gaps.
 
         let Some(current_indexing_snapshot) = self.current_indexing_snapshot.clone() else {
             // We're synced, no need to update at all.
