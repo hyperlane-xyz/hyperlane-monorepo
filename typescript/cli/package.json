@@ -1,10 +1,10 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "3.5.1",
+  "version": "3.7.0",
   "description": "A command-line utility for common Hyperlane operations",
   "dependencies": {
-    "@hyperlane-xyz/sdk": "3.5.1",
-    "@hyperlane-xyz/utils": "3.5.1",
+    "@hyperlane-xyz/sdk": "3.7.0",
+    "@hyperlane-xyz/utils": "3.7.0",
     "@inquirer/prompts": "^3.0.0",
     "bignumber.js": "^9.1.1",
     "chalk": "^5.3.0",
@@ -35,6 +35,7 @@
     "lint": "eslint . --ext .ts",
     "prettier": "prettier --write ./src ./examples",
     "test": "mocha --config .mocharc.json",
+    "test:ci": "yarn test",
     "version:update": "echo \"export const VERSION = '$npm_package_version';\" > src/version.ts"
   },
   "files": [

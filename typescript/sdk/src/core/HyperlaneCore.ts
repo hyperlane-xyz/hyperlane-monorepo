@@ -5,19 +5,23 @@ import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   AddressBytes32,
+  ProtocolType,
   messageId,
+  objFilter,
   objMap,
   parseMessage,
   pollAsync,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
+import { chainMetadata } from '../consts/chainMetadata';
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../consts/environments';
 import { appFromAddressesMapHelper } from '../contracts/contracts';
 import { HyperlaneAddressesMap } from '../contracts/types';
+import { OwnableConfig } from '../deploy/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
@@ -50,14 +54,20 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   }
 
   getRouterConfig = (
-    owners: Address | ChainMap<Address>,
-  ): ChainMap<RouterConfig> =>
-    objMap(this.contractsMap, (chain, contracts) => {
-      return {
-        mailbox: contracts.mailbox.address,
-        owner: typeof owners === 'string' ? owners : owners[chain],
-      };
-    });
+    owners: Address | ChainMap<OwnableConfig>,
+  ): ChainMap<RouterConfig> => {
+    // get config
+    const config = objMap(this.contractsMap, (chain, contracts) => ({
+      mailbox: contracts.mailbox.address,
+      owner: typeof owners === 'string' ? owners : owners[chain].owner,
+    }));
+    // filter for EVM chains
+    return objFilter(
+      config,
+      (chainName, _): _ is RouterConfig =>
+        chainMetadata[chainName].protocol === ProtocolType.Ethereum,
+    );
+  };
 
   quoteGasPayment = (
     origin: ChainName,

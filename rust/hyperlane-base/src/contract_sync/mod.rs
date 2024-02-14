@@ -1,4 +1,6 @@
-use std::{collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc};
+use std::{
+    collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
+};
 
 use cursor::*;
 use derive_new::new;
@@ -9,13 +11,15 @@ use hyperlane_core::{
 };
 pub use metrics::ContractSyncMetrics;
 use tokio::time::sleep;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::settings::IndexSettings;
 
 mod cursor;
 mod eta_calculator;
 mod metrics;
+
+const SLEEP_DURATION: Duration = Duration::from_secs(5);
 
 /// Entity that drives the syncing of an agent's db with on-chain data.
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
@@ -60,13 +64,23 @@ where
         loop {
             indexed_height.set(cursor.latest_block() as i64);
             let Ok((action, eta)) = cursor.next_action().await else {
+                sleep(SLEEP_DURATION).await;
                 continue;
             };
-            match action {
-                CursorAction::Query(range) => {
+            let sleep_duration = match action {
+                // Use `loop` but always break - this allows for returning a value
+                // from the loop (the sleep duration)
+                #[allow(clippy::never_loop)]
+                CursorAction::Query(range) => loop {
                     debug!(?range, "Looking for for events in index range");
 
-                    let logs = self.indexer.fetch_logs(range.clone()).await?;
+                    let logs = match self.indexer.fetch_logs(range.clone()).await {
+                        Ok(logs) => logs,
+                        Err(err) => {
+                            warn!(?err, "Failed to fetch logs");
+                            break SLEEP_DURATION;
+                        }
+                    };
                     let deduped_logs = HashSet::<_>::from_iter(logs);
                     let logs = Vec::from_iter(deduped_logs);
 
@@ -77,16 +91,25 @@ where
                         "Found log(s) in index range"
                     );
                     // Store deliveries
-                    let stored = self.db.store_logs(&logs).await?;
+                    let stored = match self.db.store_logs(&logs).await {
+                        Ok(stored) => stored,
+                        Err(err) => {
+                            warn!(?err, "Failed to store logs in db");
+                            break SLEEP_DURATION;
+                        }
+                    };
                     // Report amount of deliveries stored into db
                     stored_logs.inc_by(stored as u64);
                     // Update cursor
-                    cursor.update(logs).await?;
-                }
-                CursorAction::Sleep(duration) => {
-                    sleep(duration).await;
-                }
-            }
+                    if let Err(err) = cursor.update(logs).await {
+                        warn!(?err, "Failed to store logs in db");
+                        break SLEEP_DURATION;
+                    };
+                    break Default::default();
+                },
+                CursorAction::Sleep(duration) => duration,
+            };
+            sleep(sleep_duration).await;
         }
     }
 }

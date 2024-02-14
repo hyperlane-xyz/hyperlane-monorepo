@@ -23,7 +23,7 @@ use once_cell::sync::Lazy;
 
 use crate::utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64};
 use hyperlane_core::{
-    utils::fmt_bytes, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    utils::bytes_to_hex, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
     H256, U256,
 };
@@ -64,8 +64,12 @@ impl CosmosMailbox {
     }
 
     /// Prefix used in the bech32 address encoding
-    pub fn prefix(&self) -> String {
-        self.config.get_prefix()
+    pub fn bech32_prefix(&self) -> String {
+        self.config.get_bech32_prefix()
+    }
+
+    fn contract_address_bytes(&self) -> usize {
+        self.config.get_contract_address_bytes()
     }
 }
 
@@ -151,7 +155,12 @@ impl Mailbox for CosmosMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let address = CosmosAddress::from_h256(recipient, &self.prefix())?.address();
+        let address = CosmosAddress::from_h256(
+            recipient,
+            &self.bech32_prefix(),
+            self.contract_address_bytes(),
+        )?
+        .address();
 
         let payload = mailbox::RecipientIsmRequest {
             recipient_ism: mailbox::RecipientIsmRequestInner {
@@ -194,7 +203,7 @@ impl Mailbox for CosmosMailbox {
         Ok(tx_response_to_outcome(response)?)
     }
 
-    #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
+    #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,

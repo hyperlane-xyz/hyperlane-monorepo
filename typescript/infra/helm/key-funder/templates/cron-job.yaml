@@ -28,8 +28,6 @@ spec:
 {{- range $context, $roles := .Values.hyperlane.contextsAndRolesToFund }}
             - --contexts-and-roles
             - {{ $context }}={{ join "," $roles }}
-            - -f
-            - /addresses-secret/{{ $context }}-addresses.json
 {{- end }}
 {{- if .Values.hyperlane.connectionType }}
             - --connection-type

@@ -1,6 +1,6 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneContractsMap } from '../contracts/types';
@@ -13,6 +13,7 @@ import {
   CoinGeckoSimpleInterface,
   CoinGeckoSimplePriceParams,
 } from '../gas/token-prices';
+import { IgpConfig } from '../gas/types';
 import { HookType } from '../hook/types';
 import { IsmType } from '../ism/types';
 import { RouterConfig } from '../router/types';
@@ -66,6 +67,34 @@ export function testCoreConfig(
   };
 
   return Object.fromEntries(chains.map((local) => [local, chainConfig]));
+}
+
+const TEST_ORACLE_CONFIG = {
+  gasPrice: ethers.utils.parseUnits('1', 'gwei'),
+  tokenExchangeRate: ethers.utils.parseUnits('1', 10),
+};
+
+export function testIgpConfig(
+  chains: ChainName[],
+  owner = nonZeroAddress,
+): ChainMap<IgpConfig> {
+  return Object.fromEntries(
+    chains.map((local) => [
+      local,
+      {
+        owner,
+        oracleKey: owner,
+        beneficiary: owner,
+        // TODO: these should be one map
+        overhead: Object.fromEntries(
+          exclude(local, chains).map((remote) => [remote, 60000]),
+        ),
+        oracleConfig: Object.fromEntries(
+          exclude(local, chains).map((remote) => [remote, TEST_ORACLE_CONFIG]),
+        ),
+      },
+    ]),
+  );
 }
 
 // A mock CoinGecko intended to be used by tests

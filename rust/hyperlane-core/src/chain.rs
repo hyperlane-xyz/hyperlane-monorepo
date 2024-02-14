@@ -80,6 +80,12 @@ pub enum KnownHyperlaneDomain {
     Gnosis = 100,
     Chiado = 10200,
 
+    MantaPacific = 169,
+
+    Neutron = 1853125230,
+
+    Injective = 6909546,
+
     // -- Local test chains --
     /// Test1 local chain
     Test1 = 13371,
@@ -195,7 +201,7 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             Mainnet: [
                 Ethereum, Avalanche, Arbitrum, Polygon, Optimism, BinanceSmartChain, Celo,
-                Moonbeam, Gnosis
+                Moonbeam, Gnosis, MantaPacific, Neutron, Injective
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
@@ -212,11 +218,12 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainProtocol::Ethereum: [
                 Ethereum, Goerli, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
                 Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
-                Alfajores, Moonbeam, MoonbaseAlpha, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia, Chiado, Test1, Test2, Test3
+                Alfajores, Moonbeam, MoonbaseAlpha, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia,
+                Chiado, MantaPacific, Test1, Test2, Test3
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
-            HyperlaneDomainProtocol::Cosmos: [CosmosTest99990, CosmosTest99991],
+            HyperlaneDomainProtocol::Cosmos: [CosmosTest99990, CosmosTest99991, Neutron, Injective],
         })
     }
 }
@@ -285,6 +292,12 @@ impl Debug for HyperlaneDomain {
         {
             write!(f, "HyperlaneDomain({})", self.id())
         }
+    }
+}
+
+impl From<KnownHyperlaneDomain> for HyperlaneDomain {
+    fn from(domain: KnownHyperlaneDomain) -> Self {
+        HyperlaneDomain::Known(domain)
     }
 }
 
@@ -363,13 +376,17 @@ impl HyperlaneDomain {
         }
     }
 
-    pub fn is_arbitrum_nitro(&self) -> bool {
+    pub const fn is_arbitrum_nitro(&self) -> bool {
         matches!(
             self,
             HyperlaneDomain::Known(
                 KnownHyperlaneDomain::Arbitrum | KnownHyperlaneDomain::ArbitrumGoerli,
             )
         )
+    }
+
+    pub const fn is_injective(&self) -> bool {
+        matches!(self, Self::Known(KnownHyperlaneDomain::Injective))
     }
 
     pub const fn index_mode(&self) -> IndexMode {

@@ -2,6 +2,14 @@
 
 # NOTE: This script is intended to be run from the root of the repo
 
+# the first arg to this script is a flag to enable the hook config as part of core deployment
+# motivation is to test both the bare bone deployment (included in the docs) and the deployment with the routing over igp hook (which is closer to production deployment)
+HOOK_FLAG=$1
+if [ -z "$HOOK_FLAG" ]; then
+  echo "Usage: fork.sh <hook>"
+  exit 1
+fi
+
 # Optional cleanup for previous runs, useful when running locally
 pkill -f anvil
 rm -rf /tmp/anvil*
@@ -33,13 +41,14 @@ export DEBUG=hyperlane:*
 DEPLOYER=$(cast rpc eth_accounts | jq -r '.[0]')
 BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 
+
 echo "Deploying contracts to anvil1 and anvil2"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
     --targets anvil1,anvil2 \
     --chains ./examples/anvil-chains.yaml \
     --artifacts /tmp/empty-artifacts.json \
+    $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ./examples/hooks.yaml"; fi) \
     --ism ./examples/ism.yaml \
-    --hook ./examples/hooks.yaml \
     --out /tmp \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
@@ -73,6 +82,7 @@ echo "Sending test message"
 yarn workspace @hyperlane-xyz/cli run hyperlane send message \
     --origin anvil1 \
     --destination anvil2 \
+    --messageBody "Howdy!" \
     --chains ./examples/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
     --quick \
@@ -97,7 +107,6 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
     --chains ./examples/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
     --router $ANVIL1_ROUTER \
-    --type native \
     --quick \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     | tee /tmp/message2

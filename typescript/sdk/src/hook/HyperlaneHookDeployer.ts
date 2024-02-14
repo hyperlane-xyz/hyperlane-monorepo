@@ -22,7 +22,7 @@ import { IsmType, OpStackIsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import { HookFactories, hookFactories } from './contracts';
+import { DeployedHook, HookFactories, hookFactories } from './contracts';
 import {
   AggregationHookConfig,
   DomainRoutingHookConfig,
@@ -59,19 +59,23 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     config: HookConfig,
     coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
-    // other simple hooks can go here
-    let hook;
+    let hook: DeployedHook;
     if (config.type === HookType.MERKLE_TREE) {
       const mailbox = coreAddresses.mailbox;
       if (!mailbox) {
         throw new Error(`Mailbox address is required for ${config.type}`);
       }
       hook = await this.deployContract(chain, config.type, [mailbox]);
-      return { [config.type]: hook } as any;
     } else if (config.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
-      return this.deployIgp(chain, config, coreAddresses) as any;
+      const { interchainGasPaymaster } = await this.deployIgp(
+        chain,
+        config,
+        coreAddresses,
+      );
+      hook = interchainGasPaymaster;
     } else if (config.type === HookType.AGGREGATION) {
-      return this.deployAggregation(chain, config, coreAddresses); // deploy from factory
+      hook = (await this.deployAggregation(chain, config, coreAddresses))
+        .aggregationHook; // deploy from factory
     } else if (config.type === HookType.PROTOCOL_FEE) {
       hook = await this.deployProtocolFee(chain, config);
     } else if (config.type === HookType.OP_STACK) {
@@ -81,8 +85,18 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       config.type === HookType.FALLBACK_ROUTING
     ) {
       hook = await this.deployRouting(chain, config, coreAddresses);
+    } else if (config.type === HookType.PAUSABLE) {
+      hook = await this.deployContract(chain, config.type, []);
+      await this.transferOwnershipOfContracts<HookType.PAUSABLE>(
+        chain,
+        config,
+        { [HookType.PAUSABLE]: hook },
+      );
+    } else {
+      throw new Error(`Unsupported hook config: ${config}`);
     }
-    const deployedContracts = { [config.type]: hook } as any;
+
+    const deployedContracts = { [config.type]: hook } as any; // partial
     this.addDeployedContracts(chain, deployedContracts);
     return deployedContracts;
   }
@@ -285,9 +299,12 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       }
     }
 
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
     await this.multiProvider.handleTx(
       chain,
-      routingHook.setHooks(routingConfigs),
+      routingHook.setHooks(routingConfigs, {
+        ...overrides,
+      }),
     );
 
     return routingHook;

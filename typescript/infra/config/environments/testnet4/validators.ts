@@ -1,4 +1,4 @@
-import { chainMetadata } from '@hyperlane-xyz/sdk';
+import { chainMetadata, getReorgPeriod } from '@hyperlane-xyz/sdk';
 
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
@@ -13,7 +13,7 @@ export const validatorChainConfig = (
   return {
     alfajores: {
       interval: 5,
-      reorgPeriod: chainMetadata.alfajores.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.alfajores),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -31,29 +31,9 @@ export const validatorChainConfig = (
         'alfajores',
       ),
     },
-    basegoerli: {
-      interval: 5,
-      reorgPeriod: chainMetadata.basegoerli.blocks!.reorgPeriod!,
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0xf6eddda696dcd3bf10f7ce8a02db31ef2e775a03',
-            '0x5a7d05cebf5db4dde9b2fedcefa76fb58fa05071',
-            '0x9260a6c7d54cbcbed28f8668679cd1fa3a203b25',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0x81983e03363351b63848867bd76687cc80b9ff37',
-            '0x36de434527b8f83851d83f1b1d72ec11a5903533',
-            '0x4b65f7527c267e420bf62a0c5a139cb8c3906277',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'basegoerli',
-      ),
-    },
     fuji: {
       interval: 5,
-      reorgPeriod: chainMetadata.fuji.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.alfajores),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -73,7 +53,7 @@ export const validatorChainConfig = (
     },
     // chiado: {
     //   interval: 5,
-    //   reorgPeriod: chainMetadata.chiado.blocks!.reorgPeriod!,
+    //   reorgPeriod: getReorgPeriod(chainMetadata.chiado),
     //   validators: validatorsConfig(
     //     {
     //       [Contexts.Hyperlane]: [
@@ -92,7 +72,7 @@ export const validatorChainConfig = (
     // },
     // lineagoerli: {
     //   interval: 5,
-    //   reorgPeriod: chainMetadata.lineagoerli.blocks!.reorgPeriod!,
+    //   reorgPeriod: getReorgPeriod(chainMetadata.lineagoerli),
     //   validators: validatorsConfig(
     //     {
     //       [Contexts.Hyperlane]: [
@@ -111,7 +91,7 @@ export const validatorChainConfig = (
     // },
     mumbai: {
       interval: 5,
-      reorgPeriod: chainMetadata.mumbai.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.mumbai),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -131,7 +111,7 @@ export const validatorChainConfig = (
     },
     bsctestnet: {
       interval: 5,
-      reorgPeriod: chainMetadata.bsctestnet.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.bsctestnet),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -151,7 +131,7 @@ export const validatorChainConfig = (
     },
     goerli: {
       interval: 5,
-      reorgPeriod: chainMetadata.goerli.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.goerli),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -171,7 +151,7 @@ export const validatorChainConfig = (
     },
     scrollsepolia: {
       interval: 5,
-      reorgPeriod: chainMetadata.scrollsepolia.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.scrollsepolia),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -191,7 +171,7 @@ export const validatorChainConfig = (
     },
     sepolia: {
       interval: 5,
-      reorgPeriod: chainMetadata.sepolia.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.sepolia),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -209,29 +189,9 @@ export const validatorChainConfig = (
         'sepolia',
       ),
     },
-    moonbasealpha: {
-      interval: 5,
-      reorgPeriod: chainMetadata.moonbasealpha.blocks!.reorgPeriod!,
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0x521877064bd7ac7500d300f162c8c47c256a2f9c',
-            '0xbc1c70f58ae0459d4b8a013245420a893837d568',
-            '0x01e42c2c44af81dda1ac16fec76fea2a7a54a44c',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0x376260b40b2ba2100890f27de1eb18a2774f54d1',
-            '0x776623e8be8d7218940b7c77d02162af4ff97985',
-            '0xb4c81facd992a6c7c4a187bcce35a6fc968399a0',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'moonbasealpha',
-      ),
-    },
     optimismgoerli: {
       interval: 5,
-      reorgPeriod: chainMetadata.optimismgoerli.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.optimismgoerli),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -251,7 +211,7 @@ export const validatorChainConfig = (
     },
     arbitrumgoerli: {
       interval: 5,
-      reorgPeriod: chainMetadata.arbitrumgoerli.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.arbitrumgoerli),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -271,7 +231,7 @@ export const validatorChainConfig = (
     },
     polygonzkevmtestnet: {
       interval: 5,
-      reorgPeriod: chainMetadata.polygonzkevmtestnet.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.polygonzkevmtestnet),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -289,9 +249,21 @@ export const validatorChainConfig = (
         'polygonzkevmtestnet',
       ),
     },
+    injective: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod(chainMetadata.injective),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x10686BEe585491A0DA5bfCd5ABfbB95Ab4d6c86d'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'injective',
+      ),
+    },
     // proteustestnet: {
     //   interval: 5,
-    //   reorgPeriod: chainMetadata.proteustestnet.blocks!.reorgPeriod!,
+    //   reorgPeriod: getReorgPeriod(chainMetadata.proteustestnet),
     //   validators: validatorsConfig(
     //     {
     //       [Contexts.Hyperlane]: [
@@ -306,22 +278,29 @@ export const validatorChainConfig = (
     //     'proteustestnet',
     //   ),
     // },
-    // solanadevnet: {
-    //   interval: 10,
-    //   reorgPeriod: chainMetadata.solanadevnet.blocks!.reorgPeriod!,
-    //   validators: validatorsConfig(
-    //     {
-    //       [Contexts.Hyperlane]: [
-    //         '0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43',
-    //         '0x9c20a149dfa09ea9f77f5a7ca09ed44f9c025133',
-    //         '0x967c5ecdf2625ae86580bd203b630abaaf85cd62',
-    //       ],
-    //       [Contexts.ReleaseCandidate]: [
-    //         '0x21b9eff4d1a6d3122596c7fb80315bf094b6e5c2',
-    //       ],
-    //     },
-    //     'solanadevnet',
-    //   ),
-    // },
+    solanatestnet: {
+      interval: 1,
+      reorgPeriod: getReorgPeriod(chainMetadata.solanatestnet),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'solanatestnet',
+      ),
+    },
+    eclipsetestnet: {
+      interval: 1,
+      reorgPeriod: getReorgPeriod(chainMetadata.eclipsetestnet),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'eclipsetestnet',
+      ),
+    },
   };
 };

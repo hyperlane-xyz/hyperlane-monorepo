@@ -4,6 +4,7 @@ import { BigNumber, ethers } from 'ethers';
 import {
   ERC20__factory,
   HypERC20Collateral__factory,
+  HypERC20__factory,
 } from '@hyperlane-xyz/core';
 import {
   ChainName,
@@ -30,7 +31,6 @@ export async function sendTestTransfer({
   origin,
   destination,
   routerAddress,
-  tokenType,
   wei,
   recipient,
   timeoutSec,
@@ -42,7 +42,6 @@ export async function sendTestTransfer({
   origin?: ChainName;
   destination?: ChainName;
   routerAddress?: Address;
-  tokenType: TokenType;
   wei: string;
   recipient?: string;
   timeoutSec: number;
@@ -75,20 +74,43 @@ export async function sendTestTransfer({
     });
   }
 
-  if (tokenType === TokenType.collateral) {
+  // TODO: move to SDK token router app
+  // deduce TokenType
+  // 1. decimals() call implies synthetic
+  // 2. wrappedToken() call implies collateral
+  // 3. if neither, it's native
+  let tokenAddress: Address | undefined;
+  let tokenType: TokenType;
+  const provider = multiProvider.getProvider(origin);
+  try {
+    const synthRouter = HypERC20__factory.connect(routerAddress, provider);
+    await synthRouter.decimals();
+    tokenType = TokenType.synthetic;
+    tokenAddress = routerAddress;
+  } catch (error) {
+    try {
+      const collateralRouter = HypERC20Collateral__factory.connect(
+        routerAddress,
+        provider,
+      );
+      tokenAddress = await collateralRouter.wrappedToken();
+      tokenType = TokenType.collateral;
+    } catch (error) {
+      tokenType = TokenType.native;
+    }
+  }
+
+  if (tokenAddress) {
+    // checks token balances for collateral and synthetic
     await assertTokenBalance(
       multiProvider,
       signer,
       origin,
-      routerAddress,
+      tokenAddress,
       wei.toString(),
     );
-  } else if (tokenType === TokenType.native) {
-    await assertNativeBalances(multiProvider, signer, [origin], wei.toString());
   } else {
-    throw new Error(
-      'Only collateral and native token types are currently supported in the CLI. For synthetic transfers, try the Warp UI.',
-    );
+    await assertNativeBalances(multiProvider, signer, [origin], wei.toString());
   }
 
   await runPreflightChecks({

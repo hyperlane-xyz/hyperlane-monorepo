@@ -28,6 +28,7 @@ jobs:
 
       - uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
       - name: yarn-cache
@@ -54,6 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
 
@@ -71,7 +73,7 @@ jobs:
           path: |
             ./*
             !./rust
-          key: ${{ github.sha }}
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: build
         run: yarn build
@@ -82,6 +84,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           # check out full history
           fetch-depth: 0
 
@@ -111,6 +114,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
 
@@ -123,10 +127,10 @@ jobs:
           path: |
             ./*
             !./rust
-          key: ${{ github.sha }}
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Unit Tests
-        run: yarn test
+        run: yarn test:ci
 
   metadata-check:
     runs-on: ubuntu-latest
@@ -134,6 +138,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
 
@@ -151,10 +156,10 @@ jobs:
           path: |
             ./*
             !./rust
-          key: ${{ github.sha }}
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Metadata Health Check
-        run: yarn workspace @hyperlane-xyz/sdk run test:metadata
+        run: DEBUG=hyperlane yarn workspace @hyperlane-xyz/sdk run test:metadata
 
   e2e:
     runs-on: larger-runner
@@ -166,6 +171,7 @@ jobs:
 
       - uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
       - name: foundry-install
@@ -205,7 +211,7 @@ jobs:
           path: |
             ./*
             !./rust
-          key: ${{ github.sha }}
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: cargo-cache
         uses: actions/cache@v3
@@ -230,19 +236,101 @@ jobs:
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
 
-      - name: cli e2e tests
-        run: ./typescript/cli/ci-test.sh
+  cli-e2e:
+    runs-on: larger-runner
+    needs: [yarn-build]
+    strategy:
+      matrix:
+        include:
+          - hook: preset_hook_enabled
+          - hook: configure_hook_enabled
+    steps:
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: foundry-install
+        uses: onbjerg/foundry-toolchain@v1
+
+      - name: setup rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Free disk space
+        run: |
+          # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+      - name: Install mold linker
+        uses: rui314/setup-mold@v1
+        with:
+          mold-version: 2.0.0
+          make-default: true
+
+      - name: yarn-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .yarn
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+
+      - name: build-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ./*
+            !./rust
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: cargo-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo
+          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
+
+      - name: cli e2e tests with preset hook config
+        run: ./typescript/cli/ci-test.sh false
+        if: matrix.hook == 'preset_hook_enabled'
+
+      - name: cli e2e tests with configured hook config
+        run: ./typescript/cli/ci-test.sh true
+        if: matrix.hook == 'configure_hook_enabled'
 
   env-test:
     runs-on: ubuntu-latest
     needs: [yarn-build]
     strategy:
       matrix:
-        environment: [testnet4, mainnet3]
-        module: [ism, core, helloworld]
+        include:
+          - environment: testnet4
+            chain: sepolia
+            module: core
+          - environment: mainnet3
+            chain: arbitrum
+            module: core
+          - environment: mainnet3
+            chain: inevm
+            module: core
+          - environment: mainnet3
+            chain: viction
+            module: core
 
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: foundry-install
         uses: onbjerg/foundry-toolchain@v1
@@ -253,18 +341,19 @@ jobs:
           path: |
             ./*
             !./rust
-          key: ${{ github.sha }}
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Test ${{ matrix.environment }} ${{ matrix.module }} deployment (check, deploy, govern, check again)
-        run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }}
+      - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment
+        run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}
 
   coverage:
     runs-on: ubuntu-latest
-    needs: [yarn-build]
+    needs: [yarn-test]
 
     steps:
       - uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: yarn-cache
@@ -281,7 +370,10 @@ jobs:
           path: |
             ./*
             !./rust
-          key: ${{ github.sha }}
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: foundry-install
+        uses: onbjerg/foundry-toolchain@v1
 
       - name: Run tests with coverage
         run: yarn coverage

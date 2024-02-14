@@ -8,6 +8,7 @@
 extern crate core;
 
 pub use chain::*;
+pub use error::*;
 pub use error::{ChainCommunicationError, ChainResult, HyperlaneProtocolError};
 pub use identifiers::HyperlaneIdentifier;
 pub use traits::*;
@@ -34,6 +35,9 @@ mod types;
 
 mod chain;
 mod error;
+
+/// Implementations of custom rpc client logic (e.g. fallback)
+pub mod rpc_clients;
 
 /// Enum for validity of a list of messages
 #[derive(Debug)]

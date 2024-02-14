@@ -11,7 +11,7 @@ import {
   getTokenExchangeRateFromValues,
 } from '../../../src/config/gas-oracle';
 
-import { TestnetChains, supportedChainNames } from './chains';
+import { supportedChainNames } from './chains';
 
 // Taken by looking at each testnet and overestimating gas prices
 const gasPrices: ChainMap<BigNumber> = {
@@ -21,15 +21,14 @@ const gasPrices: ChainMap<BigNumber> = {
   bsctestnet: ethers.utils.parseUnits('15', 'gwei'),
   goerli: ethers.utils.parseUnits('5', 'gwei'),
   sepolia: ethers.utils.parseUnits('5', 'gwei'),
-  moonbasealpha: ethers.utils.parseUnits('5', 'gwei'),
   optimismgoerli: ethers.utils.parseUnits('0.5', 'gwei'),
   arbitrumgoerli: ethers.utils.parseUnits('0.5', 'gwei'),
-  basegoerli: ethers.utils.parseUnits('0.2', 'gwei'),
   scrollsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
   lineagoerli: ethers.utils.parseUnits('1', 'gwei'),
   polygonzkevmtestnet: ethers.utils.parseUnits('1', 'gwei'),
   chiado: ethers.utils.parseUnits('2', 'gwei'),
-  // solanadevnet: ethers.BigNumber.from('28'),
+  solanatestnet: ethers.BigNumber.from('28'),
+  eclipsetestnet: ethers.BigNumber.from('28'),
 };
 
 // Used to categorize rarity of testnet tokens & approximate exchange rates.
@@ -55,19 +54,18 @@ const chainTokenRarity: ChainMap<Rarity> = {
   bsctestnet: Rarity.Rare,
   goerli: Rarity.Mythic,
   sepolia: Rarity.Mythic,
-  moonbasealpha: Rarity.Common,
   optimismgoerli: Rarity.Mythic,
   arbitrumgoerli: Rarity.Mythic,
-  basegoerli: Rarity.Mythic,
   scrollsepolia: Rarity.Rare,
   lineagoerli: Rarity.Rare,
   polygonzkevmtestnet: Rarity.Common,
   chiado: Rarity.Common,
-  // solanadevnet: Rarity.Common,
+  solanatestnet: Rarity.Common,
+  eclipsetestnet: Rarity.Common,
 };
 
 // Gets the "value" of a testnet chain
-function getApproximateValue(chain: TestnetChains): BigNumber {
+function getApproximateValue(chain: ChainName): BigNumber {
   const rarity = chainTokenRarity[chain];
   return RARITY_APPROXIMATE_VALUE[rarity];
 }

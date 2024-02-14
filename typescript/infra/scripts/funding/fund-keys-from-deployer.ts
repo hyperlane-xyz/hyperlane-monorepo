@@ -17,29 +17,34 @@ import {
   log,
   objFilter,
   objMap,
-  promiseObjAll,
   warn,
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { parseKeyIdentifier } from '../../src/agents/agent';
-import { KeyAsAddress, getRoleKeysPerChain } from '../../src/agents/key-utils';
 import {
-  BaseCloudAgentKey,
+  KeyAsAddress,
+  fetchLocalKeyAddresses,
+  getRoleKeysPerChain,
+} from '../../src/agents/key-utils';
+import {
+  BaseAgentKey,
+  LocalAgentKey,
   ReadOnlyCloudAgentKey,
 } from '../../src/agents/keys';
 import { DeployEnvironment } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
-import { Role } from '../../src/roles';
+import { FundableRole, Role } from '../../src/roles';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
   assertContext,
+  assertFundableRole,
   assertRole,
   isEthereumProtocolChain,
   readJSONAtPath,
 } from '../../src/utils/utils';
-import { getAgentConfig, getArgs, getEnvironmentConfig } from '../utils';
+import { getAgentConfig, getArgs } from '../agent-utils';
+import { getEnvironmentConfig } from '../core-utils';
 
 import * as L1ETHGateway from './utils/L1ETHGateway.json';
 import * as L1MessageQueue from './utils/L1MessageQueue.json';
@@ -61,7 +66,6 @@ type L2Chain =
   | Chains.optimismgoerli
   | Chains.arbitrum
   | Chains.arbitrumgoerli
-  | Chains.basegoerli
   | Chains.base;
 
 const L2Chains: ChainName[] = [
@@ -69,7 +73,6 @@ const L2Chains: ChainName[] = [
   Chains.optimismgoerli,
   Chains.arbitrum,
   Chains.arbitrumgoerli,
-  Chains.basegoerli,
   Chains.base,
   Chains.polygonzkevmtestnet,
 ];
@@ -79,7 +82,6 @@ const L2ToL1: ChainMap<ChainName> = {
   arbitrumgoerli: 'goerli',
   optimism: 'ethereum',
   arbitrum: 'ethereum',
-  basegoerli: 'goerli',
   base: 'ethereum',
   polygonzkevmtestnet: 'goerli',
 };
@@ -134,12 +136,10 @@ const desiredBalancePerChain: ChainMap<string> = {
   bsctestnet: '1',
   goerli: '0.5',
   sepolia: '0.5',
-  moonbasealpha: '1',
   moonbeam: '0.5',
   optimismgoerli: '0.5',
   arbitrumgoerli: '0.5',
   gnosis: '0.1',
-  basegoerli: '0.05',
   scrollsepolia: '0.05',
   polygonzkevm: '0.3',
   scroll: '0.3',
@@ -167,6 +167,8 @@ const desiredKathyBalancePerChain: ChainMap<string> = {
   scroll: '0.05',
   base: '0.05',
   polygonzkevm: '0.05',
+  viction: '0.05',
+  inevm: '0.05',
 };
 
 // The balance threshold of the IGP contract that must be met for the key funder
@@ -185,12 +187,10 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   bsctestnet: '1',
   goerli: '1',
   sepolia: '1',
-  moonbasealpha: '2',
   moonbeam: '5',
   optimismgoerli: '1',
   arbitrumgoerli: '1',
   gnosis: '5',
-  basegoerli: '0.1',
   scrollsepolia: '0.1',
   polygonzkevmtestnet: '0.1',
   base: '0.1',
@@ -273,7 +273,7 @@ async function main() {
     const contexts = Object.keys(argv.contextsAndRoles) as Contexts[];
     contextFunders = await Promise.all(
       contexts.map((context) =>
-        ContextFunder.fromContext(
+        ContextFunder.fromLocal(
           environment,
           multiProvider,
           context,
@@ -301,20 +301,20 @@ async function main() {
 class ContextFunder {
   igp: HyperlaneIgp;
 
-  keysToFundPerChain: ChainMap<BaseCloudAgentKey[]>;
+  keysToFundPerChain: ChainMap<BaseAgentKey[]>;
 
   constructor(
     public readonly environment: DeployEnvironment,
     public readonly multiProvider: MultiProvider,
-    roleKeysPerChain: ChainMap<Record<Role, BaseCloudAgentKey[]>>,
+    roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>>,
     public readonly context: Contexts,
-    public readonly rolesToFund: Role[],
+    public readonly rolesToFund: FundableRole[],
     public readonly skipIgpClaim: boolean,
   ) {
     // At the moment, only blessed EVM chains are supported
     roleKeysPerChain = objFilter(
       roleKeysPerChain,
-      (chain, _roleKeys): _roleKeys is Record<Role, BaseCloudAgentKey[]> => {
+      (chain, _roleKeys): _roleKeys is Record<Role, BaseAgentKey[]> => {
         const valid =
           isEthereumProtocolChain(chain) &&
           multiProvider.tryGetChainName(chain) !== null;
@@ -333,12 +333,12 @@ class ContextFunder {
     );
     this.keysToFundPerChain = objMap(roleKeysPerChain, (_chain, roleKeys) => {
       return Object.keys(roleKeys).reduce((agg, roleStr) => {
-        const role = roleStr as Role;
+        const role = roleStr as FundableRole;
         if (this.rolesToFund.includes(role)) {
           return [...agg, ...roleKeys[role]];
         }
         return agg;
-      }, [] as BaseCloudAgentKey[]);
+      }, [] as BaseAgentKey[]);
     });
   }
 
@@ -415,29 +415,49 @@ class ContextFunder {
     );
   }
 
-  // The keys here are not ReadOnlyCloudAgentKeys, instead they are AgentGCPKey or AgentAWSKeys,
-  // which require credentials to fetch. If you want to avoid requiring credentials, use
-  // fromSerializedAddressFile instead.
-  static async fromContext(
+  // the keys are retrieved from the local artifacts in the infra/config/relayer.json or infra/config/kathy.json
+  static async fromLocal(
     environment: DeployEnvironment,
     multiProvider: MultiProvider,
     context: Contexts,
-    rolesToFund: Role[],
+    rolesToFund: FundableRole[],
     skipIgpClaim: boolean,
   ) {
-    const agentConfig = getAgentConfig(context, environment);
-    const roleKeysPerChain = getRoleKeysPerChain(agentConfig);
-    // Fetch all the keys
-    await promiseObjAll(
-      objMap(roleKeysPerChain, (_chain, roleKeys) => {
-        return promiseObjAll(
-          objMap(roleKeys, (_role, keys) => {
-            return Promise.all(keys.map((key) => key.fetch()));
-          }),
+    // only roles that are fundable keys ie. relayer and kathy
+    const fundableRoleKeys: Record<FundableRole, Address> = {
+      [Role.Relayer]: '',
+      [Role.Kathy]: '',
+    };
+    const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
+    const chains = getEnvironmentConfig(environment).chainMetadataConfigs;
+    for (const role of rolesToFund) {
+      assertFundableRole(role); // only the relayer and kathy are fundable keys
+      const roleAddress = fetchLocalKeyAddresses(role)[environment][context];
+      if (!roleAddress) {
+        throw Error(
+          `Could not find address for ${role} in ${environment} ${context}`,
         );
-      }),
-    );
+      }
+      fundableRoleKeys[role] = roleAddress;
 
+      for (const chain of Object.keys(chains)) {
+        if (!roleKeysPerChain[chain as ChainName]) {
+          roleKeysPerChain[chain as ChainName] = {
+            [Role.Relayer]: [],
+            [Role.Kathy]: [],
+          };
+        }
+        roleKeysPerChain[chain][role] = [
+          new LocalAgentKey(
+            environment,
+            context,
+            role,
+            fundableRoleKeys[role as FundableRole],
+            chain,
+          ),
+        ];
+      }
+    }
     return new ContextFunder(
       environment,
       multiProvider,
@@ -497,7 +517,7 @@ class ContextFunder {
   }
 
   private async attemptToFundKey(
-    key: BaseCloudAgentKey,
+    key: BaseAgentKey,
     chain: ChainName,
   ): Promise<boolean> {
     const provider = this.multiProvider.tryGetProvider(chain);
@@ -605,7 +625,7 @@ class ContextFunder {
       role === Role.Kathy && desiredKathyBalancePerChain[chain]
         ? desiredKathyBalancePerChain[chain]
         : desiredBalancePerChain[chain];
-    let desiredBalance = ethers.utils.parseEther(desiredBalanceEther);
+    let desiredBalance = ethers.utils.parseEther(desiredBalanceEther ?? '0');
     if (this.context === Contexts.ReleaseCandidate) {
       desiredBalance = desiredBalance
         .mul(RC_FUNDING_DISCOUNT_NUMERATOR)
@@ -618,7 +638,7 @@ class ContextFunder {
   // is lower than the desired balance by the min delta
   private async fundKeyIfRequired(
     chain: ChainName,
-    key: BaseCloudAgentKey,
+    key: BaseAgentKey,
     desiredBalance: BigNumber,
   ) {
     const fundingAmount = await this.getFundingAmount(
@@ -833,13 +853,13 @@ async function getAddressInfo(
 }
 
 async function getKeyInfo(
-  key: BaseCloudAgentKey,
+  key: BaseAgentKey,
   chain: ChainName,
   provider: ethers.providers.Provider,
 ) {
   return {
     ...(await getAddressInfo(key.address, chain, provider)),
-    context: key.context,
+    context: (key as LocalAgentKey).context,
     originChain: key.chainName,
     role: key.role,
   };
@@ -874,7 +894,9 @@ function parseContextAndRoles(str: string): ContextAndRoles {
   for (const role of roles) {
     if (!validRoles.has(role)) {
       throw Error(
-        `Invalid role ${role}, must be one of ${Array.from(validRoles)}`,
+        `Invalid fundable role ${role}, must be one of ${Array.from(
+          validRoles,
+        )}`,
       );
     }
   }

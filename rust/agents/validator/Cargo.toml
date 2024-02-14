@@ -26,7 +26,7 @@ tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing-futures.workspace = true
 tracing.workspace = true
 
-hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
+hyperlane-core = { path = "../../hyperlane-core", features = ["agent", "fallback-provider"] }
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }

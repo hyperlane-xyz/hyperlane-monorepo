@@ -60,6 +60,8 @@ describe('ChainMetadataSchema', () => {
         chainId: 'cosmos',
         bech32Prefix: 'cosmos',
         slip44: 118,
+        restUrls: [],
+        grpcUrls: [],
       }),
     ).to.eq(true);
   });

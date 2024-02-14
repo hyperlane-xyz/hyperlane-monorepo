@@ -41,6 +41,7 @@ tracing-subscriber = { workspace = true, features = ["json", "ansi"] }
 tracing.workspace = true
 url.workspace = true
 warp.workspace = true
+ya-gcp.workspace = true
 
 
 backtrace = { workspace = true, optional = true }
