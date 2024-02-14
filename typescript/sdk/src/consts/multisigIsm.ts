@@ -244,6 +244,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  plumetestnet: {
+    threshold: 1,
+    validators: ['0xe765a214849f3ecdf00793b97d00422f2d408ea6'],
+  },
+
   polygon: {
     threshold: 2,
     validators: [

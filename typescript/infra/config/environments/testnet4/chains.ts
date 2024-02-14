@@ -19,6 +19,7 @@ const selectedChains = [
   Chains.polygonzkevmtestnet,
   Chains.scrollsepolia,
   Chains.sepolia,
+  Chains.plumetestnet,
 ];
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {

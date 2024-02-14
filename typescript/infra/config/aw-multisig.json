@@ -82,5 +82,10 @@
       "0x27bfc57679d9dd4ab2e870f5ed7ec0b339a0b636",
       "0xd476548222f43206d0abaa30e46e28670aa7859c"
     ]
+  },
+  "plumetestnet": {
+    "validators": [
+      "0xe765a214849f3ecdf00793b97d00422f2d408ea6"
+    ]
   }
 }
