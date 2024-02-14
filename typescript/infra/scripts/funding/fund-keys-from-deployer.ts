@@ -66,7 +66,6 @@ type L2Chain =
   | Chains.optimismgoerli
   | Chains.arbitrum
   | Chains.arbitrumgoerli
-  | Chains.basegoerli
   | Chains.base;
 
 const L2Chains: ChainName[] = [
@@ -74,7 +73,6 @@ const L2Chains: ChainName[] = [
   Chains.optimismgoerli,
   Chains.arbitrum,
   Chains.arbitrumgoerli,
-  Chains.basegoerli,
   Chains.base,
   Chains.polygonzkevmtestnet,
 ];
@@ -84,7 +82,6 @@ const L2ToL1: ChainMap<ChainName> = {
   arbitrumgoerli: 'goerli',
   optimism: 'ethereum',
   arbitrum: 'ethereum',
-  basegoerli: 'goerli',
   base: 'ethereum',
   polygonzkevmtestnet: 'goerli',
 };

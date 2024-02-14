@@ -154,33 +154,6 @@ export const base: ChainMetadata = {
   ],
 };
 
-export const basegoerli: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-goerli.basescan.org/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'BaseScan',
-      url: 'https://goerli.basescan.org',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
-  },
-  chainId: 84531,
-  displayName: 'Base Goerli',
-  domainId: 84531,
-  isTestnet: true,
-  name: Chains.basegoerli,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [
-    { http: 'https://base-goerli.publicnode.com' },
-    { http: 'https://goerli.base.org' },
-  ],
-};
-
 export const bsc: ChainMetadata = {
   blockExplorers: [
     {
