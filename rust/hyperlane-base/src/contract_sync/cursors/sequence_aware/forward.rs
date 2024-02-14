@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractSyncCursorNew, CursorAction,
+    ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction,
     HyperlaneSequenceIndexerStore, IndexMode, LogMeta, SequenceAwareIndexer, Sequenced,
 };
 use itertools::Itertools;
@@ -27,8 +27,11 @@ pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     index_mode: IndexMode,
 }
 
-impl<T: Sequenced> ForwardSequenceAwareSyncCursor<T> {
+impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
     pub async fn get_next_range(&mut self) -> ChainResult<Option<RangeInclusive<u32>>> {
+        // Fast forward the cursor to the latest indexed sequence.
+        self.fast_forward().await?;
+
         let (Some(onchain_sequence_count), tip) = self
             .latest_sequence_querier
             .latest_sequence_count_and_tip()
@@ -98,10 +101,7 @@ impl<T: Sequenced> ForwardSequenceAwareSyncCursor<T> {
 
         Ok(range)
     }
-}
 
-#[async_trait]
-impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for ForwardSequenceAwareSyncCursor<T> {
     async fn fast_forward(&mut self) -> ChainResult<()> {
         // Check if any new logs have been inserted into the DB,
         // and update the cursor accordingly.
@@ -138,7 +138,10 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for ForwardSequenceAwareSync
 
         Ok(())
     }
+}
 
+#[async_trait]
+impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCursor<T> {
     // TODO need to revisit
     async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
         // TODO: Fix ETA calculation

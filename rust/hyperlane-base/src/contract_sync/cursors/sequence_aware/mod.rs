@@ -3,7 +3,7 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractSyncCursor, ContractSyncCursorNew, CursorAction,
+    ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction,
     HyperlaneSequenceIndexerStore, IndexMode, LogMeta, SequenceAwareIndexer, Sequenced,
 };
 use std::ops::RangeInclusive;
@@ -114,9 +114,6 @@ impl<T: Sequenced> ForwardBackwardSequenceAwareSyncCursor<T> {
 #[async_trait]
 impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardBackwardSequenceAwareSyncCursor<T> {
     async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
-        self.forward.fast_forward().await?;
-        self.backward.fast_forward().await?;
-
         // TODO: Proper ETA for backwards sync
         let eta = Duration::from_secs(0);
         // Prioritize forward syncing over backward syncing.
@@ -129,44 +126,6 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardBackwardSequenceAwar
         if let Some(backward_range) = self.backward.get_next_range().await? {
             self.direction = SyncDirection::Backward;
             self.last_range = backward_range.clone();
-            return Ok((CursorAction::Query(backward_range), eta));
-        }
-        // TODO: Define the sleep time from interval flag
-        return Ok((CursorAction::Sleep(Duration::from_secs(5)), eta));
-    }
-
-    // TODO
-    fn latest_block(&self) -> u32 {
-        0
-    }
-
-    async fn update(&mut self, logs: Vec<(T, LogMeta)>) -> Result<()> {
-        match self.direction {
-            SyncDirection::Forward => self.forward.update(logs, self.last_range.clone()).await,
-            SyncDirection::Backward => self.backward.update(logs, self.last_range.clone()).await,
-        }
-    }
-}
-
-#[async_trait]
-impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for ForwardBackwardSequenceAwareSyncCursor<T> {
-    async fn fast_forward(&mut self) -> ChainResult<()> {
-        self.forward.fast_forward().await?;
-        self.backward.fast_forward().await?;
-        Ok(())
-    }
-
-    async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
-        // TODO: Proper ETA for backwards sync
-        let eta = Duration::from_secs(0);
-        // Prioritize forward syncing over backward syncing.
-        if let Some(forward_range) = self.forward.get_next_range().await? {
-            self.direction = SyncDirection::Forward;
-            return Ok((CursorAction::Query(forward_range), eta));
-        }
-
-        if let Some(backward_range) = self.backward.get_next_range().await? {
-            self.direction = SyncDirection::Backward;
             return Ok((CursorAction::Query(backward_range), eta));
         }
         // TODO: Define the sleep time from interval flag

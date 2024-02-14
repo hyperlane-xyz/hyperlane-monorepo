@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractSyncCursorNew, CursorAction,
+    ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction,
     HyperlaneSequenceIndexerStore, IndexMode, LogMeta, Sequenced,
 };
 use itertools::Itertools;
@@ -24,8 +24,11 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     synced: bool,
 }
 
-impl<T: Sequenced> BackwardSequenceAwareSyncCursor<T> {
+impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
     pub async fn get_next_range(&mut self) -> ChainResult<Option<RangeInclusive<u32>>> {
+        // Fast forward the cursor if necessary.
+        self.fast_forward().await?;
+
         if self.synced {
             return Ok(None);
         }
@@ -53,10 +56,7 @@ impl<T: Sequenced> BackwardSequenceAwareSyncCursor<T> {
             }
         })
     }
-}
 
-#[async_trait]
-impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for BackwardSequenceAwareSyncCursor<T> {
     async fn fast_forward(&mut self) -> ChainResult<()> {
         if self.synced {
             return Ok(());
@@ -102,7 +102,10 @@ impl<T: Sequenced + Debug> ContractSyncCursorNew<T> for BackwardSequenceAwareSyn
 
         Ok(())
     }
+}
 
+#[async_trait]
+impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCursor<T> {
     // TODO need to revisit
     async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
         // TODO: Fix ETA calculation

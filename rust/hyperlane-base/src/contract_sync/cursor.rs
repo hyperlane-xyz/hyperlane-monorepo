@@ -273,7 +273,7 @@ impl<T: Sequenced> ContractSyncCursor<T> for ForwardSequenceSyncCursor<T> {
     /// If the previous block has been synced, rewind to the block number
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
-    async fn update(&mut self, logs: Vec<(T, LogMeta)>) -> Result<()> {
+    async fn update(&mut self, logs: Vec<(T, LogMeta)>, _range: RangeInclusive<u32>) -> Result<()> {
         let prev_sequence = self.cursor.sync_state.next_sequence.saturating_sub(1);
         // We may wind up having re-indexed logs that are previous to the sequence that we are looking for.
         // We should not consider these logs when checking for continuity errors.
@@ -362,7 +362,7 @@ impl<T: Sequenced> BackwardSequenceSyncCursor<T> {
     /// If the previous block has been synced, rewind to the block number
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
-    async fn update(&mut self, logs: Vec<(T, LogMeta)>) -> Result<()> {
+    async fn update(&mut self, logs: Vec<(T, LogMeta)>, _range: RangeInclusive<u32>) -> Result<()> {
         let prev_sequence = self.cursor.sync_state.next_sequence.saturating_add(1);
         // We may wind up having re-indexed logs that are previous to the sequence that we are looking for.
         // We should not consider these logs when checking for continuity errors.
@@ -449,10 +449,10 @@ impl<T: Sequenced> ContractSyncCursor<T> for ForwardBackwardSequenceSyncCursor<T
         self.forward.cursor.sync_state.next_block.saturating_sub(1)
     }
 
-    async fn update(&mut self, logs: Vec<(T, LogMeta)>) -> Result<()> {
+    async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
         match self.direction {
-            SyncDirection::Forward => self.forward.update(logs).await,
-            SyncDirection::Backward => self.backward.update(logs).await,
+            SyncDirection::Forward => self.forward.update(logs, range).await,
+            SyncDirection::Backward => self.backward.update(logs, range).await,
         }
     }
 }
@@ -591,7 +591,7 @@ where
         self.sync_state.next_block.saturating_sub(1)
     }
 
-    async fn update(&mut self, _: Vec<(T, LogMeta)>) -> Result<()> {
+    async fn update(&mut self, _: Vec<(T, LogMeta)>, _range: RangeInclusive<u32>) -> Result<()> {
         // Store a relatively conservative view of the high watermark, which should allow a single watermark to be
         // safely shared across multiple cursors, so long as they are running sufficiently in sync
         self.db

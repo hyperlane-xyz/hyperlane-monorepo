@@ -17,24 +17,6 @@ pub trait ContractSyncCursor<T>: Send + Sync + 'static {
 
     /// Ingests the logs that were fetched from the chain, and adjusts the cursor
     /// accordingly.
-    async fn update(&mut self, logs: Vec<(T, LogMeta)>) -> eyre::Result<()>;
-}
-
-/// A cursor governs event indexing for a contract.
-#[async_trait]
-#[auto_impl(Box)]
-pub trait ContractSyncCursorNew<T>: Send + Sync + 'static {
-    /// Fast forwards the cursor, if needed, to prepare for the next action.
-    async fn fast_forward(&mut self) -> ChainResult<()>;
-
-    /// The next block range that should be queried.
-    async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)>;
-
-    /// The latest block that has been queried
-    fn latest_block(&self) -> u32;
-
-    /// Ingests the logs that were fetched from the chain, and adjusts the cursor
-    /// accordingly.
     async fn update(
         &mut self,
         logs: Vec<(T, LogMeta)>,
