@@ -211,7 +211,7 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
                 tokio::spawn(async move {
                     let event_log = self_clone
                         .indexer
-                        .get_event_log(block_number, Self::interchain_gas_payment_parser)
+                        .get_logs_in_block(block_number, Self::interchain_gas_payment_parser)
                         .await;
                     (event_log, block_number)
                 })

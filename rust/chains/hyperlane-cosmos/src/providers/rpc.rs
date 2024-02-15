@@ -18,8 +18,8 @@ pub trait WasmIndexer: Send + Sync {
     /// Get the finalized block height.
     async fn get_finalized_block_number(&self) -> ChainResult<u32>;
 
-    /// Get logs for the given range using the given parser.
-    async fn get_event_log<T>(
+    /// Get logs for the given block using the given parser.
+    async fn get_logs_in_block<T>(
         &self,
         block_number: u32,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
@@ -95,7 +95,6 @@ impl CosmosWasmIndexer {
         &self,
         block: BlockResponse,
         block_results: BlockResultsResponse,
-        block_number: u32,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
@@ -122,21 +121,15 @@ impl CosmosWasmIndexer {
             .into_iter()
             .enumerate()
             .filter_map(move |(idx, tx)| {
-                let tx_hash = tx_hashes.get(idx);
+                let Some(tx_hash) = tx_hashes.get(idx) else {
+                    debug!(?tx, "No tx hash found for tx");
+                    return None;
+                };
                 if tx.code.is_err() {
                     debug!(?tx_hash, "Not indexing failed transaction");
                     return None;
                 }
-                tx_hash.map(|tx_hash| {
-                    self.handle_tx(
-                        block.clone(),
-                        tx.events,
-                        *tx_hash,
-                        block_number,
-                        idx,
-                        parser,
-                    )
-                })
+                Some(self.handle_tx(block.clone(), tx.events, *tx_hash, idx, parser))
             })
             .flatten()
             .collect();
@@ -151,7 +144,6 @@ impl CosmosWasmIndexer {
         block: BlockResponse,
         tx_events: Vec<Event>,
         tx_hash: H256,
-        block_number: u32,
         transaction_index: usize,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> impl Iterator<Item = (T, LogMeta)> + '_
@@ -159,7 +151,7 @@ impl CosmosWasmIndexer {
         T: PartialEq + 'static,
     {
         tx_events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
-            if event.kind.as_str() != self.target_event_kind || !event.kind.as_str().starts_with(Self::WASM_TYPE) {
+            if event.kind.as_str() != self.target_event_kind {
                 return None;
             }
 
@@ -182,7 +174,7 @@ impl CosmosWasmIndexer {
 
                     Some((parsed_event.event, LogMeta {
                         address: self.contract_address.digest(),
-                        block_number: block_number as u64,
+                        block_number: block.block.header.height.into(),
                         block_hash: H256::from_slice(block.block_id.hash.as_bytes()),
                         transaction_id: H256::from_slice(tx_hash.as_bytes()).into(),
                         transaction_index: transaction_index as u64,
@@ -212,7 +204,7 @@ impl WasmIndexer for CosmosWasmIndexer {
     }
 
     #[instrument(err, skip(self, parser))]
-    async fn get_event_log<T>(
+    async fn get_logs_in_block<T>(
         &self,
         block_number: u32,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
@@ -229,6 +221,6 @@ impl WasmIndexer for CosmosWasmIndexer {
         let block = block_res.map_err(ChainCommunicationError::from_other)?;
         let block_results = block_results_res.map_err(ChainCommunicationError::from_other)?;
 
-        self.handle_txs(block, block_results, block_number, parser)
+        self.handle_txs(block, block_results, parser)
     }
 }
