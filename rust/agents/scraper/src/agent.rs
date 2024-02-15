@@ -2,9 +2,10 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use derive_more::AsRef;
+use futures::future::try_join_all;
 use hyperlane_base::{
-    metrics::AgentMetrics, run_all, server::Server, settings::IndexSettings, BaseAgent,
-    ChainMetrics, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
+    metrics::AgentMetrics, settings::IndexSettings, BaseAgent, ChainMetrics, ContractSyncMetrics,
+    CoreMetrics, HyperlaneAgentCore, MetricsUpdater, server::Server,
 };
 use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
 use num_traits::cast::FromPrimitive;
@@ -95,16 +96,12 @@ impl BaseAgent for Scraper {
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(self) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+    async fn run(self) {
         let mut tasks = Vec::with_capacity(self.scrapers.len());
 
         // running http server
         let server = self.server.clone();
-        let server_task = tokio::spawn(async move {
-            server.run(vec![]);
-            Ok(())
-        })
-        .instrument(info_span!("Relayer server"));
+        let server_task = server.run(vec![]).instrument(info_span!("Relayer server"));
         tasks.push(server_task);
 
         for domain in self.scrapers.keys() {
@@ -123,14 +120,16 @@ impl BaseAgent for Scraper {
             .unwrap();
             tasks.push(metrics_updater.spawn());
         }
-        run_all(tasks)
+        if let Err(err) = try_join_all(tasks).await {
+            tracing::error!(error = ?err, "Scraper task panicked");
+        }
     }
 }
 
 impl Scraper {
     /// Sync contract data and other blockchain with the current chain state.
     /// This will spawn long-running contract sync tasks
-    async fn scrape(&self, domain_id: u32) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+    async fn scrape(&self, domain_id: u32) -> Instrumented<JoinHandle<()>> {
         let scraper = self.scrapers.get(&domain_id).unwrap();
         let db = scraper.db.clone();
         let index_settings = scraper.index_settings.clone();
@@ -167,7 +166,12 @@ impl Scraper {
             )
             .await,
         );
-        run_all(tasks)
+
+        tokio::spawn(async move {
+            // If any of the tasks panic, we want to propagate it, so we unwrap
+            try_join_all(tasks).await.unwrap();
+        })
+        .instrument(info_span!("Scraper Tasks"))
     }
 }
 
@@ -181,7 +185,7 @@ macro_rules! spawn_sync_task {
             contract_sync_metrics: Arc<ContractSyncMetrics>,
             db: HyperlaneSqlDb,
             index_settings: IndexSettings,
-        ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+        ) -> Instrumented<JoinHandle<()>> {
             let sync = self
                 .as_ref()
                 .settings
@@ -205,6 +209,7 @@ macro_rules! spawn_sync_task {
         }
     }
 }
+
 impl Scraper {
     async fn build_message_indexer(
         &self,
@@ -213,7 +218,7 @@ impl Scraper {
         contract_sync_metrics: Arc<ContractSyncMetrics>,
         db: HyperlaneSqlDb,
         index_settings: IndexSettings,
-    ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+    ) -> Instrumented<JoinHandle<()>> {
         let sync = self
             .as_ref()
             .settings
