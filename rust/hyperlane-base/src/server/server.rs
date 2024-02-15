@@ -86,7 +86,12 @@ mod tests {
             Arc::new(CoreMetrics::new("test", 8080, mock_registry).unwrap()),
         );
         let server = Arc::new(server);
-        let _run_server = server.run(vec![]).await;
+        // Run the server in the background
+        let _server_task = tokio::spawn(async move {
+            if let Err(err) = server.run(vec![]).await {
+                eprintln!("Failed to run server: {}", err);
+            }
+        });
 
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
