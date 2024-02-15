@@ -218,8 +218,14 @@ impl WasmIndexer for CosmosWasmIndexer {
             client.block(block_number),
             client.block_results(block_number)
         );
-        println!("~~~ got block response for height {}: {:?}", block_number, block_res);
-        println!("~~~ got block_results response for height {}: {:?}", block_number, block_results_res);
+        println!(
+            "~~~ got block response for height {}: {:?}",
+            block_number, block_res
+        );
+        println!(
+            "~~~ got block_results response for height {}: {:?}",
+            block_number, block_results_res
+        );
         let block = block_res.map_err(ChainCommunicationError::from_other)?;
         let block_results = block_results_res.map_err(ChainCommunicationError::from_other)?;
 
