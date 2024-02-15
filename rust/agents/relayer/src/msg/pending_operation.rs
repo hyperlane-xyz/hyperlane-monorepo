@@ -2,7 +2,6 @@ use std::{cmp::Ordering, time::Instant};
 
 use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
-use eyre::Report;
 use hyperlane_core::HyperlaneDomain;
 
 #[allow(unused_imports)] // required for enum_dispatch
@@ -110,9 +109,6 @@ pub enum PendingOperationResult {
     Reprepare,
     /// Do not attempt to run the operation again, forget about it
     Drop,
-    /// Pass the error up the chain, this is non-recoverable and indicates a
-    /// system failure.
-    CriticalFailure(Report),
 }
 
 /// create a `op_try!` macro for the `on_retry` handler.
@@ -121,30 +117,27 @@ macro_rules! make_op_try {
         /// Handle a result and either return early with retry or a critical failure on
         /// error.
         macro_rules! op_try {
-                                        (critical: $e:expr, $ctx:literal) => {
-                                            match $e {
-                                                Ok(v) => v,
-                                                Err(e) => {
-                                                    error!(error=?e, concat!("Error when ", $ctx));
-                                                    return PendingOperationResult::CriticalFailure(
-                                                        Err::<(), _>(e)
-                                                            .context(concat!("When ", $ctx))
-                                                            .unwrap_err()
-                                                    );
-                                                }
-                                            }
-                                        };
-                                        ($e:expr, $ctx:literal) => {
-                                            match $e {
-                                                Ok(v) => v,
-                                                Err(e) => {
-                                                    warn!(error=?e, concat!("Error when ", $ctx));
-                                                    #[allow(clippy::redundant_closure_call)]
-                                                    return $on_retry();
-                                                }
-                                            }
-                                        };
+                            (critical: $e:expr, $ctx:literal) => {
+                                match $e {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        error!(error=?e, concat!("Critical error when ", $ctx));
+                                        #[allow(clippy::redundant_closure_call)]
+                                        return $on_retry();
                                     }
+                                }
+                            };
+                            ($e:expr, $ctx:literal) => {
+                                match $e {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        warn!(error=?e, concat!("Error when ", $ctx));
+                                        #[allow(clippy::redundant_closure_call)]
+                                        return $on_retry();
+                                    }
+                                }
+                            };
+                        }
     };
 }
 
