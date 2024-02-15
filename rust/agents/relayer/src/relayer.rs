@@ -11,10 +11,10 @@ use futures_util::future::try_join_all;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
+    server::Server,
     settings::ChainConf,
     BaseAgent, ChainMetrics, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     SequencedDataContractSync, WatermarkContractSync,
-    server::Server,
 };
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, U256,

@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use futures::future::try_join_all;
 use hyperlane_base::{
-    metrics::AgentMetrics, settings::IndexSettings, BaseAgent, ChainMetrics, ContractSyncMetrics,
-    CoreMetrics, HyperlaneAgentCore, MetricsUpdater, server::Server,
+    metrics::AgentMetrics, server::Server, settings::IndexSettings, BaseAgent, ChainMetrics,
+    ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
 };
 use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
 use num_traits::cast::FromPrimitive;

@@ -12,10 +12,10 @@ use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
+    server::Server,
     settings::ChainConf,
     BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
     HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
-    server::Server,
 };
 
 use hyperlane_core::{
