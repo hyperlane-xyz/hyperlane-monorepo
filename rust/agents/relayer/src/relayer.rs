@@ -398,17 +398,7 @@ impl Relayer {
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
         let processor = Processor::new(Box::new(message_processor));
 
-        let origin = origin.clone();
-        tokio::spawn(async move {
-            // Propagate task panics
-            processor.spawn().await.unwrap_or_else(|err| {
-                panic!(
-                    "message processor panicked for origin {}: {:?}",
-                    origin, err
-                )
-            });
-        })
-        .instrument(span)
+        processor.spawn().instrument(span)
     }
 
     fn run_merkle_tree_processor(&self, origin: &HyperlaneDomain) -> Instrumented<JoinHandle<()>> {
@@ -421,17 +411,7 @@ impl Relayer {
 
         let span = info_span!("MerkleTreeProcessor", origin=%merkle_tree_processor.domain());
         let processor = Processor::new(Box::new(merkle_tree_processor));
-        let origin = origin.clone();
-        tokio::spawn(async move {
-            // Propagate task panics
-            processor.spawn().await.unwrap_or_else(|err| {
-                panic!(
-                    "merkle tree processor panicked for origin {}: {:?}",
-                    origin, err
-                )
-            });
-        })
-        .instrument(span)
+        processor.spawn().instrument(span)
     }
 
     #[allow(clippy::too_many_arguments)]
