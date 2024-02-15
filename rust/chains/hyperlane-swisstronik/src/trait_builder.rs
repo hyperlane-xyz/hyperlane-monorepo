@@ -2,20 +2,16 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use ethers::middleware::gas_oracle::{
-    GasOracle, GasOracleMiddleware, ProviderOracle,
-};
+use ethers::middleware::gas_oracle::{GasOracle, GasOracleMiddleware, ProviderOracle};
 use ethers::prelude::{
-    Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider,
-    SignerMiddleware, Ws, WsClientError,
+    Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, SignerMiddleware, Ws,
+    WsClientError,
 };
 
 use reqwest::Client;
 use thiserror::Error;
 
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain,
-};
+use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain};
 
 use crate::{signers::Signers, ConnectionConf, RetryingProvider};
 
@@ -62,8 +58,7 @@ pub trait BuildableWithProvider {
                     .map_err(EthereumProviderConnectionError::from)?;
                 let http_provider = Http::new_with_client(url.clone(), http_client);
                 let retrying_http_provider = RetryingProvider::new(http_provider, None, None);
-                self.build(retrying_http_provider, locator, signer)
-                    .await?
+                self.build(retrying_http_provider, locator, signer).await?
             }
             ConnectionConf::Ws { url } => {
                 let ws = Ws::connect(url)

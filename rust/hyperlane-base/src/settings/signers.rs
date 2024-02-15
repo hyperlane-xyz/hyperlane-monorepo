@@ -99,12 +99,16 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
 impl BuildableWithSignerConf for hyperlane_swisstronik::Signers {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         Ok(match conf {
-            SignerConf::HexKey { key } => hyperlane_swisstronik::Signers::Local(hyperlane_swisstronik::ethers::prelude::LocalWallet::from(
-                hyperlane_swisstronik::ethers::core::k256::ecdsa::SigningKey::from(
-                    hyperlane_swisstronik::ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())
+            SignerConf::HexKey { key } => hyperlane_swisstronik::Signers::Local(
+                hyperlane_swisstronik::ethers::prelude::LocalWallet::from(
+                    hyperlane_swisstronik::ethers::core::k256::ecdsa::SigningKey::from(
+                        hyperlane_swisstronik::ethers::core::k256::SecretKey::from_be_bytes(
+                            key.as_bytes(),
+                        )
                         .context("Invalid swisstronik signer key")?,
+                    ),
                 ),
-            )),
+            ),
             SignerConf::Aws { id, region } => {
                 let mut config = HttpConfig::new();
                 // see https://github.com/hyperium/hyper/issues/2136#issuecomment-589345238
@@ -117,7 +121,8 @@ impl BuildableWithSignerConf for hyperlane_swisstronik::Signers {
                     region.clone(),
                 );
 
-                let signer = hyperlane_swisstronik::ethers::prelude::AwsSigner::new(client, id, 0).await?;
+                let signer =
+                    hyperlane_swisstronik::ethers::prelude::AwsSigner::new(client, id, 0).await?;
                 hyperlane_swisstronik::Signers::Aws(signer)
             }
             SignerConf::CosmosKey { .. } => {
@@ -127,7 +132,6 @@ impl BuildableWithSignerConf for hyperlane_swisstronik::Signers {
         })
     }
 }
-
 
 impl ChainSigner for hyperlane_ethereum::Signers {
     fn address_string(&self) -> String {

@@ -217,8 +217,8 @@ impl From<ethers_providers::ProviderError> for ChainCommunicationError {
 }
 
 #[cfg(feature = "swisstronik")]
-impl<T: swisstronik_ethers_providers::Middleware + 'static> From<swisstronik_ethers_contract::ContractError<T>>
-for ChainCommunicationError
+impl<T: swisstronik_ethers_providers::Middleware + 'static>
+    From<swisstronik_ethers_contract::ContractError<T>> for ChainCommunicationError
 {
     fn from(err: swisstronik_ethers_contract::ContractError<T>) -> Self {
         Self::ContractError(HyperlaneCustomErrorWrapper(Box::new(err)))

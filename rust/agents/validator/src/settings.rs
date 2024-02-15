@@ -129,7 +129,9 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
 
         let mut base: Settings = base;
         // If the origin chain is an EVM chain, then we can use the validator as the signer if needed.
-        if origin_chain.domain_protocol() == HyperlaneDomainProtocol::Ethereum || origin_chain.domain_protocol() == HyperlaneDomainProtocol::Swisstronik {
+        if origin_chain.domain_protocol() == HyperlaneDomainProtocol::Ethereum
+            || origin_chain.domain_protocol() == HyperlaneDomainProtocol::Swisstronik
+        {
             if let Some(origin) = base.chains.get_mut(origin_chain.name()) {
                 origin.signer.get_or_insert_with(|| validator.clone());
             }

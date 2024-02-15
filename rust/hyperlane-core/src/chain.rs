@@ -185,8 +185,7 @@ impl HyperlaneDomainProtocol {
     pub fn fmt_address(&self, addr: H256) -> String {
         use HyperlaneDomainProtocol::*;
         match self {
-            Ethereum |
-            Swisstronik => format!("{:?}", H160::from(addr)),
+            Ethereum | Swisstronik => format!("{:?}", H160::from(addr)),
             Fuel => format!("{:?}", addr),
             Sealevel => format!("{:?}", addr),
             Cosmos => format!("{:?}", addr),

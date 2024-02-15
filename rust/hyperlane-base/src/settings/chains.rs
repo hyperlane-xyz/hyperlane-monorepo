@@ -20,7 +20,7 @@ use hyperlane_ethereum::{
 use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
 use hyperlane_swisstronik::{
-    self as h_swisstronik, BuildableWithProvider as SwisstronikBuildableWithProvider
+    self as h_swisstronik, BuildableWithProvider as SwisstronikBuildableWithProvider,
 };
 
 use crate::{
@@ -432,7 +432,7 @@ impl ChainConf {
                     },
                 )
                 .await
-            },
+            }
             ChainConnectionConf::Swisstronik(conf) => {
                 self.build_swisstronik(
                     conf,
@@ -442,7 +442,7 @@ impl ChainConf {
                     },
                 )
                 .await
-            },
+            }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let mailbox_indexer =
@@ -478,11 +478,11 @@ impl ChainConf {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::ValidatorAnnounceBuilder {})
                     .await
-            },
+            }
             ChainConnectionConf::Swisstronik(conf) => {
                 self.build_swisstronik(conf, &locator, h_swisstronik::ValidatorAnnounceBuilder {})
                     .await
-            },
+            }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(conf, locator));
@@ -566,7 +566,7 @@ impl ChainConf {
             ChainConnectionConf::Swisstronik(conf) => {
                 self.build_swisstronik(conf, &locator, h_swisstronik::MultisigIsmBuilder {})
                     .await
-            },
+            }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
@@ -602,11 +602,11 @@ impl ChainConf {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::RoutingIsmBuilder {})
                     .await
-            },
+            }
             ChainConnectionConf::Swisstronik(conf) => {
                 self.build_swisstronik(conf, &locator, h_swisstronik::RoutingIsmBuilder {})
                     .await
-            },
+            }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support routing ISM yet")).context(ctx)
@@ -640,11 +640,11 @@ impl ChainConf {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::AggregationIsmBuilder {})
                     .await
-            },
+            }
             ChainConnectionConf::Swisstronik(conf) => {
                 self.build_swisstronik(conf, &locator, h_swisstronik::AggregationIsmBuilder {})
                     .await
-            },
+            }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support aggregation ISM yet")).context(ctx)
@@ -679,7 +679,7 @@ impl ChainConf {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::CcipReadIsmBuilder {})
                     .await
-            },
+            }
             ChainConnectionConf::Swisstronik(conf) => {
                 self.build_swisstronik(conf, &locator, h_swisstronik::CcipReadIsmBuilder {})
                     .await
@@ -708,7 +708,9 @@ impl ChainConf {
         if let Some(conf) = &self.signer {
             let chain_signer: Box<dyn ChainSigner> = match &self.connection {
                 ChainConnectionConf::Ethereum(_) => Box::new(conf.build::<h_eth::Signers>().await?),
-                ChainConnectionConf::Swisstronik(_) => Box::new(conf.build::<h_swisstronik::Signers>().await?),
+                ChainConnectionConf::Swisstronik(_) => {
+                    Box::new(conf.build::<h_swisstronik::Signers>().await?)
+                }
                 ChainConnectionConf::Fuel(_) => {
                     Box::new(conf.build::<fuels::prelude::WalletUnlocked>().await?)
                 }
@@ -833,9 +835,9 @@ impl ChainConf {
         &self,
         conf: &h_swisstronik::ConnectionConf,
         locator: &ContractLocator<'_>,
-        builder: B
-    ) -> Result<B::Output> 
-    where 
+        builder: B,
+    ) -> Result<B::Output>
+    where
         B: SwisstronikBuildableWithProvider + Sync,
     {
         let signer = self.swisstronik_signer().await?;
