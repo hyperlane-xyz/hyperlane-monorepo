@@ -205,7 +205,7 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
             .map(|(log, _)| log.sequence())
             .collect::<HashSet<_>>();
 
-        Ok(match &self.index_mode {
+        match &self.index_mode {
             IndexMode::Sequence => {
                 // We require that we've gotten all sequences in the range.
                 let expected_sequences = range.clone().collect::<HashSet<_>>();
@@ -310,7 +310,8 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
                     return Ok(());
                 }
             }
-        })
+        };
+        Ok(())
     }
 }
 

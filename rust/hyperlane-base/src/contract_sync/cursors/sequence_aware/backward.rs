@@ -1,4 +1,4 @@
-//! yo dog
+//! A sequence-aware cursor that syncs backwards until there are no earlier logs to index.
 
 use std::{collections::HashSet, fmt::Debug, ops::RangeInclusive, sync::Arc, time::Duration};
 
@@ -162,7 +162,7 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCu
             .map(|(log, _)| log.sequence())
             .collect::<HashSet<_>>();
 
-        Ok(match &self.index_mode {
+        match &self.index_mode {
             IndexMode::Sequence => {
                 // We require that we've gotten all sequences in the range.
                 let expected_sequences = range.clone().collect::<HashSet<_>>();
@@ -248,7 +248,9 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCu
                     };
                 }
             }
-        })
+        }
+
+        Ok(())
     }
 }
 

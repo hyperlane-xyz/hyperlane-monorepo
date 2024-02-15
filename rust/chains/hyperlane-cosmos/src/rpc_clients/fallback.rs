@@ -41,7 +41,7 @@ mod tests {
 
     use super::*;
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Default)]
     struct CosmosProviderMock(ProviderMock);
 
     impl Deref for CosmosProviderMock {
@@ -49,12 +49,6 @@ mod tests {
 
         fn deref(&self) -> &Self::Target {
             &self.0
-        }
-    }
-
-    impl Default for CosmosProviderMock {
-        fn default() -> Self {
-            Self(ProviderMock::default())
         }
     }
 
@@ -71,9 +65,9 @@ mod tests {
         }
     }
 
-    impl Into<Box<dyn BlockNumberGetter>> for CosmosProviderMock {
-        fn into(self) -> Box<dyn BlockNumberGetter> {
-            Box::new(self)
+    impl From<CosmosProviderMock> for Box<dyn BlockNumberGetter> {
+        fn from(val: CosmosProviderMock) -> Self {
+            Box::new(val)
         }
     }
 
