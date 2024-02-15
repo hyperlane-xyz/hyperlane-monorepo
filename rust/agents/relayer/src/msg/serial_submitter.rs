@@ -74,7 +74,7 @@ pub struct SerialSubmitter {
     /// Domain this submitter delivers to.
     domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
-    rx: Arc<Mutex<mpsc::UnboundedReceiver<Box<DynPendingOperation>>>>,
+    rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
 }
@@ -128,10 +128,10 @@ impl SerialSubmitter {
         ];
 
         if let Err(err) = try_join_all(tasks).await {
-            panic!(
-                "SerialSubmitter task panicked for domain {}: {:?}",
-                domain.clone(),
-                err
+            tracing::error!(
+                error=?err,
+                ?domain,
+                "SerialSubmitter task panicked for domain"
             );
         }
     }
@@ -140,11 +140,11 @@ impl SerialSubmitter {
 #[instrument(skip_all, fields(%domain))]
 async fn receive_task(
     domain: HyperlaneDomain,
-    rx: Arc<Mutex<mpsc::UnboundedReceiver<Box<DynPendingOperation>>>>,
+    mut rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
     prepare_queue: OpQueue,
 ) {
     // Pull any messages sent to this submitter
-    while let Some(op) = rx.lock().await.recv().await {
+    while let Some(op) = rx.recv().await {
         trace!(?op, "Received new operation");
         // make sure things are getting wired up correctly; if this works in testing it
         // should also be valid in production.

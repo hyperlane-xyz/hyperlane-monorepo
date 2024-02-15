@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use derive_more::AsRef;
-use futures::future::join_all;
+use futures::future::try_join_all;
 use hyperlane_base::{
     metrics::AgentMetrics, settings::IndexSettings, BaseAgent, ChainMetrics, ContractSyncMetrics,
     CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
@@ -110,7 +110,9 @@ impl BaseAgent for Scraper {
             .unwrap();
             tasks.push(metrics_updater.spawn());
         }
-        join_all(tasks).await;
+        if let Err(err) = try_join_all(tasks).await {
+            tracing::error!(error = ?err, "Scraper task panicked");
+        }
     }
 }
 
@@ -156,7 +158,8 @@ impl Scraper {
         );
 
         tokio::spawn(async move {
-            join_all(tasks).await;
+            // If any of the tasks panic, we want to propagate it, so we unwrap
+            try_join_all(tasks).await.unwrap();
         })
         .instrument(info_span!("Scraper Tasks"))
     }

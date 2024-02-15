@@ -4,13 +4,13 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
 
+use futures_util::future::try_join_all;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
-    run_all,
     settings::ChainConf,
     BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
     HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
@@ -183,14 +183,8 @@ impl BaseAgent for Validator {
             }
         }
 
-        if let Err(err) = run_all(tasks)
-            .await
-            .expect("One of the validator tasks panicked")
-        {
-            error!(
-                ?err,
-                "One of the validator tasks returned an error. Shutting down."
-            );
+        if let Err(err) = try_join_all(tasks).await {
+            error!(?err, "One of the validator tasks returned an error");
         }
     }
 }

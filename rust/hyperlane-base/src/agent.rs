@@ -1,11 +1,8 @@
 use std::{env, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use eyre::{Report, Result};
-use futures_util::future::select_all;
+use eyre::Result;
 use hyperlane_core::config::*;
-use tokio::task::JoinHandle;
-use tracing::{debug_span, instrument::Instrumented, Instrument};
 
 use crate::{
     create_chain_metrics,
@@ -86,25 +83,4 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     // This await will never end unless a panic occurs
     agent.run().await;
     Ok(())
-}
-
-/// Utility to run multiple tasks and shutdown if any one task ends.
-#[allow(clippy::unit_arg, unused_must_use)]
-pub fn run_all(
-    tasks: Vec<Instrumented<JoinHandle<Result<(), Report>>>>,
-) -> Instrumented<JoinHandle<Result<()>>> {
-    debug_assert!(!tasks.is_empty(), "No tasks submitted");
-    let span = debug_span!("run_all");
-    tokio::spawn(async move {
-        let (res, _, remaining) = select_all(tasks).await;
-
-        for task in remaining.into_iter() {
-            let t = task.into_inner();
-            t.abort();
-            t.await;
-        }
-
-        res?
-    })
-    .instrument(span)
 }

@@ -7,7 +7,7 @@ use std::{
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
-use futures_util::future::join_all;
+use futures_util::future::try_join_all;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
@@ -21,7 +21,7 @@ use hyperlane_core::{
 use tokio::{
     sync::{
         mpsc::{self, UnboundedReceiver, UnboundedSender},
-        Mutex, RwLock,
+        RwLock,
     },
     task::JoinHandle,
 };
@@ -281,7 +281,6 @@ impl BaseAgent for Relayer {
                 mpsc::unbounded_channel::<Box<DynPendingOperation>>();
             send_channels.insert(dest_domain.id(), send_channel);
 
-            let receive_channel = Arc::new(Mutex::new(receive_channel));
             tasks.push(self.run_destination_submitter(dest_domain, receive_channel));
 
             let metrics_updater = MetricsUpdater::new(
@@ -308,7 +307,12 @@ impl BaseAgent for Relayer {
             tasks.push(self.run_merkle_tree_processor(origin));
         }
 
-        join_all(tasks).await;
+        if let Err(err) = try_join_all(tasks).await {
+            tracing::error!(
+                error=?err,
+                "Relayer task panicked"
+            );
+        }
     }
 }
 
@@ -435,7 +439,7 @@ impl Relayer {
     fn run_destination_submitter(
         &self,
         destination: &HyperlaneDomain,
-        receiver: Arc<Mutex<UnboundedReceiver<Box<DynPendingOperation>>>>,
+        receiver: UnboundedReceiver<Box<DynPendingOperation>>,
     ) -> Instrumented<JoinHandle<()>> {
         let serial_submitter = SerialSubmitter::new(
             destination.clone(),
