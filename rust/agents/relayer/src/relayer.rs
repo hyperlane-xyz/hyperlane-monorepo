@@ -11,6 +11,7 @@ use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
     run_all,
+    server::Server,
     settings::ChainConf,
     BaseAgent, ChainMetrics, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     SequencedDataContractSync, WatermarkContractSync,
@@ -75,6 +76,7 @@ pub struct Relayer {
     // or move them in `core_metrics`, like the validator metrics
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
+    server: Arc<Server>,
 }
 
 impl Debug for Relayer {
@@ -156,6 +158,8 @@ impl BaseAgent for Relayer {
                     .collect(),
             )
             .await?;
+
+        let server = settings.server(core_metrics.clone())?;
 
         let whitelist = Arc::new(settings.whitelist);
         let blacklist = Arc::new(settings.blacklist);
@@ -264,12 +268,22 @@ impl BaseAgent for Relayer {
             core_metrics,
             agent_metrics,
             chain_metrics,
+            server,
         })
     }
 
     #[allow(clippy::async_yields_async)]
     async fn run(self) -> Instrumented<JoinHandle<Result<()>>> {
         let mut tasks = vec![];
+
+        // running http server
+        let server = self.server.clone();
+        let server_task = tokio::spawn(async move {
+            server.run(vec![]);
+            Ok(())
+        })
+        .instrument(info_span!("Relayer server"));
+        tasks.push(server_task);
 
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());

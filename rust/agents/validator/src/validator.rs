@@ -49,10 +49,10 @@ pub struct Validator {
     reorg_period: u64,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
-    server: Arc<Server>,
     core_metrics: Arc<CoreMetrics>,
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
+    server: Arc<Server>,
 }
 
 #[async_trait]
@@ -125,10 +125,10 @@ impl BaseAgent for Validator {
             reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
-            server,
             agent_metrics,
             chain_metrics,
             core_metrics: metrics,
+            server,
         })
     }
 
@@ -145,7 +145,7 @@ impl BaseAgent for Validator {
             server.run(routes);
             Ok(())
         })
-        .instrument(info_span!("Server"));
+        .instrument(info_span!("Validator server"));
         tasks.push(server_task);
 
         if let Some(signer_instance) = self.signer_instance.take() {

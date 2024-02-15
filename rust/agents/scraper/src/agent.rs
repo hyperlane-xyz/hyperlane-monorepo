@@ -3,8 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use derive_more::AsRef;
 use hyperlane_base::{
-    metrics::AgentMetrics, run_all, settings::IndexSettings, BaseAgent, ChainMetrics,
-    ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
+    metrics::AgentMetrics, run_all, server::Server, settings::IndexSettings, BaseAgent,
+    ChainMetrics, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
 };
 use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
 use num_traits::cast::FromPrimitive;
@@ -25,6 +25,7 @@ pub struct Scraper {
     core_metrics: Arc<CoreMetrics>,
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
+    server: Arc<Server>,
 }
 
 #[derive(Debug)]
@@ -77,6 +78,8 @@ impl BaseAgent for Scraper {
             );
         }
 
+        let server = settings.server(metrics.clone())?;
+
         trace!(domain_count = scrapers.len(), "Created scrapers");
 
         Ok(Self {
@@ -87,12 +90,23 @@ impl BaseAgent for Scraper {
             core_metrics: metrics,
             agent_metrics,
             chain_metrics,
+            server,
         })
     }
 
     #[allow(clippy::async_yields_async)]
     async fn run(self) -> Instrumented<JoinHandle<eyre::Result<()>>> {
         let mut tasks = Vec::with_capacity(self.scrapers.len());
+
+        // running http server
+        let server = self.server.clone();
+        let server_task = tokio::spawn(async move {
+            server.run(vec![]);
+            Ok(())
+        })
+        .instrument(info_span!("Relayer server"));
+        tasks.push(server_task);
+
         for domain in self.scrapers.keys() {
             tasks.push(self.scrape(*domain).await);
 
