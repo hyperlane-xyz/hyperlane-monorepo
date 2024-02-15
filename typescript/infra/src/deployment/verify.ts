@@ -1,33 +1,17 @@
-import { ChainMap } from '@hyperlane-xyz/sdk';
+import { BuildArtifact, ChainMap } from '@hyperlane-xyz/sdk';
 
 import { fetchGCPSecret } from '../utils/gcloud';
 import { readJSONAtPath } from '../utils/utils';
 
-// extract input json & compiler version from build artifact json
-export function extractSource(buildArtifact: string): {
-  source: string;
-  compilerversion: string;
-} {
+// read build artifact from given path
+export function extractBuildArtifact(buildArtifactPath: string): BuildArtifact {
   // check provided artifact is JSON
-  const sourcePath = buildArtifact;
-  if (!sourcePath.endsWith('.json')) {
+  if (!buildArtifactPath.endsWith('.json')) {
     throw new Error('Source must be a JSON file.');
   }
 
-  // parse build artifacts for std input json + solc version
-  const buildArtifactJson = readJSONAtPath(sourcePath);
-  const source = JSON.stringify(buildArtifactJson.input);
-  const solcLongVersion = buildArtifactJson.solcLongVersion;
-  const compilerversion = `v${solcLongVersion}`;
-
-  // check solc version is in the right format
-  const versionRegex = /v(\d.\d.\d+)\+commit.\w+/;
-  const matches = versionRegex.exec(compilerversion);
-  if (!matches) {
-    throw new Error(`Invalid compiler version ${compilerversion}`);
-  }
-
-  return { source, compilerversion };
+  // return as BuildArtifact
+  return readJSONAtPath(buildArtifactPath) as BuildArtifact;
 }
 
 // fetch explorer API keys from GCP

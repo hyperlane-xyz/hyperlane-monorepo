@@ -134,11 +134,11 @@ export function withMissingChains<T>(args: yargs.Argv<T>) {
     .alias('n', 'newChains');
 }
 
-export function withBuildArtifact<T>(args: yargs.Argv<T>) {
+export function withBuildArtifactPath<T>(args: yargs.Argv<T>) {
   return args
-    .describe('buildArtifact', 'path to hardhat build artifact')
-    .string('buildArtifact')
-    .alias('b', 'buildArtifact');
+    .describe('buildArtifactPath', 'path to hardhat build artifact')
+    .string('buildArtifactPath')
+    .alias('b', 'buildArtifactPath');
 }
 
 export function assertEnvironment(env: string): DeployEnvironment {

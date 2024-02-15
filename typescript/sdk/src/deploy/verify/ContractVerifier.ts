@@ -9,12 +9,12 @@ import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
 
 import {
+  BuildArtifact,
   CompilerOptions,
   ContractVerificationInput,
   ExplorerApiActions,
   ExplorerApiErrors,
   FormOptions,
-  SolidityStandardJsonInput,
 } from './types';
 
 export class ContractVerifier {
@@ -22,25 +22,38 @@ export class ContractVerifier {
 
   private contractMap: { [contractName: string]: string } = {};
 
+  protected readonly standardInputJson: string;
   protected readonly compilerOptions: CompilerOptions;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly apiKeys: ChainMap<string>,
-    protected readonly source: string, // solidity standard input json
-    compilerOptions: Partial<Omit<CompilerOptions, 'codeformat'>>,
+    buildArtifact: BuildArtifact,
+    licenseType: CompilerOptions['licenseType'],
   ) {
+    // Extract the standard input json and compiler version from the build artifact
+    this.standardInputJson = JSON.stringify(buildArtifact.input);
+    const compilerversion = `v${buildArtifact.solcLongVersion}`;
+
+    // double check compiler version matches expected format
+    const versionRegex = /v(\d.\d.\d+)\+commit.\w+/;
+    const matches = versionRegex.exec(compilerversion);
+    if (!matches) {
+      throw new Error(`Invalid compiler version ${compilerversion}`);
+    }
+
+    // set compiler options
+    // only license type is configurable, empty if not provided
     this.compilerOptions = {
       codeformat: 'solidity-standard-json-input',
-      compilerversion:
-        compilerOptions?.compilerversion ?? 'v0.8.19+commit.7dd6d404',
-      licenseType: compilerOptions?.licenseType,
+      compilerversion,
+      licenseType,
     };
 
-    const stdInputJson: SolidityStandardJsonInput = JSON.parse(this.source);
+    // process input to create mapping of contract names to source names
+    // this is required to construct the fully qualified contract name
     const contractRegex = /contract\s+([A-Z][a-zA-Z0-9]*)/g;
-
-    Object.entries(stdInputJson.sources).forEach(
+    Object.entries(buildArtifact.input.sources).forEach(
       ([sourceName, { content }]) => {
         const matches = content.matchAll(contractRegex);
         for (const match of matches) {
@@ -223,7 +236,7 @@ export class ContractVerifier {
     }
 
     const data = {
-      sourceCode: this.source,
+      sourceCode: this.standardInputJson,
       contractname: `${sourceName}:${input.name}`,
       contractaddress: input.address,
       // TYPO IS ENFORCED BY API
@@ -258,6 +271,22 @@ export class ContractVerifier {
     logger = this.logger,
   ): Promise<void> {
     const verificationLogger = logger.extend(`${chain}:${input.name}`);
+
+    const explorerApi = this.multiProvider.tryGetExplorerApi(chain);
+    if (!explorerApi) {
+      verificationLogger('No explorer API set, skipping');
+      return;
+    }
+
+    if (!explorerApi.family) {
+      verificationLogger(`No explorer family set, skipping`);
+      return;
+    }
+
+    if (explorerApi.family === ExplorerFamily.Other) {
+      verificationLogger(`Unsupported explorer family, skipping`);
+      return;
+    }
 
     if (input.address === ethers.constants.AddressZero) return;
     if (Array.isArray(input.constructorArguments)) {

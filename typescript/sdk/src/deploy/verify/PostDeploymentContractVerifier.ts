@@ -6,7 +6,7 @@ import { ChainMap } from '../../types';
 import { MultiGeneric } from '../../utils/MultiGeneric';
 
 import { ContractVerifier } from './ContractVerifier';
-import { CompilerOptions, VerificationInput } from './types';
+import { BuildArtifact, CompilerOptions, VerificationInput } from './types';
 
 export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInput> {
   protected logger = debug('hyperlane:PostDeploymentContractVerifier');
@@ -16,21 +16,22 @@ export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInp
     verificationInputs: ChainMap<VerificationInput>,
     private multiProvider: MultiProvider,
     apiKeys: ChainMap<string>,
-    source: string, // solidity standard input json
-    compilerOptions: Partial<Omit<CompilerOptions, 'codeformat'>>,
+    buildArtifact: BuildArtifact,
+    licenseType: CompilerOptions['licenseType'],
   ) {
     super(verificationInputs);
     this.contractVerifier = new ContractVerifier(
       multiProvider,
       apiKeys,
-      source,
-      compilerOptions,
+      buildArtifact,
+      licenseType,
     );
   }
 
   verify(targets = this.chains()): Promise<PromiseSettledResult<void>[]> {
     return Promise.allSettled(
       targets.map(async (chain) => {
+        // can check explorer family here to avoid doing these checks for each input in verifier
         const { family } = this.multiProvider.getExplorerApi(chain);
         if (family === ExplorerFamily.Other) {
           this.logger(

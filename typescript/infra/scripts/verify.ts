@@ -5,28 +5,31 @@ import {
   VerificationInput,
 } from '@hyperlane-xyz/sdk';
 
-import { extractSource, fetchExplorerApiKeys } from '../src/deployment/verify';
+import {
+  extractBuildArtifact,
+  fetchExplorerApiKeys,
+} from '../src/deployment/verify';
 import { readJSONAtPath } from '../src/utils/utils';
 
 import {
   assertEnvironment,
   getArgs,
-  withBuildArtifact,
+  withBuildArtifactPath,
   withNetwork,
 } from './agent-utils';
 import { getEnvironmentConfig } from './core-utils';
 
 async function main() {
-  const { environment, buildArtifact, verificationArtifact, network } =
-    await withNetwork(withBuildArtifact(getArgs()))
-      .string('verificationArtifact')
+  const { environment, buildArtifactPath, verificationArtifactPath, network } =
+    await withNetwork(withBuildArtifactPath(getArgs()))
+      .string('verificationArtifactPath')
       .describe(
-        'verificationArtifact',
+        'verificationArtifactPath',
         'path to hyperlane verification artifact',
       )
-      .alias('v', 'verificationArtifact')
-      .demandOption('verificationArtifact')
-      .demandOption('buildArtifact').argv;
+      .alias('v', 'verificationArtifactPath')
+      .demandOption('verificationArtifactPath')
+      .demandOption('buildArtifactPath').argv;
 
   // set up multiprovider
   assertEnvironment(environment);
@@ -34,25 +37,23 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
 
   // grab verification artifacts
-  const verification: ChainMap<VerificationInput> =
-    readJSONAtPath(verificationArtifact);
-
-  // extract source from build artifact
-  const { source, compilerversion } = extractSource(buildArtifact);
+  const verification: ChainMap<VerificationInput> = readJSONAtPath(
+    verificationArtifactPath,
+  );
 
   // fetch explorer API keys from GCP
   const apiKeys = await fetchExplorerApiKeys();
+
+  // extract build artifact contents
+  const buildArtifact = extractBuildArtifact(buildArtifactPath);
 
   // instantiate verifier
   const verifier = new PostDeploymentContractVerifier(
     verification,
     multiProvider,
     apiKeys,
-    source,
-    {
-      compilerversion,
-      licenseType: ExplorerLicenseType.MIT,
-    },
+    buildArtifact,
+    ExplorerLicenseType.MIT,
   );
 
   // verify all the things

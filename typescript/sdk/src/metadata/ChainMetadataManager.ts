@@ -275,10 +275,10 @@ export class ChainMetadataManager<MetaExt = {}> {
     apiKey?: string;
     family?: ExplorerFamily;
   } {
-    const url = this.tryGetExplorerApi(chainNameOrId);
-    if (!url)
+    const explorerApi = this.tryGetExplorerApi(chainNameOrId);
+    if (!explorerApi)
       throw new Error(`No supported explorer api set for ${chainNameOrId}`);
-    return url;
+    return explorerApi;
   }
 
   /**

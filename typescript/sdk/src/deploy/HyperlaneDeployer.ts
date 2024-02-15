@@ -13,6 +13,7 @@ import {
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
+import SdkBuildArtifact from '@hyperlane-xyz/core/buildArtifact.json';
 import {
   Address,
   ProtocolType,
@@ -42,7 +43,7 @@ import {
 } from './proxy';
 import { OwnableConfig } from './types';
 import { ContractVerifier } from './verify/ContractVerifier';
-import { ContractVerificationInput } from './verify/types';
+import { ContractVerificationInput, ExplorerLicenseType } from './verify/types';
 import {
   buildVerificationInput,
   getContractVerificationInput,
@@ -79,6 +80,19 @@ export abstract class HyperlaneDeployer<
     if (this.options?.ismFactory) {
       this.options.ismFactory.deployContractFromFactory =
         this.deployContractFromFactory.bind(this);
+    }
+
+    // if none provided, instantiate a default verifier with SDK's included build artifact
+    if (!this.options?.contractVerifier) {
+      this.options = {
+        ...this.options,
+        contractVerifier: new ContractVerifier(
+          multiProvider,
+          {},
+          SdkBuildArtifact,
+          ExplorerLicenseType.MIT,
+        ),
+      };
     }
   }
 

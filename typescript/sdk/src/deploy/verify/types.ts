@@ -15,6 +15,11 @@ export type SolidityStandardJsonInput = {
   };
 };
 
+export type BuildArtifact = {
+  input: SolidityStandardJsonInput;
+  solcLongVersion: string;
+};
+
 // see https://etherscan.io/contract-license-types
 export enum ExplorerLicenseType {
   NO_LICENSE = '1',

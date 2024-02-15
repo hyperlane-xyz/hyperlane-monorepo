@@ -93,6 +93,7 @@ export {
   ContractVerificationInput,
   VerificationInput,
   ExplorerLicenseType,
+  BuildArtifact,
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
