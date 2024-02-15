@@ -11,13 +11,19 @@ use crate::LogMeta;
 #[auto_impl(Box)]
 pub trait ContractSyncCursor<T>: Send + Sync + 'static {
     /// The next block range that should be queried.
+    /// This method should be tolerant to being called multiple times in a row
+    /// without any updates in between.
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)>;
 
-    /// The latest block that has been queried
+    /// The latest block that has been queried, used as a proxy for health.
+    /// TODO: consider a better way to assess health
     fn latest_block(&self) -> u32;
 
     /// Ingests the logs that were fetched from the chain, and adjusts the cursor
     /// accordingly.
+    /// This is called after the logs have been written to the store,
+    /// however may require logs to meet certain criteria (e.g. no gaps), that if
+    /// not met, should result in internal state changes (e.g. rewinding) and not an Err.
     async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()>;
 }
 

@@ -2,7 +2,7 @@ use std::{
     collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
 };
 
-use cursor::*;
+use cursors::*;
 use derive_new::new;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
@@ -15,14 +15,11 @@ use tracing::{debug, info, warn};
 
 use crate::settings::IndexSettings;
 
-mod cursor;
 mod cursors;
 mod eta_calculator;
 mod metrics;
 
-use cursors::sequence_aware::{
-    ForwardBackwardSequenceAwareSyncCursor, ForwardSequenceAwareSyncCursor,
-};
+use cursors::{ForwardBackwardSequenceAwareSyncCursor, ForwardSequenceAwareSyncCursor};
 
 const SLEEP_DURATION: Duration = Duration::from_secs(5);
 
