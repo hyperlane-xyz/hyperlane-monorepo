@@ -19,8 +19,8 @@ pub trait ContractSyncCursor<T>: Send + Sync + 'static {
     /// TODO: consider a better way to assess health
     fn latest_block(&self) -> u32;
 
-    /// Ingests the logs that were fetched from the chain, and adjusts the cursor
-    /// accordingly.
+    /// Ingests the logs that were fetched from the chain and the range that was queried,
+    /// and adjusts the cursor accordingly.
     /// This is called after the logs have been written to the store,
     /// however may require logs to meet certain criteria (e.g. no gaps), that if
     /// not met, should result in internal state changes (e.g. rewinding) and not an Err.
