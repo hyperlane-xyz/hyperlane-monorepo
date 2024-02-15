@@ -60,7 +60,8 @@ pub enum SyncDirection {
     Backward,
 }
 
-/// A SequenceSyncCursor that syncs forwards in perpetuity.
+/// A cursor that prefers to sync forward, but will sync backward if there is nothing to
+/// sync forward.
 pub(crate) struct ForwardBackwardSequenceAwareSyncCursor<T> {
     forward: ForwardSequenceAwareSyncCursor<T>,
     backward: BackwardSequenceAwareSyncCursor<T>,
