@@ -61,10 +61,6 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: ['0xace978aaa61d9ee44fe3ab147fd227e0e66b8909'],
   },
-  basegoerli: {
-    threshold: 1,
-    validators: ['0x81983e03363351b63848867bd76687cc80b9ff37'],
-  },
   fuji: {
     threshold: 1,
     validators: ['0xfc419f9ba3c56c55e28844ade491d428f5a77d55'],
@@ -96,10 +92,6 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigConfig> = {
   sepolia: {
     threshold: 1,
     validators: ['0x49f253c0dab33be1573d6c2769b3d9e584d91f82'],
-  },
-  moonbasealpha: {
-    threshold: 1,
-    validators: ['0x376260b40b2ba2100890f27de1eb18a2774f54d1'],
   },
   optimismgoerli: {
     threshold: 1,
