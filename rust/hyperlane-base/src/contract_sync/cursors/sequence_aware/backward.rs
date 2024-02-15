@@ -5,22 +5,30 @@ use std::{collections::HashSet, fmt::Debug, ops::RangeInclusive, sync::Arc, time
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction,
-    HyperlaneSequenceIndexerStore, IndexMode, LogMeta, Sequenced,
+    ContractSyncCursor, CursorAction, HyperlaneSequenceIndexerStore, IndexMode, LogMeta, Sequenced,
 };
 use itertools::Itertools;
 use tracing::{debug, warn};
 
 use super::{LastIndexedSnapshot, TargetSnapshot};
 
-/// A sequence-aware cursor that syncs forwards in perpetuity.
+/// A sequence-aware cursor that syncs backward until there are no earlier logs to index.
 #[derive(Debug)]
 pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
+    /// The max chunk size to query for logs.
+    /// If in sequence mode, this is the max number of sequences to query.
+    /// If in block mode, this is the max number of blocks to query.
     chunk_size: u32,
+    /// A DB used to check which logs have already been indexed.
     db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
+    /// A snapshot of the last log to be indexed, or if no indexing has occurred yet,
+    /// the initial log to start indexing backward from.
     last_indexed_snapshot: LastIndexedSnapshot,
-    // None indicates synced
+    /// The current snapshot we're indexing. As this is a backward cursor,
+    /// if the last indexed snapshot was sequence 100, this would be sequence 99.
+    /// A None value indicates we're fully synced.
     current_indexing_snapshot: Option<TargetSnapshot>,
+    /// The mode of indexing to use.
     index_mode: IndexMode,
 }
 
@@ -32,12 +40,11 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
         start_block: u32,
         index_mode: IndexMode,
     ) -> Self {
+        // If the current sequence count is 0, we haven't indexed anything yet.
+        // Otherwise, consider the current sequence count as the last indexed snapshot,
+        // indicating the upper bound of sequences to index.
         let last_indexed_snapshot = LastIndexedSnapshot {
-            sequence: if current_sequence_count == 0 {
-                None
-            } else {
-                Some(current_sequence_count)
-            },
+            sequence: (current_sequence_count > 0).then(|| current_sequence_count),
             at_block: start_block,
         };
 
@@ -50,11 +57,15 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
         }
     }
 
-    pub async fn get_next_range(&mut self) -> ChainResult<Option<RangeInclusive<u32>>> {
+    /// Gets the next range of logs to query.
+    /// If the cursor is fully synced, this returns None.
+    /// Otherwise, it returns the next range to query, either by block or sequence depending on the mode.
+    pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
         // Fast forward the cursor if necessary.
         self.fast_forward().await?;
 
-        // `self.current_indexing_snapshot` as None indicates we are synced and there are no more ranges to query.
+        // If `self.current_indexing_snapshot` is None, we are synced and there are no more ranges to query.
+        // Otherwise, we query the next range, searching for logs prior to and including the current indexing snapshot.
         Ok(self
             .current_indexing_snapshot
             .as_ref()
@@ -78,30 +89,29 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
             }))
     }
 
-    async fn fast_forward(&mut self) -> ChainResult<()> {
+    /// Reads the DB to check if the current indexing sequence has already been indexed,
+    /// iterating until we find a sequence that hasn't been indexed.
+    async fn fast_forward(&mut self) -> Result<()> {
         if let Some(current_indexing_snapshot) = self.current_indexing_snapshot.clone() {
             // Check if any new logs have been inserted into the DB,
             // and update the cursor accordingly.
             while self
                 .db
                 .retrieve_by_sequence(current_indexing_snapshot.sequence)
-                .await
-                .map_err(|_e| ChainCommunicationError::from_other_str("todo"))?
+                .await?
                 .is_some()
             {
+                // Require the block number as well.
                 if let Some(block_number) = self
                     .db
                     .retrieve_log_block_number(current_indexing_snapshot.sequence)
-                    .await
-                    .map_err(|_e| ChainCommunicationError::from_other_str("todo"))?
+                    .await?
                 {
                     self.last_indexed_snapshot = LastIndexedSnapshot {
                         sequence: Some(current_indexing_snapshot.sequence),
-                        at_block: block_number.try_into().expect("todo"),
+                        at_block: block_number.try_into()?,
                     };
 
-                    // Note this is the only difference between this and the forward cursor.
-                    // TODO do something leveraging this?
                     self.current_indexing_snapshot = self.last_indexed_snapshot.previous_target();
 
                     debug!(
@@ -115,12 +125,36 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
 
         Ok(())
     }
+
+    /// Rewinds the cursor to target immediately preceding the last indexed snapshot,
+    /// and logs the inconsistencies.
+    fn rewind(
+        &mut self,
+        logs: &Vec<(T, LogMeta)>,
+        all_log_sequences: &HashSet<u32>,
+        expected_sequences: &HashSet<u32>,
+        expected_sequence_range: &RangeInclusive<u32>,
+    ) {
+        warn!(
+            all_log_sequences=?all_log_sequences.iter().sorted().collect::<Vec<_>>(),
+            expected_sequences=?expected_sequences.iter().sorted().collect::<Vec<_>>(),
+            ?expected_sequence_range,
+            missing_expected_sequences=?expected_sequences.difference(&all_log_sequences).sorted().collect::<Vec<_>>(),
+            unexpected_sequences=?all_log_sequences.difference(&expected_sequences).sorted().collect::<Vec<_>>(),
+            ?logs,
+            current_indexing_snapshot=?self.current_indexing_snapshot,
+            last_indexed_snapshot=?self.last_indexed_snapshot,
+            "Log sequences don't exactly match the expected sequence range, rewinding to last indexed snapshot",
+        );
+        // Rewind to the last snapshot.
+        self.current_indexing_snapshot = self.last_indexed_snapshot.previous_target();
+    }
 }
 
 #[async_trait]
 impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCursor<T> {
     // TODO need to revisit
-    async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
+    async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         // TODO: Fix ETA calculation
         let eta = Duration::from_secs(0);
         if let Some(range) = self.get_next_range().await? {
@@ -136,19 +170,29 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCu
         0
     }
 
-    /// Inconsistencies in the logs are not considered errors, instead they're handled
-    /// by rewinding the cursor.
+    /// Updates the cursor with the logs that were found in the range.
+    ///
+    /// Inconsistencies in the logs are not considered errors, instead they're handled by rewinding the cursor
+    /// to retry ranges.
+    ///
+    /// ## logs
+    /// The logs to ingest. If any logs are duplicated or their sequence is higher than the current indexing snapshot,
+    /// they are filtered out.
+    ///
+    /// If Sequence mode:
+    /// - The sequences of the logs must exactly match the range.
+    /// - If there are any gaps, the cursor rewinds and the range will be retried.
+    ///
+    /// If Block mode:
+    /// - Empty logs are allowed, but no gaps are allowed. The logs must build upon the last indexed snapshot.
+    /// - If there are any gaps, the cursor rewinds to the last indexed snapshot, and ranges will be retried.
     async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
-        // Pretty much:
-        // If sequence based indexing, we expect a full match here.
-        // If block based indexing, we're tolerant of missing logs but no gaps.
-
         let Some(current_indexing_snapshot) = self.current_indexing_snapshot.clone() else {
             // We're synced, no need to update at all.
             return Ok(());
         };
 
-        // Remove any duplicates, filter out any logs with a higher sequance than our
+        // Remove any duplicates, filter out any logs with a higher sequence than our
         // current snapshot, and sort in ascending order.
         let logs = logs
             .into_iter()
@@ -167,64 +211,41 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCu
                 // We require that we've gotten all sequences in the range.
                 let expected_sequences = range.clone().collect::<HashSet<_>>();
                 if all_log_sequences != expected_sequences {
-                    warn!(
-                        all_log_sequences=?all_log_sequences.iter().sorted().collect::<Vec<_>>(),
-                        expected_sequences=?expected_sequences.iter().sorted().collect::<Vec<_>>(),
-                        expected_sequence_range=?range,
-                        missing_expected_sequences=?expected_sequences.difference(&all_log_sequences).sorted().collect::<Vec<_>>(),
-                        unexpected_sequences=?all_log_sequences.difference(&expected_sequences).sorted().collect::<Vec<_>>(),
-                        ?logs,
-                        ?current_indexing_snapshot,
-                        last_indexed_snapshot=?self.last_indexed_snapshot,
-                        "Log sequences don't exactly match the expected sequence range, rewinding to last snapshot",
-                    );
+                    // If there are any missing sequences, rewind to just before the last indexed snapshot.
                     // Rewind to the last snapshot.
-                    self.current_indexing_snapshot = self.last_indexed_snapshot.previous_target();
+                    self.rewind(&logs, &all_log_sequences, &expected_sequences, &range);
                     return Ok(());
                 }
 
-                // This means we indexed the entire range.
-                // We update the last snapshot accordingly and set ourselves up for the next sequence.
-
-                // If we've gotten this far, we can assume that logs is non-empty.
-                // Recall logs is sorted in ascending order, so the last log is the "oldest" / "earliest"
-                // log in the range.
-                let last_log = logs.first().expect("Logs must be non-empty");
-                // Update the last snapshot accordingly.
+                // If we've gotten here, it means we indexed the entire range, and that logs is non-empty.
+                // We update the last snapshot accordingly and set ourselves up to index the previous sequence.
+                // Recall logs is sorted in ascending order, so the first log is the lowest sequence.
+                let lowest_sequence_log = logs.first().expect("Logs must be non-empty");
+                // Update the last indexed snapshot.
                 self.last_indexed_snapshot = LastIndexedSnapshot {
-                    sequence: Some(last_log.0.sequence()),
-                    at_block: last_log.1.block_number.try_into().expect("todo"),
+                    sequence: Some(lowest_sequence_log.0.sequence()),
+                    at_block: lowest_sequence_log.1.block_number.try_into()?,
                 };
                 // Position the current snapshot to the previous sequence.
                 self.current_indexing_snapshot = self.last_indexed_snapshot.previous_target();
             }
             IndexMode::Block => {
-                // If the first log we got is a gap since the last snapshot, or there are gaps
-                // in the logs, rewind to the last snapshot.
-
                 // We require no sequence gaps and to build upon the last snapshot.
+                // A non-inclusive range is used to allow updates without any logs.
                 let expected_sequences = ((current_indexing_snapshot.sequence + 1)
                     .saturating_sub(logs.len() as u32)
                     ..(current_indexing_snapshot.sequence + 1))
                     .collect::<HashSet<_>>();
                 if all_log_sequences != expected_sequences {
-                    warn!(
-                        all_log_sequences=?all_log_sequences.iter().sorted().collect::<Vec<_>>(),
-                        expected_sequences=?expected_sequences.iter().sorted().collect::<Vec<_>>(),
-                        expected_sequence_range=?range,
-                        missing_expected_sequences=?expected_sequences.difference(&all_log_sequences).sorted().collect::<Vec<_>>(),
-                        unexpected_sequences=?all_log_sequences.difference(&expected_sequences).sorted().collect::<Vec<_>>(),
-                        ?logs,
-                        ?current_indexing_snapshot,
-                        last_indexed_snapshot=?self.last_indexed_snapshot,
-                        "Log sequences don't exactly match the expected sequence range, rewinding to last snapshot",
-                    );
                     // If there are any missing sequences, rewind to just before the last indexed snapshot.
-                    self.current_indexing_snapshot = self.last_indexed_snapshot.previous_target();
+                    // Rewind to the last snapshot.
+                    self.rewind(&logs, &all_log_sequences, &expected_sequences, &range);
                     return Ok(());
                 }
 
                 let logs_len: u32 = logs.len().try_into()?;
+
+                // Check if we're fully synced, otherwise update our current indexing snapshot backward.
                 self.current_indexing_snapshot =
                     if current_indexing_snapshot.sequence + 1 == logs_len {
                         // We indexed everything, including sequence 0!
@@ -240,11 +261,11 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCu
                 // This means we indexed at least one log that builds on the last snapshot.
                 // Recall logs is sorted in ascending order, so the last log is the "oldest" / "earliest"
                 // log in the range.
-                if let Some(first_log) = logs.first() {
+                if let Some(lowest_sequence_log) = logs.first() {
                     // Update the last snapshot.
                     self.last_indexed_snapshot = LastIndexedSnapshot {
-                        sequence: Some(first_log.0.sequence()),
-                        at_block: first_log.1.block_number.try_into().expect("todo"),
+                        sequence: Some(lowest_sequence_log.0.sequence()),
+                        at_block: lowest_sequence_log.1.block_number.try_into()?,
                     };
                 }
             }

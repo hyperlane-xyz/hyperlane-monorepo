@@ -3,8 +3,8 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction,
-    HyperlaneSequenceIndexerStore, IndexMode, LogMeta, SequenceAwareIndexer, Sequenced,
+    ChainCommunicationError, ContractSyncCursor, CursorAction, HyperlaneSequenceIndexerStore,
+    IndexMode, LogMeta, SequenceAwareIndexer, Sequenced,
 };
 use std::ops::RangeInclusive;
 
@@ -101,7 +101,7 @@ impl<T: Sequenced + Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
 
 #[async_trait]
 impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardBackwardSequenceAwareSyncCursor<T> {
-    async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
+    async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         // TODO: Proper ETA for backwards sync
         let eta = Duration::from_secs(0);
         // Prioritize forward syncing over backward syncing.

@@ -9,8 +9,8 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction,
-    HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta, SequenceAwareIndexer,
+    ChainCommunicationError, ContractSyncCursor, CursorAction, HyperlaneWatermarkedLogStore,
+    IndexMode, Indexer, LogMeta, SequenceAwareIndexer,
 };
 use tokio::time::sleep;
 use tracing::warn;
@@ -45,7 +45,7 @@ impl SyncState {
         &mut self,
         max_sequence: Option<u32>,
         tip: u32,
-    ) -> ChainResult<Option<RangeInclusive<u32>>> {
+    ) -> Result<Option<RangeInclusive<u32>>> {
         // We attempt to index a range of blocks that is as large as possible.
         let range = match self.mode {
             IndexMode::Block => self.block_range(tip),
@@ -95,7 +95,7 @@ impl SyncState {
     /// * `max_sequence` - The maximum sequence that should be indexed.
     /// `max_sequence` is the exclusive upper bound of the range to be indexed.
     /// (e.g. `0..max_sequence`)
-    fn sequence_range(&mut self, max_sequence: u32) -> ChainResult<Option<RangeInclusive<u32>>> {
+    fn sequence_range(&mut self, max_sequence: u32) -> Result<Option<RangeInclusive<u32>>> {
         let (from, to) = match self.direction {
             SyncDirection::Forward => {
                 let sequence_start = self.next_sequence;
@@ -169,7 +169,7 @@ impl<T> RateLimitedContractSyncCursor<T> {
 
     /// Wait based on how close we are to the tip and update the tip,
     /// i.e. the highest block we may scrape.
-    async fn get_rate_limit(&mut self) -> ChainResult<Option<Duration>> {
+    async fn get_rate_limit(&mut self) -> Result<Option<Duration>> {
         if self.sync_state.next_block + self.sync_state.chunk_size < self.tip {
             // If doing the full chunk wouldn't exceed the already known tip we do not need to rate limit.
             Ok(None)
@@ -192,21 +192,18 @@ impl<T> RateLimitedContractSyncCursor<T> {
                     warn!(error = %e, "Failed to get next block range because we could not get the current tip");
                     // we are failing to make a basic query, we should wait before retrying.
                     sleep(Duration::from_secs(10)).await;
-                    Err(e)
+                    Err(e.into())
                 }
             }
         }
     }
 
-    fn sync_end(&self) -> ChainResult<u32> {
+    fn sync_end(&self) -> Result<u32> {
         match self.sync_state.mode {
             IndexMode::Block => Ok(self.tip),
-            IndexMode::Sequence => {
-                self.max_sequence
-                    .ok_or(ChainCommunicationError::from_other_str(
-                        "Sequence indexing requires a max sequence",
-                    ))
-            }
+            IndexMode::Sequence => self
+                .max_sequence
+                .ok_or(eyre::eyre!("Sequence indexing requires a max sequence",)),
         }
     }
 
@@ -230,7 +227,7 @@ impl<T> ContractSyncCursor<T> for RateLimitedContractSyncCursor<T>
 where
     T: Send + Debug + 'static,
 {
-    async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
+    async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         let sync_end = self.sync_end()?;
         let to = u32::min(sync_end, self.sync_position() + self.sync_step());
         let from = self.sync_position();
