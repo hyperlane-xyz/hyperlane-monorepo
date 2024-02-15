@@ -38,33 +38,34 @@ class ProofsService extends HandlerDescriptionEnumerated {
   /**
    * Requests the Succinct proof, state proof, and returns account and storage proof
    * @dev Note that the abi encoding will happen within ccip-read-server
-   * @param address contract address to get the proof for
+   * @param target contract address to get the proof for
    * @param storageKeys storage keys to get the proof for
-   * @param block block to get the proof for. Will decode as a BigNumber.
+   * @param blockNumber block to get the proof for. Will decode as a BigInteger.
    * @returns
    */
-  async getProofs([address, storageKeys, block]: ethers.utils.Result): Promise<
-    Array<[string[], string[]]>
-  > {
-    // TODO fix any
-    // Gets the sync committee poseidon associated with the slot
-    // const slot = 0n; // TODO figure out which slot to use
-    // @ts-ignore
-    // const syncCommitteePoseidon =
-    //   await this.lightClientService.getSyncCommitteePoseidons(slot);
+  async getProofs([
+    address,
+    storageKey,
+    blockNumber,
+  ]: ethers.utils.Result): Promise<Array<[string[], string[]]>> {
+    const proofs: Array<[string[], string[]]> = [];
+    try {
+      // TODO Implement request Proof from Succinct
+      // await this.lightClientService.requestProof(syncCommitteePoseidon, slot);
 
-    // No Sync committee poseidon for this slot, return empty proof
-    // if (syncCommitteePoseidon == constants.HashZero) return constants.HashZero;
+      // Get storage proofs
+      const { accountProof, storageProof }: ProofResult =
+        await this.rpcService.getProofs(
+          address,
+          [storageKey],
+          blockNumber.toHexString(),
+        );
+      proofs.push([accountProof, storageProof[0].proof]);
+    } catch (e) {
+      console.log('Error getting proofs', e);
+    }
 
-    // await this.lightClientService.requestProof(syncCommitteePoseidon, slot);
-    const { accountProof, storageProof }: ProofResult =
-      await this.rpcService.getProofs(
-        address,
-        storageKeys,
-        block.toHexString(),
-      );
-
-    return [[accountProof, storageProof[0].proof]];
+    return proofs;
   }
 }
 

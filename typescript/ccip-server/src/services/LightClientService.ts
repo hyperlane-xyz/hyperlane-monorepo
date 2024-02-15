@@ -26,7 +26,7 @@ class LightClientService extends Requestor {
     super(axios, platformApiKey);
   }
 
-  private getSyncCommitteePeriod(slot: bigint): bigint {
+  private getSyncCommitteePeriod(slot: BigInt): BigInt {
     return slot / 8192n; // Slots Per Period
   }
 
@@ -35,8 +35,7 @@ class LightClientService extends Requestor {
    * @param slot
    * @returns
    */
-  async getSyncCommitteePoseidons(slot: bignumber): Promise<string> {
-    console.log(lightClientContract);
+  async getSyncCommitteePoseidons(slot: BigInt): Promise<string> {
     return await this.lightClientContract.syncCommitteePoseidons(
       this.getSyncCommitteePeriod(slot),
     );
@@ -47,7 +46,7 @@ class LightClientService extends Requestor {
    * @param slot
    * @param syncCommitteePoseidon
    */
-  async requestProof(syncCommitteePoseidon: string, slot: bignumber) {
+  async requestProof(syncCommitteePoseidon: string, slot: BigInt) {
     if (!this.pendingProofId) {
       // Request a Proof, set pendingProofId
       // Note that Succinct will asynchronously call step() on the ISM/LightClient

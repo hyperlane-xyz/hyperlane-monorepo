@@ -13,8 +13,4 @@ describe('RPCService', () => {
 
     expect(proofs).not.toBeNull();
   });
-
-  test('should return account and storage proof', async () => {
-    // Calls TelepathyCcipReadIsm.verify() with state root
-  });
 });
