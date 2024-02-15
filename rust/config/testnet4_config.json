@@ -791,6 +791,59 @@
         "from": 16395052
       }
     },
+    "plumetestnet": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://plume-testnet.explorer.caldera.xyz/api",
+          "family": "blockscout",
+          "name": "Plume Testnet Explorer",
+          "url": "https://plume-testnet.explorer.caldera.xyz/"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 3,
+        "reorgPeriod": 1
+      },
+      "chainId": 161221135,
+      "displayName": "Plume Testnet",
+      "displayNameShort": "Plume Testnet",
+      "domainId": 161221135,
+      "isTestnet": true,
+      "name": "plumetestnet",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://plume-testnet.rpc.caldera.xyz/http"
+        }
+      ],
+      "transactionOverrides": {
+        "gasPrice": 1000000
+      },
+      "merkleRootMultisigIsmFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
+      "messageIdMultisigIsmFactory": "0x44b764045BfDC68517e10e783E69B376cef196B2",
+      "aggregationIsmFactory": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
+      "aggregationHookFactory": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
+      "routingIsmFactory": "0x54148470292C24345fb828B003461a9444414517",
+      "mailbox": "0x33dB966328Ea213b0f76eF96CA368AB37779F065",
+      "proxyAdmin": "0x589C201a07c26b4725A4A829d772f24423da480B",
+      "validatorAnnounce": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9",
+      "interchainSecurityModule": "0xE1C106C9A525b8090a76a7c82d245896f0ca9456",
+      "merkleTreeHook": "0xddf4C3e791caCaFd26D7fb275549739B38ae6e75",
+      "fallbackRoutingHook": "0x19Be55D859368e02d7b9C00803Eb677BDC1359Bd",
+      "pausableHook": "0x5821f3B6eE05F3dC62b43B74AB1C8F8E6904b1C8",
+      "storageGasOracle": "0x267B6B6eAf6790faE5D5E9070F28a9cE64CbF279",
+      "interchainGasPaymaster": "0x28B02B97a850872C4D33C3E024fab6499ad96564",
+      "protocolFee": "0x1b33611fCc073aB0737011d5512EF673Bff74962",
+      "index": {
+        "from": 5284139
+      }
+    },
     "polygonzkevmtestnet": {
       "protocol": "ethereum",
       "chainId": 1442,

@@ -43,7 +43,7 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
   plumetestnet: {
     ...plumetestnet,
     transactionOverrides: {
-      gasPrice: 0.001 * 10 ** 9, // 0.0001 gwei
+      gasPrice: 0.001 * 10 ** 9, // 0.001 gwei
     },
   },
 };

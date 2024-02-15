@@ -1,19 +1,4 @@
 {
-  "basegoerli": {
-    "merkleRootMultisigIsmFactory": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
-    "messageIdMultisigIsmFactory": "0x54148470292C24345fb828B003461a9444414517",
-    "aggregationIsmFactory": "0x589C201a07c26b4725A4A829d772f24423da480B",
-    "aggregationHookFactory": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
-    "proxyAdmin": "0x05Ea36Caee7d92C173334C9D97DcD39ABdCB2b69",
-    "mailbox": "0x58483b754Abb1E8947BE63d6b95DF75b8249543A",
-    "validatorAnnounce": "0x679Dc08cC3A4acFeea2f7CAFAa37561aE0b41Ce7",
-    "storageGasOracle": "0x267B6B6eAf6790faE5D5E9070F28a9cE64CbF279",
-    "interchainGasPaymaster": "0x28B02B97a850872C4D33C3E024fab6499ad96564",
-    "protocolFee": "0xEe421285728284000ec6c6C55C6F9161faeFfa99",
-    "testRecipient": "0x54Bd02f0f20677e9846F8E9FdB1Abc7315C49C38",
-    "testTokenRecipient": "0x5e65279Fb7293a058776e37587398fcc3E9184b1",
-    "routingIsmFactory": "0xb6242d549d4b19a20684397790AFa555b16Bc979"
-  },
   "arbitrumgoerli": {
     "merkleRootMultisigIsmFactory": "0x17D58eBb5Ea0E2d360c877E119FAef4C4052e6B9",
     "messageIdMultisigIsmFactory": "0x922CeEe9e8832a047e6aD68Df4F079F271b73Ac3",
