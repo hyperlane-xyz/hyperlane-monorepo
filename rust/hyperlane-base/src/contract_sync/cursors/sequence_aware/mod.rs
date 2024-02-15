@@ -64,7 +64,7 @@ pub enum SyncDirection {
 pub(crate) struct ForwardBackwardSequenceAwareSyncCursor<T> {
     forward: ForwardSequenceAwareSyncCursor<T>,
     backward: BackwardSequenceAwareSyncCursor<T>,
-    direction: SyncDirection,
+    last_direction: SyncDirection,
 }
 
 impl<T: Sequenced + Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
@@ -94,7 +94,7 @@ impl<T: Sequenced + Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
         Ok(Self {
             forward: forward_cursor,
             backward: backward_cursor,
-            direction: SyncDirection::Forward,
+            last_direction: SyncDirection::Forward,
         })
     }
 }
@@ -106,25 +106,24 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardBackwardSequenceAwar
         let eta = Duration::from_secs(0);
         // Prioritize forward syncing over backward syncing.
         if let Some(forward_range) = self.forward.get_next_range().await? {
-            self.direction = SyncDirection::Forward;
+            self.last_direction = SyncDirection::Forward;
             return Ok((CursorAction::Query(forward_range), eta));
         }
 
         if let Some(backward_range) = self.backward.get_next_range().await? {
-            self.direction = SyncDirection::Backward;
+            self.last_direction = SyncDirection::Backward;
             return Ok((CursorAction::Query(backward_range), eta));
         }
         // TODO: Define the sleep time from interval flag
         return Ok((CursorAction::Sleep(Duration::from_secs(5)), eta));
     }
 
-    // TODO
     fn latest_block(&self) -> u32 {
-        0
+        self.forward.latest_block()
     }
 
     async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
-        match self.direction {
+        match self.last_direction {
             SyncDirection::Forward => self.forward.update(logs, range).await,
             SyncDirection::Backward => self.backward.update(logs, range).await,
         }
