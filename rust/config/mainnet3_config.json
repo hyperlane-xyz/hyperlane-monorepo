@@ -493,7 +493,7 @@
       "contractAddressBytes": 32,
       "index": {
         "from": 4000000,
-        "chunk": 100000
+        "chunk": 1
       },
       "blocks": {
         "reorgPeriod": 1
@@ -515,7 +515,7 @@
       "protocol": "cosmos",
       "rpcUrls": [
         {
-          "http": "https://rpc-injective.goldenratiostaking.net:443"
+          "http": "https://injective-rpc.polkachu.com"
         }
       ],
       "grpcUrls": [
@@ -532,7 +532,7 @@
       "contractAddressBytes": 20,
       "index": {
         "from": 58419500,
-        "chunk": 100000
+        "chunk": 1
       },
       "blocks": {
         "reorgPeriod": 10
