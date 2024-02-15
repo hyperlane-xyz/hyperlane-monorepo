@@ -44,7 +44,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
         // Otherwise, consider the current sequence count as the last indexed snapshot,
         // indicating the upper bound of sequences to index.
         let last_indexed_snapshot = LastIndexedSnapshot {
-            sequence: (current_sequence_count > 0).then(|| current_sequence_count),
+            sequence: (current_sequence_count > 0).then_some(current_sequence_count),
             at_block: start_block,
         };
 
@@ -139,8 +139,8 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
             all_log_sequences=?all_log_sequences.iter().sorted().collect::<Vec<_>>(),
             expected_sequences=?expected_sequences.iter().sorted().collect::<Vec<_>>(),
             ?expected_sequence_range,
-            missing_expected_sequences=?expected_sequences.difference(&all_log_sequences).sorted().collect::<Vec<_>>(),
-            unexpected_sequences=?all_log_sequences.difference(&expected_sequences).sorted().collect::<Vec<_>>(),
+            missing_expected_sequences=?expected_sequences.difference(all_log_sequences).sorted().collect::<Vec<_>>(),
+            unexpected_sequences=?all_log_sequences.difference(expected_sequences).sorted().collect::<Vec<_>>(),
             ?logs,
             current_indexing_snapshot=?self.current_indexing_snapshot,
             last_indexed_snapshot=?self.last_indexed_snapshot,
