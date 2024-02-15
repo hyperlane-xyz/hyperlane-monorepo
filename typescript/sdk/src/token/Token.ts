@@ -48,10 +48,10 @@ export interface TokenArgs {
   protocol: ProtocolType;
   chainName: ChainName;
   standard: TokenStandard;
-  addressOrDenom: Address | string;
   decimals: number;
   symbol: string;
   name: string;
+  addressOrDenom: Address | string;
   collateralAddressOrDenom?: Address | string;
   igpTokenAddressOrDenom?: string;
   logoURI?: string;

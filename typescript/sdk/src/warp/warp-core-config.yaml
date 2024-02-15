@@ -1,0 +1,44 @@
+# An example Warp Core config
+# Contains the token + route data needed to create a Warp Core
+# TODO: updates needed to CLI to generate this
+---
+tokens:
+  # Eth mainnet native token
+  - protocol: ethereum
+    chainName: ethereum 
+    standard: EvmNative
+    decimals: 18
+    symbol: ETH
+    name: Ether
+    addressOrDenom: null
+    connectedTokens: 
+      - ethereum|viction|0x1234567890123456789012345678901234567890
+      - cosmos|injective|inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k
+  # Viction synthetic token
+  - protocol: ethereum
+    chainName: viction 
+    standard: EvmSynthetic
+    decimals: 18
+    symbol: ETH
+    name: Ether
+    addressOrDenom: 0x1234567890123456789012345678901234567890
+    connectedTokens: 
+      - ethereum|ethereum|null
+      - cosmos|injective|inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k
+  # Cosmos injective collateral token
+  - protocol: cosmos 
+    chainName: injective 
+    standard: EvmCollateral
+    decimals: 18
+    symbol: ETH.in 
+    name: Ether on Injective
+    addressOrDenom: inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k
+    collateralAddressOrDenom: inj1us9dfoi2j3or9ojsfdlijf923sjdkf9123i23i
+    connectedTokens: 
+      - ethereum|ethereum|null
+      - ethereum|viction|0x1234567890123456789012345678901234567890
+options:
+  igpQuoteConstants: 
+    - origin: injective 
+      destination: viction
+      quote: 200000
