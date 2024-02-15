@@ -641,8 +641,10 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::AggregationIsmBuilder {})
                     .await
             },
-            // TODO: cover swisstronik
-            ChainConnectionConf::Swisstronik(_) |
+            ChainConnectionConf::Swisstronik(conf) => {
+                self.build_swisstronik(conf, &locator, h_swisstronik::AggregationIsmBuilder {})
+                    .await
+            },
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support aggregation ISM yet")).context(ctx)
