@@ -153,7 +153,6 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
 
 #[async_trait]
 impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCursor<T> {
-    // TODO need to revisit
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         // TODO: Fix ETA calculation
         let eta = Duration::from_secs(0);
@@ -165,9 +164,11 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCu
         }
     }
 
-    // TODO need to revisit
     fn latest_block(&self) -> u32 {
-        0
+        self.current_indexing_snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.at_block)
+            .unwrap_or(self.last_indexed_snapshot.at_block)
     }
 
     /// Updates the cursor with the logs that were found in the range.

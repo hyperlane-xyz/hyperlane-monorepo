@@ -8,8 +8,8 @@ use std::{
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ContractSyncCursor, CursorAction, HyperlaneSequenceIndexerStore,
-    IndexMode, LogMeta, SequenceAwareIndexer, Sequenced,
+    ContractSyncCursor, CursorAction, HyperlaneSequenceIndexerStore, IndexMode, LogMeta,
+    SequenceAwareIndexer, Sequenced,
 };
 use itertools::Itertools;
 use tracing::{debug, warn};
@@ -157,20 +157,18 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
         while self
             .db
             .retrieve_by_sequence(self.current_indexing_snapshot.sequence)
-            .await
-            .map_err(|_e| ChainCommunicationError::from_other_str("todo"))?
+            .await?
             .is_some()
         {
             // Require the block number as well.
             if let Some(block_number) = self
                 .db
                 .retrieve_log_block_number(self.current_indexing_snapshot.sequence)
-                .await
-                .map_err(|_e| ChainCommunicationError::from_other_str("todo"))?
+                .await?
             {
                 self.last_indexed_snapshot = LastIndexedSnapshot {
                     sequence: Some(self.current_indexing_snapshot.sequence),
-                    at_block: block_number.try_into().expect("todo"),
+                    at_block: block_number.try_into()?,
                 };
 
                 self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
@@ -219,7 +217,6 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
 
 #[async_trait]
 impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCursor<T> {
-    // TODO need to revisit
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         // TODO: Fix ETA calculation
         let eta = Duration::from_secs(0);
@@ -231,9 +228,9 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
         }
     }
 
-    // TODO need to revisit
+    // TODO: revisit to establish a better heuristic for cursor / indexing health
     fn latest_block(&self) -> u32 {
-        0
+        self.current_indexing_snapshot.at_block
     }
 
     /// Updates the cursor with the logs that were found in the range.
