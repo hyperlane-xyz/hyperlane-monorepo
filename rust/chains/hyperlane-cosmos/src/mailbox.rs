@@ -24,7 +24,7 @@ use tendermint::abci::EventAttribute;
 
 use crate::utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64};
 use hyperlane_core::{
-    utils::fmt_bytes, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    utils::bytes_to_hex, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
     H256, U256,
 };
@@ -205,7 +205,7 @@ impl Mailbox for CosmosMailbox {
         Ok(tx_response_to_outcome(response)?)
     }
 
-    #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
+    #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,

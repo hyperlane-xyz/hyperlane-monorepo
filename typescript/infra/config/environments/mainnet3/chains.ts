@@ -52,7 +52,7 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
 export const nonEthereumMainnetConfigs: ChainMap<ChainMetadata> = {
   // solana: chainMetadata.solana,
   // neutron: chainMetadata.neutron,
-  injective: chainMetadata.injective,
+  // injective: chainMetadata.injective,
 };
 
 export const mainnetConfigs: ChainMap<ChainMetadata> = {

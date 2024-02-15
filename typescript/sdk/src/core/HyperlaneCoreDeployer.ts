@@ -217,23 +217,25 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox.address,
     );
 
-    let proxyOwner: string;
     if (config.upgrade) {
       const timelockController = await this.deployTimelock(
         chain,
         config.upgrade.timelock,
       );
-      proxyOwner = timelockController.address;
-    } else {
-      proxyOwner = config.owner;
+      config.ownerOverrides = {
+        ...config.ownerOverrides,
+        proxyAdmin: timelockController.address,
+      };
     }
 
-    await this.transferOwnershipOfContracts(chain, proxyOwner, { proxyAdmin });
-
-    return {
+    const contracts = {
       mailbox,
       proxyAdmin,
       validatorAnnounce,
     };
+
+    await this.transferOwnershipOfContracts(chain, config, contracts);
+
+    return contracts;
   }
 }

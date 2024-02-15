@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 3.7.0
+
+### Minor Changes
+
+- 54aeb6420: Added warp route artifacts type adopting registry schema
+
+### Patch Changes
+
+- 6f464eaed: Add logos for injective and nautilus
+- 87151c62b: Bumped injective reorg period
+- ab17af5f7: Updating HyperlaneIgpDeployer to configure storage gas oracles as part of deployment
+- 7b40232af: Remove unhealthy zkevm rpc
+  - @hyperlane-xyz/core@3.7.0
+  - @hyperlane-xyz/utils@3.7.0
+
 ## 3.6.2
 
 ### Patch Changes

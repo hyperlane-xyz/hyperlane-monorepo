@@ -6,7 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use derive_new::new;
-use eyre::{Context, Result};
+use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
 use prometheus::{IntCounter, IntGauge};

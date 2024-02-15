@@ -154,33 +154,6 @@ export const base: ChainMetadata = {
   ],
 };
 
-export const basegoerli: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-goerli.basescan.org/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'BaseScan',
-      url: 'https://goerli.basescan.org',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
-  },
-  chainId: 84531,
-  displayName: 'Base Goerli',
-  domainId: 84531,
-  isTestnet: true,
-  name: Chains.basegoerli,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [
-    { http: 'https://base-goerli.publicnode.com' },
-    { http: 'https://goerli.base.org' },
-  ],
-};
-
 export const bsc: ChainMetadata = {
   blockExplorers: [
     {
@@ -452,8 +425,8 @@ export const injective: ChainMetadata = {
   blockExplorers: [],
   blocks: {
     confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
+    estimateBlockTime: 1,
+    reorgPeriod: 10,
   },
   chainId: 'injective-1',
   displayName: 'Injective',
@@ -522,35 +495,6 @@ export const mantapacific: ChainMetadata = {
   },
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'https://pacific-rpc.manta.network/http' }],
-};
-
-export const moonbasealpha: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-moonbase.moonscan.io/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'MoonScan',
-      url: 'https://moonbase.moonscan.io',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 12,
-    reorgPeriod: 1,
-  },
-  chainId: 1287,
-  displayName: 'Moonbase Alpha',
-  displayNameShort: 'Moonbase',
-  domainId: 1287,
-  isTestnet: true,
-  name: Chains.moonbasealpha,
-  nativeToken: {
-    decimals: 18,
-    name: 'DEV',
-    symbol: 'DEV',
-  },
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.api.moonbase.moonbeam.network' }],
 };
 
 export const moonbeam: ChainMetadata = {
@@ -1101,7 +1045,6 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   arbitrumgoerli,
   avalanche,
   base,
-  basegoerli,
   bsc,
   bsctestnet,
   celo,
@@ -1115,7 +1058,6 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   injective,
   lineagoerli,
   mantapacific,
-  moonbasealpha,
   moonbeam,
   mumbai,
   nautilus,
