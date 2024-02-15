@@ -42,6 +42,7 @@ import {
   proxyConstructorArgs,
   proxyImplementation,
 } from './proxy';
+import { OwnableConfig } from './types';
 import { ContractVerificationInput } from './verify/types';
 import {
   buildVerificationInput,
@@ -618,16 +619,21 @@ export abstract class HyperlaneDeployer<
     return ret;
   }
 
-  protected async transferOwnershipOfContracts(
+  protected async transferOwnershipOfContracts<K extends keyof Factories>(
     chain: ChainName,
-    owner: Address,
-    ownables: { [key: string]: Ownable },
+    config: OwnableConfig<K>,
+    ownables: Partial<Record<K, Ownable>>,
   ): Promise<ethers.ContractReceipt[]> {
     const receipts: ethers.ContractReceipt[] = [];
-    for (const contractName of Object.keys(ownables)) {
-      const ownable = ownables[contractName];
-      const currentOwner = await ownable.owner();
-      if (!eqAddress(currentOwner, owner)) {
+    for (const [contractName, ownable] of Object.entries<Ownable | undefined>(
+      ownables,
+    )) {
+      if (!ownable) {
+        continue;
+      }
+      const current = await ownable.owner();
+      const owner = config.ownerOverrides?.[contractName as K] ?? config.owner;
+      if (!eqAddress(current, owner)) {
         this.logger(
           `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
         );

@@ -66,7 +66,6 @@ type L2Chain =
   | Chains.optimismgoerli
   | Chains.arbitrum
   | Chains.arbitrumgoerli
-  | Chains.basegoerli
   | Chains.base;
 
 const L2Chains: ChainName[] = [
@@ -74,7 +73,6 @@ const L2Chains: ChainName[] = [
   Chains.optimismgoerli,
   Chains.arbitrum,
   Chains.arbitrumgoerli,
-  Chains.basegoerli,
   Chains.base,
   Chains.polygonzkevmtestnet,
 ];
@@ -84,7 +82,6 @@ const L2ToL1: ChainMap<ChainName> = {
   arbitrumgoerli: 'goerli',
   optimism: 'ethereum',
   arbitrum: 'ethereum',
-  basegoerli: 'goerli',
   base: 'ethereum',
   polygonzkevmtestnet: 'goerli',
 };
@@ -139,12 +136,10 @@ const desiredBalancePerChain: ChainMap<string> = {
   bsctestnet: '1',
   goerli: '0.5',
   sepolia: '0.5',
-  moonbasealpha: '1',
   moonbeam: '0.5',
   optimismgoerli: '0.5',
   arbitrumgoerli: '0.5',
   gnosis: '0.1',
-  basegoerli: '0.05',
   scrollsepolia: '0.05',
   polygonzkevm: '0.3',
   scroll: '0.3',
@@ -194,12 +189,10 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   bsctestnet: '1',
   goerli: '1',
   sepolia: '1',
-  moonbasealpha: '2',
   moonbeam: '5',
   optimismgoerli: '1',
   arbitrumgoerli: '1',
   gnosis: '5',
-  basegoerli: '0.1',
   scrollsepolia: '0.1',
   polygonzkevmtestnet: '0.1',
   base: '0.1',

@@ -55,51 +55,51 @@ const gasPrices: ChainMap<BigNumber> = {
   viction: ethers.utils.parseUnits('0.25', 'gwei'),
 };
 
-// Accurate from coingecko as of Mar 9, 2023.
+// Accurate from coingecko as of Feb 9, 2024.
 // These aren't overestimates because the exchange rates between
 // tokens are what matters. These generally have high beta
 const tokenUsdPrices: ChainMap<BigNumber> = {
   // https://www.coingecko.com/en/coins/bnb
-  bsc: ethers.utils.parseUnits('230.55', TOKEN_EXCHANGE_RATE_DECIMALS),
+  bsc: ethers.utils.parseUnits('323.61', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/avalanche
-  avalanche: ethers.utils.parseUnits('20.25', TOKEN_EXCHANGE_RATE_DECIMALS),
+  avalanche: ethers.utils.parseUnits('38.27', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/polygon
-  polygon: ethers.utils.parseUnits('0.75', TOKEN_EXCHANGE_RATE_DECIMALS),
+  polygon: ethers.utils.parseUnits('0.85', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/celo
-  celo: ethers.utils.parseUnits('0.52', TOKEN_EXCHANGE_RATE_DECIMALS),
+  celo: ethers.utils.parseUnits('0.73', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  arbitrum: ethers.utils.parseUnits('2000.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  arbitrum: ethers.utils.parseUnits('2495.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  optimism: ethers.utils.parseUnits('2000.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  optimism: ethers.utils.parseUnits('2495.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  ethereum: ethers.utils.parseUnits('2000.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  ethereum: ethers.utils.parseUnits('2495.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  // https://www.coingecko.com/en/coins/ethereum
+  base: ethers.utils.parseUnits('2495.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  // https://www.coingecko.com/en/coins/ethereum
+  scroll: ethers.utils.parseUnits('2495.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  // https://www.coingecko.com/en/coins/ethereum
+  polygonzkevm: ethers.utils.parseUnits(
+    '2495.00',
+    TOKEN_EXCHANGE_RATE_DECIMALS,
+  ),
+  // https://www.coingecko.com/en/coins/ethereum
+  mantapacific: ethers.utils.parseUnits(
+    '2495.00',
+    TOKEN_EXCHANGE_RATE_DECIMALS,
+  ),
   // https://www.coingecko.com/en/coins/moonbeam
-  moonbeam: ethers.utils.parseUnits('0.266', TOKEN_EXCHANGE_RATE_DECIMALS),
+  moonbeam: ethers.utils.parseUnits('0.387', TOKEN_EXCHANGE_RATE_DECIMALS),
   // xDAI
   gnosis: ethers.utils.parseUnits('1.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/solana
-  solana: ethers.utils.parseUnits('58.85', TOKEN_EXCHANGE_RATE_DECIMALS),
-  // https://www.coingecko.com/en/coins/ethereum
-  base: ethers.utils.parseUnits('2000.00', TOKEN_EXCHANGE_RATE_DECIMALS),
-  // https://www.coingecko.com/en/coins/ethereum
-  scroll: ethers.utils.parseUnits('2000.00', TOKEN_EXCHANGE_RATE_DECIMALS),
-  // https://www.coingecko.com/en/coins/ethereum
-  polygonzkevm: ethers.utils.parseUnits(
-    '2000.00',
-    TOKEN_EXCHANGE_RATE_DECIMALS,
-  ),
+  solana: ethers.utils.parseUnits('108.01', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/neutron
-  neutron: ethers.utils.parseUnits('0.304396', TOKEN_EXCHANGE_RATE_DECIMALS),
-  // https://www.coingecko.com/en/coins/ethereum
-  mantapacific: ethers.utils.parseUnits(
-    '1619.00',
-    TOKEN_EXCHANGE_RATE_DECIMALS,
-  ),
+  neutron: ethers.utils.parseUnits('1.14', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/injective
-  injective: ethers.utils.parseUnits('32.78', TOKEN_EXCHANGE_RATE_DECIMALS),
-  inevm: ethers.utils.parseUnits('32.78', TOKEN_EXCHANGE_RATE_DECIMALS), // 1:1 injective
+  injective: ethers.utils.parseUnits('35.07', TOKEN_EXCHANGE_RATE_DECIMALS),
+  inevm: ethers.utils.parseUnits('35.07', TOKEN_EXCHANGE_RATE_DECIMALS), // 1:1 injective
   // https://www.coingecko.com/en/coins/viction
-  viction: ethers.utils.parseUnits('0.881', TOKEN_EXCHANGE_RATE_DECIMALS),
+  viction: ethers.utils.parseUnits('0.726', TOKEN_EXCHANGE_RATE_DECIMALS),
 };
 
 // Gets the exchange rate of the remote quoted in local tokens

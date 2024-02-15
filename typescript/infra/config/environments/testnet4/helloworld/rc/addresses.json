@@ -1,7 +1,4 @@
 {
-  "basegoerli": {
-    "router": "0xC83e12EF2627ACE445C298e6eC418684918a6002"
-  },
   "arbitrumgoerli": {
     "router": "0xEAb4d0A8ba9F1d3a3A665b3F1DE05890A72135D3"
   },
@@ -28,9 +25,6 @@
   },
   "goerli": {
     "router": "0x916e550aF85E0Ee7A28FAf54b3E1d87f8f4c0Cdd"
-  },
-  "moonbasealpha": {
-    "router": "0xabB6e0A30acEB8327EcC6D25bABf409081fDF2DA"
   },
   "mumbai": {
     "router": "0x4d8323Bb5cD72148e826fCAb9B4A9dd09f77C905"

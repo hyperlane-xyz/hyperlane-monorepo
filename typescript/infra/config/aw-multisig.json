@@ -6,13 +6,6 @@
       "0x86485dcec5f7bb8478dd251676372d054dea6653"
     ]
   },
-  "basegoerli": {
-    "validators": [
-      "0xf6eddda696dcd3bf10f7ce8a02db31ef2e775a03",
-      "0x5a7d05cebf5db4dde9b2fedcefa76fb58fa05071",
-      "0x9260a6c7d54cbcbed28f8668679cd1fa3a203b25"
-    ]
-  },
   "fuji": {
     "validators": [
       "0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e",
@@ -53,13 +46,6 @@
       "0xb22b65f202558adf86a8bb2847b76ae1036686a5",
       "0x469f0940684d147defc44f3647146cb90dd0bc8e",
       "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
-    ]
-  },
-  "moonbasealpha": {
-    "validators": [
-      "0x521877064bd7ac7500d300f162c8c47c256a2f9c",
-      "0xbc1c70f58ae0459d4b8a013245420a893837d568",
-      "0x01e42c2c44af81dda1ac16fec76fea2a7a54a44c"
     ]
   },
   "optimismgoerli": {

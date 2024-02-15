@@ -46,11 +46,7 @@ where
 
     /// Sync logs and write them to the LogStore
     #[tracing::instrument(name = "ContractSync", fields(domain=self.domain().name()), skip(self, cursor))]
-    pub async fn sync(
-        &self,
-        label: &'static str,
-        mut cursor: Box<dyn ContractSyncCursor<T>>,
-    ) -> eyre::Result<()> {
+    pub async fn sync(&self, label: &'static str, mut cursor: Box<dyn ContractSyncCursor<T>>) {
         let chain_name = self.domain.as_ref();
         let indexed_height = self
             .metrics
