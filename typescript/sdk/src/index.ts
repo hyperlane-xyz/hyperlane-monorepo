@@ -134,11 +134,8 @@ export {
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types';
-export {
-  HyperlaneIsmFactory,
-  collectValidators,
-  moduleCanCertainlyVerify,
-} from './ism/HyperlaneIsmFactory';
+export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory';
+export { collectValidators, moduleCanCertainlyVerify } from './ism/utils';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,

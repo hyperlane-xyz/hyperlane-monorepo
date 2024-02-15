@@ -11,10 +11,7 @@ import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDe
 import { MultiProvider } from '../providers/MultiProvider';
 import { randomAddress, randomInt } from '../test/testUtils';
 
-import {
-  HyperlaneIsmFactory,
-  moduleMatchesConfig,
-} from './HyperlaneIsmFactory';
+import { HyperlaneIsmFactory } from './HyperlaneIsmFactory';
 import {
   AggregationIsmConfig,
   IsmConfig,
@@ -23,6 +20,7 @@ import {
   MultisigIsmConfig,
   RoutingIsmConfig,
 } from './types';
+import { moduleMatchesConfig } from './utils';
 
 function randomModuleType(): ModuleType {
   const choices = [

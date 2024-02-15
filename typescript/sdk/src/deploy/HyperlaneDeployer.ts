@@ -26,11 +26,9 @@ import {
   HyperlaneContractsMap,
   HyperlaneFactories,
 } from '../contracts/types';
-import {
-  HyperlaneIsmFactory,
-  moduleMatchesConfig,
-} from '../ism/HyperlaneIsmFactory';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
+import { moduleMatchesConfig } from '../ism/utils';
 import { MultiProvider } from '../providers/MultiProvider';
 import { MailboxClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
@@ -77,6 +75,11 @@ export abstract class HyperlaneDeployer<
   ) {
     this.logger = options?.logger ?? debug('hyperlane:deployer');
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
+
+    if (this.options?.ismFactory) {
+      this.options.ismFactory.deployContractFromFactory =
+        this.deployContractFromFactory.bind(this);
+    }
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {

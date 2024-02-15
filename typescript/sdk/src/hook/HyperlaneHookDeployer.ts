@@ -167,6 +167,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       chain,
       this.ismFactory.getContracts(chain).aggregationHookFactory,
       aggregatedHooks,
+      this.logger,
     );
     hooks[HookType.AGGREGATION] = StaticAggregationHook__factory.connect(
       address,
