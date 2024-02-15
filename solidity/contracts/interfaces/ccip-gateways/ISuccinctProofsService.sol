@@ -11,12 +11,12 @@ interface ISuccinctProofsService {
     /**
      * Requests the Succinct proof, state proof, and returns account and storage proof
      * @param target contract address to get the proof for
-     * @param storageKeys storage keys to get the proof for
+     * @param storageKey storage key to get the proof for
      * @param blockNumber block to get the proof for. Will decode as a BigNumber.
      */
     function getProofs(
         address target,
-        bytes32[] calldata storageKeys,
+        bytes32 storageKey,
         uint256 blockNumber
     ) external view returns (string[][] memory);
 }

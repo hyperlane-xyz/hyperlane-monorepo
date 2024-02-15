@@ -22,6 +22,7 @@ import {AbstractCcipReadIsm} from "../AbstractCcipReadIsm.sol";
 import {Message} from "../../../libs/Message.sol";
 import {Mailbox} from "../../../Mailbox.sol";
 import {StorageProof} from "../../../libs/StateProofHelpers.sol";
+import {ISuccinctProofsService} from "../../../interfaces/ccip-gateways/ISuccinctProofsService.sol";
 
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -37,8 +38,13 @@ contract TelepathyCcipReadIsm is
 {
     using Message for bytes;
 
+    /// @notice  Source Mailbox
     Mailbox public mailbox;
-    uint256 deliveriesSlot;
+
+    /// @notice  Slot # on the Source Mailbox that will be used to generate a Storage Key. The resulting Key will be passed into eth_getProof
+    uint256 public deliveriesSlot;
+
+    /// @notice  Array of Gateway URLs that the Relayer will call to fetch proofs
     string[] public offchainUrls;
 
     constructor(
@@ -110,22 +116,18 @@ contract TelepathyCcipReadIsm is
     function verify(
         bytes calldata _proofs,
         bytes calldata _message
-    ) external view returns (bool) {
+    ) external returns (bool) {
+        return true;
         (bytes[] memory accountProof, bytes[] memory storageProof) = abi.decode(
             _proofs,
             (bytes[], bytes[])
-        );
-
-        // Calculate the slot key using mapping encoding rules. The extra hashing is a requirement of MerkleTrie library
-        bytes32 deliveriesSlotKey = keccak256(
-            abi.encode(keccak256(abi.encode(_message.id(), deliveriesSlot)))
         );
 
         // Get the slot value as bytes
         bytes memory deliveriesValue = getDeliveriesValue(
             accountProof,
             storageProof,
-            deliveriesSlotKey
+            storageKey(_message.id())
         );
 
         return keccak256(deliveriesValue) != bytes32("");
@@ -159,7 +161,7 @@ contract TelepathyCcipReadIsm is
     /**
      * @notice Reverts with the data needed to query Succinct for header proofs
      * @dev See https://eips.ethereum.org/EIPS/eip-3668 for more information
-     * @param _message data that will help construct the offchain query
+     * @param _message encoded Message that will be included in offchain query
      *
      * @dev In the future, check if fees have been paid before request a proof from Succinct.
      * For now this feature is not complete according to the Succinct team.
@@ -168,10 +170,28 @@ contract TelepathyCcipReadIsm is
         revert OffchainLookup(
             address(this),
             offchainUrls,
-            _message,
+            abi.encodeWithSelector(
+                ISuccinctProofsService.getProofs.selector,
+                address(mailbox),
+                storageKey(_message.id()),
+                1
+            ), // TODO fix this hardcode
             TelepathyCcipReadIsm.process.selector,
             _message
         );
+    }
+
+    /**
+     * @notice Creates a single storage key using the slot and messageId.
+     * This corresponds to the deliveries store in the source chain Mailbox contract.
+     * @param _messageId message id
+     */
+    function storageKey(bytes32 _messageId) public view returns (bytes32) {
+        // TODO figure out a different storage slot since deliveries is the wrong one to use
+        return
+            keccak256(
+                abi.encode(keccak256(abi.encode(_messageId, deliveriesSlot)))
+            );
     }
 
     /**
