@@ -21,6 +21,7 @@ ed25519-dalek.workspace = true
 ethers.workspace = true
 eyre.workspace = true
 fuels.workspace = true
+futures.worksapce = true
 futures-util.workspace = true
 itertools.workspace = true
 maplit.workspace = true
