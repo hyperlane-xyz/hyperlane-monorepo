@@ -50,9 +50,9 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
 
 // Blessed non-Ethereum chains.
 export const nonEthereumMainnetConfigs: ChainMap<ChainMetadata> = {
-  // solana: chainMetadata.solana,
-  // neutron: chainMetadata.neutron,
-  // injective: chainMetadata.injective,
+  solana: chainMetadata.solana,
+  neutron: chainMetadata.neutron,
+  injective: chainMetadata.injective,
 };
 
 export const mainnetConfigs: ChainMap<ChainMetadata> = {
