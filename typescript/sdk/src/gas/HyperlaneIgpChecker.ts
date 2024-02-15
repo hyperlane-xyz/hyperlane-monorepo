@@ -3,6 +3,7 @@ import { BigNumber } from 'ethers';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
+import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { proxyImplementation } from '../deploy/proxy';
 import { ChainName } from '../types';
@@ -89,7 +90,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
         expectedOverhead = 0;
       }
 
-      const remoteId = this.multiProvider.getDomainId(remote);
+      const remoteId = chainMetadata[remote].domainId!;
       const existingOverhead = await defaultIsmIgp.destinationGasLimit(
         remoteId,
         0,
@@ -128,7 +129,8 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       Object.keys(this.configMap[local].oracleConfig ?? {}),
     );
     for (const remote of remotes) {
-      const remoteId = this.multiProvider.getDomainId(remote);
+      const remoteId = chainMetadata[remote].domainId!;
+      // const remoteId = this.multiProvider.getDomainId(remote);
       const destinationGasConfigs = await igp.destinationGasConfigs(remoteId);
       const actualGasOracle = destinationGasConfigs.gasOracle;
       const expectedGasOracle = coreContracts.storageGasOracle.address;
