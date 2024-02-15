@@ -1,4 +1,0 @@
-.env*
-/dist
-/cache
-/configs
