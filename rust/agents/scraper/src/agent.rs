@@ -103,7 +103,7 @@ impl BaseAgent for Scraper {
         let server_task = server.run(vec![]).instrument(info_span!("Relayer server"));
         tasks.push(server_task);
 
-        for domain in self.scrapers.keys() {
+        for (domain, scraper) in self.scrapers.iter() {
             tasks.push(self.scrape(*domain).await);
 
             let chain_conf = self.settings.chain_setup(&scraper.domain).unwrap();
