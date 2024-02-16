@@ -22,7 +22,11 @@ import {
 } from '../token/TokenStandard';
 import { ChainName, ChainNameOrId } from '../types';
 
-import { IgpQuoteConstants, RouteBlacklist } from './types';
+import {
+  IgpQuoteConstants,
+  RouteBlacklist,
+  WarpCoreConfigSchema,
+} from './types';
 
 export interface WarpCoreOptions {
   loggerName?: string;
@@ -40,7 +44,7 @@ export class WarpCore {
   constructor(
     multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
     tokens: Token[],
-    options: WarpCoreOptions,
+    options?: WarpCoreOptions,
   ) {
     this.multiProvider = multiProvider;
     this.tokens = tokens;
@@ -51,10 +55,41 @@ export class WarpCore {
 
   // Takes the serialized representation of a complete warp config and returns a WarpCore instance
   static FromConfig(
-    _multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
-    _config: string,
+    multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
+    config: unknown,
   ): WarpCore {
-    throw new Error('TODO: method not implemented');
+    // Validate and parse config data
+    const parsedConfig = WarpCoreConfigSchema.parse(config);
+    // Instantiate all tokens
+    const tokens = parsedConfig.tokens.map(
+      (t) =>
+        new Token({
+          ...t,
+          addressOrDenom: t.addressOrDenom || '',
+          connectedTokens: undefined,
+        }),
+    );
+    // Connect tokens together
+    parsedConfig.tokens.forEach((config, i) => {
+      for (const connection of config.connectedTokens || []) {
+        const token1 = tokens[i];
+        const [_protocol, chainName, addrOrDenom] = connection.split('|');
+        const token2 = tokens.find(
+          (t) => t.chainName === chainName && t.addressOrDenom === addrOrDenom,
+        );
+        if (!token2) {
+          throw new Error(
+            `Connected token not found: ${chainName} ${addrOrDenom}`,
+          );
+        }
+        token1.addConnectedToken(token2);
+      }
+    });
+    // Create new Warp
+    return new WarpCore(multiProvider, tokens, {
+      igpQuoteConstants: parsedConfig.options.igpQuoteConstants,
+      routeBlacklist: parsedConfig.options.routeBlacklist,
+    });
   }
 
   async getTransferGasQuote(

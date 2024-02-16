@@ -6,7 +6,7 @@ import { SafeParseReturnType, z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ZNzUint, ZUint } from './customZodTypes';
+import { ZChainName, ZNzUint, ZUint } from './customZodTypes';
 
 export enum ExplorerFamily {
   Etherscan = 'etherscan',
@@ -60,12 +60,9 @@ export type RpcUrl = z.infer<typeof RpcUrlSchema>;
  * Specified as a Zod schema
  */
 export const ChainMetadataSchemaObject = z.object({
-  name: z
-    .string()
-    .regex(/^[a-z][a-z0-9]*$/)
-    .describe(
-      'The unique string identifier of the chain, used as the key in ChainMap dictionaries.',
-    ),
+  name: ZChainName.describe(
+    'The unique string identifier of the chain, used as the key in ChainMap dictionaries.',
+  ),
   protocol: z
     .nativeEnum(ProtocolType)
     .describe(

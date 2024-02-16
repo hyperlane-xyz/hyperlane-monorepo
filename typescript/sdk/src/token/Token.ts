@@ -300,9 +300,15 @@ export class Token {
     return this.connectedTokens || [];
   }
 
-  setConnectedTokens(tokens: Token[]): Token[] {
-    this.connectedTokens = tokens;
-    return tokens;
+  addConnectedToken(token: Token): Token {
+    this.connectedTokens = [...(this.connectedTokens || []), token];
+    return this;
+  }
+
+  removeConnectedToken(token: Token): Token {
+    const index = this.connectedTokens?.findIndex((t) => t.equals(token));
+    if (index && index >= 0) this.connectedTokens?.splice(index, 1);
+    return this;
   }
 
   /**

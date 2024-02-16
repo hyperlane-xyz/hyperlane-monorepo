@@ -3,39 +3,36 @@
 # TODO: updates needed to CLI to generate this
 ---
 tokens:
-  # Eth mainnet native token
-  - protocol: ethereum
-    chainName: ethereum 
-    standard: EvmNative
+  # Eth Mainnet HypNative token
+  - chainName: ethereum 
+    standard: EvmHypNative
     decimals: 18
     symbol: ETH
     name: Ether
-    addressOrDenom: null
+    addressOrDenom: '0x1234567890123456789012345678901234567890'
     connectedTokens: 
       - ethereum|viction|0x1234567890123456789012345678901234567890
       - cosmos|injective|inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k
-  # Viction synthetic token
-  - protocol: ethereum
-    chainName: viction 
-    standard: EvmSynthetic
+  # Viction HypSynthetic token
+  - chainName: viction 
+    standard: EvmHypSynthetic
     decimals: 18
     symbol: ETH
     name: Ether
-    addressOrDenom: 0x1234567890123456789012345678901234567890
+    addressOrDenom: '0x1234567890123456789012345678901234567890'
     connectedTokens: 
-      - ethereum|ethereum|null
+      - ethereum|ethereum|0x1234567890123456789012345678901234567890
       - cosmos|injective|inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k
-  # Cosmos injective collateral token
-  - protocol: cosmos 
-    chainName: injective 
-    standard: EvmCollateral
+  # Cosmos Injective HypCollateral token
+  - chainName: injective 
+    standard: CwHypCollateral
     decimals: 18
     symbol: ETH.in 
     name: Ether on Injective
     addressOrDenom: inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k
     collateralAddressOrDenom: inj1us9dfoi2j3or9ojsfdlijf923sjdkf9123i23i
     connectedTokens: 
-      - ethereum|ethereum|null
+      - ethereum|ethereum|0x1234567890123456789012345678901234567890
       - ethereum|viction|0x1234567890123456789012345678901234567890
 options:
   igpQuoteConstants: 

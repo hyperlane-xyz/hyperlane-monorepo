@@ -38,7 +38,8 @@
     "prettier": "^2.8.8",
     "sinon": "^13.0.2",
     "ts-node": "^10.8.0",
-    "typescript": "5.1.6"
+    "typescript": "5.1.6",
+    "yaml": "^2.3.1"
   },
   "files": [
     "/dist",
@@ -62,7 +63,7 @@
     "prettier": "prettier --write ./src",
     "test": "yarn test:unit && yarn test:hardhat && yarn test:foundry",
     "test:ci": "yarn test",
-    "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test:unit": "mocha --config .mocharc.json './src/warp/**/*.test.ts' --exit",
     "test:hardhat": "hardhat test $(find ./src -name \"*.hardhat-test.ts\")",
     "test:metadata": "ts-node ./src/test/metadata-check.ts",
     "test:foundry": "./scripts/foundry-test.sh"

@@ -4431,6 +4431,7 @@ __metadata:
     ts-node: "npm:^10.8.0"
     typescript: "npm:5.1.6"
     viem: "npm:^1.20.0"
+    yaml: "npm:^2.3.1"
     zod: "npm:^3.21.2"
   peerDependencies:
     "@ethersproject/abi": "*"
