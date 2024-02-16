@@ -1,18 +1,32 @@
 import { expect } from 'chai';
+import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
+import sinon from 'sinon';
 import { parse } from 'yaml';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { Chains } from '../consts/chains';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
+import { ProviderType } from '../providers/ProviderType';
 import { Token } from '../token/Token';
+import { TokenStandard } from '../token/TokenStandard';
+import { ChainName } from '../types';
 
 import { WarpCore } from './WarpCore';
+
+const MOCK_QUOTE = 20_000n;
+const TRANSFER_AMOUNT = BigInt('1000000000000000000'); // 1 units @ 18 decimals
+const BIG_TRANSFER_AMOUNT = BigInt('100000000000000000000'); // 100 units @ 18 decimals
+const MOCK_BALANCE = BigInt('10000000000000000000'); // 10 units @ 18 decimals
 
 describe('WarpCore', () => {
   const multiProvider = new MultiProtocolProvider();
   let warpCore: WarpCore;
+  let evmHypNative: Token;
+  let evmHypSynthetic: Token;
+  let sealevelHypSynthetic: Token;
+  let cwHypCollateral: Token;
 
   it('Constructs', () => {
     const fromArgs = new WarpCore(multiProvider, [
@@ -25,38 +39,203 @@ describe('WarpCore', () => {
       ),
     );
     const fromConfig = WarpCore.FromConfig(multiProvider, exampleConfig);
-    expect(!!fromArgs).to.be.true;
-    expect(!!fromConfig).to.be.true;
+    expect(fromArgs).to.be.instanceOf(WarpCore);
+    expect(fromConfig).to.be.instanceOf(WarpCore);
+    expect(fromConfig.tokens.length).to.equal(5);
 
     warpCore = fromConfig;
+    [evmHypNative, evmHypSynthetic, sealevelHypSynthetic, cwHypCollateral] =
+      warpCore.tokens;
   });
 
   it('Finds tokens', () => {
-    expect(warpCore.findToken('TODO', Chains.ethereum)).to.be.instanceOf(Token);
+    expect(
+      warpCore.findToken(Chains.ethereum, evmHypNative.addressOrDenom),
+    ).to.be.instanceOf(Token);
+    expect(
+      warpCore.findToken(Chains.ethereum, sealevelHypSynthetic.addressOrDenom),
+    ).to.be.null;
   });
 
-  it('Gets transfer gas quote', () => {
-    //TODO
+  it('Gets transfer gas quote', async () => {
+    const stubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getHypAdapter').returns({
+        quoteGasPayment: () => Promise.resolve(MOCK_QUOTE),
+      } as any),
+    );
+
+    const testQuote = async (
+      token: Token,
+      chain: ChainName,
+      standard: TokenStandard,
+      amount: bigint = MOCK_QUOTE,
+    ) => {
+      const result = await warpCore.getTransferGasQuote(token, chain);
+      expect(
+        result.token.standard,
+        `token standard check for ${token.chainName} to ${chain}`,
+      ).equals(standard);
+      expect(
+        result.amount,
+        `token amount check for ${token.chainName} to ${chain}`,
+      ).to.equal(amount);
+    };
+
+    await testQuote(evmHypNative, Chains.arbitrum, TokenStandard.EvmNative);
+    await testQuote(evmHypNative, Chains.neutron, TokenStandard.EvmNative);
+    await testQuote(evmHypNative, Chains.solana, TokenStandard.EvmNative);
+    await testQuote(evmHypSynthetic, Chains.ethereum, TokenStandard.EvmNative);
+    await testQuote(
+      sealevelHypSynthetic,
+      Chains.ethereum,
+      TokenStandard.SealevelNative,
+    );
+    // Note, this route uses an igp quote const config
+    await testQuote(cwHypCollateral, Chains.arbitrum, TokenStandard.CW20, 1n);
+
+    stubs.forEach((s) => s.restore());
   });
 
-  it('Checks for approval', () => {
-    //TODO
+  it('Checks for destination collateral', async () => {
+    const stubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getHypAdapter').returns({
+        getBalance: () => Promise.resolve(MOCK_BALANCE),
+      } as any),
+    );
+
+    const testCollateral = async (
+      token: Token,
+      chain: ChainName,
+      expectedBigResult = true,
+    ) => {
+      const smallResult = await warpCore.isDestinationCollateralSufficient(
+        token.amount(TRANSFER_AMOUNT),
+        chain,
+      );
+      expect(
+        smallResult,
+        `small collateral check for ${token.chainName} to ${chain}`,
+      ).to.be.true;
+      const bigResult = await warpCore.isDestinationCollateralSufficient(
+        token.amount(BIG_TRANSFER_AMOUNT),
+        chain,
+      );
+      expect(
+        bigResult,
+        `big collateral check for ${token.chainName} to ${chain}`,
+      ).to.equal(expectedBigResult);
+    };
+
+    await testCollateral(evmHypNative, Chains.arbitrum);
+    await testCollateral(evmHypNative, Chains.neutron, false);
+    await testCollateral(evmHypNative, Chains.solana);
+    await testCollateral(cwHypCollateral, Chains.arbitrum);
+
+    stubs.forEach((s) => s.restore());
   });
 
-  it('Checks for destination collateral', () => {
-    //TODO
+  it('Validates transfers', async () => {
+    const balanceStubs = warpCore.tokens.map((t) =>
+      sinon
+        .stub(t, 'getBalance')
+        .returns(Promise.resolve({ amount: MOCK_BALANCE } as any)),
+    );
+    const quoteStubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getHypAdapter').returns({
+        quoteGasPayment: () => Promise.resolve(MOCK_QUOTE),
+      } as any),
+    );
+
+    const validResult = await warpCore.validateTransfer(
+      evmHypNative.amount(TRANSFER_AMOUNT),
+      Chains.arbitrum,
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+    );
+    expect(validResult).to.be.null;
+
+    const invalidChain = await warpCore.validateTransfer(
+      evmHypNative.amount(TRANSFER_AMOUNT),
+      'fakechain',
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+    );
+    expect(Object.keys(invalidChain || {})[0]).to.equal('destination');
+
+    const invalidRecipient = await warpCore.validateTransfer(
+      evmHypNative.amount(TRANSFER_AMOUNT),
+      Chains.neutron,
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+    );
+    expect(Object.keys(invalidRecipient || {})[0]).to.equal('recipient');
+
+    const invalidAmount = await warpCore.validateTransfer(
+      evmHypNative.amount(-10),
+      Chains.arbitrum,
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+    );
+    expect(Object.keys(invalidAmount || {})[0]).to.equal('amount');
+
+    const insufficientBalance = await warpCore.validateTransfer(
+      evmHypNative.amount(BIG_TRANSFER_AMOUNT),
+      Chains.arbitrum,
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+    );
+    expect(Object.keys(insufficientBalance || {})[0]).to.equal('amount');
+
+    balanceStubs.forEach((s) => s.restore());
+    quoteStubs.forEach((s) => s.restore());
   });
 
-  it('Validates transfers', () => {
-    // const result = warpCore.validateTransfer()
-    //TODO
-  });
+  it('Gets transfer remote txs', async () => {
+    const coreStub = sinon
+      .stub(warpCore, 'isApproveRequired')
+      .returns(Promise.resolve(false));
 
-  it('Gets transfer remote txs', () => {
-    //TODO
-  });
+    const adapterStubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getHypAdapter').returns({
+        quoteGasPayment: () => Promise.resolve(MOCK_QUOTE),
+        populateTransferRemoteTx: () => Promise.resolve({}),
+      } as any),
+    );
 
-  it('Finds tokens', () => {
-    expect(warpCore.findToken('TODO', Chains.ethereum)).to.be.instanceOf(Token);
+    const testGetTxs = async (
+      token: Token,
+      chain: ChainName,
+      providerType = ProviderType.EthersV5,
+    ) => {
+      const result = await warpCore.getTransferRemoteTxs(
+        token.amount(TRANSFER_AMOUNT),
+        chain,
+        ethers.constants.AddressZero,
+        ethers.constants.AddressZero,
+      );
+      expect(result.approveTx, `approve tx for ${token.chainName} to ${chain}`)
+        .be.undefined;
+      expect(
+        result.transferTx,
+        `transfer tx for ${token.chainName} to ${chain}`,
+      ).to.eql({
+        transaction: {},
+        type: providerType,
+      });
+    };
+
+    await testGetTxs(evmHypNative, Chains.arbitrum);
+    await testGetTxs(evmHypNative, Chains.neutron);
+    await testGetTxs(evmHypNative, Chains.solana);
+    await testGetTxs(evmHypSynthetic, Chains.ethereum);
+    await testGetTxs(
+      sealevelHypSynthetic,
+      Chains.ethereum,
+      ProviderType.SolanaWeb3,
+    );
+    await testGetTxs(cwHypCollateral, Chains.arbitrum, ProviderType.CosmJsWasm);
+
+    coreStub.restore();
+    adapterStubs.forEach((s) => s.restore());
   });
 });

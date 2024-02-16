@@ -69,7 +69,7 @@ export interface Token extends TokenArgs {}
 export class Token {
   public readonly protocol: ProtocolType;
 
-  constructor(public readonly args: TokenArgs) {
+  constructor(args: TokenArgs) {
     Object.assign(this, args);
     this.protocol = TOKEN_STANDARD_TO_PROTOCOL[this.standard];
   }

@@ -35,8 +35,28 @@ export const WarpCoreTokenConfigSchema = z.object({
     .min(1)
     .or(z.null())
     .describe('The address or denom, or null for native tokens'),
+  collateralAddressOrDenom: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('The address or denom of the collateralized token'),
+  igpTokenAddressOrDenom: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('The address or denom of the token for IGP payments'),
+  logoURI: z.string().optional().describe('The URI of the token logo'),
+  sourcePort: z
+    .string()
+    .optional()
+    .describe('IBC tokens only: the source port'),
+  sourceChannel: z
+    .string()
+    .optional()
+    .describe('IBC tokens only: the source channel'),
   connectedTokens: z
     .array(z.string().regex(/^(.+)|(.+)|(.+)$/))
+    .optional()
     .describe('The connected warp tokens'),
 });
 

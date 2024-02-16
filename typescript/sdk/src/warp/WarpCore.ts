@@ -107,7 +107,7 @@ export class WarpCore {
       (q) => q.origin === originName && q.destination === destinationName,
     );
     if (defaultQuote) {
-      gasAmount = BigInt(defaultQuote.toString());
+      gasAmount = BigInt(defaultQuote.quote.toString());
     } else {
       // Otherwise, compute IGP quote via the adapter
       const hypAdapter = originToken.getHypAdapter(this.multiProvider);
@@ -119,21 +119,18 @@ export class WarpCore {
     // TODO, it would be more robust to determine this based on on-chain data
     // rather than these janky heuristic
 
-    // If the token has an explicit IGP token address set, use that
     let igpToken: Token;
-    if (originToken.igpTokenAddressOrDenom) {
-      const searchResult = this.findToken(
-        originToken.igpTokenAddressOrDenom,
-        originName,
-      );
-      if (!searchResult)
-        throw new Error(
-          `IGP token ${originToken.igpTokenAddressOrDenom} is unknown`,
-        );
+    if (
+      originToken.igpTokenAddressOrDenom ||
+      (originToken.collateralAddressOrDenom &&
+        originProtocol === ProtocolType.Cosmos)
+    ) {
+      const address =
+        originToken.igpTokenAddressOrDenom ||
+        originToken.collateralAddressOrDenom;
+      const searchResult = this.findToken(originName, address);
+      if (!searchResult) throw new Error(`IGP token ${address} is unknown`);
       igpToken = searchResult;
-    } else if (originProtocol === ProtocolType.Cosmos) {
-      // If the protocol is cosmos, assume the token itself is used
-      igpToken = originToken;
     } else {
       // Otherwise use the plain old native token from the route origin
       igpToken = Token.FromChainMetadataNativeToken(
@@ -150,25 +147,25 @@ export class WarpCore {
     destination: ChainNameOrId,
     sender: Address,
     recipient: Address,
-  ): Promise<{ approveTx: TypedTransaction; transferTx: TypedTransaction }> {
+  ): Promise<{ approveTx?: TypedTransaction; transferTx: TypedTransaction }> {
     const { token, amount } = originTokenAmount;
     const destinationDomainId = this.multiProvider.getDomainId(destination);
     const providerType = PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[token.protocol];
     const hypAdapter = token.getHypAdapter(this.multiProvider);
 
-    let approveTxReq = undefined;
+    let approveTx: TypedTransaction | undefined = undefined;
     if (await this.isApproveRequired(originTokenAmount, sender)) {
       this.logger(`Approval required for transfer of ${token.symbol}`);
-      approveTxReq = await hypAdapter.populateApproveTx({
+      const approveTxReq = await hypAdapter.populateApproveTx({
         weiAmountOrId: amount.toString(),
         recipient: token.addressOrDenom,
       });
       this.logger(`Approval tx for ${token.symbol} populated`);
+      approveTx = {
+        type: providerType,
+        transaction: approveTxReq,
+      } as TypedTransaction;
     }
-    const approveTx = {
-      type: providerType,
-      transaction: approveTxReq,
-    } as TypedTransaction;
 
     const igpQuote = await this.getTransferGasQuote(token, destination);
 
@@ -207,7 +204,7 @@ export class WarpCore {
     if (!destinationToken)
       throw new Error(`No destination token found for ${destinationName}`);
 
-    if (!TOKEN_COLLATERALIZED_STANDARDS.includes(originToken.standard)) {
+    if (!TOKEN_COLLATERALIZED_STANDARDS.includes(destinationToken.standard)) {
       this.logger(`${destinationToken.symbol} is not collateralized, skipping`);
       return true;
     }
@@ -398,9 +395,10 @@ export class WarpCore {
    * Search through token list to find token with matching chain and address
    */
   findToken(
-    addressOrDenom: Address | string,
     chainName: ChainName,
+    addressOrDenom?: Address | string,
   ): Token | null {
+    if (!addressOrDenom) return null;
     const results = this.tokens.filter(
       (token) =>
         token.chainName === chainName &&

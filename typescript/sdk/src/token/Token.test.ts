@@ -174,7 +174,9 @@ describe('Token', () => {
       const balance = await adapter.getBalance(adddress);
       expect(typeof balance).to.eql('bigint');
     }
-  }).timeout(120_000);
+  })
+    .timeout(120_000)
+    .retries(3);
 
   it('Constructs from ChainMetadata', () => {
     for (const metadata of Object.values(chainMetadata)) {

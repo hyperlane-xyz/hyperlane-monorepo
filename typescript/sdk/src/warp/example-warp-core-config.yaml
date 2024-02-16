@@ -4,38 +4,55 @@
 ---
 tokens:
   # Eth Mainnet HypNative token
-  - chainName: ethereum 
+  - chainName: ethereum
     standard: EvmHypNative
     decimals: 18
     symbol: ETH
     name: Ether
     addressOrDenom: '0x1234567890123456789012345678901234567890'
-    connectedTokens: 
-      - ethereum|viction|0x1234567890123456789012345678901234567890
-      - cosmos|injective|inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k
-  # Viction HypSynthetic token
-  - chainName: viction 
+    connectedTokens:
+      - ethereum|arbitrum|0x9876543210987654321098765432109876543210
+      - cosmos|neutron|neutron1abcdefghijklmnopqrstuvwxyz1234567890ab
+      - sealevel|solana|s0LaBcEeFgHiJkLmNoPqRsTuVwXyZ456789012345678
+  # Arbitrum HypSynthetic token
+  - chainName: arbitrum
     standard: EvmHypSynthetic
     decimals: 18
     symbol: ETH
     name: Ether
-    addressOrDenom: '0x1234567890123456789012345678901234567890'
-    connectedTokens: 
+    addressOrDenom: '0x9876543210987654321098765432109876543210'
+    connectedTokens:
       - ethereum|ethereum|0x1234567890123456789012345678901234567890
-      - cosmos|injective|inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k
-  # Cosmos Injective HypCollateral token
-  - chainName: injective 
+      - cosmos|neutron|neutron1abcdefghijklmnopqrstuvwxyz1234567890ab
+  # Solana HypSynthetic
+  - chainName: solana
+    standard: SealevelHypSynthetic
+    decimals: 9
+    symbol: ETH.sol
+    name: Ether on Solana
+    addressOrDenom: s0LaBcEeFgHiJkLmNoPqRsTuVwXyZ456789012345678
+    connectedTokens:
+      - ethereum|ethereum|0x1234567890123456789012345678901234567890
+  # Cosmos Neutron HypCollateral token
+  - chainName: neutron
     standard: CwHypCollateral
     decimals: 18
-    symbol: ETH.in 
-    name: Ether on Injective
-    addressOrDenom: inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k
-    collateralAddressOrDenom: inj1us9dfoi2j3or9ojsfdlijf923sjdkf9123i23i
-    connectedTokens: 
+    symbol: ETH.in
+    name: Ether on Neutron
+    addressOrDenom: neutron1abcdefghijklmnopqrstuvwxyz1234567890ab
+    collateralAddressOrDenom: neutron1c0ll4t3r4lc0ll4t3r4lc0ll4t3r4lc0ll4t3r
+    connectedTokens:
       - ethereum|ethereum|0x1234567890123456789012345678901234567890
-      - ethereum|viction|0x1234567890123456789012345678901234567890
+      - ethereum|arbitrum|0x9876543210987654321098765432109876543210
+  # Cosmos Neutron Collateralized token
+  - chainName: neutron
+    standard: CW20
+    decimals: 18
+    symbol: ETH.in
+    name: Ether on Neutron
+    addressOrDenom: neutron1c0ll4t3r4lc0ll4t3r4lc0ll4t3r4lc0ll4t3r
 options:
-  igpQuoteConstants: 
-    - origin: injective 
-      destination: viction
-      quote: 200000
+  igpQuoteConstants:
+    - origin: neutron
+      destination: arbitrum
+      quote: 1
