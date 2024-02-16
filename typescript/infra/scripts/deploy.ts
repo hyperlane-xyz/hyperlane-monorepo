@@ -14,6 +14,7 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
+  TestRecipientDeployer,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
@@ -122,7 +123,16 @@ async function main() {
     );
     deployer = new LiquidityLayerDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
-    throw new Error('Test recipient is not supported. Use CLI instead.');
+    const addresses = getAddresses(environment, Modules.CORE);
+
+    for (const chain of Object.keys(addresses)) {
+      if (!addresses[chain].interchainSecurityModule) {
+        config[chain] = {
+          interchainSecurityModule: addresses[chain].interchainSecurityModule,
+        };
+      }
+    }
+    deployer = new TestRecipientDeployer(multiProvider);
   } else if (module === Modules.TEST_QUERY_SENDER) {
     // Get query router addresses
     const queryAddresses = getAddresses(
