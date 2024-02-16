@@ -88,9 +88,7 @@ mod tests {
         let server = Arc::new(server);
         // Run the server in the background
         let _server_task = tokio::spawn(async move {
-            if let Err(err) = server.run(vec![]).await {
-                eprintln!("Failed to run server: {}", err);
-            }
+            server.run(vec![]).await.unwrap();
         });
 
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;

@@ -12,7 +12,6 @@ use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
-    server::Server,
     settings::ChainConf,
     BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
     HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
@@ -51,7 +50,6 @@ pub struct Validator {
     core_metrics: Arc<CoreMetrics>,
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
-    server: Arc<Server>,
 }
 
 #[async_trait]
@@ -108,8 +106,6 @@ impl BaseAgent for Validator {
             .await?
             .into();
 
-        let server = settings.server(metrics.clone())?;
-
         Ok(Self {
             origin_chain: settings.origin_chain,
             origin_chain_conf,
@@ -127,7 +123,6 @@ impl BaseAgent for Validator {
             agent_metrics,
             chain_metrics,
             core_metrics: metrics,
-            server,
         })
     }
 
@@ -139,7 +134,11 @@ impl BaseAgent for Validator {
             ValidatorServer::new(self.origin_chain.clone(), self.core.metrics.clone()).routes;
 
         // run server
-        let server = self.server.clone();
+        let server = self
+            .core
+            .settings
+            .server(self.core_metrics.clone())
+            .expect("Failed to create server");
         let server_task = tokio::spawn(async move {
             server.run(routes);
             Ok(())

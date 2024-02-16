@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use futures::future::try_join_all;
 use hyperlane_base::{
-    metrics::AgentMetrics, server::Server, settings::IndexSettings, BaseAgent, ChainMetrics,
-    ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
+    metrics::AgentMetrics, settings::IndexSettings, BaseAgent, ChainMetrics, ContractSyncMetrics,
+    CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
 };
 use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
 use num_traits::cast::FromPrimitive;
@@ -26,7 +26,6 @@ pub struct Scraper {
     core_metrics: Arc<CoreMetrics>,
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
-    server: Arc<Server>,
 }
 
 #[derive(Debug)]
@@ -79,8 +78,6 @@ impl BaseAgent for Scraper {
             );
         }
 
-        let server = settings.server(metrics.clone())?;
-
         trace!(domain_count = scrapers.len(), "Created scrapers");
 
         Ok(Self {
@@ -91,7 +88,6 @@ impl BaseAgent for Scraper {
             core_metrics: metrics,
             agent_metrics,
             chain_metrics,
-            server,
         })
     }
 
@@ -100,7 +96,11 @@ impl BaseAgent for Scraper {
         let mut tasks = Vec::with_capacity(self.scrapers.len());
 
         // running http server
-        let server = self.server.clone();
+        let server = self
+            .core
+            .settings
+            .server(self.core_metrics.clone())
+            .expect("Failed to create server");
         let server_task = server.run(vec![]).instrument(info_span!("Relayer server"));
         tasks.push(server_task);
 
