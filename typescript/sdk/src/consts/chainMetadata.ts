@@ -673,7 +673,7 @@ export const plumetestnet: ChainMetadata = {
       apiUrl: 'https://plume-testnet.explorer.caldera.xyz/api',
       family: ExplorerFamily.Blockscout,
       name: 'Plume Testnet Explorer',
-      url: 'https://plume-testnet.explorer.caldera.xyz/',
+      url: 'https://plume-testnet.explorer.caldera.xyz',
     },
   ],
   blocks: {
@@ -683,7 +683,6 @@ export const plumetestnet: ChainMetadata = {
   },
   chainId: 161221135,
   displayName: 'Plume Testnet',
-  displayNameShort: 'Plume Testnet',
   domainId: 161221135,
   isTestnet: true,
   name: Chains.plumetestnet,

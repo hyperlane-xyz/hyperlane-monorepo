@@ -29,7 +29,7 @@ const gasPrices: ChainMap<BigNumber> = {
   chiado: ethers.utils.parseUnits('2', 'gwei'),
   solanatestnet: ethers.BigNumber.from('28'),
   eclipsetestnet: ethers.BigNumber.from('28'),
-  plumetestnet: ethers.utils.parseUnits('1.5', 'gwei'),
+  plumetestnet: ethers.utils.parseUnits('0.01', 'gwei'),
 };
 
 // Used to categorize rarity of testnet tokens & approximate exchange rates.
