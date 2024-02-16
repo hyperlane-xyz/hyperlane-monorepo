@@ -1,4 +1,4 @@
-import { input } from '@inquirer/prompts';
+import { confirm, input } from '@inquirer/prompts';
 
 import {
   ChainMap,
@@ -90,6 +90,52 @@ export async function createChainConfig({
     protocol: ProtocolType.Ethereum,
     rpcUrls: [{ http: rpcUrl }],
   };
+  const wantBlockConfig = await confirm({
+    message: 'Do you want to add block config for this chain?',
+  });
+  if (wantBlockConfig) {
+    const blockConfirmation = await input({
+      message:
+        'Enter no. of blocks to wait before considering a transaction confirmed',
+    });
+    const blockReorgPeriod = await input({
+      message:
+        'Enter no. of blocks before a transaction has a near-zero chance of reverting',
+    });
+    const blockTimeEstimate = await input({
+      message: 'Enter the rough estimate of time per block in seconds',
+    });
+    metadata.blocks = {
+      confirmations: parseInt(blockConfirmation, 10),
+      reorgPeriod: parseInt(blockReorgPeriod, 10),
+      estimateBlockTime: parseInt(blockTimeEstimate, 10),
+    };
+  }
+  const wantGasConfig = await confirm({
+    message: 'Do you want to add gas config for this chain?',
+  });
+  if (wantGasConfig) {
+    const isEIP1559 = await confirm({
+      message: 'Is your chain an EIP1559 enabled?',
+    });
+    if (isEIP1559) {
+      const maxFeePerGas = await input({
+        message: 'Enter the max fee per gas in gwei',
+      });
+      const maxPriorityFeePerGas = await input({
+        message: 'Enter the max priority fee per gas in gwei',
+      });
+      metadata.transactionOverrides = {
+        maxFeePerGas: parseInt(maxFeePerGas, 10) * 10 ** 9,
+        maxPriorityFeePerGas: parseInt(maxPriorityFeePerGas, 10) * 10 ** 9,
+      };
+    } else {
+      const gasPrice = await input({ message: 'Enter the gas price in gwei' });
+      metadata.transactionOverrides = {
+        gasPrice: parseInt(gasPrice, 10) * 10 ** 9,
+      };
+    }
+  }
   const parseResult = ChainMetadataSchema.safeParse(metadata);
   if (parseResult.success) {
     logGreen(`Chain config is valid, writing to file ${outPath}`);
