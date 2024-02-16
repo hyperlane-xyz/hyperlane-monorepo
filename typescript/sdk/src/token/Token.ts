@@ -16,6 +16,7 @@ import {
   TOKEN_HYP_STANDARDS,
   TOKEN_MULTI_CHAIN_STANDARDS,
   TOKEN_NFT_STANDARDS,
+  TOKEN_STANDARD_TO_PROTOCOL,
   TokenStandard,
 } from './TokenStandard';
 import {
@@ -45,7 +46,6 @@ import {
 } from './adapters/SealevelTokenAdapter';
 
 export interface TokenArgs {
-  protocol: ProtocolType;
   chainName: ChainName;
   standard: TokenStandard;
   decimals: number;
@@ -67,8 +67,11 @@ export interface TokenArgs {
 export interface Token extends TokenArgs {}
 
 export class Token {
+  public readonly protocol: ProtocolType;
+
   constructor(public readonly args: TokenArgs) {
     Object.assign(this, args);
+    this.protocol = TOKEN_STANDARD_TO_PROTOCOL[this.standard];
   }
 
   static FromChainMetadataNativeToken(chainMetadata: ChainMetadata): Token {
@@ -79,7 +82,6 @@ export class Token {
 
     const { protocol, name: chainName, nativeToken, logoURI } = chainMetadata;
     return new Token({
-      protocol,
       chainName,
       standard: PROTOCOL_TO_NATIVE_STANDARD[protocol],
       addressOrDenom: nativeToken.denom ?? '',

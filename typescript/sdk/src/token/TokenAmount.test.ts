@@ -1,8 +1,6 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
-
 import { chainMetadata } from '../consts/chainMetadata';
 import { Chains } from '../consts/chains';
 
@@ -11,7 +9,6 @@ import { TokenAmount } from './TokenAmount';
 import { TokenStandard } from './TokenStandard';
 
 const token1 = new Token({
-  protocol: ProtocolType.Ethereum,
   chainName: Chains.ethereum,
   standard: TokenStandard.ERC20,
   addressOrDenom: ethers.constants.AddressZero,

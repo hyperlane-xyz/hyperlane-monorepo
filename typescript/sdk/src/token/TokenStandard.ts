@@ -36,6 +36,43 @@ export enum TokenStandard {
   FuelNative = 'FuelNative',
 }
 
+// Allows for omission of protocol field in token args
+export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
+  // EVM
+  ERC20: ProtocolType.Ethereum,
+  ERC721: ProtocolType.Ethereum,
+  EvmNative: ProtocolType.Ethereum,
+  EvmHypNative: ProtocolType.Ethereum,
+  EvmHypCollateral: ProtocolType.Ethereum,
+  EvmHypSynthetic: ProtocolType.Ethereum,
+
+  // Sealevel (Solana)
+  SealevelSpl: ProtocolType.Sealevel,
+  SealevelSpl2022: ProtocolType.Sealevel,
+  SealevelNative: ProtocolType.Sealevel,
+  SealevelHypNative: ProtocolType.Sealevel,
+  SealevelHypCollateral: ProtocolType.Sealevel,
+  SealevelHypSynthetic: ProtocolType.Sealevel,
+
+  // Cosmos
+  CosmosIcs20: ProtocolType.Cosmos,
+  CosmosIcs721: ProtocolType.Cosmos,
+  CosmosNative: ProtocolType.Cosmos,
+  CosmosIbc: ProtocolType.Cosmos,
+  CosmosFactory: ProtocolType.Cosmos,
+
+  // CosmWasm
+  CW20: ProtocolType.Cosmos,
+  CWNative: ProtocolType.Cosmos,
+  CW721: ProtocolType.Cosmos,
+  CwHypNative: ProtocolType.Cosmos,
+  CwHypCollateral: ProtocolType.Cosmos,
+  CwHypSynthetic: ProtocolType.Cosmos,
+
+  // Fuel (TODO)
+  FuelNative: ProtocolType.Fuel,
+};
+
 export const TOKEN_NFT_STANDARDS = [
   TokenStandard.ERC721,
   TokenStandard.CosmosIcs721,

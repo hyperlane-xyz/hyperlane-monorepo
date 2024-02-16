@@ -15,7 +15,6 @@ import { TokenStandard } from './TokenStandard';
 const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   // EVM
   [TokenStandard.ERC20]: {
-    protocol: ProtocolType.Ethereum,
     chainName: Chains.ethereum,
     standard: TokenStandard.ERC20,
     addressOrDenom: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
@@ -28,7 +27,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     chainMetadata.optimism,
   ),
   [TokenStandard.EvmHypNative]: {
-    protocol: ProtocolType.Ethereum,
     chainName: Chains.inevm,
     standard: TokenStandard.EvmHypNative,
     addressOrDenom: '0x26f32245fCF5Ad53159E875d5Cae62aEcf19c2d4',
@@ -37,7 +35,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     name: 'Injective Coin',
   },
   [TokenStandard.EvmHypCollateral]: {
-    protocol: ProtocolType.Ethereum,
     chainName: Chains.goerli,
     standard: TokenStandard.EvmHypCollateral,
     addressOrDenom: '0x145de8760021c4ac6676376691b78038d3DE9097',
@@ -47,7 +44,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     name: 'Weth',
   },
   [TokenStandard.EvmHypSynthetic]: {
-    protocol: ProtocolType.Ethereum,
     chainName: Chains.inevm,
     standard: TokenStandard.EvmHypSynthetic,
     addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
@@ -58,7 +54,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
 
   // Sealevel
   [TokenStandard.SealevelSpl]: {
-    protocol: ProtocolType.Sealevel,
     chainName: Chains.solana,
     standard: TokenStandard.SealevelSpl,
     addressOrDenom: 'So11111111111111111111111111111111111111112',
@@ -67,7 +62,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     name: 'SOL',
   },
   [TokenStandard.SealevelSpl2022]: {
-    protocol: ProtocolType.Sealevel,
     chainName: Chains.solana,
     standard: TokenStandard.SealevelSpl2022,
     addressOrDenom: '21zHSATJqhNkcpoNkhFzPJW9LARSmoinLEeDtdygGuWh',
@@ -89,7 +83,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     chainMetadata.neutron,
   ),
   [TokenStandard.CosmosIbc]: {
-    protocol: ProtocolType.Cosmos,
     chainName: Chains.neutron,
     standard: TokenStandard.CosmosIbc,
     addressOrDenom:
@@ -102,7 +95,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   },
   // Token factory for this not yet supported
   // [TokenStandard.CosmosFactory]: {
-  //   protocol: ProtocolType.Cosmos,
   //   chainName: Chains.neutron,
   //   standard: TokenStandard.CosmosFactory,
   //   addressOrDenom:
@@ -114,7 +106,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.CosmosFactory]: null,
   [TokenStandard.CW20]: null,
   [TokenStandard.CWNative]: {
-    protocol: ProtocolType.Cosmos,
     chainName: Chains.neutron,
     standard: TokenStandard.CWNative,
     addressOrDenom:
@@ -125,7 +116,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   },
   [TokenStandard.CW721]: null,
   [TokenStandard.CwHypNative]: {
-    protocol: ProtocolType.Cosmos,
     chainName: Chains.injective,
     standard: TokenStandard.CwHypNative,
     addressOrDenom: 'inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k',
@@ -135,7 +125,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     name: 'Injective Coin',
   },
   [TokenStandard.CwHypCollateral]: {
-    protocol: ProtocolType.Cosmos,
     chainName: Chains.neutron,
     standard: TokenStandard.CwHypCollateral,
     addressOrDenom:
@@ -178,8 +167,8 @@ describe('Token', () => {
       expect(token.standard).to.eql(tokenArgs.standard);
       const adapter = token.getAdapter(multiProvider);
       const adddress =
-        STANDARD_TO_ADDRESS[tokenArgs.standard] ??
-        PROTOCOL_TO_ADDRESS[tokenArgs.protocol];
+        STANDARD_TO_ADDRESS[token.standard] ??
+        PROTOCOL_TO_ADDRESS[token.protocol];
       if (!adddress)
         throw new Error(`No address for standard ${tokenArgs.standard}`);
       const balance = await adapter.getBalance(adddress);
