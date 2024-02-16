@@ -187,12 +187,13 @@
     "mailbox": "0x33dB966328Ea213b0f76eF96CA368AB37779F065",
     "proxyAdmin": "0x589C201a07c26b4725A4A829d772f24423da480B",
     "validatorAnnounce": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9",
-    "interchainSecurityModule": "0xE1C106C9A525b8090a76a7c82d245896f0ca9456",
+    "interchainSecurityModule": "0x7B40deb01A127E3A5eECdbCDF263e41899a90078",
     "merkleTreeHook": "0xddf4C3e791caCaFd26D7fb275549739B38ae6e75",
     "fallbackRoutingHook": "0x19Be55D859368e02d7b9C00803Eb677BDC1359Bd",
     "pausableHook": "0x5821f3B6eE05F3dC62b43B74AB1C8F8E6904b1C8",
     "storageGasOracle": "0x267B6B6eAf6790faE5D5E9070F28a9cE64CbF279",
     "interchainGasPaymaster": "0x28B02B97a850872C4D33C3E024fab6499ad96564",
-    "protocolFee": "0x1b33611fCc073aB0737011d5512EF673Bff74962"
+    "protocolFee": "0x1b33611fCc073aB0737011d5512EF673Bff74962",
+    "testRecipient": "0xe0B988062A0C6492177d64823Ab95a9c256c2a5F"
   }
 }
