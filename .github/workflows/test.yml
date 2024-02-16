@@ -326,6 +326,9 @@ jobs:
           - environment: mainnet3
             chain: viction
             module: core
+          - environment: mainnet3
+            chain: ethereum
+            module: core
 
     steps:
       - uses: actions/checkout@v3
