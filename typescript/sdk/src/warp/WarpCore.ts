@@ -309,7 +309,7 @@ export class WarpCore {
     if (
       this.routeBlacklist.some(
         (bl) =>
-          bl.origin === originMetadata?.name &&
+          bl.origin === originMetadata.name &&
           bl.destination === destinationMetadata.name,
       )
     ) {
