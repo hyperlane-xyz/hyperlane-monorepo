@@ -7,8 +7,7 @@ use hyperlane_base::{
     metrics::AgentMetrics, settings::IndexSettings, BaseAgent, ChainMetrics, ContractSyncMetrics,
     CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
 };
-use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
-use num_traits::cast::FromPrimitive;
+use hyperlane_core::HyperlaneDomain;
 use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 
@@ -107,8 +106,7 @@ impl BaseAgent for Scraper {
         for domain in self.scrapers.keys() {
             tasks.push(self.scrape(*domain).await);
 
-            let domain = KnownHyperlaneDomain::from_u32(*domain).unwrap();
-            let chain_conf = self.settings.chain_setup(&domain.into()).unwrap();
+            let chain_conf = self.settings.chain_setup(&scraper.domain).unwrap();
             let metrics_updater = MetricsUpdater::new(
                 chain_conf,
                 self.core_metrics.clone(),
