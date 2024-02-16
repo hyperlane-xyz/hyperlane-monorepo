@@ -1,6 +1,6 @@
 use std::{num::NonZeroU64, sync::Arc, time::Duration};
 
-use crate::server::server::ValidatorServer;
+use crate::server::validator_server::ValidatorServer;
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
