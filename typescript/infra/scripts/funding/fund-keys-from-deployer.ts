@@ -145,6 +145,7 @@ const desiredBalancePerChain: ChainMap<string> = {
   scroll: '0.3',
   base: '0.3',
   polygonzkevmtestnet: '0.3',
+  plumetestnet: '0.2',
 
   // unused
   test1: '0',
@@ -169,6 +170,7 @@ const desiredKathyBalancePerChain: ChainMap<string> = {
   polygonzkevm: '0.05',
   viction: '0.05',
   inevm: '0.05',
+  plumetestnet: '0.05',
 };
 
 // The balance threshold of the IGP contract that must be met for the key funder
@@ -196,6 +198,7 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   base: '0.1',
   scroll: '0.1',
   polygonzkevm: '0.1',
+  plumetestnet: '0.1',
   // unused
   test1: '0',
   test2: '0',
