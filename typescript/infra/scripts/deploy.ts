@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import path from 'path';
 import { prompt } from 'prompts';
 
@@ -126,11 +127,11 @@ async function main() {
     const addresses = getAddresses(environment, Modules.CORE);
 
     for (const chain of Object.keys(addresses)) {
-      if (!addresses[chain].interchainSecurityModule) {
-        config[chain] = {
-          interchainSecurityModule: addresses[chain].interchainSecurityModule,
-        };
-      }
+      config[chain] = {
+        interchainSecurityModule:
+          addresses[chain].interchainSecurityModule ??
+          ethers.constants.AddressZero,
+      };
     }
     deployer = new TestRecipientDeployer(multiProvider);
   } else if (module === Modules.TEST_QUERY_SENDER) {
