@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../libs/Message.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 interface IAxelarGateway {
     function validateContractCall(
@@ -14,7 +14,7 @@ interface IAxelarGateway {
     ) external returns (bool);
 }
 
-contract AxelarIsm is IInterchainSecurityModule, OwnableUpgradeable {
+contract AxelarIsm is IInterchainSecurityModule, Ownable {
     using Message for bytes;
 
     IAxelarGateway public AXELAR_GATEWAY;
@@ -30,7 +30,12 @@ contract AxelarIsm is IInterchainSecurityModule, OwnableUpgradeable {
         string memory sourceChain,
         string memory sourceAddress,
         address axelarGateway
-    ) external onlyOwner initializer {
+    ) external onlyOwner {
+        // require(
+        //     bytes(SOURCE_CHAIN).length == 0 &&
+        //     bytes(SOURCE_ADDRESS).length == 0,
+        //     "Already initialized"
+        // );
         SOURCE_CHAIN = sourceChain;
         SOURCE_ADDRESS = sourceAddress;
         AXELAR_GATEWAY = IAxelarGateway(axelarGateway);

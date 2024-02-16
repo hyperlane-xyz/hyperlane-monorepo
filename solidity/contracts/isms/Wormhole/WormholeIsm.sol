@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../libs/Message.sol";
 
@@ -31,7 +31,7 @@ interface IWormhole {
     ) external view returns (VM memory vm, bool valid, string memory reason);
 }
 
-contract WormholeIsm is IInterchainSecurityModule, OwnableUpgradeable {
+contract WormholeIsm is IInterchainSecurityModule, Ownable {
     using Message for bytes;
 
     IWormhole public WORMHOLE;
@@ -47,7 +47,12 @@ contract WormholeIsm is IInterchainSecurityModule, OwnableUpgradeable {
         uint16 sourceChainId,
         bytes32 sourceAddress,
         address _wormhole
-    ) external onlyOwner initializer {
+    ) external onlyOwner {
+        // require(
+        //     bytes(SOURCE_CHAIN_ID).length == 0 &&
+        //     bytes(SOURCE_ADDRESS) == bytes32(0),
+        //     "Already initialized"
+        // );
         SOURCE_CHAIN_ID = sourceChainId;
         SOURCE_ADDRESS = sourceAddress;
         WORMHOLE = IWormhole(_wormhole);
