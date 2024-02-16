@@ -1,19 +1,4 @@
 {
-  "basegoerli": {
-    "merkleRootMultisigIsmFactory": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
-    "messageIdMultisigIsmFactory": "0x54148470292C24345fb828B003461a9444414517",
-    "aggregationIsmFactory": "0x589C201a07c26b4725A4A829d772f24423da480B",
-    "aggregationHookFactory": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
-    "proxyAdmin": "0x05Ea36Caee7d92C173334C9D97DcD39ABdCB2b69",
-    "mailbox": "0x58483b754Abb1E8947BE63d6b95DF75b8249543A",
-    "validatorAnnounce": "0x679Dc08cC3A4acFeea2f7CAFAa37561aE0b41Ce7",
-    "storageGasOracle": "0x267B6B6eAf6790faE5D5E9070F28a9cE64CbF279",
-    "interchainGasPaymaster": "0x28B02B97a850872C4D33C3E024fab6499ad96564",
-    "protocolFee": "0xEe421285728284000ec6c6C55C6F9161faeFfa99",
-    "testRecipient": "0x54Bd02f0f20677e9846F8E9FdB1Abc7315C49C38",
-    "testTokenRecipient": "0x5e65279Fb7293a058776e37587398fcc3E9184b1",
-    "routingIsmFactory": "0xb6242d549d4b19a20684397790AFa555b16Bc979"
-  },
   "arbitrumgoerli": {
     "merkleRootMultisigIsmFactory": "0x17D58eBb5Ea0E2d360c877E119FAef4C4052e6B9",
     "messageIdMultisigIsmFactory": "0x922CeEe9e8832a047e6aD68Df4F079F271b73Ac3",
@@ -174,24 +159,6 @@
     "testRecipient": "0x4fC0Ac163eFFEb7890937cB89275B2C231880F22",
     "testTokenRecipient": "0xd8958706B33E20C88679a22203F0AFa6158c834d",
     "routingIsmFactory": "0xeB998dC788E2c1e772d198d32e50890544776e75"
-  },
-  "moonbasealpha": {
-    "merkleRootMultisigIsmFactory": "0xA59Ba0A8D4ea5A5DC9c8B0101ba7E6eE6C3399A4",
-    "messageIdMultisigIsmFactory": "0x8f919348F9C4619A196Acb5e377f49E5E2C0B569",
-    "aggregationIsmFactory": "0x0048FaB53526D9a0478f66D660059E3E3611FE3E",
-    "aggregationHookFactory": "0x00DFB81Bfc45fa03060b605273147F274ea807E5",
-    "proxyAdmin": "0xb241991527F1C21adE14F55589E5940aC4852Fa0",
-    "mailbox": "0x76189acFA212298d7022624a4633411eE0d2f26F",
-    "merkleTreeHook": "0x155B1CD2f7Cbc58d403B9BE341FaB6CD77425175",
-    "storageGasOracle": "0x62fA20dE68Dbe425f0bc474b12235a4F8449E608",
-    "interchainGasPaymaster": "0x92F05669A354a032A84FcfABfD13beE1aBc5bFd0",
-    "aggregationHook": "0xaA9d918C49Cea0D2a877252aFb7976B6e3A48623",
-    "protocolFee": "0xe2A73F106902983452713F24Bd019F6eb8712986",
-    "validatorAnnounce": "0x07543860AE9E72aBcF2Bae9827b23621A64Fa416",
-    "fallbackRoutingHook": "0xf666A33C451E8371907aD22dd545E1678fCa1582",
-    "testRecipient": "0x68729446296E413f0b7d6E85F2FD128465F0e5D0",
-    "testTokenRecipient": "0xEdA6f85f4761A1f9e42FD40CA5a4E8Ce1C764015",
-    "routingIsmFactory": "0xE8F752e5C4E1A6a2e3eAfa42d44D601A22d78f2b"
   },
   "mumbai": {
     "merkleRootMultisigIsmFactory": "0xda0780ed3eE577EfE0B856E00f983bF231603307",

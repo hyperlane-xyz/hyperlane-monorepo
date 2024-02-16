@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use derive_builder::Builder;
-use eyre::{Report, Result};
+use eyre::Result;
 use hyperlane_core::metrics::agent::decimals_by_protocol;
 use hyperlane_core::metrics::agent::u256_as_scaled_f64;
 use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
@@ -221,11 +221,10 @@ impl MetricsUpdater {
     }
 
     /// Spawns a tokio task to update the metrics
-    pub fn spawn(self) -> Instrumented<JoinHandle<Result<(), Report>>> {
+    pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
         tokio::spawn(async move {
             self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
                 .await;
-            Ok(())
         })
         .instrument(info_span!("MetricsUpdater"))
     }
