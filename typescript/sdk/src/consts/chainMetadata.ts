@@ -667,6 +667,34 @@ export const optimismgoerli: ChainMetadata = {
   rpcUrls: [{ http: 'https://goerli.optimism.io' }],
 };
 
+export const plumetestnet: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://plume-testnet.explorer.caldera.xyz/api',
+      family: ExplorerFamily.Blockscout,
+      name: 'Plume Testnet Explorer',
+      url: 'https://plume-testnet.explorer.caldera.xyz',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 3,
+    reorgPeriod: 1,
+  },
+  chainId: 161221135,
+  displayName: 'Plume Testnet',
+  domainId: 161221135,
+  isTestnet: true,
+  name: Chains.plumetestnet,
+  nativeToken: {
+    decimals: 18,
+    name: 'Ether',
+    symbol: 'ETH',
+  },
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [{ http: 'https://plume-testnet.rpc.caldera.xyz/http' }],
+};
+
 export const polygon: ChainMetadata = {
   blockExplorers: [
     {
@@ -1064,6 +1092,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   neutron,
   optimism,
   optimismgoerli,
+  plumetestnet,
   polygon,
   polygonzkevm,
   polygonzkevmtestnet,
