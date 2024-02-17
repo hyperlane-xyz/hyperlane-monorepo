@@ -9,12 +9,14 @@ import {
 import {
   ChainName,
   EvmHypCollateralAdapter,
+  EvmHypNativeAdapter,
+  EvmHypSyntheticAdapter,
   HyperlaneContractsMap,
   HyperlaneCore,
+  IHypTokenAdapter,
   MultiProtocolProvider,
   MultiProvider,
   Token,
-  TokenAmount,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 import { Address, timeout } from '@hyperlane-xyz/utils';
@@ -191,22 +193,36 @@ async function executeDelivery({
     }
   }
 
-  const adapter = new EvmHypCollateralAdapter(
-    origin,
-    MultiProtocolProvider.fromMultiProvider(multiProvider),
-    { token: routerAddress },
-  );
+  let adapter: IHypTokenAdapter;
+  const multiProtocolProvider =
+    MultiProtocolProvider.fromMultiProvider(multiProvider);
+  if (tokenType === TokenType.native) {
+    adapter = new EvmHypNativeAdapter(origin, multiProtocolProvider, {
+      token: routerAddress,
+    });
+  } else if (tokenType === TokenType.collateral) {
+    adapter = new EvmHypCollateralAdapter(origin, multiProtocolProvider, {
+      token: routerAddress,
+    });
+  } else {
+    adapter = new EvmHypSyntheticAdapter(origin, multiProtocolProvider, {
+      token: routerAddress,
+    });
+  }
+
   const destinationDomain = multiProvider.getDomainId(destination);
+  log('Fetching interchain gas quote');
   const gasAmount = await adapter.quoteGasPayment(destinationDomain);
+  log('Interchain gas quote:', gasAmount);
   const gasToken = Token.FromChainMetadataNativeToken(
     multiProvider.getChainMetadata(origin),
   );
-  const transferTx = await adapter.populateTransferRemoteTx({
+  const transferTx = (await adapter.populateTransferRemoteTx({
     weiAmountOrId: wei,
     destination: destinationDomain,
     recipient,
-    interchainGas: new TokenAmount(gasAmount, gasToken),
-  });
+    interchainGas: gasToken.amount(gasAmount),
+  })) as ethers.PopulatedTransaction;
 
   const txResponse = await connectedSigner.sendTransaction(transferTx);
   const txReceipt = await multiProvider.handleTx(origin, txResponse);

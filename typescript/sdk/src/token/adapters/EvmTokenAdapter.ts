@@ -20,7 +20,7 @@ import { BaseEvmAdapter } from '../../app/MultiProtocolApp';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import { ChainName } from '../../types';
 import { TokenStandard } from '../TokenStandard';
-import { MinimalTokenMetadata } from '../config';
+import { MinimalTokenMetadata, TokenType } from '../config';
 
 import {
   IHypTokenAdapter,
@@ -119,6 +119,8 @@ export class EvmHypSyntheticAdapter<T extends HypERC20 = HypERC20>
   extends EvmTokenAdapter<T>
   implements IHypTokenAdapter
 {
+  public readonly tokenType: TokenType = TokenType.synthetic;
+
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
@@ -172,7 +174,7 @@ export class EvmHypSyntheticAdapter<T extends HypERC20 = HypERC20>
       const { token: igpToken, amount: igpAmount } = interchainGas;
       // If this is an EvmHypNative adapter and the igp token is native Eth
       if (
-        !this.addresses.token &&
+        this.tokenType === TokenType.native &&
         igpToken.standard === TokenStandard.EvmNative
       ) {
         txValue = igpAmount + BigInt(weiAmountOrId);
@@ -195,6 +197,8 @@ export class EvmHypCollateralAdapter
   extends EvmHypSyntheticAdapter
   implements IHypTokenAdapter
 {
+  public readonly tokenType: TokenType = TokenType.collateral;
+
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
@@ -232,13 +236,5 @@ export class EvmHypNativeAdapter
   extends EvmHypCollateralAdapter
   implements IHypTokenAdapter
 {
-  constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
-    // EvmHypNatives don't require a token address so use a default of empty string here
-    public readonly addresses: { token: Address } = { token: '' },
-    public readonly contractFactory: any = HypERC20Collateral__factory,
-  ) {
-    super(chainName, multiProvider, addresses, contractFactory);
-  }
+  public readonly tokenType: TokenType = TokenType.native;
 }

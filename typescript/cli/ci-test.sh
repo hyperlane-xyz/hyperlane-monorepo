@@ -6,7 +6,7 @@
 # motivation is to test both the bare bone deployment (included in the docs) and the deployment with the routing over igp hook (which is closer to production deployment)
 HOOK_FLAG=$1
 if [ -z "$HOOK_FLAG" ]; then
-  echo "Usage: fork.sh <hook>"
+  echo "Usage: ci-test.sh <hook>"
   exit 1
 fi
 

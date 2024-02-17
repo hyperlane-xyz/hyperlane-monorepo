@@ -32,6 +32,7 @@ import {
 } from './adapters/CosmosTokenAdapter';
 import {
   EvmHypCollateralAdapter,
+  EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
@@ -197,11 +198,11 @@ export class Token {
         mailbox,
       };
     }
-
-    if (
-      standard === TokenStandard.EvmHypNative ||
-      standard === TokenStandard.EvmHypCollateral
-    ) {
+    if (standard === TokenStandard.EvmHypNative) {
+      return new EvmHypNativeAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.EvmHypCollateral) {
       return new EvmHypCollateralAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
