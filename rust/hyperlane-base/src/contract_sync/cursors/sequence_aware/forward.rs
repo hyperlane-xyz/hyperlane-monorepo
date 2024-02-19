@@ -229,12 +229,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
             .collect::<HashSet<_>>();
         if all_log_sequences != &expected_sequences {
             // If there are any missing sequences, rewind to just after the last snapshot.
-            self.rewind_due_to_sequence_gaps(
-                &logs,
-                &all_log_sequences,
-                &expected_sequences,
-                &range,
-            );
+            self.rewind_due_to_sequence_gaps(&logs, all_log_sequences, &expected_sequences, &range);
             return Ok(());
         }
 
@@ -319,12 +314,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
         let expected_sequences = range.clone().collect::<HashSet<_>>();
         if all_log_sequences != &expected_sequences {
             // If there are any missing sequences, rewind to just after the last snapshot.
-            self.rewind_due_to_sequence_gaps(
-                &logs,
-                &all_log_sequences,
-                &expected_sequences,
-                &range,
-            );
+            self.rewind_due_to_sequence_gaps(&logs, all_log_sequences, &expected_sequences, &range);
             return Ok(());
         }
 

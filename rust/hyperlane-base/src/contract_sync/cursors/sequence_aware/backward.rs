@@ -159,12 +159,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
         if all_log_sequences != &expected_sequences {
             // If there are any missing sequences, rewind to just before the last indexed snapshot.
             // Rewind to the last snapshot.
-            self.rewind_due_to_sequence_gaps(
-                &logs,
-                &all_log_sequences,
-                &expected_sequences,
-                &range,
-            );
+            self.rewind_due_to_sequence_gaps(&logs, all_log_sequences, &expected_sequences, &range);
             return Ok(());
         }
 
@@ -229,12 +224,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
         if all_log_sequences != &expected_sequences {
             // If there are any missing sequences, rewind to just before the last indexed snapshot.
             // Rewind to the last snapshot.
-            self.rewind_due_to_sequence_gaps(
-                &logs,
-                &all_log_sequences,
-                &expected_sequences,
-                &range,
-            );
+            self.rewind_due_to_sequence_gaps(&logs, all_log_sequences, &expected_sequences, &range);
             return Ok(());
         }
 
