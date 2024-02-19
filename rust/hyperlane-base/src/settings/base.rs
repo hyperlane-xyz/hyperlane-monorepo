@@ -12,7 +12,7 @@ use hyperlane_core::{
 use crate::{
     settings::{chains::ChainConf, trace::TracingConfig},
     ContractSync, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, SequencedDataContractSync,
-    WatermarkContractSync,
+    Server, WatermarkContractSync,
 };
 
 /// Settings. Usually this should be treated as a base config and used as
@@ -93,6 +93,11 @@ impl Settings {
             self.metrics_port,
             prometheus::Registry::new(),
         )?))
+    }
+
+    /// Create the server from the settings given the name of the agent.
+    pub fn server(&self, core_metrics: Arc<CoreMetrics>) -> Result<Arc<Server>> {
+        Ok(Arc::new(Server::new(self.metrics_port, core_metrics)))
     }
 
     /// Private to preserve linearity of AgentCore::from_settings -- creating an

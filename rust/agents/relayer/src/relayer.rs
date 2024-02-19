@@ -274,6 +274,15 @@ impl BaseAgent for Relayer {
     async fn run(self) {
         let mut tasks = vec![];
 
+        // running http server
+        let server = self
+            .core
+            .settings
+            .server(self.core_metrics.clone())
+            .expect("Failed to create server");
+        let server_task = server.run(vec![]).instrument(info_span!("Relayer server"));
+        tasks.push(server_task);
+
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
         for (dest_domain, dest_conf) in &self.destination_chains {

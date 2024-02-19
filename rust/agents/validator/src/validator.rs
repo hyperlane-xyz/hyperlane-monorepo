@@ -1,5 +1,6 @@
 use std::{num::NonZeroU64, sync::Arc, time::Duration};
 
+use crate::server::validator_server::ValidatorServer;
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
@@ -128,6 +129,22 @@ impl BaseAgent for Validator {
     #[allow(clippy::async_yields_async)]
     async fn run(mut self) {
         let mut tasks = vec![];
+
+        let routes =
+            ValidatorServer::new(self.origin_chain.clone(), self.core.metrics.clone()).routes;
+
+        // run server
+        let server = self
+            .core
+            .settings
+            .server(self.core_metrics.clone())
+            .expect("Failed to create server");
+        let server_task = tokio::spawn(async move {
+            server.run(routes);
+            Ok(())
+        })
+        .instrument(info_span!("Validator server"));
+        tasks.push(server_task);
 
         if let Some(signer_instance) = self.signer_instance.take() {
             tasks.push(
