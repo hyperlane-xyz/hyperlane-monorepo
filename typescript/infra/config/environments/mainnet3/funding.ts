@@ -33,11 +33,13 @@ export const keyFunderConfig: KeyFunderConfig = {
     celo: '3',
     ethereum: '5',
     gnosis: '5',
+    inevm: '3',
     moonbeam: '5',
     optimism: '3',
     polygon: '20',
     polygonzkevm: '3',
     scroll: '3',
+    viction: '3',
   },
   desiredKathyBalancePerChain: {
     arbitrum: '0.1',
