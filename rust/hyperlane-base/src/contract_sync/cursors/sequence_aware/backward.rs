@@ -238,7 +238,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
             return Ok(());
         }
 
-        // If we've gotten here, it means we indexed the entire range, and that logs is non-empty.
+        // If we've gotten here, it means we indexed the entire range.
         // We update the last snapshot accordingly and set ourselves up to index the previous sequence.
         // Recall logs is sorted in ascending order, so the first log is the lowest sequence.
         let Some(lowest_sequence_log) = logs.first() else {
