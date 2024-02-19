@@ -11,6 +11,8 @@ use rusoto_core::{HttpClient, HttpConfig, Region};
 use rusoto_kms::KmsClient;
 use tracing::instrument;
 
+use crate::HYPER_POOL_IDLE_TIMEOUT;
+
 use super::aws_credentials::AwsChainCredentialsProvider;
 
 /// Signer types
@@ -75,7 +77,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
             SignerConf::Aws { id, region } => {
                 let mut config = HttpConfig::new();
                 // see https://github.com/hyperium/hyper/issues/2136#issuecomment-589345238
-                config.pool_idle_timeout(Duration::from_secs(20));
+                config.pool_idle_timeout(HYPER_POOL_IDLE_TIMEOUT);
                 let client = KmsClient::new_with_client(
                     rusoto_core::Client::new_with(
                         AwsChainCredentialsProvider::new(),
