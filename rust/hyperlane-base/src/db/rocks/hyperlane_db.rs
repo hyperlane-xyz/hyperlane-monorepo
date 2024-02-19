@@ -289,7 +289,7 @@ impl HyperlaneSequenceIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
     }
 
     /// Gets the block number at which the log occurred.
-    async fn retrieve_log_block_number(&self, sequence: u32) -> Result<Option<u64>> {
+    async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> Result<Option<u64>> {
         let number = self.retrieve_dispatched_block_number_by_nonce(&sequence)?;
         Ok(number)
     }
@@ -304,7 +304,7 @@ impl HyperlaneSequenceIndexerStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     }
 
     /// Gets the block number at which the log occurred.
-    async fn retrieve_log_block_number(&self, sequence: u32) -> Result<Option<u64>> {
+    async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> Result<Option<u64>> {
         let number = self.retrieve_merkle_tree_insertion_block_number_by_leaf_index(&sequence)?;
         Ok(number)
     }

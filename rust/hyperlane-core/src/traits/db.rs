@@ -34,7 +34,7 @@ where
     async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<T>>;
 
     /// Gets the block number at which the log occurred.
-    async fn retrieve_log_block_number(&self, nonce: u32) -> Result<Option<u64>>;
+    async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> Result<Option<u64>>;
 }
 
 /// Extension of HyperlaneLogStore trait that supports a high watermark for the highest indexed block number.

@@ -16,8 +16,7 @@ use tracing::{debug, warn};
 
 use super::{LastIndexedSnapshot, TargetSnapshot};
 
-/// A sequence-aware cursor that syncs forwards in perpetuity, reacting to gaps in log sequences
-/// and only indexing ranges of logs that are likely to contain new logs.
+/// A sequence-aware cursor that syncs forwards in perpetuity.
 #[derive(Debug)]
 pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     /// The max chunk size to query for logs.
@@ -30,7 +29,7 @@ pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
     /// A DB used to check which logs have already been indexed.
     db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
-    /// A snapshot of the last log to be indexed, or if no indexing has occurred yet,
+    /// A snapshot of the last indexed log, or if no indexing has occurred yet,
     /// the initial log to start indexing forward from.
     last_indexed_snapshot: LastIndexedSnapshot,
     /// The current snapshot we're indexing. As this is a forward cursor,
@@ -151,6 +150,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
         Ok(range)
     }
 
+    /// Fast forwards the cursor by reading any already indexed logs from the DB.
     async fn fast_forward(&mut self) -> Result<()> {
         // Check if any new logs have been inserted into the DB,
         // and update the cursor accordingly.
@@ -163,7 +163,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
             // Require the block number as well.
             if let Some(block_number) = self
                 .db
-                .retrieve_log_block_number(self.current_indexing_snapshot.sequence)
+                .retrieve_log_block_number_by_sequence(self.current_indexing_snapshot.sequence)
                 .await?
             {
                 self.last_indexed_snapshot = LastIndexedSnapshot {
@@ -250,6 +250,11 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
     /// - Empty logs are allowed, but no gaps are allowed. The logs must build upon the last indexed snapshot.
     /// - If there are any gaps, the cursor rewinds to the last indexed snapshot, and ranges will be retried.
     /// - If the target block is reached and the target sequence hasn't been reached, the cursor rewinds to the last indexed snapshot.
+    ///
+    /// Note:
+    /// - Even if the logs include a gap, in practice these logs will have already been inserted into the DB.
+    ///   This means that while gaps result in a rewind here, already known logs may be "fast forwarded" through,
+    ///   and the cursor won't actually end up re-indexing already known logs.
     async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
         // Remove any duplicates, filter out any logs preceding our current snapshot, and sort in ascending order.
         let logs = logs
@@ -419,7 +424,10 @@ pub(crate) mod test {
                 .map(|(log, _)| log.clone()))
         }
 
-        async fn retrieve_log_block_number(&self, sequence: u32) -> eyre::Result<Option<u64>> {
+        async fn retrieve_log_block_number_by_sequence(
+            &self,
+            sequence: u32,
+        ) -> eyre::Result<Option<u64>> {
             Ok(self
                 .logs
                 .iter()

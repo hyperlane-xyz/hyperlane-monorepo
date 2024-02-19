@@ -104,7 +104,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
                 // Require the block number as well.
                 if let Some(block_number) = self
                     .db
-                    .retrieve_log_block_number(current_indexing_snapshot.sequence)
+                    .retrieve_log_block_number_by_sequence(current_indexing_snapshot.sequence)
                     .await?
                 {
                     self.last_indexed_snapshot = LastIndexedSnapshot {
