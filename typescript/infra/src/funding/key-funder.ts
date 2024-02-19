@@ -48,6 +48,8 @@ function getKeyFunderHelmValues(
       contextFundingFrom: keyFunderConfig.contextFundingFrom,
       contextsAndRolesToFund: keyFunderConfig.contextsAndRolesToFund,
       connectionType: keyFunderConfig.connectionType,
+      desiredBalancePerChain: keyFunderConfig.desiredBalancePerChain,
+      desiredKathyBalancePerChain: keyFunderConfig.desiredKathyBalancePerChain,
     },
     image: {
       repository: keyFunderConfig.docker.repo,
