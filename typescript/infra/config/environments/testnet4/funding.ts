@@ -27,12 +27,12 @@ export const keyFunderConfig: KeyFunderConfig = {
   // desired balance config
   desiredBalancePerChain: {
     alfajores: '5',
-    arbitrumgoerli: '5',
+    arbitrumgoerli: '0.5',
     bsctestnet: '5',
     fuji: '5',
-    goerli: '5',
+    goerli: '0.5',
     mumbai: '5',
-    optimismgoerli: '5',
+    optimismgoerli: '0.5',
     plumetestnet: '0.2',
     polygonzkevmtestnet: '1',
     scrollsepolia: '1',
