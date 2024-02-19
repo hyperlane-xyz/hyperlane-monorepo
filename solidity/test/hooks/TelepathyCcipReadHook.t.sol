@@ -38,7 +38,7 @@ contract TelepathyCcipReadHookTest is Test {
             bytes("")
         );
         hook.postDispatch(metadata, message);
-        assertEq(message.id(), hook.dispatched(_nonce));
+        assertEq(message.id(), hook.dispatched(address(this), _nonce));
     }
 
     function testTelepathyCcipReadHookTest_QuotesZero() public {

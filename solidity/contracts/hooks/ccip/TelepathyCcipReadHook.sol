@@ -11,7 +11,10 @@ import {Message} from "../../libs/Message.sol";
  */
 contract TelepathyCcipReadHook is AbstractPostDispatchHook {
     using Message for bytes;
-    mapping(uint256 messageNonce => bytes32 messageId) public dispatched;
+
+    /// @notice Nested mapping is used to prevent DOS where an attacker can prevent a message from being dispatched by frontrunning with their own Mailbox nonce and id
+    mapping(address mailbox => mapping(uint256 messageNonce => bytes32 messageId))
+        public dispatched;
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure returns (uint8) {
@@ -20,13 +23,14 @@ contract TelepathyCcipReadHook is AbstractPostDispatchHook {
 
     /**
      * @notice Sets the dispatched mapping to be used for storage proofs in the Telepathy CCIP ISM.
+     * @dev It is expected to be called by a Mailbox
      * @param message Message to be dispatched
      */
     function _postDispatch(
         bytes calldata,
         bytes calldata message
     ) internal virtual override {
-        dispatched[message.nonce()] = message.id();
+        dispatched[msg.sender][message.nonce()] = message.id();
     }
 
     /// @inheritdoc AbstractPostDispatchHook
