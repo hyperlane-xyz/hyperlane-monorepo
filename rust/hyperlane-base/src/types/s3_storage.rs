@@ -8,20 +8,18 @@ use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
 use prometheus::IntGauge;
 use rusoto_core::{
     credential::{Anonymous, AwsCredentials, StaticProvider},
-    HttpClient, HttpConfig, Region, RusotoError,
+    Region, RusotoError,
 };
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
 use tokio::time::timeout;
 
+use crate::types::utils;
 use crate::{settings::aws_credentials::AwsChainCredentialsProvider, CheckpointSyncer};
 
 /// The timeout for S3 requests. Rusoto doesn't offer timeout configuration
 /// out of the box, so S3 requests must be wrapped with a timeout.
 /// See https://github.com/rusoto/rusoto/issues/1795.
 const S3_REQUEST_TIMEOUT_SECONDS: u64 = 30;
-
-/// See https://github.com/hyperium/hyper/issues/2136#issuecomment-589488526
-pub const HYPER_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Clone, new)]
 /// Type for reading/writing to S3
@@ -94,12 +92,9 @@ impl S3Storage {
 
     /// Gets an authenticated S3Client, creating it if it doesn't already exist.
     fn authenticated_client(&self) -> &S3Client {
-        let mut config = HttpConfig::new();
-        // see https://github.com/hyperium/hyper/issues/2136#issuecomment-589345238
-        config.pool_idle_timeout(HYPER_POOL_IDLE_TIMEOUT);
         self.authenticated_client.get_or_init(|| {
             S3Client::new_with(
-                HttpClient::new_with_config(config).unwrap(),
+                utils::http_client_with_timeout().unwrap(),
                 AwsChainCredentialsProvider::new(),
                 self.region.clone(),
             )
@@ -117,12 +112,9 @@ impl S3Storage {
             // By default, these credentials are anonymous, see https://docs.rs/rusoto_credential/latest/rusoto_credential/struct.AwsCredentials.html#anonymous-example
             let credentials = AwsCredentials::default();
             assert!(credentials.is_anonymous(), "AWS credentials not anonymous");
-            let mut config = HttpConfig::new();
-            // see https://github.com/hyperium/hyper/issues/2136#issuecomment-589345238
-            config.pool_idle_timeout(HYPER_POOL_IDLE_TIMEOUT);
 
             S3Client::new_with(
-                HttpClient::new_with_config(config).unwrap(),
+                utils::http_client_with_timeout().unwrap(),
                 StaticProvider::from(credentials),
                 self.region.clone(),
             )
