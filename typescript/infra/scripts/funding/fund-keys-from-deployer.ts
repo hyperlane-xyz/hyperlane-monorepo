@@ -33,7 +33,11 @@ import {
 } from '../../src/agents/keys';
 import { DeployEnvironment } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
-import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
+import {
+  ContextAndRoles,
+  ContextAndRolesMap,
+  KeyFunderConfig,
+} from '../../src/config/funding';
 import { FundableRole, Role } from '../../src/roles';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
@@ -122,57 +126,6 @@ const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 
-const desiredBalancePerChain: ChainMap<string> = {
-  celo: '0.3',
-  alfajores: '1',
-  avalanche: '3',
-  fuji: '1',
-  ethereum: '0.5',
-  polygon: '2',
-  mumbai: '0.8',
-  optimism: '0.5',
-  arbitrum: '0.5',
-  bsc: '0.05',
-  bsctestnet: '1',
-  goerli: '0.5',
-  sepolia: '0.5',
-  moonbeam: '0.5',
-  optimismgoerli: '0.5',
-  arbitrumgoerli: '0.5',
-  gnosis: '0.1',
-  scrollsepolia: '0.05',
-  polygonzkevm: '0.3',
-  scroll: '0.3',
-  base: '0.3',
-  polygonzkevmtestnet: '0.3',
-  plumetestnet: '0.2',
-
-  // unused
-  test1: '0',
-  test2: '0',
-  test3: '0',
-};
-
-// Used to fund kathy with more tokens such that it's able to pay interchain gas
-// on mainnet. The amount is roughly > $100
-const desiredKathyBalancePerChain: ChainMap<string> = {
-  celo: '150',
-  avalanche: '6',
-  polygon: '85',
-  ethereum: '0.4',
-  optimism: '0.1',
-  arbitrum: '0.1',
-  bsc: '0.35',
-  moonbeam: '250',
-  gnosis: '100',
-  scroll: '0.05',
-  base: '0.05',
-  polygonzkevm: '0.05',
-  viction: '0.05',
-  inevm: '0.05',
-  plumetestnet: '0.05',
-};
-
 // The balance threshold of the IGP contract that must be met for the key funder
 // to call `claim()`
 const igpClaimThresholdPerChain: ChainMap<string> = {
@@ -239,6 +192,23 @@ async function main() {
     .coerce('contexts-and-roles', parseContextAndRolesMap)
     .demandOption('contexts-and-roles')
 
+    .string('desired-balance-per-chain')
+    .array('desired-balance-per-chain')
+    .describe(
+      'desired-balance-per-chain',
+      'Array indicating target balance to fund for each chain. Each element is expected as <chainName>=<balance>',
+    )
+    .coerce('desired-balance-per-chain', parseBalancePerChain)
+    .demandOption('desired-balance-per-chain')
+
+    .string('desired-kathy-balance-per-chain')
+    .array('desired-kathy-balance-per-chain')
+    .describe(
+      'desired-kathy-balance-per-chain',
+      'Array indicating target balance to fund Kathy for each chain. Each element is expected as <chainName>=<balance>',
+    )
+    .coerce('desired-kathy-balance-per-chain', parseBalancePerChain)
+
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
     .default('connection-type', RpcConsensusType.Single)
@@ -269,6 +239,8 @@ async function main() {
         multiProvider,
         argv.contextsAndRoles,
         argv.skipIgpClaim,
+        argv.desiredBalancePerChain,
+        argv.desiredKathyBalancePerChain ?? {},
         path,
       ),
     );
@@ -282,6 +254,8 @@ async function main() {
           context,
           argv.contextsAndRoles[context]!,
           argv.skipIgpClaim,
+          argv.desiredBalancePerChain,
+          argv.desiredKathyBalancePerChain ?? {},
         ),
       ),
     );
@@ -313,6 +287,8 @@ class ContextFunder {
     public readonly context: Contexts,
     public readonly rolesToFund: FundableRole[],
     public readonly skipIgpClaim: boolean,
+    public readonly desiredBalancePerChain: KeyFunderConfig['desiredBalancePerChain'],
+    public readonly desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
   ) {
     // At the moment, only blessed EVM chains are supported
     roleKeysPerChain = objFilter(
@@ -350,6 +326,8 @@ class ContextFunder {
     multiProvider: MultiProvider,
     contextsAndRolesToFund: ContextAndRolesMap,
     skipIgpClaim: boolean,
+    desiredBalancePerChain: KeyFunderConfig['desiredBalancePerChain'],
+    desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
     filePath: string,
   ) {
     log('Reading identifiers and addresses from file', {
@@ -415,6 +393,8 @@ class ContextFunder {
       context,
       contextsAndRolesToFund[context]!,
       skipIgpClaim,
+      desiredBalancePerChain,
+      desiredKathyBalancePerChain,
     );
   }
 
@@ -425,6 +405,8 @@ class ContextFunder {
     context: Contexts,
     rolesToFund: FundableRole[],
     skipIgpClaim: boolean,
+    desiredBalancePerChain: KeyFunderConfig['desiredBalancePerChain'],
+    desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
   ) {
     // only roles that are fundable keys ie. relayer and kathy
     const fundableRoleKeys: Record<FundableRole, Address> = {
@@ -468,6 +450,8 @@ class ContextFunder {
       context,
       rolesToFund,
       skipIgpClaim,
+      desiredBalancePerChain,
+      desiredKathyBalancePerChain,
     );
   }
 
@@ -558,7 +542,7 @@ class ContextFunder {
     if (L2Chains.includes(chain)) {
       const funderAddress = await this.multiProvider.getSignerAddress(chain)!;
       const desiredBalanceEther = ethers.utils.parseUnits(
-        desiredBalancePerChain[chain],
+        this.desiredBalancePerChain[chain],
         'ether',
       );
       // Optionally bridge ETH to L2 before funding the desired key.
@@ -625,9 +609,9 @@ class ContextFunder {
 
   private getDesiredBalanceForRole(chain: ChainName, role: Role): BigNumber {
     const desiredBalanceEther =
-      role === Role.Kathy && desiredKathyBalancePerChain[chain]
-        ? desiredKathyBalancePerChain[chain]
-        : desiredBalancePerChain[chain];
+      role === Role.Kathy && this.desiredKathyBalancePerChain[chain]
+        ? this.desiredKathyBalancePerChain[chain]
+        : this.desiredBalancePerChain[chain];
     let desiredBalance = ethers.utils.parseEther(desiredBalanceEther ?? '0');
     if (this.context === Contexts.ReleaseCandidate) {
       desiredBalance = desiredBalance
@@ -908,6 +892,18 @@ function parseContextAndRoles(str: string): ContextAndRoles {
     context,
     roles,
   };
+}
+
+function parseBalancePerChain(strs: string[]): ChainMap<string> {
+  const balanceMap: ChainMap<string> = {};
+  strs.forEach((str) => {
+    const [chain, balance] = str.split('=');
+    if (!chain || !balance) {
+      throw new Error(`Invalid format for balance entry: ${str}`);
+    }
+    balanceMap[chain] = balance;
+  });
+  return balanceMap;
 }
 
 // Returns whether an error occurred
