@@ -159,7 +159,8 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
         current_sequence..=u32::min(target_sequence, current_sequence + self.chunk_size)
     }
 
-    /// Fast forwards the cursor by reading any already indexed logs from the DB.
+    /// Reads the DB to check if the current indexing sequence has already been indexed,
+    /// iterating until we find a sequence that hasn't been indexed.
     async fn fast_forward(&mut self) -> Result<()> {
         // Check if any new logs have been inserted into the DB,
         // and update the cursor accordingly.
@@ -189,59 +190,6 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
                 );
             }
         }
-
-        Ok(())
-    }
-
-    /// Updates the cursor with the logs that were found in the range.
-    /// Only used in sequence mode.
-    /// Logs are expected to be sorted by sequence in ascending order and deduplicated.
-    ///
-    /// Behavior:
-    /// - The sequences of the logs must exactly match the range.
-    /// - If there are any gaps, the cursor rewinds and the range will be retried.
-    fn update_sequence_range(
-        &mut self,
-        logs: Vec<(T, LogMeta)>,
-        all_log_sequences: &HashSet<u32>,
-        range: RangeInclusive<u32>,
-    ) -> Result<()> {
-        // We require that we've gotten all sequences in the range.
-        let expected_sequences = range.clone().collect::<HashSet<_>>();
-        if all_log_sequences != &expected_sequences {
-            // If there are any missing sequences, rewind to just after the last snapshot.
-            self.rewind_due_to_sequence_gaps(
-                &logs,
-                &all_log_sequences,
-                &expected_sequences,
-                &range,
-            );
-            return Ok(());
-        }
-
-        // If we've gotten here, it means we indexed the entire range.
-        // We update the last snapshot accordingly and set ourselves up for the next sequence.
-        let Some(highest_sequence_log) = logs.last() else {
-            // Sequence range indexing should never have empty ranges,
-            // but to be safe we handle this anyways.
-            warn!(
-                ?logs,
-                ?range,
-                current_indexing_snapshot=?self.current_indexing_snapshot,
-                last_indexed_snapshot=?self.last_indexed_snapshot,
-                target_snapshot=?self.target_snapshot,
-                "Expected non-empty logs and range in sequence mode",
-            );
-            return Ok(());
-        };
-
-        // Update the last indexed snapshot.
-        self.last_indexed_snapshot = LastIndexedSnapshot {
-            sequence: Some(highest_sequence_log.0.sequence()),
-            at_block: highest_sequence_log.1.block_number.try_into()?,
-        };
-        // Position the current snapshot to the next sequence.
-        self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
 
         Ok(())
     }
@@ -325,6 +273,74 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
         Ok(())
     }
 
+    /// Updates the cursor with the logs that were found in the range.
+    /// Only used in sequence mode.
+    /// Logs are expected to be sorted by sequence in ascending order and deduplicated.
+    ///
+    /// Behavior:
+    /// - The sequences of the logs must exactly match the range.
+    /// - If there are any gaps, the cursor rewinds and the range will be retried.
+    fn update_sequence_range(
+        &mut self,
+        logs: Vec<(T, LogMeta)>,
+        all_log_sequences: &HashSet<u32>,
+        range: RangeInclusive<u32>,
+    ) -> Result<()> {
+        // We require that the range starts at the current sequence.
+        // This should always be the case, but to be extra safe we handle this case.
+        if *range.start() != self.current_indexing_snapshot.sequence {
+            warn!(
+                ?logs,
+                ?range,
+                current_indexing_snapshot=?self.current_indexing_snapshot,
+                last_indexed_snapshot=?self.last_indexed_snapshot,
+                target_snapshot=?self.target_snapshot,
+                "Expected range to start at the current sequence",
+            );
+            self.rewind();
+            return Ok(());
+        }
+
+        // We require that we've gotten all sequences in the range.
+        let expected_sequences = range.clone().collect::<HashSet<_>>();
+        if all_log_sequences != &expected_sequences {
+            // If there are any missing sequences, rewind to just after the last snapshot.
+            self.rewind_due_to_sequence_gaps(
+                &logs,
+                &all_log_sequences,
+                &expected_sequences,
+                &range,
+            );
+            return Ok(());
+        }
+
+        // If we've gotten here, it means we indexed the entire range.
+        // We update the last snapshot accordingly and set ourselves up for the next sequence.
+        let Some(highest_sequence_log) = logs.last() else {
+            // Sequence range indexing should never have empty ranges,
+            // but to be safe we handle this anyways.
+            warn!(
+                ?logs,
+                ?range,
+                current_indexing_snapshot=?self.current_indexing_snapshot,
+                last_indexed_snapshot=?self.last_indexed_snapshot,
+                target_snapshot=?self.target_snapshot,
+                "Expected non-empty logs and range in sequence mode",
+            );
+            return Ok(());
+        };
+
+        // Update the last indexed snapshot.
+        self.last_indexed_snapshot = LastIndexedSnapshot {
+            sequence: Some(highest_sequence_log.0.sequence()),
+            at_block: highest_sequence_log.1.block_number.try_into()?,
+        };
+        // Position the current snapshot to the next sequence.
+        self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
+
+        Ok(())
+    }
+
     /// Rewinds the cursor to target immediately after the last indexed snapshot,
     /// and logs the inconsistencies due to sequence gaps.
     fn rewind_due_to_sequence_gaps(
@@ -389,13 +405,13 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
     ///   This means that while gaps result in a rewind here, already known logs may be "fast forwarded" through,
     ///   and the cursor won't actually end up re-indexing already known logs.
     async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
-        // Filter out any logs preceding our current snapshot, and sort in ascending order, and deduplicate.
+        // Remove any sequence duplicates, filter out any logs preceding our current snapshot,
+        // and sort in ascending order.
         let logs = logs
             .into_iter()
+            .unique_by(|(log, _)| log.sequence())
             .filter(|(log, _)| log.sequence() >= self.current_indexing_snapshot.sequence)
             .sorted_by(|(log_a, _), (log_b, _)| log_a.sequence().cmp(&log_b.sequence()))
-            // This must be done after sorting, as dedup_by only removes consecutive duplicates.
-            .dedup_by(|(log_a, _), (log_b, _)| log_a.sequence() == log_b.sequence())
             .collect::<Vec<_>>();
 
         let all_log_sequences = logs
@@ -404,8 +420,8 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
             .collect::<HashSet<_>>();
 
         match &self.index_mode {
-            IndexMode::Sequence => self.update_sequence_range(logs, &all_log_sequences, range)?,
             IndexMode::Block => self.update_block_range(logs, &all_log_sequences, range)?,
+            IndexMode::Sequence => self.update_sequence_range(logs, &all_log_sequences, range)?,
         };
         Ok(())
     }
