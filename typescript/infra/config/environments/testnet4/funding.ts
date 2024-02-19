@@ -24,4 +24,21 @@ export const keyFunderConfig: KeyFunderConfig = {
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
   connectionType: RpcConsensusType.Quorum,
+  // desired balance config
+  desiredBalancePerChain: {
+    alfajores: '1',
+    arbitrumgoerli: '0.5',
+    bsctestnet: '1',
+    fuji: '1',
+    goerli: '0.5',
+    mumbai: '0.8',
+    optimismgoerli: '0.5',
+    plumetestnet: '0.2',
+    polygonzkevmtestnet: '0.3',
+    scrollsepolia: '0.05',
+    sepolia: '0.5',
+  },
+  desiredKathyBalancePerChain: {
+    plumetestnet: '0.05',
+  },
 };
