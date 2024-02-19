@@ -164,6 +164,9 @@ jobs:
   e2e:
     runs-on: larger-runner
     needs: [yarn-build]
+    strategy:
+      matrix:
+        e2e-type: [cosmwasm, non-cosmwasm]
     steps:
       - uses: actions/setup-node@v3
         with:
@@ -220,16 +223,16 @@ jobs:
             ~/.cargo
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
 
-      - name: agent build
-        run: cargo build --release --bin run-locally
-        working-directory: ./rust
-
       - name: agent tests with CosmWasm
-        run: RUST_BACKTRACE=1 cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        if: matrix.e2e-type == 'cosmwasm'
         working-directory: ./rust
+        env:
+          RUST_BACKTRACE: 1
 
       - name: agent tests excluding CosmWasm
-        run: ./target/release/run-locally
+        run: cargo run --release --package run-locally
+        if: matrix.e2e-type == 'non-cosmwasm'
         working-directory: ./rust
         env:
           E2E_CI_MODE: 'true'
