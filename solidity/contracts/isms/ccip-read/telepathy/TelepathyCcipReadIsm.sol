@@ -14,6 +14,7 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ External Imports ============
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {LightClient} from "@telepathyx/LightClient.sol";
 
 // ============ Internal Imports ============
@@ -23,9 +24,6 @@ import {Message} from "../../../libs/Message.sol";
 import {Mailbox} from "../../../Mailbox.sol";
 import {StorageProof} from "../../../libs/StateProofHelpers.sol";
 import {ISuccinctProofsService} from "../../../interfaces/ccip-gateways/ISuccinctProofsService.sol";
-
-// ============ External Imports ============
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
  * @title TelepathyCcipReadIsm
