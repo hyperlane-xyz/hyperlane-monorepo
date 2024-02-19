@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import path from 'path';
 import { prompt } from 'prompts';
 
@@ -14,6 +15,7 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
+  TestRecipientDeployer,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
@@ -129,7 +131,16 @@ async function main() {
     );
     deployer = new LiquidityLayerDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
-    throw new Error('Test recipient is not supported. Use CLI instead.');
+    const addresses = getAddresses(environment, Modules.CORE);
+
+    for (const chain of Object.keys(addresses)) {
+      config[chain] = {
+        interchainSecurityModule:
+          addresses[chain].interchainSecurityModule ??
+          ethers.constants.AddressZero, // ISM is required for the TestRecipientDeployer but onchain if the ISM is zero address, then it uses the mailbox's defaultISM
+      };
+    }
+    deployer = new TestRecipientDeployer(multiProvider);
   } else if (module === Modules.TEST_QUERY_SENDER) {
     // Get query router addresses
     const queryAddresses = getAddresses(
