@@ -4,6 +4,7 @@ import {
   Chains,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
+import { plumetestnet } from '@hyperlane-xyz/sdk/dist/consts/chainMetadata';
 
 import { AgentChainNames, Role } from '../../../src/roles';
 
@@ -17,6 +18,7 @@ const selectedChains = [
   Chains.polygonzkevmtestnet,
   Chains.scrollsepolia,
   Chains.sepolia,
+  Chains.plumetestnet,
 ];
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {
@@ -34,6 +36,12 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
     ...chainMetadata.bsctestnet,
     transactionOverrides: {
       gasPrice: 80 * 10 ** 9, // 8 gwei
+    },
+  },
+  plumetestnet: {
+    ...plumetestnet,
+    transactionOverrides: {
+      gasPrice: 0.001 * 10 ** 9, // 0.001 gwei
     },
   },
 };
