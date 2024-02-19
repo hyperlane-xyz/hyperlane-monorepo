@@ -91,7 +91,8 @@ export async function createChainConfig({
     rpcUrls: [{ http: rpcUrl }],
   };
   const wantAdvancedConfig = await confirm({
-    message: 'Do you want to add advanced config for this chain?',
+    message:
+      'Do you want to set block or gas properties for this chain config?(optional)',
   });
   if (wantAdvancedConfig) {
     const wantBlockConfig = await confirm({
@@ -100,13 +101,13 @@ export async function createChainConfig({
     if (wantBlockConfig) {
       const blockConfirmation = await input({
         message:
-          'Enter no. of blocks to wait before considering a transaction confirmed(0-10)',
-        validate: (value) => parseInt(value) >= 0 && parseInt(value) <= 10,
+          'Enter no. of blocks to wait before considering a transaction confirmed(0-500)',
+        validate: (value) => parseInt(value) >= 0 && parseInt(value) <= 500,
       });
       const blockReorgPeriod = await input({
         message:
-          'Enter no. of blocks before a transaction has a near-zero chance of reverting(0-50)',
-        validate: (value) => parseInt(value) >= 0 && parseInt(value) <= 50,
+          'Enter no. of blocks before a transaction has a near-zero chance of reverting(0-500)',
+        validate: (value) => parseInt(value) >= 0 && parseInt(value) <= 500,
       });
       const blockTimeEstimate = await input({
         message: 'Enter the rough estimate of time per block in seconds(0-20)',
@@ -133,15 +134,15 @@ export async function createChainConfig({
           message: 'Enter the max priority fee per gas in gwei',
         });
         metadata.transactionOverrides = {
-          maxFeePerGas: parseInt(maxFeePerGas, 10) * 10 ** 9,
-          maxPriorityFeePerGas: parseInt(maxPriorityFeePerGas, 10) * 10 ** 9,
+          maxFeePerGas: BigInt(maxFeePerGas) * BigInt(10 ** 9),
+          maxPriorityFeePerGas: BigInt(maxPriorityFeePerGas) * BigInt(10 ** 9),
         };
       } else {
         const gasPrice = await input({
           message: 'Enter the gas price in gwei',
         });
         metadata.transactionOverrides = {
-          gasPrice: parseInt(gasPrice, 10) * 10 ** 9,
+          gasPrice: BigInt(gasPrice) * BigInt(10 ** 9),
         };
       }
     }
