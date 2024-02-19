@@ -105,7 +105,9 @@
     "fallbackRoutingHook": "0x17Dc724B7a2F09141C13b8AC33B396073785c2BC",
     "testRecipient": "0xeDc1A3EDf87187085A3ABb7A9a65E1e7aE370C07",
     "testTokenRecipient": "0x031AD9c560D37baC7d6Bd2d27A2443bAfd10101A",
-    "routingIsmFactory": "0x3F100cBBE5FD5466BdB4B3a15Ac226957e7965Ad"
+    "routingIsmFactory": "0x3F100cBBE5FD5466BdB4B3a15Ac226957e7965Ad",
+    "interchainSecurityModule": "0x958124472b14B7940Ed5317C44a2508791dB1d48",
+    "pausableHook": "0xa68022e53Fd28119D07C8336a8eC84A298Fd38Fd"
   },
   "fuji": {
     "merkleRootMultisigIsmFactory": "0x93F50Ac4E5663DAAb03508008d592f6260964f62",

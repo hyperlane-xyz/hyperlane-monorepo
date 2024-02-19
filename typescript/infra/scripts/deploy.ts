@@ -96,6 +96,8 @@ async function main() {
       ethereum,
     };
     deployer = new HypERC20Deployer(multiProvider, ismFactory);
+    console.log('config: ', JSON.stringify(config, null, 2));
+    return;
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);

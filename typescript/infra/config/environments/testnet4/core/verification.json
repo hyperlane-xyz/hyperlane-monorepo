@@ -3709,6 +3709,18 @@
       "address": "0x977837C7bf2863403d08a57Ee952d63fA1ae279E",
       "constructorArguments": "000000000000000000000000ffaef09b3cd11d9b20d1a19becca54eec2884766000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c0000000000000000000000004917a9746a7b6e0a57159ccb7f5a6744247f2d0d",
       "isProxy": false
+    },
+    {
+      "name": "PausableHook",
+      "address": "0xa68022e53Fd28119D07C8336a8eC84A298Fd38Fd",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "PausableHook",
+      "address": "0xa68022e53Fd28119D07C8336a8eC84A298Fd38Fd",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "moonbasealpha": [
