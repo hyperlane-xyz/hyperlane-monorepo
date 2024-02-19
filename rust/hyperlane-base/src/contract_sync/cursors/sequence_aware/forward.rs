@@ -115,7 +115,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
                 });
 
                 match &self.index_mode {
-                    IndexMode::Block => Some(self.get_next_block_range(tip)),
+                    IndexMode::Block => self.get_next_block_range(tip),
                     IndexMode::Sequence => {
                         Some(self.get_next_sequence_range(current_sequence, target_sequence))
                     }
@@ -139,13 +139,27 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
 
     /// Gets the next block range to index.
     /// Only used in block mode.
-    fn get_next_block_range(&self, tip: u32) -> RangeInclusive<u32> {
-        // Query the block range starting from the current_indexing_snapshot's at_block.
-        self.current_indexing_snapshot.at_block
-            ..=u32::min(
-                self.current_indexing_snapshot.at_block + self.chunk_size,
+    fn get_next_block_range(&self, tip: u32) -> Option<RangeInclusive<u32>> {
+        // This should never happen, but if it does, we log a warning and return None.
+        if self.current_indexing_snapshot.at_block > tip {
+            warn!(
+                current_indexing_snapshot=?self.current_indexing_snapshot,
+                last_indexed_snapshot=?self.last_indexed_snapshot,
+                target_snapshot=?self.target_snapshot,
                 tip,
-            )
+                "Current indexing snapshot's block number is greater than the tip"
+            );
+            return None;
+        }
+
+        // Query the block range starting from the current_indexing_snapshot's at_block.
+        Some(
+            self.current_indexing_snapshot.at_block
+                ..=u32::min(
+                    self.current_indexing_snapshot.at_block + self.chunk_size,
+                    tip,
+                ),
+        )
     }
 
     /// Gets the next sequence range to index.
@@ -897,7 +911,7 @@ pub(crate) mod test {
 
             // Update the cursor with some paritally bogus logs:
             // - A log at sequence 4, which was already indexed and should be ignored
-            // - Two logs of sequence 5, i.e. duplicated
+            // - Three logs of sequence 5, i.e. duplicated
             // - A log at sequence 6, which is unexpected, but tolerated nonetheless
             cursor
                 .update(
@@ -906,6 +920,7 @@ pub(crate) mod test {
                         (MockSequencedData::new(5), log_meta_with_block(95)),
                         (MockSequencedData::new(5), log_meta_with_block(95)),
                         (MockSequencedData::new(6), log_meta_with_block(100)),
+                        (MockSequencedData::new(5), log_meta_with_block(95)),
                     ],
                     expected_range,
                 )

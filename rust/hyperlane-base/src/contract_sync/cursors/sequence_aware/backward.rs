@@ -604,7 +604,7 @@ mod test {
             assert_eq!(range, expected_range);
 
             // Update the cursor with some paritally bogus logs:
-            // - Two logs of sequence 99, i.e. duplicated
+            // - Three logs of sequence 99, i.e. duplicated
             // - A log at sequence 100, which was already indexed and should be ignored
             cursor
                 .update(
@@ -612,6 +612,7 @@ mod test {
                         (MockSequencedData::new(99), log_meta_with_block(990)),
                         (MockSequencedData::new(99), log_meta_with_block(990)),
                         (MockSequencedData::new(100), log_meta_with_block(1000)),
+                        (MockSequencedData::new(99), log_meta_with_block(990)),
                     ],
                     expected_range,
                 )
