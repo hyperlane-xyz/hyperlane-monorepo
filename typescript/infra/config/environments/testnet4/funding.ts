@@ -9,7 +9,7 @@ import { environment } from './chains';
 export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '620925c-20240213-171901',
+    tag: '8507211-20240219-124301',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -26,17 +26,17 @@ export const keyFunderConfig: KeyFunderConfig = {
   connectionType: RpcConsensusType.Quorum,
   // desired balance config
   desiredBalancePerChain: {
-    alfajores: '1',
-    arbitrumgoerli: '0.5',
-    bsctestnet: '1',
-    fuji: '1',
-    goerli: '0.5',
-    mumbai: '0.8',
-    optimismgoerli: '0.5',
+    alfajores: '5',
+    arbitrumgoerli: '5',
+    bsctestnet: '5',
+    fuji: '5',
+    goerli: '5',
+    mumbai: '5',
+    optimismgoerli: '5',
     plumetestnet: '0.2',
-    polygonzkevmtestnet: '0.3',
-    scrollsepolia: '0.05',
-    sepolia: '0.5',
+    polygonzkevmtestnet: '1',
+    scrollsepolia: '1',
+    sepolia: '5',
   },
   desiredKathyBalancePerChain: {
     plumetestnet: '0.05',
