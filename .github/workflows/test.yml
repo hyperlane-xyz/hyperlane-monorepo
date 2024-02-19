@@ -161,7 +161,7 @@ jobs:
       - name: Metadata Health Check
         run: DEBUG=hyperlane yarn workspace @hyperlane-xyz/sdk run test:metadata
 
-  e2e:
+  e2e-matrix:
     runs-on: larger-runner
     needs: [yarn-build]
     strategy:
@@ -238,6 +238,16 @@ jobs:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [e2e-matrix]
+    if: always() # This ensures that the job runs even if the e2e jobs fail
+    steps:
+      - name: Report Matrix Result
+        run: |
+          echo "All e2e-matrix jobs have completed."
+          # You can add additional commands here to report the result as needed
 
   cli-e2e:
     runs-on: larger-runner
