@@ -130,7 +130,7 @@ async function main() {
       config[chain] = {
         interchainSecurityModule:
           addresses[chain].interchainSecurityModule ??
-          ethers.constants.AddressZero,
+          ethers.constants.AddressZero, // ISM is required for the TestRecipientDeployer but onchain if the ISM is zero address, then it uses the mailbox's defaultISM
       };
     }
     deployer = new TestRecipientDeployer(multiProvider);
