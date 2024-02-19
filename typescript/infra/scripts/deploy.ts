@@ -86,7 +86,7 @@ async function main() {
       name: 'Wrapped Ether',
       symbol: 'WETH',
       decimals: 18,
-      totalSupply: '1000000000000000000000000000', // 1e27
+      totalSupply: '0',
     };
     const sepolia = {
       ...routerConfig.sepolia,
