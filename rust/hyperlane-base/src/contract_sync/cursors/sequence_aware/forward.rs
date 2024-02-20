@@ -76,8 +76,8 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
     /// If there are logs to index, returns the range of logs, either by sequence or block number
     /// depending on the mode.
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
-        // Fast forward the cursor if necessary.
-        self.fast_forward().await?;
+        // Skip any already indexed logs.
+        self.skip_indexed().await?;
 
         let (Some(onchain_sequence_count), tip) = self
             .latest_sequence_querier
@@ -175,37 +175,46 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
 
     /// Reads the DB to check if the current indexing sequence has already been indexed,
     /// iterating until we find a sequence that hasn't been indexed.
-    async fn fast_forward(&mut self) -> Result<()> {
+    async fn skip_indexed(&mut self) -> Result<()> {
         // Check if any new logs have been inserted into the DB,
         // and update the cursor accordingly.
-        while self
-            .db
-            .retrieve_by_sequence(self.current_indexing_snapshot.sequence)
+        while let Some(block_number) = self
+            .get_sequence_log_block_number(self.current_indexing_snapshot.sequence)
             .await?
-            .is_some()
         {
-            // Require the block number as well.
-            if let Some(block_number) = self
-                .db
-                .retrieve_log_block_number_by_sequence(self.current_indexing_snapshot.sequence)
-                .await?
-            {
-                self.last_indexed_snapshot = LastIndexedSnapshot {
-                    sequence: Some(self.current_indexing_snapshot.sequence),
-                    at_block: block_number.try_into()?,
-                };
+            self.last_indexed_snapshot = LastIndexedSnapshot {
+                sequence: Some(self.current_indexing_snapshot.sequence),
+                at_block: block_number.try_into()?,
+            };
 
-                self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
+            self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
 
-                debug!(
-                    last_indexed_snapshot=?self.last_indexed_snapshot,
-                    current_indexing_snapshot=?self.current_indexing_snapshot,
-                    "Fast forwarded current sequence"
-                );
-            }
+            debug!(
+                last_indexed_snapshot=?self.last_indexed_snapshot,
+                current_indexing_snapshot=?self.current_indexing_snapshot,
+                "Fast forwarded current sequence"
+            );
         }
 
         Ok(())
+    }
+
+    /// Gets the log block number of a previously indexed sequence. Returns None if the
+    /// log for the sequence number hasn't been indexed.
+    async fn get_sequence_log_block_number(&self, sequence: u32) -> Result<Option<u32>> {
+        // Ensure there's a full entry for the sequence.
+        if self.db.retrieve_by_sequence(sequence).await?.is_some() {
+            // And get the block number.
+            if let Some(block_number) = self
+                .db
+                .retrieve_log_block_number_by_sequence(sequence)
+                .await?
+            {
+                return Ok(Some(block_number.try_into()?));
+            }
+        }
+
+        Ok(None)
     }
 
     /// Updates the cursor with the logs that were found in the range.
@@ -390,7 +399,7 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
     }
 
     // TODO: revisit to establish a better heuristic for cursor / indexing health
-    fn latest_block(&self) -> u32 {
+    fn latest_queried_block(&self) -> u32 {
         self.current_indexing_snapshot.at_block
     }
 
@@ -568,8 +577,8 @@ pub(crate) mod test {
             mode,
         );
 
-        // Fast forward and sanity check we start at the correct spot.
-        cursor.fast_forward().await.unwrap();
+        // Skip any already indexed logs and sanity check we start at the correct spot.
+        cursor.skip_indexed().await.unwrap();
         assert_eq!(
             cursor.current_indexing_snapshot,
             INITIAL_CURRENT_INDEXING_SNAPSHOT,

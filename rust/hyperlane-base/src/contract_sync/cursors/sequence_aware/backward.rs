@@ -61,8 +61,8 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
     /// If the cursor is fully synced, this returns None.
     /// Otherwise, it returns the next range to query, either by block or sequence depending on the mode.
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
-        // Fast forward the cursor if necessary.
-        self.fast_forward().await?;
+        // Skip any already indexed logs.
+        self.skip_indexed().await?;
 
         // If `self.current_indexing_snapshot` is None, we are synced and there are no more ranges to query.
         // Otherwise, we query the next range, searching for logs prior to and including the current indexing snapshot.
@@ -101,7 +101,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
 
     /// Reads the DB to check if the current indexing sequence has already been indexed,
     /// iterating until we find a sequence that hasn't been indexed.
-    async fn fast_forward(&mut self) -> Result<()> {
+    async fn skip_indexed(&mut self) -> Result<()> {
         // While we're not fully synced, check if the next log we're looking for has been
         // inserted into the db, and update the cursor accordingly.
         while let Some(current_indexing_sequence) =
@@ -138,7 +138,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
     async fn get_sequence_log_block_number(&self, sequence: u32) -> Result<Option<u32>> {
         // Ensure there's a full entry for the sequence.
         if self.db.retrieve_by_sequence(sequence).await?.is_some() {
-            // Require the block number as well.
+            // And get the block number.
             if let Some(block_number) = self
                 .db
                 .retrieve_log_block_number_by_sequence(sequence)
@@ -312,7 +312,7 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCu
         }
     }
 
-    fn latest_block(&self) -> u32 {
+    fn latest_queried_block(&self) -> u32 {
         self.current_indexing_snapshot
             .as_ref()
             .map(|snapshot| snapshot.at_block)
@@ -408,8 +408,8 @@ mod test {
             mode,
         );
 
-        // Fast forward and sanity check we start at the correct spot.
-        cursor.fast_forward().await.unwrap();
+        // Skip any already indexed logs and sanity check we start at the correct spot.
+        cursor.skip_indexed().await.unwrap();
         assert_eq!(
             cursor.current_indexing_snapshot,
             Some(INITIAL_CURRENT_INDEXING_SNAPSHOT),

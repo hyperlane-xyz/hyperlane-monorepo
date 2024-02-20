@@ -17,7 +17,7 @@ pub trait ContractSyncCursor<T>: Send + Sync + 'static {
 
     /// The latest block that has been queried, used as a proxy for health.
     /// TODO: consider a better way to assess health
-    fn latest_block(&self) -> u32;
+    fn latest_queried_block(&self) -> u32;
 
     /// Ingests the logs that were fetched from the chain and the range that was queried,
     /// and adjusts the cursor accordingly.
