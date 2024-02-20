@@ -3,6 +3,7 @@ import debug from 'debug';
 import {
   IPostDispatchHook,
   Mailbox,
+  TestRecipient,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
@@ -19,6 +20,10 @@ import { IsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
+import {
+  TestRecipientConfig,
+  TestRecipientDeployer,
+} from './TestRecipientDeployer';
 import { CoreAddresses, CoreFactories, coreFactories } from './contracts';
 import { CoreConfig } from './types';
 
@@ -27,6 +32,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreFactories
 > {
   hookDeployer: HyperlaneHookDeployer;
+  testRecipient: TestRecipientDeployer;
 
   constructor(
     multiProvider: MultiProvider,
@@ -42,6 +48,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       {},
       ismFactory,
     );
+    this.testRecipient = new TestRecipientDeployer(multiProvider);
   }
 
   cacheAddressesMap(addressesMap: ChainMap<CoreAddresses>): void {
@@ -199,6 +206,21 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     return ism.address;
   }
 
+  async deployTestRecipient(
+    chain: ChainName,
+    interchainSecurityModule: Address,
+  ): Promise<TestRecipient> {
+    const config: TestRecipientConfig = {
+      interchainSecurityModule: interchainSecurityModule,
+    };
+    const testRecipient = await this.testRecipient.deployContracts(
+      chain,
+      config,
+    );
+    this.addDeployedContracts(chain, testRecipient);
+    return testRecipient.testRecipient;
+  }
+
   async deployContracts(
     chain: ChainName,
     config: CoreConfig,
@@ -217,6 +239,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox.address,
     );
 
+    const testRecipient = await this.deployTestRecipient(
+      chain,
+      this.cachedAddresses[chain].interchainSecurityModule,
+    );
+
     if (config.upgrade) {
       const timelockController = await this.deployTimelock(
         chain,
@@ -232,6 +259,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox,
       proxyAdmin,
       validatorAnnounce,
+      testRecipient,
     };
 
     await this.transferOwnershipOfContracts(chain, config, contracts);

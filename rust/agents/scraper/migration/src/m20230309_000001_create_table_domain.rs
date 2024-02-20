@@ -55,14 +55,6 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
-        name: "basegoerli",
-        token: "ETH",
-        domain: 84531,
-        chain_id: 84531,
-        is_test_net: false,
-        is_deprecated: false,
-    },
-    RawDomain {
         name: "bsc",
         token: "BNB",
         domain: 56,
