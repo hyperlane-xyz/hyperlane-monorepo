@@ -87,8 +87,8 @@ export class WarpCore {
     });
     // Create new Warp
     return new WarpCore(multiProvider, tokens, {
-      igpQuoteConstants: parsedConfig.options.igpQuoteConstants,
-      routeBlacklist: parsedConfig.options.routeBlacklist,
+      igpQuoteConstants: parsedConfig.options?.igpQuoteConstants,
+      routeBlacklist: parsedConfig.options?.routeBlacklist,
     });
   }
 
@@ -408,5 +408,12 @@ export class WarpCore {
     if (results.length > 1)
       throw new Error(`Ambiguous token search results for ${addressOrDenom}`);
     return results[0];
+  }
+
+  /**
+   * Get the list of chains referenced by the tokens in this WarpCore
+   */
+  getTokenChains(): ChainName[] {
+    return [...new Set(this.tokens.map((t) => t.chainName)).values()];
   }
 }

@@ -414,4 +414,9 @@ export {
 } from './utils/sealevelSerialization';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore';
-export { IgpQuoteConstants, RouteBlacklist } from './warp/types';
+export {
+  IgpQuoteConstants,
+  RouteBlacklist,
+  WarpCoreConfig,
+  WarpCoreConfigSchema,
+} from './warp/types';

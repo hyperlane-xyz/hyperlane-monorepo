@@ -62,25 +62,27 @@ export const WarpCoreTokenConfigSchema = z.object({
 
 export const WarpCoreConfigSchema = z.object({
   tokens: z.array(WarpCoreTokenConfigSchema),
-  options: z.object({
-    igpQuoteConstants: z
-      .array(
-        z.object({
-          origin: ZChainName,
-          destination: ZChainName,
-          quote: z.union([z.string(), z.number(), z.bigint()]),
-        }),
-      )
-      .optional(),
-    routeBlacklist: z
-      .array(
-        z.object({
-          origin: ZChainName,
-          destination: ZChainName,
-        }),
-      )
-      .optional(),
-  }),
+  options: z
+    .object({
+      igpQuoteConstants: z
+        .array(
+          z.object({
+            origin: ZChainName,
+            destination: ZChainName,
+            quote: z.union([z.string(), z.number(), z.bigint()]),
+          }),
+        )
+        .optional(),
+      routeBlacklist: z
+        .array(
+          z.object({
+            origin: ZChainName,
+            destination: ZChainName,
+          }),
+        )
+        .optional(),
+    })
+    .optional(),
 });
 
 export type WarpCoreConfig = z.infer<typeof WarpCoreConfigSchema>;
