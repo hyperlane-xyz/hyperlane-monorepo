@@ -181,17 +181,16 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
 
         let logs_len: u32 = logs.len().try_into()?;
 
-        // Check if we're fully synced, otherwise update our current indexing snapshot backward.
-        self.current_indexing_snapshot = if current_indexing_snapshot.sequence + 1 == logs_len {
-            // We indexed everything, including sequence 0!
-            // We're done.
-            None
-        } else {
-            Some(TargetSnapshot {
-                sequence: current_indexing_snapshot.sequence.saturating_sub(logs_len),
+        // If the number of logs, which start at the current sequence and go backwards,
+        // exceeds the current indexing snapshot sequence, we've synced everything including
+        // sequence 0. Otherwise, we're not fully synced yet.
+        self.current_indexing_snapshot = current_indexing_snapshot
+            .sequence
+            .checked_sub(logs_len)
+            .map(|new_current_sequence| TargetSnapshot {
+                sequence: new_current_sequence,
                 at_block: *range.start(),
-            })
-        };
+            });
 
         // This means we indexed at least one log that builds on the last snapshot.
         // Recall logs is sorted in ascending order, so the last log is the "oldest" / "earliest"
