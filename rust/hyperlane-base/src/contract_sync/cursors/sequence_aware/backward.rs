@@ -547,66 +547,57 @@ mod test {
         async fn test_rewinds_for_sequence_gap() {
             let mut cursor = get_cursor().await;
 
-            // Expect the range to be:
-            // (current - chunk_size, current)
-            let range = cursor.get_next_range().await.unwrap().unwrap();
-            let expected_range = 900..=1000;
-            assert_eq!(range, expected_range);
+            async fn update_and_expect_rewind(
+                cur: &mut BackwardSequenceAwareSyncCursor<MockSequencedData>,
+                logs: Vec<(MockSequencedData, LogMeta)>,
+            ) {
+                // Expect the range to be:
+                // (current - chunk_size, current)
+                let range = cur.get_next_range().await.unwrap().unwrap();
+                let expected_range = 900..=1000;
+                assert_eq!(range, expected_range);
 
-            // Update the cursor with no found logs.
-            cursor.update(vec![], expected_range).await.unwrap();
+                // Update the cursor with no found logs.
+                cur.update(logs, expected_range).await.unwrap();
 
-            // Expect the cursor to have moved the current indexing snapshot's block number (but not sequence),
-            // and made no changes to the last indexed snapshot.
-            assert_eq!(
-                cursor.current_indexing_snapshot,
-                Some(TargetSnapshot {
-                    sequence: 99,
-                    at_block: 900,
-                })
-            );
-            assert_eq!(
-                cursor.last_indexed_snapshot,
-                LastIndexedSnapshot {
-                    sequence: Some(100),
-                    at_block: 1000,
-                }
-            );
+                // Expect the cursor rewound to just prior to the last indexed snapshot.
+                assert_eq!(
+                    cur.current_indexing_snapshot,
+                    Some(TargetSnapshot {
+                        sequence: 99,
+                        at_block: 1000,
+                    })
+                );
+                assert_eq!(
+                    cur.last_indexed_snapshot,
+                    LastIndexedSnapshot {
+                        sequence: Some(100),
+                        at_block: 1000,
+                    }
+                );
+            }
 
-            // Expect the range to be:
-            // (current - chunk_size, current)
-            let range = cursor.get_next_range().await.unwrap().unwrap();
-            let expected_range = 800..=900;
-            assert_eq!(range, expected_range);
+            // Not building upon last snapshot
+            update_and_expect_rewind(
+                &mut cursor,
+                vec![
+                    (MockSequencedData::new(96), log_meta_with_block(850)),
+                    (MockSequencedData::new(97), log_meta_with_block(860)),
+                    (MockSequencedData::new(98), log_meta_with_block(870)),
+                ],
+            )
+            .await;
 
-            // Update the cursor with some found logs, but they don't build upon the last snapshot!
-            cursor
-                .update(
-                    vec![
-                        (MockSequencedData::new(96), log_meta_with_block(850)),
-                        (MockSequencedData::new(97), log_meta_with_block(860)),
-                        (MockSequencedData::new(98), log_meta_with_block(870)),
-                    ],
-                    expected_range,
-                )
-                .await
-                .unwrap();
-
-            // Expect the cursor rewound to just prior to the last indexed snapshot.
-            assert_eq!(
-                cursor.current_indexing_snapshot,
-                Some(TargetSnapshot {
-                    sequence: 99,
-                    at_block: 1000,
-                })
-            );
-            assert_eq!(
-                cursor.last_indexed_snapshot,
-                LastIndexedSnapshot {
-                    sequence: Some(100),
-                    at_block: 1000,
-                }
-            );
+            // Now with a gap, missing 98
+            update_and_expect_rewind(
+                &mut cursor,
+                vec![
+                    (MockSequencedData::new(96), log_meta_with_block(850)),
+                    (MockSequencedData::new(97), log_meta_with_block(860)),
+                    (MockSequencedData::new(99), log_meta_with_block(890)),
+                ],
+            )
+            .await;
         }
 
         #[tracing_test::traced_test]
@@ -763,7 +754,8 @@ mod test {
             let range = cursor.get_next_range().await.unwrap().unwrap();
             assert_eq!(range, expected_range);
 
-            // Update the cursor with some found logs.
+            // Update the cursor with some found logs. These have some duplicates
+            // and are not sorted, and we expect the cursor to handle this.
             cursor
                 .update(
                     vec![
@@ -836,42 +828,88 @@ mod test {
             // Starts with current snapshot at sequence 99, block 1000
             let mut cursor = get_cursor().await;
 
-            // Expect the range to be:
-            // (current - chunk_size, current)
-            let range = cursor.get_next_range().await.unwrap().unwrap();
-            let expected_range = 94..=99;
-            assert_eq!(range, expected_range);
+            async fn update_and_expect_rewind(
+                cur: &mut BackwardSequenceAwareSyncCursor<MockSequencedData>,
+                logs: Vec<(MockSequencedData, LogMeta)>,
+            ) {
+                // Expect the range to be:
+                // (current - chunk_size, current)
+                let range = cur.get_next_range().await.unwrap().unwrap();
+                let expected_range = 94..=99;
+                assert_eq!(range, expected_range);
 
-            // Update the cursor with a gap (missing sequence 97)
-            cursor
-                .update(
-                    vec![
-                        (MockSequencedData::new(94), log_meta_with_block(940)),
-                        (MockSequencedData::new(95), log_meta_with_block(950)),
-                        (MockSequencedData::new(96), log_meta_with_block(960)),
-                        (MockSequencedData::new(98), log_meta_with_block(980)),
-                        (MockSequencedData::new(99), log_meta_with_block(990)),
-                    ],
-                    expected_range,
-                )
-                .await
-                .unwrap();
+                // Update the cursor
+                cur.update(logs, expected_range).await.unwrap();
 
-            // Expect the cursor to have "rewound", i.e. no changes to the current indexing snapshot or last indexed snapshot.
-            assert_eq!(
-                cursor.current_indexing_snapshot,
-                Some(TargetSnapshot {
-                    sequence: 99,
-                    at_block: 1000,
-                })
-            );
-            assert_eq!(
-                cursor.last_indexed_snapshot,
-                LastIndexedSnapshot {
-                    sequence: Some(100),
-                    at_block: 1000,
-                }
-            );
+                // Expect the cursor to have "rewound", i.e. no changes to the current indexing snapshot or last indexed snapshot.
+                assert_eq!(
+                    cur.current_indexing_snapshot,
+                    Some(TargetSnapshot {
+                        sequence: 99,
+                        at_block: 1000,
+                    })
+                );
+                assert_eq!(
+                    cur.last_indexed_snapshot,
+                    LastIndexedSnapshot {
+                        sequence: Some(100),
+                        at_block: 1000,
+                    }
+                );
+            }
+
+            // First, try without building upon the last snapshot
+            update_and_expect_rewind(
+                &mut cursor,
+                vec![
+                    (MockSequencedData::new(94), log_meta_with_block(940)),
+                    (MockSequencedData::new(95), log_meta_with_block(950)),
+                    (MockSequencedData::new(96), log_meta_with_block(960)),
+                    (MockSequencedData::new(98), log_meta_with_block(980)),
+                ],
+            )
+            .await;
+
+            // This time with a gap (missing 97)
+            update_and_expect_rewind(
+                &mut cursor,
+                vec![
+                    (MockSequencedData::new(94), log_meta_with_block(940)),
+                    (MockSequencedData::new(95), log_meta_with_block(950)),
+                    (MockSequencedData::new(96), log_meta_with_block(960)),
+                    (MockSequencedData::new(98), log_meta_with_block(980)),
+                    (MockSequencedData::new(99), log_meta_with_block(990)),
+                ],
+            )
+            .await;
+
+            // This time building upon the last snapshot, but the first sequence in the range isn't present
+            update_and_expect_rewind(
+                &mut cursor,
+                vec![
+                    (MockSequencedData::new(95), log_meta_with_block(950)),
+                    (MockSequencedData::new(96), log_meta_with_block(960)),
+                    (MockSequencedData::new(97), log_meta_with_block(970)),
+                    (MockSequencedData::new(98), log_meta_with_block(980)),
+                    (MockSequencedData::new(99), log_meta_with_block(990)),
+                ],
+            )
+            .await;
+
+            // An unexpected log, sequence 93
+            update_and_expect_rewind(
+                &mut cursor,
+                vec![
+                    (MockSequencedData::new(93), log_meta_with_block(940)),
+                    (MockSequencedData::new(94), log_meta_with_block(950)),
+                    (MockSequencedData::new(95), log_meta_with_block(950)),
+                    (MockSequencedData::new(96), log_meta_with_block(960)),
+                    (MockSequencedData::new(97), log_meta_with_block(970)),
+                    (MockSequencedData::new(98), log_meta_with_block(980)),
+                    (MockSequencedData::new(99), log_meta_with_block(990)),
+                ],
+            )
+            .await;
         }
 
         #[tracing_test::traced_test]
