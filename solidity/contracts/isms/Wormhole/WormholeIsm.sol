@@ -62,7 +62,7 @@ contract WormholeIsm is IInterchainSecurityModule, Ownable {
      * @notice Returns an enum that represents the type of hook
      */
     function moduleType() external pure returns (uint8) {
-        return uint8(IInterchainSecurityModule.Types.WORMHOLE);
+        return uint8(IInterchainSecurityModule.Types.NULL);
     }
 
     /**
