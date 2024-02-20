@@ -8,7 +8,7 @@ use std::{
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    ContractSyncCursor, CursorAction, HyperlaneSequenceIndexerStore, IndexMode, LogMeta,
+    ContractSyncCursor, CursorAction, HyperlaneSequenceAwareIndexerStoreReader, IndexMode, LogMeta,
     SequenceAwareIndexer, Sequenced,
 };
 use itertools::Itertools;
@@ -28,7 +28,7 @@ pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     /// establish targets to index towards.
     latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
     /// A DB used to check which logs have already been indexed.
-    db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
+    db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
     /// A snapshot of the last indexed log, or if no indexing has occurred yet,
     /// the initial log to start indexing forward from.
     last_indexed_snapshot: LastIndexedSnapshot,
@@ -45,7 +45,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
     pub fn new(
         chunk_size: u32,
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
-        db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
+        db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
         next_sequence: u32,
         start_block: u32,
         index_mode: IndexMode,
@@ -478,20 +478,20 @@ pub(crate) mod test {
     }
 
     #[derive(Debug, Clone)]
-    pub struct MockHyperlaneSequenceIndexerStore<T> {
+    pub struct MockHyperlaneSequenceAwareIndexerStore<T> {
         pub logs: Vec<(T, LogMeta)>,
     }
 
     #[async_trait]
-    impl<T: Sequenced + Debug> HyperlaneLogStore<T> for MockHyperlaneSequenceIndexerStore<T> {
+    impl<T: Sequenced + Debug> HyperlaneLogStore<T> for MockHyperlaneSequenceAwareIndexerStore<T> {
         async fn store_logs(&self, logs: &[(T, LogMeta)]) -> eyre::Result<u32> {
             Ok(logs.len() as u32)
         }
     }
 
     #[async_trait]
-    impl<T: Sequenced + Debug + Clone> HyperlaneSequenceIndexerStore<T>
-        for MockHyperlaneSequenceIndexerStore<T>
+    impl<T: Sequenced + Debug + Clone> HyperlaneSequenceAwareIndexerStoreReader<T>
+        for MockHyperlaneSequenceAwareIndexerStore<T>
     {
         async fn retrieve_by_sequence(&self, sequence: u32) -> eyre::Result<Option<T>> {
             Ok(self
@@ -554,7 +554,7 @@ pub(crate) mod test {
             tip: 100,
         });
 
-        let db = Arc::new(MockHyperlaneSequenceIndexerStore {
+        let db = Arc::new(MockHyperlaneSequenceAwareIndexerStore {
             logs: vec![
                 (MockSequencedData::new(0), log_meta_with_block(50)),
                 (MockSequencedData::new(1), log_meta_with_block(60)),

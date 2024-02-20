@@ -3,8 +3,8 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ContractSyncCursor, CursorAction, HyperlaneSequenceIndexerStore,
-    IndexMode, LogMeta, SequenceAwareIndexer, Sequenced,
+    ChainCommunicationError, ContractSyncCursor, CursorAction,
+    HyperlaneSequenceAwareIndexerStoreReader, IndexMode, LogMeta, SequenceAwareIndexer, Sequenced,
 };
 use std::ops::RangeInclusive;
 
@@ -72,7 +72,7 @@ impl<T: Sequenced + Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
-        db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
+        db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
         chunk_size: u32,
         mode: IndexMode,
     ) -> Result<Self> {

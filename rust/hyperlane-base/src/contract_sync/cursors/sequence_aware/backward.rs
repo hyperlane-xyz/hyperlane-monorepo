@@ -5,7 +5,8 @@ use std::{collections::HashSet, fmt::Debug, ops::RangeInclusive, sync::Arc, time
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    ContractSyncCursor, CursorAction, HyperlaneSequenceIndexerStore, IndexMode, LogMeta, Sequenced,
+    ContractSyncCursor, CursorAction, HyperlaneSequenceAwareIndexerStoreReader, IndexMode, LogMeta,
+    Sequenced,
 };
 use itertools::Itertools;
 use tracing::{debug, warn};
@@ -20,7 +21,7 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     /// If in block mode, this is the max number of blocks to query.
     chunk_size: u32,
     /// A DB used to check which logs have already been indexed.
-    db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
+    db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
     /// A snapshot of the last log to be indexed, or if no indexing has occurred yet,
     /// the initial log to start indexing backward from.
     last_indexed_snapshot: LastIndexedSnapshot,
@@ -35,7 +36,7 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
 impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
     pub fn new(
         chunk_size: u32,
-        db: Arc<dyn HyperlaneSequenceIndexerStore<T>>,
+        db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
         current_sequence_count: u32,
         start_block: u32,
         index_mode: IndexMode,
@@ -386,7 +387,7 @@ mod test {
         mode: IndexMode,
         chunk_size: u32,
     ) -> BackwardSequenceAwareSyncCursor<MockSequencedData> {
-        let db = Arc::new(MockHyperlaneSequenceIndexerStore {
+        let db = Arc::new(MockHyperlaneSequenceAwareIndexerStore {
             logs: vec![
                 (
                     MockSequencedData::new(INITIAL_LAST_INDEXED_SNAPSHOT.sequence.unwrap()),
@@ -698,7 +699,7 @@ mod test {
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_skip_indexed_when_fully_synced() {
-            let db = Arc::new(MockHyperlaneSequenceIndexerStore {
+            let db = Arc::new(MockHyperlaneSequenceAwareIndexerStore {
                 logs: (0..=INITIAL_SEQUENCE_COUNT)
                     .map(|i| {
                         (

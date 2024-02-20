@@ -5,8 +5,9 @@ use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
     GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
-    HyperlaneSequenceIndexerStore, HyperlaneWatermarkedLogStore, InterchainGasExpenditure,
-    InterchainGasPayment, InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, H256,
+    HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore,
+    InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta,
+    MerkleTreeInsertion, H256,
 };
 
 use super::{
@@ -281,7 +282,7 @@ impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
 }
 
 #[async_trait]
-impl HyperlaneSequenceIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
+impl HyperlaneSequenceAwareIndexerStoreReader<HyperlaneMessage> for HyperlaneRocksDB {
     /// Gets data by its sequence.
     async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<HyperlaneMessage>> {
         let message = self.retrieve_message_by_nonce(sequence)?;
@@ -296,7 +297,7 @@ impl HyperlaneSequenceIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
 }
 
 #[async_trait]
-impl HyperlaneSequenceIndexerStore<MerkleTreeInsertion> for HyperlaneRocksDB {
+impl HyperlaneSequenceAwareIndexerStoreReader<MerkleTreeInsertion> for HyperlaneRocksDB {
     /// Gets data by its sequence.
     async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<MerkleTreeInsertion>> {
         let insertion = self.retrieve_merkle_tree_insertion_by_leaf_index(&sequence)?;
