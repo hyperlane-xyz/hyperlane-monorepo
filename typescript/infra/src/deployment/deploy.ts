@@ -15,8 +15,8 @@ import { getAgentConfigDirectory } from '../../scripts/agent-utils';
 import { DeployEnvironment } from '../config';
 import {
   readJSONAtPath,
-  writeJSON,
   writeJsonAtPath,
+  writeMergedJSON,
   writeMergedJSONAtPath,
 } from '../utils/utils';
 
@@ -143,7 +143,7 @@ export async function writeAgentConfig(
     addresses as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
   );
-  writeJSON(
+  writeMergedJSON(
     getAgentConfigDirectory(),
     `${environment}_config.json`,
     agentConfig,

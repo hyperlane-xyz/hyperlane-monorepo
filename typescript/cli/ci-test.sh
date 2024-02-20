@@ -119,10 +119,13 @@ echo "Pre-building validator with cargo"
 cargo build --bin validator
 
 ANVIL_CONNECTION_URL="http://127.0.0.1"
+VALIDATOR_PORT=9091
+
 for i in "anvil1 8545 ANVIL1" "anvil2 8555 ANVIL2"
 do
+    VALIDATOR_PORT=$((VALIDATOR_PORT+1))
     set -- $i
-    echo "Running validator on $1"
+    echo "Running validator on $1 on port $VALIDATOR_PORT"
     export CONFIG_FILES=/tmp/${AGENT_CONFIG_FILENAME}
     export HYP_ORIGINCHAINNAME=$1
     export HYP_CHAINS_${3}_BLOCKS_REORGPERIOD=0
@@ -134,6 +137,7 @@ do
     export HYP_CHECKPOINTSYNCER_PATH=/tmp/${1}/validator
     export HYP_TRACING_LEVEL=debug
     export HYP_TRACING_FMT=compact
+    export HYP_METRICSPORT=$VALIDATOR_PORT
 
     cargo run --bin validator > /tmp/${1}/validator-logs.txt &
 done
@@ -158,6 +162,8 @@ export HYP_CHAINS_ANVIL1_SIGNER_TYPE=hexKey
 export HYP_CHAINS_ANVIL1_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
 export HYP_CHAINS_ANVIL2_SIGNER_TYPE=hexKey
 export HYP_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
+export HYP_METRICSPORT=9091
+
 cargo run --bin relayer > /tmp/relayer/relayer-logs.txt &
 
 # This needs to be long to allow time for the cargo build to finish

@@ -21,8 +21,6 @@ import {
   MultiProvider,
   MultisigConfig,
   RoutingIsmConfig,
-  TestRecipientConfig,
-  TestRecipientDeployer,
   buildAgentConfig,
   buildAggregationIsmConfigs,
   defaultMultisigConfigs,
@@ -343,21 +341,6 @@ async function executeDeploy({
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
   logGreen('Core contracts deployed');
 
-  // 5. Deploy TestRecipients to all deployable chains
-  log('Deploying test recipient contracts');
-  const testRecipientConfig = buildTestRecipientConfigMap(chains, artifacts);
-  const testRecipientDeployer = new TestRecipientDeployer(multiProvider);
-  testRecipientDeployer.cacheAddressesMap(mergedContractAddrs);
-  const testRecipients = await testRecipientDeployer.deploy(
-    testRecipientConfig,
-  );
-  artifacts = writeMergedAddresses(
-    contractsFilePath,
-    artifacts,
-    testRecipients,
-  );
-  logGreen('Test recipient contracts deployed');
-
   log('Writing agent configs');
   await writeAgentConfig(agentFilePath, artifacts, chains, multiProvider);
   logGreen('Agent configs written');
@@ -399,22 +382,6 @@ function buildCoreConfigMap(
       defaultHook: hooks.default,
       requiredHook: hooks.required,
     };
-    return config;
-  }, {});
-}
-
-export function buildTestRecipientConfigMap(
-  chains: ChainName[],
-  addressesMap: HyperlaneAddressesMap<any>,
-): ChainMap<TestRecipientConfig> {
-  return chains.reduce<ChainMap<TestRecipientConfig>>((config, chain) => {
-    const interchainSecurityModule =
-      addressesMap[chain].interchainSecurityModule ??
-      ethers.constants.AddressZero;
-    if (interchainSecurityModule === ethers.constants.AddressZero) {
-      logRed('Error: No ISM for TestRecipient, deploying with zero address');
-    }
-    config[chain] = { interchainSecurityModule };
     return config;
   }, {});
 }
