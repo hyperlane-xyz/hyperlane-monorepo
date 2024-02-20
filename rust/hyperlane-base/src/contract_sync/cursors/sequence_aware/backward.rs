@@ -767,12 +767,15 @@ mod test {
             cursor
                 .update(
                     vec![
-                        (MockSequencedData::new(94), log_meta_with_block(940)),
                         (MockSequencedData::new(95), log_meta_with_block(950)),
                         (MockSequencedData::new(96), log_meta_with_block(960)),
                         (MockSequencedData::new(97), log_meta_with_block(970)),
+                        // Add a duplicate here
+                        (MockSequencedData::new(98), log_meta_with_block(980)),
                         (MockSequencedData::new(98), log_meta_with_block(980)),
                         (MockSequencedData::new(99), log_meta_with_block(990)),
+                        // Put this out of order
+                        (MockSequencedData::new(94), log_meta_with_block(940)),
                     ],
                     expected_range,
                 )
