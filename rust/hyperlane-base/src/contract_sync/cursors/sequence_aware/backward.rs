@@ -115,7 +115,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
             {
                 self.last_indexed_snapshot = LastIndexedSnapshot {
                     sequence: Some(current_indexing_sequence),
-                    at_block: block_number.try_into()?,
+                    at_block: block_number,
                 };
 
                 self.current_indexing_snapshot = self.last_indexed_snapshot.previous_target();

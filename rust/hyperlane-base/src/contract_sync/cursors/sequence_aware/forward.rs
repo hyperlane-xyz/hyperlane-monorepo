@@ -184,7 +184,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
         {
             self.last_indexed_snapshot = LastIndexedSnapshot {
                 sequence: Some(self.current_indexing_snapshot.sequence),
-                at_block: block_number.try_into()?,
+                at_block: block_number,
             };
 
             self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
