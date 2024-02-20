@@ -102,38 +102,53 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
     /// Reads the DB to check if the current indexing sequence has already been indexed,
     /// iterating until we find a sequence that hasn't been indexed.
     async fn fast_forward(&mut self) -> Result<()> {
-        if let Some(current_indexing_snapshot) = self.current_indexing_snapshot.clone() {
-            // Check if any new logs have been inserted into the DB,
-            // and update the cursor accordingly.
-            while self
-                .db
-                .retrieve_by_sequence(current_indexing_snapshot.sequence)
+        // While we're not fully synced, check if the next log we're looking for has been
+        // inserted into the db, and update the cursor accordingly.
+        while let Some(current_indexing_sequence) =
+            self.current_indexing_snapshot.as_ref().map(|s| s.sequence)
+        {
+            // Require the block number as well.
+            if let Some(block_number) = self
+                .get_sequence_log_block_number(current_indexing_sequence)
                 .await?
-                .is_some()
             {
-                // Require the block number as well.
-                if let Some(block_number) = self
-                    .db
-                    .retrieve_log_block_number_by_sequence(current_indexing_snapshot.sequence)
-                    .await?
-                {
-                    self.last_indexed_snapshot = LastIndexedSnapshot {
-                        sequence: Some(current_indexing_snapshot.sequence),
-                        at_block: block_number.try_into()?,
-                    };
+                self.last_indexed_snapshot = LastIndexedSnapshot {
+                    sequence: Some(current_indexing_sequence),
+                    at_block: block_number.try_into()?,
+                };
 
-                    self.current_indexing_snapshot = self.last_indexed_snapshot.previous_target();
+                self.current_indexing_snapshot = self.last_indexed_snapshot.previous_target();
 
-                    debug!(
-                        last_indexed_snapshot=?self.last_indexed_snapshot,
-                        current_indexing_snapshot=?self.current_indexing_snapshot,
-                        "Fast forwarded current sequence"
-                    );
-                }
+                debug!(
+                    last_indexed_snapshot=?self.last_indexed_snapshot,
+                    current_indexing_snapshot=?self.current_indexing_snapshot,
+                    "Fast forwarded current sequence"
+                );
+            } else {
+                // If the sequence hasn't been indexed, break out of the loop.
+                break;
             }
         }
 
         Ok(())
+    }
+
+    /// Gets the log block number of a previously indexed sequence. Returns None if the
+    /// log for the sequence number hasn't been indexed.
+    async fn get_sequence_log_block_number(&self, sequence: u32) -> Result<Option<u32>> {
+        // Ensure there's a full entry for the sequence.
+        if self.db.retrieve_by_sequence(sequence).await?.is_some() {
+            // Require the block number as well.
+            if let Some(block_number) = self
+                .db
+                .retrieve_log_block_number_by_sequence(sequence)
+                .await?
+            {
+                return Ok(Some(block_number.try_into()?));
+            }
+        }
+
+        Ok(None)
     }
 
     /// Updates the cursor with the logs that were found in the range.
@@ -353,19 +368,55 @@ mod test {
     use super::super::forward::test::*;
     use super::*;
 
-    fn get_test_backward_sequence_aware_sync_cursor(
+    const INITIAL_CURRENT_INDEXING_SNAPSHOT: TargetSnapshot = TargetSnapshot {
+        sequence: 99,
+        at_block: 1000,
+    };
+    const INITIAL_LAST_INDEXED_SNAPSHOT: LastIndexedSnapshot = LastIndexedSnapshot {
+        sequence: Some(INITIAL_CURRENT_INDEXING_SNAPSHOT.sequence + 1),
+        at_block: INITIAL_CURRENT_INDEXING_SNAPSHOT.at_block,
+    };
+
+    // Start at sequence 101 to illustrate fast forwarding works
+    const INITIAL_SEQUENCE_COUNT: u32 = 101;
+    const INITIAL_START_BLOCK: u32 = 1001;
+
+    /// Returns a cursor with the current indexing snapshot as INITIAL_CURRENT_INDEXING_SNAPSHOT.
+    async fn get_test_backward_sequence_aware_sync_cursor(
         mode: IndexMode,
         chunk_size: u32,
     ) -> BackwardSequenceAwareSyncCursor<MockSequencedData> {
         let db = Arc::new(MockHyperlaneSequenceIndexerStore {
             logs: vec![
-                (MockSequencedData::new(100), log_meta_with_block(1000)),
-                (MockSequencedData::new(101), log_meta_with_block(1001)),
+                (
+                    MockSequencedData::new(INITIAL_LAST_INDEXED_SNAPSHOT.sequence.unwrap()),
+                    log_meta_with_block(INITIAL_LAST_INDEXED_SNAPSHOT.at_block.into()),
+                ),
+                (
+                    MockSequencedData::new(INITIAL_SEQUENCE_COUNT),
+                    log_meta_with_block(INITIAL_START_BLOCK.into()),
+                ),
                 (MockSequencedData::new(102), log_meta_with_block(1002)),
             ],
         });
 
-        BackwardSequenceAwareSyncCursor::new(chunk_size, db, 100, 1000, mode)
+        let mut cursor = BackwardSequenceAwareSyncCursor::new(
+            chunk_size,
+            db,
+            INITIAL_SEQUENCE_COUNT,
+            INITIAL_START_BLOCK,
+            mode,
+        );
+
+        // Fast forward and sanity check we start at the correct spot.
+        cursor.fast_forward().await.unwrap();
+        assert_eq!(
+            cursor.current_indexing_snapshot,
+            Some(INITIAL_CURRENT_INDEXING_SNAPSHOT),
+        );
+        assert_eq!(cursor.last_indexed_snapshot, INITIAL_LAST_INDEXED_SNAPSHOT);
+
+        cursor
     }
 
     mod block_range {
@@ -375,17 +426,12 @@ mod test {
         const CHUNK_SIZE: u32 = 100;
 
         async fn get_cursor() -> BackwardSequenceAwareSyncCursor<MockSequencedData> {
-            let mut cursor = get_test_backward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE);
-            // Fast forwarded to sequence 99, block 1000
-            cursor.fast_forward().await.unwrap();
-
-            cursor
+            get_test_backward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE).await
         }
 
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_normal_indexing() {
-            // Starts with current snapshot at sequence 99, block 1000
             let mut cursor = get_cursor().await;
 
             // We should have fast forwarded to sequence 99, block 1000
@@ -447,7 +493,6 @@ mod test {
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_multiple_ranges() {
-            // Starts with current snapshot at sequence 99, block 1000
             let mut cursor = get_cursor().await;
 
             // Expect the range to be:
@@ -677,11 +722,7 @@ mod test {
         const CHUNK_SIZE: u32 = 5;
 
         async fn get_cursor() -> BackwardSequenceAwareSyncCursor<MockSequencedData> {
-            let mut cursor = get_test_backward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE);
-            // Fast forwarded to sequence 99, block 1000
-            cursor.fast_forward().await.unwrap();
-
-            cursor
+            get_test_backward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE).await
         }
 
         #[tracing_test::traced_test]

@@ -526,7 +526,17 @@ pub(crate) mod test {
         }
     }
 
-    fn get_test_forward_sequence_aware_sync_cursor(
+    const INITIAL_CURRENT_INDEXING_SNAPSHOT: TargetSnapshot = TargetSnapshot {
+        sequence: 5,
+        at_block: 90,
+    };
+    const INITIAL_LAST_INDEXED_SNAPSHOT: LastIndexedSnapshot = LastIndexedSnapshot {
+        sequence: Some(INITIAL_CURRENT_INDEXING_SNAPSHOT.sequence - 1),
+        at_block: INITIAL_CURRENT_INDEXING_SNAPSHOT.at_block,
+    };
+
+    /// Gets a cursor starting at INITIAL_CURRENT_INDEXING_SNAPSHOT.
+    async fn get_test_forward_sequence_aware_sync_cursor(
         mode: IndexMode,
         chunk_size: u32,
     ) -> ForwardSequenceAwareSyncCursor<MockSequencedData> {
@@ -541,11 +551,14 @@ pub(crate) mod test {
                 (MockSequencedData::new(1), log_meta_with_block(60)),
                 (MockSequencedData::new(2), log_meta_with_block(70)),
                 (MockSequencedData::new(3), log_meta_with_block(80)),
-                (MockSequencedData::new(4), log_meta_with_block(90)),
+                (
+                    MockSequencedData::new(INITIAL_LAST_INDEXED_SNAPSHOT.sequence.unwrap()),
+                    log_meta_with_block(INITIAL_LAST_INDEXED_SNAPSHOT.at_block.into()),
+                ),
             ],
         });
 
-        ForwardSequenceAwareSyncCursor::new(
+        let mut cursor = ForwardSequenceAwareSyncCursor::new(
             chunk_size,
             latest_sequence_querier,
             db,
@@ -553,7 +566,17 @@ pub(crate) mod test {
             3,
             70,
             mode,
-        )
+        );
+
+        // Fast forward and sanity check we start at the correct spot.
+        cursor.fast_forward().await.unwrap();
+        assert_eq!(
+            cursor.current_indexing_snapshot,
+            INITIAL_CURRENT_INDEXING_SNAPSHOT,
+        );
+        assert_eq!(cursor.last_indexed_snapshot, INITIAL_LAST_INDEXED_SNAPSHOT);
+
+        cursor
     }
 
     mod block_range {
@@ -563,28 +586,14 @@ pub(crate) mod test {
         const CHUNK_SIZE: u32 = 100;
 
         async fn get_cursor() -> ForwardSequenceAwareSyncCursor<MockSequencedData> {
-            let mut cursor = get_test_forward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE);
-            // Fast forwarded to sequence 5, block 90
-            cursor.fast_forward().await.unwrap();
-
-            cursor
+            get_test_forward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE).await
         }
 
         /// Tests successful fast forwarding & indexing where all ranges return logs.
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_normal_indexing() {
-            // Starts with current snapshot at sequence 5, block 90
             let mut cursor = get_cursor().await;
-
-            // We should have fast forwarded to sequence 5, block 90
-            assert_eq!(
-                cursor.current_indexing_snapshot,
-                TargetSnapshot {
-                    sequence: 5,
-                    at_block: 90,
-                }
-            );
 
             // As the latest sequence count is 5 and the current indexing snapshot is sequence 5, we should
             // expect no range to index.
@@ -659,7 +668,6 @@ pub(crate) mod test {
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_multiple_ranges_till_target() {
-            // Starts with current snapshot at sequence 5, block 90
             let mut cursor = get_cursor().await;
 
             // Pretend like the tip is 200, and a message occurred at block 195.
@@ -737,7 +745,6 @@ pub(crate) mod test {
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_rewinds_for_missed_target_sequence() {
-            // Starts with current snapshot at sequence 5, block 90
             let mut cursor = get_cursor().await;
 
             // Pretend like the tip is 200, and a message occurred at block 195, but we somehow miss it.
@@ -805,7 +812,6 @@ pub(crate) mod test {
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_rewinds_for_sequence_gap() {
-            // Starts with current snapshot at sequence 5, block 90
             let mut cursor = get_cursor().await;
 
             // Pretend like the tip is 200, a message occurred at block 150 that's missed,
@@ -883,7 +889,6 @@ pub(crate) mod test {
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_handles_unexpected_logs() {
-            // Starts with current snapshot at sequence 5, block 90
             let mut cursor = get_cursor().await;
 
             // Pretend like the tip is 100, and a message occurred at block 95.
@@ -942,11 +947,7 @@ pub(crate) mod test {
         const CHUNK_SIZE: u32 = 10;
 
         async fn get_cursor() -> ForwardSequenceAwareSyncCursor<MockSequencedData> {
-            let mut cursor = get_test_forward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE);
-            // Fast forwarded to sequence 5, block 90
-            cursor.fast_forward().await.unwrap();
-
-            cursor
+            get_test_forward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE).await
         }
 
         /// Tests successful fast forwarding & successful indexing with a correct sequence range.
@@ -954,15 +955,6 @@ pub(crate) mod test {
         #[tokio::test]
         async fn test_normal_indexing() {
             let mut cursor = get_cursor().await;
-
-            // We should have fast forwarded to sequence 5, block 90
-            assert_eq!(
-                cursor.current_indexing_snapshot,
-                TargetSnapshot {
-                    sequence: 5,
-                    at_block: 90,
-                }
-            );
 
             // As the latest sequence count is 5 and the current indexing snapshot is sequence 5, we should
             // expect no range to index.
@@ -1048,7 +1040,6 @@ pub(crate) mod test {
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_rewinds_if_updated_with_no_logs() {
-            // Starts with current snapshot at sequence 5, block 90
             let mut cursor = get_cursor().await;
 
             // Update the latest sequence count to 6, expecting to index.
@@ -1088,7 +1079,6 @@ pub(crate) mod test {
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_rewinds_if_gap_in_logs() {
-            // Starts with current snapshot at sequence 5, block 90
             let mut cursor = get_cursor().await;
 
             // Update the latest sequence count to 8, expecting to index 3 messages.
