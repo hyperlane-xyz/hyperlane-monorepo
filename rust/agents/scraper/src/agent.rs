@@ -93,6 +93,16 @@ impl BaseAgent for Scraper {
     #[allow(clippy::async_yields_async)]
     async fn run(self) {
         let mut tasks = Vec::with_capacity(self.scrapers.len());
+
+        // running http server
+        let server = self
+            .core
+            .settings
+            .server(self.core_metrics.clone())
+            .expect("Failed to create server");
+        let server_task = server.run(vec![]).instrument(info_span!("Relayer server"));
+        tasks.push(server_task);
+
         for (domain, scraper) in self.scrapers.iter() {
             tasks.push(self.scrape(*domain).await);
 
