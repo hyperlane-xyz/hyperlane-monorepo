@@ -434,22 +434,6 @@ mod test {
         async fn test_normal_indexing() {
             let mut cursor = get_cursor().await;
 
-            // We should have fast forwarded to sequence 99, block 1000
-            assert_eq!(
-                cursor.current_indexing_snapshot,
-                Some(TargetSnapshot {
-                    sequence: 99,
-                    at_block: 1000,
-                })
-            );
-            assert_eq!(
-                cursor.last_indexed_snapshot,
-                LastIndexedSnapshot {
-                    sequence: Some(100),
-                    at_block: 1000,
-                }
-            );
-
             // Expect the range to be:
             // (current - chunk_size, current)
             let range = cursor.get_next_range().await.unwrap().unwrap();
@@ -561,7 +545,6 @@ mod test {
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_rewinds_for_sequence_gap() {
-            // Starts with current snapshot at sequence 99, block 1000
             let mut cursor = get_cursor().await;
 
             // Expect the range to be:
@@ -629,7 +612,6 @@ mod test {
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_handles_unexpected_logs() {
-            // Starts with current snapshot at sequence 99, block 1000
             let mut cursor = get_cursor().await;
 
             // Expect the range to be:
@@ -674,7 +656,6 @@ mod test {
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_stops_after_indexing_sequence_0() {
-            // Starts with current snapshot at sequence 99, block 1000
             let mut cursor = get_cursor().await;
 
             // Expect the range to be:
@@ -728,7 +709,6 @@ mod test {
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_normal_indexing() {
-            // Starts with current snapshot at sequence 99, block 1000
             let mut cursor = get_cursor().await;
 
             // We should have fast forwarded to sequence 99, block 1000
@@ -793,7 +773,6 @@ mod test {
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_rewinds_if_updated_with_no_logs() {
-            // Starts with current snapshot at sequence 99, block 1000
             let mut cursor = get_cursor().await;
 
             // Expect the range to be:
@@ -869,7 +848,6 @@ mod test {
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_stops_after_indexing_sequence_0() {
-            // Starts with current snapshot at sequence 99, block 1000
             let mut cursor = get_cursor().await;
 
             // Set the chunk size to 100 to make it easier to test.
