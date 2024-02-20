@@ -4,4 +4,14 @@ const envScheme = z.object({
   HYP_KEY: z.string().optional(),
 });
 
-export const ENV = envScheme.parse(process.env);
+const parsedEnv = envScheme.safeParse(process.env);
+
+if (!parsedEnv.success)
+  throw new Error(
+    `Failed to parse environment variables: ${JSON.stringify(
+      parsedEnv.error.format(),
+      null,
+    )}`,
+  );
+
+export const ENV = parsedEnv.data;
