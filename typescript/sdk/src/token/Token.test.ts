@@ -93,7 +93,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     sourcePort: 'transfer',
     sourceChannel: 'channel-8',
   },
-  // Token factory for this not yet supported
+  // Token adapter for cosmos token factories is not yet implemented
   // [TokenStandard.CosmosFactory]: {
   //   chainName: Chains.neutron,
   //   standard: TokenStandard.CosmosFactory,
