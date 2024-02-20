@@ -37,7 +37,7 @@ contract TelepathyCcipReadIsm is
 {
     using Message for bytes;
 
-    /// @notice Source Mailbox
+    /// @notice Source Mailbox that will dispatch a message
     Mailbox public sourceMailbox;
 
     /// @notice Destination Mailbox
@@ -122,7 +122,7 @@ contract TelepathyCcipReadIsm is
      * @dev Basically, this checks if the TelepathyCcipReadHook.dispatched has messageId set on the source chain
      * @param _proofs accountProof and storageProof from eth_getProof
      * @param _message Hyperlane encoded interchain message
-     * @return True if the message was verified
+     * @return True if the message was dispatched by source Mailbox
      */
     function verify(
         bytes calldata _proofs,
@@ -133,18 +133,18 @@ contract TelepathyCcipReadIsm is
                 _proofs,
                 dispatchedSlotKey(_message.nonce())
             )
-        returns (bytes memory dispatchedValue) {
-            return keccak256(dispatchedValue) != _message.id();
+        returns (bytes memory dispatchedMessageId) {
+            return keccak256(dispatchedMessageId) != _message.id();
         } catch {
             return false;
         }
     }
 
     /**
-     * @notice Gets the slot value of TelepathyCcipReadHook.deliveries mapping given a slot key and proofs
+     * @notice Gets the slot value of TelepathyCcipReadHook.dispatched mapping given a slot key and proofs
      * @param _proofs encoded account proof and storage proof
      * @param _dispatchedSlotKey hash of the source chain TelepathyCcipReadHook slot number to do a storage proof for
-     * @return byte value of the deliveries[slotKey]
+     * @return byte value of the dispatched[sourceMailbox][nonce]
      */
     function getDispatchedValue(
         bytes calldata _proofs,
@@ -187,8 +187,8 @@ contract TelepathyCcipReadIsm is
                 ISuccinctProofsService.getProofs.selector,
                 address(telepathyCcipReadHook),
                 dispatchedSlotKey(_message.nonce()),
-                1
-            ), // TODO fix this hardcode
+                1 // TODO fix this hardcode
+            ),
             TelepathyCcipReadIsm.process.selector,
             _message
         );
