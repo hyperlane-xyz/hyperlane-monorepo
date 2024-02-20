@@ -551,6 +551,9 @@ mod test {
                 cur: &mut BackwardSequenceAwareSyncCursor<MockSequencedData>,
                 logs: Vec<(MockSequencedData, LogMeta)>,
             ) {
+                // For a more rigorous test case, first do a range where no logs are found,
+                // then in the next range there are issues, and we should rewind to the last indexed snapshot.
+
                 // Expect the range to be:
                 // (current - chunk_size, current)
                 let range = cur.get_next_range().await.unwrap().unwrap();
@@ -558,6 +561,32 @@ mod test {
                 assert_eq!(range, expected_range);
 
                 // Update the cursor with no found logs.
+                cur.update(vec![], expected_range).await.unwrap();
+
+                // Expect the cursor to have moved the current indexing snapshot's block number (but not sequence),
+                // and made no changes to the last indexed snapshot.
+                assert_eq!(
+                    cur.current_indexing_snapshot,
+                    Some(TargetSnapshot {
+                        sequence: 99,
+                        at_block: 900,
+                    })
+                );
+                assert_eq!(
+                    cur.last_indexed_snapshot,
+                    LastIndexedSnapshot {
+                        sequence: Some(100),
+                        at_block: 1000,
+                    }
+                );
+
+                // Expect the range to be:
+                // (start, tip)
+                let range = cur.get_next_range().await.unwrap().unwrap();
+                let expected_range = 800..=900;
+                assert_eq!(range, expected_range);
+
+                // Update the cursor, expecting a rewind now
                 cur.update(logs, expected_range).await.unwrap();
 
                 // Expect the cursor rewound to just prior to the last indexed snapshot.

@@ -833,6 +833,9 @@ pub(crate) mod test {
                 cur: &mut ForwardSequenceAwareSyncCursor<MockSequencedData>,
                 logs: Vec<(MockSequencedData, LogMeta)>,
             ) {
+                // For a more rigorous test case, first do a range where no logs are found,
+                // then in the next range there are issues, and we should rewind to the last indexed snapshot.
+
                 // Expect the range to be:
                 // (start, start + chunk_size)
                 let range = cur.get_next_range().await.unwrap().unwrap();
@@ -840,6 +843,32 @@ pub(crate) mod test {
                 assert_eq!(range, expected_range);
 
                 // Update the cursor with no found logs. We should've found one here though!
+                cur.update(vec![], expected_range).await.unwrap();
+
+                // Expect the cursor to have moved the current indexing snapshot's block number (but not sequence),
+                // and made no changes to the last indexed snapshot.
+                assert_eq!(
+                    cur.current_indexing_snapshot,
+                    TargetSnapshot {
+                        sequence: 5,
+                        at_block: 190,
+                    }
+                );
+                assert_eq!(
+                    cur.last_indexed_snapshot,
+                    LastIndexedSnapshot {
+                        sequence: Some(4),
+                        at_block: 90,
+                    }
+                );
+
+                // Expect the range to be:
+                // (start, tip)
+                let range = cur.get_next_range().await.unwrap().unwrap();
+                let expected_range = 190..=200;
+                assert_eq!(range, expected_range);
+
+                // Update the cursor, expecting a rewind now
                 cur.update(logs, expected_range).await.unwrap();
 
                 // Expect a rewind to occur back to the last indexed snapshot's block number.
@@ -875,84 +904,6 @@ pub(crate) mod test {
                 ],
             )
             .await;
-        }
-
-        /// Tests when the cursor is so behind the tip that it'll need to index multiple ranges. It successfully
-        /// finds a log in the second range, but missed log in the first range, showing a gap. It should rewind to the
-        /// last indexed snapshot.
-        #[tracing_test::traced_test]
-        #[tokio::test]
-        async fn test_rewinds_for_sequence_gap_after_empty_ranges() {
-            let mut cursor = get_cursor().await;
-
-            // Pretend like the tip is 200, a message occurred at block 150 that's missed,
-            // and another message at block 195 is found.
-
-            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
-                // 3 new messages since we last indexed have come in!
-                latest_sequence_count: Some(7),
-                tip: 200,
-            });
-
-            // Expect the range to be:
-            // (start, start + chunk_size)
-            let range = cursor.get_next_range().await.unwrap().unwrap();
-            let expected_range = 90..=190;
-            assert_eq!(range, expected_range);
-
-            // Update the cursor with no found logs. We should've found one here though!
-            cursor.update(vec![], expected_range).await.unwrap();
-
-            // Expect the cursor to have moved the current indexing snapshot's block number (but not sequence),
-            // and made no changes to the last indexed snapshot.
-            assert_eq!(
-                cursor.current_indexing_snapshot,
-                TargetSnapshot {
-                    sequence: 5,
-                    at_block: 190,
-                }
-            );
-            assert_eq!(
-                cursor.last_indexed_snapshot,
-                LastIndexedSnapshot {
-                    sequence: Some(4),
-                    at_block: 90,
-                }
-            );
-
-            // Expect the range to be:
-            // (start, tip)
-            let range = cursor.get_next_range().await.unwrap().unwrap();
-            let expected_range = 190..=200;
-            assert_eq!(range, expected_range);
-
-            // Update the cursor, but we don't build upon the last snapshot!
-            cursor
-                .update(
-                    vec![
-                        // We missed a log at sequence 5.
-                        (MockSequencedData::new(6), log_meta_with_block(195)),
-                    ],
-                    expected_range,
-                )
-                .await
-                .unwrap();
-
-            // Expect a rewind to occur back to the last indexed snapshot's block number.
-            assert_eq!(
-                cursor.current_indexing_snapshot,
-                TargetSnapshot {
-                    sequence: 5,
-                    at_block: 90,
-                }
-            );
-            assert_eq!(
-                cursor.last_indexed_snapshot,
-                LastIndexedSnapshot {
-                    sequence: Some(4),
-                    at_block: 90,
-                }
-            );
         }
 
         /// Tests when the cursor is so behind the tip that it'll need to index multiple ranges, but by the time
