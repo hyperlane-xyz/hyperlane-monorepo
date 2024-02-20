@@ -231,7 +231,7 @@ jobs:
           RUST_BACKTRACE: 1
 
       - name: agent tests excluding CosmWasm
-        run: cargo run --release --package run-locally
+        run: cargo run --release --bin run-locally
         if: matrix.e2e-type == 'non-cosmwasm'
         working-directory: ./rust
         env:
