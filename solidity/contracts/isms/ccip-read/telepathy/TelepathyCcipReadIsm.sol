@@ -22,12 +22,13 @@ import {LightClient} from "@telepathyx/LightClient.sol";
 import {AbstractCcipReadIsm} from "../AbstractCcipReadIsm.sol";
 import {Message} from "../../../libs/Message.sol";
 import {Mailbox} from "../../../Mailbox.sol";
+import {TelepathyCcipReadHook} from "../../../hooks/ccip/TelepathyCcipReadHook.sol";
 import {StorageProof} from "../../../libs/StateProofHelpers.sol";
 import {ISuccinctProofsService} from "../../../interfaces/ccip-gateways/ISuccinctProofsService.sol";
 
 /**
  * @title TelepathyCcipReadIsm
- * @notice Uses Succinct to verify that a message was delivered via a Hyperlane Mailbox
+ * @notice Uses Succinct to verify that a message was delivered via a Hyperlane Mailbox and tracked by TelepathyCcipReadHook
  */
 contract TelepathyCcipReadIsm is
     AbstractCcipReadIsm,
@@ -36,13 +37,19 @@ contract TelepathyCcipReadIsm is
 {
     using Message for bytes;
 
-    /// @notice  Source Mailbox
-    Mailbox public mailbox;
+    /// @notice Source Mailbox
+    Mailbox public sourceMailbox;
 
-    /// @notice  Slot # on the Source Mailbox that will be used to generate a Storage Key. The resulting Key will be passed into eth_getProof
-    uint256 public deliveriesSlot;
+    /// @notice Destination Mailbox
+    Mailbox public destinationMailbox;
 
-    /// @notice  Array of Gateway URLs that the Relayer will call to fetch proofs
+    /// @notice Source TelepathyCcipReadHook
+    TelepathyCcipReadHook public telepathyCcipReadHook;
+
+    /// @notice Slot # of the Source TelepathyCcipReadHook.dispatched store that will be used to generate a Storage Key. The resulting Key will be passed into eth_getProof
+    uint256 public dispatchedSlot;
+
+    /// @notice Array of Gateway URLs that the Relayer will call to fetch proofs
     string[] public offchainUrls;
 
     constructor(
@@ -75,18 +82,24 @@ contract TelepathyCcipReadIsm is
     {}
 
     /**
-     * @param _mailbox the source chain mailbox address
-     * @param _deliveriesSlot the source chain mailbox slot number for deliveries mapping
+     * @param _sourceMailbox the source chain Mailbox
+     * @param _destinationMailbox the destination chain Mailbox
+     * @param _telepathyCcipReadHook the source chain TelepathyCcipReadHook
+     * @param _dispatchedSlot the source chain TelepathyCcipReadHook slot number of the dispatched mapping
      * @param _offchainUrls urls to make ccip read queries
      */
     function initialize(
-        Mailbox _mailbox,
-        uint256 _deliveriesSlot,
+        Mailbox _sourceMailbox,
+        Mailbox _destinationMailbox,
+        TelepathyCcipReadHook _telepathyCcipReadHook,
+        uint256 _dispatchedSlot,
         string[] memory _offchainUrls
     ) external initializer {
         __Ownable_init();
-        mailbox = _mailbox;
-        deliveriesSlot = _deliveriesSlot;
+        sourceMailbox = _sourceMailbox;
+        destinationMailbox = _destinationMailbox;
+        telepathyCcipReadHook = _telepathyCcipReadHook;
+        dispatchedSlot = _dispatchedSlot;
         offchainUrls = _offchainUrls;
     }
 
@@ -106,7 +119,7 @@ contract TelepathyCcipReadIsm is
 
     /**
      * @notice Verifies that the message id is valid by using the headers by Succinct and eth_getProof
-     * @dev Basically, this checks if the Mailbox.deliveries[messageId] has been commited on the source chain
+     * @dev Basically, this checks if the TelepathyCcipReadHook.dispatched has messageId set on the source chain
      * @param _proofs accountProof and storageProof from eth_getProof
      * @param _message Hyperlane encoded interchain message
      * @return True if the message was verified
@@ -115,43 +128,45 @@ contract TelepathyCcipReadIsm is
         bytes calldata _proofs,
         bytes calldata _message
     ) external returns (bool) {
-        return true;
+        try
+            this.getDispatchedValue(
+                _proofs,
+                dispatchedSlotKey(_message.nonce())
+            )
+        returns (bytes memory dispatchedValue) {
+            return keccak256(dispatchedValue) != _message.id();
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * @notice Gets the slot value of TelepathyCcipReadHook.deliveries mapping given a slot key and proofs
+     * @param _proofs encoded account proof and storage proof
+     * @param _dispatchedSlotKey hash of the source chain TelepathyCcipReadHook slot number to do a storage proof for
+     * @return byte value of the deliveries[slotKey]
+     */
+    function getDispatchedValue(
+        bytes calldata _proofs,
+        bytes32 _dispatchedSlotKey
+    ) public view returns (bytes memory) {
+        // Get the slot value as bytes
         (bytes[] memory accountProof, bytes[] memory storageProof) = abi.decode(
             _proofs,
             (bytes[], bytes[])
         );
 
-        // Get the slot value as bytes
-        bytes memory deliveriesValue = getDeliveriesValue(
-            accountProof,
-            storageProof,
-            storageKey(_message.id())
-        );
-
-        return keccak256(deliveriesValue) != bytes32("");
-    }
-
-    /**
-     * @notice Gets the slot value of Mailbox.deliveries mapping given a slot key and proofs
-     * @param _accountProof the account proof
-     * @param _storageProof the storage proof
-     * @param _deliveriesSlotKey hash of the source chain mailbox slot number to do a storage proof for
-     * @return byte value of the deliveries[slotKey]
-     */
-    function getDeliveriesValue(
-        bytes[] memory _accountProof,
-        bytes[] memory _storageProof,
-        bytes32 _deliveriesSlotKey
-    ) public view returns (bytes memory) {
+        // Get the storage root of TelepathyCcipReadHook
         bytes32 storageRoot = StorageProof.getStorageRoot(
-            address(mailbox),
-            _accountProof,
+            address(telepathyCcipReadHook),
+            accountProof,
             executionStateRoots[head]
         );
+        // Returns the value of dispatched
         return
             StorageProof.getStorageBytes(
-                _deliveriesSlotKey,
-                _storageProof,
+                keccak256(abi.encode(_dispatchedSlotKey)),
+                storageProof,
                 storageRoot
             );
     }
@@ -170,8 +185,8 @@ contract TelepathyCcipReadIsm is
             offchainUrls,
             abi.encodeWithSelector(
                 ISuccinctProofsService.getProofs.selector,
-                address(mailbox),
-                storageKey(_message.id()),
+                address(telepathyCcipReadHook),
+                dispatchedSlotKey(_message.nonce()),
                 1
             ), // TODO fix this hardcode
             TelepathyCcipReadIsm.process.selector,
@@ -180,26 +195,33 @@ contract TelepathyCcipReadIsm is
     }
 
     /**
-     * @notice Creates a single storage key using the slot and messageId.
-     * This corresponds to the deliveries store in the source chain Mailbox contract.
-     * @param _messageId message id
+     * @notice Creates a single storage key of the source chain TelepathyCcipReadHook.dispatched mapping
+     * @param _messageNonce message nonce
+     *
+     * mapping(address mailbox => mapping(uint256 messageNonce => messageId))
      */
-    function storageKey(bytes32 _messageId) public view returns (bytes32) {
-        // TODO figure out a different storage slot since deliveries is the wrong one to use
+    function dispatchedSlotKey(
+        uint32 _messageNonce
+    ) public view returns (bytes32) {
         return
             keccak256(
-                abi.encode(keccak256(abi.encode(_messageId, deliveriesSlot)))
+                abi.encode(
+                    _messageNonce,
+                    keccak256(
+                        abi.encode(address(sourceMailbox), dispatchedSlot)
+                    )
+                )
             );
     }
 
     /**
      * @notice Callback after CCIP read activities are complete.
-     * This validate and stores the state proof and then calls mailbox to process the message
+     * This validate and stores the state proof and then calls TelepathyCcipReadHook to process the message
      * @dev See https://eips.ethereum.org/EIPS/eip-3668 for more information
-     * @param _proofs response from CCIP read that will be passed back to verify() through the Mailbox
+     * @param _proofs response from CCIP read that will be passed back to verify() through the TelepathyCcipReadHook
      * @param _message data that will help construct the offchain query
      */
     function process(bytes calldata _proofs, bytes calldata _message) external {
-        mailbox.process(_proofs, _message);
+        destinationMailbox.process(_proofs, _message);
     }
 }

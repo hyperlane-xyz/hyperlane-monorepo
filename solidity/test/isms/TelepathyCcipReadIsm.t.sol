@@ -8,6 +8,7 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {TelepathyCcipReadIsm} from "../../contracts/isms/ccip-read/telepathy/TelepathyCcipReadIsm.sol";
+import {TelepathyCcipReadHook} from "../../contracts/hooks/ccip/TelepathyCcipReadHook.sol";
 import {ICcipReadIsm} from "../../contracts/interfaces/isms/ICcipReadIsm.sol";
 import {StateProofHelpersTest} from "../lib/StateProofHelpers.t.sol";
 import {ISuccinctProofsService} from "../../contracts/interfaces/ccip-gateways/ISuccinctProofsService.sol";
@@ -20,9 +21,9 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
     address internal alice = address(0x1);
     string[] urls = ["localhost:3001/telepathy-ccip/"];
 
-    TelepathyCcipReadIsm internal telepathyCcipReadIsm;
     MockMailbox mailbox;
-    bytes constant correctCessageBody = hex"48656c6c6f21";
+    TelepathyCcipReadIsm internal telepathyCcipReadIsm;
+    TelepathyCcipReadHook internal hook;
 
     function setUp() public override {
         super.setUp();
@@ -39,9 +40,17 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
             rotateFunctionId: EMPTY_BYTES32,
             gatewayAddress: address(5)
         });
-        deployCodeTo("MockMailbox.sol", abi.encode(0), mailboxAddr);
-        mailbox = MockMailbox(mailboxAddr);
-        telepathyCcipReadIsm.initialize(mailbox, DELIVERIES_SLOT, urls);
+        deployCodeTo("TelepathyCcipReadHook.sol", abi.encode(0), HOOK_ADDR);
+        mailbox = MockMailbox(MAILBOX_ADDR);
+        hook = TelepathyCcipReadHook(HOOK_ADDR);
+
+        telepathyCcipReadIsm.initialize(
+            mailbox,
+            mailbox,
+            hook,
+            DISPATCHED_SLOT,
+            urls
+        );
 
         _setExecutionStateRoot();
     }
@@ -49,18 +58,17 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
     // ============ Helper Functions ============
 
     function _encodeTestMessage(
-        bytes memory _messageBody
+        uint32 _messageNonce
     ) internal pure returns (bytes memory) {
-        // These are real onchain message values for a messageId of 44EFC92481301DB306CB0D8FF7E5FF5B2ABFFEA428677BC37BFFB8DE2B7D7D5F
         return
             MessageUtils.formatMessage(
-                uint8(3),
-                643,
-                43114,
-                hex"000000000000000000000000d54ff402adf0a7cbad9626b1261bf4beb26a437a",
-                1,
-                hex"0000000000000000000000007ff2bf58c38a41ad7c9cbc14e780e8a7edbbd48d",
-                _messageBody
+                0,
+                _messageNonce,
+                0,
+                hex"0000000000000000000000007fa9385be102ac3eac297483dd6233d62b3e1496",
+                0,
+                hex"0000000000000000000000007fa9385be102ac3eac297483dd6233d62b3e1496",
+                hex"00000000000000000000000000000000000000000000000000000000000000a7"
             );
     }
 
@@ -72,7 +80,7 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
         }
     }
 
-    /// @dev In the future, we can get a proof from Succient and make this test a bit better by calling step()
+    /// @dev This Mocks what Succinct's Prover will set. In the future, we can get a proof from Succient and make this test a bit better by calling step()
     function _setExecutionStateRoot() internal {
         // Set the head slot
         stdstore
@@ -109,9 +117,9 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
     }
 
     function testTelepathyCcip_getOffchainVerifyInfo_revertsCorrectly(
-        bytes calldata _message
+        uint32 _messageNonce
     ) public {
-        bytes memory encodedMessage = _encodeTestMessage(_message);
+        bytes memory encodedMessage = _encodeTestMessage(_messageNonce);
         string[] memory offChainUrls = _copyUrls();
         bytes memory offChainLookupError = abi.encodeWithSelector(
             ICcipReadIsm.OffchainLookup.selector,
@@ -119,8 +127,8 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
             offChainUrls,
             abi.encodeWithSelector(
                 ISuccinctProofsService.getProofs.selector,
-                address(mailbox),
-                telepathyCcipReadIsm.storageKey(encodedMessage.id()),
+                address(HOOK_ADDR),
+                telepathyCcipReadIsm.dispatchedSlotKey(_messageNonce),
                 1
             ), // Mailbox Addr, storageKeys, blockNumber
             TelepathyCcipReadIsm.process.selector,
@@ -131,20 +139,22 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
     }
 
     function testTelepathyCcip_verify_withMessage(
-        bytes calldata _incorrectMessageId
+        uint32 _incorrectMessageNonce
     ) public {
-        bytes memory correctMessage = _encodeTestMessage(correctCessageBody);
-        vm.assume(keccak256(_incorrectMessageId) != keccak256(correctMessage));
+        vm.assume(_incorrectMessageNonce != MESSAGE_NONCE);
 
         // Incorrect message
         bool verified = telepathyCcipReadIsm.verify(
             _encodeProofs(),
-            _incorrectMessageId
+            _encodeTestMessage(_incorrectMessageNonce)
         );
         assertFalse(verified);
 
         // Correct message
-        verified = telepathyCcipReadIsm.verify(_encodeProofs(), correctMessage);
+        verified = telepathyCcipReadIsm.verify(
+            _encodeProofs(),
+            _encodeTestMessage(MESSAGE_NONCE)
+        );
         assertTrue(verified);
     }
 }
