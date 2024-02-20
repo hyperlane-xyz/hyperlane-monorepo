@@ -15,7 +15,7 @@ use tracing::instrument;
 use hyperlane_core::{
     utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
-    HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceIndexer,
+    HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceAwareIndexer,
     TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
@@ -40,7 +40,7 @@ pub struct SequenceIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for SequenceIndexerBuilder {
-    type Output = Box<dyn SequenceIndexer<HyperlaneMessage>>;
+    type Output = Box<dyn SequenceAwareIndexer<HyperlaneMessage>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -61,7 +61,7 @@ pub struct DeliveryIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for DeliveryIndexerBuilder {
-    type Output = Box<dyn SequenceIndexer<H256>>;
+    type Output = Box<dyn SequenceAwareIndexer<H256>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -148,12 +148,12 @@ where
 }
 
 #[async_trait]
-impl<M> SequenceIndexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
+impl<M> SequenceAwareIndexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         let sequence = self.contract.nonce().block(u64::from(tip)).call().await?;
         Ok((Some(sequence), tip))
@@ -186,13 +186,13 @@ where
 }
 
 #[async_trait]
-impl<M> SequenceIndexer<H256> for EthereumMailboxIndexer<M>
+impl<M> SequenceAwareIndexer<H256> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // A blanket implementation for this trait is fine for the EVM.
-        // TODO: Consider removing `Indexer` as a supertrait of `SequenceIndexer`
+        // TODO: Consider removing `Indexer` as a supertrait of `SequenceAwareIndexer`
         let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
         Ok((None, tip))
     }

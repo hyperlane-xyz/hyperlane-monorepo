@@ -131,7 +131,7 @@ mod tests {
 
     use super::*;
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Default)]
     struct EthereumProviderMock(ProviderMock);
 
     impl Deref for EthereumProviderMock {
@@ -142,21 +142,15 @@ mod tests {
         }
     }
 
-    impl Default for EthereumProviderMock {
-        fn default() -> Self {
-            Self(ProviderMock::default())
-        }
-    }
-
     impl EthereumProviderMock {
         fn new(request_sleep: Option<Duration>) -> Self {
             Self(ProviderMock::new(request_sleep))
         }
     }
 
-    impl Into<JsonRpcBlockGetter<EthereumProviderMock>> for EthereumProviderMock {
-        fn into(self) -> JsonRpcBlockGetter<EthereumProviderMock> {
-            JsonRpcBlockGetter::new(self)
+    impl From<EthereumProviderMock> for JsonRpcBlockGetter<EthereumProviderMock> {
+        fn from(val: EthereumProviderMock) -> Self {
+            JsonRpcBlockGetter::new(val)
         }
     }
 
