@@ -60,7 +60,7 @@ where
             .with_label_values(&[label, chain_name]);
 
         loop {
-            indexed_height.set(cursor.latest_block() as i64);
+            indexed_height.set(cursor.latest_queried_block() as i64);
 
             let (action, eta) = match cursor.next_action().await {
                 Ok((action, eta)) => (action, eta),

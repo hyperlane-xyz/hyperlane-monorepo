@@ -258,7 +258,7 @@ where
         Ok((CursorAction::Sleep(Duration::from_secs(5)), eta))
     }
 
-    fn latest_block(&self) -> u32 {
+    fn latest_queried_block(&self) -> u32 {
         self.sync_state.next_block.saturating_sub(1)
     }
 

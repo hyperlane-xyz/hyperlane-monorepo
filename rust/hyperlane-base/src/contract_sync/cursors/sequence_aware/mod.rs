@@ -119,8 +119,8 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardBackwardSequenceAwar
         return Ok((CursorAction::Sleep(Duration::from_secs(5)), eta));
     }
 
-    fn latest_block(&self) -> u32 {
-        self.forward.latest_block()
+    fn latest_queried_block(&self) -> u32 {
+        self.forward.latest_queried_block()
     }
 
     async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {

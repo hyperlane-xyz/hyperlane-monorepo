@@ -694,6 +694,32 @@ mod test {
             let range = cursor.get_next_range().await.unwrap();
             assert_eq!(range, None);
         }
+
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_skip_indexed_when_fully_synced() {
+            let db = Arc::new(MockHyperlaneSequenceIndexerStore {
+                logs: (0..=INITIAL_SEQUENCE_COUNT)
+                    .map(|i| {
+                        (
+                            MockSequencedData::new(i),
+                            log_meta_with_block(900 + i as u64),
+                        )
+                    })
+                    .collect(),
+            });
+
+            let mut cursor = BackwardSequenceAwareSyncCursor::new(
+                CHUNK_SIZE,
+                db,
+                INITIAL_SEQUENCE_COUNT,
+                INITIAL_START_BLOCK,
+                INDEX_MODE,
+            );
+
+            // We're fully synced, so expect no range
+            assert_eq!(cursor.get_next_range().await.unwrap(), None);
+        }
     }
 
     mod sequence_range {
