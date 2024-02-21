@@ -10,6 +10,7 @@ const SUCCINCT_PLATFORM_URL = process.env.SUCCINCT_PLATFORM_URL as string;
 const SUCCINCT_API_KEY = process.env.SUCCINCT_API_KEY as string;
 const SERVER_PORT = process.env.SERVER_PORT as string;
 const SERVER_URL_PREFIX = process.env.SERVER_URL_PREFIX as string;
+const HYPERLANE_API_URL = process.env.HYPERLANE_API_URL as string;
 
 export {
   RPC_ADDRESS,
@@ -20,4 +21,5 @@ export {
   SUCCINCT_API_KEY,
   SERVER_PORT,
   SERVER_URL_PREFIX,
+  HYPERLANE_API_URL,
 };

@@ -133,9 +133,8 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
             abi.encodeWithSelector(
                 ISuccinctProofsService.getProofs.selector,
                 address(HOOK_ADDR),
-                telepathyCcipReadIsm.dispatchedSlotKey(_messageNonce),
-                1
-            ), // Mailbox Addr, storageKeys, blockNumber
+                telepathyCcipReadIsm.dispatchedSlotKey(_messageNonce)
+            ), // Mailbox Addr, storageKeys
             TelepathyCcipReadIsm.process.selector,
             encodedMessage
         );

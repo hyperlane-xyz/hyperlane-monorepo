@@ -1,7 +1,9 @@
+import { error } from 'console';
 import { ethers } from 'ethers';
 
 import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi';
 
+import { HyperlaneService } from './HyperlaneService';
 import { LightClientService } from './LightClientService';
 import { ProofResult, RPCService } from './RPCService';
 import { HandlerDescriptionEnumerated } from './common/HandlerDescriptionEnumerated';
@@ -10,6 +12,7 @@ import { HandlerDescriptionEnumerated } from './common/HandlerDescriptionEnumera
 class ProofsService extends HandlerDescriptionEnumerated {
   rpcService: RPCService;
   lightClientService: LightClientService;
+  hyperlaneService: HyperlaneService;
 
   constructor(
     readonly lightClientAddress: string,
@@ -18,6 +21,7 @@ class ProofsService extends HandlerDescriptionEnumerated {
     readonly chainId: string,
     readonly succinctPlatformUrl: string,
     readonly succinctPlatformApiKey: string,
+    readonly hyperlaneUrl: string,
   ) {
     super();
     this.rpcService = new RPCService(rpcAddress);
@@ -33,6 +37,7 @@ class ProofsService extends HandlerDescriptionEnumerated {
       succinctPlatformUrl,
       succinctPlatformApiKey,
     );
+    this.hyperlaneService = new HyperlaneService(hyperlaneUrl);
   }
 
   /**
@@ -40,29 +45,31 @@ class ProofsService extends HandlerDescriptionEnumerated {
    * @dev Note that the abi encoding will happen within ccip-read-server
    * @param target contract address to get the proof for
    * @param storageKeys storage keys to get the proof for
-   * @param blockNumber block to get the proof for. Will decode as a BigInt.
+   * @param messageId Id of Message
    * Note that JS BigInt can only handle 2^53 - 1. For block number, this should be plenty.
    */
   async getProofs([
     address,
     storageKey,
-    blockNumber,
+    messageId,
   ]: ethers.utils.Result): Promise<Array<[string[], string[]]>> {
     const proofs: Array<[string[], string[]]> = [];
     try {
-      // TODO Implement request Proof from Succinct
+      // Request Proof from Succinct
+      // console.log(`Requesting proof for${slot}`);
       // await this.lightClientService.requestProof(syncCommitteePoseidon, slot);
 
-      // Get storage proofs
+      const blockNumber =
+        await this.hyperlaneService.getOriginBlockNumberByMessageId(messageId);
       const { accountProof, storageProof }: ProofResult =
         await this.rpcService.getProofs(
           address,
           [storageKey],
-          blockNumber.toHexString(),
+          new Number(blockNumber).toString(16), // Converts to hexstring
         );
       proofs.push([accountProof, storageProof[0].proof]);
     } catch (e) {
-      console.log('Error getting proofs', e);
+      error('Error getting proofs', e);
     }
 
     return proofs;

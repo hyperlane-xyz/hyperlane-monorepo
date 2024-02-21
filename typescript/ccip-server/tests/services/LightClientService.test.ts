@@ -31,7 +31,7 @@ describe('LightClientService', () => {
     );
     await lightclientService.requestProof(
       ethers.utils.formatBytes32String('10'),
-      10,
+      10n,
     );
     expect(lightclientService.pendingProofId).toBe('1');
   });

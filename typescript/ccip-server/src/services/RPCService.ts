@@ -1,3 +1,4 @@
+import { info } from 'console';
 import { ethers } from 'ethers';
 
 type ProofResultStorageProof = {
@@ -27,13 +28,14 @@ class RPCService {
    * @param address
    * @param storageKeys
    * @param block
-   * @returns
+   * @returns Proofs
    */
   async getProofs(
     address: string,
     storageKeys: string[],
     block: string,
   ): Promise<ProofResult> {
+    info(`Fetching storage proof for key ${storageKeys.join(', ')}`);
     const results = await this.provider.send('eth_getProof', [
       address,
       storageKeys,

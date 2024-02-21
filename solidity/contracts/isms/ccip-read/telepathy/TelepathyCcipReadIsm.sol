@@ -165,8 +165,8 @@ contract TelepathyCcipReadIsm is AbstractCcipReadIsm, OwnableUpgradeable {
             abi.encodeWithSelector(
                 ISuccinctProofsService.getProofs.selector,
                 address(telepathyCcipReadHook),
-                dispatchedSlotKey(_message.nonce()),
-                1 // TODO fix this hardcode
+                dispatchedSlotKey(_message.nonce())
+                //messageId
             ),
             TelepathyCcipReadIsm.process.selector,
             _message

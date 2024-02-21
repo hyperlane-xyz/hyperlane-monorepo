@@ -47,6 +47,7 @@ class LightClientService extends Requestor {
    * @param syncCommitteePoseidon
    */
   async requestProof(syncCommitteePoseidon: string, slot: BigInt) {
+    // TODO move this business logic to ProofsService
     if (!this.pendingProofId) {
       // Request a Proof, set pendingProofId
       // Note that Succinct will asynchronously call step() on the ISM/LightClient
