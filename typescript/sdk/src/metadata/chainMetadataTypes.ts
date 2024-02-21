@@ -11,6 +11,7 @@ import { ZChainName, ZNzUint, ZUint } from './customZodTypes';
 export enum ExplorerFamily {
   Etherscan = 'etherscan',
   Blockscout = 'blockscout',
+  Routescan = 'routescan',
   Other = 'other',
 }
 

@@ -7,12 +7,14 @@ import { ChainMap, ChainName, ChainNameOrId } from '../types';
 
 import {
   getExplorerAddressUrl,
+  getExplorerApi,
   getExplorerApiUrl,
   getExplorerBaseUrl,
   getExplorerTxUrl,
 } from './blockExplorer';
 import {
   ChainMetadata,
+  ExplorerFamily,
   getDomainId,
   safeParseChainMetadata,
 } from './chainMetadataTypes';
@@ -256,6 +258,34 @@ export class ChainMetadataManager<MetaExt = {}> {
   getExplorerUrl(chainNameOrId: ChainNameOrId): string {
     const url = this.tryGetExplorerUrl(chainNameOrId);
     if (!url) throw new Error(`No explorer url set for ${chainNameOrId}`);
+    return url;
+  }
+
+  /**
+   * Get a block explorer's API for a given chain name, chain id, or domain id
+   */
+  tryGetExplorerApi(chainNameOrId: ChainName | number): {
+    apiUrl: string;
+    apiKey?: string;
+    family?: ExplorerFamily;
+  } | null {
+    const metadata = this.tryGetChainMetadata(chainNameOrId);
+    if (!metadata) return null;
+    return getExplorerApi(metadata);
+  }
+
+  /**
+   * Get a block explorer API for a given chain name, chain id, or domain id
+   * @throws if chain's metadata or block explorer data has no been set
+   */
+  getExplorerApi(chainNameOrId: ChainName | number): {
+    apiUrl: string;
+    apiKey?: string;
+    family?: ExplorerFamily;
+  } {
+    const url = this.tryGetExplorerApi(chainNameOrId);
+    if (!url)
+      throw new Error(`No supported explorer api set for ${chainNameOrId}`);
     return url;
   }
 

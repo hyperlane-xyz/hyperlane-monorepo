@@ -306,6 +306,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
     // wait for deploy tx to be confirmed
     await this.handleTx(chainNameOrId, contract.deployTransaction);
+
+    // return deployed contract
     return contract as Awaited<ReturnType<F['deploy']>>;
   }
 
