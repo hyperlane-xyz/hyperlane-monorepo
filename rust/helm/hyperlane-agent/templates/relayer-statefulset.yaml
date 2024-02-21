@@ -71,6 +71,52 @@ spec:
         ports: 
         - name: metrics
           containerPort: {{ .Values.hyperlane.metrics.port }}
+        {{- if .Values.hyperlane.relayer.livenessProbe }}
+        {{ /*
+          It's probably better to not have this hardcoded into the helm chart and to instead parametrize this -
+          however passing in multi-line strings is a total pain in Helm, especially with our setup of using
+          CLI args to set values. So for now, we'll just hardcode this in the chart and enable it only if
+          a liveness probe is asked for.
+        */ }}
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - |
+              # Make a query to see the difference between the relayer's Solana index and the highest validator Solana index.
+              # We look at the highest validator index from 5 mins ago to give the relayer some time to catch up.
+              RELAYER_CMP_VALIDATOR_QUERY=$(curl 'http://prometheus-server.monitoring.svc.cluster.local/api/v1/query' --data-urlencode 'query=max by (origin) (hyperlane_last_known_message_nonce{phase="processor_loop", hyperlane_deployment="mainnet2", origin="solana"}) - max by (origin) (label_replace(hyperlane_latest_checkpoint{hyperlane_deployment="mainnet2", chain="solana"} offset 5m, "origin", "$1", "chain", "(.*)"))')
+              echo "Liveness probe query: relayer Solana index - validator Solana index: $RELAYER_CMP_VALIDATOR_QUERY"
+
+              # If the value is negative, the relayer is behind the validators. This env var
+              # will be empty if the relayer is not behind the validators, so the presence of
+              # this env var is a signal that the relayer is unhealthy.
+              RELAYER_CMP_VALIDATOR_NEGATIVE=$(echo $RELAYER_CMP_VALIDATOR_QUERY | jq -r '.data.result[0].value[1] | select(. < 0)')
+              echo "Liveness probe query: relayer Solana index - validator Solana negative value: $RELAYER_CMP_VALIDATOR_NEGATIVE"
+
+              # Make a query to see if the relayer's Solana index is increasing over the last 5 mins.
+              RELAYER_SOLANA_INDEX_DERIV_QUERY=$(curl 'http://prometheus-server.monitoring.svc.cluster.local/api/v1/query' --data-urlencode 'query=deriv(hyperlane_last_known_message_nonce{phase="processor_loop", hyperlane_deployment="mainnet2", origin="solana", remote="any"}[5m])')
+              echo "Liveness probe query: relayer Solana index deriv: $RELAYER_SOLANA_INDEX_DERIV"
+
+              # This env var will be empty if the value is increasing, so the presence of this
+              # env var is a signal that the relayer is unhealthy.
+              RELAYER_SOLANA_INDEX_DERIV_VALUE_NOT_INCREASING=$(echo $RELAYER_SOLANA_INDEX_DERIV_QUERY | jq -r '.data.result[0].value[1] | select(. < 0.0001)')
+              echo "Liveness probe query: relayer Solana index deriv value not increasing: $RELAYER_SOLANA_INDEX_DERIV_VALUE_NOT_INCREASING"
+
+              # If both are empty, the relayer is healthy because the relayer is not behind the validators, or the relayer
+              # is currently catching up to the validators
+              if [ -z "$RELAYER_CMP_VALIDATOR_NEGATIVE" ] && [ -z "$RELAYER_SOLANA_INDEX_DERIV_VALUE_NOT_INCREASING" ]; then
+                echo "Relayer is healthy"
+                exit 0
+              else
+                echo "Relayer is unhealthy"
+                exit 1
+              fi
+
+          initialDelaySeconds: 300
+          periodSeconds: 60
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -99,4 +145,3 @@ spec:
         requests:
           storage: {{ .Values.hyperlane.relayer.storage.size }}
 {{- end }}
-
