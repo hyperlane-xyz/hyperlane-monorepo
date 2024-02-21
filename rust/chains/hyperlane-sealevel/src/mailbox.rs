@@ -713,6 +713,8 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
         let mut messages = Vec::with_capacity(message_capacity as usize);
         for nonce in range {
             messages.push(self.get_message_with_nonce(nonce).await?);
+            // Hack
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
         Ok(messages)
     }

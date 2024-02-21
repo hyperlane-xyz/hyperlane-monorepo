@@ -262,6 +262,8 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
                     tracing::debug!(sealevel_payment=?sealevel_payment, igp_account_filter=?igp_account_filter, "Found interchain gas payment for a different IGP account, skipping");
                 }
             }
+            // Hack
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
         Ok(payments)
     }
