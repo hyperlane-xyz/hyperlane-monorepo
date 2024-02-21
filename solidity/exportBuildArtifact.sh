@@ -11,8 +11,15 @@ outputFile="./buildArtifact.json"
 # log that we're in the script
 echo 'Finding and processing hardhat build artifact...'
 
-# Find the latest JSON build artifact
-jsonFiles=$(find "$artifactsDir" -type f -name "*.json" | sort | tail -n 1)
+# Find most recently modified JSON build artifact
+if [[ $OSTYPE == 'darwin'* ]]; then
+    # for local flow
+    jsonFiles=$(find "$artifactsDir" -type f -name "*.json" -exec stat -f "%m %N" {} \; | sort -rn | head -n 1 | cut -d' ' -f2-)
+else
+    # for CI flow
+    jsonFiles=$(find "$artifactsDir" -type f -name "*.json" -exec stat -c "%Y %n" {} \; | sort -rn | head -n 1 | cut -d' ' -f2-)
+fi
+
 if [[ ! -f "$jsonFiles" ]]; then
   echo 'Failed to find build artifact'
   exit 1

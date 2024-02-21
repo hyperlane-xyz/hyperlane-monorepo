@@ -52,6 +52,12 @@ export enum ExplorerApiActions {
   CHECK_PROXY_STATUS = 'checkproxyverification',
 }
 
+export const EXPLORER_GET_ACTIONS = [
+  ExplorerApiActions.CHECK_STATUS,
+  ExplorerApiActions.CHECK_PROXY_STATUS,
+  ExplorerApiActions.GETSOURCECODE,
+];
+
 export enum ExplorerApiErrors {
   ALREADY_VERIFIED = 'Contract source code already verified',
   ALREADY_VERIFIED_ALT = 'Already Verified',

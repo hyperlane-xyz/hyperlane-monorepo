@@ -50,7 +50,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       ismFactory,
       contractVerifier,
     );
-    this.testRecipient = new TestRecipientDeployer(multiProvider);
+    this.testRecipient = new TestRecipientDeployer(
+      multiProvider,
+      contractVerifier,
+    );
   }
 
   cacheAddressesMap(addressesMap: ChainMap<CoreAddresses>): void {

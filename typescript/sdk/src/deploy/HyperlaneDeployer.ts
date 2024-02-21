@@ -71,7 +71,7 @@ export abstract class HyperlaneDeployer<
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
-    protected readonly options?: DeployerOptions,
+    protected readonly options: DeployerOptions = {},
     protected readonly recoverVerificationInputs = false,
   ) {
     this.logger = options?.logger ?? debug('hyperlane:deployer');
@@ -83,17 +83,12 @@ export abstract class HyperlaneDeployer<
     }
 
     // if none provided, instantiate a default verifier with SDK's included build artifact
-    if (!this.options?.contractVerifier) {
-      this.options = {
-        ...this.options,
-        contractVerifier: new ContractVerifier(
-          multiProvider,
-          {},
-          SdkBuildArtifact,
-          ExplorerLicenseType.MIT,
-        ),
-      };
-    }
+    this.options.contractVerifier ??= new ContractVerifier(
+      multiProvider,
+      {},
+      SdkBuildArtifact,
+      ExplorerLicenseType.MIT,
+    );
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {

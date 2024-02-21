@@ -317,6 +317,7 @@ describe('HyperlaneIsmFactory', async () => {
         ),
         multiProvider,
       );
+      new TestCoreDeployer(multiProvider, ismFactory);
       ism = await ismFactory.deploy({
         destination: chain,
         config: exampleRoutingConfig,

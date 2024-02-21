@@ -169,7 +169,7 @@ async function main() {
           ethers.constants.AddressZero, // ISM is required for the TestRecipientDeployer but onchain if the ISM is zero address, then it uses the mailbox's defaultISM
       };
     }
-    deployer = new TestRecipientDeployer(multiProvider);
+    deployer = new TestRecipientDeployer(multiProvider, contractVerifier);
   } else if (module === Modules.TEST_QUERY_SENDER) {
     // Get query router addresses
     const queryAddresses = getAddresses(

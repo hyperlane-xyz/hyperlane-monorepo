@@ -12,6 +12,7 @@ import {
   BuildArtifact,
   CompilerOptions,
   ContractVerificationInput,
+  EXPLORER_GET_ACTIONS,
   ExplorerApiActions,
   ExplorerApiErrors,
   FormOptions,
@@ -20,7 +21,7 @@ import {
 export class ContractVerifier {
   private logger = debug(`hyperlane:ContractVerifier`);
 
-  private contractMap: { [contractName: string]: string } = {};
+  private contractSourceMap: { [contractName: string]: string } = {};
 
   protected readonly standardInputJson: string;
   protected readonly compilerOptions: CompilerOptions;
@@ -57,8 +58,9 @@ export class ContractVerifier {
       ([sourceName, { content }]) => {
         const matches = content.matchAll(contractRegex);
         for (const match of matches) {
-          if (match[1]) {
-            this.contractMap[match[1]] = sourceName;
+          const contractName = match[1];
+          if (contractName) {
+            this.contractSourceMap[contractName] = sourceName;
           }
         }
       },
@@ -77,10 +79,8 @@ export class ContractVerifier {
     params.set('action', action);
 
     // no need to provide every argument for every request
-    if (options) {
-      for (const [key, value] of Object.entries(options)) {
-        params.set(key, value);
-      }
+    for (const [key, value] of Object.entries(options ?? {})) {
+      params.set(key, value);
     }
 
     // only include apikey if provided & not blockscout
@@ -89,11 +89,7 @@ export class ContractVerifier {
     }
 
     const url = new URL(apiUrl);
-    const isGetRequest = [
-      ExplorerApiActions.CHECK_STATUS,
-      ExplorerApiActions.CHECK_PROXY_STATUS,
-      ExplorerApiActions.GETSOURCECODE,
-    ].includes(action);
+    const isGetRequest = EXPLORER_GET_ACTIONS.includes(action);
     if (isGetRequest) {
       url.search = params.toString();
     } else if (family === ExplorerFamily.Blockscout) {
@@ -102,13 +98,18 @@ export class ContractVerifier {
       url.searchParams.set('action', action);
     }
 
-    const response = await fetch(url.toString(), {
-      method: isGetRequest ? 'GET' : 'POST',
-      headers: isGetRequest
-        ? {}
-        : { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: isGetRequest ? null : params,
-    });
+    let response;
+    if (isGetRequest) {
+      response = await fetch(url.toString(), {
+        method: 'GET',
+      });
+    } else {
+      response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params,
+      });
+    }
 
     const responseText = await response.text();
     const result = JSON.parse(responseText);
@@ -228,7 +229,7 @@ export class ContractVerifier {
   ): Promise<void> {
     verificationLogger(`Verifying implementation at ${input.address}`);
 
-    const sourceName = this.contractMap[input.name];
+    const sourceName = this.contractSourceMap[input.name];
     if (!sourceName) {
       const errorMessage = `Contract '${input.name}' not found in provided build artifact`;
       verificationLogger(errorMessage);
