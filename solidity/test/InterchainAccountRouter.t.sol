@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
+import "forge-std/console.sol";
+
 import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
@@ -119,7 +121,7 @@ contract InterchainAccountRouterTest is Test {
         );
 
         target = new OwnableCallable();
-        target.transferOwnership(address(environment));
+        target.transferOwnership(address(ica));
     }
 
     function testFuzz_constructor(address _localOwner) public {
@@ -276,6 +278,7 @@ contract InterchainAccountRouterTest is Test {
         bytes32 data
     ) private view returns (CallLib.Call[] memory) {
         vm.assume(data != bytes32(0));
+
         CallLib.Call memory call = CallLib.Call(
             TypeCasts.addressToBytes32(address(target)),
             0,
@@ -300,16 +303,11 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testFuzz_singleCallRemote_transferOwnership() public {
-        vm.pauseGasMetering();
-
         originRouter.enrollRemoteRouterAndIsm(
             destination,
             routerOverride,
             ismOverride
         );
-
-        vm.resumeGasMetering();
-        // CallLib.Call[] memory calls = getCalls(data);
         address alice = address(0x123);
         CallLib.Call memory call = CallLib.Call(
             TypeCasts.addressToBytes32(address(target)),
@@ -317,7 +315,6 @@ contract InterchainAccountRouterTest is Test {
             abi.encodeCall(target.transferOwnership, (alice))
         );
 
-        vm.resumeGasMetering();
         originRouter.callRemote(
             destination,
             TypeCasts.bytes32ToAddress(call.to),
@@ -325,9 +322,9 @@ contract InterchainAccountRouterTest is Test {
             call.data
         );
 
-        // vm.prank();
-        environment.processNextPendingMessage();
-        // assertRemoteCallReceived(alice);
+        bytes memory _message = environment.readNextInboundMessage();
+        //
+        environment.processMessage(_message);
     }
 
     function testFuzz_singleCallRemoteWithDefault(bytes32 data) public {
