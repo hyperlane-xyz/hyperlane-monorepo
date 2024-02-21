@@ -10,11 +10,11 @@ import { BuildArtifact, CompilerOptions, VerificationInput } from './types';
 
 export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInput> {
   protected logger = debug('hyperlane:PostDeploymentContractVerifier');
-  private contractVerifier: ContractVerifier;
+  protected readonly contractVerifier: ContractVerifier;
 
   constructor(
     verificationInputs: ChainMap<VerificationInput>,
-    private multiProvider: MultiProvider,
+    protected readonly multiProvider: MultiProvider,
     apiKeys: ChainMap<string>,
     buildArtifact: BuildArtifact,
     licenseType: CompilerOptions['licenseType'],

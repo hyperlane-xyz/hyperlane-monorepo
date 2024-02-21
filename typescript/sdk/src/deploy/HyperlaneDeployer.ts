@@ -76,11 +76,7 @@ export abstract class HyperlaneDeployer<
   ) {
     this.logger = options?.logger ?? debug('hyperlane:deployer');
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
-
-    if (this.options?.ismFactory) {
-      this.options.ismFactory.deployContractFromFactory =
-        this.deployContractFromFactory.bind(this);
-    }
+    this.options.ismFactory?.setDeployer(this);
 
     // if none provided, instantiate a default verifier with SDK's included build artifact
     this.options.contractVerifier ??= new ContractVerifier(
@@ -225,7 +221,7 @@ export abstract class HyperlaneDeployer<
       }
     } else {
       const ismFactory =
-        this.options?.ismFactory ??
+        this.options.ismFactory ??
         (() => {
           throw new Error('No ISM factory provided');
         })();
@@ -319,7 +315,7 @@ export abstract class HyperlaneDeployer<
     this.logger(`Mailbox client on ${local} initialized...`);
   }
 
-  protected async deployContractFromFactory<F extends ethers.ContractFactory>(
+  public async deployContractFromFactory<F extends ethers.ContractFactory>(
     chain: ChainName,
     factory: F,
     contractName: string,
@@ -365,9 +361,9 @@ export abstract class HyperlaneDeployer<
     );
     this.addVerificationArtifacts(chain, [verificationInput]);
 
-    // if configured, verify contract
+    // try verifying contract
     try {
-      await this.options?.contractVerifier?.verifyContract(
+      await this.options.contractVerifier?.verifyContract(
         chain,
         verificationInput,
       );
