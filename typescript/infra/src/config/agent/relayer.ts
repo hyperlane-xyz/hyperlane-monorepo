@@ -2,7 +2,6 @@ import { BigNumberish } from 'ethers';
 
 import {
   AgentConfig,
-  AgentSignerKeyType,
   ChainMap,
   GasPaymentEnforcement,
   MatchingList,
@@ -100,7 +99,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
   // Get the signer configuration for each chain by the chain name.
   async signers(): Promise<ChainMap<KeyConfig>> {
-    let chainSigners: ChainMap<KeyConfig> = {};
+    const chainSigners: ChainMap<KeyConfig> = {};
 
     if (this.aws) {
       const awsUser = new AgentAwsUser(
