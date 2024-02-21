@@ -16,13 +16,7 @@
   "plumetestnet": [
     {
       "name": "HypERC20",
-      "address": "0xc76E477437065093D353b7d56c81ff54D167B0Ab",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000001200000000000000000000000033db966328ea213b0f76ef96ca368ab37779f065",
-      "isProxy": false
-    },
-    {
-      "name": "HypERC20",
-      "address": "0x7483faD0Bc297667664A43A064bA7c9911659f57",
+      "address": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f",
       "constructorArguments": "000000000000000000000000000000000000000000000000000000000000001200000000000000000000000033db966328ea213b0f76ef96ca368ab37779f065",
       "isProxy": false
     }
@@ -30,7 +24,7 @@
   "sepolia": [
     {
       "name": "HypNative",
-      "address": "0x8C159cc81F396E474A0b201f770c9944885A537A",
+      "address": "0xd99eA1D8b9542D35252504DDd59EDe8C43FB15fd",
       "constructorArguments": "000000000000000000000000ffaef09b3cd11d9b20d1a19becca54eec2884766",
       "isProxy": false
     }
