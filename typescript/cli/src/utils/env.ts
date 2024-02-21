@@ -6,12 +6,4 @@ const envScheme = z.object({
 
 const parsedEnv = envScheme.safeParse(process.env);
 
-if (!parsedEnv.success)
-  throw new Error(
-    `Failed to parse environment variables: ${JSON.stringify(
-      parsedEnv.error.format(),
-      null,
-    )}`,
-  );
-
-export const ENV = parsedEnv.data;
+export const ENV = parsedEnv.success ? parsedEnv.data : {};
