@@ -29,6 +29,7 @@ contract InterchainAccountRouter is Router {
 
     address internal implementation;
     bytes32 internal bytecodeHash;
+    uint256 internal CALL_GAS_LIMIT = 100_000;
 
     // ============ Public Storage ============
     mapping(uint32 => bytes32) public isms;
@@ -82,17 +83,17 @@ contract InterchainAccountRouter is Router {
 
     /**
      * @notice Initializes the contract with HyperlaneConnectionClient contracts
-     * @param _interchainGasPaymaster Unused but required by HyperlaneConnectionClient
+     * @param _customHook used by the Router to set the hook to override with
      * @param _interchainSecurityModule The address of the local ISM contract
      * @param _owner The address with owner privileges
      */
     function initialize(
-        address _interchainGasPaymaster,
+        address _customHook,
         address _interchainSecurityModule,
         address _owner
     ) external initializer {
         _MailboxClient_initialize(
-            _interchainGasPaymaster,
+            _customHook,
             _interchainSecurityModule,
             _owner
         );
@@ -157,7 +158,7 @@ contract InterchainAccountRouter is Router {
         address _to,
         uint256 _value,
         bytes memory _data
-    ) external returns (bytes32) {
+    ) external payable returns (bytes32) {
         bytes32 _router = routers(_destination);
         bytes32 _ism = isms[_destination];
         bytes memory _body = InterchainAccountMessage.encode(
@@ -474,7 +475,7 @@ contract InterchainAccountRouter is Router {
     ) private returns (bytes32) {
         require(_router != bytes32(0), "no router specified for destination");
         emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
-        return mailbox.dispatch(_destination, _router, _body);
+        return mailbox.dispatch{value: msg.value}(_destination, _router, _body);
     }
 
     /**
