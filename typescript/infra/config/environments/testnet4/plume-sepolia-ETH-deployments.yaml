@@ -5,17 +5,17 @@ timestamp: '2023-02-14T20:00:00.000Z'
 deployer: Abacus Works (Hyperlane)
 data:
   config:
-    ethereum:
+    sepolia:
       protocolType: ethereum
       type: native
-      hypAddress: '0x8C159cc81F396E474A0b201f770c9944885A537A'
+      hypAddress: '0xd99eA1D8b9542D35252504DDd59EDe8C43FB15fd'
       name: Ether
       symbol: ETH
       decimals: 18
     plumetestnet:
       protocolType: ethereum
       type: synthetic
-      hypAddress: '0x7483faD0Bc297667664A43A064bA7c9911659f57'
+      hypAddress: '0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f'
       name: Wrapped Ether
       symbol: WETH
       decimals: 18
