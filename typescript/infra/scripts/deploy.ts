@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import path from 'path';
 import { prompt } from 'prompts';
 
@@ -14,6 +15,7 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
+  TestRecipientDeployer,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
@@ -80,20 +82,25 @@ async function main() {
       multiProvider,
     );
     const routerConfig = core.getRouterConfig(envConfig.owners);
-    const inevm = {
-      ...routerConfig.inevm,
+    const plumetestnet = {
+      ...routerConfig.plumetestnet,
       type: TokenType.synthetic,
+      name: 'Wrapped Ether',
+      symbol: 'WETH',
+      decimals: 18,
+      totalSupply: '0',
     };
-    const ethereum = {
-      ...routerConfig.ethereum,
-      type: TokenType.collateral,
-      token: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-      hook: '0xb87AC8EA4533AE017604E44470F7c1E550AC6F10', // aggregation of IGP and Merkle, arbitrary config not supported for now
-      interchainSecurityModule: aggregationIsm('inevm', Contexts.Hyperlane),
+    const sepolia = {
+      ...routerConfig.sepolia,
+      type: TokenType.native,
+      interchainSecurityModule: aggregationIsm(
+        'plumetestnet',
+        Contexts.Hyperlane,
+      ),
     };
     config = {
-      inevm,
-      ethereum,
+      plumetestnet,
+      sepolia,
     };
     deployer = new HypERC20Deployer(multiProvider, ismFactory);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
@@ -122,7 +129,16 @@ async function main() {
     );
     deployer = new LiquidityLayerDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
-    throw new Error('Test recipient is not supported. Use CLI instead.');
+    const addresses = getAddresses(environment, Modules.CORE);
+
+    for (const chain of Object.keys(addresses)) {
+      config[chain] = {
+        interchainSecurityModule:
+          addresses[chain].interchainSecurityModule ??
+          ethers.constants.AddressZero, // ISM is required for the TestRecipientDeployer but onchain if the ISM is zero address, then it uses the mailbox's defaultISM
+      };
+    }
+    deployer = new TestRecipientDeployer(multiProvider);
   } else if (module === Modules.TEST_QUERY_SENDER) {
     // Get query router addresses
     const queryAddresses = getAddresses(
