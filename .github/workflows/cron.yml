@@ -3,7 +3,7 @@ name: cron
 # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows
 on:
   schedule:
-    - cron: '* 0 * * *'
+    - cron: '7 10 * * *'
   workflow_dispatch:
 
 env:
