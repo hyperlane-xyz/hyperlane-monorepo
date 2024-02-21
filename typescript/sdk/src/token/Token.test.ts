@@ -93,17 +93,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     sourcePort: 'transfer',
     sourceChannel: 'channel-8',
   },
-  // Token adapter for cosmos token factories is not yet implemented
-  // [TokenStandard.CosmosFactory]: {
-  //   chainName: Chains.neutron,
-  //   standard: TokenStandard.CosmosFactory,
-  //   addressOrDenom:
-  //     'factory/neutron10sr06r3qkhn7xzpw3339wuj77hu06mzna6uht0/eclip',
-  //   decimals: 6,
-  //   symbol: 'ECLIP ',
-  //   name: 'ECLIP ',
-  // },
-  [TokenStandard.CosmosFactory]: null,
   [TokenStandard.CW20]: null,
   [TokenStandard.CWNative]: {
     chainName: Chains.neutron,

@@ -1,31 +1,25 @@
 import debug, { Debugger } from 'debug';
 
-import { ERC20__factory, ERC721__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
   convertDecimals,
-  eqAddress,
   isValidAddress,
 } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
-import {
-  PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
-  TypedTransaction,
-} from '../providers/ProviderType';
+import { PROTOCOL_TO_DEFAULT_PROVIDER_TYPE } from '../providers/ProviderType';
 import { Token } from '../token/Token';
 import { TokenAmount } from '../token/TokenAmount';
-import {
-  TOKEN_COLLATERALIZED_STANDARDS,
-  TokenStandard,
-} from '../token/TokenStandard';
+import { TOKEN_COLLATERALIZED_STANDARDS } from '../token/TokenStandard';
 import { ChainName, ChainNameOrId } from '../types';
 
 import {
   IgpQuoteConstants,
   RouteBlacklist,
   WarpCoreConfigSchema,
+  WarpTxCategory,
+  WarpTypedTransaction,
 } from './types';
 
 export interface WarpCoreOptions {
@@ -73,6 +67,7 @@ export class WarpCore {
     parsedConfig.tokens.forEach((config, i) => {
       for (const connection of config.connectedTokens || []) {
         const token1 = tokens[i];
+        // TODO see https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3298
         const [_protocol, chainName, addrOrDenom] = connection.split('|');
         const token2 = tokens.find(
           (t) => t.chainName === chainName && t.addressOrDenom === addrOrDenom,
@@ -96,46 +91,38 @@ export class WarpCore {
     originToken: Token,
     destination: ChainNameOrId,
   ): Promise<TokenAmount> {
-    const { chainName: originName, protocol: originProtocol } = originToken;
+    const { chainName: originName } = originToken;
     const destinationName = this.multiProvider.getChainName(destination);
 
-    // Step 1: Determine the amount
-
     let gasAmount: bigint;
+    let gasAddressOrDenom: string | undefined;
     // Check constant quotes first
     const defaultQuote = this.igpQuoteConstants.find(
       (q) => q.origin === originName && q.destination === destinationName,
     );
     if (defaultQuote) {
-      gasAmount = BigInt(defaultQuote.quote.toString());
+      gasAmount = BigInt(defaultQuote.amount.toString());
+      gasAddressOrDenom = defaultQuote.addressOrDenom;
     } else {
       // Otherwise, compute IGP quote via the adapter
       const hypAdapter = originToken.getHypAdapter(this.multiProvider);
       const destinationDomainId = this.multiProvider.getDomainId(destination);
-      gasAmount = BigInt(await hypAdapter.quoteGasPayment(destinationDomainId));
+      const quote = await hypAdapter.quoteGasPayment(destinationDomainId);
+      gasAmount = BigInt(quote.amount);
+      gasAddressOrDenom = quote.addressOrDenom;
     }
 
-    // Step 2: Determine the IGP token
-    // TODO, it would be more robust to determine this based on on-chain data
-    // rather than these janky heuristic
-
     let igpToken: Token;
-    if (
-      originToken.igpTokenAddressOrDenom ||
-      (originToken.collateralAddressOrDenom &&
-        originProtocol === ProtocolType.Cosmos)
-    ) {
-      const address =
-        originToken.igpTokenAddressOrDenom ||
-        originToken.collateralAddressOrDenom;
-      const searchResult = this.findToken(originName, address);
-      if (!searchResult) throw new Error(`IGP token ${address} is unknown`);
-      igpToken = searchResult;
-    } else {
-      // Otherwise use the plain old native token from the route origin
+    if (!gasAddressOrDenom) {
+      // An empty/undefined addressOrDenom indicates the native token
       igpToken = Token.FromChainMetadataNativeToken(
         this.multiProvider.getChainMetadata(originName),
       );
+    } else {
+      const searchResult = this.findToken(originName, gasAddressOrDenom);
+      if (!searchResult)
+        throw new Error(`IGP token ${gasAddressOrDenom} is unknown`);
+      igpToken = searchResult;
     }
 
     this.logger(`Quoted igp gas payment: ${gasAmount} ${igpToken.symbol}`);
@@ -147,13 +134,14 @@ export class WarpCore {
     destination: ChainNameOrId,
     sender: Address,
     recipient: Address,
-  ): Promise<{ approveTx?: TypedTransaction; transferTx: TypedTransaction }> {
+  ): Promise<Array<WarpTypedTransaction>> {
+    const transactions: Array<WarpTypedTransaction> = [];
+
     const { token, amount } = originTokenAmount;
     const destinationDomainId = this.multiProvider.getDomainId(destination);
     const providerType = PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[token.protocol];
     const hypAdapter = token.getHypAdapter(this.multiProvider);
 
-    let approveTx: TypedTransaction | undefined = undefined;
     if (await this.isApproveRequired(originTokenAmount, sender)) {
       this.logger(`Approval required for transfer of ${token.symbol}`);
       const approveTxReq = await hypAdapter.populateApproveTx({
@@ -161,10 +149,13 @@ export class WarpCore {
         recipient: token.addressOrDenom,
       });
       this.logger(`Approval tx for ${token.symbol} populated`);
-      approveTx = {
+
+      const approveTx = {
+        category: WarpTxCategory.Approval,
         type: providerType,
         transaction: approveTxReq,
-      } as TypedTransaction;
+      } as WarpTypedTransaction;
+      transactions.push(approveTx);
     }
 
     const igpQuote = await this.getTransferGasQuote(token, destination);
@@ -178,11 +169,13 @@ export class WarpCore {
     this.logger(`Remote transfer tx for ${token.symbol} populated`);
 
     const transferTx = {
+      category: WarpTxCategory.Transfer,
       type: providerType,
       transaction: transferTxReq,
-    } as TypedTransaction;
+    } as WarpTypedTransaction;
+    transactions.push(transferTx);
 
-    return { approveTx, transferTx };
+    return transactions;
   }
 
   /**
@@ -233,25 +226,15 @@ export class WarpCore {
    */
   async isApproveRequired(
     originTokenAmount: TokenAmount,
-    sender: Address,
+    owner: Address,
   ): Promise<boolean> {
     const { token, amount } = originTokenAmount;
-    const tokenAddress = token.addressOrDenom;
-    if (token.standard !== TokenStandard.EvmHypCollateral) {
-      return false;
-    }
-
-    const provider = this.multiProvider.getEthersV5Provider(token.chainName);
-    let isRequired: boolean;
-    if (token.isNft()) {
-      const contract = ERC721__factory.connect(tokenAddress, provider);
-      const approvedAddress = await contract.getApproved(amount);
-      isRequired = !eqAddress(approvedAddress, tokenAddress);
-    } else {
-      const contract = ERC20__factory.connect(tokenAddress, provider);
-      const allowance = await contract.allowance(sender, tokenAddress);
-      isRequired = allowance.lt(amount);
-    }
+    const adapter = token.getAdapter(this.multiProvider);
+    const isRequired = await adapter.isApproveRequired(
+      owner,
+      token.addressOrDenom,
+      amount,
+    );
     this.logger(
       `Approval is${isRequired ? '' : ' not'} required for transfer of ${
         token.symbol
@@ -327,16 +310,17 @@ export class WarpCore {
   ): Record<string, string> | null {
     const destinationMetadata =
       this.multiProvider.getChainMetadata(destination);
+    const { protocol, bech32Prefix } = destinationMetadata;
     // Ensure recip address is valid for the destination chain's protocol
-    if (!isValidAddress(recipient, destinationMetadata.protocol))
+    if (!isValidAddress(recipient, protocol))
       return { recipient: 'Invalid recipient' };
     // Also ensure the address denom is correct if the dest protocol is Cosmos
-    if (destinationMetadata.protocol === ProtocolType.Cosmos) {
-      if (!destinationMetadata.bech32Prefix) {
+    if (protocol === ProtocolType.Cosmos) {
+      if (!bech32Prefix) {
         this.logger(`No bech32 prefix found for chain ${destination}`);
         return { destination: 'Invalid chain data' };
-      } else if (!recipient.startsWith(destinationMetadata.bech32Prefix)) {
-        this.logger(`Recipient address prefix should be ${destination}`);
+      } else if (!recipient.startsWith(bech32Prefix)) {
+        this.logger(`Recipient prefix should be ${bech32Prefix}`);
         return { recipient: `Invalid recipient prefix` };
       }
     }
@@ -399,15 +383,26 @@ export class WarpCore {
     addressOrDenom?: Address | string,
   ): Token | null {
     if (!addressOrDenom) return null;
+
     const results = this.tokens.filter(
       (token) =>
         token.chainName === chainName &&
         token.addressOrDenom.toLowerCase() === addressOrDenom.toLowerCase(),
     );
-    if (!results.length) return null;
+
+    if (results.length === 1) return results[0];
+
     if (results.length > 1)
       throw new Error(`Ambiguous token search results for ${addressOrDenom}`);
-    return results[0];
+
+    // If the token is not found, check to see if it matches the denom of chain's native token
+    // This is a convenience so WarpConfigs don't need to include definitions for native tokens
+    const chainMetadata = this.multiProvider.getChainMetadata(chainName);
+    if (chainMetadata.nativeToken?.denom === addressOrDenom) {
+      return Token.FromChainMetadataNativeToken(chainMetadata);
+    }
+
+    return null;
   }
 
   /**

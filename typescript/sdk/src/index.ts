@@ -353,6 +353,7 @@ export {
   EvmTokenAdapter,
 } from './token/adapters/EvmTokenAdapter';
 export {
+  InterchainGasQuote as AdapterInterchainGasQuote,
   IHypTokenAdapter,
   ITokenAdapter,
   TransferParams,

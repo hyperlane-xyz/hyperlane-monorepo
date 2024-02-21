@@ -55,4 +55,5 @@ options:
   igpQuoteConstants:
     - origin: neutron
       destination: arbitrum
-      quote: 1
+      amount: 1
+      addressOrDenom: untrn

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { ZChainName, ZUint } from '../metadata/customZodTypes';
+import { TypedTransaction } from '../providers/ProviderType';
 import { TokenStandard } from '../token/TokenStandard';
 import { ChainName } from '../types';
 
@@ -8,13 +9,25 @@ import { ChainName } from '../types';
 export type IgpQuoteConstants = Array<{
   origin: ChainName;
   destination: ChainName;
-  quote: string | number | bigint;
+  amount: string | number | bigint;
+  addressOrDenom?: string;
 }>;
 
+// List of chain pairs to blacklist for warp routes
 export type RouteBlacklist = Array<{
   origin: ChainName;
   destination: ChainName;
 }>;
+
+// Transaction types for warp core remote transfers
+export enum WarpTxCategory {
+  Approval = 'approval',
+  Transfer = 'transfer',
+}
+
+export type WarpTypedTransaction = TypedTransaction & {
+  category: WarpTxCategory;
+};
 
 /**
  * Configuration used for instantiating a WarpCore
@@ -69,7 +82,8 @@ export const WarpCoreConfigSchema = z.object({
           z.object({
             origin: ZChainName,
             destination: ZChainName,
-            quote: z.union([z.string(), z.number(), z.bigint()]),
+            amount: z.union([z.string(), z.number(), z.bigint()]),
+            addressOrDenom: z.string().optional(),
           }),
         )
         .optional(),

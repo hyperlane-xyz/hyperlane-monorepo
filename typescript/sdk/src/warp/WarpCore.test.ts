@@ -11,11 +11,13 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
 import { ProviderType } from '../providers/ProviderType';
 import { Token } from '../token/Token';
 import { TokenStandard } from '../token/TokenStandard';
+import { InterchainGasQuote } from '../token/adapters/ITokenAdapter';
 import { ChainName } from '../types';
 
 import { WarpCore } from './WarpCore';
+import { WarpTxCategory } from './types';
 
-const MOCK_QUOTE = 20_000n;
+const MOCK_QUOTE = { amount: 20_000n };
 const TRANSFER_AMOUNT = BigInt('1000000000000000000'); // 1 units @ 18 decimals
 const BIG_TRANSFER_AMOUNT = BigInt('100000000000000000000'); // 100 units @ 18 decimals
 const MOCK_BALANCE = BigInt('10000000000000000000'); // 10 units @ 18 decimals
@@ -68,7 +70,7 @@ describe('WarpCore', () => {
       token: Token,
       chain: ChainName,
       standard: TokenStandard,
-      amount: bigint = MOCK_QUOTE,
+      quote: InterchainGasQuote = MOCK_QUOTE,
     ) => {
       const result = await warpCore.getTransferGasQuote(token, chain);
       expect(
@@ -78,7 +80,7 @@ describe('WarpCore', () => {
       expect(
         result.amount,
         `token amount check for ${token.chainName} to ${chain}`,
-      ).to.equal(amount);
+      ).to.equal(quote.amount);
     };
 
     await testQuote(evmHypNative, Chains.arbitrum, TokenStandard.EvmNative);
@@ -91,7 +93,15 @@ describe('WarpCore', () => {
       TokenStandard.SealevelNative,
     );
     // Note, this route uses an igp quote const config
-    await testQuote(cwHypCollateral, Chains.arbitrum, TokenStandard.CW20, 1n);
+    await testQuote(
+      cwHypCollateral,
+      Chains.arbitrum,
+      TokenStandard.CosmosNative,
+      {
+        amount: 1n,
+        addressOrDenom: 'untrn',
+      },
+    );
 
     stubs.forEach((s) => s.restore());
   });
@@ -213,12 +223,12 @@ describe('WarpCore', () => {
         ethers.constants.AddressZero,
         ethers.constants.AddressZero,
       );
-      expect(result.approveTx, `approve tx for ${token.chainName} to ${chain}`)
-        .be.undefined;
+      expect(result.length).to.equal(1);
       expect(
-        result.transferTx,
+        result[0],
         `transfer tx for ${token.chainName} to ${chain}`,
       ).to.eql({
+        category: WarpTxCategory.Transfer,
         transaction: {},
         type: providerType,
       });

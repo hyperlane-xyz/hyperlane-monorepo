@@ -238,6 +238,21 @@ export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
       message: 'Rest and gRPC URLs required for Cosmos chains',
       path: ['restUrls', 'grpcUrls'],
     },
+  )
+  .refine(
+    (metadata) => {
+      if (
+        metadata.protocol === ProtocolType.Cosmos &&
+        metadata.nativeToken &&
+        !metadata.nativeToken.denom
+      )
+        return false;
+      else return true;
+    },
+    {
+      message: 'Denom values are required for Cosmos native tokens',
+      path: ['nativeToken', 'denom'],
+    },
   );
 
 export type ChainMetadata<Ext = object> = z.infer<typeof ChainMetadataSchema> &

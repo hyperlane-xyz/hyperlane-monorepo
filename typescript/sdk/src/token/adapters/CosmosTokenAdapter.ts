@@ -12,6 +12,7 @@ import { CwHypCollateralAdapter } from './CosmWasmTokenAdapter';
 import {
   IHypTokenAdapter,
   ITokenAdapter,
+  InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter';
@@ -21,7 +22,7 @@ const COSMOS_IBC_TRANSFER_TIMEOUT = 600_000; // 10 minutes
 // Interacts with native tokens on a Cosmos chain (e.g TIA on Celestia)
 export class CosmNativeTokenAdapter
   extends BaseCosmosAdapter
-  implements ITokenAdapter
+  implements ITokenAdapter<MsgTransferEncodeObject>
 {
   constructor(
     public readonly chainName: ChainName,
@@ -46,7 +47,13 @@ export class CosmNativeTokenAdapter
     throw new Error('Metadata not available to native tokens');
   }
 
-  populateApproveTx(_transferParams: TransferParams): unknown {
+  async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
+  populateApproveTx(
+    _transferParams: TransferParams,
+  ): Promise<MsgTransferEncodeObject> {
     throw new Error('Approve not required for native tokens');
   }
 
@@ -62,7 +69,7 @@ export class CosmNativeTokenAdapter
 // methods don't apply to IBC transfers the way they do for Warp transfers
 export class CosmIbcTokenAdapter
   extends CosmNativeTokenAdapter
-  implements IHypTokenAdapter
+  implements IHypTokenAdapter<MsgTransferEncodeObject>
 {
   constructor(
     public readonly chainName: ChainName,
@@ -97,7 +104,7 @@ export class CosmIbcTokenAdapter
   > {
     throw new Error('Method not applicable to IBC adapters');
   }
-  quoteGasPayment(_destination: Domain): Promise<bigint> {
+  quoteGasPayment(_destination: Domain): Promise<InterchainGasQuote> {
     throw new Error('Method not applicable to IBC adapters');
   }
 
@@ -134,7 +141,7 @@ export class CosmIbcTokenAdapter
 // A.k.a. 'One-Click' cosmos to evm transfers
 export class CosmIbcToWarpTokenAdapter
   extends CosmIbcTokenAdapter
-  implements IHypTokenAdapter
+  implements IHypTokenAdapter<MsgTransferEncodeObject>
 {
   constructor(
     public readonly chainName: ChainName,
@@ -151,9 +158,9 @@ export class CosmIbcToWarpTokenAdapter
     super(chainName, multiProvider, addresses, properties);
   }
 
-  async quoteGasPayment(_destination: Domain): Promise<bigint> {
+  async quoteGasPayment(_destination: Domain): Promise<InterchainGasQuote> {
     // TODO implement IBC interchain transfer gas estimation here
-    return 0n;
+    return { amount: 0n, addressOrDenom: this.properties.derivedIbcDenom };
   }
 
   async populateTransferRemoteTx(

@@ -22,7 +22,6 @@ export enum TokenStandard {
   CosmosIcs721 = 'CosmosIcs721',
   CosmosNative = 'CosmosNative',
   CosmosIbc = 'CosmosIbc',
-  CosmosFactory = 'CosmosFactory',
 
   // CosmWasm
   CW20 = 'CW20',
@@ -59,7 +58,6 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   CosmosIcs721: ProtocolType.Cosmos,
   CosmosNative: ProtocolType.Cosmos,
   CosmosIbc: ProtocolType.Cosmos,
-  CosmosFactory: ProtocolType.Cosmos,
 
   // CosmWasm
   CW20: ProtocolType.Cosmos,

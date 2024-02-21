@@ -4,12 +4,14 @@ import {
   ERC20,
   ERC20__factory,
   HypERC20,
+  HypERC20Collateral,
   HypERC20Collateral__factory,
   HypERC20__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
+  Numberish,
   addressToByteHexString,
   addressToBytes32,
   bytes32ToAddress,
@@ -19,12 +21,12 @@ import {
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import { ChainName } from '../../types';
-import { TokenStandard } from '../TokenStandard';
-import { MinimalTokenMetadata, TokenType } from '../config';
+import { MinimalTokenMetadata } from '../config';
 
 import {
   IHypTokenAdapter,
   ITokenAdapter,
+  InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter';
@@ -32,7 +34,7 @@ import {
 // Interacts with native currencies
 export class EvmNativeTokenAdapter
   extends BaseEvmAdapter
-  implements ITokenAdapter
+  implements ITokenAdapter<PopulatedTransaction>
 {
   async getBalance(address: Address): Promise<bigint> {
     const balance = await this.getProvider().getBalance(address);
@@ -42,6 +44,14 @@ export class EvmNativeTokenAdapter
   async getMetadata(): Promise<MinimalTokenMetadata> {
     // TODO get metadata from chainMetadata config
     throw new Error('Metadata not available to native tokens');
+  }
+
+  async isApproveRequired(
+    _owner: Address,
+    _spender: Address,
+    _weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    return false;
   }
 
   async populateApproveTx(
@@ -62,7 +72,7 @@ export class EvmNativeTokenAdapter
 // Interacts with ERC20/721 contracts
 export class EvmTokenAdapter<T extends ERC20 = ERC20>
   extends EvmNativeTokenAdapter
-  implements ITokenAdapter
+  implements ITokenAdapter<PopulatedTransaction>
 {
   public readonly contract: T;
 
@@ -93,6 +103,15 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     return { decimals, symbol, name };
   }
 
+  override async isApproveRequired(
+    owner: Address,
+    spender: Address,
+    weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    const allowance = await this.contract.allowance(owner, spender);
+    return allowance.lt(weiAmountOrId);
+  }
+
   override populateApproveTx({
     weiAmountOrId,
     recipient,
@@ -115,12 +134,10 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
 }
 
 // Interacts with Hyp Synthetic token contracts (aka 'HypTokens')
-export class EvmHypSyntheticAdapter<T extends HypERC20 = HypERC20>
-  extends EvmTokenAdapter<T>
-  implements IHypTokenAdapter
+export class EvmHypSyntheticAdapter
+  extends EvmTokenAdapter<HypERC20>
+  implements IHypTokenAdapter<PopulatedTransaction>
 {
-  public readonly tokenType: TokenType = TokenType.synthetic;
-
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
@@ -156,33 +173,125 @@ export class EvmHypSyntheticAdapter<T extends HypERC20 = HypERC20>
     return domains.map((d, i) => ({ domain: d, address: routers[i] }));
   }
 
-  async quoteGasPayment(destination: Domain): Promise<bigint> {
+  async quoteGasPayment(destination: Domain): Promise<InterchainGasQuote> {
     const gasPayment = await this.contract.quoteGasPayment(destination);
-    return BigInt(gasPayment.toString());
+    // If EVM hyp contracts eventually support alternative IGP tokens,
+    // this would need to determine the correct token address
+    return { amount: BigInt(gasPayment.toString()) };
   }
 
-  populateTransferRemoteTx({
+  async populateTransferRemoteTx({
     weiAmountOrId,
     destination,
     recipient,
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
+    if (!interchainGas) interchainGas = await this.quoteGasPayment(destination);
+
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
+    return this.contract.populateTransaction.transferRemote(
+      destination,
+      recipBytes32,
+      weiAmountOrId,
+      { value: interchainGas.amount.toString() },
+    );
+  }
+}
+
+// Interacts with HypCollateral contracts
+export class EvmHypCollateralAdapter
+  extends EvmHypSyntheticAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  public readonly collateralContract: HypERC20Collateral;
+  protected wrappedTokenAddress?: Address;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.collateralContract = HypERC20Collateral__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  protected async getWrappedTokenAddress(): Promise<Address> {
+    if (!this.wrappedTokenAddress) {
+      this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
+    }
+    return this.wrappedTokenAddress;
+  }
+
+  protected async getWrappedTokenAdapter(): Promise<
+    ITokenAdapter<PopulatedTransaction>
+  > {
+    return new EvmTokenAdapter(this.chainName, this.multiProvider, {
+      token: await this.getWrappedTokenAddress(),
+    });
+  }
+
+  override getMetadata(isNft?: boolean): Promise<MinimalTokenMetadata> {
+    return this.getWrappedTokenAdapter().then((t) => t.getMetadata(isNft));
+  }
+
+  override isApproveRequired(
+    owner: Address,
+    spender: Address,
+    weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    return this.getWrappedTokenAdapter().then((t) =>
+      t.isApproveRequired(owner, spender, weiAmountOrId),
+    );
+  }
+
+  override populateApproveTx(
+    params: TransferParams,
+  ): Promise<PopulatedTransaction> {
+    return this.getWrappedTokenAdapter().then((t) =>
+      t.populateApproveTx(params),
+    );
+  }
+
+  override populateTransferTx(
+    params: TransferParams,
+  ): Promise<PopulatedTransaction> {
+    return this.getWrappedTokenAdapter().then((t) =>
+      t.populateTransferTx(params),
+    );
+  }
+}
+
+// Interacts HypNative contracts
+export class EvmHypNativeAdapter
+  extends EvmHypCollateralAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  override async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
+  override async populateTransferRemoteTx({
+    weiAmountOrId,
+    destination,
+    recipient,
+    interchainGas,
+  }: TransferRemoteParams): Promise<PopulatedTransaction> {
+    if (!interchainGas) interchainGas = await this.quoteGasPayment(destination);
 
     let txValue: bigint | undefined = undefined;
-    if (interchainGas) {
-      const { token: igpToken, amount: igpAmount } = interchainGas;
-      // If this is an EvmHypNative adapter and the igp token is native Eth
-      if (
-        this.tokenType === TokenType.native &&
-        igpToken.standard === TokenStandard.EvmNative
-      ) {
-        txValue = igpAmount + BigInt(weiAmountOrId);
-      } else {
-        txValue = igpAmount;
-      }
+    const { addressOrDenom: igpAddressOrDenom, amount: igpAmount } =
+      interchainGas;
+    // If the igp token is native Eth
+    if (!igpAddressOrDenom) {
+      txValue = igpAmount + BigInt(weiAmountOrId);
+    } else {
+      txValue = igpAmount;
     }
 
+    const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
     return this.contract.populateTransaction.transferRemote(
       destination,
       recipBytes32,
@@ -190,51 +299,4 @@ export class EvmHypSyntheticAdapter<T extends HypERC20 = HypERC20>
       { value: txValue?.toString() },
     );
   }
-}
-
-// Interacts with HypCollateral and HypNative contracts
-export class EvmHypCollateralAdapter
-  extends EvmHypSyntheticAdapter
-  implements IHypTokenAdapter
-{
-  public readonly tokenType: TokenType = TokenType.collateral;
-
-  constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: { token: Address },
-    public readonly contractFactory: any = HypERC20Collateral__factory,
-  ) {
-    super(chainName, multiProvider, addresses, contractFactory);
-  }
-
-  override getMetadata(): Promise<MinimalTokenMetadata> {
-    // TODO pass through metadata from wrapped token or chainMetadata config
-    throw new Error(
-      'Metadata not available for HypCollateral/HypNative contract.',
-    );
-  }
-
-  override populateApproveTx(
-    _params: TransferParams,
-  ): Promise<PopulatedTransaction> {
-    throw new Error(
-      'Approve not applicable to HypCollateral/HypNative contract.',
-    );
-  }
-
-  override populateTransferTx(
-    _params: TransferParams,
-  ): Promise<PopulatedTransaction> {
-    throw new Error(
-      'Local transfer not supported for HypCollateral/HypNative contract.',
-    );
-  }
-}
-
-export class EvmHypNativeAdapter
-  extends EvmHypCollateralAdapter
-  implements IHypTokenAdapter
-{
-  public readonly tokenType: TokenType = TokenType.native;
 }

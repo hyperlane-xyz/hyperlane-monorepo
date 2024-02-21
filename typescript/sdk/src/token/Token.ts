@@ -98,7 +98,7 @@ export class Token {
    * @throws If multiProvider does not contain this token's chain.
    * @throws If token is an NFT (TODO NFT Adapter support)
    */
-  getAdapter(multiProvider: MultiProtocolProvider): ITokenAdapter {
+  getAdapter(multiProvider: MultiProtocolProvider): ITokenAdapter<unknown> {
     const { standard, chainName, addressOrDenom } = this;
 
     if (this.isNft()) throw new Error('NFT adapters not yet supported');
@@ -136,8 +136,6 @@ export class Token {
         {},
         { ibcDenom: addressOrDenom },
       );
-    } else if (standard === TokenStandard.CosmosFactory) {
-      throw new Error('Cosmos factory token adapter not yet supported');
     } else if (standard === TokenStandard.CW20) {
       return new CwTokenAdapter(chainName, multiProvider, {
         token: addressOrDenom,
@@ -164,7 +162,7 @@ export class Token {
    */
   getHypAdapter(
     multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
-  ): IHypTokenAdapter {
+  ): IHypTokenAdapter<unknown> {
     const {
       protocol,
       standard,
@@ -329,7 +327,10 @@ export class Token {
   }
 
   /**
-   * Returns true if this tokens is hyp collateral contract for the given token
+   * Checks if this token is both:
+   *    1) Of a TokenStandard that uses other tokens as collateral (eg. EvmHypCollateral)
+   *    2) Has a collateralAddressOrDenom address that matches the given token
+   * E.g. ERC20 Token ABC, EvmHypCollateral DEF that wraps ABC, DEF.collateralizes(ABC) === true
    */
   collateralizes(token: Token): boolean {
     if (token.chainName !== this.chainName) return false;
