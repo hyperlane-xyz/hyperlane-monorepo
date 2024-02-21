@@ -2,6 +2,8 @@
 pragma solidity ^0.8.13;
 
 import {Test, StdStorage, stdStorage} from "forge-std/Test.sol";
+import {LightClient} from "@telepathyx/LightClient.sol";
+
 import {Message} from "../../contracts/libs/Message.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
@@ -22,12 +24,15 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
     string[] urls = ["localhost:3001/telepathy-ccip/"];
 
     MockMailbox mailbox;
-    TelepathyCcipReadIsm internal telepathyCcipReadIsm;
-    TelepathyCcipReadHook internal hook;
+    TelepathyCcipReadIsm telepathyCcipReadIsm;
+    TelepathyCcipReadHook hook;
+    LightClient lightClient;
 
     function setUp() public override {
         super.setUp();
-        telepathyCcipReadIsm = new TelepathyCcipReadIsm({
+        telepathyCcipReadIsm = new TelepathyCcipReadIsm();
+
+        lightClient = new LightClient({
             genesisValidatorsRoot: EMPTY_BYTES32,
             genesisTime: 0,
             secondsPerSlot: 12,
@@ -40,17 +45,19 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
             rotateFunctionId: EMPTY_BYTES32,
             gatewayAddress: address(5)
         });
+
         deployCodeTo("TelepathyCcipReadHook.sol", abi.encode(0), HOOK_ADDR);
         mailbox = MockMailbox(MAILBOX_ADDR);
         hook = TelepathyCcipReadHook(HOOK_ADDR);
 
-        telepathyCcipReadIsm.initialize(
-            mailbox,
-            mailbox,
-            hook,
-            DISPATCHED_SLOT,
-            urls
-        );
+        telepathyCcipReadIsm.initialize({
+            _sourceMailbox: mailbox,
+            _destinationMailbox: mailbox,
+            _telepathyCcipReadHook: hook,
+            _lightClient: lightClient,
+            _dispatchedSlot: DISPATCHED_SLOT,
+            _offchainUrls: urls
+        });
 
         _setExecutionStateRoot();
     }
@@ -61,15 +68,16 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
         uint32 _messageNonce
     ) internal pure returns (bytes memory) {
         return
-            MessageUtils.formatMessage(
-                0,
-                _messageNonce,
-                0,
-                hex"0000000000000000000000007fa9385be102ac3eac297483dd6233d62b3e1496",
-                0,
-                hex"0000000000000000000000007fa9385be102ac3eac297483dd6233d62b3e1496",
-                hex"00000000000000000000000000000000000000000000000000000000000000a7"
-            );
+            // Use a struct as the parameter
+            MessageUtils.formatMessage({
+                _version: 0,
+                _nonce: _messageNonce,
+                _originDomain: 0,
+                _sender: hex"0000000000000000000000007fa9385be102ac3eac297483dd6233d62b3e1496",
+                _destinationDomain: 0,
+                _recipient: hex"0000000000000000000000007fa9385be102ac3eac297483dd6233d62b3e1496",
+                _messageBody: hex"00000000000000000000000000000000000000000000000000000000000000a7"
+            });
     }
 
     function _copyUrls() internal view returns (string[] memory offChainUrls) {
@@ -80,17 +88,14 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
         }
     }
 
-    /// @dev This Mocks what Succinct's Prover will set. In the future, we can get a proof from Succient and make this test a bit better by calling step()
+    /// @dev This Mocks what Succinct's Prover will set, in other words, this sets the head slot and state root
     function _setExecutionStateRoot() internal {
         // Set the head slot
-        stdstore
-            .target(address(telepathyCcipReadIsm))
-            .sig("head()")
-            .checked_write(1);
+        stdstore.target(address(lightClient)).sig("head()").checked_write(1);
 
         // Set the head slot to stateRoot
         stdstore
-            .target(address(telepathyCcipReadIsm))
+            .target(address(lightClient))
             .sig("executionStateRoots(uint256)")
             .with_key(1)
             .depth(0)

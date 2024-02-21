@@ -30,12 +30,11 @@ import {ISuccinctProofsService} from "../../../interfaces/ccip-gateways/ISuccinc
  * @title TelepathyCcipReadIsm
  * @notice Uses Succinct to verify that a message was delivered via a Hyperlane Mailbox and tracked by TelepathyCcipReadHook
  */
-contract TelepathyCcipReadIsm is
-    AbstractCcipReadIsm,
-    OwnableUpgradeable,
-    LightClient
-{
+contract TelepathyCcipReadIsm is AbstractCcipReadIsm, OwnableUpgradeable {
     using Message for bytes;
+
+    /// @notice LightClient to read the state root from
+    LightClient public lightClient;
 
     /// @notice Source Mailbox that will dispatch a message
     Mailbox public sourceMailbox;
@@ -52,35 +51,6 @@ contract TelepathyCcipReadIsm is
     /// @notice Array of Gateway URLs that the Relayer will call to fetch proofs
     string[] public offchainUrls;
 
-    constructor(
-        bytes32 genesisValidatorsRoot,
-        uint256 genesisTime,
-        uint256 secondsPerSlot,
-        uint256 slotsPerPeriod,
-        uint256 syncCommitteePeriod,
-        bytes32 syncCommitteePoseidon,
-        uint32 sourceChainId,
-        uint16 finalityThreshold,
-        bytes32 stepFunctionId,
-        bytes32 rotateFunctionId,
-        address gatewayAddress
-    )
-        payable
-        LightClient(
-            genesisValidatorsRoot,
-            genesisTime,
-            secondsPerSlot,
-            slotsPerPeriod,
-            syncCommitteePeriod,
-            syncCommitteePoseidon,
-            sourceChainId,
-            finalityThreshold,
-            stepFunctionId,
-            rotateFunctionId,
-            gatewayAddress
-        )
-    {}
-
     /**
      * @param _sourceMailbox the source chain Mailbox
      * @param _destinationMailbox the destination chain Mailbox
@@ -92,6 +62,7 @@ contract TelepathyCcipReadIsm is
         Mailbox _sourceMailbox,
         Mailbox _destinationMailbox,
         TelepathyCcipReadHook _telepathyCcipReadHook,
+        LightClient _lightClient,
         uint256 _dispatchedSlot,
         string[] memory _offchainUrls
     ) external initializer {
@@ -99,6 +70,7 @@ contract TelepathyCcipReadIsm is
         sourceMailbox = _sourceMailbox;
         destinationMailbox = _destinationMailbox;
         telepathyCcipReadHook = _telepathyCcipReadHook;
+        lightClient = _lightClient;
         dispatchedSlot = _dispatchedSlot;
         offchainUrls = _offchainUrls;
     }
@@ -127,7 +99,7 @@ contract TelepathyCcipReadIsm is
     function verify(
         bytes calldata _proofs,
         bytes calldata _message
-    ) external returns (bool) {
+    ) external view returns (bool) {
         try
             this.getDispatchedValue(
                 _proofs,
@@ -160,7 +132,7 @@ contract TelepathyCcipReadIsm is
         bytes32 storageRoot = StorageProof.getStorageRoot(
             address(telepathyCcipReadHook),
             accountProof,
-            executionStateRoots[head]
+            getHeadStateRoot()
         );
         // Returns the value of dispatched
         return
@@ -169,6 +141,13 @@ contract TelepathyCcipReadIsm is
                 storageProof,
                 storageRoot
             );
+    }
+
+    /**
+     * @notice Gets the current head state root from Succinct LightClient
+     */
+    function getHeadStateRoot() internal view returns (bytes32) {
+        return lightClient.executionStateRoots(lightClient.head());
     }
 
     /**
