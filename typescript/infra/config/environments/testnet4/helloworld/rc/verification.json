@@ -1,12 +1,4 @@
 {
-  "basegoerli": [
-    {
-      "name": "HelloWorld",
-      "address": "0xC83e12EF2627ACE445C298e6eC418684918a6002",
-      "constructorArguments": "00000000000000000000000058483b754abb1e8947be63d6b95df75b8249543a0000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    }
-  ],
   "arbitrumgoerli": [
     {
       "name": "HelloWorld",
