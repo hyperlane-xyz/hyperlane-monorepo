@@ -82,20 +82,25 @@ async function main() {
       multiProvider,
     );
     const routerConfig = core.getRouterConfig(envConfig.owners);
-    const inevm = {
-      ...routerConfig.inevm,
+    const plumetestnet = {
+      ...routerConfig.plumetestnet,
       type: TokenType.synthetic,
+      name: 'Wrapped Ether',
+      symbol: 'WETH',
+      decimals: 18,
+      totalSupply: '0',
     };
-    const ethereum = {
-      ...routerConfig.ethereum,
-      type: TokenType.collateral,
-      token: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-      hook: '0xb87AC8EA4533AE017604E44470F7c1E550AC6F10', // aggregation of IGP and Merkle, arbitrary config not supported for now
-      interchainSecurityModule: aggregationIsm('inevm', Contexts.Hyperlane),
+    const sepolia = {
+      ...routerConfig.sepolia,
+      type: TokenType.native,
+      interchainSecurityModule: aggregationIsm(
+        'plumetestnet',
+        Contexts.Hyperlane,
+      ),
     };
     config = {
-      inevm,
-      ethereum,
+      plumetestnet,
+      sepolia,
     };
     deployer = new HypERC20Deployer(multiProvider, ismFactory);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {

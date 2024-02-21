@@ -3,6 +3,7 @@ import * as asn1 from 'asn1.js';
 import { exec } from 'child_process';
 import { ethers } from 'ethers';
 import fs from 'fs';
+import stringify from 'json-stable-stringify';
 import path from 'path';
 import { parse as yamlParse } from 'yaml';
 
@@ -179,7 +180,7 @@ export function writeJsonAtPath(filepath: string, obj: any) {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync(filepath, JSON.stringify(obj, null, 2) + '\n');
+  fs.writeFileSync(filepath, stringify(obj, { space: '  ' }) + '\n');
 }
 
 export function writeJSON(directory: string, filename: string, obj: any) {
