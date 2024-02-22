@@ -126,6 +126,9 @@ const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 
+// Funder should have desired balance multiplied by this constant
+const L2_BRIDGING_MULTIPLIER = 5;
+
 // The balance threshold of the IGP contract that must be met for the key funder
 // to call `claim()`
 const igpClaimThresholdPerChain: ChainMap<string> = {
@@ -545,10 +548,13 @@ class ContextFunder {
         this.desiredBalancePerChain[chain],
         'ether',
       );
+      // When bridging ETH to L2 before funding the desired key, we top up funder
+      // to a constant multiplier of the desired balance. This reduces our spend
+      // on L1 gas by reducing the frequency of L1 operations.
       const bridgeAmount = await this.getFundingAmount(
         chain,
         funderAddress,
-        desiredBalanceEther,
+        desiredBalanceEther.mul(L2_BRIDGING_MULTIPLIER),
       );
       if (bridgeAmount.gt(0)) {
         await this.bridgeToL2(chain as L2Chain, funderAddress, bridgeAmount);

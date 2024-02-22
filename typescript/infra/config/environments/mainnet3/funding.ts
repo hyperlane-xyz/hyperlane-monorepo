@@ -35,12 +35,12 @@ export const keyFunderConfig: KeyFunderConfig = {
     moonbeam: '5',
     polygon: '20',
     viction: '3',
-    // Funders tops up itself on L2 via canonical bridge before dispersing funds
-    arbitrum: '1.5',
-    base: '1.5',
-    optimism: '1.5',
-    polygonzkevm: '1.5',
-    scroll: '1.5',
+    // Funder boosts itself upto 5x balance on L2 before dispersing funds
+    arbitrum: '0.5',
+    base: '0.5',
+    optimism: '0.5',
+    polygonzkevm: '0.5',
+    scroll: '0.5',
   },
   desiredKathyBalancePerChain: {
     arbitrum: '0.1',
