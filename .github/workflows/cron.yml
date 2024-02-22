@@ -1,0 +1,94 @@
+name: cron
+
+# https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows
+on:
+  schedule:
+    - cron: '45 14 * * *'
+  workflow_dispatch:
+
+env:
+  DEBUG: 'hyperlane:*'
+
+jobs:
+  # copied from test.yml
+  yarn-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.sha }}
+          submodules: recursive
+
+      - name: yarn-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .yarn
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+
+      - name: yarn-install
+        run: yarn install
+
+  # copied from test.yml
+  yarn-build:
+    runs-on: ubuntu-latest
+    needs: [yarn-install]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: yarn-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .yarn
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+
+      - name: build-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ./*
+            !./rust
+          key: ${{ github.sha }}
+
+      - name: build
+        run: yarn build
+
+  metadata-check:
+      runs-on: ubuntu-latest
+      needs: [yarn-build]
+      steps:
+        - uses: actions/checkout@v3
+          with:
+            ref: ${{ github.sha }}
+            submodules: recursive
+            fetch-depth: 0
+
+        - name: yarn-cache
+          uses: actions/cache@v3
+          with:
+            path: |
+              **/node_modules
+              .yarn
+            key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+
+        - name: build-cache
+          uses: actions/cache@v3
+          with:
+            path: |
+              ./*
+              !./rust
+            key: ${{ github.sha }}
+
+        - name: Metadata Health Check
+          run: DEBUG=hyperlane yarn workspace @hyperlane-xyz/sdk run test:metadata
