@@ -411,4 +411,23 @@ export class WarpCore {
   getTokenChains(): ChainName[] {
     return [...new Set(this.tokens.map((t) => t.chainName)).values()];
   }
+
+  /**
+   * Get the subset of tokens whose chain matches the given chainName
+   */
+  getTokensForChain(chainName: ChainName): Token[] {
+    return this.tokens.filter((t) => t.chainName === chainName);
+  }
+
+  /**
+   * Get the subset of tokens whose chain matches the given chainName
+   * and which are connected to a token on the given destination chain
+   */
+  getTokensForRoute(origin: ChainName, destination: ChainName): Token[] {
+    return this.tokens.filter(
+      (t) =>
+        t.chainName === origin &&
+        t.connectedTokens?.some((rt) => rt.chainName === destination),
+    );
+  }
 }

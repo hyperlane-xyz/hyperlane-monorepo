@@ -299,6 +299,11 @@ export class Token {
     return this.connectedTokens || [];
   }
 
+  getConnectedTokenForChain(chain: ChainName): Token | undefined {
+    // A token cannot have > 1 connected token for the same chain
+    return this.getConnectedTokens().filter((t) => t.chainName === chain)[0];
+  }
+
   addConnectedToken(token: Token): Token {
     this.connectedTokens = [...(this.connectedTokens || []), token];
     return this;

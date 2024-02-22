@@ -1,5 +1,5 @@
 import { input } from '@inquirer/prompts';
-import { ethers } from 'ethers';
+import { PopulatedTransaction, ethers } from 'ethers';
 
 import {
   ERC20__factory,
@@ -16,7 +16,6 @@ import {
   IHypTokenAdapter,
   MultiProtocolProvider,
   MultiProvider,
-  Token,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 import { Address, timeout } from '@hyperlane-xyz/utils';
@@ -193,7 +192,7 @@ async function executeDelivery({
     }
   }
 
-  let adapter: IHypTokenAdapter;
+  let adapter: IHypTokenAdapter<PopulatedTransaction>;
   const multiProtocolProvider =
     MultiProtocolProvider.fromMultiProvider(multiProvider);
   if (tokenType === TokenType.native) {
@@ -212,16 +211,13 @@ async function executeDelivery({
 
   const destinationDomain = multiProvider.getDomainId(destination);
   log('Fetching interchain gas quote');
-  const gasAmount = await adapter.quoteGasPayment(destinationDomain);
-  log('Interchain gas quote:', gasAmount);
-  const gasToken = Token.FromChainMetadataNativeToken(
-    multiProvider.getChainMetadata(origin),
-  );
+  const interchainGas = await adapter.quoteGasPayment(destinationDomain);
+  log('Interchain gas quote:', interchainGas);
   const transferTx = (await adapter.populateTransferRemoteTx({
     weiAmountOrId: wei,
     destination: destinationDomain,
     recipient,
-    interchainGas: gasToken.amount(gasAmount),
+    interchainGas,
   })) as ethers.PopulatedTransaction;
 
   const txResponse = await connectedSigner.sendTransaction(transferTx);
