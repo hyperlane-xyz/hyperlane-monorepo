@@ -327,9 +327,11 @@ export { TokenAmount } from './token/TokenAmount';
 export {
   PROTOCOL_TO_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
+  TOKEN_COSMWASM_STANDARDS,
   TOKEN_HYP_STANDARDS,
   TOKEN_MULTI_CHAIN_STANDARDS,
   TOKEN_NFT_STANDARDS,
+  TOKEN_STANDARD_TO_PROTOCOL,
   TokenStandard,
 } from './token/TokenStandard';
 export {

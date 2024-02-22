@@ -104,6 +104,17 @@ export const TOKEN_MULTI_CHAIN_STANDARDS = [
   TokenStandard.CosmosIbc,
 ];
 
+// Useful for differentiating from norma Cosmos standards
+// (e.g. for determining the appropriate cosmos client)
+export const TOKEN_COSMWASM_STANDARDS = [
+  TokenStandard.CW20,
+  TokenStandard.CWNative,
+  TokenStandard.CW721,
+  TokenStandard.CwHypNative,
+  TokenStandard.CwHypCollateral,
+  TokenStandard.CwHypSynthetic,
+];
+
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
   {
     [ProtocolType.Ethereum]: TokenStandard.EvmNative,

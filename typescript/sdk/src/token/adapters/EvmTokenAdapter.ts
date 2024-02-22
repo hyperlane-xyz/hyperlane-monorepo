@@ -147,6 +147,14 @@ export class EvmHypSyntheticAdapter
     super(chainName, multiProvider, addresses, contractFactory);
   }
 
+  override async isApproveRequired(
+    _owner: Address,
+    _spender: Address,
+    _weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    return false;
+  }
+
   getDomains(): Promise<Domain[]> {
     return this.contract.domains();
   }

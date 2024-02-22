@@ -13,7 +13,7 @@ import { ChainName } from '../types';
 import { TokenAmount } from './TokenAmount';
 import {
   PROTOCOL_TO_NATIVE_STANDARD,
-  TOKEN_HYP_STANDARDS,
+  TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_MULTI_CHAIN_STANDARDS,
   TOKEN_NFT_STANDARDS,
   TOKEN_STANDARD_TO_PROTOCOL,
@@ -339,7 +339,7 @@ export class Token {
    */
   collateralizes(token: Token): boolean {
     if (token.chainName !== this.chainName) return false;
-    if (!TOKEN_HYP_STANDARDS.includes(this.standard)) return false;
+    if (!TOKEN_COLLATERALIZED_STANDARDS.includes(this.standard)) return false;
     const isCollateralWrapper =
       this.collateralAddressOrDenom &&
       eqAddress(this.collateralAddressOrDenom, token.addressOrDenom);
