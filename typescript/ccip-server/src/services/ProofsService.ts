@@ -4,10 +4,9 @@ import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi';
 
 import { LightClientService } from './LightClientService';
 import { ProofResult, RPCService } from './RPCService';
-import { HandlerDescriptionEnumerated } from './common/HandlerDescriptionEnumerated';
 
 // Service that requests proofs from Succinct and RPC Provider
-class ProofsService extends HandlerDescriptionEnumerated {
+class ProofsService {
   rpcService: RPCService;
   lightClientService: LightClientService;
 
@@ -19,7 +18,6 @@ class ProofsService extends HandlerDescriptionEnumerated {
     readonly succinctPlatformUrl: string,
     readonly succinctPlatformApiKey: string,
   ) {
-    super();
     this.rpcService = new RPCService(rpcAddress);
     const lightClientContract = new ethers.Contract(
       lightClientAddress,
@@ -50,15 +48,18 @@ class ProofsService extends HandlerDescriptionEnumerated {
   ]: ethers.utils.Result): Promise<Array<[string[], string[]]>> {
     const proofs: Array<[string[], string[]]> = [];
     try {
-      // TODO Implement request Proof from Succinct
+      const { blockNumber, timestamp } =
+        await this.hyperlaneService.getOriginBlockByMessageId(messageId);
+      const slot = await this.lightClientService.calculateSlot(timestamp);
+      // Request Proof from Succinct
+      console.log(`Requesting proof for${slot}`);
       // await this.lightClientService.requestProof(syncCommitteePoseidon, slot);
 
-      // Get storage proofs
       const { accountProof, storageProof }: ProofResult =
         await this.rpcService.getProofs(
           address,
           [storageKey],
-          blockNumber.toHexString(),
+          blockNumber.toString(16), // Converts to hexstring
         );
       proofs.push([accountProof, storageProof[0].proof]);
     } catch (e) {

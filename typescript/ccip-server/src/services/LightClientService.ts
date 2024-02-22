@@ -17,7 +17,7 @@ class LightClientService extends Requestor {
   pendingProofId: string;
 
   constructor(
-    private readonly lightClientContract: ethers.Contract,
+    private readonly lightClientContract: ethers.Contract, // TODO USE TYPECHAIN
     private readonly stepFunctionId: string,
     private readonly chainId: string,
     readonly platformUrl: string,
@@ -38,6 +38,17 @@ class LightClientService extends Requestor {
   async getSyncCommitteePoseidons(slot: BigInt): Promise<string> {
     return await this.lightClientContract.syncCommitteePoseidons(
       this.getSyncCommitteePeriod(slot),
+    );
+  }
+
+  /**
+   * Calculates the slot given a timestamp, and the LightClient's configured Genesis Time and Secods Per Slot
+   * @param timestamp timestamp to calculate slot with
+   */
+  async calculateSlot(timestamp: number): Promise<number> {
+    return (
+      (timestamp - (await this.lightClientContract.GENESIS_TIME)) /
+      (await this.lightClientContract.SECONDS_PER_SLOT())
     );
   }
 
