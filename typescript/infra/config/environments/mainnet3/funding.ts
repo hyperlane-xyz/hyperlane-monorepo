@@ -26,20 +26,21 @@ export const keyFunderConfig: KeyFunderConfig = {
   connectionType: RpcConsensusType.Single,
   // desired balance config
   desiredBalancePerChain: {
-    arbitrum: '0.3',
     avalanche: '5',
-    base: '0.3',
     bsc: '5',
     celo: '3',
     ethereum: '0.5',
     gnosis: '5',
     inevm: '3',
     moonbeam: '5',
-    optimism: '0.3',
     polygon: '20',
-    polygonzkevm: '0.3',
-    scroll: '0.3',
     viction: '3',
+    // Funders tops up itself on L2 via canonical bridge before dispersing funds
+    arbitrum: '1.5',
+    base: '1.5',
+    optimism: '1.5',
+    polygonzkevm: '1.5',
+    scroll: '1.5',
   },
   desiredKathyBalancePerChain: {
     arbitrum: '0.1',

@@ -65,29 +65,29 @@ const nativeBridges = {
   },
 };
 
-type L2Chain =
-  | Chains.optimism
-  | Chains.optimismgoerli
-  | Chains.arbitrum
-  | Chains.arbitrumgoerli
-  | Chains.base;
-
-const L2Chains: ChainName[] = [
-  Chains.optimism,
-  Chains.optimismgoerli,
+type L2Chain = (typeof L2Chains)[number];
+const L2Chains = [
   Chains.arbitrum,
   Chains.arbitrumgoerli,
   Chains.base,
+  Chains.optimism,
+  Chains.optimismgoerli,
+  Chains.polygonzkevm,
   Chains.polygonzkevmtestnet,
-];
+  Chains.scroll,
+  Chains.scrollsepolia,
+] as const;
 
-const L2ToL1: ChainMap<ChainName> = {
-  optimismgoerli: 'goerli',
-  arbitrumgoerli: 'goerli',
-  optimism: 'ethereum',
-  arbitrum: 'ethereum',
-  base: 'ethereum',
-  polygonzkevmtestnet: 'goerli',
+const L2ToL1: Record<L2Chain, Chains> = {
+  arbitrum: Chains.ethereum,
+  arbitrumgoerli: Chains.goerli,
+  base: Chains.ethereum,
+  optimism: Chains.ethereum,
+  optimismgoerli: Chains.goerli,
+  polygonzkevm: Chains.ethereum,
+  polygonzkevmtestnet: Chains.goerli,
+  scroll: Chains.ethereum,
+  scrollsepolia: Chains.sepolia,
 };
 
 // Missing types declaration for bufio
@@ -539,19 +539,16 @@ class ContextFunder {
   }
 
   private async bridgeIfL2(chain: ChainName) {
-    if (L2Chains.includes(chain)) {
+    if (L2Chains.includes(chain as L2Chain)) {
       const funderAddress = await this.multiProvider.getSignerAddress(chain)!;
       const desiredBalanceEther = ethers.utils.parseUnits(
         this.desiredBalancePerChain[chain],
         'ether',
       );
-      // Optionally bridge ETH to L2 before funding the desired key.
-      // By bridging the funder with 10x the desired balance we save
-      // on L1 gas.
       const bridgeAmount = await this.getFundingAmount(
         chain,
         funderAddress,
-        desiredBalanceEther.mul(5),
+        desiredBalanceEther,
       );
       if (bridgeAmount.gt(0)) {
         await this.bridgeToL2(chain as L2Chain, funderAddress, bridgeAmount);
