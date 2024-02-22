@@ -78,6 +78,7 @@ export interface RelayerConfig
 // This is at `.hyperlane.relayer` in the values file.
 export interface HelmRelayerValues extends HelmStatefulSetValues {
   aws: boolean;
+  livenessProbe?: boolean;
   config?: RelayerConfig;
 }
 

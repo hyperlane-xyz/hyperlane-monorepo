@@ -192,11 +192,19 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
   }
 
   async helmValues(): Promise<HelmRootAgentValues> {
+    // Only use the liveness probe for the mainnet2 Hyperlane context
+    // and if solana is a relayer chain.
+    let livenessProbe =
+      this.context === Contexts.Hyperlane &&
+      this.environment === 'mainnet2' &&
+      this.config.contextChainNames.relayer.includes('solana');
+
     const values = await super.helmValues();
     values.hyperlane.relayer = {
       enabled: true,
       aws: this.config.requiresAwsCredentials,
       config: await this.config.buildConfig(),
+      livenessProbe,
     };
 
     const signers = await this.config.signers();

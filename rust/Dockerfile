@@ -39,7 +39,9 @@ RUN apt-get update && \
     apt-get install -y \
         openssl \
         ca-certificates \
-        tini && \
+        tini \
+        curl \
+        jq && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
