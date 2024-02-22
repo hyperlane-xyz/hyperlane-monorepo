@@ -96,16 +96,16 @@ spec:
               # If the value is negative, the relayer is behind the validators. This env var
               # will be empty if the relayer is not behind the validators, so the presence of
               # this env var is a signal that the relayer is unhealthy.
-              RELAYER_CMP_VALIDATOR_NEGATIVE=$(echo $RELAYER_CMP_VALIDATOR_QUERY | jq -r '.data.result[0].value[1] | select(. < 0)')
+              RELAYER_CMP_VALIDATOR_NEGATIVE=$(echo $RELAYER_CMP_VALIDATOR_QUERY | jq -r '.data.result[0].value[1] | select(. < "0")')
               echo "Liveness probe: relayer Solana index - validator Solana negative value: $RELAYER_CMP_VALIDATOR_NEGATIVE" > /proc/1/fd/1
 
               # Make a query to see if the relayer's Solana index is increasing over the last 5 mins.
               RELAYER_SOLANA_INDEX_DERIV_QUERY=$(curl 'http://prometheus-server.monitoring.svc.cluster.local/api/v1/query' --data-urlencode 'query=deriv(hyperlane_last_known_message_nonce{phase="processor_loop", hyperlane_deployment="mainnet2", origin="solana", remote="any"}[5m])')
-              echo "Liveness probe: relayer Solana index deriv: $RELAYER_SOLANA_INDEX_DERIV"
+              echo "Liveness probe: relayer Solana index deriv: $RELAYER_SOLANA_INDEX_DERIV" > /proc/1/fd/1
 
               # This env var will be empty if the value is increasing, so the presence of this
               # env var is a signal that the relayer is unhealthy.
-              RELAYER_SOLANA_INDEX_DERIV_VALUE_NOT_INCREASING=$(echo $RELAYER_SOLANA_INDEX_DERIV_QUERY | jq -r '.data.result[0].value[1] | select(. < 0.0001)')
+              RELAYER_SOLANA_INDEX_DERIV_VALUE_NOT_INCREASING=$(echo $RELAYER_SOLANA_INDEX_DERIV_QUERY | jq -r '.data.result[0].value[1] | select(. < "0.0001")')
               echo "Liveness probe: relayer Solana index deriv value not increasing: $RELAYER_SOLANA_INDEX_DERIV_VALUE_NOT_INCREASING" > /proc/1/fd/1
 
               # If both are empty, the relayer is healthy because the relayer is not behind the validators, or the relayer
