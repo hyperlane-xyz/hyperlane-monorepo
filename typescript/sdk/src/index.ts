@@ -86,11 +86,14 @@ export {
   OwnerViolation,
   ViolationType,
 } from './deploy/types';
+export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
 export {
   CompilerOptions,
   ContractVerificationInput,
   VerificationInput,
+  ExplorerLicenseType,
+  BuildArtifact,
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
@@ -132,11 +135,8 @@ export {
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types';
-export {
-  HyperlaneIsmFactory,
-  collectValidators,
-  moduleCanCertainlyVerify,
-} from './ism/HyperlaneIsmFactory';
+export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory';
+export { collectValidators, moduleCanCertainlyVerify } from './ism/utils';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,

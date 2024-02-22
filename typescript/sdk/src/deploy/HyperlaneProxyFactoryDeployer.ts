@@ -10,14 +10,19 @@ import {
   proxyFactoryFactories,
   proxyFactoryImplementations,
 } from './contracts';
+import { ContractVerifier } from './verify/ContractVerifier';
 
 export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
   {},
   ProxyFactoryFactories
 > {
-  constructor(multiProvider: MultiProvider) {
+  constructor(
+    multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
+  ) {
     super(multiProvider, proxyFactoryFactories, {
       logger: debug('hyperlane:IsmFactoryDeployer'),
+      contractVerifier,
     });
   }
 
