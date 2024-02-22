@@ -399,6 +399,7 @@
           "http": "https://plume-testnet.rpc.caldera.xyz/http"
         }
       ],
+      "rpcConsensusType": "single",
       "transactionOverrides": {
         "gasPrice": 1000000
       },
