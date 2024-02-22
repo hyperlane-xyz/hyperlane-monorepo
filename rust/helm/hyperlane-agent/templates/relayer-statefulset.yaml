@@ -108,9 +108,9 @@ spec:
               RELAYER_SOLANA_INDEX_DERIV_VALUE_NOT_INCREASING=$(echo $RELAYER_SOLANA_INDEX_DERIV_QUERY | jq -r '.data.result[0].value[1] | select(. < "0.0001")')
               echo "Liveness probe: relayer Solana index deriv value not increasing: $RELAYER_SOLANA_INDEX_DERIV_VALUE_NOT_INCREASING" > /proc/1/fd/1
 
-              # If both are empty, the relayer is healthy because the relayer is not behind the validators, or the relayer
+              # If either is empty, the relayer is healthy because the relayer is not behind the validators, or the relayer
               # is currently catching up to the validators
-              if [ -z "$RELAYER_CMP_VALIDATOR_NEGATIVE" ] && [ -z "$RELAYER_SOLANA_INDEX_DERIV_VALUE_NOT_INCREASING" ]; then
+              if [ -z "$RELAYER_CMP_VALIDATOR_NEGATIVE" ] || [ -z "$RELAYER_SOLANA_INDEX_DERIV_VALUE_NOT_INCREASING" ]; then
                 echo "Liveness probe: Relayer is healthy" > /proc/1/fd/1
                 exit 0
               else
