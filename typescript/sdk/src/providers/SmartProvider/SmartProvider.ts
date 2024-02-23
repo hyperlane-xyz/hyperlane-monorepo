@@ -266,7 +266,11 @@ export class HyperlaneSmartProvider
         } else if (result.status === ProviderStatus.Error) {
           this.throwCombinedProviderErrors(
             [result.error, ...providerResultErrors],
-            `All providers failed for method ${method}`,
+            `All providers failed for method ${method} and params ${JSON.stringify(
+              params,
+              null,
+              2,
+            )}`,
           );
         } else {
           throw new Error('Unexpected result from provider');
@@ -276,7 +280,11 @@ export class HyperlaneSmartProvider
       } else {
         this.throwCombinedProviderErrors(
           providerResultErrors,
-          `All providers failed for method ${method}`,
+          `All providers failed for method ${method} and params ${JSON.stringify(
+            params,
+            null,
+            2,
+          )}`,
         );
       }
     }

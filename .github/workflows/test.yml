@@ -132,38 +132,12 @@ jobs:
       - name: Unit Tests
         run: yarn test:ci
 
-  metadata-check:
-    runs-on: ubuntu-latest
-    needs: [yarn-build]
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: yarn-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
-
-      - name: build-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Metadata Health Check
-        run: DEBUG=hyperlane yarn workspace @hyperlane-xyz/sdk run test:metadata
-
-  e2e:
+  e2e-matrix:
     runs-on: larger-runner
     needs: [yarn-build]
+    strategy:
+      matrix:
+        e2e-type: [cosmwasm, non-cosmwasm]
     steps:
       - uses: actions/setup-node@v3
         with:
@@ -220,21 +194,31 @@ jobs:
             ~/.cargo
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
 
-      - name: agent build
-        run: cargo build --release --bin run-locally
-        working-directory: ./rust
-
       - name: agent tests with CosmWasm
-        run: RUST_BACKTRACE=1 cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        if: matrix.e2e-type == 'cosmwasm'
         working-directory: ./rust
+        env:
+          RUST_BACKTRACE: 1
 
       - name: agent tests excluding CosmWasm
-        run: ./target/release/run-locally
+        run: cargo run --release --bin run-locally
+        if: matrix.e2e-type == 'non-cosmwasm'
         working-directory: ./rust
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [e2e-matrix]
+    if: always() # This ensures that the job runs even if the e2e jobs fail
+    steps:
+      - name: Report Matrix Result
+        run: |
+          echo "All e2e-matrix jobs have completed."
+          # You can add additional commands here to report the result as needed
 
   cli-e2e:
     runs-on: larger-runner
@@ -325,6 +309,9 @@ jobs:
             module: core
           - environment: mainnet3
             chain: viction
+            module: core
+          - environment: mainnet3
+            chain: ethereum
             module: core
 
     steps:

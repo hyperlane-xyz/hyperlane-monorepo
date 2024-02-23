@@ -4,6 +4,7 @@ import { CommandModule, Options } from 'yargs';
 import { log } from '../../logger.js';
 import { sendTestMessage } from '../send/message.js';
 import { sendTestTransfer } from '../send/transfer.js';
+import { ENV } from '../utils/env.js';
 
 import {
   chainsCommandOption,
@@ -66,7 +67,7 @@ const messageCommand: CommandModule = {
       },
     }),
   handler: async (argv: any) => {
-    const key: string = argv.key || process.env.HYP_KEY;
+    const key: string = argv.key || ENV.HYP_KEY;
     const chainConfigPath: string = argv.chains;
     const coreArtifactsPath: string | undefined = argv.core;
     const origin: string | undefined = argv.origin;
@@ -112,7 +113,7 @@ const transferCommand: CommandModule = {
       },
     }),
   handler: async (argv: any) => {
-    const key: string = argv.key || process.env.HYP_KEY;
+    const key: string = argv.key || ENV.HYP_KEY;
     const chainConfigPath: string = argv.chains;
     const coreArtifactsPath: string | undefined = argv.core;
     const origin: string | undefined = argv.origin;

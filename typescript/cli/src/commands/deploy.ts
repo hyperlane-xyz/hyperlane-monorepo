@@ -4,6 +4,7 @@ import { log, logGray } from '../../logger.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { runCoreDeploy } from '../deploy/core.js';
 import { runWarpDeploy } from '../deploy/warp.js';
+import { ENV } from '../utils/env.js';
 
 import {
   agentConfigurationOption,
@@ -98,7 +99,7 @@ const coreCommand: CommandModule = {
   handler: async (argv: any) => {
     logGray('Hyperlane permissionless core deployment');
     logGray('----------------------------------------');
-    const key: string = argv.key || process.env.HYP_KEY;
+    const key: string = argv.key || ENV.HYP_KEY;
     const chainConfigPath: string = argv.chains;
     const outPath: string = argv.out;
     const chains: string[] | undefined = argv.targets
@@ -142,7 +143,7 @@ const warpCommand: CommandModule = {
       yes: skipConfirmationOption,
     }),
   handler: async (argv: any) => {
-    const key: string = argv.key || process.env.HYP_KEY;
+    const key: string = argv.key || ENV.HYP_KEY;
     const chainConfigPath: string = argv.chains;
     const warpConfigPath: string | undefined = argv.config;
     const coreArtifactsPath: string | undefined = argv.core;

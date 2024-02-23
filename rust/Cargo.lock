@@ -460,7 +460,11 @@ dependencies = [
  "pin-project-lite",
  "rustversion",
  "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_urlencoded",
  "sync_wrapper",
+ "tokio",
  "tower",
  "tower-layer",
  "tower-service",
@@ -4106,6 +4110,7 @@ name = "hyperlane-base"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "axum",
  "backtrace",
  "backtrace-oneline",
  "bs58 0.5.0",
@@ -4131,6 +4136,7 @@ dependencies = [
  "maplit",
  "paste",
  "prometheus",
+ "reqwest",
  "rocksdb",
  "rusoto_core",
  "rusoto_kms",
@@ -4147,6 +4153,7 @@ dependencies = [
  "tracing-error",
  "tracing-futures",
  "tracing-subscriber",
+ "tracing-test",
  "url",
  "walkdir",
  "warp",
@@ -8047,6 +8054,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_path_to_error"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4beec8bce849d58d06238cb50db2e1c417cfeafa4c63f692b15c82b7c80f8335"
+dependencies = [
+ "itoa",
+ "serde",
+]
+
+[[package]]
 name = "serde_repr"
 version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10290,6 +10307,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-log"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3"
+dependencies = [
+ "log",
+ "once_cell",
+ "tracing-core",
+]
+
+[[package]]
 name = "tracing-opentelemetry"
 version = "0.17.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10325,10 +10353,35 @@ dependencies = [
  "serde",
  "serde_json",
  "sharded-slab",
+ "smallvec",
  "thread_local",
  "tracing",
  "tracing-core",
+ "tracing-log",
  "tracing-serde",
+]
+
+[[package]]
+name = "tracing-test"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a2c0ff408fe918a94c428a3f2ad04e4afd5c95bbc08fcf868eff750c15728a4"
+dependencies = [
+ "lazy_static",
+ "tracing-core",
+ "tracing-subscriber",
+ "tracing-test-macro",
+]
+
+[[package]]
+name = "tracing-test-macro"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "258bc1c4f8e2e73a977812ab339d503e6feeb92700f6d07a6de4d321522d5c08"
+dependencies = [
+ "lazy_static",
+ "quote 1.0.35",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -10574,7 +10627,9 @@ name = "validator"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "axum",
  "config",
+ "derive-new",
  "derive_more",
  "ethers",
  "eyre",
@@ -10587,6 +10642,7 @@ dependencies = [
  "hyperlane-test",
  "k256 0.13.3",
  "prometheus",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror",

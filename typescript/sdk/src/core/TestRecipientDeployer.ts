@@ -4,6 +4,7 @@ import { TestRecipient, TestRecipient__factory } from '@hyperlane-xyz/core';
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
@@ -28,9 +29,13 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
   TestRecipientConfig,
   typeof testRecipientFactories
 > {
-  constructor(multiProvider: MultiProvider) {
+  constructor(
+    multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
+  ) {
     super(multiProvider, testRecipientFactories, {
       logger: debug('hyperlane:TestRecipientDeployer'),
+      contractVerifier,
     });
   }
 

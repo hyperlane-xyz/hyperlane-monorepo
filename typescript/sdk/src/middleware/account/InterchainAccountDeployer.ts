@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import { HyperlaneContracts } from '../../contracts/types';
+import { ContractVerifier } from '../../deploy/verify/ContractVerifier';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
 import { ProxiedRouterConfig, RouterConfig } from '../../router/types';
@@ -20,8 +21,13 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
 > {
   readonly routerContractName = 'interchainAccountRouter';
 
-  constructor(multiProvider: MultiProvider) {
-    super(multiProvider, interchainAccountFactories);
+  constructor(
+    multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
+  ) {
+    super(multiProvider, interchainAccountFactories, {
+      contractVerifier,
+    });
   }
 
   async constructorArgs(_: string, config: RouterConfig): Promise<[string]> {
