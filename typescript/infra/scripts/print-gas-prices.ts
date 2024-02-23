@@ -3,11 +3,10 @@ import { ethers } from 'ethers';
 import { MultiProtocolProvider, ProviderType } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { getEnvironmentConfig } from './core-utils';
+import { mainnetConfigs } from '../config/environments/mainnet3/chains';
 
 async function main() {
-  const environmentConfig = getEnvironmentConfig('mainnet3');
-  const metadata = environmentConfig.chainMetadataConfigs;
+  const metadata = mainnetConfigs;
 
   const mpp = new MultiProtocolProvider(metadata);
 

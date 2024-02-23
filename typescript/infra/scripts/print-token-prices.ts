@@ -1,14 +1,14 @@
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { getEnvironmentConfig } from './core-utils';
+import { mainnetConfigs } from '../config/environments/mainnet3/chains';
 
 const CURRENCY = 'usd';
 
 async function main() {
-  const environmentConfig = getEnvironmentConfig('mainnet3');
+  const metadata = mainnetConfigs;
 
   const ids = objMap(
-    environmentConfig.chainMetadataConfigs,
+    metadata,
     (_, metadata) => metadata.gasCurrencyCoinGeckoId ?? metadata.name,
   );
 
