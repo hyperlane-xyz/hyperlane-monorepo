@@ -102,6 +102,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     // For each remote, check if the gas oracle has the correct data
     for (const [remote, desired] of Object.entries(config.oracleConfig)) {
+      // check core metadata for non EVMs and fallback to multiprovider for custom EVMs
       const remoteDomain =
         chainMetadata[remote]?.domainId ??
         this.multiProvider.getDomainId(remote);
