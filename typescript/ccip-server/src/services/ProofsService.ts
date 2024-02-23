@@ -22,7 +22,7 @@ type HyperlaneConfig = {
 // Service that requests proofs from Succinct and RPC Provider
 class ProofsService {
   // Maps from pendingProofKey to pendingProofId
-  pendingProofIds = new Map<string, string>();
+  pendingProof = new Map<string, string>();
 
   // External Services
   rpcService: RPCService;
@@ -62,26 +62,54 @@ class ProofsService {
     messageId,
   ]: ethers.utils.Result): Promise<Array<[string[], string[]]>> {
     const proofs: Array<[string[], string[]]> = [];
-    try {
-      const { blockNumber, timestamp } =
+    const pendingProofKey = this.getPendingProofKey(
+      target,
+      storageKey,
+      messageId,
+    );
+    if (!this.pendingProof.has(pendingProofKey)) {
+      // Request a Proof from Succinct
+      const { timestamp } =
         await this.hyperlaneService.getOriginBlockByMessageId(messageId);
       const slot = await this.lightClientService.calculateSlot(timestamp);
-      // Request Proof from Succinct
-      console.log(`Requesting proof for${slot}`);
-      // await this.lightClientService.requestProof(syncCommitteePoseidon, slot);
+      const syncCommitteePoseidon = ''; // TODO get prof LC
+      const pendingProofId = await this.lightClientService.requestProof(
+        syncCommitteePoseidon,
+        slot,
+      );
 
-      const { accountProof, storageProof }: ProofResult =
-        await this.rpcService.getProofs(
-          target,
-          [storageKey],
-          blockNumber.toString(16), // Converts to hexstring
-        );
-      proofs.push([accountProof, storageProof[0].proof]);
-    } catch (e) {
-      console.log('Error getting proofs', e);
+      this.pendingProof.set(pendingProofKey, pendingProofId);
+
+      this.forceRelayerRecheck();
+    } else {
+      // Proof is being generated, check status
+      const proofStatus = await this.lightClientService.getProofStatus(
+        this.pendingProof.get(pendingProofKey)!,
+      );
+      if (proofStatus === ProofStatus.success) {
+        // Proof is ready, clear pendingProofId from Mapping
+        this.pendingProof.delete(pendingProofKey);
+      }
+
+      // Proof still not ready
+      this.forceRelayerRecheck();
     }
-
     return proofs;
+  }
+
+  getPendingProofKey(
+    target: string,
+    storageKey: string,
+    messageId: string,
+  ): string {
+    return ethers.utils.defaultAbiCoder.encode(
+      ['string', 'string', 'string'],
+      [target, storageKey, messageId],
+    );
+  }
+
+  forceRelayerRecheck(): void {
+    throw new Error('Proof is not ready');
   }
 }
 

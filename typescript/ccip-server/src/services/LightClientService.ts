@@ -21,9 +21,6 @@ export type SuccinctConfig = {
 
 // Service that interacts with the LightClient/ISM
 class LightClientService extends Requestor {
-  // Stores the current ProofId that is being generated. Clears once proof is ready.
-  pendingProofId: string;
-
   constructor(
     private readonly lightClientContract: ethers.Contract, // TODO USE TYPECHAIN
     succinctConfig: SuccinctConfig,
