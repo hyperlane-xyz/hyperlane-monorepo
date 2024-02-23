@@ -119,7 +119,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b03c901-20240222-121313',
+      tag: '95fe655-20240222-183959',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
@@ -132,7 +132,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b03c901-20240222-121313',
+      tag: '95fe655-20240222-183959',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
