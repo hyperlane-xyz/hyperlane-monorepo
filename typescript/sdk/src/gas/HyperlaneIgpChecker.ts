@@ -91,7 +91,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       }
 
       const remoteId =
-        chainMetadata[remote].domainId ??
+        chainMetadata[remote]?.domainId ??
         this.multiProvider.getDomainId(remote);
       const existingOverhead = await defaultIsmIgp.destinationGasLimit(
         remoteId,
@@ -132,7 +132,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     );
     for (const remote of remotes) {
       const remoteId =
-        chainMetadata[remote].domainId ??
+        chainMetadata[remote]?.domainId ??
         this.multiProvider.getDomainId(remote);
       const destinationGasConfigs = await igp.destinationGasConfigs(remoteId);
       const actualGasOracle = destinationGasConfigs.gasOracle;
