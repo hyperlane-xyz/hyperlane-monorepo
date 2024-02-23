@@ -14,4 +14,4 @@ verbosity = 4
 
 [rpc_endpoints]
 mainnet = "https://eth.merkle.io"
-optimism = "https://optimism.llamarpc.com"
+optimism = "https://mainnet.optimism.io	"

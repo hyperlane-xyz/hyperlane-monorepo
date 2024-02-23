@@ -8,11 +8,12 @@ use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
 use prometheus::IntGauge;
 use rusoto_core::{
     credential::{Anonymous, AwsCredentials, StaticProvider},
-    HttpClient, Region, RusotoError,
+    Region, RusotoError,
 };
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
 use tokio::time::timeout;
 
+use crate::types::utils;
 use crate::{settings::aws_credentials::AwsChainCredentialsProvider, CheckpointSyncer};
 
 /// The timeout for S3 requests. Rusoto doesn't offer timeout configuration
@@ -93,7 +94,7 @@ impl S3Storage {
     fn authenticated_client(&self) -> &S3Client {
         self.authenticated_client.get_or_init(|| {
             S3Client::new_with(
-                HttpClient::new().unwrap(),
+                utils::http_client_with_timeout().unwrap(),
                 AwsChainCredentialsProvider::new(),
                 self.region.clone(),
             )
@@ -113,7 +114,7 @@ impl S3Storage {
             assert!(credentials.is_anonymous(), "AWS credentials not anonymous");
 
             S3Client::new_with(
-                HttpClient::new().unwrap(),
+                utils::http_client_with_timeout().unwrap(),
                 StaticProvider::from(credentials),
                 self.region.clone(),
             )

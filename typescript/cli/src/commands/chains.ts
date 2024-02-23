@@ -32,7 +32,21 @@ export const chainsCommand: CommandModule = {
 const listCommand: CommandModule = {
   command: 'list',
   describe: 'List all core chains included in the Hyperlane SDK',
-  handler: () => {
+  builder: (yargs) =>
+    yargs
+      .option('mainnet', {
+        alias: 'm',
+        describe: 'Only list mainnet chains',
+      })
+      .option('testnet', {
+        alias: 't',
+        describe: 'Only list testnet chains',
+      })
+      .conflicts('mainnet', 'testnet'),
+  handler: (args) => {
+    const mainnet = args.mainnet as string | undefined;
+    const testnet = args.testnet as string | undefined;
+
     const serializer = (chains: string[]) =>
       chains.reduce<any>((result, chain) => {
         result[chain] = {
@@ -41,13 +55,22 @@ const listCommand: CommandModule = {
         };
         return result;
       }, {});
+    const logMainnet = () => {
+      logBlue('\nHyperlane core mainnet chains:');
+      logGray('------------------------------');
+      logTable(serializer(Mainnets));
+    };
+    const logTestnet = () => {
+      logBlue('\nHyperlane core testnet chains:');
+      logGray('------------------------------');
+      logTable(serializer(Testnets));
+    };
 
-    logBlue('Hyperlane core mainnet chains:');
-    logGray('------------------------------');
-    logTable(serializer(Mainnets));
-    logBlue('\nHyperlane core testnet chains:');
-    logGray('------------------------------');
-    logTable(serializer(Testnets));
+    if (mainnet) return logMainnet();
+    else if (testnet) return logTestnet();
+
+    logMainnet();
+    logTestnet();
   },
 };
 
