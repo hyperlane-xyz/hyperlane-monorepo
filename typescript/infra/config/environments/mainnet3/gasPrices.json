@@ -1,0 +1,19 @@
+{
+  "bsc": "3",
+  "avalanche": "35",
+  "polygon": "300",
+  "celo": "10",
+  "arbitrum": "1",
+  "optimism": "1",
+  "ethereum": "50",
+  "base": "1",
+  "scroll": "1",
+  "polygonzkevm": "2",
+  "mantapacific": "1",
+  "moonbeam": "150",
+  "solana": "0",
+  "neutron": "1",
+  "injective": "1",
+  "inevm": "1",
+  "viction": "0.25"
+}
