@@ -3,6 +3,7 @@ import {
   CoreViolationType,
   HyperlaneCore,
   HyperlaneCoreChecker,
+  HyperlaneCoreDeployer,
   MailboxViolation,
   MailboxViolationType,
   OwnerViolation,
@@ -24,6 +25,11 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
       case MailboxViolationType.DefaultIsm: {
         let ismAddress: string;
         if (typeof violation.expected === 'object') {
+          // hack to bind the ISM factory to the deployer for verification
+          new HyperlaneCoreDeployer(
+            this.checker.multiProvider,
+            this.checker.ismFactory,
+          );
           const ism = await this.checker.ismFactory.deploy({
             destination: violation.chain,
             config: violation.expected,
