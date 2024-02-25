@@ -94,7 +94,6 @@ contract CCIPIsm is AbstractMessageIdAuthorizedIsm, CCIPReceiver, Ownable {
             abi.decode(any2EvmMessage.sender, (address))
         ) // Make sure source chain and sender are allowlisted
     {
-        // bytes memory lastReceivedPayload = abi.decode(any2EvmMessage.data, (bytes)); // abi-decoding of the sent payload
         bytes32 lastReceivedPayload = abi.decode(any2EvmMessage.data, (bytes32));  
         verifyMessageId(lastReceivedPayload); // verifyMessageId(bytes32)
 

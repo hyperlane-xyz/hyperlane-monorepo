@@ -93,8 +93,7 @@ contract CCIPHook is MailboxClient {
             Client.EVM2AnyMessage({
                 receiver: abi.encode(_receiver), // ABI-encoded receiver address
                 data: abi.encode(_callData), // ABI-encoded payload
-                tokenAmounts: new Client.EVMTokenAmount[](0), // Empty array aas no tokens are transferred
-                // extraArgs: "0x",
+                tokenAmounts: new Client.EVMTokenAmount[](0), // Empty array as no tokens are transferred
                 extraArgs: "",
                 // Set the feeToken to a feeTokenAddress, indicating specific asset will be used for fees
                 feeToken: _feeTokenAddress
@@ -150,6 +149,8 @@ contract CCIPHook is MailboxClient {
         return messageId;
     }
 
+    // ============ Public / External functions ============
+
     /// @notice Calculates the cost in native currency for the call
     /// @param metadata StandardHookMetadata, which contains necessary data for CCIP message formation
     /// @param message Hyperlane Message 
@@ -183,7 +184,7 @@ contract CCIPHook is MailboxClient {
         bytes32 id = message.id();
         require(
             _isLatestDispatched(id),
-            "AbstractMessageIdAuthHook: message not latest dispatched"
+            "CCIPHook: message not latest dispatched"
         );
         
         bytes memory customMetadata = metadata.getCustomMetadata();
@@ -192,8 +193,6 @@ contract CCIPHook is MailboxClient {
 
         _sendMessagePayNative(destinationChainSelector, receiver, payload);
     }
-
-    // ============ Public / External functions ============
 
     /// @dev Updates the allowlist status of a destination chain for transactions.
     /// @param _destinationChainSelector the Chainlink specified destitation chain selector
