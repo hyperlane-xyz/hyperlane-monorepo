@@ -1,12 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
+import "forge-std/console.sol";
+
 // ============ Internal Imports ============
 import {OwnableMulticall} from "./libs/OwnableMulticall.sol";
 import {InterchainAccountMessage} from "./libs/InterchainAccountMessage.sol";
 import {CallLib} from "./libs/Call.sol";
 import {MinimalProxy} from "../libs/MinimalProxy.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
+import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {EnumerableMapExtended} from "../libs/EnumerableMapExtended.sol";
 import {Router} from "../client/Router.sol";
 
@@ -29,7 +44,6 @@ contract InterchainAccountRouter is Router {
 
     address internal implementation;
     bytes32 internal bytecodeHash;
-    uint256 internal CALL_GAS_LIMIT = 100_000;
 
     // ============ Public Storage ============
     mapping(uint32 => bytes32) public isms;
@@ -157,7 +171,8 @@ contract InterchainAccountRouter is Router {
         uint32 _destination,
         address _to,
         uint256 _value,
-        bytes memory _data
+        bytes memory _data,
+        bytes memory _metadata
     ) external payable returns (bytes32) {
         bytes32 _router = routers(_destination);
         bytes32 _ism = isms[_destination];
@@ -168,7 +183,14 @@ contract InterchainAccountRouter is Router {
             _value,
             _data
         );
-        return _dispatchMessage(_destination, _router, _ism, _body);
+        return
+            _dispatchMessageWithMetadata(
+                _destination,
+                _router,
+                _ism,
+                _body,
+                _metadata
+            );
     }
 
     /**
@@ -184,10 +206,49 @@ contract InterchainAccountRouter is Router {
     function callRemote(
         uint32 _destination,
         CallLib.Call[] calldata _calls
-    ) external returns (bytes32) {
+    ) external payable returns (bytes32) {
         bytes32 _router = routers(_destination);
         bytes32 _ism = isms[_destination];
-        return callRemoteWithOverrides(_destination, _router, _ism, _calls);
+        bytes memory _body = InterchainAccountMessage.encode(
+            msg.sender,
+            _ism,
+            _calls
+        );
+
+        return _dispatchMessage(_destination, _router, _ism, _body);
+    }
+
+    /**
+     * @notice Dispatches a sequence of remote calls to be made by an owner's
+     * interchain account on the destination domain
+     * @dev Uses the default router and ISM addresses for the destination
+     * domain, reverting if none have been configured
+     * @dev Recommend using CallLib.build to format the interchain calls.
+     * @param _destination The remote domain of the chain to make calls on
+     * @param _calls The sequence of calls to make
+     * @return The Hyperlane message ID
+     */
+    function callRemote(
+        uint32 _destination,
+        CallLib.Call[] calldata _calls,
+        bytes calldata _metadata
+    ) external payable returns (bytes32) {
+        bytes32 _router = routers(_destination);
+        bytes32 _ism = isms[_destination];
+        bytes memory _body = InterchainAccountMessage.encode(
+            msg.sender,
+            _ism,
+            _calls
+        );
+
+        return
+            _dispatchMessageWithMetadata(
+                _destination,
+                _router,
+                _ism,
+                _body,
+                _metadata
+            );
     }
 
     /**
@@ -395,15 +456,9 @@ contract InterchainAccountRouter is Router {
         uint32 _destination,
         bytes32 _router,
         bytes32 _ism,
-        CallLib.Call[] calldata _calls
-    ) public returns (bytes32) {
-        bytes memory _body = InterchainAccountMessage.encode(
-            msg.sender,
-            _ism,
-            _calls
-        );
-        return _dispatchMessage(_destination, _router, _ism, _body);
-    }
+        CallLib.Call[] calldata _calls,
+        bytes memory _metadata
+    ) public returns (bytes32) {}
 
     // ============ Internal Functions ============
 
@@ -476,6 +531,31 @@ contract InterchainAccountRouter is Router {
         require(_router != bytes32(0), "no router specified for destination");
         emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
         return mailbox.dispatch{value: msg.value}(_destination, _router, _body);
+    }
+
+    /**
+     * @notice Dispatches an InterchainAccountMessage to the remote router with hook metadata
+     * @param _destination The remote domain
+     * @param _router The address of the remote InterchainAccountRouter
+     * @param _ism The address of the remote ISM
+     * @param _body The InterchainAccountMessage body
+     */
+    function _dispatchMessageWithMetadata(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        bytes memory _body,
+        bytes memory _metadata
+    ) private returns (bytes32) {
+        require(_router != bytes32(0), "no router specified for destination");
+        emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
+        return
+            mailbox.dispatch{value: msg.value}(
+                _destination,
+                _router,
+                _body,
+                _metadata
+            );
     }
 
     /**

@@ -4,18 +4,18 @@ pragma solidity ^0.8.13;
 import "forge-std/console.sol";
 
 import {Test} from "forge-std/Test.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {MockMailbox} from "../contracts/mock/MockMailbox.sol";
 import {MockHyperlaneEnvironment} from "../contracts/mock/MockHyperlaneEnvironment.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecurityModule.sol";
+import {TestInterchainGasPaymaster} from "../contracts/test/TestInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {CallLib, OwnableMulticall, InterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
 import {InterchainAccountIsm} from "../contracts/isms/routing/InterchainAccountIsm.sol";
 
-contract OwnableCallable is Ownable {
+contract Callable {
     mapping(address => bytes32) public data;
 
     function set(bytes32 _data) external {
@@ -51,18 +51,19 @@ contract InterchainAccountRouterTest is Test {
 
     MockHyperlaneEnvironment internal environment;
 
-    uint32 origin = 1;
-    uint32 destination = 2;
+    uint32 internal origin = 1;
+    uint32 internal destination = 2;
 
-    InterchainAccountIsm icaIsm;
-    InterchainAccountRouter originRouter;
-    InterchainAccountRouter destinationRouter;
-    bytes32 ismOverride;
-    bytes32 routerOverride;
+    TestInterchainGasPaymaster internal igp;
+    InterchainAccountIsm internal icaIsm;
+    InterchainAccountRouter internal originRouter;
+    InterchainAccountRouter internal destinationRouter;
+    bytes32 internal ismOverride;
+    bytes32 internal routerOverride;
 
     OwnableMulticall internal ica;
 
-    OwnableCallable target;
+    Callable internal target;
 
     function deployProxiedIcaRouter(
         MockMailbox _mailbox,
@@ -91,6 +92,8 @@ contract InterchainAccountRouterTest is Test {
     function setUp() public {
         environment = new MockHyperlaneEnvironment(origin, destination);
 
+        igp = new TestInterchainGasPaymaster();
+
         icaIsm = new InterchainAccountIsm(
             address(environment.mailboxes(destination))
         );
@@ -109,6 +112,8 @@ contract InterchainAccountRouterTest is Test {
             owner
         );
 
+        environment.mailboxes(origin).setDefaultHook(address(igp));
+
         routerOverride = TypeCasts.addressToBytes32(address(destinationRouter));
         ismOverride = TypeCasts.addressToBytes32(
             address(environment.isms(destination))
@@ -120,8 +125,7 @@ contract InterchainAccountRouterTest is Test {
             address(environment.isms(destination))
         );
 
-        target = new OwnableCallable();
-        target.transferOwnership(address(ica));
+        target = new Callable();
     }
 
     function testFuzz_constructor(address _localOwner) public {
@@ -302,69 +306,92 @@ contract InterchainAccountRouterTest is Test {
         assertEq(target.data(address(ica)), data);
     }
 
-    function testFuzz_singleCallRemote_transferOwnership() public {
-        originRouter.enrollRemoteRouterAndIsm(
-            destination,
-            routerOverride,
-            ismOverride
-        );
-        address alice = address(0x123);
-        CallLib.Call memory call = CallLib.Call(
-            TypeCasts.addressToBytes32(address(target)),
-            0,
-            abi.encodeCall(target.transferOwnership, (alice))
-        );
-
-        originRouter.callRemote(
-            destination,
-            TypeCasts.bytes32ToAddress(call.to),
-            call.value,
-            call.data
-        );
-
-        bytes memory _message = environment.readNextInboundMessage();
-        //
-        environment.processMessage(_message);
-    }
-
     function testFuzz_singleCallRemoteWithDefault(bytes32 data) public {
+        // arrange
         originRouter.enrollRemoteRouterAndIsm(
             destination,
             routerOverride,
             ismOverride
         );
+
+        // act
         CallLib.Call[] memory calls = getCalls(data);
-        originRouter.callRemote(
+
+        originRouter.callRemote{
+            value: igp.quoteGasPayment(0, igp.getDefaultGasUsage())
+        }(
             destination,
             TypeCasts.bytes32ToAddress(calls[0].to),
             calls[0].value,
-            calls[0].data
+            calls[0].data,
+            ""
+        );
+
+        // assert
+        assertRemoteCallReceived(data);
+    }
+
+    function testFuzz_callRemoteWithDefault(bytes32 data) public {
+        // arrange
+        originRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // act
+        originRouter.callRemote{
+            value: igp.quoteGasPayment(0, igp.getDefaultGasUsage())
+        }(destination, getCalls(data));
+
+        // assert
+        assertRemoteCallReceived(data);
+    }
+
+    function testOverrideAndCallRemote(bytes32 data) public {
+        // arrange
+        originRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // act
+        originRouter.callRemote{
+            value: igp.quoteGasPayment(0, igp.getDefaultGasUsage())
+        }(destination, getCalls(data));
+
+        // assert
+        assertRemoteCallReceived(data);
+    }
+
+    function testFuzz_callRemoteWithoutDefaults_revert_noRouter(
+        bytes32 data
+    ) public {
+        CallLib.Call[] memory calls = getCalls(data);
+        vm.expectRevert(bytes("no router specified for destination"));
+        originRouter.callRemote(destination, calls);
+    }
+
+    function testCallRemoteWithOverrides(bytes32 data) public {
+        originRouter.callRemoteWithOverrides(
+            destination,
+            routerOverride,
+            ismOverride,
+            getCalls(data),
+            ""
         );
         assertRemoteCallReceived(data);
     }
 
-    // function testCallRemoteWithDefault(bytes32 data) public {
-    //     originRouter.enrollRemoteRouterAndIsm(destination, routerOverride, ismOverride);
-    //     originRouter.callRemote(destination, getCalls(data));
-    //     assertRemoteCallReceived(data);
-    // }
+    function testFuzz_customMetadata(bytes32 data) public {
+        originRouter.callRemote{
+            value: igp.quoteGasPayment(0, igp.getDefaultGasUsage())
+        }(destination, getCalls(data), "");
+        assertRemoteCallReceived(data);
+    }
 
-    // function testOverrideAndCallRemote(bytes32 data) public {
-    //     originRouter.enrollRemoteRouterAndIsm(destination, routerOverride, ismOverride);
-    //     originRouter.callRemote(destination, getCalls(data));
-    //     assertRemoteCallReceived(data);
-    // }
-
-    // function testCallRemoteWithoutDefaults(bytes32 data) public {
-    //     CallLib.Call[] memory calls = getCalls(data);
-    //     vm.expectRevert(bytes("no router specified for destination"));
-    //     originRouter.callRemote(destination, calls);
-    // }
-
-    // function testCallRemoteWithOverrides(bytes32 data) public {
-    //     originRouter.callRemoteWithOverrides(destination, routerOverride, ismOverride, getCalls(data));
-    //     assertRemoteCallReceived(data);
-    // }
+    function testSingleCallRemoteWithCustomMetadata() public {}
 
     // function testCallRemoteWithFailingIsmOverride(bytes32 data) public {
     //     string memory failureMessage = "failing ism";
