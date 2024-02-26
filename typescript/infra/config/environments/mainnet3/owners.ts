@@ -19,6 +19,7 @@ export const safes: ChainMap<Address | undefined> = {
   moonbeam: '0xF0cb1f968Df01fc789762fddBfA704AE0F952197',
   gnosis: '0x36b0AA0e7d04e7b825D7E409FEa3c9A3d57E4C22',
   inevm: '0x77F3863ea99F2360D84d4BA1A2E441857D0357fa', // caldera + injective
+  // injective: 'inj1632x8j35kenryam3mkrsez064sqg2y2fr0frzt',
   // solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
 };
 
