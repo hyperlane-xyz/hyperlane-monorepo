@@ -14,18 +14,45 @@ import {
 import { TokenStandard } from './TokenStandard';
 import type { IHypTokenAdapter, ITokenAdapter } from './adapters/ITokenAdapter';
 
-export interface TokenArgs {
-  chainName: ChainName;
-  standard: TokenStandard;
-  decimals: number;
-  symbol: string;
-  name: string;
+export const TokenConfigSchema = z.object({
+  chainName: ZChainName.describe(
+    'The name of the chain, must correspond to a chain in the multiProvider chainMetadata',
+  ),
+  standard: z
+    .nativeEnum(TokenStandard)
+    .describe('The type of token. See TokenStandard for valid values.'),
+  decimals: ZUint.lt(256).describe('The decimals value (e.g. 18 for Eth)'),
+  symbol: z.string().min(1).describe('The symbol of the token'),
+  name: z.string().min(1).describe('The name of the token'),
+  addressOrDenom: z
+    .string()
+    .min(1)
+    .or(z.null())
+    .describe('The address or denom, or null for native tokens'),
+  collateralAddressOrDenom: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('The address or denom of the collateralized token'),
+  igpTokenAddressOrDenom: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('The address or denom of the token for IGP payments'),
+  logoURI: z.string().optional().describe('The URI of the token logo'),
+  connections: z
+    .array(TokenConnectionConfigSchema)
+    .optional()
+    .describe('The list of token connections (e.g. warp or IBC)'),
+});
+
+export type TokenArgs = Omit<
+  z.infer<typeof TokenConfigSchema>,
+  'addressOrDenom' | 'connections'
+> & {
   addressOrDenom: Address | string;
-  collateralAddressOrDenom?: Address | string;
-  igpTokenAddressOrDenom?: string;
-  logoURI?: string;
   connections?: Array<TokenConnection>;
-}
+};
 
 export interface IToken extends TokenArgs {
   protocol: ProtocolType;
@@ -59,43 +86,3 @@ export interface IToken extends TokenArgs {
 
   collateralizes(token: IToken): boolean;
 }
-
-export const TokenConfigSchema = z.object({
-  chainName: ZChainName.describe(
-    'The name of the chain, must correspond to a chain in the multiProvider chainMetadata',
-  ),
-  standard: z
-    .nativeEnum(TokenStandard)
-    .describe('The type of token. See TokenStandard for valid values.'),
-  decimals: ZUint.lt(256).describe('The decimals value (e.g. 18 for Eth)'),
-  symbol: z.string().min(1).describe('The symbol of the token'),
-  name: z.string().min(1).describe('The name of the token'),
-  addressOrDenom: z
-    .string()
-    .min(1)
-    .or(z.null())
-    .describe('The address or denom, or null for native tokens'),
-  collateralAddressOrDenom: z
-    .string()
-    .min(1)
-    .optional()
-    .describe('The address or denom of the collateralized token'),
-  igpTokenAddressOrDenom: z
-    .string()
-    .min(1)
-    .optional()
-    .describe('The address or denom of the token for IGP payments'),
-  logoURI: z.string().optional().describe('The URI of the token logo'),
-  sourcePort: z
-    .string()
-    .optional()
-    .describe('IBC tokens only: the source port'),
-  sourceChannel: z
-    .string()
-    .optional()
-    .describe('IBC tokens only: the source channel'),
-  connections: z
-    .array(TokenConnectionConfigSchema)
-    .optional()
-    .describe('The list of token connections (e.g. warp or IBC)'),
-});
