@@ -203,7 +203,7 @@ impl HyperlaneDomainProtocol {
     strum(serialize_all = "lowercase", ascii_case_insensitive)
 )]
 pub enum HyperlaneDomainTechnicalStack {
-    AribtrumNitro,
+    ArbitrumNitro,
     #[default]
     Other,
 }
@@ -250,7 +250,7 @@ impl KnownHyperlaneDomain {
         use KnownHyperlaneDomain::*;
 
         many_to_one!(match self {
-            HyperlaneDomainTechnicalStack::AribtrumNitro: [Arbitrum, ArbitrumGoerli, PlumeTestnet],
+            HyperlaneDomainTechnicalStack::ArbitrumNitro: [Arbitrum, ArbitrumGoerli, PlumeTestnet],
             HyperlaneDomainTechnicalStack::Other: [
                 Ethereum, Goerli, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Optimism, OptimismGoerli,
                 BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis, Alfajores, Moonbeam, MoonbaseAlpha,
@@ -424,7 +424,7 @@ impl HyperlaneDomain {
     pub const fn is_arbitrum_nitro(&self) -> bool {
         matches!(
             self.domain_technical_stack(),
-            HyperlaneDomainTechnicalStack::AribtrumNitro
+            HyperlaneDomainTechnicalStack::ArbitrumNitro
         )
     }
 
