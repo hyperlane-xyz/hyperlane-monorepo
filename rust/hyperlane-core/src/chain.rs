@@ -86,6 +86,8 @@ pub enum KnownHyperlaneDomain {
 
     Injective = 6909546,
 
+    PlumeTestnet = 161221135,
+
     // -- Local test chains --
     /// Test1 local chain
     Test1 = 13371,
@@ -222,7 +224,7 @@ impl KnownHyperlaneDomain {
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
-                Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, ScrollSepolia, Chiado
+                Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, ScrollSepolia, Chiado, PlumeTestnet
             ],
             LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991],
         })
@@ -236,7 +238,7 @@ impl KnownHyperlaneDomain {
                 Ethereum, Goerli, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
                 Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
                 Alfajores, Moonbeam, MoonbaseAlpha, PolygonZkEvmTestnet, LineaGoerli, ScrollSepolia,
-                Chiado, MantaPacific, Test1, Test2, Test3
+                Chiado, MantaPacific, PlumeTestnet, Test1, Test2, Test3
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
@@ -248,7 +250,7 @@ impl KnownHyperlaneDomain {
         use KnownHyperlaneDomain::*;
 
         many_to_one!(match self {
-            HyperlaneDomainTechnicalStack::AribtrumNitro: [Arbitrum, ArbitrumGoerli],
+            HyperlaneDomainTechnicalStack::AribtrumNitro: [Arbitrum, ArbitrumGoerli, PlumeTestnet],
             HyperlaneDomainTechnicalStack::Other: [
                 Ethereum, Goerli, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Optimism, OptimismGoerli,
                 BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis, Alfajores, Moonbeam, MoonbaseAlpha,
