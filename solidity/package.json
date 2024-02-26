@@ -31,7 +31,7 @@
     "test": "test"
   },
   "files": [
-    "/buildInfo.json",
+    "/buildArtifact.json",
     "/dist",
     "/contracts",
     "/interfaces",

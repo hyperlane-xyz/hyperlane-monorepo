@@ -56,5 +56,5 @@ export const serializeDifference = (
     expected.tokenExchangeRate,
   );
   const formatted = formatGasOracleConfig(expected);
-  return `$ ${formatted.tokenExchangeRate} (${tokenExchangeRateDiff}), ${formatted.gasPrice} gwei (${gasPriceDiff})`;
+  return `${formatted.tokenExchangeRate} (${tokenExchangeRateDiff}), ${formatted.gasPrice} gwei (${gasPriceDiff})`;
 };
