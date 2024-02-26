@@ -74,6 +74,7 @@
         "symbol": "ETH"
       },
       "protocol": "ethereum",
+      "technicalStack": "arbitrumnitro",
       "rpcUrls": [
         {
           "http": "https://goerli-rollup.arbitrum.io/rpc"
@@ -394,6 +395,7 @@
         "symbol": "ETH"
       },
       "protocol": "ethereum",
+      "technicalStack": "arbitrumnitro",
       "rpcUrls": [
         {
           "http": "https://plume-testnet.rpc.caldera.xyz/http"

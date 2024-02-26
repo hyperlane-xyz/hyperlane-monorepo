@@ -1,6 +1,10 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata, ExplorerFamily } from '../metadata/chainMetadataTypes';
+import {
+  ChainMetadata,
+  ChainTechnicalStack,
+  ExplorerFamily,
+} from '../metadata/chainMetadataTypes';
 import { ChainMap } from '../types';
 
 import { Chains, Mainnets, Testnets } from './chains';
@@ -70,6 +74,7 @@ export const arbitrum: ChainMetadata = {
   name: Chains.arbitrum,
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
+  technicalStack: ChainTechnicalStack.ArbitrumNitro,
   rpcUrls: [{ http: 'https://arb1.arbitrum.io/rpc' }],
 };
 
@@ -87,6 +92,7 @@ export const arbitrumgoerli: ChainMetadata = {
   name: Chains.arbitrumgoerli,
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
+  technicalStack: ChainTechnicalStack.ArbitrumNitro,
   rpcUrls: [{ http: 'https://goerli-rollup.arbitrum.io/rpc' }],
 };
 
