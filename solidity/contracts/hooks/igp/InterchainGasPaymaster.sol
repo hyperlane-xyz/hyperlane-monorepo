@@ -13,6 +13,8 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+import "forge-std/console.sol";
+
 // ============ Internal Imports ============
 import {Message} from "../../libs/Message.sol";
 import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
@@ -167,6 +169,12 @@ contract InterchainGasPaymaster is
             _destinationDomain,
             _gasLimit
         );
+        console.log(
+            "IGP: payForGas",
+            _destinationDomain,
+            _gasLimit,
+            _requiredPayment
+        );
         require(
             msg.value >= _requiredPayment,
             "IGP: insufficient interchain gas payment"
@@ -264,6 +272,10 @@ contract InterchainGasPaymaster is
         bytes calldata metadata,
         bytes calldata message
     ) internal override {
+        console.log(
+            "IGP: _postDispatch gasLimit",
+            metadata.gasLimit(DEFAULT_GAS_USAGE)
+        );
         payForGas(
             message.id(),
             message.destination(),
