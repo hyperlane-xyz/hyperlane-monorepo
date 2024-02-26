@@ -18,6 +18,7 @@ export const safes: ChainMap<Address | undefined> = {
   optimism: '0xb523CFAf45AACF472859f8B793CB0BFDB16bD257',
   moonbeam: '0xF0cb1f968Df01fc789762fddBfA704AE0F952197',
   gnosis: '0x36b0AA0e7d04e7b825D7E409FEa3c9A3d57E4C22',
+  inevm: '0x77F3863ea99F2360D84d4BA1A2E441857D0357fa', // caldera + injective
   // solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
 };
 
@@ -27,7 +28,7 @@ export const owners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => [
     local,
     {
-      owner: deployer, // TODO: change this to the safe
+      owner: safes[local] ?? deployer,
       ownerOverrides: {
         proxyAdmin: timelocks[local] ?? safes[local] ?? deployer,
       },
