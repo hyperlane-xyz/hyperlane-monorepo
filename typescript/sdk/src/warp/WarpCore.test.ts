@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 import sinon from 'sinon';
-import { parse } from 'yaml';
+import { parse as yamlParse } from 'yaml';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { Chains } from '../consts/chains';
@@ -29,12 +29,14 @@ describe('WarpCore', () => {
   let evmHypSynthetic: Token;
   let sealevelHypSynthetic: Token;
   let cwHypCollateral: Token;
+  let cw20: Token;
+  let cosmosIbc: Token;
 
   it('Constructs', () => {
     const fromArgs = new WarpCore(multiProvider, [
       Token.FromChainMetadataNativeToken(chainMetadata[Chains.ethereum]),
     ]);
-    const exampleConfig = parse(
+    const exampleConfig = yamlParse(
       fs.readFileSync(
         path.join(__dirname, './example-warp-core-config.yaml'),
         'utf-8',
@@ -43,11 +45,17 @@ describe('WarpCore', () => {
     const fromConfig = WarpCore.FromConfig(multiProvider, exampleConfig);
     expect(fromArgs).to.be.instanceOf(WarpCore);
     expect(fromConfig).to.be.instanceOf(WarpCore);
-    expect(fromConfig.tokens.length).to.equal(5);
+    expect(fromConfig.tokens.length).to.equal(exampleConfig.tokens.length);
 
     warpCore = fromConfig;
-    [evmHypNative, evmHypSynthetic, sealevelHypSynthetic, cwHypCollateral] =
-      warpCore.tokens;
+    [
+      evmHypNative,
+      evmHypSynthetic,
+      sealevelHypSynthetic,
+      cwHypCollateral,
+      cw20,
+      cosmosIbc,
+    ] = warpCore.tokens;
   });
 
   it('Finds tokens', () => {
@@ -57,6 +65,9 @@ describe('WarpCore', () => {
     expect(
       warpCore.findToken(Chains.ethereum, sealevelHypSynthetic.addressOrDenom),
     ).to.be.null;
+    expect(
+      warpCore.findToken(Chains.neutron, cw20.addressOrDenom),
+    ).to.be.instanceOf(Token);
   });
 
   it('Gets transfer gas quote', async () => {
@@ -92,6 +103,7 @@ describe('WarpCore', () => {
       Chains.ethereum,
       TokenStandard.SealevelNative,
     );
+    await testQuote(cosmosIbc, Chains.arbitrum, TokenStandard.CosmosNative);
     // Note, this route uses an igp quote const config
     await testQuote(
       cwHypCollateral,
@@ -244,6 +256,7 @@ describe('WarpCore', () => {
       ProviderType.SolanaWeb3,
     );
     await testGetTxs(cwHypCollateral, Chains.arbitrum, ProviderType.CosmJsWasm);
+    await testGetTxs(cosmosIbc, Chains.arbitrum, ProviderType.CosmJs);
 
     coreStub.restore();
     adapterStubs.forEach((s) => s.restore());

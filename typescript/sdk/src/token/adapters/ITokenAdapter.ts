@@ -5,21 +5,20 @@ import { MinimalTokenMetadata } from '../config';
 export interface TransferParams {
   weiAmountOrId: Numberish;
   recipient: Address;
-
-  // Solana-specific params
-  // Included here optionally to keep Adapter types simple
-  fromTokenAccount?: Address;
+  // Required for Cosmos + Solana
   fromAccountOwner?: Address;
-}
-
-export interface InterchainGasQuote {
-  addressOrDenom?: string; // undefined values represent default native tokens
-  amount: bigint;
+  // Required for Solana
+  fromTokenAccount?: Address;
 }
 
 export interface TransferRemoteParams extends TransferParams {
   destination: Domain;
   interchainGas?: InterchainGasQuote;
+}
+
+export interface InterchainGasQuote {
+  addressOrDenom?: string; // undefined values represent default native tokens
+  amount: bigint;
 }
 
 export interface ITokenAdapter<Tx> {

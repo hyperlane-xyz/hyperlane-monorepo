@@ -8,7 +8,8 @@ import { chainMetadata } from '../consts/chainMetadata';
 import { Chains } from '../consts/chains';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
 
-import { Token, TokenArgs } from './Token';
+import { TokenArgs } from './IToken';
+import { Token } from './Token';
 import { TokenStandard } from './TokenStandard';
 
 // null values represent TODOs here, ideally all standards should be tested
@@ -90,8 +91,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     decimals: 6,
     symbol: 'TIA',
     name: 'TIA',
-    sourcePort: 'transfer',
-    sourceChannel: 'channel-8',
   },
   [TokenStandard.CW20]: null,
   [TokenStandard.CWNative]: {

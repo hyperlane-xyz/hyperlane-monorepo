@@ -1,11 +1,11 @@
 import { Numberish, fromWei } from '@hyperlane-xyz/utils';
 
-import type { Token } from './Token';
+import type { IToken } from './IToken';
 
 export class TokenAmount {
   public readonly amount: bigint;
 
-  constructor(_amount: Numberish, public readonly token: Token) {
+  constructor(_amount: Numberish, public readonly token: IToken) {
     this.amount = BigInt(_amount);
   }
 

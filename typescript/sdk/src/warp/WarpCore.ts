@@ -3,15 +3,19 @@ import debug, { Debugger } from 'debug';
 import {
   Address,
   ProtocolType,
+  assert,
   convertDecimals,
   isValidAddress,
 } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
-import { PROTOCOL_TO_DEFAULT_PROVIDER_TYPE } from '../providers/ProviderType';
+import { IToken } from '../token/IToken';
 import { Token } from '../token/Token';
 import { TokenAmount } from '../token/TokenAmount';
-import { TOKEN_COLLATERALIZED_STANDARDS } from '../token/TokenStandard';
+import {
+  TOKEN_COLLATERALIZED_STANDARDS,
+  TOKEN_STANDARD_TO_PROVIDER_TYPE,
+} from '../token/TokenStandard';
 import { ChainName, ChainNameOrId } from '../types';
 
 import {
@@ -60,24 +64,26 @@ export class WarpCore {
         new Token({
           ...t,
           addressOrDenom: t.addressOrDenom || '',
-          connectedTokens: undefined,
+          connections: undefined,
         }),
     );
     // Connect tokens together
     parsedConfig.tokens.forEach((config, i) => {
-      for (const connection of config.connectedTokens || []) {
+      for (const connection of config.connections || []) {
         const token1 = tokens[i];
         // TODO see https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3298
-        const [_protocol, chainName, addrOrDenom] = connection.split('|');
+        const [_protocol, chainName, addrOrDenom] = connection.token.split('|');
         const token2 = tokens.find(
           (t) => t.chainName === chainName && t.addressOrDenom === addrOrDenom,
         );
-        if (!token2) {
-          throw new Error(
-            `Connected token not found: ${chainName} ${addrOrDenom}`,
-          );
-        }
-        token1.addConnectedToken(token2);
+        assert(
+          token2,
+          `Connected token not found: ${chainName} ${addrOrDenom}`,
+        );
+        token1.addConnection({
+          ...connection,
+          token: token2,
+        });
       }
     });
     // Create new Warp
@@ -88,7 +94,7 @@ export class WarpCore {
   }
 
   async getTransferGasQuote(
-    originToken: Token,
+    originToken: IToken,
     destination: ChainNameOrId,
   ): Promise<TokenAmount> {
     const { chainName: originName } = originToken;
@@ -105,7 +111,10 @@ export class WarpCore {
       gasAddressOrDenom = defaultQuote.addressOrDenom;
     } else {
       // Otherwise, compute IGP quote via the adapter
-      const hypAdapter = originToken.getHypAdapter(this.multiProvider);
+      const hypAdapter = originToken.getHypAdapter(
+        this.multiProvider,
+        destinationName,
+      );
       const destinationDomainId = this.multiProvider.getDomainId(destination);
       const quote = await hypAdapter.quoteGasPayment(destinationDomainId);
       gasAmount = BigInt(quote.amount);
@@ -120,8 +129,7 @@ export class WarpCore {
       );
     } else {
       const searchResult = this.findToken(originName, gasAddressOrDenom);
-      if (!searchResult)
-        throw new Error(`IGP token ${gasAddressOrDenom} is unknown`);
+      assert(searchResult, `IGP token ${gasAddressOrDenom} is unknown`);
       igpToken = searchResult;
     }
 
@@ -138,9 +146,10 @@ export class WarpCore {
     const transactions: Array<WarpTypedTransaction> = [];
 
     const { token, amount } = originTokenAmount;
+    const destinationName = this.multiProvider.getChainName(destination);
     const destinationDomainId = this.multiProvider.getDomainId(destination);
-    const providerType = PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[token.protocol];
-    const hypAdapter = token.getHypAdapter(this.multiProvider);
+    const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
+    const hypAdapter = token.getHypAdapter(this.multiProvider, destinationName);
 
     if (await this.isApproveRequired(originTokenAmount, sender)) {
       this.logger(`Approval required for transfer of ${token.symbol}`);
@@ -158,13 +167,20 @@ export class WarpCore {
       transactions.push(approveTx);
     }
 
-    const igpQuote = await this.getTransferGasQuote(token, destination);
+    const interchainGasAmount = await this.getTransferGasQuote(
+      token,
+      destination,
+    );
 
     const transferTxReq = await hypAdapter.populateTransferRemoteTx({
       weiAmountOrId: amount.toString(),
       destination: destinationDomainId,
+      fromAccountOwner: sender,
       recipient,
-      interchainGas: igpQuote,
+      interchainGas: {
+        amount: interchainGasAmount.amount,
+        addressOrDenom: interchainGasAmount.token.addressOrDenom,
+      },
     });
     this.logger(`Remote transfer tx for ${token.symbol} populated`);
 
@@ -191,11 +207,9 @@ export class WarpCore {
       `Checking collateral for ${originToken.symbol} to ${destination}`,
     );
 
-    const destinationToken = originToken.connectedTokens?.find(
-      (t) => t.chainName === destinationName,
-    );
-    if (!destinationToken)
-      throw new Error(`No destination token found for ${destinationName}`);
+    const destinationToken =
+      originToken.getConnectionForChain(destinationName)?.token;
+    assert(destinationToken, `No connection found for ${destinationName}`);
 
     if (!TOKEN_COLLATERALIZED_STANDARDS.includes(destinationToken.standard)) {
       this.logger(`${destinationToken.symbol} is not collateralized, skipping`);
@@ -425,9 +439,7 @@ export class WarpCore {
    */
   getTokensForRoute(origin: ChainName, destination: ChainName): Token[] {
     return this.tokens.filter(
-      (t) =>
-        t.chainName === origin &&
-        t.connectedTokens?.some((rt) => rt.chainName === destination),
+      (t) => t.chainName === origin && t.getConnectionForChain(destination),
     );
   }
 }

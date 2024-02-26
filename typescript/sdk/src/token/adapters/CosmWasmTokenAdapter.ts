@@ -5,6 +5,7 @@ import {
   Address,
   Domain,
   addressToBytes32,
+  assert,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
@@ -296,8 +297,8 @@ export class CwHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<ExecuteInstruction> {
     if (!interchainGas) interchainGas = await this.quoteGasPayment(destination);
-    if (!interchainGas.addressOrDenom)
-      throw new Error('Interchain gas denom required for Cosmos');
+    const { addressOrDenom: igpDenom, amount: igpAmount } = interchainGas;
+    assert(igpDenom, 'Interchain gas denom required for Cosmos');
 
     return this.prepareRouter(
       {
@@ -309,8 +310,8 @@ export class CwHypSyntheticAdapter
       },
       [
         {
-          amount: interchainGas.amount.toString(),
-          denom: interchainGas.addressOrDenom,
+          amount: igpAmount.toString(),
+          denom: igpDenom,
         },
       ],
     );
@@ -386,13 +387,11 @@ export class CwHypNativeAdapter
     const collateralDenom = await this.getDenom();
 
     if (!interchainGas) interchainGas = await this.quoteGasPayment(destination);
-    const { addressOrDenom: igpAddressOrDenom, amount: igpAmount } =
-      interchainGas;
-    if (!igpAddressOrDenom)
-      throw new Error('Interchain gas denom required for Cosmos');
+    const { addressOrDenom: igpDenom, amount: igpAmount } = interchainGas;
+    assert(igpDenom, 'Interchain gas denom required for Cosmos');
 
     const funds: Coin[] =
-      collateralDenom === igpAddressOrDenom
+      collateralDenom === igpDenom
         ? [
             {
               amount: (BigInt(weiAmountOrId) + igpAmount).toString(),
@@ -406,7 +405,7 @@ export class CwHypNativeAdapter
             },
             {
               amount: igpAmount.toString(),
-              denom: igpAddressOrDenom,
+              denom: igpDenom,
             },
           ];
 

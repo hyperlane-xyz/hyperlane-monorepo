@@ -1,4 +1,9 @@
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
+
+import {
+  PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
+  ProviderType,
+} from '../providers/ProviderType';
 
 export enum TokenStandard {
   // EVM
@@ -70,6 +75,14 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   // Fuel (TODO)
   FuelNative: ProtocolType.Fuel,
 };
+
+export const TOKEN_STANDARD_TO_PROVIDER_TYPE: Record<
+  TokenStandard,
+  ProviderType
+> = objMap(TOKEN_STANDARD_TO_PROTOCOL, (k, v) => {
+  if (k.startsWith('Cosmos')) return ProviderType.CosmJs;
+  return PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[v];
+});
 
 export const TOKEN_NFT_STANDARDS = [
   TokenStandard.ERC721,

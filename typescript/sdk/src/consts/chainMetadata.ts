@@ -1036,7 +1036,7 @@ export const viction: ChainMetadata = {
       apiUrl: 'https://www.vicscan.xyz/api',
       family: ExplorerFamily.Other,
       name: 'Vicscan',
-      url: 'https://www.vicscan.xyz/',
+      url: 'https://www.vicscan.xyz',
     },
   ],
   blocks: {
@@ -1056,7 +1056,7 @@ export const viction: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
     {
-      http: 'https://rpc.tomochain.com/',
+      http: 'https://rpc.tomochain.com',
     },
     {
       http: 'https://viction.blockpi.network/v1/rpc/public',

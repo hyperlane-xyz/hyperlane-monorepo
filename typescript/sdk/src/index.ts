@@ -86,14 +86,14 @@ export {
   OwnerViolation,
   ViolationType,
 } from './deploy/types';
-export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
+export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier';
 export {
+  BuildArtifact,
   CompilerOptions,
   ContractVerificationInput,
-  VerificationInput,
   ExplorerLicenseType,
-  BuildArtifact,
+  VerificationInput,
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
@@ -136,7 +136,6 @@ export {
   ProtocolFeeHookConfig,
 } from './hook/types';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory';
-export { collectValidators, moduleCanCertainlyVerify } from './ism/utils';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
@@ -153,6 +152,7 @@ export {
   PausableIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
+export { collectValidators, moduleCanCertainlyVerify } from './ism/utils';
 export {
   ChainMetadataManager,
   ChainMetadataManagerOptions,
@@ -322,8 +322,17 @@ export {
   RouterViolationType,
   proxiedFactories,
 } from './router/types';
+export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken';
 export { Token } from './token/Token';
 export { TokenAmount } from './token/TokenAmount';
+export {
+  HyperlaneTokenConnection,
+  IbcToHyperlaneTokenConnection,
+  IbcTokenConnection,
+  TokenConnection,
+  TokenConnectionConfigSchema,
+  TokenConnectionType,
+} from './token/TokenConnection';
 export {
   PROTOCOL_TO_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
@@ -422,4 +431,6 @@ export {
   RouteBlacklist,
   WarpCoreConfig,
   WarpCoreConfigSchema,
+  WarpTxCategory,
+  WarpTypedTransaction,
 } from './warp/types';

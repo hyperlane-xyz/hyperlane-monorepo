@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/no-empty-interface */
+import { MsgTransferEncodeObject } from '@cosmjs/stargate';
+
 import {
   Address,
   Numberish,
   ProtocolType,
+  assert,
   eqAddress,
 } from '@hyperlane-xyz/utils';
 
@@ -10,10 +13,13 @@ import { ChainMetadata } from '../metadata/chainMetadataTypes';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
 import { ChainName } from '../types';
 
+import type { IToken, TokenArgs } from './IToken';
 import { TokenAmount } from './TokenAmount';
+import { TokenConnection, TokenConnectionType } from './TokenConnection';
 import {
   PROTOCOL_TO_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
+  TOKEN_HYP_STANDARDS,
   TOKEN_MULTI_CHAIN_STANDARDS,
   TOKEN_NFT_STANDARDS,
   TOKEN_STANDARD_TO_PROTOCOL,
@@ -27,6 +33,7 @@ import {
   CwTokenAdapter,
 } from './adapters/CosmWasmTokenAdapter';
 import {
+  CosmIbcToWarpTokenAdapter,
   CosmIbcTokenAdapter,
   CosmNativeTokenAdapter,
 } from './adapters/CosmosTokenAdapter';
@@ -37,7 +44,7 @@ import {
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './adapters/EvmTokenAdapter';
-import { IHypTokenAdapter, ITokenAdapter } from './adapters/ITokenAdapter';
+import type { IHypTokenAdapter, ITokenAdapter } from './adapters/ITokenAdapter';
 import {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
@@ -46,28 +53,11 @@ import {
   SealevelTokenAdapter,
 } from './adapters/SealevelTokenAdapter';
 
-export interface TokenArgs {
-  chainName: ChainName;
-  standard: TokenStandard;
-  decimals: number;
-  symbol: string;
-  name: string;
-  addressOrDenom: Address | string;
-  collateralAddressOrDenom?: Address | string;
-  igpTokenAddressOrDenom?: string;
-  logoURI?: string;
-  connectedTokens?: Token[];
-
-  // Cosmos specific:
-  sourcePort?: string;
-  sourceChannel?: string;
-}
-
 // Declaring the interface in addition to class allows
 // Typescript to infer the members vars from TokenArgs
 export interface Token extends TokenArgs {}
 
-export class Token {
+export class Token implements IToken {
   public readonly protocol: ProtocolType;
 
   constructor(args: TokenArgs) {
@@ -76,12 +66,12 @@ export class Token {
   }
 
   static FromChainMetadataNativeToken(chainMetadata: ChainMetadata): Token {
-    if (!chainMetadata.nativeToken)
-      throw new Error(
-        `ChainMetadata for ${chainMetadata.name} missing nativeToken`,
-      );
-
     const { protocol, name: chainName, nativeToken, logoURI } = chainMetadata;
+    assert(
+      nativeToken,
+      `ChainMetadata for ${chainMetadata.name} missing nativeToken`,
+    );
+
     return new Token({
       chainName,
       standard: PROTOCOL_TO_NATIVE_STANDARD[protocol],
@@ -101,9 +91,11 @@ export class Token {
   getAdapter(multiProvider: MultiProtocolProvider): ITokenAdapter<unknown> {
     const { standard, chainName, addressOrDenom } = this;
 
-    if (this.isNft()) throw new Error('NFT adapters not yet supported');
-    if (!multiProvider.tryGetChainMetadata(chainName))
-      throw new Error(`Token chain ${chainName} not found in multiProvider`);
+    assert(!this.isNft(), 'NFT adapters not yet supported');
+    assert(
+      multiProvider.tryGetChainMetadata(chainName),
+      `Token chain ${chainName} not found in multiProvider`,
+    );
 
     if (standard === TokenStandard.ERC20) {
       return new EvmTokenAdapter(chainName, multiProvider, {
@@ -147,8 +139,17 @@ export class Token {
         {},
         addressOrDenom,
       );
-    } else if (this.isMultiChainToken()) {
+    } else if (this.isHypToken()) {
       return this.getHypAdapter(multiProvider);
+    } else if (this.isIbcToken()) {
+      // Passing in a stub connection here because it's not required
+      // for an IBC adapter to fulfill the ITokenAdapter interface
+      return this.getIbcAdapter(multiProvider, {
+        token: this,
+        sourcePort: 'transfer',
+        sourceChannel: 'channel-0',
+        type: TokenConnectionType.Ibc,
+      });
     } else {
       throw new Error(`No adapter found for token standard: ${standard}`);
     }
@@ -162,6 +163,7 @@ export class Token {
    */
   getHypAdapter(
     multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
+    destination?: ChainName,
   ): IHypTokenAdapter<unknown> {
     const {
       protocol,
@@ -169,27 +171,27 @@ export class Token {
       chainName,
       addressOrDenom,
       collateralAddressOrDenom,
-      sourcePort,
-      sourceChannel,
     } = this;
     const chainMetadata = multiProvider.tryGetChainMetadata(chainName);
     const mailbox = chainMetadata?.mailbox;
 
-    if (!this.isMultiChainToken())
-      throw new Error(
-        `Token standard ${standard} not applicable to hyp adapter`,
-      );
-    if (this.isNft()) throw new Error('NFT adapters not yet supported');
-    if (!chainMetadata)
-      throw new Error(`Token chain ${chainName} not found in multiProvider`);
+    assert(
+      this.isMultiChainToken(),
+      `Token standard ${standard} not applicable to hyp adapter`,
+    );
+    assert(!this.isNft(), 'NFT adapters not yet supported');
+    assert(
+      chainMetadata,
+      `Token chain ${chainName} not found in multiProvider`,
+    );
 
     let sealevelAddresses;
     if (protocol === ProtocolType.Sealevel) {
-      if (!mailbox) throw new Error('mailbox required for Sealevel hyp tokens');
-      if (!collateralAddressOrDenom)
-        throw new Error(
-          'collateralAddressOrDenom required for Sealevel hyp tokens',
-        );
+      assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
+      assert(
+        collateralAddressOrDenom,
+        `collateralAddressOrDenom required for Sealevel hyp tokens`,
+      );
       sealevelAddresses = {
         warpRouter: addressOrDenom,
         token: collateralAddressOrDenom,
@@ -234,36 +236,71 @@ export class Token {
         warpRouter: addressOrDenom,
       });
     } else if (standard === TokenStandard.CwHypCollateral) {
-      if (!collateralAddressOrDenom)
-        throw new Error(
-          'collateralAddressOrDenom required for CwHypCollateral',
-        );
+      assert(
+        collateralAddressOrDenom,
+        'collateralAddressOrDenom required for CwHypCollateral',
+      );
       return new CwHypCollateralAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
         token: collateralAddressOrDenom,
       });
     } else if (standard === TokenStandard.CwHypSynthetic) {
-      if (!collateralAddressOrDenom)
-        throw new Error(
-          'collateralAddressOrDenom required for CwHypSyntheticAdapter',
-        );
+      assert(
+        collateralAddressOrDenom,
+        'collateralAddressOrDenom required for CwHypSyntheticAdapter',
+      );
       return new CwHypSyntheticAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
         token: collateralAddressOrDenom,
       });
     } else if (standard === TokenStandard.CosmosIbc) {
-      if (!sourcePort || !sourceChannel)
-        throw new Error(
-          'sourcePort and sourceChannel required for IBC token adapters',
-        );
-      return new CosmIbcTokenAdapter(
-        chainName,
-        multiProvider,
-        {},
-        { ibcDenom: addressOrDenom, sourcePort, sourceChannel },
-      );
+      assert(destination, 'destination required for IBC token adapters');
+      const connection = this.getConnectionForChain(destination);
+      assert(connection, `No connection found for chain ${destination}`);
+      return this.getIbcAdapter(multiProvider, connection);
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);
+    }
+  }
+
+  protected getIbcAdapter(
+    multiProvider: MultiProtocolProvider,
+    connection: TokenConnection,
+  ): IHypTokenAdapter<MsgTransferEncodeObject> {
+    if (connection.type === TokenConnectionType.Ibc) {
+      const { sourcePort, sourceChannel } = connection;
+      return new CosmIbcTokenAdapter(
+        this.chainName,
+        multiProvider,
+        {},
+        { ibcDenom: this.addressOrDenom, sourcePort, sourceChannel },
+      );
+    } else if (connection.type === TokenConnectionType.IbcHyperlane) {
+      const {
+        sourcePort,
+        sourceChannel,
+        intermediateChainName,
+        intermediateIbcDenom,
+        intermediateRouterAddress,
+      } = connection;
+      const destinationRouterAddress = connection.token.addressOrDenom;
+      return new CosmIbcToWarpTokenAdapter(
+        this.chainName,
+        multiProvider,
+        {
+          intermediateRouterAddress,
+          destinationRouterAddress,
+        },
+        {
+          ibcDenom: this.addressOrDenom,
+          sourcePort,
+          sourceChannel,
+          intermediateIbcDenom,
+          intermediateChainName,
+        },
+      );
+    } else {
+      throw new Error(`Unsupported IBC connection type: ${connection.type}`);
     }
   }
 
@@ -291,27 +328,35 @@ export class Token {
     return Object.values(PROTOCOL_TO_NATIVE_STANDARD).includes(this.standard);
   }
 
+  isHypToken(): boolean {
+    return TOKEN_HYP_STANDARDS.includes(this.standard);
+  }
+
+  isIbcToken(): boolean {
+    return this.standard === TokenStandard.CosmosIbc;
+  }
+
   isMultiChainToken(): boolean {
     return TOKEN_MULTI_CHAIN_STANDARDS.includes(this.standard);
   }
 
-  getConnectedTokens(): Token[] {
-    return this.connectedTokens || [];
+  getConnections(): TokenConnection[] {
+    return this.connections || [];
   }
 
-  getConnectedTokenForChain(chain: ChainName): Token | undefined {
+  getConnectionForChain(chain: ChainName): TokenConnection | undefined {
     // A token cannot have > 1 connected token for the same chain
-    return this.getConnectedTokens().filter((t) => t.chainName === chain)[0];
+    return this.getConnections().filter((t) => t.token.chainName === chain)[0];
   }
 
-  addConnectedToken(token: Token): Token {
-    this.connectedTokens = [...(this.connectedTokens || []), token];
+  addConnection(connection: TokenConnection): Token {
+    this.connections = [...(this.connections || []), connection];
     return this;
   }
 
-  removeConnectedToken(token: Token): Token {
-    const index = this.connectedTokens?.findIndex((t) => t.equals(token));
-    if (index && index >= 0) this.connectedTokens?.splice(index, 1);
+  removeConnection(token: Token): Token {
+    const index = this.connections?.findIndex((t) => t.token.equals(token));
+    if (index && index >= 0) this.connections?.splice(index, 1);
     return this;
   }
 

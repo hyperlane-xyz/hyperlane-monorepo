@@ -1,6 +1,5 @@
 # An example Warp Core config
 # Contains the token + route data needed to create a Warp Core
-# TODO: updates needed to CLI to generate this
 ---
 tokens:
   # Eth Mainnet HypNative token
@@ -10,10 +9,10 @@ tokens:
     symbol: ETH
     name: Ether
     addressOrDenom: '0x1234567890123456789012345678901234567890'
-    connectedTokens:
-      - ethereum|arbitrum|0x9876543210987654321098765432109876543210
-      - cosmos|neutron|neutron1abcdefghijklmnopqrstuvwxyz1234567890ab
-      - sealevel|solana|s0LaBcEeFgHiJkLmNoPqRsTuVwXyZ456789012345678
+    connections:
+      - {token: ethereum|arbitrum|0x9876543210987654321098765432109876543210}
+      - {token: cosmos|neutron|neutron1abcdefghijklmnopqrstuvwxyz1234567890ab}
+      - {token: sealevel|solana|s0LaBcEeFgHiJkLmNoPqRsTuVwXyZ456789012345678}
   # Arbitrum HypSynthetic token
   - chainName: arbitrum
     standard: EvmHypSynthetic
@@ -21,9 +20,9 @@ tokens:
     symbol: ETH
     name: Ether
     addressOrDenom: '0x9876543210987654321098765432109876543210'
-    connectedTokens:
-      - ethereum|ethereum|0x1234567890123456789012345678901234567890
-      - cosmos|neutron|neutron1abcdefghijklmnopqrstuvwxyz1234567890ab
+    connections:
+      - {token: ethereum|ethereum|0x1234567890123456789012345678901234567890}
+      - {token: cosmos|neutron|neutron1abcdefghijklmnopqrstuvwxyz1234567890ab}
   # Solana HypSynthetic
   - chainName: solana
     standard: SealevelHypSynthetic
@@ -31,8 +30,8 @@ tokens:
     symbol: ETH.sol
     name: Ether on Solana
     addressOrDenom: s0LaBcEeFgHiJkLmNoPqRsTuVwXyZ456789012345678
-    connectedTokens:
-      - ethereum|ethereum|0x1234567890123456789012345678901234567890
+    connections:
+      - {token: ethereum|ethereum|0x1234567890123456789012345678901234567890}
   # Cosmos Neutron HypCollateral token
   - chainName: neutron
     standard: CwHypCollateral
@@ -41,9 +40,9 @@ tokens:
     name: Ether on Neutron
     addressOrDenom: neutron1abcdefghijklmnopqrstuvwxyz1234567890ab
     collateralAddressOrDenom: neutron1c0ll4t3r4lc0ll4t3r4lc0ll4t3r4lc0ll4t3r
-    connectedTokens:
-      - ethereum|ethereum|0x1234567890123456789012345678901234567890
-      - ethereum|arbitrum|0x9876543210987654321098765432109876543210
+    connections:
+      - {token: ethereum|ethereum|0x1234567890123456789012345678901234567890}
+      - {token: ethereum|arbitrum|0x9876543210987654321098765432109876543210}
   # Cosmos Neutron Collateralized token
   - chainName: neutron
     standard: CW20
@@ -51,6 +50,21 @@ tokens:
     symbol: ETH.in
     name: Ether on Neutron
     addressOrDenom: neutron1c0ll4t3r4lc0ll4t3r4lc0ll4t3r4lc0ll4t3r
+  # Cosmos Injective token with IBC two-hop
+  - chainName: injective 
+    standard: CosmosIbc
+    decimals: 18
+    symbol: INJ
+    name: Injective
+    addressOrDenom: inj
+    connections:
+      - token: ethereum|arbitrum|0x9876543210987654321098765432109876543210
+        type: ibc
+        sourcePort: transfer
+        sourceChannel: channel-1
+        intermediateChainName: neutron
+        intermediateIbcDenom: untrn
+        intermediateRouterAddress: neutron1abcdefghijklmnopqrstuvwxyz1234567890ab
 options:
   igpQuoteConstants:
     - origin: neutron
