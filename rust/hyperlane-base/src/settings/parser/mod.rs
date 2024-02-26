@@ -250,7 +250,7 @@ fn parse_domain(chain: ValueParser, name: &str) -> ConfigResult<HyperlaneDomain>
 
     let technical_stack = chain
         .chain(&mut err)
-        .get_opt_key("chainTechnicalStack")
+        .get_opt_key("technicalStack")
         .parse_from_str::<HyperlaneDomainTechnicalStack>("Invalid chain technical stack")
         .end()
         .or_else(|| Some(HyperlaneDomainTechnicalStack::default()));
