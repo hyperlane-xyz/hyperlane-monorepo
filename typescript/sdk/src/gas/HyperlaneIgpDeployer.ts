@@ -7,8 +7,10 @@ import {
 } from '@hyperlane-xyz/core';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
+import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
@@ -20,9 +22,13 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   IgpConfig,
   IgpFactories
 > {
-  constructor(multiProvider: MultiProvider) {
+  constructor(
+    multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
+  ) {
     super(multiProvider, igpFactories, {
       logger: debug('hyperlane:IgpDeployer'),
+      contractVerifier,
     });
   }
 
@@ -43,7 +49,9 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
     for (const [remote, newGasOverhead] of Object.entries(config.overhead)) {
-      const remoteId = this.multiProvider.getDomainId(remote);
+      const remoteId =
+        chainMetadata[remote]?.domainId ??
+        this.multiProvider.getDomainId(remote);
 
       const currentGasConfig = await igp.destinationGasConfigs(remoteId);
       if (
@@ -94,7 +102,10 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     // For each remote, check if the gas oracle has the correct data
     for (const [remote, desired] of Object.entries(config.oracleConfig)) {
-      const remoteDomain = this.multiProvider.getDomainId(remote);
+      // check core metadata for non EVMs and fallback to multiprovider for custom EVMs
+      const remoteDomain =
+        chainMetadata[remote]?.domainId ??
+        this.multiProvider.getDomainId(remote);
 
       const actual = await gasOracle.remoteGasData(remoteDomain);
 

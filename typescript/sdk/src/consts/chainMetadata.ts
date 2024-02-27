@@ -412,6 +412,7 @@ export const inevm: ChainMetadata = {
   displayName: 'Injective EVM',
   displayNameShort: 'inEVM',
   domainId: 2525,
+  gasCurrencyCoinGeckoId: 'injective-protocol',
   name: Chains.inevm,
   nativeToken: {
     decimals: 18,
@@ -433,6 +434,7 @@ export const injective: ChainMetadata = {
   chainId: 'injective-1',
   displayName: 'Injective',
   domainId: 6909546,
+  gasCurrencyCoinGeckoId: 'injective-protocol',
   grpcUrls: [{ http: 'sentry.chain.grpc.injective.network:443' }],
   name: Chains.injective,
   nativeToken: {
@@ -488,6 +490,7 @@ export const mantapacific: ChainMetadata = {
   displayName: 'Manta Pacific',
   displayNameShort: 'Manta',
   domainId: 169,
+  gasCurrencyCoinGeckoId: 'ethereum',
   isTestnet: false,
   name: Chains.mantapacific,
   nativeToken: {
@@ -603,6 +606,7 @@ export const neutron: ChainMetadata = {
   chainId: 'neutron-1',
   displayName: 'Neutron',
   domainId: 1853125230,
+  gasCurrencyCoinGeckoId: 'neutron-3',
   grpcUrls: [{ http: 'grpc-kralum.neutron-1.neutron.org:80' }],
   isTestnet: false,
   name: Chains.neutron,
@@ -1046,6 +1050,7 @@ export const viction: ChainMetadata = {
   chainId: 88,
   displayName: 'Viction',
   domainId: 88,
+  gasCurrencyCoinGeckoId: 'tomochain',
   name: Chains.viction,
   nativeToken: {
     decimals: 18,
