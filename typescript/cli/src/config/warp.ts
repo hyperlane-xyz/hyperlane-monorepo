@@ -119,7 +119,7 @@ export async function createWarpDeployConfig({
     writeYamlOrJson(outPath, result, format);
   } else {
     errorRed(
-      `Warp config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-tokens.yaml for an example`,
+      `Warp config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-deployment.yaml for an example`,
     );
     throw new Error('Invalid multisig config');
   }
