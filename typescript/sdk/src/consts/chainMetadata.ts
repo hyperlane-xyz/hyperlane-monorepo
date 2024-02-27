@@ -687,7 +687,7 @@ export const plumetestnet: ChainMetadata = {
   blocks: {
     confirmations: 1,
     estimateBlockTime: 3,
-    reorgPeriod: 1,
+    reorgPeriod: 0,
   },
   chainId: 161221135,
   displayName: 'Plume Testnet',
