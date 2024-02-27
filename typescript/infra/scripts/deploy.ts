@@ -31,6 +31,7 @@ import {
   extractBuildArtifact,
   fetchExplorerApiKeys,
 } from '../src/deployment/verify';
+import { Role } from '../src/roles';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
 import {
@@ -69,7 +70,12 @@ async function main() {
     });
     await useLocalProvider(multiProvider, fork);
 
-    const signer = await impersonateAccount(envConfig.owners[fork].owner);
+    const deployers = await envConfig.getKeys(
+      Contexts.Hyperlane,
+      Role.Deployer,
+    );
+    const signer = await impersonateAccount(deployers[fork].address);
+
     multiProvider.setSharedSigner(signer);
   }
 
