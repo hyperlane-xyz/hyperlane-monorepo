@@ -13,8 +13,6 @@ pragma solidity ^0.8.13;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
-import "forge-std/console.sol";
-
 // ============ Internal Imports ============
 import {OwnableMulticall} from "./libs/OwnableMulticall.sol";
 import {InterchainAccountMessage} from "./libs/InterchainAccountMessage.sol";
