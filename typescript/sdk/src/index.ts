@@ -182,6 +182,7 @@ export {
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,
+  ChainTechnicalStack,
   ExplorerFamily,
   ExplorerFamilyValue,
   RpcUrl,
