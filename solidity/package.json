@@ -31,6 +31,7 @@
     "test": "test"
   },
   "files": [
+    "/buildArtifact.json",
     "/dist",
     "/contracts",
     "/interfaces",
@@ -45,12 +46,11 @@
   "main": "dist/index.js",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
-    "build": "hardhat compile && tsc",
+    "build": "hardhat compile && ./exportBuildArtifact.sh && tsc",
     "lint": "solhint contracts/**/*.sol",
     "clean": "hardhat clean && rm -rf ./dist ./cache ./types ./coverage",
     "coverage": "./coverage.sh",
     "docs": "forge doc",
-    "flatten": "./flatten.sh",
     "storage": "./storage.sh",
     "prettier": "prettier --write ./contracts ./test",
     "test": "hardhat test && forge test -vvv",

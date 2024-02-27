@@ -5,8 +5,9 @@ use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
     GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
-    HyperlaneSequenceIndexerStore, HyperlaneWatermarkedLogStore, InterchainGasExpenditure,
-    InterchainGasPayment, InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, H256,
+    HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore,
+    InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta,
+    MerkleTreeInsertion, H256,
 };
 
 use super::{
@@ -281,7 +282,7 @@ impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
 }
 
 #[async_trait]
-impl HyperlaneSequenceIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
+impl HyperlaneSequenceAwareIndexerStoreReader<HyperlaneMessage> for HyperlaneRocksDB {
     /// Gets data by its sequence.
     async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<HyperlaneMessage>> {
         let message = self.retrieve_message_by_nonce(sequence)?;
@@ -289,14 +290,14 @@ impl HyperlaneSequenceIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
     }
 
     /// Gets the block number at which the log occurred.
-    async fn retrieve_log_block_number(&self, sequence: u32) -> Result<Option<u64>> {
+    async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> Result<Option<u64>> {
         let number = self.retrieve_dispatched_block_number_by_nonce(&sequence)?;
         Ok(number)
     }
 }
 
 #[async_trait]
-impl HyperlaneSequenceIndexerStore<MerkleTreeInsertion> for HyperlaneRocksDB {
+impl HyperlaneSequenceAwareIndexerStoreReader<MerkleTreeInsertion> for HyperlaneRocksDB {
     /// Gets data by its sequence.
     async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<MerkleTreeInsertion>> {
         let insertion = self.retrieve_merkle_tree_insertion_by_leaf_index(&sequence)?;
@@ -304,7 +305,7 @@ impl HyperlaneSequenceIndexerStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     }
 
     /// Gets the block number at which the log occurred.
-    async fn retrieve_log_block_number(&self, sequence: u32) -> Result<Option<u64>> {
+    async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> Result<Option<u64>> {
         let number = self.retrieve_merkle_tree_insertion_block_number_by_leaf_index(&sequence)?;
         Ok(number)
     }

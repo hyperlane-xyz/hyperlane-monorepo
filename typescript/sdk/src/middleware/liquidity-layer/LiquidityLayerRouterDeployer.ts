@@ -11,6 +11,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
 } from '../../contracts/types';
+import { ContractVerifier } from '../../deploy/verify/ContractVerifier';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
 import { RouterConfig } from '../../router/types';
@@ -57,8 +58,13 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
 > {
   readonly routerContractName = 'liquidityLayerRouter';
 
-  constructor(multiProvider: MultiProvider) {
-    super(multiProvider, liquidityLayerFactories);
+  constructor(
+    multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
+  ) {
+    super(multiProvider, liquidityLayerFactories, {
+      contractVerifier,
+    });
   }
 
   async constructorArgs(
