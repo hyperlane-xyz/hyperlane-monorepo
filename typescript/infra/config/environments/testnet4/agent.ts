@@ -36,20 +36,6 @@ const contextBase = {
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
-  // Because Plume doesn't comply well with estimateRetryableTicket,
-  // for now we'll just enforce a minimum gas payment.
-  {
-    type: GasPaymentEnforcementPolicyType.Minimum,
-    payment: '1',
-    matchingList: [
-      {
-        originDomain: getDomainId(chainMetadata.sepolia),
-        senderAddress: '*',
-        destinationDomain: getDomainId(chainMetadata.plumetestnet),
-        recipientAddress: '*',
-      },
-    ],
-  },
   // Default policy is OnChainFeeQuoting
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
