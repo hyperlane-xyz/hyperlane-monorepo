@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import "forge-std/console.sol";
-
 import {Test} from "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
@@ -400,13 +398,13 @@ contract InterchainAccountRouterTest is Test {
         uint64 overpayment,
         bytes32 data
     ) public {
+        // arrange
         bytes memory metadata = StandardHookMetadata.formatMetadata(
             0,
             gasLimit,
             address(this),
             ""
         );
-        // arrange
         originRouter.enrollRemoteRouterAndIsm(
             destination,
             routerOverride,
