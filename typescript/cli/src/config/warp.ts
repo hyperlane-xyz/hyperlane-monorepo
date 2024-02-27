@@ -20,7 +20,7 @@ const ConnectionConfigSchema = {
   foreignDeployment: z.string().optional(),
 };
 
-export const WarpRouteConfigSchema = z.object({
+export const WarpDeployConfigSchema = z.object({
   base: z.object({
     type: z.literal(TokenType.native).or(z.literal(TokenType.collateral)),
     chainName: z.string(),
@@ -44,17 +44,17 @@ export const WarpRouteConfigSchema = z.object({
     .nonempty(),
 });
 
-type InferredType = z.infer<typeof WarpRouteConfigSchema>;
+type InferredType = z.infer<typeof WarpDeployConfigSchema>;
 // A workaround for Zod's terrible typing for nonEmpty arrays
-export type WarpRouteConfig = {
+export type WarpDeployConfig = {
   base: InferredType['base'];
   synthetics: Array<InferredType['synthetics'][0]>;
 };
 
-export function readWarpRouteConfig(filePath: string) {
+export function readWarpDeployConfig(filePath: string) {
   const config = readYamlOrJson(filePath);
-  if (!config) throw new Error(`No warp config found at ${filePath}`);
-  const result = WarpRouteConfigSchema.safeParse(config);
+  if (!config) throw new Error(`No warp deploy config found at ${filePath}`);
+  const result = WarpDeployConfigSchema.safeParse(config);
   if (!result.success) {
     const firstIssue = result.error.issues[0];
     throw new Error(
@@ -64,11 +64,11 @@ export function readWarpRouteConfig(filePath: string) {
   return result.data;
 }
 
-export function isValidWarpRouteConfig(config: any) {
-  return WarpRouteConfigSchema.safeParse(config).success;
+export function isValidWarpDeployConfig(config: any) {
+  return WarpDeployConfigSchema.safeParse(config).success;
 }
 
-export async function createWarpConfig({
+export async function createWarpDeployConfig({
   format,
   outPath,
   chainConfigPath,
@@ -77,7 +77,7 @@ export async function createWarpConfig({
   outPath: string;
   chainConfigPath: string;
 }) {
-  logBlue('Creating a new warp route config');
+  logBlue('Creating a new warp route deployment config');
   const customChains = readChainConfigsIfExists(chainConfigPath);
   const baseChain = await runSingleChainSelectionStep(
     customChains,
@@ -104,7 +104,7 @@ export async function createWarpConfig({
 
   // TODO add more prompts here to support customizing the token metadata
 
-  const result: WarpRouteConfig = {
+  const result: WarpDeployConfig = {
     base: {
       chainName: baseChain,
       type: baseType,
@@ -114,7 +114,7 @@ export async function createWarpConfig({
     synthetics: syntheticChains.map((chain) => ({ chainName: chain })),
   };
 
-  if (isValidWarpRouteConfig(result)) {
+  if (isValidWarpDeployConfig(result)) {
     logGreen(`Warp Route config is valid, writing to file ${outPath}`);
     writeYamlOrJson(outPath, result, format);
   } else {

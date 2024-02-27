@@ -12,6 +12,7 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
 import { IToken } from '../token/IToken';
 import { Token } from '../token/Token';
 import { TokenAmount } from '../token/TokenAmount';
+import { parseTokenConnectionId } from '../token/TokenConnection';
 import {
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
@@ -71,14 +72,16 @@ export class WarpCore {
     parsedConfig.tokens.forEach((config, i) => {
       for (const connection of config.connections || []) {
         const token1 = tokens[i];
-        // TODO see https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3298
-        const [_protocol, chainName, addrOrDenom] = connection.token.split('|');
+        const { chainName, addressOrDenom } = parseTokenConnectionId(
+          connection.token,
+        );
         const token2 = tokens.find(
-          (t) => t.chainName === chainName && t.addressOrDenom === addrOrDenom,
+          (t) =>
+            t.chainName === chainName && t.addressOrDenom === addressOrDenom,
         );
         assert(
           token2,
-          `Connected token not found: ${chainName} ${addrOrDenom}`,
+          `Connected token not found: ${chainName} ${addressOrDenom}`,
         );
         token1.addConnection({
           ...connection,

@@ -133,8 +133,9 @@ const warpCommand: CommandModule = {
     yargs.options({
       config: {
         type: 'string',
-        description: 'A path to a JSON or YAML file with a warp config.',
-        default: './configs/warp-tokens.yaml',
+        description:
+          'A path to a JSON or YAML file with a warp deployment config.',
+        default: './configs/warp-deployment.yaml',
       },
       core: coreArtifactsOption,
       chains: chainsCommandOption,
@@ -145,14 +146,14 @@ const warpCommand: CommandModule = {
   handler: async (argv: any) => {
     const key: string = argv.key || ENV.HYP_KEY;
     const chainConfigPath: string = argv.chains;
-    const warpConfigPath: string | undefined = argv.config;
+    const warpDeploymentConfigPath: string | undefined = argv.config;
     const coreArtifactsPath: string | undefined = argv.core;
     const outPath: string = argv.out;
     const skipConfirmation: boolean = argv.yes;
     await runWarpDeploy({
       key,
       chainConfigPath,
-      warpConfigPath,
+      warpDeploymentConfigPath,
       coreArtifactsPath,
       outPath,
       skipConfirmation,

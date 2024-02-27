@@ -68,7 +68,7 @@ echo "Deploying warp routes"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
     --chains ./examples/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
-    --config ./examples/warp-tokens.yaml \
+    --config ./examples/warp-deployment.yaml \
     --out /tmp \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
