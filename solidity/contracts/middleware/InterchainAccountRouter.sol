@@ -235,18 +235,12 @@ contract InterchainAccountRouter is Router {
     ) external payable returns (bytes32) {
         bytes32 _router = routers(_destination);
         bytes32 _ism = isms[_destination];
-        bytes memory _body = InterchainAccountMessage.encode(
-            msg.sender,
-            _ism,
-            _calls
-        );
-
         return
-            _dispatchMessageWithMetadata(
+            callRemoteWithOverrides(
                 _destination,
                 _router,
                 _ism,
-                _body,
+                _calls,
                 _metadata
             );
     }
@@ -458,7 +452,21 @@ contract InterchainAccountRouter is Router {
         bytes32 _ism,
         CallLib.Call[] calldata _calls,
         bytes memory _metadata
-    ) public returns (bytes32) {}
+    ) public payable returns (bytes32) {
+        bytes memory _body = InterchainAccountMessage.encode(
+            msg.sender,
+            _ism,
+            _calls
+        );
+        return
+            _dispatchMessageWithMetadata(
+                _destination,
+                _router,
+                _ism,
+                _body,
+                _metadata
+            );
+    }
 
     // ============ Internal Functions ============
 
