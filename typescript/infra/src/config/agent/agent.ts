@@ -2,14 +2,15 @@ import {
   AgentChainMetadata,
   AgentSignerAwsKey,
   AgentSignerKeyType,
+  ChainMap,
   ChainName,
   RpcConsensusType,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../../config/contexts';
-import { AgentChainNames, Role } from '../../roles';
+import { AgentChainNames, AgentRole, Role } from '../../roles';
 import { DeployEnvironment } from '../environment';
 import { HelmImageValues } from '../infrastructure';
 
@@ -206,4 +207,40 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
     default:
       return { type: AgentSignerKeyType.Hex };
   }
+}
+
+export type AgentChainConfig = Record<AgentRole, ChainMap<boolean>>;
+
+export function getAgentChainNamesFromConfig(
+  config: AgentChainConfig,
+  supportedChainNames: ChainName[],
+): AgentChainNames {
+  return objMap(config, (role, roleConfig) => {
+    const chainKeys = new Set(Object.keys(roleConfig));
+    const missingSupported = supportedChainNames.filter(
+      (chain) => !chainKeys.has(chain),
+    );
+    const unknownChains = Array.from(chainKeys).filter(
+      (chain) => !supportedChainNames.includes(chain),
+    );
+
+    if (
+      chainKeys.size !== supportedChainNames.length &&
+      !supportedChainNames.every((chain) => chainKeys.has(chain))
+    ) {
+      console.log(
+        `${role} agent chain config does not match supported chain names. Missing:`,
+        missingSupported,
+        'Unknown chains in agent chain config:',
+        unknownChains,
+      );
+      throw Error(
+        `${role} agent chain config does not match supported chain names`,
+      );
+    }
+
+    return Object.entries(roleConfig)
+      .filter(([_chain, enabled]) => enabled)
+      .map(([chain]) => chain);
+  });
 }
