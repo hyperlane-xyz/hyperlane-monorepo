@@ -211,36 +211,38 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
 
 export type AgentChainConfig = Record<AgentRole, ChainMap<boolean>>;
 
+/// Converts an AgentChainConfig to an AgentChainNames object.
 export function getAgentChainNamesFromConfig(
   config: AgentChainConfig,
   supportedChainNames: ChainName[],
 ): AgentChainNames {
-  return objMap(config, (role, roleConfig) => {
-    const chainKeys = new Set(Object.keys(roleConfig));
-    const missingSupported = supportedChainNames.filter(
-      (chain) => !chainKeys.has(chain),
+  ensureAgentChainConfigIncludesAllChainNames(config, supportedChainNames);
+
+  return objMap(config, (role, roleConfig) =>
+    Object.entries(roleConfig)
+      .filter(([_chain, enabled]) => enabled)
+      .map(([chain]) => chain),
+  );
+}
+
+// Throws if any of the roles in the config do not have all the expected chain names.
+export function ensureAgentChainConfigIncludesAllChainNames(
+  config: AgentChainConfig,
+  expectedChainNames: ChainName[],
+) {
+  for (const [role, roleConfig] of Object.entries(config)) {
+    const chainNames = Object.keys(roleConfig);
+    const missingChainNames = expectedChainNames.filter(
+      (chainName) => !chainNames.includes(chainName),
     );
-    const unknownChains = Array.from(chainKeys).filter(
-      (chain) => !supportedChainNames.includes(chain),
+    const unknownChainNames = chainNames.filter(
+      (chainName) => !expectedChainNames.includes(chainName),
     );
 
-    if (
-      chainKeys.size !== supportedChainNames.length &&
-      !supportedChainNames.every((chain) => chainKeys.has(chain))
-    ) {
-      console.log(
-        `${role} agent chain config does not match supported chain names. Missing:`,
-        missingSupported,
-        'Unknown chains in agent chain config:',
-        unknownChains,
-      );
-      throw Error(
-        `${role} agent chain config does not match supported chain names`,
+    if (missingChainNames.length > 0 || unknownChainNames.length > 0) {
+      throw new Error(
+        `${role} agent chain config incorrect. Missing chain names: ${missingChainNames}, unknown chain names: ${unknownChainNames}`,
       );
     }
-
-    return Object.entries(roleConfig)
-      .filter(([_chain, enabled]) => enabled)
-      .map(([chain]) => chain);
-  });
+  }
 }

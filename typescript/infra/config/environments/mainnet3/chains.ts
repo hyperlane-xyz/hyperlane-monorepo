@@ -1,25 +1,23 @@
 import {
   ChainMap,
   ChainMetadata,
-  ChainName,
-  Chains,
-  CoreChainName,
   Mainnets,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
 
-import {
-  AgentChainConfig,
-  getAgentChainNamesFromConfig,
-} from '../../../src/config';
 import { getChainMetadatas } from '../../../src/config/chain';
-import { AgentChainNames, AgentRole, Role } from '../../../src/roles';
+
+// The `Mainnets` from the SDK are all supported chains for the mainnet3 environment.
+// These chains may be any protocol type.
+export const supportedChainNames = Mainnets;
+
+export type MainnetChains = (typeof supportedChainNames)[number];
+export const environment = 'mainnet3';
 
 const {
   ethereumMetadatas: defaultEthereumMainnetConfigs,
   nonEthereumMetadatas: nonEthereumMainnetConfigs,
-} = getChainMetadatas(Mainnets);
+} = getChainMetadatas(supportedChainNames);
 
 export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
   ...defaultEthereumMainnetConfigs,
@@ -58,12 +56,6 @@ export const mainnetConfigs: ChainMap<ChainMetadata> = {
   ...ethereumMainnetConfigs,
   ...nonEthereumMainnetConfigs,
 };
-
-export type MainnetChains = keyof typeof mainnetConfigs;
-export const supportedChainNames = Object.keys(
-  mainnetConfigs,
-) as MainnetChains[];
-export const environment = 'mainnet3';
 
 export const ethereumChainNames = Object.keys(
   ethereumMainnetConfigs,

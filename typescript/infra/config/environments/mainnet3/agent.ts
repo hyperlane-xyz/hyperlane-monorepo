@@ -31,7 +31,12 @@ import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
 
 const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
-const hyperlaneContextAgentChainConfig: AgentChainConfig = {
+// The chains here must be consistent with the environment's supportedChainNames, which is
+// checked & enforced at runtime.
+//
+// This is intentionally separate and not derived from the environment's supportedChainNames
+// to allow for more fine-grained control over which chains are enabled for each agent role.
+export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   [Role.Validator]: {
     [Chains.arbitrum]: true,
     [Chains.avalanche]: true,
@@ -159,10 +164,7 @@ const hyperlane: RootAgentConfig = {
 const releaseCandidate: RootAgentConfig = {
   ...contextBase,
   context: Contexts.ReleaseCandidate,
-  contextChainNames: {
-    ...hyperlaneContextAgentChainNames,
-    [Role.Validator]: ethereumChainNames,
-  },
+  contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
