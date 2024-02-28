@@ -57,7 +57,6 @@ interface HelmHyperlaneValues {
 export interface HelmAgentChainOverride
   extends DeepPartial<AgentChainMetadata> {
   name: AgentChainMetadata['name'];
-  disabled?: boolean;
 }
 
 export interface RootAgentConfig extends AgentContextConfig {

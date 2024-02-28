@@ -32,7 +32,7 @@ import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
 const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
-// checked & enforced at runtime.
+// checked / enforced at runtime & in the CI pipeline.
 //
 // This is intentionally separate and not derived from the environment's supportedChainNames
 // to allow for more fine-grained control over which chains are enabled for each agent role.

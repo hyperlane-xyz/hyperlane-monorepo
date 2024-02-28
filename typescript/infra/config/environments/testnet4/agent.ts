@@ -28,7 +28,7 @@ const releaseCandidateHelloworldMatchingList = routerMatchingList(
 const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
-// checked & enforced at runtime.
+// checked / enforced at runtime & in the CI pipeline.
 //
 // This is intentionally separate and not derived from the environment's supportedChainNames
 // to allow for more fine-grained control over which chains are enabled for each agent role.
@@ -112,7 +112,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd1ff3aa-20240226-122224',
+      tag: '2283f1b-20240228-114839',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -159,7 +159,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '6b5b324-20240223-122143',
+      tag: '2283f1b-20240228-114839',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -167,7 +167,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '6b5b324-20240223-122143',
+      tag: '2283f1b-20240228-114839',
     },
   },
 };
@@ -181,7 +181,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '95fe655-20240222-183959',
+      tag: '2283f1b-20240228-114839',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
@@ -194,7 +194,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '95fe655-20240222-183959',
+      tag: '2283f1b-20240228-114839',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
