@@ -55,6 +55,12 @@
       "0x7bf30afcb6a7d92146d5a910ea4c154fba38d25e"
     ]
   },
+  "eclipsetestnet": {
+    "validators": [
+      "0xf344f34abca9a444545b5295066348a0ae22dda3",
+      "0x8c9D10622298652E644F3cf1B82A26629B7c2950"
+    ]
+  },
   "ethereum": {
     "validators": [
       "0x03c842db86a6a3e524d4a6615390c1ea8e2b9541",
@@ -192,6 +198,12 @@
       "0xb22b65f202558adf86a8bb2847b76ae1036686a5",
       "0x469f0940684d147defc44f3647146cb90dd0bc8e",
       "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
+    ]
+  },
+  "solanatestnet": {
+    "validators": [
+      "0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5",
+      "0xb0437830f05f69a0de0754fCafa9524CfA145a11"
     ]
   },
   "viction": {

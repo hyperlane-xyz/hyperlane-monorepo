@@ -92,7 +92,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     [Chains.base]: true,
     [Chains.scroll]: true,
     [Chains.polygonzkevm]: true,
-    [Chains.injective]: true,
+    // Cannot scrape non-EVM chains
+    [Chains.injective]: false,
     [Chains.inevm]: true,
     // Has RPC non-compliance that breaks scraping.
     [Chains.viction]: false,
