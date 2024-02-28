@@ -86,14 +86,14 @@ export {
   OwnerViolation,
   ViolationType,
 } from './deploy/types';
-export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
+export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier';
 export {
+  BuildArtifact,
   CompilerOptions,
   ContractVerificationInput,
-  VerificationInput,
   ExplorerLicenseType,
-  BuildArtifact,
+  VerificationInput,
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
@@ -136,7 +136,6 @@ export {
   ProtocolFeeHookConfig,
 } from './hook/types';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory';
-export { collectValidators, moduleCanCertainlyVerify } from './ism/utils';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
@@ -153,6 +152,7 @@ export {
   PausableIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
+export { collectValidators, moduleCanCertainlyVerify } from './ism/utils';
 export {
   ChainMetadataManager,
   ChainMetadataManagerOptions,
@@ -323,6 +323,27 @@ export {
   RouterViolationType,
   proxiedFactories,
 } from './router/types';
+export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken';
+export { Token } from './token/Token';
+export { TokenAmount } from './token/TokenAmount';
+export {
+  HyperlaneTokenConnection,
+  IbcToHyperlaneTokenConnection,
+  IbcTokenConnection,
+  TokenConnection,
+  TokenConnectionConfigSchema,
+  TokenConnectionType,
+} from './token/TokenConnection';
+export {
+  PROTOCOL_TO_NATIVE_STANDARD,
+  TOKEN_COLLATERALIZED_STANDARDS,
+  TOKEN_COSMWASM_STANDARDS,
+  TOKEN_HYP_STANDARDS,
+  TOKEN_MULTI_CHAIN_STANDARDS,
+  TOKEN_NFT_STANDARDS,
+  TOKEN_STANDARD_TO_PROTOCOL,
+  TokenStandard,
+} from './token/TokenStandard';
 export {
   CW20Metadata,
   CwHypCollateralAdapter,
@@ -338,11 +359,13 @@ export {
 } from './token/adapters/CosmosTokenAdapter';
 export {
   EvmHypCollateralAdapter,
+  EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './token/adapters/EvmTokenAdapter';
 export {
+  InterchainGasQuote as AdapterInterchainGasQuote,
   IHypTokenAdapter,
   ITokenAdapter,
   TransferParams,
@@ -390,8 +413,8 @@ export { HypERC20Deployer, HypERC721Deployer } from './token/deploy';
 export {
   ChainMap,
   ChainName,
+  ChainNameOrId,
   Connection,
-  NameOrDomain,
   TestChainNames,
 } from './types';
 export { MultiGeneric } from './utils/MultiGeneric';
@@ -403,3 +426,12 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';
+export { WarpCore, WarpCoreOptions } from './warp/WarpCore';
+export {
+  IgpQuoteConstants,
+  RouteBlacklist,
+  WarpCoreConfig,
+  WarpCoreConfigSchema,
+  WarpTxCategory,
+  WarpTypedTransaction,
+} from './warp/types';
