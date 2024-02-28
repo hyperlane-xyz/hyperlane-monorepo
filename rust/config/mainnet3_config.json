@@ -26,6 +26,7 @@
         "symbol": "ETH"
       },
       "protocol": "ethereum",
+      "technicalStack": "arbitrumnitro",
       "rpcUrls": [
         {
           "http": "https://arb1.arbitrum.io/rpc"

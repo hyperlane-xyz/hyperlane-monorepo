@@ -23,6 +23,7 @@ import {
   isEthereumProtocolChain,
   readJSON,
   writeJSON,
+  writeJsonAtPath,
 } from '../utils/utils';
 
 import { AgentAwsKey } from './aws/key';
@@ -433,7 +434,7 @@ export async function persistRoleAddressesToLocalArtifacts(
   // Resolve the relative path
   const filePath = path.resolve(__dirname, `../../config/${role}.json`);
 
-  fs.writeFileSync(filePath, JSON.stringify(addresses, null, 2));
+  writeJsonAtPath(filePath, addresses);
 }
 
 // maintaining the multisigIsm schema sans threshold

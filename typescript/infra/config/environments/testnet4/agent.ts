@@ -17,6 +17,7 @@ import { Contexts } from '../../contexts';
 import { agentChainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
+import plumetestnetSepoliaAddresses from './warp/plumetestnet-sepolia-addresses.json';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -50,7 +51,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '54aeb64-20240206-163119',
+      tag: 'd1ff3aa-20240226-122224',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -87,13 +88,17 @@ const hyperlane: RootAgentConfig = {
           helloWorld[Contexts.Hyperlane].addresses,
         ),
       },
+      {
+        name: 'plumetestnet_sepolia_eth',
+        matchingList: routerMatchingList(plumetestnetSepoliaAddresses),
+      },
     ],
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '54aeb64-20240206-163119',
+      tag: '6b5b324-20240223-122143',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -101,7 +106,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '54aeb64-20240206-163119',
+      tag: '6b5b324-20240223-122143',
     },
   },
 };
@@ -114,7 +119,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '54aeb64-20240206-163119',
+      tag: '95fe655-20240222-183959',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
@@ -127,7 +132,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '54aeb64-20240206-163119',
+      tag: '95fe655-20240222-183959',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
