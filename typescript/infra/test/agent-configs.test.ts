@@ -1,22 +1,24 @@
 import { expect } from 'chai';
 
-import mainnet3AgentConfig from '../../../rust/config/mainnet3_config.json';
-import testnet4AgentConfig from '../../../rust/config/testnet4_config.json';
 import { hyperlaneContextAgentChainConfig as mainnet3AgentChainConfig } from '../config/environments/mainnet3/agent';
 import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/chains';
 import { hyperlaneContextAgentChainConfig as testnet4AgentChainConfig } from '../config/environments/testnet4/agent';
 import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/chains';
+import { getAgentConfigJsonPath } from '../scripts/agent-utils';
 import { ensureAgentChainConfigIncludesAllChainNames } from '../src/config';
+import { readJSONAtPath } from '../src/utils/utils';
 
 const environmentChainConfigs = {
   mainnet3: {
     agentChainConfig: mainnet3AgentChainConfig,
-    agentJsonConfig: mainnet3AgentConfig,
+    // We read the agent config from the file system instead of importing
+    // to get around the agent JSON configs living outside the typescript rootDir
+    agentJsonConfig: readJSONAtPath(getAgentConfigJsonPath('mainnet3')),
     supportedChainNames: mainnet3SupportedChainNames,
   },
   testnet4: {
     agentChainConfig: testnet4AgentChainConfig,
-    agentJsonConfig: testnet4AgentConfig,
+    agentJsonConfig: readJSONAtPath(getAgentConfigJsonPath('testnet4')),
     supportedChainNames: testnet4SupportedChainNames,
   },
 };
