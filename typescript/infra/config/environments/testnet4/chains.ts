@@ -38,12 +38,6 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
       gasPrice: 80 * 10 ** 9, // 8 gwei
     },
   },
-  plumetestnet: {
-    ...plumetestnet,
-    transactionOverrides: {
-      gasPrice: 0.001 * 10 ** 9, // 0.001 gwei
-    },
-  },
 };
 
 export const supportedChainNames = Object.keys(testnetConfigs);
