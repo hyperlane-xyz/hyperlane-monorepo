@@ -2,7 +2,6 @@ import { BigNumberish } from 'ethers';
 
 import {
   AgentConfig,
-  AgentSignerKeyType,
   ChainMap,
   GasPaymentEnforcement,
   MatchingList,
@@ -10,15 +9,25 @@ import {
   chainMetadata,
   getDomainId,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { AgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 
-import { AgentConfigHelper, KeyConfig, RootAgentConfig } from './agent';
+import {
+  AgentConfigHelper,
+  KeyConfig,
+  RootAgentConfig,
+  defaultChainSignerKeyConfig,
+} from './agent';
 
 export { GasPaymentEnforcement as GasPaymentEnforcementConfig } from '@hyperlane-xyz/sdk';
+
+export interface MetricAppContext {
+  name: string;
+  matchingList: MatchingList;
+}
 
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
@@ -27,6 +36,7 @@ export interface BaseRelayerConfig {
   blacklist?: MatchingList;
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
+  metricAppContexts?: MetricAppContext[];
 }
 
 // Full relayer-specific agent config for a single chain
@@ -60,7 +70,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     const baseConfig = this.#relayerConfig!;
 
     const relayerConfig: RelayerConfig = {
-      relayChains: this.contextChainNames[Role.Relayer].join(','),
+      relayChains: this.relayChains.join(','),
       gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
     };
 
@@ -78,12 +88,19 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       relayerConfig.skipTransactionGasLimitFor =
         baseConfig.skipTransactionGasLimitFor.join(',');
     }
+    if (baseConfig.metricAppContexts) {
+      relayerConfig.metricAppContexts = JSON.stringify(
+        baseConfig.metricAppContexts,
+      );
+    }
 
     return relayerConfig;
   }
 
   // Get the signer configuration for each chain by the chain name.
   async signers(): Promise<ChainMap<KeyConfig>> {
+    const chainSigners: ChainMap<KeyConfig> = {};
+
     if (this.aws) {
       const awsUser = new AgentAwsUser(
         this.runEnv,
@@ -93,25 +110,24 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       );
       await awsUser.createIfNotExists();
       const awsKey = (await awsUser.createKeyIfNotExists(this)).keyConfig;
-      return Object.fromEntries(
-        this.contextChainNames[Role.Relayer].map((name) => {
-          const chain = chainMetadata[name];
-          // Sealevel chains always use hex keys
-          if (chain?.protocol == ProtocolType.Sealevel) {
-            return [name, { type: AgentSignerKeyType.Hex }];
-          } else {
-            return [name, awsKey];
-          }
-        }),
-      );
-    } else {
-      return Object.fromEntries(
-        this.contextChainNames[Role.Relayer].map((name) => [
-          name,
-          { type: AgentSignerKeyType.Hex },
-        ]),
-      );
+
+      // AWS keys only work for Ethereum chains
+      for (const chainName of this.relayChains) {
+        if (chainMetadata[chainName].protocol === ProtocolType.Ethereum) {
+          chainSigners[chainName] = awsKey;
+        }
+      }
     }
+
+    // For any chains that were not configured with AWS keys, fill in the defaults
+    for (const chainName of this.relayChains) {
+      if (chainSigners[chainName] !== undefined) {
+        continue;
+      }
+      chainSigners[chainName] = defaultChainSignerKeyConfig(chainName);
+    }
+
+    return chainSigners;
   }
 
   // Returns whether the relayer requires AWS credentials
@@ -129,6 +145,10 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
   get role(): Role {
     return Role.Relayer;
+  }
+
+  get relayChains(): Array<string> {
+    return this.contextChainNames[Role.Relayer];
   }
 }
 
@@ -149,9 +169,9 @@ export function routerMatchingList(
 
       matchingList.push({
         originDomain: getDomainId(chainMetadata[source]),
-        senderAddress: routers[source].router,
+        senderAddress: addressToBytes32(routers[source].router),
         destinationDomain: getDomainId(chainMetadata[destination]),
-        recipientAddress: routers[destination].router,
+        recipientAddress: addressToBytes32(routers[destination].router),
       });
     }
   }

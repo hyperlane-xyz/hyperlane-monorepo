@@ -5,6 +5,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+use derive_new::new;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 #[cfg(feature = "strum")]
@@ -18,7 +19,7 @@ pub struct Address(pub bytes::Bytes);
 #[derive(Debug, Clone)]
 pub struct Balance(pub num::BigInt);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ContractLocator<'a> {
     pub domain: &'a HyperlaneDomain,
     pub address: H256,
@@ -79,6 +80,12 @@ pub enum KnownHyperlaneDomain {
     Gnosis = 100,
     Chiado = 10200,
 
+    MantaPacific = 169,
+
+    Neutron = 1853125230,
+
+    Injective = 6909546,
+
     // -- Local test chains --
     /// Test1 local chain
     Test1 = 13371,
@@ -97,12 +104,11 @@ pub enum KnownHyperlaneDomain {
 
     // -- v3 testnets --
     LineaGoerli = 59140,
-    BaseGoerli = 84531,
     ScrollSepolia = 534351,
 
     /// Cosmos local chains
-    CosmosTest26657 = 26657,
-    CosmosTest26658 = 26658,
+    CosmosTest99990 = 99990,
+    CosmosTest99991 = 99991,
 }
 
 #[derive(Clone)]
@@ -194,13 +200,13 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             Mainnet: [
                 Ethereum, Avalanche, Arbitrum, Polygon, Optimism, BinanceSmartChain, Celo,
-                Moonbeam, Gnosis
+                Moonbeam, Gnosis, MantaPacific, Neutron, Injective
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
-                Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia, Chiado
+                Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, ScrollSepolia, Chiado
             ],
-            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest26657, CosmosTest26658],
+            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991],
         })
     }
 
@@ -211,11 +217,12 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainProtocol::Ethereum: [
                 Ethereum, Goerli, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
                 Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
-                Alfajores, Moonbeam, MoonbaseAlpha, PolygonZkEvmTestnet, LineaGoerli, BaseGoerli, ScrollSepolia, Chiado, Test1, Test2, Test3
+                Alfajores, Moonbeam, MoonbaseAlpha, PolygonZkEvmTestnet, LineaGoerli, ScrollSepolia,
+                Chiado, MantaPacific, Test1, Test2, Test3
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
-            HyperlaneDomainProtocol::Cosmos: [CosmosTest26657, CosmosTest26658],
+            HyperlaneDomainProtocol::Cosmos: [CosmosTest99990, CosmosTest99991, Neutron, Injective],
         })
     }
 }
@@ -284,6 +291,12 @@ impl Debug for HyperlaneDomain {
         {
             write!(f, "HyperlaneDomain({})", self.id())
         }
+    }
+}
+
+impl From<KnownHyperlaneDomain> for HyperlaneDomain {
+    fn from(domain: KnownHyperlaneDomain) -> Self {
+        HyperlaneDomain::Known(domain)
     }
 }
 
@@ -362,7 +375,7 @@ impl HyperlaneDomain {
         }
     }
 
-    pub fn is_arbitrum_nitro(&self) -> bool {
+    pub const fn is_arbitrum_nitro(&self) -> bool {
         matches!(
             self,
             HyperlaneDomain::Known(
@@ -371,11 +384,15 @@ impl HyperlaneDomain {
         )
     }
 
+    pub const fn is_injective(&self) -> bool {
+        matches!(self, Self::Known(KnownHyperlaneDomain::Injective))
+    }
+
     pub const fn index_mode(&self) -> IndexMode {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
         many_to_one!(match protocol {
-            IndexMode::Block: [Ethereum, Cosmos], // TODO: Is cosmos index-mode is correct?
+            IndexMode::Block: [Ethereum, Cosmos],
             IndexMode::Sequence : [Sealevel, Fuel],
         })
     }

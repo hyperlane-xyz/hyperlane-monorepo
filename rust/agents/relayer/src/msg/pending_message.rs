@@ -6,7 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use derive_new::new;
-use eyre::{Context, Result};
+use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
 use prometheus::{IntCounter, IntGauge};
@@ -14,7 +14,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 
 use super::{
     gas_payment::GasPaymentEnforcer,
-    metadata::{BaseMetadataBuilder, MetadataBuilder},
+    metadata::{BaseMetadataBuilder, MessageMetadataBuilder, MetadataBuilder},
     pending_operation::*,
 };
 
@@ -35,7 +35,7 @@ pub struct MessageContext {
     pub origin_db: HyperlaneRocksDB,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
-    pub metadata_builder: BaseMetadataBuilder,
+    pub metadata_builder: Arc<BaseMetadataBuilder>,
     /// Used to determine if messages from the origin have made sufficient gas
     /// payments.
     pub origin_gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -153,9 +153,18 @@ impl PendingOperation for PendingMessage {
             "fetching ISM address. Potentially malformed recipient ISM address."
         );
 
+        let message_metadata_builder = op_try!(
+            MessageMetadataBuilder::new(
+                ism_address,
+                &self.message,
+                self.ctx.metadata_builder.clone()
+            )
+            .await,
+            "getting the message metadata builder"
+        );
+
         let Some(metadata) = op_try!(
-            self.ctx
-                .metadata_builder
+            message_metadata_builder
                 .build(ism_address, &self.message)
                 .await,
             "building metadata"
@@ -238,7 +247,7 @@ impl PendingOperation for PendingMessage {
             "processing message"
         );
 
-        op_try!(critical: self.ctx.origin_gas_payment_enforcer.record_tx_outcome(&self.message, tx_outcome), "recording tx outcome");
+        op_try!(critical: self.ctx.origin_gas_payment_enforcer.record_tx_outcome(&self.message, tx_outcome.clone()), "recording tx outcome");
         if tx_outcome.executed {
             info!(
                 txid=?tx_outcome.transaction_id,

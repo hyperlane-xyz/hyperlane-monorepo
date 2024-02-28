@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use derive_new::new;
-use eyre::{bail, Result};
 use futures_util::future::try_join_all;
 use prometheus::{IntCounter, IntGauge};
 use tokio::spawn;
@@ -81,12 +80,12 @@ pub struct SerialSubmitter {
 }
 
 impl SerialSubmitter {
-    pub fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
+    pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
         let span = info_span!("SerialSubmitter", destination=%self.domain);
         spawn(async move { self.run().await }).instrument(span)
     }
 
-    async fn run(self) -> Result<()> {
+    async fn run(self) {
         let Self {
             domain,
             metrics,
@@ -128,10 +127,13 @@ impl SerialSubmitter {
             )),
         ];
 
-        for i in try_join_all(tasks).await? {
-            i?
+        if let Err(err) = try_join_all(tasks).await {
+            tracing::error!(
+                error=?err,
+                ?domain,
+                "SerialSubmitter task panicked for domain"
+            );
         }
-        Ok(())
     }
 }
 
@@ -140,7 +142,7 @@ async fn receive_task(
     domain: HyperlaneDomain,
     mut rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
     prepare_queue: OpQueue,
-) -> Result<()> {
+) {
     // Pull any messages sent to this submitter
     while let Some(op) = rx.recv().await {
         trace!(?op, "Received new operation");
@@ -149,7 +151,6 @@ async fn receive_task(
         debug_assert_eq!(*op.domain(), domain);
         prepare_queue.lock().await.push(Reverse(op));
     }
-    bail!("Submitter receive channel was closed")
 }
 
 #[instrument(skip_all, fields(%domain))]
@@ -158,7 +159,7 @@ async fn prepare_task(
     prepare_queue: OpQueue,
     tx_submit: mpsc::Sender<Box<DynPendingOperation>>,
     metrics: SerialSubmitterMetrics,
-) -> Result<()> {
+) {
     loop {
         // Pick the next message to try preparing.
         let next = {
@@ -179,7 +180,9 @@ async fn prepare_task(
                 debug!(?op, "Operation prepared");
                 metrics.ops_prepared.inc();
                 // this send will pause this task if the submitter is not ready to accept yet
-                tx_submit.send(op).await?;
+                if let Err(err) = tx_submit.send(op).await {
+                    tracing::error!(error=?err, "Failed to send prepared operation to submitter");
+                }
             }
             PendingOperationResult::NotReady => {
                 // none of the operations are ready yet, so wait for a little bit
@@ -193,9 +196,6 @@ async fn prepare_task(
             PendingOperationResult::Drop => {
                 metrics.ops_dropped.inc();
             }
-            PendingOperationResult::CriticalFailure(e) => {
-                return Err(e);
-            }
         }
     }
 }
@@ -207,7 +207,7 @@ async fn submit_task(
     prepare_queue: OpQueue,
     confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
-) -> Result<()> {
+) {
     while let Some(mut op) = rx_submit.recv().await {
         trace!(?op, "Submitting operation");
         debug_assert_eq!(*op.domain(), domain);
@@ -228,10 +228,8 @@ async fn submit_task(
             PendingOperationResult::Drop => {
                 metrics.ops_dropped.inc();
             }
-            PendingOperationResult::CriticalFailure(e) => return Err(e),
         }
     }
-    bail!("Internal submitter channel was closed");
 }
 
 #[instrument(skip_all, fields(%domain))]
@@ -240,7 +238,7 @@ async fn confirm_task(
     prepare_queue: OpQueue,
     confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
-) -> Result<()> {
+) {
     loop {
         // Pick the next message to try confirming.
         let next = {
@@ -272,7 +270,6 @@ async fn confirm_task(
             PendingOperationResult::Drop => {
                 metrics.ops_dropped.inc();
             }
-            PendingOperationResult::CriticalFailure(e) => return Err(e),
         }
     }
 }

@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   check-env:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest
     # assign output from step to job output
     outputs:
       gcloud-service-key: ${{ steps.gcloud-service-key.outputs.defined }}
@@ -26,7 +26,7 @@ jobs:
         run: echo "::set-output name=defined::true"
 
   build-and-push-to-gcr:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest
 
     # uses check-env to determine if secrets.GCLOUD_SERVICE_KEY is defined
     needs: [check-env]
@@ -34,6 +34,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Generate tag data
         id: taggen
         run: |

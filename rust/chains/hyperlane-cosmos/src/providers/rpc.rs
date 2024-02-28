@@ -1,7 +1,7 @@
 use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
-use cosmrs::rpc::client::{Client, CompatMode, HttpClient};
+use cosmrs::rpc::client::Client;
 use cosmrs::rpc::endpoint::{tx, tx_search::Response as TxSearchResponse};
 use cosmrs::rpc::query::Query;
 use cosmrs::rpc::Order;
@@ -10,7 +10,7 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogM
 use tracing::{instrument, trace};
 
 use crate::address::CosmosAddress;
-use crate::{ConnectionConf, HyperlaneCosmosError};
+use crate::{ConnectionConf, CosmosProvider, HyperlaneCosmosError};
 
 const PAGINATION_LIMIT: u8 = 100;
 
@@ -50,7 +50,7 @@ impl<T: PartialEq> ParsedEvent<T> {
 #[derive(Debug)]
 /// Cosmwasm RPC Provider
 pub struct CosmosWasmIndexer {
-    client: HttpClient,
+    provider: CosmosProvider,
     contract_address: CosmosAddress,
     target_event_kind: String,
     reorg_period: u32,
@@ -66,20 +66,18 @@ impl CosmosWasmIndexer {
         event_type: String,
         reorg_period: u32,
     ) -> ChainResult<Self> {
-        let client = HttpClient::builder(
-            conf.get_rpc_url()
-                .parse()
-                .map_err(Into::<HyperlaneCosmosError>::into)?,
-        )
-        // Consider supporting different compatibility modes.
-        .compat_mode(CompatMode::latest())
-        .build()
-        .map_err(Into::<HyperlaneCosmosError>::into)?;
+        let provider = CosmosProvider::new(
+            locator.domain.clone(),
+            conf.clone(),
+            Some(locator.clone()),
+            None,
+        )?;
         Ok(Self {
-            client,
+            provider,
             contract_address: CosmosAddress::from_h256(
                 locator.address,
-                conf.get_prefix().as_str(),
+                conf.get_bech32_prefix().as_str(),
+                conf.get_contract_address_bytes(),
             )?,
             target_event_kind: format!("{}-{}", Self::WASM_TYPE, event_type),
             reorg_period,
@@ -91,7 +89,8 @@ impl CosmosWasmIndexer {
     #[instrument(level = "trace", err, skip(self))]
     async fn tx_search(&self, query: Query, page: u32) -> ChainResult<TxSearchResponse> {
         Ok(self
-            .client
+            .provider
+            .rpc()
             .tx_search(query, false, page, PAGINATION_LIMIT, Order::Ascending)
             .await
             .map_err(Into::<HyperlaneCosmosError>::into)?)
@@ -176,7 +175,8 @@ impl CosmosWasmIndexer {
 impl WasmIndexer for CosmosWasmIndexer {
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         let latest_height: u32 = self
-            .client
+            .provider
+            .rpc()
             .latest_block()
             .await
             .map_err(Into::<HyperlaneCosmosError>::into)?

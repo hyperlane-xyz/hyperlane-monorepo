@@ -3,7 +3,11 @@ use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
+use bigdecimal::ParseBigDecimalError;
+use derive_new::new;
+
 use crate::config::StrOrIntParseError;
+use crate::rpc_clients::RpcClientError;
 use std::string::FromUtf8Error;
 
 use crate::Error as PrimitiveTypeError;
@@ -21,6 +25,7 @@ impl<E: StdError + Send + Sync + Any> HyperlaneCustomError for E {}
 /// Thin wrapper around a boxed HyperlaneCustomError; required to satisfy
 /// AsDynError implementations. Basically a trait-object adaptor.
 #[repr(transparent)]
+#[derive(new)]
 pub struct HyperlaneCustomErrorWrapper(Box<dyn HyperlaneCustomError>);
 
 impl Debug for HyperlaneCustomErrorWrapper {
@@ -123,6 +128,12 @@ pub enum ChainCommunicationError {
     /// Primitive type error
     #[error(transparent)]
     PrimitiveTypeError(#[from] PrimitiveTypeError),
+    /// Big decimal parsing error
+    #[error(transparent)]
+    ParseBigDecimalError(#[from] ParseBigDecimalError),
+    /// Rpc client error
+    #[error(transparent)]
+    RpcClientError(#[from] RpcClientError),
 }
 
 impl ChainCommunicationError {

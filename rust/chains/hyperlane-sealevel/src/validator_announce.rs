@@ -8,7 +8,7 @@ use hyperlane_core::{
 };
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 
-use crate::{ConnectionConf, RpcClientWithDebug};
+use crate::{ConnectionConf, RpcClientWithDebug, SealevelProvider};
 use hyperlane_sealevel_validator_announce::{
     accounts::ValidatorStorageLocationsAccount, validator_storage_locations_pda_seeds,
 };
@@ -17,20 +17,24 @@ use hyperlane_sealevel_validator_announce::{
 #[derive(Debug)]
 pub struct SealevelValidatorAnnounce {
     program_id: Pubkey,
-    rpc_client: RpcClientWithDebug,
     domain: HyperlaneDomain,
+    provider: SealevelProvider,
 }
 
 impl SealevelValidatorAnnounce {
     /// Create a new Sealevel ValidatorAnnounce
     pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> Self {
-        let rpc_client = RpcClientWithDebug::new(conf.url.to_string());
+        let provider = SealevelProvider::new(locator.domain.clone(), conf);
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
             program_id,
-            rpc_client,
             domain: locator.domain.clone(),
+            provider,
         }
+    }
+
+    fn rpc(&self) -> &RpcClientWithDebug {
+        self.provider.rpc()
     }
 }
 
@@ -46,7 +50,7 @@ impl HyperlaneChain for SealevelValidatorAnnounce {
     }
 
     fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
-        Box::new(crate::SealevelProvider::new(self.domain.clone()))
+        self.provider.provider()
     }
 }
 
@@ -74,7 +78,7 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
         // Get all validator storage location accounts.
         // If an account doesn't exist, it will be returned as None.
         let accounts = self
-            .rpc_client
+            .rpc()
             .get_multiple_accounts_with_commitment(&account_pubkeys, CommitmentConfig::finalized())
             .await
             .map_err(ChainCommunicationError::from_other)?
@@ -124,7 +128,7 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
             transaction_id: H512::zero(),
             executed: false,
             gas_used: U256::zero(),
-            gas_price: U256::zero(),
+            gas_price: U256::zero().try_into()?,
         })
     }
 }

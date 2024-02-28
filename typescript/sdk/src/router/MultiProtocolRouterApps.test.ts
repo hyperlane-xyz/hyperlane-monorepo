@@ -12,9 +12,13 @@ describe('MultiProtocolRouterApp', () => {
   describe('constructs', () => {
     const multiProvider = new MultiProtocolProvider<RouterAddress>();
     it('creates an app class', async () => {
-      const app = new MultiProtocolRouterApp(multiProvider, {
+      const addresses = {
         ethereum: { router: ethers.constants.AddressZero },
-      });
+      };
+      const app = new MultiProtocolRouterApp(
+        multiProvider.intersect(Object.keys(addresses)).result,
+        addresses,
+      );
       expect(app).to.be.instanceOf(MultiProtocolRouterApp);
       const ethAdapter = app.adapter(Chains.ethereum);
       expect(ethAdapter).to.be.instanceOf(EvmRouterAdapter);

@@ -601,6 +601,7 @@ pub mod test {
                 metadata: MultisigIsmMessageIdMetadata {
                     origin_merkle_tree_hook: checkpoint.merkle_tree_hook_address,
                     merkle_root: checkpoint.root,
+                    merkle_index: checkpoint.index,
                     validator_signatures: vec![
                         EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
                         EcdsaSignature::from_bytes(&signatures[1]).unwrap(),
@@ -626,6 +627,7 @@ pub mod test {
                 metadata: MultisigIsmMessageIdMetadata {
                     origin_merkle_tree_hook: checkpoint.merkle_tree_hook_address,
                     merkle_root: checkpoint.root,
+                    merkle_index: checkpoint.index,
                     validator_signatures: vec![
                         EcdsaSignature::from_bytes(&signatures[1]).unwrap(),
                         EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
@@ -654,6 +656,7 @@ pub mod test {
                 metadata: MultisigIsmMessageIdMetadata {
                     origin_merkle_tree_hook: checkpoint.merkle_tree_hook_address,
                     merkle_root: checkpoint.root,
+                    merkle_index: checkpoint.index,
                     validator_signatures: vec![
                         EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
                         EcdsaSignature::from_bytes(&signatures[2]).unwrap(),
@@ -678,6 +681,7 @@ pub mod test {
                 metadata: MultisigIsmMessageIdMetadata {
                     origin_merkle_tree_hook: checkpoint.merkle_tree_hook_address,
                     merkle_root: checkpoint.root,
+                    merkle_index: checkpoint.index,
                     validator_signatures: vec![
                         EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
                         EcdsaSignature::from_bytes(&signatures[1]).unwrap(),

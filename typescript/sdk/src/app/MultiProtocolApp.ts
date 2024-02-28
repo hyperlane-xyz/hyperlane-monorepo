@@ -6,6 +6,7 @@ import {
   ProtocolType,
   objMap,
   promiseObjAll,
+  symmetricDifference,
 } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes';
@@ -120,6 +121,22 @@ export abstract class MultiProtocolApp<
     public readonly addresses: ChainMap<ContractAddrs>,
     public readonly logger = debug('hyperlane:MultiProtocolApp'),
   ) {
+    const multiProviderChains = multiProvider.getKnownChainNames();
+    const addressesChains = Object.keys(addresses);
+    const setDifference = symmetricDifference(
+      new Set(multiProviderChains),
+      new Set(addressesChains),
+    );
+    if (setDifference.size > 0) {
+      throw new Error(
+        `MultiProtocolProvider and addresses must have the same chains. Provider chains: ${multiProviderChains.join(
+          ', ',
+        )}. Addresses chains: ${addressesChains.join(
+          ', ',
+        )}. Difference: ${Array.from(setDifference)}`,
+      );
+    }
+
     super(multiProvider.metadata);
   }
 

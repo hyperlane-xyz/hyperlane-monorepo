@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 
 import {
   ChainName,
+  ContractVerifier,
   HyperlaneContracts,
   HyperlaneIsmFactory,
   HyperlaneRouterDeployer,
@@ -20,8 +21,12 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     readonly ismFactory?: HyperlaneIsmFactory,
+    readonly contractVerifier?: ContractVerifier,
   ) {
-    super(multiProvider, helloWorldFactories, { ismFactory });
+    super(multiProvider, helloWorldFactories, {
+      ismFactory,
+      contractVerifier,
+    });
   }
 
   router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {

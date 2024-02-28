@@ -10,12 +10,10 @@ import { HelmCommand } from '../../src/utils/helm';
 import {
   assertCorrectKubeContext,
   getArgs,
-  getConfigsBasedOnArgs,
   withAgentRole,
   withContext,
-} from '../utils';
-
-type GetConfigsArgv = NonNullable<Parameters<typeof getConfigsBasedOnArgs>[0]>;
+} from '../agent-utils';
+import { getConfigsBasedOnArgs } from '../core-utils';
 
 export class AgentCli {
   roles!: Role[];
@@ -49,11 +47,10 @@ export class AgentCli {
     }
 
     if (this.dryRun) {
-      for (const m of Object.values(managers)) {
-        void m.helmValues().then((v) => {
-          console.log(JSON.stringify(v, null, 2));
-        });
-      }
+      const values = await Promise.all(
+        Object.values(managers).map(async (m) => m.helmValues()),
+      );
+      console.log('Dry run values:\n', JSON.stringify(values, null, 2));
     }
 
     for (const m of Object.values(managers)) {
@@ -61,21 +58,18 @@ export class AgentCli {
     }
   }
 
-  protected async init(
-    argv?: GetConfigsArgv & { role: Role[]; 'dry-run'?: boolean },
-  ) {
+  protected async init() {
     if (this.initialized) return;
-    if (!argv)
-      argv = await withAgentRole(withContext(getArgs()))
-        .describe('dry-run', 'Run through the steps without making any changes')
-        .boolean('dry-run').argv;
+    const argv = await withAgentRole(withContext(getArgs()))
+      .describe('dry-run', 'Run through the steps without making any changes')
+      .boolean('dry-run').argv;
 
     const { envConfig, agentConfig } = await getConfigsBasedOnArgs(argv);
     await assertCorrectKubeContext(envConfig);
     this.roles = argv.role;
     this.envConfig = envConfig;
     this.agentConfig = agentConfig;
-    this.dryRun = argv['dry-run'] || false;
+    this.dryRun = argv.dryRun || false;
     this.initialized = true;
   }
 }

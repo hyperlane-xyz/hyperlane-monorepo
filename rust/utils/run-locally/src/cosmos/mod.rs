@@ -5,8 +5,10 @@ use std::time::{Duration, Instant};
 use std::{env, fs};
 
 use cosmwasm_schema::cw_serde;
-use hpl_interface::types::bech32_decode;
+use hyperlane_cosmos::RawCosmosAmount;
+use hyperlane_cosmwasm_interface::types::bech32_decode;
 use macro_rules_attribute::apply;
+use maplit::hashmap;
 use tempfile::tempdir;
 
 mod cli;
@@ -24,16 +26,17 @@ use utils::*;
 
 use crate::cosmos::link::link_networks;
 use crate::logging::log;
+use crate::metrics::agent_balance_sum;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
-use crate::AGENT_BIN_PATH;
+use crate::{fetch_metric, AGENT_BIN_PATH};
 use cli::{OsmosisCLI, OsmosisEndpoint};
 
 use self::deploy::deploy_cw_hyperlane;
 use self::source::{CLISource, CodeSource};
 
 const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
-const OSMOSIS_CLI_VERSION: &str = "19.0.0";
+const OSMOSIS_CLI_VERSION: &str = "20.5.0";
 
 const KEY_HPL_VALIDATOR: (&str,&str) = ("hpl-validator", "guard evolve region sentence danger sort despair eye deputy brave trim actor left recipe debate document upgrade sustain bus cage afford half demand pigeon");
 const KEY_HPL_RELAYER: (&str,&str) = ("hpl-relayer", "moral item damp melt gloom vendor notice head assume balance doctor retire fashion trim find biology saddle undo switch fault cattle toast drip empty");
@@ -54,8 +57,8 @@ fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
     ]
 }
 
-const CW_HYPERLANE_GIT: &str = "https://github.com/many-things/cw-hyperlane";
-const CW_HYPERLANE_VERSION: &str = "0.0.6-rc6";
+const CW_HYPERLANE_GIT: &str = "https://github.com/hyperlane-xyz/cosmwasm";
+const CW_HYPERLANE_VERSION: &str = "v0.0.6";
 
 fn make_target() -> String {
     let os = if cfg!(target_os = "linux") {
@@ -98,19 +101,22 @@ pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, Path
     if !local {
         let dir_path_str = dir_path.to_str().unwrap();
 
-        let release_name = format!("cw-hyperlane-v{CW_HYPERLANE_VERSION}");
-        let release_comp = format!("{release_name}.zip");
+        let release_comp = "wasm_codes.zip";
 
-        log!("Downloading cw-hyperlane v{}", CW_HYPERLANE_VERSION);
+        log!(
+            "Downloading {} @ {}",
+            CW_HYPERLANE_GIT,
+            CW_HYPERLANE_VERSION
+        );
         let uri =
-            format!("{CW_HYPERLANE_GIT}/releases/download/v{CW_HYPERLANE_VERSION}/{release_comp}");
-        download(&release_comp, &uri, dir_path_str);
+            format!("{CW_HYPERLANE_GIT}/releases/download/{CW_HYPERLANE_VERSION}/{release_comp}");
+        download(release_comp, &uri, dir_path_str);
 
-        log!("Uncompressing cw-hyperlane release");
-        unzip(&release_comp, dir_path_str);
+        log!("Uncompressing {} release", CW_HYPERLANE_GIT);
+        unzip(release_comp, dir_path_str);
     }
 
-    log!("Installing cw-hyperlane in Path: {:?}", dir_path);
+    log!("Installing {} in Path: {:?}", CW_HYPERLANE_GIT, dir_path);
 
     // make contract_name => path map
     fs::read_dir(dir_path)
@@ -173,6 +179,7 @@ pub struct CosmosNetwork {
     pub launch_resp: CosmosResp,
     pub deployments: Deployments,
     pub chain_id: String,
+    pub metrics_port: u32,
     pub domain: u32,
 }
 
@@ -182,17 +189,17 @@ impl Drop for CosmosNetwork {
     }
 }
 
-impl From<(CosmosResp, Deployments, String, u32)> for CosmosNetwork {
-    fn from(v: (CosmosResp, Deployments, String, u32)) -> Self {
+impl From<(CosmosResp, Deployments, String, u32, u32)> for CosmosNetwork {
+    fn from(v: (CosmosResp, Deployments, String, u32, u32)) -> Self {
         Self {
             launch_resp: v.0,
             deployments: v.1,
             chain_id: v.2,
-            domain: v.3,
+            metrics_port: v.3,
+            domain: v.4,
         }
     }
 }
-
 pub struct CosmosHyperlaneStack {
     pub validators: Vec<AgentHandles>,
     pub relayer: AgentHandles,
@@ -256,9 +263,8 @@ fn launch_cosmos_validator(
         .hyp_env("CHECKPOINTSYNCER_PATH", checkpoint_path.to_str().unwrap())
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage")
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
-        .hyp_env("REORGPERIOD", "100")
         .hyp_env("DB", validator_base_db.to_str().unwrap())
-        .hyp_env("METRICSPORT", agent_config.domain_id.to_string())
+        .hyp_env("METRICSPORT", agent_config.metrics_port.to_string())
         .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
         .hyp_env("VALIDATOR_KEY", agent_config.signer.key.clone())
         .hyp_env("VALIDATOR_PREFIX", "osmo")
@@ -274,6 +280,7 @@ fn launch_cosmos_validator(
 fn launch_cosmos_relayer(
     agent_config_path: PathBuf,
     relay_chains: Vec<String>,
+    metrics: u32,
     debug: bool,
 ) -> AgentHandles {
     let relayer_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "relayer");
@@ -285,12 +292,11 @@ fn launch_cosmos_relayer(
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env("RUST_BACKTRACE", "1")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
-        .hyp_env("REORGPERIOD", "100")
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]")
-        .hyp_env("METRICSPORT", 9093.to_string())
+        .hyp_env("METRICSPORT", metrics.to_string())
         .spawn("RLY");
 
     relayer
@@ -347,7 +353,8 @@ fn run_locally() {
     };
 
     let port_start = 26600u32;
-    let domain_start = 26657u32;
+    let metrics_port_start = 9090u32;
+    let domain_start = 99990u32;
     let node_count = 2;
 
     let nodes = (0..node_count)
@@ -355,10 +362,11 @@ fn run_locally() {
             (
                 launch_cosmos_node(CosmosConfig {
                     node_port_base: port_start + (i * 10),
-                    chain_id: format!("cosmos-test-{}", i + 26657),
+                    chain_id: format!("cosmos-test-{}", i + domain_start),
                     ..default_config.clone()
                 }),
-                format!("cosmos-test-{}", i + 26657),
+                format!("cosmos-test-{}", i + domain_start),
+                metrics_port_start + i,
                 domain_start + i,
             )
         })
@@ -371,8 +379,8 @@ fn run_locally() {
 
     let nodes = nodes
         .into_iter()
-        .map(|v| (v.0.join(), v.1, v.2))
-        .map(|(launch_resp, chain_id, domain)| {
+        .map(|v| (v.0.join(), v.1, v.2, v.3))
+        .map(|(launch_resp, chain_id, metrics_port, domain)| {
             let deployments = deploy_cw_hyperlane(
                 launch_resp.cli(&osmosisd),
                 launch_resp.endpoint.clone(),
@@ -381,14 +389,14 @@ fn run_locally() {
                 domain,
             );
 
-            (launch_resp, deployments, chain_id, domain)
+            (launch_resp, deployments, chain_id, metrics_port, domain)
         })
         .collect::<Vec<_>>();
 
     // nodes with base deployments
     let nodes = nodes
         .into_iter()
-        .map(|v| (v.0, v.1.join(), v.2, v.3))
+        .map(|v| (v.0, v.1.join(), v.2, v.3, v.4))
         .map(|v| v.into())
         .collect::<Vec<CosmosNetwork>>();
 
@@ -448,11 +456,18 @@ fn run_locally() {
         .into_values()
         .map(|agent_config| launch_cosmos_validator(agent_config, agent_config_path.clone(), debug))
         .collect::<Vec<_>>();
+    let hpl_rly_metrics_port = metrics_port_start + node_count + 1u32;
     let hpl_rly = launch_cosmos_relayer(
         agent_config_path,
         agent_config_out.chains.into_keys().collect::<Vec<_>>(),
+        hpl_rly_metrics_port,
         debug,
     );
+
+    // give things a chance to fully start.
+    sleep(Duration::from_secs(10));
+
+    let starting_relayer_balance: f64 = agent_balance_sum(hpl_rly_metrics_port).unwrap();
 
     // dispatch messages
     let mut dispatched_messages = 0;
@@ -495,7 +510,7 @@ fn run_locally() {
                         metadata: "".to_string(),
                     },
                 },
-                vec![Coin {
+                vec![RawCosmosAmount {
                     denom: "uosmo".to_string(),
                     amount: 25_000_000.to_string(),
                 }],
@@ -511,12 +526,16 @@ fn run_locally() {
     // Mostly copy-pasta from `rust/utils/run-locally/src/main.rs`
     // TODO: refactor to share code
     let loop_start = Instant::now();
-    // give things a chance to fully start.
-    sleep(Duration::from_secs(5));
     let mut failure_occurred = false;
     loop {
         // look for the end condition.
-        if termination_invariants_met(dispatched_messages).unwrap_or(false) {
+        if termination_invariants_met(
+            hpl_rly_metrics_port,
+            dispatched_messages,
+            starting_relayer_balance,
+        )
+        .unwrap_or(false)
+        {
             // end condition reached successfully
             break;
         } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
@@ -536,47 +555,65 @@ fn run_locally() {
     }
 }
 
-fn termination_invariants_met(_messages_expected: u32) -> eyre::Result<bool> {
+fn termination_invariants_met(
+    relayer_metrics_port: u32,
+    messages_expected: u32,
+    starting_relayer_balance: f64,
+) -> eyre::Result<bool> {
+    let gas_payments_scraped = fetch_metric(
+        &relayer_metrics_port.to_string(),
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "gas_payment"},
+    )?
+    .iter()
+    .sum::<u32>();
+    let expected_gas_payments = messages_expected;
+    if gas_payments_scraped != expected_gas_payments {
+        log!(
+            "Scraper has scraped {} gas payments, expected {}",
+            gas_payments_scraped,
+            expected_gas_payments
+        );
+        return Ok(false);
+    }
+
+    let delivered_messages_scraped = fetch_metric(
+        &relayer_metrics_port.to_string(),
+        "hyperlane_operations_processed_count",
+        &hashmap! {"phase" => "confirmed"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if delivered_messages_scraped != messages_expected {
+        log!(
+            "Relayer confirmed {} submitted messages, expected {}",
+            delivered_messages_scraped,
+            messages_expected
+        );
+        return Ok(false);
+    }
+
+    let ending_relayer_balance: f64 = agent_balance_sum(relayer_metrics_port).unwrap();
+
+    // Make sure the balance was correctly updated in the metrics.
+    // Ideally, make sure that the difference is >= gas_per_tx * gas_cost, set here:
+    // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/c2288eb31734ba1f2f997e2c6ecb30176427bc2c/rust/utils/run-locally/src/cosmos/cli.rs#L55
+    // What's stopping this is that the format returned by the `uosmo` balance query is a surprisingly low number (0.000003999999995184)
+    // but then maybe the gas_per_tx is just very low - how can we check that? (maybe by simulating said tx)
+    if starting_relayer_balance <= ending_relayer_balance {
+        log!(
+            "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
+            starting_relayer_balance,
+            ending_relayer_balance
+        );
+        return Ok(false);
+    }
+
+    log!("Termination invariants have been meet");
     Ok(true)
-    // TODO: uncomment once CI passes consistently on Ubuntu
-    // let gas_payments_scraped = fetch_metric(
-    //     "9093",
-    //     "hyperlane_contract_sync_stored_events",
-    //     &hashmap! {"data_type" => "gas_payment"},
-    // )?
-    // .iter()
-    // .sum::<u32>();
-    // let expected_gas_payments = messages_expected;
-    // if gas_payments_scraped != expected_gas_payments {
-    //     log!(
-    //         "Scraper has scraped {} gas payments, expected {}",
-    //         gas_payments_scraped,
-    //         expected_gas_payments
-    //     );
-    //     return Ok(false);
-    // }
-
-    // let delivered_messages_scraped = fetch_metric(
-    //     "9093",
-    //     "hyperlane_operations_processed_count",
-    //     &hashmap! {"phase" => "confirmed"},
-    // )?
-    // .iter()
-    // .sum::<u32>();
-    // if delivered_messages_scraped != messages_expected {
-    //     log!(
-    //         "Relayer confirmed {} submitted messages, expected {}",
-    //         delivered_messages_scraped,
-    //         messages_expected
-    //     );
-    //     return Ok(false);
-    // }
-
-    // log!("Termination invariants have been meet");
-    // Ok(true)
 }
 
-#[cfg(test)]
+#[cfg(feature = "cosmos")]
 mod test {
     use super::*;
 

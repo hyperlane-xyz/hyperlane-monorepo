@@ -9,7 +9,7 @@ import { environment } from './chains';
 export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '4a3e6ee-20231025-192258',
+    tag: 'c037206-20240220-152500',
   },
   // We're currently using the same deployer key as mainnet.
   // To minimize nonce clobbering we offset the key funder cron
@@ -21,7 +21,40 @@ export const keyFunderConfig: KeyFunderConfig = {
   contextFundingFrom: Contexts.Hyperlane,
   contextsAndRolesToFund: {
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
-    // [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
+    [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
   connectionType: RpcConsensusType.Single,
+  // desired balance config
+  desiredBalancePerChain: {
+    arbitrum: '3',
+    avalanche: '5',
+    base: '3',
+    bsc: '5',
+    celo: '3',
+    ethereum: '5',
+    gnosis: '5',
+    inevm: '3',
+    moonbeam: '5',
+    optimism: '3',
+    polygon: '20',
+    polygonzkevm: '3',
+    scroll: '3',
+    viction: '3',
+  },
+  desiredKathyBalancePerChain: {
+    arbitrum: '0.1',
+    avalanche: '6',
+    base: '0.05',
+    bsc: '0.35',
+    celo: '150',
+    ethereum: '0.4',
+    gnosis: '100',
+    inevm: '0.05',
+    moonbeam: '250',
+    optimism: '0.1',
+    polygon: '85',
+    polygonzkevm: '0.05',
+    scroll: '0.05',
+    viction: '0.05',
+  },
 };

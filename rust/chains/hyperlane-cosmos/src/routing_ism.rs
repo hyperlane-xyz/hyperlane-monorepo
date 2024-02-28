@@ -9,7 +9,7 @@ use hyperlane_core::{
 
 use crate::{
     address::CosmosAddress,
-    grpc::{WasmGrpcProvider, WasmProvider},
+    grpc::WasmProvider,
     payloads::ism_routes::{
         IsmRouteRequest, IsmRouteRequestInner, IsmRouteRespnose, QueryRoutingIsmGeneralRequest,
     },
@@ -22,7 +22,7 @@ use crate::{
 pub struct CosmosRoutingIsm {
     domain: HyperlaneDomain,
     address: H256,
-    provider: Box<WasmGrpcProvider>,
+    provider: CosmosProvider,
 }
 
 impl CosmosRoutingIsm {
@@ -32,12 +32,17 @@ impl CosmosRoutingIsm {
         locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
+        let provider = CosmosProvider::new(
+            locator.domain.clone(),
+            conf.clone(),
+            Some(locator.clone()),
+            signer,
+        )?;
 
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
-            provider: Box::new(provider),
+            provider,
         })
     }
 }
@@ -54,7 +59,7 @@ impl HyperlaneChain for CosmosRoutingIsm {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(CosmosProvider::new(self.domain.clone()))
+        Box::new(self.provider.clone())
     }
 }
 
@@ -69,6 +74,7 @@ impl RoutingIsm for CosmosRoutingIsm {
 
         let data = self
             .provider
+            .grpc()
             .wasm_query(
                 QueryRoutingIsmGeneralRequest {
                     routing_ism: payload,

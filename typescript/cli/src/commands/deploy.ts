@@ -4,6 +4,7 @@ import { log, logGray } from '../../logger.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { runCoreDeploy } from '../deploy/core.js';
 import { runWarpDeploy } from '../deploy/warp.js';
+import { ENV } from '../utils/env.js';
 
 import {
   agentConfigurationOption,
@@ -19,7 +20,7 @@ import {
  */
 export const deployCommand: CommandModule = {
   command: 'deploy',
-  describe: 'Permisionslessly deploy a Hyperlane contracts or extensions',
+  describe: 'Permissionlessly deploy a Hyperlane contracts or extensions',
   builder: (yargs) =>
     yargs
       .command(coreCommand)
@@ -38,26 +39,29 @@ const agentCommand: CommandModule = {
   describe: 'Deploy Hyperlane agents with Kurtosis',
   builder: (yargs) =>
     yargs.options({
-      originChain: {
+      origin: {
         type: 'string',
         description: 'The name of the origin chain to deploy to',
       },
-      agentConfiguration: agentConfigurationOption,
-      relayChains: {
+      targets: {
         type: 'string',
         description: 'Comma separated list of chains to relay between',
       },
+      chains: chainsCommandOption,
+      config: agentConfigurationOption,
     }),
   handler: async (argv: any) => {
     logGray('Hyperlane Agent Deployment with Kurtosis');
     logGray('----------------------------------------');
-    const originChain: string = argv.originChain;
-    const agentConfigurationPath: string = argv.agentConfiguration;
-    const relayChains: string = argv.relayChains;
+    const chainConfigPath: string = argv.chains;
+    const originChain: string = argv.origin;
+    const agentConfigurationPath: string = argv.config;
+    const relayChains: string = argv.targets;
     await runKurtosisAgentDeploy({
       originChain,
-      agentConfigurationPath,
       relayChains,
+      chainConfigPath,
+      agentConfigurationPath,
     });
     process.exit(0);
   },
@@ -81,7 +85,7 @@ const coreCommand: CommandModule = {
       ism: {
         type: 'string',
         description:
-          'A path to a JSON or YAML file with ISM configs (e.g. Multisig)',
+          'A path to a JSON or YAML file with basic or advanced ISM configs (e.g. Multisig)',
       },
       hook: {
         type: 'string',
@@ -95,7 +99,7 @@ const coreCommand: CommandModule = {
   handler: async (argv: any) => {
     logGray('Hyperlane permissionless core deployment');
     logGray('----------------------------------------');
-    const key: string = argv.key || process.env.HYP_KEY;
+    const key: string = argv.key || ENV.HYP_KEY;
     const chainConfigPath: string = argv.chains;
     const outPath: string = argv.out;
     const chains: string[] | undefined = argv.targets
@@ -139,7 +143,7 @@ const warpCommand: CommandModule = {
       yes: skipConfirmationOption,
     }),
   handler: async (argv: any) => {
-    const key: string = argv.key || process.env.HYP_KEY;
+    const key: string = argv.key || ENV.HYP_KEY;
     const chainConfigPath: string = argv.chains;
     const warpConfigPath: string | undefined = argv.config;
     const coreArtifactsPath: string | undefined = argv.core;

@@ -4,13 +4,12 @@ use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment,
-    LogMeta, SequenceIndexer, H256, U256,
+    LogMeta, SequenceAwareIndexer, H256, U256,
 };
 use once_cell::sync::Lazy;
 use std::ops::RangeInclusive;
 
 use crate::{
-    grpc::WasmGrpcProvider,
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
     signers::Signer,
     utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64},
@@ -22,6 +21,7 @@ use crate::{
 pub struct CosmosInterchainGasPaymaster {
     domain: HyperlaneDomain,
     address: H256,
+    provider: CosmosProvider,
 }
 
 impl HyperlaneContract for CosmosInterchainGasPaymaster {
@@ -36,7 +36,7 @@ impl HyperlaneChain for CosmosInterchainGasPaymaster {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(CosmosProvider::new(self.domain.clone()))
+        Box::new(self.provider.clone())
     }
 }
 
@@ -49,11 +49,17 @@ impl CosmosInterchainGasPaymaster {
         locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
+        let provider = CosmosProvider::new(
+            locator.domain.clone(),
+            conf.clone(),
+            Some(locator.clone()),
+            signer,
+        )?;
 
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
+            provider,
         })
     }
 }
@@ -210,8 +216,8 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
 }
 
 #[async_trait]
-impl SequenceIndexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+impl SequenceAwareIndexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when cosmwasm scraper support is implemented
         let tip = self.get_finalized_block_number().await?;
         Ok((None, tip))

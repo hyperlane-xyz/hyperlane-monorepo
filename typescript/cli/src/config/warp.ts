@@ -2,7 +2,7 @@ import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 import { z } from 'zod';
 
-import { TokenType } from '@hyperlane-xyz/sdk';
+import { TokenType, ZHash } from '@hyperlane-xyz/sdk';
 
 import { errorRed, logBlue, logGreen } from '../../logger.js';
 import {
@@ -14,9 +14,9 @@ import { FileFormat, readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 import { readChainConfigsIfExists } from './chain.js';
 
 const ConnectionConfigSchema = {
-  mailbox: z.string().optional(),
-  interchainGasPaymaster: z.string().optional(),
-  interchainSecurityModule: z.string().optional(),
+  mailbox: ZHash.optional(),
+  interchainGasPaymaster: ZHash.optional(),
+  interchainSecurityModule: ZHash.optional(),
   foreignDeployment: z.string().optional(),
 };
 
@@ -24,7 +24,7 @@ export const WarpRouteConfigSchema = z.object({
   base: z.object({
     type: z.literal(TokenType.native).or(z.literal(TokenType.collateral)),
     chainName: z.string(),
-    address: z.string().optional(),
+    address: ZHash.optional(),
     isNft: z.boolean().optional(),
     name: z.string().optional(),
     symbol: z.string().optional(),

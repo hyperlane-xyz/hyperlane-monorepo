@@ -27,10 +27,13 @@ serializable-account-meta = { path = "../../../libraries/serializable-account-me
 [dev-dependencies]
 hyperlane-sealevel-multisig-ism-message-id = { path = "../multisig-ism-message-id" }
 hyperlane-test-utils = { path = "../../../libraries/test-utils" }
+multisig-ism = { path = "../../../libraries/multisig-ism", features = ["test-data"] }
 solana-program-test.workspace = true
 solana-sdk.workspace = true
 hex.workspace = true
-multisig-ism = { path = "../../../libraries/multisig-ism", features = ["test-data"] }
+# Can't have as a workspace dep, because this is already in the dep tree twice: once as
+# an older solana one, once as a newer one used more generally.
+rand = "0.8.5"
 
 [lib]
 crate-type = ["cdylib", "lib"]

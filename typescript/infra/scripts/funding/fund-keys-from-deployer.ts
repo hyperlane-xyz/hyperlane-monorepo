@@ -4,7 +4,6 @@ import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import {
-  AllChains,
   ChainMap,
   ChainName,
   Chains,
@@ -12,26 +11,44 @@ import {
   MultiProvider,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { Address, error, log, warn } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  error,
+  log,
+  objFilter,
+  objMap,
+  warn,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { parseKeyIdentifier } from '../../src/agents/agent';
-import { getAllCloudAgentKeys } from '../../src/agents/key-utils';
 import {
-  BaseCloudAgentKey,
+  KeyAsAddress,
+  fetchLocalKeyAddresses,
+  getRoleKeysPerChain,
+} from '../../src/agents/key-utils';
+import {
+  BaseAgentKey,
+  LocalAgentKey,
   ReadOnlyCloudAgentKey,
 } from '../../src/agents/keys';
 import { DeployEnvironment } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
-import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
-import { ALL_AGENT_ROLES, AgentRole, Role } from '../../src/roles';
+import {
+  ContextAndRoles,
+  ContextAndRolesMap,
+  KeyFunderConfig,
+} from '../../src/config/funding';
+import { FundableRole, Role } from '../../src/roles';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
   assertContext,
+  assertFundableRole,
   assertRole,
+  isEthereumProtocolChain,
   readJSONAtPath,
 } from '../../src/utils/utils';
-import { getAgentConfig, getArgs, getEnvironmentConfig } from '../utils';
+import { getAgentConfig, getArgs } from '../agent-utils';
+import { getEnvironmentConfig } from '../core-utils';
 
 import * as L1ETHGateway from './utils/L1ETHGateway.json';
 import * as L1MessageQueue from './utils/L1MessageQueue.json';
@@ -53,7 +70,6 @@ type L2Chain =
   | Chains.optimismgoerli
   | Chains.arbitrum
   | Chains.arbitrumgoerli
-  | Chains.basegoerli
   | Chains.base;
 
 const L2Chains: ChainName[] = [
@@ -61,7 +77,6 @@ const L2Chains: ChainName[] = [
   Chains.optimismgoerli,
   Chains.arbitrum,
   Chains.arbitrumgoerli,
-  Chains.basegoerli,
   Chains.base,
   Chains.polygonzkevmtestnet,
 ];
@@ -71,7 +86,6 @@ const L2ToL1: ChainMap<ChainName> = {
   arbitrumgoerli: 'goerli',
   optimism: 'ethereum',
   arbitrum: 'ethereum',
-  basegoerli: 'goerli',
   base: 'ethereum',
   polygonzkevmtestnet: 'goerli',
 };
@@ -112,55 +126,6 @@ const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 
-const desiredBalancePerChain: ChainMap<string> = {
-  celo: '0.3',
-  alfajores: '1',
-  avalanche: '0.3',
-  fuji: '1',
-  ethereum: '0.5',
-  polygon: '2',
-  mumbai: '0.8',
-  optimism: '0.5',
-  arbitrum: '0.5',
-  bsc: '0.05',
-  bsctestnet: '1',
-  goerli: '0.5',
-  sepolia: '0.5',
-  moonbasealpha: '1',
-  moonbeam: '0.5',
-  optimismgoerli: '0.5',
-  arbitrumgoerli: '0.5',
-  gnosis: '0.1',
-  basegoerli: '0.05',
-  scrollsepolia: '0.05',
-  polygonzkevm: '0.3',
-  scroll: '0.3',
-  base: '0.3',
-  polygonzkevmtestnet: '0.3',
-
-  // unused
-  test1: '0',
-  test2: '0',
-  test3: '0',
-};
-
-// Used to fund kathy with more tokens such that it's able to pay interchain gas
-// on mainnet. The amount is roughly > $100
-const desiredKathyBalancePerChain: ChainMap<string> = {
-  celo: '150',
-  avalanche: '6',
-  polygon: '85',
-  ethereum: '0.4',
-  optimism: '0.1',
-  arbitrum: '0.1',
-  bsc: '0.35',
-  moonbeam: '250',
-  gnosis: '100',
-  scroll: '0.05',
-  base: '0.05',
-  polygonzkevm: '0.05',
-};
-
 // The balance threshold of the IGP contract that must be met for the key funder
 // to call `claim()`
 const igpClaimThresholdPerChain: ChainMap<string> = {
@@ -177,17 +142,16 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   bsctestnet: '1',
   goerli: '1',
   sepolia: '1',
-  moonbasealpha: '2',
   moonbeam: '5',
   optimismgoerli: '1',
   arbitrumgoerli: '1',
   gnosis: '5',
-  basegoerli: '0.1',
   scrollsepolia: '0.1',
   polygonzkevmtestnet: '0.1',
   base: '0.1',
   scroll: '0.1',
   polygonzkevm: '0.1',
+  plumetestnet: '0.1',
   // unused
   test1: '0',
   test2: '0',
@@ -228,6 +192,23 @@ async function main() {
     .coerce('contexts-and-roles', parseContextAndRolesMap)
     .demandOption('contexts-and-roles')
 
+    .string('desired-balance-per-chain')
+    .array('desired-balance-per-chain')
+    .describe(
+      'desired-balance-per-chain',
+      'Array indicating target balance to fund for each chain. Each element is expected as <chainName>=<balance>',
+    )
+    .coerce('desired-balance-per-chain', parseBalancePerChain)
+    .demandOption('desired-balance-per-chain')
+
+    .string('desired-kathy-balance-per-chain')
+    .array('desired-kathy-balance-per-chain')
+    .describe(
+      'desired-kathy-balance-per-chain',
+      'Array indicating target balance to fund Kathy for each chain. Each element is expected as <chainName>=<balance>',
+    )
+    .coerce('desired-kathy-balance-per-chain', parseBalancePerChain)
+
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
     .default('connection-type', RpcConsensusType.Single)
@@ -256,21 +237,25 @@ async function main() {
       ContextFunder.fromSerializedAddressFile(
         environment,
         multiProvider,
-        path,
         argv.contextsAndRoles,
         argv.skipIgpClaim,
+        argv.desiredBalancePerChain,
+        argv.desiredKathyBalancePerChain ?? {},
+        path,
       ),
     );
   } else {
     const contexts = Object.keys(argv.contextsAndRoles) as Contexts[];
     contextFunders = await Promise.all(
       contexts.map((context) =>
-        ContextFunder.fromContext(
+        ContextFunder.fromLocal(
           environment,
           multiProvider,
           context,
           argv.contextsAndRoles[context]!,
           argv.skipIgpClaim,
+          argv.desiredBalancePerChain,
+          argv.desiredKathyBalancePerChain ?? {},
         ),
       ),
     );
@@ -293,112 +278,189 @@ async function main() {
 class ContextFunder {
   igp: HyperlaneIgp;
 
+  keysToFundPerChain: ChainMap<BaseAgentKey[]>;
+
   constructor(
     public readonly environment: DeployEnvironment,
     public readonly multiProvider: MultiProvider,
-    public readonly keys: BaseCloudAgentKey[],
+    roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>>,
     public readonly context: Contexts,
-    public readonly rolesToFund: Role[],
+    public readonly rolesToFund: FundableRole[],
     public readonly skipIgpClaim: boolean,
+    public readonly desiredBalancePerChain: KeyFunderConfig['desiredBalancePerChain'],
+    public readonly desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
   ) {
+    // At the moment, only blessed EVM chains are supported
+    roleKeysPerChain = objFilter(
+      roleKeysPerChain,
+      (chain, _roleKeys): _roleKeys is Record<Role, BaseAgentKey[]> => {
+        const valid =
+          isEthereumProtocolChain(chain) &&
+          multiProvider.tryGetChainName(chain) !== null;
+        if (!valid) {
+          warn('Skipping funding for non-blessed or non-Ethereum chain', {
+            chain,
+          });
+        }
+        return valid;
+      },
+    );
+
     this.igp = HyperlaneIgp.fromEnvironment(
       deployEnvToSdkEnv[this.environment],
       multiProvider,
     );
+    this.keysToFundPerChain = objMap(roleKeysPerChain, (_chain, roleKeys) => {
+      return Object.keys(roleKeys).reduce((agg, roleStr) => {
+        const role = roleStr as FundableRole;
+        if (this.rolesToFund.includes(role)) {
+          return [...agg, ...roleKeys[role]];
+        }
+        return agg;
+      }, [] as BaseAgentKey[]);
+    });
   }
 
   static fromSerializedAddressFile(
     environment: DeployEnvironment,
     multiProvider: MultiProvider,
-    path: string,
     contextsAndRolesToFund: ContextAndRolesMap,
     skipIgpClaim: boolean,
+    desiredBalancePerChain: KeyFunderConfig['desiredBalancePerChain'],
+    desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
+    filePath: string,
   ) {
     log('Reading identifiers and addresses from file', {
-      path,
+      filePath,
     });
-    const idsAndAddresses = readJSONAtPath(path);
-    const keys: BaseCloudAgentKey[] = idsAndAddresses
-      .filter((idAndAddress: any) => {
-        const parsed = parseKeyIdentifier(idAndAddress.identifier);
-        // Filter out any invalid chain names. This can happen if we're running an old
-        // version of this script but the list of identifiers (expected to be stored in GCP secrets)
-        // references newer chains.
-        return (
-          parsed.chainName === undefined ||
-          (AllChains as string[]).includes(parsed.chainName)
-        );
-      })
-      .map((idAndAddress: any) =>
-        ReadOnlyCloudAgentKey.fromSerializedAddress(
-          idAndAddress.identifier,
-          idAndAddress.address,
-        ),
-      );
-
-    const context = keys[0].context;
-    // Ensure all keys have the same context, just to be safe
-    for (const key of keys) {
-      if (key.context !== context) {
-        throw Error(
-          `Expected all keys at path ${path} to have context ${context}, found ${key.context}`,
-        );
-      }
+    // A big array of KeyAsAddress, including keys that we may not care about.
+    const allIdsAndAddresses: KeyAsAddress[] = readJSONAtPath(filePath);
+    if (!allIdsAndAddresses.length) {
+      throw Error(`Expected at least one key in file ${filePath}`);
     }
 
-    const rolesToFund = contextsAndRolesToFund[context];
-    if (!rolesToFund) {
-      throw Error(
-        `Expected context ${context} to be defined in contextsAndRolesToFund`,
-      );
-    }
+    // Arbitrarily pick the first key to get the context
+    const firstKey = allIdsAndAddresses[0];
+    const context = ReadOnlyCloudAgentKey.fromSerializedAddress(
+      firstKey.identifier,
+      firstKey.address,
+    ).context;
 
-    log('Read keys for context from file', {
-      path,
-      keyCount: keys.length,
+    // Indexed by the identifier for quicker lookup
+    const idsAndAddresses: Record<string, KeyAsAddress> =
+      allIdsAndAddresses.reduce((agg, idAndAddress) => {
+        agg[idAndAddress.identifier] = idAndAddress;
+        return agg;
+      }, {} as Record<string, KeyAsAddress>);
+
+    const agentConfig = getAgentConfig(context, environment);
+    // Unfetched keys per chain and role, so we know which keys
+    // we need. We'll use this to create a corresponding object
+    // of ReadOnlyCloudAgentKeys using addresses found in the
+    // serialized address file.
+    const roleKeysPerChain = getRoleKeysPerChain(agentConfig);
+
+    const readOnlyKeysPerChain = objMap(
+      roleKeysPerChain,
+      (_chain, roleKeys) => {
+        return objMap(roleKeys, (_role, keys) => {
+          return keys.map((key) => {
+            const idAndAddress = idsAndAddresses[key.identifier];
+            if (!idAndAddress) {
+              throw Error(
+                `Expected key identifier ${key.identifier} to be in file ${filePath}`,
+              );
+            }
+            return ReadOnlyCloudAgentKey.fromSerializedAddress(
+              idAndAddress.identifier,
+              idAndAddress.address,
+            );
+          });
+        });
+      },
+    );
+
+    log('Successfully read keys for context from file', {
+      filePath,
+      readOnlyKeysPerChain,
       context,
     });
 
     return new ContextFunder(
       environment,
       multiProvider,
-      keys,
+      readOnlyKeysPerChain,
       context,
-      rolesToFund,
+      contextsAndRolesToFund[context]!,
       skipIgpClaim,
+      desiredBalancePerChain,
+      desiredKathyBalancePerChain,
     );
   }
 
-  // The keys here are not ReadOnlyCloudAgentKeys, instead they are AgentGCPKey or AgentAWSKeys,
-  // which require credentials to fetch. If you want to avoid requiring credentials, use
-  // fromSerializedAddressFile instead.
-  static async fromContext(
+  // the keys are retrieved from the local artifacts in the infra/config/relayer.json or infra/config/kathy.json
+  static async fromLocal(
     environment: DeployEnvironment,
     multiProvider: MultiProvider,
     context: Contexts,
-    rolesToFund: Role[],
+    rolesToFund: FundableRole[],
     skipIgpClaim: boolean,
+    desiredBalancePerChain: KeyFunderConfig['desiredBalancePerChain'],
+    desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
   ) {
-    const agentConfig = getAgentConfig(context, environment);
-    const keys = getAllCloudAgentKeys(agentConfig);
-    await Promise.all(keys.map((key) => key.fetch()));
+    // only roles that are fundable keys ie. relayer and kathy
+    const fundableRoleKeys: Record<FundableRole, Address> = {
+      [Role.Relayer]: '',
+      [Role.Kathy]: '',
+    };
+    const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
+    const chains = getEnvironmentConfig(environment).chainMetadataConfigs;
+    for (const role of rolesToFund) {
+      assertFundableRole(role); // only the relayer and kathy are fundable keys
+      const roleAddress = fetchLocalKeyAddresses(role)[environment][context];
+      if (!roleAddress) {
+        throw Error(
+          `Could not find address for ${role} in ${environment} ${context}`,
+        );
+      }
+      fundableRoleKeys[role] = roleAddress;
+
+      for (const chain of Object.keys(chains)) {
+        if (!roleKeysPerChain[chain as ChainName]) {
+          roleKeysPerChain[chain as ChainName] = {
+            [Role.Relayer]: [],
+            [Role.Kathy]: [],
+          };
+        }
+        roleKeysPerChain[chain][role] = [
+          new LocalAgentKey(
+            environment,
+            context,
+            role,
+            fundableRoleKeys[role as FundableRole],
+            chain,
+          ),
+        ];
+      }
+    }
     return new ContextFunder(
       environment,
       multiProvider,
-      keys,
+      roleKeysPerChain,
       context,
       rolesToFund,
       skipIgpClaim,
+      desiredBalancePerChain,
+      desiredKathyBalancePerChain,
     );
   }
 
   // Funds all the roles in this.rolesToFund
   // Returns whether a failure occurred.
   async fund(): Promise<boolean> {
-    let failureOccurred = false;
-
-    const chainKeys = this.getChainKeys();
-    const promises = Object.entries(chainKeys).map(async ([chain, keys]) => {
+    const chainKeyEntries = Object.entries(this.keysToFundPerChain);
+    const promises = chainKeyEntries.map(async ([chain, keys]) => {
+      let failureOccurred = false;
       if (keys.length > 0) {
         if (!this.skipIgpClaim) {
           failureOccurred ||= await gracefullyHandleError(
@@ -418,45 +480,31 @@ class ContextFunder {
         const failure = await this.attemptToFundKey(key, chain);
         failureOccurred ||= failure;
       }
+      return failureOccurred;
     });
 
-    try {
-      await Promise.all(promises);
-    } catch (e) {
-      error('Unhandled error when funding key', { error: format(e) });
-      failureOccurred = true;
-    }
+    // A failure occurred if any of the promises rejected or
+    // if any of them resolved with true, indicating a failure
+    // somewhere along the way
+    const failureOccurred = (await Promise.allSettled(promises)).reduce(
+      (failureAgg, result, i) => {
+        if (result.status === 'rejected') {
+          error('Funding promise for chain rejected', {
+            chain: chainKeyEntries[i][0],
+            error: format(result.reason),
+          });
+          return true;
+        }
+        return result.value || failureAgg;
+      },
+      false,
+    );
 
     return failureOccurred;
   }
 
-  private getChainKeys() {
-    const chainKeys: ChainMap<BaseCloudAgentKey[]> = Object.fromEntries(
-      // init with empty arrays
-      AllChains.map((c) => [c, []]),
-    );
-    for (const role of this.rolesToFund) {
-      const keys = this.getKeysWithRole(role);
-      for (const key of keys) {
-        const chains = getAgentConfig(
-          key.context,
-          key.environment,
-        ).contextChainNames;
-        // If the role is not a relayer, we need to look up the chains for Kathy, so we'll fallback to the relayer
-        const roleToLookup = ALL_AGENT_ROLES.includes(role as AgentRole)
-          ? role
-          : Role.Relayer;
-        const chainsPicked = chains[roleToLookup as AgentRole];
-        for (const chain of chainsPicked) {
-          chainKeys[chain].push(key);
-        }
-      }
-    }
-    return chainKeys;
-  }
-
   private async attemptToFundKey(
-    key: BaseCloudAgentKey,
+    key: BaseAgentKey,
     chain: ChainName,
   ): Promise<boolean> {
     const provider = this.multiProvider.tryGetProvider(chain);
@@ -494,7 +542,7 @@ class ContextFunder {
     if (L2Chains.includes(chain)) {
       const funderAddress = await this.multiProvider.getSignerAddress(chain)!;
       const desiredBalanceEther = ethers.utils.parseUnits(
-        desiredBalancePerChain[chain],
+        this.desiredBalancePerChain[chain],
         'ether',
       );
       // Optionally bridge ETH to L2 before funding the desired key.
@@ -561,10 +609,10 @@ class ContextFunder {
 
   private getDesiredBalanceForRole(chain: ChainName, role: Role): BigNumber {
     const desiredBalanceEther =
-      role === Role.Kathy && desiredKathyBalancePerChain[chain]
-        ? desiredKathyBalancePerChain[chain]
-        : desiredBalancePerChain[chain];
-    let desiredBalance = ethers.utils.parseEther(desiredBalanceEther);
+      role === Role.Kathy && this.desiredKathyBalancePerChain[chain]
+        ? this.desiredKathyBalancePerChain[chain]
+        : this.desiredBalancePerChain[chain];
+    let desiredBalance = ethers.utils.parseEther(desiredBalanceEther ?? '0');
     if (this.context === Contexts.ReleaseCandidate) {
       desiredBalance = desiredBalance
         .mul(RC_FUNDING_DISCOUNT_NUMERATOR)
@@ -577,7 +625,7 @@ class ContextFunder {
   // is lower than the desired balance by the min delta
   private async fundKeyIfRequired(
     chain: ChainName,
-    key: BaseCloudAgentKey,
+    key: BaseAgentKey,
     desiredBalance: BigNumber,
   ) {
     const fundingAmount = await this.getFundingAmount(
@@ -777,10 +825,6 @@ class ContextFunder {
         ),
       );
   }
-
-  private getKeysWithRole(role: Role) {
-    return this.keys.filter((k) => k.role === role);
-  }
 }
 
 async function getAddressInfo(
@@ -796,13 +840,13 @@ async function getAddressInfo(
 }
 
 async function getKeyInfo(
-  key: BaseCloudAgentKey,
+  key: BaseAgentKey,
   chain: ChainName,
   provider: ethers.providers.Provider,
 ) {
   return {
     ...(await getAddressInfo(key.address, chain, provider)),
-    context: key.context,
+    context: (key as LocalAgentKey).context,
     originChain: key.chainName,
     role: key.role,
   };
@@ -837,7 +881,9 @@ function parseContextAndRoles(str: string): ContextAndRoles {
   for (const role of roles) {
     if (!validRoles.has(role)) {
       throw Error(
-        `Invalid role ${role}, must be one of ${Array.from(validRoles)}`,
+        `Invalid fundable role ${role}, must be one of ${Array.from(
+          validRoles,
+        )}`,
       );
     }
   }
@@ -846,6 +892,18 @@ function parseContextAndRoles(str: string): ContextAndRoles {
     context,
     roles,
   };
+}
+
+function parseBalancePerChain(strs: string[]): ChainMap<string> {
+  const balanceMap: ChainMap<string> = {};
+  strs.forEach((str) => {
+    const [chain, balance] = str.split('=');
+    if (!chain || !balance) {
+      throw new Error(`Invalid format for balance entry: ${str}`);
+    }
+    balanceMap[chain] = balance;
+  });
+  return balanceMap;
 }
 
 // Returns whether an error occurred

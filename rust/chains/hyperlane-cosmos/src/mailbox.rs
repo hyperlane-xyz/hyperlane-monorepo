@@ -14,10 +14,7 @@ use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::CosmosProvider;
 use crate::{address::CosmosAddress, types::tx_response_to_outcome};
-use crate::{
-    grpc::{WasmGrpcProvider, WasmProvider},
-    HyperlaneCosmosError,
-};
+use crate::{grpc::WasmProvider, HyperlaneCosmosError};
 use crate::{signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -26,12 +23,12 @@ use once_cell::sync::Lazy;
 
 use crate::utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64};
 use hyperlane_core::{
-    utils::fmt_bytes, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    utils::bytes_to_hex, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
     H256, U256,
 };
 use hyperlane_core::{
-    ChainCommunicationError, ContractLocator, Decode, RawHyperlaneMessage, SequenceIndexer,
+    ChainCommunicationError, ContractLocator, Decode, RawHyperlaneMessage, SequenceAwareIndexer,
 };
 use tracing::{instrument, warn};
 
@@ -40,7 +37,7 @@ pub struct CosmosMailbox {
     config: ConnectionConf,
     domain: HyperlaneDomain,
     address: H256,
-    provider: Box<WasmGrpcProvider>,
+    provider: CosmosProvider,
 }
 
 impl CosmosMailbox {
@@ -51,19 +48,28 @@ impl CosmosMailbox {
         locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
+        let provider = CosmosProvider::new(
+            locator.domain.clone(),
+            conf.clone(),
+            Some(locator.clone()),
+            signer,
+        )?;
 
         Ok(Self {
             config: conf,
             domain: locator.domain.clone(),
             address: locator.address,
-            provider: Box::new(provider),
+            provider,
         })
     }
 
     /// Prefix used in the bech32 address encoding
-    pub fn prefix(&self) -> String {
-        self.config.get_prefix()
+    pub fn bech32_prefix(&self) -> String {
+        self.config.get_bech32_prefix()
+    }
+
+    fn contract_address_bytes(&self) -> usize {
+        self.config.get_contract_address_bytes()
     }
 }
 
@@ -79,7 +85,7 @@ impl HyperlaneChain for CosmosMailbox {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(CosmosProvider::new(self.domain.clone()))
+        Box::new(self.provider.clone())
     }
 }
 
@@ -94,7 +100,7 @@ impl Debug for CosmosMailbox {
 impl Mailbox for CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let block_height = get_block_height_for_lag(&self.provider, lag).await?;
+        let block_height = get_block_height_for_lag(self.provider.grpc(), lag).await?;
         self.nonce_at_block(block_height).await
     }
 
@@ -107,6 +113,7 @@ impl Mailbox for CosmosMailbox {
 
         let delivered = match self
             .provider
+            .grpc()
             .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
             .await
         {
@@ -136,18 +143,24 @@ impl Mailbox for CosmosMailbox {
 
         let data = self
             .provider
+            .grpc()
             .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
             .await?;
         let response: mailbox::DefaultIsmResponse = serde_json::from_slice(&data)?;
 
-        // convert Hex to H256
-        let ism = H256::from_slice(&hex::decode(response.default_ism)?);
-        Ok(ism)
+        // convert bech32 to H256
+        let ism = CosmosAddress::from_str(&response.default_ism)?;
+        Ok(ism.digest())
     }
 
     #[instrument(err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let address = CosmosAddress::from_h256(recipient, &self.prefix())?.address();
+        let address = CosmosAddress::from_h256(
+            recipient,
+            &self.bech32_prefix(),
+            self.contract_address_bytes(),
+        )?
+        .address();
 
         let payload = mailbox::RecipientIsmRequest {
             recipient_ism: mailbox::RecipientIsmRequestInner {
@@ -157,11 +170,12 @@ impl Mailbox for CosmosMailbox {
 
         let data = self
             .provider
+            .grpc()
             .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
             .await?;
         let response: mailbox::RecipientIsmResponse = serde_json::from_slice(&data)?;
 
-        // convert Hex to H256
+        // convert bech32 to H256
         let ism = CosmosAddress::from_str(&response.ism)?;
         Ok(ism.digest())
     }
@@ -182,13 +196,14 @@ impl Mailbox for CosmosMailbox {
 
         let response: TxResponse = self
             .provider
+            .grpc()
             .wasm_send(process_message, tx_gas_limit)
             .await?;
 
         Ok(tx_response_to_outcome(response)?)
     }
 
-    #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
+    #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
@@ -201,11 +216,15 @@ impl Mailbox for CosmosMailbox {
             },
         };
 
-        let gas_limit = self.provider.wasm_estimate_gas(process_message).await?;
+        let gas_limit = self
+            .provider
+            .grpc()
+            .wasm_estimate_gas(process_message)
+            .await?;
 
         let result = TxCostEstimate {
             gas_limit: gas_limit.into(),
-            gas_price: U256::from(2500),
+            gas_price: self.provider.grpc().gas_price(),
             l2_gas_limit: None,
         };
 
@@ -226,6 +245,7 @@ impl CosmosMailbox {
 
         let data = self
             .provider
+            .grpc()
             .wasm_query(GeneralMailboxQuery { mailbox: payload }, block_height)
             .await?;
 
@@ -358,8 +378,8 @@ impl Indexer<H256> for CosmosMailboxIndexer {
 }
 
 #[async_trait]
-impl SequenceIndexer<H256> for CosmosMailboxIndexer {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+impl SequenceAwareIndexer<H256> for CosmosMailboxIndexer {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<H256>::get_finalized_block_number(&self).await?;
 
         // No sequence for message deliveries.
@@ -368,8 +388,8 @@ impl SequenceIndexer<H256> for CosmosMailboxIndexer {
 }
 
 #[async_trait]
-impl SequenceIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+impl SequenceAwareIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(&self).await?;
 
         let sequence = self.mailbox.nonce_at_block(Some(tip.into())).await?;

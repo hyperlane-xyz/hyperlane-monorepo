@@ -1,9 +1,7 @@
 use std::str::FromStr;
 
 use crate::{
-    grpc::{WasmGrpcProvider, WasmProvider},
-    payloads::ism_routes::QueryIsmGeneralRequest,
-    signers::Signer,
+    grpc::WasmProvider, payloads::ism_routes::QueryIsmGeneralRequest, signers::Signer,
     ConnectionConf, CosmosProvider,
 };
 use async_trait::async_trait;
@@ -19,7 +17,7 @@ use crate::payloads::multisig_ism::{self, VerifyInfoRequest, VerifyInfoRequestIn
 pub struct CosmosMultisigIsm {
     domain: HyperlaneDomain,
     address: H256,
-    provider: Box<WasmGrpcProvider>,
+    provider: CosmosProvider,
 }
 
 impl CosmosMultisigIsm {
@@ -29,12 +27,17 @@ impl CosmosMultisigIsm {
         locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
+        let provider = CosmosProvider::new(
+            locator.domain.clone(),
+            conf.clone(),
+            Some(locator.clone()),
+            signer,
+        )?;
 
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
-            provider: Box::new(provider),
+            provider,
         })
     }
 }
@@ -51,7 +54,7 @@ impl HyperlaneChain for CosmosMultisigIsm {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(CosmosProvider::new(self.domain.clone()))
+        Box::new(self.provider.clone())
     }
 }
 
@@ -70,6 +73,7 @@ impl MultisigIsm for CosmosMultisigIsm {
 
         let data = self
             .provider
+            .grpc()
             .wasm_query(QueryIsmGeneralRequest { ism: payload }, None)
             .await?;
         let response: multisig_ism::VerifyInfoResponse = serde_json::from_slice(&data)?;

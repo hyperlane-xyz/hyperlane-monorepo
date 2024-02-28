@@ -1,12 +1,14 @@
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
+    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, RawHyperlaneMessage,
+    H256, U256,
 };
 
 use crate::{
-    grpc::{WasmGrpcProvider, WasmProvider},
+    grpc::WasmProvider,
     payloads::{
+        aggregate_ism::{VerifyRequest, VerifyRequestInner, VerifyResponse},
         general::EmptyStruct,
         ism_routes::{QueryIsmGeneralRequest, QueryIsmModuleTypeRequest},
     },
@@ -22,7 +24,7 @@ pub struct CosmosInterchainSecurityModule {
     /// The address of the ISM contract.
     address: H256,
     /// The provider for the ISM contract.
-    provider: Box<WasmGrpcProvider>,
+    provider: CosmosProvider,
 }
 
 /// The Cosmos Interchain Security Module Implementation.
@@ -33,13 +35,17 @@ impl CosmosInterchainSecurityModule {
         locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider: WasmGrpcProvider =
-            WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
+        let provider = CosmosProvider::new(
+            locator.domain.clone(),
+            conf.clone(),
+            Some(locator.clone()),
+            signer,
+        )?;
 
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
-            provider: Box::new(provider),
+            provider,
         })
     }
 }
@@ -56,7 +62,7 @@ impl HyperlaneChain for CosmosInterchainSecurityModule {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(CosmosProvider::new(self.domain.clone()))
+        Box::new(self.provider.clone())
     }
 }
 
@@ -71,11 +77,12 @@ impl InterchainSecurityModule for CosmosInterchainSecurityModule {
 
         let data = self
             .provider
+            .grpc()
             .wasm_query(QueryIsmGeneralRequest { ism: query }, None)
             .await?;
 
         let module_type_response =
-            serde_json::from_slice::<hpl_interface::ism::ModuleTypeResponse>(&data)?;
+            serde_json::from_slice::<hyperlane_cosmwasm_interface::ism::ModuleTypeResponse>(&data)?;
         Ok(IsmType(module_type_response.typ).into())
     }
 
@@ -86,6 +93,23 @@ impl InterchainSecurityModule for CosmosInterchainSecurityModule {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        Ok(Some(U256::from(1000))) // TODO
+        let payload = VerifyRequest {
+            verify: VerifyRequestInner {
+                metadata: hex::encode(metadata),
+                message: hex::encode(RawHyperlaneMessage::from(message)),
+            },
+        };
+        let data = self
+            .provider
+            .grpc()
+            .wasm_query(QueryIsmGeneralRequest { ism: payload }, None)
+            .await?;
+        let response: VerifyResponse = serde_json::from_slice(&data)?;
+        // We can't simulate the `verify` call in CosmWasm because
+        // it's not marked as an entrypoint. So we just use the query interface
+        // and hardcode a gas value - this can be inefficient if one ISM is
+        // vastly cheaper than another one.
+        let dummy_gas_value = U256::one();
+        Ok(response.verified.then_some(dummy_gas_value))
     }
 }

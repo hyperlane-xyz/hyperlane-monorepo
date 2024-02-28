@@ -82,7 +82,7 @@ describe('HelloWorld', async () => {
       local.sendHelloWorld(remoteDomain, body, {
         value: 0,
       }),
-    ).to.be.revertedWith('StaticProtocolFee: insufficient protocol fee');
+    ).to.be.revertedWith('ProtocolFee: insufficient protocol fee');
   });
 
   it('handles a message', async () => {

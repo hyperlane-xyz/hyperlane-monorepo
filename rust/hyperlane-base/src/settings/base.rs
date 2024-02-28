@@ -4,7 +4,7 @@ use eyre::{eyre, Context, Result};
 use futures_util::future::try_join_all;
 use hyperlane_core::{
     Delivery, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    HyperlaneSequenceIndexerStore, HyperlaneWatermarkedLogStore, InterchainGasPaymaster,
+    HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, InterchainGasPaymaster,
     InterchainGasPayment, Mailbox, MerkleTreeHook, MerkleTreeInsertion, MultisigIsm,
     ValidatorAnnounce, H256,
 };
@@ -12,7 +12,7 @@ use hyperlane_core::{
 use crate::{
     settings::{chains::ChainConf, trace::TracingConfig},
     ContractSync, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, SequencedDataContractSync,
-    WatermarkContractSync,
+    Server, WatermarkContractSync,
 };
 
 /// Settings. Usually this should be treated as a base config and used as
@@ -93,6 +93,11 @@ impl Settings {
             self.metrics_port,
             prometheus::Registry::new(),
         )?))
+    }
+
+    /// Create the server from the settings given the name of the agent.
+    pub fn server(&self, core_metrics: Arc<CoreMetrics>) -> Result<Arc<Server>> {
+        Ok(Arc::new(Server::new(self.metrics_port, core_metrics)))
     }
 
     /// Private to preserve linearity of AgentCore::from_settings -- creating an
@@ -184,7 +189,7 @@ impl Settings {
     build_contract_fns!(build_validator_announce, build_validator_announces -> dyn ValidatorAnnounce);
     build_contract_fns!(build_provider, build_providers -> dyn HyperlaneProvider);
     build_indexer_fns!(build_delivery_indexer, build_delivery_indexers -> dyn HyperlaneWatermarkedLogStore<Delivery>, WatermarkContractSync<Delivery>);
-    build_indexer_fns!(build_message_indexer, build_message_indexers -> dyn HyperlaneSequenceIndexerStore<HyperlaneMessage>, SequencedDataContractSync<HyperlaneMessage>);
+    build_indexer_fns!(build_message_indexer, build_message_indexers -> dyn HyperlaneSequenceAwareIndexerStore<HyperlaneMessage>, SequencedDataContractSync<HyperlaneMessage>);
     build_indexer_fns!(build_interchain_gas_payment_indexer, build_interchain_gas_payment_indexers -> dyn HyperlaneWatermarkedLogStore<InterchainGasPayment>, WatermarkContractSync<InterchainGasPayment>);
-    build_indexer_fns!(build_merkle_tree_hook_indexer, build_merkle_tree_hook_indexers -> dyn HyperlaneSequenceIndexerStore<MerkleTreeInsertion>, SequencedDataContractSync<MerkleTreeInsertion>);
+    build_indexer_fns!(build_merkle_tree_hook_indexer, build_merkle_tree_hook_indexers -> dyn HyperlaneSequenceAwareIndexerStore<MerkleTreeInsertion>, SequencedDataContractSync<MerkleTreeInsertion>);
 }

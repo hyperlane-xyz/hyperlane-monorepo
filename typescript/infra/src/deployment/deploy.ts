@@ -2,6 +2,7 @@ import {
   ChainMap,
   ChainName,
   HyperlaneAddresses,
+  HyperlaneCore,
   HyperlaneDeployer,
   HyperlaneDeploymentArtifacts,
   MultiProvider,
@@ -10,16 +11,16 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap, objMerge, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { getAgentConfigDirectory } from '../../scripts/utils';
+import { getAgentConfigDirectory } from '../../scripts/agent-utils';
 import { DeployEnvironment } from '../config';
 import {
   readJSONAtPath,
-  writeJSON,
   writeJsonAtPath,
+  writeMergedJSON,
   writeMergedJSONAtPath,
 } from '../utils/utils';
 
-export async function deployWithArtifacts<Config>(
+export async function deployWithArtifacts<Config extends object>(
   configMap: ChainMap<Config>,
   deployer: HyperlaneDeployer<Config, any>,
   cache: {
@@ -28,7 +29,7 @@ export async function deployWithArtifacts<Config>(
     read: boolean;
     write: boolean;
   },
-  fork?: ChainName,
+  targetNetwork?: ChainName,
   agentConfig?: {
     multiProvider: MultiProvider;
     addresses: string;
@@ -55,11 +56,9 @@ export async function deployWithArtifacts<Config>(
   });
 
   try {
-    if (fork) {
-      deployer.deployedContracts[fork] = await deployer.deployContracts(
-        fork,
-        configMap[fork],
-      );
+    if (targetNetwork) {
+      deployer.deployedContracts[targetNetwork] =
+        await deployer.deployContracts(targetNetwork, configMap[targetNetwork]);
     } else {
       await deployer.deploy(configMap);
     }
@@ -70,7 +69,7 @@ export async function deployWithArtifacts<Config>(
   await postDeploy(deployer, cache, agentConfig);
 }
 
-export async function postDeploy<Config>(
+export async function postDeploy<Config extends object>(
   deployer: HyperlaneDeployer<Config, any>,
   cache: {
     addresses: string;
@@ -89,7 +88,6 @@ export async function postDeploy<Config>(
     const deployedAddresses = serializeContractsMap(deployer.deployedContracts);
     const cachedAddresses = deployer.cachedAddresses;
     const addresses = objMerge(deployedAddresses, cachedAddresses);
-    console.log(addresses);
 
     // cache addresses of deployed contracts
     writeMergedJSONAtPath(cache.addresses, addresses);
@@ -126,21 +124,26 @@ export async function writeAgentConfig(
   } catch (e) {
     console.error('Failed to load cached addresses');
   }
-  // Write agent config indexing from the deployed or latest block numbers.
-  // For non-net-new deployments, these changes will need to be
-  // reverted manually.
-  const startBlocks = await promiseObjAll(
-    objMap(addresses, (chain, _) =>
-      multiProvider.getProvider(chain).getBlockNumber(),
-    ),
+
+  const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
+  // Write agent config indexing from the deployed Mailbox which stores the block number at deployment
+  const startBlocksBigNumber = await promiseObjAll(
+    objMap(addresses, (chain, _) => {
+      const mailbox = core.getContracts(chain).mailbox;
+      return mailbox.deployedBlock();
+    }),
   );
+  const startBlocks = objMap(startBlocksBigNumber, (_, blockNumber) =>
+    blockNumber.toNumber(),
+  );
+
   const agentConfig = buildAgentConfig(
     multiProvider.getKnownChainNames(),
     multiProvider,
     addresses as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
   );
-  writeJSON(
+  writeMergedJSON(
     getAgentConfigDirectory(),
     `${environment}_config.json`,
     agentConfig,

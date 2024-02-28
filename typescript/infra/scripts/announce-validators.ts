@@ -8,13 +8,14 @@ import { AllChains, ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 import { S3Validator } from '../src/agents/aws/validator';
 import { CheckpointSyncerType } from '../src/config';
 import { deployEnvToSdkEnv } from '../src/config/environment';
+import { isEthereumProtocolChain } from '../src/utils/utils';
 
 import {
   getAgentConfig,
-  getEnvironmentConfig,
   getArgs as getRootArgs,
   withContext,
-} from './utils';
+} from './agent-utils';
+import { getEnvironmentConfig } from './core-utils';
 
 function getArgs() {
   return withContext(getRootArgs())
@@ -74,14 +75,15 @@ async function main() {
       throw new Error(`Unknown location type %{location}`);
     }
   } else {
-    const agentConfig = getAgentConfig(context, config);
+    const agentConfig = getAgentConfig(context, environment);
     if (agentConfig.validators == undefined) {
       console.warn('No validators provided for context');
       return;
     }
     await Promise.all(
-      Object.entries(agentConfig.validators.chains).map(
-        async ([chain, validatorChainConfig]) => {
+      Object.entries(agentConfig.validators.chains)
+        .filter(([chain, _]) => isEthereumProtocolChain(chain))
+        .map(async ([chain, validatorChainConfig]) => {
           for (const validatorBaseConfig of validatorChainConfig.validators) {
             if (
               validatorBaseConfig.checkpointSyncer.type ==
@@ -95,6 +97,7 @@ async function main() {
                 contracts.mailbox.address,
                 validatorBaseConfig.checkpointSyncer.bucket,
                 validatorBaseConfig.checkpointSyncer.region,
+                undefined,
               );
               announcements.push({
                 storageLocation: validator.storageLocation(),
@@ -103,8 +106,7 @@ async function main() {
               chains.push(chain);
             }
           }
-        },
-      ),
+        }),
     );
   }
 
@@ -124,7 +126,9 @@ async function main() {
     const announced = announcedLocations[0].includes(location);
     if (!announced) {
       const signature = ethers.utils.joinSignature(announcement.signature);
-      console.log(`Announcing ${address} checkpoints at ${location}`);
+      console.log(
+        `[${chain}] Announcing ${address} checkpoints at ${location}`,
+      );
       await validatorAnnounce.announce(
         address,
         location,
@@ -132,7 +136,9 @@ async function main() {
         multiProvider.getTransactionOverrides(chain),
       );
     } else {
-      console.log(`Already announced ${address} checkpoints at ${location}`);
+      console.log(
+        `[${chain}] Already announced ${address} checkpoints at ${location}`,
+      );
     }
   }
 }

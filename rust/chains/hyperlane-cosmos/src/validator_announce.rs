@@ -7,7 +7,7 @@ use hyperlane_core::{
 };
 
 use crate::{
-    grpc::{WasmGrpcProvider, WasmProvider},
+    grpc::WasmProvider,
     payloads::validator_announce::{
         self, AnnouncementRequest, AnnouncementRequestInner, GetAnnounceStorageLocationsRequest,
         GetAnnounceStorageLocationsRequestInner,
@@ -22,7 +22,7 @@ use crate::{
 pub struct CosmosValidatorAnnounce {
     domain: HyperlaneDomain,
     address: H256,
-    provider: Box<WasmGrpcProvider>,
+    provider: CosmosProvider,
 }
 
 impl CosmosValidatorAnnounce {
@@ -32,12 +32,17 @@ impl CosmosValidatorAnnounce {
         locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer)?;
+        let provider = CosmosProvider::new(
+            locator.domain.clone(),
+            conf.clone(),
+            Some(locator.clone()),
+            signer,
+        )?;
 
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
-            provider: Box::new(provider),
+            provider,
         })
     }
 }
@@ -54,7 +59,7 @@ impl HyperlaneChain for CosmosValidatorAnnounce {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(CosmosProvider::new(self.domain.clone()))
+        Box::new(self.provider.clone())
     }
 }
 
@@ -76,7 +81,7 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
             },
         };
 
-        let data: Vec<u8> = self.provider.wasm_query(payload, None).await?;
+        let data: Vec<u8> = self.provider.grpc().wasm_query(payload, None).await?;
         let response: validator_announce::GetAnnounceStorageLocationsResponse =
             serde_json::from_slice(&data)?;
 
@@ -102,6 +107,7 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
 
         let response: TxResponse = self
             .provider
+            .grpc()
             .wasm_send(announce_request, tx_gas_limit)
             .await?;
 

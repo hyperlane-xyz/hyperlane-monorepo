@@ -1,4 +1,4 @@
-import { chainMetadata } from '@hyperlane-xyz/sdk';
+import { chainMetadata, getReorgPeriod } from '@hyperlane-xyz/sdk';
 
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
@@ -13,7 +13,7 @@ export const validatorChainConfig = (
   return {
     alfajores: {
       interval: 5,
-      reorgPeriod: chainMetadata.alfajores.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.alfajores),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -26,32 +26,14 @@ export const validatorChainConfig = (
             '0x6c8bfdfb8c40aba10cc9fb2cf0e3e856e0e5dbb3',
             '0x54c65eb7677e6086cdde3d5ccef89feb2103a11d',
           ],
+          [Contexts.Neutron]: [],
         },
         'alfajores',
       ),
     },
-    basegoerli: {
-      interval: 5,
-      reorgPeriod: chainMetadata.basegoerli.blocks!.reorgPeriod!,
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0xf6eddda696dcd3bf10f7ce8a02db31ef2e775a03',
-            '0x5a7d05cebf5db4dde9b2fedcefa76fb58fa05071',
-            '0x9260a6c7d54cbcbed28f8668679cd1fa3a203b25',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0x81983e03363351b63848867bd76687cc80b9ff37',
-            '0x36de434527b8f83851d83f1b1d72ec11a5903533',
-            '0x4b65f7527c267e420bf62a0c5a139cb8c3906277',
-          ],
-        },
-        'basegoerli',
-      ),
-    },
     fuji: {
       interval: 5,
-      reorgPeriod: chainMetadata.fuji.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.alfajores),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -64,13 +46,14 @@ export const validatorChainConfig = (
             '0x0a636e76df4124b092cabb4321d6aaef9defb514',
             '0xbf86037899efe97bca4cea865607e10b849b5878',
           ],
+          [Contexts.Neutron]: [],
         },
         'fuji',
       ),
     },
     // chiado: {
     //   interval: 5,
-    //   reorgPeriod: chainMetadata.chiado.blocks!.reorgPeriod!,
+    //   reorgPeriod: getReorgPeriod(chainMetadata.chiado),
     //   validators: validatorsConfig(
     //     {
     //       [Contexts.Hyperlane]: [
@@ -89,7 +72,7 @@ export const validatorChainConfig = (
     // },
     // lineagoerli: {
     //   interval: 5,
-    //   reorgPeriod: chainMetadata.lineagoerli.blocks!.reorgPeriod!,
+    //   reorgPeriod: getReorgPeriod(chainMetadata.lineagoerli),
     //   validators: validatorsConfig(
     //     {
     //       [Contexts.Hyperlane]: [
@@ -108,7 +91,7 @@ export const validatorChainConfig = (
     // },
     mumbai: {
       interval: 5,
-      reorgPeriod: chainMetadata.mumbai.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.mumbai),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -121,13 +104,14 @@ export const validatorChainConfig = (
             '0x954168cf13faeaa248d412e145a17dc697556636',
             '0x98a9f2610e44246ac0c749c20a07a6eb192ce9eb',
           ],
+          [Contexts.Neutron]: [],
         },
         'mumbai',
       ),
     },
     bsctestnet: {
       interval: 5,
-      reorgPeriod: chainMetadata.bsctestnet.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.bsctestnet),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -140,13 +124,14 @@ export const validatorChainConfig = (
             '0xcb5be62b19c52b78cd3993c71c3fa74d821475ae',
             '0xc50ddb8f03133611853b7f03ffe0a8098e08ae15',
           ],
+          [Contexts.Neutron]: [],
         },
         'bsctestnet',
       ),
     },
     goerli: {
       interval: 5,
-      reorgPeriod: chainMetadata.goerli.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.goerli),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -159,13 +144,14 @@ export const validatorChainConfig = (
             '0x4711d476a5929840196def397a156c5253b44b96',
             '0xb0add42f2a4b824ba5fab2628f930dc1dcfc40f8',
           ],
+          [Contexts.Neutron]: [],
         },
         'goerli',
       ),
     },
     scrollsepolia: {
       interval: 5,
-      reorgPeriod: chainMetadata.scrollsepolia.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.scrollsepolia),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -178,13 +164,14 @@ export const validatorChainConfig = (
             '0x10fa7a657a06a47bcca1bacc436d61619e5d104c',
             '0xa0f1cf3b23bd0f8a5e2ad438657097b8287816b4',
           ],
+          [Contexts.Neutron]: [],
         },
         'scrollsepolia',
       ),
     },
     sepolia: {
       interval: 5,
-      reorgPeriod: chainMetadata.sepolia.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.sepolia),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -197,32 +184,14 @@ export const validatorChainConfig = (
             '0x13b51805e9af68e154778d973165f32e10b7446b',
             '0x7f699c3fc3de4928f1c0abfba1eac3fbb5a00d1b',
           ],
+          [Contexts.Neutron]: [],
         },
         'sepolia',
       ),
     },
-    moonbasealpha: {
-      interval: 5,
-      reorgPeriod: chainMetadata.moonbasealpha.blocks!.reorgPeriod!,
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0x521877064bd7ac7500d300f162c8c47c256a2f9c',
-            '0xbc1c70f58ae0459d4b8a013245420a893837d568',
-            '0x01e42c2c44af81dda1ac16fec76fea2a7a54a44c',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0x376260b40b2ba2100890f27de1eb18a2774f54d1',
-            '0x776623e8be8d7218940b7c77d02162af4ff97985',
-            '0xb4c81facd992a6c7c4a187bcce35a6fc968399a0',
-          ],
-        },
-        'moonbasealpha',
-      ),
-    },
     optimismgoerli: {
       interval: 5,
-      reorgPeriod: chainMetadata.optimismgoerli.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.optimismgoerli),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -235,13 +204,14 @@ export const validatorChainConfig = (
             '0xec6b5ddfd20ee64ff0dcbc7472ad757dce151685',
             '0x4acd2983a51f1c33c2ab41669184c7679e0316f1',
           ],
+          [Contexts.Neutron]: [],
         },
         'optimismgoerli',
       ),
     },
     arbitrumgoerli: {
       interval: 5,
-      reorgPeriod: chainMetadata.arbitrumgoerli.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.arbitrumgoerli),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -254,13 +224,14 @@ export const validatorChainConfig = (
             '0x9be82c7a063b47b2d04c890daabcb666b670a9a4',
             '0x92c62f4b9cd60a7fe4216d1f12134d34cf827c41',
           ],
+          [Contexts.Neutron]: [],
         },
         'arbitrumgoerli',
       ),
     },
     polygonzkevmtestnet: {
       interval: 5,
-      reorgPeriod: chainMetadata.polygonzkevmtestnet.blocks!.reorgPeriod!,
+      reorgPeriod: getReorgPeriod(chainMetadata.polygonzkevmtestnet),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -273,13 +244,26 @@ export const validatorChainConfig = (
             '0x989bbbfa753431169556f69be1b0a496b252e8a6',
             '0x292d5788587bb5efd5c2c911115527e57f50cd05',
           ],
+          [Contexts.Neutron]: [],
         },
         'polygonzkevmtestnet',
       ),
     },
+    injective: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod(chainMetadata.injective),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x10686BEe585491A0DA5bfCd5ABfbB95Ab4d6c86d'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'injective',
+      ),
+    },
     // proteustestnet: {
     //   interval: 5,
-    //   reorgPeriod: chainMetadata.proteustestnet.blocks!.reorgPeriod!,
+    //   reorgPeriod: getReorgPeriod(chainMetadata.proteustestnet),
     //   validators: validatorsConfig(
     //     {
     //       [Contexts.Hyperlane]: [
@@ -294,22 +278,29 @@ export const validatorChainConfig = (
     //     'proteustestnet',
     //   ),
     // },
-    // solanadevnet: {
-    //   interval: 10,
-    //   reorgPeriod: chainMetadata.solanadevnet.blocks!.reorgPeriod!,
-    //   validators: validatorsConfig(
-    //     {
-    //       [Contexts.Hyperlane]: [
-    //         '0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43',
-    //         '0x9c20a149dfa09ea9f77f5a7ca09ed44f9c025133',
-    //         '0x967c5ecdf2625ae86580bd203b630abaaf85cd62',
-    //       ],
-    //       [Contexts.ReleaseCandidate]: [
-    //         '0x21b9eff4d1a6d3122596c7fb80315bf094b6e5c2',
-    //       ],
-    //     },
-    //     'solanadevnet',
-    //   ),
-    // },
+    solanatestnet: {
+      interval: 1,
+      reorgPeriod: getReorgPeriod(chainMetadata.solanatestnet),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'solanatestnet',
+      ),
+    },
+    eclipsetestnet: {
+      interval: 1,
+      reorgPeriod: getReorgPeriod(chainMetadata.eclipsetestnet),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'eclipsetestnet',
+      ),
+    },
   };
 };

@@ -32,6 +32,7 @@ export async function runSingleChainSelectionStep(
 export async function runMultiChainSelectionStep(
   customChains: ChainMap<ChainMetadata>,
   message = 'Select chains',
+  requireMultiple = false,
 ) {
   const choices = getChainChoices(customChains);
   while (true) {
@@ -42,8 +43,11 @@ export async function runMultiChainSelectionStep(
       pageSize: 20,
     })) as string[];
     handleNewChain(chains);
-    if (chains?.length >= 2) return chains;
-    else logRed('Please select at least 2 chains');
+    if (requireMultiple && chains?.length < 2) {
+      logRed('Please select at least 2 chains');
+      continue;
+    }
+    return chains;
   }
 }
 

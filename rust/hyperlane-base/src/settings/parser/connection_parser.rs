@@ -6,7 +6,7 @@ use url::Url;
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
 
-use super::ValueParser;
+use super::{parse_base_and_override_urls, parse_cosmos_gas_price, ValueParser};
 
 pub fn build_ethereum_connection_conf(
     rpcs: &[Url],
@@ -43,19 +43,8 @@ pub fn build_cosmos_connection_conf(
     err: &mut ConfigParsingError,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
-
-    let grpc_url = chain
-        .chain(&mut local_err)
-        .get_key("grpcUrl")
-        .parse_string()
-        .end()
-        .or_else(|| {
-            local_err.push(
-                &chain.cwp + "grpc_url",
-                eyre!("Missing grpc definitions for chain"),
-            );
-            None
-        });
+    let grpcs =
+        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
 
     let chain_id = chain
         .chain(&mut local_err)
@@ -69,11 +58,14 @@ pub fn build_cosmos_connection_conf(
 
     let prefix = chain
         .chain(err)
-        .get_key("prefix")
+        .get_key("bech32Prefix")
         .parse_string()
         .end()
         .or_else(|| {
-            local_err.push(&chain.cwp + "prefix", eyre!("Missing prefix for chain"));
+            local_err.push(
+                &chain.cwp + "bech32Prefix",
+                eyre!("Missing bech32 prefix for chain"),
+            );
             None
         });
 
@@ -94,16 +86,30 @@ pub fn build_cosmos_connection_conf(
         None
     };
 
+    let gas_price = chain
+        .chain(err)
+        .get_opt_key("gasPrice")
+        .and_then(parse_cosmos_gas_price)
+        .end();
+
+    let contract_address_bytes = chain
+        .chain(err)
+        .get_opt_key("contractAddressBytes")
+        .parse_u64()
+        .end();
+
     if !local_err.is_ok() {
         err.merge(local_err);
         None
     } else {
         Some(ChainConnectionConf::Cosmos(h_cosmos::ConnectionConf::new(
-            grpc_url.unwrap().to_string(),
+            grpcs,
             rpcs.first().unwrap().to_string(),
             chain_id.unwrap().to_string(),
             prefix.unwrap().to_string(),
             canonical_asset.unwrap(),
+            gas_price.unwrap(),
+            contract_address_bytes.unwrap().try_into().unwrap(),
         )))
     }
 }

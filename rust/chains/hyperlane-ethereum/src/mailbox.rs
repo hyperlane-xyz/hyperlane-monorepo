@@ -13,9 +13,9 @@ use ethers_contract::builders::ContractCall;
 use tracing::instrument;
 
 use hyperlane_core::{
-    utils::fmt_bytes, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
+    utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
-    HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceIndexer,
+    HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceAwareIndexer,
     TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
@@ -40,7 +40,7 @@ pub struct SequenceIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for SequenceIndexerBuilder {
-    type Output = Box<dyn SequenceIndexer<HyperlaneMessage>>;
+    type Output = Box<dyn SequenceAwareIndexer<HyperlaneMessage>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -61,7 +61,7 @@ pub struct DeliveryIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for DeliveryIndexerBuilder {
-    type Output = Box<dyn SequenceIndexer<H256>>;
+    type Output = Box<dyn SequenceAwareIndexer<H256>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -125,6 +125,7 @@ where
         self.get_finalized_block_number().await
     }
 
+    /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
@@ -147,12 +148,12 @@ where
 }
 
 #[async_trait]
-impl<M> SequenceIndexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
+impl<M> SequenceAwareIndexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         let sequence = self.contract.nonce().block(u64::from(tip)).call().await?;
         Ok((Some(sequence), tip))
@@ -168,6 +169,7 @@ where
         self.get_finalized_block_number().await
     }
 
+    /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
     async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
         Ok(self
@@ -184,13 +186,13 @@ where
 }
 
 #[async_trait]
-impl<M> SequenceIndexer<H256> for EthereumMailboxIndexer<M>
+impl<M> SequenceAwareIndexer<H256> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // A blanket implementation for this trait is fine for the EVM.
-        // TODO: Consider removing `Indexer` as a supertrait of `SequenceIndexer`
+        // TODO: Consider removing `Indexer` as a supertrait of `SequenceAwareIndexer`
         let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
         Ok((None, tip))
     }
@@ -325,7 +327,7 @@ where
             .into())
     }
 
-    #[instrument(skip(self), fields(metadata=%fmt_bytes(metadata)))]
+    #[instrument(skip(self), fields(metadata=%bytes_to_hex(metadata)))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
@@ -339,7 +341,7 @@ where
         Ok(receipt.into())
     }
 
-    #[instrument(skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
+    #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
@@ -373,15 +375,16 @@ where
             None
         };
 
-        let gas_price = self
+        let gas_price: U256 = self
             .provider
             .get_gas_price()
             .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .map_err(ChainCommunicationError::from_other)?
+            .into();
 
         Ok(TxCostEstimate {
             gas_limit: gas_limit.into(),
-            gas_price: gas_price.into(),
+            gas_price: gas_price.try_into()?,
             l2_gas_limit: l2_gas_limit.map(|v| v.into()),
         })
     }
@@ -484,7 +487,7 @@ mod test {
             tx_cost_estimate,
             TxCostEstimate {
                 gas_limit: estimated_gas_limit,
-                gas_price,
+                gas_price: gas_price.try_into().unwrap(),
                 l2_gas_limit: Some(l2_gas_limit),
             },
         );

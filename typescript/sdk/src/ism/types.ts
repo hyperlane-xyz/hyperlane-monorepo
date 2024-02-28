@@ -3,10 +3,12 @@ import {
   IMultisigIsm,
   IRoutingIsm,
   OPStackIsm,
+  PausableIsm,
   TestIsm,
 } from '@hyperlane-xyz/core';
-import type { Address, ValueOf } from '@hyperlane-xyz/utils';
+import type { Address, Domain, ValueOf } from '@hyperlane-xyz/utils';
 
+import { OwnableConfig } from '../deploy/types';
 import { ChainMap } from '../types';
 
 // this enum should match the IInterchainSecurityModule.sol enum
@@ -26,18 +28,22 @@ export enum ModuleType {
 export enum IsmType {
   OP_STACK = 'opStackIsm',
   ROUTING = 'domainRoutingIsm',
+  FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
   AGGREGATION = 'staticAggregationIsm',
   MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
   MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm',
   TEST_ISM = 'testIsm',
+  PAUSABLE = 'pausableIsm',
 }
 
-// mapping betweent the two enums
+// mapping between the two enums
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   switch (ismType) {
     case IsmType.OP_STACK:
       return ModuleType.NULL;
     case IsmType.ROUTING:
+      return ModuleType.ROUTING;
+    case IsmType.FALLBACK_ROUTING:
       return ModuleType.ROUTING;
     case IsmType.AGGREGATION:
       return ModuleType.AGGREGATION;
@@ -46,6 +52,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.MESSAGE_ID_MULTISIG:
       return ModuleType.MESSAGE_ID_MULTISIG;
     case IsmType.TEST_ISM:
+      return ModuleType.NULL;
+    case IsmType.PAUSABLE:
       return ModuleType.NULL;
   }
 }
@@ -63,12 +71,14 @@ export type TestIsmConfig = {
   type: IsmType.TEST_ISM;
 };
 
-export type RoutingIsmConfig = {
-  type: IsmType.ROUTING;
-  owner: Address;
+export type PausableIsmConfig = OwnableConfig & {
+  type: IsmType.PAUSABLE;
+  paused?: boolean;
+};
+
+export type RoutingIsmConfig = OwnableConfig & {
+  type: IsmType.ROUTING | IsmType.FALLBACK_ROUTING;
   domains: ChainMap<IsmConfig>;
-  // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2895
-  // defaultFallback?: boolean;
 };
 
 export type AggregationIsmConfig = {
@@ -89,15 +99,26 @@ export type IsmConfig =
   | MultisigIsmConfig
   | AggregationIsmConfig
   | OpStackIsmConfig
-  | TestIsmConfig;
+  | TestIsmConfig
+  | PausableIsmConfig;
 
 export type DeployedIsmType = {
   [IsmType.ROUTING]: IRoutingIsm;
+  [IsmType.FALLBACK_ROUTING]: IRoutingIsm;
   [IsmType.AGGREGATION]: IAggregationIsm;
   [IsmType.MERKLE_ROOT_MULTISIG]: IMultisigIsm;
   [IsmType.MESSAGE_ID_MULTISIG]: IMultisigIsm;
   [IsmType.OP_STACK]: OPStackIsm;
   [IsmType.TEST_ISM]: TestIsm;
+  [IsmType.PAUSABLE]: PausableIsm;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;
+
+// for finding the difference between the onchain deployment and the config provided
+export type RoutingIsmDelta = {
+  domainsToUnenroll: Domain[]; // new or updated isms for the domain
+  domainsToEnroll: Domain[]; // isms to remove
+  owner?: Address; // is the owner different
+  mailbox?: Address; // is the mailbox different (only for fallback routing)
+};

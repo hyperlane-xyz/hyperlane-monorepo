@@ -88,9 +88,9 @@ async fn initialize(
         Pubkey::find_program_address(validator_announce_pda_seeds!(), &program_id);
 
     // Accounts:
-    // 0. [signer] The payer.
-    // 1. [executable] The system program.
-    // 2. [writable] The ValidatorAnnounce PDA account.
+    // 0. `[signer]` The payer.
+    // 1. `[executable]` The system program.
+    // 2. `[writable]` The ValidatorAnnounce PDA account.
     let init_instruction = Instruction::new_with_borsh(
         program_id,
         &ValidatorAnnounceInstruction::Init(InitInstruction {
@@ -194,11 +194,11 @@ async fn announce(
         Pubkey::find_program_address(replay_protection_pda_seeds!(replay_id), &program_id);
 
     // Accounts:
-    // 0. [signer] The payer.
-    // 1. [executable] The system program.
-    // 2. [] The ValidatorAnnounce PDA account.
-    // 3. [writeable] The validator-specific ValidatorStorageLocationsAccount PDA account.
-    // 4. [writeable] The ReplayProtection PDA account specific to the announcement being made.
+    // 0. `[signer]` The payer.
+    // 1. `[executable]` The system program.
+    // 2. `[]` The ValidatorAnnounce PDA account.
+    // 3. `[writeable]` The validator-specific ValidatorStorageLocationsAccount PDA account.
+    // 4. `[writeable]` The ReplayProtection PDA account specific to the announcement being made.
     let announce_instruction = Instruction::new_with_borsh(
         program_id,
         &ValidatorAnnounceInstruction::Announce(announce_instruction),

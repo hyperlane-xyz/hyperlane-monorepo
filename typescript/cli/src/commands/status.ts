@@ -12,21 +12,19 @@ export const statusCommand: CommandModule = {
       id: {
         type: 'string',
         description: 'Message ID',
-        demandOption: true,
       },
       destination: {
         type: 'string',
         description: 'Destination chain name',
-        demandOption: true,
       },
       chains: chainsCommandOption,
       core: coreArtifactsOption,
     }),
   handler: async (argv: any) => {
     const chainConfigPath: string = argv.chains;
-    const coreArtifactsPath: string = argv.core;
-    const messageId: string = argv.id;
-    const destination: string = argv.destination;
+    const coreArtifactsPath: string | undefined = argv.core;
+    const messageId: string | undefined = argv.id;
+    const destination: string | undefined = argv.destination;
     await checkMessageStatus({
       chainConfigPath,
       coreArtifactsPath,

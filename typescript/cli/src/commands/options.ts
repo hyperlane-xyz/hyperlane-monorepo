@@ -25,13 +25,12 @@ export const outDirCommandOption: Options = {
 export const coreArtifactsOption: Options = {
   type: 'string',
   description: 'File path to core deployment output artifacts',
-  alias: 'ca',
+  alias: 'a',
 };
 
 export const agentConfigurationOption: Options = {
   type: 'string',
   description: 'File path to agent configuration artifacts',
-  alias: 'ac',
 };
 
 export const fileFormatOption: Options = {

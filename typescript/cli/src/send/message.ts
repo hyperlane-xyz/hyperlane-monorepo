@@ -9,39 +9,50 @@ import {
 import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { errorRed, log, logBlue, logGreen } from '../../logger.js';
-import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
-import {
-  getContextWithSigner,
-  getMergedContractAddresses,
-} from '../context.js';
+import { getContext, getMergedContractAddresses } from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
+import { runSingleChainSelectionStep } from '../utils/chains.js';
 
-const MESSAGE_BODY = '0x48656c6c6f21'; // Hello!'
-
-// TODO improve the UX here by making params optional and
-// prompting for missing values
 export async function sendTestMessage({
   key,
   chainConfigPath,
   coreArtifactsPath,
   origin,
   destination,
+  messageBody,
   timeoutSec,
   skipWaitForDelivery,
 }: {
   key: string;
   chainConfigPath: string;
-  coreArtifactsPath: string;
-  origin: ChainName;
-  destination: ChainName;
+  coreArtifactsPath?: string;
+  origin?: ChainName;
+  destination?: ChainName;
+  messageBody: string;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
 }) {
-  const { signer, multiProvider } = getContextWithSigner(key, chainConfigPath);
-  const coreArtifacts = coreArtifactsPath
-    ? readDeploymentArtifacts(coreArtifactsPath)
-    : undefined;
+  const { signer, multiProvider, customChains, coreArtifacts } =
+    await getContext({
+      chainConfigPath,
+      coreConfig: { coreArtifactsPath },
+      keyConfig: { key },
+    });
+
+  if (!origin) {
+    origin = await runSingleChainSelectionStep(
+      customChains,
+      'Select the origin chain',
+    );
+  }
+
+  if (!destination) {
+    destination = await runSingleChainSelectionStep(
+      customChains,
+      'Select the destination chain',
+    );
+  }
 
   await runPreflightChecks({
     origin,
@@ -49,12 +60,14 @@ export async function sendTestMessage({
     multiProvider,
     signer,
     minGas: MINIMUM_TEST_SEND_GAS,
+    chainsToGasCheck: [origin],
   });
 
   await timeout(
     executeDelivery({
       origin,
       destination,
+      messageBody,
       multiProvider,
       coreArtifacts,
       skipWaitForDelivery,
@@ -67,12 +80,14 @@ export async function sendTestMessage({
 async function executeDelivery({
   origin,
   destination,
+  messageBody,
   multiProvider,
   coreArtifacts,
   skipWaitForDelivery,
 }: {
   origin: ChainName;
   destination: ChainName;
+  messageBody: string;
   multiProvider: MultiProvider;
   coreArtifacts?: HyperlaneContractsMap<any>;
   skipWaitForDelivery: boolean;
@@ -84,6 +99,14 @@ async function executeDelivery({
   );
   const mailbox = core.getContracts(origin).mailbox;
 
+  let hook = mergedContractAddrs[origin]?.customHook;
+  if (hook) {
+    logBlue(`Using custom hook ${hook} for ${origin} -> ${destination}`);
+  } else {
+    hook = await mailbox.defaultHook();
+    logBlue(`Using default hook ${hook} for ${origin} -> ${destination}`);
+  }
+
   const destinationDomain = multiProvider.getDomainId(destination);
   let txReceipt: ethers.ContractReceipt;
   try {
@@ -94,19 +117,29 @@ async function executeDelivery({
     const formattedRecipient = addressToBytes32(recipient);
 
     log('Getting gas quote');
-    const value = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
+    const value = await mailbox[
+      'quoteDispatch(uint32,bytes32,bytes,bytes,address)'
+    ](
       destinationDomain,
       formattedRecipient,
-      MESSAGE_BODY,
+      messageBody,
+      ethers.utils.hexlify([]),
+      hook,
     );
     log(`Paying for gas with ${value} wei`);
 
     log('Dispatching message');
-    const messageTx = await mailbox['dispatch(uint32,bytes32,bytes)'](
+    const messageTx = await mailbox[
+      'dispatch(uint32,bytes32,bytes,bytes,address)'
+    ](
       destinationDomain,
       formattedRecipient,
-      MESSAGE_BODY,
-      { value },
+      messageBody,
+      ethers.utils.hexlify([]),
+      hook,
+      {
+        value,
+      },
     );
     txReceipt = await multiProvider.handleTx(origin, messageTx);
     const message = core.getDispatchedMessages(txReceipt)[0];

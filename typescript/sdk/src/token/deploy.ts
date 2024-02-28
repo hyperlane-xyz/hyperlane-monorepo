@@ -24,6 +24,7 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { GasRouterDeployer } from '../router/GasRouterDeployer';
@@ -56,10 +57,15 @@ export class HypERC20Deployer extends GasRouterDeployer<
   ERC20RouterConfig,
   HypERC20Factories
 > {
-  constructor(multiProvider: MultiProvider, ismFactory?: HyperlaneIsmFactory) {
+  constructor(
+    multiProvider: MultiProvider,
+    ismFactory?: HyperlaneIsmFactory,
+    contractVerifier?: ContractVerifier,
+  ) {
     super(multiProvider, {} as HypERC20Factories, {
       logger: debug('hyperlane:HypERC20Deployer'),
       ismFactory,
+      contractVerifier,
     }); // factories not used in deploy
   }
 
@@ -183,10 +189,17 @@ export class HypERC20Deployer extends GasRouterDeployer<
       config.mailbox,
     ]);
 
-    await this.multiProvider.handleTx(
-      chain,
-      router.initialize(config.totalSupply, config.name, config.symbol),
-    );
+    try {
+      await this.multiProvider.handleTx(
+        chain,
+        router.initialize(config.totalSupply, config.name, config.symbol),
+      );
+    } catch (e: any) {
+      if (!e.message.includes('already initialized')) {
+        throw e;
+      }
+      this.logger(`${name} already initialized`);
+    }
     return router;
   }
 
@@ -273,9 +286,13 @@ export class HypERC721Deployer extends GasRouterDeployer<
   ERC721RouterConfig,
   HypERC721Factories
 > {
-  constructor(multiProvider: MultiProvider) {
+  constructor(
+    multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
+  ) {
     super(multiProvider, {} as HypERC721Factories, {
       logger: debug('hyperlane:HypERC721Deployer'),
+      contractVerifier,
     }); // factories not used in deploy
   }
 

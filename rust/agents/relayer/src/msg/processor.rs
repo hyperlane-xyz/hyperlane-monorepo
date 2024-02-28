@@ -183,7 +183,8 @@ mod test {
     use crate::{
         merkle_tree::builder::MerkleTreeBuilder,
         msg::{
-            gas_payment::GasPaymentEnforcer, metadata::BaseMetadataBuilder,
+            gas_payment::GasPaymentEnforcer,
+            metadata::{AppContextClassifier, BaseMetadataBuilder},
             pending_operation::PendingOperation,
         },
         processor::Processor,
@@ -240,16 +241,23 @@ mod test {
     }
 
     fn dummy_metadata_builder(
-        domain: &HyperlaneDomain,
+        origin_domain: &HyperlaneDomain,
+        destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
     ) -> BaseMetadataBuilder {
         let mut settings = Settings::default();
-        settings
-            .chains
-            .insert(domain.name().to_owned(), dummy_chain_conf(domain));
-        let destination_chain_conf = settings.chain_setup(domain).unwrap();
+        settings.chains.insert(
+            origin_domain.name().to_owned(),
+            dummy_chain_conf(origin_domain),
+        );
+        settings.chains.insert(
+            destination_domain.name().to_owned(),
+            dummy_chain_conf(destination_domain),
+        );
+        let destination_chain_conf = settings.chain_setup(destination_domain).unwrap();
         let core_metrics = CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap();
         BaseMetadataBuilder::new(
+            origin_domain.clone(),
             destination_chain_conf.clone(),
             Arc::new(RwLock::new(MerkleTreeBuilder::new())),
             Arc::new(MockValidatorAnnounceContract::default()),
@@ -257,6 +265,7 @@ mod test {
             Arc::new(core_metrics),
             db.clone(),
             5,
+            AppContextClassifier::new(Arc::new(MockMailboxContract::default()), vec![]),
         )
     }
 
@@ -268,11 +277,11 @@ mod test {
         MessageProcessor,
         UnboundedReceiver<Box<DynPendingOperation>>,
     ) {
-        let base_metadata_builder = dummy_metadata_builder(origin_domain, db);
+        let base_metadata_builder = dummy_metadata_builder(origin_domain, destination_domain, db);
         let message_context = Arc::new(MessageContext {
             destination_mailbox: Arc::new(MockMailboxContract::default()),
             origin_db: db.clone(),
-            metadata_builder: base_metadata_builder,
+            metadata_builder: Arc::new(base_metadata_builder),
             origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new([], db.clone())),
             transaction_gas_limit: Default::default(),
             metrics: dummy_submission_metrics(),
@@ -412,7 +421,7 @@ mod test {
                 .iter()
                 .zip(msg_retries_to_set.iter())
                 .for_each(|(pm, expected_retries)| {
-                    // Round up the actuall backoff because it was calculated with an `Instant::now()` that was a fraction of a second ago
+                    // Round up the actual backoff because it was calculated with an `Instant::now()` that was a fraction of a second ago
                     let expected_backoff = PendingMessage::calculate_msg_backoff(*expected_retries)
                         .map(|b| b.as_secs_f32().round());
                     let actual_backoff = pm._next_attempt_after().map(|instant| {

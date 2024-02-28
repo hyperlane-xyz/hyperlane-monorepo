@@ -2,23 +2,26 @@
 name: rust
 
 on:
+  push:
+    branches: [main]
   pull_request:
-    branches: [main, v3]
+    branches: [main]
     paths-ignore:
       - 'rust/**'
+      - .github/workflows/rust.yml
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   test-rs:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest
 
     steps:
       - run: 'echo "No test required" '
 
   lint-rs:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest
 
     steps:
       - run: 'echo "No lint required" '

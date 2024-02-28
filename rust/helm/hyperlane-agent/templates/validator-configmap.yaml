@@ -8,6 +8,7 @@ metadata:
 data:
 {{- range $index, $config := .Values.hyperlane.validator.configs }}
   validator-{{ $index }}.env: |
-    {{- include "agent-common.config-env-vars" (dict "config" $config "format" "dot_env") | nindent 4 }}
+    {{- include "agent-common.config-env-vars" (dict "config" (get $config "chainSigner") "format" "dot_env" "key_name_prefix" (printf "CHAINS_%s_SIGNER_" ($config.originChainName | upper))) | nindent 4 }}
+    {{- include "agent-common.config-env-vars" (dict "config" (omit $config "chainSigner") "format" "dot_env") | nindent 4 }}
 {{- end }}
 {{- end }}

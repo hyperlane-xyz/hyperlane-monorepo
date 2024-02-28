@@ -4,9 +4,8 @@
 use std::clone::Clone;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
-use std::future::Future;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use async_trait::async_trait;
 use derive_builder::Builder;
@@ -14,43 +13,16 @@ use ethers::abi::AbiEncode;
 use ethers::prelude::*;
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::utils::hex::ToHex;
-use log::{debug, trace, warn};
 use maplit::hashmap;
-use prometheus::{CounterVec, GaugeVec, IntCounterVec, IntGaugeVec};
+use prometheus::{CounterVec, IntCounterVec};
 use static_assertions::assert_impl_all;
 use tokio::sync::RwLock;
-use tokio::time::MissedTickBehavior;
 
 pub use error::PrometheusMiddlewareError;
 
-use crate::contracts::erc_20::Erc20;
-use crate::u256_as_scaled_f64;
 pub use crate::ChainInfo;
 
 mod error;
-
-/// Some basic information about a token.
-#[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
-pub struct TokenInfo {
-    /// Full name of the token. E.g. Ether.
-    pub name: String,
-    /// Token symbol. E.g. ETH.
-    pub symbol: String,
-    /// Number of
-    pub decimals: u8,
-}
-
-impl Default for TokenInfo {
-    fn default() -> Self {
-        Self {
-            name: "Unknown".into(),
-            symbol: "".into(),
-            decimals: 18,
-        }
-    }
-}
 
 /// Some basic information about a wallet.
 #[derive(Clone, Debug)]
@@ -73,16 +45,6 @@ pub struct ContractInfo {
     /// Mapping from function selectors to human readable names.
     pub functions: HashMap<Selector, String>,
 }
-
-/// Expected label names for the `block_height` metric.
-pub const BLOCK_HEIGHT_LABELS: &[&str] = &["chain"];
-/// Help string for the metric.
-pub const BLOCK_HEIGHT_HELP: &str = "Tracks the current block height of the chain";
-
-/// Expected label names for the `gas_price_gwei` metric.
-pub const GAS_PRICE_GWEI_LABELS: &[&str] = &["chain"];
-/// Help string for the metric.
-pub const GAS_PRICE_GWEI_HELP: &str = "Tracks the current gas price of the chain";
 
 /// Expected label names for the `contract_call_duration_seconds` metric.
 pub const CONTRACT_CALL_DURATION_SECONDS_LABELS: &[&str] = &[
@@ -148,34 +110,9 @@ pub const TRANSACTION_SEND_TOTAL_LABELS: &[&str] =
 /// Help string for the metric.
 pub const TRANSACTION_SEND_TOTAL_HELP: &str = "Number of transactions sent";
 
-/// Expected label names for the `wallet_balance` metric.
-pub const WALLET_BALANCE_LABELS: &[&str] = &[
-    "chain",
-    "wallet_address",
-    "wallet_name",
-    "token_address",
-    "token_symbol",
-    "token_name",
-];
-/// Help string for the metric.
-pub const WALLET_BALANCE_HELP: &str = "Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set";
-
 /// Container for all the relevant middleware metrics.
 #[derive(Clone, Builder)]
 pub struct MiddlewareMetrics {
-    /// Tracks the current block height of the chain.
-    /// - `chain`: the chain name (or ID if the name is unknown) of the chain
-    ///   the block number refers to.
-    #[builder(setter(into, strip_option), default)]
-    block_height: Option<IntGaugeVec>,
-
-    /// Tracks the current gas price of the chain. Uses the base_fee_per_gas if
-    /// available or else the median of the transactions.
-    /// - `chain`: the chain name (or chain ID if the name is unknown) of the
-    ///   chain the gas price refers to.
-    #[builder(setter(into, strip_option), default)]
-    gas_price_gwei: Option<GaugeVec>,
-
     /// Contract call durations by contract and function
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the
     ///   chain the tx occurred on.
@@ -238,24 +175,12 @@ pub struct MiddlewareMetrics {
     /// - `txn_status`: `dispatched`, `completed`, or `failed`
     #[builder(setter(into, strip_option), default)]
     transaction_send_total: Option<IntCounterVec>,
-
     // /// Gas spent on completed transactions.
     // /// - `chain`: the chain name (or ID if the name is unknown) of the chain the tx occurred
     // on. /// - `address_from`: source address of the transaction.
     // /// - `address_to`: destination address of the transaction.
     // #[builder(setter(into, strip_option), default)]
     // transaction_send_gas_eth_total: Option<CounterVec>,
-    /// Current balance of eth and other tokens in the `tokens` map for the
-    /// wallet addresses in the `wallets` set.
-    /// - `chain`: the chain name (or chain ID if the name is unknown) of the
-    ///   chain the tx occurred on.
-    /// - `wallet_address`: Address of the wallet holding the funds.
-    /// - `wallet_name`: Name of the address holding the funds.
-    /// - `token_address`: Address of the token.
-    /// - `token_symbol`: Symbol of the token.
-    /// - `token_name`: Full name of the token.
-    #[builder(setter(into, strip_option), default)]
-    wallet_balance: Option<GaugeVec>,
 }
 
 /// An ethers-rs middleware that instruments calls with prometheus metrics. To
@@ -273,14 +198,6 @@ pub struct PrometheusMiddleware<M> {
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 pub struct PrometheusMiddlewareConf {
-    /// The tokens to track and identifying info
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub tokens: HashMap<Address, TokenInfo>,
-
-    /// The wallets to track and identifying info
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub wallets: HashMap<Address, WalletInfo>,
-
     /// Contract info for more useful metrics
     #[cfg_attr(feature = "serde", serde(default))]
     pub contracts: HashMap<Address, ContractInfo>,
@@ -519,177 +436,6 @@ impl<M> PrometheusMiddleware<M> {
             inner: Arc::new(inner),
             metrics,
             conf: Arc::new(RwLock::new(conf)),
-        }
-    }
-
-    /// Start tracking metrics for a new token.
-    pub async fn track_new_token(&self, addr: Address, info: TokenInfo) {
-        self.track_new_tokens([(addr, info)]).await;
-    }
-
-    /// Start tacking metrics for new tokens.
-    pub async fn track_new_tokens(&self, iter: impl IntoIterator<Item = (Address, TokenInfo)>) {
-        let mut data = self.conf.write().await;
-        for (addr, info) in iter {
-            data.tokens.insert(addr, info);
-        }
-    }
-
-    /// Start tracking metrics for a new wallet.
-    pub async fn track_new_wallet(&self, addr: Address, info: WalletInfo) {
-        self.track_new_wallets([(addr, info)]).await;
-    }
-
-    /// Start tracking metrics for new wallets.
-    pub async fn track_new_wallets(&self, iter: impl IntoIterator<Item = (Address, WalletInfo)>) {
-        let mut data = self.conf.write().await;
-        for (addr, info) in iter {
-            data.wallets.insert(addr, info);
-        }
-    }
-}
-
-impl<M: Middleware> PrometheusMiddleware<M> {
-    /// Start the update cycle using tokio. This must be called if you want
-    /// some metrics to be updated automatically. Alternatively you could call
-    /// update yourself.
-    pub fn start_updating_on_interval(
-        self: &Arc<Self>,
-        period: Duration,
-    ) -> impl Future<Output = ()> + Send {
-        let zelf = Arc::downgrade(self);
-
-        async move {
-            let mut interval = tokio::time::interval(period);
-            interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-            loop {
-                if let Some(zelf) = zelf.upgrade() {
-                    zelf.update().await;
-                } else {
-                    return;
-                }
-                interval.tick().await;
-            }
-        }
-    }
-}
-
-impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
-    /// Update gauges. You should submit this on a schedule to your runtime to
-    /// be collected once on a regular interval that ideally aligns with the
-    /// prometheus scrape interval.
-    pub fn update(&self) -> impl Future<Output = ()> {
-        // all metrics are Arcs internally so just clone the ones we want to report for.
-        let wallet_balance = self.metrics.wallet_balance.clone();
-        let block_height = self.metrics.block_height.clone();
-        let gas_price_gwei = self.metrics.gas_price_gwei.clone();
-
-        let data_ref = self.conf.clone();
-        let client = self.inner.clone();
-
-        async move {
-            let data = data_ref.read().await;
-            let chain = chain_name(&data.chain);
-            debug!("Updating metrics for chain ({chain})");
-
-            if block_height.is_some() || gas_price_gwei.is_some() {
-                Self::update_block_details(&*client, chain, block_height, gas_price_gwei).await;
-            }
-            if let Some(wallet_balance) = wallet_balance {
-                Self::update_wallet_balances(client.clone(), &data, chain, wallet_balance).await;
-            }
-
-            // more metrics to come...
-        }
-    }
-
-    async fn update_block_details(
-        client: &M,
-        chain: &str,
-        block_height: Option<IntGaugeVec>,
-        gas_price_gwei: Option<GaugeVec>,
-    ) {
-        let current_block = if let Ok(Some(b)) = client.get_block(BlockNumber::Latest).await {
-            b
-        } else {
-            return;
-        };
-
-        if let Some(block_height) = block_height {
-            let height = current_block
-                .number
-                .expect("Block number should always be Some for included blocks.")
-                .as_u64() as i64;
-            trace!("Block height for chain {chain} is {height}");
-            block_height
-                .with(&hashmap! { "chain" => chain })
-                .set(height);
-        }
-        if let Some(gas_price_gwei) = gas_price_gwei {
-            if let Some(london_fee) = current_block.base_fee_per_gas {
-                let gas = u256_as_scaled_f64(london_fee, 18) * 1e9;
-                trace!("Gas price for chain {chain} is {gas:.1}gwei");
-                gas_price_gwei.with(&hashmap! { "chain" => chain }).set(gas);
-            } else {
-                trace!("Gas price for chain {chain} unknown, chain is pre-london");
-            }
-        }
-    }
-
-    async fn update_wallet_balances(
-        client: Arc<M>,
-        data: &PrometheusMiddlewareConf,
-        chain: &str,
-        wallet_balance_metric: GaugeVec,
-    ) {
-        for (wallet_addr, wallet_info) in data.wallets.iter() {
-            let wallet_addr_str: String = wallet_addr.encode_hex();
-            let wallet_name = wallet_info.name.as_deref().unwrap_or("none");
-
-            match client.get_balance(*wallet_addr, None).await {
-                Ok(balance) => {
-                    // Okay, so the native type is not a token, but whatever, close enough.
-                    // Note: This is ETH for many chains, but not all so that is why we use `N` and `Native`
-                    // TODO: can we get away with scaling as 18 in all cases here? I am guessing not.
-                    let balance = u256_as_scaled_f64(balance, 18);
-                    trace!("Wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance is {balance} of the native currency");
-                    wallet_balance_metric
-                        .with(&hashmap! {
-                        "chain" => chain,
-                        "wallet_address" => wallet_addr_str.as_str(),
-                        "wallet_name" => wallet_name,
-                        "token_address" => "none",
-                        "token_symbol" => "Native",
-                        "token_name" => "Native"
-                    }).set(balance)
-                },
-                Err(e) => warn!("Metric update failed for wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance for native currency; {e}")
-            }
-            for (token_addr, token) in data.tokens.iter() {
-                let token_addr_str: String = token_addr.encode_hex();
-                let balance = match Erc20::new(*token_addr, client.clone())
-                    .balance_of(*wallet_addr)
-                    .call()
-                    .await
-                {
-                    Ok(b) => u256_as_scaled_f64(b, token.decimals),
-                    Err(e) => {
-                        warn!("Metric update failed for wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance for {name}; {e}", name=token.name);
-                        continue;
-                    }
-                };
-                trace!("Wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance is {balance}{}", token.symbol);
-                wallet_balance_metric
-                    .with(&hashmap! {
-                        "chain" => chain,
-                        "wallet_address" => wallet_addr_str.as_str(),
-                        "wallet_name" => wallet_name,
-                        "token_address" => token_addr_str.as_str(),
-                        "token_symbol" => token.symbol.as_str(),
-                        "token_name" => token.symbol.as_str()
-                    })
-                    .set(balance);
-            }
         }
     }
 }

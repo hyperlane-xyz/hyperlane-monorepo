@@ -13,19 +13,19 @@ export const hyperlane: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: 'bbe8928-20231025-215311',
+      tag: '86b7f98-20231207-153806',
     },
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
     runConfig: {
       mode: HelloWorldKathyRunMode.Service,
-      fullCycleTime: 1000 * 60 * 60 * 24, // every 24 hours
+      fullCycleTime: 1000 * 60 * 60 * 24 * 5, // every 5 days, 13 * 12 messages = 156 messages is little less than once an hour
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
     connectionType: RpcConsensusType.Fallback,
-    cyclesBetweenEthereumMessages: 3, // Skip 3 cycles of Ethereum, i.e. send/receive Ethereum messages every 32 hours.
+    cyclesBetweenEthereumMessages: 1, // Skip 1 cycle of Ethereum, i.e. send/receive Ethereum messages every 5 days (not great since we still send like 12 in that cycle)
   },
 };
 
@@ -34,7 +34,7 @@ export const releaseCandidate: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: 'bef2251-20231025-174850',
+      tag: '0e3f73f-20240206-160718',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -44,11 +44,12 @@ export const releaseCandidate: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: RpcConsensusType.Single,
+    connectionType: RpcConsensusType.Fallback,
   },
 };
 
 export const helloWorld = {
   [Contexts.Hyperlane]: hyperlane,
-  // [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.Neutron]: undefined,
 };

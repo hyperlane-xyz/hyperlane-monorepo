@@ -24,24 +24,28 @@ use multisig_ism::interface::{
 /// A reference to a MultisigIsm contract on some Sealevel chain
 #[derive(Debug)]
 pub struct SealevelMultisigIsm {
-    rpc_client: RpcClientWithDebug,
     payer: Option<Keypair>,
     program_id: Pubkey,
     domain: HyperlaneDomain,
+    provider: SealevelProvider,
 }
 
 impl SealevelMultisigIsm {
     /// Create a new Sealevel MultisigIsm.
     pub fn new(conf: &ConnectionConf, locator: ContractLocator, payer: Option<Keypair>) -> Self {
-        let rpc_client = RpcClientWithDebug::new(conf.url.to_string());
+        let provider = SealevelProvider::new(locator.domain.clone(), conf);
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
 
         Self {
-            rpc_client,
             payer,
             program_id,
             domain: locator.domain.clone(),
+            provider,
         }
+    }
+
+    fn rpc(&self) -> &RpcClientWithDebug {
+        self.provider.rpc()
     }
 }
 
@@ -57,7 +61,7 @@ impl HyperlaneChain for SealevelMultisigIsm {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(SealevelProvider::new(self.domain.clone()))
+        self.provider.provider()
     }
 }
 
@@ -84,7 +88,7 @@ impl MultisigIsm for SealevelMultisigIsm {
 
         let validators_and_threshold =
             simulate_instruction::<SimulationReturnData<ValidatorsAndThreshold>>(
-                &self.rpc_client,
+                self.rpc(),
                 self.payer
                     .as_ref()
                     .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
@@ -132,7 +136,7 @@ impl SealevelMultisigIsm {
         );
 
         get_account_metas(
-            &self.rpc_client,
+            self.rpc(),
             self.payer
                 .as_ref()
                 .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,

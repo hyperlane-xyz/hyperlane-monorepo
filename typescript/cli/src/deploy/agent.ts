@@ -1,26 +1,41 @@
-import { input } from '@inquirer/prompts';
 import terminalLink from 'terminal-link';
 
-import { logBlue, logGreen, logRed } from '../../logger.js';
+import { toBase64 } from '@hyperlane-xyz/utils';
+
+import { logBlue, logGreen } from '../../logger.js';
+import { getContext } from '../context.js';
+import {
+  runMultiChainSelectionStep,
+  runSingleChainSelectionStep,
+} from '../utils/chains.js';
 import { readJson, runFileSelectionStep } from '../utils/files.js';
 
 export async function runKurtosisAgentDeploy({
   originChain,
-  agentConfigurationPath,
   relayChains,
+  chainConfigPath,
+  agentConfigurationPath,
 }: {
   originChain: string;
-  agentConfigurationPath: string;
   relayChains: string;
+  chainConfigPath: string;
+  agentConfigurationPath: string;
 }) {
+  const { customChains } = await getContext({ chainConfigPath });
+
   if (!originChain) {
-    originChain = await input({ message: 'Enter the origin chain' });
+    originChain = await runSingleChainSelectionStep(
+      customChains,
+      'Select the origin chain',
+    );
   }
   if (!relayChains) {
-    relayChains = await input({
-      message: 'Enter a comma separated list of chains to relay between',
-    });
-    relayChains = trimSpaces(relayChains);
+    const selectedRelayChains = await runMultiChainSelectionStep(
+      customChains,
+      'Select chains to relay between',
+      true,
+    );
+    relayChains = selectedRelayChains.join(',');
   }
 
   if (!agentConfigurationPath) {
@@ -48,12 +63,13 @@ export async function runKurtosisAgentDeploy({
     args: hyperlanePackageArgs,
   };
 
-  const base64EncodedPackageConfig = jsonToBase64(kurtosisPackageConfig);
+  const base64EncodedPackageConfig = toBase64(kurtosisPackageConfig) || '';
   const kurtosisCloudUrl = getKurtosisCloudUrl(base64EncodedPackageConfig);
 
   const kurtosisCloudLink = terminalLink(
     'Cmd+Click or Ctrl+Click here',
     kurtosisCloudUrl,
+    { fallback: () => kurtosisCloudUrl },
   );
 
   logGreen(
@@ -67,18 +83,3 @@ export async function runKurtosisAgentDeploy({
 
 const getKurtosisCloudUrl = (base64Params: string) =>
   `https://cloud.kurtosis.com/enclave-manager?package-id=github.com%2Fkurtosis-tech%2Fhyperlane-package&package-args=${base64Params}`;
-
-const trimSpaces = (a: string) =>
-  a
-    .split('')
-    .filter((char) => char !== ' ')
-    .join('');
-
-function jsonToBase64(jsonData: any): string {
-  try {
-    return btoa(JSON.stringify(jsonData));
-  } catch (error) {
-    logRed('Error occurred creating kurtosis cloud url.');
-    return '';
-  }
-}

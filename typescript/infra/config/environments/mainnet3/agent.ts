@@ -2,15 +2,23 @@ import {
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
+  getDomainId,
 } from '@hyperlane-xyz/sdk';
 
 import { RootAgentConfig, allAgentChainNames } from '../../../src/config';
-import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
+import {
+  GasPaymentEnforcementConfig,
+  routerMatchingList,
+} from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
-import { agentChainNames, environment } from './chains';
+import { agentChainNames, environment, ethereumChainNames } from './chains';
+import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
+import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
+import injectiveInevmAddresses from './warp/injective-inevm-addresses.json';
+import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
 
 // const releaseCandidateHelloworldMatchingList = routerMatchingList(
 //   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -42,14 +50,26 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1bee32a-20231121-121303',
+      tag: '54aeb64-20240206-163119',
     },
     gasPaymentEnforcement,
+    metricAppContexts: [
+      {
+        name: 'helloworld',
+        matchingList: routerMatchingList(
+          helloWorld[Contexts.Hyperlane].addresses,
+        ),
+      },
+      {
+        name: 'injective_inevm_inj',
+        matchingList: routerMatchingList(injectiveInevmAddresses),
+      },
+    ],
   },
   validators: {
     docker: {
       repo,
-      tag: '1bee32a-20231121-121303',
+      tag: '54aeb64-20240206-163119',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -58,7 +78,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1bee32a-20231121-121303',
+      tag: '54aeb64-20240206-163119',
     },
   },
 };
@@ -66,12 +86,16 @@ const hyperlane: RootAgentConfig = {
 const releaseCandidate: RootAgentConfig = {
   ...contextBase,
   context: Contexts.ReleaseCandidate,
+  contextChainNames: {
+    ...contextBase.contextChainNames,
+    [Role.Validator]: ethereumChainNames,
+  },
   rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '35fdc74-20230913-104940',
+      tag: '54aeb64-20240206-163119',
     },
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
@@ -83,14 +107,67 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'ed7569d-20230725-171222',
+      tag: '54aeb64-20240206-163119',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
 };
 
+const neutron: RootAgentConfig = {
+  ...contextBase,
+  contextChainNames: {
+    validator: [],
+    relayer: [
+      chainMetadata.neutron.name,
+      chainMetadata.mantapacific.name,
+      chainMetadata.arbitrum.name,
+    ],
+    scraper: [],
+  },
+  context: Contexts.Neutron,
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      tag: '54aeb64-20240206-163119',
+    },
+    gasPaymentEnforcement: [
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: [
+          {
+            originDomain: getDomainId(chainMetadata.neutron),
+            destinationDomain: getDomainId(chainMetadata.mantapacific),
+            senderAddress: '*',
+            recipientAddress: '*',
+          },
+          {
+            originDomain: getDomainId(chainMetadata.neutron),
+            destinationDomain: getDomainId(chainMetadata.arbitrum),
+            senderAddress: '*',
+            recipientAddress: '*',
+          },
+        ],
+      },
+      ...gasPaymentEnforcement,
+    ],
+    metricAppContexts: [
+      {
+        name: 'manta_tia',
+        matchingList: routerMatchingList(mantaTIAAddresses),
+      },
+      {
+        name: 'arbitrum_tia',
+        matchingList: routerMatchingList(arbitrumTIAAddresses),
+      },
+    ],
+  },
+};
+
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.Neutron]: neutron,
 };

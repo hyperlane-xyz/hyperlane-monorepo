@@ -6,7 +6,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
-use hyperlane_core::ethers_core_types;
+use ethers_core::{abi::Address, types::BlockNumber};
+use hyperlane_core::{ethers_core_types, ChainInfo, HyperlaneCustomErrorWrapper, U256};
 use tokio::time::sleep;
 use tracing::instrument;
 
@@ -20,10 +21,7 @@ use crate::BuildableWithProvider;
 /// Connection to an ethereum provider. Useful for querying information about
 /// the blockchain.
 #[derive(Debug, Clone, new)]
-pub struct EthereumProvider<M>
-where
-    M: Middleware,
-{
+pub struct EthereumProvider<M> {
     provider: Arc<M>,
     domain: HyperlaneDomain,
 }
@@ -104,6 +102,46 @@ where
             .await
             .map_err(ChainCommunicationError::from_other)?;
         Ok(!code.is_empty())
+    }
+
+    #[instrument(err, skip(self))]
+    async fn get_balance(&self, address: String) -> ChainResult<U256> {
+        // Can't use the address directly as a string, because ethers interprets it
+        // as an ENS name rather than an address.
+        let addr: Address = address.parse()?;
+        let balance = self
+            .provider
+            .get_balance(addr, None)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(balance.into())
+    }
+
+    async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
+        let Some(block) = self
+            .provider
+            .get_block(BlockNumber::Latest)
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
+            })?
+        else {
+            return Ok(None);
+        };
+
+        // Given the block is queried with `BlockNumber::Latest` rather than `BlockNumber::Pending`,
+        // if `block` is Some at this point, we're guaranteed to have its `hash` and `number` defined,
+        // so it's safe to unwrap below
+        // more info at <https://docs.rs/ethers/latest/ethers/core/types/struct.Block.html#structfield.number>
+        let chain_metrics = ChainInfo::new(
+            BlockInfo {
+                hash: block.hash.unwrap().into(),
+                timestamp: block.timestamp.as_u64(),
+                number: block.number.unwrap().as_u64(),
+            },
+            block.base_fee_per_gas.map(Into::into),
+        );
+        Ok(Some(chain_metrics))
     }
 }
 

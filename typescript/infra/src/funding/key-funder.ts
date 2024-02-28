@@ -44,10 +44,12 @@ function getKeyFunderHelmValues(
     hyperlane: {
       runEnv: agentConfig.runEnv,
       // Only used for fetching RPC urls as env vars
-      chains: agentConfig.contextChainNames.relayer, // temporary hack
+      chains: agentConfig.environmentChainNames,
       contextFundingFrom: keyFunderConfig.contextFundingFrom,
       contextsAndRolesToFund: keyFunderConfig.contextsAndRolesToFund,
       connectionType: keyFunderConfig.connectionType,
+      desiredBalancePerChain: keyFunderConfig.desiredBalancePerChain,
+      desiredKathyBalancePerChain: keyFunderConfig.desiredKathyBalancePerChain,
     },
     image: {
       repository: keyFunderConfig.docker.repo,

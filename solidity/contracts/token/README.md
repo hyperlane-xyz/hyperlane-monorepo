@@ -1,8 +1,8 @@
 # Hyperlane Tokens and Warp Routes
 
-This repo contains contracts and SDK tooling for Hyperlane-connected ERC20 and ERC721 tokens. The contracts herein can be used to create [Hyperlane Warp Routes](https://docs.hyperlane.xyz/docs/deploy/deploy-warp-route) across different chains.
+This repo contains contracts and SDK tooling for Hyperlane-connected ERC20 and ERC721 tokens. The contracts herein can be used to create [Hyperlane Warp Routes](https://docs.hyperlane.xyz/docs/reference/applications/warp-routes) across different chains.
 
-For instructions on deploying Warp Routes, see [the deployment documentation](https://docs.hyperlane.xyz/docs/deploy/deploy-warp-route/deploy-a-warp-route) and the [Hyperlane-Deploy repository](https://github.com/hyperlane-xyz/hyperlane-deploy).
+For instructions on deploying Warp Routes, see [the deployment documentation](https://docs.hyperlane.xyz/docs/deploy-hyperlane#deploy-a-warp-route) and the [Hyperlane CLI](https://www.npmjs.com/package/@hyperlane-xyz/cli).
 
 ## Warp Route Architecture
 
@@ -51,7 +51,7 @@ The Token Router contract comes in several flavors and a warp route can be compo
 
 ## Interchain Security Models
 
-Warp routes are unique amongst token bridging solutions because they provide modular security. Because the `TokenRouter` implements the `IMessageRecipient` interface, it can be configured with a custom interchain security module. Please refer to the relevant guide to specifying interchain security modules on the [Messaging API receive docs](https://docs.hyperlane.xyz/docs/apis/messaging-api/receive#interchain-security-modules).
+Warp routes are unique amongst token bridging solutions because they provide modular security. Because the `TokenRouter` implements the `IMessageRecipient` interface, it can be configured with a custom interchain security module. Please refer to the relevant guide to specifying interchain security modules on the [Messaging API receive docs](https://docs.hyperlane.xyz/docs/reference/messaging/messaging-interface).
 
 ## Remote Transfer Lifecycle Diagrams
 
@@ -67,7 +67,7 @@ interface TokenRouter {
 }
 ```
 
-**NOTE:** The [Relayer](https://docs.hyperlane.xyz/docs/protocol/agents/relayer) shown below must be compensated. Please refer to the relevant guide on [paying for interchain gas](https://docs.hyperlane.xyz/docs/build-with-hyperlane/guides/paying-for-interchain-gas) on the `messageID` returned from the `transferRemote` call.
+**NOTE:** The [Relayer](https://docs.hyperlane.xyz/docs/operate/relayer/run-relayer) shown below must be compensated. Please refer to the details on [paying for interchain gas](https://docs.hyperlane.xyz/docs/protocol/interchain-gas-payment).
 
 Depending on the flavor of TokenRouter on the source and destination chain, this flow looks slightly different. The following diagrams illustrate these differences.
 
@@ -227,26 +227,6 @@ graph TB
 | [audit-v2-remediation]() | 2023-02-15   | Hyperlane V2 Audit remediation |
 | [main]()                 | ~            | Bleeding edge                  |
 
-## Setup for local development
-
-```sh
-# Install dependencies
-yarn
-
-# Build source and generate types
-yarn build:dev
-```
-
-## Unit testing
-
-```sh
-# Run all unit tests
-yarn test
-
-# Lint check code
-yarn lint
-```
-
 ## Learn more
 
-For more information, see the [Hyperlane introduction documentation](https://docs.hyperlane.xyz/docs/introduction/readme) or the [details about Warp Routes](https://docs.hyperlane.xyz/docs/deploy/deploy-warp-route).
+For more information, see the [Hyperlane introduction documentation](https://docs.hyperlane.xyz/docs/intro).

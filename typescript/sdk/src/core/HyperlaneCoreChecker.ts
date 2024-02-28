@@ -5,11 +5,8 @@ import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { proxyImplementation } from '../deploy/proxy';
-import {
-  HyperlaneIsmFactory,
-  collectValidators,
-  moduleMatchesConfig,
-} from '../ism/HyperlaneIsmFactory';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
+import { collectValidators, moduleMatchesConfig } from '../ism/utils';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -150,15 +147,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       );
     }
 
-    await this.checkBytecode(
-      chain,
-      'Mailbox proxy',
-      contracts.mailbox.address,
-      [
-        BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH,
-        BytecodeHash.OPT_PROXY_ADMIN_BYTECODE_HASH,
-      ],
-    );
+    await this.checkProxy(chain, 'Mailbox proxy', contracts.mailbox.address);
+
     await this.checkBytecode(
       chain,
       'ProxyAdmin',

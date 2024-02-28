@@ -1,17 +1,20 @@
 use std::{num::NonZeroU64, sync::Arc, time::Duration};
 
+use crate::server::validator_server::ValidatorServer;
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
-use futures_util::future::ready;
 
+use futures_util::future::try_join_all;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
-    run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-    SequencedDataContractSync,
+    metrics::AgentMetrics,
+    settings::ChainConf,
+    BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
+    HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
 };
 
 use hyperlane_core::{
@@ -30,6 +33,7 @@ use crate::{
 #[derive(Debug, AsRef)]
 pub struct Validator {
     origin_chain: HyperlaneDomain,
+    origin_chain_conf: ChainConf,
     #[as_ref]
     core: HyperlaneAgentCore,
     db: HyperlaneRocksDB,
@@ -43,6 +47,9 @@ pub struct Validator {
     reorg_period: u64,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
+    core_metrics: Arc<CoreMetrics>,
+    agent_metrics: AgentMetrics,
+    chain_metrics: ChainMetrics,
 }
 
 #[async_trait]
@@ -51,7 +58,12 @@ impl BaseAgent for Validator {
 
     type Settings = ValidatorSettings;
 
-    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
+    async fn from_settings(
+        settings: Self::Settings,
+        metrics: Arc<CoreMetrics>,
+        agent_metrics: AgentMetrics,
+        chain_metrics: ChainMetrics,
+    ) -> Result<Self>
     where
         Self: Sized,
     {
@@ -62,7 +74,7 @@ impl BaseAgent for Validator {
         let (signer_instance, signer) = SingletonSigner::new(settings.validator.build().await?);
 
         let core = settings.build_hyperlane_core(metrics.clone());
-        let checkpoint_syncer = settings.checkpoint_syncer.build(None)?.into();
+        let checkpoint_syncer = settings.checkpoint_syncer.build(None).await?.into();
 
         let mailbox = settings
             .build_mailbox(&settings.origin_chain, &metrics)
@@ -75,6 +87,12 @@ impl BaseAgent for Validator {
         let validator_announce = settings
             .build_validator_announce(&settings.origin_chain, &metrics)
             .await?;
+
+        let origin_chain_conf = core
+            .settings
+            .chain_setup(&settings.origin_chain)
+            .unwrap()
+            .clone();
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
@@ -90,6 +108,7 @@ impl BaseAgent for Validator {
 
         Ok(Self {
             origin_chain: settings.origin_chain,
+            origin_chain_conf,
             core,
             db: msg_db,
             mailbox: mailbox.into(),
@@ -101,12 +120,31 @@ impl BaseAgent for Validator {
             reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
+            agent_metrics,
+            chain_metrics,
+            core_metrics: metrics,
         })
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(mut self) -> Instrumented<JoinHandle<Result<()>>> {
+    async fn run(mut self) {
         let mut tasks = vec![];
+
+        let routes =
+            ValidatorServer::new(self.origin_chain.clone(), self.core.metrics.clone()).routes;
+
+        // run server
+        let server = self
+            .core
+            .settings
+            .server(self.core_metrics.clone())
+            .expect("Failed to create server");
+        let server_task = tokio::spawn(async move {
+            server.run(routes);
+            Ok(())
+        })
+        .instrument(info_span!("Validator server"));
+        tasks.push(server_task);
 
         if let Some(signer_instance) = self.signer_instance.take() {
             tasks.push(
@@ -117,6 +155,23 @@ impl BaseAgent for Validator {
                 .instrument(info_span!("SingletonSigner")),
             );
         }
+
+        let metrics_updater = MetricsUpdater::new(
+            &self.origin_chain_conf,
+            self.core_metrics.clone(),
+            self.agent_metrics.clone(),
+            self.chain_metrics.clone(),
+            Self::AGENT_NAME.to_string(),
+        )
+        .await
+        .unwrap();
+        tasks.push(
+            tokio::spawn(async move {
+                metrics_updater.spawn().await.unwrap();
+                Ok(())
+            })
+            .instrument(info_span!("MetricsUpdater")),
+        );
 
         // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
@@ -140,12 +195,14 @@ impl BaseAgent for Validator {
                 }
                 _ => {
                     // Future that immediately resolves
-                    return tokio::spawn(ready(Ok(()))).instrument(info_span!("Validator"));
+                    return;
                 }
             }
         }
 
-        run_all(tasks)
+        if let Err(err) = try_join_all(tasks).await {
+            error!(?err, "One of the validator tasks returned an error");
+        }
     }
 }
 
@@ -157,8 +214,11 @@ impl Validator {
         let cursor = contract_sync
             .forward_backward_message_sync_cursor(index_settings)
             .await;
-        tokio::spawn(async move { contract_sync.clone().sync("merkle_tree_hook", cursor).await })
-            .instrument(info_span!("MerkleTreeHookSyncer"))
+        tokio::spawn(async move {
+            contract_sync.clone().sync("merkle_tree_hook", cursor).await;
+            Ok(())
+        })
+        .instrument(info_span!("MerkleTreeHookSyncer"))
     }
 
     async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<Result<()>>>> {

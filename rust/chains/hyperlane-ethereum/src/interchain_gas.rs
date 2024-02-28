@@ -10,7 +10,7 @@ use ethers::prelude::Middleware;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, SequenceIndexer, H160, H256,
+    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256,
 };
 use tracing::instrument;
 
@@ -36,7 +36,7 @@ pub struct InterchainGasPaymasterIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for InterchainGasPaymasterIndexerBuilder {
-    type Output = Box<dyn SequenceIndexer<InterchainGasPayment>>;
+    type Output = Box<dyn SequenceAwareIndexer<InterchainGasPayment>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -84,6 +84,7 @@ impl<M> Indexer<InterchainGasPayment> for EthereumInterchainGasPaymasterIndexer<
 where
     M: Middleware + 'static,
 {
+    /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
@@ -126,17 +127,17 @@ where
 }
 
 #[async_trait]
-impl<M> SequenceIndexer<InterchainGasPayment> for EthereumInterchainGasPaymasterIndexer<M>
+impl<M> SequenceAwareIndexer<InterchainGasPayment> for EthereumInterchainGasPaymasterIndexer<M>
 where
     M: Middleware + 'static,
 {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // The InterchainGasPaymasterIndexerBuilder must return a `SequenceIndexer` type.
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        // The InterchainGasPaymasterIndexerBuilder must return a `SequenceAwareIndexer` type.
         // It's fine if only a blanket implementation is provided for EVM chains, since their
-        // indexing only uses the `Index` trait, which is a supertrait of `SequenceIndexer`.
-        // TODO: if `SequenceIndexer` turns out to not depend on `Indexer` at all, then the supertrait
+        // indexing only uses the `Index` trait, which is a supertrait of `SequenceAwareIndexer`.
+        // TODO: if `SequenceAwareIndexer` turns out to not depend on `Indexer` at all, then the supertrait
         // dependency could be removed, even if the builder would still need to return a type that is both
-        // ``SequenceIndexer` and `Indexer`.
+        // ``SequenceAwareIndexer` and `Indexer`.
         let tip = self.get_finalized_block_number().await?;
         Ok((None, tip))
     }

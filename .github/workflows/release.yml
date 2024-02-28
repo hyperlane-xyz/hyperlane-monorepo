@@ -16,7 +16,7 @@ jobs:
       contents: write
       pull-requests: write
     name: Release
-    runs-on: larger-runner
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v3

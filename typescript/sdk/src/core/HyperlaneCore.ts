@@ -1,22 +1,27 @@
 import { ethers } from 'ethers';
+import type { TransactionReceipt as ViemTxReceipt } from 'viem';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   AddressBytes32,
+  ProtocolType,
   messageId,
+  objFilter,
   objMap,
   parseMessage,
   pollAsync,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
+import { chainMetadata } from '../consts/chainMetadata';
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../consts/environments';
 import { appFromAddressesMapHelper } from '../contracts/contracts';
 import { HyperlaneAddressesMap } from '../contracts/types';
+import { OwnableConfig } from '../deploy/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
@@ -49,14 +54,20 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   }
 
   getRouterConfig = (
-    owners: Address | ChainMap<Address>,
-  ): ChainMap<RouterConfig> =>
-    objMap(this.contractsMap, (chain, contracts) => {
-      return {
-        mailbox: contracts.mailbox.address,
-        owner: typeof owners === 'string' ? owners : owners[chain],
-      };
-    });
+    owners: Address | ChainMap<OwnableConfig>,
+  ): ChainMap<RouterConfig> => {
+    // get config
+    const config = objMap(this.contractsMap, (chain, contracts) => ({
+      mailbox: contracts.mailbox.address,
+      owner: typeof owners === 'string' ? owners : owners[chain].owner,
+    }));
+    // filter for EVM chains
+    return objFilter(
+      config,
+      (chainName, _): _ is RouterConfig =>
+        chainMetadata[chainName].protocol === ProtocolType.Ethereum,
+    );
+  };
 
   quoteGasPayment = (
     origin: ChainName,
@@ -119,7 +130,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   }
 
   waitForMessageProcessing(
-    sourceTx: ethers.ContractReceipt,
+    sourceTx: ethers.ContractReceipt | ViemTxReceipt,
   ): Promise<ethers.ContractReceipt[]> {
     const messages = HyperlaneCore.getDispatchedMessages(sourceTx);
     return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
@@ -127,7 +138,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   // TODO consider renaming this, all the waitForMessage* methods are confusing
   async waitForMessageProcessed(
-    sourceTx: ethers.ContractReceipt,
+    sourceTx: ethers.ContractReceipt | ViemTxReceipt,
     delay?: number,
     maxAttempts?: number,
   ): Promise<void> {
@@ -146,12 +157,14 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   }
 
   // Redundant with static method but keeping for backwards compatibility
-  getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
+  getDispatchedMessages(
+    sourceTx: ethers.ContractReceipt | ViemTxReceipt,
+  ): DispatchedMessage[] {
     return HyperlaneCore.getDispatchedMessages(sourceTx);
   }
 
   static getDispatchedMessages(
-    sourceTx: ethers.ContractReceipt,
+    sourceTx: ethers.ContractReceipt | ViemTxReceipt,
   ): DispatchedMessage[] {
     const mailbox = Mailbox__factory.createInterface();
     const dispatchLogs = sourceTx.logs

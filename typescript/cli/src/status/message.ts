@@ -1,8 +1,10 @@
+import { input } from '@inquirer/prompts';
+
 import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 
 import { log, logBlue, logGreen } from '../../logger.js';
-import { readDeploymentArtifacts } from '../config/artifacts.js';
 import { getContext, getMergedContractAddresses } from '../context.js';
+import { runSingleChainSelectionStep } from '../utils/chains.js';
 
 export async function checkMessageStatus({
   chainConfigPath,
@@ -11,14 +13,27 @@ export async function checkMessageStatus({
   destination,
 }: {
   chainConfigPath: string;
-  coreArtifactsPath: string;
-  messageId: string;
-  destination: ChainName;
+  coreArtifactsPath?: string;
+  messageId?: string;
+  destination?: ChainName;
 }) {
-  const { multiProvider } = getContext(chainConfigPath);
-  const coreArtifacts = coreArtifactsPath
-    ? readDeploymentArtifacts(coreArtifactsPath)
-    : undefined;
+  const { multiProvider, customChains, coreArtifacts } = await getContext({
+    chainConfigPath,
+    coreConfig: { coreArtifactsPath },
+  });
+
+  if (!destination) {
+    destination = await runSingleChainSelectionStep(
+      customChains,
+      'Select the destination chain',
+    );
+  }
+
+  if (!messageId) {
+    messageId = await input({
+      message: 'Please specify the message id',
+    });
+  }
 
   const mergedContractAddrs = getMergedContractAddresses(coreArtifacts);
   const core = HyperlaneCore.fromAddressesMap(
