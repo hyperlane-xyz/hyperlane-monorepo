@@ -13,6 +13,7 @@ import {
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
+import SdkBuildArtifact from '@hyperlane-xyz/core/buildArtifact.json';
 import {
   Address,
   ProtocolType,
@@ -26,11 +27,9 @@ import {
   HyperlaneContractsMap,
   HyperlaneFactories,
 } from '../contracts/types';
-import {
-  HyperlaneIsmFactory,
-  moduleMatchesConfig,
-} from '../ism/HyperlaneIsmFactory';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
+import { moduleMatchesConfig } from '../ism/utils';
 import { MultiProvider } from '../providers/MultiProvider';
 import { MailboxClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
@@ -43,7 +42,8 @@ import {
   proxyImplementation,
 } from './proxy';
 import { OwnableConfig } from './types';
-import { ContractVerificationInput } from './verify/types';
+import { ContractVerifier } from './verify/ContractVerifier';
+import { ContractVerificationInput, ExplorerLicenseType } from './verify/types';
 import {
   buildVerificationInput,
   getContractVerificationInput,
@@ -53,6 +53,7 @@ export interface DeployerOptions {
   logger?: Debugger;
   chainTimeoutMs?: number;
   ismFactory?: HyperlaneIsmFactory;
+  contractVerifier?: ContractVerifier;
 }
 
 export abstract class HyperlaneDeployer<
@@ -70,11 +71,20 @@ export abstract class HyperlaneDeployer<
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
-    protected readonly options?: DeployerOptions,
+    protected readonly options: DeployerOptions = {},
     protected readonly recoverVerificationInputs = false,
   ) {
     this.logger = options?.logger ?? debug('hyperlane:deployer');
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
+    this.options.ismFactory?.setDeployer(this);
+
+    // if none provided, instantiate a default verifier with SDK's included build artifact
+    this.options.contractVerifier ??= new ContractVerifier(
+      multiProvider,
+      {},
+      SdkBuildArtifact,
+      ExplorerLicenseType.MIT,
+    );
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
@@ -211,7 +221,7 @@ export abstract class HyperlaneDeployer<
       }
     } else {
       const ismFactory =
-        this.options?.ismFactory ??
+        this.options.ismFactory ??
         (() => {
           throw new Error('No ISM factory provided');
         })();
@@ -305,7 +315,7 @@ export abstract class HyperlaneDeployer<
     this.logger(`Mailbox client on ${local} initialized...`);
   }
 
-  protected async deployContractFromFactory<F extends ethers.ContractFactory>(
+  public async deployContractFromFactory<F extends ethers.ContractFactory>(
     chain: ChainName,
     factory: F,
     contractName: string,
@@ -350,6 +360,17 @@ export abstract class HyperlaneDeployer<
       factory.bytecode,
     );
     this.addVerificationArtifacts(chain, [verificationInput]);
+
+    // try verifying contract
+    try {
+      await this.options.contractVerifier?.verifyContract(
+        chain,
+        verificationInput,
+      );
+    } catch (error) {
+      // log error but keep deploying, can also verify post-deployment if needed
+      this.logger(`Error verifying contract: ${error}`);
+    }
 
     return contract;
   }

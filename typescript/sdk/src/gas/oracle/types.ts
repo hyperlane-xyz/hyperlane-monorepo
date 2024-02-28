@@ -14,7 +14,12 @@ export type StorageGasOracleConfig = Pick<
   'gasPrice' | 'tokenExchangeRate'
 >;
 
-export const formatGasOracleConfig = (config: StorageGasOracleConfig) => ({
+export const formatGasOracleConfig = (
+  config: StorageGasOracleConfig,
+): {
+  tokenExchangeRate: string;
+  gasPrice: string;
+} => ({
   tokenExchangeRate: ethers.utils.formatUnits(
     config.tokenExchangeRate,
     TOKEN_EXCHANGE_RATE_EXPONENT,
@@ -51,5 +56,5 @@ export const serializeDifference = (
     expected.tokenExchangeRate,
   );
   const formatted = formatGasOracleConfig(expected);
-  return `$ ${formatted.tokenExchangeRate} (${tokenExchangeRateDiff}), ${formatted.gasPrice} gwei (${gasPriceDiff})`;
+  return `${formatted.tokenExchangeRate} (${tokenExchangeRateDiff}), ${formatted.gasPrice} gwei (${gasPriceDiff})`;
 };

@@ -4249,6 +4249,7 @@ __metadata:
     eslint: "npm:^8.43.0"
     eslint-config-prettier: "npm:^8.8.0"
     ethers: "npm:^5.7.2"
+    latest-version: "npm:^8.0.0"
     mocha: "npm:^10.2.0"
     prettier: "npm:^2.8.8"
     terminal-link: "npm:^3.0.0"
@@ -4353,6 +4354,7 @@ __metadata:
     "@safe-global/protocol-kit": "npm:^1.2.0"
     "@solana/web3.js": "npm:^1.78.0"
     "@types/chai": "npm:^4.2.21"
+    "@types/json-stable-stringify": "npm:^1.0.36"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^16.9.1"
     "@types/prompts": "npm:^2.0.14"
@@ -4365,6 +4367,7 @@ __metadata:
     ethereum-waffle: "npm:^4.0.10"
     ethers: "npm:^5.7.2"
     hardhat: "npm:^2.19.0"
+    json-stable-stringify: "npm:^1.1.1"
     mocha: "npm:^10.2.0"
     prettier: "npm:^2.8.8"
     prom-client: "npm:^14.0.1"
@@ -4430,6 +4433,7 @@ __metadata:
     ts-node: "npm:^10.8.0"
     typescript: "npm:5.1.6"
     viem: "npm:^1.20.0"
+    yaml: "npm:^2.3.1"
     zod: "npm:^3.21.2"
   peerDependencies:
     "@ethersproject/abi": "*"
@@ -5981,6 +5985,13 @@ __metadata:
   version: 7.0.11
   resolution: "@types/json-schema@npm:7.0.11"
   checksum: e50864a93f4dcb9de64c0c605d836f5416341c824d7a8cde1aa15a5fc68bed44b33cdcb2e04e5098339e9121848378f2d0cc5b124dec41c89203c6f67d6f344a
+  languageName: node
+  linkType: hard
+
+"@types/json-stable-stringify@npm:^1.0.36":
+  version: 1.0.36
+  resolution: "@types/json-stable-stringify@npm:1.0.36"
+  checksum: 765b07589e11a3896c3d06bb9e3a9be681e7edd95adf27370df0647a91bd2bfcfaf0e091fd4a13729343b388973f73f7e789d6cc62ab988240518a2d27c4a4e2
   languageName: node
   linkType: hard
 
@@ -10649,6 +10660,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+"got@npm:^13.0.0":
+  version: 13.0.0
+  resolution: "got@npm:13.0.0"
+  dependencies:
+    "@sindresorhus/is": "npm:^5.2.0"
+    "@szmarczak/http-timer": "npm:^5.0.1"
+    cacheable-lookup: "npm:^7.0.0"
+    cacheable-request: "npm:^10.2.8"
+    decompress-response: "npm:^6.0.0"
+    form-data-encoder: "npm:^2.1.2"
+    get-stream: "npm:^6.0.1"
+    http2-wrapper: "npm:^2.1.10"
+    lowercase-keys: "npm:^3.0.0"
+    p-cancelable: "npm:^3.0.0"
+    responselike: "npm:^3.0.0"
+  checksum: 35ac9fe37daca3d0a4f90305d8e64626268ef5a42584f5bcb42eea3cb9bbeb691cf9041d5ea72133a7295d1291684789a3148ff89a95f3d3ce3d0ebb6fb2f680
+  languageName: node
+  linkType: hard
+
 "got@npm:^7.1.0":
   version: 7.1.0
   resolution: "got@npm:7.1.0"
@@ -11897,6 +11927,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"json-stable-stringify@npm:^1.1.1":
+  version: 1.1.1
+  resolution: "json-stable-stringify@npm:1.1.1"
+  dependencies:
+    call-bind: "npm:^1.0.5"
+    isarray: "npm:^2.0.5"
+    jsonify: "npm:^0.0.1"
+    object-keys: "npm:^1.1.1"
+  checksum: 60853c1f63451319b5c7953465a555aa816cf84e60e3ca36b6c05225d8fdc4615127fb4ecb92f9f5ad880c552ab8cbae9a519f78b995e7788d6d89e57afafdeb
+  languageName: node
+  linkType: hard
+
 "json-stringify-safe@npm:^5.0.1, json-stringify-safe@npm:~5.0.1":
   version: 5.0.1
   resolution: "json-stringify-safe@npm:5.0.1"
@@ -11938,6 +11980,13 @@ __metadata:
     graceful-fs:
       optional: true
   checksum: 03014769e7dc77d4cf05fa0b534907270b60890085dd5e4d60a382ff09328580651da0b8b4cdf44d91e4c8ae64d91791d965f05707beff000ed494a38b6fec85
+  languageName: node
+  linkType: hard
+
+"jsonify@npm:^0.0.1":
+  version: 0.0.1
+  resolution: "jsonify@npm:0.0.1"
+  checksum: 7b86b6f4518582ff1d8b7624ed6c6277affd5246445e864615dbdef843a4057ac58587684faf129ea111eeb80e01c15f0a4d9d03820eb3f3985fa67e81b12398
   languageName: node
   linkType: hard
 
@@ -12054,6 +12103,15 @@ __metadata:
   dependencies:
     package-json: "npm:^8.1.0"
   checksum: 1f0deba00d5a34394cce4463c938811f51bbb539b131674f4bb2062c63f2cc3b80bccd56ecade3bd5932d04a34cf0a5a8a2ccc4ec9e5e6b285a9a7b3e27d0d66
+  languageName: node
+  linkType: hard
+
+"latest-version@npm:^8.0.0":
+  version: 8.0.0
+  resolution: "latest-version@npm:8.0.0"
+  dependencies:
+    package-json: "npm:^9.0.0"
+  checksum: 8ef0ff0006a9df21a191991fbaee74b7bcd8f20d75dba0ac92932944a22625f1e76aadd33feb0ba1cfa45846a6238625ae603453189f71cf3c5c358989929aea
   languageName: node
   linkType: hard
 
@@ -13913,6 +13971,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"package-json@npm:^9.0.0":
+  version: 9.0.0
+  resolution: "package-json@npm:9.0.0"
+  dependencies:
+    got: "npm:^13.0.0"
+    registry-auth-token: "npm:^5.0.2"
+    registry-url: "npm:^6.0.1"
+    semver: "npm:^7.5.4"
+  checksum: 7c3847b521b221a7f80264880e0c8b0f290796072771fb1c1d0dc36d0c59141e8eff6aa2b05056f8e85f07d872e2e68032378b674be4252311e3328b02df3e01
+  languageName: node
+  linkType: hard
+
 "pako@npm:^2.0.2":
   version: 2.1.0
   resolution: "pako@npm:2.1.0"
@@ -14656,7 +14726,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"registry-auth-token@npm:^5.0.1":
+"registry-auth-token@npm:^5.0.1, registry-auth-token@npm:^5.0.2":
   version: 5.0.2
   resolution: "registry-auth-token@npm:5.0.2"
   dependencies:
@@ -14665,7 +14735,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"registry-url@npm:^6.0.0":
+"registry-url@npm:^6.0.0, registry-url@npm:^6.0.1":
   version: 6.0.1
   resolution: "registry-url@npm:6.0.1"
   dependencies:

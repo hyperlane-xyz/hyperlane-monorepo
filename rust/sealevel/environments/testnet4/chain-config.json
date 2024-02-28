@@ -36,40 +36,6 @@
       }
     ]
   },
-  "basegoerli": {
-    "blockExplorers": [
-      {
-        "apiUrl": "https://api-goerli.basescan.org/api",
-        "family": "etherscan",
-        "name": "BaseScan",
-        "url": "https://goerli.basescan.org"
-      }
-    ],
-    "blocks": {
-      "confirmations": 1,
-      "estimateBlockTime": 3,
-      "reorgPeriod": 1
-    },
-    "chainId": 84531,
-    "displayName": "Base Goerli",
-    "domainId": 84531,
-    "isTestnet": true,
-    "name": "basegoerli",
-    "nativeToken": {
-      "decimals": 18,
-      "name": "Ether",
-      "symbol": "ETH"
-    },
-    "protocol": "ethereum",
-    "rpcUrls": [
-      {
-        "http": "https://base-goerli.publicnode.com"
-      },
-      {
-        "http": "https://goerli.base.org"
-      }
-    ]
-  },
   "fuji": {
     "blockExplorers": [
       {

@@ -33,6 +33,14 @@ spec:
             - --connection-type
             - {{ .Values.hyperlane.connectionType }}
 {{- end }}
+{{- range $chain, $balance := .Values.hyperlane.desiredBalancePerChain }}
+            - --desired-balance-per-chain
+            - {{ $chain }}={{ $balance }}
+{{- end }}
+{{- range $chain, $balance := .Values.hyperlane.desiredKathyBalancePerChain }}
+            - --desired-kathy-balance-per-chain
+            - {{ $chain }}={{ $balance }}
+{{- end }}
             env:
             - name: PROMETHEUS_PUSH_GATEWAY
               value: {{ .Values.infra.prometheusPushGateway }}

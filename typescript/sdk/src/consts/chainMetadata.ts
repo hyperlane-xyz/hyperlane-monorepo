@@ -93,8 +93,9 @@ export const arbitrumgoerli: ChainMetadata = {
 export const avalanche: ChainMetadata = {
   blockExplorers: [
     {
-      apiUrl: 'https://api.snowtrace.io/api',
-      family: ExplorerFamily.Other,
+      apiUrl:
+        'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api',
+      family: ExplorerFamily.Routescan,
       name: 'SnowTrace',
       url: 'https://snowtrace.io',
     },
@@ -277,7 +278,7 @@ export const ethereum: ChainMetadata = {
       url: 'https://etherscan.io',
     },
     {
-      apiUrl: 'https://blockscout.com/eth/mainnet/api',
+      apiUrl: 'https://eth.blockscout.com/api',
       family: ExplorerFamily.Blockscout,
       name: 'Blockscout',
       url: 'https://blockscout.com/eth/mainnet',
@@ -305,7 +306,8 @@ export const ethereum: ChainMetadata = {
 export const fuji: ChainMetadata = {
   blockExplorers: [
     {
-      apiUrl: 'https://api-testnet.snowtrace.io/api',
+      apiUrl:
+        'https://api.routescan.io/v2/network/testnet/evm/43113/etherscan/api',
       family: ExplorerFamily.Etherscan,
       name: 'SnowTrace',
       url: 'https://testnet.snowtrace.io',
@@ -410,6 +412,7 @@ export const inevm: ChainMetadata = {
   displayName: 'Injective EVM',
   displayNameShort: 'inEVM',
   domainId: 2525,
+  gasCurrencyCoinGeckoId: 'injective-protocol',
   name: Chains.inevm,
   nativeToken: {
     decimals: 18,
@@ -431,10 +434,12 @@ export const injective: ChainMetadata = {
   chainId: 'injective-1',
   displayName: 'Injective',
   domainId: 6909546,
+  gasCurrencyCoinGeckoId: 'injective-protocol',
   grpcUrls: [{ http: 'sentry.chain.grpc.injective.network:443' }],
   name: Chains.injective,
   nativeToken: {
     decimals: 18,
+    denom: 'inj',
     name: 'Injective',
     symbol: 'INJ',
   },
@@ -486,6 +491,7 @@ export const mantapacific: ChainMetadata = {
   displayName: 'Manta Pacific',
   displayNameShort: 'Manta',
   domainId: 169,
+  gasCurrencyCoinGeckoId: 'ethereum',
   isTestnet: false,
   name: Chains.mantapacific,
   nativeToken: {
@@ -601,11 +607,13 @@ export const neutron: ChainMetadata = {
   chainId: 'neutron-1',
   displayName: 'Neutron',
   domainId: 1853125230,
+  gasCurrencyCoinGeckoId: 'neutron-3',
   grpcUrls: [{ http: 'grpc-kralum.neutron-1.neutron.org:80' }],
   isTestnet: false,
   name: Chains.neutron,
   nativeToken: {
     decimals: 6,
+    denom: 'untrn',
     name: 'Neutron',
     symbol: 'NTRN',
   },
@@ -665,6 +673,34 @@ export const optimismgoerli: ChainMetadata = {
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'https://goerli.optimism.io' }],
+};
+
+export const plumetestnet: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://plume-testnet.explorer.caldera.xyz/api',
+      family: ExplorerFamily.Blockscout,
+      name: 'Plume Testnet Explorer',
+      url: 'https://plume-testnet.explorer.caldera.xyz',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 3,
+    reorgPeriod: 1,
+  },
+  chainId: 161221135,
+  displayName: 'Plume Testnet',
+  domainId: 161221135,
+  isTestnet: true,
+  name: Chains.plumetestnet,
+  nativeToken: {
+    decimals: 18,
+    name: 'Ether',
+    symbol: 'ETH',
+  },
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [{ http: 'https://plume-testnet.rpc.caldera.xyz/http' }],
 };
 
 export const polygon: ChainMetadata = {
@@ -863,7 +899,6 @@ export const solana: ChainMetadata = {
       url: 'https://explorer.solana.com',
     },
   ],
-
   blocks: {
     confirmations: 1,
     estimateBlockTime: 0.4,
@@ -1005,7 +1040,7 @@ export const viction: ChainMetadata = {
       apiUrl: 'https://www.vicscan.xyz/api',
       family: ExplorerFamily.Other,
       name: 'Vicscan',
-      url: 'https://www.vicscan.xyz/',
+      url: 'https://www.vicscan.xyz',
     },
   ],
   blocks: {
@@ -1016,6 +1051,7 @@ export const viction: ChainMetadata = {
   chainId: 88,
   displayName: 'Viction',
   domainId: 88,
+  gasCurrencyCoinGeckoId: 'tomochain',
   name: Chains.viction,
   nativeToken: {
     decimals: 18,
@@ -1025,7 +1061,7 @@ export const viction: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
     {
-      http: 'https://rpc.tomochain.com/',
+      http: 'https://rpc.tomochain.com',
     },
     {
       http: 'https://viction.blockpi.network/v1/rpc/public',
@@ -1064,6 +1100,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   neutron,
   optimism,
   optimismgoerli,
+  plumetestnet,
   polygon,
   polygonzkevm,
   polygonzkevmtestnet,

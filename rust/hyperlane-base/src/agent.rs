@@ -78,7 +78,6 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let agent_metrics = create_agent_metrics(&metrics)?;
     let chain_metrics = create_chain_metrics(&metrics)?;
     let agent = A::from_settings(settings, metrics.clone(), agent_metrics, chain_metrics).await?;
-    metrics.run_http_server();
 
     // This await will never end unless a panic occurs
     agent.run().await;

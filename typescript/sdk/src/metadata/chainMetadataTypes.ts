@@ -6,11 +6,12 @@ import { SafeParseReturnType, z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ZNzUint, ZUint } from './customZodTypes';
+import { ZChainName, ZNzUint, ZUint } from './customZodTypes';
 
 export enum ExplorerFamily {
   Etherscan = 'etherscan',
   Blockscout = 'blockscout',
+  Routescan = 'routescan',
   Other = 'other',
 }
 
@@ -60,12 +61,9 @@ export type RpcUrl = z.infer<typeof RpcUrlSchema>;
  * Specified as a Zod schema
  */
 export const ChainMetadataSchemaObject = z.object({
-  name: z
-    .string()
-    .regex(/^[a-z][a-z0-9]*$/)
-    .describe(
-      'The unique string identifier of the chain, used as the key in ChainMap dictionaries.',
-    ),
+  name: ZChainName.describe(
+    'The unique string identifier of the chain, used as the key in ChainMap dictionaries.',
+  ),
   protocol: z
     .nativeEnum(ProtocolType)
     .describe(
@@ -98,6 +96,7 @@ export const ChainMetadataSchemaObject = z.object({
       name: z.string(),
       symbol: z.string(),
       decimals: ZUint.lt(256),
+      denom: z.string().optional(),
     })
     .optional()
     .describe(
@@ -239,6 +238,21 @@ export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
     {
       message: 'Rest and gRPC URLs required for Cosmos chains',
       path: ['restUrls', 'grpcUrls'],
+    },
+  )
+  .refine(
+    (metadata) => {
+      if (
+        metadata.protocol === ProtocolType.Cosmos &&
+        metadata.nativeToken &&
+        !metadata.nativeToken.denom
+      )
+        return false;
+      else return true;
+    },
+    {
+      message: 'Denom values are required for Cosmos native tokens',
+      path: ['nativeToken', 'denom'],
     },
   );
 
