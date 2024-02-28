@@ -74,8 +74,8 @@ export const arbitrum: ChainMetadata = {
   name: Chains.arbitrum,
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
-  technicalStack: ChainTechnicalStack.ArbitrumNitro,
   rpcUrls: [{ http: 'https://arb1.arbitrum.io/rpc' }],
+  technicalStack: ChainTechnicalStack.ArbitrumNitro,
 };
 
 export const arbitrumgoerli: ChainMetadata = {
@@ -92,8 +92,8 @@ export const arbitrumgoerli: ChainMetadata = {
   name: Chains.arbitrumgoerli,
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
-  technicalStack: ChainTechnicalStack.ArbitrumNitro,
   rpcUrls: [{ http: 'https://goerli-rollup.arbitrum.io/rpc' }],
+  technicalStack: ChainTechnicalStack.ArbitrumNitro,
 };
 
 export const avalanche: ChainMetadata = {
