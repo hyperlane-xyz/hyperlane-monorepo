@@ -91,17 +91,19 @@ impl CosmosWasmIndexer {
 impl CosmosWasmIndexer {
     // Iterate through all txs, filter out failed txs, find target events
     // in successful txs, and parse them.
+    // #[instrument(err, skip(self, parser))]
     fn handle_txs<T>(
         &self,
         block: BlockResponse,
         block_results: BlockResultsResponse,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
-    ) -> ChainResult<Vec<(T, LogMeta)>>
+    ) -> Vec<(T, LogMeta)>
     where
         T: PartialEq + 'static,
     {
         let Some(tx_results) = block_results.txs_results else {
-            return Ok(vec![]);
+            // return Ok(vec![]);
+            return vec![];
         };
 
         let tx_hashes: Vec<H256> = block
@@ -134,7 +136,8 @@ impl CosmosWasmIndexer {
             .flatten()
             .collect();
 
-        Ok(logs)
+        // Ok(logs)
+        logs
     }
 
     // Iter through all events in the tx, looking for any target events
@@ -229,6 +232,6 @@ impl WasmIndexer for CosmosWasmIndexer {
         let block = block_res.map_err(ChainCommunicationError::from_other)?;
         let block_results = block_results_res.map_err(ChainCommunicationError::from_other)?;
 
-        self.handle_txs(block, block_results, parser)
+        Ok(self.handle_txs(block, block_results, parser))
     }
 }

@@ -9,7 +9,7 @@ use hyperlane_core::{
 use once_cell::sync::Lazy;
 use std::ops::RangeInclusive;
 use tendermint::abci::EventAttribute;
-use tracing::warn;
+use tracing::{instrument, warn};
 
 use crate::{
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
@@ -112,6 +112,7 @@ impl CosmosInterchainGasPaymasterIndexer {
         })
     }
 
+    #[instrument(err)]
     fn interchain_gas_payment_parser(
         attrs: &Vec<EventAttribute>,
     ) -> ChainResult<ParsedEvent<InterchainGasPayment>> {
@@ -121,6 +122,7 @@ impl CosmosInterchainGasPaymasterIndexer {
         for attr in attrs {
             let key = attr.key.as_str();
             let value = attr.value.as_str();
+            println!("~~~ parsing key: {}, value: {}", key, value);
 
             match key {
                 CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
@@ -209,11 +211,11 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
             .map(|block_number| {
                 let self_clone = self.clone();
                 tokio::spawn(async move {
-                    let event_log = self_clone
+                    let logs = self_clone
                         .indexer
                         .get_logs_in_block(block_number, Self::interchain_gas_payment_parser)
                         .await;
-                    (event_log, block_number)
+                    (logs, block_number)
                 })
             })
             .collect();
@@ -223,10 +225,10 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
             .await
             .into_iter()
             .flatten()
-            .filter_map(|(res, block_no)| match res {
+            .filter_map(|(res, block_number)| match res {
                 Ok(logs) => Some(logs),
                 Err(err) => {
-                    warn!(?err, ?block_no, "Failed to fetch logs for block");
+                    warn!(?err, ?block_number, "Failed to fetch logs for block");
                     None
                 }
             })

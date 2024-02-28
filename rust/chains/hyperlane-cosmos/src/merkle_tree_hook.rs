@@ -218,6 +218,7 @@ impl CosmosMerkleTreeHookIndexer {
         })
     }
 
+    #[instrument(err)]
     fn merkle_tree_insertion_parser(
         attrs: &Vec<EventAttribute>,
     ) -> ChainResult<ParsedEvent<MerkleTreeInsertion>> {
@@ -227,6 +228,7 @@ impl CosmosMerkleTreeHookIndexer {
         for attr in attrs {
             let key = attr.key.as_str();
             let value = attr.value.as_str();
+            println!("~~~ parsing key: {}, value: {}", key, value);
 
             match key {
                 CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
@@ -290,10 +292,11 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
             .map(|block_number| {
                 let self_clone = self.clone();
                 tokio::spawn(async move {
-                    self_clone
+                    let logs = self_clone
                         .indexer
                         .get_logs_in_block(block_number, Self::merkle_tree_insertion_parser)
-                        .await
+                        .await;
+                    (logs, block_number)
                 })
             })
             .collect();
@@ -303,10 +306,10 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
             .await
             .into_iter()
             .flatten()
-            .filter_map(|res| match res {
+            .filter_map(|(logs_res, block_number)| match logs_res {
                 Ok(logs) => Some(logs),
                 Err(err) => {
-                    warn!(?err, "Failed to fetch logs");
+                    warn!(?err, ?block_number, "Failed to fetch logs for block");
                     None
                 }
             })
