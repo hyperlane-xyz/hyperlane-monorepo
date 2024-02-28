@@ -207,6 +207,8 @@
     ]
   },
   "viction": {
-    "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]
+    "validators": [
+      "0x1f87c368f8e05a85ef9126d984a980a20930cb9c"
+    ]
   }
 }
