@@ -56,10 +56,7 @@
     ]
   },
   "eclipsetestnet": {
-    "validators": [
-      "0xf344f34abca9a444545b5295066348a0ae22dda3",
-      "0x8c9D10622298652E644F3cf1B82A26629B7c2950"
-    ]
+    "validators": ["0xf344f34abca9a444545b5295066348a0ae22dda3"]
   },
   "ethereum": {
     "validators": [
@@ -99,11 +96,8 @@
   "injective": {
     "validators": [
       "0xbfb8911b72cfb138c7ce517c57d9c691535dc517",
-      "0x00c0529e88f92027E199A44f527A36A7E148FEEA",
       "0x6faa139c33a7e6f53cb101f6b2ae392298283ed2",
-      "0xB86a885c917dff64bFCdCB373f513eD40a3f915e",
-      "0x0115e3a66820fb99da30d30e2ce52a453ba99d92",
-      "0x86C0B842D77e6f85af8Ab5F5885ADab9800Aa229"
+      "0x0115e3a66820fb99da30d30e2ce52a453ba99d92"
     ]
   },
   "mantapacific": {
@@ -130,11 +124,8 @@
   "neutron": {
     "validators": [
       "0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0",
-      "0x6B3E96EDA091ecfb586e0Ce323410ea45E285671",
       "0x60e890b34cb44ce3fa52f38684f613f31b47a1a6",
-      "0x9De18182AAb193aa968AD9B1b7680C8b9610Ab93",
-      "0x7885fae56dbcf5176657f54adbbd881dc6714132",
-      "0xCEb6935f2ee1f56aA021399Df092378f8f507C20"
+      "0x7885fae56dbcf5176657f54adbbd881dc6714132"
     ]
   },
   "optimism": {
@@ -201,10 +192,7 @@
     ]
   },
   "solanatestnet": {
-    "validators": [
-      "0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5",
-      "0xb0437830f05f69a0de0754fCafa9524CfA145a11"
-    ]
+    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
   },
   "viction": {
     "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]

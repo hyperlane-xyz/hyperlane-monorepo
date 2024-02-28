@@ -385,6 +385,12 @@ async function persistAddressesLocally(
   const multisigValidatorKeys: ChainMap<{ validators: Address[] }> = {};
   let relayer, kathy;
   for (const key of keys) {
+    // Some types of keys come in an AWS and a GCP variant. We prefer
+    // to persist the AWS version of the key if AWS is enabled.
+    if (agentConfig.aws && !(key instanceof AgentAwsKey)) {
+      continue;
+    }
+
     if (key.role === Role.Relayer) {
       // if (relayer)
       //   throw new Error('More than one Relayer found in gcpCloudAgentKeys');
@@ -399,8 +405,10 @@ async function persistAddressesLocally(
     multisigValidatorKeys[key.chainName] ||= {
       validators: [],
     };
-    if (key.chainName)
+
+    if (key.role === Role.Validator) {
       multisigValidatorKeys[key.chainName].validators.push(key.address);
+    }
   }
   if (!relayer) throw new Error('No Relayer found in awsCloudAgentKeys');
   if (!kathy) throw new Error('No Kathy found in awsCloudAgentKeys');
