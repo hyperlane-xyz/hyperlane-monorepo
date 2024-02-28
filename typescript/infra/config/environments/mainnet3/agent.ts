@@ -18,7 +18,7 @@ import {
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
-import { environment, ethereumChainNames, supportedChainNames } from './chains';
+import { environment, supportedChainNames } from './chains';
 import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';

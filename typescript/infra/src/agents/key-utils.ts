@@ -387,6 +387,8 @@ async function persistAddressesLocally(
   for (const key of keys) {
     // Some types of keys come in an AWS and a GCP variant. We prefer
     // to persist the AWS version of the key if AWS is enabled.
+    // Note this means we prefer EVM addresses here, as even if AWS
+    // is enabled, we use the GCP address for non-EVM chains.
     if (agentConfig.aws && !(key instanceof AgentAwsKey)) {
       continue;
     }

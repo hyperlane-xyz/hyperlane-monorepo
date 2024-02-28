@@ -5,8 +5,6 @@ import {
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
 
-import { AgentChainNames, Role } from '../../../src/roles';
-
 // All supported chains for the testnet4 environment.
 // These chains may be any protocol type.
 export const supportedChainNames = [
