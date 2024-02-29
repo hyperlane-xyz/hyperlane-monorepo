@@ -1,4 +1,5 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use futures::future;
 use std::{
     fmt::{Debug, Formatter},
     io::Cursor,
@@ -18,8 +19,8 @@ use crate::{grpc::WasmProvider, HyperlaneCosmosError};
 use crate::{signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-use cosmrs::tendermint::abci::EventAttribute;
 use once_cell::sync::Lazy;
+use tendermint::abci::EventAttribute;
 
 use crate::utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64};
 use hyperlane_core::{
@@ -32,6 +33,7 @@ use hyperlane_core::{
 };
 use tracing::{instrument, warn};
 
+#[derive(Clone)]
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {
     config: ConnectionConf,
@@ -262,7 +264,7 @@ static MESSAGE_ATTRIBUTE_KEY_BASE64: Lazy<String> =
     Lazy::new(|| BASE64.encode(MESSAGE_ATTRIBUTE_KEY));
 
 /// Struct that retrieves event data for a Cosmos Mailbox contract
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CosmosMailboxIndexer {
     mailbox: CosmosMailbox,
     indexer: Box<CosmosWasmIndexer>,
@@ -294,6 +296,7 @@ impl CosmosMailboxIndexer {
         })
     }
 
+    #[instrument(err)]
     fn hyperlane_message_parser(
         attrs: &Vec<EventAttribute>,
     ) -> ChainResult<ParsedEvent<HyperlaneMessage>> {
@@ -352,10 +355,33 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let result = self
-            .indexer
-            .get_range_event_logs(range, Self::hyperlane_message_parser)
-            .await?;
+        let logs_futures: Vec<_> = range
+            .map(|block_number| {
+                let self_clone = self.clone();
+                tokio::spawn(async move {
+                    let logs = self_clone
+                        .indexer
+                        .get_logs_in_block(block_number, Self::hyperlane_message_parser)
+                        .await;
+                    (logs, block_number)
+                })
+            })
+            .collect();
+
+        // TODO: this can be refactored when we rework indexing, to be part of the block-by-block indexing
+        let result = future::join_all(logs_futures)
+            .await
+            .into_iter()
+            .flatten()
+            .filter_map(|(logs_res, block_number)| match logs_res {
+                Ok(logs) => Some(logs),
+                Err(err) => {
+                    warn!(?err, ?block_number, "Failed to fetch logs for block");
+                    None
+                }
+            })
+            .flatten()
+            .collect();
 
         Ok(result)
     }
@@ -400,7 +426,6 @@ impl SequenceAwareIndexer<HyperlaneMessage> for CosmosMailboxIndexer {
 
 #[cfg(test)]
 mod tests {
-    use cosmrs::tendermint::abci::EventAttribute;
     use hyperlane_core::HyperlaneMessage;
 
     use crate::{rpc::ParsedEvent, utils::event_attributes_from_str};

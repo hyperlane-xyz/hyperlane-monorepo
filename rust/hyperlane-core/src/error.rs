@@ -134,6 +134,10 @@ pub enum ChainCommunicationError {
     /// Rpc client error
     #[error(transparent)]
     RpcClientError(#[from] RpcClientError),
+    /// Tokio join error
+    #[cfg(feature = "async")]
+    #[error(transparent)]
+    TokioJoinError(#[from] tokio::task::JoinError),
 }
 
 impl ChainCommunicationError {
