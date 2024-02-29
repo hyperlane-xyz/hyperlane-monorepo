@@ -1,16 +1,8 @@
-// @ts-nocheck
-import axios from 'axios';
 import { ethers, utils } from 'ethers';
 
 import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi';
 
-import { Requestor } from './common/Requestor';
-
-export enum ProofStatus {
-  running = 'running',
-  success = 'success',
-  error = 'error',
-}
+import { ProofStatus } from './common/ProofStatusEnum';
 
 export type SuccinctConfig = {
   readonly lightClientAddress: string;
@@ -20,15 +12,13 @@ export type SuccinctConfig = {
 };
 
 // Service that interacts with the LightClient/ISM
-class LightClientService extends Requestor {
+class LightClientService {
   constructor(
     private readonly lightClientContract: ethers.Contract, // TODO USE TYPECHAIN
-    succinctConfig: SuccinctConfig,
-  ) {
-    super(axios, succinctConfig.apiKey);
-  }
+    private succinctConfig: SuccinctConfig,
+  ) {}
 
-  private getSyncCommitteePeriod(slot: BigInt): BigInt {
+  private getSyncCommitteePeriod(slot: bigint): bigint {
     return slot / 8192n; // Slots Per Period
   }
 
@@ -37,7 +27,7 @@ class LightClientService extends Requestor {
    * @param slot
    * @returns
    */
-  async getSyncCommitteePoseidons(slot: BigInt): Promise<string> {
+  async getSyncCommitteePoseidons(slot: bigint): Promise<string> {
     return await this.lightClientContract.syncCommitteePoseidons(
       this.getSyncCommitteePeriod(slot),
     );
@@ -47,9 +37,9 @@ class LightClientService extends Requestor {
    * Calculates the slot given a timestamp, and the LightClient's configured Genesis Time and Secods Per Slot
    * @param timestamp timestamp to calculate slot with
    */
-  async calculateSlot(timestamp: number): Promise<BigInt> {
+  async calculateSlot(timestamp: bigint): Promise<bigint> {
     return (
-      (timestamp - (await this.lightClientContract.GENESIS_TIME)) /
+      (timestamp - (await this.lightClientContract.GENESIS_TIME())) /
       (await this.lightClientContract.SECONDS_PER_SLOT())
     );
   }
@@ -61,7 +51,7 @@ class LightClientService extends Requestor {
    */
   async requestProof(
     syncCommitteePoseidon: string,
-    slot: BigInt,
+    slot: bigint,
   ): Promise<string> {
     console.log(`Requesting proof for${slot}`);
 
@@ -69,10 +59,10 @@ class LightClientService extends Requestor {
     const telepathyIface = new utils.Interface(TelepathyCcipReadIsmAbi);
 
     const body = {
-      chainId: this.chainId,
+      chainId: this.lightClientContract.chainId,
       to: this.lightClientContract.address,
       data: telepathyIface.encodeFunctionData('step', [slot]),
-      functionId: this.stepFunctionId,
+      functionId: this.lightClientContract.stepFunctionId,
       input: utils.defaultAbiCoder.encode(
         ['bytes32', 'uint64'],
         [syncCommitteePoseidon, slot],
@@ -80,19 +70,29 @@ class LightClientService extends Requestor {
       retry: true,
     };
 
-    const results: { proof_id: string } = await this.postWithAuthorization(
-      `${this.platformUrl}/new`,
-      body,
+    const response = await fetch(
+      `${this.lightClientContract.platformUrl}/new`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.succinctConfig.apiKey}`,
+        },
+        body: JSON.stringify(body),
+      },
     );
+    const responseAsJson = await response.json();
 
-    return results.proof_id;
+    return responseAsJson.proof_id;
   }
 
   // @dev in the case of when a proof doesn't exist, the request returns an object of { error: 'failed to get proof' }.
   // Example: GET https://alpha.succinct.xyz/api/proof/4dfd2802-4edf-4c4f-91db-b2d05eb69791
   async getProofStatus(proofId: string): Promise<ProofStatus> {
-    const results = this.get(`${this.platformUrl}/${proofId}`);
-    return results.status ?? ProofStatus.error;
+    const response = await fetch(
+      `${this.lightClientContract.platformUrl}/${proofId}`,
+    );
+    const responseAsJson = await response.json();
+    return responseAsJson.status ?? ProofStatus.error;
   }
 }
 

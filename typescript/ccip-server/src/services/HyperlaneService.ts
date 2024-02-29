@@ -1,8 +1,5 @@
-import axios from 'axios';
 import { info } from 'console';
 import { Message, MessageTx } from 'hyperlane-explorer/src/types';
-
-import { Requestor } from './common/Requestor';
 
 // These types are copied from hyperlane-explorer. TODO: export them so this file can use them directly.
 interface ApiResult<R> {
@@ -15,10 +12,8 @@ enum API_ACTION {
   GetMessages = 'get-messages',
 }
 
-class HyperlaneService extends Requestor {
-  constructor(readonly baseUrl: string) {
-    super(axios, '');
-  }
+class HyperlaneService {
+  constructor(readonly baseUrl: string) {}
 
   /**
    * Makes a request to the Explorer API to get the block info by message Id. Throws if request fails, or no results
@@ -26,19 +21,15 @@ class HyperlaneService extends Requestor {
    */
   async getOriginBlockByMessageId(id: string): Promise<MessageTx> {
     info(`Fetching block for id: ${id}`);
-    const { data }: { data: ApiResult<Message[]> } = await this.get(
-      this.baseUrl,
-      {
-        module: 'message',
-        action: API_ACTION.GetMessages,
-        id,
-      },
+    const response = await fetch(
+      `${this.baseUrl}?module=message&action=${API_ACTION.GetMessages}&id=${id}`,
     );
-    if (data.message === 'OK' && data.result.length > 0) {
-      return data.result[0].origin;
+    const responseAsJson: ApiResult<Message[]> = await response.json();
+    if (responseAsJson.status === '1') {
+      return responseAsJson.result[0]?.origin;
+    } else {
+      throw new Error(responseAsJson.message);
     }
-
-    throw new Error(data.message);
   }
 }
 

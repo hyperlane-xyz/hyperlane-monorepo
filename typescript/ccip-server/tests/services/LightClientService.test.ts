@@ -22,7 +22,7 @@ describe('LightClientService', () => {
 
     jest.resetModules();
   });
-  test('should return the corret proof status', () => {
-    expect(lightClientService.pendingProofId).toBe(undefined);
+  test('should return the correct proof status', () => {
+    expect(lightClientService.calculateSlot(1n)).toBeGreaterThan(0);
   });
 });

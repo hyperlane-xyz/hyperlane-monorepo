@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { ProofStatus } from '../../src/services/LightClientService';
+// import { LightClientService } from '../../src/services/LightClientService';
 import { ProofsService } from '../../src/services/ProofsService';
 
 // Fixtures
@@ -36,6 +36,7 @@ describe('ProofsService', () => {
       STORAGE_KEY,
       MESSAGE_ID,
     );
+    jest.clearAllMocks();
   });
 
   test('should set currentProofId, if proof is not ready', async () => {
@@ -61,12 +62,15 @@ describe('ProofsService', () => {
       );
     } catch (e) {
       // Try to get the proof again
-      // proofsService.lightClientService.__setProofStatus(ProofStatus.success);
-
-      await proofsService.getProofs([TARGET_ADDR, STORAGE_KEY, MESSAGE_ID]);
-      expect(proofsService.pendingProof.get(pendingProofKey)).toEqual(
-        'pendingProofId12',
-      );
+      const proofs = await proofsService.getProofs([
+        TARGET_ADDR,
+        STORAGE_KEY,
+        MESSAGE_ID,
+      ]);
+      expect(proofs[0][1]).toEqual([
+        '0xf844a120443dd0be11dd8e645a2e5675fd62011681443445ea8b04c77d2cdeb1326739eca1a031ede38d2e93c5aee49c836f329a626d8c6322abfbff3783e82e5759f870d7e9',
+      ]);
+      expect(proofsService.pendingProof.get(pendingProofKey)).toBeUndefined();
     }
   });
 });

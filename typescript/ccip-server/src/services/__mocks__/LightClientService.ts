@@ -7,9 +7,9 @@ enum ProofStatus {
 
 class LightClientService {
   proofStatus: ProofStatus = ProofStatus.running;
-  async calculateSlot(timestamp: number): Promise<number> {
+  async calculateSlot(timestamp: bigint): Promise<bigint> {
     return (
-      (timestamp - 1606824023) / 12 // (timestamp - GENESIS TIME) / SLOTS_PER_SECOND
+      (timestamp - 1606824023n) / 12n // (timestamp - GENESIS TIME) / SLOTS_PER_SECOND
     );
   }
 
@@ -19,13 +19,8 @@ class LightClientService {
   ): Promise<string> {
     return 'pendingProofId12';
   }
-
-  async getProofStatus(proofId: string): Promise<ProofStatus> {
-    return this.proofStatus;
-  }
-
-  async __setProofStatus(proofStatus: ProofStatus): Promise<ProofStatus> {
-    return (this.proofStatus = proofStatus);
+  async getProofStatus(pendingProofId: string): Promise<ProofStatus> {
+    return ProofStatus.success;
   }
 }
 

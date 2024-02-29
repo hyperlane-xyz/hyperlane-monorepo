@@ -3,12 +3,10 @@ import { ethers } from 'ethers';
 import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi';
 
 import { HyperlaneService } from './HyperlaneService';
-import {
-  LightClientService,
-  ProofStatus,
-  SuccinctConfig,
-} from './LightClientService';
+import { LightClientService, SuccinctConfig } from './LightClientService';
 import { RPCService } from './RPCService';
+import { ProofResult } from './RPCService';
+import { ProofStatus } from './common/ProofStatusEnum';
 
 type RPCConfig = {
   readonly url: string;
@@ -55,6 +53,7 @@ class ProofsService {
    * @param target contract address to get the proof for
    * @param storageKeys storage keys to get the proof for
    * @param messageId messageId that will be used to get the block info from hyperlane
+   * @returns The account and a single storage proof
    */
   async getProofs([
     target,
@@ -69,17 +68,8 @@ class ProofsService {
     );
     if (!this.pendingProof.has(pendingProofKey)) {
       // Request a Proof from Succinct
-      const { timestamp } =
-        await this.hyperlaneService.getOriginBlockByMessageId(messageId);
-      const slot = await this.lightClientService.calculateSlot(timestamp);
-      const syncCommitteePoseidon = ''; // TODO get prof LC
-      const pendingProofId = await this.lightClientService.requestProof(
-        syncCommitteePoseidon,
-        slot,
-      );
-
+      const pendingProofId = await this.requestProofFromSuccinct(messageId);
       this.pendingProof.set(pendingProofKey, pendingProofId);
-
       this.forceRelayerRecheck();
     } else {
       // Proof is being generated, check status
@@ -87,14 +77,57 @@ class ProofsService {
         this.pendingProof.get(pendingProofKey)!,
       );
       if (proofStatus === ProofStatus.success) {
-        // Proof is ready, clear pendingProofId from Mapping
+        // Succinct Proof is ready.
+        // This means that the LightClient should have the latest state root. Fetch and return the storage proofs from eth_getProof
+        proofs.push(await this.getStorageProofs(target, storageKey, messageId));
         this.pendingProof.delete(pendingProofKey);
+      } else {
+        this.forceRelayerRecheck();
       }
-
-      // Proof still not ready
-      this.forceRelayerRecheck();
     }
+    // TODO Write tests to check proofs
     return proofs;
+  }
+
+  /**
+   * Requests the Succinct proof
+   * @param messageId messageId that will be used to get the block info from hyperlane
+   * @returns the proofId
+   */
+  async requestProofFromSuccinct(messageId: string) {
+    const { timestamp } = await this.hyperlaneService.getOriginBlockByMessageId(
+      messageId,
+    );
+    const slot = await this.lightClientService.calculateSlot(BigInt(timestamp));
+    const syncCommitteePoseidon = ''; // TODO get from LC
+    return await this.lightClientService.requestProof(
+      syncCommitteePoseidon,
+      slot,
+    );
+  }
+
+  /**
+   * Gets the account and single storage proof from eth_getProof
+   * @param target contract address to get the proof for
+   * @param storageKeys storage keys to get the proof for
+   * @param messageId messageId that will be used to get the block info from hyperlane
+   * @returns The account and a single storage proof
+   */
+  async getStorageProofs(
+    target: string,
+    storageKey: string,
+    messageId: string,
+  ): Promise<[string[], string[]]> {
+    const { blockNumber } =
+      await this.hyperlaneService.getOriginBlockByMessageId(messageId);
+    const { accountProof, storageProof }: ProofResult =
+      await this.rpcService.getProofs(
+        target,
+        [storageKey],
+        new Number(blockNumber).toString(16), // Converts to hexstring
+      );
+
+    return [accountProof, storageProof[0].proof]; // Since we only expect one storage key, we only return the first proof
   }
 
   getPendingProofKey(
