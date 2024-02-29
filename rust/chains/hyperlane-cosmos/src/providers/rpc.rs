@@ -92,34 +92,28 @@ impl CosmosWasmIndexer {
         })
     }
 
-    #[instrument(err, skip(client))]
     async fn get_block(client: HttpClient, block_number: u32) -> ChainResult<BlockResponse> {
-        client
+        Ok(client
             .block(block_number)
             .await
-            .map_err(Into::<HyperlaneCosmosError>::into)
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(Into::<HyperlaneCosmosError>::into)?)
     }
 
-    #[instrument(err, skip(client))]
     async fn get_block_results(
         client: HttpClient,
         block_number: u32,
     ) -> ChainResult<BlockResultsResponse> {
-        client
+        Ok(client
             .block_results(block_number)
             .await
-            .map_err(Into::<HyperlaneCosmosError>::into)
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(Into::<HyperlaneCosmosError>::into)?)
     }
 
-    #[instrument(err, skip(client))]
     async fn get_latest_block(client: HttpClient) -> ChainResult<BlockResponse> {
-        client
+        Ok(client
             .latest_block()
             .await
-            .map_err(Into::<HyperlaneCosmosError>::into)
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(Into::<HyperlaneCosmosError>::into)?)
     }
 
     // TODO: Refactor this function into a retrying provider. Once the watermark cursor is refactored, retrying should no longer
@@ -244,6 +238,7 @@ impl CosmosWasmIndexer {
 
 #[async_trait]
 impl WasmIndexer for CosmosWasmIndexer {
+    #[instrument(err, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         let latest_block = Self::call_with_retry(move || {
             Box::pin(Self::get_latest_block(self.provider.rpc().clone()))
