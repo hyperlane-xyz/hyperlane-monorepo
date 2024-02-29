@@ -47,7 +47,7 @@ pub enum HyperlaneCosmosError {
     /// Fallback providers failed
     #[error("Fallback providers failed. (Errors: {0:?})")]
     FallbackProvidersFailed(Vec<HyperlaneCosmosError>),
-    /// Custom error string
+    /// Custom error
     #[error("{0}")]
     CustomError(String),
 }
