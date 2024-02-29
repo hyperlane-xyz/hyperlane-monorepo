@@ -135,6 +135,7 @@ impl CosmosWasmIndexer {
             }
         }
 
+        // TODO: Return the last error, or a vec of all the error instead of this string error
         Err(ChainCommunicationError::from_other(
             HyperlaneCosmosError::CustomError("Retrying call failed".to_string()),
         ))
