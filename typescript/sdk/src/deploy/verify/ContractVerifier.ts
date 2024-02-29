@@ -273,6 +273,13 @@ export class ContractVerifier {
   ): Promise<void> {
     const verificationLogger = logger.extend(`${chain}:${input.name}`);
 
+    const metadata = this.multiProvider.tryGetChainMetadata(chain);
+    const rpcUrl = metadata?.rpcUrls[0].http ?? '';
+    if (rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1')) {
+      verificationLogger('Skipping verification for local endpoints');
+      return;
+    }
+
     const explorerApi = this.multiProvider.tryGetExplorerApi(chain);
     if (!explorerApi) {
       verificationLogger('No explorer API set, skipping');
