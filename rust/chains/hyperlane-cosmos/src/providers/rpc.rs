@@ -2,11 +2,13 @@ use async_trait::async_trait;
 use cosmrs::rpc::client::Client;
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, U256};
 use sha256::digest;
+use std::time::Duration;
 use tendermint::abci::{Event, EventAttribute};
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tendermint_rpc::endpoint::block::Response as BlockResponse;
 use tendermint_rpc::endpoint::block_results::Response as BlockResultsResponse;
+use tokio::time::sleep;
 use tracing::{debug, instrument, trace};
 
 use crate::address::CosmosAddress;
@@ -91,7 +93,6 @@ impl CosmosWasmIndexer {
 impl CosmosWasmIndexer {
     // Iterate through all txs, filter out failed txs, find target events
     // in successful txs, and parse them.
-    // #[instrument(err, skip(self, parser))]
     fn handle_txs<T>(
         &self,
         block: BlockResponse,
@@ -102,7 +103,6 @@ impl CosmosWasmIndexer {
         T: PartialEq + 'static,
     {
         let Some(tx_results) = block_results.txs_results else {
-            // return Ok(vec![]);
             return vec![];
         };
 
@@ -119,7 +119,7 @@ impl CosmosWasmIndexer {
             })
             .collect();
 
-        let logs = tx_results
+        tx_results
             .into_iter()
             .enumerate()
             .filter_map(move |(idx, tx)| {
@@ -134,10 +134,7 @@ impl CosmosWasmIndexer {
                 Some(self.handle_tx(block.clone(), tx.events, *tx_hash, idx, parser))
             })
             .flatten()
-            .collect();
-
-        // Ok(logs)
-        logs
+            .collect()
     }
 
     // Iter through all events in the tx, looking for any target events
@@ -206,6 +203,7 @@ impl WasmIndexer for CosmosWasmIndexer {
         Ok(latest_height.saturating_sub(self.reorg_period))
     }
 
+    // TODO: Refactor this function to remove the retriying logic, once the watermark cursor is refactored
     #[instrument(err, skip(self, parser))]
     async fn get_logs_in_block<T>(
         &self,
@@ -217,22 +215,35 @@ impl WasmIndexer for CosmosWasmIndexer {
     {
         let client = self.provider.rpc().clone();
 
-        let (block_res, block_results_res) = tokio::join!(
-            client.block(block_number),
-            client.block_results(block_number)
-        );
-        let block = block_res.map_err(ChainCommunicationError::from_other)?;
-        let block_results = block_results_res.map_err(ChainCommunicationError::from_other)?;
-        println!(
-            "~~~ got block for height {}: {:?}",
-            block_number,
-            serde_json::to_string(&block)
-        );
-        println!(
-            "~~~ got block_results for height {}: {:?}",
-            block_number,
-            serde_json::to_string(&block_results)
-        );
+        let mut retries: u32 = 5;
+
+        let (block, block_results) = loop {
+            let (block_res, block_results_res) = tokio::join!(
+                client.block(block_number),
+                client.block_results(block_number)
+            );
+
+            if let (Ok(block), Ok(block_results)) = (block_res, block_results_res) {
+                break (block, block_results);
+            }
+
+            match retries.checked_sub(1) {
+                Some(remaining) => retries = remaining,
+                None => {
+                    return Err(ChainCommunicationError::from_other(
+                        HyperlaneCosmosError::CustomError(
+                            "Failed to get block and block results from Cosmos RPC endpoint"
+                                .to_string(),
+                        ),
+                    ));
+                }
+            }
+            debug!(
+                "Retrying to get block and block results for block number {}",
+                block_number
+            );
+            sleep(Duration::from_secs(2)).await;
+        };
 
         Ok(self.handle_txs(block, block_results, parser))
     }

@@ -306,7 +306,6 @@ impl CosmosMailboxIndexer {
         for attr in attrs {
             let key = attr.key.as_str();
             let value = attr.value.as_str();
-            println!("~~~ parsing key: {}, value: {}", key, value);
 
             match key {
                 CONTRACT_ADDRESS_ATTRIBUTE_KEY => {

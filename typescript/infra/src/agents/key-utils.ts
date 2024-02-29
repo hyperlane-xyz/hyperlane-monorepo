@@ -386,8 +386,8 @@ async function persistAddressesLocally(
   let relayer, kathy;
   for (const key of keys) {
     if (key.role === Role.Relayer) {
-      // if (relayer)
-      //   throw new Error('More than one Relayer found in gcpCloudAgentKeys');
+      if (relayer)
+        throw new Error('More than one Relayer found in gcpCloudAgentKeys');
       relayer = key.address;
     }
     if (key.role === Role.Kathy) {
