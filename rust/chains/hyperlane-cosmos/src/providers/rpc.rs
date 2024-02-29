@@ -17,6 +17,9 @@ use tracing::{debug, instrument, trace};
 use crate::address::CosmosAddress;
 use crate::{ConnectionConf, CosmosProvider, HyperlaneCosmosError};
 
+const MAX_RPC_RETRIES: usize = 10;
+const RPC_RETRY_SLEEP_DURATION: Duration = Duration::from_secs(2);
+
 #[async_trait]
 /// Trait for wasm indexer. Use rpc provider
 pub trait WasmIndexer: Send + Sync {
@@ -122,17 +125,14 @@ impl CosmosWasmIndexer {
     async fn call_with_retry<T>(
         mut f: impl FnMut() -> Pin<Box<dyn Future<Output = ChainResult<T>> + Send>>,
     ) -> ChainResult<T> {
-        let mut retries: u32 = 5;
-        for _ in 1..retries {
+        for retry_number in 1..MAX_RPC_RETRIES {
             match f().await {
                 Ok(res) => return Ok(res),
-                Err(err) => match retries.checked_sub(1) {
-                    Some(remaining) => retries = remaining,
-                    None => break,
-                },
+                Err(err) => {
+                    debug!(retries=retry_number, error=?err, "Retrying call");
+                    sleep(RPC_RETRY_SLEEP_DURATION).await;
+                }
             }
-            debug!("Retrying call");
-            sleep(Duration::from_secs(2)).await;
         }
 
         Err(ChainCommunicationError::from_other(
