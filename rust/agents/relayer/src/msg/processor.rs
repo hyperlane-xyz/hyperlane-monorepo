@@ -329,6 +329,7 @@ mod test {
             domain_name: name.to_owned(),
             domain_type: test_domain.domain_type(),
             domain_protocol: test_domain.domain_protocol(),
+            domain_technical_stack: test_domain.domain_technical_stack(),
         }
     }
 

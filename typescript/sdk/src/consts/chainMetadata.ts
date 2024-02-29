@@ -1,6 +1,10 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata, ExplorerFamily } from '../metadata/chainMetadataTypes';
+import {
+  ChainMetadata,
+  ChainTechnicalStack,
+  ExplorerFamily,
+} from '../metadata/chainMetadataTypes';
 import { ChainMap } from '../types';
 
 import { Chains, Mainnets, Testnets } from './chains';
@@ -71,6 +75,7 @@ export const arbitrum: ChainMetadata = {
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'https://arb1.arbitrum.io/rpc' }],
+  technicalStack: ChainTechnicalStack.ArbitrumNitro,
 };
 
 export const arbitrumgoerli: ChainMetadata = {
@@ -88,6 +93,7 @@ export const arbitrumgoerli: ChainMetadata = {
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'https://goerli-rollup.arbitrum.io/rpc' }],
+  technicalStack: ChainTechnicalStack.ArbitrumNitro,
 };
 
 export const avalanche: ChainMetadata = {
@@ -687,7 +693,7 @@ export const plumetestnet: ChainMetadata = {
   blocks: {
     confirmations: 1,
     estimateBlockTime: 3,
-    reorgPeriod: 1,
+    reorgPeriod: 0,
   },
   chainId: 161221135,
   displayName: 'Plume Testnet',
