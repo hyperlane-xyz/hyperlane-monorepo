@@ -15,7 +15,6 @@ import { readChainConfigsIfExists } from './chain.js';
 
 const ConnectionConfigSchema = {
   mailbox: ZHash.optional(),
-  interchainGasPaymaster: ZHash.optional(),
   interchainSecurityModule: ZHash.optional(),
   foreignDeployment: z.string().optional(),
 };
