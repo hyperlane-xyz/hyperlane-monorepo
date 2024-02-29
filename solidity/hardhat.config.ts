@@ -1,3 +1,4 @@
+import '@nomicfoundation/hardhat-verify';
 import '@nomiclabs/hardhat-ethers';
 import '@nomiclabs/hardhat-waffle';
 import '@typechain/hardhat';
@@ -27,5 +28,25 @@ module.exports = {
   },
   mocha: {
     bail: true,
+  },
+  networks: {
+    viction: {
+      url: 'https://rpc.viction.xyz', // for mainnet
+    },
+  },
+  etherscan: {
+    apiKey: {
+      viction: 'tomoscan2023',
+    },
+    customChains: [
+      {
+        network: 'viction',
+        chainId: 88, // for mainnet
+        urls: {
+          apiURL: 'https://www.vicscan.xyz/api/contract/hardhat/verify', // for mainnet
+          browserURL: 'https://vicscan.xyz', // for mainnet
+        },
+      },
+    ],
   },
 };

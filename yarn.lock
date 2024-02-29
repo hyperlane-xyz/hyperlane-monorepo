@@ -4268,6 +4268,7 @@ __metadata:
   dependencies:
     "@eth-optimism/contracts": "npm:^0.6.0"
     "@hyperlane-xyz/utils": "npm:3.7.0"
+    "@nomicfoundation/hardhat-verify": "npm:^2.0.4"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.1"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@openzeppelin/contracts": "npm:^4.9.3"
@@ -5058,6 +5059,25 @@ __metadata:
     mcl-wasm: "npm:^0.7.1"
     rustbn.js: "npm:~0.2.0"
   checksum: 7ad391bc68e8e755ed0b88012e8857390590b5ba8b11bdb4995b04ba7afed5570a4259b85fff329affb643e87be12972ca44d269e14e5f840a82c315011d0d7a
+  languageName: node
+  linkType: hard
+
+"@nomicfoundation/hardhat-verify@npm:^2.0.4":
+  version: 2.0.4
+  resolution: "@nomicfoundation/hardhat-verify@npm:2.0.4"
+  dependencies:
+    "@ethersproject/abi": "npm:^5.1.2"
+    "@ethersproject/address": "npm:^5.0.2"
+    cbor: "npm:^8.1.0"
+    chalk: "npm:^2.4.2"
+    debug: "npm:^4.1.1"
+    lodash.clonedeep: "npm:^4.5.0"
+    semver: "npm:^6.3.0"
+    table: "npm:^6.8.0"
+    undici: "npm:^5.14.0"
+  peerDependencies:
+    hardhat: ^2.0.4
+  checksum: 731fd6b6865781c8f12f0ed329667075cd038a513d657c0206b6fb4275dc46f499968da833a8eb4aa65a443a65298a5790922122c0437c33199f847867469043
   languageName: node
   linkType: hard
 
@@ -7697,6 +7717,15 @@ __metadata:
     bignumber.js: "npm:^9.0.1"
     nofilter: "npm:^1.0.4"
   checksum: e7c4467536dc6693b5993c71f83a76c18d3c5e898011dc1a0c89dcb27ae1ad4b8d13f1ec338d47623f8f1a6ed5440db769df38c2c70378573766ce89436c5122
+  languageName: node
+  linkType: hard
+
+"cbor@npm:^8.1.0":
+  version: 8.1.0
+  resolution: "cbor@npm:8.1.0"
+  dependencies:
+    nofilter: "npm:^3.1.0"
+  checksum: fc6c6d4f8d14def3a0f2ef111f4fc14b3b0bc91d22ed8fd0eb005095c4699c723a45721e515d713571148d0d965ceeb771f4ad422953cb4e9658b379991b52c9
   languageName: node
   linkType: hard
 
@@ -12411,6 +12440,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"lodash.clonedeep@npm:^4.5.0":
+  version: 4.5.0
+  resolution: "lodash.clonedeep@npm:4.5.0"
+  checksum: 957ed243f84ba6791d4992d5c222ffffca339a3b79dbe81d2eaf0c90504160b500641c5a0f56e27630030b18b8e971ea10b44f928a977d5ced3c8948841b555f
+  languageName: node
+  linkType: hard
+
 "lodash.get@npm:^4.4.2":
   version: 4.4.2
   resolution: "lodash.get@npm:4.4.2"
@@ -13544,6 +13580,13 @@ __metadata:
   version: 1.0.4
   resolution: "nofilter@npm:1.0.4"
   checksum: 864d1945d29de91ee0b21349c7404fe506b5f07febd8e11988918e3686467a95570b131282fd2bdad7aee9e4b0ed567386e439690ee6ff177541e7e8b8442144
+  languageName: node
+  linkType: hard
+
+"nofilter@npm:^3.1.0":
+  version: 3.1.0
+  resolution: "nofilter@npm:3.1.0"
+  checksum: f63d87231dfda4b783db17d75b15aac948f78e65f4f1043096ef441147f6667ff74cd4b3f57ada5dbe240be282d3e9838558ac863a66cb04ef25fff7b2b4be4e
   languageName: node
   linkType: hard
 
