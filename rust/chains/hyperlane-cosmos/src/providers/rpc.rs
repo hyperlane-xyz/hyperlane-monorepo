@@ -1,13 +1,16 @@
 use async_trait::async_trait;
 use cosmrs::rpc::client::Client;
+use futures::Future;
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, U256};
 use sha256::digest;
+use std::pin::Pin;
 use std::time::Duration;
 use tendermint::abci::{Event, EventAttribute};
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tendermint_rpc::endpoint::block::Response as BlockResponse;
 use tendermint_rpc::endpoint::block_results::Response as BlockResultsResponse;
+use tendermint_rpc::HttpClient;
 use tokio::time::sleep;
 use tracing::{debug, instrument, trace};
 
@@ -87,6 +90,60 @@ impl CosmosWasmIndexer {
             target_event_kind: format!("{}-{}", Self::WASM_TYPE, event_type),
             reorg_period,
         })
+    }
+
+    #[instrument(err, skip(client))]
+    async fn get_block(client: HttpClient, block_number: u32) -> ChainResult<BlockResponse> {
+        client
+            .block(block_number)
+            .await
+            .map_err(Into::<HyperlaneCosmosError>::into)
+            .map_err(ChainCommunicationError::from_other)
+    }
+
+    #[instrument(err, skip(client))]
+    async fn get_block_results(
+        client: HttpClient,
+        block_number: u32,
+    ) -> ChainResult<BlockResultsResponse> {
+        client
+            .block_results(block_number)
+            .await
+            .map_err(Into::<HyperlaneCosmosError>::into)
+            .map_err(ChainCommunicationError::from_other)
+    }
+
+    #[instrument(err, skip(client))]
+    async fn get_latest_block(client: HttpClient) -> ChainResult<BlockResponse> {
+        client
+            .latest_block()
+            .await
+            .map_err(Into::<HyperlaneCosmosError>::into)
+            .map_err(ChainCommunicationError::from_other)
+    }
+
+    // TODO: Refactor this function into a retrying provider. Once the watermark cursor is refactored, retrying should no longer
+    // be required here if the error is propagated.
+    #[instrument(err, skip(f))]
+    async fn call_with_retry<T>(
+        mut f: impl FnMut() -> Pin<Box<dyn Future<Output = ChainResult<T>> + Send>>,
+    ) -> ChainResult<T> {
+        let mut retries: u32 = 5;
+        for _ in 1..retries {
+            match f().await {
+                Ok(res) => return Ok(res),
+                Err(err) => match retries.checked_sub(1) {
+                    Some(remaining) => retries = remaining,
+                    None => break,
+                },
+            }
+            debug!("Retrying call");
+            sleep(Duration::from_secs(2)).await;
+        }
+
+        Err(ChainCommunicationError::from_other(
+            HyperlaneCosmosError::CustomError("Retrying call failed".to_string()),
+        ))
     }
 }
 
@@ -188,12 +245,11 @@ impl CosmosWasmIndexer {
 #[async_trait]
 impl WasmIndexer for CosmosWasmIndexer {
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let latest_height: u32 = self
-            .provider
-            .rpc()
-            .latest_block()
-            .await
-            .map_err(Into::<HyperlaneCosmosError>::into)?
+        let latest_block = Self::call_with_retry(move || {
+            Box::pin(Self::get_latest_block(self.provider.rpc().clone()))
+        })
+        .await?;
+        let latest_height: u32 = latest_block
             .block
             .header
             .height
@@ -203,7 +259,6 @@ impl WasmIndexer for CosmosWasmIndexer {
         Ok(latest_height.saturating_sub(self.reorg_period))
     }
 
-    // TODO: Refactor this function to remove the retriying logic, once the watermark cursor is refactored
     #[instrument(err, skip(self, parser))]
     async fn get_logs_in_block<T>(
         &self,
@@ -215,35 +270,14 @@ impl WasmIndexer for CosmosWasmIndexer {
     {
         let client = self.provider.rpc().clone();
 
-        let mut retries: u32 = 5;
-
-        let (block, block_results) = loop {
-            let (block_res, block_results_res) = tokio::join!(
-                client.block(block_number),
-                client.block_results(block_number)
-            );
-
-            if let (Ok(block), Ok(block_results)) = (block_res, block_results_res) {
-                break (block, block_results);
-            }
-
-            match retries.checked_sub(1) {
-                Some(remaining) => retries = remaining,
-                None => {
-                    return Err(ChainCommunicationError::from_other(
-                        HyperlaneCosmosError::CustomError(
-                            "Failed to get block and block results from Cosmos RPC endpoint"
-                                .to_string(),
-                        ),
-                    ));
-                }
-            }
-            debug!(
-                "Retrying to get block and block results for block number {}",
-                block_number
-            );
-            sleep(Duration::from_secs(2)).await;
-        };
+        let (block_res, block_results_res) = tokio::join!(
+            Self::call_with_retry(|| { Box::pin(Self::get_block(client.clone(), block_number)) }),
+            Self::call_with_retry(|| {
+                Box::pin(Self::get_block_results(client.clone(), block_number))
+            }),
+        );
+        let block = block_res.map_err(ChainCommunicationError::from_other)?;
+        let block_results = block_results_res.map_err(ChainCommunicationError::from_other)?;
 
         Ok(self.handle_txs(block, block_results, parser))
     }
