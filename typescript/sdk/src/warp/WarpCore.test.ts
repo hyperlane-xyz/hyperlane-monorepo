@@ -83,7 +83,7 @@ describe('WarpCore', () => {
       standard: TokenStandard,
       quote: InterchainGasQuote = MOCK_QUOTE,
     ) => {
-      const result = await warpCore.getTransferGasQuote(token, chain);
+      const result = await warpCore.getTransferRemoteGasQuote(token, chain);
       expect(
         result.token.standard,
         `token standard check for ${token.chainName} to ${chain}`,

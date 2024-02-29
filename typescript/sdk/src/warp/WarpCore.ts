@@ -52,7 +52,11 @@ export class WarpCore {
     this.logger = debug(options?.loggerName || 'hyperlane:WarpCore');
   }
 
-  // Takes the serialized representation of a complete warp config and returns a WarpCore instance
+  /**
+   * Takes the serialized representation of a warp config and returns a WarpCore instance
+   * @param multiProvider the MultiProtocolProvider containing chain metadata
+   * @param config the config object of type WarpCoreConfig
+   */
   static FromConfig(
     multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
     config: unknown,
@@ -96,7 +100,10 @@ export class WarpCore {
     });
   }
 
-  async getTransferGasQuote(
+  /**
+   * Queries the token router for an interchain gas quote
+   */
+  async getTransferRemoteGasQuote(
     originToken: IToken,
     destination: ChainNameOrId,
   ): Promise<TokenAmount> {
@@ -119,7 +126,9 @@ export class WarpCore {
         destinationName,
       );
       const destinationDomainId = this.multiProvider.getDomainId(destination);
-      const quote = await hypAdapter.quoteGasPayment(destinationDomainId);
+      const quote = await hypAdapter.quoteTransferRemoteGas(
+        destinationDomainId,
+      );
       gasAmount = BigInt(quote.amount);
       gasAddressOrDenom = quote.addressOrDenom;
     }
@@ -140,6 +149,10 @@ export class WarpCore {
     return new TokenAmount(gasAmount, igpToken);
   }
 
+  /**
+   * Gets a list of populated transactions required to transfer a token to a remote chain
+   * Typically just 1 transaction but sometimes more, like when an approval is required first
+   */
   async getTransferRemoteTxs(
     originTokenAmount: TokenAmount,
     destination: ChainNameOrId,
@@ -170,7 +183,7 @@ export class WarpCore {
       transactions.push(approveTx);
     }
 
-    const interchainGasAmount = await this.getTransferGasQuote(
+    const interchainGasAmount = await this.getTransferRemoteGasQuote(
       token,
       destination,
     );
@@ -375,7 +388,7 @@ export class WarpCore {
     if (amount > senderBalance) return { amount: 'Insufficient balance' };
 
     // Next, ensure balances can cover IGP fees
-    const igpQuote = await this.getTransferGasQuote(token, destination);
+    const igpQuote = await this.getTransferRemoteGasQuote(token, destination);
     if (token.equals(igpQuote.token) || token.collateralizes(igpQuote.token)) {
       const total = amount + igpQuote.amount;
       if (senderBalance < total)
