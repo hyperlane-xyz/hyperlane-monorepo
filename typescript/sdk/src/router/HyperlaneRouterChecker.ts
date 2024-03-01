@@ -43,6 +43,7 @@ export class HyperlaneRouterChecker<
   }
 
   async checkMailboxClient(chain: ChainName): Promise<void> {
+    console.log('HyperlaneRouterChecker: checkMailboxClient');
     const router = this.app.router(this.app.getContracts(chain));
 
     const checkMailboxClientProperty = async (
@@ -50,7 +51,13 @@ export class HyperlaneRouterChecker<
       actual: string,
       violationType: ClientViolationType,
     ) => {
+      console.log(
+        'HyperlaneRouterChecker: checkMailboxClientProperty',
+        chain,
+        property,
+      );
       const value = this.configMap[chain][property];
+      console.log('HyperlaneRouterChecker: checkMailboxClientProperty', value);
 
       // If the value is an object, it's an ISM config
       // and we should make sure it matches the actual ISM config
@@ -79,6 +86,7 @@ export class HyperlaneRouterChecker<
             description: `ISM config does not match deployed ISM`,
           };
           this.addViolation(violation);
+          console.log('HyperlaneRouterChecker: violation: ', violation);
         }
         return;
       }
@@ -143,9 +151,17 @@ export class HyperlaneRouterChecker<
     const router = this.app.router(this.app.getContracts(chain));
 
     await Promise.all(
-      this.app.remoteChains(chain).map(async (remoteChain) => {
+      (
+        await this.app.remoteChainsAgain(chain)
+      ).map(async (remoteChain) => {
         const remoteRouterAddress = this.app.routerAddress(remoteChain);
         const remoteDomainId = this.multiProvider.getDomainId(remoteChain);
+        console.log(
+          'HyperlaneRouterChecker: checkEnrolledRouters',
+          remoteChain,
+          remoteRouterAddress,
+          remoteDomainId,
+        );
         const actualRouter = await router.routers(remoteDomainId);
         const expectedRouter = addressToBytes32(remoteRouterAddress);
         if (actualRouter !== expectedRouter) {

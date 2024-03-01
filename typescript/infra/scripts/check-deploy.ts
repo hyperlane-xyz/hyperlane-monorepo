@@ -60,7 +60,12 @@ async function check() {
   const env = deployEnvToSdkEnv[environment];
   const core = HyperlaneCore.fromEnvironment(env, multiProvider);
   const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
-  const routerConfig = core.getRouterConfig(config.owners);
+  let routerConfig = core.getRouterConfig(config.owners);
+  routerConfig = {
+    sepolia: routerConfig.sepolia,
+    scrollsepolia: routerConfig.scrollsepolia,
+    plumetestnet: routerConfig.plumetestnet,
+  };
 
   let governor: HyperlaneAppGovernor<any, any>;
   if (module === Modules.CORE) {
@@ -77,6 +82,7 @@ async function check() {
     governor = new HyperlaneIgpGovernor(checker);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const ica = InterchainAccount.fromEnvironment(env, multiProvider);
+    // await sleep(10000);
     const checker = new InterchainAccountChecker(
       multiProvider,
       ica,

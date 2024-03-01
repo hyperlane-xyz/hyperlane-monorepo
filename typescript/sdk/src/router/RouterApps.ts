@@ -39,16 +39,45 @@ export abstract class RouterApp<
       this.multiProvider.getChainMetadata(chainName).protocol ===
       ProtocolType.Ethereum
     ) {
-      return this.router(this.contractsMap[chainName]).address;
+      console.log(
+        'RouterApp routerAddress',
+        chainName,
+        objMap(
+          this.contractsMap,
+          (_, contracts) => this.router(contracts)?.address,
+        ),
+      );
+      return this.router(this.contractsMap[chainName])?.address;
     }
     return this.foreignDeployments[chainName];
   }
 
   override remoteChains(chainName: string): string[] {
-    return [
+    const chains = [
       ...super.remoteChains(chainName),
       ...Object.keys(this.foreignDeployments),
-    ].filter((chain) => chain !== chainName);
+    ].filter(
+      (chain) =>
+        chain !== chainName &&
+        this.multiProvider.tryGetChainMetadata(chain) !== null,
+    );
+    // for (chainName of chains) {
+    //   // console.log('RouterApp remoteChains', router.domains());
+    //   console.log(
+    //     'RouterApp remoteChains1',
+    //     this.multiProvider.tryGetChainMetadata(chainName),
+    //   );
+    // }
+    return chains;
+  }
+
+  async remoteChainsAgain(chainName: string): Promise<string[]> {
+    const router = this.router(this.contractsMap[chainName]);
+    const domains = (await router.domains())
+      .map((domain) => this.multiProvider.tryGetChainName(domain))
+      .filter((domain): domain is string => domain !== null);
+    console.log('RouterApp remoteChainsAgain', domains);
+    return domains;
   }
 
   getSecurityModules(): Promise<ChainMap<Address>> {

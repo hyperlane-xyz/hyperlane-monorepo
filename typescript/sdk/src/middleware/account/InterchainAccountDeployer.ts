@@ -50,6 +50,7 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
     chain: ChainName,
     config: InterchainAccountConfig,
   ): Promise<HyperlaneContracts<InterchainAccountFactories>> {
+    console.log('ICA config', JSON.stringify(config, null, 2));
     if (config.interchainSecurityModule) {
       throw new Error('Configuration of ISM not supported in ICA deployer');
     }
@@ -59,6 +60,7 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
       'interchainAccountIsm',
       [config.mailbox],
     );
+    console.log('ICA ISM', interchainAccountIsm.address);
     const modifiedConfig = {
       ...config,
       interchainSecurityModule: interchainAccountIsm.address,

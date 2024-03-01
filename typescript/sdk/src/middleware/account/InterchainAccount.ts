@@ -54,6 +54,26 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       interchainAccountFactories,
       multiProvider,
     );
+    printKeysTwoLevelsDown(helper.contractsMap);
     return new InterchainAccount(helper.contractsMap, helper.multiProvider);
+  }
+}
+
+function printKeysTwoLevelsDown(obj: any) {
+  for (const key of Object.keys(obj)) {
+    console.log(key);
+    if (typeof obj[key] === 'object' && obj[key] !== null) {
+      for (const subKey of Object.keys(obj[key])) {
+        if (subKey === 'interchainAccountIsm') {
+          console.log(
+            `  ${subKey} : ${JSON.stringify(
+              obj[key][subKey].address,
+              null,
+              2,
+            )}`,
+          );
+        }
+      }
+    }
   }
 }
