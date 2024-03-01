@@ -145,6 +145,13 @@ async function main() {
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
+    // filter config to only include sepolia and optimismgoerli for now
+    config = {
+      sepolia: config.sepolia,
+      scrollsepolia: config.scrollsepolia,
+      plumetestnet: config.plumetestnet,
+    };
+    console.log('deploy: ICA config', JSON.stringify(config, null, 2));
     deployer = new InterchainAccountDeployer(multiProvider, contractVerifier);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
