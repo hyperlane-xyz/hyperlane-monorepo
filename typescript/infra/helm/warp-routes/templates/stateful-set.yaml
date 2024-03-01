@@ -12,6 +12,9 @@ spec:
     matchLabels: *metadata_labels
   replicas: 1
   serviceName: {{ include "hyperlane.fullname" . }}
+  {{- with .Values.podManagementPolicy }}
+  podManagementPolicy: {{ . }}
+  {{- end }}
   template:
     metadata:
       labels: *metadata_labels
