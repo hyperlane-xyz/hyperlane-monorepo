@@ -37,7 +37,7 @@ describe('core', async () => {
     coreConfig = testCoreConfig(TestChains, signer.address);
     const ismFactories = await proxyFactoryDeployer.deploy(coreConfig);
     ismFactory = new HyperlaneIsmFactory(ismFactories, multiProvider);
-    deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
+    deployer = new HyperlaneCoreDeployer(multiProvider, { ismFactory });
   });
 
   it('deploys', async () => {
@@ -110,19 +110,20 @@ describe('core', async () => {
       const nonceBefore = await signer.getTransactionCount();
 
       await deployer.deploy(updatedConfig);
-
-      // 3x1 for aggregation ISM deploy
-      // 3x1 for setting ISM transaction for mailbox
-      // 3x1 for setting ISM transaction for test recipient
-      const numTransactions = 3 * TestChains.length;
       const nonceAfter = await signer.getTransactionCount();
+
+      // per chain:
+      // 1. deploy aggregation ISM
+      // 2. mailbox set default ISM
+
+      const numTransactions = 2 * TestChains.length;
       expect(nonceAfter).to.equal(nonceBefore + numTransactions);
     });
   });
 
   describe('failure modes', async () => {
     beforeEach(async () => {
-      deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
+      deployer = new HyperlaneCoreDeployer(multiProvider, { ismFactory });
       const stub = sinon.stub(deployer, 'deployContracts');
       stub.withArgs('test3', sinon.match.any).rejects();
       // @ts-ignore

@@ -60,7 +60,9 @@ describe.skip('LiquidityLayerRouter', async () => {
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
       multiProvider,
     );
-    coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
+    coreApp = await new TestCoreDeployer(multiProvider, {
+      ismFactory,
+    }).deployApp();
     const routerConfig = coreApp.getRouterConfig(signer.address);
 
     const mockTokenF = new MockToken__factory(signer);

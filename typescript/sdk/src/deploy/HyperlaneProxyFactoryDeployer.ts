@@ -4,25 +4,21 @@ import { HyperlaneContracts } from '../contracts/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
-import { HyperlaneDeployer } from './HyperlaneDeployer';
+import { DeployerOptions, HyperlaneDeployer } from './HyperlaneDeployer';
 import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
   proxyFactoryImplementations,
 } from './contracts';
-import { ContractVerifier } from './verify/ContractVerifier';
 
 export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
   {},
   ProxyFactoryFactories
 > {
-  constructor(
-    multiProvider: MultiProvider,
-    contractVerifier?: ContractVerifier,
-  ) {
+  constructor(multiProvider: MultiProvider, options?: DeployerOptions) {
     super(multiProvider, proxyFactoryFactories, {
       logger: debug('hyperlane:IsmFactoryDeployer'),
-      contractVerifier,
+      ...options,
     });
   }
 

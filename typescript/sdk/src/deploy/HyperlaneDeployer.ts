@@ -2,8 +2,6 @@ import { Debugger, debug } from 'debug';
 import { Contract, PopulatedTransaction, ethers } from 'ethers';
 
 import {
-  IPostDispatchHook,
-  IPostDispatchHook__factory,
   ITransparentUpgradeableProxy,
   MailboxClient,
   Ownable,
@@ -54,6 +52,8 @@ export interface DeployerOptions {
   chainTimeoutMs?: number;
   ismFactory?: HyperlaneIsmFactory;
   contractVerifier?: ContractVerifier;
+  recoverVerificationInputs?: boolean;
+  skipVerify?: boolean;
 }
 
 export abstract class HyperlaneDeployer<
@@ -72,11 +72,9 @@ export abstract class HyperlaneDeployer<
     protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
     protected readonly options: DeployerOptions = {},
-    protected readonly recoverVerificationInputs = false,
   ) {
     this.logger = options?.logger ?? debug('hyperlane:deployer');
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
-    this.options.ismFactory?.setDeployer(this);
 
     // if none provided, instantiate a default verifier with SDK's included build artifact
     this.options.contractVerifier ??= new ContractVerifier(
@@ -136,8 +134,8 @@ export abstract class HyperlaneDeployer<
     verificationInputs?: ContractVerificationInput[],
   ): void {
     this.deployedContracts[chain] = {
-      ...this.deployedContracts[chain],
       ...contracts,
+      ...this.deployedContracts[chain], // do not overwrite existing contracts
     };
     if (verificationInputs)
       this.addVerificationArtifacts(chain, verificationInputs);
@@ -211,41 +209,32 @@ export abstract class HyperlaneDeployer<
     setIsm: (contract: C, ism: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
     const configuredIsm = await getIsm(contract);
-    let matches = false;
-    let targetIsm: Address;
-    if (typeof config === 'string') {
-      if (configuredIsm === config) {
-        matches = true;
-      } else {
-        targetIsm = config;
-      }
-    } else {
-      const ismFactory =
-        this.options.ismFactory ??
-        (() => {
-          throw new Error('No ISM factory provided');
-        })();
 
-      matches = await moduleMatchesConfig(
-        chain,
-        configuredIsm,
-        config,
-        this.multiProvider,
-        ismFactory.getContracts(chain),
-      );
-      targetIsm = (await ismFactory.deploy({ destination: chain, config }))
-        .address;
+    const ismFactory = this.options.ismFactory;
+    if (!ismFactory) {
+      throw new Error('ISM Factory not provided');
     }
+
+    ismFactory.setDeployer(this);
+
+    const matches = await moduleMatchesConfig(
+      chain,
+      configuredIsm,
+      config,
+      this.multiProvider,
+      ismFactory.getContracts(chain),
+    );
+
     if (!matches) {
+      const targetIsm = (
+        await ismFactory.deploy({ destination: chain, config })
+      ).address;
       await this.runIfOwner(chain, contract, async () => {
         this.logger(`Set ISM on ${chain} with address ${targetIsm}`);
         await this.multiProvider.sendTransaction(
           chain,
           setIsm(contract, targetIsm),
         );
-        if (!eqAddress(targetIsm, await getIsm(contract))) {
-          throw new Error(`Set ISM failed on ${chain}`);
-        }
       });
     }
   }
@@ -253,32 +242,21 @@ export abstract class HyperlaneDeployer<
   protected async configureHook<C extends Ownable>(
     chain: ChainName,
     contract: C,
-    targetHook: IPostDispatchHook,
+    targetHook: Address,
     getHook: (contract: C) => Promise<Address>,
     setHook: (contract: C, hook: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
     const configuredHook = await getHook(contract);
-    if (!eqAddress(targetHook.address, configuredHook)) {
-      const result = await this.runIfOwner(chain, contract, async () => {
+    if (!eqAddress(targetHook, configuredHook)) {
+      await this.runIfOwner(chain, contract, async () => {
         this.logger(
-          `Set hook on ${chain} to ${targetHook.address}, currently is ${configuredHook}`,
+          `Set hook on ${chain} to ${targetHook}, currently is ${configuredHook}`,
         );
         await this.multiProvider.sendTransaction(
           chain,
-          setHook(contract, targetHook.address),
+          setHook(contract, targetHook),
         );
-        const actualHook = await getHook(contract);
-        if (!eqAddress(targetHook.address, actualHook)) {
-          throw new Error(
-            `Set hook failed on ${chain}, wanted ${targetHook.address}, got ${actualHook}`,
-          );
-        }
-        return true;
       });
-      // if the signer is not the owner, saving the hook address in the artifacts for later use for sending test messages, etc
-      if (!result) {
-        this.addDeployedContracts(chain, { customHook: targetHook });
-      }
     }
   }
 
@@ -292,10 +270,7 @@ export abstract class HyperlaneDeployer<
       await this.configureHook(
         local,
         client,
-        IPostDispatchHook__factory.connect(
-          config.hook,
-          this.multiProvider.getSignerOrProvider(local),
-        ),
+        config.hook,
         (_client) => _client.hook(),
         (_client, _hook) => _client.populateTransaction.setHook(_hook),
       );
@@ -326,7 +301,7 @@ export abstract class HyperlaneDeployer<
     if (shouldRecover) {
       const cachedContract = this.readCache(chain, factory, contractName);
       if (cachedContract) {
-        if (this.recoverVerificationInputs) {
+        if (this.options.recoverVerificationInputs) {
           const recoveredInputs = await this.recoverVerificationArtifacts(
             chain,
             contractName,
@@ -360,6 +335,10 @@ export abstract class HyperlaneDeployer<
       factory.bytecode,
     );
     this.addVerificationArtifacts(chain, [verificationInput]);
+
+    if (this.options.skipVerify) {
+      return contract;
+    }
 
     // try verifying contract
     try {

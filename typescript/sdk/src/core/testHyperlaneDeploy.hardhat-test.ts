@@ -35,7 +35,7 @@ describe('TestCoreDeployer', async () => {
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
       multiProvider,
     );
-    const deployer = new TestCoreDeployer(multiProvider, ismFactory);
+    const deployer = new TestCoreDeployer(multiProvider, { ismFactory });
     testCoreApp = await deployer.deployApp();
 
     const recipient = await new TestRecipient__factory(signer).deploy();

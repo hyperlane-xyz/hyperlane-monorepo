@@ -15,11 +15,12 @@ import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
 import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneContracts } from '../contracts/types';
 import { CoreAddresses } from '../core/contracts';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier';
+import {
+  DeployerOptions,
+  HyperlaneDeployer,
+} from '../deploy/HyperlaneDeployer';
 import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer';
 import { IgpFactories } from '../gas/contracts';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { IsmType, OpStackIsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -43,16 +44,12 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
   constructor(
     multiProvider: MultiProvider,
     readonly core: ChainMap<Partial<CoreAddresses>>,
-    readonly ismFactory: HyperlaneIsmFactory,
-    contractVerifier?: ContractVerifier,
-    readonly igpDeployer = new HyperlaneIgpDeployer(
-      multiProvider,
-      contractVerifier,
-    ),
+    readonly options: DeployerOptions,
+    readonly igpDeployer = new HyperlaneIgpDeployer(multiProvider, options),
   ) {
     super(multiProvider, hookFactories, {
       logger: debug('hyperlane:HookDeployer'),
-      contractVerifier,
+      ...options,
     });
   }
 
@@ -150,6 +147,10 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
     this.logger('Deploying AggregationHook for %s', chain);
+    if (!this.options.ismFactory) {
+      throw new Error('ISM factory not provided');
+    }
+
     const aggregatedHooks: string[] = [];
     let hooks: any = {};
     for (const hookConfig of config.hooks) {
@@ -164,9 +165,9 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     this.logger(
       `Deploying aggregation hook of ${config.hooks.map((h) => h.type)}`,
     );
-    const address = await this.ismFactory.deployStaticAddressSet(
+    const address = await this.options.ismFactory.deployStaticAddressSet(
       chain,
-      this.ismFactory.getContracts(chain).aggregationHookFactory,
+      this.options.ismFactory.getContracts(chain).aggregationHookFactory,
       aggregatedHooks,
       this.logger,
     );
@@ -188,6 +189,10 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       chain,
       config.destinationChain,
     );
+    if (!this.options.ismFactory) {
+      throw new Error('ISM factory not provided');
+    }
+
     const mailbox = coreAddresses.mailbox;
     if (!mailbox) {
       throw new Error(`Mailbox address is required for ${config.type}`);
@@ -204,7 +209,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       origin: chain,
       nativeBridge: l2Messenger,
     };
-    const opstackIsm = (await this.ismFactory.deploy({
+    const opstackIsm = (await this.options.ismFactory.deploy({
       destination: config.destinationChain,
       config: ismConfig,
       origin: chain,

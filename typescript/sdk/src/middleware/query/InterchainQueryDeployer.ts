@@ -1,6 +1,7 @@
+import debug from 'debug';
 import { ethers } from 'ethers';
 
-import { ContractVerifier } from '../../deploy/verify/ContractVerifier';
+import { DeployerOptions } from '../../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
 import { RouterConfig } from '../../router/types';
@@ -19,12 +20,10 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
 > {
   readonly routerContractName = 'interchainQueryRouter';
 
-  constructor(
-    multiProvider: MultiProvider,
-    contractVerifier?: ContractVerifier,
-  ) {
+  constructor(multiProvider: MultiProvider, options?: DeployerOptions) {
     super(multiProvider, interchainQueryFactories, {
-      contractVerifier,
+      logger: debug('hyperlane:InterchainQueryDeployer'),
+      ...options,
     });
   }
 
@@ -38,6 +37,7 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
   ): Promise<[string, string, string]> {
     const owner = await this.multiProvider.getSignerAddress(chain);
     if (typeof config.interchainSecurityModule === 'object') {
+      // TODO: use options.ismFactory
       throw new Error('ISM as object unimplemented');
     }
     return [

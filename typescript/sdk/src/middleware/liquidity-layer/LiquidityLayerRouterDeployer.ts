@@ -1,3 +1,4 @@
+import debug from 'debug';
 import { ethers } from 'ethers';
 
 import {
@@ -11,7 +12,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
 } from '../../contracts/types';
-import { ContractVerifier } from '../../deploy/verify/ContractVerifier';
+import { DeployerOptions } from '../../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
 import { RouterConfig } from '../../router/types';
@@ -58,12 +59,10 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
 > {
   readonly routerContractName = 'liquidityLayerRouter';
 
-  constructor(
-    multiProvider: MultiProvider,
-    contractVerifier?: ContractVerifier,
-  ) {
+  constructor(multiProvider: MultiProvider, options?: DeployerOptions) {
     super(multiProvider, liquidityLayerFactories, {
-      contractVerifier,
+      logger: debug('hyperlane:LiquidityLayerDeployer'),
+      ...options,
     });
   }
 

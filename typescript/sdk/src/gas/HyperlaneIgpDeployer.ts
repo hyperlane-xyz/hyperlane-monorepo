@@ -9,8 +9,10 @@ import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneContracts } from '../contracts/types';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier';
+import {
+  DeployerOptions,
+  HyperlaneDeployer,
+} from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
@@ -22,13 +24,10 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   IgpConfig,
   IgpFactories
 > {
-  constructor(
-    multiProvider: MultiProvider,
-    contractVerifier?: ContractVerifier,
-  ) {
+  constructor(multiProvider: MultiProvider, options?: DeployerOptions) {
     super(multiProvider, igpFactories, {
       logger: debug('hyperlane:IgpDeployer'),
-      contractVerifier,
+      ...options,
     });
   }
 
