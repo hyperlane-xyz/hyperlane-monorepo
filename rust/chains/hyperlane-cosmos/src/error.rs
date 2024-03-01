@@ -26,6 +26,9 @@ pub enum HyperlaneCosmosError {
     #[error("{0}")]
     /// Cosmrs Tendermint Error
     CosmrsTendermintError(#[from] cosmrs::tendermint::Error),
+    #[error("{0}")]
+    /// CosmWasm Error
+    CosmWasmError(#[from] cosmwasm_std::StdError),
     /// Tonic error
     #[error("{0}")]
     Tonic(#[from] tonic::transport::Error),
@@ -44,6 +47,9 @@ pub enum HyperlaneCosmosError {
     /// Fallback providers failed
     #[error("Fallback providers failed. (Errors: {0:?})")]
     FallbackProvidersFailed(Vec<HyperlaneCosmosError>),
+    /// Custom error
+    #[error("{0}")]
+    CustomError(String),
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {

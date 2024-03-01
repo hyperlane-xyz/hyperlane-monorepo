@@ -1,8 +1,8 @@
 pub use self::error::*;
 
-#[cfg(feature = "fallback-provider")]
+#[cfg(feature = "async")]
 pub use self::fallback::*;
 
 mod error;
-#[cfg(feature = "fallback-provider")]
+#[cfg(feature = "async")]
 mod fallback;
