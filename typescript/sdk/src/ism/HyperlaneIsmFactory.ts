@@ -165,6 +165,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           IsmType.PAUSABLE,
           [config.owner],
         );
+        await this.deployer?.transferOwnershipOfContracts(destination, config, {
+          [IsmType.PAUSABLE]: contract,
+        });
         break;
       case IsmType.TEST_ISM:
         if (!this.deployer) {
