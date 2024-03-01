@@ -1,0 +1,14 @@
+name: pr-analytics
+
+# https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows
+on:
+  schedule:
+    - cron: '45 14 * * *'
+  workflow_dispatch:
+
+jobs:
+  pr-analytics:
+      steps:
+        - name: Pull Request Analytics
+          uses: AlexSim93/pull-request-analytics-action@v2.1.0
+            
