@@ -18,6 +18,7 @@ externalSecrets:
   storeType: ClusterSecretStore
   storeName:
 
+# Allows statefulset updates to update pods in CrashLoopBackoff
 podManagementPolicy: Parallel
 podAnnotations: {}
 podCommonLabels: {}

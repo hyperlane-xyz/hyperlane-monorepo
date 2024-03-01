@@ -17,4 +17,5 @@ externalSecrets:
   clusterSecretStore:
 nameOverride: ''
 fullnameOverride: ''
+# Allows statefulset updates to update pods in CrashLoopBackoff
 podManagementPolicy: Parallel

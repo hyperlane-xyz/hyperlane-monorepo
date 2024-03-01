@@ -6,4 +6,5 @@ hyperlane:
   context: hyperlane
 nameOverride: ''
 fullnameOverride: ''
+# Allows statefulset updates to update pods in CrashLoopBackoff
 podManagementPolicy: Parallel
