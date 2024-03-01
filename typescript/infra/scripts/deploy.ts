@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import path from 'path';
 import { prompt } from 'prompts';
 
@@ -6,6 +5,7 @@ import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
   ContractVerifier,
+  DeployerOptions,
   ExplorerLicenseType,
   HypERC20Deployer,
   HyperlaneCore,
@@ -61,6 +61,7 @@ async function main() {
   const envConfig = getEnvironmentConfig(environment);
   const env = deployEnvToSdkEnv[environment];
 
+  let options: DeployerOptions = {};
   let multiProvider = await envConfig.getMultiProvider();
 
   if (fork) {
@@ -69,18 +70,27 @@ async function main() {
     });
     await useLocalProvider(multiProvider, fork);
 
+    // TODO: change this to deployer key?
     const signer = await impersonateAccount(envConfig.owners[fork].owner);
     multiProvider.setSharedSigner(signer);
+
+    options.skipVerify = true;
   }
 
-  let contractVerifier;
+  if (module !== Modules.PROXY_FACTORY) {
+    options.ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      getAddresses(environment, Modules.PROXY_FACTORY),
+      multiProvider,
+    );
+  }
+
   if (buildArtifactPath) {
     // fetch explorer API keys from GCP
     const apiKeys = await fetchExplorerApiKeys();
     // extract build artifact contents
     const buildArtifact = extractBuildArtifact(buildArtifactPath);
     // instantiate verifier
-    contractVerifier = new ContractVerifier(
+    options.contractVerifier = new ContractVerifier(
       multiProvider,
       apiKeys,
       buildArtifact,
@@ -92,27 +102,12 @@ async function main() {
   let deployer: HyperlaneDeployer<any, any>;
   if (module === Modules.PROXY_FACTORY) {
     config = objMap(envConfig.core, (_chain) => true);
-    deployer = new HyperlaneProxyFactoryDeployer(
-      multiProvider,
-      contractVerifier,
-    );
+    deployer = new HyperlaneProxyFactoryDeployer(multiProvider, options);
   } else if (module === Modules.CORE) {
     config = envConfig.core;
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.PROXY_FACTORY),
-      multiProvider,
-    );
-    deployer = new HyperlaneCoreDeployer(
-      multiProvider,
-      ismFactory,
-      contractVerifier,
-    );
+    deployer = new HyperlaneCoreDeployer(multiProvider, options);
   } else if (module === Modules.WARP) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.PROXY_FACTORY),
-      multiProvider,
-    );
     const routerConfig = core.getRouterConfig(envConfig.owners);
     const plumetestnet = {
       ...routerConfig.plumetestnet,
@@ -134,22 +129,18 @@ async function main() {
       plumetestnet,
       sepolia,
     };
-    deployer = new HypERC20Deployer(
-      multiProvider,
-      ismFactory,
-      contractVerifier,
-    );
+    deployer = new HypERC20Deployer(multiProvider, options);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
-    deployer = new HyperlaneIgpDeployer(multiProvider, contractVerifier);
+    deployer = new HyperlaneIgpDeployer(multiProvider, options);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
-    deployer = new InterchainAccountDeployer(multiProvider, contractVerifier);
+    deployer = new InterchainAccountDeployer(multiProvider, options);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
-    deployer = new InterchainQueryDeployer(multiProvider, contractVerifier);
+    deployer = new InterchainQueryDeployer(multiProvider, options);
   } else if (module === Modules.LIQUIDITY_LAYER) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     const routerConfig = core.getRouterConfig(envConfig.owners);
@@ -163,18 +154,9 @@ async function main() {
         ...routerConfig[chain],
       }),
     );
-    deployer = new LiquidityLayerDeployer(multiProvider, contractVerifier);
+    deployer = new LiquidityLayerDeployer(multiProvider, options);
   } else if (module === Modules.TEST_RECIPIENT) {
-    const addresses = getAddresses(environment, Modules.CORE);
-
-    for (const chain of Object.keys(addresses)) {
-      config[chain] = {
-        interchainSecurityModule:
-          addresses[chain].interchainSecurityModule ??
-          ethers.constants.AddressZero, // ISM is required for the TestRecipientDeployer but onchain if the ISM is zero address, then it uses the mailbox's defaultISM
-      };
-    }
-    deployer = new TestRecipientDeployer(multiProvider, contractVerifier);
+    deployer = new TestRecipientDeployer(multiProvider, options);
   } else if (module === Modules.TEST_QUERY_SENDER) {
     // Get query router addresses
     const queryAddresses = getAddresses(
@@ -184,15 +166,11 @@ async function main() {
     config = objMap(queryAddresses, (_c, conf) => ({
       queryRouterAddress: conf.router,
     }));
-    deployer = new TestQuerySenderDeployer(multiProvider, contractVerifier);
+    deployer = new TestQuerySenderDeployer(multiProvider, options);
   } else if (module === Modules.HELLO_WORLD) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
-    deployer = new HelloWorldDeployer(
-      multiProvider,
-      undefined,
-      contractVerifier,
-    );
+    deployer = new HelloWorldDeployer(multiProvider, options);
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;

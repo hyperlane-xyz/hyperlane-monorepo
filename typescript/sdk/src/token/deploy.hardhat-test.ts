@@ -28,7 +28,9 @@ describe('TokenDeployer', async () => {
       multiProvider.mapKnownChains(() => ({})),
     );
     const ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
-    coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
+    coreApp = await new TestCoreDeployer(multiProvider, {
+      ismFactory,
+    }).deployApp();
     const routerConfigMap = coreApp.getRouterConfig(signer.address);
     config = objMap(
       routerConfigMap,

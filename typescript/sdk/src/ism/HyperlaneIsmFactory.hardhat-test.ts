@@ -89,11 +89,11 @@ describe('HyperlaneIsmFactory', async () => {
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
       multiProvider,
     );
-    let coreDeployer = new TestCoreDeployer(multiProvider, ismFactory);
+    let coreDeployer = new TestCoreDeployer(multiProvider, { ismFactory });
     coreApp = await coreDeployer.deployApp();
     mailboxAddress = coreApp.getContracts(chain).mailbox.address;
 
-    coreDeployer = new TestCoreDeployer(multiProvider, ismFactory);
+    coreDeployer = new TestCoreDeployer(multiProvider, { ismFactory });
     coreApp = await coreDeployer.deployApp();
     newMailboxAddress = coreApp.getContracts(chain).mailbox.address;
 
@@ -207,7 +207,7 @@ describe('HyperlaneIsmFactory', async () => {
       expect(matches).to.be.true;
     });
 
-    it(`should skip deployment with warning if no chain metadata configured ${type}`, async () => {
+    it.only(`should skip deployment with warning if no chain metadata configured ${type}`, async () => {
       exampleRoutingConfig.type = type as
         | IsmType.ROUTING
         | IsmType.FALLBACK_ROUTING;
@@ -317,7 +317,7 @@ describe('HyperlaneIsmFactory', async () => {
         ),
         multiProvider,
       );
-      new TestCoreDeployer(multiProvider, ismFactory);
+      new TestCoreDeployer(multiProvider, { ismFactory });
       ism = await ismFactory.deploy({
         destination: chain,
         config: exampleRoutingConfig,

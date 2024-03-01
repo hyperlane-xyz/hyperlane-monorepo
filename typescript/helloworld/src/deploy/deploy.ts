@@ -1,10 +1,10 @@
+import debug from 'debug';
 import { ethers } from 'ethers';
 
 import {
   ChainName,
-  ContractVerifier,
+  DeployerOptions,
   HyperlaneContracts,
-  HyperlaneIsmFactory,
   HyperlaneRouterDeployer,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
@@ -18,14 +18,10 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   HelloWorldConfig,
   HelloWorldFactories
 > {
-  constructor(
-    multiProvider: MultiProvider,
-    readonly ismFactory?: HyperlaneIsmFactory,
-    readonly contractVerifier?: ContractVerifier,
-  ) {
+  constructor(multiProvider: MultiProvider, options?: DeployerOptions) {
     super(multiProvider, helloWorldFactories, {
-      ismFactory,
-      contractVerifier,
+      logger: debug('hyperlane:HelloWorldDeployer'),
+      ...options,
     });
   }
 

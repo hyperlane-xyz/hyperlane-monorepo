@@ -48,7 +48,9 @@ describe.skip('InterchainQueryRouter', async () => {
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
       multiProvider,
     );
-    coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
+    coreApp = await new TestCoreDeployer(multiProvider, {
+      ismFactory,
+    }).deployApp();
     config = coreApp.getRouterConfig(signer.address);
   });
 
