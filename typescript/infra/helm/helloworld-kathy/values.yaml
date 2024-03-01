@@ -17,3 +17,4 @@ externalSecrets:
   clusterSecretStore:
 nameOverride: ''
 fullnameOverride: ''
+podManagementPolicy: Parallel

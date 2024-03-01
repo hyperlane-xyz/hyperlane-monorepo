@@ -18,6 +18,7 @@ externalSecrets:
   storeType: ClusterSecretStore
   storeName:
 
+podManagementPolicy: Parallel
 podAnnotations: {}
 podCommonLabels: {}
 

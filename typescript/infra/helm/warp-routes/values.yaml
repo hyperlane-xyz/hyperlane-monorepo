@@ -6,3 +6,4 @@ hyperlane:
   context: hyperlane
 nameOverride: ''
 fullnameOverride: ''
+podManagementPolicy: Parallel
