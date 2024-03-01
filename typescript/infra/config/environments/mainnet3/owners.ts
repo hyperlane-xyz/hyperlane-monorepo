@@ -23,15 +23,15 @@ export const safes: ChainMap<Address | undefined> = {
   // solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
 };
 
-const deployer = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
 export const owners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => [
     local,
     {
-      owner: safes[local] ?? deployer,
+      owner: safes[local] ?? DEPLOYER,
       ownerOverrides: {
-        proxyAdmin: timelocks[local] ?? safes[local] ?? deployer,
+        proxyAdmin: timelocks[local] ?? safes[local] ?? DEPLOYER,
       },
     },
   ]),
