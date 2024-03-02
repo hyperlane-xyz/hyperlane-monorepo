@@ -24,11 +24,8 @@ const remoteOverhead = (remote: MainnetChains) =>
       )
     : FOREIGN_DEFAULT_OVERHEAD; // non-ethereum overhead
 
-export const igp: ChainMap<IgpConfig> = objMap(owners, (local, owner) => ({
-  ...owner,
-  ownerOverrides: {
-    interchainGasPaymaster: DEPLOYER,
-  },
+export const igp: ChainMap<IgpConfig> = objMap(owners, (local, _) => ({
+  owner: DEPLOYER,
   oracleKey: DEPLOYER,
   beneficiary: DEPLOYER,
   overhead: Object.fromEntries(
