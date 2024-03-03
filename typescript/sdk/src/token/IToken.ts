@@ -82,7 +82,7 @@ export interface IToken extends TokenArgs {
   addConnection(connection: TokenConnection): IToken;
   removeConnection(token: IToken): IToken;
 
-  equals(token: IToken): boolean;
+  equals(token?: IToken): boolean;
 
-  collateralizes(token: IToken): boolean;
+  collateralizes(token?: IToken): boolean;
 }

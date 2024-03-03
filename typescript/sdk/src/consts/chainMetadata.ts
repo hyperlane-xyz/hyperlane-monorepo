@@ -453,6 +453,10 @@ export const injective: ChainMetadata = {
   restUrls: [{ http: 'https://sentry.lcd.injective.network:443' }],
   rpcUrls: [{ http: 'https://sentry.tm.injective.network:443' }],
   slip44: 118,
+  transactionOverrides: {
+    gasPriceCosmJs: '160000000',
+    gasPriceCosmWasm: '160000000',
+  },
 };
 
 export const lineagoerli: ChainMetadata = {
@@ -627,6 +631,10 @@ export const neutron: ChainMetadata = {
   restUrls: [{ http: 'https://rest-lb.neutron.org' }],
   rpcUrls: [{ http: 'https://rpc-kralum.neutron-1.neutron.org' }],
   slip44: 118,
+  transactionOverrides: {
+    gasPriceCosmJs: '0.075',
+    gasPriceCosmWasm: '0.075',
+  },
 };
 
 export const optimism: ChainMetadata = {

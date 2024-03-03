@@ -217,10 +217,15 @@ export class MultiProtocolProvider<
     chainNameOrId: ChainNameOrId,
     tx: TypedTransaction,
     sender: Address,
-    minGasPrice?: bigint,
   ): Promise<TransactionFeeEstimate> {
     const provider = this.getProvider(chainNameOrId);
-    return estimateTransactionFee(tx, provider, sender, minGasPrice);
+    const chainMetadata = this.getChainMetadata(chainNameOrId);
+    return estimateTransactionFee(
+      tx,
+      provider,
+      sender,
+      chainMetadata.transactionOverrides,
+    );
   }
 
   override intersect(

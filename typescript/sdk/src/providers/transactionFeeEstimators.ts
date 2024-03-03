@@ -5,7 +5,7 @@ import { SigningStargateClient } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx';
 import { BigNumber } from 'ethers';
 
-import { Address, assert } from '@hyperlane-xyz/utils';
+import { Address, Numberish, assert } from '@hyperlane-xyz/utils';
 
 import {
   CosmJsProvider,
@@ -24,9 +24,9 @@ import {
 } from './ProviderType';
 
 export interface TransactionFeeEstimate {
-  gasUnits: bigint;
-  gasPrice: bigint;
-  fee: bigint;
+  gasUnits: number | bigint;
+  gasPrice: number | bigint;
+  fee: number | bigint;
 }
 
 export async function estimateTransactionFeeEthersV5(
@@ -83,7 +83,6 @@ export async function estimateTransactionFeeViem(
 export async function estimateTransactionFeeSolanaWeb3(
   typedTx: SolanaWeb3Transaction,
   typedProvider: SolanaWeb3Provider,
-  _sender: Address,
 ): Promise<TransactionFeeEstimate> {
   const connection = typedProvider.provider;
   const { value } = await connection.simulateTransaction(typedTx.transaction);
@@ -101,7 +100,7 @@ export async function estimateTransactionFeeSolanaWeb3(
 export async function estimateTransactionFeeCosmJs(
   typedTx: CosmJsTransaction,
   typedProvider: CosmJsProvider,
-  minGasPrice: bigint,
+  estimatedGasPrice: Numberish,
 ): Promise<TransactionFeeEstimate> {
   // @ts-ignore access a private field here to extract client URL
   const url: string = typedProvider.provider.tmClient.client.url;
@@ -116,20 +115,22 @@ export async function estimateTransactionFeeCosmJs(
     [typedTx.transaction],
     undefined,
   );
+  const gasPrice = parseFloat(estimatedGasPrice.toString());
 
   // Note: there's no way to fetch gas prices on Cosmos so we rely on
-  // the min value arg in which typically comes from the ChainMetadata
+  // the estimate value arg in which typically comes from the ChainMetadata
   return {
-    gasUnits: BigInt(gasUnits),
-    gasPrice: minGasPrice,
-    fee: BigInt(gasUnits) * minGasPrice,
+    gasUnits,
+    gasPrice,
+    fee: gasUnits * gasPrice,
   };
 }
 
+// TODO DRY up with fn above
 export async function estimateTransactionFeeCosmJsWasm(
   typedTx: CosmJsWasmTransaction,
   typedProvider: CosmJsWasmProvider,
-  minGasPrice: bigint,
+  estimatedGasPrice: Numberish,
 ): Promise<TransactionFeeEstimate> {
   // @ts-ignore access a private field here to extract client URL
   const url: string = typedProvider.provider.tmClient.client.url;
@@ -153,13 +154,14 @@ export async function estimateTransactionFeeCosmJsWasm(
     [message],
     undefined,
   );
+  const gasPrice = parseFloat(estimatedGasPrice.toString());
 
   // Note: there's no way to fetch gas prices on Cosmos so we rely on
-  // the min value arg in which typically comes from the ChainMetadata
+  // the estimate value arg in which typically comes from the ChainMetadata
   return {
-    gasUnits: BigInt(gasUnits),
-    gasPrice: minGasPrice,
-    fee: BigInt(gasUnits) * minGasPrice,
+    gasUnits,
+    gasPrice,
+    fee: gasUnits * gasPrice,
   };
 }
 
@@ -167,7 +169,7 @@ export function estimateTransactionFee(
   tx: TypedTransaction,
   provider: TypedProvider,
   sender: Address,
-  minGasPrice?: bigint,
+  txOverrides?: Record<string, unknown>,
 ): Promise<TransactionFeeEstimate> {
   if (
     tx.type === ProviderType.EthersV5 &&
@@ -183,22 +185,21 @@ export function estimateTransactionFee(
     tx.type === ProviderType.SolanaWeb3 &&
     provider.type === ProviderType.SolanaWeb3
   ) {
-    return estimateTransactionFeeSolanaWeb3(tx, provider, sender);
+    return estimateTransactionFeeSolanaWeb3(tx, provider);
   } else if (
     tx.type === ProviderType.CosmJs &&
     provider.type === ProviderType.CosmJs
   ) {
-    assert(minGasPrice, 'minGasPrice is required for CosmJS gas estimation');
-    return estimateTransactionFeeCosmJs(tx, provider, minGasPrice);
+    const gasPrice = txOverrides?.gasPriceCosmJs as Numberish;
+    assert(gasPrice, 'gasPriceCosmJs required for CosmJS gas estimation');
+    return estimateTransactionFeeCosmJs(tx, provider, gasPrice);
   } else if (
     tx.type === ProviderType.CosmJsWasm &&
     provider.type === ProviderType.CosmJsWasm
   ) {
-    assert(
-      minGasPrice,
-      'minGasPrice is required for CosmJsWasm gas estimation',
-    );
-    return estimateTransactionFeeCosmJsWasm(tx, provider, minGasPrice);
+    const gasPrice = txOverrides?.gasPriceCosmWasm as Numberish;
+    assert(gasPrice, 'gasPriceCosmWasm required for CosmJS gas estimation');
+    return estimateTransactionFeeCosmJsWasm(tx, provider, gasPrice);
   } else {
     throw new Error(
       `Unsupported transaction type ${tx.type} or provider type ${provider.type} for gas estimation`,

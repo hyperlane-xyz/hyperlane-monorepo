@@ -354,7 +354,7 @@ export class Token implements IToken {
     return this;
   }
 
-  removeConnection(token: Token): Token {
+  removeConnection(token: IToken): Token {
     const index = this.connections?.findIndex((t) => t.token.equals(token));
     if (index && index >= 0) this.connections?.splice(index, 1);
     return this;
@@ -363,7 +363,8 @@ export class Token implements IToken {
   /**
    * Returns true if tokens refer to the same asset
    */
-  equals(token: Token): boolean {
+  equals(token?: IToken): boolean {
+    if (!token) return false;
     return (
       this.protocol === token.protocol &&
       this.chainName === token.chainName &&
@@ -382,7 +383,8 @@ export class Token implements IToken {
    *    2) Has a collateralAddressOrDenom address that matches the given token
    * E.g. ERC20 Token ABC, EvmHypCollateral DEF that wraps ABC, DEF.collateralizes(ABC) === true
    */
-  collateralizes(token: Token): boolean {
+  collateralizes(token?: IToken): boolean {
+    if (!token) return false;
     if (token.chainName !== this.chainName) return false;
     if (!TOKEN_COLLATERALIZED_STANDARDS.includes(this.standard)) return false;
     const isCollateralWrapper =
