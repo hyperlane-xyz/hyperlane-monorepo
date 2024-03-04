@@ -13,10 +13,10 @@ export interface TransferParams {
 
 export interface TransferRemoteParams extends TransferParams {
   destination: Domain;
-  interchainGas?: InterchainGasQuote;
+  interchainGas?: InterchainFeeQuote;
 }
 
-export interface InterchainGasQuote {
+export interface InterchainFeeQuote {
   addressOrDenom?: string; // undefined values represent default native tokens
   amount: bigint;
 }
@@ -37,6 +37,6 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   getDomains(): Promise<Domain[]>;
   getRouterAddress(domain: Domain): Promise<Buffer>;
   getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>>;
-  quoteTransferRemoteGas(destination: Domain): Promise<InterchainGasQuote>;
+  quoteTransferRemoteFee(destination: Domain): Promise<InterchainFeeQuote>;
   populateTransferRemoteTx(p: TransferRemoteParams): Promise<Tx>;
 }

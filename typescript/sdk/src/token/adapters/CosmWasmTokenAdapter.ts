@@ -35,7 +35,7 @@ import { ERC20Metadata } from '../config';
 import {
   IHypTokenAdapter,
   ITokenAdapter,
-  InterchainGasQuote,
+  InterchainFeeQuote,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter';
@@ -274,9 +274,9 @@ export class CwHypSyntheticAdapter
       }));
   }
 
-  async quoteTransferRemoteGas(
+  async quoteTransferRemoteFee(
     _destination: Domain,
-  ): Promise<InterchainGasQuote> {
+  ): Promise<InterchainFeeQuote> {
     // TODO this may require separate queries to get the hook and/or mailbox
     // before making a query for the QuoteDispatchResponse
     // Punting on this given that only static quotes are used for now
@@ -299,7 +299,7 @@ export class CwHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<ExecuteInstruction> {
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas(destination);
+      interchainGas = await this.quoteTransferRemoteFee(destination);
     const { addressOrDenom: igpDenom, amount: igpAmount } = interchainGas;
     assert(igpDenom, 'Interchain gas denom required for Cosmos');
 
@@ -366,8 +366,8 @@ export class CwHypNativeAdapter
     return this.cw20adapter.getAllRouters();
   }
 
-  quoteTransferRemoteGas(destination: Domain): Promise<InterchainGasQuote> {
-    return this.cw20adapter.quoteTransferRemoteGas(destination);
+  quoteTransferRemoteFee(destination: Domain): Promise<InterchainFeeQuote> {
+    return this.cw20adapter.quoteTransferRemoteFee(destination);
   }
 
   async getDenom(): Promise<string> {
@@ -390,7 +390,7 @@ export class CwHypNativeAdapter
     const collateralDenom = await this.getDenom();
 
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas(destination);
+      interchainGas = await this.quoteTransferRemoteFee(destination);
     const { addressOrDenom: igpDenom, amount: igpAmount } = interchainGas;
     assert(igpDenom, 'Interchain gas denom required for Cosmos');
 

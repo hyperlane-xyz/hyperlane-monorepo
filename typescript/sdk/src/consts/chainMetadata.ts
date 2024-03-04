@@ -454,8 +454,7 @@ export const injective: ChainMetadata = {
   rpcUrls: [{ http: 'https://sentry.tm.injective.network:443' }],
   slip44: 118,
   transactionOverrides: {
-    gasPriceCosmJs: '160000000',
-    gasPriceCosmWasm: '160000000',
+    gasPrice: '160000000',
   },
 };
 
@@ -632,8 +631,7 @@ export const neutron: ChainMetadata = {
   rpcUrls: [{ http: 'https://rpc-kralum.neutron-1.neutron.org' }],
   slip44: 118,
   transactionOverrides: {
-    gasPriceCosmJs: '0.075',
-    gasPriceCosmWasm: '0.075',
+    gasPrice: '0.075',
   },
 };
 

@@ -26,10 +26,14 @@ import { MinimalTokenMetadata } from '../config';
 import {
   IHypTokenAdapter,
   ITokenAdapter,
-  InterchainGasQuote,
+  InterchainFeeQuote,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter';
+
+// An estimate of the gas amount for a typical EVM token router transferRemote transaction
+// Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
+export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
 
 // Interacts with native currencies
 export class EvmNativeTokenAdapter
@@ -181,9 +185,9 @@ export class EvmHypSyntheticAdapter
     return domains.map((d, i) => ({ domain: d, address: routers[i] }));
   }
 
-  async quoteTransferRemoteGas(
+  async quoteTransferRemoteFee(
     destination: Domain,
-  ): Promise<InterchainGasQuote> {
+  ): Promise<InterchainFeeQuote> {
     const gasPayment = await this.contract.quoteGasPayment(destination);
     // If EVM hyp contracts eventually support alternative IGP tokens,
     // this would need to determine the correct token address
@@ -197,7 +201,7 @@ export class EvmHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas(destination);
+      interchainGas = await this.quoteTransferRemoteFee(destination);
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
     return this.contract.populateTransaction.transferRemote(
@@ -291,7 +295,7 @@ export class EvmHypNativeAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas(destination);
+      interchainGas = await this.quoteTransferRemoteFee(destination);
 
     let txValue: bigint | undefined = undefined;
     const { addressOrDenom: igpAddressOrDenom, amount: igpAmount } =

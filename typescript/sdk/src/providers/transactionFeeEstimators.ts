@@ -190,15 +190,15 @@ export function estimateTransactionFee(
     tx.type === ProviderType.CosmJs &&
     provider.type === ProviderType.CosmJs
   ) {
-    const gasPrice = txOverrides?.gasPriceCosmJs as Numberish;
-    assert(gasPrice, 'gasPriceCosmJs required for CosmJS gas estimation');
+    const gasPrice = txOverrides?.gasPrice as Numberish;
+    assert(gasPrice, 'gasPrice required for CosmJS gas estimation');
     return estimateTransactionFeeCosmJs(tx, provider, gasPrice);
   } else if (
     tx.type === ProviderType.CosmJsWasm &&
     provider.type === ProviderType.CosmJsWasm
   ) {
-    const gasPrice = txOverrides?.gasPriceCosmWasm as Numberish;
-    assert(gasPrice, 'gasPriceCosmWasm required for CosmJS gas estimation');
+    const gasPrice = txOverrides?.gasPrice as Numberish;
+    assert(gasPrice, 'gasPrice required for CosmJsWasm gas estimation');
     return estimateTransactionFeeCosmJsWasm(tx, provider, gasPrice);
   } else {
     throw new Error(

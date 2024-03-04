@@ -12,7 +12,7 @@ import { CwHypCollateralAdapter } from './CosmWasmTokenAdapter';
 import {
   IHypTokenAdapter,
   ITokenAdapter,
-  InterchainGasQuote,
+  InterchainFeeQuote,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter';
@@ -104,9 +104,9 @@ export class CosmIbcTokenAdapter
   > {
     throw new Error('Method not applicable to IBC adapters');
   }
-  async quoteTransferRemoteGas(
+  async quoteTransferRemoteFee(
     _destination: Domain,
-  ): Promise<InterchainGasQuote> {
+  ): Promise<InterchainFeeQuote> {
     // TODO implement IBC interchain transfer gas estimation here
     return { amount: 0n, addressOrDenom: this.properties.ibcDenom };
   }
@@ -161,9 +161,9 @@ export class CosmIbcToWarpTokenAdapter
     super(chainName, multiProvider, addresses, properties);
   }
 
-  async quoteTransferRemoteGas(
+  async quoteTransferRemoteFee(
     _destination: Domain,
-  ): Promise<InterchainGasQuote> {
+  ): Promise<InterchainFeeQuote> {
     // TODO implement IBC interchain transfer gas estimation here
     return { amount: 0n, addressOrDenom: this.properties.intermediateIbcDenom };
   }

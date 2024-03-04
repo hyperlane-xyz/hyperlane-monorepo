@@ -1,9 +1,11 @@
 import { z } from 'zod';
 
 import { ZChainName } from '../metadata/customZodTypes';
-import { TypedTransaction } from '../providers/ProviderType';
+import type { TypedTransaction } from '../providers/ProviderType';
+import type { TransactionFeeEstimate } from '../providers/transactionFeeEstimators';
 import { TokenConfigSchema } from '../token/IToken';
-import { ChainName } from '../types';
+import type { TokenAmount } from '../token/TokenAmount';
+import type { ChainName } from '../types';
 
 // Map of protocol to either quote constant or to a map of chain name to quote constant
 export type IgpQuoteConstants = Array<{
@@ -60,3 +62,9 @@ export const WarpCoreConfigSchema = z.object({
 });
 
 export type WarpCoreConfig = z.infer<typeof WarpCoreConfigSchema>;
+
+export interface WarpCoreFeeEstimate {
+  interchainQuote: TokenAmount;
+  localQuote: TokenAmount;
+  localDetails: TransactionFeeEstimate;
+}

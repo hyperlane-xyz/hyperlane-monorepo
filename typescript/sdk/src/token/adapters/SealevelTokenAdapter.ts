@@ -38,7 +38,7 @@ import { MinimalTokenMetadata } from '../config';
 import {
   IHypTokenAdapter,
   ITokenAdapter,
-  InterchainGasQuote,
+  InterchainFeeQuote,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter';
@@ -243,9 +243,9 @@ export abstract class SealevelHypTokenAdapter
     }));
   }
 
-  async quoteTransferRemoteGas(
+  async quoteTransferRemoteFee(
     _destination: Domain,
-  ): Promise<InterchainGasQuote> {
+  ): Promise<InterchainFeeQuote> {
     // TODO Solana support
     return { amount: 0n };
   }

@@ -11,7 +11,7 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
 import { ProviderType } from '../providers/ProviderType';
 import { Token } from '../token/Token';
 import { TokenStandard } from '../token/TokenStandard';
-import { InterchainGasQuote } from '../token/adapters/ITokenAdapter';
+import { InterchainFeeQuote } from '../token/adapters/ITokenAdapter';
 import { ChainName } from '../types';
 
 import { WarpCore } from './WarpCore';
@@ -81,9 +81,9 @@ describe('WarpCore', () => {
       token: Token,
       chain: ChainName,
       standard: TokenStandard,
-      quote: InterchainGasQuote = MOCK_QUOTE,
+      quote: InterchainFeeQuote = MOCK_QUOTE,
     ) => {
-      const result = await warpCore.getTransferRemoteGasQuote(token, chain);
+      const result = await warpCore.getInterchainTransferFee(token, chain);
       expect(
         result.token.standard,
         `token standard check for ${token.chainName} to ${chain}`,
