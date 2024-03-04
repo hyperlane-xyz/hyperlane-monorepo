@@ -19,10 +19,7 @@ import { moduleMatchesConfig } from '../ism/utils';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import {
-  TestRecipientConfig,
-  TestRecipientDeployer,
-} from './TestRecipientDeployer';
+import { TestRecipientDeployer } from './TestRecipientDeployer';
 import { CoreAddresses, CoreFactories, coreFactories } from './contracts';
 import { CoreConfig } from './types';
 
@@ -213,15 +210,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
   async deployTestRecipient(
     chain: ChainName,
-    interchainSecurityModule: Address,
+    interchainSecurityModule?: IsmConfig,
   ): Promise<TestRecipient> {
-    const config: TestRecipientConfig = {
-      interchainSecurityModule: interchainSecurityModule,
-    };
-    const testRecipient = await this.testRecipient.deployContracts(
-      chain,
-      config,
-    );
+    this.testRecipient.cacheAddressesMap(this.cachedAddresses);
+    const testRecipient = await this.testRecipient.deployContracts(chain, {
+      interchainSecurityModule,
+    });
     this.addDeployedContracts(chain, testRecipient);
     return testRecipient.testRecipient;
   }
@@ -244,11 +238,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox.address,
     );
 
-    const testRecipient = await this.deployTestRecipient(
-      chain,
-      this.cachedAddresses[chain].interchainSecurityModule,
-    );
-
     if (config.upgrade) {
       const timelockController = await this.deployTimelock(
         chain,
@@ -259,6 +248,8 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         proxyAdmin: timelockController.address,
       };
     }
+
+    const testRecipient = await this.deployTestRecipient(chain);
 
     const contracts = {
       mailbox,

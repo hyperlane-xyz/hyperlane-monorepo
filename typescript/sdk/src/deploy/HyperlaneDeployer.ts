@@ -214,7 +214,7 @@ export abstract class HyperlaneDeployer<
     let matches = false;
     let targetIsm: Address;
     if (typeof config === 'string') {
-      if (configuredIsm === config) {
+      if (eqAddress(configuredIsm, config)) {
         matches = true;
       } else {
         targetIsm = config;
