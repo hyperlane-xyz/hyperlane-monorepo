@@ -14,7 +14,8 @@
     "scripts": {
         "start": "ts-node src/server.ts",
         "dev": "nodemon src/server.ts",
-        "test": "jest"
+        "test": "jest",
+        "prettier": "prettier --write ./src/* ./tests/"
     },
     "author": "brolee",
     "license": "Apache-2.0",
