@@ -561,7 +561,7 @@ impl WasmProvider for WasmGrpcProvider {
         let (tx_bytes, fee) = self.generate_raw_signed_tx_and_fee(msgs, gas_limit).await?;
 
         // Check if the signer has enough funds to pay for the fee so we can get
-        // a more informative error message.
+        // a more informative error.
         let signer_balance = self
             .get_balance(signer.address.clone(), fee.denom.to_string())
             .await?;
