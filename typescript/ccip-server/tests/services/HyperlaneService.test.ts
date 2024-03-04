@@ -1,3 +1,5 @@
+import { describe, expect, test } from '@jest/globals';
+
 import { HyperlaneService } from '../../src/services/HyperlaneService';
 
 describe('HyperlaneServiceTest', () => {

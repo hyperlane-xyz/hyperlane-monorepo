@@ -1,3 +1,5 @@
+import { describe, expect, test } from '@jest/globals';
+
 import * as config from '../../src/config';
 import { RPCService } from '../../src/services/RPCService';
 

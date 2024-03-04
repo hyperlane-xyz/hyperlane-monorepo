@@ -1,3 +1,4 @@
+import { describe, expect, jest, test } from '@jest/globals';
 import { ethers } from 'ethers';
 
 import { TelepathyCcipReadIsmAbi } from '../../src/abis/TelepathyCcipReadIsmAbi';
