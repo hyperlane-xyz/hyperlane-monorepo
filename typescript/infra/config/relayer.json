@@ -4,14 +4,14 @@
     "neutron": "",
     "rc": "0x09b96417602ed6ac76651f7a8c4860e60e3aa6d0"
   },
-  "testnet4": {
-    "hyperlane": "0x16626cd24fd1f228a031e48b77602ae25f8930db",
-    "neutron": "",
-    "rc": "0x7fe8c60ead4ab10be736f4de2b3090db5a851f16"
-  },
   "test": {
     "hyperlane": "",
     "neutron": "",
     "rc": ""
+  },
+  "testnet4": {
+    "hyperlane": "0x16626cd24fd1f228a031e48b77602ae25f8930db",
+    "neutron": "",
+    "rc": "0x7fe8c60ead4ab10be736f4de2b3090db5a851f16"
   }
 }

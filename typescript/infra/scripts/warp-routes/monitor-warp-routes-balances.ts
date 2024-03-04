@@ -165,6 +165,8 @@ async function checkBalance(
               );
             }
             case ProtocolType.Cosmos: {
+              if (!token.tokenAddress)
+                throw new Error('Token address missing for cosmos token');
               const adapter = new CwNativeTokenAdapter(
                 chain,
                 multiProtocolProvider,
