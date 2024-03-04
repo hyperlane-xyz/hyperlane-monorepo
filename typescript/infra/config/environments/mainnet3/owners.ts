@@ -32,6 +32,7 @@ export const owners: ChainMap<OwnableConfig> = Object.fromEntries(
       owner: safes[local] ?? DEPLOYER,
       ownerOverrides: {
         proxyAdmin: timelocks[local] ?? safes[local] ?? DEPLOYER,
+        validatorAnnounce: DEPLOYER, // unused
       },
     },
   ]),
