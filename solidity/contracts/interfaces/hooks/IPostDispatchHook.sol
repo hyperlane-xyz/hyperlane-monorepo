@@ -23,7 +23,9 @@ interface IPostDispatchHook {
         FALLBACK_ROUTING,
         ID_AUTH_ISM,
         PAUSABLE,
-        PROTOCOL_FEE
+        PROTOCOL_FEE,
+        WORMHOLE,
+        AXELAR
     }
 
     /**
