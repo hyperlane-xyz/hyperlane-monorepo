@@ -388,7 +388,9 @@ async function persistAddressesLocally(
     // Some types of keys come in an AWS and a GCP variant. We prefer
     // to persist the AWS version of the key if AWS is enabled.
     // Note this means we prefer EVM addresses here, as even if AWS
-    // is enabled, we use the GCP address for non-EVM chains.
+    // is enabled, we use the GCP address for non-EVM chains because
+    // only the EVM has the tooling & cryptographic compatibility with
+    // our AWS KMS keys.
     if (agentConfig.aws && !(key instanceof AgentAwsKey)) {
       continue;
     }
@@ -403,13 +405,16 @@ async function persistAddressesLocally(
         throw new Error('More than one Kathy found in gcpCloudAgentKeys');
       kathy = key.address;
     }
-    if (!key.chainName) continue;
-    multisigValidatorKeys[key.chainName] ||= {
-      validators: [],
-    };
 
-    if (key.role === Role.Validator) {
-      multisigValidatorKeys[key.chainName].validators.push(key.address);
+    if (key.chainName) {
+      multisigValidatorKeys[key.chainName] ||= {
+        validators: [],
+      };
+
+      // The validator role always has a chainName.
+      if (key.role === Role.Validator) {
+        multisigValidatorKeys[key.chainName].validators.push(key.address);
+      }
     }
   }
   if (!relayer) throw new Error('No Relayer found in awsCloudAgentKeys');

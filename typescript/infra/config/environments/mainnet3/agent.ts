@@ -37,6 +37,7 @@ const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 // This is intentionally separate and not derived from the environment's supportedChainNames
 // to allow for more fine-grained control over which chains are enabled for each agent role.
 export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
+  // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
     [Chains.arbitrum]: true,
     [Chains.avalanche]: true,
