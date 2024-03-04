@@ -36,7 +36,7 @@ export const igp: ChainMap<IgpConfig> = objMap(owners, (local, owner) => ({
   overhead: Object.fromEntries(
     exclude(local, supportedChainNames).map((remote) => [
       remote,
-      remoteOverhead(remote),
+      remoteOverhead(remote as MainnetChains),
     ]),
   ),
   oracleConfig: storageGasOracleConfig[local],
