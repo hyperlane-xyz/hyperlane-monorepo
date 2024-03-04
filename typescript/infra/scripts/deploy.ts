@@ -69,7 +69,14 @@ async function main() {
     });
     await useLocalProvider(multiProvider, fork);
 
-    const signer = await impersonateAccount(envConfig.owners[fork].owner);
+    // const deployers = await envConfig.getKeys(
+    //   Contexts.Hyperlane,
+    //   Role.Deployer,
+    // );
+    // const deployer = deployers[fork].address;
+    const deployer = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+    const signer = await impersonateAccount(deployer);
+
     multiProvider.setSharedSigner(signer);
   }
 

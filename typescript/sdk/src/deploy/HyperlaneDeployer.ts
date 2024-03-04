@@ -640,7 +640,7 @@ export abstract class HyperlaneDeployer<
     return ret;
   }
 
-  protected async transferOwnershipOfContracts<K extends keyof Factories>(
+  async transferOwnershipOfContracts<K extends keyof Factories>(
     chain: ChainName,
     config: OwnableConfig<K>,
     ownables: Partial<Record<K, Ownable>>,
