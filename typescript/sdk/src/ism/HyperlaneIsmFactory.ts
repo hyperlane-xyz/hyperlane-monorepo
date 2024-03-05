@@ -27,6 +27,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
+import { chainMetadata } from '../consts/chainMetadata';
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
@@ -164,6 +165,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           IsmType.PAUSABLE,
           [config.owner],
         );
+        await this.deployer?.transferOwnershipOfContracts(destination, config, {
+          [IsmType.PAUSABLE]: contract,
+        });
         break;
       case IsmType.TEST_ISM:
         if (!this.deployer) {
@@ -236,7 +240,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     config.domains = objFilter(
       config.domains,
       (domain, config): config is IsmConfig => {
-        const domainId = this.multiProvider.tryGetDomainId(domain);
+        const domainId =
+          chainMetadata[domain]?.domainId ??
+          this.multiProvider.tryGetDomainId(domain);
         if (domainId === null) {
           warn(
             `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
@@ -245,8 +251,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         return domainId !== null;
       },
     );
-    const safeConfigDomains = Object.keys(config.domains).map((domain) =>
-      this.multiProvider.getDomainId(domain),
+    const safeConfigDomains = Object.keys(config.domains).map(
+      (domain) =>
+        chainMetadata[domain]?.domainId ??
+        this.multiProvider.getDomainId(domain),
     );
     const delta: RoutingIsmDelta = existingIsmAddress
       ? await routingModuleDelta(
