@@ -26,12 +26,16 @@ export class InterchainAccountChecker extends ProxiedRouterChecker<
           'Configuration of ISM address not supported in ICA checker',
         );
       }
+
       return {
         ...config,
         interchainSecurityModule:
           app.contractsMap[chain].interchainAccountIsm.address,
       };
     });
+
+    console.log('ICA multiprovider', multiProvider.getKnownChainNames());
+
     super(multiProvider, app, configMapWithIsm);
   }
 }
