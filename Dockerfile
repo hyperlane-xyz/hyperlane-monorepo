@@ -2,7 +2,7 @@ FROM node:18-alpine
 
 WORKDIR /hyperlane-monorepo
 
-RUN apk add --update --no-cache git g++ make py3-pip
+RUN apk add --update --no-cache git g++ make py3-pip jq
 
 RUN yarn set version 4.0.1
 

@@ -23,6 +23,7 @@ import {
   isEthereumProtocolChain,
   readJSON,
   writeJSON,
+  writeJsonAtPath,
 } from '../utils/utils';
 
 import { AgentAwsKey } from './aws/key';
@@ -384,6 +385,16 @@ async function persistAddressesLocally(
   const multisigValidatorKeys: ChainMap<{ validators: Address[] }> = {};
   let relayer, kathy;
   for (const key of keys) {
+    // Some types of keys come in an AWS and a GCP variant. We prefer
+    // to persist the AWS version of the key if AWS is enabled.
+    // Note this means we prefer EVM addresses here, as even if AWS
+    // is enabled, we use the GCP address for non-EVM chains because
+    // only the EVM has the tooling & cryptographic compatibility with
+    // our AWS KMS keys.
+    if (agentConfig.aws && !(key instanceof AgentAwsKey)) {
+      continue;
+    }
+
     if (key.role === Role.Relayer) {
       if (relayer)
         throw new Error('More than one Relayer found in gcpCloudAgentKeys');
@@ -394,12 +405,17 @@ async function persistAddressesLocally(
         throw new Error('More than one Kathy found in gcpCloudAgentKeys');
       kathy = key.address;
     }
-    if (!key.chainName) continue;
-    multisigValidatorKeys[key.chainName] ||= {
-      validators: [],
-    };
-    if (key.chainName)
-      multisigValidatorKeys[key.chainName].validators.push(key.address);
+
+    if (key.chainName) {
+      multisigValidatorKeys[key.chainName] ||= {
+        validators: [],
+      };
+
+      // The validator role always has a chainName.
+      if (key.role === Role.Validator) {
+        multisigValidatorKeys[key.chainName].validators.push(key.address);
+      }
+    }
   }
   if (!relayer) throw new Error('No Relayer found in awsCloudAgentKeys');
   if (!kathy) throw new Error('No Kathy found in awsCloudAgentKeys');
@@ -433,7 +449,7 @@ export async function persistRoleAddressesToLocalArtifacts(
   // Resolve the relative path
   const filePath = path.resolve(__dirname, `../../config/${role}.json`);
 
-  fs.writeFileSync(filePath, JSON.stringify(addresses, null, 2));
+  writeJsonAtPath(filePath, addresses);
 }
 
 // maintaining the multisigIsm schema sans threshold

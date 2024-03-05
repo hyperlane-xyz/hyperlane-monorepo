@@ -1,81 +1,67 @@
 import {
   ChainMap,
-  CompilerOptions,
-  ContractVerifier,
+  ExplorerLicenseType,
+  PostDeploymentContractVerifier,
   VerificationInput,
 } from '@hyperlane-xyz/sdk';
 
-import { fetchGCPSecret } from '../src/utils/gcloud';
+import {
+  extractBuildArtifact,
+  fetchExplorerApiKeys,
+} from '../src/deployment/verify';
 import { readJSONAtPath } from '../src/utils/utils';
 
-import { assertEnvironment, getArgs } from './agent-utils';
+import {
+  assertEnvironment,
+  getArgs,
+  withBuildArtifactPath,
+  withNetwork,
+} from './agent-utils';
 import { getEnvironmentConfig } from './core-utils';
 
 async function main() {
-  const argv = await getArgs()
-    .string('source')
-    .describe(
-      'source',
-      'Path to hardhat build artifact containing standard input JSON',
-    )
-    .demandOption('source')
-    .string('artifacts')
-    .describe('artifacts', 'verification artifacts JSON file')
-    .demandOption('artifacts')
-    .string('network')
-    .describe('network', 'optional target network').argv;
+  const { environment, buildArtifactPath, verificationArtifactPath, network } =
+    await withNetwork(withBuildArtifactPath(getArgs()))
+      .string('verificationArtifactPath')
+      .describe(
+        'verificationArtifactPath',
+        'path to hyperlane verification artifact',
+      )
+      .alias('v', 'verificationArtifactPath')
+      .demandOption('verificationArtifactPath')
+      .demandOption('buildArtifactPath').argv;
 
-  const environment = assertEnvironment(argv.e!);
+  // set up multiprovider
+  assertEnvironment(environment);
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
+  // grab verification artifacts
   const verification: ChainMap<VerificationInput> = readJSONAtPath(
-    argv.artifacts!,
+    verificationArtifactPath,
   );
 
-  const sourcePath = argv.source!;
-  if (!sourcePath.endsWith('.json')) {
-    throw new Error('Source must be a JSON file.');
-  }
+  // fetch explorer API keys from GCP
+  const apiKeys = await fetchExplorerApiKeys();
 
-  const buildArtifactJson = readJSONAtPath(sourcePath);
-  const source = buildArtifactJson.input;
-  const solcLongVersion = buildArtifactJson.solcLongVersion;
+  // extract build artifact contents
+  const buildArtifact = extractBuildArtifact(buildArtifactPath);
 
-  // codeformat always json
-  // compiler version inferred from build artifact
-  // always use MIT license
-  const compilerOptions: CompilerOptions = {
-    codeformat: 'solidity-standard-json-input',
-    compilerversion: `v${solcLongVersion}`,
-    licenseType: '3',
-  };
-
-  const versionRegex = /v(\d.\d.\d+)\+commit.\w+/;
-  const matches = versionRegex.exec(compilerOptions.compilerversion);
-  if (!matches) {
-    throw new Error(
-      `Invalid compiler version ${compilerOptions.compilerversion}`,
-    );
-  }
-
-  const apiKeys: ChainMap<string> = (await fetchGCPSecret(
-    'explorer-api-keys',
-    true,
-  )) as any;
-
-  const verifier = new ContractVerifier(
+  // instantiate verifier
+  const verifier = new PostDeploymentContractVerifier(
     verification,
     multiProvider,
     apiKeys,
-    source,
-    compilerOptions,
+    buildArtifact,
+    ExplorerLicenseType.MIT,
   );
 
+  // verify all the things
   const failedResults = (
-    await verifier.verify(argv.network ? [argv.network] : undefined)
+    await verifier.verify(network ? [network] : undefined)
   ).filter((result) => result.status === 'rejected');
 
+  // only log the failed verifications to console
   if (failedResults.length > 0) {
     console.error(
       'Verification failed for the following contracts:',

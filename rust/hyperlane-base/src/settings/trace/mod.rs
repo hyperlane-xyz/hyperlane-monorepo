@@ -68,6 +68,7 @@ impl TracingConfig {
             target_layer = target_layer
                 .with_target("hyper", Level::Info)
                 .with_target("rusoto_core", Level::Info)
+                .with_target("rustls", Level::Info)
                 .with_target("reqwest", Level::Info)
                 .with_target("h2", Level::Info)
                 .with_target("tower", Level::Info)

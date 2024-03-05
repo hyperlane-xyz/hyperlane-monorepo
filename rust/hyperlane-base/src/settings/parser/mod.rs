@@ -13,7 +13,8 @@ use convert_case::{Case, Casing};
 use eyre::{eyre, Context};
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
-    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, IndexMode,
+    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
+    HyperlaneDomainTechnicalStack, IndexMode,
 };
 use itertools::Itertools;
 use serde::Deserialize;
@@ -247,9 +248,16 @@ fn parse_domain(chain: ValueParser, name: &str) -> ConfigResult<HyperlaneDomain>
         .parse_from_str::<HyperlaneDomainProtocol>("Invalid Hyperlane domain protocol")
         .end();
 
-    cfg_unwrap_all!(&chain.cwp, err: [domain_id, protocol]);
+    let technical_stack = chain
+        .chain(&mut err)
+        .get_opt_key("technicalStack")
+        .parse_from_str::<HyperlaneDomainTechnicalStack>("Invalid chain technical stack")
+        .end()
+        .or_else(|| Some(HyperlaneDomainTechnicalStack::default()));
 
-    let domain = HyperlaneDomain::from_config(domain_id, name, protocol)
+    cfg_unwrap_all!(&chain.cwp, err: [domain_id, protocol, technical_stack]);
+
+    let domain = HyperlaneDomain::from_config(domain_id, name, protocol, technical_stack)
         .context("Invalid domain data")
         .take_err(&mut err, || chain.cwp.clone());
 

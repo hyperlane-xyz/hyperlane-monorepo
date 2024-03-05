@@ -19,10 +19,12 @@ const proofsService = new ProofsService(
 // Initalize Server and add Service handlers
 const server = new Server();
 
-server.add(ProofsServiceAbi, [proofsService.handler('getProofs')]);
+server.add(ProofsServiceAbi, [
+  { type: 'getProofs', func: proofsService.getProofs.bind(this) },
+]);
 
 // Start Server
 const app = server.makeApp(config.SERVER_URL_PREFIX);
-app.listen(config.SERVER_PORT || 3001, () =>
+app.listen(config.SERVER_PORT, () =>
   log(`Listening on port ${config.SERVER_PORT}`),
 );

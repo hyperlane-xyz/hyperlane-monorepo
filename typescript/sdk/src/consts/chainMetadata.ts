@@ -1,6 +1,10 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata, ExplorerFamily } from '../metadata/chainMetadataTypes';
+import {
+  ChainMetadata,
+  ChainTechnicalStack,
+  ExplorerFamily,
+} from '../metadata/chainMetadataTypes';
 import { ChainMap } from '../types';
 
 import { Chains, Mainnets, Testnets } from './chains';
@@ -71,6 +75,7 @@ export const arbitrum: ChainMetadata = {
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'https://arb1.arbitrum.io/rpc' }],
+  technicalStack: ChainTechnicalStack.ArbitrumNitro,
 };
 
 export const arbitrumgoerli: ChainMetadata = {
@@ -88,6 +93,7 @@ export const arbitrumgoerli: ChainMetadata = {
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'https://goerli-rollup.arbitrum.io/rpc' }],
+  technicalStack: ChainTechnicalStack.ArbitrumNitro,
 };
 
 export const avalanche: ChainMetadata = {
@@ -412,6 +418,7 @@ export const inevm: ChainMetadata = {
   displayName: 'Injective EVM',
   displayNameShort: 'inEVM',
   domainId: 2525,
+  gasCurrencyCoinGeckoId: 'injective-protocol',
   name: Chains.inevm,
   nativeToken: {
     decimals: 18,
@@ -433,10 +440,12 @@ export const injective: ChainMetadata = {
   chainId: 'injective-1',
   displayName: 'Injective',
   domainId: 6909546,
+  gasCurrencyCoinGeckoId: 'injective-protocol',
   grpcUrls: [{ http: 'sentry.chain.grpc.injective.network:443' }],
   name: Chains.injective,
   nativeToken: {
     decimals: 18,
+    denom: 'inj',
     name: 'Injective',
     symbol: 'INJ',
   },
@@ -488,6 +497,7 @@ export const mantapacific: ChainMetadata = {
   displayName: 'Manta Pacific',
   displayNameShort: 'Manta',
   domainId: 169,
+  gasCurrencyCoinGeckoId: 'ethereum',
   isTestnet: false,
   name: Chains.mantapacific,
   nativeToken: {
@@ -603,11 +613,13 @@ export const neutron: ChainMetadata = {
   chainId: 'neutron-1',
   displayName: 'Neutron',
   domainId: 1853125230,
+  gasCurrencyCoinGeckoId: 'neutron-3',
   grpcUrls: [{ http: 'grpc-kralum.neutron-1.neutron.org:80' }],
   isTestnet: false,
   name: Chains.neutron,
   nativeToken: {
     decimals: 6,
+    denom: 'untrn',
     name: 'Neutron',
     symbol: 'NTRN',
   },
@@ -681,7 +693,7 @@ export const plumetestnet: ChainMetadata = {
   blocks: {
     confirmations: 1,
     estimateBlockTime: 3,
-    reorgPeriod: 1,
+    reorgPeriod: 0,
   },
   chainId: 161221135,
   displayName: 'Plume Testnet',
@@ -893,7 +905,6 @@ export const solana: ChainMetadata = {
       url: 'https://explorer.solana.com',
     },
   ],
-
   blocks: {
     confirmations: 1,
     estimateBlockTime: 0.4,
@@ -1035,7 +1046,7 @@ export const viction: ChainMetadata = {
       apiUrl: 'https://www.vicscan.xyz/api',
       family: ExplorerFamily.Other,
       name: 'Vicscan',
-      url: 'https://www.vicscan.xyz/',
+      url: 'https://www.vicscan.xyz',
     },
   ],
   blocks: {
@@ -1046,6 +1057,7 @@ export const viction: ChainMetadata = {
   chainId: 88,
   displayName: 'Viction',
   domainId: 88,
+  gasCurrencyCoinGeckoId: 'tomochain',
   name: Chains.viction,
   nativeToken: {
     decimals: 18,
@@ -1055,7 +1067,7 @@ export const viction: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
     {
-      http: 'https://rpc.tomochain.com/',
+      http: 'https://rpc.tomochain.com',
     },
     {
       http: 'https://viction.blockpi.network/v1/rpc/public',

@@ -249,6 +249,26 @@ export const validatorChainConfig = (
         'polygonzkevmtestnet',
       ),
     },
+    plumetestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod(chainMetadata.plumetestnet),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [
+            '0xe765a214849f3ecdf00793b97d00422f2d408ea6',
+            '0xb59998f71efc65190a85ac5e81b66bd72a192a3b',
+            '0xc906470a73e6b5aad65a4ceb4acd73e3eaf80e2c',
+          ],
+          [Contexts.ReleaseCandidate]: [
+            '0xe6e6aeecbf7755cdbc50c2683df9f2d100f6399d',
+            '0x27946c13a475233a3b1eb47f0bd0f7cdec3a3983',
+            '0x2596413213368475c96ddfb1ae26666d22093a8b',
+          ],
+          [Contexts.Neutron]: [],
+        },
+        'plumetestnet',
+      ),
+    },
     injective: {
       interval: 5,
       reorgPeriod: getReorgPeriod(chainMetadata.injective),

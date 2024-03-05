@@ -74,6 +74,7 @@
         "symbol": "ETH"
       },
       "protocol": "ethereum",
+      "technicalStack": "arbitrumnitro",
       "rpcUrls": [
         {
           "http": "https://goerli-rollup.arbitrum.io/rpc"
@@ -381,7 +382,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 3,
-        "reorgPeriod": 1
+        "reorgPeriod": 0
       },
       "chainId": 161221135,
       "displayName": "Plume Testnet",
@@ -394,11 +395,13 @@
         "symbol": "ETH"
       },
       "protocol": "ethereum",
+      "technicalStack": "arbitrumnitro",
       "rpcUrls": [
         {
           "http": "https://plume-testnet.rpc.caldera.xyz/http"
         }
       ],
+      "rpcConsensusType": "single",
       "transactionOverrides": {
         "gasPrice": 1000000
       },
@@ -419,7 +422,7 @@
       "protocolFee": "0x1b33611fCc073aB0737011d5512EF673Bff74962",
       "testRecipient": "0xe0B988062A0C6492177d64823Ab95a9c256c2a5F",
       "index": {
-        "from": 5284139
+        "from": 4206
       }
     },
     "polygonzkevmtestnet": {
@@ -580,52 +583,52 @@
       "index": {
         "from": 4517401
       }
-    }
-  },
-  "solanatestnet": {
-    "name": "solanatestnet",
-    "chainId": 1399811150,
-    "domainId": 1399811150,
-    "mailbox": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
-    "merkleTreeHook": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
-    "interchainGasPaymaster": "9SQVtTNsbipdMzumhzi6X8GwojiSMwBfqAhS7FgyTcqy",
-    "validatorAnnounce": "8qNYSi9EP1xSnRjtMpyof88A26GBbdcrsa61uSaHiwx3",
-    "protocol": "sealevel",
-    "blocks": {
-      "reorgPeriod": 0,
-      "confirmations": 0
     },
-    "rpcUrls": [
-      {
-        "http": "https://api.testnet.solana.com"
+    "solanatestnet": {
+      "name": "solanatestnet",
+      "chainId": 1399811150,
+      "domainId": 1399811150,
+      "mailbox": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
+      "merkleTreeHook": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
+      "interchainGasPaymaster": "9SQVtTNsbipdMzumhzi6X8GwojiSMwBfqAhS7FgyTcqy",
+      "validatorAnnounce": "8qNYSi9EP1xSnRjtMpyof88A26GBbdcrsa61uSaHiwx3",
+      "protocol": "sealevel",
+      "blocks": {
+        "reorgPeriod": 0,
+        "confirmations": 0
+      },
+      "rpcUrls": [
+        {
+          "http": "https://api.testnet.solana.com"
+        }
+      ],
+      "index": {
+        "from": 1,
+        "mode": "sequence"
       }
-    ],
-    "index": {
-      "from": 1,
-      "mode": "sequence"
-    }
-  },
-  "eclipsetestnet": {
-    "name": "eclipsetestnet",
-    "chainId": 239092742,
-    "domainId": 239092742,
-    "mailbox": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
-    "merkleTreeHook": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
-    "interchainGasPaymaster": "9SQVtTNsbipdMzumhzi6X8GwojiSMwBfqAhS7FgyTcqy",
-    "validatorAnnounce": "8qNYSi9EP1xSnRjtMpyof88A26GBbdcrsa61uSaHiwx3",
-    "protocol": "sealevel",
-    "blocks": {
-      "reorgPeriod": 0,
-      "confirmations": 0
     },
-    "rpcUrls": [
-      {
-        "http": "https://testnet.dev2.eclipsenetwork.xyz"
+    "eclipsetestnet": {
+      "name": "eclipsetestnet",
+      "chainId": 239092742,
+      "domainId": 239092742,
+      "mailbox": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
+      "merkleTreeHook": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
+      "interchainGasPaymaster": "9SQVtTNsbipdMzumhzi6X8GwojiSMwBfqAhS7FgyTcqy",
+      "validatorAnnounce": "8qNYSi9EP1xSnRjtMpyof88A26GBbdcrsa61uSaHiwx3",
+      "protocol": "sealevel",
+      "blocks": {
+        "reorgPeriod": 0,
+        "confirmations": 0
+      },
+      "rpcUrls": [
+        {
+          "http": "https://testnet.dev2.eclipsenetwork.xyz"
+        }
+      ],
+      "index": {
+        "from": 1,
+        "mode": "sequence"
       }
-    ],
-    "index": {
-      "from": 1,
-      "mode": "sequence"
     }
   },
   "defaultRpcConsensusType": "fallback"
