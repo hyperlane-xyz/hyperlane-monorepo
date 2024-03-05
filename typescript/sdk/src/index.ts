@@ -86,14 +86,14 @@ export {
   OwnerViolation,
   ViolationType,
 } from './deploy/types';
-export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
+export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier';
 export {
+  BuildArtifact,
   CompilerOptions,
   ContractVerificationInput,
-  VerificationInput,
   ExplorerLicenseType,
-  BuildArtifact,
+  VerificationInput,
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
@@ -136,7 +136,6 @@ export {
   ProtocolFeeHookConfig,
 } from './hook/types';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory';
-export { collectValidators, moduleCanCertainlyVerify } from './ism/utils';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
@@ -153,6 +152,7 @@ export {
   PausableIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
+export { collectValidators, moduleCanCertainlyVerify } from './ism/utils';
 export {
   ChainMetadataManager,
   ChainMetadataManagerOptions,
@@ -208,6 +208,11 @@ export {
   InterchainAccountDeployer,
 } from './middleware/account/InterchainAccountDeployer';
 export { interchainAccountFactories } from './middleware/account/contracts';
+export {
+  AccountConfig,
+  GovernanceConfig,
+  governanceToAccountConfig,
+} from './middleware/account/types';
 export { LiquidityLayerApp } from './middleware/liquidity-layer/LiquidityLayerApp';
 export {
   BridgeAdapterConfig,

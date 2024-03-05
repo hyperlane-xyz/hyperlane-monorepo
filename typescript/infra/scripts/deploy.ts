@@ -7,6 +7,7 @@ import {
   ChainMap,
   ContractVerifier,
   ExplorerLicenseType,
+  GovernanceConfig,
   HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
@@ -14,11 +15,13 @@ import {
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
+  InterchainAccount,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
   TestRecipientDeployer,
   TokenType,
+  governanceToAccountConfig,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
@@ -151,8 +154,18 @@ async function main() {
       scrollsepolia: config.scrollsepolia,
       plumetestnet: config.plumetestnet,
     };
-    console.log('deploy: ICA config', JSON.stringify(config, null, 2));
     deployer = new InterchainAccountDeployer(multiProvider, contractVerifier);
+    const addresses = getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS);
+    console.log('deploy: ICA addresses', JSON.stringify(addresses, null, 2));
+    const router = InterchainAccount.fromAddressesMap(addresses, multiProvider);
+    const govConfig: GovernanceConfig = {
+      owner: envConfig.owners.sepolia.owner,
+      hub: 'sepolia',
+      spokes: ['scrollsepolia', 'plumetestnet'],
+    };
+    const accountConfigs = governanceToAccountConfig(govConfig);
+    await router.deployAccounts(accountConfigs);
+    return;
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
