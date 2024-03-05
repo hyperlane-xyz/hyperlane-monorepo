@@ -89,9 +89,7 @@ impl ValidatorSubmitter {
     }
 
     /// Submits signed checkpoints indefinitely, starting from the `tree`.
-    // #[instrument(err, skip(self, tree), fields(domain=%self.merkle_tree_hook.domain()))]
     pub(crate) async fn checkpoint_submitter(self, mut tree: IncrementalMerkle) {
-        // bail!("Some checkpoint_submitter error that should be propagated by the validator");
         // How often to log checkpoint info - once every minute
         let checkpoint_info_log_period = Duration::from_secs(60);
         // The instant in which we last logged checkpoint info, if at all
@@ -111,7 +109,6 @@ impl ValidatorSubmitter {
 
         loop {
             // Lag by reorg period because this is our correctness checkpoint.
-            // It's ok to unwrap because
             let latest_checkpoint = call_and_retry_indefinitely(|| {
                 let merkle_tree_hook = self.merkle_tree_hook.clone();
                 Box::pin(async move { merkle_tree_hook.latest_checkpoint(self.reorg_period).await })

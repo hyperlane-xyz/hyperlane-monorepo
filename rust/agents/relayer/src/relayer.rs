@@ -11,7 +11,6 @@ use futures_util::future::try_join_all;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
-    run_all,
     settings::ChainConf,
     BaseAgent, ChainMetrics, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     SequencedDataContractSync, WatermarkContractSync,
@@ -272,7 +271,7 @@ impl BaseAgent for Relayer {
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(self) -> Result<()> {
+    async fn run(self) {
         let mut tasks = vec![];
 
         // running http server
@@ -323,7 +322,6 @@ impl BaseAgent for Relayer {
                 "Relayer task panicked"
             );
         }
-        Ok(())
     }
 }
 

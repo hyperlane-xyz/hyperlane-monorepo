@@ -91,7 +91,7 @@ impl BaseAgent for Scraper {
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(self) -> eyre::Result<()> {
+    async fn run(self) {
         let mut tasks = Vec::with_capacity(self.scrapers.len());
 
         // running http server
@@ -121,7 +121,6 @@ impl BaseAgent for Scraper {
         if let Err(err) = try_join_all(tasks).await {
             tracing::error!(error = ?err, "Scraper task panicked");
         }
-        Ok(())
     }
 }
 

@@ -12,7 +12,6 @@ use tracing::{debug, error, info, info_span, instrument::Instrumented, warn, Ins
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
-    run_all,
     settings::ChainConf,
     BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
     HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
@@ -128,7 +127,7 @@ impl BaseAgent for Validator {
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(mut self) -> Result<()> {
+    async fn run(mut self) {
         let mut tasks = vec![];
 
         let routes =
@@ -193,24 +192,15 @@ impl BaseAgent for Validator {
                 }
                 _ => {
                     // Future that immediately resolves
-                    return Ok(());
+                    return;
                 }
             }
         }
 
-        // let res = run_all(tasks).await;
-        // println!("~~~ TASK EXECUTION ENDED. RESULT: {:?}", res);
-        // res
-
+        // Note that this only returns an error if one of the tasks panics
         if let Err(err) = try_join_all(tasks).await {
-            // if let Err(err) = run_all(tasks).await {
-            println!(
-                "~~~ ONE OF THE VALIDATOR TASKS RETURNED AN ERROR: {:?}",
-                err
-            );
             error!(?err, "One of the validator tasks returned an error");
         }
-        return Ok(());
     }
 }
 
@@ -256,21 +246,16 @@ impl Validator {
         let mut tasks = vec![];
         tasks.push(
             tokio::spawn(async move {
-                let res = backfill_submitter
+                backfill_submitter
                     .backfill_checkpoint_submitter(backfill_target)
-                    .await;
-                println!("~~~ BACKFILL SUBMITTER RETURNED {:?}", res);
-                res
+                    .await
             })
             .instrument(info_span!("BackfillCheckpointSubmitter")),
         );
 
         tasks.push(
-            tokio::spawn(async move {
-                let res = submitter.checkpoint_submitter(tip_tree).await;
-                println!("~~~ CHECKPOINT SUBMITTER RETURNED {:?}", res);
-            })
-            .instrument(info_span!("TipCheckpointSubmitter")),
+            tokio::spawn(async move { submitter.checkpoint_submitter(tip_tree).await })
+                .instrument(info_span!("TipCheckpointSubmitter")),
         );
 
         tasks
@@ -380,37 +365,5 @@ impl Validator {
             }
         }
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use eyre::bail;
-    use tokio::task;
-    use tracing::{info_span, Instrument};
-
-    use crate::validator::run_all;
-
-    async fn my_task() -> Result<(), eyre::Error> {
-        // Simulating some asynchronous operation
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        // Returning an error for demonstration
-        // eyreErr("An example error".into())
-        bail!("example error")
-    }
-
-    #[tokio::test]
-    async fn main() {
-        let handle = task::spawn(my_task()).instrument(info_span!(""));
-        let res = run_all(vec![handle]).await;
-        // let res = handle.await;
-        println!("Task returned: {:?}", res);
-
-        // // We await on the JoinHandle to get the result
-        // if let Err(err) = handle.await {
-        //     println!("Task returned an error: {}", err);
-        // } else {
-        //     println!("Task completed successfully");
-        // }
     }
 }

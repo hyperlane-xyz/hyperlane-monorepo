@@ -241,13 +241,11 @@ impl WasmIndexer for CosmosWasmIndexer {
     {
         let client = self.provider.rpc().clone();
 
-        let (block_res, block_results_res) = tokio::join!(
+        let (block, block_results) = tokio::join!(
             call_with_retry(|| { Box::pin(Self::get_block(client.clone(), block_number)) }),
             call_with_retry(|| { Box::pin(Self::get_block_results(client.clone(), block_number)) }),
         );
-        let block = block_res?;
-        let block_results = block_results_res?;
 
-        Ok(self.handle_txs(block, block_results, parser))
+        Ok(self.handle_txs(block?, block_results?, parser))
     }
 }

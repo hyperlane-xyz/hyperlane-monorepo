@@ -51,7 +51,7 @@ pub trait BaseAgent: Send + Sync + Debug {
 
     /// Start running this agent.
     #[allow(clippy::async_yields_async)]
-    async fn run(self) -> Result<()>;
+    async fn run(self);
 }
 
 /// Call this from `main` to fully initialize and run the agent for its entire
@@ -82,42 +82,6 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let agent = A::from_settings(settings, metrics.clone(), agent_metrics, chain_metrics).await?;
 
     // This await will only end if a critical error is propagated, which we do want to crash on
-    agent.run().await
-}
-
-/// Utility to run multiple tasks and shutdown if any one task ends.
-#[allow(clippy::unit_arg, unused_must_use)]
-pub async fn run_all(
-    mut tasks: Vec<Instrumented<JoinHandle<Result<(), eyre::Report>>>>,
-) -> Result<()> {
-    debug_assert!(!tasks.is_empty(), "No tasks submitted");
-    while !tasks.is_empty() {
-        let (res, _, remaining) = futures_util::future::select_all(tasks).await;
-        println!("~~~ SELECT_ALL RETURNED {:?}", res);
-        match res {
-            Ok(Ok(())) => {}
-            // One of the tasks panicked
-            Err(err) => {
-                abort_tasks(remaining).await;
-                return Err(err.into());
-            }
-            // One of the tasks returned an unrecoverable error
-            Ok(Err(err)) => {
-                abort_tasks(remaining).await;
-                return Err(err);
-            }
-        }
-        tasks = remaining;
-    }
-
+    agent.run().await;
     Ok(())
-}
-
-pub async fn abort_tasks(mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>>) {
-    for task in tasks.drain(..) {
-        let t = task.into_inner();
-        t.abort();
-        let res = t.await;
-        debug!(result= ?res, "Spun down tokio task, with result")
-    }
 }
