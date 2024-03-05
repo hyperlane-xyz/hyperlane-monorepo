@@ -1,5 +1,11 @@
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  CallData,
+  ProtocolType,
+  addressToBytes32,
+  bytes32ToAddress,
+} from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneEnvironment,
@@ -12,16 +18,26 @@ import {
 import {
   HyperlaneAddressesMap,
   HyperlaneContracts,
+  HyperlaneContractsMap,
 } from '../../contracts/types';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterApp } from '../../router/RouterApps';
+import { ChainMap, ChainName } from '../../types';
 
 import {
   InterchainAccountFactories,
   interchainAccountFactories,
 } from './contracts';
+import { AccountConfig } from './types';
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
+  constructor(
+    contractsMap: HyperlaneContractsMap<InterchainAccountFactories>,
+    multiProvider: MultiProvider,
+  ) {
+    super(contractsMap, multiProvider);
+  }
+
   router(
     contracts: HyperlaneContracts<InterchainAccountFactories>,
   ): InterchainAccountRouter {
@@ -54,26 +70,89 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       interchainAccountFactories,
       multiProvider,
     );
-    printKeysTwoLevelsDown(helper.contractsMap);
     return new InterchainAccount(helper.contractsMap, helper.multiProvider);
   }
-}
 
-function printKeysTwoLevelsDown(obj: any) {
-  for (const key of Object.keys(obj)) {
-    console.log(key);
-    if (typeof obj[key] === 'object' && obj[key] !== null) {
-      for (const subKey of Object.keys(obj[key])) {
-        if (subKey === 'interchainAccountIsm') {
-          console.log(
-            `  ${subKey} : ${JSON.stringify(
-              obj[key][subKey].address,
-              null,
-              2,
-            )}`,
-          );
-        }
-      }
+  async deployAccounts(
+    config: ChainMap<AccountConfig>,
+  ): Promise<ChainMap<Address>> {
+    const accounts: ChainMap<Address> = {};
+    for (const chain of Object.keys(config)) {
+      accounts[chain] = await this.deployAccount(chain, config[chain]);
+    }
+    return accounts;
+  }
+
+  async deployAccount(
+    chain: ChainName,
+    config: AccountConfig,
+  ): Promise<Address> {
+    const originDomain = this.multiProvider.getDomainId(config.origin);
+    const localRouter = this.router(this.contractsMap[chain]);
+    await this.multiProvider.handleTx(
+      chain,
+      localRouter[
+        'getDeployedInterchainAccount(uint32,address,address,address)'
+      ](
+        originDomain,
+        config.owner,
+        bytes32ToAddress(await localRouter.routers(originDomain)),
+        bytes32ToAddress(await localRouter.isms(originDomain)),
+      ),
+    );
+    const account = await localRouter[
+      'getLocalInterchainAccount(uint32,address,address,address)'
+    ](
+      originDomain,
+      config.owner,
+      bytes32ToAddress(await localRouter.routers(originDomain)),
+      bytes32ToAddress(await localRouter.isms(originDomain)),
+    );
+    return account;
+  }
+
+  async callRemote(
+    chain: ChainName,
+    destination: ChainName,
+    calls: Array<CallData>,
+    routerOverride?: Address,
+    ismOverride?: Address,
+    hookMetadata?: string,
+  ): Promise<void> {
+    const callsWithValue = calls.map((call) => ({
+      to: addressToBytes32(call.to),
+      data: call.data,
+      value: 0,
+    }));
+    if (routerOverride && ismOverride && hookMetadata) {
+      await this.multiProvider.handleTx(
+        destination,
+        this.router(this.contractsMap[chain]).callRemoteWithOverrides(
+          this.multiProvider.getDomainId(destination),
+          addressToBytes32(routerOverride),
+          addressToBytes32(ismOverride),
+          callsWithValue,
+          hookMetadata,
+        ),
+      );
+    } else if (hookMetadata) {
+      await this.multiProvider.handleTx(
+        destination,
+        this.router(this.contractsMap[chain])[
+          'callRemote(uint32,(bytes32,uint256,bytes)[],bytes)'
+        ](
+          this.multiProvider.getDomainId(destination),
+          callsWithValue,
+          hookMetadata,
+        ),
+      );
+    } else {
+      await this.multiProvider.handleTx(
+        destination,
+        this.router(this.contractsMap[chain])[
+          'callRemote(uint32,(bytes32,uint256,bytes)[])'
+        ](this.multiProvider.getDomainId(destination), callsWithValue),
+      );
     }
   }
 }

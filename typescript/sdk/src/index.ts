@@ -209,6 +209,11 @@ export {
   InterchainAccountDeployer,
 } from './middleware/account/InterchainAccountDeployer';
 export { interchainAccountFactories } from './middleware/account/contracts';
+export {
+  AccountConfig,
+  GovernanceConfig,
+  governanceToAccountConfig,
+} from './middleware/account/types';
 export { LiquidityLayerApp } from './middleware/liquidity-layer/LiquidityLayerApp';
 export {
   BridgeAdapterConfig,
