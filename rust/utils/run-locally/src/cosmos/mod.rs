@@ -271,7 +271,7 @@ fn launch_cosmos_validator(
         .hyp_env("SIGNER_SIGNER_TYPE", "hexKey")
         .hyp_env("SIGNER_KEY", agent_config.signer.key)
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
-        .spawn("VAL1");
+        .spawn("VAL");
 
     validator
 }
@@ -308,7 +308,7 @@ const ENV_CW_HYPERLANE_PATH_KEY: &str = "E2E_CW_HYPERLANE_PATH";
 #[allow(dead_code)]
 fn run_locally() {
     const TIMEOUT_SECS: u64 = 60 * 10;
-    let debug = true;
+    let debug = false;
 
     log!("Building rust...");
     Program::new("cargo")

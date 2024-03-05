@@ -3,14 +3,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
-use eyre::{bail, Result};
-use hyperlane_core::accumulator::merkle;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{ChainCommunicationError, ChainResult, MerkleTreeHook};
 use prometheus::IntGauge;
 use tokio::time::sleep;
-use tracing::{debug, info};
-use tracing::{error, instrument};
+use tracing::{debug, error, info};
 
 use hyperlane_base::{db::HyperlaneRocksDB, CheckpointSyncer, CoreMetrics};
 use hyperlane_core::{
@@ -65,8 +62,8 @@ impl ValidatorSubmitter {
     pub(crate) async fn backfill_checkpoint_submitter(self, target_checkpoint: Checkpoint) {
         let tree = IncrementalMerkle::default();
         call_and_retry_indefinitely(|| {
-            let mut tree = tree.clone();
-            let target_checkpoint = target_checkpoint.clone();
+            let mut tree = tree;
+            let target_checkpoint = target_checkpoint;
             let self_clone = self.clone();
             Box::pin(async move {
                 self_clone
@@ -143,7 +140,7 @@ impl ValidatorSubmitter {
             }
 
             tree = call_and_retry_indefinitely(|| {
-                let mut tree = tree.clone();
+                let mut tree = tree;
                 let self_clone = self.clone();
                 Box::pin(async move {
                     self_clone
@@ -234,9 +231,9 @@ impl ValidatorSubmitter {
                 ?correctness_checkpoint,
                 "Incorrect tree root, something went wrong"
             );
-            ChainCommunicationError::CustomError(
+            return Err(ChainCommunicationError::CustomError(
                 "Incorrect tree root, something went wrong".to_string(),
-            );
+            ));
         }
 
         if !checkpoint_queue.is_empty() {

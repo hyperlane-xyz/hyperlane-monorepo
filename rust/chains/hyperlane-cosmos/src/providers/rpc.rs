@@ -1,18 +1,14 @@
 use async_trait::async_trait;
 use cosmrs::rpc::client::Client;
-use futures::Future;
 use hyperlane_core::rpc_clients::call_with_retry;
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, U256};
 use sha256::digest;
-use std::pin::Pin;
-use std::time::Duration;
 use tendermint::abci::{Event, EventAttribute};
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tendermint_rpc::endpoint::block::Response as BlockResponse;
 use tendermint_rpc::endpoint::block_results::Response as BlockResultsResponse;
 use tendermint_rpc::HttpClient;
-use tokio::time::sleep;
 use tracing::{debug, instrument, trace};
 
 use crate::address::CosmosAddress;

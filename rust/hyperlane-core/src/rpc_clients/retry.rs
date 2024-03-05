@@ -11,8 +11,7 @@ pub const DEFAULT_MAX_RPC_RETRIES: usize = 10;
 /// Duration to sleep between retries
 pub const RPC_RETRY_SLEEP_DURATION: Duration = Duration::from_secs(2);
 
-// TODO: Refactor this function into a retrying provider. Once the watermark cursor is refactored, retrying should no longer
-// be required here if the error is propagated.
+// TODO: Refactor this function into a retrying provider
 /// Retry calling a fallible async function a certain number of times, with a delay between each retry
 #[instrument(err, skip(f))]
 pub async fn call_and_retry_n_times<T>(

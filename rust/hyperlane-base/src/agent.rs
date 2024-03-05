@@ -3,8 +3,7 @@ use std::{env, fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::config::*;
-use tokio::task::JoinHandle;
-use tracing::{debug, instrument::Instrumented};
+use tracing::info;
 
 use crate::{
     create_chain_metrics,
@@ -81,7 +80,8 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let chain_metrics = create_chain_metrics(&metrics)?;
     let agent = A::from_settings(settings, metrics.clone(), agent_metrics, chain_metrics).await?;
 
-    // This await will only end if a critical error is propagated, which we do want to crash on
+    // This await will only end if a panic happens. We won't crash, but instead gracefully shut down
     agent.run().await;
+    info!(agent = A::AGENT_NAME, "Shutting down agent...");
     Ok(())
 }
