@@ -78,11 +78,6 @@ impl ValidatorSubmitter {
             ?target_checkpoint,
             "Backfill checkpoint submitter successfully reached target checkpoint"
         );
-
-        // TODO: remove this once validator is tolerant of tasks exiting.
-        loop {
-            sleep(Duration::from_secs(u64::MAX)).await;
-        }
     }
 
     /// Submits signed checkpoints indefinitely, starting from the `tree`.
