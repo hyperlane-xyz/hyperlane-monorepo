@@ -142,7 +142,6 @@ impl BaseAgent for Validator {
             .expect("Failed to create server");
         let server_task = tokio::spawn(async move {
             server.run(routes);
-            Ok(())
         })
         .instrument(info_span!("Validator server"));
         tasks.push(server_task);
@@ -151,7 +150,6 @@ impl BaseAgent for Validator {
             tasks.push(
                 tokio::spawn(async move {
                     signer_instance.run().await;
-                    Ok(())
                 })
                 .instrument(info_span!("SingletonSigner")),
             );
@@ -169,7 +167,6 @@ impl BaseAgent for Validator {
         tasks.push(
             tokio::spawn(async move {
                 metrics_updater.spawn().await.unwrap();
-                Ok(())
             })
             .instrument(info_span!("MetricsUpdater")),
         );
@@ -207,7 +204,10 @@ impl BaseAgent for Validator {
 
         if let Err(err) = try_join_all(tasks).await {
             // if let Err(err) = run_all(tasks).await {
-            println!("~~~ ONE OF THE VALIDATOR TASKS RETURNED AN ERROR");
+            println!(
+                "~~~ ONE OF THE VALIDATOR TASKS RETURNED AN ERROR: {:?}",
+                err
+            );
             error!(?err, "One of the validator tasks returned an error");
         }
         return Ok(());
@@ -215,7 +215,7 @@ impl BaseAgent for Validator {
 }
 
 impl Validator {
-    async fn run_merkle_tree_hook_sync(&self) -> Instrumented<JoinHandle<ChainResult<()>>> {
+    async fn run_merkle_tree_hook_sync(&self) -> Instrumented<JoinHandle<()>> {
         let index_settings =
             self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
         let contract_sync = self.merkle_tree_hook_sync.clone();
@@ -224,12 +224,11 @@ impl Validator {
             .await;
         tokio::spawn(async move {
             contract_sync.clone().sync("merkle_tree_hook", cursor).await;
-            Ok(())
         })
         .instrument(info_span!("MerkleTreeHookSyncer"))
     }
 
-    async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<ChainResult<()>>>> {
+    async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<()>>> {
         let submitter = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,
@@ -270,7 +269,6 @@ impl Validator {
             tokio::spawn(async move {
                 let res = submitter.checkpoint_submitter(tip_tree).await;
                 println!("~~~ CHECKPOINT SUBMITTER RETURNED {:?}", res);
-                Ok(())
             })
             .instrument(info_span!("TipCheckpointSubmitter")),
         );

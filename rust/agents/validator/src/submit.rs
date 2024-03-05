@@ -62,28 +62,30 @@ impl ValidatorSubmitter {
 
     /// Submits signed checkpoints from index 0 until the target checkpoint (inclusive).
     /// Runs idly forever once the target checkpoint is reached to avoid exiting the task.
-    #[instrument(err, skip(self), fields(domain=%self.merkle_tree_hook.domain()))]
-    pub(crate) async fn backfill_checkpoint_submitter(
-        self,
-        target_checkpoint: Checkpoint,
-    ) -> ChainResult<()> {
-        return Err(ChainCommunicationError::CustomError(
-            "Some backfill_checkpoint_submitter error that should be propagated by the validator"
-                .to_string(),
-        ));
-        // let mut tree = IncrementalMerkle::default();
-        // self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
-        //     .await?;
+    pub(crate) async fn backfill_checkpoint_submitter(self, target_checkpoint: Checkpoint) {
+        let tree = IncrementalMerkle::default();
+        call_and_retry_indefinitely(|| {
+            let mut tree = tree.clone();
+            let target_checkpoint = target_checkpoint.clone();
+            let self_clone = self.clone();
+            Box::pin(async move {
+                self_clone
+                    .submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
+                    .await?;
+                Ok(())
+            })
+        })
+        .await;
 
-        // info!(
-        //     ?target_checkpoint,
-        //     "Backfill checkpoint submitter successfully reached target checkpoint"
-        // );
+        info!(
+            ?target_checkpoint,
+            "Backfill checkpoint submitter successfully reached target checkpoint"
+        );
 
-        // // TODO: remove this once validator is tolerant of tasks exiting.
-        // loop {
-        //     sleep(Duration::from_secs(u64::MAX)).await;
-        // }
+        // TODO: remove this once validator is tolerant of tasks exiting.
+        loop {
+            sleep(Duration::from_secs(u64::MAX)).await;
+        }
     }
 
     /// Submits signed checkpoints indefinitely, starting from the `tree`.
