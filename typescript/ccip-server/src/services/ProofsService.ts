@@ -1,12 +1,10 @@
-import { error } from 'console';
 import { ethers } from 'ethers';
 
 import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi';
 
 import { HyperlaneService } from './HyperlaneService';
 import { LightClientService, SuccinctConfig } from './LightClientService';
-import { RPCService } from './RPCService';
-import { ProofResult } from './RPCService';
+import { ProofResult, RPCService } from './RPCService';
 import { ProofStatus } from './common/ProofStatusEnum';
 
 type RPCConfig = {

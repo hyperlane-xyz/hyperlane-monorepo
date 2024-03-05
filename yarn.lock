@@ -4696,15 +4696,15 @@ __metadata:
   resolution: "@hyperlane-xyz/ccip-server@workspace:typescript/ccip-server"
   dependencies:
     "@chainlink/ccip-read-server": "npm:^0.2.1"
-    "@jest/globals": "npm:^29.7.0"
+    "@jest/globals": "npm:29.1.2"
     "@types/node": "npm:^16.9.1"
     dotenv-flow: "npm:^4.1.0"
     ethers: "npm:5.7.2"
     hyperlane-explorer: "https://github.com/hyperlane-xyz/hyperlane-explorer.git"
-    jest: "npm:^29.7.0"
+    jest: "npm:29.1.2"
     nodemon: "npm:^3.0.3"
     prettier: "npm:^2.8.8"
-    ts-jest: "npm:^29.1.2"
+    ts-jest: "npm:29.1.2"
     ts-node: "npm:^10.8.0"
     typescript: "npm:5.1.6"
   languageName: unknown
@@ -5128,7 +5128,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jest/core@npm:^29.7.0":
+"@jest/core@npm:^29.1.2, @jest/core@npm:^29.7.0":
   version: 29.7.0
   resolution: "@jest/core@npm:29.7.0"
   dependencies:
@@ -5169,7 +5169,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jest/environment@npm:^29.7.0":
+"@jest/environment@npm:^29.1.2, @jest/environment@npm:^29.7.0":
   version: 29.7.0
   resolution: "@jest/environment@npm:29.7.0"
   dependencies:
@@ -5190,7 +5190,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jest/expect@npm:^29.7.0":
+"@jest/expect@npm:^29.1.2, @jest/expect@npm:^29.7.0":
   version: 29.7.0
   resolution: "@jest/expect@npm:29.7.0"
   dependencies:
@@ -5211,6 +5211,18 @@ __metadata:
     jest-mock: "npm:^29.7.0"
     jest-util: "npm:^29.7.0"
   checksum: 9b394e04ffc46f91725ecfdff34c4e043eb7a16e1d78964094c9db3fde0b1c8803e45943a980e8c740d0a3d45661906de1416ca5891a538b0660481a3a828c27
+  languageName: node
+  linkType: hard
+
+"@jest/globals@npm:29.1.2":
+  version: 29.1.2
+  resolution: "@jest/globals@npm:29.1.2"
+  dependencies:
+    "@jest/environment": "npm:^29.1.2"
+    "@jest/expect": "npm:^29.1.2"
+    "@jest/types": "npm:^29.1.2"
+    jest-mock: "npm:^29.1.2"
+  checksum: 4baffd630ed6b4748d980bb57142dbe624b59f139c9e278dd1ee0916e574c5322e2aeb0c44059d70c67d594072024811c6577e736bfffddc1f6b8696d3188d4e
   languageName: node
   linkType: hard
 
@@ -5330,7 +5342,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jest/types@npm:^29.6.3":
+"@jest/types@npm:^29.1.2, @jest/types@npm:^29.6.3":
   version: 29.6.3
   resolution: "@jest/types@npm:29.6.3"
   dependencies:
@@ -15129,7 +15141,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jest-cli@npm:^29.7.0":
+"jest-cli@npm:^29.1.2":
   version: 29.7.0
   resolution: "jest-cli@npm:29.7.0"
   dependencies:
@@ -15310,7 +15322,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jest-mock@npm:^29.7.0":
+"jest-mock@npm:^29.1.2, jest-mock@npm:^29.7.0":
   version: 29.7.0
   resolution: "jest-mock@npm:29.7.0"
   dependencies:
@@ -15510,14 +15522,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jest@npm:^29.7.0":
-  version: 29.7.0
-  resolution: "jest@npm:29.7.0"
+"jest@npm:29.1.2":
+  version: 29.1.2
+  resolution: "jest@npm:29.1.2"
   dependencies:
-    "@jest/core": "npm:^29.7.0"
-    "@jest/types": "npm:^29.6.3"
+    "@jest/core": "npm:^29.1.2"
+    "@jest/types": "npm:^29.1.2"
     import-local: "npm:^3.0.2"
-    jest-cli: "npm:^29.7.0"
+    jest-cli: "npm:^29.1.2"
   peerDependencies:
     node-notifier: ^8.0.1 || ^9.0.0 || ^10.0.0
   peerDependenciesMeta:
@@ -15525,7 +15537,7 @@ __metadata:
       optional: true
   bin:
     jest: bin/jest.js
-  checksum: 97023d78446098c586faaa467fbf2c6b07ff06e2c85a19e3926adb5b0effe9ac60c4913ae03e2719f9c01ae8ffd8d92f6b262cedb9555ceeb5d19263d8c6362a
+  checksum: c155338fc006f8b1f424b436f00fc01af0bb96149d36b4048a33da616724bed870494ce9b1ffc9373571cee21de1f51228898740ab3dc77489c674891119f287
   languageName: node
   linkType: hard
 
@@ -21338,7 +21350,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ts-jest@npm:^29.1.2":
+"ts-jest@npm:29.1.2":
   version: 29.1.2
   resolution: "ts-jest@npm:29.1.2"
   dependencies:

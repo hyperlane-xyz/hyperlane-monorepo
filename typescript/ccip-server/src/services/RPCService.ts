@@ -1,3 +1,4 @@
+import { info } from 'console';
 import { ethers } from 'ethers';
 
 type ProofResultStorageProof = {
