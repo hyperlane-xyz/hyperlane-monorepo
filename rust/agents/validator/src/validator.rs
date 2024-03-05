@@ -7,11 +7,12 @@ use eyre::Result;
 
 use futures_util::future::try_join_all;
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
+use tracing::{debug, error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
+    run_all,
     settings::ChainConf,
     BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
     HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
@@ -127,7 +128,7 @@ impl BaseAgent for Validator {
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(mut self) {
+    async fn run(mut self) -> Result<()> {
         let mut tasks = vec![];
 
         let routes =
@@ -195,19 +196,26 @@ impl BaseAgent for Validator {
                 }
                 _ => {
                     // Future that immediately resolves
-                    return;
+                    return Ok(());
                 }
             }
         }
 
+        // let res = run_all(tasks).await;
+        // println!("~~~ TASK EXECUTION ENDED. RESULT: {:?}", res);
+        // res
+
         if let Err(err) = try_join_all(tasks).await {
+            // if let Err(err) = run_all(tasks).await {
+            println!("~~~ ONE OF THE VALIDATOR TASKS RETURNED AN ERROR");
             error!(?err, "One of the validator tasks returned an error");
         }
+        return Ok(());
     }
 }
 
 impl Validator {
-    async fn run_merkle_tree_hook_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    async fn run_merkle_tree_hook_sync(&self) -> Instrumented<JoinHandle<ChainResult<()>>> {
         let index_settings =
             self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
         let contract_sync = self.merkle_tree_hook_sync.clone();
@@ -221,7 +229,7 @@ impl Validator {
         .instrument(info_span!("MerkleTreeHookSyncer"))
     }
 
-    async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<Result<()>>>> {
+    async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<ChainResult<()>>>> {
         let submitter = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,
@@ -249,16 +257,22 @@ impl Validator {
         let mut tasks = vec![];
         tasks.push(
             tokio::spawn(async move {
-                backfill_submitter
+                let res = backfill_submitter
                     .backfill_checkpoint_submitter(backfill_target)
-                    .await
+                    .await;
+                println!("~~~ BACKFILL SUBMITTER RETURNED {:?}", res);
+                res
             })
             .instrument(info_span!("BackfillCheckpointSubmitter")),
         );
 
         tasks.push(
-            tokio::spawn(async move { submitter.checkpoint_submitter(tip_tree).await })
-                .instrument(info_span!("TipCheckpointSubmitter")),
+            tokio::spawn(async move {
+                let res = submitter.checkpoint_submitter(tip_tree).await;
+                println!("~~~ CHECKPOINT SUBMITTER RETURNED {:?}", res);
+                Ok(())
+            })
+            .instrument(info_span!("TipCheckpointSubmitter")),
         );
 
         tasks
@@ -368,5 +382,37 @@ impl Validator {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use eyre::bail;
+    use tokio::task;
+    use tracing::{info_span, Instrument};
+
+    use crate::validator::run_all;
+
+    async fn my_task() -> Result<(), eyre::Error> {
+        // Simulating some asynchronous operation
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        // Returning an error for demonstration
+        // eyreErr("An example error".into())
+        bail!("example error")
+    }
+
+    #[tokio::test]
+    async fn main() {
+        let handle = task::spawn(my_task()).instrument(info_span!(""));
+        let res = run_all(vec![handle]).await;
+        // let res = handle.await;
+        println!("Task returned: {:?}", res);
+
+        // // We await on the JoinHandle to get the result
+        // if let Err(err) = handle.await {
+        //     println!("Task returned an error: {}", err);
+        // } else {
+        //     println!("Task completed successfully");
+        // }
     }
 }

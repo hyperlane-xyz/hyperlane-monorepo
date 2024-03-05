@@ -4,7 +4,9 @@ use std::time::{Duration, Instant};
 use std::vec;
 
 use eyre::{bail, Result};
-use hyperlane_core::MerkleTreeHook;
+use hyperlane_core::accumulator::merkle;
+use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
+use hyperlane_core::{ChainCommunicationError, ChainResult, MerkleTreeHook};
 use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::{debug, info};
@@ -64,25 +66,30 @@ impl ValidatorSubmitter {
     pub(crate) async fn backfill_checkpoint_submitter(
         self,
         target_checkpoint: Checkpoint,
-    ) -> Result<()> {
-        let mut tree = IncrementalMerkle::default();
-        self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
-            .await?;
+    ) -> ChainResult<()> {
+        return Err(ChainCommunicationError::CustomError(
+            "Some backfill_checkpoint_submitter error that should be propagated by the validator"
+                .to_string(),
+        ));
+        // let mut tree = IncrementalMerkle::default();
+        // self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
+        //     .await?;
 
-        info!(
-            ?target_checkpoint,
-            "Backfill checkpoint submitter successfully reached target checkpoint"
-        );
+        // info!(
+        //     ?target_checkpoint,
+        //     "Backfill checkpoint submitter successfully reached target checkpoint"
+        // );
 
-        // TODO: remove this once validator is tolerant of tasks exiting.
-        loop {
-            sleep(Duration::from_secs(u64::MAX)).await;
-        }
+        // // TODO: remove this once validator is tolerant of tasks exiting.
+        // loop {
+        //     sleep(Duration::from_secs(u64::MAX)).await;
+        // }
     }
 
     /// Submits signed checkpoints indefinitely, starting from the `tree`.
-    #[instrument(err, skip(self, tree), fields(domain=%self.merkle_tree_hook.domain()))]
-    pub(crate) async fn checkpoint_submitter(self, mut tree: IncrementalMerkle) -> Result<()> {
+    // #[instrument(err, skip(self, tree), fields(domain=%self.merkle_tree_hook.domain()))]
+    pub(crate) async fn checkpoint_submitter(self, mut tree: IncrementalMerkle) {
+        // bail!("Some checkpoint_submitter error that should be propagated by the validator");
         // How often to log checkpoint info - once every minute
         let checkpoint_info_log_period = Duration::from_secs(60);
         // The instant in which we last logged checkpoint info, if at all
@@ -102,10 +109,13 @@ impl ValidatorSubmitter {
 
         loop {
             // Lag by reorg period because this is our correctness checkpoint.
-            let latest_checkpoint = self
-                .merkle_tree_hook
-                .latest_checkpoint(self.reorg_period)
-                .await?;
+            // It's ok to unwrap because
+            let latest_checkpoint = call_and_retry_indefinitely(|| {
+                let merkle_tree_hook = self.merkle_tree_hook.clone();
+                Box::pin(async move { merkle_tree_hook.latest_checkpoint(self.reorg_period).await })
+            })
+            .await;
+
             self.metrics
                 .latest_checkpoint_observed
                 .set(latest_checkpoint.index as i64);
@@ -133,8 +143,20 @@ impl ValidatorSubmitter {
                 continue;
             }
 
-            self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
-                .await?;
+            tree = call_and_retry_indefinitely(|| {
+                let mut tree = tree.clone();
+                let self_clone = self.clone();
+                Box::pin(async move {
+                    self_clone
+                        .submit_checkpoints_until_correctness_checkpoint(
+                            &mut tree,
+                            &latest_checkpoint,
+                        )
+                        .await?;
+                    Ok(tree)
+                })
+            })
+            .await;
 
             self.metrics
                 .latest_checkpoint_processed
@@ -150,7 +172,7 @@ impl ValidatorSubmitter {
         &self,
         tree: &mut IncrementalMerkle,
         correctness_checkpoint: &Checkpoint,
-    ) -> Result<()> {
+    ) -> ChainResult<()> {
         // This should never be called with a tree that is ahead of the correctness checkpoint.
         assert!(
             !tree_exceeds_checkpoint(correctness_checkpoint, tree),
@@ -213,7 +235,9 @@ impl ValidatorSubmitter {
                 ?correctness_checkpoint,
                 "Incorrect tree root, something went wrong"
             );
-            bail!("Incorrect tree root, something went wrong");
+            ChainCommunicationError::CustomError(
+                "Incorrect tree root, something went wrong".to_string(),
+            );
         }
 
         if !checkpoint_queue.is_empty() {
@@ -238,7 +262,7 @@ impl ValidatorSubmitter {
     async fn sign_and_submit_checkpoints(
         &self,
         checkpoints: Vec<CheckpointWithMessageId>,
-    ) -> Result<()> {
+    ) -> ChainResult<()> {
         let last_checkpoint = checkpoints.as_slice()[checkpoints.len() - 1];
 
         for queued_checkpoint in checkpoints {
