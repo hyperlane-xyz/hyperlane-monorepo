@@ -65,18 +65,25 @@ const nativeBridges = {
   },
 };
 
-type L2Chain = (typeof L2Chains)[number];
-const L2Chains = [
-  Chains.arbitrum,
-  Chains.arbitrumgoerli,
+const ArbNitroChains = [Chains.arbitrum, Chains.arbitrumgoerli] as const;
+const OPStackChains = [
   Chains.base,
   Chains.optimism,
   Chains.optimismgoerli,
+] as const;
+const PolygonCDKChains = [
   Chains.polygonzkevm,
   Chains.polygonzkevmtestnet,
-  Chains.scroll,
-  Chains.scrollsepolia,
 ] as const;
+const ScrollZkEvmChains = [Chains.scroll, Chains.scrollsepolia] as const;
+
+type L2Chain = (typeof L2Chains)[number];
+const L2Chains: string[] = [
+  ...ArbNitroChains,
+  ...OPStackChains,
+  ...PolygonCDKChains,
+  ...ScrollZkEvmChains,
+];
 
 const L2ToL1: Record<L2Chain, Chains> = {
   arbitrum: Chains.ethereum,
@@ -542,7 +549,7 @@ class ContextFunder {
   }
 
   private async bridgeIfL2(chain: ChainName) {
-    if (L2Chains.includes(chain as L2Chain)) {
+    if (L2Chains.includes(chain)) {
       const funderAddress = await this.multiProvider.getSignerAddress(chain)!;
       const desiredBalanceEther = ethers.utils.parseUnits(
         this.desiredBalancePerChain[chain],
@@ -701,13 +708,13 @@ class ContextFunder {
       ),
     });
     let tx;
-    if (l2Chain.includes('optimism') || l2Chain.includes('base')) {
+    if ((OPStackChains as readonly string[]).includes(l2Chain)) {
       tx = await this.bridgeToOptimism(l2Chain, amount, to);
-    } else if (l2Chain.includes('arbitrum')) {
+    } else if ((ArbNitroChains as readonly string[]).includes(l2Chain)) {
       tx = await this.bridgeToArbitrum(l2Chain, amount);
-    } else if (l2Chain.includes('scroll')) {
+    } else if ((ScrollZkEvmChains as readonly string[]).includes(l2Chain)) {
       tx = await this.bridgeToScroll(l2Chain, amount, to);
-    } else if (l2Chain.includes('zkevm')) {
+    } else if ((PolygonCDKChains as readonly string[]).includes(l2Chain)) {
       tx = await this.bridgeToPolygonCDK(l2Chain, amount, to);
     } else {
       throw new Error(`${l2Chain} is not an L2`);
