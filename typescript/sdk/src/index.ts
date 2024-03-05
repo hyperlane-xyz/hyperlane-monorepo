@@ -431,7 +431,7 @@ export {
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore';
 export {
-  FeeConstantConfig as IgpQuoteConstants,
+  FeeConstantConfig,
   RouteBlacklist,
   WarpCoreConfig,
   WarpCoreConfigSchema,

@@ -453,9 +453,6 @@ export const injective: ChainMetadata = {
   restUrls: [{ http: 'https://sentry.lcd.injective.network:443' }],
   rpcUrls: [{ http: 'https://sentry.tm.injective.network:443' }],
   slip44: 118,
-  transactionOverrides: {
-    gasPrice: '160000000',
-  },
 };
 
 export const lineagoerli: ChainMetadata = {
