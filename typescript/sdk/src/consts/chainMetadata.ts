@@ -631,7 +631,7 @@ export const neutron: ChainMetadata = {
   rpcUrls: [{ http: 'https://rpc-kralum.neutron-1.neutron.org' }],
   slip44: 118,
   transactionOverrides: {
-    gasPrice: '0.075',
+    gasPrice: '0.0075',
   },
 };
 

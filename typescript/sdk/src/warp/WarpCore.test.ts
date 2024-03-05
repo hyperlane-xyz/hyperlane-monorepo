@@ -79,18 +79,21 @@ describe('WarpCore', () => {
 
     const testQuote = async (
       token: Token,
-      chain: ChainName,
+      destination: ChainName,
       standard: TokenStandard,
       quote: InterchainFeeQuote = MOCK_QUOTE,
     ) => {
-      const result = await warpCore.getInterchainTransferFee(token, chain);
+      const result = await warpCore.getInterchainTransferFee({
+        originToken: token,
+        destination,
+      });
       expect(
         result.token.standard,
-        `token standard check for ${token.chainName} to ${chain}`,
+        `token standard check for ${token.chainName} to ${destination}`,
       ).equals(standard);
       expect(
         result.amount,
-        `token amount check for ${token.chainName} to ${chain}`,
+        `token amount check for ${token.chainName} to ${destination}`,
       ).to.equal(quote.amount);
     };
 
@@ -127,24 +130,24 @@ describe('WarpCore', () => {
 
     const testCollateral = async (
       token: Token,
-      chain: ChainName,
+      destination: ChainName,
       expectedBigResult = true,
     ) => {
-      const smallResult = await warpCore.isDestinationCollateralSufficient(
-        token.amount(TRANSFER_AMOUNT),
-        chain,
-      );
+      const smallResult = await warpCore.isDestinationCollateralSufficient({
+        originTokenAmount: token.amount(TRANSFER_AMOUNT),
+        destination,
+      });
       expect(
         smallResult,
-        `small collateral check for ${token.chainName} to ${chain}`,
+        `small collateral check for ${token.chainName} to ${destination}`,
       ).to.be.true;
-      const bigResult = await warpCore.isDestinationCollateralSufficient(
-        token.amount(BIG_TRANSFER_AMOUNT),
-        chain,
-      );
+      const bigResult = await warpCore.isDestinationCollateralSufficient({
+        originTokenAmount: token.amount(BIG_TRANSFER_AMOUNT),
+        destination,
+      });
       expect(
         bigResult,
-        `big collateral check for ${token.chainName} to ${chain}`,
+        `big collateral check for ${token.chainName} to ${destination}`,
       ).to.equal(expectedBigResult);
     };
 
@@ -168,44 +171,44 @@ describe('WarpCore', () => {
       } as any),
     );
 
-    const validResult = await warpCore.validateTransfer(
-      evmHypNative.amount(TRANSFER_AMOUNT),
-      Chains.arbitrum,
-      ethers.constants.AddressZero,
-      ethers.constants.AddressZero,
-    );
+    const validResult = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+      destination: Chains.arbitrum,
+      recipient: ethers.constants.AddressZero,
+      sender: ethers.constants.AddressZero,
+    });
     expect(validResult).to.be.null;
 
-    const invalidChain = await warpCore.validateTransfer(
-      evmHypNative.amount(TRANSFER_AMOUNT),
-      'fakechain',
-      ethers.constants.AddressZero,
-      ethers.constants.AddressZero,
-    );
+    const invalidChain = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+      destination: 'fakechain',
+      recipient: ethers.constants.AddressZero,
+      sender: ethers.constants.AddressZero,
+    });
     expect(Object.keys(invalidChain || {})[0]).to.equal('destination');
 
-    const invalidRecipient = await warpCore.validateTransfer(
-      evmHypNative.amount(TRANSFER_AMOUNT),
-      Chains.neutron,
-      ethers.constants.AddressZero,
-      ethers.constants.AddressZero,
-    );
+    const invalidRecipient = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+      destination: Chains.neutron,
+      recipient: ethers.constants.AddressZero,
+      sender: ethers.constants.AddressZero,
+    });
     expect(Object.keys(invalidRecipient || {})[0]).to.equal('recipient');
 
-    const invalidAmount = await warpCore.validateTransfer(
-      evmHypNative.amount(-10),
-      Chains.arbitrum,
-      ethers.constants.AddressZero,
-      ethers.constants.AddressZero,
-    );
+    const invalidAmount = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(-10),
+      destination: Chains.arbitrum,
+      recipient: ethers.constants.AddressZero,
+      sender: ethers.constants.AddressZero,
+    });
     expect(Object.keys(invalidAmount || {})[0]).to.equal('amount');
 
-    const insufficientBalance = await warpCore.validateTransfer(
-      evmHypNative.amount(BIG_TRANSFER_AMOUNT),
-      Chains.arbitrum,
-      ethers.constants.AddressZero,
-      ethers.constants.AddressZero,
-    );
+    const insufficientBalance = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),
+      destination: Chains.arbitrum,
+      recipient: ethers.constants.AddressZero,
+      sender: ethers.constants.AddressZero,
+    });
     expect(Object.keys(insufficientBalance || {})[0]).to.equal('amount');
 
     balanceStubs.forEach((s) => s.restore());
@@ -226,19 +229,19 @@ describe('WarpCore', () => {
 
     const testGetTxs = async (
       token: Token,
-      chain: ChainName,
+      destination: ChainName,
       providerType = ProviderType.EthersV5,
     ) => {
-      const result = await warpCore.getTransferRemoteTxs(
-        token.amount(TRANSFER_AMOUNT),
-        chain,
-        ethers.constants.AddressZero,
-        ethers.constants.AddressZero,
-      );
+      const result = await warpCore.getTransferRemoteTxs({
+        originTokenAmount: token.amount(TRANSFER_AMOUNT),
+        destination,
+        sender: ethers.constants.AddressZero,
+        recipient: ethers.constants.AddressZero,
+      });
       expect(result.length).to.equal(1);
       expect(
         result[0],
-        `transfer tx for ${token.chainName} to ${chain}`,
+        `transfer tx for ${token.chainName} to ${destination}`,
       ).to.eql({
         category: WarpTxCategory.Transfer,
         transaction: {},

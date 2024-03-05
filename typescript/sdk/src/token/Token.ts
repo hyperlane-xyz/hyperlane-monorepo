@@ -378,19 +378,39 @@ export class Token implements IToken {
   }
 
   /**
-   * Checks if this token is both:
-   *    1) Of a TokenStandard that uses other tokens as collateral (eg. EvmHypCollateral)
-   *    2) Has a collateralAddressOrDenom address that matches the given token
-   * E.g. ERC20 Token ABC, EvmHypCollateral DEF that wraps ABC, DEF.collateralizes(ABC) === true
+   * Two tokens may not be equal but may still represent the same underlying asset
+   * The cases for this include:
+   *   1) A HypCollateral contract token and its wrapped token (eg. EvmHypCollateral and ERC20)
+   *   2) A HypNative contract and its native currency (eg. EvmHypNative and Ether)
+   *   3) An IBC token and its native equivalent
+   * @returns true if the tokens represent the same underlying asset
    */
-  collateralizes(token?: IToken): boolean {
-    if (!token) return false;
-    if (token.chainName !== this.chainName) return false;
-    if (!TOKEN_COLLATERALIZED_STANDARDS.includes(this.standard)) return false;
-    const isCollateralWrapper =
-      this.collateralAddressOrDenom &&
-      eqAddress(this.collateralAddressOrDenom, token.addressOrDenom);
-    const isNativeWrapper = !this.collateralAddressOrDenom && token.isNative();
-    return isCollateralWrapper || isNativeWrapper;
+  equalsAsset(token?: IToken): boolean {
+    if (!token || token.chainName !== this.chainName) return false;
+
+    if (this.equals(token)) return true;
+
+    if (TOKEN_COLLATERALIZED_STANDARDS.includes(this.standard)) {
+      if (
+        this.collateralAddressOrDenom &&
+        eqAddress(this.collateralAddressOrDenom, token.addressOrDenom)
+      ) {
+        return true;
+      }
+
+      if (!this.collateralAddressOrDenom && token.isNative()) {
+        return true;
+      }
+    }
+
+    if (
+      this.standard === TokenStandard.CosmosIbc &&
+      token.standard === TokenStandard.CosmosNative &&
+      this.addressOrDenom.toLowerCase() === token.addressOrDenom.toLowerCase()
+    ) {
+      return true;
+    }
+
+    return false;
   }
 }

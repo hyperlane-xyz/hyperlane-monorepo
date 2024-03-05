@@ -1,6 +1,12 @@
 import { Debugger, debug } from 'debug';
 
-import { Address, objFilter, objMap, pick } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  objFilter,
+  objMap,
+  pick,
+} from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
@@ -213,19 +219,26 @@ export class MultiProtocolProvider<
     }
   }
 
-  estimateTransactionFee(
-    chainNameOrId: ChainNameOrId,
-    tx: TypedTransaction,
-    sender: Address,
-  ): Promise<TransactionFeeEstimate> {
-    const provider = this.getProvider(chainNameOrId);
+  estimateTransactionFee({
+    chainNameOrId,
+    transaction,
+    sender,
+    senderPubKey,
+  }: {
+    chainNameOrId: ChainNameOrId;
+    transaction: TypedTransaction;
+    sender: Address;
+    senderPubKey?: HexString;
+  }): Promise<TransactionFeeEstimate> {
+    const provider = this.getProvider(chainNameOrId, transaction.type);
     const chainMetadata = this.getChainMetadata(chainNameOrId);
-    return estimateTransactionFee(
-      tx,
+    return estimateTransactionFee({
+      transaction,
       provider,
+      chainMetadata,
       sender,
-      chainMetadata.transactionOverrides,
-    );
+      senderPubKey,
+    });
   }
 
   override intersect(

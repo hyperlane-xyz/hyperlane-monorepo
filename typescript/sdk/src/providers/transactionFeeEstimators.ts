@@ -1,11 +1,15 @@
-import { SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
+import { encodeSecp256k1Pubkey } from '@cosmjs/amino';
+import { wasmTypes } from '@cosmjs/cosmwasm-stargate';
 import { toUtf8 } from '@cosmjs/encoding';
-import { DirectSecp256k1HdWallet } from '@cosmjs/proto-signing';
-import { SigningStargateClient } from '@cosmjs/stargate';
+import { Uint53 } from '@cosmjs/math';
+import { Registry } from '@cosmjs/proto-signing';
+import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx';
 import { BigNumber } from 'ethers';
 
-import { Address, Numberish, assert } from '@hyperlane-xyz/utils';
+import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
+
+import { ChainMetadata } from '../metadata/chainMetadataTypes';
 
 import {
   CosmJsProvider,
@@ -29,16 +33,20 @@ export interface TransactionFeeEstimate {
   fee: number | bigint;
 }
 
-export async function estimateTransactionFeeEthersV5(
-  typedTx: EthersV5Transaction,
-  typedProvider: EthersV5Provider,
-  sender: Address,
-): Promise<TransactionFeeEstimate> {
-  const gasUnits = await typedProvider.provider.estimateGas({
-    ...typedTx.transaction,
+export async function estimateTransactionFeeEthersV5({
+  transaction,
+  provider,
+  sender,
+}: {
+  transaction: EthersV5Transaction;
+  provider: EthersV5Provider;
+  sender: Address;
+}): Promise<TransactionFeeEstimate> {
+  const gasUnits = await provider.provider.estimateGas({
+    ...transaction.transaction,
     from: sender,
   });
-  const feeData = await typedProvider.provider.getFeeData();
+  const feeData = await provider.provider.getFeeData();
   let gasPrice: BigNumber;
   if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
     gasPrice = feeData.maxFeePerGas.add(feeData.maxPriorityFeePerGas);
@@ -54,17 +62,21 @@ export async function estimateTransactionFeeEthersV5(
   };
 }
 
-export async function estimateTransactionFeeViem(
-  typedTx: ViemTransaction,
-  typedProvider: ViemProvider,
-  sender: Address,
-): Promise<TransactionFeeEstimate> {
-  const gasUnits = await typedProvider.provider.estimateGas({
-    ...typedTx.transaction,
+export async function estimateTransactionFeeViem({
+  transaction,
+  provider,
+  sender,
+}: {
+  transaction: ViemTransaction;
+  provider: ViemProvider;
+  sender: Address;
+}): Promise<TransactionFeeEstimate> {
+  const gasUnits = await provider.provider.estimateGas({
+    ...transaction.transaction,
     blockNumber: undefined,
     account: sender as `0x${string}`,
   });
-  const feeData = await typedProvider.provider.estimateFeesPerGas();
+  const feeData = await provider.provider.estimateFeesPerGas();
   let gasPrice: bigint;
   if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
     gasPrice = feeData.maxFeePerGas + feeData.maxPriorityFeePerGas;
@@ -80,12 +92,17 @@ export async function estimateTransactionFeeViem(
   };
 }
 
-export async function estimateTransactionFeeSolanaWeb3(
-  typedTx: SolanaWeb3Transaction,
-  typedProvider: SolanaWeb3Provider,
-): Promise<TransactionFeeEstimate> {
-  const connection = typedProvider.provider;
-  const { value } = await connection.simulateTransaction(typedTx.transaction);
+export async function estimateTransactionFeeSolanaWeb3({
+  provider,
+  transaction,
+}: {
+  transaction: SolanaWeb3Transaction;
+  provider: SolanaWeb3Provider;
+}): Promise<TransactionFeeEstimate> {
+  const connection = provider.provider;
+  const { value } = await connection.simulateTransaction(
+    transaction.transaction,
+  );
   assert(!value.err, `Solana gas estimation failed: ${value.err}`);
   const gasUnits = BigInt(value.unitsConsumed || 0);
   const recentFees = await connection.getRecentPrioritizationFees();
@@ -97,112 +114,143 @@ export async function estimateTransactionFeeSolanaWeb3(
   };
 }
 
-export async function estimateTransactionFeeCosmJs(
-  typedTx: CosmJsTransaction,
-  typedProvider: CosmJsProvider,
-  estimatedGasPrice: Numberish,
-): Promise<TransactionFeeEstimate> {
-  // @ts-ignore access a private field here to extract client URL
-  const url: string = typedProvider.provider.tmClient.client.url;
-  const randomWallet = await DirectSecp256k1HdWallet.generate();
-  const randomAddress = (await randomWallet.getAccounts())[0].address;
-  const signingClient = await SigningStargateClient.connectWithSigner(
-    url,
-    randomWallet,
-  );
-  const gasUnits = await signingClient.simulate(
-    randomAddress,
-    [typedTx.transaction],
-    undefined,
-  );
+export async function estimateTransactionFeeCosmJs({
+  transaction,
+  provider,
+  estimatedGasPrice,
+  sender,
+  senderPubKey,
+  memo,
+}: {
+  transaction: CosmJsTransaction;
+  provider: CosmJsProvider;
+  estimatedGasPrice: Numberish;
+  sender: Address;
+  senderPubKey: HexString;
+  memo?: string;
+}): Promise<TransactionFeeEstimate> {
+  const stargateClient = await provider.provider;
+  const message = transaction.transaction;
+  const registry = new Registry([...defaultRegistryTypes, ...wasmTypes]);
+  const encodedMsg = registry.encodeAsAny(message);
+  const encodedPubkey = encodeSecp256k1Pubkey(Buffer.from(senderPubKey, 'hex'));
+  const { sequence } = await stargateClient.getSequence(sender);
+  const { gasInfo } = await stargateClient
+    // @ts-ignore force access to protected method
+    .forceGetQueryClient()
+    .tx.simulate([encodedMsg], memo, encodedPubkey, sequence);
+  assert(gasInfo, 'Gas estimation failed');
+  const gasUnits = Uint53.fromString(gasInfo.gasUsed.toString()).toNumber();
+
   const gasPrice = parseFloat(estimatedGasPrice.toString());
 
-  // Note: there's no way to fetch gas prices on Cosmos so we rely on
-  // the estimate value arg in which typically comes from the ChainMetadata
   return {
     gasUnits,
     gasPrice,
-    fee: gasUnits * gasPrice,
+    fee: Math.floor(gasUnits * gasPrice),
   };
 }
 
-// TODO DRY up with fn above
-export async function estimateTransactionFeeCosmJsWasm(
-  typedTx: CosmJsWasmTransaction,
-  typedProvider: CosmJsWasmProvider,
-  estimatedGasPrice: Numberish,
-): Promise<TransactionFeeEstimate> {
-  // @ts-ignore access a private field here to extract client URL
-  const url: string = typedProvider.provider.tmClient.client.url;
-  const randomWallet = await DirectSecp256k1HdWallet.generate();
-  const randomAddress = (await randomWallet.getAccounts())[0].address;
-  const signingClient = await SigningCosmWasmClient.connectWithSigner(
-    url,
-    randomWallet,
-  );
+export async function estimateTransactionFeeCosmJsWasm({
+  transaction,
+  provider,
+  estimatedGasPrice,
+  sender,
+  senderPubKey,
+  memo,
+}: {
+  transaction: CosmJsWasmTransaction;
+  provider: CosmJsWasmProvider;
+  estimatedGasPrice: Numberish;
+  sender: Address;
+  senderPubKey: HexString;
+  memo?: string;
+}): Promise<TransactionFeeEstimate> {
   const message = {
     typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
     value: MsgExecuteContract.fromPartial({
-      sender: randomAddress,
-      contract: typedTx.transaction.contractAddress,
-      msg: toUtf8(JSON.stringify(typedTx.transaction.msg)),
-      funds: [...(typedTx.transaction.funds || [])],
+      sender,
+      contract: transaction.transaction.contractAddress,
+      msg: toUtf8(JSON.stringify(transaction.transaction.msg)),
+      funds: [...(transaction.transaction.funds || [])],
     }),
   };
-  const gasUnits = await signingClient.simulate(
-    randomAddress,
-    [message],
-    undefined,
-  );
-  const gasPrice = parseFloat(estimatedGasPrice.toString());
+  const wasmClient = await provider.provider;
+  // @ts-ignore access a private field here to extract client URL
+  const url: string = wasmClient.tmClient.client.url;
+  const stargateClient = StargateClient.connect(url);
 
-  // Note: there's no way to fetch gas prices on Cosmos so we rely on
-  // the estimate value arg in which typically comes from the ChainMetadata
-  return {
-    gasUnits,
-    gasPrice,
-    fee: gasUnits * gasPrice,
-  };
+  return estimateTransactionFeeCosmJs({
+    transaction: { type: ProviderType.CosmJs, transaction: message },
+    provider: { type: ProviderType.CosmJs, provider: stargateClient },
+    estimatedGasPrice,
+    sender,
+    senderPubKey,
+    memo,
+  });
 }
 
-export function estimateTransactionFee(
-  tx: TypedTransaction,
-  provider: TypedProvider,
-  sender: Address,
-  txOverrides?: Record<string, unknown>,
-): Promise<TransactionFeeEstimate> {
+export function estimateTransactionFee({
+  transaction,
+  provider,
+  chainMetadata,
+  sender,
+  senderPubKey,
+}: {
+  transaction: TypedTransaction;
+  provider: TypedProvider;
+  chainMetadata: ChainMetadata;
+  sender: Address;
+  senderPubKey?: HexString;
+}): Promise<TransactionFeeEstimate> {
   if (
-    tx.type === ProviderType.EthersV5 &&
+    transaction.type === ProviderType.EthersV5 &&
     provider.type === ProviderType.EthersV5
   ) {
-    return estimateTransactionFeeEthersV5(tx, provider, sender);
+    return estimateTransactionFeeEthersV5({ transaction, provider, sender });
   } else if (
-    tx.type === ProviderType.Viem &&
+    transaction.type === ProviderType.Viem &&
     provider.type === ProviderType.Viem
   ) {
-    return estimateTransactionFeeViem(tx, provider, sender);
+    return estimateTransactionFeeViem({ transaction, provider, sender });
   } else if (
-    tx.type === ProviderType.SolanaWeb3 &&
+    transaction.type === ProviderType.SolanaWeb3 &&
     provider.type === ProviderType.SolanaWeb3
   ) {
-    return estimateTransactionFeeSolanaWeb3(tx, provider);
+    return estimateTransactionFeeSolanaWeb3({ transaction, provider });
   } else if (
-    tx.type === ProviderType.CosmJs &&
+    transaction.type === ProviderType.CosmJs &&
     provider.type === ProviderType.CosmJs
   ) {
-    const gasPrice = txOverrides?.gasPrice as Numberish;
-    assert(gasPrice, 'gasPrice required for CosmJS gas estimation');
-    return estimateTransactionFeeCosmJs(tx, provider, gasPrice);
+    const { transactionOverrides } = chainMetadata;
+    const estimatedGasPrice = transactionOverrides?.gasPrice as Numberish;
+    assert(estimatedGasPrice, 'gasPrice required for CosmJS gas estimation');
+    assert(senderPubKey, 'senderPubKey required for CosmJS gas estimation');
+    return estimateTransactionFeeCosmJs({
+      transaction,
+      provider,
+      estimatedGasPrice,
+      sender,
+      senderPubKey,
+    });
   } else if (
-    tx.type === ProviderType.CosmJsWasm &&
+    transaction.type === ProviderType.CosmJsWasm &&
     provider.type === ProviderType.CosmJsWasm
   ) {
-    const gasPrice = txOverrides?.gasPrice as Numberish;
-    assert(gasPrice, 'gasPrice required for CosmJsWasm gas estimation');
-    return estimateTransactionFeeCosmJsWasm(tx, provider, gasPrice);
+    const { transactionOverrides } = chainMetadata;
+    const estimatedGasPrice = transactionOverrides?.gasPrice as Numberish;
+    assert(estimatedGasPrice, 'gasPrice required for CosmJS gas estimation');
+    assert(senderPubKey, 'senderPubKey required for CosmJS gas estimation');
+    return estimateTransactionFeeCosmJsWasm({
+      transaction,
+      provider,
+      estimatedGasPrice,
+      sender,
+      senderPubKey,
+    });
   } else {
     throw new Error(
-      `Unsupported transaction type ${tx.type} or provider type ${provider.type} for gas estimation`,
+      `Unsupported transaction type ${transaction.type} or provider type ${provider.type} for gas estimation`,
     );
   }
 }
