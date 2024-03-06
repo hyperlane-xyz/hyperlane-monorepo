@@ -130,7 +130,8 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '54aeb64-20240206-163119',
+      // Just prior to Cosmos block-by-block indexing.
+      tag: '02d5549-20240228-203344',
     },
     gasPaymentEnforcement,
     metricAppContexts: [
@@ -149,7 +150,19 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '54aeb64-20240206-163119',
+      tag: 'dd8ac43-20240306-113016',
+    },
+    chainDockerOverrides: {
+      // Because we're still ironing out issues with recent block-by-block indexing
+      // for Cosmos chains, and we want to avoid the regression in https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/3257
+      // that allows validator tasks to silently fail, we use the commit just prior
+      // to 3257.
+      [Chains.injective]: {
+        tag: '02e64c9-20240214-170702',
+      },
+      [Chains.neutron]: {
+        tag: '02e64c9-20240214-170702',
+      },
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -208,7 +221,8 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '54aeb64-20240206-163119',
+      // Just prior to Cosmos block-by-block indexing.
+      tag: '02d5549-20240228-203344',
     },
     gasPaymentEnforcement: [
       {
