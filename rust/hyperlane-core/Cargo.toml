@@ -26,6 +26,7 @@ ethers-core = { workspace = true, optional = true }
 ethers-providers = { workspace = true, optional = true }
 eyre.workspace = true
 fixed-hash.workspace = true
+futures = { workspace = true, optional = true }
 getrandom.workspace = true
 hex.workspace = true
 itertools.workspace = true
@@ -55,4 +56,4 @@ agent = ["ethers", "strum"]
 strum = ["dep:strum"]
 ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers", "dep:primitive-types"]
 solana = ["dep:solana-sdk"]
-fallback-provider = ["tokio"]
+async = ["tokio", "futures"]

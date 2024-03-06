@@ -23,6 +23,8 @@ import type {
   TransactionReceipt as VTransactionReceipt,
 } from 'viem';
 
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
   // EthersV6 = 'ethers-v6', Disabled for now to simplify build tooling
@@ -30,7 +32,19 @@ export enum ProviderType {
   SolanaWeb3 = 'solana-web3',
   CosmJs = 'cosmjs',
   CosmJsWasm = 'cosmjs-wasm',
+  // TODO fuel provider types not yet defined below
+  Fuel = 'fuel',
 }
+
+export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
+  ProtocolType,
+  ProviderType
+> = {
+  [ProtocolType.Ethereum]: ProviderType.EthersV5,
+  [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
+  [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
+  [ProtocolType.Fuel]: ProviderType.Fuel,
+};
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
 
@@ -172,7 +186,7 @@ export interface CosmJsTransaction extends TypedTransactionBase<CmTransaction> {
 
 export interface CosmJsWasmTransaction
   extends TypedTransactionBase<ExecuteInstruction> {
-  type: ProviderType.CosmJs;
+  type: ProviderType.CosmJsWasm;
   transaction: ExecuteInstruction;
 }
 

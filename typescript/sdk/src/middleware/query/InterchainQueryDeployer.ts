@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 
+import { ContractVerifier } from '../../deploy/verify/ContractVerifier';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
 import { RouterConfig } from '../../router/types';
@@ -18,8 +19,13 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
 > {
   readonly routerContractName = 'interchainQueryRouter';
 
-  constructor(multiProvider: MultiProvider) {
-    super(multiProvider, interchainQueryFactories);
+  constructor(
+    multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
+  ) {
+    super(multiProvider, interchainQueryFactories, {
+      contractVerifier,
+    });
   }
 
   async constructorArgs(_: string, config: RouterConfig): Promise<[string]> {

@@ -26,6 +26,9 @@ pub enum HyperlaneCosmosError {
     #[error("{0}")]
     /// Cosmrs Tendermint Error
     CosmrsTendermintError(#[from] cosmrs::tendermint::Error),
+    #[error("{0}")]
+    /// CosmWasm Error
+    CosmWasmError(#[from] cosmwasm_std::StdError),
     /// Tonic error
     #[error("{0}")]
     Tonic(#[from] tonic::transport::Error),

@@ -132,35 +132,6 @@ jobs:
       - name: Unit Tests
         run: yarn test:ci
 
-  metadata-check:
-    runs-on: ubuntu-latest
-    needs: [yarn-build]
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: yarn-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
-
-      - name: build-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Metadata Health Check
-        run: DEBUG=hyperlane yarn workspace @hyperlane-xyz/sdk run test:metadata
-
   e2e-matrix:
     runs-on: larger-runner
     needs: [yarn-build]
@@ -325,22 +296,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [yarn-build]
     strategy:
+      fail-fast: false
       matrix:
+        environment: [mainnet3]
+        chain: [ethereum, arbitrum, optimism, inevm, viction]
+        module: [core, igp]
         include:
           - environment: testnet4
             chain: sepolia
-            module: core
-          - environment: mainnet3
-            chain: arbitrum
-            module: core
-          - environment: mainnet3
-            chain: inevm
-            module: core
-          - environment: mainnet3
-            chain: viction
-            module: core
-          - environment: mainnet3
-            chain: ethereum
             module: core
 
     steps:

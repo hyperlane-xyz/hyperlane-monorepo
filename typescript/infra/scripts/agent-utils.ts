@@ -69,7 +69,7 @@ export function getArgs() {
 export function withModuleAndFork<T>(args: yargs.Argv<T>) {
   return args
     .choices('module', Object.values(Modules))
-    .demandOption('module')
+    .demandOption('module', 'hyperlane module to deploy')
     .alias('m', 'module')
     .describe('fork', 'network to fork')
     .choices('fork', Object.values(Chains))
@@ -88,6 +88,7 @@ export function withContext<T>(args: yargs.Argv<T>) {
     .describe('context', 'deploy context')
     .default('context', Contexts.Hyperlane)
     .coerce('context', assertContext)
+    .alias('x', 'context')
     .demandOption('context');
 }
 
@@ -131,6 +132,13 @@ export function withMissingChains<T>(args: yargs.Argv<T>) {
     .describe('newChains', 'new chains to add')
     .string('newChains')
     .alias('n', 'newChains');
+}
+
+export function withBuildArtifactPath<T>(args: yargs.Argv<T>) {
+  return args
+    .describe('buildArtifactPath', 'path to hardhat build artifact')
+    .string('buildArtifactPath')
+    .alias('b', 'buildArtifactPath');
 }
 
 export function assertEnvironment(env: string): DeployEnvironment {
@@ -355,6 +363,10 @@ export function getAddresses(environment: DeployEnvironment, module: Modules) {
 
 export function getAgentConfigDirectory() {
   return path.join('../../', 'rust', 'config');
+}
+
+export function getAgentConfigJsonPath(environment: DeployEnvironment) {
+  return path.join(getAgentConfigDirectory(), `${environment}_config.json`);
 }
 
 export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {

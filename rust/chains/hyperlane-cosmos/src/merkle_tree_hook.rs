@@ -2,14 +2,15 @@ use std::{fmt::Debug, num::NonZeroU64, ops::RangeInclusive, str::FromStr};
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use cosmrs::tendermint::abci::EventAttribute;
+use futures::future;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
     Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256,
 };
 use once_cell::sync::Lazy;
-use tracing::instrument;
+use tendermint::abci::EventAttribute;
+use tracing::{instrument, warn};
 
 use crate::{
     grpc::WasmProvider,
@@ -25,7 +26,7 @@ use crate::{
     ConnectionConf, CosmosProvider, HyperlaneCosmosError, Signer,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// A reference to a MerkleTreeHook contract on some Cosmos chain
 pub struct CosmosMerkleTreeHook {
     /// Domain
@@ -184,7 +185,7 @@ const MESSAGE_ID_ATTRIBUTE_KEY: &str = "message_id";
 pub(crate) static MESSAGE_ID_ATTRIBUTE_KEY_BASE64: Lazy<String> =
     Lazy::new(|| BASE64.encode(MESSAGE_ID_ATTRIBUTE_KEY));
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// A reference to a MerkleTreeHookIndexer contract on some Cosmos chain
 pub struct CosmosMerkleTreeHookIndexer {
     /// The CosmosMerkleTreeHook
@@ -217,6 +218,7 @@ impl CosmosMerkleTreeHookIndexer {
         })
     }
 
+    #[instrument(err)]
     fn merkle_tree_insertion_parser(
         attrs: &Vec<EventAttribute>,
     ) -> ChainResult<ParsedEvent<MerkleTreeInsertion>> {
@@ -285,10 +287,33 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(MerkleTreeInsertion, LogMeta)>> {
-        let result = self
-            .indexer
-            .get_range_event_logs(range, Self::merkle_tree_insertion_parser)
-            .await?;
+        let logs_futures: Vec<_> = range
+            .map(|block_number| {
+                let self_clone = self.clone();
+                tokio::spawn(async move {
+                    let logs = self_clone
+                        .indexer
+                        .get_logs_in_block(block_number, Self::merkle_tree_insertion_parser)
+                        .await;
+                    (logs, block_number)
+                })
+            })
+            .collect();
+
+        // TODO: this can be refactored when we rework indexing, to be part of the block-by-block indexing
+        let result = future::join_all(logs_futures)
+            .await
+            .into_iter()
+            .flatten()
+            .filter_map(|(logs_res, block_number)| match logs_res {
+                Ok(logs) => Some(logs),
+                Err(err) => {
+                    warn!(?err, ?block_number, "Failed to fetch logs for block");
+                    None
+                }
+            })
+            .flatten()
+            .collect();
 
         Ok(result)
     }
@@ -335,7 +360,6 @@ impl TryInto<MerkleTreeInsertion> for IncompleteMerkleTreeInsertion {
 
 #[cfg(test)]
 mod tests {
-    use cosmrs::tendermint::abci::EventAttribute;
     use hyperlane_core::H256;
     use std::str::FromStr;
 
