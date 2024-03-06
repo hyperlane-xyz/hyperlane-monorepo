@@ -119,6 +119,8 @@ impl CosmosInterchainGasPaymasterIndexer {
         let mut contract_address: Option<String> = None;
         let mut gas_payment = IncompleteInterchainGasPayment::default();
 
+        println!("~~~ parsing gas payment: {:?}", attrs);
+
         for attr in attrs {
             let key = attr.key.as_str();
             let value = attr.value.as_str();
@@ -212,7 +214,11 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
                 tokio::spawn(async move {
                     let logs = self_clone
                         .indexer
-                        .get_logs_in_block(block_number, Self::interchain_gas_payment_parser)
+                        .get_logs_in_block(
+                            block_number,
+                            Self::interchain_gas_payment_parser,
+                            "InterchainGasPaymentLabel",
+                        )
                         .await;
                     (logs, block_number)
                 })

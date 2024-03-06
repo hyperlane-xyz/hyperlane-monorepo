@@ -3,6 +3,7 @@ use cosmrs::rpc::client::Client;
 use futures::Future;
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, U256};
 use sha256::digest;
+use std::fmt::Debug;
 use std::pin::Pin;
 use std::time::Duration;
 use tendermint::abci::{Event, EventAttribute};
@@ -12,7 +13,7 @@ use tendermint_rpc::endpoint::block::Response as BlockResponse;
 use tendermint_rpc::endpoint::block_results::Response as BlockResultsResponse;
 use tendermint_rpc::HttpClient;
 use tokio::time::sleep;
-use tracing::{debug, instrument, trace};
+use tracing::{debug, info, instrument, trace};
 
 use crate::address::CosmosAddress;
 use crate::{ConnectionConf, CosmosProvider, HyperlaneCosmosError};
@@ -31,9 +32,10 @@ pub trait WasmIndexer: Send + Sync {
         &self,
         block_number: u32,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
+        parser_label: &'static str,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
-        T: Send + Sync + PartialEq + 'static;
+        T: Send + Sync + PartialEq + Debug + 'static;
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -150,10 +152,12 @@ impl CosmosWasmIndexer {
         block: BlockResponse,
         block_results: BlockResultsResponse,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
+        parser_label: &'static str,
     ) -> Vec<(T, LogMeta)>
     where
-        T: PartialEq + 'static,
+        T: PartialEq + Debug + 'static,
     {
+        info!(tx_results=?block_results.txs_results, ?parser_label, "~~~ Handling txs");
         let Some(tx_results) = block_results.txs_results else {
             return vec![];
         };
@@ -171,7 +175,7 @@ impl CosmosWasmIndexer {
             })
             .collect();
 
-        tx_results
+        let parsed_txs = tx_results
             .into_iter()
             .enumerate()
             .filter_map(move |(idx, tx)| {
@@ -186,7 +190,9 @@ impl CosmosWasmIndexer {
                 Some(self.handle_tx(block.clone(), tx.events, *tx_hash, idx, parser))
             })
             .flatten()
-            .collect()
+            .collect();
+        info!(?parsed_txs, "~~~ Parsed txs");
+        parsed_txs
     }
 
     // Iter through all events in the tx, looking for any target events
@@ -260,11 +266,13 @@ impl WasmIndexer for CosmosWasmIndexer {
         &self,
         block_number: u32,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
+        parser_label: &'static str,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
-        T: Send + Sync + PartialEq + 'static,
+        T: Send + Sync + PartialEq + Debug + 'static,
     {
         let client = self.provider.rpc().clone();
+        info!(?block_number, ?parser_label, "~~~ Getting logs in block");
 
         let (block_res, block_results_res) = tokio::join!(
             Self::call_with_retry(|| { Box::pin(Self::get_block(client.clone(), block_number)) }),
@@ -275,6 +283,6 @@ impl WasmIndexer for CosmosWasmIndexer {
         let block = block_res.map_err(ChainCommunicationError::from_other)?;
         let block_results = block_results_res.map_err(ChainCommunicationError::from_other)?;
 
-        Ok(self.handle_txs(block, block_results, parser))
+        Ok(self.handle_txs(block, block_results, parser, parser_label))
     }
 }

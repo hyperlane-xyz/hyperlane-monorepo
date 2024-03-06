@@ -361,7 +361,11 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
                 tokio::spawn(async move {
                     let logs = self_clone
                         .indexer
-                        .get_logs_in_block(block_number, Self::hyperlane_message_parser)
+                        .get_logs_in_block(
+                            block_number,
+                            Self::hyperlane_message_parser,
+                            "HyperlaneMessageLabel",
+                        )
                         .await;
                     (logs, block_number)
                 })

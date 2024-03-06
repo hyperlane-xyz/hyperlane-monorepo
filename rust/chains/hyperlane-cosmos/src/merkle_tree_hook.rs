@@ -293,7 +293,11 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
                 tokio::spawn(async move {
                     let logs = self_clone
                         .indexer
-                        .get_logs_in_block(block_number, Self::merkle_tree_insertion_parser)
+                        .get_logs_in_block(
+                            block_number,
+                            Self::merkle_tree_insertion_parser,
+                            "MerkleTreeInsertionLabel",
+                        )
                         .await;
                     (logs, block_number)
                 })
