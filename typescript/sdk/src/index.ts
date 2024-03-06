@@ -368,9 +368,9 @@ export {
   EvmTokenAdapter,
 } from './token/adapters/EvmTokenAdapter';
 export {
-  InterchainFeeQuote as AdapterInterchainGasQuote,
   IHypTokenAdapter,
   ITokenAdapter,
+  InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
 } from './token/adapters/ITokenAdapter';

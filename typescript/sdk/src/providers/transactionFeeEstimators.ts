@@ -114,6 +114,10 @@ export async function estimateTransactionFeeSolanaWeb3({
   };
 }
 
+// This is based on a reverse-engineered version of the
+// SigningStargateClient's simulate function. It cannot be
+// used here because it requires access to the private key.
+// https://github.com/cosmos/cosmjs/issues/1568
 export async function estimateTransactionFeeCosmJs({
   transaction,
   provider,

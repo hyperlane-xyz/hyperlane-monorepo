@@ -135,7 +135,7 @@ export class WarpCore {
         destinationName,
       );
       const destinationDomainId = this.multiProvider.getDomainId(destination);
-      const quote = await hypAdapter.quoteTransferRemoteFee(
+      const quote = await hypAdapter.quoteTransferRemoteGas(
         destinationDomainId,
       );
       gasAmount = BigInt(quote.amount);
@@ -168,11 +168,13 @@ export class WarpCore {
     destination,
     sender,
     senderPubKey,
+    interchainFee,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
     senderPubKey?: HexString;
+    interchainFee?: TokenAmount;
   }): Promise<TransactionFeeEstimate> {
     const originMetadata = this.multiProvider.getChainMetadata(
       originToken.chainName,
@@ -205,6 +207,7 @@ export class WarpCore {
       destination,
       sender,
       recipient,
+      interchainFee,
     });
 
     if (txs.length === 1) {
@@ -244,11 +247,13 @@ export class WarpCore {
     destination,
     sender,
     recipient,
+    interchainFee,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
+    interchainFee?: TokenAmount;
   }): Promise<Array<WarpTypedTransaction>> {
     const transactions: Array<WarpTypedTransaction> = [];
 
@@ -274,10 +279,12 @@ export class WarpCore {
       transactions.push(approveTx);
     }
 
-    const interchainGasAmount = await this.getInterchainTransferFee({
-      originToken: token,
-      destination,
-    });
+    if (!interchainFee) {
+      interchainFee = await this.getInterchainTransferFee({
+        originToken: token,
+        destination,
+      });
+    }
 
     const transferTxReq = await hypAdapter.populateTransferRemoteTx({
       weiAmountOrId: amount.toString(),
@@ -285,8 +292,8 @@ export class WarpCore {
       fromAccountOwner: sender,
       recipient,
       interchainGas: {
-        amount: interchainGasAmount.amount,
-        addressOrDenom: interchainGasAmount.token.addressOrDenom,
+        amount: interchainFee.amount,
+        addressOrDenom: interchainFee.token.addressOrDenom,
       },
     });
     this.logger(`Remote transfer tx for ${token.symbol} populated`);
@@ -317,6 +324,13 @@ export class WarpCore {
   }): Promise<WarpCoreFeeEstimate> {
     this.logger('Fetching remote transfer fee estimates');
 
+    // First get interchain gas quote (aka IGP quote)
+    // Start with this because it's used in the local fee estimation
+    const interchainQuote = await this.getInterchainTransferFee({
+      originToken,
+      destination,
+    });
+
     const originMetadata = this.multiProvider.getChainMetadata(
       originToken.chainName,
     );
@@ -324,24 +338,19 @@ export class WarpCore {
     if (!originMetadata.nativeToken)
       throw new Error(`No native token found for ${originMetadata.name}`);
 
-    // First, get the local gas quote
+    // Next, get the local gas quote
     const localFee = await this.getLocalTransferFee({
       originToken,
       destination,
       sender,
       senderPubKey,
+      interchainFee: interchainQuote,
     });
 
     // Get the local gas token. This assumes the chain's native token will pay for local gas
     // This will need to be smarter if more complex scenarios on Cosmos are supported
     const localGasToken = Token.FromChainMetadataNativeToken(originMetadata);
     const localQuote = localGasToken.amount(localFee.fee);
-
-    // Next, get interchain gas quote (aka IGP quote)
-    const interchainQuote = await this.getInterchainTransferFee({
-      originToken,
-      destination,
-    });
 
     return {
       interchainQuote,

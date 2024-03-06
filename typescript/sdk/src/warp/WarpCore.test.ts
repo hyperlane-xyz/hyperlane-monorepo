@@ -11,13 +11,14 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
 import { ProviderType } from '../providers/ProviderType';
 import { Token } from '../token/Token';
 import { TokenStandard } from '../token/TokenStandard';
-import { InterchainFeeQuote } from '../token/adapters/ITokenAdapter';
+import { InterchainGasQuote } from '../token/adapters/ITokenAdapter';
 import { ChainName } from '../types';
 
 import { WarpCore } from './WarpCore';
 import { WarpTxCategory } from './types';
 
-const MOCK_QUOTE = { amount: 20_000n };
+const MOCK_LOCAL_QUOTE = { gasUnits: 2_000n, gasPrice: 100, fee: 200_000n };
+const MOCK_INTERCHAIN_QUOTE = { amount: 20_000n };
 const TRANSFER_AMOUNT = BigInt('1000000000000000000'); // 1 units @ 18 decimals
 const BIG_TRANSFER_AMOUNT = BigInt('100000000000000000000'); // 100 units @ 18 decimals
 const MOCK_BALANCE = BigInt('10000000000000000000'); // 10 units @ 18 decimals
@@ -31,6 +32,11 @@ describe('WarpCore', () => {
   let cwHypCollateral: Token;
   let cw20: Token;
   let cosmosIbc: Token;
+
+  // Stub MultiProvider fee estimation to avoid real network calls
+  sinon
+    .stub(multiProvider, 'estimateTransactionFee')
+    .returns(Promise.resolve(MOCK_LOCAL_QUOTE));
 
   it('Constructs', () => {
     const fromArgs = new WarpCore(multiProvider, [
@@ -73,7 +79,9 @@ describe('WarpCore', () => {
   it('Gets transfer gas quote', async () => {
     const stubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
-        quoteGasPayment: () => Promise.resolve(MOCK_QUOTE),
+        quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
+        isApproveRequired: () => Promise.resolve(false),
+        populateTransferRemoteTx: () => Promise.resolve({}),
       } as any),
     );
 
@@ -81,20 +89,29 @@ describe('WarpCore', () => {
       token: Token,
       destination: ChainName,
       standard: TokenStandard,
-      quote: InterchainFeeQuote = MOCK_QUOTE,
+      interchainQuote: InterchainGasQuote = MOCK_INTERCHAIN_QUOTE,
     ) => {
-      const result = await warpCore.getInterchainTransferFee({
+      const result = await warpCore.estimateTransferRemoteFees({
         originToken: token,
         destination,
+        sender: ethers.constants.AddressZero,
       });
       expect(
-        result.token.standard,
-        `token standard check for ${token.chainName} to ${destination}`,
+        result.localQuote.token.standard,
+        `token local standard check for ${token.chainName} to ${destination}`,
       ).equals(standard);
       expect(
-        result.amount,
-        `token amount check for ${token.chainName} to ${destination}`,
-      ).to.equal(quote.amount);
+        result.localQuote.amount,
+        `token local amount check for ${token.chainName} to ${destination}`,
+      ).to.equal(MOCK_LOCAL_QUOTE.fee);
+      expect(
+        result.interchainQuote.token.standard,
+        `token interchain standard check for ${token.chainName} to ${destination}`,
+      ).equals(standard);
+      expect(
+        result.interchainQuote.amount,
+        `token interchain amount check for ${token.chainName} to ${destination}`,
+      ).to.equal(interchainQuote.amount);
     };
 
     await testQuote(evmHypNative, Chains.arbitrum, TokenStandard.EvmNative);
@@ -167,7 +184,9 @@ describe('WarpCore', () => {
     );
     const quoteStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
-        quoteGasPayment: () => Promise.resolve(MOCK_QUOTE),
+        quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
+        isApproveRequired: () => Promise.resolve(false),
+        populateTransferRemoteTx: () => Promise.resolve({}),
       } as any),
     );
 
@@ -222,7 +241,7 @@ describe('WarpCore', () => {
 
     const adapterStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
-        quoteGasPayment: () => Promise.resolve(MOCK_QUOTE),
+        quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
         populateTransferRemoteTx: () => Promise.resolve({}),
       } as any),
     );

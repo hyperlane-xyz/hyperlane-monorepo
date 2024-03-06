@@ -26,7 +26,7 @@ import { MinimalTokenMetadata } from '../config';
 import {
   IHypTokenAdapter,
   ITokenAdapter,
-  InterchainFeeQuote,
+  InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter';
@@ -185,9 +185,9 @@ export class EvmHypSyntheticAdapter
     return domains.map((d, i) => ({ domain: d, address: routers[i] }));
   }
 
-  async quoteTransferRemoteFee(
+  async quoteTransferRemoteGas(
     destination: Domain,
-  ): Promise<InterchainFeeQuote> {
+  ): Promise<InterchainGasQuote> {
     const gasPayment = await this.contract.quoteGasPayment(destination);
     // If EVM hyp contracts eventually support alternative IGP tokens,
     // this would need to determine the correct token address
@@ -201,7 +201,7 @@ export class EvmHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteFee(destination);
+      interchainGas = await this.quoteTransferRemoteGas(destination);
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
     return this.contract.populateTransaction.transferRemote(
@@ -295,7 +295,7 @@ export class EvmHypNativeAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteFee(destination);
+      interchainGas = await this.quoteTransferRemoteGas(destination);
 
     let txValue: bigint | undefined = undefined;
     const { addressOrDenom: igpAddressOrDenom, amount: igpAmount } =
