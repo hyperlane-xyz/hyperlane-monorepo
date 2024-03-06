@@ -145,10 +145,10 @@ pub enum ChainCommunicationError {
     /// Custom error
     #[error("{0}")]
     CustomError(String),
-    /// Custom error
+    /// Eyre error
     #[error("{0}")]
     EyreError(#[from] eyre::Report),
-    /// Custom error
+    /// Hyperlane signer error
     #[error("{0}")]
     HyperlaneSignerError(#[from] HyperlaneSignerError),
 }

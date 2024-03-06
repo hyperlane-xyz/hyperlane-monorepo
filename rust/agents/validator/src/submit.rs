@@ -60,9 +60,8 @@ impl ValidatorSubmitter {
     /// Submits signed checkpoints from index 0 until the target checkpoint (inclusive).
     /// Runs idly forever once the target checkpoint is reached to avoid exiting the task.
     pub(crate) async fn backfill_checkpoint_submitter(self, target_checkpoint: Checkpoint) {
-        let tree = IncrementalMerkle::default();
+        let mut tree = IncrementalMerkle::default();
         call_and_retry_indefinitely(|| {
-            let mut tree = tree;
             let target_checkpoint = target_checkpoint;
             let self_clone = self.clone();
             Box::pin(async move {
