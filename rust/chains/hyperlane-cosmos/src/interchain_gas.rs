@@ -9,7 +9,7 @@ use hyperlane_core::{
 use once_cell::sync::Lazy;
 use std::ops::RangeInclusive;
 use tendermint::abci::EventAttribute;
-use tracing::{info, instrument, warn};
+use tracing::{instrument, warn};
 
 use crate::{
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
@@ -215,7 +215,7 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
                         .get_logs_in_block(
                             block_number,
                             Self::interchain_gas_payment_parser,
-                            "InterchainGasPaymentLabel",
+                            "InterchainGasPaymentCursor",
                         )
                         .await;
                     (logs, block_number)

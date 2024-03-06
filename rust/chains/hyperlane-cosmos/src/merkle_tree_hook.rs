@@ -296,7 +296,7 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
                         .get_logs_in_block(
                             block_number,
                             Self::merkle_tree_insertion_parser,
-                            "MerkleTreeInsertionLabel",
+                            "MerkleTreeInsertionCursor",
                         )
                         .await;
                     (logs, block_number)

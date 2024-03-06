@@ -10,7 +10,7 @@ use tendermint::Hash;
 use tendermint_rpc::endpoint::block::Response as BlockResponse;
 use tendermint_rpc::endpoint::block_results::Response as BlockResultsResponse;
 use tendermint_rpc::HttpClient;
-use tracing::{debug, info, instrument, trace};
+use tracing::{debug, instrument, trace};
 
 use crate::address::CosmosAddress;
 use crate::{ConnectionConf, CosmosProvider, HyperlaneCosmosError};
@@ -146,7 +146,7 @@ impl CosmosWasmIndexer {
             })
             .collect();
 
-        let parsed_txs = tx_results
+        tx_results
             .into_iter()
             .enumerate()
             .filter_map(move |(idx, tx)| {
@@ -161,8 +161,7 @@ impl CosmosWasmIndexer {
                 Some(self.handle_tx(block.clone(), tx.events, *tx_hash, idx, parser))
             })
             .flatten()
-            .collect();
-        parsed_txs
+            .collect()
     }
 
     // Iter through all events in the tx, looking for any target events

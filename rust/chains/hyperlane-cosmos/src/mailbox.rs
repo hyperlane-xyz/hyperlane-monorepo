@@ -364,7 +364,7 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
                         .get_logs_in_block(
                             block_number,
                             Self::hyperlane_message_parser,
-                            "HyperlaneMessageLabel",
+                            "HyperlaneMessageCursor",
                         )
                         .await;
                     (logs, block_number)
