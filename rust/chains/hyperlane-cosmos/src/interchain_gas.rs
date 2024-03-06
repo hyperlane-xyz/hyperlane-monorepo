@@ -9,7 +9,7 @@ use hyperlane_core::{
 use once_cell::sync::Lazy;
 use std::ops::RangeInclusive;
 use tendermint::abci::EventAttribute;
-use tracing::{instrument, warn};
+use tracing::{info, instrument, warn};
 
 use crate::{
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
@@ -118,8 +118,6 @@ impl CosmosInterchainGasPaymasterIndexer {
     ) -> ChainResult<ParsedEvent<InterchainGasPayment>> {
         let mut contract_address: Option<String> = None;
         let mut gas_payment = IncompleteInterchainGasPayment::default();
-
-        println!("~~~ parsing gas payment: {:?}", attrs);
 
         for attr in attrs {
             let key = attr.key.as_str();
