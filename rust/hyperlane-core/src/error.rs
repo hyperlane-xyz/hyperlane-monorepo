@@ -10,7 +10,8 @@ use crate::config::StrOrIntParseError;
 use crate::rpc_clients::RpcClientError;
 use std::string::FromUtf8Error;
 
-use crate::{Error as PrimitiveTypeError, HyperlaneProviderError, H256, U256};
+use crate::HyperlaneProviderError;
+use crate::{Error as PrimitiveTypeError, HyperlaneSignerError, H256, U256};
 
 /// The result of interacting with a chain.
 pub type ChainResult<T> = Result<T, ChainCommunicationError>;
@@ -141,6 +142,15 @@ pub enum ChainCommunicationError {
     #[cfg(feature = "async")]
     #[error(transparent)]
     TokioJoinError(#[from] tokio::task::JoinError),
+    /// Custom error
+    #[error("{0}")]
+    CustomError(String),
+    /// Eyre error
+    #[error("{0}")]
+    EyreError(#[from] eyre::Report),
+    /// Hyperlane signer error
+    #[error("{0}")]
+    HyperlaneSignerError(#[from] HyperlaneSignerError),
 }
 
 impl ChainCommunicationError {
