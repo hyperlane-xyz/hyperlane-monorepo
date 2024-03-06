@@ -43,3 +43,7 @@ const proofsService = new ProofsService(
 ```typescript
 server.add(ProofsServiceAbi, [proofsService.handler('getProofs')]);
 ```
+
+# Unit tests
+
+Unit tests are mocked using [jest manual mocks](https://jestjs.io/docs/manual-mocks). This means the files within `services/__mocks__` will replace the actual service files. For example, `services/__mocks__/RPCService.ts` will replace the entire RPCService.ts. This includes the imports. One of the benefits of using jest manual mocks is that we don't need to rely on dependency injection pattern to unit test.

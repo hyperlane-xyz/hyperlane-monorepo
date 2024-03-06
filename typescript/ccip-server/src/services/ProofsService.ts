@@ -18,7 +18,7 @@ type HyperlaneConfig = {
 
 // Service that requests proofs from Succinct and RPC Provider
 class ProofsService {
-  // Maps from pendingProofKey to pendingProofId
+  // Maps from pendingProofKey (enconding of target address, storageKey, and messageId) to pendingProofId
   pendingProof = new Map<string, string>();
 
   // External Services
@@ -73,7 +73,7 @@ class ProofsService {
     } else {
       // Proof is being generated, check status
       const proofStatus = await this.lightClientService.getProofStatus(
-        this.pendingProof.get(pendingProofKey)!,
+        this.pendingProof.get(pendingProofKey)!, // Should never be undefined
       );
       if (proofStatus === ProofStatus.success) {
         // Succinct Proof is ready.

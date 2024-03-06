@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {RLPReader} from "@optimism-bedrock-contracts/rlp/RLPReader.sol";
-import {RLPWriter} from "@optimism-bedrock-contracts/rlp/RLPWriter.sol";
-import {MerkleTrie} from "@optimism-bedrock-contracts/trie/MerkleTrie.sol";
+import {RLPReader} from "optimism-bedrock-contracts/rlp/RLPReader.sol";
+import {RLPWriter} from "optimism-bedrock-contracts/rlp/RLPWriter.sol";
+import {MerkleTrie} from "optimism-bedrock-contracts/trie/MerkleTrie.sol";
 
 /// @notice Storage Proof library inspired by Succinct (https://github.com/succinctlabs)
 library StorageProof {

@@ -6,7 +6,9 @@
     "@eth-optimism/contracts": "^0.6.0",
     "@hyperlane-xyz/utils": "3.7.0",
     "@openzeppelin/contracts": "^4.9.3",
-    "@openzeppelin/contracts-upgradeable": "^v4.9.3"
+    "@openzeppelin/contracts-upgradeable": "^v4.9.3",
+    "optimism-bedrock-contracts": "https://github.com/ltyu/optimism-bedrock-contracts",
+    "succinctx": "https://github.com/succinctlabs/succinctx.git#d413b17f678663b6cba25ed4c1a0306bd513f04f"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.1",

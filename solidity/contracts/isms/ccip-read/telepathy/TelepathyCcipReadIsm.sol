@@ -15,7 +15,7 @@ pragma solidity >=0.8.0;
 
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {LightClient} from "@telepathyx/LightClient.sol";
+import {ILightClient} from "../../../interfaces/ccip-gateways/ILightClient.sol";
 
 // ============ Internal Imports ============
 
@@ -34,7 +34,7 @@ contract TelepathyCcipReadIsm is AbstractCcipReadIsm, OwnableUpgradeable {
     using Message for bytes;
 
     /// @notice LightClient to read the state root from
-    LightClient public lightClient;
+    ILightClient public lightClient;
 
     /// @notice Source Mailbox that will dispatch a message
     Mailbox public sourceMailbox;
@@ -62,7 +62,7 @@ contract TelepathyCcipReadIsm is AbstractCcipReadIsm, OwnableUpgradeable {
         Mailbox _sourceMailbox,
         Mailbox _destinationMailbox,
         TelepathyCcipReadHook _telepathyCcipReadHook,
-        LightClient _lightClient,
+        address _lightClient,
         uint256 _dispatchedSlot,
         string[] memory _offchainUrls
     ) external initializer {
@@ -70,7 +70,7 @@ contract TelepathyCcipReadIsm is AbstractCcipReadIsm, OwnableUpgradeable {
         sourceMailbox = _sourceMailbox;
         destinationMailbox = _destinationMailbox;
         telepathyCcipReadHook = _telepathyCcipReadHook;
-        lightClient = _lightClient;
+        lightClient = ILightClient(_lightClient);
         dispatchedSlot = _dispatchedSlot;
         offchainUrls = _offchainUrls;
     }

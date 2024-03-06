@@ -1,4 +1,3 @@
-// TODO figure out why I cannot import this from LightClientService.
 enum ProofStatus {
   running = 'running',
   success = 'success',
@@ -19,6 +18,7 @@ class LightClientService {
   ): Promise<string> {
     return 'pendingProofId12';
   }
+
   async getProofStatus(pendingProofId: string): Promise<ProofStatus> {
     return ProofStatus.success;
   }

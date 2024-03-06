@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Test, StdStorage, stdStorage} from "forge-std/Test.sol";
-import {LightClient} from "@telepathyx/LightClient.sol";
+import {MockLightClient} from "../../contracts/mock/MockLightClient.sol";
 
 import {Message} from "../../contracts/libs/Message.sol";
 
@@ -26,25 +26,13 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
     MockMailbox mailbox;
     TelepathyCcipReadIsm telepathyCcipReadIsm;
     TelepathyCcipReadHook hook;
-    LightClient lightClient;
+    MockLightClient lightClient;
 
     function setUp() public override {
         super.setUp();
         telepathyCcipReadIsm = new TelepathyCcipReadIsm();
 
-        lightClient = new LightClient({
-            genesisValidatorsRoot: EMPTY_BYTES32,
-            genesisTime: 0,
-            secondsPerSlot: 12,
-            slotsPerPeriod: 8192,
-            syncCommitteePeriod: 0,
-            syncCommitteePoseidon: EMPTY_BYTES32,
-            sourceChainId: 1,
-            finalityThreshold: 461,
-            stepFunctionId: EMPTY_BYTES32,
-            rotateFunctionId: EMPTY_BYTES32,
-            gatewayAddress: address(5)
-        });
+        lightClient = new MockLightClient();
 
         deployCodeTo("TelepathyCcipReadHook.sol", abi.encode(0), HOOK_ADDR);
         mailbox = MockMailbox(MAILBOX_ADDR);
@@ -54,7 +42,7 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
             _sourceMailbox: mailbox,
             _destinationMailbox: mailbox,
             _telepathyCcipReadHook: hook,
-            _lightClient: lightClient,
+            _lightClient: address(lightClient),
             _dispatchedSlot: DISPATCHED_SLOT,
             _offchainUrls: urls
         });
