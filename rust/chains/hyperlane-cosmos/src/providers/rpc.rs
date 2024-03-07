@@ -240,7 +240,7 @@ impl WasmIndexer for CosmosWasmIndexer {
         T: Send + Sync + PartialEq + Debug + 'static,
     {
         let client = self.provider.rpc().clone();
-        debug!(?block_number, ?cursor_label, "Getting logs in block");
+        debug!(?block_number, cursor_label, domain=?self.provider.domain, "Getting logs in block");
 
         let (block, block_results) = tokio::join!(
             call_with_retry(|| { Box::pin(Self::get_block(client.clone(), block_number)) }),
