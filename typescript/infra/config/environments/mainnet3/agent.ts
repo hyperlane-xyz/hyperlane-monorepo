@@ -130,8 +130,8 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      // Just prior to Cosmos block-by-block indexing.
-      tag: '02d5549-20240228-203344',
+      // Includes Cosmos block-by-block indexing.
+      tag: '9736164-20240307-131918',
     },
     gasPaymentEnforcement,
     metricAppContexts: [
@@ -150,19 +150,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'dd8ac43-20240306-113016',
-    },
-    chainDockerOverrides: {
-      // Because we're still ironing out issues with recent block-by-block indexing
-      // for Cosmos chains, and we want to avoid the regression in https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/3257
-      // that allows validator tasks to silently fail, we use the commit just prior
-      // to 3257.
-      [Chains.injective]: {
-        tag: '02e64c9-20240214-170702',
-      },
-      [Chains.neutron]: {
-        tag: '02e64c9-20240214-170702',
-      },
+      tag: '9736164-20240307-131918',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -185,7 +173,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '6fb50e7-20240229-122630',
+      tag: '9736164-20240307-131918',
     },
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
@@ -197,7 +185,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '6fb50e7-20240229-122630',
+      tag: '9736164-20240307-131918',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -221,8 +209,8 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      // Just prior to Cosmos block-by-block indexing.
-      tag: '02d5549-20240228-203344',
+      // Includes Cosmos block-by-block indexing.
+      tag: '9736164-20240307-131918',
     },
     gasPaymentEnforcement: [
       {
