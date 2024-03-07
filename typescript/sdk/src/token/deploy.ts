@@ -51,7 +51,12 @@ import {
   isTokenMetadata,
   isUriConfig,
 } from './config';
-import { HypERC20Factories, HypERC721Factories } from './contracts';
+import {
+  HypERC20Factories,
+  HypERC721Factories,
+  hypERC20factories,
+  hypERC721factories,
+} from './contracts';
 
 export class HypERC20Deployer extends GasRouterDeployer<
   ERC20RouterConfig,
@@ -143,9 +148,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
     const factory = isFast
       ? new FastHypERC20Collateral__factory()
       : new HypERC20Collateral__factory();
-    const name = isFast ? 'FastHypERC20Collateral' : 'HypERC20Collateral';
-
-    return this.deployContractFromFactory(chain, factory, name, [
+    return this.deployContractFromFactory(chain, factory, config.type, [
       config.token,
       config.mailbox,
     ]);
@@ -160,14 +163,14 @@ export class HypERC20Deployer extends GasRouterDeployer<
       router = await this.deployContractFromFactory(
         chain,
         new HypNativeScaled__factory(),
-        'HypNativeScaled',
+        config.type,
         [config.scale, config.mailbox],
       );
     } else {
       router = await this.deployContractFromFactory(
         chain,
         new HypNative__factory(),
-        'HypNative',
+        config.type,
         [config.mailbox],
       );
     }
@@ -182,12 +185,12 @@ export class HypERC20Deployer extends GasRouterDeployer<
     const factory = isFast
       ? new FastHypERC20__factory()
       : new HypERC20__factory();
-    const name = isFast ? 'FastHypERC20' : 'HypERC20';
-
-    const router = await this.deployContractFromFactory(chain, factory, name, [
-      config.decimals,
-      config.mailbox,
-    ]);
+    const router = await this.deployContractFromFactory(
+      chain,
+      factory,
+      config.type,
+      [config.decimals, config.mailbox],
+    );
 
     try {
       await this.multiProvider.handleTx(
@@ -198,13 +201,18 @@ export class HypERC20Deployer extends GasRouterDeployer<
       if (!e.message.includes('already initialized')) {
         throw e;
       }
-      this.logger(`${name} already initialized`);
+      this.logger(`${config.type} ERC20 already initialized`);
     }
     return router;
   }
 
   router(contracts: HyperlaneContracts<HypERC20Factories>) {
-    return contracts.router;
+    for (const key of Object.keys(hypERC20factories)) {
+      if (contracts[key as keyof typeof contracts]) {
+        return contracts[key as keyof typeof contracts];
+      }
+    }
+    throw new Error('No matching contract found');
   }
 
   async deployContracts(chain: ChainName, config: HypERC20Config) {
@@ -219,7 +227,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       throw new Error('Invalid ERC20 token router config');
     }
     await this.configureClient(chain, router, config);
-    return { router };
+    return { [config.type]: router } as any;
   }
 
   async buildTokenMetadata(
@@ -335,14 +343,14 @@ export class HypERC721Deployer extends GasRouterDeployer<
       router = await this.deployContractFromFactory(
         chain,
         new HypERC721URICollateral__factory(),
-        'HypERC721URICollateral',
+        config.type,
         [config.token, config.mailbox],
       );
     } else {
       router = await this.deployContractFromFactory(
         chain,
         new HypERC721Collateral__factory(),
-        'HypERC721Collateral',
+        config.type,
         [config.token, config.mailbox],
       );
     }
@@ -358,14 +366,14 @@ export class HypERC721Deployer extends GasRouterDeployer<
       router = await this.deployContractFromFactory(
         chain,
         new HypERC721URIStorage__factory(),
-        'HypERC721URIStorage',
+        config.type,
         [config.mailbox],
       );
     } else {
       router = await this.deployContractFromFactory(
         chain,
         new HypERC721__factory(),
-        'HypERC721',
+        config.type,
         [config.mailbox],
       );
     }
@@ -377,7 +385,12 @@ export class HypERC721Deployer extends GasRouterDeployer<
   }
 
   router(contracts: HyperlaneContracts<HypERC721Factories>) {
-    return contracts.router;
+    for (const key of Object.keys(hypERC721factories)) {
+      if (contracts[key as keyof typeof contracts]) {
+        return contracts[key as keyof typeof contracts];
+      }
+    }
+    throw new Error('No matching contract found');
   }
 
   async deployContracts(chain: ChainName, config: HypERC721Config) {
@@ -389,7 +402,7 @@ export class HypERC721Deployer extends GasRouterDeployer<
     } else {
       throw new Error('Invalid ERC721 token router config');
     }
-    return { router };
+    return { [config.type]: router } as any;
   }
 
   async buildTokenMetadata(

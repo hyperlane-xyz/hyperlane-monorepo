@@ -1,27 +1,29 @@
 import {
-  FastHypERC20Collateral__factory,
-  FastHypERC20__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC721Collateral__factory,
-  HypERC721URICollateral__factory,
   HypERC721__factory,
   HypNative__factory,
 } from '@hyperlane-xyz/core';
 
-export type HypERC20Factories = {
-  router:
-    | HypERC20__factory
-    | HypERC20Collateral__factory
-    | HypNative__factory
-    | FastHypERC20__factory
-    | FastHypERC20Collateral__factory;
+import { TokenType } from './config';
+
+export const hypERC20factories = {
+  [TokenType.fastCollateral]: new HypERC20Collateral__factory(),
+  [TokenType.fastSynthetic]: new HypERC20__factory(),
+  [TokenType.synthetic]: new HypERC20__factory(),
+  [TokenType.collateral]: new HypERC20Collateral__factory(),
+  [TokenType.native]: new HypNative__factory(),
 };
-export type HypERC721Factories = {
-  router:
-    | HypERC721__factory
-    | HypERC721Collateral__factory
-    | HypERC721URICollateral__factory;
+export type HypERC20Factories = typeof hypERC20factories;
+
+export const hypERC721factories = {
+  [TokenType.collateralUri]: new HypERC721Collateral__factory(),
+  [TokenType.collateral]: new HypERC721Collateral__factory(),
+  [TokenType.syntheticUri]: new HypERC721__factory(),
+  [TokenType.synthetic]: new HypERC721__factory(),
 };
+
+export type HypERC721Factories = typeof hypERC721factories;
 
 export type TokenFactories = HypERC20Factories | HypERC721Factories;
