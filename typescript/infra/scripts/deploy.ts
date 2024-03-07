@@ -7,7 +7,6 @@ import {
   ChainMap,
   ContractVerifier,
   ExplorerLicenseType,
-  GovernanceConfig,
   HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
@@ -21,7 +20,7 @@ import {
   LiquidityLayerDeployer,
   TestRecipientDeployer,
   TokenType,
-  governanceToAccountConfig,
+  resolveAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
@@ -70,15 +69,12 @@ async function main() {
       [fork]: { blocks: { confirmations: 0 } },
     });
     await useLocalProvider(multiProvider, fork);
-
-    // const deployers = await envConfig.getKeys(
-    //   Contexts.Hyperlane,
-    //   Role.Deployer,
-    // );
-    // const deployer = deployers[fork].address;
-    const deployer = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
-    const signer = await impersonateAccount(deployer);
-
+    const owner = await resolveAccountOwner(
+      multiProvider,
+      fork,
+      envConfig.owners[fork].owner,
+    );
+    const signer = await impersonateAccount(owner);
     multiProvider.setSharedSigner(signer);
   }
 
@@ -123,6 +119,15 @@ async function main() {
       multiProvider,
     );
     const routerConfig = core.getRouterConfig(envConfig.owners);
+    console.log('routerConfig', routerConfig.scrollsepolia.owner);
+    const scrollsepolia = {
+      ...routerConfig.scrollsepolia,
+      type: TokenType.synthetic,
+      name: 'Wrapped Ether',
+      symbol: 'WETH',
+      decimals: 18,
+      totalSupply: '0',
+    };
     const plumetestnet = {
       ...routerConfig.plumetestnet,
       type: TokenType.native,
@@ -132,9 +137,11 @@ async function main() {
       type: TokenType.native,
     };
     config = {
+      scrollsepolia,
       plumetestnet,
       sepolia,
     };
+    // return;
     deployer = new HypERC20Deployer(
       multiProvider,
       ismFactory,
@@ -155,14 +162,14 @@ async function main() {
     deployer = new InterchainAccountDeployer(multiProvider, contractVerifier);
     const addresses = getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS);
     console.log('deploy: ICA addresses', JSON.stringify(addresses, null, 2));
-    const router = InterchainAccount.fromAddressesMap(addresses, multiProvider);
-    const govConfig: GovernanceConfig = {
-      owner: envConfig.owners.sepolia.owner,
-      hub: 'sepolia',
-      spokes: ['scrollsepolia', 'plumetestnet'],
-    };
-    const accountConfigs = governanceToAccountConfig(govConfig);
-    await router.deployAccounts(accountConfigs);
+    InterchainAccount.fromAddressesMap(addresses, multiProvider);
+    // const govConfig: GovernanceConfig = {
+    //   owner: envConfig.owners.sepolia.owner,
+    //   hub: 'sepolia',
+    //   spokes: ['scrollsepolia', 'plumetestnet'],
+    // };
+    // const accountConfigs = governanceToAccountConfig(govConfig);
+    // await router.deployAccounts(accountConfigs);
     return;
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);

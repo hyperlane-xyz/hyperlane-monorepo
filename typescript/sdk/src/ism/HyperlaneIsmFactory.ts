@@ -39,6 +39,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts';
+import { resolveAccountOwner } from '../deploy/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -163,7 +164,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           destination,
           new PausableIsm__factory(),
           IsmType.PAUSABLE,
-          [config.owner],
+          [
+            await resolveAccountOwner(
+              this.multiProvider,
+              destination,
+              config.owner,
+            ),
+          ],
         );
         await this.deployer?.transferOwnershipOfContracts(destination, config, {
           [IsmType.PAUSABLE]: contract,
@@ -323,6 +330,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
     } else {
       const isms: ChainMap<Address> = {};
+      const owner = await resolveAccountOwner(
+        this.multiProvider,
+        destination,
+        config.owner,
+      );
       for (const origin of Object.keys(config.domains)) {
         const ism = await this.deploy({
           destination,
@@ -351,7 +363,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         receipt = await this.multiProvider.handleTx(
           destination,
           routingIsm['initialize(address,uint32[],address[])'](
-            config.owner,
+            owner,
             safeConfigDomains,
             submoduleAddresses,
             overrides,
@@ -360,7 +372,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       } else {
         // deploying new domain routing ISM
         const tx = await routingIsmFactory.deploy(
-          config.owner,
+          owner,
           safeConfigDomains,
           submoduleAddresses,
           overrides,
