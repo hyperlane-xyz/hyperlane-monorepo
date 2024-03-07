@@ -5,21 +5,11 @@ import { providers } from 'ethers';
 import {
   ERC20__factory,
   ERC721EnumerableUpgradeable__factory,
-  FastHypERC20Collateral__factory,
-  FastHypERC20__factory,
   HypERC20,
   HypERC20Collateral,
-  HypERC20Collateral__factory,
-  HypERC20__factory,
   HypERC721,
   HypERC721Collateral,
-  HypERC721Collateral__factory,
-  HypERC721URICollateral__factory,
-  HypERC721URIStorage__factory,
-  HypERC721__factory,
   HypNative,
-  HypNativeScaled__factory,
-  HypNative__factory,
 } from '@hyperlane-xyz/core';
 import { objMap } from '@hyperlane-xyz/utils';
 
@@ -47,11 +37,9 @@ import {
   getTokenType,
   isCollateralConfig,
   isErc20Metadata,
-  isFastConfig,
   isNativeConfig,
   isSyntheticConfig,
   isTokenMetadata,
-  isUriConfig,
 } from './config';
 import {
   HypERC20Factories,
@@ -69,7 +57,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
   ) {
-    super(multiProvider, {} as HypERC20Factories, {
+    super(multiProvider, hypERC20factories, {
       logger: debug('hyperlane:HypERC20Deployer'),
       ismFactory,
       contractVerifier,
@@ -146,16 +134,11 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20CollateralConfig,
   ): Promise<HypERC20Collateral> {
-    const isFast = isFastConfig(config);
-    const factory = isFast
-      ? new FastHypERC20Collateral__factory()
-      : new HypERC20Collateral__factory();
-    return this.deployContractFromFactory(
+    return (await this.deployContract(
       chain,
-      factory,
       getTokenType(config.type, TokenStandard.ERC20),
       [config.token, config.mailbox],
-    );
+    )) as HypERC20Collateral;
   }
 
   protected async deployNative(
@@ -164,19 +147,16 @@ export class HypERC20Deployer extends GasRouterDeployer<
   ): Promise<HypNative> {
     let router: HypNative;
     if (config.scale) {
-      router = await this.deployContractFromFactory(
-        chain,
-        new HypNativeScaled__factory(),
-        getTokenType(config.type, TokenStandard.ERC20),
-        [config.scale, config.mailbox],
-      );
+      router = (await this.deployContract(chain, 'nativescaledERC20', [
+        config.scale,
+        config.mailbox,
+      ])) as HypNative;
     } else {
-      router = await this.deployContractFromFactory(
+      router = (await this.deployContract(
         chain,
-        new HypNative__factory(),
         getTokenType(config.type, TokenStandard.ERC20),
         [config.mailbox],
-      );
+      )) as HypNative;
     }
     return router;
   }
@@ -185,16 +165,11 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20Config,
   ): Promise<HypERC20> {
-    const isFast = isFastConfig(config);
-    const factory = isFast
-      ? new FastHypERC20__factory()
-      : new HypERC20__factory();
-    const router = await this.deployContractFromFactory(
+    const router = (await this.deployContract(
       chain,
-      factory,
       getTokenType(config.type, TokenStandard.ERC20),
       [config.decimals, config.mailbox],
-    );
+    )) as HypERC20;
 
     try {
       await this.multiProvider.handleTx(
@@ -304,10 +279,10 @@ export class HypERC721Deployer extends GasRouterDeployer<
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
   ) {
-    super(multiProvider, {} as HypERC721Factories, {
+    super(multiProvider, hypERC721factories, {
       logger: debug('hyperlane:HypERC721Deployer'),
       contractVerifier,
-    }); // factories not used in deploy
+    });
   }
 
   static async fetchMetadata(
@@ -344,50 +319,22 @@ export class HypERC721Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC721CollateralConfig,
   ): Promise<HypERC721Collateral> {
-    let router: HypERC721Collateral;
-    if (isUriConfig(config)) {
-      router = await this.deployContractFromFactory(
-        chain,
-        new HypERC721URICollateral__factory(),
-        getTokenType(config.type, TokenStandard.ERC721),
-        [config.token, config.mailbox],
-      );
-    } else {
-      router = await this.deployContractFromFactory(
-        chain,
-        new HypERC721Collateral__factory(),
-        getTokenType(config.type, TokenStandard.ERC721),
-        [config.token, config.mailbox],
-      );
-    }
-    return router;
+    return (await this.deployContract(
+      chain,
+      getTokenType(config.type, TokenStandard.ERC721),
+      [config.token, config.mailbox],
+    )) as HypERC721Collateral;
   }
 
   protected async deploySynthetic(
     chain: ChainName,
     config: HypERC721Config,
   ): Promise<HypERC721> {
-    let router: HypERC721;
-    if (isUriConfig(config)) {
-      router = await this.deployContractFromFactory(
-        chain,
-        new HypERC721URIStorage__factory(),
-        getTokenType(config.type, TokenStandard.ERC721),
-        [config.mailbox],
-      );
-    } else {
-      router = await this.deployContractFromFactory(
-        chain,
-        new HypERC721__factory(),
-        getTokenType(config.type, TokenStandard.ERC721),
-        [config.mailbox],
-      );
-    }
-    await this.multiProvider.handleTx(
+    return (await this.deployContract(
       chain,
-      router.initialize(config.totalSupply, config.name, config.symbol),
-    );
-    return router;
+      getTokenType(config.type, TokenStandard.ERC721),
+      [config.mailbox],
+    )) as HypERC721;
   }
 
   router(contracts: HyperlaneContracts<HypERC721Factories>) {

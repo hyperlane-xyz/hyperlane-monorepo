@@ -1,8 +1,12 @@
 {
   "plumetestnet": {
-    "router": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f"
+    "fastSyntheticERC20": "0x919Af376D02751bFCaD9CBAD6bad0c3089dAE33f",
+    "router": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f",
+    "syntheticERC20": "0x83c55cc03cc66aAFE071698F9BE4c51F5b1561c8"
   },
   "sepolia": {
+    "nativeERC20": "0xde260886FeDe74dA863344Da38f41a896ADA0Cf1",
+    "nativescaledERC20": "0x84b16fF9d0A2891c812E8E0AE0DfAbE3c76fFe01",
     "router": "0xd99eA1D8b9542D35252504DDd59EDe8C43FB15fd"
   }
 }
