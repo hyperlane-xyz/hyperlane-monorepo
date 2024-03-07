@@ -23,6 +23,7 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
+import { safes } from '../config/environments/mainnet3/owners';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -124,6 +125,7 @@ async function main() {
       ...routerConfig.inevm,
       type: TokenType.native,
       interchainSecurityModule: ethers.constants.AddressZero,
+      owner: safes.inevm,
     };
     const injective = {
       ...routerConfig.injective,
