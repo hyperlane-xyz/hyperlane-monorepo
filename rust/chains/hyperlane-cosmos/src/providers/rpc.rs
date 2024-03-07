@@ -3,6 +3,7 @@ use cosmrs::rpc::client::Client;
 use hyperlane_core::rpc_clients::call_with_retry;
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, U256};
 use sha256::digest;
+use std::fmt::Debug;
 use tendermint::abci::{Event, EventAttribute};
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
@@ -25,9 +26,10 @@ pub trait WasmIndexer: Send + Sync {
         &self,
         block_number: u32,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
+        cursor_label: &'static str,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
-        T: Send + Sync + PartialEq + 'static;
+        T: Send + Sync + PartialEq + Debug + 'static;
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -122,9 +124,10 @@ impl CosmosWasmIndexer {
         block: BlockResponse,
         block_results: BlockResultsResponse,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
+        cursor_label: &'static str,
     ) -> Vec<(T, LogMeta)>
     where
-        T: PartialEq + 'static,
+        T: PartialEq + Debug + 'static,
     {
         let Some(tx_results) = block_results.txs_results else {
             return vec![];
@@ -231,17 +234,19 @@ impl WasmIndexer for CosmosWasmIndexer {
         &self,
         block_number: u32,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
+        cursor_label: &'static str,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
-        T: Send + Sync + PartialEq + 'static,
+        T: Send + Sync + PartialEq + Debug + 'static,
     {
         let client = self.provider.rpc().clone();
+        debug!(?block_number, ?cursor_label, "Getting logs in block");
 
         let (block, block_results) = tokio::join!(
             call_with_retry(|| { Box::pin(Self::get_block(client.clone(), block_number)) }),
             call_with_retry(|| { Box::pin(Self::get_block_results(client.clone(), block_number)) }),
         );
 
-        Ok(self.handle_txs(block?, block_results?, parser))
+        Ok(self.handle_txs(block?, block_results?, parser, cursor_label))
     }
 }
