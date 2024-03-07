@@ -63,6 +63,7 @@ export {
   TestRecipientConfig,
   TestRecipientDeployer,
 } from './core/TestRecipientDeployer';
+export { CosmWasmCoreAdapter } from './core/adapters/CosmWasmCoreAdapter';
 export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter';
 export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter';
 export { ICoreAdapter } from './core/adapters/types';
