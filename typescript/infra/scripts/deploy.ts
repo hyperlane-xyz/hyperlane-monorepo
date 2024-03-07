@@ -23,7 +23,6 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
-import { aggregationIsm } from '../config/routingIsm';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -121,25 +120,18 @@ async function main() {
       multiProvider,
     );
     const routerConfig = core.getRouterConfig(envConfig.owners);
-    const plumetestnet = {
-      ...routerConfig.plumetestnet,
-      type: TokenType.synthetic,
-      name: 'Wrapped Ether',
-      symbol: 'WETH',
-      decimals: 18,
-      totalSupply: '0',
-    };
-    const sepolia = {
-      ...routerConfig.sepolia,
+    const inevm = {
+      ...routerConfig.inevm,
       type: TokenType.native,
-      interchainSecurityModule: aggregationIsm(
-        'plumetestnet',
-        Contexts.Hyperlane,
-      ),
+      interchainSecurityModule: ethers.constants.AddressZero,
+    };
+    const injective = {
+      ...routerConfig.injective,
+      type: TokenType.native,
     };
     config = {
-      plumetestnet,
-      sepolia,
+      inevm,
+      injective,
     };
     deployer = new HypERC20Deployer(
       multiProvider,
