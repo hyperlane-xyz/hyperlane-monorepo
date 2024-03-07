@@ -12,6 +12,19 @@ export enum TokenType {
   native = 'native',
 }
 
+export enum TokenStandard {
+  ERC20 = 'ERC20',
+  ERC721 = 'ERC721',
+}
+
+// this is for getting a unique artifact key; to differentiate between ERC20/ERC721
+export function getTokenType(
+  token: TokenType,
+  standard: TokenStandard,
+): string {
+  return `${token}${standard}`;
+}
+
 export type TokenMetadata = {
   name: string;
   symbol: string;

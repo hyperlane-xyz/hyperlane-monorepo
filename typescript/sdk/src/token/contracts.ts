@@ -6,22 +6,31 @@ import {
   HypNative__factory,
 } from '@hyperlane-xyz/core';
 
-import { TokenType } from './config';
+import { TokenStandard, TokenType, getTokenType } from './config';
 
 export const hypERC20factories = {
-  [TokenType.fastCollateral]: new HypERC20Collateral__factory(),
-  [TokenType.fastSynthetic]: new HypERC20__factory(),
-  [TokenType.synthetic]: new HypERC20__factory(),
-  [TokenType.collateral]: new HypERC20Collateral__factory(),
-  [TokenType.native]: new HypNative__factory(),
+  [getTokenType(TokenType.fastCollateral, TokenStandard.ERC20)]:
+    new HypERC20Collateral__factory(),
+  [getTokenType(TokenType.fastSynthetic, TokenStandard.ERC20)]:
+    new HypERC20__factory(),
+  [getTokenType(TokenType.synthetic, TokenStandard.ERC20)]:
+    new HypERC20__factory(),
+  [getTokenType(TokenType.collateral, TokenStandard.ERC20)]:
+    new HypERC20Collateral__factory(),
+  [getTokenType(TokenType.native, TokenStandard.ERC20)]:
+    new HypNative__factory(),
 };
 export type HypERC20Factories = typeof hypERC20factories;
 
 export const hypERC721factories = {
-  [TokenType.collateralUri]: new HypERC721Collateral__factory(),
-  [TokenType.collateral]: new HypERC721Collateral__factory(),
-  [TokenType.syntheticUri]: new HypERC721__factory(),
-  [TokenType.synthetic]: new HypERC721__factory(),
+  [getTokenType(TokenType.collateralUri, TokenStandard.ERC721)]:
+    new HypERC721Collateral__factory(),
+  [getTokenType(TokenType.collateral, TokenStandard.ERC721)]:
+    new HypERC721Collateral__factory(),
+  [getTokenType(TokenType.syntheticUri, TokenStandard.ERC721)]:
+    new HypERC721__factory(),
+  [getTokenType(TokenType.synthetic, TokenStandard.ERC721)]:
+    new HypERC721__factory(),
 };
 
 export type HypERC721Factories = typeof hypERC721factories;

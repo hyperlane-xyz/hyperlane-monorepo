@@ -43,6 +43,8 @@ import {
   HypNativeConfig,
   TokenConfig,
   TokenMetadata,
+  TokenStandard,
+  getTokenType,
   isCollateralConfig,
   isErc20Metadata,
   isFastConfig,
@@ -148,10 +150,12 @@ export class HypERC20Deployer extends GasRouterDeployer<
     const factory = isFast
       ? new FastHypERC20Collateral__factory()
       : new HypERC20Collateral__factory();
-    return this.deployContractFromFactory(chain, factory, config.type, [
-      config.token,
-      config.mailbox,
-    ]);
+    return this.deployContractFromFactory(
+      chain,
+      factory,
+      getTokenType(config.type, TokenStandard.ERC20),
+      [config.token, config.mailbox],
+    );
   }
 
   protected async deployNative(
@@ -163,14 +167,14 @@ export class HypERC20Deployer extends GasRouterDeployer<
       router = await this.deployContractFromFactory(
         chain,
         new HypNativeScaled__factory(),
-        config.type,
+        getTokenType(config.type, TokenStandard.ERC20),
         [config.scale, config.mailbox],
       );
     } else {
       router = await this.deployContractFromFactory(
         chain,
         new HypNative__factory(),
-        config.type,
+        getTokenType(config.type, TokenStandard.ERC20),
         [config.mailbox],
       );
     }
@@ -188,7 +192,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
     const router = await this.deployContractFromFactory(
       chain,
       factory,
-      config.type,
+      getTokenType(config.type, TokenStandard.ERC20),
       [config.decimals, config.mailbox],
     );
 
@@ -201,7 +205,9 @@ export class HypERC20Deployer extends GasRouterDeployer<
       if (!e.message.includes('already initialized')) {
         throw e;
       }
-      this.logger(`${config.type} ERC20 already initialized`);
+      this.logger(
+        `${getTokenType(config.type, TokenStandard.ERC20)} already initialized`,
+      );
     }
     return router;
   }
@@ -227,7 +233,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       throw new Error('Invalid ERC20 token router config');
     }
     await this.configureClient(chain, router, config);
-    return { [config.type]: router } as any;
+    return { [getTokenType(config.type, TokenStandard.ERC20)]: router } as any;
   }
 
   async buildTokenMetadata(
@@ -343,14 +349,14 @@ export class HypERC721Deployer extends GasRouterDeployer<
       router = await this.deployContractFromFactory(
         chain,
         new HypERC721URICollateral__factory(),
-        config.type,
+        getTokenType(config.type, TokenStandard.ERC721),
         [config.token, config.mailbox],
       );
     } else {
       router = await this.deployContractFromFactory(
         chain,
         new HypERC721Collateral__factory(),
-        config.type,
+        getTokenType(config.type, TokenStandard.ERC721),
         [config.token, config.mailbox],
       );
     }
@@ -366,14 +372,14 @@ export class HypERC721Deployer extends GasRouterDeployer<
       router = await this.deployContractFromFactory(
         chain,
         new HypERC721URIStorage__factory(),
-        config.type,
+        getTokenType(config.type, TokenStandard.ERC721),
         [config.mailbox],
       );
     } else {
       router = await this.deployContractFromFactory(
         chain,
         new HypERC721__factory(),
-        config.type,
+        getTokenType(config.type, TokenStandard.ERC721),
         [config.mailbox],
       );
     }
@@ -402,7 +408,7 @@ export class HypERC721Deployer extends GasRouterDeployer<
     } else {
       throw new Error('Invalid ERC721 token router config');
     }
-    return { [config.type]: router } as any;
+    return { [getTokenType(config.type, TokenStandard.ERC721)]: router } as any;
   }
 
   async buildTokenMetadata(
