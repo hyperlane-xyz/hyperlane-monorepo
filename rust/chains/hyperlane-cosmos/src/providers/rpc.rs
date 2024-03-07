@@ -26,7 +26,7 @@ pub trait WasmIndexer: Send + Sync {
         &self,
         block_number: u32,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
-        parser_label: &'static str,
+        cursor_label: &'static str,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
         T: Send + Sync + PartialEq + Debug + 'static;
@@ -124,7 +124,7 @@ impl CosmosWasmIndexer {
         block: BlockResponse,
         block_results: BlockResultsResponse,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
-        parser_label: &'static str,
+        cursor_label: &'static str,
     ) -> Vec<(T, LogMeta)>
     where
         T: PartialEq + Debug + 'static,
