@@ -62,7 +62,23 @@ const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 
 // The max amount of compute units for a transaction.
 // TODO: consider a more sane value and/or use IGP gas payments instead.
-const PROCESS_COMPUTE_UNITS: u32 = 1_400_000;
+const PROCESS_COMPUTE_UNITS: u32 = 700_000;
+
+/// 0.0000035 SOL, in lamports.
+/// A typical tx fee without a prioritization fee is 0.000005 SOL, or
+/// 5000 lamports. (Example: https://explorer.solana.com/tx/fNd3xVeBzFHeuzr8dXQxLGiHMzTeYpykSV25xWzNRaHtzzjvY9A3MzXh1ZsK2JncRHkwtuWrGEwGXVhFaUCYhtx)
+const PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX: u64 = 3500;
+
+/// In micro-lamports. Multiply this by the compute units to figure out
+/// the additional cost of processing a message, in addition to the mandatory
+/// "base" cost of signature verification.
+const PROCESS_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS: u64 =
+    (
+        // Convert to micro-lamports
+        (PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX * 1_000_000)
+        // Divide by the max compute units
+        / PROCESS_COMPUTE_UNITS as u64
+    );
 
 /// A reference to a Mailbox contract on some Sealevel chain
 pub struct SealevelMailbox {
@@ -412,6 +428,10 @@ impl Mailbox for SealevelMailbox {
         // Set the compute unit limit.
         instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(
             PROCESS_COMPUTE_UNITS,
+        ));
+        // Set the compute unit price.
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            PROCESS_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
         ));
 
         // "processed" level commitment does not guarantee finality.
