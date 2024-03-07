@@ -110,11 +110,15 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     // configure mailbox
     try {
+      const owner = await this.resolveInterchainAccountAsOwner(
+        chain,
+        config.owner,
+      );
       this.logger('Initializing mailbox');
       await this.multiProvider.handleTx(
         chain,
         mailbox.initialize(
-          config.owner,
+          owner,
           defaultIsm,
           defaultHook.address,
           requiredHook.address,

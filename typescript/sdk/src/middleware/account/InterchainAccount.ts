@@ -108,7 +108,30 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       bytes32ToAddress(await localRouter.routers(originDomain)),
       bytes32ToAddress(await localRouter.isms(originDomain)),
     );
+    console.log('deployed ICA account', account);
     return account;
+  }
+
+  async getRemoteInterchainAccount(
+    chain: ChainName,
+    destination: ChainName,
+    owner: Address,
+    routerOverride?: Address,
+    ismOverride?: Address,
+  ): Promise<Address> {
+    const localRouter = this.router(this.contractsMap[chain]);
+    if (routerOverride && ismOverride) {
+      return localRouter['getRemoteInterchainAccount(address,address,address)'](
+        owner,
+        routerOverride,
+        ismOverride,
+      );
+    } else {
+      return localRouter['getRemoteInterchainAccount(uint32,address)'](
+        this.multiProvider.getDomainId(destination),
+        owner,
+      );
+    }
   }
 
   async callRemote(
@@ -155,4 +178,22 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       );
     }
   }
+}
+
+export async function deployInterchainAccount(
+  multiProvider: MultiProvider,
+  chain: ChainName,
+  config: AccountConfig,
+): Promise<Address> {
+  if (!config.localRouter) {
+    throw new Error('localRouter is required for account deployment');
+  }
+  const addressesMap: HyperlaneAddressesMap<any> = {
+    chain: { interchainAccountRouter: config.localRouter },
+  };
+  const router = InterchainAccount.fromAddressesMap(
+    addressesMap,
+    multiProvider,
+  );
+  return router.deployAccount(chain, config);
 }

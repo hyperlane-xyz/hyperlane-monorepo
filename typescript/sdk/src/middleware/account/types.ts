@@ -11,6 +11,7 @@ export type GovernanceConfig = {
 export type AccountConfig = {
   origin: ChainName;
   owner: Address;
+  localRouter?: Address;
 };
 
 export function governanceToAccountConfig(

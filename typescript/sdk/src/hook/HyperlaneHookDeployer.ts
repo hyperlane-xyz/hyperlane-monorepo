@@ -116,7 +116,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       config.maxProtocolFee,
       config.protocolFee,
       config.beneficiary,
-      config.owner,
+      await this.resolveInterchainAccountAsOwner(chain, config.owner),
     ]);
   }
 
@@ -263,7 +263,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         this.logger('Deploying DomainRoutingHook for %s', chain);
         routingHook = await this.deployContract(chain, HookType.ROUTING, [
           mailbox,
-          config.owner,
+          await this.resolveInterchainAccountAsOwner(chain, config.owner),
         ]);
         break;
       }
@@ -277,7 +277,11 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         routingHook = await this.deployContract(
           chain,
           HookType.FALLBACK_ROUTING,
-          [mailbox, config.owner, fallbackHook[config.fallback.type].address],
+          [
+            mailbox,
+            await this.resolveInterchainAccountAsOwner(chain, config.owner),
+            fallbackHook[config.fallback.type].address,
+          ],
         );
         break;
       }
