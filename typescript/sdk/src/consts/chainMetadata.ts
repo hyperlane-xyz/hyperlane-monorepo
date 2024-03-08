@@ -50,6 +50,34 @@ export const alfajores: ChainMetadata = {
   rpcUrls: [{ http: 'https://alfajores-forno.celo-testnet.org' }],
 };
 
+export const ancient8: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://scan.ancient8.gg/api',
+      family: ExplorerFamily.Blockscout,
+      name: 'Ancient8 Explorer',
+      url: 'https://scan.ancient8.gg',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 2,
+    // How to tell if it's on-demand?
+    // Seems like it's not on demand - blocks are every 2 secs, include at least 1 tx,
+    // which is always a `setL1Values` https://scan.ancient8.gg/tx/0x9658fa36fdcd82e76fcfcc47f2c0e5a90712606b85b0a985eb98c157e14802d9
+    reorgPeriod: 0,
+  },
+  chainId: 888888888,
+  displayName: 'Ancient8',
+  domainId: 888888888,
+  isTestnet: false,
+  name: Chains.ancient8,
+  nativeToken: etherToken,
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [{ http: 'https://rpc.ancient8.gg' }],
+  technicalStack: ChainTechnicalStack.Other,
+};
+
 export const arbitrum: ChainMetadata = {
   blockExplorers: [
     {
@@ -1083,6 +1111,7 @@ export const viction: ChainMetadata = {
  */
 export const chainMetadata: ChainMap<ChainMetadata> = {
   alfajores,
+  ancient8,
   arbitrum,
   arbitrumgoerli,
   avalanche,

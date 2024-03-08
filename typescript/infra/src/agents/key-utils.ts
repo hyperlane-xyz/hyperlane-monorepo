@@ -340,6 +340,7 @@ export async function createAgentKeysIfNotExists(
 ) {
   debugLog('Creating agent keys if none exist');
   const keys = getAllCloudAgentKeys(agentConfig);
+  console.log('getAllCloudAgentKeys', keys);
 
   await Promise.all(
     keys.map(async (key) => {

@@ -40,6 +40,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
     [Chains.arbitrum]: true,
+    [Chains.ancient8]: false,
     [Chains.avalanche]: true,
     [Chains.bsc]: true,
     [Chains.celo]: true,
@@ -59,6 +60,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   },
   [Role.Relayer]: {
     [Chains.arbitrum]: true,
+    [Chains.ancient8]: false,
     [Chains.avalanche]: true,
     [Chains.bsc]: true,
     [Chains.celo]: true,
@@ -79,6 +81,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   },
   [Role.Scraper]: {
     [Chains.arbitrum]: true,
+    [Chains.ancient8]: false,
     [Chains.avalanche]: true,
     [Chains.bsc]: true,
     [Chains.celo]: true,
