@@ -1,18 +1,47 @@
 #!/usr/bin/env bash
 
-# NOTE: This script is intended to be run from the root of the repo
+# set script location as repo root
+cd "$(dirname "$0")/../.."
 
-# the first arg to this script is a flag to enable the hook config as part of core deployment
-# motivation is to test both the bare bone deployment (included in the docs) and the deployment with the routing over igp hook (which is closer to production deployment)
-HOOK_FLAG=$1
-if [ -z "$HOOK_FLAG" ]; then
-  echo "Usage: ci-test.sh <hook>"
-  exit 1
+TEST_TYPE_PRESET_HOOK="preset_hook_enabled"
+TEST_TYPE_CONFIGURED_HOOK="configure_hook_enabled"
+TEST_TYPE_PI_CORE="pi_with_core_chain"
+
+# set the first arg to 'configured_hook' to set the hook config as part of core deployment
+# motivation is to test both the bare bone deployment (included in the docs) and the deployment
+# with the routing over igp hook (which is closer to production deployment)
+TEST_TYPE=$1
+if [ -z "$TEST_TYPE" ]; then
+    echo "Usage: ci-test.sh <test-type>"
+    exit 1
 fi
+
+HOOK_FLAG=false
+if [ "$TEST_TYPE" == $TEST_TYPE_CONFIGURED_HOOK ]; then
+    HOOK_FLAG=true
+fi
+
+CHAIN1=anvil1
+CHAIN2=anvil2
+EXAMPLES_PATH=./examples
+
+# use different chain names and config for pi<>core test
+if [ "$TEST_TYPE" == $TEST_TYPE_PI_CORE ]; then
+    CHAIN1=anvil
+    CHAIN2=ethereum
+    EXAMPLES_PATH=./examples/fork
+fi
+
+CHAIN1_CAPS=$(echo "${CHAIN1}" | tr '[:lower:]' '[:upper:]')
+CHAIN2_CAPS=$(echo "${CHAIN2}" | tr '[:lower:]' '[:upper:]')
+
+CHAIN1_PORT=8545
+CHAIN2_PORT=8555
 
 # Optional cleanup for previous runs, useful when running locally
 pkill -f anvil
-rm -rf /tmp/anvil*
+rm -rf /tmp/${CHAIN1}*
+rm -rf /tmp/${CHAIN2}*
 rm -rf /tmp/relayer
 
 if [[ $OSTYPE == 'darwin'* ]]; then
@@ -22,15 +51,35 @@ if [[ $OSTYPE == 'darwin'* ]]; then
 fi
 
 # Setup directories for anvil chains
-for CHAIN in anvil1 anvil2
+for CHAIN in ${CHAIN1} ${CHAIN2}
 do
     mkdir -p /tmp/$CHAIN /tmp/$CHAIN/state  /tmp/$CHAIN/validator /tmp/relayer
     chmod -R 777 /tmp/relayer /tmp/$CHAIN
 done
 
-anvil --chain-id 31337 -p 8545 --state /tmp/anvil1/state --gas-price 1 > /dev/null &
-anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state --gas-price 1 > /dev/null &
+# run the PI chain
+anvil --chain-id 31337 -p ${CHAIN1_PORT} --state /tmp/${CHAIN1}/state --gas-price 1 > /dev/null &
 sleep 1
+
+# use different chain names for pi<>core test
+if [ "$TEST_TYPE" == $TEST_TYPE_PI_CORE ]; then
+    # Fetch the RPC of chain to fork
+    cd typescript/infra
+    RPC_URL=$(yarn ts-node scripts/print-chain-metadatas.ts -e mainnet3 | jq -r ".${CHAIN2}.rpcUrls[0].http")
+    cd ../../
+
+    # run the fork chain
+    anvil -p ${CHAIN2_PORT} --state /tmp/${CHAIN2}/state --gas-price 1 --fork-url $RPC_URL --fork-retry-backoff 3 --compute-units-per-second 200 > /dev/null &
+
+    # wait for fork to be ready
+    while ! cast bn --rpc-url http://127.0.0.1:${CHAIN2_PORT} &> /dev/null; do
+    sleep 1
+    done
+else
+    # run a second PI chain
+    anvil --chain-id 31338 -p ${CHAIN2_PORT} --state /tmp/${CHAIN2}/state --gas-price 1 > /dev/null &
+    sleep 1
+fi
 
 set -e
 
@@ -39,58 +88,58 @@ echo "{}" > /tmp/empty-artifacts.json
 export DEBUG=hyperlane:*
 
 DEPLOYER=$(cast rpc eth_accounts | jq -r '.[0]')
-BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+BEFORE=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
 
-
-echo "Deploying contracts to anvil1 and anvil2"
+echo "Deploying contracts to ${CHAIN1} and ${CHAIN2}"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
-    --targets anvil1,anvil2 \
-    --chains ./examples/anvil-chains.yaml \
+    --targets ${CHAIN1},${CHAIN2} \
+    --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
     --artifacts /tmp/empty-artifacts.json \
-    $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ./examples/hooks.yaml"; fi) \
-    --ism ./examples/ism.yaml \
+    $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ${EXAMPLES_PATH}/hooks.yaml"; fi) \
+    --ism ${EXAMPLES_PATH}/ism.yaml \
     --out /tmp \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
 
-AFTER_CORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
-GAS_PRICE=$(cast gas-price --rpc-url http://localhost:8545)
+AFTER_CORE=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
+GAS_PRICE=$(cast gas-price --rpc-url http://127.0.0.1:${CHAIN1_PORT})
 CORE_MIN_GAS=$(bc <<< "($BEFORE - $AFTER_CORE) / $GAS_PRICE")
 echo "Gas used: $CORE_MIN_GAS"
 
 CORE_ARTIFACTS_PATH=`find /tmp/core-deployment* -type f -exec ls -t1 {} + | head -1`
 echo "Core artifacts:"
 echo $CORE_ARTIFACTS_PATH
+cat $CORE_ARTIFACTS_PATH
 
 AGENT_CONFIG_FILENAME=`ls -t1 /tmp | grep agent-config | head -1`
 
 echo "Deploying warp routes"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
-    --chains ./examples/anvil-chains.yaml \
+    --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
-    --config ./examples/warp-tokens.yaml \
+    --config ${EXAMPLES_PATH}/warp-tokens.yaml \
     --out /tmp \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
 
-AFTER_WARP=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
-GAS_PRICE=$(cast gas-price --rpc-url http://localhost:8545)
+AFTER_WARP=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
+GAS_PRICE=$(cast gas-price --rpc-url http://127.0.0.1:${CHAIN1_PORT})
 WARP_MIN_GAS=$(bc <<< "($AFTER_CORE - $AFTER_WARP) / $GAS_PRICE")
 echo "Gas used: $WARP_MIN_GAS"
 
 echo "Sending test message"
 yarn workspace @hyperlane-xyz/cli run hyperlane send message \
-    --origin anvil1 \
-    --destination anvil2 \
+    --origin ${CHAIN1} \
+    --destination ${CHAIN2} \
     --messageBody "Howdy!" \
-    --chains ./examples/anvil-chains.yaml \
+    --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
     --quick \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     | tee /tmp/message1
 
-AFTER_MSG=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
-GAS_PRICE=$(cast gas-price --rpc-url http://localhost:8545)
+AFTER_MSG=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
+GAS_PRICE=$(cast gas-price --rpc-url http://127.0.0.1:${CHAIN1_PORT})
 MSG_MIN_GAS=$(bc <<< "($AFTER_WARP - $AFTER_MSG) / $GAS_PRICE")
 echo "Gas used: $MSG_MIN_GAS"
 
@@ -98,15 +147,16 @@ MESSAGE1_ID=`cat /tmp/message1 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
 echo "Message 1 ID: $MESSAGE1_ID"
 
 WARP_ARTIFACTS_FILE=`find /tmp/warp-deployment* -type f -exec ls -t1 {} + | head -1`
-ANVIL1_ROUTER=`cat $WARP_ARTIFACTS_FILE | jq -r ".anvil1.router"`
+CHAIN1_ROUTER="${CHAIN1_CAPS}_ROUTER"
+declare $CHAIN1_ROUTER=$(cat $WARP_ARTIFACTS_FILE | jq -r ".${CHAIN1}.router")
 
 echo "Sending test warp transfer"
 yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
-    --origin anvil1 \
-    --destination anvil2 \
-    --chains ./examples/anvil-chains.yaml \
+    --origin ${CHAIN1} \
+    --destination ${CHAIN2} \
+    --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
-    --router $ANVIL1_ROUTER \
+    --router ${!CHAIN1_ROUTER} \
     --quick \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     | tee /tmp/message2
@@ -118,28 +168,36 @@ cd ./rust
 echo "Pre-building validator with cargo"
 cargo build --bin validator
 
-ANVIL_CONNECTION_URL="http://127.0.0.1"
+# set some default agent env vars, used by both validators and relayer
+export HYP_CHAINS_${CHAIN1_CAPS}_BLOCKS_REORGPERIOD=0
+export HYP_CHAINS_${CHAIN1_CAPS}_CUSTOMRPCURLS="http://127.0.0.1:${CHAIN1_PORT}"
+export HYP_CHAINS_${CHAIN2_CAPS}_BLOCKS_REORGPERIOD=0
+export HYP_CHAINS_${CHAIN2_CAPS}_CUSTOMRPCURLS="http://127.0.0.1:${CHAIN2_PORT}"
+
 VALIDATOR_PORT=9091
 
-for i in "anvil1 8545 ANVIL1" "anvil2 8555 ANVIL2"
+for CHAIN in ${CHAIN1} ${CHAIN2}
 do
+    # don't need the second validator for pi<>core test
+    if [ "$CHAIN" == "$CHAIN2" ] && [ "$TEST_TYPE" == "$TEST_TYPE_PI_CORE" ]; then
+        echo "Skipping validator for $CHAIN2 due to $TEST_TYPE_PI_CORE test type"
+        continue
+    fi
+
     VALIDATOR_PORT=$((VALIDATOR_PORT+1))
-    set -- $i
-    echo "Running validator on $1 on port $VALIDATOR_PORT"
+    echo "Running validator on $CHAIN on port $VALIDATOR_PORT"
     export CONFIG_FILES=/tmp/${AGENT_CONFIG_FILENAME}
-    export HYP_ORIGINCHAINNAME=$1
-    export HYP_CHAINS_${3}_BLOCKS_REORGPERIOD=0
+    export HYP_ORIGINCHAINNAME=${CHAIN}
     export HYP_VALIDATOR_INTERVAL=1
-    export HYP_CHAINS_${3}_CUSTOMRPCURLS=${ANVIL_CONNECTION_URL}:${2}
     export HYP_VALIDATOR_TYPE=hexKey
     export HYP_VALIDATOR_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
     export HYP_CHECKPOINTSYNCER_TYPE=localStorage
-    export HYP_CHECKPOINTSYNCER_PATH=/tmp/${1}/validator
+    export HYP_CHECKPOINTSYNCER_PATH=/tmp/${CHAIN}/validator
     export HYP_TRACING_LEVEL=debug
     export HYP_TRACING_FMT=compact
     export HYP_METRICSPORT=$VALIDATOR_PORT
 
-    cargo run --bin validator > /tmp/${1}/validator-logs.txt &
+    cargo run --bin validator > /tmp/${CHAIN}/validator-logs.txt &
 done
 
 echo "Validator running, sleeping to let it sync"
@@ -147,26 +205,37 @@ echo "Validator running, sleeping to let it sync"
 sleep 15
 echo "Done sleeping"
 
-echo "Validator Announcement:"
-cat /tmp/anvil1/validator/announcement.json
+for CHAIN in ${CHAIN1} ${CHAIN2}
+do
+    # only have one validator announce in pi<>core test
+    if [ "$CHAIN" == "$CHAIN2" ] && [ "$TEST_TYPE" == "$TEST_TYPE_PI_CORE" ]; then
+        echo "Skipping validator for $CHAIN2 due to $TEST_TYPE_PI_CORE test type"
+        continue
+    fi
+
+    echo "Validator Announcement for ${CHAIN}:"
+    cat /tmp/${CHAIN}/validator/announcement.json
+done
 
 echo "Pre-building relayer with cargo"
 cargo build --bin relayer
 
 echo "Running relayer"
-export HYP_RELAYCHAINS=anvil1,anvil2
+export CONFIG_FILES=/tmp/${AGENT_CONFIG_FILENAME}
+export HYP_RELAYCHAINS=${CHAIN1},${CHAIN2}
 export HYP_ALLOWLOCALCHECKPOINTSYNCERS=true
 export HYP_DB=/tmp/relayer
 export HYP_GASPAYMENTENFORCEMENT='[{"type":"none"}]'
-export HYP_CHAINS_ANVIL1_SIGNER_TYPE=hexKey
-export HYP_CHAINS_ANVIL1_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
-export HYP_CHAINS_ANVIL2_SIGNER_TYPE=hexKey
-export HYP_CHAINS_ANVIL2_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
-export HYP_METRICSPORT=9091
+export HYP_CHAINS_${CHAIN1_CAPS}_SIGNER_TYPE=hexKey
+export HYP_CHAINS_${CHAIN1_CAPS}_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
+export HYP_CHAINS_${CHAIN2_CAPS}_SIGNER_TYPE=hexKey
+export HYP_CHAINS_${CHAIN2_CAPS}_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
+export HYP_METRICSPORT=9090
 
 cargo run --bin relayer > /tmp/relayer/relayer-logs.txt &
 
 # This needs to be long to allow time for the cargo build to finish
+echo "Waiting for relayer..."
 sleep 20
 echo "Done running relayer, checking message delivery statuses"
 
@@ -176,8 +245,8 @@ do
     echo "Checking delivery status of $1: $2"
     yarn workspace @hyperlane-xyz/cli run hyperlane status \
         --id $2 \
-        --destination anvil2 \
-        --chains ./examples/anvil-chains.yaml \
+        --destination ${CHAIN2} \
+        --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
         --core $CORE_ARTIFACTS_PATH \
         | tee /tmp/message-status-$1
     if ! grep -q "$2 was delivered" /tmp/message-status-$1; then
