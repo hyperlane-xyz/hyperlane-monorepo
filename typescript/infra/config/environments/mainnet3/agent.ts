@@ -25,9 +25,9 @@ import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
 import injectiveInevmAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
 
-// const releaseCandidateHelloworldMatchingList = routerMatchingList(
-//   helloWorld[Contexts.ReleaseCandidate].addresses,
-// );
+const releaseCandidateHelloworldMatchingList = routerMatchingList(
+  helloWorld[Contexts.ReleaseCandidate].addresses,
+);
 
 const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
@@ -175,7 +175,7 @@ const releaseCandidate: RootAgentConfig = {
       repo,
       tag: '9736164-20240307-131918',
     },
-    // whitelist: releaseCandidateHelloworldMatchingList,
+    whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1
