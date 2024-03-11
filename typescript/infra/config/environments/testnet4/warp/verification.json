@@ -37,6 +37,12 @@
       "constructorArguments": "000000000000000000000000000000000000000000000000000000000000001200000000000000000000000033db966328ea213b0f76ef96ca368ab37779f065",
       "isProxy": false,
       "name": "HypERC20"
+    },
+    {
+      "address": "0x5310F977D29ae0Cf14eC000b5dbDF9734499Be4E",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000001200000000000000000000000033db966328ea213b0f76ef96ca368ab37779f065",
+      "isProxy": false,
+      "name": "HypERC20"
     }
   ],
   "scrollsepolia": [
@@ -80,6 +86,12 @@
     },
     {
       "address": "0x5b1E05e1fdDBc0f3d31c4E634ff4D5d84A56deEe",
+      "constructorArguments": "000000000000000000000000ffaef09b3cd11d9b20d1a19becca54eec2884766",
+      "isProxy": false,
+      "name": "HypNative"
+    },
+    {
+      "address": "0x6CaB302D57C1C0C11Be75447bf9865f265122De8",
       "constructorArguments": "000000000000000000000000ffaef09b3cd11d9b20d1a19becca54eec2884766",
       "isProxy": false,
       "name": "HypNative"

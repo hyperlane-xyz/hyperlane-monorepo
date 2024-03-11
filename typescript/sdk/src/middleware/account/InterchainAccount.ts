@@ -65,6 +65,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
   ): InterchainAccount {
+    console.log('InterchainAccount.fromAddressesMap', addressesMap);
     const helper = appFromAddressesMapHelper(
       addressesMap,
       interchainAccountFactories,
@@ -87,7 +88,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     chain: ChainName,
     config: AccountConfig,
   ): Promise<Address> {
-    const originDomain = this.multiProvider.getDomainId(config.origin);
+    const originDomain = this.multiProvider.tryGetDomainId(config.origin);
+    if (!originDomain) {
+      throw new Error(
+        `Origin chain (${config.origin}) metadata needed for deploying ICAs ...`,
+      );
+    }
     const localRouter = this.router(this.contractsMap[chain]);
     await this.multiProvider.handleTx(
       chain,
@@ -189,7 +195,7 @@ export async function deployInterchainAccount(
     throw new Error('localRouter is required for account deployment');
   }
   const addressesMap: HyperlaneAddressesMap<any> = {
-    chain: { interchainAccountRouter: config.localRouter },
+    [chain]: { interchainAccountRouter: config.localRouter },
   };
   const router = InterchainAccount.fromAddressesMap(
     addressesMap,
