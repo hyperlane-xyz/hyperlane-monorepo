@@ -265,9 +265,6 @@ async fn confirm_task(
             continue;
         };
 
-        // decrement the metric gauge for this operation, since it was just popped off the queue
-        metrics.confirm_queue_gauge(&op).dec();
-
         trace!(?op, "Confirming operation");
         debug_assert_eq!(*op.domain(), domain);
 
