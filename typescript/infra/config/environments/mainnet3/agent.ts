@@ -131,9 +131,17 @@ const hyperlane: RootAgentConfig = {
     docker: {
       repo,
       // Includes Cosmos block-by-block indexing.
-      tag: '9736164-20240307-131918',
+      tag: 'c2bf423-20240308-164604',
     },
-    gasPaymentEnforcement,
+    gasPaymentEnforcement: [
+      // Temporary measure to ensure all inEVM warp route messages are delivered -
+      // we saw some issues with IGP indexing.
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: routerMatchingList(injectiveInevmAddresses),
+      },
+      ...gasPaymentEnforcement,
+    ],
     metricAppContexts: [
       {
         name: 'helloworld',
