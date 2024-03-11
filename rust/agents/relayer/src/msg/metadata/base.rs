@@ -131,7 +131,7 @@ impl AppContextClassifier {
     pub async fn get_app_context(
         &self,
         message: &HyperlaneMessage,
-        root_ism: H256,
+        root_ism: Option<H256>,
     ) -> Result<Option<String>> {
         // Give priority to the matching list. If the app from the matching list happens
         // to use the default ISM, it's preferable to use the app context from the matching
@@ -141,6 +141,10 @@ impl AppContextClassifier {
                 return Ok(Some(app_context.clone()));
             }
         }
+
+        let Some(root_ism) = root_ism else {
+            return Ok(None);
+        };
 
         let default_ism = self.default_ism.get().await?;
         if root_ism == default_ism {
@@ -191,7 +195,7 @@ impl MessageMetadataBuilder {
     ) -> Result<Self> {
         let app_context = base
             .app_context_classifier
-            .get_app_context(message, ism_address)
+            .get_app_context(message, Some(ism_address))
             .await?;
         Ok(Self {
             base,

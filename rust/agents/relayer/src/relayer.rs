@@ -16,7 +16,7 @@ use hyperlane_base::{
     SequencedDataContractSync, WatermarkContractSync,
 };
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, Mailbox, MerkleTreeInsertion, U256,
 };
 use tokio::{
     sync::{
@@ -73,6 +73,8 @@ pub struct Relayer {
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
+    mailboxes: HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
+    metric_app_contexts: Vec<(MatchingList, String)>,
     core_metrics: Arc<CoreMetrics>,
     // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct
     // or move them in `core_metrics`, like the validator metrics
@@ -264,6 +266,8 @@ impl BaseAgent for Relayer {
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
+            mailboxes,
+            metric_app_contexts: settings.metric_app_contexts,
             core_metrics,
             agent_metrics,
             chain_metrics,
@@ -402,6 +406,8 @@ impl Relayer {
             metrics,
             send_channels,
             destination_ctxs,
+            self.mailboxes.clone(),
+            self.metric_app_contexts.clone(),
         );
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());

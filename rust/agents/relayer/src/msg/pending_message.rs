@@ -14,7 +14,9 @@ use tracing::{debug, error, info, instrument, trace, warn};
 
 use super::{
     gas_payment::GasPaymentEnforcer,
-    metadata::{BaseMetadataBuilder, MessageMetadataBuilder, MetadataBuilder},
+    metadata::{
+        AppContextClassifier, BaseMetadataBuilder, MessageMetadataBuilder, MetadataBuilder,
+    },
     pending_operation::*,
 };
 
@@ -50,6 +52,7 @@ pub struct MessageContext {
 pub struct PendingMessage {
     pub message: HyperlaneMessage,
     ctx: Arc<MessageContext>,
+    app_context: Option<String>,
     #[new(default)]
     submitted: bool,
     #[new(default)]
@@ -315,8 +318,12 @@ impl PendingOperation for PendingMessage {
 impl PendingMessage {
     /// Constructor that tries reading the retry count from the HyperlaneDB in order to recompute the `next_attempt_after`.
     /// In case of failure, behaves like `Self::new(...)`.
-    pub fn from_persisted_retries(message: HyperlaneMessage, ctx: Arc<MessageContext>) -> Self {
-        let mut pm = Self::new(message, ctx);
+    pub fn from_persisted_retries(
+        message: HyperlaneMessage,
+        ctx: Arc<MessageContext>,
+        app_context: Option<String>,
+    ) -> Self {
+        let mut pm = Self::new(message, ctx, app_context);
         match pm
             .ctx
             .origin_db

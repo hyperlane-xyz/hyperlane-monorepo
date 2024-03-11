@@ -9,12 +9,12 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox};
 use prometheus::IntGauge;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, trace};
 
-use super::pending_message::*;
+use super::{metadata::AppContextClassifier, pending_message::*};
 use crate::msg::pending_operation::DynPendingOperation;
 use crate::{processor::ProcessorExt, settings::matching_list::MatchingList};
 
@@ -31,6 +31,8 @@ pub struct MessageProcessor {
     send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
     /// Needed context to send a message for each destination chain
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
+    mailboxes: HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
+    metric_app_contexts: Vec<(MatchingList, String)>,
     #[new(default)]
     message_nonce: u32,
 }
@@ -94,10 +96,18 @@ impl ProcessorExt for MessageProcessor {
 
             debug!(%msg, "Sending message to submitter");
 
+            let domain: HyperlaneDomain = KnownHyperlaneDomain::try_from(msg.destination)?.into();
+            let app_context_classifier = AppContextClassifier::new(
+                self.mailboxes[&domain].clone(),
+                self.metric_app_contexts.clone(),
+            );
+
+            let app_context = app_context_classifier.get_app_context(&msg, None).await?;
             // Finally, build the submit arg and dispatch it to the submitter.
             let pending_msg = PendingMessage::from_persisted_retries(
                 msg,
                 self.destination_ctxs[&destination].clone(),
+                app_context,
             );
             self.send_channels[&destination].send(Box::new(pending_msg.into()))?;
             self.message_nonce += 1;
