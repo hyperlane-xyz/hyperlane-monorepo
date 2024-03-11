@@ -4,7 +4,7 @@ import { ILightClient } from '../../../../solidity/types';
 import { ILightClient__factory } from '../../../../solidity/types';
 import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi';
 
-import { ProofStatus } from './common/ProofStatusEnum';
+import { ProofStatus } from './constants/ProofStatusEnum';
 
 export type SuccinctConfig = {
   readonly lightClientAddress: string;
@@ -28,23 +28,27 @@ class LightClientService {
     );
   }
 
-  private getSyncCommitteePeriod(slot: bigint): bigint {
-    return slot / 8192n; // Slots Per Period
+  /**
+   * Calculates period, given a slot
+   * @dev Src: https://github.com/succinctlabs/telepathyx/blob/main/src/operatorx/operator.ts#L20-L22
+   * @param slot
+   */
+  async getSyncCommitteePeriod(slot: BigNumber): Promise<BigNumber> {
+    return slot.div(await this.lightClientContract.SLOTS_PER_PERIOD());
   }
 
   /**
-   * Gets syncCommitteePoseidons from ISM/LightClient
+   * Calculates the sync committee poseidon from the LightClient, given a slot
    * @param slot
-   * @returns
    */
-  async getSyncCommitteePoseidons(slot: bigint): Promise<string> {
+  async getSyncCommitteePoseidons(slot: BigNumber): Promise<string> {
     return await this.lightClientContract.syncCommitteePoseidons(
-      this.getSyncCommitteePeriod(slot),
+      await this.getSyncCommitteePeriod(slot),
     );
   }
 
   /**
-   * Calculates the slot given a timestamp, and the LightClient's configured Genesis Time and Secods Per Slot
+   * Calculates the slot, given a timestamp, and the LightClient's configured Genesis Time and Secods Per Slot
    * @param timestamp timestamp to calculate slot with
    */
   async calculateSlot(timestamp: BigNumber): Promise<BigNumber> {
@@ -54,7 +58,7 @@ class LightClientService {
   }
 
   /**
-   * Request the proof from Succinct.
+   * Request the ZK proof from Succinct, given the sync committee poseidon, and a slot
    * @param slot
    * @param syncCommitteePoseidon
    */
@@ -91,13 +95,17 @@ class LightClientService {
     return responseAsJson.proof_id;
   }
 
-  // @dev in the case of when a proof doesn't exist, the request returns an object of { error: 'failed to get proof' }.
-  // Example: GET https://alpha.succinct.xyz/api/proof/4dfd2802-4edf-4c4f-91db-b2d05eb69791
+  /**
+   * Check on the status of the ZK proof from Succinct.
+   * @param proofId
+   */
   async getProofStatus(proofId: string): Promise<ProofStatus> {
     const response = await fetch(
       `${this.succinctConfig.platformUrl}/${proofId}`,
     );
     const responseAsJson = await response.json();
+    // @dev in the case of when a proof doesn't exist, the request returns an object of { error: 'failed to get proof' }.
+    // Example: GET https://alpha.succinct.xyz/api/proof/4dfd2802-4edf-4c4f-91db-b2d05eb69791
     return responseAsJson.status ?? ProofStatus.error;
   }
 }

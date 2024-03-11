@@ -3,7 +3,7 @@ import { BigNumber, ethers } from 'ethers';
 import { HyperlaneService } from './HyperlaneService';
 import { LightClientService, SuccinctConfig } from './LightClientService';
 import { ProofResult, RPCService } from './RPCService';
-import { ProofStatus } from './common/ProofStatusEnum';
+import { ProofStatus } from './constants/ProofStatusEnum';
 
 type RPCConfig = {
   readonly url: string;
@@ -70,7 +70,7 @@ class ProofsService {
       );
       if (proofStatus === ProofStatus.success) {
         // Succinct Proof is ready.
-        // This means that the LightClient should have the latest state root. Fetch and return the storage proofs from eth_getProof
+        // This means that the LightClient should have the latest state root. Proceed to fetch and return the storage proofs from eth_getProof
         proofs.push(await this.getStorageProofs(target, storageKey, messageId));
         this.pendingProof.delete(pendingProofKey);
       } else {
@@ -82,7 +82,7 @@ class ProofsService {
   }
 
   /**
-   * Requests the Succinct proof
+   * Requests the Succinct ZK proof
    * @param messageId messageId that will be used to get the block info from hyperlane
    * @returns the proofId
    */
@@ -93,7 +93,8 @@ class ProofsService {
     const slot = await this.lightClientService.calculateSlot(
       BigNumber.from(timestamp),
     );
-    const syncCommitteePoseidon = ''; // TODO get from LC
+    const syncCommitteePoseidon =
+      await this.lightClientService.getSyncCommitteePoseidons(slot);
     return await this.lightClientService.requestProof(
       syncCommitteePoseidon,
       slot,

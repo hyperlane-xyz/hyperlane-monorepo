@@ -16,6 +16,7 @@ describe('RPCService', () => {
       '0x1221E88',
     );
 
+    // This just returns the mocked data
     expect(proofs).not.toBeNull();
   });
 });
