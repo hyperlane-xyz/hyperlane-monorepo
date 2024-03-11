@@ -65,36 +65,29 @@ const nativeBridges = {
   },
 };
 
-const ArbNitroChains = [Chains.arbitrum, Chains.arbitrumgoerli] as const;
-const OPStackChains = [
-  Chains.base,
+type L2Chain =
+  | Chains.optimism
+  | Chains.optimismgoerli
+  | Chains.arbitrum
+  | Chains.arbitrumgoerli
+  | Chains.base;
+
+const L2Chains: ChainName[] = [
   Chains.optimism,
   Chains.optimismgoerli,
-] as const;
-const PolygonCDKChains = [
-  Chains.polygonzkevm,
+  Chains.arbitrum,
+  Chains.arbitrumgoerli,
+  Chains.base,
   Chains.polygonzkevmtestnet,
-] as const;
-const ScrollZkEvmChains = [Chains.scroll, Chains.scrollsepolia] as const;
-
-type L2Chain = (typeof L2Chains)[number];
-const L2Chains: string[] = [
-  ...ArbNitroChains,
-  ...OPStackChains,
-  ...PolygonCDKChains,
-  ...ScrollZkEvmChains,
 ];
 
-const L2ToL1: Record<L2Chain, Chains> = {
-  arbitrum: Chains.ethereum,
-  arbitrumgoerli: Chains.goerli,
-  base: Chains.ethereum,
-  optimism: Chains.ethereum,
-  optimismgoerli: Chains.goerli,
-  polygonzkevm: Chains.ethereum,
-  polygonzkevmtestnet: Chains.goerli,
-  scroll: Chains.ethereum,
-  scrollsepolia: Chains.sepolia,
+const L2ToL1: ChainMap<ChainName> = {
+  optimismgoerli: 'goerli',
+  arbitrumgoerli: 'goerli',
+  optimism: 'ethereum',
+  arbitrum: 'ethereum',
+  base: 'ethereum',
+  polygonzkevmtestnet: 'goerli',
 };
 
 // Missing types declaration for bufio
@@ -132,9 +125,6 @@ const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 // Don't send the full amount over to RC keys
 const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
-
-// Funder should have desired balance multiplied by this constant
-const L2_BRIDGING_MULTIPLIER = 5;
 
 // The balance threshold of the IGP contract that must be met for the key funder
 // to call `claim()`
@@ -555,13 +545,13 @@ class ContextFunder {
         this.desiredBalancePerChain[chain],
         'ether',
       );
-      // When bridging ETH to L2 before funding the desired key, we top up funder
-      // to a constant multiplier of the desired balance. This reduces our spend
-      // on L1 gas by reducing the frequency of L1 operations.
+      // Optionally bridge ETH to L2 before funding the desired key.
+      // By bridging the funder with 10x the desired balance we save
+      // on L1 gas.
       const bridgeAmount = await this.getFundingAmount(
         chain,
         funderAddress,
-        desiredBalanceEther.mul(L2_BRIDGING_MULTIPLIER),
+        desiredBalanceEther.mul(5),
       );
       if (bridgeAmount.gt(0)) {
         await this.bridgeToL2(chain as L2Chain, funderAddress, bridgeAmount);
@@ -708,13 +698,13 @@ class ContextFunder {
       ),
     });
     let tx;
-    if ((OPStackChains as readonly string[]).includes(l2Chain)) {
+    if (l2Chain.includes('optimism') || l2Chain.includes('base')) {
       tx = await this.bridgeToOptimism(l2Chain, amount, to);
-    } else if ((ArbNitroChains as readonly string[]).includes(l2Chain)) {
+    } else if (l2Chain.includes('arbitrum')) {
       tx = await this.bridgeToArbitrum(l2Chain, amount);
-    } else if ((ScrollZkEvmChains as readonly string[]).includes(l2Chain)) {
+    } else if (l2Chain.includes('scroll')) {
       tx = await this.bridgeToScroll(l2Chain, amount, to);
-    } else if ((PolygonCDKChains as readonly string[]).includes(l2Chain)) {
+    } else if (l2Chain.includes('zkevm')) {
       tx = await this.bridgeToPolygonCDK(l2Chain, amount, to);
     } else {
       throw new Error(`${l2Chain} is not an L2`);
