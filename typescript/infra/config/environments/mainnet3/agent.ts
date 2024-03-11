@@ -25,9 +25,9 @@ import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
 import injectiveInevmAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
 
-// const releaseCandidateHelloworldMatchingList = routerMatchingList(
-//   helloWorld[Contexts.ReleaseCandidate].addresses,
-// );
+const releaseCandidateHelloworldMatchingList = routerMatchingList(
+  helloWorld[Contexts.ReleaseCandidate].addresses,
+);
 
 const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
@@ -131,9 +131,17 @@ const hyperlane: RootAgentConfig = {
     docker: {
       repo,
       // Includes Cosmos block-by-block indexing.
-      tag: '9736164-20240307-131918',
+      tag: 'c2bf423-20240308-164604',
     },
-    gasPaymentEnforcement,
+    gasPaymentEnforcement: [
+      // Temporary measure to ensure all inEVM warp route messages are delivered -
+      // we saw some issues with IGP indexing.
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: routerMatchingList(injectiveInevmAddresses),
+      },
+      ...gasPaymentEnforcement,
+    ],
     metricAppContexts: [
       {
         name: 'helloworld',
@@ -175,7 +183,7 @@ const releaseCandidate: RootAgentConfig = {
       repo,
       tag: '9736164-20240307-131918',
     },
-    // whitelist: releaseCandidateHelloworldMatchingList,
+    whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1
