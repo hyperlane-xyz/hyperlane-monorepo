@@ -22,7 +22,8 @@ use super::pending_operation::*;
 
 #[derive(Debug, Clone, new)]
 struct OpQueue {
-    metrics: SerialSubmitterMetrics,
+    metrics: IntGaugeVec,
+    queue_metrics_label: String,
     #[new(default)]
     queue: Arc<Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>>,
 }
@@ -30,16 +31,23 @@ struct OpQueue {
 impl OpQueue {
     async fn push(&self, op: Box<DynPendingOperation>) {
         // increment the metric before pushing onto the queue, because we lose ownership afterwards
-        self.metrics.prepare_queue_gauge(&op).inc();
+        self.get_operation_metric(&op).inc();
+
         self.queue.lock().await.push(Reverse(op));
     }
 
     async fn pop(&self) -> Option<Reverse<Box<DynPendingOperation>>> {
         let op = self.queue.lock().await.pop();
         op.map(|op| {
-            self.metrics.prepare_queue_gauge(&op.0).dec();
+            self.get_operation_metric(&op.0).dec();
             op
         })
+    }
+
+    fn get_operation_metric(&self, operation: &DynPendingOperation) -> IntGauge {
+        let (app_context, destination) = operation.get_operation_labels();
+        self.metrics
+            .with_label_values(&[&destination, &self.queue_metrics_label, &app_context])
     }
 }
 
@@ -112,8 +120,14 @@ impl SerialSubmitter {
             metrics,
             rx: rx_prepare,
         } = self;
-        let prepare_queue = OpQueue::new(metrics.clone());
-        let confirm_queue = OpQueue::new(metrics.clone());
+        let prepare_queue = OpQueue::new(
+            metrics.submitter_queue_length.clone(),
+            "prepare_queue".to_string(),
+        );
+        let confirm_queue = OpQueue::new(
+            metrics.submitter_queue_length.clone(),
+            "confirm_queue".to_string(),
+        );
 
         // This is a channel because we want to only have a small number of messages
         // sitting ready to go at a time and this acts as a synchronization tool
@@ -324,23 +338,5 @@ impl SerialSubmitterMetrics {
                 .operations_processed_count()
                 .with_label_values(&["dropped", destination]),
         }
-    }
-
-    pub fn prepare_queue_gauge(&self, operation: &DynPendingOperation) -> IntGauge {
-        let (app_context, destination) = operation.get_operation_labels();
-        self.submitter_queue_length.with_label_values(&[
-            &destination,
-            "prepare_queue",
-            &app_context,
-        ])
-    }
-
-    pub fn confirm_queue_gauge(&self, operation: &DynPendingOperation) -> IntGauge {
-        let (app_context, destination) = operation.get_operation_labels();
-        self.submitter_queue_length.with_label_values(&[
-            &destination,
-            "confirm_queue",
-            &app_context,
-        ])
     }
 }
