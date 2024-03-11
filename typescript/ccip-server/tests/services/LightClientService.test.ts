@@ -1,29 +1,36 @@
 import { describe, expect, jest, test } from '@jest/globals';
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
-import { TelepathyCcipReadIsmAbi } from '../../src/abis/TelepathyCcipReadIsmAbi';
 import { LightClientService } from '../../src/services/LightClientService';
 import { RPCService } from '../../src/services/RPCService';
+import { genesisTime } from '../../src/services/__mocks__/LightClientService';
+
+// Fixtures
+jest.mock('../../src/services/LightClientService');
+jest.mock('../../src/services/RPCService');
 
 describe('LightClientService', () => {
   let lightClientService: LightClientService;
   beforeEach(() => {
     const rpcService = new RPCService('http://localhost:8545');
-    const lightClientContract = new ethers.Contract(
-      'lightClientAddress',
-      TelepathyCcipReadIsmAbi,
+
+    lightClientService = new LightClientService(
+      {
+        lightClientAddress: ethers.constants.AddressZero,
+        stepFunctionId: ethers.constants.HashZero,
+        platformUrl: 'http://localhost:8080',
+        apiKey: 'apiKey',
+        chainId: '1337',
+      },
       rpcService.provider,
     );
-    lightClientService = new LightClientService(lightClientContract, {
-      lightClientAddress: ethers.constants.AddressZero,
-      stepFunctionId: ethers.constants.HashZero,
-      platformUrl: 'http://localhost:8080',
-      apiKey: 'apiKey',
-    });
 
     jest.resetModules();
   });
-  test('should return the correct proof status', () => {
-    expect(lightClientService.calculateSlot(1n)).toBeGreaterThan(0);
+  test('should return the correct proof status', async () => {
+    const results = await lightClientService.calculateSlot(
+      BigNumber.from(genesisTime + 100),
+    );
+    expect(results.toBigInt()).toBeGreaterThan(0);
   });
 });

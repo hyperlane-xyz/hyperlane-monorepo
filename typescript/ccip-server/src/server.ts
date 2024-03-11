@@ -7,13 +7,23 @@ import { ProofsService } from './services/ProofsService';
 
 // Initalize Services
 const proofsService = new ProofsService(
-  config.LIGHT_CLIENT_ADDR,
-  config.RPC_ADDRESS,
-  config.STEP_FN_ID,
-  config.CHAIN_ID,
-  config.SUCCINCT_PLATFORM_URL,
-  config.SUCCINCT_API_KEY,
-  config.HYPERLANE_API_URL,
+  // succinctConfig
+  {
+    stepFunctionId: config.STEP_FN_ID,
+    lightClientAddress: config.LIGHT_CLIENT_ADDR,
+    apiKey: config.SUCCINCT_API_KEY,
+    platformUrl: config.SUCCINCT_PLATFORM_URL,
+    chainId: config.CHAIN_ID,
+  },
+  // rpcConfig
+  {
+    url: config.RPC_ADDRESS,
+    chainId: config.CHAIN_ID,
+  },
+  // hyperlaneConfig
+  {
+    url: config.HYPERLANE_API_URL,
+  },
 );
 
 // Initalize Server and add Service handlers

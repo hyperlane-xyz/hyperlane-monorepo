@@ -24,6 +24,7 @@ describe('ProofsService', () => {
         stepFunctionId: ethers.constants.HashZero,
         platformUrl: 'http://localhost:8080',
         apiKey: 'apiKey',
+        chainId: '1337',
       },
       {
         url: 'http://localhost:8545',

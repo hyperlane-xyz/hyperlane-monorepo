@@ -32,7 +32,16 @@ contract TelepathyCcipReadIsmTest is StateProofHelpersTest {
         super.setUp();
         telepathyCcipReadIsm = new TelepathyCcipReadIsm();
 
-        lightClient = new MockLightClient();
+        lightClient = new MockLightClient({
+            genesisValidatorsRoot: EMPTY_BYTES32,
+            genesisTime: 0,
+            secondsPerSlot: 12,
+            slotsPerPeriod: 8192,
+            syncCommitteePeriod: 0,
+            syncCommitteePoseidon: EMPTY_BYTES32,
+            sourceChainId: 1,
+            finalityThreshold: 461
+        });
 
         deployCodeTo("TelepathyCcipReadHook.sol", abi.encode(0), HOOK_ADDR);
         mailbox = MockMailbox(MAILBOX_ADDR);

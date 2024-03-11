@@ -1,6 +1,4 @@
-import { ethers } from 'ethers';
-
-import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi';
+import { BigNumber, ethers } from 'ethers';
 
 import { HyperlaneService } from './HyperlaneService';
 import { LightClientService, SuccinctConfig } from './LightClientService';
@@ -32,15 +30,10 @@ class ProofsService {
     hyperlaneConfig: Required<HyperlaneConfig>,
   ) {
     this.rpcService = new RPCService(rpcConfig.url);
-    const lightClientContract = new ethers.Contract(
-      succinctConfig.lightClientAddress,
-      TelepathyCcipReadIsmAbi,
-      this.rpcService.provider,
-    );
 
     this.lightClientService = new LightClientService(
-      lightClientContract,
       succinctConfig,
+      this.rpcService.provider,
     );
 
     this.hyperlaneService = new HyperlaneService(hyperlaneConfig.url);
@@ -97,7 +90,9 @@ class ProofsService {
     const { timestamp } = await this.hyperlaneService.getOriginBlockByMessageId(
       messageId,
     );
-    const slot = await this.lightClientService.calculateSlot(BigInt(timestamp));
+    const slot = await this.lightClientService.calculateSlot(
+      BigNumber.from(timestamp),
+    );
     const syncCommitteePoseidon = ''; // TODO get from LC
     return await this.lightClientService.requestProof(
       syncCommitteePoseidon,

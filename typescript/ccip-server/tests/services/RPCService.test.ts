@@ -1,7 +1,10 @@
-import { describe, expect, test } from '@jest/globals';
+import { describe, expect, jest, test } from '@jest/globals';
 
 import * as config from '../../src/config';
 import { RPCService } from '../../src/services/RPCService';
+
+// Fixtures
+jest.mock('../../src/services/RPCService');
 
 describe('RPCService', () => {
   const rpcService = new RPCService(config.RPC_ADDRESS);
