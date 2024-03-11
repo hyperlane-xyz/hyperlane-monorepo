@@ -14,9 +14,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 
 use super::{
     gas_payment::GasPaymentEnforcer,
-    metadata::{
-        AppContextClassifier, BaseMetadataBuilder, MessageMetadataBuilder, MetadataBuilder,
-    },
+    metadata::{BaseMetadataBuilder, MessageMetadataBuilder, MetadataBuilder},
     pending_operation::*,
 };
 
@@ -105,6 +103,16 @@ impl Eq for PendingMessage {}
 impl PendingOperation for PendingMessage {
     fn domain(&self) -> &HyperlaneDomain {
         self.ctx.destination_mailbox.domain()
+    }
+
+    /// The label to use for metrics granularity.
+    fn app_context(&self) -> Option<String> {
+        self.app_context.clone()
+    }
+
+    fn destination(&self) -> String {
+        // TODO: check whether this is the correct way of converting the address to string
+        self.ctx.destination_mailbox.address().to_string()
     }
 
     #[instrument]
@@ -305,7 +313,7 @@ impl PendingOperation for PendingMessage {
         }
     }
 
-    fn _next_attempt_after(&self) -> Option<Instant> {
+    fn next_attempt_after(&self) -> Option<Instant> {
         self.next_attempt_after
     }
 

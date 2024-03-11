@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use derive_new::new;
 use futures_util::future::try_join_all;
-use prometheus::{IntCounter, IntGauge};
+use prometheus::{IntCounter, IntGauge, IntGaugeVec};
 use tokio::spawn;
 use tokio::sync::{
     mpsc::{self},
@@ -20,7 +20,28 @@ use hyperlane_core::HyperlaneDomain;
 
 use super::pending_operation::*;
 
-type OpQueue = Arc<Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>>;
+#[derive(Debug, Clone, new)]
+struct OpQueue {
+    metrics: SerialSubmitterMetrics,
+    #[new(default)]
+    queue: Arc<Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>>,
+}
+
+impl OpQueue {
+    async fn push(&self, op: Box<DynPendingOperation>) {
+        // increment the metric before pushing onto the queue, because we lose ownership afterwards
+        self.metrics.prepare_queue_gauge(&op).inc();
+        self.queue.lock().await.push(Reverse(op));
+    }
+
+    async fn pop(&self) -> Option<Reverse<Box<DynPendingOperation>>> {
+        let op = self.queue.lock().await.pop();
+        op.map(|op| {
+            self.metrics.prepare_queue_gauge(&op.0).dec();
+            op
+        })
+    }
+}
 
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
@@ -91,8 +112,8 @@ impl SerialSubmitter {
             metrics,
             rx: rx_prepare,
         } = self;
-        let prepare_queue: OpQueue = Default::default();
-        let confirm_queue: OpQueue = Default::default();
+        let prepare_queue = OpQueue::new(metrics.clone());
+        let confirm_queue = OpQueue::new(metrics.clone());
 
         // This is a channel because we want to only have a small number of messages
         // sitting ready to go at a time and this acts as a synchronization tool
@@ -149,7 +170,7 @@ async fn receive_task(
         // make sure things are getting wired up correctly; if this works in testing it
         // should also be valid in production.
         debug_assert_eq!(*op.domain(), domain);
-        prepare_queue.lock().await.push(Reverse(op));
+        prepare_queue.push(op).await;
     }
 }
 
@@ -162,16 +183,17 @@ async fn prepare_task(
 ) {
     loop {
         // Pick the next message to try preparing.
-        let next = {
-            let mut queue = prepare_queue.lock().await;
-            metrics.prepare_queue_length.set(queue.len() as i64);
-            queue.pop()
-        };
+        let next = prepare_queue.pop().await;
+
         let Some(Reverse(mut op)) = next else {
             // queue is empty so give some time before checking again to prevent burning CPU
             sleep(Duration::from_millis(200)).await;
             continue;
         };
+
+        // decrement the metric gauge for this operation, since it was just popped off the queue
+        metrics.prepare_queue_gauge(&op).dec();
+
         trace!(?op, "Preparing operation");
         debug_assert_eq!(*op.domain(), domain);
 
@@ -186,12 +208,14 @@ async fn prepare_task(
             }
             PendingOperationResult::NotReady => {
                 // none of the operations are ready yet, so wait for a little bit
-                prepare_queue.lock().await.push(Reverse(op));
+                metrics.prepare_queue_gauge(&op).inc();
+                prepare_queue.push(op).await;
                 sleep(Duration::from_millis(200)).await;
             }
             PendingOperationResult::Reprepare => {
                 metrics.ops_failed.inc();
-                prepare_queue.lock().await.push(Reverse(op));
+                metrics.prepare_queue_gauge(&op).inc();
+                prepare_queue.push(op).await;
             }
             PendingOperationResult::Drop => {
                 metrics.ops_dropped.inc();
@@ -216,14 +240,14 @@ async fn submit_task(
             PendingOperationResult::Success => {
                 debug!(?op, "Operation submitted");
                 metrics.ops_submitted.inc();
-                confirm_queue.lock().await.push(Reverse(op));
+                confirm_queue.push(op).await;
             }
             PendingOperationResult::NotReady => {
                 panic!("Pending operation was prepared and therefore must be ready")
             }
             PendingOperationResult::Reprepare => {
                 metrics.ops_failed.inc();
-                prepare_queue.lock().await.push(Reverse(op));
+                prepare_queue.push(op).await;
             }
             PendingOperationResult::Drop => {
                 metrics.ops_dropped.inc();
@@ -241,15 +265,14 @@ async fn confirm_task(
 ) {
     loop {
         // Pick the next message to try confirming.
-        let next = {
-            let mut queue = confirm_queue.lock().await;
-            metrics.confirm_queue_length.set(queue.len() as i64);
-            queue.pop()
-        };
-        let Some(Reverse(mut op)) = next else {
+        let Some(Reverse(mut op)) = confirm_queue.pop().await else {
             sleep(Duration::from_secs(5)).await;
             continue;
         };
+
+        // decrement the metric gauge for this operation, since it was just popped off the queue
+        metrics.confirm_queue_gauge(&op).dec();
+
         trace!(?op, "Confirming operation");
         debug_assert_eq!(*op.domain(), domain);
 
@@ -260,12 +283,12 @@ async fn confirm_task(
             }
             PendingOperationResult::NotReady => {
                 // none of the operations are ready yet, so wait for a little bit
-                confirm_queue.lock().await.push(Reverse(op));
+                confirm_queue.push(op).await;
                 sleep(Duration::from_secs(5)).await;
             }
             PendingOperationResult::Reprepare => {
                 metrics.ops_reorged.inc();
-                prepare_queue.lock().await.push(Reverse(op));
+                prepare_queue.push(op).await;
             }
             PendingOperationResult::Drop => {
                 metrics.ops_dropped.inc();
@@ -276,9 +299,7 @@ async fn confirm_task(
 
 #[derive(Debug, Clone)]
 pub struct SerialSubmitterMetrics {
-    prepare_queue_length: IntGauge,
-    confirm_queue_length: IntGauge,
-
+    submitter_queue_length: IntGaugeVec,
     ops_prepared: IntCounter,
     ops_submitted: IntCounter,
     ops_confirmed: IntCounter,
@@ -291,12 +312,7 @@ impl SerialSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, destination: &HyperlaneDomain) -> Self {
         let destination = destination.name();
         Self {
-            prepare_queue_length: metrics
-                .submitter_queue_length()
-                .with_label_values(&[destination, "prepare_queue"]),
-            confirm_queue_length: metrics
-                .submitter_queue_length()
-                .with_label_values(&[destination, "confirm_queue"]),
+            submitter_queue_length: metrics.submitter_queue_length(),
             ops_prepared: metrics
                 .operations_processed_count()
                 .with_label_values(&["prepared", destination]),
@@ -316,5 +332,23 @@ impl SerialSubmitterMetrics {
                 .operations_processed_count()
                 .with_label_values(&["dropped", destination]),
         }
+    }
+
+    pub fn prepare_queue_gauge(&self, operation: &DynPendingOperation) -> IntGauge {
+        let (app_context, destination) = operation.get_operation_labels();
+        self.submitter_queue_length.with_label_values(&[
+            &destination,
+            "prepare_queue",
+            &app_context,
+        ])
+    }
+
+    pub fn confirm_queue_gauge(&self, operation: &DynPendingOperation) -> IntGauge {
+        let (app_context, destination) = operation.get_operation_labels();
+        self.submitter_queue_length.with_label_values(&[
+            &destination,
+            "confirm_queue",
+            &app_context,
+        ])
     }
 }

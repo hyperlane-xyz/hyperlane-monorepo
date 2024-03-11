@@ -32,6 +32,19 @@ pub trait PendingOperation {
     /// The domain this operation will take place on.
     fn domain(&self) -> &HyperlaneDomain;
 
+    /// Label to use for metrics granularity.
+    fn app_context(&self) -> Option<String>;
+
+    /// The destination contract address this operation is meant for.
+    fn destination(&self) -> String;
+
+    /// Get tuple of labels for metrics.
+    fn get_operation_labels(&self) -> (String, String) {
+        let app_context = self.app_context().unwrap_or("Unknown".to_string());
+        let destination = self.destination();
+        (destination, app_context)
+    }
+
     /// Prepare to submit this operation. This will be called before every
     /// submission and will usually have a very short gap between it and the
     /// submit call.
@@ -50,7 +63,7 @@ pub trait PendingOperation {
     ///
     /// This is only used for sorting, the functions are responsible for
     /// returning `NotReady` if it is too early and matters.
-    fn _next_attempt_after(&self) -> Option<Instant>;
+    fn next_attempt_after(&self) -> Option<Instant>;
 
     #[cfg(test)]
     /// Set the number of times this operation has been retried.
@@ -80,7 +93,7 @@ impl Ord for DynPendingOperation {
     fn cmp(&self, other: &Self) -> Ordering {
         use DynPendingOperation::*;
         use Ordering::*;
-        match (self._next_attempt_after(), other._next_attempt_after()) {
+        match (self.next_attempt_after(), other.next_attempt_after()) {
             (Some(a), Some(b)) => a.cmp(&b),
             // No time means it should come before
             (None, Some(_)) => Less,

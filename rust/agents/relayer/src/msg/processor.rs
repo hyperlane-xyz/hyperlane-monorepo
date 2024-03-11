@@ -20,6 +20,7 @@ use crate::{processor::ProcessorExt, settings::matching_list::MatchingList};
 
 /// Finds unprocessed messages from an origin and submits then through a channel
 /// for to the appropriate destination.
+#[allow(clippy::too_many_arguments)]
 #[derive(new)]
 pub struct MessageProcessor {
     db: HyperlaneRocksDB,
@@ -306,6 +307,8 @@ mod test {
                 dummy_processor_metrics(origin_domain.id()),
                 HashMap::from([(destination_domain.id(), send_channel)]),
                 HashMap::from([(destination_domain.id(), message_context)]),
+                HashMap::new(),
+                vec![],
             ),
             receive_channel,
         )
@@ -435,7 +438,7 @@ mod test {
                     // Round up the actual backoff because it was calculated with an `Instant::now()` that was a fraction of a second ago
                     let expected_backoff = PendingMessage::calculate_msg_backoff(*expected_retries)
                         .map(|b| b.as_secs_f32().round());
-                    let actual_backoff = pm._next_attempt_after().map(|instant| {
+                    let actual_backoff = pm.next_attempt_after().map(|instant| {
                         instant.duration_since(Instant::now()).as_secs_f32().round()
                     });
                     assert_eq!(expected_backoff, actual_backoff);
