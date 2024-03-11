@@ -22,15 +22,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  arbitrumgoerli: {
-    threshold: 2,
-    validators: [
-      '0x071c8d135845ae5a2cb73f98d681d519014c0a8b',
-      '0x1bcf03360989f15cbeb174c188288f2c6d2760d7',
-      '0xc1590eaaeaf380e7859564c5ebcdcc87e8369e0d',
-    ],
-  },
-
   avalanche: {
     threshold: 2,
     validators: [
@@ -125,15 +116,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  goerli: {
-    threshold: 2,
-    validators: [
-      '0x05a9b5efe9f61f9142453d8e9f61565f333c6768',
-      '0x43a96c7dfbd8187c95013d6ee8665650cbdb2673',
-      '0x7940a12c050e24e1839c21ecb12f65afd84e8c5b',
-    ],
-  },
-
   inevm: {
     threshold: 2,
     validators: [
@@ -149,15 +131,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xbfb8911b72cfb138c7ce517c57d9c691535dc517',
       '0x6B1d09A97b813D53e9D4b7523DA36604C0B52242', // caldera
       '0x9e551b6694bbd295d7d6e6a2540c7d41ce70a3b9', // imperator
-    ],
-  },
-
-  lineagoerli: {
-    threshold: 2,
-    validators: [
-      '0xd767ea1206b8295d7e1267ddd00e56d34f278db6',
-      '0x4a5d7085ca93c22fbc994dd97857c98fcc745674',
-      '0x8327779c3c31fa1ffc7f0c9ffae33e4d804bbd8f',
     ],
   },
 
@@ -214,15 +187,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x22b1ad4322cdb5f2c76ebf4e5a93803d480fcf0d', // everstake
       '0x9636fbe90b6816438327b0fbde435aa3c8eeda15', // staked
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
-    ],
-  },
-
-  optimismgoerli: {
-    threshold: 2,
-    validators: [
-      '0x79e58546e2faca865c6732ad5f6c4951051c4d67',
-      '0x7bbfe1bb7146aad7df309c637987d856179ebbc1',
-      '0xf3d2fb4d53c2bb6a88cec040e0d87430fcee4e40',
     ],
   },
 

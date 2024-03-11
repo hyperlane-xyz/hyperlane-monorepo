@@ -17,24 +17,6 @@
     "testTokenRecipient": "0x92dC0a76452a9D9358D2d2dEd8CddA209DF67c45",
     "validatorAnnounce": "0x3726EE36a2A9e11a40d1ffD7D9A1A16e0154cDA0"
   },
-  "arbitrumgoerli": {
-    "aggregationHook": "0xf852EB6b98d84A4296754043a56759a0Ae0E06df",
-    "aggregationHookFactory": "0x39a8711BF44165A2292Cb5cB43229659c2Bb11c9",
-    "aggregationIsmFactory": "0xC5Bb8CDD44B6c56695df45c7AA8012a97dD6ED13",
-    "fallbackRoutingHook": "0xEdA6f85f4761A1f9e42FD40CA5a4E8Ce1C764015",
-    "interchainGasPaymaster": "0x76189acFA212298d7022624a4633411eE0d2f26F",
-    "mailbox": "0x13dABc0351407d5aAa0A50003a166A73b4febfDc",
-    "merkleRootMultisigIsmFactory": "0x17D58eBb5Ea0E2d360c877E119FAef4C4052e6B9",
-    "merkleTreeHook": "0xf0A38e1eEA49dAc7968F470c3aA0BDE2565A5d80",
-    "messageIdMultisigIsmFactory": "0x922CeEe9e8832a047e6aD68Df4F079F271b73Ac3",
-    "protocolFee": "0x0358ba0D90ED2d90fB8cBb610F27C274D8077a0B",
-    "proxyAdmin": "0x00DFB81Bfc45fa03060b605273147F274ea807E5",
-    "routingIsmFactory": "0x4D6b4fe86cA1B49ea9CcDFA92F97e4EA0C27Cef2",
-    "storageGasOracle": "0xFc8229ADB46D96056A6e451Fb3c55d60FFeD056f",
-    "testRecipient": "0x07543860AE9E72aBcF2Bae9827b23621A64Fa416",
-    "testTokenRecipient": "0x207db41AB053213451f1a71d936353C9056A0205",
-    "validatorAnnounce": "0x4a01EEBa1CC20F47A2e60aE4ec932051601FcB9e"
-  },
   "bsctestnet": {
     "aggregationHook": "0x3d675bB93250Ab7603F40cbb9194bae210784627",
     "aggregationHookFactory": "0xa1145B39F1c7Ef9aA593BC1DB1634b00CC020942",
@@ -70,24 +52,6 @@
     "testTokenRecipient": "0x9CC10c844B3Bbae2444E39991aB027C4A05D1F2e",
     "validatorAnnounce": "0x4f7179A691F8a684f56cF7Fed65171877d30739a"
   },
-  "goerli": {
-    "aggregationHook": "0x2dF77b3efe9B8f9aEDf7bFC86f40B048178d8116",
-    "aggregationHookFactory": "0x6bc243963f80AEa80948e8538bB114d4122DD9c5",
-    "aggregationIsmFactory": "0x8a176773d54292123d271FA0B9C7C8Def4c3a31b",
-    "fallbackRoutingHook": "0xd9E546CBB9577dC6346EdB40b24E86aE52487ab8",
-    "interchainGasPaymaster": "0x0cD26594ea6c6526927C0F5225AC09F6288e7140",
-    "mailbox": "0x49cfd6Ef774AcAb14814D699e3F7eE36Fdfba932",
-    "merkleRootMultisigIsmFactory": "0x8e43aCfb338B137A3befd9b92BfD84E128adE0B8",
-    "merkleTreeHook": "0x28c294C61D3dE053462d2Cfa5d5f8c8D70605A59",
-    "messageIdMultisigIsmFactory": "0xDdB54502A8e2a31C48148C62A8a9E83a693d6173",
-    "protocolFee": "0x9293B8dAcA7933765de499C992B0Fa86Bb104b0f",
-    "proxyAdmin": "0x0EdB3604D230963ecE9d83963164CFe2fDef576B",
-    "routingIsmFactory": "0xeB998dC788E2c1e772d198d32e50890544776e75",
-    "storageGasOracle": "0xeC34c715ee6d050b2172E8aF650Db779561266C1",
-    "testRecipient": "0x4fC0Ac163eFFEb7890937cB89275B2C231880F22",
-    "testTokenRecipient": "0xd8958706B33E20C88679a22203F0AFa6158c834d",
-    "validatorAnnounce": "0x3c182AD9cA8A71bc107Ef440C2667E8360e1158E"
-  },
   "mumbai": {
     "aggregationHook": "0xD546273418733AcEC8c7A67EfB881c9Ea83851bf",
     "aggregationHookFactory": "0x54CA9De95B37365909364672D363D2ecFC4e1Af4",
@@ -105,24 +69,6 @@
     "testRecipient": "0xF45A4D54223DA32bf7b5D43a9a460Ef3C94C713B",
     "testTokenRecipient": "0x57d098e6952B6C1c85Ce0B68C9Deada3dCf7D05A",
     "validatorAnnounce": "0x99303EFF09332cDd93E8BC8b2F07b2416e4501e5"
-  },
-  "optimismgoerli": {
-    "aggregationHook": "0x1C8A2588b8038BF9B7b1b60dD0EdF5b995A45599",
-    "aggregationHookFactory": "0x00cE81F7B02e0673815a8b0A54e62AeabDE78685",
-    "aggregationIsmFactory": "0xf666A33C451E8371907aD22dd545E1678fCa1582",
-    "fallbackRoutingHook": "0xc775c748F8c9F5443151Fd989e8B61375657474d",
-    "interchainGasPaymaster": "0x02A7661273528EfF3d78CBE7CbD1a717b28B89fC",
-    "mailbox": "0xB5f021728Ea6223E3948Db2da61d612307945eA2",
-    "merkleRootMultisigIsmFactory": "0xAbC25d7daDD748948F5cC912A807b0f8FcBb56a9",
-    "merkleTreeHook": "0xFEe074B31B5B259eB3109737bE13D39B853b47b9",
-    "messageIdMultisigIsmFactory": "0x7868B6026E36C4b6E2ca6a0CaBDb1A6D0CcC443B",
-    "protocolFee": "0x962e30F6A3ECDA85c7fa1FcF38cD04efA991Ee20",
-    "proxyAdmin": "0x800b4be4Dc91E56DE934D9f16888d113eFf89Ebb",
-    "routingIsmFactory": "0xce8E9D701A1DFfe672c1d8dB20De2B3fa6F4437D",
-    "storageGasOracle": "0x4927C33299091033D935C15DE6b6073164e99BE0",
-    "testRecipient": "0x518eA1802407b4b5AAF3aA92c1A803FfbA9FB7fe",
-    "testTokenRecipient": "0xB9E45eA920DE14e95A16Ed5e1275F893552f2e32",
-    "validatorAnnounce": "0x24D31e12E4d3bc2C46C994FcE0c828b218A1aeAb"
   },
   "plumetestnet": {
     "aggregationHook": "0x31dF0EEE7Dc7565665468698a0da221225619a1B",

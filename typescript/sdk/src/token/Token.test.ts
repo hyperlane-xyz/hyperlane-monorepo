@@ -36,7 +36,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     name: 'Injective Coin',
   },
   [TokenStandard.EvmHypCollateral]: {
-    chainName: Chains.goerli,
+    chainName: Chains.sepolia,
     standard: TokenStandard.EvmHypCollateral,
     addressOrDenom: '0x145de8760021c4ac6676376691b78038d3DE9097',
     collateralAddressOrDenom: '0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6',

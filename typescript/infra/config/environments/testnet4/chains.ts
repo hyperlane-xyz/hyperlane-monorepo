@@ -9,13 +9,10 @@ import {
 // These chains may be any protocol type.
 export const supportedChainNames = [
   Chains.alfajores,
-  Chains.arbitrumgoerli,
   Chains.bsctestnet,
   Chains.eclipsetestnet,
   Chains.fuji,
-  Chains.goerli,
   Chains.mumbai,
-  Chains.optimismgoerli,
   Chains.plumetestnet,
   Chains.polygonzkevmtestnet,
   Chains.scrollsepolia,

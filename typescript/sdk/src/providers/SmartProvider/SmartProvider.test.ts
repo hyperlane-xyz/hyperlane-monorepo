@@ -20,20 +20,20 @@ const TRANSFER_TX_HASH =
   '0x45a586f90ffd5d0f8e618f0f3703b14c2c9e4611af6231d6fed32c62776b6c1b';
 
 const pagination = { maxBlockRange: 1000 };
-const goerliRpcConfig1 = { ...chainMetadata.goerli.rpcUrls[0], pagination };
-const goerliRpcConfig2 = { ...chainMetadata.goerli.rpcUrls[1], pagination };
+const sepoliaRpcConfig1 = { ...chainMetadata.sepolia.rpcUrls[0], pagination };
+const sepoliaRpcConfig2 = { ...chainMetadata.sepolia.rpcUrls[1], pagination };
 const justExplorersConfig: ChainMetadata = {
-  ...chainMetadata.goerli,
+  ...chainMetadata.sepolia,
   rpcUrls: [] as any,
 };
 const justRpcsConfig: ChainMetadata = {
-  ...chainMetadata.goerli,
-  rpcUrls: [goerliRpcConfig1, goerliRpcConfig2],
+  ...chainMetadata.sepolia,
+  rpcUrls: [sepoliaRpcConfig1, sepoliaRpcConfig2],
   blockExplorers: [],
 };
 const combinedConfig: ChainMetadata = {
-  ...chainMetadata.goerli,
-  rpcUrls: [goerliRpcConfig1],
+  ...chainMetadata.sepolia,
+  rpcUrls: [sepoliaRpcConfig1],
 };
 const configs: [string, ChainMetadata][] = [
   ['Just Explorers', justExplorersConfig],

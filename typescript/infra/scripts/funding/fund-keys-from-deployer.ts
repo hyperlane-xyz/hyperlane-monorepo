@@ -65,29 +65,14 @@ const nativeBridges = {
   },
 };
 
-type L2Chain =
-  | Chains.optimism
-  | Chains.optimismgoerli
-  | Chains.arbitrum
-  | Chains.arbitrumgoerli
-  | Chains.base;
+type L2Chain = Chains.optimism | Chains.arbitrum | Chains.base;
 
-const L2Chains: ChainName[] = [
-  Chains.optimism,
-  Chains.optimismgoerli,
-  Chains.arbitrum,
-  Chains.arbitrumgoerli,
-  Chains.base,
-  Chains.polygonzkevmtestnet,
-];
+const L2Chains: ChainName[] = [Chains.optimism, Chains.arbitrum, Chains.base];
 
 const L2ToL1: ChainMap<ChainName> = {
-  optimismgoerli: 'goerli',
-  arbitrumgoerli: 'goerli',
   optimism: 'ethereum',
   arbitrum: 'ethereum',
   base: 'ethereum',
-  polygonzkevmtestnet: 'goerli',
 };
 
 // Missing types declaration for bufio
@@ -140,11 +125,8 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   arbitrum: '0.1',
   bsc: '0.3',
   bsctestnet: '1',
-  goerli: '1',
   sepolia: '1',
   moonbeam: '5',
-  optimismgoerli: '1',
-  arbitrumgoerli: '1',
   gnosis: '5',
   scrollsepolia: '0.1',
   polygonzkevmtestnet: '0.1',

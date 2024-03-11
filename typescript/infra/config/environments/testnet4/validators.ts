@@ -51,44 +51,6 @@ export const validatorChainConfig = (
         'fuji',
       ),
     },
-    // chiado: {
-    //   interval: 5,
-    //   reorgPeriod: getReorgPeriod(chainMetadata.chiado),
-    //   validators: validatorsConfig(
-    //     {
-    //       [Contexts.Hyperlane]: [
-    //         '0x12b1d1354441b900e0a36659ae54c3a9d5d22c57',
-    //         '0x06c3757a4b7a912828e523bb8a5f980ddc297356',
-    //         '0x0874967a145d70b799ebe9ed861ab7c93faef95a',
-    //       ],
-    //       [Contexts.ReleaseCandidate]: [
-    //         '0x7572ffd8af1abc02cc1d234ac750d387fd6768a0',
-    //         '0x31b37a32657cf2915d434b409ee86978058fa91c',
-    //         '0x32495780512fce64a45aca55ccc02202e9018dc5',
-    //       ],
-    //     },
-    //     'chiado',
-    //   ),
-    // },
-    // lineagoerli: {
-    //   interval: 5,
-    //   reorgPeriod: getReorgPeriod(chainMetadata.lineagoerli),
-    //   validators: validatorsConfig(
-    //     {
-    //       [Contexts.Hyperlane]: [
-    //         '0xd767ea1206b8295d7e1267ddd00e56d34f278db6',
-    //         '0x4a5d7085ca93c22fbc994dd97857c98fcc745674',
-    //         '0x8327779c3c31fa1ffc7f0c9ffae33e4d804bbd8f',
-    //       ],
-    //       [Contexts.ReleaseCandidate]: [
-    //         '0x52e2c6db923124e646011d172dea644e1cafe583',
-    //         '0x48d540e94ff1acb886df6bfed2b7a92568639364',
-    //         '0xe99e3acc543a535b8eeae98f3d6f39015efe0cd0',
-    //       ],
-    //     },
-    //     'lineagoerli',
-    //   ),
-    // },
     mumbai: {
       interval: 5,
       reorgPeriod: getReorgPeriod(chainMetadata.mumbai),
@@ -129,26 +91,6 @@ export const validatorChainConfig = (
         'bsctestnet',
       ),
     },
-    goerli: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.goerli),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0x05a9b5efe9f61f9142453d8e9f61565f333c6768',
-            '0x43a96c7dfbd8187c95013d6ee8665650cbdb2673',
-            '0x7940a12c050e24e1839c21ecb12f65afd84e8c5b',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0x6b32af7592948cbec6893363f77c08252d0ce0d7',
-            '0x4711d476a5929840196def397a156c5253b44b96',
-            '0xb0add42f2a4b824ba5fab2628f930dc1dcfc40f8',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'goerli',
-      ),
-    },
     scrollsepolia: {
       interval: 5,
       reorgPeriod: getReorgPeriod(chainMetadata.scrollsepolia),
@@ -187,46 +129,6 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'sepolia',
-      ),
-    },
-    optimismgoerli: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.optimismgoerli),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0x79e58546e2faca865c6732ad5f6c4951051c4d67',
-            '0x7bbfe1bb7146aad7df309c637987d856179ebbc1',
-            '0xf3d2fb4d53c2bb6a88cec040e0d87430fcee4e40',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0xed4cf9bf144457c927d7a39613c812c53f296283',
-            '0xec6b5ddfd20ee64ff0dcbc7472ad757dce151685',
-            '0x4acd2983a51f1c33c2ab41669184c7679e0316f1',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'optimismgoerli',
-      ),
-    },
-    arbitrumgoerli: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.arbitrumgoerli),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0x071c8d135845ae5a2cb73f98d681d519014c0a8b',
-            '0x1bcf03360989f15cbeb174c188288f2c6d2760d7',
-            '0xc1590eaaeaf380e7859564c5ebcdcc87e8369e0d',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0x869f67e89b5c0826a3c2f2ba72e6ae1d8a1952ff',
-            '0x9be82c7a063b47b2d04c890daabcb666b670a9a4',
-            '0x92c62f4b9cd60a7fe4216d1f12134d34cf827c41',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'arbitrumgoerli',
       ),
     },
     polygonzkevmtestnet: {

@@ -1,10 +1,4 @@
 {
-  "arbitrumgoerli": {
-    "router": "0xEAb4d0A8ba9F1d3a3A665b3F1DE05890A72135D3"
-  },
-  "optimismgoerli": {
-    "router": "0x7A4A358bF134a55920B4E2cdEbB62961C7a48D19"
-  },
   "scrollsepolia": {
     "router": "0xA9425D5cBcD2c83EB2a5BF453EAA18968db3ef77"
   },
@@ -22,9 +16,6 @@
   },
   "bsctestnet": {
     "router": "0x643C7A37FB191A8a63BAB40264B251714F527AED"
-  },
-  "goerli": {
-    "router": "0x916e550aF85E0Ee7A28FAf54b3E1d87f8f4c0Cdd"
   },
   "mumbai": {
     "router": "0x4d8323Bb5cD72148e826fCAb9B4A9dd09f77C905"

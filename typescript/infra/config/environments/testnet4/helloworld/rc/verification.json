@@ -1,20 +1,4 @@
 {
-  "arbitrumgoerli": [
-    {
-      "name": "HelloWorld",
-      "address": "0xEAb4d0A8ba9F1d3a3A665b3F1DE05890A72135D3",
-      "constructorArguments": "00000000000000000000000013dabc0351407d5aaa0a50003a166a73b4febfdc0000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    }
-  ],
-  "optimismgoerli": [
-    {
-      "name": "HelloWorld",
-      "address": "0x7A4A358bF134a55920B4E2cdEbB62961C7a48D19",
-      "constructorArguments": "000000000000000000000000b5f021728ea6223e3948db2da61d612307945ea20000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    }
-  ],
   "scrollsepolia": [
     {
       "name": "HelloWorld",
@@ -60,14 +44,6 @@
       "name": "HelloWorld",
       "address": "0x643C7A37FB191A8a63BAB40264B251714F527AED",
       "constructorArguments": "000000000000000000000000f9f6f5646f478d5ab4e20b0f910c92f1ccc9cc6d0000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    }
-  ],
-  "goerli": [
-    {
-      "name": "HelloWorld",
-      "address": "0x916e550aF85E0Ee7A28FAf54b3E1d87f8f4c0Cdd",
-      "constructorArguments": "00000000000000000000000049cfd6ef774acab14814d699e3f7ee36fdfba9320000000000000000000000000000000000000000000000000000000000000000",
       "isProxy": false
     }
   ],
