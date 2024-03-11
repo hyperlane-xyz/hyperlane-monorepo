@@ -191,9 +191,6 @@ async fn prepare_task(
             continue;
         };
 
-        // decrement the metric gauge for this operation, since it was just popped off the queue
-        metrics.prepare_queue_gauge(&op).dec();
-
         trace!(?op, "Preparing operation");
         debug_assert_eq!(*op.domain(), domain);
 
@@ -208,13 +205,11 @@ async fn prepare_task(
             }
             PendingOperationResult::NotReady => {
                 // none of the operations are ready yet, so wait for a little bit
-                metrics.prepare_queue_gauge(&op).inc();
                 prepare_queue.push(op).await;
                 sleep(Duration::from_millis(200)).await;
             }
             PendingOperationResult::Reprepare => {
                 metrics.ops_failed.inc();
-                metrics.prepare_queue_gauge(&op).inc();
                 prepare_queue.push(op).await;
             }
             PendingOperationResult::Drop => {
