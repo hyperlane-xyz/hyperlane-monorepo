@@ -36,13 +36,13 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     name: 'Injective Coin',
   },
   [TokenStandard.EvmHypCollateral]: {
-    chainName: Chains.sepolia,
+    chainName: Chains.bsctestnet,
     standard: TokenStandard.EvmHypCollateral,
-    addressOrDenom: '0x145de8760021c4ac6676376691b78038d3DE9097',
-    collateralAddressOrDenom: '0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6',
+    addressOrDenom: '0x31b5234A896FbC4b3e2F7237592D054716762131',
+    collateralAddressOrDenom: '0x64544969ed7ebf5f083679233325356ebe738930',
     decimals: 18,
-    symbol: 'WETH',
-    name: 'Weth',
+    symbol: 'USDC',
+    name: 'USDC',
   },
   [TokenStandard.EvmHypSynthetic]: {
     chainName: Chains.inevm,
