@@ -81,7 +81,6 @@ async function check() {
     governor = new HyperlaneIgpGovernor(checker);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const ica = InterchainAccount.fromEnvironment(env, multiProvider);
-    // await sleep(10000);
     const checker = new InterchainAccountChecker(
       multiProvider,
       ica,
@@ -97,6 +96,22 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.HELLO_WORLD) {
+    const app = await getHelloWorldApp(
+      config,
+      context,
+      Role.Deployer,
+      Contexts.Hyperlane, // Owner should always be from the hyperlane context
+    );
+    const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
+    const checker = new HelloWorldChecker(
+      multiProvider,
+      app,
+      routerConfig,
+      ismFactory,
+    );
+    governor = new ProxiedRouterGovernor(checker);
+  } else if (module === Modules.WARP) {
+    const routerConfig = core.getRouterConfig(envConfig.owners);
     const app = await getHelloWorldApp(
       config,
       context,

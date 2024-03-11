@@ -176,13 +176,6 @@ async function main() {
     const addresses = getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS);
     console.log('deploy: ICA addresses', JSON.stringify(addresses, null, 2));
     InterchainAccount.fromAddressesMap(addresses, multiProvider);
-    // const govConfig: GovernanceConfig = {
-    //   owner: envConfig.owners.sepolia.owner,
-    //   hub: 'sepolia',
-    //   spokes: ['scrollsepolia', 'plumetestnet'],
-    // };
-    // const accountConfigs = governanceToAccountConfig(govConfig);
-    // await router.deployAccounts(accountConfigs);
     return;
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
