@@ -520,22 +520,34 @@ async function updateWalletBalanceMetricFor(
   chain: ChainName,
   signerAddress: Address,
 ): Promise<void> {
-  if (app.metadata(chain).protocol !== ProtocolType.Ethereum) return;
-  const provider = app.multiProvider.getEthersV5Provider(chain);
-  const signerBalance = await provider.getBalance(signerAddress);
-  const balance = parseFloat(ethers.utils.formatEther(signerBalance));
-  walletBalance
-    .labels({
+  try {
+    if (app.metadata(chain).protocol !== ProtocolType.Ethereum) return;
+    const provider = app.multiProvider.getEthersV5Provider(chain);
+    const signerBalance = await provider.getBalance(signerAddress);
+    const balance = parseFloat(ethers.utils.formatEther(signerBalance));
+    walletBalance
+      .labels({
+        chain,
+        // this address should not have the 0x prefix and should be all lowercase
+        wallet_address: signerAddress.toLowerCase().slice(2),
+        wallet_name: 'kathy',
+        token_address: 'none',
+        token_name: 'Native',
+        token_symbol: 'Native',
+      })
+      .set(balance);
+    debug('Wallet balance updated for chain', {
       chain,
-      // this address should not have the 0x prefix and should be all lowercase
-      wallet_address: signerAddress.toLowerCase().slice(2),
-      wallet_name: 'kathy',
-      token_address: 'none',
-      token_name: 'Native',
-      token_symbol: 'Native',
-    })
-    .set(balance);
-  debug('Wallet balance updated for chain', { chain, signerAddress, balance });
+      signerAddress,
+      balance,
+    });
+  } catch (error) {
+    debug('Error during wallet balance fetching', {
+      chain,
+      signerAddress,
+      error,
+    });
+  }
 }
 
 // Get a core config intended for testing Kathy without secret access
