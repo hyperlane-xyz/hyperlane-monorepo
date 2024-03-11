@@ -105,7 +105,6 @@ impl PendingOperation for PendingMessage {
         self.ctx.destination_mailbox.domain()
     }
 
-    /// The label to use for metrics granularity.
     fn app_context(&self) -> Option<String> {
         self.app_context.clone()
     }

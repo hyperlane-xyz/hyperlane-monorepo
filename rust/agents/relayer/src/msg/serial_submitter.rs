@@ -20,6 +20,8 @@ use hyperlane_core::HyperlaneDomain;
 
 use super::pending_operation::*;
 
+/// Queue of generic operations that can be submitted to a destination chain.
+/// Includes logic for maintaining queue metrics by the destination and `app_context` of an operation
 #[derive(Debug, Clone, new)]
 struct OpQueue {
     metrics: IntGaugeVec,
@@ -29,6 +31,7 @@ struct OpQueue {
 }
 
 impl OpQueue {
+    /// Push an element onto the queue and update metrics
     async fn push(&self, op: Box<DynPendingOperation>) {
         // increment the metric before pushing onto the queue, because we lose ownership afterwards
         self.get_operation_metric(&op).inc();
@@ -36,6 +39,7 @@ impl OpQueue {
         self.queue.lock().await.push(Reverse(op));
     }
 
+    /// Pop an element from the queue and update metrics
     async fn pop(&self) -> Option<Reverse<Box<DynPendingOperation>>> {
         let op = self.queue.lock().await.pop();
         op.map(|op| {
@@ -44,8 +48,9 @@ impl OpQueue {
         })
     }
 
+    /// Get the metric associated with this operation
     fn get_operation_metric(&self, operation: &DynPendingOperation) -> IntGauge {
-        let (app_context, destination) = operation.get_operation_labels();
+        let (destination, app_context) = operation.get_operation_labels();
         self.metrics
             .with_label_values(&[&destination, &self.queue_metrics_label, &app_context])
     }
