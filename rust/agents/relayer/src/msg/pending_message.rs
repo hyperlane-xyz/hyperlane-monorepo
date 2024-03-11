@@ -193,7 +193,7 @@ impl PendingOperation for PendingMessage {
                 .await,
             "checking if message meets gas payment requirement"
         ) else {
-            info!(?tx_cost_estimate, "Gas payment requirement not met yet");
+            warn!(?tx_cost_estimate, "Gas payment requirement not met yet");
             return self.on_reprepare();
         };
 
