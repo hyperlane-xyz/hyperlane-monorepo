@@ -89,7 +89,16 @@ export abstract class HyperlaneDeployer<
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
-    this.cachedAddresses = addressesMap;
+    Object.keys(addressesMap).forEach((key) => {
+      if (this.cachedAddresses[key]) {
+        this.cachedAddresses[key] = {
+          ...this.cachedAddresses[key],
+          ...addressesMap[key],
+        };
+      } else {
+        this.cachedAddresses[key] = addressesMap[key];
+      }
+    });
   }
 
   abstract deployContracts(
@@ -681,24 +690,25 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     owner: Owner,
   ): Promise<Address> {
+    console.log('chain: ', chain, 'owner:', JSON.stringify(owner, null, 2));
     if (typeof owner === 'string') {
       return owner;
     } else {
       console.log(
-        'this.deployedContracts[chain]?:',
-        this.deployedContracts[chain],
+        'cached addresses:',
+        JSON.stringify(this.cachedAddresses[chain], null, 2),
       );
-      const routerAddress =
-        this.deployedContracts[chain]?.interchainAccountRouter.address;
+      const routerAddress = this.cachedAddresses[chain].interchainAccountRouter;
       if (!routerAddress) {
         throw new Error('InterchainAccountRouter not deployed');
       }
 
-      const addressesMap: HyperlaneAddressesMap<any> = {
-        chain: { interchainAccountRouter: routerAddress },
-      };
+      // const _addressesMap: HyperlaneAddressesMap<any> = {
+      //   [chain]: { interchainAccountRouter: routerAddress },
+      // };
+
       const router = InterchainAccount.fromAddressesMap(
-        addressesMap,
+        this.cachedAddresses,
         this.multiProvider,
       );
       return router.deployAccount(chain, owner);

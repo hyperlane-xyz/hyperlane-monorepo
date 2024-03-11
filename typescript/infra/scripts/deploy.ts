@@ -63,6 +63,7 @@ async function main() {
   const env = deployEnvToSdkEnv[environment];
 
   let multiProvider = await envConfig.getMultiProvider();
+  console.log('multiProvider', Object.keys(multiProvider.metadata));
 
   if (fork) {
     multiProvider = multiProvider.extendChainMetadata({
@@ -119,15 +120,15 @@ async function main() {
       multiProvider,
     );
     const routerConfig = core.getRouterConfig(envConfig.owners);
-    console.log('routerConfig', routerConfig.scrollsepolia.owner);
-    const scrollsepolia = {
-      ...routerConfig.scrollsepolia,
-      type: TokenType.synthetic,
-      name: 'Wrapped Ether',
-      symbol: 'WETH',
-      decimals: 18,
-      totalSupply: '0',
-    };
+    console.log('routerConfig', routerConfig.sepolia.owner);
+    // const scrollsepolia = {
+    //   ...routerConfig.scrollsepolia,
+    //   type: TokenType.synthetic,
+    //   name: 'Wrapped Ether',
+    //   symbol: 'WETH',
+    //   decimals: 18,
+    //   totalSupply: '0',
+    // };
     const plumetestnet = {
       ...routerConfig.plumetestnet,
       type: TokenType.native,
@@ -137,7 +138,7 @@ async function main() {
       type: TokenType.native,
     };
     config = {
-      scrollsepolia,
+      // scrollsepolia,
       plumetestnet,
       sepolia,
     };
@@ -147,6 +148,14 @@ async function main() {
       ismFactory,
       contractVerifier,
     );
+    deployer.cacheAddressesMap({
+      plumetestnet: {
+        interchainAccountRouter: '0xA0aB1750b4F68AE5E8C42d936fa78871eae52643',
+      },
+      sepolia: {
+        interchainAccountRouter: '0x90360940B160B862F2e249124D89d734b3981DAb',
+      },
+    });
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider, contractVerifier);
