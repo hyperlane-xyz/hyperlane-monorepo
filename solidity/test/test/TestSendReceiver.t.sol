@@ -98,13 +98,7 @@ contract TestSendReceiverTest is Test {
         vm.assume(blockNumber > 0);
         vm.roll(blockNumber);
 
-        console.log("blockNumber: ", blockNumber);
-        console.log("blockNumber 1: ", uint256(blockhash(blockNumber - 1)));
-        console.logBytes32(blockhash(blockNumber - 1));
-        // console.log("blockNumber: ", string(blockhash(blockNumber)));
-
-        // blockhash(n) = n for forge tests
-        // previousBlockHash() = blockhash(n-1) = n-1
+        // previousBlockHash() = blockhash(n-1)
         if (uint256(blockhash(blockNumber - 1)) % 16 == 0) {
             vm.expectRevert("block hash ends in 0"); // blockhash(n-1) ends in 0
         } else {
