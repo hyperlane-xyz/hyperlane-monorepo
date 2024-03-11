@@ -51,7 +51,8 @@ async function check() {
       });
 
       const owner = config.core[fork].owner;
-      const signer = await impersonateAccount(owner);
+      const signer = await impersonateAccount(owner, 1e18);
+
       multiProvider.setSigner(fork, signer);
     }
   }

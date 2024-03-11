@@ -1,5 +1,5 @@
 import { input } from '@inquirer/prompts';
-import { BigNumber, ethers } from 'ethers';
+import { PopulatedTransaction, ethers } from 'ethers';
 
 import {
   ERC20__factory,
@@ -9,8 +9,11 @@ import {
 import {
   ChainName,
   EvmHypCollateralAdapter,
+  EvmHypNativeAdapter,
+  EvmHypSyntheticAdapter,
   HyperlaneContractsMap,
   HyperlaneCore,
+  IHypTokenAdapter,
   MultiProtocolProvider,
   MultiProvider,
   TokenType,
@@ -176,6 +179,9 @@ async function executeDelivery({
   const provider = multiProvider.getProvider(origin);
   const connectedSigner = signer.connect(provider);
 
+  // TODO replace all code below with WarpCore
+  // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3259
+
   if (tokenType === TokenType.collateral) {
     const wrappedToken = await getWrappedToken(routerAddress, provider);
     const token = ERC20__factory.connect(wrappedToken, connectedSigner);
@@ -186,24 +192,33 @@ async function executeDelivery({
     }
   }
 
-  // TODO move next section into MultiProtocolTokenApp when it exists
-  const adapter = new EvmHypCollateralAdapter(
-    origin,
-    MultiProtocolProvider.fromMultiProvider(multiProvider),
-    { token: routerAddress },
-  );
+  let adapter: IHypTokenAdapter<PopulatedTransaction>;
+  const multiProtocolProvider =
+    MultiProtocolProvider.fromMultiProvider(multiProvider);
+  if (tokenType === TokenType.native) {
+    adapter = new EvmHypNativeAdapter(origin, multiProtocolProvider, {
+      token: routerAddress,
+    });
+  } else if (tokenType === TokenType.collateral) {
+    adapter = new EvmHypCollateralAdapter(origin, multiProtocolProvider, {
+      token: routerAddress,
+    });
+  } else {
+    adapter = new EvmHypSyntheticAdapter(origin, multiProtocolProvider, {
+      token: routerAddress,
+    });
+  }
+
   const destinationDomain = multiProvider.getDomainId(destination);
-  const gasPayment = await adapter.quoteGasPayment(destinationDomain);
-  const txValue =
-    tokenType === TokenType.native
-      ? BigNumber.from(gasPayment).add(wei).toString()
-      : gasPayment;
-  const transferTx = await adapter.populateTransferRemoteTx({
+  log('Fetching interchain gas quote');
+  const interchainGas = await adapter.quoteGasPayment(destinationDomain);
+  log('Interchain gas quote:', interchainGas);
+  const transferTx = (await adapter.populateTransferRemoteTx({
     weiAmountOrId: wei,
     destination: destinationDomain,
     recipient,
-    txValue,
-  });
+    interchainGas,
+  })) as ethers.PopulatedTransaction;
 
   const txResponse = await connectedSigner.sendTransaction(transferTx);
   const txReceipt = await multiProvider.handleTx(origin, txResponse);

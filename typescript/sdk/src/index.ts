@@ -183,6 +183,7 @@ export {
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,
+  ChainTechnicalStack,
   ExplorerFamily,
   ExplorerFamilyValue,
   RpcUrl,
@@ -328,6 +329,27 @@ export {
   RouterViolationType,
   proxiedFactories,
 } from './router/types';
+export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken';
+export { Token } from './token/Token';
+export { TokenAmount } from './token/TokenAmount';
+export {
+  HyperlaneTokenConnection,
+  IbcToHyperlaneTokenConnection,
+  IbcTokenConnection,
+  TokenConnection,
+  TokenConnectionConfigSchema,
+  TokenConnectionType,
+} from './token/TokenConnection';
+export {
+  PROTOCOL_TO_NATIVE_STANDARD,
+  TOKEN_COLLATERALIZED_STANDARDS,
+  TOKEN_COSMWASM_STANDARDS,
+  TOKEN_HYP_STANDARDS,
+  TOKEN_MULTI_CHAIN_STANDARDS,
+  TOKEN_NFT_STANDARDS,
+  TOKEN_STANDARD_TO_PROTOCOL,
+  TokenStandard,
+} from './token/TokenStandard';
 export {
   CW20Metadata,
   CwHypCollateralAdapter,
@@ -343,11 +365,13 @@ export {
 } from './token/adapters/CosmosTokenAdapter';
 export {
   EvmHypCollateralAdapter,
+  EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './token/adapters/EvmTokenAdapter';
 export {
+  InterchainGasQuote as AdapterInterchainGasQuote,
   IHypTokenAdapter,
   ITokenAdapter,
   TransferParams,
@@ -395,8 +419,8 @@ export { HypERC20Deployer, HypERC721Deployer } from './token/deploy';
 export {
   ChainMap,
   ChainName,
+  ChainNameOrId,
   Connection,
-  NameOrDomain,
   TestChainNames,
 } from './types';
 export { MultiGeneric } from './utils/MultiGeneric';
@@ -408,3 +432,12 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';
+export { WarpCore, WarpCoreOptions } from './warp/WarpCore';
+export {
+  IgpQuoteConstants,
+  RouteBlacklist,
+  WarpCoreConfig,
+  WarpCoreConfigSchema,
+  WarpTxCategory,
+  WarpTypedTransaction,
+} from './warp/types';

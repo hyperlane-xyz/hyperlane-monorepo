@@ -11,7 +11,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap, objMerge, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { getAgentConfigDirectory } from '../../scripts/agent-utils';
+import { getAgentConfigJsonPath } from '../../scripts/agent-utils';
 import { DeployEnvironment } from '../config';
 import {
   readJSONAtPath,
@@ -144,9 +144,5 @@ export async function writeAgentConfig(
     addresses as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
   );
-  writeMergedJSON(
-    getAgentConfigDirectory(),
-    `${environment}_config.json`,
-    agentConfig,
-  );
+  writeMergedJSONAtPath(getAgentConfigJsonPath(environment), agentConfig);
 }

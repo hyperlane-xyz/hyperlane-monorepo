@@ -20,7 +20,6 @@ import {
   LiquidityLayerDeployer,
   TestRecipientDeployer,
   TokenType,
-  resolveAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
@@ -70,12 +69,15 @@ async function main() {
       [fork]: { blocks: { confirmations: 0 } },
     });
     await useLocalProvider(multiProvider, fork);
-    const owner = await resolveAccountOwner(
-      multiProvider,
-      fork,
-      envConfig.owners[fork].owner,
-    );
-    const signer = await impersonateAccount(owner);
+
+    // const deployers = await envConfig.getKeys(
+    //   Contexts.Hyperlane,
+    //   Role.Deployer,
+    // );
+    // const deployer = deployers[fork].address;
+    const deployer = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+    const signer = await impersonateAccount(deployer);
+
     multiProvider.setSharedSigner(signer);
   }
 

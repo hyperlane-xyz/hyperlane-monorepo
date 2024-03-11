@@ -86,6 +86,8 @@ pub enum KnownHyperlaneDomain {
 
     Injective = 6909546,
 
+    PlumeTestnet = 161221135,
+
     // -- Local test chains --
     /// Test1 local chain
     Test1 = 13371,
@@ -119,6 +121,7 @@ pub enum HyperlaneDomain {
         domain_name: String,
         domain_type: HyperlaneDomainType,
         domain_protocol: HyperlaneDomainProtocol,
+        domain_technical_stack: HyperlaneDomainTechnicalStack,
     },
 }
 
@@ -130,6 +133,7 @@ impl HyperlaneDomain {
             domain_name: name.to_owned(),
             domain_type: HyperlaneDomainType::LocalTestChain,
             domain_protocol: HyperlaneDomainProtocol::Ethereum,
+            domain_technical_stack: HyperlaneDomainTechnicalStack::Other,
         }
     }
 }
@@ -155,7 +159,7 @@ pub enum HyperlaneDomainType {
     Unknown,
 }
 
-/// A selector for which base library should handle this domain.
+/// Hyperlane domain protocol types.
 #[derive(FromPrimitive, Copy, Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "strum",
@@ -188,6 +192,22 @@ impl HyperlaneDomainProtocol {
     }
 }
 
+/// Hyperlane domain technical stack types.
+#[derive(Default, FromPrimitive, Copy, Clone, Eq, PartialEq, Debug)]
+#[cfg_attr(
+    feature = "strum",
+    derive(strum::Display, EnumString, IntoStaticStr, EnumIter)
+)]
+#[cfg_attr(
+    feature = "strum",
+    strum(serialize_all = "lowercase", ascii_case_insensitive)
+)]
+pub enum HyperlaneDomainTechnicalStack {
+    ArbitrumNitro,
+    #[default]
+    Other,
+}
+
 impl KnownHyperlaneDomain {
     #[cfg(feature = "strum")]
     pub fn as_str(self) -> &'static str {
@@ -204,7 +224,7 @@ impl KnownHyperlaneDomain {
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
-                Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, ScrollSepolia, Chiado
+                Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, LineaGoerli, ScrollSepolia, Chiado, PlumeTestnet
             ],
             LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991],
         })
@@ -218,11 +238,25 @@ impl KnownHyperlaneDomain {
                 Ethereum, Goerli, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
                 Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
                 Alfajores, Moonbeam, MoonbaseAlpha, PolygonZkEvmTestnet, LineaGoerli, ScrollSepolia,
-                Chiado, MantaPacific, Test1, Test2, Test3
+                Chiado, MantaPacific, PlumeTestnet, Test1, Test2, Test3
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
             HyperlaneDomainProtocol::Cosmos: [CosmosTest99990, CosmosTest99991, Neutron, Injective],
+        })
+    }
+
+    pub const fn domain_technical_stack(self) -> HyperlaneDomainTechnicalStack {
+        use KnownHyperlaneDomain::*;
+
+        many_to_one!(match self {
+            HyperlaneDomainTechnicalStack::ArbitrumNitro: [Arbitrum, ArbitrumGoerli, PlumeTestnet],
+            HyperlaneDomainTechnicalStack::Other: [
+                Ethereum, Goerli, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Optimism, OptimismGoerli,
+                BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis, Alfajores, Moonbeam, MoonbaseAlpha,
+                PolygonZkEvmTestnet, LineaGoerli, ScrollSepolia, Chiado, MantaPacific, Neutron, Injective,
+                Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991
+            ],
         })
     }
 }
@@ -314,6 +348,7 @@ impl HyperlaneDomain {
         domain_id: u32,
         name: &str,
         protocol: HyperlaneDomainProtocol,
+        domain_technical_stack: HyperlaneDomainTechnicalStack,
     ) -> Result<Self, HyperlaneDomainConfigError> {
         let name = name.to_ascii_lowercase();
         if let Ok(domain) = KnownHyperlaneDomain::try_from(domain_id) {
@@ -333,6 +368,7 @@ impl HyperlaneDomain {
                 domain_protocol: protocol,
                 // we might want to support accepting this from the config later
                 domain_type: HyperlaneDomainType::Unknown,
+                domain_technical_stack,
             })
         }
     }
@@ -375,12 +411,20 @@ impl HyperlaneDomain {
         }
     }
 
+    pub const fn domain_technical_stack(&self) -> HyperlaneDomainTechnicalStack {
+        match self {
+            HyperlaneDomain::Known(domain) => domain.domain_technical_stack(),
+            HyperlaneDomain::Unknown {
+                domain_technical_stack,
+                ..
+            } => *domain_technical_stack,
+        }
+    }
+
     pub const fn is_arbitrum_nitro(&self) -> bool {
         matches!(
-            self,
-            HyperlaneDomain::Known(
-                KnownHyperlaneDomain::Arbitrum | KnownHyperlaneDomain::ArbitrumGoerli,
-            )
+            self.domain_technical_stack(),
+            HyperlaneDomainTechnicalStack::ArbitrumNitro
         )
     }
 

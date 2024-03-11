@@ -20,6 +20,7 @@ import {
   objMap,
 } from '@hyperlane-xyz/utils';
 
+import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneContracts } from '../contracts/types';
 import { ProxyFactoryFactories } from '../deploy/contracts';
 import { resolveAccountOwner } from '../deploy/types';
@@ -338,8 +339,11 @@ export async function routingModuleDelta(
     domain.toNumber(),
   );
   // config.domains is already filtered to only include domains in the multiprovider
-  const safeConfigDomains = objMap(config.domains, (domain) =>
-    multiProvider.getDomainId(domain),
+  const safeConfigDomains = objMap(
+    config.domains,
+    (chainName) =>
+      chainMetadata[chainName]?.domainId ??
+      multiProvider.getDomainId(chainName),
   );
 
   const delta: RoutingIsmDelta = {
