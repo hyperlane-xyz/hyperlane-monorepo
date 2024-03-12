@@ -23,7 +23,10 @@ import {
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen } from '../../logger.js';
-import { WarpDeployConfig, readWarpDeployConfig } from '../config/warp.js';
+import {
+  WarpRouteDeployConfig,
+  readWarpRouteDeployConfig,
+} from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { getContext, getMergedContractAddresses } from '../context.js';
 import {
@@ -35,17 +38,17 @@ import {
 
 import { runPreflightChecks } from './utils.js';
 
-export async function runWarpDeploy({
+export async function runWarpRouteDeploy({
   key,
   chainConfigPath,
-  warpDeploymentConfigPath,
+  warpRouteDeploymentConfigPath,
   coreArtifactsPath,
   outPath,
   skipConfirmation,
 }: {
   key: string;
   chainConfigPath: string;
-  warpDeploymentConfigPath?: string;
+  warpRouteDeploymentConfigPath?: string;
   coreArtifactsPath?: string;
   outPath: string;
   skipConfirmation: boolean;
@@ -57,17 +60,25 @@ export async function runWarpDeploy({
     skipConfirmation,
   });
 
-  if (!warpDeploymentConfigPath || !isFile(warpDeploymentConfigPath)) {
-    if (skipConfirmation) throw new Error('Warp deployment config required');
-    warpDeploymentConfigPath = await runFileSelectionStep(
+  if (
+    !warpRouteDeploymentConfigPath ||
+    !isFile(warpRouteDeploymentConfigPath)
+  ) {
+    if (skipConfirmation)
+      throw new Error('Warp route deployment config required');
+    warpRouteDeploymentConfigPath = await runFileSelectionStep(
       './configs',
-      'Warp deployment config',
+      'Warp route deployment config',
       'warp',
     );
   } else {
-    log(`Using warp deployment config at ${warpDeploymentConfigPath}`);
+    log(
+      `Using warp route deployment config at ${warpRouteDeploymentConfigPath}`,
+    );
   }
-  const warpRouteConfig = readWarpDeployConfig(warpDeploymentConfigPath);
+  const warpRouteConfig = readWarpRouteDeployConfig(
+    warpRouteDeploymentConfigPath,
+  );
 
   const configs = await runBuildConfigStep({
     warpRouteConfig,
@@ -85,7 +96,7 @@ export async function runWarpDeploy({
     skipConfirmation,
   };
 
-  logBlue('Warp Deployment plan');
+  logBlue('Warp route deployment plan');
 
   await runDeployPlanStep(deploymentParams);
   await runPreflightChecks({
@@ -102,7 +113,7 @@ async function runBuildConfigStep({
   coreArtifacts,
   skipConfirmation,
 }: {
-  warpRouteConfig: WarpDeployConfig;
+  warpRouteConfig: WarpRouteDeployConfig;
   multiProvider: MultiProvider;
   signer: ethers.Signer;
   coreArtifacts?: HyperlaneContractsMap<any>;
@@ -241,7 +252,7 @@ async function executeDeploy(params: DeployParams) {
   const { configMap, isNft, multiProvider, outPath } = params;
 
   const [contractsFilePath, tokenConfigPath] = prepNewArtifactsFiles(outPath, [
-    { filename: 'warp-deployment', description: 'Contract addresses' },
+    { filename: 'warp-route-deployment', description: 'Contract addresses' },
     { filename: 'warp-ui-token-config', description: 'Warp UI token config' },
   ]);
 
@@ -262,7 +273,7 @@ async function executeDeploy(params: DeployParams) {
 }
 
 async function fetchBaseTokenMetadata(
-  base: WarpDeployConfig['base'],
+  base: WarpRouteDeployConfig['base'],
   multiProvider: MultiProvider,
 ): Promise<MinimalTokenMetadata> {
   const { type, name, symbol, chainName, address, decimals } = base;

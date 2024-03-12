@@ -19,7 +19,7 @@ const ConnectionConfigSchema = {
   foreignDeployment: z.string().optional(),
 };
 
-export const WarpDeployConfigSchema = z.object({
+export const WarpRouteDeployConfigSchema = z.object({
   base: z.object({
     type: z.literal(TokenType.native).or(z.literal(TokenType.collateral)),
     chainName: z.string(),
@@ -43,17 +43,18 @@ export const WarpDeployConfigSchema = z.object({
     .nonempty(),
 });
 
-type InferredType = z.infer<typeof WarpDeployConfigSchema>;
+type InferredType = z.infer<typeof WarpRouteDeployConfigSchema>;
 // A workaround for Zod's terrible typing for nonEmpty arrays
-export type WarpDeployConfig = {
+export type WarpRouteDeployConfig = {
   base: InferredType['base'];
   synthetics: Array<InferredType['synthetics'][0]>;
 };
 
-export function readWarpDeployConfig(filePath: string) {
+export function readWarpRouteDeployConfig(filePath: string) {
   const config = readYamlOrJson(filePath);
-  if (!config) throw new Error(`No warp deploy config found at ${filePath}`);
-  const result = WarpDeployConfigSchema.safeParse(config);
+  if (!config)
+    throw new Error(`No warp route deploy config found at ${filePath}`);
+  const result = WarpRouteDeployConfigSchema.safeParse(config);
   if (!result.success) {
     const firstIssue = result.error.issues[0];
     throw new Error(
@@ -63,11 +64,11 @@ export function readWarpDeployConfig(filePath: string) {
   return result.data;
 }
 
-export function isValidWarpDeployConfig(config: any) {
-  return WarpDeployConfigSchema.safeParse(config).success;
+export function isValidWarpRouteDeployConfig(config: any) {
+  return WarpRouteDeployConfigSchema.safeParse(config).success;
 }
 
-export async function createWarpDeployConfig({
+export async function createWarpRouteDeployConfig({
   format,
   outPath,
   chainConfigPath,
@@ -103,7 +104,7 @@ export async function createWarpDeployConfig({
 
   // TODO add more prompts here to support customizing the token metadata
 
-  const result: WarpDeployConfig = {
+  const result: WarpRouteDeployConfig = {
     base: {
       chainName: baseChain,
       type: baseType,
@@ -113,12 +114,12 @@ export async function createWarpDeployConfig({
     synthetics: syntheticChains.map((chain) => ({ chainName: chain })),
   };
 
-  if (isValidWarpDeployConfig(result)) {
+  if (isValidWarpRouteDeployConfig(result)) {
     logGreen(`Warp Route config is valid, writing to file ${outPath}`);
     writeYamlOrJson(outPath, result, format);
   } else {
     errorRed(
-      `Warp config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-deployment.yaml for an example`,
+      `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example`,
     );
     throw new Error('Invalid multisig config');
   }

@@ -3,7 +3,7 @@ import { CommandModule } from 'yargs';
 import { log, logGray } from '../../logger.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { runCoreDeploy } from '../deploy/core.js';
-import { runWarpDeploy } from '../deploy/warp.js';
+import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { ENV } from '../utils/env.js';
 
 import {
@@ -134,8 +134,8 @@ const warpCommand: CommandModule = {
       config: {
         type: 'string',
         description:
-          'A path to a JSON or YAML file with a warp deployment config.',
-        default: './configs/warp-deployment.yaml',
+          'A path to a JSON or YAML file with a warp route deployment config.',
+        default: './configs/warp-route-deployment.yaml',
       },
       core: coreArtifactsOption,
       chains: chainsCommandOption,
@@ -146,14 +146,14 @@ const warpCommand: CommandModule = {
   handler: async (argv: any) => {
     const key: string = argv.key || ENV.HYP_KEY;
     const chainConfigPath: string = argv.chains;
-    const warpDeploymentConfigPath: string | undefined = argv.config;
+    const warpRouteDeploymentConfigPath: string | undefined = argv.config;
     const coreArtifactsPath: string | undefined = argv.core;
     const outPath: string = argv.out;
     const skipConfirmation: boolean = argv.yes;
-    await runWarpDeploy({
+    await runWarpRouteDeploy({
       key,
       chainConfigPath,
-      warpDeploymentConfigPath,
+      warpRouteDeploymentConfigPath,
       coreArtifactsPath,
       outPath,
       skipConfirmation,
