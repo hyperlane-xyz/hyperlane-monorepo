@@ -117,7 +117,7 @@ echo "Deploying warp routes"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
     --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
-    --config ${EXAMPLES_PATH}/warp-tokens.yaml \
+    --config ${EXAMPLES_PATH}/warp-route-deployment.yaml \
     --out /tmp \
     --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --yes
@@ -146,7 +146,7 @@ echo "Gas used: $MSG_MIN_GAS"
 MESSAGE1_ID=`cat /tmp/message1 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
 echo "Message 1 ID: $MESSAGE1_ID"
 
-WARP_ARTIFACTS_FILE=`find /tmp/warp-deployment* -type f -exec ls -t1 {} + | head -1`
+WARP_ARTIFACTS_FILE=`find /tmp/warp-route-deployment* -type f -exec ls -t1 {} + | head -1`
 CHAIN1_ROUTER="${CHAIN1_CAPS}_ROUTER"
 declare $CHAIN1_ROUTER=$(cat $WARP_ARTIFACTS_FILE | jq -r ".${CHAIN1}.router")
 

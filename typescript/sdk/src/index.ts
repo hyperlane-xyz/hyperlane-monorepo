@@ -334,6 +334,8 @@ export {
   TokenConnection,
   TokenConnectionConfigSchema,
   TokenConnectionType,
+  getTokenConnectionId,
+  parseTokenConnectionId,
 } from './token/TokenConnection';
 export {
   PROTOCOL_TO_NATIVE_STANDARD,
@@ -343,6 +345,7 @@ export {
   TOKEN_MULTI_CHAIN_STANDARDS,
   TOKEN_NFT_STANDARDS,
   TOKEN_STANDARD_TO_PROTOCOL,
+  TOKEN_TYPE_TO_STANDARD,
   TokenStandard,
 } from './token/TokenStandard';
 export {
