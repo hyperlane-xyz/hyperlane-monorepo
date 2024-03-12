@@ -2,8 +2,6 @@ import {
   Chains,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
-  chainMetadata,
-  getDomainId,
 } from '@hyperlane-xyz/sdk';
 
 import {
@@ -35,46 +33,34 @@ const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   [Role.Validator]: {
     [Chains.alfajores]: true,
-    [Chains.arbitrumgoerli]: true,
     [Chains.bsctestnet]: true,
     [Chains.eclipsetestnet]: true,
     [Chains.fuji]: true,
-    [Chains.goerli]: true,
     [Chains.mumbai]: true,
-    [Chains.optimismgoerli]: true,
     [Chains.plumetestnet]: true,
-    [Chains.polygonzkevmtestnet]: true,
     [Chains.scrollsepolia]: true,
     [Chains.sepolia]: true,
     [Chains.solanatestnet]: true,
   },
   [Role.Relayer]: {
     [Chains.alfajores]: true,
-    [Chains.arbitrumgoerli]: true,
     [Chains.bsctestnet]: true,
     [Chains.eclipsetestnet]: true,
     [Chains.fuji]: true,
-    [Chains.goerli]: true,
     [Chains.mumbai]: true,
-    [Chains.optimismgoerli]: true,
     [Chains.plumetestnet]: true,
-    [Chains.polygonzkevmtestnet]: true,
     [Chains.scrollsepolia]: true,
     [Chains.sepolia]: true,
     [Chains.solanatestnet]: true,
   },
   [Role.Scraper]: {
     [Chains.alfajores]: true,
-    [Chains.arbitrumgoerli]: true,
     [Chains.bsctestnet]: true,
     // Cannot scrape non-EVM chains
     [Chains.eclipsetestnet]: false,
     [Chains.fuji]: true,
-    [Chains.goerli]: true,
     [Chains.mumbai]: true,
-    [Chains.optimismgoerli]: true,
     [Chains.plumetestnet]: true,
-    [Chains.polygonzkevmtestnet]: true,
     [Chains.scrollsepolia]: true,
     [Chains.sepolia]: true,
     // Cannot scrape non-EVM chains
@@ -112,7 +98,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9736164-20240307-131918',
+      tag: '7d1f975-20240312-113101',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -121,24 +107,6 @@ const hyperlane: RootAgentConfig = {
         // from spam txs to the old TestRecipient before we were charging for
         // gas, we blacklist the old TestRecipient address.
         recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
-      },
-      // OptimismGoerli griefers:
-      {
-        destinationDomain: getDomainId(chainMetadata.optimismgoerli),
-        recipientAddress: [
-          '0xed4de02c6f4cb1161bdfefdb2fcdeef4546fa36c',
-          '0x723192fc414fe536b414117a4b2c5a7b71f912e3',
-          '0x5a48723d80a7ee3be6855ca293059b5287ee6689',
-        ],
-      },
-      // Goerli griefers:
-      {
-        destinationDomain: getDomainId(chainMetadata.goerli),
-        recipientAddress: [
-          '0x0461c69ff7f29cfb5efd36b9d377fdfc95418c2b',
-          '0xe747c82ed8560ba137b24a3a97ff7504b50c3e91',
-          '0x6ad92511ee4a3835bde9b1bfd7063023b56a8c56',
-        ],
       },
     ],
     gasPaymentEnforcement,
@@ -159,7 +127,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9736164-20240307-131918',
+      tag: '7d1f975-20240312-113101',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -167,7 +135,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'dd8ac43-20240306-113016',
+      tag: '7d1f975-20240312-113101',
     },
   },
 };
@@ -181,20 +149,17 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9736164-20240307-131918',
+      tag: '7d1f975-20240312-113101',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
-    // Skipping arbitrum because the gas price estimates are inclusive of L1
-    // fees which leads to wildly off predictions.
-    skipTransactionGasLimitFor: [chainMetadata.arbitrumgoerli.name],
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9736164-20240307-131918',
+      tag: '7d1f975-20240312-113101',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
