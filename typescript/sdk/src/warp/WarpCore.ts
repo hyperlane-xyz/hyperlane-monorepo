@@ -189,11 +189,7 @@ export class WarpCore {
         q.destination === destinationMetadata.name,
     );
     if (defaultQuote) {
-      return {
-        gasUnits: 0,
-        gasPrice: 0,
-        fee: Number(defaultQuote.amount),
-      };
+      return { gasUnits: 0, gasPrice: 0, fee: Number(defaultQuote.amount) };
     }
 
     // Form transactions to estimate local gas with

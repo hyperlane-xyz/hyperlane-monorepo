@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/sdk': major
+'@hyperlane-xyz/sdk': minor
 ---
 
 **New Feature**: Add transaciton fee estimators to the SDK
