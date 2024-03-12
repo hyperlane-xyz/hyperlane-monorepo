@@ -23,7 +23,7 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
-import { aggregationIsm } from '../config/routingIsm';
+import { safes } from '../config/environments/mainnet3/owners';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -69,7 +69,14 @@ async function main() {
     });
     await useLocalProvider(multiProvider, fork);
 
-    const signer = await impersonateAccount(envConfig.owners[fork].owner);
+    // const deployers = await envConfig.getKeys(
+    //   Contexts.Hyperlane,
+    //   Role.Deployer,
+    // );
+    // const deployer = deployers[fork].address;
+    const deployer = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+    const signer = await impersonateAccount(deployer);
+
     multiProvider.setSharedSigner(signer);
   }
 
@@ -114,25 +121,19 @@ async function main() {
       multiProvider,
     );
     const routerConfig = core.getRouterConfig(envConfig.owners);
-    const plumetestnet = {
-      ...routerConfig.plumetestnet,
-      type: TokenType.synthetic,
-      name: 'Wrapped Ether',
-      symbol: 'WETH',
-      decimals: 18,
-      totalSupply: '0',
-    };
-    const sepolia = {
-      ...routerConfig.sepolia,
+    const inevm = {
+      ...routerConfig.inevm,
       type: TokenType.native,
-      interchainSecurityModule: aggregationIsm(
-        'plumetestnet',
-        Contexts.Hyperlane,
-      ),
+      interchainSecurityModule: ethers.constants.AddressZero,
+      owner: safes.inevm,
+    };
+    const injective = {
+      ...routerConfig.injective,
+      type: TokenType.native,
     };
     config = {
-      plumetestnet,
-      sepolia,
+      inevm,
+      injective,
     };
     deployer = new HypERC20Deployer(
       multiProvider,

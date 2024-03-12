@@ -10,6 +10,11 @@ pub struct Log {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Events {
+    pub events: Vec<Event>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Event {
     #[serde(rename = "type")]
     pub typ: String,

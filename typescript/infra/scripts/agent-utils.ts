@@ -365,6 +365,10 @@ export function getAgentConfigDirectory() {
   return path.join('../../', 'rust', 'config');
 }
 
+export function getAgentConfigJsonPath(environment: DeployEnvironment) {
+  return path.join(getAgentConfigDirectory(), `${environment}_config.json`);
+}
+
 export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {
   const currentKubeContext = await getCurrentKubernetesContext();
   if (

@@ -22,7 +22,7 @@ import { objMap } from '@hyperlane-xyz/utils';
 
 import { supportedChainNames } from './chains';
 import { igp } from './igp';
-import { owners } from './owners';
+import { DEPLOYER, owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
@@ -56,7 +56,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
 
   const pausableIsm: PausableIsmConfig = {
     type: IsmType.PAUSABLE,
-    ...owner,
+    owner: DEPLOYER, // keep pausable hot
   };
 
   const defaultIsm: AggregationIsmConfig = {
@@ -76,7 +76,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
 
   const pausableHook: PausableHookConfig = {
     type: HookType.PAUSABLE,
-    ...owner,
+    owner: DEPLOYER, // keep pausable hot
   };
   const aggregationHooks = objMap(
     originMultisigs,
