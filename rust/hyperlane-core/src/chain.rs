@@ -54,7 +54,6 @@ pub enum KnownHyperlaneDomain {
 
     Polygon = 137,
     Mumbai = 80001,
-    PolygonZkEvmTestnet = 1442,
 
     Avalanche = 43114,
     Fuji = 43113,
@@ -221,7 +220,7 @@ impl KnownHyperlaneDomain {
             ],
             Testnet: [
                 Mumbai, Fuji, BinanceSmartChainTestnet,
-                Alfajores, MoonbaseAlpha, Sepolia, PolygonZkEvmTestnet, ScrollSepolia, Chiado, PlumeTestnet
+                Alfajores, MoonbaseAlpha, Sepolia, ScrollSepolia, Chiado, PlumeTestnet
             ],
             LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991],
         })
@@ -234,7 +233,7 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainProtocol::Ethereum: [
                 Ethereum, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Arbitrum,
                 Optimism, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
-                Alfajores, Moonbeam, InEvm, MoonbaseAlpha, PolygonZkEvmTestnet, ScrollSepolia,
+                Alfajores, Moonbeam, InEvm, MoonbaseAlpha, ScrollSepolia,
                 Chiado, MantaPacific, PlumeTestnet, Test1, Test2, Test3
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
@@ -251,7 +250,7 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainTechnicalStack::Other: [
                 Ethereum, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Optimism,
                 BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis, Alfajores, Moonbeam, MoonbaseAlpha,
-                PolygonZkEvmTestnet, ScrollSepolia, Chiado, MantaPacific, Neutron, Injective, InEvm,
+                ScrollSepolia, Chiado, MantaPacific, Neutron, Injective, InEvm,
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991
             ],
         })

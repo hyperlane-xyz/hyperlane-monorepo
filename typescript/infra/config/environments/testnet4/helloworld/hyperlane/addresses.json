@@ -5,9 +5,6 @@
   "alfajores": {
     "router": "0xD0Ef694E96Bb695DC829f71956227eD141e3089F"
   },
-  "polygonzkevmtestnet": {
-    "router": "0x783c4a0bB6663359281aD4a637D5af68F83ae213"
-  },
   "fuji": {
     "router": "0x0B1C1B54f45e02552331D3106e71f5e0b573D5D4"
   },

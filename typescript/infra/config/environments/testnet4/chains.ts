@@ -14,7 +14,6 @@ export const supportedChainNames = [
   Chains.fuji,
   Chains.mumbai,
   Chains.plumetestnet,
-  Chains.polygonzkevmtestnet,
   Chains.scrollsepolia,
   Chains.sepolia,
   Chains.solanatestnet,

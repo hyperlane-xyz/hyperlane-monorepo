@@ -214,15 +214,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  polygonzkevmtestnet: {
-    threshold: 2,
-    validators: [
-      '0x3f06b725bc9648917eb11c414e9f8d76fd959550',
-      '0x27bfc57679d9dd4ab2e870f5ed7ec0b339a0b636',
-      '0xd476548222f43206d0abaa30e46e28670aa7859c',
-    ],
-  },
-
   scroll: {
     threshold: 2,
     validators: [

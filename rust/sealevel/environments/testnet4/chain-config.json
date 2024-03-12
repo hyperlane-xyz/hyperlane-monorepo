@@ -243,38 +243,6 @@
       }
     ]
   },
-  "polygonzkevmtestnet": {
-    "blockExplorers": [
-      {
-        "apiUrl": "https://api-testnet-zkevm.polygonscan.com/api",
-        "family": "etherscan",
-        "name": "PolygonScan",
-        "url": "https://testnet-zkevm.polygonscan.com"
-      }
-    ],
-    "blocks": {
-      "confirmations": 1,
-      "estimateBlockTime": 3,
-      "reorgPeriod": 1
-    },
-    "chainId": 1442,
-    "displayName": "Polygon zkEVM Testnet",
-    "displayNameShort": "ZkEvm Testnet",
-    "domainId": 1442,
-    "isTestnet": true,
-    "name": "polygonzkevmtestnet",
-    "nativeToken": {
-      "decimals": 18,
-      "name": "Ether",
-      "symbol": "ETH"
-    },
-    "protocol": "ethereum",
-    "rpcUrls": [
-      {
-        "http": "https://rpc.public.zkevm-test.net"
-      }
-    ]
-  },
   "solanatestnet": {
     "blockExplorers": [
       {

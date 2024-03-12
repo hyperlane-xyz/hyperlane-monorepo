@@ -85,8 +85,4 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: ['0x49f253c0dab33be1573d6c2769b3d9e584d91f82'],
   },
-  polygonzkevmtestnet: {
-    threshold: 1,
-    validators: ['0x2d0214068e5d8e49c638b5a4c70c75080204be21'],
-  },
 };

@@ -277,57 +277,6 @@
         "from": 4206
       }
     },
-    "polygonzkevmtestnet": {
-      "blockExplorers": [
-        {
-          "apiUrl": "https://api-testnet-zkevm.polygonscan.com/api",
-          "family": "etherscan",
-          "name": "PolygonScan",
-          "url": "https://testnet-zkevm.polygonscan.com"
-        }
-      ],
-      "blocks": {
-        "confirmations": 1,
-        "estimateBlockTime": 3,
-        "reorgPeriod": 1
-      },
-      "chainId": 1442,
-      "displayName": "Polygon zkEVM Testnet",
-      "displayNameShort": "ZkEvm Testnet",
-      "domainId": 1442,
-      "isTestnet": true,
-      "name": "polygonzkevmtestnet",
-      "nativeToken": {
-        "decimals": 18,
-        "name": "Ether",
-        "symbol": "ETH"
-      },
-      "protocol": "ethereum",
-      "rpcUrls": [
-        {
-          "http": "https://rpc.public.zkevm-test.net"
-        }
-      ],
-      "merkleRootMultisigIsmFactory": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
-      "messageIdMultisigIsmFactory": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
-      "aggregationIsmFactory": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
-      "aggregationHookFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
-      "proxyAdmin": "0x666a24F62f7A97BA33c151776Eb3D9441a059eB8",
-      "mailbox": "0x598facE78a4302f11E3de0bee1894Da0b2Cb71F8",
-      "validatorAnnounce": "0x7914A3349107A7295Bbf2374db5A973d73D1b324",
-      "merkleTreeHook": "0x68311418D79fE8d96599384ED767d225635d88a8",
-      "storageGasOracle": "0x3707bc8C7342aA6f693bCe1Bd7671Fca146F7F0A",
-      "interchainGasPaymaster": "0xAD34A66Bf6dB18E858F6B686557075568c6E031C",
-      "aggregationHook": "0x0Fd2C6F0Ad45e766660b9fDebCF36a2AD69536D1",
-      "protocolFee": "0xddf4C3e791caCaFd26D7fb275549739B38ae6e75",
-      "fallbackRoutingHook": "0xBF2C366530C1269d531707154948494D3fF4AcA7",
-      "testRecipient": "0x11918DC33E067C5DA83EEF58E50F856398b8Df4C",
-      "testTokenRecipient": "0x04438ef7622f5412f82915F59caD4f704C61eA48",
-      "routingIsmFactory": "0xc08675806BA844467E559E45E4bB59e66778bDcd",
-      "index": {
-        "from": 2846728
-      }
-    },
     "scrollsepolia": {
       "blockExplorers": [
         {

@@ -676,31 +676,6 @@ export const polygonzkevm: ChainMetadata = {
   ],
 };
 
-export const polygonzkevmtestnet: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-testnet-zkevm.polygonscan.com/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'PolygonScan',
-      url: 'https://testnet-zkevm.polygonscan.com',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
-  },
-  chainId: 1442,
-  displayName: 'Polygon zkEVM Testnet',
-  displayNameShort: 'ZkEvm Testnet',
-  domainId: 1442,
-  isTestnet: true,
-  name: Chains.polygonzkevmtestnet,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.public.zkevm-test.net' }],
-};
-
 // Testnet for Nautilus
 export const proteustestnet: ChainMetadata = {
   blocks: {
@@ -1011,7 +986,6 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   plumetestnet,
   polygon,
   polygonzkevm,
-  polygonzkevmtestnet,
   proteustestnet,
   scroll,
   scrollsepolia,

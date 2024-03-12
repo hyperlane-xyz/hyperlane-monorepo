@@ -151,14 +151,6 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
-        name: "polygonzkevmtestnet",
-        token: "ETH",
-        domain: 1442,
-        chain_id: 1442,
-        is_test_net: true,
-        is_deprecated: false,
-    },
-    RawDomain {
         name: "scroll",
         token: "ETH",
         domain: 534352,

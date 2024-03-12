@@ -38,7 +38,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     [Chains.fuji]: true,
     [Chains.mumbai]: true,
     [Chains.plumetestnet]: true,
-    [Chains.polygonzkevmtestnet]: true,
     [Chains.scrollsepolia]: true,
     [Chains.sepolia]: true,
     [Chains.solanatestnet]: true,
@@ -50,7 +49,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     [Chains.fuji]: true,
     [Chains.mumbai]: true,
     [Chains.plumetestnet]: true,
-    [Chains.polygonzkevmtestnet]: true,
     [Chains.scrollsepolia]: true,
     [Chains.sepolia]: true,
     [Chains.solanatestnet]: true,
@@ -63,7 +61,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     [Chains.fuji]: true,
     [Chains.mumbai]: true,
     [Chains.plumetestnet]: true,
-    [Chains.polygonzkevmtestnet]: true,
     [Chains.scrollsepolia]: true,
     [Chains.sepolia]: true,
     // Cannot scrape non-EVM chains

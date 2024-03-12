@@ -33,7 +33,6 @@ export const keyFunderConfig: KeyFunderConfig = {
     plumetestnet: '0.2',
     sepolia: '5',
     // Funder boosts itself upto 5x balance on L2 before dispersing funds
-    polygonzkevmtestnet: '1',
     scrollsepolia: '1',
   },
   desiredKathyBalancePerChain: {

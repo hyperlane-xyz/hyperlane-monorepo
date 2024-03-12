@@ -129,7 +129,6 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   moonbeam: '5',
   gnosis: '5',
   scrollsepolia: '0.1',
-  polygonzkevmtestnet: '0.1',
   base: '0.1',
   scroll: '0.1',
   polygonzkevm: '0.1',

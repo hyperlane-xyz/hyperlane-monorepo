@@ -5,9 +5,6 @@
   "alfajores": {
     "router": "0x4D1d8394cBb445A75aE63fDd24421A353B73FF25"
   },
-  "polygonzkevmtestnet": {
-    "router": "0xb3D796584fDeBE2321894eeF31e0C3ec52169C61"
-  },
   "sepolia": {
     "router": "0xEB25e6e42B743a815E5C0409007993a828a0565f"
   },

@@ -246,43 +246,5 @@
       "constructorArguments": "0000000000000000000000003c5154a193d6e2955650f9305c8d80c18c814a680000000000000000000000000000000000000000000000000000000000000000",
       "isProxy": false
     }
-  ],
-  "polygonzkevmtestnet": [
-    {
-      "name": "HelloWorld",
-      "address": "0xD0680F80F4f947968206806C2598Cbc5b6FE5b03",
-      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f8000000000000000000000000ad34a66bf6db18e858f6b686557075568c6e031c",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x433f7d6d0cB9eb8FF2902Ad01C1BEd6C09934a33",
-      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f8000000000000000000000000ad34a66bf6db18e858f6b686557075568c6e031c",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0xEe421285728284000ec6c6C55C6F9161faeFfa99",
-      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f8000000000000000000000000ad34a66bf6db18e858f6b686557075568c6e031c",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C",
-      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f80000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9",
-      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f80000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x783c4a0bB6663359281aD4a637D5af68F83ae213",
-      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f80000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    }
   ]
 }

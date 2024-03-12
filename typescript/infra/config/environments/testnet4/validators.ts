@@ -131,26 +131,6 @@ export const validatorChainConfig = (
         'sepolia',
       ),
     },
-    polygonzkevmtestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.polygonzkevmtestnet),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0x3f06b725bc9648917eb11c414e9f8d76fd959550',
-            '0x27bfc57679d9dd4ab2e870f5ed7ec0b339a0b636',
-            '0xd476548222f43206d0abaa30e46e28670aa7859c',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0x2d0214068e5d8e49c638b5a4c70c75080204be21',
-            '0x989bbbfa753431169556f69be1b0a496b252e8a6',
-            '0x292d5788587bb5efd5c2c911115527e57f50cd05',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'polygonzkevmtestnet',
-      ),
-    },
     plumetestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod(chainMetadata.plumetestnet),
