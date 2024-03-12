@@ -1,5 +1,39 @@
 # @hyperlane-xyz/sdk
 
+## 3.8.0
+
+### Minor Changes
+
+- 9681df08d: **New Feature**: Add transaction fee estimators to the SDK
+  **Breaking change**: Token Adapter `quoteGasPayment` method renamed to `quoteTransferRemoteGas` for clarity.
+- 9681df08d: Remove support for goerli networks (including optimismgoerli, arbitrumgoerli, lineagoerli and polygonzkevmtestnet)
+- 9681df08d: Enabled verification of contracts as part of the deployment flow.
+
+  - Solidity build artifact is now included as part of the `@hyperlane-xyz/core` package.
+  - Updated the `HyperlaneDeployer` to perform contract verification immediately after deploying a contract. A default verifier is instantiated using the core build artifact.
+  - Updated the `HyperlaneIsmFactory` to re-use the `HyperlaneDeployer` for deployment where possible.
+  - Minor logging improvements throughout deployers.
+
+- 9681df08d: Add `WarpCore`, `Token`, and `TokenAmount` classes for interacting with Warp Route instances.
+
+  _Breaking change_: The params to the `IHypTokenAdapter` `populateTransferRemoteTx` method have changed. `txValue` has been replaced with `interchainGas`.
+
+### Patch Changes
+
+- 9681df08d: Support configuring non-EVM IGP destinations
+- 9681df08d: Removed basegoerli and moonbasealpha testnets
+- 9681df08d: Add logos for plume to SDK
+- 9681df08d: TestRecipient as part of core deployer
+- 9681df08d: Update viction validator set
+- 9681df08d: Minor fixes for SDK cosmos logos
+- 9681df08d: Implement message id extraction for CosmWasmCoreAdapter
+- 9681df08d: Patch transfer ownership in hook deployer
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+  - @hyperlane-xyz/core@3.8.0
+  - @hyperlane-xyz/utils@3.8.0
+
 ## 3.7.0
 
 ### Minor Changes
