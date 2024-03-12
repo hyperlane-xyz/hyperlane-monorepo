@@ -1,5 +1,13 @@
 # @hyperlane-xyz/utils
 
+## 3.8.0
+
+### Minor Changes
+
+- aea9e1438: Add `WarpCore`, `Token`, and `TokenAmount` classes for interacting with Warp Route instances.
+
+  _Breaking change_: The params to the `IHypTokenAdapter` `populateTransferRemoteTx` method have changed. `txValue` has been replaced with `interchainGas`.
+
 ## 3.7.0
 
 ## 3.6.2
