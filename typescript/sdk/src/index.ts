@@ -369,9 +369,9 @@ export {
   EvmTokenAdapter,
 } from './token/adapters/EvmTokenAdapter';
 export {
-  InterchainGasQuote as AdapterInterchainGasQuote,
   IHypTokenAdapter,
   ITokenAdapter,
+  InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
 } from './token/adapters/ITokenAdapter';
@@ -432,7 +432,7 @@ export {
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore';
 export {
-  IgpQuoteConstants,
+  FeeConstantConfig,
   RouteBlacklist,
   WarpCoreConfig,
   WarpCoreConfigSchema,

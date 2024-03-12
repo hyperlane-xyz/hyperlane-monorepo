@@ -558,6 +558,9 @@ export const neutron: ChainMetadata = {
   restUrls: [{ http: 'https://rest-lb.neutron.org' }],
   rpcUrls: [{ http: 'https://rpc-kralum.neutron-1.neutron.org' }],
   slip44: 118,
+  transactionOverrides: {
+    gasPrice: '0.0075',
+  },
 };
 
 export const optimism: ChainMetadata = {

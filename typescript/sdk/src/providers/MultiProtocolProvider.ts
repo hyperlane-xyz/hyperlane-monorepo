@@ -1,6 +1,12 @@
 import { Debugger, debug } from 'debug';
 
-import { objFilter, objMap, pick } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  objFilter,
+  objMap,
+  pick,
+} from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
@@ -17,12 +23,17 @@ import {
   ProviderType,
   SolanaWeb3Provider,
   TypedProvider,
+  TypedTransaction,
   ViemProvider,
 } from './ProviderType';
 import {
   ProviderBuilderMap,
   defaultProviderBuilderMap,
 } from './providerBuilders';
+import {
+  TransactionFeeEstimate,
+  estimateTransactionFee,
+} from './transactionFeeEstimators';
 
 export interface MultiProtocolProviderOptions {
   loggerName?: string;
@@ -206,6 +217,28 @@ export class MultiProtocolProvider<
     for (const chain of Object.keys(providers)) {
       this.setProvider(chain, providers[chain]);
     }
+  }
+
+  estimateTransactionFee({
+    chainNameOrId,
+    transaction,
+    sender,
+    senderPubKey,
+  }: {
+    chainNameOrId: ChainNameOrId;
+    transaction: TypedTransaction;
+    sender: Address;
+    senderPubKey?: HexString;
+  }): Promise<TransactionFeeEstimate> {
+    const provider = this.getProvider(chainNameOrId, transaction.type);
+    const chainMetadata = this.getChainMetadata(chainNameOrId);
+    return estimateTransactionFee({
+      transaction,
+      provider,
+      chainMetadata,
+      sender,
+      senderPubKey,
+    });
   }
 
   override intersect(
