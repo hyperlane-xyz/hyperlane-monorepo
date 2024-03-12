@@ -99,7 +99,7 @@ impl ProcessorExt for MessageProcessor {
 
             let domain: HyperlaneDomain = KnownHyperlaneDomain::try_from(msg.destination)?.into();
             let app_context_classifier = AppContextClassifier::new(
-                self.mailboxes[&domain].clone(),
+                self.mailboxes.get(&domain).map(Clone::clone),
                 self.metric_app_contexts.clone(),
             );
 
@@ -276,7 +276,7 @@ mod test {
             Arc::new(core_metrics),
             db.clone(),
             5,
-            AppContextClassifier::new(Arc::new(MockMailboxContract::default()), vec![]),
+            AppContextClassifier::new(Some(Arc::new(MockMailboxContract::default())), vec![]),
         )
     }
 
@@ -307,7 +307,10 @@ mod test {
                 dummy_processor_metrics(origin_domain.id()),
                 HashMap::from([(destination_domain.id(), send_channel)]),
                 HashMap::from([(destination_domain.id(), message_context)]),
-                HashMap::new(),
+                HashMap::from([(
+                    destination_domain.clone(),
+                    Arc::new(MockMailboxContract::default()) as Arc<dyn Mailbox>,
+                )]),
                 vec![],
             ),
             receive_channel,

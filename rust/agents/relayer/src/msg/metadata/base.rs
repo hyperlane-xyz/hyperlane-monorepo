@@ -106,17 +106,17 @@ impl DefaultIsmCache {
 /// Classifies messages into an app context if they have one.
 #[derive(Debug)]
 pub struct AppContextClassifier {
-    default_ism: DefaultIsmCache,
+    default_ism: Option<DefaultIsmCache>,
     app_matching_lists: Vec<(MatchingList, String)>,
 }
 
 impl AppContextClassifier {
     pub fn new(
-        destination_mailbox: Arc<dyn Mailbox>,
+        destination_mailbox: Option<Arc<dyn Mailbox>>,
         app_matching_lists: Vec<(MatchingList, String)>,
     ) -> Self {
         Self {
-            default_ism: DefaultIsmCache::new(destination_mailbox),
+            default_ism: destination_mailbox.map(DefaultIsmCache::new),
             app_matching_lists,
         }
     }
@@ -142,11 +142,11 @@ impl AppContextClassifier {
             }
         }
 
-        let Some(root_ism) = root_ism else {
-            return Ok(None);
+        let (root_ism, default_ism) = match (root_ism, &self.default_ism) {
+            (Some(root_ism), Some(default_ism)) => (root_ism, default_ism.get().await?),
+            _ => return Ok(None),
         };
 
-        let default_ism = self.default_ism.get().await?;
         if root_ism == default_ism {
             return Ok(Some("default_ism".to_string()));
         }

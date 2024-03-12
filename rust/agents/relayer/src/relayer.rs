@@ -229,7 +229,7 @@ impl BaseAgent for Relayer {
                     db,
                     5,
                     AppContextClassifier::new(
-                        mailboxes[destination].clone(),
+                        mailboxes.get(destination).map(Clone::clone),
                         settings.metric_app_contexts.clone(),
                     ),
                 );
