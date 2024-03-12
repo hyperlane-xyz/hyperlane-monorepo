@@ -12,6 +12,7 @@ import {
   InterchainQuery,
   InterchainQueryChecker,
   TokenType,
+  resolveAccountOwner,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts';
@@ -53,7 +54,11 @@ async function check() {
         [fork]: { blocks: { confirmations: 0 } },
       });
 
-      const owner = config.core[fork].owner;
+      const owner = await resolveAccountOwner(
+        multiProvider,
+        fork,
+        config.core[fork].owner,
+      );
       const signer = await impersonateAccount(owner, 1e18);
 
       multiProvider.setSigner(fork, signer);

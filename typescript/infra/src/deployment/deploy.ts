@@ -55,16 +55,17 @@ export async function deployWithArtifacts<Config extends object>(
     process.exit(0); // Exit the process
   });
 
-  try {
-    if (targetNetwork) {
-      deployer.deployedContracts[targetNetwork] =
-        await deployer.deployContracts(targetNetwork, configMap[targetNetwork]);
-    } else {
-      await deployer.deploy(configMap);
-    }
-  } catch (e) {
-    console.error('Failed to deploy contracts', e);
-  }
+  // try {
+  //   return;
+  //   if (targetNetwork) {
+  //     deployer.deployedContracts[targetNetwork] =
+  //       await deployer.deployContracts(targetNetwork, configMap[targetNetwork]);
+  //   } else {
+  //     await deployer.deploy(configMap);
+  //   }
+  // } catch (e) {
+  //   console.error('Failed to deploy contracts', e);
+  // }
 
   await postDeploy(deployer, cache, agentConfig);
 }
@@ -88,6 +89,8 @@ export async function postDeploy<Config extends object>(
     const deployedAddresses = serializeContractsMap(deployer.deployedContracts);
     const cachedAddresses = deployer.cachedAddresses;
     const addresses = objMerge(deployedAddresses, cachedAddresses);
+
+    console.log('postdeploy:', cache.addresses);
 
     // cache addresses of deployed contracts
     writeMergedJSONAtPath(cache.addresses, addresses);
