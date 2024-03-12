@@ -1,12 +1,12 @@
 use std::convert::TryFrom;
 use std::fmt::{self, Display};
-use std::str::FromStr;
+
 
 mod chain;
 mod cli;
 mod eth;
 
-use chain::{Chain, ChainError};
+use chain::{ChainError};
 use clap::Parser;
 use cli::{Cli, Commands};
 use eth::{EthClient, EthClientError};
@@ -28,11 +28,6 @@ pub async fn run() -> Result<(), AppError> {
             recipient_address,
             message_body,
         } => {
-            println!(
-                "Sending message from {} to {}",
-                origin_chain, destination_chain
-            );
-            println!("Message: {}", message_body);
             let mut eth_client = EthClient::try_from(origin_chain)?;
             // Try and get the private key from the environment
             let private_key = match args.private_key {

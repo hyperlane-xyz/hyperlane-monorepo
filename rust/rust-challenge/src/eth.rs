@@ -1,20 +1,14 @@
-use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use ethers_contract::Contract;
 use ethers_core::abi::{Abi, Token};
-use ethers_core::types::{Address, TransactionRequest, H256, U256};
-use ethers_core::types::{Bytes, NameOrAddress};
-use ethers_core::utils::keccak256;
+use ethers_core::types::{Address, H256, U256};
+
 use ethers_core::utils::parse_ether;
 use ethers_middleware::SignerMiddleware;
-use ethers_providers::{Http, Middleware, Provider};
+use ethers_providers::{Http, Provider};
 use ethers_signers::{LocalWallet, Signer};
-use serde::{Deserialize, Serialize};
-use serde_json::error;
-use thiserror::Error;
-use url::Url;
 
 use crate::chain::Chain;
 
@@ -100,7 +94,7 @@ impl EthClient {
         // Convert the address to bytes -- write within a 32 byte buffer
         let mut recipient_address_buffer = [0u8; 32];
         recipient_address_buffer[..recipient_address.0.len()]
-            .copy_from_slice(&recipient_address.as_bytes());
+            .copy_from_slice(recipient_address.as_bytes());
         let recipient_address = Token::FixedBytes(recipient_address_buffer.to_vec());
         let message_body = Token::Bytes(message_body);
 
