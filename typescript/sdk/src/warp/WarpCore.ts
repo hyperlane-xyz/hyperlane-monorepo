@@ -11,7 +11,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
-import { TransactionFeeEstimate } from '../providers/transactionFeeEstimators';
+import {
+  TransactionFeeEstimate,
+  estimateTransactionFeeEthersV5ForGasUnits,
+} from '../providers/transactionFeeEstimators';
 import { IToken } from '../token/IToken';
 import { Token } from '../token/Token';
 import { TokenAmount } from '../token/TokenAmount';
@@ -206,6 +209,7 @@ export class WarpCore {
       interchainFee,
     });
 
+    // Typically the transfers require a single transaction
     if (txs.length === 1) {
       return this.multiProvider.estimateTransactionFee({
         chainNameOrId: originMetadata.name,
@@ -213,22 +217,21 @@ export class WarpCore {
         sender,
         senderPubKey,
       });
-    } else if (
+    }
+    // On ethereum, sometimes 2 txs are required (one approve, one transferRemote)
+    else if (
       txs.length === 2 &&
       originToken.protocol === ProtocolType.Ethereum
     ) {
-      // For ethereum txs that require >1 tx, we assume the first is an approval
-      // We use a hard-coded const as an estimate for the transferRemote gas
       const provider = this.multiProvider.getEthersV5Provider(
         originMetadata.name,
       );
-      const gasPrice = BigInt((await provider.getGasPrice()).toString());
-      const fee = EVM_TRANSFER_REMOTE_GAS_ESTIMATE * gasPrice;
-      return {
+      // We use a hard-coded const as an estimate for the transferRemote because we
+      // cannot reliably simulate the tx when an approval tx is required first
+      return estimateTransactionFeeEthersV5ForGasUnits({
+        provider,
         gasUnits: EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
-        gasPrice,
-        fee,
-      };
+      });
     } else {
       throw new Error('Cannot estimate local gas for multiple transactions');
     }
@@ -351,7 +354,6 @@ export class WarpCore {
     return {
       interchainQuote,
       localQuote,
-      localDetails: localFee,
     };
   }
 

@@ -41,13 +41,28 @@ export async function estimateTransactionFeeEthersV5({
   provider: EthersV5Provider;
   sender: Address;
 }): Promise<TransactionFeeEstimate> {
-  const gasUnits = await provider.provider.estimateGas({
+  const ethersProvider = provider.provider;
+  const gasUnits = await ethersProvider.estimateGas({
     ...transaction.transaction,
     from: sender,
   });
-  const feeData = await provider.provider.getFeeData();
+  return estimateTransactionFeeEthersV5ForGasUnits({
+    provider: ethersProvider,
+    gasUnits: BigInt(gasUnits.toString()),
+  });
+}
+
+// Separating out inner function to allow WarpCore to reuse logic
+export async function estimateTransactionFeeEthersV5ForGasUnits({
+  provider,
+  gasUnits,
+}: {
+  provider: EthersV5Provider['provider'];
+  gasUnits: bigint;
+}): Promise<TransactionFeeEstimate> {
+  const feeData = await provider.getFeeData();
   return computeEvmTxFee(
-    BigInt(gasUnits.toString()),
+    gasUnits,
     feeData.gasPrice ? BigInt(feeData.gasPrice.toString()) : undefined,
     feeData.maxFeePerGas ? BigInt(feeData.maxFeePerGas.toString()) : undefined,
     feeData.maxPriorityFeePerGas
@@ -138,6 +153,11 @@ export async function estimateTransactionFeeCosmJs({
   provider: CosmJsProvider;
   estimatedGasPrice: Numberish;
   sender: Address;
+  // Unfortunately the sender pub key is required for this simulation.
+  // For accounts that have sent a tx, the pub key could be fetched via
+  // a StargateClient getAccount call. However that will fail for addresses
+  // that have not yet sent a tx on the queried chain.
+  // Related: https://github.com/cosmos/cosmjs/issues/889
   senderPubKey: HexString;
   memo?: string;
 }): Promise<TransactionFeeEstimate> {

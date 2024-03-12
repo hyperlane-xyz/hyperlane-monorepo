@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 import { ZChainName } from '../metadata/customZodTypes';
 import type { TypedTransaction } from '../providers/ProviderType';
-import type { TransactionFeeEstimate } from '../providers/transactionFeeEstimators';
 import { TokenConfigSchema } from '../token/IToken';
 import type { TokenAmount } from '../token/TokenAmount';
 import type { ChainName } from '../types';
@@ -62,5 +61,4 @@ export type WarpCoreConfig = z.infer<typeof WarpCoreConfigSchema>;
 export interface WarpCoreFeeEstimate {
   interchainQuote: TokenAmount;
   localQuote: TokenAmount;
-  localDetails: TransactionFeeEstimate;
 }
