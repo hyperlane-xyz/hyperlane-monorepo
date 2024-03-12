@@ -60,9 +60,6 @@ const nativeBridges = {
     l1ETHGateway: '0x8A54A2347Da2562917304141ab67324615e9866d',
     l1Messenger: '0x50c7d3e7f7c656493D1D76aaa1a836CedfCBB16A',
   },
-  polygonzkevmtestnet: {
-    l1EVMBridge: '0xF6BEEeBB578e214CA9E23B0e9683454Ff88Ed2A7',
-  },
 };
 
 type L2Chain = Chains.optimism | Chains.arbitrum | Chains.base;
@@ -685,8 +682,6 @@ class ContextFunder {
       tx = await this.bridgeToArbitrum(l2Chain, amount);
     } else if (l2Chain.includes('scroll')) {
       tx = await this.bridgeToScroll(l2Chain, amount, to);
-    } else if (l2Chain.includes('zkevm')) {
-      tx = await this.bridgeToPolygonCDK(l2Chain, amount, to);
     } else {
       throw new Error(`${l2Chain} is not an L2`);
     }
@@ -758,31 +753,6 @@ class ContextFunder {
       l2GasLimit,
       {
         value: totalAmount,
-      },
-    );
-  }
-
-  private async bridgeToPolygonCDK(
-    l2Chain: L2Chain,
-    amount: BigNumber,
-    to: Address,
-  ) {
-    const l1Chain = L2ToL1[l2Chain];
-    const l1ChainSigner = this.multiProvider.getSigner(l1Chain);
-    const polygonZkEVMbridge = new ethers.Contract(
-      nativeBridges.polygonzkevmtestnet.l1EVMBridge,
-      PolygonZkEVMBridge.abi,
-      l1ChainSigner,
-    );
-    return polygonZkEVMbridge.bridgeAsset(
-      1, // 0 is mainnet, 1 is l2
-      to,
-      amount,
-      ethers.constants.AddressZero,
-      true,
-      [],
-      {
-        value: amount,
       },
     );
   }
