@@ -1,5 +1,28 @@
 # @hyperlane-xyz/infra
 
+## 3.8.0
+
+### Minor Changes
+
+- 76bd73010: Remove support for goerli networks (including optimismgoerli, arbitrumgoerli, lineagoerli and polygonzkevmtestnet)
+- 7d530fd4e: Enabled verification of contracts as part of the deployment flow.
+
+  - Solidity build artifact is now included as part of the `@hyperlane-xyz/core` package.
+  - Updated the `HyperlaneDeployer` to perform contract verification immediately after deploying a contract. A default verifier is instantiated using the core build artifact.
+  - Updated the `HyperlaneIsmFactory` to re-use the `HyperlaneDeployer` for deployment where possible.
+  - Minor logging improvements throughout deployers.
+
+### Patch Changes
+
+- 90191f741: Removed basegoerli and moonbasealpha testnets
+- b3a915466: Add logos for plume to SDK
+- 912ced308: TestRecipient as part of core deployer
+- 02e64c9f4: Update viction validator set
+- 3ff8eb3c3: Patch transfer ownership in hook deployer
+  - @hyperlane-xyz/sdk@3.8.0
+  - @hyperlane-xyz/helloworld@3.8.0
+  - @hyperlane-xyz/utils@3.8.0
+
 ## 3.7.0
 
 ### Minor Changes
@@ -10,11 +33,6 @@
 
 - 87151c62b: Bumped injective reorg period
 - ab17af5f7: Updating HyperlaneIgpDeployer to configure storage gas oracles as part of deployment
-- Updated dependencies [6f464eaed]
-- Updated dependencies [87151c62b]
-- Updated dependencies [ab17af5f7]
-- Updated dependencies [7b40232af]
-- Updated dependencies [54aeb6420]
   - @hyperlane-xyz/sdk@3.7.0
   - @hyperlane-xyz/helloworld@3.7.0
   - @hyperlane-xyz/utils@3.7.0
@@ -33,12 +51,6 @@
 
 - ae4476ad0: Bumped mantapacific reorgPeriod to 1, a reorg period in chain metadata is now required by infra.
 - e4e4f93fc: Support pausable ISM in deployer and checker
-- Updated dependencies [3c298d064]
-- Updated dependencies [ae4476ad0]
-- Updated dependencies [f3b7ddb69]
-- Updated dependencies [df24eec8b]
-- Updated dependencies [78e50e7da]
-- Updated dependencies [e4e4f93fc]
   - @hyperlane-xyz/utils@3.6.1
   - @hyperlane-xyz/sdk@3.6.1
   - @hyperlane-xyz/helloworld@3.6.1
