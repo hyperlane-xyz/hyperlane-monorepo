@@ -64,10 +64,12 @@ const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 // TODO: consider a more sane value and/or use IGP gas payments instead.
 const PROCESS_COMPUTE_UNITS: u32 = 700_000;
 
-/// 0.0000035 SOL, in lamports.
+/// 0.0001 SOL, in lamports.
 /// A typical tx fee without a prioritization fee is 0.000005 SOL, or
 /// 5000 lamports. (Example: https://explorer.solana.com/tx/fNd3xVeBzFHeuzr8dXQxLGiHMzTeYpykSV25xWzNRaHtzzjvY9A3MzXh1ZsK2JncRHkwtuWrGEwGXVhFaUCYhtx)
-const PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX: u64 = 3500;
+/// See average priority fees here https://solanacompass.com/statistics/fees
+/// to inform what to spend here.
+const PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX: u64 = 100000;
 
 /// In micro-lamports. Multiply this by the compute units to figure out
 /// the additional cost of processing a message, in addition to the mandatory
