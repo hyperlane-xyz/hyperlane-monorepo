@@ -1,4 +1,4 @@
-use std::{fmt::Debug, num::NonZeroU64, ops::RangeInclusive, str::FromStr};
+use std::{cmp::min, fmt::Debug, num::NonZeroU64, ops::RangeInclusive, str::FromStr};
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
@@ -331,10 +331,16 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let default_lag = NonZeroU64::new(10).unwrap();
         let tip = self.get_finalized_block_number().await?;
+        let block_height =
+            get_block_height_for_lag(self.merkle_tree_hook.provider.grpc(), Some(default_lag))
+                .await?
+                .unwrap_or_default() as u32;
+        let safe_tip = min(tip, block_height);
         let sequence = self
             .merkle_tree_hook
-            .count_at_block(Some(tip.into()))
+            .count_at_block(Some(safe_tip.into()))
             .await?;
 
         Ok((Some(sequence), tip))
