@@ -4,26 +4,30 @@ import {
   Chains,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
-import { plumetestnet } from '@hyperlane-xyz/sdk/dist/consts/chainMetadata';
 
-import { AgentChainNames, Role } from '../../../src/roles';
-
-const selectedChains = [
+// All supported chains for the testnet4 environment.
+// These chains may be any protocol type.
+export const supportedChainNames = [
   Chains.alfajores,
   Chains.arbitrumgoerli,
   Chains.bsctestnet,
+  Chains.eclipsetestnet,
   Chains.fuji,
   Chains.goerli,
+  Chains.mumbai,
   Chains.optimismgoerli,
+  Chains.plumetestnet,
   Chains.polygonzkevmtestnet,
   Chains.scrollsepolia,
   Chains.sepolia,
-  Chains.plumetestnet,
+  Chains.solanatestnet,
 ];
+
+export const environment = 'testnet4';
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {
   ...Object.fromEntries(
-    selectedChains.map((chain) => [chain, chainMetadata[chain]]),
+    supportedChainNames.map((chain) => [chain, chainMetadata[chain]]),
   ),
   mumbai: {
     ...chainMetadata.mumbai,
@@ -38,15 +42,4 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
       gasPrice: 80 * 10 ** 9, // 8 gwei
     },
   },
-};
-
-export const supportedChainNames = Object.keys(testnetConfigs);
-export const environment = 'testnet4';
-
-// Hyperlane & RC context agent chain names.
-export const agentChainNames: AgentChainNames = {
-  [Role.Validator]: supportedChainNames,
-  // Only run relayers for Ethereum chains at the moment.
-  [Role.Relayer]: supportedChainNames,
-  [Role.Scraper]: supportedChainNames,
 };

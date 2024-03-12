@@ -30,7 +30,7 @@ tracing-futures.workspace = true
 tracing.workspace = true
 url.workspace = true
 
-hyperlane-core = { path = "../../hyperlane-core", features = ["fallback-provider"]}
+hyperlane-core = { path = "../../hyperlane-core", features = ["async"]}
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
 
 [build-dependencies]

@@ -50,7 +50,6 @@ hyperlane:
   # This should mirror @hyperlane-xyz/sdk AgentChainMetadata
   chains:
     - name: examplechain
-      disabled: false
       rpcConsensusType: fallback
       signer:
         type: # aws

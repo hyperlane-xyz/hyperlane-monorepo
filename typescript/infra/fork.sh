@@ -36,9 +36,6 @@ yarn ts-node ./scripts/deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
 AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 DEPLOY_DELTA="$((BEFORE-AFTER))"
 
-# build SDK to get the latest addresses
-yarn --cwd ../sdk build
-
 BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN --govern -m $MODULE
 
