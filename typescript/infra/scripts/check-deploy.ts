@@ -1,5 +1,7 @@
 import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
+  HypERC20App,
+  HypERC20Checker,
   HyperlaneCore,
   HyperlaneCoreChecker,
   HyperlaneIgp,
@@ -9,6 +11,7 @@ import {
   InterchainAccountChecker,
   InterchainQuery,
   InterchainQueryChecker,
+  TokenType,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts';
@@ -112,20 +115,25 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
-    const routerConfig = core.getRouterConfig(envConfig.owners);
-    const app = await getHelloWorldApp(
-      config,
-      context,
-      Role.Deployer,
-      Contexts.Hyperlane, // Owner should always be from the hyperlane context
-    );
-    const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
-    const checker = new HelloWorldChecker(
-      multiProvider,
-      app,
-      routerConfig,
-      ismFactory,
-    );
+    const app = HypERC20App.fromEnvironment(env, multiProvider);
+    const plumetestnet = {
+      ...routerConfig.plumetestnet,
+      type: TokenType.synthetic,
+      name: 'Wrapped Ether',
+      symbol: 'WETH',
+      decimals: 18,
+      totalSupply: '0',
+    };
+    const sepolia = {
+      ...routerConfig.sepolia,
+      type: TokenType.native,
+    };
+    const config = {
+      // scrollsepolia,
+      plumetestnet,
+      sepolia,
+    };
+    const checker = new HypERC20Checker(multiProvider, app, config, ismFactory);
     governor = new ProxiedRouterGovernor(checker);
   } else {
     console.log(`Skipping ${module}, checker or governor unimplemented`);

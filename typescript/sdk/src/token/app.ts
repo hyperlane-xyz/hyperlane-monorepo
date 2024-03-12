@@ -1,6 +1,8 @@
 import { RouterApp } from '../router/RouterApps';
 
-export class HypERC20App extends RouterApp<any> {
+import { HypERC20Factories } from './contracts';
+
+export class HypERC20App extends RouterApp<HypERC20Factories> {
   constructor(contractsMap: any, multiProvider: any) {
     super(contractsMap, multiProvider);
   }
