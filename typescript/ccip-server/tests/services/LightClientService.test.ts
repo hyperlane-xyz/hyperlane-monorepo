@@ -3,7 +3,7 @@ import { BigNumber, ethers } from 'ethers';
 
 import { LightClientService } from '../../src/services/LightClientService';
 import { RPCService } from '../../src/services/RPCService';
-import { genesisTime } from '../../src/services/__mocks__/LightClientService';
+import { GENESIS_TIME } from '../../src/services/__mocks__/LightClientService';
 
 // Fixtures
 jest.mock('../../src/services/LightClientService');
@@ -29,7 +29,7 @@ describe('LightClientService', () => {
   });
   test('should return the correct proof status', async () => {
     const results = await lightClientService.calculateSlot(
-      BigNumber.from(genesisTime + 100),
+      BigNumber.from(GENESIS_TIME + 100),
     );
     expect(results.toBigInt()).toBeGreaterThan(0);
   });

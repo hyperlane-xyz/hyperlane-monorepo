@@ -43,9 +43,11 @@ describe('ProofsService', () => {
   });
 
   test('should set currentProofId, if proof is not ready', async () => {
+    // We need to try-catch because of forceRevert()
     try {
       await proofsService.getProofs([TARGET_ADDR, STORAGE_KEY, MESSAGE_ID]);
-    } catch (e) {
+    } catch (e: any) {
+      expect(e.message).toBe('Proof is not ready');
       expect(proofsService.pendingProof.get(pendingProofKey)).toEqual(
         PENDING_PROOF_ID,
       );

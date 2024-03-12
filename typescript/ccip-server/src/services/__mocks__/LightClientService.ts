@@ -6,15 +6,15 @@ enum ProofStatus {
   error = 'error',
 }
 
-export const genesisTime = 1606824023;
-export const slotsPerSecond = 12;
+const GENESIS_TIME = 1606824023;
+const SECONDS_PER_SLOT = 12;
 
 class LightClientService {
   proofStatus: ProofStatus = ProofStatus.running;
   async calculateSlot(timestamp: BigNumber): Promise<BigNumber> {
     return timestamp
-      .sub(BigNumber.from(genesisTime))
-      .div(BigNumber.from(slotsPerSecond));
+      .sub(BigNumber.from(GENESIS_TIME))
+      .div(BigNumber.from(SECONDS_PER_SLOT));
   }
 
   async requestProof(
@@ -33,4 +33,4 @@ class LightClientService {
   }
 }
 
-export { LightClientService };
+export { LightClientService, GENESIS_TIME, SECONDS_PER_SLOT };
