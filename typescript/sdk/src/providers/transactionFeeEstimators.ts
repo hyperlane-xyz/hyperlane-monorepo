@@ -5,7 +5,6 @@ import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
 import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx';
-import { BigNumber } from 'ethers';
 
 import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 
@@ -47,19 +46,14 @@ export async function estimateTransactionFeeEthersV5({
     from: sender,
   });
   const feeData = await provider.provider.getFeeData();
-  let gasPrice: BigNumber;
-  if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
-    gasPrice = feeData.maxFeePerGas.add(feeData.maxPriorityFeePerGas);
-  } else if (feeData.gasPrice) {
-    gasPrice = feeData.gasPrice;
-  } else {
-    throw new Error(`Invalid fee data: ${JSON.stringify(feeData)}`);
-  }
-  return {
-    gasUnits: BigInt(gasUnits.toString()),
-    gasPrice: BigInt(gasPrice.toString()),
-    fee: BigInt(gasUnits.mul(gasPrice).toString()),
-  };
+  return computeEvmTxFee(
+    BigInt(gasUnits.toString()),
+    feeData.gasPrice ? BigInt(feeData.gasPrice.toString()) : undefined,
+    feeData.maxFeePerGas ? BigInt(feeData.maxFeePerGas.toString()) : undefined,
+    feeData.maxPriorityFeePerGas
+      ? BigInt(feeData.maxPriorityFeePerGas.toString())
+      : undefined,
+  );
 }
 
 export async function estimateTransactionFeeViem({
@@ -77,18 +71,32 @@ export async function estimateTransactionFeeViem({
     account: sender as `0x${string}`,
   });
   const feeData = await provider.provider.estimateFeesPerGas();
-  let gasPrice: bigint;
-  if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
-    gasPrice = feeData.maxFeePerGas + feeData.maxPriorityFeePerGas;
-  } else if (feeData.gasPrice) {
-    gasPrice = feeData.gasPrice;
+  return computeEvmTxFee(
+    gasUnits,
+    feeData.gasPrice,
+    feeData.maxFeePerGas,
+    feeData.maxPriorityFeePerGas,
+  );
+}
+
+function computeEvmTxFee(
+  gasUnits: bigint,
+  gasPrice?: bigint,
+  maxFeePerGas?: bigint,
+  maxPriorityFeePerGas?: bigint,
+): TransactionFeeEstimate {
+  let estGasPrice: bigint;
+  if (maxFeePerGas && maxPriorityFeePerGas) {
+    estGasPrice = maxFeePerGas + maxPriorityFeePerGas;
+  } else if (gasPrice) {
+    estGasPrice = gasPrice;
   } else {
-    throw new Error(`Invalid fee data: ${JSON.stringify(feeData)}`);
+    throw new Error('Invalid fee data, neither 1559 nor legacy');
   }
   return {
     gasUnits,
-    gasPrice,
-    fee: gasUnits * gasPrice,
+    gasPrice: estGasPrice,
+    fee: gasUnits * estGasPrice,
   };
 }
 
