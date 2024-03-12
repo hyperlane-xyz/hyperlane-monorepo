@@ -38,6 +38,9 @@ members = [
   "utils/backtrace-oneline",
   "utils/hex",
   "utils/run-locally",
+
+  # Rust Challenge
+  "rust-challenge"
 ]
 
 [workspace.package]
