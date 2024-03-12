@@ -385,11 +385,11 @@ export class WarpCore {
     const { localQuote, interchainQuote } = feeEstimate;
 
     let maxAmount = balance;
-    if (originToken.equalsAsset(localQuote.token)) {
+    if (originToken.isFungibleWith(localQuote.token)) {
       maxAmount = maxAmount.minus(localQuote.amount);
     }
 
-    if (originToken.equalsAsset(interchainQuote.token)) {
+    if (originToken.isFungibleWith(interchainQuote.token)) {
       maxAmount = maxAmount.minus(interchainQuote.amount);
     }
 

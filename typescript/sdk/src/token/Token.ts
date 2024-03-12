@@ -383,9 +383,11 @@ export class Token implements IToken {
    *   1) A HypCollateral contract token and its wrapped token (eg. EvmHypCollateral and ERC20)
    *   2) A HypNative contract and its native currency (eg. EvmHypNative and Ether)
    *   3) An IBC token and its native equivalent
+   * This is useful during fee estimation to determine if a TokenAmount for the transfer and the fee
+   * are actually fungible (represent the same asset).
    * @returns true if the tokens represent the same underlying asset
    */
-  equalsAsset(token?: IToken): boolean {
+  isFungibleWith(token?: IToken): boolean {
     if (!token || token.chainName !== this.chainName) return false;
 
     if (this.equals(token)) return true;

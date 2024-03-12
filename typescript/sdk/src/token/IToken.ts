@@ -83,5 +83,5 @@ export interface IToken extends TokenArgs {
   removeConnection(token: IToken): IToken;
 
   equals(token?: IToken): boolean;
-  equalsAsset(token?: IToken): boolean;
+  isFungibleWith(token?: IToken): boolean;
 }
