@@ -5,8 +5,8 @@
 ### Minor Changes
 
 - 76bd73010: Remove support for goerli networks (including optimismgoerli, arbitrumgoerli, lineagoerli and polygonzkevmtestnet)
-- 7d530fd4e: Enabled verification of contracts as part of the deployment flow.
 
+- 7d530fd4e: Enabled verification of contracts as part of the deployment flow.
   - Solidity build artifact is now included as part of the `@hyperlane-xyz/core` package.
   - Updated the `HyperlaneDeployer` to perform contract verification immediately after deploying a contract. A default verifier is instantiated using the core build artifact.
   - Updated the `HyperlaneIsmFactory` to re-use the `HyperlaneDeployer` for deployment where possible.
@@ -14,8 +14,7 @@
 
 ### Patch Changes
 
-- Updated dependencies [aea9e1438]
-  - @hyperlane-xyz/utils@3.8.0
+- @hyperlane-xyz/utils@3.8.0
 
 ## 3.7.0
 
@@ -34,9 +33,6 @@
 ### Patch Changes
 
 - e4e4f93fc: Support pausable ISM in deployer and checker
-- Updated dependencies [3c298d064]
-- Updated dependencies [df24eec8b]
-- Updated dependencies [78e50e7da]
   - @hyperlane-xyz/utils@3.6.1
 
 ## 3.6.0
