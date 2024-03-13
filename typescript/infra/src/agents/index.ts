@@ -1,7 +1,6 @@
 import fs from 'fs';
 
 import { ChainName, RpcConsensusType, chainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import {
@@ -113,7 +112,7 @@ export abstract class AgentHelmManager {
         runEnv: this.environment,
         context: this.context,
         aws: !!this.config.aws,
-        chains: this.config.environmentChainNames.map((chain) => {
+        chains: this.config.contextChainNames[this.role].map((chain) => {
           const metadata = chainMetadata[chain];
           const reorgPeriod = metadata.blocks?.reorgPeriod;
           if (reorgPeriod === undefined) {
@@ -121,7 +120,6 @@ export abstract class AgentHelmManager {
           }
           return {
             name: chain,
-            disabled: !this.config.contextChainNames[this.role].includes(chain),
             rpcConsensusType: this.rpcConsensusType(chain),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },

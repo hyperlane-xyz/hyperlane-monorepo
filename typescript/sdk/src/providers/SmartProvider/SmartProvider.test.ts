@@ -10,37 +10,30 @@ import { ChainMetadata } from '../../metadata/chainMetadataTypes';
 import { ProviderMethod } from './ProviderMethods';
 import { HyperlaneSmartProvider } from './SmartProvider';
 
-const MIN_BLOCK_NUM = 10200000;
-const DEFAULT_ACCOUNT = '0x9d525E28Fe5830eE92d7Aa799c4D21590567B595';
-const WETH_CONTRACT = '0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6';
+const DEFAULT_ACCOUNT = '0xfaD1C94469700833717Fa8a3017278BC1cA8031C';
+const WETH_CONTRACT = '0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9';
 const WETH_TRANSFER_TOPIC0 =
   '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
-const WETH_TRANSFER_TOPIC1 =
-  '0x00000000000000000000000022a9af161b9660f3dc1b996bf1e622a2c58b8558';
 const WETH_CALL_DATA =
   '0x70a082310000000000000000000000004f7a67464b5976d7547c860109e4432d50afb38e';
 const TRANSFER_TX_HASH =
-  '0x45a586f90ffd5d0f8e618f0f3703b14c2c9e4611af6231d6fed32c62776b6c1b';
+  '0x7a975792c023733b3013ada23e1f556f5a06443765ec576e56d0b0aa3c4bdc74';
 
-const goerliRpcConfig = {
-  ...chainMetadata.goerli.rpcUrls[0],
-  pagination: {
-    maxBlockRange: 1000,
-    minBlockNumber: MIN_BLOCK_NUM,
-  },
-};
+const pagination = { maxBlockRange: 1000 };
+const sepoliaRpcConfig1 = { ...chainMetadata.sepolia.rpcUrls[0], pagination };
+const sepoliaRpcConfig2 = { ...chainMetadata.sepolia.rpcUrls[1], pagination };
 const justExplorersConfig: ChainMetadata = {
-  ...chainMetadata.goerli,
+  ...chainMetadata.sepolia,
   rpcUrls: [] as any,
 };
 const justRpcsConfig: ChainMetadata = {
-  ...chainMetadata.goerli,
-  rpcUrls: [goerliRpcConfig],
+  ...chainMetadata.sepolia,
+  rpcUrls: [sepoliaRpcConfig1, sepoliaRpcConfig2],
   blockExplorers: [],
 };
 const combinedConfig: ChainMetadata = {
-  ...chainMetadata.goerli,
-  rpcUrls: [goerliRpcConfig],
+  ...chainMetadata.sepolia,
+  rpcUrls: [sepoliaRpcConfig1],
 };
 const configs: [string, ChainMetadata][] = [
   ['Just Explorers', justExplorersConfig],
@@ -56,19 +49,22 @@ describe('SmartProvider', () => {
       if (provider.supportedMethods.includes(method)) {
         return fn();
       }
-    }).timeout(20_000);
+    }).timeout(30_000);
   };
 
   for (const [description, config] of configs) {
     describe(description, () => {
       provider = HyperlaneSmartProvider.fromChainMetadata(config, {
         debug: true,
+        baseRetryDelayMs: 1000,
+        fallbackStaggerMs: 3000,
+        maxRetries: 3,
       });
 
       itDoesIfSupported(ProviderMethod.GetBlock, async () => {
         const latestBlock = await provider.getBlock('latest');
         console.debug('Latest block #', latestBlock.number);
-        expect(latestBlock.number).to.be.greaterThan(MIN_BLOCK_NUM);
+        expect(latestBlock.number).to.be.greaterThan(0);
         expect(latestBlock.timestamp).to.be.greaterThan(
           Date.now() / 1000 - 60 * 60 * 24,
         );
@@ -79,7 +75,7 @@ describe('SmartProvider', () => {
       itDoesIfSupported(ProviderMethod.GetBlockNumber, async () => {
         const result = await provider.getBlockNumber();
         console.debug('Latest block #', result);
-        expect(result).to.be.greaterThan(MIN_BLOCK_NUM);
+        expect(result).to.be.greaterThan(0);
       });
 
       itDoesIfSupported(ProviderMethod.GetGasPrice, async () => {
@@ -130,34 +126,28 @@ describe('SmartProvider', () => {
       });
 
       itDoesIfSupported(ProviderMethod.GetLogs, async () => {
-        console.debug('Testing logs with no from/to range');
+        const latestBlockNumber = await provider.getBlockNumber();
+        const minBlockNumber = latestBlockNumber - 10_000;
+
+        console.debug('Testing logs with small from/to range');
         const result1 = await provider.getLogs({
           address: WETH_CONTRACT,
-          topics: [WETH_TRANSFER_TOPIC0, WETH_TRANSFER_TOPIC1],
+          topics: [WETH_TRANSFER_TOPIC0],
+          fromBlock: minBlockNumber,
+          toBlock: minBlockNumber + 100,
         });
-        console.debug('Logs found', result1.length);
         expect(result1.length).to.be.greaterThan(0);
         expect(eqAddress(result1[0].address, WETH_CONTRACT)).to.be.true;
 
-        console.debug('Testing logs with small from/to range');
+        console.debug('Testing logs with large from/to range');
         const result2 = await provider.getLogs({
           address: WETH_CONTRACT,
           topics: [WETH_TRANSFER_TOPIC0],
-          fromBlock: MIN_BLOCK_NUM,
-          toBlock: MIN_BLOCK_NUM + 100,
+          fromBlock: minBlockNumber,
+          toBlock: 'latest',
         });
         expect(result2.length).to.be.greaterThan(0);
         expect(eqAddress(result2[0].address, WETH_CONTRACT)).to.be.true;
-
-        console.debug('Testing logs with large from/to range');
-        const result3 = await provider.getLogs({
-          address: WETH_CONTRACT,
-          topics: [WETH_TRANSFER_TOPIC0, WETH_TRANSFER_TOPIC1],
-          fromBlock: MIN_BLOCK_NUM,
-          toBlock: 'latest',
-        });
-        expect(result3.length).to.be.greaterThan(0);
-        expect(eqAddress(result3[0].address, WETH_CONTRACT)).to.be.true;
       });
 
       itDoesIfSupported(ProviderMethod.EstimateGas, async () => {
@@ -181,11 +171,10 @@ describe('SmartProvider', () => {
       });
 
       it('Handles parallel requests', async () => {
-        const result1Promise = provider.getLogs({
-          address: WETH_CONTRACT,
-          topics: [WETH_TRANSFER_TOPIC0],
-          fromBlock: MIN_BLOCK_NUM,
-          toBlock: MIN_BLOCK_NUM + 100,
+        const result1Promise = provider.call({
+          to: WETH_CONTRACT,
+          from: DEFAULT_ACCOUNT,
+          data: WETH_CALL_DATA,
         });
         const result2Promise = provider.getBlockNumber();
         const result3Promise = provider.getTransaction(TRANSFER_TX_HASH);
@@ -197,7 +186,7 @@ describe('SmartProvider', () => {
         expect(result1.length).to.be.greaterThan(0);
         expect(result2).to.be.greaterThan(0);
         expect(!!result3).to.be.true;
-      }).timeout(10_000);
+      }).timeout(15_000);
     });
 
     it('Reports as healthy', async () => {

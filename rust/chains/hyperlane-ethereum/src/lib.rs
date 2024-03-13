@@ -75,6 +75,7 @@ mod signers;
 mod singleton_signer;
 
 mod config;
+mod error;
 
 fn extract_fn_map(abi: &'static Lazy<abi::Abi>) -> HashMap<Vec<u8>, &'static str> {
     abi.functions()

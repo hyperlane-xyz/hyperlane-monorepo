@@ -204,7 +204,7 @@ mod test {
 
         let tx_cost_estimate = TxCostEstimate {
             gas_limit: MIN * 100, // Large gas limit
-            gas_price: COST_ESTIMATE.gas_price.clone().try_into().unwrap(),
+            gas_price: COST_ESTIMATE.gas_price.clone(),
             l2_gas_limit: Some(MIN * 2),
         };
 

@@ -1,4 +1,4 @@
-import debug from 'debug';
+import debug, { Debugger } from 'debug';
 import { providers } from 'ethers';
 
 import {
@@ -36,7 +36,8 @@ export class HyperlaneSmartProvider
   extends providers.BaseProvider
   implements IProviderMethods
 {
-  protected readonly logger = debug('hyperlane:SmartProvider');
+  protected logger: Debugger;
+
   // TODO also support blockscout here
   public readonly explorerProviders: HyperlaneEtherscanProvider[];
   public readonly rpcProviders: HyperlaneJsonRpcProvider[];
@@ -51,6 +52,8 @@ export class HyperlaneSmartProvider
   ) {
     super(network);
     const supportedMethods = new Set<ProviderMethod>();
+
+    this.logger = debug(`hyperlane:SmartProvider:${this.network.chainId}`);
 
     if (!rpcUrls?.length && !blockExplorers?.length)
       throw new Error('At least one RPC URL or block explorer is required');
@@ -263,7 +266,11 @@ export class HyperlaneSmartProvider
         } else if (result.status === ProviderStatus.Error) {
           this.throwCombinedProviderErrors(
             [result.error, ...providerResultErrors],
-            `All providers failed for method ${method}`,
+            `All providers failed for method ${method} and params ${JSON.stringify(
+              params,
+              null,
+              2,
+            )}`,
           );
         } else {
           throw new Error('Unexpected result from provider');
@@ -273,7 +280,11 @@ export class HyperlaneSmartProvider
       } else {
         this.throwCombinedProviderErrors(
           providerResultErrors,
-          `All providers failed for method ${method}`,
+          `All providers failed for method ${method} and params ${JSON.stringify(
+            params,
+            null,
+            2,
+          )}`,
         );
       }
     }

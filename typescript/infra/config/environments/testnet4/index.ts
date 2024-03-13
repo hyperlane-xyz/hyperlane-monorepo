@@ -3,7 +3,7 @@ import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 import {
   getKeysForRole,
   getMultiProviderForRole,
-} from '../../../scripts/utils';
+} from '../../../scripts/agent-utils';
 import { EnvironmentConfig } from '../../../src/config';
 import { Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
@@ -12,7 +12,6 @@ import { agents } from './agent';
 import { environment as environmentName, testnetConfigs } from './chains';
 import { core } from './core';
 import { keyFunderConfig } from './funding';
-import { storageGasOracleConfig } from './gas-oracle';
 import { helloWorld } from './helloworld';
 import { igp } from './igp';
 import { infrastructure } from './infrastructure';
@@ -51,5 +50,4 @@ export const environment: EnvironmentConfig = {
     bridgeAdapters: bridgeAdapterConfigs,
     relayer: liquidityLayerRelayerConfig,
   },
-  storageGasOracleConfig,
 };

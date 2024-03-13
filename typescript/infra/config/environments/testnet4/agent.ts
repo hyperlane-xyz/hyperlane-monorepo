@@ -2,21 +2,22 @@ import {
   Chains,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
-  chainMetadata,
 } from '@hyperlane-xyz/sdk';
 
 import {
+  AgentChainConfig,
   RootAgentConfig,
-  allAgentChainNames,
+  getAgentChainNamesFromConfig,
   routerMatchingList,
 } from '../../../src/config';
 import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
-import { agentChainNames, environment } from './chains';
+import { environment, supportedChainNames } from './chains';
 import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
+import plumetestnetSepoliaAddresses from './warp/plumetestnet-sepolia-addresses.json';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -24,11 +25,58 @@ const releaseCandidateHelloworldMatchingList = routerMatchingList(
 
 const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
+// The chains here must be consistent with the environment's supportedChainNames, which is
+// checked / enforced at runtime & in the CI pipeline.
+//
+// This is intentionally separate and not derived from the environment's supportedChainNames
+// to allow for more fine-grained control over which chains are enabled for each agent role.
+export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
+  [Role.Validator]: {
+    [Chains.alfajores]: true,
+    [Chains.bsctestnet]: true,
+    [Chains.eclipsetestnet]: true,
+    [Chains.fuji]: true,
+    [Chains.mumbai]: true,
+    [Chains.plumetestnet]: true,
+    [Chains.scrollsepolia]: true,
+    [Chains.sepolia]: true,
+    [Chains.solanatestnet]: true,
+  },
+  [Role.Relayer]: {
+    [Chains.alfajores]: true,
+    [Chains.bsctestnet]: true,
+    [Chains.eclipsetestnet]: true,
+    [Chains.fuji]: true,
+    [Chains.mumbai]: true,
+    [Chains.plumetestnet]: true,
+    [Chains.scrollsepolia]: true,
+    [Chains.sepolia]: true,
+    [Chains.solanatestnet]: true,
+  },
+  [Role.Scraper]: {
+    [Chains.alfajores]: true,
+    [Chains.bsctestnet]: true,
+    // Cannot scrape non-EVM chains
+    [Chains.eclipsetestnet]: false,
+    [Chains.fuji]: true,
+    [Chains.mumbai]: true,
+    [Chains.plumetestnet]: true,
+    [Chains.scrollsepolia]: true,
+    [Chains.sepolia]: true,
+    // Cannot scrape non-EVM chains
+    [Chains.solanatestnet]: false,
+  },
+};
+
+export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
+  hyperlaneContextAgentChainConfig,
+  supportedChainNames,
+);
+
 const contextBase = {
   namespace: environment,
   runEnv: environment,
-  contextChainNames: agentChainNames,
-  environmentChainNames: allAgentChainNames(agentChainNames),
+  environmentChainNames: supportedChainNames,
   aws: {
     region: 'us-east-1',
   },
@@ -43,14 +91,14 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
-  contextChainNames: agentChainNames,
+  contextChainNames: hyperlaneContextAgentChainNames,
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '7d1f975-20240312-113101',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -62,12 +110,24 @@ const hyperlane: RootAgentConfig = {
       },
     ],
     gasPaymentEnforcement,
+    metricAppContexts: [
+      {
+        name: 'helloworld',
+        matchingList: routerMatchingList(
+          helloWorld[Contexts.Hyperlane].addresses,
+        ),
+      },
+      {
+        name: 'plumetestnet_sepolia_eth',
+        matchingList: routerMatchingList(plumetestnetSepoliaAddresses),
+      },
+    ],
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '7d1f975-20240312-113101',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -75,7 +135,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '7d1f975-20240312-113101',
     },
   },
 };
@@ -83,25 +143,23 @@ const hyperlane: RootAgentConfig = {
 const releaseCandidate: RootAgentConfig = {
   ...contextBase,
   context: Contexts.ReleaseCandidate,
+  contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '7d1f975-20240312-113101',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
-    // Skipping arbitrum because the gas price estimates are inclusive of L1
-    // fees which leads to wildly off predictions.
-    skipTransactionGasLimitFor: [chainMetadata.arbitrumgoerli.name],
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '7d1f975-20240312-113101',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },

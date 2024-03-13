@@ -7,16 +7,13 @@ import {
 import { EnvironmentConfig, RootAgentConfig } from '../../src/config';
 import { Role } from '../../src/roles';
 import { HelmCommand } from '../../src/utils/helm';
-import { sleep } from '../../src/utils/utils';
 import {
   assertCorrectKubeContext,
   getArgs,
-  getConfigsBasedOnArgs,
   withAgentRole,
   withContext,
-} from '../utils';
-
-type GetConfigsArgv = NonNullable<Parameters<typeof getConfigsBasedOnArgs>[0]>;
+} from '../agent-utils';
+import { getConfigsBasedOnArgs } from '../core-utils';
 
 export class AgentCli {
   roles!: Role[];

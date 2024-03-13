@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 
 use eyre::Result;
 use hyperlane_core::{HyperlaneDomain, H160};
@@ -11,8 +11,6 @@ use prometheus::{
     Encoder, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
 use tokio::sync::RwLock;
-use tokio::task::JoinHandle;
-use tracing::warn;
 
 use ethers_prometheus::{json_rpc_client::JsonRpcClientMetrics, middleware::MiddlewareMetrics};
 
@@ -134,7 +132,7 @@ impl CoreMetrics {
                 "Submitter queue length",
                 const_labels_ref
             ),
-            &["remote", "queue_name"],
+            &["remote", "queue_name", "app_context"],
             registry
         )?;
 
@@ -415,41 +413,6 @@ impl CoreMetrics {
         Ok(out_buf)
     }
 
-    /// Run an HTTP server serving OpenMetrics format reports on `/metrics`
-    ///
-    /// This is compatible with Prometheus, which ought to be configured to
-    /// scrape me!
-    pub fn run_http_server(self: Arc<Self>) -> JoinHandle<()> {
-        use warp::Filter;
-        let port = self.listen_port;
-        tracing::info!(port, "starting prometheus server on 0.0.0.0");
-        tokio::spawn(async move {
-            warp::serve(
-                warp::path!("metrics")
-                    .map(move || {
-                        warp::reply::with_header(
-                            self.gather().expect("failed to encode metrics"),
-                            "Content-Type",
-                            // OpenMetrics specs demands "application/openmetrics-text;
-                            // version=1.0.0; charset=utf-8"
-                            // but the prometheus scraper itself doesn't seem to care?
-                            // try text/plain to make web browsers happy.
-                            "text/plain; charset=utf-8",
-                        )
-                    })
-                    .or(warp::any().map(|| {
-                        warp::reply::with_status(
-                            "go look at /metrics",
-                            warp::http::StatusCode::NOT_FOUND,
-                        )
-                    })),
-            )
-            .try_bind(([0, 0, 0, 0], port))
-            .await;
-            warn!("Prometheus server could not be started or exited early");
-        })
-    }
-
     /// Get the name of this agent, e.g. "relayer"
     pub fn agent_name(&self) -> &str {
         &self.agent_name
@@ -460,6 +423,21 @@ impl CoreMetrics {
             .iter()
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .collect()
+    }
+
+    /// Get the difference between the latest observed checkpoint and the latest signed checkpoint.
+    ///
+    /// This is useful for reporting the health of the validator and reporting it via EigenNodeAPI
+    pub fn get_latest_checkpoint_validator_delta(&self, origin_chain: HyperlaneDomain) -> i64 {
+        let observed_checkpoint = self
+            .latest_checkpoint()
+            .with_label_values(&["validator_observed", origin_chain.name()])
+            .get();
+        let signed_checkpoint = self
+            .latest_checkpoint()
+            .with_label_values(&["validator_processed", origin_chain.name()])
+            .get();
+        observed_checkpoint - signed_checkpoint
     }
 }
 

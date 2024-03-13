@@ -1,5 +1,9 @@
 {
-  "arbitrum": {
-    "router": "0x93ca0d85837FF83158Cd14D65B169CdB223b1921"
+  "injective": {
+    "router": "inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k"
+  },
+  "inevm": {
+    "HypNative": "0x26f32245fCF5Ad53159E875d5Cae62aEcf19c2d4",
+    "router": "0x26f32245fCF5Ad53159E875d5Cae62aEcf19c2d4"
   }
 }

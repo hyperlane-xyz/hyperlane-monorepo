@@ -1,29 +1,115 @@
 import {
+  Chains,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
   getDomainId,
 } from '@hyperlane-xyz/sdk';
 
-import { RootAgentConfig, allAgentChainNames } from '../../../src/config';
-import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
+import {
+  AgentChainConfig,
+  RootAgentConfig,
+  getAgentChainNamesFromConfig,
+} from '../../../src/config';
+import {
+  GasPaymentEnforcementConfig,
+  routerMatchingList,
+} from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
-import { agentChainNames, environment } from './chains';
+import { environment, supportedChainNames } from './chains';
+import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
+import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
+import injectiveInevmAddresses from './warp/injective-inevm-addresses.json';
+import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
 
-// const releaseCandidateHelloworldMatchingList = routerMatchingList(
-//   helloWorld[Contexts.ReleaseCandidate].addresses,
-// );
+const releaseCandidateHelloworldMatchingList = routerMatchingList(
+  helloWorld[Contexts.ReleaseCandidate].addresses,
+);
 
 const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
+
+// The chains here must be consistent with the environment's supportedChainNames, which is
+// checked / enforced at runtime & in the CI pipeline.
+//
+// This is intentionally separate and not derived from the environment's supportedChainNames
+// to allow for more fine-grained control over which chains are enabled for each agent role.
+export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
+  // Generally, we run all production validators in the Hyperlane context.
+  [Role.Validator]: {
+    [Chains.arbitrum]: true,
+    [Chains.avalanche]: true,
+    [Chains.bsc]: true,
+    [Chains.celo]: true,
+    [Chains.ethereum]: true,
+    [Chains.neutron]: true,
+    [Chains.mantapacific]: true,
+    [Chains.moonbeam]: true,
+    [Chains.optimism]: true,
+    [Chains.polygon]: true,
+    [Chains.gnosis]: true,
+    [Chains.base]: true,
+    [Chains.scroll]: true,
+    [Chains.polygonzkevm]: true,
+    [Chains.injective]: true,
+    [Chains.inevm]: true,
+    [Chains.viction]: true,
+  },
+  [Role.Relayer]: {
+    [Chains.arbitrum]: true,
+    [Chains.avalanche]: true,
+    [Chains.bsc]: true,
+    [Chains.celo]: true,
+    [Chains.ethereum]: true,
+    // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
+    [Chains.neutron]: false,
+    [Chains.mantapacific]: false,
+    [Chains.moonbeam]: true,
+    [Chains.optimism]: true,
+    [Chains.polygon]: true,
+    [Chains.gnosis]: true,
+    [Chains.base]: true,
+    [Chains.scroll]: true,
+    [Chains.polygonzkevm]: true,
+    [Chains.injective]: true,
+    [Chains.inevm]: true,
+    [Chains.viction]: true,
+  },
+  [Role.Scraper]: {
+    [Chains.arbitrum]: true,
+    [Chains.avalanche]: true,
+    [Chains.bsc]: true,
+    [Chains.celo]: true,
+    [Chains.ethereum]: true,
+    // Cannot scrape non-EVM chains
+    [Chains.neutron]: false,
+    [Chains.mantapacific]: true,
+    [Chains.moonbeam]: true,
+    [Chains.optimism]: true,
+    [Chains.polygon]: true,
+    [Chains.gnosis]: true,
+    [Chains.base]: true,
+    [Chains.scroll]: true,
+    [Chains.polygonzkevm]: true,
+    // Cannot scrape non-EVM chains
+    [Chains.injective]: false,
+    [Chains.inevm]: true,
+    // Has RPC non-compliance that breaks scraping.
+    [Chains.viction]: false,
+  },
+};
+
+export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
+  hyperlaneContextAgentChainConfig,
+  supportedChainNames,
+);
 
 const contextBase = {
   namespace: environment,
   runEnv: environment,
-  contextChainNames: agentChainNames,
-  environmentChainNames: allAgentChainNames(agentChainNames),
+  environmentChainNames: supportedChainNames,
   aws: {
     region: 'us-east-1',
   },
@@ -38,19 +124,41 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Hyperlane,
+  contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      // Includes Cosmos block-by-block indexing.
+      tag: 'c2bf423-20240308-164604',
     },
-    gasPaymentEnforcement,
+    gasPaymentEnforcement: [
+      // Temporary measure to ensure all inEVM warp route messages are delivered -
+      // we saw some issues with IGP indexing.
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: routerMatchingList(injectiveInevmAddresses),
+      },
+      ...gasPaymentEnforcement,
+    ],
+    metricAppContexts: [
+      {
+        name: 'helloworld',
+        matchingList: routerMatchingList(
+          helloWorld[Contexts.Hyperlane].addresses,
+        ),
+      },
+      {
+        name: 'injective_inevm_inj',
+        matchingList: routerMatchingList(injectiveInevmAddresses),
+      },
+    ],
   },
   validators: {
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '9736164-20240307-131918',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -59,7 +167,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '54aeb64-20240206-163119',
     },
   },
 };
@@ -67,14 +175,15 @@ const hyperlane: RootAgentConfig = {
 const releaseCandidate: RootAgentConfig = {
   ...contextBase,
   context: Contexts.ReleaseCandidate,
+  contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '9736164-20240307-131918',
     },
-    // whitelist: releaseCandidateHelloworldMatchingList,
+    whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1
@@ -84,7 +193,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '86b7f98-20231207-153805',
+      tag: '9736164-20240307-131918',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -108,7 +217,8 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '67585a2-20231220-223937',
+      // Includes Cosmos block-by-block indexing.
+      tag: '9736164-20240307-131918',
     },
     gasPaymentEnforcement: [
       {
@@ -129,6 +239,16 @@ const neutron: RootAgentConfig = {
         ],
       },
       ...gasPaymentEnforcement,
+    ],
+    metricAppContexts: [
+      {
+        name: 'manta_tia',
+        matchingList: routerMatchingList(mantaTIAAddresses),
+      },
+      {
+        name: 'arbitrum_tia',
+        matchingList: routerMatchingList(arbitrumTIAAddresses),
+      },
     ],
   },
 };

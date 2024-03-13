@@ -130,7 +130,7 @@ export async function isBlockExplorerHealthy(
       if (!addressUrl) return false;
       logger(`Got address url: ${addressUrl}`);
       const addressReq = await fetch(addressUrl);
-      if (!addressReq.ok) return false;
+      if (!addressReq.ok && addressReq.status !== 404) return false;
       logger(`Explorer address page okay for ${chainMetadata.name}`);
     }
 
@@ -140,7 +140,7 @@ export async function isBlockExplorerHealthy(
       if (!txUrl) return false;
       logger(`Got tx url: ${txUrl}`);
       const txReq = await fetch(txUrl);
-      if (!txReq.ok) return false;
+      if (!txReq.ok && txReq.status !== 404) return false;
       logger(`Explorer tx page okay for ${chainMetadata.name}`);
     }
 

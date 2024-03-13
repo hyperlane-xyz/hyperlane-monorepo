@@ -1,21 +1,27 @@
-use std::{collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc};
+use std::{
+    collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
+};
 
-use cursor::*;
+use cursors::*;
 use derive_new::new;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneSequenceIndexerStore, HyperlaneWatermarkedLogStore, Indexer, SequenceIndexer,
-    Sequenced,
+    HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
+    SequenceAwareIndexer, Sequenced,
 };
 pub use metrics::ContractSyncMetrics;
 use tokio::time::sleep;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::settings::IndexSettings;
 
-mod cursor;
+mod cursors;
 mod eta_calculator;
 mod metrics;
+
+use cursors::{ForwardBackwardSequenceAwareSyncCursor, ForwardSequenceAwareSyncCursor};
+
+const SLEEP_DURATION: Duration = Duration::from_secs(5);
 
 /// Entity that drives the syncing of an agent's db with on-chain data.
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
@@ -42,11 +48,7 @@ where
 
     /// Sync logs and write them to the LogStore
     #[tracing::instrument(name = "ContractSync", fields(domain=self.domain().name()), skip(self, cursor))]
-    pub async fn sync(
-        &self,
-        label: &'static str,
-        mut cursor: Box<dyn ContractSyncCursor<T>>,
-    ) -> eyre::Result<()> {
+    pub async fn sync(&self, label: &'static str, mut cursor: Box<dyn ContractSyncCursor<T>>) {
         let chain_name = self.domain.as_ref();
         let indexed_height = self
             .metrics
@@ -58,15 +60,30 @@ where
             .with_label_values(&[label, chain_name]);
 
         loop {
-            indexed_height.set(cursor.latest_block() as i64);
-            let Ok((action, eta)) = cursor.next_action().await else {
-                continue;
+            indexed_height.set(cursor.latest_queried_block() as i64);
+
+            let (action, eta) = match cursor.next_action().await {
+                Ok((action, eta)) => (action, eta),
+                Err(err) => {
+                    warn!(?err, "Error getting next action");
+                    sleep(SLEEP_DURATION).await;
+                    continue;
+                }
             };
-            match action {
-                CursorAction::Query(range) => {
+            let sleep_duration = match action {
+                // Use `loop` but always break - this allows for returning a value
+                // from the loop (the sleep duration)
+                #[allow(clippy::never_loop)]
+                CursorAction::Query(range) => loop {
                     debug!(?range, "Looking for for events in index range");
 
-                    let logs = self.indexer.fetch_logs(range.clone()).await?;
+                    let logs = match self.indexer.fetch_logs(range.clone()).await {
+                        Ok(logs) => logs,
+                        Err(err) => {
+                            warn!(?err, "Error fetching logs");
+                            break SLEEP_DURATION;
+                        }
+                    };
                     let deduped_logs = HashSet::<_>::from_iter(logs);
                     let logs = Vec::from_iter(deduped_logs);
 
@@ -77,23 +94,32 @@ where
                         "Found log(s) in index range"
                     );
                     // Store deliveries
-                    let stored = self.db.store_logs(&logs).await?;
+                    let stored = match self.db.store_logs(&logs).await {
+                        Ok(stored) => stored,
+                        Err(err) => {
+                            warn!(?err, "Error storing logs in db");
+                            break SLEEP_DURATION;
+                        }
+                    };
                     // Report amount of deliveries stored into db
                     stored_logs.inc_by(stored as u64);
                     // Update cursor
-                    cursor.update(logs).await?;
-                }
-                CursorAction::Sleep(duration) => {
-                    sleep(duration).await;
-                }
-            }
+                    if let Err(err) = cursor.update(logs, range).await {
+                        warn!(?err, "Error updating cursor");
+                        break SLEEP_DURATION;
+                    };
+                    break Default::default();
+                },
+                CursorAction::Sleep(duration) => duration,
+            };
+            sleep(sleep_duration).await;
         }
     }
 }
 
 /// A ContractSync for syncing events using a RateLimitedContractSyncCursor
 pub type WatermarkContractSync<T> =
-    ContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>, Arc<dyn SequenceIndexer<T>>>;
+    ContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>, Arc<dyn SequenceAwareIndexer<T>>>;
 impl<T> WatermarkContractSync<T>
 where
     T: Debug + Send + Sync + Clone + 'static,
@@ -124,23 +150,25 @@ where
 }
 
 /// A ContractSync for syncing messages using a SequenceSyncCursor
-pub type SequencedDataContractSync<T> =
-    ContractSync<T, Arc<dyn HyperlaneSequenceIndexerStore<T>>, Arc<dyn SequenceIndexer<T>>>;
-impl<T: Sequenced> SequencedDataContractSync<T> {
+pub type SequencedDataContractSync<T> = ContractSync<
+    T,
+    Arc<dyn HyperlaneSequenceAwareIndexerStore<T>>,
+    Arc<dyn SequenceAwareIndexer<T>>,
+>;
+impl<T: Sequenced + Debug> SequencedDataContractSync<T> {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     pub async fn forward_message_sync_cursor(
         &self,
         index_settings: IndexSettings,
         next_nonce: u32,
     ) -> Box<dyn ContractSyncCursor<T>> {
-        Box::new(ForwardSequenceSyncCursor::new(
-            self.indexer.clone(),
-            self.db.clone(),
+        Box::new(ForwardSequenceAwareSyncCursor::new(
             index_settings.chunk_size,
-            index_settings.from,
+            self.indexer.clone(),
+            Arc::new(self.db.clone()),
+            next_nonce,
             index_settings.from,
             index_settings.mode,
-            next_nonce,
         ))
     }
 
@@ -150,9 +178,9 @@ impl<T: Sequenced> SequencedDataContractSync<T> {
         index_settings: IndexSettings,
     ) -> Box<dyn ContractSyncCursor<T>> {
         Box::new(
-            ForwardBackwardSequenceSyncCursor::new(
+            ForwardBackwardSequenceAwareSyncCursor::new(
                 self.indexer.clone(),
-                self.db.clone(),
+                Arc::new(self.db.clone()),
                 index_settings.chunk_size,
                 index_settings.mode,
             )

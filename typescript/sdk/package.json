@@ -1,12 +1,12 @@
 {
   "name": "@hyperlane-xyz/sdk",
   "description": "The official SDK for the Hyperlane Network",
-  "version": "3.5.1",
+  "version": "3.8.0",
   "dependencies": {
     "@cosmjs/cosmwasm-stargate": "^0.31.3",
     "@cosmjs/stargate": "^0.31.3",
-    "@hyperlane-xyz/core": "3.5.1",
-    "@hyperlane-xyz/utils": "3.5.1",
+    "@hyperlane-xyz/core": "3.8.0",
+    "@hyperlane-xyz/utils": "3.8.0",
     "@solana/spl-token": "^0.3.8",
     "@solana/web3.js": "^1.78.0",
     "@types/coingecko-api": "^1.0.10",
@@ -38,7 +38,8 @@
     "prettier": "^2.8.8",
     "sinon": "^13.0.2",
     "ts-node": "^10.8.0",
-    "typescript": "5.1.6"
+    "typescript": "5.1.6",
+    "yaml": "^2.3.1"
   },
   "files": [
     "/dist",
@@ -61,6 +62,7 @@
     "prepublishOnly": "yarn build",
     "prettier": "prettier --write ./src",
     "test": "yarn test:unit && yarn test:hardhat && yarn test:foundry",
+    "test:ci": "yarn test",
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "test:hardhat": "hardhat test $(find ./src -name \"*.hardhat-test.ts\")",
     "test:metadata": "ts-node ./src/test/metadata-check.ts",

@@ -28,12 +28,18 @@ spec:
 {{- range $context, $roles := .Values.hyperlane.contextsAndRolesToFund }}
             - --contexts-and-roles
             - {{ $context }}={{ join "," $roles }}
-            - -f
-            - /addresses-secret/{{ $context }}-addresses.json
 {{- end }}
 {{- if .Values.hyperlane.connectionType }}
             - --connection-type
             - {{ .Values.hyperlane.connectionType }}
+{{- end }}
+{{- range $chain, $balance := .Values.hyperlane.desiredBalancePerChain }}
+            - --desired-balance-per-chain
+            - {{ $chain }}={{ $balance }}
+{{- end }}
+{{- range $chain, $balance := .Values.hyperlane.desiredKathyBalancePerChain }}
+            - --desired-kathy-balance-per-chain
+            - {{ $chain }}={{ $balance }}
 {{- end }}
             env:
             - name: PROMETHEUS_PUSH_GATEWAY

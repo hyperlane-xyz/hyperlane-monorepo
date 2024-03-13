@@ -1,5 +1,6 @@
 import { Address } from '@hyperlane-xyz/utils';
 
+import { OwnableConfig } from '../deploy/types';
 import { IgpConfig } from '../gas/types';
 import { ChainMap, ChainName } from '../types';
 
@@ -11,6 +12,7 @@ export enum HookType {
   OP_STACK = 'opStackHook',
   ROUTING = 'domainRoutingHook',
   FALLBACK_ROUTING = 'fallbackRoutingHook',
+  PAUSABLE = 'pausableHook',
 }
 
 export type MerkleTreeHookConfig = {
@@ -26,12 +28,15 @@ export type IgpHookConfig = IgpConfig & {
   type: HookType.INTERCHAIN_GAS_PAYMASTER;
 };
 
-export type ProtocolFeeHookConfig = {
+export type ProtocolFeeHookConfig = OwnableConfig & {
   type: HookType.PROTOCOL_FEE;
   maxProtocolFee: string;
   protocolFee: string;
   beneficiary: Address;
-  owner: Address;
+};
+
+export type PausableHookConfig = OwnableConfig & {
+  type: HookType.PAUSABLE;
 };
 
 export type OpStackHookConfig = {
@@ -40,8 +45,7 @@ export type OpStackHookConfig = {
   destinationChain: ChainName;
 };
 
-type RoutingHookConfig = {
-  owner: Address;
+type RoutingHookConfig = OwnableConfig & {
   domains: ChainMap<HookConfig>;
 };
 
@@ -61,7 +65,8 @@ export type HookConfig =
   | ProtocolFeeHookConfig
   | OpStackHookConfig
   | DomainRoutingHookConfig
-  | FallbackRoutingHookConfig;
+  | FallbackRoutingHookConfig
+  | PausableHookConfig;
 
 export type HooksConfig = {
   required: HookConfig;

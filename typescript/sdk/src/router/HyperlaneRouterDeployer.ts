@@ -1,4 +1,4 @@
-import { Router } from '@hyperlane-xyz/core';
+import { Ownable, Router } from '@hyperlane-xyz/core';
 import {
   Address,
   addressToBytes32,
@@ -102,9 +102,14 @@ export abstract class HyperlaneRouterDeployer<
     this.logger(`Transferring ownership of ownables...`);
     for (const chain of Object.keys(contractsMap)) {
       const contracts = contractsMap[chain];
-      const owner = configMap[chain].owner;
-      const ownables = await filterOwnableContracts(contracts);
-      await this.transferOwnershipOfContracts(chain, owner, ownables);
+      const ownables = (await filterOwnableContracts(contracts)) as Partial<
+        Record<keyof Factories, Ownable>
+      >;
+      await this.transferOwnershipOfContracts(
+        chain,
+        configMap[chain],
+        ownables,
+      );
     }
   }
 

@@ -11,6 +11,10 @@ import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule
 contract PausableIsm is IInterchainSecurityModule, Ownable, Pausable {
     uint8 public constant override moduleType = uint8(Types.NULL);
 
+    constructor(address owner) Ownable() Pausable() {
+        _transferOwnership(owner);
+    }
+
     /**
      * @inheritdoc IInterchainSecurityModule
      * @dev Reverts when paused, otherwise returns `true`.

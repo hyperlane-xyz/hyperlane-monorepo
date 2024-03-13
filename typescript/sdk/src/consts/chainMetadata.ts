@@ -1,6 +1,10 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata, ExplorerFamily } from '../metadata/chainMetadataTypes';
+import {
+  ChainMetadata,
+  ChainTechnicalStack,
+  ExplorerFamily,
+} from '../metadata/chainMetadataTypes';
 import { ChainMap } from '../types';
 
 import { Chains, Mainnets, Testnets } from './chains';
@@ -71,30 +75,15 @@ export const arbitrum: ChainMetadata = {
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'https://arb1.arbitrum.io/rpc' }],
-};
-
-export const arbitrumgoerli: ChainMetadata = {
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
-  },
-  chainId: 421613,
-  displayName: 'Arbitrum Goerli',
-  displayNameShort: 'Arb. Goerli',
-  domainId: 421613,
-  isTestnet: true,
-  name: Chains.arbitrumgoerli,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://goerli-rollup.arbitrum.io/rpc' }],
+  technicalStack: ChainTechnicalStack.ArbitrumNitro,
 };
 
 export const avalanche: ChainMetadata = {
   blockExplorers: [
     {
-      apiUrl: 'https://api.snowtrace.io/api',
-      family: ExplorerFamily.Other,
+      apiUrl:
+        'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api',
+      family: ExplorerFamily.Routescan,
       name: 'SnowTrace',
       url: 'https://snowtrace.io',
     },
@@ -154,33 +143,6 @@ export const base: ChainMetadata = {
   ],
 };
 
-export const basegoerli: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-goerli.basescan.org/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'BaseScan',
-      url: 'https://goerli.basescan.org',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
-  },
-  chainId: 84531,
-  displayName: 'Base Goerli',
-  domainId: 84531,
-  isTestnet: true,
-  name: Chains.basegoerli,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [
-    { http: 'https://base-goerli.publicnode.com' },
-    { http: 'https://goerli.base.org' },
-  ],
-};
-
 export const bsc: ChainMetadata = {
   blockExplorers: [
     {
@@ -204,7 +166,11 @@ export const bsc: ChainMetadata = {
   name: Chains.bsc,
   nativeToken: bnbToken,
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.ankr.com/bsc' }],
+  rpcUrls: [
+    { http: 'https://rpc.ankr.com/bsc' },
+    { http: 'https://bsc.drpc.org' },
+    { http: 'https://bscrpc.com' },
+  ],
 };
 
 export const bsctestnet: ChainMetadata = {
@@ -300,7 +266,7 @@ export const ethereum: ChainMetadata = {
       url: 'https://etherscan.io',
     },
     {
-      apiUrl: 'https://blockscout.com/eth/mainnet/api',
+      apiUrl: 'https://eth.blockscout.com/api',
       family: ExplorerFamily.Blockscout,
       name: 'Blockscout',
       url: 'https://blockscout.com/eth/mainnet',
@@ -320,7 +286,7 @@ export const ethereum: ChainMetadata = {
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
-    { http: 'https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161' },
+    { http: 'https://ethereum.publicnode.com' },
     { http: 'https://cloudflare-eth.com' },
   ],
 };
@@ -328,7 +294,8 @@ export const ethereum: ChainMetadata = {
 export const fuji: ChainMetadata = {
   blockExplorers: [
     {
-      apiUrl: 'https://api-testnet.snowtrace.io/api',
+      apiUrl:
+        'https://api.routescan.io/v2/network/testnet/evm/43113/etherscan/api',
       family: ExplorerFamily.Etherscan,
       name: 'SnowTrace',
       url: 'https://testnet.snowtrace.io',
@@ -351,33 +318,6 @@ export const fuji: ChainMetadata = {
       http: 'https://api.avax-test.network/ext/bc/C/rpc',
       pagination: { maxBlockRange: 2048 },
     },
-  ],
-};
-
-export const goerli: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-goerli.etherscan.io/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'Etherscan',
-      url: 'https://goerli.etherscan.io',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 13,
-    reorgPeriod: 2,
-  },
-  chainId: 5,
-  displayName: 'Goerli',
-  domainId: 5,
-  isTestnet: true,
-  name: Chains.goerli,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [
-    { http: 'https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161' },
-    { http: 'https://rpc.ankr.com/eth_goerli' },
   ],
 };
 
@@ -415,28 +355,59 @@ export const gnosis: ChainMetadata = {
   ],
 };
 
-export const lineagoerli: ChainMetadata = {
+export const inevm: ChainMetadata = {
   blockExplorers: [
     {
-      apiUrl: 'https://explorer.goerli.linea.build/api',
+      apiUrl: 'https://inevm.calderaexplorer.xyz/api',
       family: ExplorerFamily.Blockscout,
-      name: 'Linea Explorer',
-      url: 'https://explorer.goerli.linea.build/',
+      name: 'Caldera inEVM Explorer',
+      url: 'https://inevm.calderaexplorer.xyz',
     },
   ],
   blocks: {
     confirmations: 1,
-    estimateBlockTime: 12,
-    reorgPeriod: 2,
+    estimateBlockTime: 3,
+    reorgPeriod: 0,
   },
-  chainId: 59140,
-  displayName: 'Linea Goerli',
-  domainId: 59140,
-  isTestnet: true,
-  name: Chains.lineagoerli,
-  nativeToken: etherToken,
+  chainId: 2525,
+  displayName: 'Injective EVM',
+  displayNameShort: 'inEVM',
+  domainId: 2525,
+  gasCurrencyCoinGeckoId: 'injective-protocol',
+  name: Chains.inevm,
+  nativeToken: {
+    decimals: 18,
+    name: 'Injective',
+    symbol: 'INJ',
+  },
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.goerli.linea.build' }],
+  rpcUrls: [{ http: 'https://inevm.calderachain.xyz/http' }],
+};
+
+export const injective: ChainMetadata = {
+  bech32Prefix: 'inj',
+  blockExplorers: [],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 1,
+    reorgPeriod: 10,
+  },
+  chainId: 'injective-1',
+  displayName: 'Injective',
+  domainId: 6909546,
+  gasCurrencyCoinGeckoId: 'injective-protocol',
+  grpcUrls: [{ http: 'sentry.chain.grpc.injective.network:443' }],
+  name: Chains.injective,
+  nativeToken: {
+    decimals: 18,
+    denom: 'inj',
+    name: 'Injective',
+    symbol: 'INJ',
+  },
+  protocol: ProtocolType.Cosmos,
+  restUrls: [{ http: 'https://sentry.lcd.injective.network:443' }],
+  rpcUrls: [{ http: 'https://sentry.tm.injective.network:443' }],
+  slip44: 118,
 };
 
 export const mantapacific: ChainMetadata = {
@@ -451,12 +422,13 @@ export const mantapacific: ChainMetadata = {
   blocks: {
     confirmations: 1,
     estimateBlockTime: 3,
-    reorgPeriod: 0,
+    reorgPeriod: 1,
   },
   chainId: 169,
   displayName: 'Manta Pacific',
   displayNameShort: 'Manta',
   domainId: 169,
+  gasCurrencyCoinGeckoId: 'ethereum',
   isTestnet: false,
   name: Chains.mantapacific,
   nativeToken: {
@@ -466,35 +438,6 @@ export const mantapacific: ChainMetadata = {
   },
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'https://pacific-rpc.manta.network/http' }],
-};
-
-export const moonbasealpha: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-moonbase.moonscan.io/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'MoonScan',
-      url: 'https://moonbase.moonscan.io',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 12,
-    reorgPeriod: 1,
-  },
-  chainId: 1287,
-  displayName: 'Moonbase Alpha',
-  displayNameShort: 'Moonbase',
-  domainId: 1287,
-  isTestnet: true,
-  name: Chains.moonbasealpha,
-  nativeToken: {
-    decimals: 18,
-    name: 'DEV',
-    symbol: 'DEV',
-  },
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.api.moonbase.moonbeam.network' }],
 };
 
 export const moonbeam: ChainMetadata = {
@@ -601,17 +544,23 @@ export const neutron: ChainMetadata = {
   chainId: 'neutron-1',
   displayName: 'Neutron',
   domainId: 1853125230,
+  gasCurrencyCoinGeckoId: 'neutron-3',
+  grpcUrls: [{ http: 'grpc-kralum.neutron-1.neutron.org:80' }],
   isTestnet: false,
   name: Chains.neutron,
   nativeToken: {
     decimals: 6,
+    denom: 'untrn',
     name: 'Neutron',
     symbol: 'NTRN',
   },
   protocol: ProtocolType.Cosmos,
-  restUrls: [{ http: 'grpc-kralum.neutron-1.neutron.org:80' }],
+  restUrls: [{ http: 'https://rest-lb.neutron.org' }],
   rpcUrls: [{ http: 'https://rpc-kralum.neutron-1.neutron.org' }],
   slip44: 118,
+  transactionOverrides: {
+    gasPrice: '0.0075',
+  },
 };
 
 export const optimism: ChainMetadata = {
@@ -641,29 +590,32 @@ export const optimism: ChainMetadata = {
   rpcUrls: [{ http: 'https://mainnet.optimism.io' }],
 };
 
-export const optimismgoerli: ChainMetadata = {
+export const plumetestnet: ChainMetadata = {
   blockExplorers: [
     {
-      apiUrl: 'https://api-goerli-optimism.etherscan.io/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'Etherscan',
-      url: 'https://goerli-optimism.etherscan.io',
+      apiUrl: 'https://plume-testnet.explorer.caldera.xyz/api',
+      family: ExplorerFamily.Blockscout,
+      name: 'Plume Testnet Explorer',
+      url: 'https://plume-testnet.explorer.caldera.xyz',
     },
   ],
   blocks: {
     confirmations: 1,
     estimateBlockTime: 3,
-    reorgPeriod: 1,
+    reorgPeriod: 0,
   },
-  chainId: 420,
-  displayName: 'Optimism Goerli',
-  displayNameShort: 'Opt. Goerli',
-  domainId: 420,
+  chainId: 161221135,
+  displayName: 'Plume Testnet',
+  domainId: 161221135,
   isTestnet: true,
-  name: Chains.optimismgoerli,
-  nativeToken: etherToken,
+  name: Chains.plumetestnet,
+  nativeToken: {
+    decimals: 18,
+    name: 'Ether',
+    symbol: 'ETH',
+  },
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://goerli.optimism.io' }],
+  rpcUrls: [{ http: 'https://plume-testnet.rpc.caldera.xyz/http' }],
 };
 
 export const polygon: ChainMetadata = {
@@ -691,14 +643,10 @@ export const polygon: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
     {
-      http: 'https://rpc-mainnet.matic.quiknode.pro',
-      pagination: {
-        // Needs to be low to avoid RPC timeouts
-        maxBlockRange: 10000,
-        minBlockNumber: 19657100,
-      },
+      http: 'https://polygon-bor.publicnode.com',
     },
     { http: 'https://polygon-rpc.com' },
+    { http: 'https://rpc.ankr.com/polygon' },
   ],
 };
 
@@ -725,32 +673,10 @@ export const polygonzkevm: ChainMetadata = {
   name: Chains.polygonzkevm,
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.ankr.com/polygon_zkevm' }],
-};
-
-export const polygonzkevmtestnet: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-testnet-zkevm.polygonscan.com/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'PolygonScan',
-      url: 'https://testnet-zkevm.polygonscan.com',
-    },
+  rpcUrls: [
+    { http: 'https://zkevm-rpc.com' },
+    { http: 'https://rpc.ankr.com/polygon_zkevm' },
   ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
-  },
-  chainId: 1442,
-  displayName: 'Polygon zkEVM Testnet',
-  displayNameShort: 'ZkEvm Testnet',
-  domainId: 1442,
-  isTestnet: true,
-  name: Chains.polygonzkevmtestnet,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.public.zkevm-test.net' }],
 };
 
 // Testnet for Nautilus
@@ -848,6 +774,7 @@ export const sepolia: ChainMetadata = {
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
+    { http: 'https://ethereum-sepolia.publicnode.com' },
     { http: 'https://ethereum-sepolia.blockpi.network/v1/rpc/public' },
     { http: 'https://rpc.sepolia.org' },
   ],
@@ -862,7 +789,6 @@ export const solana: ChainMetadata = {
       url: 'https://explorer.solana.com',
     },
   ],
-
   blocks: {
     confirmations: 1,
     estimateBlockTime: 0.4,
@@ -928,6 +854,25 @@ export const solanadevnet: ChainMetadata = {
   rpcUrls: [{ http: 'https://api.devnet.solana.com' }],
 };
 
+export const eclipsetestnet: ChainMetadata = {
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 0.4,
+    reorgPeriod: 0,
+  },
+  chainId: 239092742,
+  displayName: 'Eclipse Testnet',
+  domainId: 239092742,
+  isTestnet: true,
+  name: 'eclipsetestnet',
+  nativeToken: {
+    ...etherToken,
+    decimals: 9,
+  },
+  protocol: ProtocolType.Sealevel,
+  rpcUrls: [{ http: 'https://testnet.dev2.eclipsenetwork.xyz' }],
+};
+
 export const test1: ChainMetadata = {
   blockExplorers: [],
   blocks: {
@@ -979,6 +924,41 @@ export const test3: ChainMetadata = {
   rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
 };
 
+export const viction: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://www.vicscan.xyz/api',
+      family: ExplorerFamily.Other,
+      name: 'Vicscan',
+      url: 'https://www.vicscan.xyz',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 2,
+    reorgPeriod: 0,
+  },
+  chainId: 88,
+  displayName: 'Viction',
+  domainId: 88,
+  gasCurrencyCoinGeckoId: 'tomochain',
+  name: Chains.viction,
+  nativeToken: {
+    decimals: 18,
+    name: 'Viction',
+    symbol: 'VIC',
+  },
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [
+    {
+      http: 'https://rpc.tomochain.com',
+    },
+    {
+      http: 'https://viction.blockpi.network/v1/rpc/public',
+    },
+  ],
+};
+
 /**
  * Collection maps
  *
@@ -988,30 +968,27 @@ export const test3: ChainMetadata = {
 export const chainMetadata: ChainMap<ChainMetadata> = {
   alfajores,
   arbitrum,
-  arbitrumgoerli,
   avalanche,
   base,
-  basegoerli,
   bsc,
   bsctestnet,
   celo,
   chiado,
+  eclipsetestnet,
   ethereum,
   fuji,
   gnosis,
-  goerli,
-  lineagoerli,
+  inevm,
+  injective,
   mantapacific,
-  moonbasealpha,
   moonbeam,
   mumbai,
   nautilus,
   neutron,
   optimism,
-  optimismgoerli,
+  plumetestnet,
   polygon,
   polygonzkevm,
-  polygonzkevmtestnet,
   proteustestnet,
   scroll,
   scrollsepolia,
@@ -1022,6 +999,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   test1,
   test2,
   test3,
+  viction,
 };
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<

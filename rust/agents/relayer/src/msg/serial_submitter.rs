@@ -4,9 +4,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use derive_new::new;
-use eyre::{bail, Result};
 use futures_util::future::try_join_all;
-use prometheus::{IntCounter, IntGauge};
+use prometheus::{IntCounter, IntGauge, IntGaugeVec};
 use tokio::spawn;
 use tokio::sync::{
     mpsc::{self},
@@ -21,7 +20,43 @@ use hyperlane_core::HyperlaneDomain;
 
 use super::pending_operation::*;
 
-type OpQueue = Arc<Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>>;
+/// Queue of generic operations that can be submitted to a destination chain.
+/// Includes logic for maintaining queue metrics by the destination and `app_context` of an operation
+#[derive(Debug, Clone, new)]
+struct OpQueue {
+    metrics: IntGaugeVec,
+    queue_metrics_label: String,
+    #[new(default)]
+    queue: Arc<Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>>,
+}
+
+impl OpQueue {
+    /// Push an element onto the queue and update metrics
+    async fn push(&self, op: Box<DynPendingOperation>) {
+        // increment the metric before pushing onto the queue, because we lose ownership afterwards
+        self.get_operation_metric(&op).inc();
+
+        self.queue.lock().await.push(Reverse(op));
+    }
+
+    /// Pop an element from the queue and update metrics
+    async fn pop(&self) -> Option<Reverse<Box<DynPendingOperation>>> {
+        let op = self.queue.lock().await.pop();
+        op.map(|op| {
+            // even if the metric is decremented here, the operation may fail to process and be re-added to the queue.
+            // in those cases, the queue length will decrease to zero until the operation is re-added.
+            self.get_operation_metric(&op.0).dec();
+            op
+        })
+    }
+
+    /// Get the metric associated with this operation
+    fn get_operation_metric(&self, operation: &DynPendingOperation) -> IntGauge {
+        let (destination, app_context) = operation.get_operation_labels();
+        self.metrics
+            .with_label_values(&[&destination, &self.queue_metrics_label, &app_context])
+    }
+}
 
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
@@ -81,19 +116,25 @@ pub struct SerialSubmitter {
 }
 
 impl SerialSubmitter {
-    pub fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
+    pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
         let span = info_span!("SerialSubmitter", destination=%self.domain);
         spawn(async move { self.run().await }).instrument(span)
     }
 
-    async fn run(self) -> Result<()> {
+    async fn run(self) {
         let Self {
             domain,
             metrics,
             rx: rx_prepare,
         } = self;
-        let prepare_queue: OpQueue = Default::default();
-        let confirm_queue: OpQueue = Default::default();
+        let prepare_queue = OpQueue::new(
+            metrics.submitter_queue_length.clone(),
+            "prepare_queue".to_string(),
+        );
+        let confirm_queue = OpQueue::new(
+            metrics.submitter_queue_length.clone(),
+            "confirm_queue".to_string(),
+        );
 
         // This is a channel because we want to only have a small number of messages
         // sitting ready to go at a time and this acts as a synchronization tool
@@ -128,10 +169,13 @@ impl SerialSubmitter {
             )),
         ];
 
-        for i in try_join_all(tasks).await? {
-            i?
+        if let Err(err) = try_join_all(tasks).await {
+            tracing::error!(
+                error=?err,
+                ?domain,
+                "SerialSubmitter task panicked for domain"
+            );
         }
-        Ok(())
     }
 }
 
@@ -140,16 +184,15 @@ async fn receive_task(
     domain: HyperlaneDomain,
     mut rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
     prepare_queue: OpQueue,
-) -> Result<()> {
+) {
     // Pull any messages sent to this submitter
     while let Some(op) = rx.recv().await {
         trace!(?op, "Received new operation");
         // make sure things are getting wired up correctly; if this works in testing it
         // should also be valid in production.
         debug_assert_eq!(*op.domain(), domain);
-        prepare_queue.lock().await.push(Reverse(op));
+        prepare_queue.push(op).await;
     }
-    bail!("Submitter receive channel was closed")
 }
 
 #[instrument(skip_all, fields(%domain))]
@@ -158,19 +201,17 @@ async fn prepare_task(
     prepare_queue: OpQueue,
     tx_submit: mpsc::Sender<Box<DynPendingOperation>>,
     metrics: SerialSubmitterMetrics,
-) -> Result<()> {
+) {
     loop {
         // Pick the next message to try preparing.
-        let next = {
-            let mut queue = prepare_queue.lock().await;
-            metrics.prepare_queue_length.set(queue.len() as i64);
-            queue.pop()
-        };
+        let next = prepare_queue.pop().await;
+
         let Some(Reverse(mut op)) = next else {
             // queue is empty so give some time before checking again to prevent burning CPU
             sleep(Duration::from_millis(200)).await;
             continue;
         };
+
         trace!(?op, "Preparing operation");
         debug_assert_eq!(*op.domain(), domain);
 
@@ -179,22 +220,21 @@ async fn prepare_task(
                 debug!(?op, "Operation prepared");
                 metrics.ops_prepared.inc();
                 // this send will pause this task if the submitter is not ready to accept yet
-                tx_submit.send(op).await?;
+                if let Err(err) = tx_submit.send(op).await {
+                    tracing::error!(error=?err, "Failed to send prepared operation to submitter");
+                }
             }
             PendingOperationResult::NotReady => {
                 // none of the operations are ready yet, so wait for a little bit
-                prepare_queue.lock().await.push(Reverse(op));
+                prepare_queue.push(op).await;
                 sleep(Duration::from_millis(200)).await;
             }
             PendingOperationResult::Reprepare => {
                 metrics.ops_failed.inc();
-                prepare_queue.lock().await.push(Reverse(op));
+                prepare_queue.push(op).await;
             }
             PendingOperationResult::Drop => {
                 metrics.ops_dropped.inc();
-            }
-            PendingOperationResult::CriticalFailure(e) => {
-                return Err(e);
             }
         }
     }
@@ -207,7 +247,7 @@ async fn submit_task(
     prepare_queue: OpQueue,
     confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
-) -> Result<()> {
+) {
     while let Some(mut op) = rx_submit.recv().await {
         trace!(?op, "Submitting operation");
         debug_assert_eq!(*op.domain(), domain);
@@ -216,22 +256,20 @@ async fn submit_task(
             PendingOperationResult::Success => {
                 debug!(?op, "Operation submitted");
                 metrics.ops_submitted.inc();
-                confirm_queue.lock().await.push(Reverse(op));
+                confirm_queue.push(op).await;
             }
             PendingOperationResult::NotReady => {
                 panic!("Pending operation was prepared and therefore must be ready")
             }
             PendingOperationResult::Reprepare => {
                 metrics.ops_failed.inc();
-                prepare_queue.lock().await.push(Reverse(op));
+                prepare_queue.push(op).await;
             }
             PendingOperationResult::Drop => {
                 metrics.ops_dropped.inc();
             }
-            PendingOperationResult::CriticalFailure(e) => return Err(e),
         }
     }
-    bail!("Internal submitter channel was closed");
 }
 
 #[instrument(skip_all, fields(%domain))]
@@ -240,18 +278,14 @@ async fn confirm_task(
     prepare_queue: OpQueue,
     confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
-) -> Result<()> {
+) {
     loop {
         // Pick the next message to try confirming.
-        let next = {
-            let mut queue = confirm_queue.lock().await;
-            metrics.confirm_queue_length.set(queue.len() as i64);
-            queue.pop()
-        };
-        let Some(Reverse(mut op)) = next else {
+        let Some(Reverse(mut op)) = confirm_queue.pop().await else {
             sleep(Duration::from_secs(5)).await;
             continue;
         };
+
         trace!(?op, "Confirming operation");
         debug_assert_eq!(*op.domain(), domain);
 
@@ -262,26 +296,23 @@ async fn confirm_task(
             }
             PendingOperationResult::NotReady => {
                 // none of the operations are ready yet, so wait for a little bit
-                confirm_queue.lock().await.push(Reverse(op));
+                confirm_queue.push(op).await;
                 sleep(Duration::from_secs(5)).await;
             }
             PendingOperationResult::Reprepare => {
                 metrics.ops_reorged.inc();
-                prepare_queue.lock().await.push(Reverse(op));
+                prepare_queue.push(op).await;
             }
             PendingOperationResult::Drop => {
                 metrics.ops_dropped.inc();
             }
-            PendingOperationResult::CriticalFailure(e) => return Err(e),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct SerialSubmitterMetrics {
-    prepare_queue_length: IntGauge,
-    confirm_queue_length: IntGauge,
-
+    submitter_queue_length: IntGaugeVec,
     ops_prepared: IntCounter,
     ops_submitted: IntCounter,
     ops_confirmed: IntCounter,
@@ -294,12 +325,7 @@ impl SerialSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, destination: &HyperlaneDomain) -> Self {
         let destination = destination.name();
         Self {
-            prepare_queue_length: metrics
-                .submitter_queue_length()
-                .with_label_values(&[destination, "prepare_queue"]),
-            confirm_queue_length: metrics
-                .submitter_queue_length()
-                .with_label_values(&[destination, "confirm_queue"]),
+            submitter_queue_length: metrics.submitter_queue_length(),
             ops_prepared: metrics
                 .operations_processed_count()
                 .with_label_values(&["prepared", destination]),

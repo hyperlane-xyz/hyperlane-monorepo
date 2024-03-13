@@ -103,24 +103,47 @@ impl DefaultIsmCache {
     }
 }
 
-/// Classifies messages into an app context if they have one.
 #[derive(Debug)]
-pub struct AppContextClassifier {
+pub struct IsmAwareAppContextClassifier {
     default_ism: DefaultIsmCache,
-    app_matching_lists: Vec<(MatchingList, String)>,
+    app_context_classifier: AppContextClassifier,
 }
 
-impl AppContextClassifier {
+impl IsmAwareAppContextClassifier {
     pub fn new(
         destination_mailbox: Arc<dyn Mailbox>,
         app_matching_lists: Vec<(MatchingList, String)>,
     ) -> Self {
         Self {
             default_ism: DefaultIsmCache::new(destination_mailbox),
-            app_matching_lists,
+            app_context_classifier: AppContextClassifier::new(app_matching_lists),
         }
     }
 
+    pub async fn get_app_context(
+        &self,
+        message: &HyperlaneMessage,
+        root_ism: H256,
+    ) -> Result<Option<String>> {
+        if let Some(app_context) = self.app_context_classifier.get_app_context(message).await? {
+            return Ok(Some(app_context));
+        }
+
+        if root_ism == self.default_ism.get().await? {
+            return Ok(Some("default_ism".to_string()));
+        }
+
+        Ok(None)
+    }
+}
+
+/// Classifies messages into an app context if they have one.
+#[derive(Debug, new)]
+pub struct AppContextClassifier {
+    app_matching_lists: Vec<(MatchingList, String)>,
+}
+
+impl AppContextClassifier {
     /// Classifies messages into an app context if they have one, or None
     /// if they don't.
     /// An app context is a string that identifies the app that sent the message
@@ -128,11 +151,7 @@ impl AppContextClassifier {
     /// An app context is chosen based on:
     /// - the first element in `app_matching_lists` that matches the message
     /// - if the message's ISM is the default ISM, the app context is "default_ism"
-    pub async fn get_app_context(
-        &self,
-        message: &HyperlaneMessage,
-        root_ism: H256,
-    ) -> Result<Option<String>> {
+    pub async fn get_app_context(&self, message: &HyperlaneMessage) -> Result<Option<String>> {
         // Give priority to the matching list. If the app from the matching list happens
         // to use the default ISM, it's preferable to use the app context from the matching
         // list.
@@ -140,11 +159,6 @@ impl AppContextClassifier {
             if matching_list.msg_matches(message, false) {
                 return Ok(Some(app_context.clone()));
             }
-        }
-
-        let default_ism = self.default_ism.get().await?;
-        if root_ism == default_ism {
-            return Ok(Some("default_ism".to_string()));
         }
 
         Ok(None)
@@ -264,7 +278,7 @@ pub struct BaseMetadataBuilder {
     metrics: Arc<CoreMetrics>,
     db: HyperlaneRocksDB,
     max_depth: u32,
-    app_context_classifier: AppContextClassifier,
+    app_context_classifier: IsmAwareAppContextClassifier,
 }
 
 impl Debug for BaseMetadataBuilder {
@@ -381,7 +395,7 @@ impl BaseMetadataBuilder {
                     continue;
                 }
 
-                match config.build(None) {
+                match config.build(None).await {
                     Ok(checkpoint_syncer) => {
                         // found the syncer for this validator
                         checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());

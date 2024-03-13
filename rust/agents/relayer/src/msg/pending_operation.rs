@@ -2,7 +2,6 @@ use std::{cmp::Ordering, time::Instant};
 
 use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
-use eyre::Report;
 use hyperlane_core::HyperlaneDomain;
 
 #[allow(unused_imports)] // required for enum_dispatch
@@ -33,6 +32,16 @@ pub trait PendingOperation {
     /// The domain this operation will take place on.
     fn domain(&self) -> &HyperlaneDomain;
 
+    /// Label to use for metrics granularity.
+    fn app_context(&self) -> Option<String>;
+
+    /// Get tuple of labels for metrics.
+    fn get_operation_labels(&self) -> (String, String) {
+        let app_context = self.app_context().unwrap_or("Unknown".to_string());
+        let destination = self.domain().to_string();
+        (destination, app_context)
+    }
+
     /// Prepare to submit this operation. This will be called before every
     /// submission and will usually have a very short gap between it and the
     /// submit call.
@@ -51,7 +60,7 @@ pub trait PendingOperation {
     ///
     /// This is only used for sorting, the functions are responsible for
     /// returning `NotReady` if it is too early and matters.
-    fn _next_attempt_after(&self) -> Option<Instant>;
+    fn next_attempt_after(&self) -> Option<Instant>;
 
     #[cfg(test)]
     /// Set the number of times this operation has been retried.
@@ -81,7 +90,7 @@ impl Ord for DynPendingOperation {
     fn cmp(&self, other: &Self) -> Ordering {
         use DynPendingOperation::*;
         use Ordering::*;
-        match (self._next_attempt_after(), other._next_attempt_after()) {
+        match (self.next_attempt_after(), other.next_attempt_after()) {
             (Some(a), Some(b)) => a.cmp(&b),
             // No time means it should come before
             (None, Some(_)) => Less,
@@ -110,9 +119,6 @@ pub enum PendingOperationResult {
     Reprepare,
     /// Do not attempt to run the operation again, forget about it
     Drop,
-    /// Pass the error up the chain, this is non-recoverable and indicates a
-    /// system failure.
-    CriticalFailure(Report),
 }
 
 /// create a `op_try!` macro for the `on_retry` handler.
@@ -121,30 +127,27 @@ macro_rules! make_op_try {
         /// Handle a result and either return early with retry or a critical failure on
         /// error.
         macro_rules! op_try {
-                                        (critical: $e:expr, $ctx:literal) => {
-                                            match $e {
-                                                Ok(v) => v,
-                                                Err(e) => {
-                                                    error!(error=?e, concat!("Error when ", $ctx));
-                                                    return PendingOperationResult::CriticalFailure(
-                                                        Err::<(), _>(e)
-                                                            .context(concat!("When ", $ctx))
-                                                            .unwrap_err()
-                                                    );
-                                                }
-                                            }
-                                        };
-                                        ($e:expr, $ctx:literal) => {
-                                            match $e {
-                                                Ok(v) => v,
-                                                Err(e) => {
-                                                    warn!(error=?e, concat!("Error when ", $ctx));
-                                                    #[allow(clippy::redundant_closure_call)]
-                                                    return $on_retry();
-                                                }
-                                            }
-                                        };
+                            (critical: $e:expr, $ctx:literal) => {
+                                match $e {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        error!(error=?e, concat!("Critical error when ", $ctx));
+                                        #[allow(clippy::redundant_closure_call)]
+                                        return $on_retry();
                                     }
+                                }
+                            };
+                            ($e:expr, $ctx:literal) => {
+                                match $e {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        warn!(error=?e, concat!("Error when ", $ctx));
+                                        #[allow(clippy::redundant_closure_call)]
+                                        return $on_retry();
+                                    }
+                                }
+                            };
+                        }
     };
 }
 

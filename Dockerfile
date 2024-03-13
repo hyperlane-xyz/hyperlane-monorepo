@@ -2,7 +2,7 @@ FROM node:18-alpine
 
 WORKDIR /hyperlane-monorepo
 
-RUN apk add --update --no-cache git g++ make py3-pip
+RUN apk add --update --no-cache git g++ make py3-pip jq
 
 RUN yarn set version 4.0.1
 
@@ -15,6 +15,7 @@ COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/helloworld/package.json ./typescript/helloworld/
 COPY typescript/cli/package.json ./typescript/cli/
 COPY typescript/infra/package.json ./typescript/infra/
+COPY typescript/ccip-server/package.json ./typescript/ccip-server/
 COPY solidity/package.json ./solidity/
 
 RUN yarn install && yarn cache clean

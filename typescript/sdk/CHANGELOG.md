@@ -1,5 +1,89 @@
 # @hyperlane-xyz/sdk
 
+## 3.8.0
+
+### Minor Changes
+
+- 9681df08d: **New Feature**: Add transaction fee estimators to the SDK
+  **Breaking change**: Token Adapter `quoteGasPayment` method renamed to `quoteTransferRemoteGas` for clarity.
+- 9681df08d: Remove support for goerli networks (including optimismgoerli, arbitrumgoerli, lineagoerli and polygonzkevmtestnet)
+- 9681df08d: Enabled verification of contracts as part of the deployment flow.
+
+  - Solidity build artifact is now included as part of the `@hyperlane-xyz/core` package.
+  - Updated the `HyperlaneDeployer` to perform contract verification immediately after deploying a contract. A default verifier is instantiated using the core build artifact.
+  - Updated the `HyperlaneIsmFactory` to re-use the `HyperlaneDeployer` for deployment where possible.
+  - Minor logging improvements throughout deployers.
+
+- 9681df08d: Add `WarpCore`, `Token`, and `TokenAmount` classes for interacting with Warp Route instances.
+
+  _Breaking change_: The params to the `IHypTokenAdapter` `populateTransferRemoteTx` method have changed. `txValue` has been replaced with `interchainGas`.
+
+### Patch Changes
+
+- 9681df08d: Support configuring non-EVM IGP destinations
+- 9681df08d: Removed basegoerli and moonbasealpha testnets
+- 9681df08d: Add logos for plume to SDK
+- 9681df08d: TestRecipient as part of core deployer
+- 9681df08d: Update viction validator set
+- 9681df08d: Minor fixes for SDK cosmos logos
+- 9681df08d: Implement message id extraction for CosmWasmCoreAdapter
+- 9681df08d: Patch transfer ownership in hook deployer
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+  - @hyperlane-xyz/core@3.8.0
+  - @hyperlane-xyz/utils@3.8.0
+
+## 3.7.0
+
+### Minor Changes
+
+- 54aeb6420: Added warp route artifacts type adopting registry schema
+
+### Patch Changes
+
+- 6f464eaed: Add logos for injective and nautilus
+- 87151c62b: Bumped injective reorg period
+- ab17af5f7: Updating HyperlaneIgpDeployer to configure storage gas oracles as part of deployment
+- 7b40232af: Remove unhealthy zkevm rpc
+  - @hyperlane-xyz/core@3.7.0
+  - @hyperlane-xyz/utils@3.7.0
+
+## 3.6.2
+
+### Patch Changes
+
+- @hyperlane-xyz/core@3.6.2
+- @hyperlane-xyz/utils@3.6.2
+
+## 3.6.1
+
+### Patch Changes
+
+- ae4476ad0: Bumped mantapacific reorgPeriod to 1, a reorg period in chain metadata is now required by infra.
+- f3b7ddb69: Add optional grpcUrl field to ChainMetadata
+- e4e4f93fc: Support pausable ISM in deployer and checker
+- Updated dependencies [3c298d064]
+- Updated dependencies [df24eec8b]
+- Updated dependencies [78e50e7da]
+- Updated dependencies [e4e4f93fc]
+  - @hyperlane-xyz/utils@3.6.1
+  - @hyperlane-xyz/core@3.6.1
+
+## 3.6.0
+
+### Minor Changes
+
+- 0488ef31d: Add dsrv, staked and zeeprime as validators
+- 8d8ba3f7a: HyperlaneIsmFactory is now wary of (try)getDomainId or (try)getChainName calls which may fail and handles them appropriately.
+
+### Patch Changes
+
+- 67a6d971e: Added `shouldRecover` flag to deployContractFromFactory so that the `TestRecipientDeployer` can deploy new contracts if it's not the owner of the prior deployments (We were recovering the SDK artifacts which meant the deployer won't be able to set the ISM as they needed)
+- 612d4163a: Add mailbox version const to SDK
+  - @hyperlane-xyz/core@3.6.0
+  - @hyperlane-xyz/utils@3.6.0
+
 ## 3.5.1
 
 ### Patch Changes
