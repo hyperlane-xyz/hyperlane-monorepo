@@ -3,6 +3,7 @@ use std::{env, fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::config::*;
+use tracing::info;
 
 use crate::{
     create_chain_metrics,
@@ -79,7 +80,8 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let chain_metrics = create_chain_metrics(&metrics)?;
     let agent = A::from_settings(settings, metrics.clone(), agent_metrics, chain_metrics).await?;
 
-    // This await will never end unless a panic occurs
+    // This await will only end if a panic happens. We won't crash, but instead gracefully shut down
     agent.run().await;
+    info!(agent = A::AGENT_NAME, "Shutting down agent...");
     Ok(())
 }

@@ -127,6 +127,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
   [ProviderType.CosmJsWasm]: defaultCosmJsWasmProviderBuilder,
+  [ProtocolType.Fuel]: defaultFuelProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
