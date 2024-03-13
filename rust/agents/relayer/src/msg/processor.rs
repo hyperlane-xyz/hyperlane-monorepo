@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
 use prometheus::IntGauge;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, trace};
@@ -32,7 +32,6 @@ pub struct MessageProcessor {
     send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
     /// Needed context to send a message for each destination chain
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
-    mailboxes: HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
     metric_app_contexts: Vec<(MatchingList, String)>,
     #[new(default)]
     message_nonce: u32,
@@ -97,13 +96,10 @@ impl ProcessorExt for MessageProcessor {
 
             debug!(%msg, "Sending message to submitter");
 
-            let domain: HyperlaneDomain = KnownHyperlaneDomain::try_from(msg.destination)?.into();
-            let app_context_classifier = AppContextClassifier::new(
-                self.mailboxes.get(&domain).map(Clone::clone),
-                self.metric_app_contexts.clone(),
-            );
+            let app_context_classifier =
+                AppContextClassifier::new(self.metric_app_contexts.clone());
 
-            let app_context = app_context_classifier.get_app_context(&msg, None).await?;
+            let app_context = app_context_classifier.get_app_context(&msg).await?;
             // Finally, build the submit arg and dispatch it to the submitter.
             let pending_msg = PendingMessage::from_persisted_retries(
                 msg,
@@ -195,7 +191,7 @@ mod test {
         merkle_tree::builder::MerkleTreeBuilder,
         msg::{
             gas_payment::GasPaymentEnforcer,
-            metadata::{AppContextClassifier, BaseMetadataBuilder},
+            metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
             pending_operation::PendingOperation,
         },
         processor::Processor,
@@ -276,7 +272,7 @@ mod test {
             Arc::new(core_metrics),
             db.clone(),
             5,
-            AppContextClassifier::new(Some(Arc::new(MockMailboxContract::default())), vec![]),
+            IsmAwareAppContextClassifier::new(Arc::new(MockMailboxContract::default()), vec![]),
         )
     }
 
@@ -307,10 +303,6 @@ mod test {
                 dummy_processor_metrics(origin_domain.id()),
                 HashMap::from([(destination_domain.id(), send_channel)]),
                 HashMap::from([(destination_domain.id(), message_context)]),
-                HashMap::from([(
-                    destination_domain.clone(),
-                    Arc::new(MockMailboxContract::default()) as Arc<dyn Mailbox>,
-                )]),
                 vec![],
             ),
             receive_channel,

@@ -43,6 +43,8 @@ impl OpQueue {
     async fn pop(&self) -> Option<Reverse<Box<DynPendingOperation>>> {
         let op = self.queue.lock().await.pop();
         op.map(|op| {
+            // even if the metric is decremented here, the operation may fail to process and be re-added to the queue.
+            // in those cases, the queue length will decrease to zero until the operation is re-added.
             self.get_operation_metric(&op.0).dec();
             op
         })
