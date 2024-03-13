@@ -163,6 +163,35 @@ contract InterchainAccountRouter is Router {
      * @param _to The address of the contract to call
      * @param _value The value to include in the call
      * @param _data The calldata
+     * @return The Hyperlane message ID
+     */
+    function callRemote(
+        uint32 _destination,
+        address _to,
+        uint256 _value,
+        bytes memory _data
+    ) external payable returns (bytes32) {
+        bytes32 _router = routers(_destination);
+        bytes32 _ism = isms[_destination];
+        bytes memory _body = InterchainAccountMessage.encode(
+            msg.sender,
+            _ism,
+            _to,
+            _value,
+            _data
+        );
+        return _dispatchMessage(_destination, _router, _ism, _body);
+    }
+
+    /**
+     * @notice Dispatches a single remote call to be made by an owner's
+     * interchain account on the destination domain
+     * @dev Uses the default router and ISM addresses for the destination
+     * domain, reverting if none have been configured
+     * @param _destination The remote domain of the chain to make calls on
+     * @param _to The address of the contract to call
+     * @param _value The value to include in the call
+     * @param _data The calldata
      * @param _hookMetadata The hook metadata to override with for the hook set by the owner
      * @return The Hyperlane message ID
      */
@@ -434,6 +463,30 @@ contract InterchainAccountRouter is Router {
             _ism.addressToBytes32()
         );
         return Create2.computeAddress(_salt, _bytecodeHash, _router);
+    }
+
+    /**
+     * @notice Dispatches a sequence of remote calls to be made by an owner's
+     * interchain account on the destination domain
+     * @dev Recommend using CallLib.build to format the interchain calls
+     * @param _destination The remote domain of the chain to make calls on
+     * @param _router The remote router address
+     * @param _ism The remote ISM address
+     * @param _calls The sequence of calls to make
+     * @return The Hyperlane message ID
+     */
+    function callRemoteWithOverrides(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        CallLib.Call[] calldata _calls
+    ) public payable returns (bytes32) {
+        bytes memory _body = InterchainAccountMessage.encode(
+            msg.sender,
+            _ism,
+            _calls
+        );
+        return _dispatchMessage(_destination, _router, _ism, _body);
     }
 
     /**
