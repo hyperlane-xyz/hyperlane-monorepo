@@ -11,10 +11,13 @@ version.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+axum.workspace = true
 config.workspace = true
 derive_more.workspace = true
+derive-new.workspace = true
 ethers.workspace = true
 eyre.workspace = true
+futures.workspace = true
 futures-util.workspace = true
 prometheus.workspace = true
 serde.workspace = true
@@ -24,13 +27,14 @@ tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing-futures.workspace = true
 tracing.workspace = true
 
-hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
+hyperlane-core = { path = "../../hyperlane-core", features = ["agent", "async"] }
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
 
 [dev-dependencies]
 tokio-test.workspace = true
+reqwest.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 k256.workspace = true
 

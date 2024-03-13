@@ -51,7 +51,7 @@ cargo build --release --bin relayer
 ./target/release/relayer
 ```
 
-### Running local binary against cloud resources (AWS KMS, S3, Postgresql etc)
+### Running local binary against cloud resources (AWS KMS, S3, Postgresql, Google Cloud Storage, etc)
 
 Building the docker image and upgrading the pod is a **slow** process. To speed up the development cycle, you can run a local binary against cloud resources.
 This workflow is useful for testing local changes against cloud resources. It is also useful for debugging issues in production.
@@ -74,6 +74,9 @@ Configure additional env variables appropriately:
 HYP_DB=/tmp/fuji-validator-db
 CONFIG_FILES=./config/testnet_config.json
 HYP_TRACING_FMT=pretty
+GCS_USER_SECRET=./path/to/file
+# or if service account used
+GCS_SERVICE_ACCOUNT_KEY=./path/to/file
 DATABASE_URL=<READ_REPLICA_POSTGRES_URL> # for scraper
 ```
 
@@ -93,6 +96,12 @@ cargo run --release --bin run-locally
 
 This will automatically build the agents, start a local node, build and deploy the contracts, and run a relayer and
 validator. By default, this test will run indefinitely, but can be stopped with `ctrl-c`.
+
+To run the tests for a specific VM, use the `--features` flag.
+
+```bash
+cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+```
 
 ### Building Agent Docker Images
 

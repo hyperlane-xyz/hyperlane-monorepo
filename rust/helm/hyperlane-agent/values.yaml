@@ -50,7 +50,6 @@ hyperlane:
   # This should mirror @hyperlane-xyz/sdk AgentChainMetadata
   chains:
     - name: examplechain
-      disabled: false
       rpcConsensusType: fallback
       signer:
         type: # aws
@@ -113,8 +112,8 @@ hyperlane:
         name: ''
     resources:
       requests:
-        cpu: 500m
-        memory: 256Mi
+        cpu: 1000m
+        memory: 1024Mi
     config:
       relayChains: ''
       multisigCheckpointSyncer:

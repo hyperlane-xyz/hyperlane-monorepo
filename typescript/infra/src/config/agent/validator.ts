@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { AgentAwsUser, ValidatorAgentAwsUser } from '../../agents/aws';
+import { ValidatorAgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 

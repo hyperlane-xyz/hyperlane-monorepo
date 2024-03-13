@@ -12,7 +12,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { Modules, getAddresses } from './scripts/utils';
+import { Modules, getAddresses } from './scripts/agent-utils';
 import { sleep } from './src/utils/utils';
 
 enum MailboxHookType {

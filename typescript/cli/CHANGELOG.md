@@ -1,5 +1,65 @@
 # @hyperlane-xyz/cli
 
+## 3.8.0
+
+### Patch Changes
+
+- 9681df08d: TestRecipient as part of core deployer
+- 9681df08d: Update CLI Warp route deployment output shape to new WarpCore config
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+  - @hyperlane-xyz/sdk@3.8.0
+  - @hyperlane-xyz/utils@3.8.0
+
+## 3.7.0
+
+### Minor Changes
+
+- 84e508039: Improve send transfer ergonomics by omitting token type flag
+- 7ff826a8f: Merged agent addresses will now include igp as the zero address if not configured as the hook
+
+### Patch Changes
+
+- ab17af5f7: Updating HyperlaneIgpDeployer to configure storage gas oracles as part of deployment
+- Updated dependencies [6f464eaed]
+- Updated dependencies [87151c62b]
+- Updated dependencies [ab17af5f7]
+- Updated dependencies [7b40232af]
+- Updated dependencies [54aeb6420]
+  - @hyperlane-xyz/sdk@3.7.0
+  - @hyperlane-xyz/utils@3.7.0
+
+## 3.6.2
+
+### Patch Changes
+
+- 99fe93a5b: Removed IGP from preset hook config
+  - @hyperlane-xyz/sdk@3.6.2
+  - @hyperlane-xyz/utils@3.6.2
+
+## 3.6.1
+
+### Patch Changes
+
+- Updated dependencies [3c298d064]
+- Updated dependencies [ae4476ad0]
+- Updated dependencies [f3b7ddb69]
+- Updated dependencies [df24eec8b]
+- Updated dependencies [78e50e7da]
+- Updated dependencies [e4e4f93fc]
+  - @hyperlane-xyz/utils@3.6.1
+  - @hyperlane-xyz/sdk@3.6.1
+
 ## 3.6.0
 
 ### Patch Changes

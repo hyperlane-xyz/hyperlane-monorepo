@@ -7,9 +7,9 @@ import {
   HyperlaneEnvironment,
   IgpConfig,
   MultiProvider,
+  OwnableConfig,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
@@ -18,7 +18,6 @@ import { Role } from '../roles';
 
 import { RootAgentConfig } from './agent';
 import { KeyFunderConfig } from './funding';
-import { AllStorageGasOracleConfigs } from './gas-oracle';
 import { HelloWorldConfig } from './helloworld/types';
 import { InfrastructureConfig } from './infrastructure';
 import { LiquidityLayerRelayerConfig } from './middleware';
@@ -38,7 +37,7 @@ export type EnvironmentConfig = {
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
   igp: ChainMap<IgpConfig>;
-  owners: ChainMap<Address>;
+  owners: ChainMap<OwnableConfig>;
   infra: InfrastructureConfig;
   getMultiProvider: (
     context?: Contexts,
@@ -55,7 +54,6 @@ export type EnvironmentConfig = {
     bridgeAdapters: ChainMap<BridgeAdapterConfig>;
     relayer: LiquidityLayerRelayerConfig;
   };
-  storageGasOracleConfig?: AllStorageGasOracleConfigs;
 };
 
 export const deployEnvToSdkEnv: Record<

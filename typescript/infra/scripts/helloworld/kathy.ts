@@ -40,7 +40,8 @@ import { DeployEnvironment } from '../../src/config/environment';
 import { Role } from '../../src/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { getArgs, getEnvironmentConfig, withContext } from '../utils';
+import { getArgs, withContext } from '../agent-utils';
+import { getEnvironmentConfig } from '../core-utils';
 
 import { getHelloWorldMultiProtocolApp } from './utils';
 
@@ -246,7 +247,7 @@ async function main(): Promise<boolean> {
   }
 
   chains.map((chain) =>
-    updateWalletBalanceMetricFor(app, chain, coreConfig.owners[chain]),
+    updateWalletBalanceMetricFor(app, chain, coreConfig.owners[chain].owner),
   );
 
   // Incremented each time an entire cycle has occurred
@@ -365,14 +366,16 @@ async function main(): Promise<boolean> {
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
       errorOccurred = true;
     }
-    updateWalletBalanceMetricFor(app, origin, coreConfig.owners[origin]).catch(
-      (e) => {
-        warn('Failed to update wallet balance for chain', {
-          chain: origin,
-          err: format(e),
-        });
-      },
-    );
+    updateWalletBalanceMetricFor(
+      app,
+      origin,
+      coreConfig.owners[origin].owner,
+    ).catch((e) => {
+      warn('Failed to update wallet balance for chain', {
+        chain: origin,
+        err: format(e),
+      });
+    });
 
     // Break if we should stop sending messages
     if (await nextMessage()) {

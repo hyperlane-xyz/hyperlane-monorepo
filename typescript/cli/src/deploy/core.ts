@@ -21,8 +21,6 @@ import {
   MultiProvider,
   MultisigConfig,
   RoutingIsmConfig,
-  TestRecipientConfig,
-  TestRecipientDeployer,
   buildAgentConfig,
   buildAggregationIsmConfigs,
   defaultMultisigConfigs,
@@ -31,7 +29,14 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
-import { log, logBlue, logGray, logGreen, logRed } from '../../logger.js';
+import {
+  log,
+  logBlue,
+  logBoldUnderlinedRed,
+  logGray,
+  logGreen,
+  logRed,
+} from '../../logger.js';
 import { runDeploymentArtifactStep } from '../config/artifacts.js';
 import { presetHookConfigs, readHooksConfigMap } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
@@ -158,9 +163,15 @@ async function runIsmStep(
     );
   }
 
-  const isIsm = isZODISMConfig(ismConfigPath);
+  const isAdvancedIsm = isZODISMConfig(ismConfigPath);
   // separate flow for 'ism' and 'ism-advanced' options
-  if (isIsm) {
+  if (isAdvancedIsm) {
+    logBoldUnderlinedRed(
+      'WARNING: YOU ARE DEPLOYING WITH AN ADVANCED ISM CONFIG',
+    );
+    logRed(
+      'Advanced ISM configs require knowledge of different ISM types and how they work together topologically. If possible, use the basic ISM configs are recommended.',
+    );
     const ismConfig = readIsmConfig(ismConfigPath);
     const requiredIsms = objFilter(
       ismConfig,
@@ -315,7 +326,6 @@ async function executeDeploy({
     chains,
     defaultIsms,
     hooksConfig,
-    multisigConfigs,
   );
   const coreContracts = await coreDeployer.deploy(coreConfigs);
 
@@ -330,21 +340,6 @@ async function executeDeploy({
   artifacts = objMerge(artifacts, isms);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
   logGreen('Core contracts deployed');
-
-  // 5. Deploy TestRecipients to all deployable chains
-  log('Deploying test recipient contracts');
-  const testRecipientConfig = buildTestRecipientConfigMap(chains, artifacts);
-  const testRecipientDeployer = new TestRecipientDeployer(multiProvider);
-  testRecipientDeployer.cacheAddressesMap(mergedContractAddrs);
-  const testRecipients = await testRecipientDeployer.deploy(
-    testRecipientConfig,
-  );
-  artifacts = writeMergedAddresses(
-    contractsFilePath,
-    artifacts,
-    testRecipients,
-  );
-  logGreen('Test recipient contracts deployed');
 
   log('Writing agent configs');
   await writeAgentConfig(agentFilePath, artifacts, chains, multiProvider);
@@ -378,39 +373,15 @@ function buildCoreConfigMap(
   chains: ChainName[],
   defaultIsms: ChainMap<IsmConfig>,
   hooksConfig: ChainMap<HooksConfig>,
-  multisigConfigs: ChainMap<MultisigConfig>,
 ): ChainMap<CoreConfig> {
   return chains.reduce<ChainMap<CoreConfig>>((config, chain) => {
-    const hooks =
-      hooksConfig[chain] ??
-      presetHookConfigs(
-        owner,
-        chain,
-        chains.filter((c) => c !== chain),
-        multisigConfigs[chain], // if no multisig config, uses default 2/3
-      );
+    const hooks = hooksConfig[chain] ?? presetHookConfigs(owner);
     config[chain] = {
       owner,
       defaultIsm: defaultIsms[chain],
       defaultHook: hooks.default,
       requiredHook: hooks.required,
     };
-    return config;
-  }, {});
-}
-
-export function buildTestRecipientConfigMap(
-  chains: ChainName[],
-  addressesMap: HyperlaneAddressesMap<any>,
-): ChainMap<TestRecipientConfig> {
-  return chains.reduce<ChainMap<TestRecipientConfig>>((config, chain) => {
-    const interchainSecurityModule =
-      addressesMap[chain].interchainSecurityModule ??
-      ethers.constants.AddressZero;
-    if (interchainSecurityModule === ethers.constants.AddressZero) {
-      logRed('Error: No ISM for TestRecipient, deploying with zero address');
-    }
-    config[chain] = { interchainSecurityModule };
     return config;
   }, {});
 }
@@ -468,18 +439,26 @@ async function writeAgentConfig(
   multiProvider: MultiProvider,
 ) {
   const startBlocks: ChainMap<number> = {};
+  const core = HyperlaneCore.fromAddressesMap(artifacts, multiProvider);
+
   for (const chain of chains) {
-    const core = HyperlaneCore.fromAddressesMap(artifacts, multiProvider);
     const mailbox = core.getContracts(chain).mailbox;
     startBlocks[chain] = (await mailbox.deployedBlock()).toNumber();
   }
+
   const mergedAddressesMap = objMerge(
     sdkContractAddressesMap,
     artifacts,
   ) as ChainMap<HyperlaneDeploymentArtifacts>;
 
+  for (const chain of chains) {
+    if (!mergedAddressesMap[chain].interchainGasPaymaster) {
+      mergedAddressesMap[chain].interchainGasPaymaster =
+        ethers.constants.AddressZero;
+    }
+  }
   const agentConfig = buildAgentConfig(
-    Object.keys(mergedAddressesMap),
+    chains, // Use only the chains that were deployed to
     multiProvider,
     mergedAddressesMap,
     startBlocks,

@@ -12,9 +12,11 @@ import {
 } from '@hyperlane-xyz/core';
 import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
 
+import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneContracts } from '../contracts/types';
 import { CoreAddresses } from '../core/contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier';
 import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer';
 import { IgpFactories } from '../gas/contracts';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
@@ -42,10 +44,15 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     multiProvider: MultiProvider,
     readonly core: ChainMap<Partial<CoreAddresses>>,
     readonly ismFactory: HyperlaneIsmFactory,
-    readonly igpDeployer = new HyperlaneIgpDeployer(multiProvider),
+    contractVerifier?: ContractVerifier,
+    readonly igpDeployer = new HyperlaneIgpDeployer(
+      multiProvider,
+      contractVerifier,
+    ),
   ) {
     super(multiProvider, hookFactories, {
       logger: debug('hyperlane:HookDeployer'),
+      contractVerifier,
     });
   }
 
@@ -74,7 +81,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       );
       hook = interchainGasPaymaster;
     } else if (config.type === HookType.AGGREGATION) {
-      return this.deployAggregation(chain, config, coreAddresses); // deploy from factory
+      hook = (await this.deployAggregation(chain, config, coreAddresses))
+        .aggregationHook; // deploy from factory
     } else if (config.type === HookType.PROTOCOL_FEE) {
       hook = await this.deployProtocolFee(chain, config);
     } else if (config.type === HookType.OP_STACK) {
@@ -86,7 +94,11 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       hook = await this.deployRouting(chain, config, coreAddresses);
     } else if (config.type === HookType.PAUSABLE) {
       hook = await this.deployContract(chain, config.type, []);
-      await this.transferOwnershipOfContracts(chain, config.owner, { hook });
+      await this.transferOwnershipOfContracts<HookType.PAUSABLE>(
+        chain,
+        config,
+        { [HookType.PAUSABLE]: hook },
+      );
     } else {
       throw new Error(`Unsupported hook config: ${config}`);
     }
@@ -156,6 +168,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       chain,
       this.ismFactory.getContracts(chain).aggregationHookFactory,
       aggregatedHooks,
+      this.logger,
     );
     hooks[HookType.AGGREGATION] = StaticAggregationHook__factory.connect(
       address,
@@ -245,13 +258,15 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       throw new Error(`Mailbox address is required for ${config.type}`);
     }
 
+    const deployer = await this.multiProvider.getSigner(chain).getAddress();
+
     let routingHook: DomainRoutingHook | FallbackDomainRoutingHook;
     switch (config.type) {
       case HookType.ROUTING: {
         this.logger('Deploying DomainRoutingHook for %s', chain);
         routingHook = await this.deployContract(chain, HookType.ROUTING, [
           mailbox,
-          config.owner,
+          deployer,
         ]);
         break;
       }
@@ -265,7 +280,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         routingHook = await this.deployContract(
           chain,
           HookType.FALLBACK_ROUTING,
-          [mailbox, config.owner, fallbackHook[config.fallback.type].address],
+          [mailbox, deployer, fallbackHook[config.fallback.type].address],
         );
         break;
       }
@@ -275,7 +290,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 
     const routingConfigs: DomainRoutingHook.HookConfigStruct[] = [];
     for (const [dest, hookConfig] of Object.entries(config.domains)) {
-      const destDomain = this.multiProvider.getDomainId(dest);
+      const destDomain =
+        chainMetadata[dest]?.domainId ?? this.multiProvider.getDomainId(dest);
       if (typeof hookConfig === 'string') {
         routingConfigs.push({
           destination: destDomain,
@@ -294,10 +310,17 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       }
     }
 
-    await this.multiProvider.handleTx(
-      chain,
-      routingHook.setHooks(routingConfigs),
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
+    await this.runIfOwner(chain, routingHook, async () =>
+      this.multiProvider.handleTx(
+        chain,
+        routingHook.setHooks(routingConfigs, overrides),
+      ),
     );
+
+    await this.transferOwnershipOfContracts(chain, config, {
+      [config.type]: routingHook,
+    });
 
     return routingHook;
   }

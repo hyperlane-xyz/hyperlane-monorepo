@@ -11,18 +11,6 @@
   "bsctestnet": {
     "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
-  "goerli": {
-    "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
-  },
-  "moonbasealpha": {
-    "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
-  },
-  "optimismgoerli": {
-    "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
-  },
-  "arbitrumgoerli": {
-    "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
-  },
   "sepolia": {
     "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   }

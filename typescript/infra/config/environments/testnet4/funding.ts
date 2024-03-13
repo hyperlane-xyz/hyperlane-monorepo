@@ -9,7 +9,7 @@ import { environment } from './chains';
 export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'f6da03e-20231216-141949',
+    tag: '7d1f975-20240312-113049',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -24,4 +24,18 @@ export const keyFunderConfig: KeyFunderConfig = {
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
   connectionType: RpcConsensusType.Quorum,
+  // desired balance config
+  desiredBalancePerChain: {
+    alfajores: '5',
+    bsctestnet: '5',
+    fuji: '5',
+    mumbai: '5',
+    plumetestnet: '0.2',
+    sepolia: '5',
+    // Funder boosts itself upto 5x balance on L2 before dispersing funds
+    scrollsepolia: '1',
+  },
+  desiredKathyBalancePerChain: {
+    plumetestnet: '0.05',
+  },
 };

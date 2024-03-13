@@ -2,7 +2,6 @@ import { BigNumberish } from 'ethers';
 
 import {
   AgentConfig,
-  AgentSignerKeyType,
   ChainMap,
   GasPaymentEnforcement,
   MatchingList,
@@ -10,7 +9,7 @@ import {
   chainMetadata,
   getDomainId,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { AgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
@@ -25,6 +24,11 @@ import {
 
 export { GasPaymentEnforcement as GasPaymentEnforcementConfig } from '@hyperlane-xyz/sdk';
 
+export interface MetricAppContext {
+  name: string;
+  matchingList: MatchingList;
+}
+
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
@@ -32,6 +36,7 @@ export interface BaseRelayerConfig {
   blacklist?: MatchingList;
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
+  metricAppContexts?: MetricAppContext[];
 }
 
 // Full relayer-specific agent config for a single chain
@@ -83,13 +88,18 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       relayerConfig.skipTransactionGasLimitFor =
         baseConfig.skipTransactionGasLimitFor.join(',');
     }
+    if (baseConfig.metricAppContexts) {
+      relayerConfig.metricAppContexts = JSON.stringify(
+        baseConfig.metricAppContexts,
+      );
+    }
 
     return relayerConfig;
   }
 
   // Get the signer configuration for each chain by the chain name.
   async signers(): Promise<ChainMap<KeyConfig>> {
-    let chainSigners: ChainMap<KeyConfig> = {};
+    const chainSigners: ChainMap<KeyConfig> = {};
 
     if (this.aws) {
       const awsUser = new AgentAwsUser(
@@ -159,9 +169,9 @@ export function routerMatchingList(
 
       matchingList.push({
         originDomain: getDomainId(chainMetadata[source]),
-        senderAddress: routers[source].router,
+        senderAddress: addressToBytes32(routers[source].router),
         destinationDomain: getDomainId(chainMetadata[destination]),
-        recipientAddress: routers[destination].router,
+        recipientAddress: addressToBytes32(routers[destination].router),
       });
     }
   }

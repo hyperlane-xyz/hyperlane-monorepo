@@ -24,7 +24,7 @@ pub fn pub_to_addr(pub_key: &[u8], prefix: &str) -> String {
     let sha_hash = sha256_digest(pub_key);
     let rip_hash = ripemd160_digest(sha_hash);
 
-    let addr = hpl_interface::types::bech32_encode(prefix, &rip_hash).unwrap();
+    let addr = hyperlane_cosmwasm_interface::types::bech32_encode(prefix, &rip_hash).unwrap();
 
     addr.to_string()
 }

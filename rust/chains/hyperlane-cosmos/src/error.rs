@@ -1,5 +1,6 @@
 use cosmrs::proto::prost;
 use hyperlane_core::ChainCommunicationError;
+use std::fmt::Debug;
 
 /// Errors from the crates specific to the hyperlane-cosmos
 /// implementation.
@@ -25,15 +26,27 @@ pub enum HyperlaneCosmosError {
     #[error("{0}")]
     /// Cosmrs Tendermint Error
     CosmrsTendermintError(#[from] cosmrs::tendermint::Error),
+    #[error("{0}")]
+    /// CosmWasm Error
+    CosmWasmError(#[from] cosmwasm_std::StdError),
     /// Tonic error
     #[error("{0}")]
     Tonic(#[from] tonic::transport::Error),
+    /// Tonic codegen error
+    #[error("{0}")]
+    TonicGenError(#[from] tonic::codegen::StdError),
     /// Tendermint RPC Error
     #[error(transparent)]
     TendermintError(#[from] tendermint_rpc::error::Error),
-    /// protobuf error
+    /// Prost error
     #[error("{0}")]
-    Protobuf(#[from] prost::DecodeError),
+    Prost(#[from] prost::DecodeError),
+    /// Protobuf error
+    #[error("{0}")]
+    Protobuf(#[from] protobuf::ProtobufError),
+    /// Fallback providers failed
+    #[error("Fallback providers failed. (Errors: {0:?})")]
+    FallbackProvidersFailed(Vec<HyperlaneCosmosError>),
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {

@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use cosmwasm_schema::cw_serde;
-use hpl_interface::{
+use hyperlane_cosmwasm_interface::{
     core,
     ism::{self},
 };
@@ -69,18 +69,14 @@ pub struct MockQuoteDispatch {
 
 #[cw_serde]
 pub struct GeneralIsmValidatorMessage {
-    pub enroll_validator: EnrollValidatorMsg,
+    pub set_validators: SetValidatorsMsg,
 }
 
 #[cw_serde]
-pub struct EnrollValidatorMsg {
-    pub set: EnrollValidatorSet,
-}
-
-#[cw_serde]
-pub struct EnrollValidatorSet {
+pub struct SetValidatorsMsg {
     pub domain: u32,
-    pub validator: String,
+    pub threshold: u8,
+    pub validators: Vec<String>,
 }
 
 fn link_network(
@@ -105,7 +101,7 @@ fn link_network(
     let public_key = validator.priv_key.verifying_key().to_encoded_point(false);
     let public_key = public_key.as_bytes();
 
-    let hash = hpl_interface::types::keccak256_hash(&public_key[1..]);
+    let hash = hyperlane_cosmwasm_interface::types::keccak256_hash(&public_key[1..]);
 
     let mut bytes = [0u8; 20];
     bytes.copy_from_slice(&hash.as_slice()[12..]);
@@ -115,24 +111,10 @@ fn link_network(
         linker,
         &network.deployments.ism_multisig,
         GeneralIsmValidatorMessage {
-            enroll_validator: EnrollValidatorMsg {
-                set: EnrollValidatorSet {
-                    domain: target_domain,
-                    validator: hex::encode(bytes).to_string(),
-                },
-            },
-        },
-        vec![],
-    );
-
-    cli.wasm_execute(
-        &network.launch_resp.endpoint,
-        linker,
-        &network.deployments.ism_multisig,
-        ism::multisig::ExecuteMsg::SetThreshold {
-            set: ism::multisig::ThresholdSet {
-                domain: target_domain,
+            set_validators: SetValidatorsMsg {
                 threshold: 1,
+                domain: target_domain,
+                validators: vec![hex::encode(bytes).to_string()],
             },
         },
         vec![],
