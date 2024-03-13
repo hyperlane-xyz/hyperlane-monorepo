@@ -216,7 +216,7 @@ contract ERC5164IsmTest is Test {
 
     function _encodeTestMessage(
         uint32 _msgCount,
-        address _recipient
+        address _receipient
     ) internal view returns (bytes memory) {
         return
             MessageUtils.formatMessage(
@@ -225,7 +225,7 @@ contract ERC5164IsmTest is Test {
                 TEST1_DOMAIN,
                 TypeCasts.addressToBytes32(address(this)),
                 TEST2_DOMAIN,
-                TypeCasts.addressToBytes32(_recipient),
+                TypeCasts.addressToBytes32(_receipient),
                 testMessage
             );
     }
