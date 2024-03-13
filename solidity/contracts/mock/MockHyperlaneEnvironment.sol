@@ -31,9 +31,6 @@ contract MockHyperlaneEnvironment {
         originMailbox.setDefaultIsm(address(isms[originDomain]));
         destinationMailbox.setDefaultIsm(address(isms[destinationDomain]));
 
-        igps[originDomain] = new TestInterchainGasPaymaster();
-        igps[destinationDomain] = new TestInterchainGasPaymaster();
-
         originMailbox.transferOwnership(msg.sender);
         destinationMailbox.transferOwnership(msg.sender);
 
