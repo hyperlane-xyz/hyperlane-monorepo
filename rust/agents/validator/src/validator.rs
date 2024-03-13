@@ -141,7 +141,6 @@ impl BaseAgent for Validator {
             .expect("Failed to create server");
         let server_task = tokio::spawn(async move {
             server.run(routes);
-            Ok(())
         })
         .instrument(info_span!("Validator server"));
         tasks.push(server_task);
@@ -150,7 +149,6 @@ impl BaseAgent for Validator {
             tasks.push(
                 tokio::spawn(async move {
                     signer_instance.run().await;
-                    Ok(())
                 })
                 .instrument(info_span!("SingletonSigner")),
             );
@@ -168,7 +166,6 @@ impl BaseAgent for Validator {
         tasks.push(
             tokio::spawn(async move {
                 metrics_updater.spawn().await.unwrap();
-                Ok(())
             })
             .instrument(info_span!("MetricsUpdater")),
         );
@@ -200,6 +197,7 @@ impl BaseAgent for Validator {
             }
         }
 
+        // Note that this only returns an error if one of the tasks panics
         if let Err(err) = try_join_all(tasks).await {
             error!(?err, "One of the validator tasks returned an error");
         }
@@ -207,7 +205,7 @@ impl BaseAgent for Validator {
 }
 
 impl Validator {
-    async fn run_merkle_tree_hook_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    async fn run_merkle_tree_hook_sync(&self) -> Instrumented<JoinHandle<()>> {
         let index_settings =
             self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
         let contract_sync = self.merkle_tree_hook_sync.clone();
@@ -216,12 +214,11 @@ impl Validator {
             .await;
         tokio::spawn(async move {
             contract_sync.clone().sync("merkle_tree_hook", cursor).await;
-            Ok(())
         })
         .instrument(info_span!("MerkleTreeHookSyncer"))
     }
 
-    async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<Result<()>>>> {
+    async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<()>>> {
         let submitter = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,

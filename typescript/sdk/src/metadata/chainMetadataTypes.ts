@@ -15,6 +15,11 @@ export enum ExplorerFamily {
   Other = 'other',
 }
 
+export enum ChainTechnicalStack {
+  ArbitrumNitro = 'arbitrumnitro',
+  Other = 'other',
+}
+
 // A type that also allows for literal values of the enum
 export type ExplorerFamilyValue = `${ExplorerFamily}`;
 
@@ -84,6 +89,12 @@ export const ChainMetadataSchemaObject = z.object({
     .optional()
     .describe(
       'A shorter human-readable name of the chain for use in user interfaces.',
+    ),
+  technicalStack: z
+    .nativeEnum(ChainTechnicalStack)
+    .optional()
+    .describe(
+      'The technical stack of the chain. See ChainTechnicalStack for valid values.',
     ),
   logoURI: z
     .string()
@@ -163,7 +174,7 @@ export const ChainMetadataSchemaObject = z.object({
     .optional()
     .describe('Block settings for the chain/deployment.'),
   transactionOverrides: z
-    .object({})
+    .record(z.any())
     .optional()
     .describe('Properties to include when forming transaction requests.'),
   gasCurrencyCoinGeckoId: z
