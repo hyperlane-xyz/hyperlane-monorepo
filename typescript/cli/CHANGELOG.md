@@ -1,26 +1,5 @@
 # @hyperlane-xyz/cli
 
-## 3.8.0
-
-### Patch Changes
-
-- 9681df08d: TestRecipient as part of core deployer
-- 9681df08d: Update CLI Warp route deployment output shape to new WarpCore config
-- Updated dependencies [9681df08d]
-- Updated dependencies [9681df08d]
-- Updated dependencies [9681df08d]
-- Updated dependencies [9681df08d]
-- Updated dependencies [9681df08d]
-- Updated dependencies [9681df08d]
-- Updated dependencies [9681df08d]
-- Updated dependencies [9681df08d]
-- Updated dependencies [9681df08d]
-- Updated dependencies [9681df08d]
-- Updated dependencies [9681df08d]
-- Updated dependencies [9681df08d]
-  - @hyperlane-xyz/sdk@3.8.0
-  - @hyperlane-xyz/utils@3.8.0
-
 ## 3.7.0
 
 ### Minor Changes
