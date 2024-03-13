@@ -17,7 +17,8 @@ import { ChainName } from '../types';
 import { WarpCore } from './WarpCore';
 import { WarpTxCategory } from './types';
 
-const MOCK_QUOTE = { amount: 20_000n };
+const MOCK_LOCAL_QUOTE = { gasUnits: 2_000n, gasPrice: 100, fee: 200_000n };
+const MOCK_INTERCHAIN_QUOTE = { amount: 20_000n };
 const TRANSFER_AMOUNT = BigInt('1000000000000000000'); // 1 units @ 18 decimals
 const BIG_TRANSFER_AMOUNT = BigInt('100000000000000000000'); // 100 units @ 18 decimals
 const MOCK_BALANCE = BigInt('10000000000000000000'); // 10 units @ 18 decimals
@@ -31,6 +32,11 @@ describe('WarpCore', () => {
   let cwHypCollateral: Token;
   let cw20: Token;
   let cosmosIbc: Token;
+
+  // Stub MultiProvider fee estimation to avoid real network calls
+  sinon
+    .stub(multiProvider, 'estimateTransactionFee')
+    .returns(Promise.resolve(MOCK_LOCAL_QUOTE));
 
   it('Constructs', () => {
     const fromArgs = new WarpCore(multiProvider, [
@@ -73,25 +79,39 @@ describe('WarpCore', () => {
   it('Gets transfer gas quote', async () => {
     const stubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
-        quoteGasPayment: () => Promise.resolve(MOCK_QUOTE),
+        quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
+        isApproveRequired: () => Promise.resolve(false),
+        populateTransferRemoteTx: () => Promise.resolve({}),
       } as any),
     );
 
     const testQuote = async (
       token: Token,
-      chain: ChainName,
+      destination: ChainName,
       standard: TokenStandard,
-      quote: InterchainGasQuote = MOCK_QUOTE,
+      interchainQuote: InterchainGasQuote = MOCK_INTERCHAIN_QUOTE,
     ) => {
-      const result = await warpCore.getTransferGasQuote(token, chain);
+      const result = await warpCore.estimateTransferRemoteFees({
+        originToken: token,
+        destination,
+        sender: ethers.constants.AddressZero,
+      });
       expect(
-        result.token.standard,
-        `token standard check for ${token.chainName} to ${chain}`,
+        result.localQuote.token.standard,
+        `token local standard check for ${token.chainName} to ${destination}`,
       ).equals(standard);
       expect(
-        result.amount,
-        `token amount check for ${token.chainName} to ${chain}`,
-      ).to.equal(quote.amount);
+        result.localQuote.amount,
+        `token local amount check for ${token.chainName} to ${destination}`,
+      ).to.equal(MOCK_LOCAL_QUOTE.fee);
+      expect(
+        result.interchainQuote.token.standard,
+        `token interchain standard check for ${token.chainName} to ${destination}`,
+      ).equals(standard);
+      expect(
+        result.interchainQuote.amount,
+        `token interchain amount check for ${token.chainName} to ${destination}`,
+      ).to.equal(interchainQuote.amount);
     };
 
     await testQuote(evmHypNative, Chains.arbitrum, TokenStandard.EvmNative);
@@ -127,24 +147,24 @@ describe('WarpCore', () => {
 
     const testCollateral = async (
       token: Token,
-      chain: ChainName,
+      destination: ChainName,
       expectedBigResult = true,
     ) => {
-      const smallResult = await warpCore.isDestinationCollateralSufficient(
-        token.amount(TRANSFER_AMOUNT),
-        chain,
-      );
+      const smallResult = await warpCore.isDestinationCollateralSufficient({
+        originTokenAmount: token.amount(TRANSFER_AMOUNT),
+        destination,
+      });
       expect(
         smallResult,
-        `small collateral check for ${token.chainName} to ${chain}`,
+        `small collateral check for ${token.chainName} to ${destination}`,
       ).to.be.true;
-      const bigResult = await warpCore.isDestinationCollateralSufficient(
-        token.amount(BIG_TRANSFER_AMOUNT),
-        chain,
-      );
+      const bigResult = await warpCore.isDestinationCollateralSufficient({
+        originTokenAmount: token.amount(BIG_TRANSFER_AMOUNT),
+        destination,
+      });
       expect(
         bigResult,
-        `big collateral check for ${token.chainName} to ${chain}`,
+        `big collateral check for ${token.chainName} to ${destination}`,
       ).to.equal(expectedBigResult);
     };
 
@@ -164,48 +184,50 @@ describe('WarpCore', () => {
     );
     const quoteStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
-        quoteGasPayment: () => Promise.resolve(MOCK_QUOTE),
+        quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
+        isApproveRequired: () => Promise.resolve(false),
+        populateTransferRemoteTx: () => Promise.resolve({}),
       } as any),
     );
 
-    const validResult = await warpCore.validateTransfer(
-      evmHypNative.amount(TRANSFER_AMOUNT),
-      Chains.arbitrum,
-      ethers.constants.AddressZero,
-      ethers.constants.AddressZero,
-    );
+    const validResult = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+      destination: Chains.arbitrum,
+      recipient: ethers.constants.AddressZero,
+      sender: ethers.constants.AddressZero,
+    });
     expect(validResult).to.be.null;
 
-    const invalidChain = await warpCore.validateTransfer(
-      evmHypNative.amount(TRANSFER_AMOUNT),
-      'fakechain',
-      ethers.constants.AddressZero,
-      ethers.constants.AddressZero,
-    );
+    const invalidChain = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+      destination: 'fakechain',
+      recipient: ethers.constants.AddressZero,
+      sender: ethers.constants.AddressZero,
+    });
     expect(Object.keys(invalidChain || {})[0]).to.equal('destination');
 
-    const invalidRecipient = await warpCore.validateTransfer(
-      evmHypNative.amount(TRANSFER_AMOUNT),
-      Chains.neutron,
-      ethers.constants.AddressZero,
-      ethers.constants.AddressZero,
-    );
+    const invalidRecipient = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+      destination: Chains.neutron,
+      recipient: ethers.constants.AddressZero,
+      sender: ethers.constants.AddressZero,
+    });
     expect(Object.keys(invalidRecipient || {})[0]).to.equal('recipient');
 
-    const invalidAmount = await warpCore.validateTransfer(
-      evmHypNative.amount(-10),
-      Chains.arbitrum,
-      ethers.constants.AddressZero,
-      ethers.constants.AddressZero,
-    );
+    const invalidAmount = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(-10),
+      destination: Chains.arbitrum,
+      recipient: ethers.constants.AddressZero,
+      sender: ethers.constants.AddressZero,
+    });
     expect(Object.keys(invalidAmount || {})[0]).to.equal('amount');
 
-    const insufficientBalance = await warpCore.validateTransfer(
-      evmHypNative.amount(BIG_TRANSFER_AMOUNT),
-      Chains.arbitrum,
-      ethers.constants.AddressZero,
-      ethers.constants.AddressZero,
-    );
+    const insufficientBalance = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),
+      destination: Chains.arbitrum,
+      recipient: ethers.constants.AddressZero,
+      sender: ethers.constants.AddressZero,
+    });
     expect(Object.keys(insufficientBalance || {})[0]).to.equal('amount');
 
     balanceStubs.forEach((s) => s.restore());
@@ -219,26 +241,26 @@ describe('WarpCore', () => {
 
     const adapterStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
-        quoteGasPayment: () => Promise.resolve(MOCK_QUOTE),
+        quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
         populateTransferRemoteTx: () => Promise.resolve({}),
       } as any),
     );
 
     const testGetTxs = async (
       token: Token,
-      chain: ChainName,
+      destination: ChainName,
       providerType = ProviderType.EthersV5,
     ) => {
-      const result = await warpCore.getTransferRemoteTxs(
-        token.amount(TRANSFER_AMOUNT),
-        chain,
-        ethers.constants.AddressZero,
-        ethers.constants.AddressZero,
-      );
+      const result = await warpCore.getTransferRemoteTxs({
+        originTokenAmount: token.amount(TRANSFER_AMOUNT),
+        destination,
+        sender: ethers.constants.AddressZero,
+        recipient: ethers.constants.AddressZero,
+      });
       expect(result.length).to.equal(1);
       expect(
         result[0],
-        `transfer tx for ${token.chainName} to ${chain}`,
+        `transfer tx for ${token.chainName} to ${destination}`,
       ).to.eql({
         category: WarpTxCategory.Transfer,
         transaction: {},

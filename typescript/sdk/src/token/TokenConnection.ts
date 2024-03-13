@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { ZChainName } from '../metadata/customZodTypes';
 import { ChainName } from '../types';
@@ -71,3 +71,36 @@ export const TokenConnectionConfigSchema = z
       intermediateRouterAddress: z.string(),
     }),
   );
+
+export function getTokenConnectionId(
+  protocol: ProtocolType,
+  chainName: ChainName,
+  address: Address,
+): string {
+  assert(
+    protocol && chainName && address,
+    'Invalid token connection id params',
+  );
+  return `${protocol}|${chainName}|${address}`;
+}
+
+export function parseTokenConnectionId(data: string): {
+  protocol: ProtocolType;
+  chainName: ChainName;
+  addressOrDenom: Address;
+} {
+  assert(
+    TokenConnectionRegex.test(data),
+    `Invalid token connection id: ${data}`,
+  );
+  const [protocol, chainName, addressOrDenom] = data.split('|') as [
+    ProtocolType,
+    ChainName,
+    Address,
+  ];
+  assert(
+    Object.values(ProtocolType).includes(protocol),
+    `Invalid protocol: ${protocol}`,
+  );
+  return { protocol, chainName, addressOrDenom };
+}

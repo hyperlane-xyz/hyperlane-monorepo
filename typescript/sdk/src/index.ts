@@ -334,6 +334,8 @@ export {
   TokenConnection,
   TokenConnectionConfigSchema,
   TokenConnectionType,
+  getTokenConnectionId,
+  parseTokenConnectionId,
 } from './token/TokenConnection';
 export {
   PROTOCOL_TO_NATIVE_STANDARD,
@@ -343,6 +345,7 @@ export {
   TOKEN_MULTI_CHAIN_STANDARDS,
   TOKEN_NFT_STANDARDS,
   TOKEN_STANDARD_TO_PROTOCOL,
+  TOKEN_TYPE_TO_STANDARD,
   TokenStandard,
 } from './token/TokenStandard';
 export {
@@ -366,9 +369,9 @@ export {
   EvmTokenAdapter,
 } from './token/adapters/EvmTokenAdapter';
 export {
-  InterchainGasQuote as AdapterInterchainGasQuote,
   IHypTokenAdapter,
   ITokenAdapter,
+  InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
 } from './token/adapters/ITokenAdapter';
@@ -429,7 +432,7 @@ export {
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore';
 export {
-  IgpQuoteConstants,
+  FeeConstantConfig,
   RouteBlacklist,
   WarpCoreConfig,
   WarpCoreConfigSchema,

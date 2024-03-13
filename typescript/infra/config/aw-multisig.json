@@ -13,13 +13,6 @@
       "0x3369e12edd52570806f126eb50be269ba5e65843"
     ]
   },
-  "arbitrumgoerli": {
-    "validators": [
-      "0x071c8d135845ae5a2cb73f98d681d519014c0a8b",
-      "0x1bcf03360989f15cbeb174c188288f2c6d2760d7",
-      "0xc1590eaaeaf380e7859564c5ebcdcc87e8369e0d"
-    ]
-  },
   "avalanche": {
     "validators": [
       "0x3fb8263859843bffb02950c492d492cae169f4cf",
@@ -79,13 +72,6 @@
       "0xb93a72cee19402553c9dd7fed2461aebd04e2454"
     ]
   },
-  "goerli": {
-    "validators": [
-      "0x05a9b5efe9f61f9142453d8e9f61565f333c6768",
-      "0x43a96c7dfbd8187c95013d6ee8665650cbdb2673",
-      "0x7940a12c050e24e1839c21ecb12f65afd84e8c5b"
-    ]
-  },
   "inevm": {
     "validators": [
       "0xf9e35ee88e4448a3673b4676a4e153e3584a08eb",
@@ -135,13 +121,6 @@
       "0x779a17e035018396724a6dec8a59bda1b5adf738"
     ]
   },
-  "optimismgoerli": {
-    "validators": [
-      "0x79e58546e2faca865c6732ad5f6c4951051c4d67",
-      "0x7bbfe1bb7146aad7df309c637987d856179ebbc1",
-      "0xf3d2fb4d53c2bb6a88cec040e0d87430fcee4e40"
-    ]
-  },
   "plumetestnet": {
     "validators": [
       "0xe765a214849f3ecdf00793b97d00422f2d408ea6",
@@ -161,13 +140,6 @@
       "0x86f2a44592bb98da766e880cfd70d3bbb295e61a",
       "0xc84076030bdabaabb9e61161d833dd84b700afda",
       "0x6a1da2e0b7ae26aaece1377c0a4dbe25b85fa3ca"
-    ]
-  },
-  "polygonzkevmtestnet": {
-    "validators": [
-      "0x3f06b725bc9648917eb11c414e9f8d76fd959550",
-      "0x27bfc57679d9dd4ab2e870f5ed7ec0b339a0b636",
-      "0xd476548222f43206d0abaa30e46e28670aa7859c"
     ]
   },
   "scroll": {
