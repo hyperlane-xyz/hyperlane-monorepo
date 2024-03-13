@@ -83,7 +83,10 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         assertEq(vault.maxRedeem(address(erc20CollateralVaultDeposit)), 0);
         assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
 
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), transferAmount);
         _performRemoteTransfer(0, transferAmount);
+
         assertApproxEqAbs(
             vault.maxRedeem(address(erc20CollateralVaultDeposit)),
             transferAmount,
