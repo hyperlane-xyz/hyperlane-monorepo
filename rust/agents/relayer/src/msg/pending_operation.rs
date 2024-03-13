@@ -35,13 +35,10 @@ pub trait PendingOperation {
     /// Label to use for metrics granularity.
     fn app_context(&self) -> Option<String>;
 
-    /// The destination contract address this operation is meant for.
-    fn destination(&self) -> String;
-
     /// Get tuple of labels for metrics.
     fn get_operation_labels(&self) -> (String, String) {
         let app_context = self.app_context().unwrap_or("Unknown".to_string());
-        let destination = self.destination();
+        let destination = self.domain().to_string();
         (destination, app_context)
     }
 

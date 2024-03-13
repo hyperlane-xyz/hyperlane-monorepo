@@ -109,11 +109,6 @@ impl PendingOperation for PendingMessage {
         self.app_context.clone()
     }
 
-    fn destination(&self) -> String {
-        // TODO: check whether this is the correct way of converting the address to string
-        self.ctx.destination_mailbox.address().to_string()
-    }
-
     #[instrument]
     async fn prepare(&mut self) -> PendingOperationResult {
         make_op_try!(|| self.on_reprepare());
