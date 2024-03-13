@@ -135,7 +135,7 @@ impl MigrationTrait for Migration {
                 "origin_tx"."{tx_egp}" AS "origin_tx_effective_gas_price",
                 "origin_tx"."{tx_nonce}" AS "origin_tx_nonce",
                 "origin_tx"."{tx_sender}" AS "origin_tx_sender",
-                "origin_tx"."{tx_receipient}" AS "origin_tx_recipient",
+                "origin_tx"."{tx_recipient}" AS "origin_tx_recipient",
                 "origin_tx"."{tx_gas_used}" AS "origin_tx_gas_used",
                 "origin_tx"."{tx_cgu}" AS "origin_tx_cumulative_gas_used",
 
@@ -152,7 +152,7 @@ impl MigrationTrait for Migration {
                 "dest_tx"."{tx_egp}" AS "destination_tx_effective_gas_price",
                 "dest_tx"."{tx_nonce}" AS "destination_tx_nonce",
                 "dest_tx"."{tx_sender}" AS "destination_tx_sender",
-                "dest_tx"."{tx_receipient}" AS "destination_tx_recipient",
+                "dest_tx"."{tx_recipient}" AS "destination_tx_recipient",
                 "dest_tx"."{tx_gas_used}" AS "destination_tx_gas_used",
                 "dest_tx"."{tx_cgu}" AS "destination_tx_cumulative_gas_used",
 
@@ -214,7 +214,7 @@ impl MigrationTrait for Migration {
             tx_egp = Transaction::EffectiveGasPrice.to_string(),
             tx_nonce = Transaction::Nonce.to_string(),
             tx_sender = Transaction::Sender.to_string(),
-            tx_receipient = Transaction::Recipient.to_string(),
+            tx_recipient = Transaction::Recipient.to_string(),
             tx_gas_used = Transaction::GasUsed.to_string(),
             tx_cgu = Transaction::CumulativeGasUsed.to_string(),
             block_table = Block::Table.to_string(),

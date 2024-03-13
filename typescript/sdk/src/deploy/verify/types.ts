@@ -78,7 +78,7 @@ export type FormOptions<Action extends ExplorerApiActions> =
         contractaddress: string;
         sourceCode: string;
         contractname: string;
-        constructorArguements?: string; // TYPO IS ENFORCED BY API
+        constructorArguments?: string; // TYPO IS ENFORCED BY API
       }
     : Action extends ExplorerApiActions.MARK_PROXY
     ? {

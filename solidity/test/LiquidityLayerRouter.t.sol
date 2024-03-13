@@ -134,7 +134,7 @@ contract LiquidityLayerRouterTest is Test {
 
     // ==== dispatchWithTokens ====
 
-    function testDispatchWithTokensRevertsWithUnkownBridgeAdapter() public {
+    function testDispatchWithTokensRevertsWithUnknownBridgeAdapter() public {
         vm.expectRevert("No adapter found for bridge");
         originLiquidityLayerRouter.dispatchWithTokens(
             destinationDomain,

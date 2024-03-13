@@ -120,8 +120,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         ],
         (bytecode) =>
           // This is obviously super janky but basically we are searching
-          //  for the ocurrences of localDomain in the bytecode and remove
-          //  that to compare, but some coincidental ocurrences of
+          //  for the occurrences of localDomain in the bytecode and remove
+          //  that to compare, but some coincidental occurrences of
           // localDomain in the bytecode should be not be removed which
           // are just done via an offset guard
           bytecode

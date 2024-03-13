@@ -56,7 +56,7 @@ abstract contract FastTokenRouter is TokenRouter {
 
     /**
      * @dev allows an external user to full an unfilled fast transfer order.
-     * @param _recipient The recepient of the wrapped token on base chain.
+     * @param _recipient The recipient of the wrapped token on base chain.
      * @param _amount The amount of wrapped tokens that is being bridged.
      * @param _fastFee The fee the bridging entity will pay.
      * @param _fastTransferId Id assigned on the remote chain to uniquely identify the transfer.
@@ -82,7 +82,7 @@ abstract contract FastTokenRouter is TokenRouter {
 
         filledFastTransfers[filledFastTransfersKey] = msg.sender;
 
-        _fastRecieveFrom(msg.sender, _amount - _fastFee);
+        _fastReceiveFrom(msg.sender, _amount - _fastFee);
         _fastTransferTo(_recipient, _amount - _fastFee);
     }
 
@@ -126,13 +126,13 @@ abstract contract FastTokenRouter is TokenRouter {
         uint256 _fastFee,
         uint256 _fastTransferId
     ) internal virtual returns (bytes memory) {
-        _fastRecieveFrom(msg.sender, _amount);
+        _fastReceiveFrom(msg.sender, _amount);
         return abi.encode(_fastFee, _fastTransferId);
     }
 
     /**
-     * @dev returns an address that indicates who should recieve the bridged tokens.
-     * @dev if _fastFees was inlcuded and someone filled the order before the mailbox made the contract call, the filler gets the funds.
+     * @dev returns an address that indicates who should receive the bridged tokens.
+     * @dev if _fastFees was included and someone filled the order before the mailbox made the contract call, the filler gets the funds.
      */
     function _getTokenRecipient(
         address _recipient,
@@ -201,7 +201,7 @@ abstract contract FastTokenRouter is TokenRouter {
      * @dev Should collect `amount` of tokens from `_sender`.
      * @dev The implementation is delegated.
      */
-    function _fastRecieveFrom(
+    function _fastReceiveFrom(
         address _sender,
         uint256 _amount
     ) internal virtual;
