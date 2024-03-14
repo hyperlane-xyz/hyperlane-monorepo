@@ -214,7 +214,7 @@ impl MigrationTrait for Migration {
             tx_egp = Transaction::EffectiveGasPrice.to_string(),
             tx_nonce = Transaction::Nonce.to_string(),
             tx_sender = Transaction::Sender.to_string(),
-            tx_recipient = Transaction::Recipient.to_string(),
+            tx_receipient = Transaction::Recipient.to_string(),
             tx_gas_used = Transaction::GasUsed.to_string(),
             tx_cgu = Transaction::CumulativeGasUsed.to_string(),
             block_table = Block::Table.to_string(),
