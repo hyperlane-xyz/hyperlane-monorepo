@@ -152,7 +152,7 @@ impl MigrationTrait for Migration {
                 "dest_tx"."{tx_egp}" AS "destination_tx_effective_gas_price",
                 "dest_tx"."{tx_nonce}" AS "destination_tx_nonce",
                 "dest_tx"."{tx_sender}" AS "destination_tx_sender",
-                "dest_tx"."{tx_recipient}" AS "destination_tx_recipient",
+                "dest_tx"."{tx_receipient}" AS "destination_tx_recipient",
                 "dest_tx"."{tx_gas_used}" AS "destination_tx_gas_used",
                 "dest_tx"."{tx_cgu}" AS "destination_tx_cumulative_gas_used",
 
