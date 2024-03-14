@@ -82,7 +82,7 @@ abstract contract FastTokenRouter is TokenRouter {
 
         filledFastTransfers[filledFastTransfersKey] = msg.sender;
 
-        _fastReceiveFrom(msg.sender, _amount - _fastFee);
+        _fastReciveFrom(msg.sender, _amount - _fastFee);
         _fastTransferTo(_recipient, _amount - _fastFee);
     }
 
@@ -126,7 +126,7 @@ abstract contract FastTokenRouter is TokenRouter {
         uint256 _fastFee,
         uint256 _fastTransferId
     ) internal virtual returns (bytes memory) {
-        _fastReceiveFrom(msg.sender, _amount);
+        _fastReciveFrom(msg.sender, _amount);
         return abi.encode(_fastFee, _fastTransferId);
     }
 
@@ -201,7 +201,7 @@ abstract contract FastTokenRouter is TokenRouter {
      * @dev Should collect `amount` of tokens from `_sender`.
      * @dev The implementation is delegated.
      */
-    function _fastReceiveFrom(
+    function _fastReciveFrom(
         address _sender,
         uint256 _amount
     ) internal virtual;
