@@ -134,7 +134,7 @@ const hyperlane: RootAgentConfig = {
     docker: {
       repo,
       // Includes Cosmos block-by-block indexing.
-      tag: 'c2bf423-20240308-164604',
+      tag: 'ae0990a-20240313-215426',
     },
     gasPaymentEnforcement: [
       // Temporary measure to ensure all inEVM warp route messages are delivered -
@@ -169,7 +169,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '9736164-20240307-131918',
+      tag: 'ae0990a-20240313-215426',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -178,7 +178,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '54aeb64-20240206-163119',
+      tag: 'ae0990a-20240313-215426',
     },
   },
 };
@@ -192,7 +192,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9736164-20240307-131918',
+      tag: 'ae0990a-20240313-215426',
     },
     whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
@@ -204,7 +204,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '9736164-20240307-131918',
+      tag: 'ae0990a-20240313-215426',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -229,7 +229,7 @@ const neutron: RootAgentConfig = {
     docker: {
       repo,
       // Includes Cosmos block-by-block indexing.
-      tag: '9736164-20240307-131918',
+      tag: 'ae0990a-20240313-215426',
     },
     gasPaymentEnforcement: [
       {
