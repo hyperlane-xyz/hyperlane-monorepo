@@ -163,6 +163,7 @@ MESSAGE1_ID=`cat /tmp/message1 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
 echo "Message 1 ID: $MESSAGE1_ID"
 
 WARP_ARTIFACTS_FILE=`find /tmp/warp-route-deployment* -type f -exec ls -t1 {} + | head -1`
+WARP_CONFIG_FILE=`find /tmp/warp-config* -type f -exec ls -t1 {} + | head -1`
 CHAIN1_ROUTER="${CHAIN1_CAPS}_ROUTER"
 declare $CHAIN1_ROUTER=$(cat $WARP_ARTIFACTS_FILE | jq -r ".${CHAIN1}.router")
 
@@ -172,7 +173,8 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
     --destination ${CHAIN2} \
     --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
-    --router ${!CHAIN1_ROUTER} \
+    --warp ${WARP_CONFIG_FILE} \
+    --router ${CHAIN1_ROUTER} \
     --quick \
     --key $ANVIL_KEY \
     | tee /tmp/message2
