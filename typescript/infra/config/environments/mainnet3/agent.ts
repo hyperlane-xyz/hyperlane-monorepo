@@ -14,7 +14,6 @@ import {
 import {
   GasPaymentEnforcementConfig,
   routerMatchingList,
-  warpRouteMatchingList,
 } from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
@@ -23,8 +22,8 @@ import { environment, supportedChainNames } from './chains';
 import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
-import injectiveInevmUsdcAddresses from './warp/inevm-USDC-addresses.json';
-import injectiveInevmUsdtAddresses from './warp/inevm-USDT-addresses.json';
+import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
+import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
 
@@ -158,11 +157,11 @@ const hyperlane: RootAgentConfig = {
       },
       {
         name: 'inevm_ethereum_usdc',
-        matchingList: warpRouteMatchingList(injectiveInevmUsdcAddresses),
+        matchingList: routerMatchingList(inevmEthereumUsdcAddresses),
       },
       {
         name: 'inevm_ethereum_usdt',
-        matchingList: warpRouteMatchingList(injectiveInevmUsdtAddresses),
+        matchingList: routerMatchingList(inevmEthereumUsdtAddresses),
       },
     ],
   },
