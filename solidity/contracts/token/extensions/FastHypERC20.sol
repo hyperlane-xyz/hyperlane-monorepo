@@ -45,7 +45,7 @@ contract FastHypERC20 is FastTokenRouter, HypERC20 {
      * @dev Burns `_amount` of tokens from `_recipient`.
      * @inheritdoc FastTokenRouter
      */
-    function _fastReciveFrom(
+    function _fastRecieveFrom(
         address _sender,
         uint256 _amount
     ) internal override {
