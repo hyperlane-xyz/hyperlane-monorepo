@@ -157,11 +157,11 @@ const hyperlane: RootAgentConfig = {
         matchingList: routerMatchingList(injectiveInevmInjAddresses),
       },
       {
-        name: 'injective_inevm_usdc',
+        name: 'inevm_ethereum_usdc',
         matchingList: warpRouteMatchingList(injectiveInevmUsdcAddresses),
       },
       {
-        name: 'injective_inevm_usdt',
+        name: 'inevm_ethereum_usdt',
         matchingList: warpRouteMatchingList(injectiveInevmUsdtAddresses),
       },
     ],
