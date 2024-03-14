@@ -51,7 +51,7 @@ contract FastHypERC20Collateral is FastTokenRouter, HypERC20Collateral {
      * @dev Transfers in `_amount` of `wrappedToken` from `_recipient`.
      * @inheritdoc FastTokenRouter
      */
-    function _fastReciveFrom(
+    function _fastRecieveFrom(
         address _sender,
         uint256 _amount
     ) internal override {
