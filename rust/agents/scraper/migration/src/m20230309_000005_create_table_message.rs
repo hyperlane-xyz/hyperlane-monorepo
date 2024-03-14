@@ -135,7 +135,7 @@ impl MigrationTrait for Migration {
                 "origin_tx"."{tx_egp}" AS "origin_tx_effective_gas_price",
                 "origin_tx"."{tx_nonce}" AS "origin_tx_nonce",
                 "origin_tx"."{tx_sender}" AS "origin_tx_sender",
-                "origin_tx"."{tx_recipient}" AS "origin_tx_recipient",
+                "origin_tx"."{tx_receipient}" AS "origin_tx_recipient",
                 "origin_tx"."{tx_gas_used}" AS "origin_tx_gas_used",
                 "origin_tx"."{tx_cgu}" AS "origin_tx_cumulative_gas_used",
 
