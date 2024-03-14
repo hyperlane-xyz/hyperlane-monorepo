@@ -178,3 +178,30 @@ export function routerMatchingList(
 
   return matchingList;
 }
+
+type HypErc20Address = { HypERC20: string };
+type HypERC20CollateralAddress = { HypERC20Collateral: string };
+type HypErc721Address = { HypERC721: string };
+type HypErc721CollateralAddress = { HypERC721Collateral: string };
+type HypNativeAddress = { HypNativeAddress: string };
+
+type WarpRoute =
+  | HypErc20Address
+  | HypERC20CollateralAddress
+  | HypErc721Address
+  | HypErc721CollateralAddress
+  | HypNativeAddress;
+
+// Create a matching list for the given warp route addresses
+export function warpRouteMatchingList(
+  routers: ChainMap<WarpRoute>,
+): MatchingList {
+  let standardizedRouters: ChainMap<{ router: string }> = {};
+  Object.entries(routers).forEach(([chain, route]) => {
+    let routerAddress = Object.values(route);
+    // Due to duck typing there could be more than one value in the route object,
+    // but the line below assumes there is only one.
+    standardizedRouters[chain] = { router: routerAddress[0] };
+  });
+  return routerMatchingList(standardizedRouters);
+}
