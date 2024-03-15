@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 import sinon from 'sinon';
@@ -22,6 +21,7 @@ const MOCK_INTERCHAIN_QUOTE = { amount: 20_000n };
 const TRANSFER_AMOUNT = BigInt('1000000000000000000'); // 1 units @ 18 decimals
 const BIG_TRANSFER_AMOUNT = BigInt('100000000000000000000'); // 100 units @ 18 decimals
 const MOCK_BALANCE = BigInt('10000000000000000000'); // 10 units @ 18 decimals
+const MOCK_ADDRESS = '0x0000000000000000000000000000000000000001';
 
 describe('WarpCore', () => {
   const multiProvider = new MultiProtocolProvider();
@@ -94,7 +94,7 @@ describe('WarpCore', () => {
       const result = await warpCore.estimateTransferRemoteFees({
         originToken: token,
         destination,
-        sender: ethers.constants.AddressZero,
+        sender: MOCK_ADDRESS,
       });
       expect(
         result.localQuote.token.standard,
@@ -193,40 +193,40 @@ describe('WarpCore', () => {
     const validResult = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
       destination: Chains.arbitrum,
-      recipient: ethers.constants.AddressZero,
-      sender: ethers.constants.AddressZero,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
     });
     expect(validResult).to.be.null;
 
     const invalidChain = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
       destination: 'fakechain',
-      recipient: ethers.constants.AddressZero,
-      sender: ethers.constants.AddressZero,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
     });
     expect(Object.keys(invalidChain || {})[0]).to.equal('destination');
 
     const invalidRecipient = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
       destination: Chains.neutron,
-      recipient: ethers.constants.AddressZero,
-      sender: ethers.constants.AddressZero,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
     });
     expect(Object.keys(invalidRecipient || {})[0]).to.equal('recipient');
 
     const invalidAmount = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(-10),
       destination: Chains.arbitrum,
-      recipient: ethers.constants.AddressZero,
-      sender: ethers.constants.AddressZero,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
     });
     expect(Object.keys(invalidAmount || {})[0]).to.equal('amount');
 
     const insufficientBalance = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),
       destination: Chains.arbitrum,
-      recipient: ethers.constants.AddressZero,
-      sender: ethers.constants.AddressZero,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
     });
     expect(Object.keys(insufficientBalance || {})[0]).to.equal('amount');
 
@@ -254,8 +254,8 @@ describe('WarpCore', () => {
       const result = await warpCore.getTransferRemoteTxs({
         originTokenAmount: token.amount(TRANSFER_AMOUNT),
         destination,
-        sender: ethers.constants.AddressZero,
-        recipient: ethers.constants.AddressZero,
+        sender: MOCK_ADDRESS,
+        recipient: MOCK_ADDRESS,
       });
       expect(result.length).to.equal(1);
       expect(
