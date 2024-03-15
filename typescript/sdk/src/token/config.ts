@@ -2,6 +2,8 @@ import { ethers } from 'ethers';
 
 import { GasRouterConfig } from '../router/types';
 
+import { TokenStandard } from './TokenStandard';
+
 export enum TokenType {
   synthetic = 'synthetic',
   fastSynthetic = 'fastSynthetic',
@@ -10,11 +12,7 @@ export enum TokenType {
   fastCollateral = 'fastCollateral',
   collateralUri = 'collateralUri',
   native = 'native',
-}
-
-export enum TokenStandard {
-  ERC20 = 'ERC20',
-  ERC721 = 'ERC721',
+  nativeScaled = 'nativeScaled',
 }
 
 // this is for getting a unique artifact key; to differentiate between ERC20/ERC721
