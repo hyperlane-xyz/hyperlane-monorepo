@@ -8,6 +8,7 @@ import {
   convertDecimals,
   convertToProtocolAddress,
   isValidAddress,
+  isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
@@ -545,8 +546,9 @@ export class WarpCore {
       this.multiProvider.getChainMetadata(destination);
     const { protocol, bech32Prefix } = destinationMetadata;
     // Ensure recip address is valid for the destination chain's protocol
-    if (!isValidAddress(recipient, protocol))
+    if (!isValidAddress(recipient, protocol) || isZeroishAddress(recipient))
       return { recipient: 'Invalid recipient' };
+
     // Also ensure the address denom is correct if the dest protocol is Cosmos
     if (protocol === ProtocolType.Cosmos) {
       if (!bech32Prefix) {
@@ -554,7 +556,7 @@ export class WarpCore {
         return { destination: 'Invalid chain data' };
       } else if (!recipient.startsWith(bech32Prefix)) {
         this.logger(`Recipient prefix should be ${bech32Prefix}`);
-        return { recipient: `Invalid recipient prefix` };
+        return { recipient: 'Invalid recipient prefix' };
       }
     }
     return null;
