@@ -34,7 +34,7 @@ contract HypNativeScaled is HypNative {
     }
 
     /**
-     * @dev Sends scaled `_amount` (multipled by `scale`) to `_recipient`.
+     * @dev Sends scaled `_amount` (multiplied by `scale`) to `_recipient`.
      * @inheritdoc TokenRouter
      */
     function _transferTo(
