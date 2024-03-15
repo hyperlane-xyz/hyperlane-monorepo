@@ -84,29 +84,31 @@ where
             .saturating_add(U256::from(GAS_ESTIMATE_BUFFER).into())
             .into()
     };
-    let Ok((max_fee, max_priority_fee)) = provider.estimate_eip1559_fees(None).await else {
-        // Is not EIP 1559 chain
-        return Ok(tx.gas(gas_limit));
-    };
-    // Is EIP 1559 chain
-    let mut request = Eip1559TransactionRequest::new();
-    if let Some(from) = tx.tx.from() {
-        request = request.from(*from);
-    }
-    if let Some(to) = tx.tx.to() {
-        request = request.to(to.clone());
-    }
-    if let Some(data) = tx.tx.data() {
-        request = request.data(data.clone());
-    }
-    if let Some(value) = tx.tx.value() {
-        request = request.value(*value);
-    }
-    request = request.max_fee_per_gas(max_fee);
-    request = request.max_priority_fee_per_gas(max_priority_fee);
-    let mut eip_1559_tx = tx;
-    eip_1559_tx.tx = ethers::types::transaction::eip2718::TypedTransaction::Eip1559(request);
-    Ok(eip_1559_tx.gas(gas_limit))
+    return Ok(tx.gas(gas_limit));
+
+    // let Ok((max_fee, max_priority_fee)) = provider.estimate_eip1559_fees(None).await else {
+    //     // Is not EIP 1559 chain
+    //     return Ok(tx.gas(gas_limit));
+    // };
+    // // Is EIP 1559 chain
+    // let mut request = Eip1559TransactionRequest::new();
+    // if let Some(from) = tx.tx.from() {
+    //     request = request.from(*from);
+    // }
+    // if let Some(to) = tx.tx.to() {
+    //     request = request.to(to.clone());
+    // }
+    // if let Some(data) = tx.tx.data() {
+    //     request = request.data(data.clone());
+    // }
+    // if let Some(value) = tx.tx.value() {
+    //     request = request.value(*value);
+    // }
+    // request = request.max_fee_per_gas(max_fee);
+    // request = request.max_priority_fee_per_gas(max_priority_fee);
+    // let mut eip_1559_tx = tx;
+    // eip_1559_tx.tx = ethers::types::transaction::eip2718::TypedTransaction::Eip1559(request);
+    // Ok(eip_1559_tx.gas(gas_limit))
 }
 
 pub(crate) async fn call_with_lag<M, T>(
