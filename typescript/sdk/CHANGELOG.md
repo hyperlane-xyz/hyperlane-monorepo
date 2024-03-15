@@ -1,5 +1,14 @@
 # @hyperlane-xyz/sdk
 
+## 3.8.1
+
+### Patch Changes
+
+- 5daaae274: Prevent warp transfers to zero-ish addresses
+- Updated dependencies [5daaae274]
+  - @hyperlane-xyz/utils@3.8.1
+  - @hyperlane-xyz/core@3.8.1
+
 ## 3.8.0
 
 ### Minor Changes
