@@ -10,7 +10,7 @@ use ethers::prelude::Middleware;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256,
+    InterchainGasPayment, KnownHyperlaneDomain, LogMeta, SequenceAwareIndexer, H160, H256,
 };
 use tracing::instrument;
 
@@ -60,6 +60,7 @@ where
     contract: Arc<EthereumInterchainGasPaymasterInternal<M>>,
     provider: Arc<M>,
     reorg_period: u32,
+    domain: HyperlaneDomain,
 }
 
 impl<M> EthereumInterchainGasPaymasterIndexer<M>
@@ -75,6 +76,7 @@ where
             )),
             provider,
             reorg_period,
+            domain: locator.domain.clone(),
         }
     }
 }
@@ -91,7 +93,12 @@ where
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
         let mut filter = self.contract.gas_payment_filter();
-        filter.filter.address = None;
+        if !matches!(
+            self.domain,
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Mumbai)
+        ) {
+            filter.filter.address = None;
+        }
 
         let events = filter
             // let events = self

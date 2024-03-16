@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
+use hyperlane_core::KnownHyperlaneDomain;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -85,6 +86,7 @@ where
     contract: Arc<EthereumMailboxInternal<M>>,
     provider: Arc<M>,
     reorg_period: u32,
+    domain: HyperlaneDomain,
 }
 
 impl<M> EthereumMailboxIndexer<M>
@@ -101,6 +103,7 @@ where
             contract,
             provider,
             reorg_period,
+            domain: locator.domain.clone(),
         }
     }
 
@@ -132,7 +135,12 @@ where
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
         let mut filter = self.contract.dispatch_filter();
-        filter.filter.address = None;
+        if !matches!(
+            self.domain,
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Mumbai)
+        ) {
+            filter.filter.address = None;
+        }
         let mut events: Vec<(HyperlaneMessage, LogMeta)> = filter
             // let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
             //     .contract
@@ -176,7 +184,12 @@ where
     #[instrument(err, skip(self))]
     async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
         let mut filter = self.contract.process_id_filter();
-        filter.filter.address = None;
+        if !matches!(
+            self.domain,
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Mumbai)
+        ) {
+            filter.filter.address = None;
+        }
 
         Ok(filter
             .from_block(*range.start())

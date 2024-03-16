@@ -10,8 +10,8 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, SequenceAwareIndexer, H256,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, KnownHyperlaneDomain, LogMeta,
+    MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256,
 };
 
 use crate::contracts::merkle_tree_hook::{MerkleTreeHook as MerkleTreeHookContract, Tree};
@@ -81,6 +81,7 @@ where
     contract: Arc<MerkleTreeHookContract<M>>,
     provider: Arc<M>,
     reorg_period: u32,
+    domain: HyperlaneDomain,
 }
 
 impl<M> EthereumMerkleTreeHookIndexer<M>
@@ -96,6 +97,7 @@ where
             )),
             provider,
             reorg_period,
+            domain: locator.domain.clone(),
         }
     }
 }
@@ -112,7 +114,13 @@ where
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(MerkleTreeInsertion, LogMeta)>> {
         let mut filter = self.contract.inserted_into_tree_filter();
-        filter.filter.address = None;
+        if !matches!(
+            self.domain,
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Mumbai)
+        ) {
+            filter.filter.address = None;
+        }
+
         let events = filter
             .from_block(*range.start())
             .to_block(*range.end())
