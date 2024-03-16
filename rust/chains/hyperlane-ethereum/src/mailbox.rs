@@ -131,9 +131,12 @@ where
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
-            .contract
-            .dispatch_filter()
+        let mut filter = self.contract.dispatch_filter();
+        filter.filter.address = None;
+        let mut events: Vec<(HyperlaneMessage, LogMeta)> = filter
+            // let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
+            //     .contract
+            //     .dispatch_filter()
             .from_block(*range.start())
             .to_block(*range.end())
             .query_with_meta()
@@ -172,9 +175,10 @@ where
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
     async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
-        Ok(self
-            .contract
-            .process_id_filter()
+        let mut filter = self.contract.process_id_filter();
+        filter.filter.address = None;
+
+        Ok(filter
             .from_block(*range.start())
             .to_block(*range.end())
             .query_with_meta()

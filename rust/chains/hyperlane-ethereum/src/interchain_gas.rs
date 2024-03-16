@@ -90,9 +90,13 @@ where
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        let events = self
-            .contract
-            .gas_payment_filter()
+        let mut filter = self.contract.gas_payment_filter();
+        filter.filter.address = None;
+
+        let events = filter
+            // let events = self
+            //     .contract
+            //     .gas_payment_filter()
             .from_block(*range.start())
             .to_block(*range.end())
             .query_with_meta()

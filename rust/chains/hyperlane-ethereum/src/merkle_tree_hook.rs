@@ -111,9 +111,9 @@ where
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(MerkleTreeInsertion, LogMeta)>> {
-        let events = self
-            .contract
-            .inserted_into_tree_filter()
+        let mut filter = self.contract.inserted_into_tree_filter();
+        filter.filter.address = None;
+        let events = filter
             .from_block(*range.start())
             .to_block(*range.end())
             .query_with_meta()
