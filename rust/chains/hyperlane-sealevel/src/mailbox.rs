@@ -308,10 +308,11 @@ impl SealevelMailbox {
                 .send()
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
+            let jito_response_text = jito_response.text().await;
 
             tracing::info!(
                 ?signature,
-                ?jito_response,
+                ?jito_response_text,
                 "Got Jito response for sealevel transaction bundle"
             );
 
