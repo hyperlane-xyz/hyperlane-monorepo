@@ -65,10 +65,10 @@ const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 // TODO: consider a more sane value and/or use IGP gas payments instead.
 const PROCESS_COMPUTE_UNITS: u32 = 700_000;
 
-/// 0.0000035 SOL, in lamports.
+/// 0.0005 SOL, in lamports.
 /// A typical tx fee without a prioritization fee is 0.000005 SOL, or
 /// 5000 lamports. (Example: https://explorer.solana.com/tx/fNd3xVeBzFHeuzr8dXQxLGiHMzTeYpykSV25xWzNRaHtzzjvY9A3MzXh1ZsK2JncRHkwtuWrGEwGXVhFaUCYhtx)
-const PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX: u64 = 3500;
+const PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX: u64 = 500000;
 
 /// In micro-lamports. Multiply this by the compute units to figure out
 /// the additional cost of processing a message, in addition to the mandatory
@@ -612,6 +612,14 @@ impl Mailbox for SealevelMailbox {
             .get_latest_blockhash_with_commitment(commitment)
             .await
             .map_err(ChainCommunicationError::from_other)?;
+
+        instructions.push(solana_sdk::system_instruction::transfer(
+            &payer.pubkey(),
+            // A random Jito fee account, taken from the getFeeAccount RPC response:
+            // https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#gettipaccounts
+            &solana_sdk::pubkey!("DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh"),
+            PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX,
+        ));
 
         // Hack
         tokio::time::sleep(std::time::Duration::from_millis(5000)).await;
