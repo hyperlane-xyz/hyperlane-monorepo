@@ -29,16 +29,17 @@ use serializable_account_meta::SimulationReturnData;
 use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
+    rpc_client::SerializableTransaction,
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig},
     rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
 };
 use solana_sdk::{
     account::Account,
+    bs58,
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
     hash::Hash,
-    instruction::AccountMeta,
-    instruction::Instruction,
+    instruction::{AccountMeta, Instruction},
     message::Message,
     pubkey::Pubkey,
     signature::Signature,
@@ -268,6 +269,102 @@ impl SealevelMailbox {
         );
 
         self.get_account_metas(instruction).await
+    }
+
+    // Stolen from Solana's non-blocking client, but with Jito!
+    pub async fn send_and_confirm_transaction_with_jito(
+        &self,
+        transaction: &impl SerializableTransaction,
+    ) -> ChainResult<Signature> {
+        let signature = transaction.get_signature();
+
+        let base58_txn = bs58::encode(
+            bincode::serialize(&transaction).map_err(ChainCommunicationError::from_other)?,
+        )
+        .into_string();
+
+        const SEND_RETRIES: usize = 1;
+        const GET_STATUS_RETRIES: usize = usize::MAX;
+
+        'sending: for _ in 0..SEND_RETRIES {
+            let jito_request_body = serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "sendBundle",
+                "params": [
+                    base58_txn
+                ],
+            });
+
+            tracing::info!(
+                ?jito_request_body,
+                ?signature,
+                "Sending sealevel transaction to Jito as bundle"
+            );
+
+            let jito_response = reqwest::Client::new()
+                .post("https://mainnet.block-engine.jito.wtf:443/api/v1/bundles")
+                .json(&jito_request_body)
+                .send()
+                .await
+                .map_err(ChainCommunicationError::from_other)?;
+
+            tracing::info!(
+                ?signature,
+                ?jito_response,
+                "Got Jito response for sealevel transaction bundle"
+            );
+
+            let recent_blockhash = if transaction.uses_durable_nonce() {
+                let (recent_blockhash, ..) = self
+                    .rpc_client
+                    .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
+                    .await
+                    .map_err(ChainCommunicationError::from_other)?;
+                recent_blockhash
+            } else {
+                *transaction.get_recent_blockhash()
+            };
+
+            for status_retry in 0..GET_STATUS_RETRIES {
+                match self
+                    .rpc_client
+                    .get_signature_status(&signature)
+                    .await
+                    .map_err(ChainCommunicationError::from_other)?
+                {
+                    Some(Ok(_)) => return Ok(*signature),
+                    Some(Err(e)) => return Err(ChainCommunicationError::from_other(e)),
+                    None => {
+                        if !self
+                            .rpc_client
+                            .is_blockhash_valid(&recent_blockhash, CommitmentConfig::processed())
+                            .await
+                            .map_err(ChainCommunicationError::from_other)?
+                        {
+                            // Block hash is not found by some reason
+                            break 'sending;
+                        } else if cfg!(not(test))
+                            // Ignore sleep at last step.
+                            && status_retry < GET_STATUS_RETRIES
+                        {
+                            // Retry twice a second
+                            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+
+        Err(ChainCommunicationError::from_other(
+            solana_client::rpc_request::RpcError::ForUser(
+                "unable to confirm transaction. \
+             This can happen in situations such as transaction expiration \
+             and insufficient fee-payer funds"
+                    .to_string(),
+            ),
+        ))
     }
 }
 
@@ -528,11 +625,7 @@ impl Mailbox for SealevelMailbox {
 
         tracing::info!(?txn, "Created sealevel transaction to process message");
 
-        let signature = self
-            .rpc_client
-            .send_and_confirm_transaction(&txn)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
+        let signature = self.send_and_confirm_transaction_with_jito(&txn).await?;
 
         tracing::info!(?txn, ?signature, "Sealevel transaction sent");
 
