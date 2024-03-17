@@ -20,16 +20,32 @@ const ConnectionConfigSchema = {
 };
 
 export const WarpRouteDeployConfigSchema = z.object({
-  base: z.object({
-    type: z.literal(TokenType.native).or(z.literal(TokenType.collateral)),
-    chainName: z.string(),
-    address: ZHash.optional(),
-    isNft: z.boolean().optional(),
-    name: z.string().optional(),
-    symbol: z.string().optional(),
-    decimals: z.number().optional(),
-    ...ConnectionConfigSchema,
-  }),
+  base: z
+    .object({
+      type: z
+        .literal(TokenType.native)
+        .or(z.literal(TokenType.collateral))
+        .or(z.literal(TokenType.collateralYield)),
+      yieldVault: z.string().optional(),
+      chainName: z.string(),
+      address: ZHash.optional(),
+      isNft: z.boolean().optional(),
+      name: z.string().optional(),
+      symbol: z.string().optional(),
+      decimals: z.number().optional(),
+      ...ConnectionConfigSchema,
+    })
+    .refine(
+      // Validate yieldVault for collateralYield tokens
+      (data) =>
+        data.type === TokenType.collateralYield &&
+        data.yieldVault !== ethers.constants.AddressZero &&
+        data.yieldVault !== null,
+      {
+        message: 'yieldVault is required when type is collateralYield',
+        path: ['yieldVault'],
+      },
+    ),
   synthetics: z
     .array(
       z.object({
