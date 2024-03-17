@@ -7,6 +7,7 @@ export enum TokenType {
   fastSynthetic = 'fastSynthetic',
   syntheticUri = 'syntheticUri',
   collateral = 'collateral',
+  collateralYield = 'collateralYield',
   fastCollateral = 'fastCollateral',
   collateralUri = 'collateralUri',
   native = 'native',
@@ -39,7 +40,8 @@ export type CollateralConfig = {
   type:
     | TokenType.collateral
     | TokenType.collateralUri
-    | TokenType.fastCollateral;
+    | TokenType.fastCollateral
+    | TokenType.collateralYield;
   token: string;
 } & Partial<ERC20Metadata>;
 export type NativeConfig = {
