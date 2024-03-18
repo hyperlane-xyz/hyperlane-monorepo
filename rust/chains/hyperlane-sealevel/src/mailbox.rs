@@ -10,8 +10,8 @@ use tracing::{debug, info, instrument, warn};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
-    SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, KnownHyperlaneDomain, LogMeta,
+    Mailbox, SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -271,6 +271,28 @@ impl SealevelMailbox {
         self.get_account_metas(instruction).await
     }
 
+    fn use_jito(&self) -> bool {
+        matches!(
+            self.domain,
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Solana)
+        )
+    }
+
+    async fn send_and_confirm_transaction(
+        &self,
+        transaction: &Transaction,
+    ) -> ChainResult<Signature> {
+        if self.use_jito() {
+            self.send_and_confirm_transaction_with_jito(transaction)
+                .await
+        } else {
+            self.rpc_client
+                .send_and_confirm_transaction(transaction)
+                .await
+                .map_err(ChainCommunicationError::from_other)
+        }
+    }
+
     // Stolen from Solana's non-blocking client, but with Jito!
     pub async fn send_and_confirm_transaction_with_jito(
         &self,
@@ -522,15 +544,17 @@ impl Mailbox for SealevelMailbox {
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
 
-        let mut instructions = Vec::with_capacity(2);
+        let mut instructions = Vec::with_capacity(4);
         // Set the compute unit limit.
         instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(
             PROCESS_COMPUTE_UNITS,
         ));
-        // // Set the compute unit price.
-        // instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
-        //     PROCESS_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
-        // ));
+        // Set the compute unit price, but only if we're not using Jito.
+        if !self.use_jito() {
+            instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+                PROCESS_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
+            ));
+        }
 
         // "processed" level commitment does not guarantee finality.
         // roughly 5% of blocks end up on a dropped fork.
@@ -634,7 +658,7 @@ impl Mailbox for SealevelMailbox {
 
         tracing::info!(?txn, "Created sealevel transaction to process message");
 
-        let signature = self.send_and_confirm_transaction_with_jito(&txn).await?;
+        let signature = self.send_and_confirm_transaction(&txn).await?;
 
         tracing::info!(?txn, ?signature, "Sealevel transaction sent");
 
