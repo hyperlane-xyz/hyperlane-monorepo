@@ -1,15 +1,19 @@
 import { prompts } from 'prompts';
 
 import {
+  AccountConfig,
   ChainMap,
   ChainName,
   HyperlaneApp,
   HyperlaneAppChecker,
+  InterchainAccount,
   OwnableConfig,
   OwnerViolation,
+  resolveAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, objMap } from '@hyperlane-xyz/utils';
 
+// import { iNTERCHAINACCOUTNROUTER}
 import { canProposeSafeTransactions } from '../utils/safe';
 
 import {
@@ -37,11 +41,18 @@ export abstract class HyperlaneAppGovernor<
   readonly checker: HyperlaneAppChecker<App, Config>;
   private calls: ChainMap<AnnotatedCallData[]>;
   private canPropose: ChainMap<Map<string, boolean>>;
+  readonly interchainAccount?: InterchainAccount;
 
-  constructor(checker: HyperlaneAppChecker<App, Config>) {
+  constructor(
+    checker: HyperlaneAppChecker<App, Config>,
+    readonly ica?: InterchainAccount,
+  ) {
     this.checker = checker;
     this.calls = objMap(this.checker.app.contractsMap, () => []);
     this.canPropose = objMap(this.checker.app.contractsMap, () => new Map());
+    if (ica) {
+      this.interchainAccount = ica;
+    }
   }
 
   async govern(confirm = true, chain?: ChainName) {
@@ -114,19 +125,25 @@ export abstract class HyperlaneAppGovernor<
       SubmissionType.SIGNER,
       new SignerMultiSend(this.checker.multiProvider, chain),
     );
+    let safeOwner: Address;
+    if (typeof this.checker.configMap[chain].owner === 'string') {
+      safeOwner = this.checker.configMap[chain].owner as Address;
+    } else {
+      safeOwner = (this.checker.configMap[chain].owner as AccountConfig).owner;
+    }
     await sendCallsForType(
       SubmissionType.SAFE,
-      new SafeMultiSend(
-        this.checker.multiProvider,
-        chain,
-        this.checker.configMap[chain].owner,
-      ),
+      new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
     );
     await sendCallsForType(SubmissionType.MANUAL, new ManualMultiSend(chain));
   }
 
   protected pushCall(chain: ChainName, call: AnnotatedCallData) {
     this.calls[chain].push(call);
+  }
+
+  protected popCall(chain: ChainName): AnnotatedCallData | undefined {
+    return this.calls[chain].pop();
   }
 
   protected abstract mapViolationsToCalls(): Promise<void>;
@@ -163,28 +180,64 @@ export abstract class HyperlaneAppGovernor<
 
     // 2. Check if the call will succeed via Gnosis Safe.
     const safeAddress = this.checker.configMap[chain].owner;
-    if (!safeAddress) throw new Error(`Owner address not found for ${chain}`);
-    // 2a. Confirm that the signer is a Safe owner or delegate.
-    // This should implicitly check whether or not the owner is a gnosis
-    // safe.
-    if (!this.canPropose[chain].has(safeAddress)) {
-      this.canPropose[chain].set(
-        safeAddress,
-        await canProposeSafeTransactions(
-          signerAddress,
-          chain,
-          multiProvider,
+
+    if (typeof safeAddress === 'string') {
+      if (!safeAddress) throw new Error(`Owner address not found for ${chain}`);
+      // 2a. Confirm that the signer is a Safe owner or delegate.
+      // This should implicitly check whether or not the owner is a gnosis
+      // safe.
+      if (!this.canPropose[chain].has(safeAddress)) {
+        this.canPropose[chain].set(
           safeAddress,
-        ),
-      );
-    }
-    // 2b. Check if calling from the owner/safeAddress will succeed.
-    if (
-      (this.canPropose[chain].get(safeAddress) &&
-        (await transactionSucceedsFromSender(safeAddress))) ||
-      chain === 'moonbeam'
-    ) {
-      return SubmissionType.SAFE;
+          await canProposeSafeTransactions(
+            signerAddress,
+            chain,
+            multiProvider,
+            safeAddress,
+          ),
+        );
+      }
+      // 2b. Check if calling from the owner/safeAddress will succeed.
+      if (
+        (this.canPropose[chain].get(safeAddress) &&
+          (await transactionSucceedsFromSender(safeAddress))) ||
+        chain === 'moonbeam'
+      ) {
+        return SubmissionType.SAFE;
+      }
+    } else {
+      const icaOwner = safeAddress.owner;
+      if (!this.canPropose[origin].has(safeAddress.owner)) {
+        this.canPropose[origin].set(
+          icaOwner,
+          await canProposeSafeTransactions(
+            signerAddress,
+            origin,
+            multiProvider,
+            icaOwner,
+          ),
+        );
+        const localAccount = await resolveAccountOwner(
+          multiProvider,
+          chain,
+          safeAddress,
+        );
+        console.log('localAccount: ', localAccount);
+
+        // const router = ethers.constants.AddressZero;
+        const innercall = this.popCall(chain);
+        if (this.interchainAccount && innercall) {
+          // TODO fix
+          // this.pushCall(chain, {
+          //   to: router,
+          //   data: this.interchainAccount.getCallRemote(chain, chain, [innercall])
+          //   description: 'ffs'
+          // });
+          // if
+          // (this.canPropose[chain].get(safeAddress.owner) {}
+          // encode the call data for ICA
+        }
+      }
     }
 
     return SubmissionType.MANUAL;

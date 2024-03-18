@@ -3,7 +3,7 @@ import { HyperlaneAddressesMap } from '../contracts/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { RouterApp } from '../router/RouterApps';
 
-import { HypERC20Factories } from './contracts';
+import { HypERC20Factories, hypERC20factories } from './contracts';
 
 export class HypERC20App extends RouterApp<HypERC20Factories> {
   constructor(contractsMap: any, multiProvider: any) {
@@ -20,7 +20,7 @@ export class HypERC20App extends RouterApp<HypERC20Factories> {
   ): HypERC20App {
     const helper = appFromAddressesMapHelper(
       addressesMap,
-      // factories,
+      hypERC20factories,
       multiProvider,
     );
     return new HypERC20App(helper.contractsMap, helper.multiProvider);

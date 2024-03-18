@@ -258,8 +258,6 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       throw new Error(`Mailbox address is required for ${config.type}`);
     }
 
-    const deployer = await this.multiProvider.getSigner(chain).getAddress();
-
     let routingHook: DomainRoutingHook | FallbackDomainRoutingHook;
     switch (config.type) {
       case HookType.ROUTING: {

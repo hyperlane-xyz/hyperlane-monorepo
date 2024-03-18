@@ -1,5 +1,6 @@
 import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
+  // HelloWorldChecker,
   HypERC20App,
   HypERC20Checker,
   HyperlaneCore,
@@ -26,6 +27,7 @@ import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
 import {
   Modules,
+  getAddresses,
   getArgs as getRootArgs,
   withContext,
   withModuleAndFork,
@@ -68,12 +70,13 @@ async function check() {
   const env = deployEnvToSdkEnv[environment];
   const core = HyperlaneCore.fromEnvironment(env, multiProvider);
   const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
-  let routerConfig = core.getRouterConfig(config.owners);
-  routerConfig = {
-    sepolia: routerConfig.sepolia,
-    scrollsepolia: routerConfig.scrollsepolia,
-    plumetestnet: routerConfig.plumetestnet,
-  };
+  const routerConfig = core.getRouterConfig(config.owners);
+  const ica = InterchainAccount.fromEnvironment(env, multiProvider);
+  // routerConfig = {
+  //   sepolia: routerConfig.sepolia,
+  //   scrollsepolia: routerConfig.scrollsepolia,
+  //   plumetestnet: routerConfig.plumetestnet,
+  // };
 
   let governor: HyperlaneAppGovernor<any, any>;
   if (module === Modules.CORE) {
@@ -89,13 +92,12 @@ async function check() {
     const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
     governor = new HyperlaneIgpGovernor(checker);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    const ica = InterchainAccount.fromEnvironment(env, multiProvider);
     const checker = new InterchainAccountChecker(
       multiProvider,
       ica,
       routerConfig,
     );
-    governor = new ProxiedRouterGovernor(checker);
+    governor = new ProxiedRouterGovernor(checker, ica);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const iqs = InterchainQuery.fromEnvironment(env, multiProvider);
     const checker = new InterchainQueryChecker(
@@ -120,7 +122,8 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
-    const app = HypERC20App.fromEnvironment(env, multiProvider);
+    const addresses = getAddresses(environment, Modules.WARP);
+    const app = HypERC20App.fromAddressesMap(addresses, multiProvider);
     const plumetestnet = {
       ...routerConfig.plumetestnet,
       type: TokenType.synthetic,
@@ -128,17 +131,24 @@ async function check() {
       symbol: 'WETH',
       decimals: 18,
       totalSupply: '0',
+      gas: 0,
     };
     const sepolia = {
       ...routerConfig.sepolia,
       type: TokenType.native,
+      gas: 0,
     };
     const config = {
       // scrollsepolia,
       plumetestnet,
       sepolia,
     };
-    const checker = new HypERC20Checker(multiProvider, app, config, ismFactory);
+    const checker = new HypERC20Checker(
+      multiProvider,
+      app,
+      config as any,
+      ismFactory,
+    );
     governor = new ProxiedRouterGovernor(checker);
   } else {
     console.log(`Skipping ${module}, checker or governor unimplemented`);

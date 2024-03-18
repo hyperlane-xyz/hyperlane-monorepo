@@ -140,6 +140,29 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     }
   }
 
+  getCallRemote(
+    chain: ChainName,
+    destination: ChainName,
+    innerCalls: CallData[],
+  ): CallData {
+    const localRouter = this.router(this.contractsMap[chain]);
+    const icaCall: CallData = {
+      to: localRouter.address,
+      data: localRouter.interface.encodeFunctionData(
+        'callRemote(uint32,(bytes32,uint256,bytes)[])',
+        [
+          this.multiProvider.getDomainId(destination),
+          innerCalls.map((call) => ({
+            to: addressToBytes32(call.to),
+            value: 0,
+            data: call.data,
+          })),
+        ],
+      ),
+    };
+    return icaCall;
+  }
+
   async callRemote(
     chain: ChainName,
     destination: ChainName,
