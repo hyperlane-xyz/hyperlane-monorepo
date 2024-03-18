@@ -292,7 +292,7 @@ impl SealevelMailbox {
                 "id": 1,
                 "method": "sendBundle",
                 "params": [
-                    base58_txn
+                    [base58_txn]
                 ],
             });
 
