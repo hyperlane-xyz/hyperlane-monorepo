@@ -37,8 +37,12 @@ export const WarpRouteDeployConfigSchema = z.object({
     })
     .refine(
       (data) => {
-        // for collateralYield tokens, ensure yieldVault is not null.
-        if (data.type === TokenType.collateralYield && data.yieldVault !== null)
+        // For collateralYield Warp Routes, ensure yieldVault is not null or address(0).
+        if (
+          data.type === TokenType.collateralYield &&
+          (data.yieldVault === null ||
+            data.yieldVault === ethers.constants.AddressZero)
+        )
           return false;
 
         return true;
@@ -107,13 +111,24 @@ export async function createWarpRouteDeployConfig({
       'Are you creating a route for the native token of the base chain (e.g. Ether on Ethereum)?',
   });
 
-  const baseType = isNative ? TokenType.native : TokenType.collateral;
   const baseAddress = isNative
     ? ethers.constants.AddressZero
     : await input({ message: 'Enter the token address' });
   const isNft = isNative
     ? false
     : await confirm({ message: 'Is this an NFT (i.e. ERC-721)?' });
+  const isYieldBearing =
+    isNative || isNft
+      ? false
+      : await confirm({
+          message:
+            'Do you want this warp route to be yield-bearing (i.e. deposits into ERC-4626 vault)?',
+        });
+  const yieldVaultAddress = isYieldBearing
+    ? await input({
+        message: 'Enter the ERC-4626 vault address',
+      })
+    : ethers.constants.AddressZero;
 
   const syntheticChains = await runMultiChainSelectionStep(
     customChains,
@@ -121,12 +136,20 @@ export async function createWarpRouteDeployConfig({
   );
 
   // TODO add more prompts here to support customizing the token metadata
-
+  let baseType: TokenType;
+  if (isNative) {
+    baseType = TokenType.native;
+  } else {
+    baseType = isYieldBearing
+      ? TokenType.collateralYield
+      : TokenType.collateral;
+  }
   const result: WarpRouteDeployConfig = {
     base: {
       chainName: baseChain,
       type: baseType,
       address: baseAddress,
+      yieldVault: yieldVaultAddress,
       isNft,
     },
     synthetics: syntheticChains.map((chain) => ({ chainName: chain })),
