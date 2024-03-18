@@ -289,7 +289,11 @@ async function fetchBaseTokenMetadata(
       multiProvider.getChainMetadata(chainName).nativeToken;
     if (chainNativeToken) return chainNativeToken;
     else throw new Error(`No native token metadata for ${chainName}`);
-  } else if (base.type === TokenType.collateral && address) {
+  } else if (
+    (base.type === TokenType.collateral ||
+      base.type === TokenType.collateralYield) &&
+    address
+  ) {
     // If it's a collateral type, use a TokenAdapter to query for its metadata
     log(`Fetching token metadata for ${address} on ${chainName}}`);
     const adapter = new EvmHypCollateralAdapter(
@@ -300,7 +304,7 @@ async function fetchBaseTokenMetadata(
     return adapter.getMetadata();
   } else {
     throw new Error(
-      `Unsupported token: ${base}. Consider setting token metadata in your deployment config.`,
+      `Unsupported token: ${base.type}. Consider setting token metadata in your deployment config.`,
     );
   }
 }

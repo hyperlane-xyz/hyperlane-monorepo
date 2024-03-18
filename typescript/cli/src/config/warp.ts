@@ -36,11 +36,13 @@ export const WarpRouteDeployConfigSchema = z.object({
       ...ConnectionConfigSchema,
     })
     .refine(
-      // Validate yieldVault for collateralYield tokens
-      (data) =>
-        data.type === TokenType.collateralYield &&
-        data.yieldVault !== ethers.constants.AddressZero &&
-        data.yieldVault !== null,
+      (data) => {
+        // for collateralYield tokens, ensure yieldVault is not null.
+        if (data.type === TokenType.collateralYield && data.yieldVault !== null)
+          return false;
+
+        return true;
+      },
       {
         message: 'yieldVault is required when type is collateralYield',
         path: ['yieldVault'],
