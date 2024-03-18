@@ -1,4 +1,5 @@
 import { EthBridger, getL2Network } from '@arbitrum/sdk';
+import { Connection, PublicKey } from '@solana/web3.js';
 import { BigNumber, ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
@@ -21,6 +22,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
+import { getSecretRpcEndpoint } from '../../src/agents';
 import { KeyAsAddress, getRoleKeysPerChain } from '../../src/agents/key-utils';
 import {
   BaseCloudAgentKey,
@@ -431,6 +433,14 @@ class ContextFunder {
         const failure = await this.attemptToFundKey(key, chain);
         failureOccurred ||= failure;
       }
+
+      if (
+        this.environment === 'mainnet2' &&
+        this.context === Contexts.Hyperlane
+      ) {
+        this.updateSolanaWalletBalanceGauge();
+      }
+
       return failureOccurred;
     });
 
@@ -708,6 +718,54 @@ class ContextFunder {
           ),
         ),
       );
+  }
+
+  private async updateSolanaWalletBalanceGauge() {
+    const chain = 'solana';
+
+    const solanaRpcUrls = await getSecretRpcEndpoint(
+      this.environment,
+      chain,
+      false,
+    );
+    const solanaProvider = new Connection(solanaRpcUrls[0], 'confirmed');
+    const accounts = [
+      {
+        // The Solana relayer
+        pubkey: new PublicKey('CLT7m1JBCqJx6FM3obi9ohTnML1zmdzFcX2SgWj1D8qV'),
+        walletName: 'relayer',
+      },
+      {
+        // The account used to pay for state rent used by new ZBC balances
+        pubkey: new PublicKey('DRoxXLkV2sAsZb7bPbCJQnucTxvQCcfzfmThC3ZVNorv'),
+        walletName: 'nautilus-zbc-rent',
+      },
+    ];
+
+    for (const { pubkey, walletName } of accounts) {
+      log('Fetching Solana wallet balance', {
+        chain,
+        pubkey: pubkey.toString(),
+        walletName,
+      });
+      const balance = await solanaProvider.getBalance(pubkey);
+      log('Got Solana wallet balance', {
+        balance,
+        chain,
+        pubkey: pubkey.toString(),
+        walletName,
+      });
+      walletBalanceGauge
+        .labels({
+          chain,
+          wallet_address: pubkey.toString(),
+          wallet_name: walletName,
+          token_symbol: 'Native',
+          token_name: 'Native',
+          ...constMetricLabels,
+        })
+        .set(balance / 1e9);
+    }
   }
 }
 
