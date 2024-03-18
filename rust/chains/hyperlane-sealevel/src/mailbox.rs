@@ -527,10 +527,10 @@ impl Mailbox for SealevelMailbox {
         instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(
             PROCESS_COMPUTE_UNITS,
         ));
-        // Set the compute unit price.
-        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
-            PROCESS_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
-        ));
+        // // Set the compute unit price.
+        // instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+        //     PROCESS_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
+        // ));
 
         // "processed" level commitment does not guarantee finality.
         // roughly 5% of blocks end up on a dropped fork.
