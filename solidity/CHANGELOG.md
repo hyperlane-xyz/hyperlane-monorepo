@@ -1,5 +1,29 @@
 # @hyperlane-xyz/core
 
+## 3.8.1
+
+### Patch Changes
+
+- Updated dependencies [5daaae274]
+  - @hyperlane-xyz/utils@3.8.1
+
+## 3.8.0
+
+### Minor Changes
+
+- 9681df08d: Remove support for goerli networks (including optimismgoerli, arbitrumgoerli, lineagoerli and polygonzkevmtestnet)
+- 9681df08d: Enabled verification of contracts as part of the deployment flow.
+
+  - Solidity build artifact is now included as part of the `@hyperlane-xyz/core` package.
+  - Updated the `HyperlaneDeployer` to perform contract verification immediately after deploying a contract. A default verifier is instantiated using the core build artifact.
+  - Updated the `HyperlaneIsmFactory` to re-use the `HyperlaneDeployer` for deployment where possible.
+  - Minor logging improvements throughout deployers.
+
+### Patch Changes
+
+- Updated dependencies [9681df08d]
+  - @hyperlane-xyz/utils@3.8.0
+
 ## 3.7.0
 
 ### Patch Changes

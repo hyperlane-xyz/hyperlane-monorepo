@@ -1,12 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 // ============ Internal Imports ============
 import {OwnableMulticall} from "./libs/OwnableMulticall.sol";
 import {InterchainAccountMessage} from "./libs/InterchainAccountMessage.sol";
 import {CallLib} from "./libs/Call.sol";
 import {MinimalProxy} from "../libs/MinimalProxy.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
+import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {EnumerableMapExtended} from "../libs/EnumerableMapExtended.sol";
 import {Router} from "../client/Router.sol";
 
@@ -82,17 +95,17 @@ contract InterchainAccountRouter is Router {
 
     /**
      * @notice Initializes the contract with HyperlaneConnectionClient contracts
-     * @param _interchainGasPaymaster Unused but required by HyperlaneConnectionClient
+     * @param _customHook used by the Router to set the hook to override with
      * @param _interchainSecurityModule The address of the local ISM contract
      * @param _owner The address with owner privileges
      */
     function initialize(
-        address _interchainGasPaymaster,
+        address _customHook,
         address _interchainSecurityModule,
         address _owner
     ) external initializer {
         _MailboxClient_initialize(
-            _interchainGasPaymaster,
+            _customHook,
             _interchainSecurityModule,
             _owner
         );
@@ -157,7 +170,7 @@ contract InterchainAccountRouter is Router {
         address _to,
         uint256 _value,
         bytes memory _data
-    ) external returns (bytes32) {
+    ) external payable returns (bytes32) {
         bytes32 _router = routers(_destination);
         bytes32 _ism = isms[_destination];
         bytes memory _body = InterchainAccountMessage.encode(
@@ -168,6 +181,44 @@ contract InterchainAccountRouter is Router {
             _data
         );
         return _dispatchMessage(_destination, _router, _ism, _body);
+    }
+
+    /**
+     * @notice Dispatches a single remote call to be made by an owner's
+     * interchain account on the destination domain
+     * @dev Uses the default router and ISM addresses for the destination
+     * domain, reverting if none have been configured
+     * @param _destination The remote domain of the chain to make calls on
+     * @param _to The address of the contract to call
+     * @param _value The value to include in the call
+     * @param _data The calldata
+     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
+     * @return The Hyperlane message ID
+     */
+    function callRemote(
+        uint32 _destination,
+        address _to,
+        uint256 _value,
+        bytes memory _data,
+        bytes memory _hookMetadata
+    ) external payable returns (bytes32) {
+        bytes32 _router = routers(_destination);
+        bytes32 _ism = isms[_destination];
+        bytes memory _body = InterchainAccountMessage.encode(
+            msg.sender,
+            _ism,
+            _to,
+            _value,
+            _data
+        );
+        return
+            _dispatchMessageWithMetadata(
+                _destination,
+                _router,
+                _ism,
+                _body,
+                _hookMetadata
+            );
     }
 
     /**
@@ -183,10 +234,44 @@ contract InterchainAccountRouter is Router {
     function callRemote(
         uint32 _destination,
         CallLib.Call[] calldata _calls
-    ) external returns (bytes32) {
+    ) external payable returns (bytes32) {
         bytes32 _router = routers(_destination);
         bytes32 _ism = isms[_destination];
-        return callRemoteWithOverrides(_destination, _router, _ism, _calls);
+        bytes memory _body = InterchainAccountMessage.encode(
+            msg.sender,
+            _ism,
+            _calls
+        );
+
+        return _dispatchMessage(_destination, _router, _ism, _body);
+    }
+
+    /**
+     * @notice Dispatches a sequence of remote calls to be made by an owner's
+     * interchain account on the destination domain
+     * @dev Uses the default router and ISM addresses for the destination
+     * domain, reverting if none have been configured
+     * @dev Recommend using CallLib.build to format the interchain calls.
+     * @param _destination The remote domain of the chain to make calls on
+     * @param _calls The sequence of calls to make
+     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
+     * @return The Hyperlane message ID
+     */
+    function callRemote(
+        uint32 _destination,
+        CallLib.Call[] calldata _calls,
+        bytes calldata _hookMetadata
+    ) external payable returns (bytes32) {
+        bytes32 _router = routers(_destination);
+        bytes32 _ism = isms[_destination];
+        return
+            callRemoteWithOverrides(
+                _destination,
+                _router,
+                _ism,
+                _calls,
+                _hookMetadata
+            );
     }
 
     /**
@@ -395,13 +480,46 @@ contract InterchainAccountRouter is Router {
         bytes32 _router,
         bytes32 _ism,
         CallLib.Call[] calldata _calls
-    ) public returns (bytes32) {
+    ) public payable returns (bytes32) {
         bytes memory _body = InterchainAccountMessage.encode(
             msg.sender,
             _ism,
             _calls
         );
         return _dispatchMessage(_destination, _router, _ism, _body);
+    }
+
+    /**
+     * @notice Dispatches a sequence of remote calls to be made by an owner's
+     * interchain account on the destination domain
+     * @dev Recommend using CallLib.build to format the interchain calls
+     * @param _destination The remote domain of the chain to make calls on
+     * @param _router The remote router address
+     * @param _ism The remote ISM address
+     * @param _calls The sequence of calls to make
+     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
+     * @return The Hyperlane message ID
+     */
+    function callRemoteWithOverrides(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        CallLib.Call[] calldata _calls,
+        bytes memory _hookMetadata
+    ) public payable returns (bytes32) {
+        bytes memory _body = InterchainAccountMessage.encode(
+            msg.sender,
+            _ism,
+            _calls
+        );
+        return
+            _dispatchMessageWithMetadata(
+                _destination,
+                _router,
+                _ism,
+                _body,
+                _hookMetadata
+            );
     }
 
     // ============ Internal Functions ============
@@ -474,7 +592,33 @@ contract InterchainAccountRouter is Router {
     ) private returns (bytes32) {
         require(_router != bytes32(0), "no router specified for destination");
         emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
-        return mailbox.dispatch(_destination, _router, _body);
+        return mailbox.dispatch{value: msg.value}(_destination, _router, _body);
+    }
+
+    /**
+     * @notice Dispatches an InterchainAccountMessage to the remote router with hook metadata
+     * @param _destination The remote domain
+     * @param _router The address of the remote InterchainAccountRouter
+     * @param _ism The address of the remote ISM
+     * @param _body The InterchainAccountMessage body
+     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
+     */
+    function _dispatchMessageWithMetadata(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        bytes memory _body,
+        bytes memory _hookMetadata
+    ) private returns (bytes32) {
+        require(_router != bytes32(0), "no router specified for destination");
+        emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
+        return
+            mailbox.dispatch{value: msg.value}(
+                _destination,
+                _router,
+                _body,
+                _hookMetadata
+            );
     }
 
     /**

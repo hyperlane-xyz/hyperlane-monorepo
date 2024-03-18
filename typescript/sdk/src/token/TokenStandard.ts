@@ -5,6 +5,8 @@ import {
   ProviderType,
 } from '../providers/ProviderType';
 
+import { TokenType } from './config';
+
 export enum TokenStandard {
   // EVM
   ERC20 = 'ERC20',
@@ -127,6 +129,16 @@ export const TOKEN_COSMWASM_STANDARDS = [
   TokenStandard.CwHypCollateral,
   TokenStandard.CwHypSynthetic,
 ];
+
+export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
+  [TokenType.native]: TokenStandard.EvmHypNative,
+  [TokenType.collateral]: TokenStandard.EvmHypCollateral,
+  [TokenType.collateralUri]: TokenStandard.EvmHypCollateral,
+  [TokenType.fastCollateral]: TokenStandard.EvmHypCollateral,
+  [TokenType.synthetic]: TokenStandard.EvmHypSynthetic,
+  [TokenType.syntheticUri]: TokenStandard.EvmHypSynthetic,
+  [TokenType.fastSynthetic]: TokenStandard.EvmHypSynthetic,
+};
 
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
   {

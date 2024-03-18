@@ -1,26 +1,32 @@
 import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
-import { ERC20__factory, ERC721__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
   ConnectionClientConfig,
+  EvmHypCollateralAdapter,
   HypERC20Deployer,
   HypERC721Deployer,
   HyperlaneContractsMap,
+  MinimalTokenMetadata,
+  MultiProtocolProvider,
   MultiProvider,
   RouterConfig,
+  TOKEN_TYPE_TO_STANDARD,
   TokenConfig,
   TokenFactories,
   TokenType,
-  chainMetadata as defaultChainMetadata,
-  getChainIdNumber,
+  WarpCoreConfig,
+  getTokenConnectionId,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen } from '../../logger.js';
-import { WarpRouteConfig, readWarpRouteConfig } from '../config/warp.js';
+import {
+  WarpRouteDeployConfig,
+  readWarpRouteDeployConfig,
+} from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { getContext, getMergedContractAddresses } from '../context.js';
 import {
@@ -30,20 +36,19 @@ import {
   writeJson,
 } from '../utils/files.js';
 
-import { MinimalTokenMetadata, WarpUITokenConfig } from './types.js';
 import { runPreflightChecks } from './utils.js';
 
-export async function runWarpDeploy({
+export async function runWarpRouteDeploy({
   key,
   chainConfigPath,
-  warpConfigPath,
+  warpRouteDeploymentConfigPath,
   coreArtifactsPath,
   outPath,
   skipConfirmation,
 }: {
   key: string;
   chainConfigPath: string;
-  warpConfigPath?: string;
+  warpRouteDeploymentConfigPath?: string;
   coreArtifactsPath?: string;
   outPath: string;
   skipConfirmation: boolean;
@@ -55,17 +60,25 @@ export async function runWarpDeploy({
     skipConfirmation,
   });
 
-  if (!warpConfigPath || !isFile(warpConfigPath)) {
-    if (skipConfirmation) throw new Error('Warp config required');
-    warpConfigPath = await runFileSelectionStep(
+  if (
+    !warpRouteDeploymentConfigPath ||
+    !isFile(warpRouteDeploymentConfigPath)
+  ) {
+    if (skipConfirmation)
+      throw new Error('Warp route deployment config required');
+    warpRouteDeploymentConfigPath = await runFileSelectionStep(
       './configs',
-      'Warp config',
+      'Warp route deployment config',
       'warp',
     );
   } else {
-    log(`Using warp config at ${warpConfigPath}`);
+    log(
+      `Using warp route deployment config at ${warpRouteDeploymentConfigPath}`,
+    );
   }
-  const warpRouteConfig = readWarpRouteConfig(warpConfigPath);
+  const warpRouteConfig = readWarpRouteDeployConfig(
+    warpRouteDeploymentConfigPath,
+  );
 
   const configs = await runBuildConfigStep({
     warpRouteConfig,
@@ -83,7 +96,7 @@ export async function runWarpDeploy({
     skipConfirmation,
   };
 
-  logBlue('WARP Deployment plan');
+  logBlue('Warp route deployment plan');
 
   await runDeployPlanStep(deploymentParams);
   await runPreflightChecks({
@@ -100,7 +113,7 @@ async function runBuildConfigStep({
   coreArtifacts,
   skipConfirmation,
 }: {
-  warpRouteConfig: WarpRouteConfig;
+  warpRouteConfig: WarpRouteDeployConfig;
   multiProvider: MultiProvider;
   signer: ethers.Signer;
   coreArtifacts?: HyperlaneContractsMap<any>;
@@ -239,7 +252,7 @@ async function executeDeploy(params: DeployParams) {
   const { configMap, isNft, multiProvider, outPath } = params;
 
   const [contractsFilePath, tokenConfigPath] = prepNewArtifactsFiles(outPath, [
-    { filename: 'warp-deployment', description: 'Contract addresses' },
+    { filename: 'warp-route-deployment', description: 'Contract addresses' },
     { filename: 'warp-ui-token-config', description: 'Warp UI token config' },
   ]);
 
@@ -259,12 +272,11 @@ async function executeDeploy(params: DeployParams) {
   logBlue(`Warp UI token config is in ${tokenConfigPath}`);
 }
 
-// TODO move into token classes in the SDK
 async function fetchBaseTokenMetadata(
-  base: WarpRouteConfig['base'],
+  base: WarpRouteDeployConfig['base'],
   multiProvider: MultiProvider,
 ): Promise<MinimalTokenMetadata> {
-  const { type, name, symbol, chainName, address, decimals, isNft } = base;
+  const { type, name, symbol, chainName, address, decimals } = base;
 
   // Skip fetching metadata if it's already provided in the config
   if (name && symbol && decimals) {
@@ -272,31 +284,24 @@ async function fetchBaseTokenMetadata(
   }
 
   if (type === TokenType.native) {
-    return (
-      multiProvider.getChainMetadata(base.chainName).nativeToken ||
-      defaultChainMetadata.ethereum.nativeToken!
-    );
+    // If it's a native token, use the chain's native token metadata
+    const chainNativeToken =
+      multiProvider.getChainMetadata(chainName).nativeToken;
+    if (chainNativeToken) return chainNativeToken;
+    else throw new Error(`No native token metadata for ${chainName}`);
   } else if (base.type === TokenType.collateral && address) {
+    // If it's a collateral type, use a TokenAdapter to query for its metadata
     log(`Fetching token metadata for ${address} on ${chainName}}`);
-    const provider = multiProvider.getProvider(chainName);
-    if (isNft) {
-      const erc721Contract = ERC721__factory.connect(address, provider);
-      const [name, symbol] = await Promise.all([
-        erc721Contract.name(),
-        erc721Contract.symbol(),
-      ]);
-      return { name, symbol, decimals: 0 };
-    } else {
-      const erc20Contract = ERC20__factory.connect(address, provider);
-      const [name, symbol, decimals] = await Promise.all([
-        erc20Contract.name(),
-        erc20Contract.symbol(),
-        erc20Contract.decimals(),
-      ]);
-      return { name, symbol, decimals };
-    }
+    const adapter = new EvmHypCollateralAdapter(
+      chainName,
+      MultiProtocolProvider.fromMultiProvider(multiProvider),
+      { token: address },
+    );
+    return adapter.getMetadata();
   } else {
-    throw new Error(`Unsupported token: ${base}`);
+    throw new Error(
+      `Unsupported token: ${base}. Consider setting token metadata in your deployment config.`,
+    );
   }
 }
 
@@ -323,44 +328,47 @@ function writeTokenDeploymentArtifacts(
 function writeWarpUiTokenConfig(
   filePath: string,
   contracts: HyperlaneContractsMap<TokenFactories>,
-  { configMap, isNft, metadata, origin, multiProvider }: DeployParams,
+  { configMap, metadata }: DeployParams,
 ) {
-  const baseConfig = configMap[origin];
-  const hypTokenAddr =
-    contracts[origin]?.[configMap[origin].type as keyof TokenFactories]
-      ?.address || configMap[origin]?.foreignDeployment;
-  if (!hypTokenAddr) {
-    throw Error(
-      'No base Hyperlane token address deployed and no foreign deployment specified',
-    );
-  }
-  const chain = multiProvider.getChainMetadata(origin);
-  if (chain.protocol !== ProtocolType.Ethereum) throw Error('Unsupported VM');
-  const chainMetadata = multiProvider.getChainMetadata(origin);
-  const commonFields = {
-    chainId: getChainIdNumber(chainMetadata),
-    name: metadata.name,
-    symbol: metadata.symbol,
-    decimals: metadata.decimals,
-  };
-  let tokenConfig: WarpUITokenConfig;
-  if (baseConfig.type === TokenType.collateral) {
-    tokenConfig = {
-      ...commonFields,
-      type: TokenType.collateral,
-      address: baseConfig.token,
-      hypCollateralAddress: hypTokenAddr,
-      isNft,
-    };
-  } else if (baseConfig.type === TokenType.native) {
-    tokenConfig = {
-      ...commonFields,
-      type: TokenType.native,
-      hypNativeAddress: hypTokenAddr,
-    };
-  } else {
-    throw new Error(`Unsupported token type: ${baseConfig.type}`);
+  const warpCoreConfig: WarpCoreConfig = { tokens: [] };
+
+  // First pass, create token configs
+  for (const [chainName, contract] of Object.entries(contracts)) {
+    const config = configMap[chainName];
+    const collateralAddressOrDenom =
+      config.type === TokenType.collateral ? config.token : undefined;
+    warpCoreConfig.tokens.push({
+      chainName,
+      standard: TOKEN_TYPE_TO_STANDARD[config.type],
+      name: metadata.name,
+      symbol: metadata.symbol,
+      decimals: metadata.decimals,
+      addressOrDenom:
+        contract[configMap[origin].type as keyof TokenFactories].address,
+      collateralAddressOrDenom,
+    });
   }
 
-  writeJson(filePath, tokenConfig);
+  // Second pass, add connections between tokens
+  // Assumes full interconnectivity between all tokens for now b.c. that's
+  // what the deployers do by default.
+  for (const token1 of warpCoreConfig.tokens) {
+    for (const token2 of warpCoreConfig.tokens) {
+      if (
+        token1.chainName === token2.chainName &&
+        token1.addressOrDenom === token2.addressOrDenom
+      )
+        continue;
+      token1.connections ||= [];
+      token1.connections.push({
+        token: getTokenConnectionId(
+          ProtocolType.Ethereum,
+          token2.chainName,
+          token2.addressOrDenom!,
+        ),
+      });
+    }
+  }
+
+  writeJson(filePath, warpCoreConfig);
 }

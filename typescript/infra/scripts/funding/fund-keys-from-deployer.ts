@@ -60,34 +60,16 @@ const nativeBridges = {
     l1ETHGateway: '0x8A54A2347Da2562917304141ab67324615e9866d',
     l1Messenger: '0x50c7d3e7f7c656493D1D76aaa1a836CedfCBB16A',
   },
-  polygonzkevmtestnet: {
-    l1EVMBridge: '0xF6BEEeBB578e214CA9E23B0e9683454Ff88Ed2A7',
-  },
 };
 
-type L2Chain =
-  | Chains.optimism
-  | Chains.optimismgoerli
-  | Chains.arbitrum
-  | Chains.arbitrumgoerli
-  | Chains.base;
+type L2Chain = Chains.optimism | Chains.arbitrum | Chains.base;
 
-const L2Chains: ChainName[] = [
-  Chains.optimism,
-  Chains.optimismgoerli,
-  Chains.arbitrum,
-  Chains.arbitrumgoerli,
-  Chains.base,
-  Chains.polygonzkevmtestnet,
-];
+const L2Chains: ChainName[] = [Chains.optimism, Chains.arbitrum, Chains.base];
 
 const L2ToL1: ChainMap<ChainName> = {
-  optimismgoerli: 'goerli',
-  arbitrumgoerli: 'goerli',
   optimism: 'ethereum',
   arbitrum: 'ethereum',
   base: 'ethereum',
-  polygonzkevmtestnet: 'goerli',
 };
 
 // Missing types declaration for bufio
@@ -140,14 +122,10 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   arbitrum: '0.1',
   bsc: '0.3',
   bsctestnet: '1',
-  goerli: '1',
   sepolia: '1',
   moonbeam: '5',
-  optimismgoerli: '1',
-  arbitrumgoerli: '1',
   gnosis: '5',
   scrollsepolia: '0.1',
-  polygonzkevmtestnet: '0.1',
   base: '0.1',
   scroll: '0.1',
   polygonzkevm: '0.1',
@@ -704,8 +682,6 @@ class ContextFunder {
       tx = await this.bridgeToArbitrum(l2Chain, amount);
     } else if (l2Chain.includes('scroll')) {
       tx = await this.bridgeToScroll(l2Chain, amount, to);
-    } else if (l2Chain.includes('zkevm')) {
-      tx = await this.bridgeToPolygonCDK(l2Chain, amount, to);
     } else {
       throw new Error(`${l2Chain} is not an L2`);
     }
@@ -777,31 +753,6 @@ class ContextFunder {
       l2GasLimit,
       {
         value: totalAmount,
-      },
-    );
-  }
-
-  private async bridgeToPolygonCDK(
-    l2Chain: L2Chain,
-    amount: BigNumber,
-    to: Address,
-  ) {
-    const l1Chain = L2ToL1[l2Chain];
-    const l1ChainSigner = this.multiProvider.getSigner(l1Chain);
-    const polygonZkEVMbridge = new ethers.Contract(
-      nativeBridges.polygonzkevmtestnet.l1EVMBridge,
-      PolygonZkEVMBridge.abi,
-      l1ChainSigner,
-    );
-    return polygonZkEVMbridge.bridgeAsset(
-      1, // 0 is mainnet, 1 is l2
-      to,
-      amount,
-      ethers.constants.AddressZero,
-      true,
-      [],
-      {
-        value: amount,
       },
     );
   }
