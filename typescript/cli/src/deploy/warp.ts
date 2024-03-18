@@ -313,7 +313,7 @@ function writeTokenDeploymentArtifacts(
     tokenType: TokenType;
   }> = objMap(contracts, (chain, contract) => {
     return {
-      router: contract.router.address,
+      router: contract[configMap[chain].type as keyof TokenFactories].address,
       tokenType: configMap[chain].type,
     };
   });
@@ -327,7 +327,8 @@ function writeWarpUiTokenConfig(
 ) {
   const baseConfig = configMap[origin];
   const hypTokenAddr =
-    contracts[origin]?.router?.address || configMap[origin]?.foreignDeployment;
+    contracts[origin]?.[configMap[origin].type as keyof TokenFactories]
+      ?.address || configMap[origin]?.foreignDeployment;
   if (!hypTokenAddr) {
     throw Error(
       'No base Hyperlane token address deployed and no foreign deployment specified',
