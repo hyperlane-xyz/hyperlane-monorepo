@@ -11,7 +11,7 @@ import {
   HypERC721Collateral,
   HypNative,
 } from '@hyperlane-xyz/core';
-import { objMap } from '@hyperlane-xyz/utils';
+import { objKeys, objMap } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier';
@@ -135,20 +135,11 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20CollateralConfig,
   ): Promise<HypERC20Collateral> {
-    const isFast = isFastConfig(config);
-    if (isFast) {
-      return this.deployContract<TokenType.fastCollateral>(
-        chain,
-        TokenType.fastCollateral,
-        [config.token, config.mailbox],
-      );
-    } else {
-      return this.deployContract<TokenType.collateral>(
-        chain,
-        TokenType.collateral,
-        [config.token, config.mailbox],
-      );
-    }
+    return this.deployContract(
+      chain,
+      isFastConfig(config) ? TokenType.fastCollateral : TokenType.collateral,
+      [config.token, config.mailbox],
+    );
   }
 
   protected async deployNative(
@@ -156,15 +147,12 @@ export class HypERC20Deployer extends GasRouterDeployer<
     config: HypNativeConfig,
   ): Promise<HypNative> {
     if (config.scale) {
-      return this.deployContract<TokenType.nativeScaled>(
-        chain,
-        TokenType.nativeScaled,
-        [config.scale, config.mailbox],
-      );
-    } else {
-      return this.deployContract<TokenType.native>(chain, TokenType.native, [
+      return this.deployContract(chain, TokenType.nativeScaled, [
+        config.scale,
         config.mailbox,
       ]);
+    } else {
+      return this.deployContract(chain, TokenType.native, [config.mailbox]);
     }
   }
 
@@ -172,21 +160,11 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20Config,
   ): Promise<HypERC20> {
-    let router: HypERC20;
-    if (isFastConfig(config)) {
-      router = await this.deployContract<TokenType.fastSynthetic>(
-        chain,
-        TokenType.fastSynthetic,
-        [config.decimals, config.mailbox],
-      );
-    } else {
-      router = await this.deployContract<TokenType.synthetic>(
-        chain,
-        TokenType.synthetic,
-        [config.decimals, config.mailbox],
-      );
-    }
-
+    const router: HypERC20 = await this.deployContract(
+      chain,
+      isFastConfig(config) ? TokenType.fastSynthetic : TokenType.synthetic,
+      [config.decimals, config.mailbox],
+    );
     try {
       await this.multiProvider.handleTx(
         chain,
@@ -202,9 +180,9 @@ export class HypERC20Deployer extends GasRouterDeployer<
   }
 
   router(contracts: HyperlaneContracts<HypERC20Factories>) {
-    for (const key of Object.keys(hypERC20factories)) {
-      if (contracts[key as keyof typeof contracts]) {
-        return contracts[key as keyof typeof contracts];
+    for (const key of objKeys(hypERC20factories)) {
+      if (contracts[key]) {
+        return contracts[key];
       }
     }
     throw new Error('No matching contract found');
@@ -333,44 +311,33 @@ export class HypERC721Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC721CollateralConfig,
   ): Promise<HypERC721Collateral> {
-    if (isUriConfig(config)) {
-      return this.deployContract<TokenType.collateralUri>(
-        chain,
-        TokenType.collateralUri,
-        [config.token, config.mailbox],
-      );
-    } else {
-      return this.deployContract<TokenType.collateral>(
-        chain,
-        TokenType.collateral,
-        [config.token, config.mailbox],
-      );
-    }
+    return this.deployContract(
+      chain,
+      isUriConfig(config) ? TokenType.collateralUri : TokenType.collateral,
+      [config.token, config.mailbox],
+    );
   }
 
   protected async deploySynthetic(
     chain: ChainName,
     config: HypERC721Config,
   ): Promise<HypERC721> {
-    if (isUriConfig(config)) {
-      return this.deployContract<TokenType.syntheticUri>(
-        chain,
-        TokenType.syntheticUri,
-        [config.mailbox],
-      );
-    } else {
-      return this.deployContract<TokenType.synthetic>(
-        chain,
-        TokenType.synthetic,
-        [config.mailbox],
-      );
-    }
+    const router = await this.deployContract(
+      chain,
+      isUriConfig(config) ? TokenType.syntheticUri : TokenType.synthetic,
+      [config.mailbox],
+    );
+    await this.multiProvider.handleTx(
+      chain,
+      router.initialize(config.totalSupply, config.name, config.symbol),
+    );
+    return router;
   }
 
   router(contracts: HyperlaneContracts<HypERC721Factories>) {
-    for (const key of Object.keys(hypERC721factories)) {
-      if (contracts[key as keyof typeof contracts]) {
-        return contracts[key as keyof typeof contracts];
+    for (const key of objKeys(hypERC721factories)) {
+      if (contracts[key]) {
+        return contracts[key];
       }
     }
     throw new Error('No matching contract found');

@@ -93,7 +93,10 @@ contract InterchainAccountRouterTest is Test {
         environment = new MockHyperlaneEnvironment(origin, destination);
 
         igp = new TestInterchainGasPaymaster();
-        gasPaymentQuote = igp.getDefaultGasUsage() * igp.gasPrice();
+        gasPaymentQuote = igp.quoteGasPayment(
+            destination,
+            igp.getDefaultGasUsage()
+        );
 
         icaIsm = new InterchainAccountIsm(
             address(environment.mailboxes(destination))
@@ -425,7 +428,54 @@ contract InterchainAccountRouterTest is Test {
         assertIgpPayment(balanceBefore, balanceAfter, gasLimit);
     }
 
-    function testFuzz_callRemoteWithOverrides(
+    function testFuzz_customMetadata_reverts_underpayment(
+        uint64 gasLimit,
+        uint64 payment,
+        bytes32 data
+    ) public {
+        vm.assume(payment < gasLimit * igp.gasPrice());
+        // arrange
+        bytes memory metadata = StandardHookMetadata.formatMetadata(
+            0,
+            gasLimit,
+            address(this),
+            ""
+        );
+        originRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // act
+        vm.expectRevert("IGP: insufficient interchain gas payment");
+        originRouter.callRemote{value: payment}(
+            destination,
+            getCalls(data),
+            metadata
+        );
+    }
+
+    function testFuzz_callRemoteWithOverrides_default(bytes32 data) public {
+        // arrange
+        uint256 balanceBefore = address(this).balance;
+
+        // act
+        originRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+            destination,
+            routerOverride,
+            ismOverride,
+            getCalls(data),
+            metadata
+        );
+
+        // assert
+        uint256 balanceAfter = address(this).balance;
+        assertRemoteCallReceived(data);
+        assertIgpPayment(balanceBefore, balanceAfter, igp.getDefaultGasUsage());
+    }
+
+    function testFuzz_callRemoteWithOverrides_metadata(
         uint64 gasLimit,
         bytes32 data
     ) public {

@@ -129,6 +129,10 @@ async function main() {
     //   decimals: 18,
     //   totalSupply: '0',
     // };
+    const sepolia = {
+      ...routerConfig.sepolia,
+      type: TokenType.native,
+    };
     const plumetestnet = {
       ...routerConfig.plumetestnet,
       type: TokenType.synthetic,
@@ -136,10 +140,6 @@ async function main() {
       symbol: 'WETH',
       decimals: 18,
       totalSupply: '0',
-    };
-    const sepolia = {
-      ...routerConfig.sepolia,
-      type: TokenType.native,
     };
     config = {
       // scrollsepolia,
