@@ -551,8 +551,20 @@ impl Mailbox for SealevelMailbox {
         instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(
             PROCESS_COMPUTE_UNITS,
         ));
-        // Set the compute unit price, but only if we're not using Jito.
-        if !self.use_jito() {
+
+        // If we're using Jito, we need to send a tip to the Jito fee account.
+        // Otherwise, we need to set the compute unit price.
+        if self.use_jito() {
+            // The tip is a standalone transfer to a Jito fee account.
+            // See https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#sendbundle.
+            instructions.push(solana_sdk::system_instruction::transfer(
+                &payer.pubkey(),
+                // A random Jito fee account, taken from the getFeeAccount RPC response:
+                // https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#gettipaccounts
+                &solana_sdk::pubkey!("DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh"),
+                PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX,
+            ));
+        } else {
             instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
                 PROCESS_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
             ));
@@ -639,14 +651,6 @@ impl Mailbox for SealevelMailbox {
             .get_latest_blockhash_with_commitment(commitment)
             .await
             .map_err(ChainCommunicationError::from_other)?;
-
-        instructions.push(solana_sdk::system_instruction::transfer(
-            &payer.pubkey(),
-            // A random Jito fee account, taken from the getFeeAccount RPC response:
-            // https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#gettipaccounts
-            &solana_sdk::pubkey!("DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh"),
-            PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX,
-        ));
 
         // Hack
         tokio::time::sleep(std::time::Duration::from_millis(5000)).await;
