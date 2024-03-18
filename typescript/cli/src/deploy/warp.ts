@@ -344,7 +344,7 @@ function writeWarpUiTokenConfig(
       symbol: metadata.symbol,
       decimals: metadata.decimals,
       addressOrDenom:
-        contract[configMap[origin].type as keyof TokenFactories].address,
+        contract[configMap[chainName].type as keyof TokenFactories].address,
       collateralAddressOrDenom,
     });
   }
