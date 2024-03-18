@@ -131,7 +131,11 @@ async function main() {
     // };
     const plumetestnet = {
       ...routerConfig.plumetestnet,
-      type: TokenType.native,
+      type: TokenType.synthetic,
+      name: 'Wrapped Ether',
+      symbol: 'WETH',
+      decimals: 18,
+      totalSupply: '0',
     };
     const sepolia = {
       ...routerConfig.sepolia,
