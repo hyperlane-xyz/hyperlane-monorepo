@@ -80,11 +80,7 @@
     ]
   },
   "injective": {
-    "validators": [
-      "0xbfb8911b72cfb138c7ce517c57d9c691535dc517",
-      "0x6faa139c33a7e6f53cb101f6b2ae392298283ed2",
-      "0x0115e3a66820fb99da30d30e2ce52a453ba99d92"
-    ]
+    "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
   },
   "mantapacific": {
     "validators": [
