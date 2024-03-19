@@ -14,8 +14,7 @@
 base:
   chainName: anvil1
   type: native
-  # address: 0x123... # Required for collateral types
-  # vaultAddress: 0x123... # Required for collateralVault types. Specifies the ERC4626 vault to deposit collateral into
+  # address: 0x123... # Required for collateral types. For collateralVault types, specifies the ERC4626 vault to deposit collateral into
   # isNft: true # If the token is an NFT (ERC721), set to true
   # owner: 0x123 # Optional owner address for synthetic token
   # mailbox: 0x123 # Optional mailbox address route

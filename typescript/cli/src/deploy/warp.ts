@@ -156,7 +156,6 @@ async function runBuildConfigStep({
       name: baseMetadata.name,
       symbol: baseMetadata.symbol,
       decimals: baseMetadata.decimals,
-      vaultAddress: base.vaultAddress as string,
     },
   };
 
@@ -279,8 +278,7 @@ async function fetchBaseTokenMetadata(
   base: WarpRouteDeployConfig['base'],
   multiProvider: MultiProvider,
 ): Promise<MinimalTokenMetadata> {
-  const { type, name, symbol, chainName, address, decimals, vaultAddress } =
-    base;
+  const { type, name, symbol, chainName, address, decimals } = base;
 
   // Skip fetching metadata if it's already provided in the config
   if (name && symbol && decimals) {
@@ -293,23 +291,16 @@ async function fetchBaseTokenMetadata(
       multiProvider.getChainMetadata(chainName).nativeToken;
     if (chainNativeToken) return chainNativeToken;
     else throw new Error(`No native token metadata for ${chainName}`);
-  } else if (base.type === TokenType.collateral && address) {
+  } else if (
+    base.type === TokenType.collateralVault ||
+    (base.type === TokenType.collateral && address)
+  ) {
     // If it's a collateral type, use a TokenAdapter to query for its metadata
     log(`Fetching token metadata for ${address} on ${chainName}}`);
     const adapter = new EvmTokenAdapter(
       chainName,
       MultiProtocolProvider.fromMultiProvider(multiProvider),
-      { token: address },
-    );
-    return adapter.getMetadata();
-  } else if (base.type === TokenType.collateralVault && vaultAddress) {
-    // If it's a collateralVault type, query the vault's metadata.
-    log(`Fetching vault metadata for ${address} on ${chainName}}`);
-    // ERC4626 is inherits from ERC20, so it's okay to use EvmTokenAdapter
-    const adapter = new EvmTokenAdapter(
-      chainName,
-      MultiProtocolProvider.fromMultiProvider(multiProvider),
-      { token: vaultAddress },
+      { token: address as string },
     );
     return adapter.getMetadata();
   } else {
