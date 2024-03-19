@@ -26,8 +26,8 @@ export const WarpRouteDeployConfigSchema = z.object({
         .literal(TokenType.native)
         .or(z.literal(TokenType.collateral))
         .or(z.literal(TokenType.collateralVault)),
-      vaultAddress: z.string().optional(),
       chainName: z.string(),
+      vaultAddress: ZHash.optional(),
       address: ZHash.optional(),
       isNft: z.boolean().optional(),
       name: z.string().optional(),

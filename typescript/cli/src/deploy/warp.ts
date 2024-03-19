@@ -127,12 +127,8 @@ async function runBuildConfigStep({
   const { type: baseType, chainName: baseChainName, isNft } = base;
 
   const owner = await signer.getAddress();
-  // const baseMetadata = await fetchBaseTokenMetadata(base, multiProvider);
-  const baseMetadata = {
-    name: 'Vault Token',
-    symbol: 'BASEV',
-    decimals: 18,
-  };
+  const baseMetadata = await fetchBaseTokenMetadata(base, multiProvider);
+
   log(
     `Using base token metadata: Name: ${baseMetadata.name}, Symbol: ${baseMetadata.symbol}, Decimals: ${baseMetadata.decimals}`,
   );
@@ -163,6 +159,7 @@ async function runBuildConfigStep({
       name: baseMetadata.name,
       symbol: baseMetadata.symbol,
       decimals: baseMetadata.decimals,
+      vaultAddress: base.vaultAddress as string,
     },
   };
 
@@ -266,10 +263,6 @@ async function executeDeploy(params: DeployParams) {
     { filename: 'warp-ui-token-config', description: 'Warp UI token config' },
   ]);
 
-  // let deployer;
-  // if (isNft) {
-  //   deployer = new HypERC721Deployer(multiProvider)
-  // } else if ()
   const deployer = isNft
     ? new HypERC721Deployer(multiProvider)
     : new HypERC20Deployer(multiProvider);
@@ -318,7 +311,7 @@ async function fetchBaseTokenMetadata(
     // If it's a collateralVault type, query the vault's metadata.
     log(`Fetching vault metadata for ${address} on ${chainName}}`);
     // ERC4626 is inherits from ERC20, so it's okay to use EvmHypCollateralAdapter
-    const adapter = new EvmHypCollateralAdapter(
+    const adapter = new EvmTokenAdapter(
       chainName,
       MultiProtocolProvider.fromMultiProvider(multiProvider),
       { token: vaultAddress },

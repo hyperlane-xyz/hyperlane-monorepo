@@ -45,6 +45,7 @@ export type CollateralConfig = {
     | TokenType.fastSynthetic
     | TokenType.collateralVault;
   token: string;
+  vaultAddress: string;
 } & Partial<ERC20Metadata>;
 export type NativeConfig = {
   type: TokenType.native;
