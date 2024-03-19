@@ -1,10 +1,10 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "3.8.1",
+  "version": "3.8.2",
   "description": "A command-line utility for common Hyperlane operations",
   "dependencies": {
-    "@hyperlane-xyz/sdk": "3.8.1",
-    "@hyperlane-xyz/utils": "3.8.1",
+    "@hyperlane-xyz/sdk": "3.8.2",
+    "@hyperlane-xyz/utils": "3.8.2",
     "@inquirer/prompts": "^3.0.0",
     "bignumber.js": "^9.1.1",
     "chalk": "^5.3.0",

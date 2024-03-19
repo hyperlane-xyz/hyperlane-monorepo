@@ -1,5 +1,11 @@
 # @hyperlane-xyz/core
 
+## 3.8.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@3.8.2
+
 ## 3.8.1
 
 ### Patch Changes
