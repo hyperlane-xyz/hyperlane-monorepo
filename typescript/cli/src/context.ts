@@ -78,7 +78,6 @@ export async function getContext<P extends ContextSettings>({
   keyConfig,
   skipConfirmation,
 }: P): Promise<CommandContext<P>> {
-  // @audit-info parse and validate the supplied chainConfigPath into a config object, overriding defaults (chains.yaml)
   const customChains = readChainConfigsIfExists(chainConfigPath);
 
   let signer = undefined;
@@ -107,7 +106,6 @@ export async function getContext<P extends ContextSettings>({
       })) || {};
   }
 
-  // @audit-info creates a MultiProvider using the default and custom chain metadata
   const multiProvider = getMultiProvider(customChains, signer);
 
   return {
@@ -122,7 +120,6 @@ export function getMultiProvider(
   customChains: ChainMap<ChainMetadata>,
   signer?: ethers.Signer,
 ) {
-  // @audit-info merge the default chainMetadata with the custom ones
   const chainConfigs = { ...chainMetadata, ...customChains };
   const mp = new MultiProvider(chainConfigs);
   if (signer) mp.setSharedSigner(signer);

@@ -19,7 +19,6 @@ import {
 
 export function readChainConfigs(filePath: string) {
   log(`Reading file configs in ${filePath}`);
-  // @audit-info reads a yaml or json file and parse to ChainMetadata
   const chainToMetadata = readYamlOrJson<ChainMap<ChainMetadata>>(filePath);
 
   if (

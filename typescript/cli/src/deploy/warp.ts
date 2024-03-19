@@ -53,7 +53,6 @@ export async function runWarpRouteDeploy({
   outPath: string;
   skipConfirmation: boolean;
 }) {
-  // @audit-info parses the config files and returns a "context" with a MultiProvider, signer, and core artificats
   const { multiProvider, signer, coreArtifacts } = await getContext({
     chainConfigPath,
     coreConfig: { coreArtifactsPath },
@@ -67,11 +66,10 @@ export async function runWarpRouteDeploy({
   ) {
     if (skipConfirmation)
       throw new Error('Warp route deployment config required');
-    // @audit-info prompts the user to pick a specific warp file
     warpRouteDeploymentConfigPath = await runFileSelectionStep(
       './configs',
       'Warp route deployment config',
-      'warp', // pattern
+      'warp',
     );
   } else {
     log(
@@ -110,7 +108,6 @@ export async function runWarpRouteDeploy({
 
 async function runBuildConfigStep({
   warpRouteConfig,
-  //@ts-ignore
   multiProvider,
   signer,
   coreArtifacts,
@@ -181,7 +178,6 @@ async function runBuildConfigStep({
     };
   }
 
-  // @audit-info This loop goes through each configMap, and checks that mailbox is set, if not prompt user
   // Request input for any address fields that are missing
   const requiredRouterFields: Array<keyof ConnectionClientConfig> = ['mailbox'];
   let hasShownInfo = false;
@@ -279,7 +275,6 @@ async function executeDeploy(params: DeployParams) {
   logBlue(`Warp UI token config is in ${tokenConfigPath}`);
 }
 
-//@ts-ignore
 async function fetchBaseTokenMetadata(
   base: WarpRouteDeployConfig['base'],
   multiProvider: MultiProvider,
