@@ -1,5 +1,6 @@
 import { prompts } from 'prompts';
 
+import { Ownable__factory } from '@hyperlane-xyz/core';
 import {
   AccountConfig,
   ChainMap,
@@ -11,7 +12,7 @@ import {
   OwnerViolation,
   resolveAccountOwner,
 } from '@hyperlane-xyz/sdk';
-import { Address, CallData, objMap } from '@hyperlane-xyz/utils';
+import { Address, CallData, eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 // import { iNTERCHAINACCOUTNROUTER}
 import { canProposeSafeTransactions } from '../utils/safe';
@@ -240,6 +241,18 @@ export abstract class HyperlaneAppGovernor<
             return SubmissionType.SAFE;
           }
         }
+      }
+    }
+
+    const latestCall = this.popCall(chain);
+    if (this.ica && latestCall) {
+      const ownableAddress = latestCall.to;
+      const ownable = Ownable__factory.connect(ownableAddress, signer);
+      const owner = await ownable.owner();
+      if (eqAddress(owner, this.ica.routerAddress(chain))) {
+        console.log('issa owner by ICA account');
+        // TODO: push encoded
+        return SubmissionType.SAFE;
       }
     }
 
