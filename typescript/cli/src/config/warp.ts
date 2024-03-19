@@ -25,7 +25,7 @@ export const WarpRouteDeployConfigSchema = z.object({
       type: z
         .literal(TokenType.native)
         .or(z.literal(TokenType.collateral))
-        .or(z.literal(TokenType.collateralYield)),
+        .or(z.literal(TokenType.collateralVault)),
       vaultAddress: z.string().optional(),
       chainName: z.string(),
       address: ZHash.optional(),
@@ -37,9 +37,9 @@ export const WarpRouteDeployConfigSchema = z.object({
     })
     .refine(
       (data) => {
-        // For collateralYield Warp Routes, ensure vaultAddress is not null or address(0).
+        // For collateralVault Warp Routes, ensure vaultAddress is not null or address(0).
         if (
-          data.type === TokenType.collateralYield &&
+          data.type === TokenType.collateralVault &&
           (data.vaultAddress === null ||
             data.vaultAddress === ethers.constants.AddressZero)
         )
@@ -48,7 +48,7 @@ export const WarpRouteDeployConfigSchema = z.object({
         return true;
       },
       {
-        message: 'vaultAddress is required when type is collateralYield',
+        message: 'vaultAddress is required when type is collateralVault',
         path: ['vaultAddress'],
       },
     ),
@@ -141,7 +141,7 @@ export async function createWarpRouteDeployConfig({
     baseType = TokenType.native;
   } else {
     baseType = isYieldBearing
-      ? TokenType.collateralYield
+      ? TokenType.collateralVault
       : TokenType.collateral;
   }
   const result: WarpRouteDeployConfig = {

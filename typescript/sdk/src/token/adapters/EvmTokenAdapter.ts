@@ -218,7 +218,7 @@ export class EvmHypCollateralAdapter
   extends EvmHypSyntheticAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
-  public readonly collateralContract: HypERC20Collateral;
+  public collateralContract: HypERC20Collateral;
   protected wrappedTokenAddress?: Address;
 
   constructor(

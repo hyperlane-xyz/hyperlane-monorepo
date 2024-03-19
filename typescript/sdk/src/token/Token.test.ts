@@ -44,7 +44,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
-  [TokenStandard.EvmHypCollateralYield]: {
+  [TokenStandard.EvmHypcollateralVault]: {
     chainName: Chains.bsctestnet,
     standard: TokenStandard.EvmHypCollateral,
     addressOrDenom: '0x31b5234A896FbC4b3e2F7237592D054716762131',
