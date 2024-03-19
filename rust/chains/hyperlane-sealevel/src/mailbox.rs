@@ -546,7 +546,7 @@ impl Mailbox for SealevelMailbox {
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
 
-        let mut instructions = Vec::with_capacity(4);
+        let mut instructions = Vec::with_capacity(3);
         // Set the compute unit limit.
         instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(
             PROCESS_COMPUTE_UNITS,
