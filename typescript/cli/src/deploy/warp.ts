@@ -318,7 +318,7 @@ function writeTokenDeploymentArtifacts(
     tokenType: TokenType;
   }> = objMap(contracts, (chain, contract) => {
     return {
-      router: contract.router.address,
+      router: contract[configMap[chain].type as keyof TokenFactories].address,
       tokenType: configMap[chain].type,
     };
   });
@@ -343,7 +343,8 @@ function writeWarpUiTokenConfig(
       name: metadata.name,
       symbol: metadata.symbol,
       decimals: metadata.decimals,
-      addressOrDenom: contract.router.address,
+      addressOrDenom:
+        contract[configMap[chainName].type as keyof TokenFactories].address,
       collateralAddressOrDenom,
     });
   }
