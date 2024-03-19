@@ -305,7 +305,7 @@ async function fetchBaseTokenMetadata(
   } else if (base.type === TokenType.collateralVault && vaultAddress) {
     // If it's a collateralVault type, query the vault's metadata.
     log(`Fetching vault metadata for ${address} on ${chainName}}`);
-    // ERC4626 is inherits from ERC20, so it's okay to use EvmHypCollateralAdapter
+    // ERC4626 is inherits from ERC20, so it's okay to use EvmTokenAdapter
     const adapter = new EvmTokenAdapter(
       chainName,
       MultiProtocolProvider.fromMultiProvider(multiProvider),
