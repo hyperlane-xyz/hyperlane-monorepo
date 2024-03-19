@@ -26,6 +26,9 @@ import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
+import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
+import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
+import victionEthereumUsdtAddresses from './warp/viction-USDT-addresses.json';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -162,6 +165,18 @@ const hyperlane: RootAgentConfig = {
       {
         name: 'inevm_ethereum_usdt',
         matchingList: routerMatchingList(inevmEthereumUsdtAddresses),
+      },
+      {
+        name: 'viction_ethereum_eth',
+        matchingList: routerMatchingList(victionEthereumEthAddresses),
+      },
+      {
+        name: 'viction_ethereum_usdc',
+        matchingList: routerMatchingList(victionEthereumUsdcAddresses),
+      },
+      {
+        name: 'viction_ethereum_usdt',
+        matchingList: routerMatchingList(victionEthereumUsdtAddresses),
       },
     ],
   },
