@@ -79,6 +79,8 @@ pub enum KnownHyperlaneDomain {
 
     Zksync2Testnet = 280,
 
+    Solana = 1399811149,
+
     // -- Local test chains --
     /// Test1 local chain
     Test1 = 13371,
@@ -182,8 +184,7 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             Mainnet: [
                 Ethereum, Avalanche, Arbitrum, Polygon, Optimism, BinanceSmartChain, Celo,
-                Moonbeam,
-                Gnosis
+                Moonbeam, Gnosis, Solana
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
@@ -203,7 +204,7 @@ impl KnownHyperlaneDomain {
                 Alfajores, Moonbeam, MoonbaseAlpha, Zksync2Testnet, Test1, Test2, Test3
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
-            HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
+            HyperlaneDomainProtocol::Sealevel: [Solana, SealevelTest1, SealevelTest2],
         })
     }
 }
