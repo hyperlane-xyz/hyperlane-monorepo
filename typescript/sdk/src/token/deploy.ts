@@ -135,11 +135,27 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20CollateralConfig,
   ): Promise<HypERC20Collateral> {
-    return this.deployContract(
-      chain,
-      isFastConfig(config) ? TokenType.fastCollateral : TokenType.collateral,
-      [config.token, config.mailbox],
-    );
+    let contractName:
+      | TokenType.fastCollateral
+      | TokenType.collateral
+      | TokenType.collateralVault;
+    switch (config.type) {
+      case TokenType.fastSynthetic || TokenType.fastCollateral:
+        contractName = TokenType.fastCollateral;
+        break;
+      case TokenType.collateral:
+        contractName = TokenType.collateral;
+        break;
+      case TokenType.collateralVault:
+        contractName = TokenType.collateralVault;
+        break;
+      default:
+        throw new Error(`Unknown collateral type ${config.type}`);
+    }
+    return this.deployContract(chain, contractName, [
+      config.token,
+      config.mailbox,
+    ]);
   }
 
   protected async deployNative(
