@@ -5,7 +5,7 @@ import {
   ChainMap,
   ChainName,
   ConnectionClientConfig,
-  EvmHypCollateralAdapter,
+  EvmTokenAdapter,
   HypERC20Deployer,
   HypERC721Deployer,
   HyperlaneContractsMap,
@@ -292,7 +292,7 @@ async function fetchBaseTokenMetadata(
   } else if (base.type === TokenType.collateral && address) {
     // If it's a collateral type, use a TokenAdapter to query for its metadata
     log(`Fetching token metadata for ${address} on ${chainName}}`);
-    const adapter = new EvmHypCollateralAdapter(
+    const adapter = new EvmTokenAdapter(
       chainName,
       MultiProtocolProvider.fromMultiProvider(multiProvider),
       { token: address },

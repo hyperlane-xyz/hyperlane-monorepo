@@ -21,9 +21,11 @@ if [ "$TEST_TYPE" == $TEST_TYPE_CONFIGURED_HOOK ]; then
     HOOK_FLAG=true
 fi
 
+ANVIL_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 CHAIN1=anvil1
 CHAIN2=anvil2
 EXAMPLES_PATH=./examples
+DEPLOY_ERC20_PATH=./src/tests/deployTestErc20.ts
 
 # use different chain names and config for pi<>core test
 if [ "$TEST_TYPE" == $TEST_TYPE_PI_CORE ]; then
@@ -98,7 +100,7 @@ yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
     $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ${EXAMPLES_PATH}/hooks.yaml"; fi) \
     --ism ${EXAMPLES_PATH}/ism.yaml \
     --out /tmp \
-    --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+    --key $ANVIL_KEY \
     --yes
 
 AFTER_CORE=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
@@ -113,13 +115,27 @@ cat $CORE_ARTIFACTS_PATH
 
 AGENT_CONFIG_FILENAME=`ls -t1 /tmp | grep agent-config | head -1`
 
-echo "Deploying warp routes"
+echo "Deploying hypNative warp route"
 yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
     --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
     --config ${EXAMPLES_PATH}/warp-route-deployment.yaml \
     --out /tmp \
-    --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+    --key $ANVIL_KEY \
+    --yes
+
+yarn workspace @hyperlane-xyz/cli run tsx $DEPLOY_ERC20_PATH \
+    http://127.0.0.1:8545 \
+    $CHAIN1 $CHAIN2 $ANVIL_KEY \
+    /tmp/warp-collateral-deployment.json \
+
+echo "Deploying hypCollateral warp route"
+yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
+    --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
+    --core $CORE_ARTIFACTS_PATH \
+    --config /tmp/warp-collateral-deployment.json \
+    --out /tmp \
+    --key $ANVIL_KEY \
     --yes
 
 AFTER_WARP=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
