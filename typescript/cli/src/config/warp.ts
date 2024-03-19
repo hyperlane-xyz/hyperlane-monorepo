@@ -26,7 +26,7 @@ export const WarpRouteDeployConfigSchema = z.object({
         .literal(TokenType.native)
         .or(z.literal(TokenType.collateral))
         .or(z.literal(TokenType.collateralYield)),
-      yieldVault: z.string().optional(),
+      vaultAddress: z.string().optional(),
       chainName: z.string(),
       address: ZHash.optional(),
       isNft: z.boolean().optional(),
@@ -37,19 +37,19 @@ export const WarpRouteDeployConfigSchema = z.object({
     })
     .refine(
       (data) => {
-        // For collateralYield Warp Routes, ensure yieldVault is not null or address(0).
+        // For collateralYield Warp Routes, ensure vaultAddress is not null or address(0).
         if (
           data.type === TokenType.collateralYield &&
-          (data.yieldVault === null ||
-            data.yieldVault === ethers.constants.AddressZero)
+          (data.vaultAddress === null ||
+            data.vaultAddress === ethers.constants.AddressZero)
         )
           return false;
 
         return true;
       },
       {
-        message: 'yieldVault is required when type is collateralYield',
-        path: ['yieldVault'],
+        message: 'vaultAddress is required when type is collateralYield',
+        path: ['vaultAddress'],
       },
     ),
   synthetics: z
@@ -124,7 +124,7 @@ export async function createWarpRouteDeployConfig({
           message:
             'Do you want this warp route to be yield-bearing (i.e. deposits into ERC-4626 vault)?',
         });
-  const yieldVaultAddress = isYieldBearing
+  const vaultAddress = isYieldBearing
     ? await input({
         message: 'Enter the ERC-4626 vault address',
       })
@@ -149,7 +149,7 @@ export async function createWarpRouteDeployConfig({
       chainName: baseChain,
       type: baseType,
       address: baseAddress,
-      yieldVault: yieldVaultAddress,
+      vaultAddress,
       isNft,
     },
     synthetics: syntheticChains.map((chain) => ({ chainName: chain })),

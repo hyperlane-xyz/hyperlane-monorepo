@@ -276,7 +276,8 @@ async function fetchBaseTokenMetadata(
   base: WarpRouteDeployConfig['base'],
   multiProvider: MultiProvider,
 ): Promise<MinimalTokenMetadata> {
-  const { type, name, symbol, chainName, address, decimals } = base;
+  const { type, name, symbol, chainName, address, decimals, vaultAddress } =
+    base;
 
   // Skip fetching metadata if it's already provided in the config
   if (name && symbol && decimals) {
@@ -289,17 +290,23 @@ async function fetchBaseTokenMetadata(
       multiProvider.getChainMetadata(chainName).nativeToken;
     if (chainNativeToken) return chainNativeToken;
     else throw new Error(`No native token metadata for ${chainName}`);
-  } else if (
-    (base.type === TokenType.collateral ||
-      base.type === TokenType.collateralYield) &&
-    address
-  ) {
+  } else if (base.type === TokenType.collateral && address) {
     // If it's a collateral type, use a TokenAdapter to query for its metadata
     log(`Fetching token metadata for ${address} on ${chainName}}`);
     const adapter = new EvmHypCollateralAdapter(
       chainName,
       MultiProtocolProvider.fromMultiProvider(multiProvider),
       { token: address },
+    );
+    return adapter.getMetadata();
+  } else if (base.type === TokenType.collateralYield && vaultAddress) {
+    // If it's a collateralVault type, query the vault's metadata.
+    log(`Fetching vault metadata for ${address} on ${chainName}}`);
+    // ERC4626 is inherits from ERC20, so it's okay to use EvmHypCollateralAdapter
+    const adapter = new EvmHypCollateralAdapter(
+      chainName,
+      MultiProtocolProvider.fromMultiProvider(multiProvider),
+      { token: vaultAddress },
     );
     return adapter.getMetadata();
   } else {
