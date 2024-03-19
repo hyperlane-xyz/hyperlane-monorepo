@@ -10,6 +10,7 @@ export enum TokenType {
   fastCollateral = 'fastCollateral',
   collateralUri = 'collateralUri',
   native = 'native',
+  nativeScaled = 'nativeScaled',
 }
 
 export type TokenMetadata = {
