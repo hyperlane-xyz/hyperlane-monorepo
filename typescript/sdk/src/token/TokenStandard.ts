@@ -141,6 +141,7 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.synthetic]: TokenStandard.EvmHypSynthetic,
   [TokenType.syntheticUri]: TokenStandard.EvmHypSynthetic,
   [TokenType.fastSynthetic]: TokenStandard.EvmHypSynthetic,
+  [TokenType.nativeScaled]: TokenStandard.EvmHypNative,
 };
 
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =

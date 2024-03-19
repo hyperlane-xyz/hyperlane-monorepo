@@ -26,6 +26,9 @@ import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
+import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
+import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
+import victionEthereumUsdtAddresses from './warp/viction-USDT-addresses.json';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -133,7 +136,7 @@ const hyperlane: RootAgentConfig = {
     docker: {
       repo,
       // Includes Cosmos block-by-block indexing.
-      tag: 'ae0990a-20240313-215426',
+      tag: 'a72c3cf-20240314-173418',
     },
     gasPaymentEnforcement: [
       // Temporary measure to ensure all inEVM warp route messages are delivered -
@@ -163,6 +166,18 @@ const hyperlane: RootAgentConfig = {
         name: 'inevm_ethereum_usdt',
         matchingList: routerMatchingList(inevmEthereumUsdtAddresses),
       },
+      {
+        name: 'viction_ethereum_eth',
+        matchingList: routerMatchingList(victionEthereumEthAddresses),
+      },
+      {
+        name: 'viction_ethereum_usdc',
+        matchingList: routerMatchingList(victionEthereumUsdcAddresses),
+      },
+      {
+        name: 'viction_ethereum_usdt',
+        matchingList: routerMatchingList(victionEthereumUsdtAddresses),
+      },
     ],
   },
   validators: {
@@ -191,7 +206,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: 'a72c3cf-20240314-173418',
     },
     whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
@@ -228,7 +243,7 @@ const neutron: RootAgentConfig = {
     docker: {
       repo,
       // Includes Cosmos block-by-block indexing.
-      tag: 'ae0990a-20240313-215426',
+      tag: 'a72c3cf-20240314-173418',
     },
     gasPaymentEnforcement: [
       {

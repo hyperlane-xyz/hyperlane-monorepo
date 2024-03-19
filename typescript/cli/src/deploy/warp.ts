@@ -5,7 +5,7 @@ import {
   ChainMap,
   ChainName,
   ConnectionClientConfig,
-  EvmHypCollateralAdapter,
+  EvmTokenAdapter,
   HypERC20Deployer,
   HypERC721Deployer,
   HyperlaneContractsMap,
@@ -293,7 +293,7 @@ async function fetchBaseTokenMetadata(
   } else if (base.type === TokenType.collateral && address) {
     // If it's a collateral type, use a TokenAdapter to query for its metadata
     log(`Fetching token metadata for ${address} on ${chainName}}`);
-    const adapter = new EvmHypCollateralAdapter(
+    const adapter = new EvmTokenAdapter(
       chainName,
       MultiProtocolProvider.fromMultiProvider(multiProvider),
       { token: address },
@@ -329,7 +329,7 @@ function writeTokenDeploymentArtifacts(
     tokenType: TokenType;
   }> = objMap(contracts, (chain, contract) => {
     return {
-      router: contract.router.address,
+      router: contract[configMap[chain].type as keyof TokenFactories].address,
       tokenType: configMap[chain].type,
     };
   });
@@ -354,7 +354,8 @@ function writeWarpUiTokenConfig(
       name: metadata.name,
       symbol: metadata.symbol,
       decimals: metadata.decimals,
-      addressOrDenom: contract.router.address,
+      addressOrDenom:
+        contract[configMap[chainName].type as keyof TokenFactories].address,
       collateralAddressOrDenom,
     });
   }
