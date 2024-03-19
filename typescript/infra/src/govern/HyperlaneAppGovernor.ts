@@ -165,6 +165,7 @@ export abstract class HyperlaneAppGovernor<
     const signerAddress = await signer.getAddress();
 
     const transactionSucceedsFromSender = async (
+      chain: ChainName,
       submitterAddress: Address,
     ): Promise<boolean> => {
       try {
@@ -174,7 +175,7 @@ export abstract class HyperlaneAppGovernor<
       return false;
     };
 
-    if (await transactionSucceedsFromSender(signerAddress)) {
+    if (await transactionSucceedsFromSender(chain, signerAddress)) {
       return SubmissionType.SIGNER;
     }
 
@@ -200,14 +201,15 @@ export abstract class HyperlaneAppGovernor<
       // 2b. Check if calling from the owner/safeAddress will succeed.
       if (
         (this.canPropose[chain].get(safeAddress) &&
-          (await transactionSucceedsFromSender(safeAddress))) ||
+          (await transactionSucceedsFromSender(chain, safeAddress))) ||
         chain === 'moonbeam'
       ) {
         return SubmissionType.SAFE;
       }
     } else {
-      const icaOwner = safeAddress.owner;
-      if (!this.canPropose[origin].has(safeAddress.owner)) {
+      console.log('CHECKING ICA FOR GOVERNOR...');
+      const icaOwner = safeAddress.owner; // icaOwner is expected to be safe on origin
+      if (!this.canPropose[origin].has(icaOwner)) {
         this.canPropose[origin].set(
           icaOwner,
           await canProposeSafeTransactions(
@@ -224,18 +226,19 @@ export abstract class HyperlaneAppGovernor<
         );
         console.log('localAccount: ', localAccount);
 
-        // const router = ethers.constants.AddressZero;
         const innercall = this.popCall(chain);
         if (this.interchainAccount && innercall) {
-          // TODO fix
-          // this.pushCall(chain, {
-          //   to: router,
-          //   data: this.interchainAccount.getCallRemote(chain, chain, [innercall])
-          //   description: 'ffs'
-          // });
-          // if
-          // (this.canPropose[chain].get(safeAddress.owner) {}
-          // encode the call data for ICA
+          this.pushCall(origin, {
+            ...this.interchainAccount.getCallRemote(origin, chain, [innercall]),
+            // encode the call data for ICA
+            description: 'call from interchain account',
+          });
+          if (
+            this.canPropose[origin].get(safeAddress.owner) &&
+            (await transactionSucceedsFromSender(origin, safeAddress.owner)) // TODO: check chain
+          ) {
+            return SubmissionType.SAFE;
+          }
         }
       }
     }

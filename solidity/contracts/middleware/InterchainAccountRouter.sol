@@ -163,7 +163,6 @@ contract InterchainAccountRouter is Router {
      * @param _to The address of the contract to call
      * @param _value The value to include in the call
      * @param _data The calldata
-     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
      * @return The Hyperlane message ID
      */
     function callRemote(
@@ -181,14 +180,7 @@ contract InterchainAccountRouter is Router {
             _value,
             _data
         );
-        return
-            _dispatchMessageWithMetadata(
-                _destination,
-                _router,
-                _ism,
-                _body,
-                _hookMetadata
-            );
+        return _dispatchMessage(_destination, _router, _ism, _body);
     }
 
     /**
@@ -481,7 +473,6 @@ contract InterchainAccountRouter is Router {
      * @param _router The remote router address
      * @param _ism The remote ISM address
      * @param _calls The sequence of calls to make
-     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
      * @return The Hyperlane message ID
      */
     function callRemoteWithOverrides(
@@ -495,14 +486,7 @@ contract InterchainAccountRouter is Router {
             _ism,
             _calls
         );
-        return
-            _dispatchMessageWithMetadata(
-                _destination,
-                _router,
-                _ism,
-                _body,
-                _hookMetadata
-            );
+        return _dispatchMessage(_destination, _router, _ism, _body);
     }
 
     /**

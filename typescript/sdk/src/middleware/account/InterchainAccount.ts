@@ -65,7 +65,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
   ): InterchainAccount {
-    console.log('InterchainAccount.fromAddressesMap', addressesMap);
     const helper = appFromAddressesMapHelper(
       addressesMap,
       interchainAccountFactories,
@@ -88,6 +87,11 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     chain: ChainName,
     config: AccountConfig,
   ): Promise<Address> {
+    console.log(
+      'deployAccount',
+      chain,
+      this.multiProvider.getKnownChainNames(),
+    );
     const originDomain = this.multiProvider.tryGetDomainId(config.origin);
     if (!originDomain) {
       throw new Error(
@@ -163,50 +167,50 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     return icaCall;
   }
 
-  async callRemote(
-    chain: ChainName,
-    destination: ChainName,
-    calls: Array<CallData>,
-    routerOverride?: Address,
-    ismOverride?: Address,
-    hookMetadata?: string,
-  ): Promise<void> {
-    const callsWithValue = calls.map((call) => ({
-      to: addressToBytes32(call.to),
-      data: call.data,
-      value: 0,
-    }));
-    if (routerOverride && ismOverride && hookMetadata) {
-      await this.multiProvider.handleTx(
-        destination,
-        this.router(this.contractsMap[chain]).callRemoteWithOverrides(
-          this.multiProvider.getDomainId(destination),
-          addressToBytes32(routerOverride),
-          addressToBytes32(ismOverride),
-          callsWithValue,
-          hookMetadata,
-        ),
-      );
-    } else if (hookMetadata) {
-      await this.multiProvider.handleTx(
-        destination,
-        this.router(this.contractsMap[chain])[
-          'callRemote(uint32,(bytes32,uint256,bytes)[],bytes)'
-        ](
-          this.multiProvider.getDomainId(destination),
-          callsWithValue,
-          hookMetadata,
-        ),
-      );
-    } else {
-      await this.multiProvider.handleTx(
-        destination,
-        this.router(this.contractsMap[chain])[
-          'callRemote(uint32,(bytes32,uint256,bytes)[])'
-        ](this.multiProvider.getDomainId(destination), callsWithValue),
-      );
-    }
-  }
+  // async callRemote(
+  //   chain: ChainName,
+  //   destination: ChainName,
+  //   calls: Array<CallData>,
+  //   routerOverride?: Address,
+  //   ismOverride?: Address,
+  //   hookMetadata?: string,
+  // ): Promise<void> {
+  //   const callsWithValue = calls.map((call) => ({
+  //     to: addressToBytes32(call.to),
+  //     data: call.data,
+  //     value: 0,
+  //   }));
+  //   if (routerOverride && ismOverride && hookMetadata) {
+  //     await this.multiProvider.handleTx(
+  //       destination,
+  //       this.router(this.contractsMap[chain]).callRemoteWithOverrides(
+  //         this.multiProvider.getDomainId(destination),
+  //         addressToBytes32(routerOverride),
+  //         addressToBytes32(ismOverride),
+  //         callsWithValue,
+  //         hookMetadata,
+  //       ),
+  //     );
+  //   } else if (hookMetadata) {
+  //     await this.multiProvider.handleTx(
+  //       destination,
+  //       this.router(this.contractsMap[chain])[
+  //         'callRemote(uint32,(bytes32,uint256,bytes)[],bytes)'
+  //       ](
+  //         this.multiProvider.getDomainId(destination),
+  //         callsWithValue,
+  //         hookMetadata,
+  //       ),
+  //     );
+  //   } else {
+  //     await this.multiProvider.handleTx(
+  //       destination,
+  //       this.router(this.contractsMap[chain])[
+  //         'callRemote(uint32,(bytes32,uint256,bytes)[])'
+  //       ](this.multiProvider.getDomainId(destination), callsWithValue),
+  //     );
+  //   }
+  // }
 }
 
 export async function deployInterchainAccount(

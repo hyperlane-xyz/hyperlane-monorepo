@@ -1,6 +1,5 @@
 import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
-  // HelloWorldChecker,
   HypERC20App,
   HypERC20Checker,
   HyperlaneCore,
@@ -122,8 +121,6 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
-    const addresses = getAddresses(environment, Modules.WARP);
-    const app = HypERC20App.fromAddressesMap(addresses, multiProvider);
     const plumetestnet = {
       ...routerConfig.plumetestnet,
       type: TokenType.synthetic,
@@ -143,6 +140,16 @@ async function check() {
       plumetestnet,
       sepolia,
     };
+    console.log('WARP config', multiProvider.getKnownChainNames());
+    const addresses = getAddresses(environment, Modules.WARP);
+    const filteredAddresses = Object.keys(addresses)
+      .filter((key) => key in config)
+      .reduce((obj, key) => {
+        obj[key] = addresses[key];
+        return obj;
+      }, {} as typeof addresses);
+    const app = HypERC20App.fromAddressesMap(filteredAddresses, multiProvider);
+
     const checker = new HypERC20Checker(
       multiProvider,
       app,
@@ -156,6 +163,7 @@ async function check() {
   }
 
   if (fork) {
+    console.log(`Checking ${module} deploy on ${fork}`);
     await governor.checker.checkChain(fork);
     if (govern) {
       await governor.govern(false, fork);

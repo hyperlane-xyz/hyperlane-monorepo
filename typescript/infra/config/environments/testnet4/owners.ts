@@ -27,6 +27,7 @@ export const owners: ChainMap<OwnableConfig> = {
     ]),
   ),
   [chainMetadata.sepolia.name]: { owner: ETHEREUM_DEPLOYER_ADDRESS },
+  [chainMetadata.plumetestnet.name]: { owner: ETHEREUM_DEPLOYER_ADDRESS },
   // [chainMetadata.solanadevnet.name]: SEALEVEL_DEPLOYER_ADDRESS,
 };
 

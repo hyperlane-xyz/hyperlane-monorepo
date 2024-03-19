@@ -335,8 +335,7 @@ contract InterchainAccountRouterTest is Test {
             destination,
             TypeCasts.bytes32ToAddress(calls[0].to),
             calls[0].value,
-            calls[0].data,
-            ""
+            calls[0].data
         );
 
         // assert
@@ -465,8 +464,7 @@ contract InterchainAccountRouterTest is Test {
             destination,
             routerOverride,
             ismOverride,
-            getCalls(data),
-            metadata
+            getCalls(data)
         );
 
         // assert

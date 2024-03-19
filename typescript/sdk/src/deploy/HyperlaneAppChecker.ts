@@ -26,6 +26,7 @@ import {
   ProxyAdminViolation,
   TimelockControllerViolation,
   ViolationType,
+  resolveAccountOwner,
 } from './types';
 
 export abstract class HyperlaneAppChecker<
@@ -212,11 +213,19 @@ export abstract class HyperlaneAppChecker<
   ): Promise<void> {
     const ownableContracts = await this.ownables(chain);
     for (const [name, contract] of Object.entries(ownableContracts)) {
-      const expectedOwner = ownableOverrides?.[name] ?? owner;
-      if (typeof expectedOwner !== 'string')
-        throw new Error('AccountConfig not yet supported for ownership checks');
+      let expectedOwner = ownableOverrides?.[name] ?? owner;
+      if (typeof expectedOwner !== 'string') {
+        console.log(
+          'Resolving account owner',
+          this.multiProvider.getKnownChainNames(),
+        );
+        expectedOwner = await resolveAccountOwner(
+          this.multiProvider,
+          chain,
+          expectedOwner,
+        );
+      }
       const actual = await contract.owner();
-      // TODO: fix this
       if (!eqAddress(actual, expectedOwner)) {
         const violation: OwnerViolation = {
           chain,
