@@ -125,7 +125,7 @@ yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
     --yes
 
 yarn workspace @hyperlane-xyz/cli run tsx $DEPLOY_ERC20_PATH \
-    http://127.0.0.1:8545 \
+    http://127.0.0.1:$CHAIN1_PORT \
     $CHAIN1 $CHAIN2 $ANVIL_KEY \
     /tmp/warp-collateral-deployment.json \
 
@@ -151,7 +151,7 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send message \
     --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
     --quick \
-    --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+    --key $ANVIL_KEY \
     | tee /tmp/message1
 
 AFTER_MSG=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
@@ -174,7 +174,7 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
     --core $CORE_ARTIFACTS_PATH \
     --router ${!CHAIN1_ROUTER} \
     --quick \
-    --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+    --key $ANVIL_KEY \
     | tee /tmp/message2
 
 MESSAGE2_ID=`cat /tmp/message2 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
