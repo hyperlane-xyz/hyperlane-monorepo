@@ -45,6 +45,8 @@ contract InterchainAccountRouter is Router {
 
     // ============ Public Storage ============
     mapping(uint32 => bytes32) public isms;
+    // reverse lookup from the ICA account to the remote owner
+    mapping(address => bytes32) public accountOwners;
 
     // ============ Upgrade Gap ============
 
@@ -394,6 +396,7 @@ contract InterchainAccountRouter is Router {
         if (!Address.isContract(_account)) {
             bytes memory _bytecode = MinimalProxy.bytecode(implementation);
             _account = payable(Create2.deploy(0, _salt, _bytecode));
+            accountOwners[_account] = _owner;
             emit InterchainAccountCreated(_origin, _owner, _ism, _account);
         }
         return OwnableMulticall(_account);
