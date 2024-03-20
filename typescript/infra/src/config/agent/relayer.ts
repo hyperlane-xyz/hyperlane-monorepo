@@ -4,6 +4,7 @@ import {
   AgentConfig,
   ChainMap,
   GasPaymentEnforcement,
+  HyperlaneAddresses,
   HyperlaneAddressesMap,
   HyperlaneFactories,
   MatchingList,
@@ -163,7 +164,6 @@ export function routerMatchingList(
 // Create a matching list for the given contract addresses
 export function matchingList<F extends HyperlaneFactories>(
   addressesMap: HyperlaneAddressesMap<F>,
-  contracts?: Array<keyof F>,
 ): MatchingList {
   const chains = Object.keys(addressesMap);
 
@@ -176,17 +176,15 @@ export function matchingList<F extends HyperlaneFactories>(
         continue;
       }
 
-      const sources = addressesMap[source];
-      const destinations = addressesMap[destination];
+      const uniqueAddresses = (addresses: HyperlaneAddresses<F>) =>
+        [...new Set(Object.values(addresses))].map((s) => addressToBytes32(s));
 
-      for (const contract of contracts ?? Object.keys(sources)) {
-        matchingList.push({
-          originDomain: getDomainId(chainMetadata[source]),
-          senderAddress: addressToBytes32(sources[contract]),
-          destinationDomain: getDomainId(chainMetadata[destination]),
-          recipientAddress: addressToBytes32(destinations[contract]),
-        });
-      }
+      matchingList.push({
+        originDomain: getDomainId(chainMetadata[source]),
+        senderAddress: uniqueAddresses(addressesMap[source]),
+        destinationDomain: getDomainId(chainMetadata[destination]),
+        recipientAddress: uniqueAddresses(addressesMap[destination]),
+      });
     }
   }
 
