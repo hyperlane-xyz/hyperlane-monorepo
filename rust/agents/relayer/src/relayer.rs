@@ -16,10 +16,12 @@ use hyperlane_base::{
     SequencedDataContractSync, WatermarkContractSync,
 };
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, MpmcReceiver,
+    H256, U256,
 };
 use tokio::{
     sync::{
+        broadcast,
         mpsc::{self, UnboundedReceiver, UnboundedSender},
         RwLock,
     },
@@ -27,7 +29,6 @@ use tokio::{
 };
 use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
 
-use crate::processor::Processor;
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     msg::{
@@ -38,12 +39,14 @@ use crate::{
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
     },
+    server as relayer_server,
     settings::{matching_list::MatchingList, RelayerSettings},
 };
 use crate::{
     merkle_tree::processor::{MerkleTreeProcessor, MerkleTreeProcessorMetrics},
     processor::ProcessorExt,
 };
+use crate::{processor::Processor, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 struct ContextKey {
@@ -276,14 +279,20 @@ impl BaseAgent for Relayer {
     async fn run(self) {
         let mut tasks = vec![];
 
-        // running http server
+        // run server
+        let (server_sender_channel, server_receiver_channel) =
+            broadcast::channel::<H256>(ENDPOINT_MESSAGES_QUEUE_SIZE);
+        let api_receiver =
+            MpmcReceiver::new(server_sender_channel.clone(), server_receiver_channel);
+        let custom_routes = relayer_server::routes(server_sender_channel);
+
         let server = self
             .core
             .settings
             .server(self.core_metrics.clone())
             .expect("Failed to create server");
         let server_task = server
-            .run_with_custom_routes(vec![])
+            .run_with_custom_routes(custom_routes)
             .instrument(info_span!("Relayer server"));
         tasks.push(server_task);
 
@@ -294,7 +303,11 @@ impl BaseAgent for Relayer {
                 mpsc::unbounded_channel::<Box<DynPendingOperation>>();
             send_channels.insert(dest_domain.id(), send_channel);
 
-            tasks.push(self.run_destination_submitter(dest_domain, receive_channel));
+            tasks.push(self.run_destination_submitter(
+                dest_domain,
+                receive_channel,
+                api_receiver.clone(),
+            ));
 
             let metrics_updater = MetricsUpdater::new(
                 dest_conf,
@@ -434,10 +447,12 @@ impl Relayer {
         &self,
         destination: &HyperlaneDomain,
         receiver: UnboundedReceiver<Box<DynPendingOperation>>,
+        api_receiver_channel: MpmcReceiver<H256>,
     ) -> Instrumented<JoinHandle<()>> {
         let serial_submitter = SerialSubmitter::new(
             destination.clone(),
             receiver,
+            api_receiver_channel,
             SerialSubmitterMetrics::new(&self.core.metrics, destination),
         );
         let span = info_span!("SerialSubmitter", destination=%destination);

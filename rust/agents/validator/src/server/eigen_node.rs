@@ -49,12 +49,12 @@ struct Service {
 }
 
 #[derive(new)]
-pub struct EigenNodeAPI {
+pub struct EigenNodeApi {
     origin_chain: HyperlaneDomain,
     core_metrics: Arc<CoreMetrics>,
 }
 
-impl EigenNodeAPI {
+impl EigenNodeApi {
     pub fn get_route(&self) -> (&'static str, Router) {
         (EIGEN_NODE_API_BASE, self.router())
     }
@@ -160,7 +160,7 @@ mod tests {
             .with_label_values(&["validator_observed", "ethereum"])
             .set(HEALTHY_OBSERVED_CHECKPOINT);
 
-        let node_api = EigenNodeAPI::new(
+        let node_api = EigenNodeApi::new(
             HyperlaneDomain::new_test_domain("ethereum"),
             Arc::clone(&core_metrics),
         );

@@ -16,7 +16,7 @@ use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 
 use hyperlane_base::CoreMetrics;
-use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::{HyperlaneDomain, MpmcReceiver, H256};
 
 use super::pending_operation::*;
 
@@ -26,6 +26,7 @@ use super::pending_operation::*;
 struct OpQueue {
     metrics: IntGaugeVec,
     queue_metrics_label: String,
+    api_rx: MpmcReceiver<H256>,
     #[new(default)]
     queue: Arc<Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>>,
 }
@@ -111,6 +112,8 @@ pub struct SerialSubmitter {
     domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
+    /// Receiver for api requests.
+    api_rx: MpmcReceiver<H256>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
 }
@@ -126,14 +129,17 @@ impl SerialSubmitter {
             domain,
             metrics,
             rx: rx_prepare,
+            api_rx,
         } = self;
         let prepare_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "prepare_queue".to_string(),
+            api_rx.clone(),
         );
         let confirm_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "confirm_queue".to_string(),
+            api_rx,
         );
 
         // This is a channel because we want to only have a small number of messages

@@ -8,6 +8,7 @@ pub use self::primitive_types::*;
 pub use ::primitive_types as ethers_core_types;
 pub use announcement::*;
 pub use chain_data::*;
+pub use channel::*;
 pub use checkpoint::*;
 pub use log_metadata::*;
 pub use merkle_tree::*;
@@ -17,6 +18,7 @@ use crate::{Decode, Encode, HyperlaneProtocolError};
 
 mod announcement;
 mod chain_data;
+mod channel;
 mod checkpoint;
 mod log_metadata;
 mod merkle_tree;
