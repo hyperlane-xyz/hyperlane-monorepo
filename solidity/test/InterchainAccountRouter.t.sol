@@ -339,6 +339,18 @@ contract InterchainAccountRouterTest is Test {
         assertEq(ownerBytes, owner.addressToBytes32());
     }
 
+    function test_quoteGasPayment() public {
+        // arrange
+        originRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // assert
+        assertEq(originRouter.quoteGasPayment(destination), gasPaymentQuote);
+    }
+
     function testFuzz_singleCallRemoteWithDefault(bytes32 data) public {
         // arrange
         originRouter.enrollRemoteRouterAndIsm(
