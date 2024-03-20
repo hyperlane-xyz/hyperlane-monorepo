@@ -13,6 +13,7 @@ import {
 } from '../../../src/config';
 import {
   GasPaymentEnforcementConfig,
+  matchingList,
   routerMatchingList,
 } from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
@@ -160,11 +161,11 @@ const hyperlane: RootAgentConfig = {
       },
       {
         name: 'inevm_ethereum_usdc',
-        matchingList: routerMatchingList(inevmEthereumUsdcAddresses),
+        matchingList: matchingList(inevmEthereumUsdcAddresses),
       },
       {
         name: 'inevm_ethereum_usdt',
-        matchingList: routerMatchingList(inevmEthereumUsdtAddresses),
+        matchingList: matchingList(inevmEthereumUsdtAddresses),
       },
       {
         name: 'viction_ethereum_eth',
