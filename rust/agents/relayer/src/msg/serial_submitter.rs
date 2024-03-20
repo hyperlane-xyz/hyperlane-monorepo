@@ -51,6 +51,26 @@ impl OpQueue {
         })
     }
 
+    async fn process_api_requests(&mut self) {
+        // TODO: could rate-limit ourselves here, but we expect the volume of messages over this channel to
+        // be very low
+
+        // we can't do better than O(n) here, so just convert the heap to a vec, reprioritize, and
+        // build the heap again (which takes O(N) for an entire vec)
+
+        // the other consideration is whether to put the channel receiver in the OpQueue or in a dedicated task
+        // that also holds an Arc to the Mutex. For simplicity, we'll put it in the OpQueue for now.
+
+        let mut message_ids = vec![];
+        while let Ok(message_id) = self.api_rx.receiver.recv().await {
+            message_ids.push(message_id);
+        }
+        if message_ids.is_empty() {
+            return;
+        }
+        let queue = self.queue.lock().await;
+    }
+
     /// Get the metric associated with this operation
     fn get_operation_metric(&self, operation: &DynPendingOperation) -> IntGauge {
         let (destination, app_context) = operation.get_operation_labels();
