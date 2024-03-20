@@ -156,7 +156,7 @@ async function check() {
       config as any,
       ismFactory,
     );
-    governor = new ProxiedRouterGovernor(checker);
+    governor = new ProxiedRouterGovernor(checker, ica);
   } else {
     console.log(`Skipping ${module}, checker or governor unimplemented`);
     return;

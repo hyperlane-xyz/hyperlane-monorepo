@@ -10,7 +10,6 @@ import {
   InterchainAccount,
   OwnableConfig,
   OwnerViolation,
-  resolveAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, eqAddress, objMap } from '@hyperlane-xyz/utils';
 
@@ -25,9 +24,9 @@ import {
 } from './multisend';
 
 export enum SubmissionType {
-  MANUAL = 'MANUAL',
-  SIGNER = 'SIGNER',
-  SAFE = 'SAFE',
+  MANUAL = 0,
+  SAFE = 1,
+  SIGNER = 1,
 }
 
 export type AnnotatedCallData = CallData & {
@@ -152,9 +151,54 @@ export abstract class HyperlaneAppGovernor<
   protected async inferCallSubmissionTypes() {
     for (const chain of Object.keys(this.calls)) {
       for (const call of this.calls[chain]) {
-        call.submissionType = await this.inferCallSubmissionType(chain, call);
+        let submissionType = await this.inferCallSubmissionType(chain, call);
+        console.log('native submissionType', submissionType, chain, call.to);
+
+        if (!submissionType) {
+          console.log('ICA inference...');
+          submissionType = await this.inferICAEncodedSubmissionType(
+            chain,
+            call,
+          );
+        }
+
+        call.submissionType = submissionType;
       }
     }
+  }
+
+  protected async inferICAEncodedSubmissionType(
+    chain: ChainName,
+    call: AnnotatedCallData,
+  ): Promise<SubmissionType> {
+    const multiProvider = this.checker.multiProvider;
+    const signer = multiProvider.getSigner(chain);
+    if (this.interchainAccount) {
+      const ownableAddress = call.to;
+      const ownable = Ownable__factory.connect(ownableAddress, signer); // mailbox
+      const account = Ownable__factory.connect(await ownable.owner(), signer);
+      const localOwner = await account.owner();
+      console.log(
+        'ICA inference... inner',
+        call.to,
+        localOwner,
+        this.interchainAccount.routerAddress(chain),
+      );
+      if (eqAddress(localOwner, this.interchainAccount.routerAddress(chain))) {
+        const [originDomain, remoteOwner] =
+          await this.interchainAccount.getAccountOwner(chain, account.address);
+        const origin =
+          this.interchainAccount.multiProvider.getChainName(originDomain);
+        console.log('issa owner by ICA account', origin, remoteOwner);
+        const encodedCall = {
+          ...this.interchainAccount.getCallRemote(origin, chain, [call]),
+          // encode the call data for ICA
+          description: 'call from interchain account',
+        };
+        return this.inferCallSubmissionType(origin, encodedCall);
+      }
+    }
+    return SubmissionType.MANUAL;
   }
 
   protected async inferCallSubmissionType(
@@ -175,8 +219,12 @@ export abstract class HyperlaneAppGovernor<
       } catch (e) {} // eslint-disable-line no-empty
       return false;
     };
+    console.log('inferCallSubmissionType...', chain, call, signerAddress);
 
-    if (await transactionSucceedsFromSender(chain, signerAddress)) {
+    if (
+      chain !== 'sepolia' &&
+      (await transactionSucceedsFromSender(chain, signerAddress))
+    ) {
       return SubmissionType.SIGNER;
     }
 
@@ -207,55 +255,63 @@ export abstract class HyperlaneAppGovernor<
       ) {
         return SubmissionType.SAFE;
       }
-    } else {
-      console.log('CHECKING ICA FOR GOVERNOR...');
-      const icaOwner = safeAddress.owner; // icaOwner is expected to be safe on origin
-      if (!this.canPropose[origin].has(icaOwner)) {
-        this.canPropose[origin].set(
-          icaOwner,
-          await canProposeSafeTransactions(
-            signerAddress,
-            origin,
-            multiProvider,
-            icaOwner,
-          ),
-        );
-        const localAccount = await resolveAccountOwner(
-          multiProvider,
-          chain,
-          safeAddress,
-        );
-        console.log('localAccount: ', localAccount);
-
-        const innercall = this.popCall(chain);
-        if (this.interchainAccount && innercall) {
-          this.pushCall(origin, {
-            ...this.interchainAccount.getCallRemote(origin, chain, [innercall]),
-            // encode the call data for ICA
-            description: 'call from interchain account',
-          });
-          if (
-            this.canPropose[origin].get(safeAddress.owner) &&
-            (await transactionSucceedsFromSender(origin, safeAddress.owner)) // TODO: check chain
-          ) {
-            return SubmissionType.SAFE;
-          }
-        }
-      }
+    } else if (false) {
+      // console.log('CHECKING ICA FOR GOVERNOR...');
+      // const icaOwner = safeAddress.owner; // icaOwner is expected to be safe on origin
+      // if (!this.canPropose[origin].has(icaOwner)) {
+      //   this.canPropose[origin].set(
+      //     icaOwner,
+      //     await canProposeSafeTransactions(
+      //       signerAddress,
+      //       origin,
+      //       multiProvider,
+      //       icaOwner,
+      //     ),
+      //   );
+      //   const localAccount = await resolveAccountOwner(
+      //     multiProvider,
+      //     chain,
+      //     safeAddress,
+      //   );
+      //   console.log('localAccount: ', localAccount);
+      //   const innercall = this.popCall(chain);
+      //   if (this.interchainAccount && innercall) {
+      //     this.pushCall(origin, {
+      //       ...this.interchainAccount.getCallRemote(origin, chain, [innercall]),
+      //       // encode the call data for ICA
+      //       description: 'call from interchain account',
+      //     });
+      //     if (
+      //       this.canPropose[origin].get(safeAddress.owner) &&
+      //       (await transactionSucceedsFromSender(origin, safeAddress.owner)) // TODO: check chain
+      //     ) {
+      //       return SubmissionType.SAFE;
+      //     }
+      //   }
+      // }
     }
 
-    const latestCall = this.popCall(chain);
-    if (this.ica && latestCall) {
-      const ownableAddress = latestCall.to;
-      const ownable = Ownable__factory.connect(ownableAddress, signer);
-      const owner = await ownable.owner();
-      if (eqAddress(owner, this.ica.routerAddress(chain))) {
-        console.log('issa owner by ICA account');
-        // const (originm, accountOwner) = this.ica.getAccountOwner(chain, ownableAddress);
-        // TODO: push encoded
-        return SubmissionType.SAFE;
-      }
-    }
+    // const latestCall = this.popCall(chain);
+    // if (this.interchainAccount && latestCall) {
+    //   console.log('ICA inference...');
+    //   const ownableAddress = latestCall.to;
+    //   const ownable = Ownable__factory.connect(ownableAddress, signer);
+    //   const owner = await ownable.owner();
+    //   if (eqAddress(owner, this.interchainAccount.routerAddress(chain))) {
+    //     // TODO: fetch origin and owner from accountowners
+    //     const [originDomain, owner] =
+    //       await this.interchainAccount.getAccountOwner(chain, ownableAddress);
+    //     const origin =
+    //       this.interchainAccount.multiProvider.getChainName(originDomain);
+    //     console.log('issa owner by ICA account', origin, owner);
+
+    //     this.pushCall(origin, {
+    //       ...this.interchainAccount.getCallRemote(origin, chain, [latestCall]),
+    //       // encode the call data for ICA
+    //       description: 'call from interchain account',
+    //     });
+    //   }
+    // }
 
     return SubmissionType.MANUAL;
   }

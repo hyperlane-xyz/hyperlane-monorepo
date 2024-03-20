@@ -171,7 +171,13 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   async getAccountOwner(
     chain: ChainName,
     account: Address,
-  ): Promise<AddressBytes32> {
+  ): Promise<[number, AddressBytes32]> {
+    const localRouter = this.router(this.contractsMap[chain]);
+    console.log('ICA getAccountOwner', chain, account, localRouter.address);
+    console.log(
+      'ICA getAccountOwner',
+      await localRouter.accountOwners(account),
+    );
     return this.router(this.contractsMap[chain]).accountOwners(account);
   }
 
