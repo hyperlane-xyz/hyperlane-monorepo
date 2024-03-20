@@ -4,12 +4,14 @@ import {
   AgentConfig,
   ChainMap,
   GasPaymentEnforcement,
+  HyperlaneAddressesMap,
+  HyperlaneFactories,
   MatchingList,
   RelayerConfig as RelayerAgentConfig,
   chainMetadata,
   getDomainId,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { AgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
@@ -152,11 +154,18 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   }
 }
 
-// Create a matching list for the given router addresses
 export function routerMatchingList(
-  routers: ChainMap<{ router: string }>,
+  routers: ChainMap<{ router: Address }>,
 ): MatchingList {
-  const chains = Object.keys(routers);
+  return matchingList(routers);
+}
+
+// Create a matching list for the given contract addresses
+export function matchingList<F extends HyperlaneFactories>(
+  addressesMap: HyperlaneAddressesMap<F>,
+  contracts?: Array<keyof F>,
+): MatchingList {
+  const chains = Object.keys(addressesMap);
 
   // matching list must have at least one element so bypass and check before returning
   const matchingList: MatchingList = [];
@@ -167,12 +176,17 @@ export function routerMatchingList(
         continue;
       }
 
-      matchingList.push({
-        originDomain: getDomainId(chainMetadata[source]),
-        senderAddress: addressToBytes32(routers[source].router),
-        destinationDomain: getDomainId(chainMetadata[destination]),
-        recipientAddress: addressToBytes32(routers[destination].router),
-      });
+      const sources = addressesMap[source];
+      const destinations = addressesMap[destination];
+
+      for (const contract of contracts ?? Object.keys(sources)) {
+        matchingList.push({
+          originDomain: getDomainId(chainMetadata[source]),
+          senderAddress: addressToBytes32(sources[contract]),
+          destinationDomain: getDomainId(chainMetadata[destination]),
+          recipientAddress: addressToBytes32(destinations[contract]),
+        });
+      }
     }
   }
 
