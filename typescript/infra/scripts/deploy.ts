@@ -154,10 +154,10 @@ async function main() {
     );
     deployer.cacheAddressesMap({
       plumetestnet: {
-        interchainAccountRouter: '0xA0aB1750b4F68AE5E8C42d936fa78871eae52643',
+        interchainAccountRouter: '0x3E112ad581b7510EB95d34521D4CaEBD14dF1d4C',
       },
       sepolia: {
-        interchainAccountRouter: '0x90360940B160B862F2e249124D89d734b3981DAb',
+        interchainAccountRouter: '0x8a557D004d50A95466C508b61EB68768c8371e30',
       },
     });
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
@@ -169,14 +169,13 @@ async function main() {
     // filter config to only include sepolia and optimismgoerli for now
     config = {
       sepolia: config.sepolia,
-      scrollsepolia: config.scrollsepolia,
+      // scrollsepolia: config.scrollsepolia,
       plumetestnet: config.plumetestnet,
     };
     deployer = new InterchainAccountDeployer(multiProvider, contractVerifier);
     const addresses = getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS);
     console.log('deploy: ICA addresses', JSON.stringify(addresses, null, 2));
     InterchainAccount.fromAddressesMap(addresses, multiProvider);
-    return;
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);

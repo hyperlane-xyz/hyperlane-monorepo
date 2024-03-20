@@ -29,6 +29,12 @@
       "constructorArguments": "000000000000000000000000000000000000000000000000000000000000001200000000000000000000000033db966328ea213b0f76ef96ca368ab37779f065",
       "isProxy": false,
       "name": "HypERC20"
+    },
+    {
+      "address": "0xec8875C7cE0a814A56654618D366641859F32C7A",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000001200000000000000000000000033db966328ea213b0f76ef96ca368ab37779f065",
+      "isProxy": false,
+      "name": "Synthetic"
     }
   ],
   "scrollsepolia": [
@@ -81,6 +87,12 @@
       "constructorArguments": "000000000000000000000000ffaef09b3cd11d9b20d1a19becca54eec2884766",
       "isProxy": false,
       "name": "HypNative"
+    },
+    {
+      "address": "0x96178c13B869b06075619138ddb1962Fb318ebBa",
+      "constructorArguments": "000000000000000000000000ffaef09b3cd11d9b20d1a19becca54eec2884766",
+      "isProxy": false,
+      "name": "Native"
     }
   ]
 }

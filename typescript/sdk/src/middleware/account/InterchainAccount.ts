@@ -151,6 +151,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     innerCalls: CallData[],
   ): CallData {
     const localRouter = this.router(this.contractsMap[chain]);
+    // const gasQuote = await localRouter.quoteGasPayment(destination);
     const icaCall: CallData = {
       to: localRouter.address,
       data: localRouter.interface.encodeFunctionData(
@@ -175,7 +176,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     const localRouter = this.router(this.contractsMap[chain]);
     console.log('ICA getAccountOwner', chain, account, localRouter.address);
     console.log(
-      'ICA getAccountOwner',
+      'ICA getAccountOwner 2',
       await localRouter.accountOwners(account),
     );
     return this.router(this.contractsMap[chain]).accountOwners(account);

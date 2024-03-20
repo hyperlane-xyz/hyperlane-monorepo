@@ -8,7 +8,7 @@ const SEPOLIA_SAFE_GOVERNOR = '0xCE6C85BF67566990dc69fD7e3760fed7b4a0dF21';
 
 const localRouters = {
   [chainMetadata.plumetestnet.name]:
-    '0xA0aB1750b4F68AE5E8C42d936fa78871eae52643',
+    '0x3E112ad581b7510EB95d34521D4CaEBD14dF1d4C',
   [chainMetadata.scrollsepolia.name]:
     '0x062dF6670d8F4E1dB8C1caaFf590e9c290147bba',
 };

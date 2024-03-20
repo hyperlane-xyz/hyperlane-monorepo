@@ -55,17 +55,16 @@ export async function deployWithArtifacts<Config extends object>(
     process.exit(0); // Exit the process
   });
 
-  // try {
-  //   return;
-  //   if (targetNetwork) {
-  //     deployer.deployedContracts[targetNetwork] =
-  //       await deployer.deployContracts(targetNetwork, configMap[targetNetwork]);
-  //   } else {
-  //     await deployer.deploy(configMap);
-  //   }
-  // } catch (e) {
-  //   console.error('Failed to deploy contracts', e);
-  // }
+  try {
+    if (targetNetwork) {
+      deployer.deployedContracts[targetNetwork] =
+        await deployer.deployContracts(targetNetwork, configMap[targetNetwork]);
+    } else {
+      await deployer.deploy(configMap);
+    }
+  } catch (e) {
+    console.error('Failed to deploy contracts', e);
+  }
 
   await postDeploy(deployer, cache, agentConfig);
 }
