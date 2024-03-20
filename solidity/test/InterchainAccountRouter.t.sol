@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import "forge-std/console.sol";
-
 import {Test} from "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
@@ -341,7 +339,7 @@ contract InterchainAccountRouterTest is Test {
         assertEq(ownerBytes, owner.addressToBytes32());
     }
 
-    function testGasRouter() public {
+    function test_quoteGasPayment() public {
         // arrange
         originRouter.enrollRemoteRouterAndIsm(
             destination,
