@@ -1,6 +1,7 @@
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
 import {
   Address,
+  AddressBytes32,
   CallData,
   ProtocolType,
   addressToBytes32,
@@ -165,6 +166,13 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       ),
     };
     return icaCall;
+  }
+
+  async getAccountOwner(
+    chain: ChainName,
+    account: Address,
+  ): Promise<AddressBytes32> {
+    return this.router(this.contractsMap[chain]).accountOwners(account);
   }
 
   // async callRemote(

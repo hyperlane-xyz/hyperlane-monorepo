@@ -251,6 +251,7 @@ export abstract class HyperlaneAppGovernor<
       const owner = await ownable.owner();
       if (eqAddress(owner, this.ica.routerAddress(chain))) {
         console.log('issa owner by ICA account');
+        // const (originm, accountOwner) = this.ica.getAccountOwner(chain, ownableAddress);
         // TODO: push encoded
         return SubmissionType.SAFE;
       }
