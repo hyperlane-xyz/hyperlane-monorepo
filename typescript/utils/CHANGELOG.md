@@ -1,5 +1,13 @@
 # @hyperlane-xyz/utils
 
+## 3.8.2
+
+## 3.8.1
+
+### Patch Changes
+
+- 5daaae274: Prevent warp transfers to zero-ish addresses
+
 ## 3.8.0
 
 ### Minor Changes

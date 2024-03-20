@@ -1,5 +1,21 @@
 # @hyperlane-xyz/cli
 
+## 3.8.2
+
+### Patch Changes
+
+- bfc2b792b: Fix bug with HypCollateral warp route deployments
+  - @hyperlane-xyz/sdk@3.8.2
+  - @hyperlane-xyz/utils@3.8.2
+
+## 3.8.1
+
+### Patch Changes
+
+- Updated dependencies [5daaae274]
+  - @hyperlane-xyz/utils@3.8.1
+  - @hyperlane-xyz/sdk@3.8.1
+
 ## 3.8.0
 
 ### Patch Changes
