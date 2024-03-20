@@ -331,11 +331,12 @@ contract InterchainAccountRouterTest is Test {
             address(environment.isms(destination))
         );
 
-        // assert
-        assertEq(
-            destinationRouter.accountOwners(address(ica)),
-            owner.addressToBytes32()
+        (uint32 domain, bytes32 ownerBytes) = destinationRouter.accountOwners(
+            address(ica)
         );
+        // assert
+        assertEq(domain, origin);
+        assertEq(ownerBytes, owner.addressToBytes32());
     }
 
     function testFuzz_singleCallRemoteWithDefault(bytes32 data) public {
