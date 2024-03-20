@@ -177,7 +177,9 @@ export function matchingList<F extends HyperlaneFactories>(
       }
 
       const uniqueAddresses = (addresses: HyperlaneAddresses<F>) =>
-        [...new Set(Object.values(addresses))].map((s) => addressToBytes32(s));
+        Array.from(new Set(Object.values(addresses)).values()).map((s) =>
+          addressToBytes32(s),
+        );
 
       matchingList.push({
         originDomain: getDomainId(chainMetadata[source]),
