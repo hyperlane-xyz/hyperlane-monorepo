@@ -12,13 +12,21 @@ pub struct Server {
 }
 
 impl Server {
+    /// Run an HTTP server
+    pub fn run(self: Arc<Self>) -> JoinHandle<()> {
+        self.run_with_custom_routes(vec![])
+    }
+
     /// Run an HTTP server serving agent-specific different routes
     ///
     /// routes:
-    ///   - metrics - serving OpenMetrics format reports on `/metrics`
+    ///  - metrics - serving OpenMetrics format reports on `/metrics`
     ///     (this is compatible with Prometheus, which ought to be configured to scrape this endpoint)
     ///  - additional_routes - additional routes to be served by the server as per the specific agent
-    pub fn run(self: Arc<Self>, additional_routes: Vec<(&str, Router)>) -> JoinHandle<()> {
+    pub fn run_with_custom_routes(
+        self: Arc<Self>,
+        custom_routes: Vec<(&str, Router)>,
+    ) -> JoinHandle<()> {
         let port = self.listen_port;
         tracing::info!(port, "starting server on 0.0.0.0");
 
@@ -29,7 +37,7 @@ impl Server {
             get(move || Self::gather_metrics(core_metrics_clone)),
         );
 
-        for (route, router) in additional_routes {
+        for (route, router) in custom_routes {
             app = app.nest(route, router);
         }
 
@@ -88,7 +96,7 @@ mod tests {
         let server = Arc::new(server);
         // Run the server in the background
         let _server_task = tokio::spawn(async move {
-            server.run(vec![]).await.unwrap();
+            server.run().await.unwrap();
         });
 
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;

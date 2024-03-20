@@ -282,7 +282,9 @@ impl BaseAgent for Relayer {
             .settings
             .server(self.core_metrics.clone())
             .expect("Failed to create server");
-        let server_task = server.run(vec![]).instrument(info_span!("Relayer server"));
+        let server_task = server
+            .run_with_custom_routes(vec![])
+            .instrument(info_span!("Relayer server"));
         tasks.push(server_task);
 
         // send channels by destination chain
