@@ -1,5 +1,7 @@
 import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
+  HypERC20App,
+  HypERC20Checker,
   HyperlaneCore,
   HyperlaneCoreChecker,
   HyperlaneIgp,
@@ -19,10 +21,12 @@ import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor';
 import { ProxiedRouterGovernor } from '../src/govern/ProxiedRouterGovernor';
 import { Role } from '../src/roles';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
+import { readJSONAtPath } from '../src/utils/utils';
 
 import {
   Modules,
   getArgs as getRootArgs,
+  withConfigAndArtifactPath,
   withContext,
   withModuleAndFork,
 } from './agent-utils';
@@ -30,14 +34,24 @@ import { getEnvironmentConfig } from './core-utils';
 import { getHelloWorldApp } from './helloworld/utils';
 
 function getArgs() {
-  return withModuleAndFork(withContext(getRootArgs()))
+  return withConfigAndArtifactPath(
+    withModuleAndFork(withContext(getRootArgs())),
+  )
     .boolean('govern')
     .default('govern', false)
     .alias('g', 'govern').argv;
 }
 
 async function check() {
-  const { fork, govern, module, environment, context } = await getArgs();
+  const {
+    fork,
+    govern,
+    module,
+    environment,
+    context,
+    artifactPath,
+    configPath,
+  } = await getArgs();
   const config = getEnvironmentConfig(environment);
   let multiProvider = await config.getMultiProvider();
 
@@ -105,6 +119,16 @@ async function check() {
       routerConfig,
       ismFactory,
     );
+    governor = new ProxiedRouterGovernor(checker);
+  } else if (module === Modules.WARP) {
+    if (!artifactPath || !configPath) {
+      throw new Error('artifactPath and configPath are required for WARP');
+    }
+    const artifacts = readJSONAtPath(artifactPath);
+    const config = readJSONAtPath(configPath);
+
+    const app = HypERC20App.fromAddressesMap(artifacts, multiProvider);
+    const checker = new HypERC20Checker(multiProvider, app, config);
     governor = new ProxiedRouterGovernor(checker);
   } else {
     console.log(`Skipping ${module}, checker or governor unimplemented`);

@@ -32,6 +32,7 @@ import {
   fetchExplorerApiKeys,
 } from '../src/deployment/verify';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
+import { readJSONAtPath } from '../src/utils/utils';
 
 import {
   Modules,
@@ -41,6 +42,7 @@ import {
   getContractAddressesSdkFilepath,
   getModuleDirectory,
   withBuildArtifactPath,
+  withConfigAndArtifactPath,
   withContext,
   withModuleAndFork,
   withNetwork,
@@ -55,8 +57,12 @@ async function main() {
     environment,
     network,
     buildArtifactPath,
+    artifactPath,
+    configPath,
   } = await withContext(
-    withNetwork(withModuleAndFork(withBuildArtifactPath(getArgs()))),
+    withConfigAndArtifactPath(
+      withNetwork(withModuleAndFork(withBuildArtifactPath(getArgs()))),
+    ),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
   const env = deployEnvToSdkEnv[environment];
@@ -199,18 +205,24 @@ async function main() {
     return;
   }
 
+  if (configPath) {
+    console.log(`Reading config from ${configPath}`);
+    config = readJSONAtPath(configPath);
+  }
+
   const modulePath = getModuleDirectory(environment, module, context);
 
   console.log(`Deploying to ${modulePath}`);
 
   const isSdkArtifact = SDK_MODULES.includes(module) && environment !== 'test';
 
-  const addresses = isSdkArtifact
-    ? path.join(
-        getContractAddressesSdkFilepath(),
-        `${deployEnvToSdkEnv[environment]}.json`,
-      )
-    : path.join(modulePath, 'addresses.json');
+  const addresses =
+    artifactPath ?? isSdkArtifact
+      ? path.join(
+          getContractAddressesSdkFilepath(),
+          `${deployEnvToSdkEnv[environment]}.json`,
+        )
+      : path.join(modulePath, 'addresses.json');
 
   const verification = path.join(modulePath, 'verification.json');
 
