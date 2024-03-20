@@ -24,6 +24,8 @@ use hyperlane_core::HyperlaneDomain;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+const EIGEN_NODE_API_BASE: &str = "/eigen";
+
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 enum ServiceStatus {
     Up,
@@ -53,6 +55,10 @@ pub struct EigenNodeAPI {
 }
 
 impl EigenNodeAPI {
+    pub fn get_route(&self) -> (&'static str, Router) {
+        (EIGEN_NODE_API_BASE, self.router())
+    }
+
     pub fn router(&self) -> Router {
         let core_metrics_clone = self.core_metrics.clone();
         let origin_chain = self.origin_chain.clone();
