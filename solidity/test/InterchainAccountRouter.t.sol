@@ -320,6 +320,24 @@ contract InterchainAccountRouterTest is Test {
         assertEq(address(igp).balance, expectedGasPayment);
     }
 
+    function testFuzz_getDeployedInterchainAccount_checkAccountOwners(
+        address owner
+    ) public {
+        // act
+        ica = destinationRouter.getDeployedInterchainAccount(
+            origin,
+            owner,
+            address(originRouter),
+            address(environment.isms(destination))
+        );
+
+        // assert
+        assertEq(
+            destinationRouter.accountOwners(address(ica)),
+            owner.addressToBytes32()
+        );
+    }
+
     function testFuzz_singleCallRemoteWithDefault(bytes32 data) public {
         // arrange
         originRouter.enrollRemoteRouterAndIsm(

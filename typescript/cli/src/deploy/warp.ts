@@ -5,7 +5,7 @@ import {
   ChainMap,
   ChainName,
   ConnectionClientConfig,
-  EvmHypCollateralAdapter,
+  EvmTokenAdapter,
   HypERC20Deployer,
   HypERC721Deployer,
   HyperlaneContractsMap,
@@ -124,8 +124,8 @@ async function runBuildConfigStep({
   const { type: baseType, chainName: baseChainName, isNft } = base;
 
   const owner = await signer.getAddress();
-
   const baseMetadata = await fetchBaseTokenMetadata(base, multiProvider);
+
   log(
     `Using base token metadata: Name: ${baseMetadata.name}, Symbol: ${baseMetadata.symbol}, Decimals: ${baseMetadata.decimals}`,
   );
@@ -141,7 +141,8 @@ async function runBuildConfigStep({
     [baseChainName]: {
       type: baseType,
       token:
-        baseType === TokenType.collateral
+        baseType === TokenType.collateral ||
+        baseType === TokenType.collateralVault
           ? base.address!
           : ethers.constants.AddressZero,
       owner,
@@ -233,6 +234,7 @@ async function runDeployPlanStep({
   const baseName = getTokenName(baseToken);
   logBlue('\nDeployment plan');
   logGray('===============');
+  log(`Collateral type will be ${baseToken.type}`);
   log(`Transaction signer and owner of new contracts will be ${address}`);
   log(`Deploying a warp route with a base of ${baseName} token on ${origin}`);
   log(`Connecting it to new synthetic tokens on ${remotes.join(', ')}`);
@@ -289,18 +291,21 @@ async function fetchBaseTokenMetadata(
       multiProvider.getChainMetadata(chainName).nativeToken;
     if (chainNativeToken) return chainNativeToken;
     else throw new Error(`No native token metadata for ${chainName}`);
-  } else if (base.type === TokenType.collateral && address) {
+  } else if (
+    base.type === TokenType.collateralVault ||
+    (base.type === TokenType.collateral && address)
+  ) {
     // If it's a collateral type, use a TokenAdapter to query for its metadata
     log(`Fetching token metadata for ${address} on ${chainName}}`);
-    const adapter = new EvmHypCollateralAdapter(
+    const adapter = new EvmTokenAdapter(
       chainName,
       MultiProtocolProvider.fromMultiProvider(multiProvider),
-      { token: address },
+      { token: address as string },
     );
     return adapter.getMetadata();
   } else {
     throw new Error(
-      `Unsupported token: ${base}. Consider setting token metadata in your deployment config.`,
+      `Unsupported token: ${base.type}. Consider setting token metadata in your deployment config.`,
     );
   }
 }
@@ -344,7 +349,7 @@ function writeWarpUiTokenConfig(
       symbol: metadata.symbol,
       decimals: metadata.decimals,
       addressOrDenom:
-        contract[configMap[origin].type as keyof TokenFactories].address,
+        contract[configMap[chainName].type as keyof TokenFactories].address,
       collateralAddressOrDenom,
     });
   }

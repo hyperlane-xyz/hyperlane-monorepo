@@ -1,5 +1,13 @@
 # @hyperlane-xyz/infra
 
+## 3.8.2
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@3.8.2
+- @hyperlane-xyz/sdk@3.8.2
+- @hyperlane-xyz/utils@3.8.2
+
 ## 3.8.1
 
 ### Patch Changes
