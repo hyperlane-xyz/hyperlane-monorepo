@@ -13,6 +13,7 @@ import {
 } from '../../../src/config';
 import {
   GasPaymentEnforcementConfig,
+  matchingList,
   routerMatchingList,
 } from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
@@ -22,12 +23,17 @@ import { environment, supportedChainNames } from './chains';
 import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
-import injectiveInevmAddresses from './warp/injective-inevm-addresses.json';
+import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
+import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
+import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
+import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
+import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
+import victionEthereumUsdtAddresses from './warp/viction-USDT-addresses.json';
 
-// const releaseCandidateHelloworldMatchingList = routerMatchingList(
-//   helloWorld[Contexts.ReleaseCandidate].addresses,
-// );
+const releaseCandidateHelloworldMatchingList = routerMatchingList(
+  helloWorld[Contexts.ReleaseCandidate].addresses,
+);
 
 const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
@@ -134,9 +140,17 @@ const hyperlane: RootAgentConfig = {
     docker: {
       repo,
       // Includes Cosmos block-by-block indexing.
-      tag: '9736164-20240307-131918',
+      tag: 'a72c3cf-20240314-173418',
     },
-    gasPaymentEnforcement,
+    gasPaymentEnforcement: [
+      // Temporary measure to ensure all inEVM warp route messages are delivered -
+      // we saw some issues with IGP indexing.
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: routerMatchingList(injectiveInevmInjAddresses),
+      },
+      ...gasPaymentEnforcement,
+    ],
     metricAppContexts: [
       {
         name: 'helloworld',
@@ -146,14 +160,34 @@ const hyperlane: RootAgentConfig = {
       },
       {
         name: 'injective_inevm_inj',
-        matchingList: routerMatchingList(injectiveInevmAddresses),
+        matchingList: routerMatchingList(injectiveInevmInjAddresses),
+      },
+      {
+        name: 'inevm_ethereum_usdc',
+        matchingList: matchingList(inevmEthereumUsdcAddresses),
+      },
+      {
+        name: 'inevm_ethereum_usdt',
+        matchingList: matchingList(inevmEthereumUsdtAddresses),
+      },
+      {
+        name: 'viction_ethereum_eth',
+        matchingList: routerMatchingList(victionEthereumEthAddresses),
+      },
+      {
+        name: 'viction_ethereum_usdc',
+        matchingList: routerMatchingList(victionEthereumUsdcAddresses),
+      },
+      {
+        name: 'viction_ethereum_usdt',
+        matchingList: routerMatchingList(victionEthereumUsdtAddresses),
       },
     ],
   },
   validators: {
     docker: {
       repo,
-      tag: '9736164-20240307-131918',
+      tag: 'ae0990a-20240313-215426',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -162,7 +196,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '54aeb64-20240206-163119',
+      tag: 'ae0990a-20240313-215426',
     },
   },
 };
@@ -176,9 +210,9 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9736164-20240307-131918',
+      tag: 'a72c3cf-20240314-173418',
     },
-    // whitelist: releaseCandidateHelloworldMatchingList,
+    whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1
@@ -188,7 +222,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '9736164-20240307-131918',
+      tag: 'ae0990a-20240313-215426',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -213,7 +247,7 @@ const neutron: RootAgentConfig = {
     docker: {
       repo,
       // Includes Cosmos block-by-block indexing.
-      tag: '9736164-20240307-131918',
+      tag: 'a72c3cf-20240314-173418',
     },
     gasPaymentEnforcement: [
       {
