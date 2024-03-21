@@ -127,11 +127,14 @@ export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
 }
 
 // missing chains are chains needed which are not as part of defaultMultisigConfigs in sdk/src/consts/ but are in chainMetadata
-export function withMissingChains<T>(args: yargs.Argv<T>) {
+export function withNewChainValidators<T>(args: yargs.Argv<T>) {
   return args
-    .describe('newChains', 'new chains to add')
-    .string('newChains')
-    .alias('n', 'newChains');
+    .describe(
+      'newChainValidators',
+      'new chains to add and how many validators, e.g. "mynewchain=3,myothernewchain=5"',
+    )
+    .string('newChainValidators')
+    .alias('n', 'newChainValidators');
 }
 
 export function withBuildArtifactPath<T>(args: yargs.Argv<T>) {
@@ -154,17 +157,17 @@ export function assertEnvironment(env: string): DeployEnvironment {
 export async function getAgentConfigsBasedOnArgs(argv?: {
   environment: DeployEnvironment;
   context: Contexts;
-  newChains: string;
+  newChainValidators: string;
 }) {
   const {
     environment,
     context = Contexts.Hyperlane,
-    newChains,
-  } = argv ? argv : await withMissingChains(withContext(getArgs())).argv;
+    newChainValidators,
+  } = argv ? argv : await withNewChainValidators(withContext(getArgs())).argv;
 
   const newValidatorCounts: ChainMap<number> = {};
-  if (newChains) {
-    const chains = newChains.split(',');
+  if (newChainValidators) {
+    const chains = newChainValidators.split(',');
     for (const chain of chains) {
       const [chainName, newValidatorCount] = chain.split('=');
       newValidatorCounts[chainName] = parseInt(newValidatorCount, 10);
@@ -213,6 +216,12 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
       reorgPeriod: chainMetadata[chain].blocks?.reorgPeriod ?? 0, // dummy value
       validators,
     };
+
+    // In addition to creating a new entry in agentConfig.validators, we update
+    // the contextChainNames.validator array to include the new chain.
+    if (!agentConfig.contextChainNames.validator.includes(chain)) {
+      agentConfig.contextChainNames.validator.push(chain);
+    }
   }
 
   console.log('agentConfig.validators.chains', agentConfig.validators!.chains);

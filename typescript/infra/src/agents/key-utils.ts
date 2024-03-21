@@ -437,7 +437,10 @@ async function persistAddressesLocally(
     relayerAddresses,
   );
 
-  await persistValidatorAddressesToLocalArtifacts(multisigValidatorKeys);
+  await persistValidatorAddressesToLocalArtifacts(
+    agentConfig.context,
+    multisigValidatorKeys,
+  );
 }
 
 // non-validator roles
@@ -458,6 +461,7 @@ export async function persistRoleAddressesToLocalArtifacts(
 
 // maintaining the multisigIsm schema sans threshold
 export async function persistValidatorAddressesToLocalArtifacts(
+  context: Contexts,
   fetchedValidatorAddresses: ChainMap<{ validators: Address[] }>,
 ) {
   for (const chain of Object.keys(fetchedValidatorAddresses)) {
@@ -466,7 +470,11 @@ export async function persistValidatorAddressesToLocalArtifacts(
     };
   }
   // Write the updated object back to the file
-  writeJSON(CONFIG_DIRECTORY_PATH, 'aw-multisig.json', awMultisigAddresses);
+  writeJSON(
+    CONFIG_DIRECTORY_PATH,
+    `aw-multisig-${context}.json`,
+    awMultisigAddresses,
+  );
 }
 
 export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {

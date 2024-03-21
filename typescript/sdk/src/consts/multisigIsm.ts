@@ -11,6 +11,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  ancient8: {
+    threshold: 1,
+    validators: ['0xbb5842ae0e05215b53df4787a29144efb7e67551'],
+  },
+
   arbitrum: {
     threshold: 3,
     validators: [
