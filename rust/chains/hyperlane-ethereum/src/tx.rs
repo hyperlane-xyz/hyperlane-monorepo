@@ -128,13 +128,15 @@ where
     Ok(eip_1559_tx.gas(gas_limit))
 }
 
+type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU256);
+
 /// Pretty much a copy of the logic in ethers-rs (https://github.com/hyperlane-xyz/ethers-rs/blob/c9ced035628da59376c369be035facda1648577a/ethers-providers/src/provider.rs#L478)
 /// but returns the base fee as well as the max fee and max priority fee.
 /// Gets a heuristic recommendation of max fee per gas and max priority fee per gas for
 /// EIP-1559 compatible transactions.
 async fn estimate_eip1559_fees<M>(
     provider: Arc<M>,
-    estimator: Option<fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU256)>,
+    estimator: Option<FeeEstimator>,
 ) -> ChainResult<(EthersU256, EthersU256, EthersU256)>
 where
     M: Middleware + 'static,
