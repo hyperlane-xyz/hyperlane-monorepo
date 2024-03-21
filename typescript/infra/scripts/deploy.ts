@@ -154,10 +154,10 @@ async function main() {
     );
     deployer.cacheAddressesMap({
       plumetestnet: {
-        interchainAccountRouter: '0x3E112ad581b7510EB95d34521D4CaEBD14dF1d4C',
+        interchainAccountRouter: '0xB6F8aA9B1b314A6E6DFB465DD3e0E95936347517',
       },
       sepolia: {
-        interchainAccountRouter: '0x8a557D004d50A95466C508b61EB68768c8371e30',
+        interchainAccountRouter: '0x8e131c8aE5BF1Ed38D05a00892b6001a7d37739d',
       },
     });
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {

@@ -35,6 +35,24 @@
       "constructorArguments": "000000000000000000000000000000000000000000000000000000000000001200000000000000000000000033db966328ea213b0f76ef96ca368ab37779f065",
       "isProxy": false,
       "name": "Synthetic"
+    },
+    {
+      "address": "0xE81De1d727Ba319185a86D92E8Eb4e41046CE6B7",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000001200000000000000000000000033db966328ea213b0f76ef96ca368ab37779f065",
+      "isProxy": false,
+      "name": "Synthetic"
+    },
+    {
+      "address": "0x153BED6fFD8C67684Af07177C8E9A06877219cb7",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000001200000000000000000000000033db966328ea213b0f76ef96ca368ab37779f065",
+      "isProxy": false,
+      "name": "Synthetic"
+    },
+    {
+      "address": "0x71B1BF7C99BEef0545eAFf441372cb6413d9367c",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000001200000000000000000000000033db966328ea213b0f76ef96ca368ab37779f065",
+      "isProxy": false,
+      "name": "Synthetic"
     }
   ],
   "scrollsepolia": [
@@ -90,6 +108,24 @@
     },
     {
       "address": "0x96178c13B869b06075619138ddb1962Fb318ebBa",
+      "constructorArguments": "000000000000000000000000ffaef09b3cd11d9b20d1a19becca54eec2884766",
+      "isProxy": false,
+      "name": "Native"
+    },
+    {
+      "address": "0x67aaeC97cB97d7CB93500885701413932Ab15A25",
+      "constructorArguments": "000000000000000000000000ffaef09b3cd11d9b20d1a19becca54eec2884766",
+      "isProxy": false,
+      "name": "Native"
+    },
+    {
+      "address": "0x4BCC7168C80eCBDC7684893e5C057105F773B798",
+      "constructorArguments": "000000000000000000000000ffaef09b3cd11d9b20d1a19becca54eec2884766",
+      "isProxy": false,
+      "name": "Native"
+    },
+    {
+      "address": "0x79a77F40Ef847760727F1E9607c201f06B7b0000",
       "constructorArguments": "000000000000000000000000ffaef09b3cd11d9b20d1a19becca54eec2884766",
       "isProxy": false,
       "name": "Native"

@@ -66,6 +66,10 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
   ): InterchainAccount {
+    console.log(
+      'InterchainAccount fromAddressesMap',
+      JSON.stringify(addressesMap, null, 2),
+    );
     const helper = appFromAddressesMapHelper(
       addressesMap,
       interchainAccountFactories,
@@ -145,13 +149,16 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     }
   }
 
-  getCallRemote(
+  async getCallRemote(
     chain: ChainName,
     destination: ChainName,
     innerCalls: CallData[],
-  ): CallData {
+  ): Promise<CallData> {
     const localRouter = this.router(this.contractsMap[chain]);
-    // const gasQuote = await localRouter.quoteGasPayment(destination);
+    const quote = await localRouter.quoteGasPayment(
+      this.multiProvider.getDomainId(destination),
+    );
+    console.log('quote', quote);
     const icaCall: CallData = {
       to: localRouter.address,
       data: localRouter.interface.encodeFunctionData(
@@ -160,11 +167,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           this.multiProvider.getDomainId(destination),
           innerCalls.map((call) => ({
             to: addressToBytes32(call.to),
-            value: 0,
+            value: call.value,
             data: call.data,
           })),
         ],
       ),
+      value: quote,
     };
     return icaCall;
   }

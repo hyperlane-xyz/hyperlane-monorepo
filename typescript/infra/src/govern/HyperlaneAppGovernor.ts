@@ -1,3 +1,4 @@
+import { BigNumber } from 'ethers';
 import { prompts } from 'prompts';
 
 import { Ownable__factory } from '@hyperlane-xyz/core';
@@ -26,7 +27,7 @@ import {
 export enum SubmissionType {
   MANUAL = 0,
   SAFE = 1,
-  SIGNER = 1,
+  SIGNER = 2,
 }
 
 export type AnnotatedCallData = CallData & {
@@ -111,7 +112,11 @@ export abstract class HyperlaneAppGovernor<
         if (confirmed) {
           console.log(`Submitting calls on ${chain} via ${submissionType}`);
           await multiSend.sendTransactions(
-            calls.map((call) => ({ to: call.to, data: call.data })),
+            calls.map((call) => ({
+              to: call.to,
+              data: call.data,
+              value: call.value,
+            })),
           );
         } else {
           console.log(
@@ -180,6 +185,7 @@ export abstract class HyperlaneAppGovernor<
       const localOwner = await account.owner();
       console.log(
         'ICA inference... inner',
+        account.address,
         call.to,
         localOwner,
         this.interchainAccount.routerAddress(chain),
@@ -190,12 +196,22 @@ export abstract class HyperlaneAppGovernor<
         const origin =
           this.interchainAccount.multiProvider.getChainName(originDomain);
         console.log('issa owner by ICA account', origin, remoteOwner);
+        const callRemote = await this.interchainAccount.getCallRemote(
+          origin,
+          chain,
+          [call],
+        );
         const encodedCall = {
-          ...this.interchainAccount.getCallRemote(origin, chain, [call]),
+          ...callRemote,
           // encode the call data for ICA
           description: 'call from interchain account',
         };
-        return this.inferCallSubmissionType(origin, encodedCall);
+        const subType = await this.inferCallSubmissionType(origin, encodedCall);
+        if (subType) {
+          this.popCall(chain);
+          this.pushCall(origin, encodedCall);
+          return subType;
+        }
       }
     }
     return SubmissionType.MANUAL;
@@ -214,6 +230,7 @@ export abstract class HyperlaneAppGovernor<
       submitterAddress: Address,
     ): Promise<boolean> => {
       try {
+        console.log('transactionSucceedsFromSender value: ', call.value);
         await multiProvider.estimateGas(chain, call, submitterAddress);
         return true;
       } catch (e) {} // eslint-disable-line no-empty
@@ -221,10 +238,7 @@ export abstract class HyperlaneAppGovernor<
     };
     console.log('inferCallSubmissionType...', chain, call, signerAddress);
 
-    if (
-      chain !== 'sepolia' &&
-      (await transactionSucceedsFromSender(chain, signerAddress))
-    ) {
+    if (await transactionSucceedsFromSender(chain, signerAddress)) {
       return SubmissionType.SIGNER;
     }
 
@@ -323,6 +337,7 @@ export abstract class HyperlaneAppGovernor<
         'transferOwnership',
         [violation.expected],
       ),
+      value: BigNumber.from(0),
       description: `Transfer ownership of ${violation.name} at ${violation.contract.address} to ${violation.expected}`,
     });
   }

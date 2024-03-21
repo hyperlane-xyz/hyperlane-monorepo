@@ -71,6 +71,7 @@ async function check() {
   const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
   const routerConfig = core.getRouterConfig(config.owners);
   const ica = InterchainAccount.fromEnvironment(env, multiProvider);
+  console.log('ICA ----', ica.routerAddress('plumetestnet'));
   // routerConfig = {
   //   sepolia: routerConfig.sepolia,
   //   scrollsepolia: routerConfig.scrollsepolia,

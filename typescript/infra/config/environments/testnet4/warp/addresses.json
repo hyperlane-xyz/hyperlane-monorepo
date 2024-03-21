@@ -1,13 +1,13 @@
 {
   "plumetestnet": {
-    "interchainAccountRouter": "0x3E112ad581b7510EB95d34521D4CaEBD14dF1d4C",
-    "synthetic": "0xec8875C7cE0a814A56654618D366641859F32C7A"
+    "interchainAccountRouter": "0xB6F8aA9B1b314A6E6DFB465DD3e0E95936347517",
+    "synthetic": "0x71B1BF7C99BEef0545eAFf441372cb6413d9367c"
   },
   "scrollsepolia": {
     "synthetic": "0xe0c5bDAfEe7F7065402337040E426A42b5C33650"
   },
   "sepolia": {
-    "interchainAccountRouter": "0x8a557D004d50A95466C508b61EB68768c8371e30",
-    "native": "0x96178c13B869b06075619138ddb1962Fb318ebBa"
+    "interchainAccountRouter": "0x8e131c8aE5BF1Ed38D05a00892b6001a7d37739d",
+    "native": "0x79a77F40Ef847760727F1E9607c201f06B7b0000"
   }
 }
