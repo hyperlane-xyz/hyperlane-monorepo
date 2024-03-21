@@ -20,16 +20,36 @@ const ConnectionConfigSchema = {
 };
 
 export const WarpRouteDeployConfigSchema = z.object({
-  base: z.object({
-    type: z.literal(TokenType.native).or(z.literal(TokenType.collateral)),
-    chainName: z.string(),
-    address: ZHash.optional(),
-    isNft: z.boolean().optional(),
-    name: z.string().optional(),
-    symbol: z.string().optional(),
-    decimals: z.number().optional(),
-    ...ConnectionConfigSchema,
-  }),
+  base: z
+    .object({
+      type: z
+        .literal(TokenType.native)
+        .or(z.literal(TokenType.collateral))
+        .or(z.literal(TokenType.collateralVault)),
+      chainName: z.string(),
+      address: ZHash.optional(),
+      isNft: z.boolean().optional(),
+      name: z.string().optional(),
+      symbol: z.string().optional(),
+      decimals: z.number().optional(),
+      ...ConnectionConfigSchema,
+    })
+    .refine(
+      (data) => {
+        // For collateralVault Warp Routes, address will specify the vault
+        if (
+          data.type === TokenType.collateralVault &&
+          data.address === ethers.constants.AddressZero
+        )
+          return false;
+
+        return true;
+      },
+      {
+        message: 'Vault address is required when type is collateralVault',
+        path: ['address'],
+      },
+    ),
   synthetics: z
     .array(
       z.object({
@@ -89,13 +109,23 @@ export async function createWarpRouteDeployConfig({
       'Are you creating a route for the native token of the base chain (e.g. Ether on Ethereum)?',
   });
 
-  const baseType = isNative ? TokenType.native : TokenType.collateral;
-  const baseAddress = isNative
-    ? ethers.constants.AddressZero
-    : await input({ message: 'Enter the token address' });
   const isNft = isNative
     ? false
     : await confirm({ message: 'Is this an NFT (i.e. ERC-721)?' });
+  const isYieldBearing =
+    isNative || isNft
+      ? false
+      : await confirm({
+          message:
+            'Do you want this warp route to be yield-bearing (i.e. deposits into ERC-4626 vault)?',
+        });
+
+  const addressMessage = `Enter the ${
+    isYieldBearing ? 'ERC-4626 vault' : 'collateral token'
+  } address`;
+  const baseAddress = isNative
+    ? ethers.constants.AddressZero
+    : await input({ message: addressMessage });
 
   const syntheticChains = await runMultiChainSelectionStep(
     customChains,
@@ -103,7 +133,14 @@ export async function createWarpRouteDeployConfig({
   );
 
   // TODO add more prompts here to support customizing the token metadata
-
+  let baseType: TokenType;
+  if (isNative) {
+    baseType = TokenType.native;
+  } else {
+    baseType = isYieldBearing
+      ? TokenType.collateralVault
+      : TokenType.collateral;
+  }
   const result: WarpRouteDeployConfig = {
     base: {
       chainName: baseChain,

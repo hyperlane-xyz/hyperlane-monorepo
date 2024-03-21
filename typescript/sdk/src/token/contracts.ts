@@ -1,6 +1,7 @@
 import {
   FastHypERC20Collateral__factory,
   FastHypERC20__factory,
+  HypERC20CollateralVaultDeposit__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC721Collateral__factory,
@@ -18,6 +19,7 @@ export const hypERC20factories = {
   [TokenType.fastSynthetic]: new FastHypERC20__factory(),
   [TokenType.synthetic]: new HypERC20__factory(),
   [TokenType.collateral]: new HypERC20Collateral__factory(),
+  [TokenType.collateralVault]: new HypERC20CollateralVaultDeposit__factory(),
   [TokenType.native]: new HypNative__factory(),
   [TokenType.nativeScaled]: new HypNativeScaled__factory(),
 };
