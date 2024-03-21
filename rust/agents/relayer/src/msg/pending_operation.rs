@@ -2,7 +2,7 @@ use std::{cmp::Ordering, time::Instant};
 
 use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
-use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::{HyperlaneDomain, H256};
 
 #[allow(unused_imports)] // required for enum_dispatch
 use super::pending_message::PendingMessage;
@@ -29,6 +29,9 @@ use super::pending_message::PendingMessage;
 #[async_trait]
 #[enum_dispatch]
 pub trait PendingOperation {
+    /// Get the unique identifier for this operation.
+    fn id(&self) -> H256;
+
     /// The domain this operation will take place on.
     fn domain(&self) -> &HyperlaneDomain;
 
@@ -61,6 +64,10 @@ pub trait PendingOperation {
     /// This is only used for sorting, the functions are responsible for
     /// returning `NotReady` if it is too early and matters.
     fn next_attempt_after(&self) -> Option<Instant>;
+
+    /// Reset the number of attempts this operation has made, causing it to be
+    /// retried immediately.
+    fn reset_attempts(&mut self);
 
     #[cfg(test)]
     /// Set the number of times this operation has been retried.

@@ -41,7 +41,8 @@ impl OpQueue {
     }
 
     /// Pop an element from the queue and update metrics
-    async fn pop(&self) -> Option<Reverse<Box<DynPendingOperation>>> {
+    async fn pop(&mut self) -> Option<Reverse<Box<DynPendingOperation>>> {
+        self.process_api_requests().await;
         let op = self.queue.lock().await.pop();
         op.map(|op| {
             // even if the metric is decremented here, the operation may fail to process and be re-added to the queue.
@@ -53,14 +54,9 @@ impl OpQueue {
 
     async fn process_api_requests(&mut self) {
         // TODO: could rate-limit ourselves here, but we expect the volume of messages over this channel to
-        // be very low
-
-        // we can't do better than O(n) here, so just convert the heap to a vec, reprioritize, and
-        // build the heap again (which takes O(N) for an entire vec)
-
-        // the other consideration is whether to put the channel receiver in the OpQueue or in a dedicated task
+        // be very low.
+        // The other consideration is whether to put the channel receiver in the OpQueue or in a dedicated task
         // that also holds an Arc to the Mutex. For simplicity, we'll put it in the OpQueue for now.
-
         let mut message_ids = vec![];
         while let Ok(message_id) = self.api_rx.receiver.recv().await {
             message_ids.push(message_id);
@@ -68,7 +64,17 @@ impl OpQueue {
         if message_ids.is_empty() {
             return;
         }
-        let queue = self.queue.lock().await;
+        let mut queue = self.queue.lock().await;
+        let mut repriotized_queue: BinaryHeap<_> = queue
+            .drain()
+            .map(|Reverse(mut e)| {
+                if message_ids.contains(&e.id()) {
+                    e.reset_attempts()
+                }
+                Reverse(e)
+            })
+            .collect();
+        queue.append(&mut repriotized_queue);
     }
 
     /// Get the metric associated with this operation
@@ -224,7 +230,7 @@ async fn receive_task(
 #[instrument(skip_all, fields(%domain))]
 async fn prepare_task(
     domain: HyperlaneDomain,
-    prepare_queue: OpQueue,
+    mut prepare_queue: OpQueue,
     tx_submit: mpsc::Sender<Box<DynPendingOperation>>,
     metrics: SerialSubmitterMetrics,
 ) {
@@ -302,7 +308,7 @@ async fn submit_task(
 async fn confirm_task(
     domain: HyperlaneDomain,
     prepare_queue: OpQueue,
-    confirm_queue: OpQueue,
+    mut confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
 ) {
     loop {
