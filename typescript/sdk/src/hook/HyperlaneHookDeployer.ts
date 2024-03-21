@@ -166,7 +166,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     );
     const address = await this.ismFactory.deployStaticAddressSet(
       chain,
-      this.ismFactory.getContracts(chain).aggregationHookFactory,
+      this.ismFactory.getContracts(chain).staticAggregationHookFactory,
       aggregatedHooks,
       this.logger,
     );
