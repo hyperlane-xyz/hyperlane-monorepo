@@ -422,7 +422,7 @@ fn parse_custom_urls(
         .end()
         .map(|urls| {
             urls.split(',')
-                .filter_map(|url| url.parse().take_err(err, || &chain.cwp + "customGrpcUrls"))
+                .filter_map(|url| url.parse().take_err(err, || &chain.cwp + key))
                 .collect_vec()
         })
 }
@@ -440,12 +440,12 @@ fn parse_base_and_override_urls(
 
     if combined.is_empty() {
         err.push(
-            &chain.cwp + "rpc_urls",
-            eyre!("Missing base rpc definitions for chain"),
+            &chain.cwp + base_key,
+            eyre!("Missing base {} definitions for chain", base_key),
         );
         err.push(
             &chain.cwp + "custom_rpc_urls",
-            eyre!("Also missing rpc overrides for chain"),
+            eyre!("Also missing {} overrides for chain", base_key),
         );
     }
     combined
