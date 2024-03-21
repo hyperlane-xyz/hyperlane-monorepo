@@ -18,12 +18,10 @@ import {
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
   TestRecipientDeployer,
-  TokenType,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
-import { safes } from '../config/environments/mainnet3/owners';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -121,26 +119,10 @@ async function main() {
       contractVerifier,
     );
   } else if (module === Modules.WARP) {
-    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.PROXY_FACTORY),
       multiProvider,
     );
-    const routerConfig = core.getRouterConfig(envConfig.owners);
-    const inevm = {
-      ...routerConfig.inevm,
-      type: TokenType.native,
-      interchainSecurityModule: ethers.constants.AddressZero,
-      owner: safes.inevm,
-    };
-    const injective = {
-      ...routerConfig.injective,
-      type: TokenType.native,
-    };
-    config = {
-      inevm,
-      injective,
-    };
     deployer = new HypERC20Deployer(
       multiProvider,
       ismFactory,
@@ -217,12 +199,13 @@ async function main() {
   const isSdkArtifact = SDK_MODULES.includes(module) && environment !== 'test';
 
   const addresses =
-    artifactPath ?? isSdkArtifact
+    artifactPath ??
+    (isSdkArtifact
       ? path.join(
           getContractAddressesSdkFilepath(),
           `${deployEnvToSdkEnv[environment]}.json`,
         )
-      : path.join(modulePath, 'addresses.json');
+      : path.join(modulePath, 'addresses.json'));
 
   const verification = path.join(modulePath, 'verification.json');
 
