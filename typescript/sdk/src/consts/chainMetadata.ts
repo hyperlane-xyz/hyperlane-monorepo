@@ -73,6 +73,7 @@ export const ancient8: ChainMetadata = {
   isTestnet: false,
   name: Chains.ancient8,
   nativeToken: etherToken,
+  gasCurrencyCoinGeckoId: 'ethereum',
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'https://rpc.ancient8.gg' }],
   technicalStack: ChainTechnicalStack.Other,
