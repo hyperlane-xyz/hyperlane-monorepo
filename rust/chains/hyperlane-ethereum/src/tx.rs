@@ -84,6 +84,16 @@ where
             .saturating_add(U256::from(GAS_ESTIMATE_BUFFER).into())
             .into()
     };
+
+    if provider
+        .get_chainid()
+        .await
+        .map_err(ChainCommunicationError::from_other)?
+        == 56u32.into()
+    {
+        return Ok(tx.gas(gas_limit));
+    }
+
     let Ok((max_fee, max_priority_fee)) = provider.estimate_eip1559_fees(None).await else {
         // Is not EIP 1559 chain
         return Ok(tx.gas(gas_limit));
