@@ -66,10 +66,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
   ): InterchainAccount {
-    console.log(
-      'InterchainAccount fromAddressesMap',
-      JSON.stringify(addressesMap, null, 2),
-    );
     const helper = appFromAddressesMapHelper(
       addressesMap,
       interchainAccountFactories,
