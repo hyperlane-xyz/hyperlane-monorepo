@@ -2,4 +2,4 @@
 skip = .git,node_modules,yarn.lock,Cargo.lock
 count =
 quiet-level = 3
-ignore-words = ./.codespell/wordlist.txt
+ignore-words = ./.codespell/ignore.txt
