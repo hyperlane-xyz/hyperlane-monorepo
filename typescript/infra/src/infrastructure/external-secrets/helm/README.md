@@ -26,6 +26,6 @@ Regardless, workload identities are a more attractive long-term option, and movi
 
 ## What is external-secrets?
 
-The [documentation](https://external-secrets.io/v0.4.4/) is the best source. In short, it allows Kuberenetes Secrets to get their secrets from an external secret provided (like GCP's Secret Manager), all without a developer/deployer needing to touch the secrets themselves.
+The [documentation](https://external-secrets.io/v0.4.4/) is the best source. In short, it allows Kubernetes Secrets to get their secrets from an external secret provided (like GCP's Secret Manager), all without a developer/deployer needing to touch the secrets themselves.
 
 The general idea is there are `SecretStore`s (or `ClusterSecretStore`s, which are the cluster-wide version), that specify how the cluster can authenticate with the external secret provider. `ExternalSecret`s can then be specified in "application" infrastructure, which allow developers to specify a template for a Secret that will be created using the secret values from the external provider (& using the credentials from the SecretStore).
