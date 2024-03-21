@@ -16,7 +16,7 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
-use hyperlane_core::{utils::bytes_to_hex, ChainCommunicationError, ChainResult, H256, U256};
+use hyperlane_core::{utils::fmt_bytes, ChainCommunicationError, ChainResult, H256, U256};
 use tracing::{error, info};
 
 use crate::Middleware;
@@ -33,7 +33,7 @@ where
     let data = tx
         .tx
         .data()
-        .map(|b| bytes_to_hex(b))
+        .map(|b| fmt_bytes(b))
         .unwrap_or_else(|| "None".into());
 
     let to = tx
@@ -164,26 +164,4 @@ where
     };
 
     Ok((base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas))
-}
-
-pub(crate) async fn call_with_lag<M, T>(
-    call: ethers::contract::builders::ContractCall<M, T>,
-    provider: &M,
-    maybe_lag: Option<NonZeroU64>,
-) -> ChainResult<ethers::contract::builders::ContractCall<M, T>>
-where
-    M: Middleware + 'static,
-    T: Detokenize,
-{
-    if let Some(lag) = maybe_lag {
-        let fixed_block_number: BlockNumber = provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .saturating_sub(lag.get().into())
-            .into();
-        Ok(call.block(fixed_block_number))
-    } else {
-        Ok(call)
-    }
 }
