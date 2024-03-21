@@ -20,6 +20,14 @@ contract HypNative is TokenRouter {
 
     constructor(address _mailbox) TokenRouter(_mailbox) {}
 
+    function initialize(
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
+    ) public initializer {
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+    }
+
     /**
      * @inheritdoc TokenRouter
      * @dev uses (`msg.value` - `_amount`) as interchain gas payment and `msg.sender` as refund address.

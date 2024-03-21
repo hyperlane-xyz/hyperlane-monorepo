@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import debug from 'debug';
-import { providers } from 'ethers';
+import { constants, ethers, providers } from 'ethers';
 
 import {
   ERC20__factory,
@@ -10,15 +10,18 @@ import {
   HypERC721,
   HypERC721Collateral,
   HypNative,
+  ProxyAdmin__factory,
+  TimelockController,
+  TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { objKeys, objMap } from '@hyperlane-xyz/utils';
+import { eqAddress, objKeys, objMap } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { GasRouterDeployer } from '../router/GasRouterDeployer';
-import { GasConfig, RouterConfig } from '../router/types';
+import { GasConfig, ProxiedRouterConfig, RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
 import {
@@ -139,6 +142,12 @@ export class HypERC20Deployer extends GasRouterDeployer<
       | TokenType.fastCollateral
       | TokenType.collateral
       | TokenType.collateralVault;
+    const constructorArgs = [config.token, config.mailbox];
+    const initializeArgs = [
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+      config.owner,
+    ];
     switch (config.type) {
       case TokenType.fastSynthetic || TokenType.fastCollateral:
         contractName = TokenType.fastCollateral;
@@ -152,23 +161,92 @@ export class HypERC20Deployer extends GasRouterDeployer<
       default:
         throw new Error(`Unknown collateral type ${config.type}`);
     }
-    return this.deployContract(chain, contractName, [
-      config.token,
-      config.mailbox,
-    ]);
+
+    return this.deployAdminAndProxyContracts(
+      chain,
+      config,
+      contractName,
+      constructorArgs,
+      initializeArgs,
+    );
+  }
+
+  // @dev this is a copy of ProxiedRouterDeployer.deployContracts().
+  // Here because ProxiedRouterDeployer assumes a single contract, but here is deploying multiple contracts
+  // Please remove once ProxiedRouterDeployer is refactored!
+  async deployAdminAndProxyContracts<K extends keyof HypERC20Factories>(
+    chain: ChainName,
+    config: ERC20RouterConfig & ProxiedRouterConfig,
+    contractName: K,
+    constructorArgs: any,
+    initializeArgs?: any,
+  ): Promise<any> {
+    const proxyAdmin = await this.deployContractFromFactory(
+      chain,
+      new ProxyAdmin__factory(),
+      'proxyAdmin',
+      [],
+    );
+
+    let timelockController: TimelockController;
+    let adminOwner: string;
+    if (config.timelock) {
+      timelockController = await this.deployTimelock(chain, config.timelock);
+      adminOwner = timelockController.address;
+    } else {
+      timelockController = TimelockController__factory.connect(
+        constants.AddressZero,
+        this.multiProvider.getProvider(chain),
+      );
+      adminOwner = config.owner;
+    }
+
+    await super.runIfOwner(chain, proxyAdmin, async () => {
+      this.logger(`Checking ownership of proxy admin to ${adminOwner}`);
+
+      if (!eqAddress(await proxyAdmin.owner(), adminOwner)) {
+        this.logger(`Transferring ownership of proxy admin to ${adminOwner}`);
+        return this.multiProvider.handleTx(
+          chain,
+          proxyAdmin.transferOwnership(adminOwner),
+        );
+      }
+      return;
+    });
+    return this.deployProxiedContract<K>(
+      chain,
+      contractName,
+      proxyAdmin.address,
+      constructorArgs,
+      initializeArgs,
+    );
   }
 
   protected async deployNative(
     chain: ChainName,
     config: HypNativeConfig,
   ): Promise<HypNative> {
+    const initializeArgs = [
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+      config.owner,
+    ];
     if (config.scale) {
-      return this.deployContract(chain, TokenType.nativeScaled, [
-        config.scale,
-        config.mailbox,
-      ]);
+      return this.deployAdminAndProxyContracts(
+        chain,
+        config,
+        TokenType.nativeScaled,
+        [config.scale, config.mailbox],
+        initializeArgs,
+      );
     } else {
-      return this.deployContract(chain, TokenType.native, [config.mailbox]);
+      return this.deployAdminAndProxyContracts(
+        chain,
+        config,
+        TokenType.native,
+        [config.mailbox],
+        initializeArgs,
+      );
     }
   }
 
