@@ -623,7 +623,9 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testFuzz_sendValue(uint256 value) public {
-        vm.assume(value > 0 && value <= address(this).balance);
+        vm.assume(
+            value > 0 && value <= address(this).balance + gasPaymentQuote
+        );
         payable(address(ica)).transfer(value);
 
         bytes memory data = abi.encodeCall(this.receiveValue, (value));
