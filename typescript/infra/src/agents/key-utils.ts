@@ -5,7 +5,7 @@ import path from 'path';
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
-import localAWMultisigAddresses from '../../config/aw-multisig.json';
+import localAWMultisigAddresses from '../../config/aw-multisig-hyperlane.json';
 // AW - Abacus Works
 import { Contexts } from '../../config/contexts';
 import { helloworld } from '../../config/environments/helloworld';
