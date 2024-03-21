@@ -675,7 +675,7 @@
       },
       "grpcUrls": [
         {
-          "http": "https://grpc-kralum.neutron-1.neutron.org:80"
+          "http": "http://grpc-kralum.neutron-1.neutron.org:80"
         }
       ],
       "index": {
