@@ -75,7 +75,7 @@ pub fn install_solana_cli_tools() -> (PathBuf, impl ArbitraryData) {
     let solana_tools_dir = tempdir().unwrap();
     log!("Downloading solana cli release v{}", SOLANA_CLI_VERSION);
     let solana_release_name = {
-        // best effort ot pick one of the supported targets
+        // best effort to pick one of the supported targets
         let target = if cfg!(target_os = "linux") {
             "x86_64-unknown-linux-gnu"
         } else if cfg!(target_os = "macos") {

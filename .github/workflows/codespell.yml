@@ -1,12 +1,17 @@
-# A Github action that using codespell to check spell.
-# .codespell/.codespellrc is a config file.
-# .codespell/wordlist.txt is a list of words that will ignore word checks.
-# More details please check the following link:
+# A Github action that using codespell to check spelling.
+# see .codespell/* for configs
 # https://github.com/codespell-project/codespell
 
-name: Codespell
+name: codespell
 
-on: pull_request
+on:
+  # Triggers the workflow on push or pull request against main
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
 
 jobs:
   codespell:
