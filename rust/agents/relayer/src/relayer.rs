@@ -16,12 +16,11 @@ use hyperlane_base::{
     SequencedDataContractSync, WatermarkContractSync,
 };
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, MpmcReceiver,
-    H256, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, MpmcChannel,
+    MpmcReceiver, H256, U256,
 };
 use tokio::{
     sync::{
-        broadcast,
         mpsc::{self, UnboundedReceiver, UnboundedSender},
         RwLock,
     },
@@ -35,7 +34,7 @@ use crate::{
         gas_payment::GasPaymentEnforcer,
         metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
         pending_message::{MessageContext, MessageSubmissionMetrics},
-        pending_operation::DynPendingOperation,
+        pending_operation::PendingOperation,
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
     },
@@ -280,11 +279,8 @@ impl BaseAgent for Relayer {
         let mut tasks = vec![];
 
         // run server
-        let (server_sender_channel, server_receiver_channel) =
-            broadcast::channel::<H256>(ENDPOINT_MESSAGES_QUEUE_SIZE);
-        let api_receiver =
-            MpmcReceiver::new(server_sender_channel.clone(), server_receiver_channel);
-        let custom_routes = relayer_server::routes(server_sender_channel);
+        let mpmc_channel = MpmcChannel::<H256>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
+        let custom_routes = relayer_server::routes(mpmc_channel.sender());
 
         let server = self
             .core
@@ -300,13 +296,13 @@ impl BaseAgent for Relayer {
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
         for (dest_domain, dest_conf) in &self.destination_chains {
             let (send_channel, receive_channel) =
-                mpsc::unbounded_channel::<Box<DynPendingOperation>>();
+                mpsc::unbounded_channel::<Box<dyn PendingOperation>>();
             send_channels.insert(dest_domain.id(), send_channel);
 
             tasks.push(self.run_destination_submitter(
                 dest_domain,
                 receive_channel,
-                api_receiver.clone(),
+                mpmc_channel.receiver(),
             ));
 
             let metrics_updater = MetricsUpdater::new(
@@ -389,7 +385,7 @@ impl Relayer {
     fn run_message_processor(
         &self,
         origin: &HyperlaneDomain,
-        send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
+        send_channels: HashMap<u32, UnboundedSender<Box<dyn PendingOperation>>>,
     ) -> Instrumented<JoinHandle<()>> {
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
@@ -446,13 +442,13 @@ impl Relayer {
     fn run_destination_submitter(
         &self,
         destination: &HyperlaneDomain,
-        receiver: UnboundedReceiver<Box<DynPendingOperation>>,
-        api_receiver_channel: MpmcReceiver<H256>,
+        receiver: UnboundedReceiver<Box<dyn PendingOperation>>,
+        retry_receiver_channel: MpmcReceiver<H256>,
     ) -> Instrumented<JoinHandle<()>> {
         let serial_submitter = SerialSubmitter::new(
             destination.clone(),
             receiver,
-            api_receiver_channel,
+            retry_receiver_channel,
             SerialSubmitterMetrics::new(&self.core.metrics, destination),
         );
         let span = info_span!("SerialSubmitter", destination=%destination);

@@ -1,16 +1,11 @@
 use std::cmp::Reverse;
-use std::collections::BinaryHeap;
-use std::sync::Arc;
 use std::time::Duration;
 
 use derive_new::new;
 use futures_util::future::try_join_all;
-use prometheus::{IntCounter, IntGauge, IntGaugeVec};
+use prometheus::{IntCounter, IntGaugeVec};
 use tokio::spawn;
-use tokio::sync::{
-    mpsc::{self},
-    Mutex,
-};
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
@@ -18,72 +13,8 @@ use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Ins
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{HyperlaneDomain, MpmcReceiver, H256};
 
+use super::op_queue::OpQueue;
 use super::pending_operation::*;
-
-/// Queue of generic operations that can be submitted to a destination chain.
-/// Includes logic for maintaining queue metrics by the destination and `app_context` of an operation
-#[derive(Debug, Clone, new)]
-struct OpQueue {
-    metrics: IntGaugeVec,
-    queue_metrics_label: String,
-    api_rx: MpmcReceiver<H256>,
-    #[new(default)]
-    queue: Arc<Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>>,
-}
-
-impl OpQueue {
-    /// Push an element onto the queue and update metrics
-    async fn push(&self, op: Box<DynPendingOperation>) {
-        // increment the metric before pushing onto the queue, because we lose ownership afterwards
-        self.get_operation_metric(&op).inc();
-
-        self.queue.lock().await.push(Reverse(op));
-    }
-
-    /// Pop an element from the queue and update metrics
-    async fn pop(&mut self) -> Option<Reverse<Box<DynPendingOperation>>> {
-        self.process_api_requests().await;
-        let op = self.queue.lock().await.pop();
-        op.map(|op| {
-            // even if the metric is decremented here, the operation may fail to process and be re-added to the queue.
-            // in those cases, the queue length will decrease to zero until the operation is re-added.
-            self.get_operation_metric(&op.0).dec();
-            op
-        })
-    }
-
-    async fn process_api_requests(&mut self) {
-        // TODO: could rate-limit ourselves here, but we expect the volume of messages over this channel to
-        // be very low.
-        // The other consideration is whether to put the channel receiver in the OpQueue or in a dedicated task
-        // that also holds an Arc to the Mutex. For simplicity, we'll put it in the OpQueue for now.
-        let mut message_ids = vec![];
-        while let Ok(message_id) = self.api_rx.receiver.recv().await {
-            message_ids.push(message_id);
-        }
-        if message_ids.is_empty() {
-            return;
-        }
-        let mut queue = self.queue.lock().await;
-        let mut repriotized_queue: BinaryHeap<_> = queue
-            .drain()
-            .map(|Reverse(mut e)| {
-                if message_ids.contains(&e.id()) {
-                    e.reset_attempts()
-                }
-                Reverse(e)
-            })
-            .collect();
-        queue.append(&mut repriotized_queue);
-    }
-
-    /// Get the metric associated with this operation
-    fn get_operation_metric(&self, operation: &DynPendingOperation) -> IntGauge {
-        let (destination, app_context) = operation.get_operation_labels();
-        self.metrics
-            .with_label_values(&[&destination, &self.queue_metrics_label, &app_context])
-    }
-}
 
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
@@ -137,9 +68,9 @@ pub struct SerialSubmitter {
     /// Domain this submitter delivers to.
     domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
-    rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
-    /// Receiver for api requests.
-    api_rx: MpmcReceiver<H256>,
+    rx: mpsc::UnboundedReceiver<Box<dyn PendingOperation>>,
+    /// Receiver for retry requests.
+    retry_rx: MpmcReceiver<H256>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
 }
@@ -155,17 +86,17 @@ impl SerialSubmitter {
             domain,
             metrics,
             rx: rx_prepare,
-            api_rx,
+            retry_rx,
         } = self;
         let prepare_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "prepare_queue".to_string(),
-            api_rx.clone(),
+            retry_rx.clone(),
         );
         let confirm_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "confirm_queue".to_string(),
-            api_rx,
+            retry_rx,
         );
 
         // This is a channel because we want to only have a small number of messages
@@ -214,7 +145,7 @@ impl SerialSubmitter {
 #[instrument(skip_all, fields(%domain))]
 async fn receive_task(
     domain: HyperlaneDomain,
-    mut rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
+    mut rx: mpsc::UnboundedReceiver<Box<dyn PendingOperation>>,
     prepare_queue: OpQueue,
 ) {
     // Pull any messages sent to this submitter
@@ -222,7 +153,7 @@ async fn receive_task(
         trace!(?op, "Received new operation");
         // make sure things are getting wired up correctly; if this works in testing it
         // should also be valid in production.
-        debug_assert_eq!(*op.domain(), domain);
+        debug_assert_eq!(*op.destination_domain(), domain);
         prepare_queue.push(op).await;
     }
 }
@@ -231,7 +162,7 @@ async fn receive_task(
 async fn prepare_task(
     domain: HyperlaneDomain,
     mut prepare_queue: OpQueue,
-    tx_submit: mpsc::Sender<Box<DynPendingOperation>>,
+    tx_submit: mpsc::Sender<Box<dyn PendingOperation>>,
     metrics: SerialSubmitterMetrics,
 ) {
     loop {
@@ -245,7 +176,7 @@ async fn prepare_task(
         };
 
         trace!(?op, "Preparing operation");
-        debug_assert_eq!(*op.domain(), domain);
+        debug_assert_eq!(*op.destination_domain(), domain);
 
         match op.prepare().await {
             PendingOperationResult::Success => {
@@ -275,14 +206,14 @@ async fn prepare_task(
 #[instrument(skip_all, fields(%domain))]
 async fn submit_task(
     domain: HyperlaneDomain,
-    mut rx_submit: mpsc::Receiver<Box<DynPendingOperation>>,
+    mut rx_submit: mpsc::Receiver<Box<dyn PendingOperation>>,
     prepare_queue: OpQueue,
     confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
 ) {
     while let Some(mut op) = rx_submit.recv().await {
         trace!(?op, "Submitting operation");
-        debug_assert_eq!(*op.domain(), domain);
+        debug_assert_eq!(*op.destination_domain(), domain);
 
         match op.submit().await {
             PendingOperationResult::Success => {
@@ -319,7 +250,7 @@ async fn confirm_task(
         };
 
         trace!(?op, "Confirming operation");
-        debug_assert_eq!(*op.domain(), domain);
+        debug_assert_eq!(*op.destination_domain(), domain);
 
         match op.confirm().await {
             PendingOperationResult::Success => {

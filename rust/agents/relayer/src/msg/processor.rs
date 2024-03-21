@@ -15,7 +15,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, trace};
 
 use super::{metadata::AppContextClassifier, pending_message::*};
-use crate::msg::pending_operation::DynPendingOperation;
+use crate::msg::pending_operation::PendingOperation;
 use crate::{processor::ProcessorExt, settings::matching_list::MatchingList};
 
 /// Finds unprocessed messages from an origin and submits then through a channel
@@ -29,7 +29,7 @@ pub struct MessageProcessor {
     metrics: MessageProcessorMetrics,
     /// channel for each destination chain to send operations (i.e. message
     /// submissions) to
-    send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
+    send_channels: HashMap<u32, UnboundedSender<Box<dyn PendingOperation>>>,
     /// Needed context to send a message for each destination chain
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
     metric_app_contexts: Vec<(MatchingList, String)>,
@@ -106,7 +106,8 @@ impl ProcessorExt for MessageProcessor {
                 self.destination_ctxs[&destination].clone(),
                 app_context,
             );
-            self.send_channels[&destination].send(Box::new(pending_msg.into()))?;
+            self.send_channels[&destination]
+                .send(Box::new(pending_msg) as Box<dyn PendingOperation>)?;
             self.message_nonce += 1;
         } else {
             tokio::time::sleep(Duration::from_secs(1)).await;
@@ -282,7 +283,7 @@ mod test {
         db: &HyperlaneRocksDB,
     ) -> (
         MessageProcessor,
-        UnboundedReceiver<Box<DynPendingOperation>>,
+        UnboundedReceiver<Box<dyn PendingOperation>>,
     ) {
         let base_metadata_builder = dummy_metadata_builder(origin_domain, destination_domain, db);
         let message_context = Arc::new(MessageContext {
@@ -294,7 +295,8 @@ mod test {
             metrics: dummy_submission_metrics(),
         });
 
-        let (send_channel, receive_channel) = mpsc::unbounded_channel::<Box<DynPendingOperation>>();
+        let (send_channel, receive_channel) =
+            mpsc::unbounded_channel::<Box<dyn PendingOperation>>();
         (
             MessageProcessor::new(
                 db.clone(),
@@ -364,7 +366,7 @@ mod test {
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
         num_operations: usize,
-    ) -> Vec<Box<DynPendingOperation>> {
+    ) -> Vec<Box<dyn PendingOperation>> {
         let (message_processor, mut receive_channel) =
             dummy_message_processor(origin_domain, destination_domain, db);
 

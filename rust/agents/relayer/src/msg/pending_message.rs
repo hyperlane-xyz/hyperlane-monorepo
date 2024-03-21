@@ -105,7 +105,15 @@ impl PendingOperation for PendingMessage {
         self.message.id()
     }
 
-    fn domain(&self) -> &HyperlaneDomain {
+    fn priority(&self) -> u32 {
+        self.message.nonce
+    }
+
+    fn origin_domain(&self) -> &HyperlaneDomain {
+        self.message.origin
+    }
+
+    fn destination_domain(&self) -> &HyperlaneDomain {
         self.ctx.destination_mailbox.domain()
     }
 
