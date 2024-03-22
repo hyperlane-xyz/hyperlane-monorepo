@@ -694,7 +694,6 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     owner: Owner,
   ): Promise<Address> {
-    console.log('chain: ', chain, 'owner:', JSON.stringify(owner, null, 2));
     if (typeof owner === 'string') {
       return owner;
     } else {
@@ -706,11 +705,6 @@ export abstract class HyperlaneDeployer<
       if (!routerAddress) {
         throw new Error('InterchainAccountRouter not deployed');
       }
-
-      // const _addressesMap: HyperlaneAddressesMap<any> = {
-      //   [chain]: { interchainAccountRouter: routerAddress },
-      // };
-
       const router = InterchainAccount.fromAddressesMap(
         this.cachedAddresses,
         this.multiProvider,

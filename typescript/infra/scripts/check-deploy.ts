@@ -71,12 +71,6 @@ async function check() {
   const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
   const routerConfig = core.getRouterConfig(config.owners);
   const ica = InterchainAccount.fromEnvironment(env, multiProvider);
-  console.log('ICA ----', ica.routerAddress('plumetestnet'));
-  // routerConfig = {
-  //   sepolia: routerConfig.sepolia,
-  //   scrollsepolia: routerConfig.scrollsepolia,
-  //   plumetestnet: routerConfig.plumetestnet,
-  // };
 
   let governor: HyperlaneAppGovernor<any, any>;
   if (module === Modules.CORE) {
@@ -97,7 +91,7 @@ async function check() {
       ica,
       routerConfig,
     );
-    governor = new ProxiedRouterGovernor(checker, ica);
+    governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const iqs = InterchainQuery.fromEnvironment(env, multiProvider);
     const checker = new InterchainQueryChecker(
@@ -122,6 +116,7 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
+    // test config
     const plumetestnet = {
       ...routerConfig.plumetestnet,
       type: TokenType.synthetic,
@@ -137,13 +132,11 @@ async function check() {
       gas: 0,
     };
     const config = {
-      // scrollsepolia,
       plumetestnet,
       sepolia,
     };
-    console.log('WARP config', multiProvider.getKnownChainNames());
     const addresses = getAddresses(environment, Modules.WARP);
-    const filteredAddresses = Object.keys(addresses)
+    const filteredAddresses = Object.keys(addresses) // filter out changes not in config
       .filter((key) => key in config)
       .reduce((obj, key) => {
         obj[key] = addresses[key];
@@ -164,7 +157,6 @@ async function check() {
   }
 
   if (fork) {
-    console.log(`Checking ${module} deploy on ${fork}`);
     await governor.checker.checkChain(fork);
     if (govern) {
       await governor.govern(false, fork);

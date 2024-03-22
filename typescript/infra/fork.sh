@@ -14,7 +14,6 @@ trap 'jobs -p | xargs -r kill' EXIT
 set -e
 
 RPC_URL=`yarn ts-node ./scripts/print-chain-metadatas.ts -e $ENVIRONMENT | jq -r ".$CHAIN.rpcUrls[0].http"`
-echo "Forking from $RPC_URL"
 
 anvil --fork-url $RPC_URL --fork-retry-backoff 3 --compute-units-per-second 200 --gas-price 1 --silent &
 ANVIL_PID=$!
@@ -26,10 +25,10 @@ done
 # echo all subsequent commands
 set -x
 
-# yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
+yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
 
 # get balance
-DEPLOYER="0xfaD1C94469700833717Fa8a3017278BC1cA8031C"
+DEPLOYER="0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba"
 BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 
 yarn ts-node ./scripts/deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE

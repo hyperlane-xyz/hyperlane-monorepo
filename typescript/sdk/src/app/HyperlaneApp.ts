@@ -37,18 +37,4 @@ export class HyperlaneApp<
   getAddresses(chain: ChainName): HyperlaneAddresses<Factories> {
     return serializeContracts(this.get(chain));
   }
-
-  // TODO: add generic fromAddressesMap
-  // static fromAddressesMap<App extends HyperlaneApp>(
-  //   addressesMap: HyperlaneContractsMap<any>,
-  //   multiProvider: MultiProvider,
-  //   factories: Factories,
-  // ): App {
-  //   const helper = appFromAddressesMapHelper(
-  //     addressesMap,
-  //     factories,
-  //     multiProvider,
-  //   );
-  //   // return todo
-  // }
 }

@@ -83,24 +83,11 @@ export async function postDeploy<Config extends object>(
     environment: DeployEnvironment;
   },
 ) {
-  // if cache.warpWrite {
-  // tokenName, standard, token
-  // PLUME: [{
-  //   "name": "usdc",
-  //   "standard": erc20.
-  //   "type": synthetic,
-  //   "router": 0x123...,
-  // } warp/addres
-  // } "synthetic": 0x123..
-  //   "synthetic"
-  // injective-inevm-usdc.json
   if (cache.write) {
     // TODO: dedupe deployedContracts with cachedAddresses
     const deployedAddresses = serializeContractsMap(deployer.deployedContracts);
     const cachedAddresses = deployer.cachedAddresses;
     const addresses = objMerge(deployedAddresses, cachedAddresses);
-
-    console.log('postdeploy:', cache.addresses);
 
     // cache addresses of deployed contracts
     writeMergedJSONAtPath(cache.addresses, addresses);

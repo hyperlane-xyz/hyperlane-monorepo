@@ -93,13 +93,13 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   };
 
   if (typeof owner.owner !== 'string') {
-    throw new Error('owner.owner must be a string');
+    throw new Error('beneficiary must be a string');
   }
   const requiredHook: ProtocolFeeHookConfig = {
     type: HookType.PROTOCOL_FEE,
     maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
     protocolFee: BigNumber.from(0).toString(), // 0 wei
-    beneficiary: owner.owner as Address, // TODO: fix to handle account config
+    beneficiary: owner.owner as Address, // TODO: protocol
     ...owner,
   };
 
