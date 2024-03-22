@@ -76,13 +76,15 @@ impl OpQueue {
 
 #[cfg(test)]
 mod test {
-    use std::time::{Duration, Instant};
-
-    use hyperlane_core::{HyperlaneDomain, MpmcChannel};
-
+    use super::*;
     use crate::msg::pending_operation::PendingOperationResult;
+    use hyperlane_core::{HyperlaneDomain, MpmcChannel};
+    use std::{
+        collections::VecDeque,
+        time::{Duration, Instant},
+    };
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     struct MockPendingOperation {
         id: H256,
         seconds_to_next_attempt: u64,
@@ -157,9 +159,8 @@ mod test {
         }
     }
 
-    use super::*;
     #[tokio::test]
-    async fn test_op_queue() {
+    async fn test_multiple_op_queues() {
         // Create a new OpQueue
         let metrics = IntGaugeVec::new(
             prometheus::Opts::new("op_queue", "OpQueue metrics"),
@@ -168,34 +169,58 @@ mod test {
         .unwrap();
         let queue_metrics_label = "queue_metrics_label".to_string();
         let mpmc_channel = MpmcChannel::new(100);
-        let mut op_queue = OpQueue::new(metrics, queue_metrics_label, mpmc_channel.receiver());
+        let mut op_queue_1 = OpQueue::new(
+            metrics.clone(),
+            queue_metrics_label.clone(),
+            mpmc_channel.receiver(),
+        );
+        let mut op_queue_2 = OpQueue::new(metrics, queue_metrics_label, mpmc_channel.receiver());
 
-        // Add some operations to the queue
-        let op1 = Box::new(MockPendingOperation::new(1)) as QueueOperation;
-        let op2 = Box::new(MockPendingOperation::new(2)) as QueueOperation;
-        let op3 = Box::new(MockPendingOperation::new(3)) as QueueOperation;
+        // Add some operations to the queue with increasing `next_attempt_after` values
+        let messages_to_send = 5;
+        let mut ops: VecDeque<_> = (1..=messages_to_send)
+            .into_iter()
+            .map(|seconds_to_next_attempt| {
+                Box::new(MockPendingOperation::new(seconds_to_next_attempt)) as QueueOperation
+            })
+            .collect();
+        let op_ids: Vec<_> = ops.iter().map(|op| op.id()).collect();
 
-        let op1_id = op1.id();
-        let op2_id = op2.id();
-        let op3_id = op3.id();
-        op_queue.push(op1).await;
-        op_queue.push(op2).await;
-        op_queue.push(op3).await;
+        // push to queue 1
+        for _ in 0..=2 {
+            op_queue_1.push(ops.pop_front().unwrap()).await;
+        }
+
+        // push to queue 2
+        for _ in 3..messages_to_send {
+            op_queue_2.push(ops.pop_front().unwrap()).await;
+        }
 
         // Send messages over the channel to retry some operations
         let mpmc_tx = mpmc_channel.sender();
-        mpmc_tx.send(op2_id).unwrap();
-        mpmc_tx.send(op3_id).unwrap();
+        mpmc_tx.send(op_ids[1]).unwrap();
+        mpmc_tx.send(op_ids[2]).unwrap();
 
-        // Pop elements from the queue and verify the order
-        let popped_op1 = op_queue.pop().await.unwrap();
-        let popped_op2 = op_queue.pop().await.unwrap();
-        let popped_op3 = op_queue.pop().await.unwrap();
+        // Pop elements from queue 1
+        let mut queue_1_popped = vec![];
+        while let Some(op) = op_queue_1.pop().await {
+            queue_1_popped.push(op.0);
+        }
 
         // The elements sent over the channel should be the first ones popped,
         // regardless of their initial `next_attempt_after`
-        assert_eq!(popped_op1.0.id(), op3_id);
-        assert_eq!(popped_op2.0.id(), op2_id);
-        assert_eq!(popped_op3.0.id(), op1_id);
+        assert_eq!(queue_1_popped[0].id(), op_ids[2]);
+        assert_eq!(queue_1_popped[1].id(), op_ids[1]);
+        assert_eq!(queue_1_popped[2].id(), op_ids[0]);
+
+        // Pop elements from queue 2
+        let mut queue_2_popped = vec![];
+        while let Some(op) = op_queue_2.pop().await {
+            queue_2_popped.push(op.0);
+        }
+
+        // The elements should be popped in the order they were pushed, because there was no retry request for them
+        assert_eq!(queue_2_popped[0].id(), op_ids[3]);
+        assert_eq!(queue_2_popped[1].id(), op_ids[4]);
     }
 }
