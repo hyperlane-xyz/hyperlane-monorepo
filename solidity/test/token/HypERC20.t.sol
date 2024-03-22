@@ -103,6 +103,20 @@ abstract contract HypTokenTest is Test {
         );
     }
 
+    function _handleLocalTransfer(uint256 _transferAmount) internal {
+        vm.prank(address(localMailbox));
+        localToken.handle(
+            DESTINATION,
+            address(remoteToken).addressToBytes32(),
+            abi.encodePacked(ALICE.addressToBytes32(), _transferAmount)
+        );
+    }
+
+    function _mintAndApprove(uint256 _amount, address _account) internal {
+        primaryToken.mint(_amount);
+        primaryToken.approve(_account, _amount);
+    }
+
     function _setCustomGasConfig() internal {
         localToken.setHook(address(igp));
 
@@ -153,7 +167,7 @@ abstract contract HypTokenTest is Test {
         _performRemoteTransferAndGas(_msgValue, _amount, _gasOverhead);
     }
 
-    function testBenchmark_overheadGasUsage() public {
+    function testBenchmark_overheadGasUsage() public virtual {
         vm.prank(address(localMailbox));
 
         uint256 gasBefore = gasleft();
