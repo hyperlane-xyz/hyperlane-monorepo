@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
+import { BigNumber } from 'ethers';
 import { ethers } from 'hardhat';
 
 import {
@@ -22,7 +23,7 @@ import { InterchainAccountChecker } from './InterchainAccountChecker';
 import { InterchainAccountDeployer } from './InterchainAccountDeployer';
 import { InterchainAccountFactories } from './contracts';
 
-describe.skip('InterchainAccounts', async () => {
+describe('InterchainAccounts', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
 
@@ -32,6 +33,7 @@ describe.skip('InterchainAccounts', async () => {
   let remote: InterchainAccountRouter;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
+  let app: InterchainAccount;
   let config: ChainMap<RouterConfig>;
 
   before(async () => {
@@ -52,10 +54,10 @@ describe.skip('InterchainAccounts', async () => {
     );
     local = contracts[localChain].interchainAccountRouter;
     remote = contracts[remoteChain].interchainAccountRouter;
+    app = new InterchainAccount(contracts, multiProvider);
   });
 
   it('checks', async () => {
-    const app = new InterchainAccount(contracts, multiProvider);
     const checker = new InterchainAccountChecker(multiProvider, app, config);
     await checker.check();
     expect(checker.violations.length).to.eql(0);
@@ -78,13 +80,11 @@ describe.skip('InterchainAccounts', async () => {
       ethers.constants.AddressZero,
     );
 
-    await local['callRemote(uint32,address,uint256,bytes,bytes)'](
+    const call = { to: recipient.address, data, value: BigNumber.from(0) };
+    const quote = await local.quoteGasPayment(
       multiProvider.getDomainId(remoteChain),
-      recipient.address,
-      0,
-      data,
-      '',
     );
+    await app.callRemote(localChain, remoteChain, [call], quote);
     await coreApp.processMessages();
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);
     expect(await recipient.lastCaller()).to.eql(icaAddress);
