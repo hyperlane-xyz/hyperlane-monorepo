@@ -249,7 +249,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       };
     }
 
-    const testRecipient = await this.deployTestRecipient(chain);
+    const testRecipient = await this.deployTestRecipient(
+      chain,
+      config.defaultIsm,
+    );
 
     const contracts = {
       mailbox,
