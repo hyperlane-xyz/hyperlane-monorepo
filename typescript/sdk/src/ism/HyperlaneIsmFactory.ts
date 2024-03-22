@@ -143,6 +143,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           mailbox,
           logger,
         });
+        console.log('after calling deployAggregationIsm');
         break;
       case IsmType.OP_STACK:
         if (!this.deployer) {
@@ -433,11 +434,15 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   ): Promise<Address> {
     const sorted = [...values].sort();
 
+    console.log('sorted', sorted);
+    console.log('threshold', threshold);
+
     const address = await factory['getAddress(address[],uint8)'](
       sorted,
       threshold,
     );
     const code = await this.multiProvider.getProvider(chain).getCode(address);
+    console.log('code', code);
     if (code === '0x') {
       logger(
         `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
@@ -452,7 +457,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       // TODO: add proxy verification artifact?
     } else {
       logger(
-        `Recovered ${threshold} of ${values.length} address set on ${chain}`,
+        `Recovered ${threshold} of ${values.length} address set on ${chain}: ${address}`,
       );
     }
     return address;

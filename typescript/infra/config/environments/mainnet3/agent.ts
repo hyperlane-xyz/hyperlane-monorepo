@@ -46,7 +46,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
     [Chains.arbitrum]: true,
-    [Chains.ancient8]: false,
+    [Chains.ancient8]: true,
     [Chains.avalanche]: true,
     [Chains.bsc]: true,
     [Chains.celo]: true,
@@ -66,7 +66,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   },
   [Role.Relayer]: {
     [Chains.arbitrum]: true,
-    [Chains.ancient8]: false,
+    [Chains.ancient8]: true,
     [Chains.avalanche]: true,
     [Chains.bsc]: true,
     [Chains.celo]: true,
@@ -140,7 +140,7 @@ const hyperlane: RootAgentConfig = {
     docker: {
       repo,
       // Includes Cosmos block-by-block indexing.
-      tag: '39df4ca-20240321-100543',
+      tag: 'c1da894-20240321-175000',
     },
     gasPaymentEnforcement: [
       // Temporary measure to ensure all inEVM warp route messages are delivered -
@@ -187,7 +187,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: 'c1da894-20240321-175000',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),

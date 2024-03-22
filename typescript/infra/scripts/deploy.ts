@@ -7,23 +7,30 @@ import {
   ChainMap,
   ContractVerifier,
   ExplorerLicenseType,
+  FallbackRoutingHookConfig,
   HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
+  HyperlaneHookDeployer,
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
+  IsmConfig,
+  IsmType,
   LiquidityLayerDeployer,
   TestRecipientDeployer,
   TokenType,
+  defaultMultisigConfigs,
+  hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
-import { safes } from '../config/environments/mainnet3/owners';
+import { core as coreConfig } from '../config/environments/mainnet3/core';
+import { DEPLOYER } from '../config/environments/mainnet3/owners';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -121,25 +128,50 @@ async function main() {
       multiProvider,
     );
     const routerConfig = core.getRouterConfig(envConfig.owners);
-    const inevm = {
-      ...routerConfig.inevm,
-      type: TokenType.native,
-      interchainSecurityModule: ethers.constants.AddressZero,
-      owner: safes.inevm,
+
+    const buildIsmConfig = (remote: string): IsmConfig => ({
+      type: IsmType.AGGREGATION,
+      threshold: 1,
+      modules: [
+        {
+          type: IsmType.MERKLE_ROOT_MULTISIG,
+          ...defaultMultisigConfigs[remote],
+        },
+        {
+          type: IsmType.MESSAGE_ID_MULTISIG,
+          ...defaultMultisigConfigs[remote],
+        },
+      ],
+    });
+
+    const ethereum = {
+      ...routerConfig.ethereum,
+      type: TokenType.collateral,
+      // USDC
+      token: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      interchainSecurityModule: buildIsmConfig('ancient8'),
+      // Recovered
+      hook: '0x19b2cF952b70b217c90FC408714Fbc1acD29A6A8',
+      owner: DEPLOYER,
     };
-    const injective = {
-      ...routerConfig.injective,
-      type: TokenType.native,
+
+    const ancient8 = {
+      ...routerConfig.ancient8,
+      type: TokenType.synthetic,
+      interchainSecurityModule: ethers.constants.AddressZero, // buildIsmConfig('ethereum'),
+      owner: DEPLOYER,
     };
+
     config = {
-      inevm,
-      injective,
+      ethereum,
+      ancient8,
     };
     deployer = new HypERC20Deployer(
       multiProvider,
       ismFactory,
       contractVerifier,
     );
+    console.log('help', JSON.stringify(config, null, 2));
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider, contractVerifier);
@@ -194,6 +226,23 @@ async function main() {
       undefined,
       contractVerifier,
     );
+  } else if (module === Modules.HOOK) {
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      getAddresses(environment, Modules.PROXY_FACTORY),
+      multiProvider,
+    );
+    deployer = new HyperlaneHookDeployer(
+      multiProvider,
+      hyperlaneEnvironments[env],
+      ismFactory,
+    );
+    config = {
+      ethereum: {
+        ...(coreConfig.ethereum.defaultHook as FallbackRoutingHookConfig)
+          .domains.ancient8,
+        owner: DEPLOYER,
+      },
+    };
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;

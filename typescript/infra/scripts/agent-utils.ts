@@ -56,6 +56,7 @@ export const SDK_MODULES = [
   Modules.INTERCHAIN_ACCOUNTS,
   Modules.INTERCHAIN_QUERY_SYSTEM,
   Modules.TEST_RECIPIENT,
+  Modules.HOOK,
 ];
 
 export function getArgs() {

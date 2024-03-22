@@ -210,7 +210,9 @@ export abstract class HyperlaneDeployer<
     getIsm: (contract: C) => Promise<Address>,
     setIsm: (contract: C, ism: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
+    console.log('configureIsm a');
     const configuredIsm = await getIsm(contract);
+    console.log('configureIsm b');
     let matches = false;
     let targetIsm: Address;
     if (typeof config === 'string') {
@@ -225,7 +227,7 @@ export abstract class HyperlaneDeployer<
         (() => {
           throw new Error('No ISM factory provided');
         })();
-
+      console.log('configureIsm c');
       matches = await moduleMatchesConfig(
         chain,
         configuredIsm,
@@ -233,9 +235,12 @@ export abstract class HyperlaneDeployer<
         this.multiProvider,
         ismFactory.getContracts(chain),
       );
+      console.log('configureIsm d', chain, config);
       targetIsm = (await ismFactory.deploy({ destination: chain, config }))
         .address;
+      console.log('configureIsm e');
     }
+    console.log('do I get here in configureIsm?');
     if (!matches) {
       await this.runIfOwner(chain, contract, async () => {
         this.logger(`Set ISM on ${chain} with address ${targetIsm}`);
@@ -302,6 +307,7 @@ export abstract class HyperlaneDeployer<
     }
 
     if (config.interchainSecurityModule) {
+      console.log('configureClient ism', config.interchainSecurityModule);
       await this.configureIsm(
         local,
         client,
