@@ -174,7 +174,7 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
     --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
     --warp ${WARP_CONFIG_FILE} \
-    --router ${CHAIN1_ROUTER} \
+    --router ${!CHAIN1_ROUTER} \
     --quick \
     --key $ANVIL_KEY \
     | tee /tmp/message2
