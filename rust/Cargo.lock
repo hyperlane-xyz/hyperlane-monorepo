@@ -6945,7 +6945,6 @@ dependencies = [
  "convert_case 0.6.0",
  "derive-new",
  "derive_more",
- "enum_dispatch",
  "ethers",
  "ethers-contract",
  "eyre",

@@ -4,8 +4,6 @@ use async_trait::async_trait;
 use hyperlane_core::{HyperlaneDomain, H256};
 
 use super::op_queue::QueueOperation;
-#[allow(unused_imports)] // required for enum_dispatch
-use super::pending_message::PendingMessage;
 
 /// A pending operation that will be run by the submitter and cause a
 /// transaction to be sent.

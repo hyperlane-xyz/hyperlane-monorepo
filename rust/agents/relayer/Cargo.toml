@@ -16,7 +16,6 @@ config.workspace = true
 convert_case.workspace = true
 derive-new.workspace = true
 derive_more.workspace = true
-enum_dispatch.workspace = true
 ethers-contract.workspace = true
 ethers.workspace = true
 eyre.workspace = true
