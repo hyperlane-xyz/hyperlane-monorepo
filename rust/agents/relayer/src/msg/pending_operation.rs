@@ -3,6 +3,7 @@ use std::{cmp::Ordering, fmt::Debug, time::Instant};
 use async_trait::async_trait;
 use hyperlane_core::{HyperlaneDomain, H256};
 
+use super::op_queue::QueueOperation;
 #[allow(unused_imports)] // required for enum_dispatch
 use super::pending_message::PendingMessage;
 
@@ -38,7 +39,7 @@ pub trait PendingOperation: Send + Sync + Debug {
     fn priority(&self) -> u32;
 
     /// The domain this originates from.
-    fn origin_domain(&self) -> &HyperlaneDomain;
+    fn origin_domain(&self) -> u32;
 
     /// The domain this operation will take place on.
     fn destination_domain(&self) -> &HyperlaneDomain;
@@ -82,13 +83,21 @@ pub trait PendingOperation: Send + Sync + Debug {
     fn set_retries(&mut self, retries: u32);
 }
 
-impl PartialOrd for Box<dyn PendingOperation> {
+impl PartialOrd for QueueOperation {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for Box<dyn PendingOperation> {
+impl PartialEq for QueueOperation {
+    fn eq(&self, other: &Self) -> bool {
+        self.id().eq(&other.id())
+    }
+}
+
+impl Eq for QueueOperation {}
+
+impl Ord for QueueOperation {
     fn cmp(&self, other: &Self) -> Ordering {
         use Ordering::*;
         match (self.next_attempt_after(), other.next_attempt_after()) {
@@ -102,7 +111,7 @@ impl Ord for Box<dyn PendingOperation> {
                     self.priority().cmp(&other.priority())
                 } else {
                     // There is no priority between these messages, so arbitrarily use the id
-                    self.message.id().cmp(&other.message.id())
+                    self.id().cmp(&other.id())
                 }
             }
         }

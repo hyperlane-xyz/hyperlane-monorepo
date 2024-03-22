@@ -7,7 +7,7 @@ use tokio::sync::Mutex;
 
 use super::pending_operation::PendingOperation;
 
-type QueueOperation = Box<dyn PendingOperation>;
+pub type QueueOperation = Box<dyn PendingOperation>;
 
 /// Queue of generic operations that can be submitted to a destination chain.
 /// Includes logic for maintaining queue metrics by the destination and `app_context` of an operation
@@ -17,26 +17,26 @@ pub struct OpQueue {
     queue_metrics_label: String,
     retry_rx: MpmcReceiver<H256>,
     #[new(default)]
-    queue: Arc<Mutex<BinaryHeap<Reverse<Box<dyn PendingOperation>>>>>,
+    queue: Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>,
 }
 
 impl OpQueue {
     /// Push an element onto the queue and update metrics
-    pub async fn push(&self, op: Box<dyn PendingOperation>) {
+    pub async fn push(&self, op: QueueOperation) {
         // increment the metric before pushing onto the queue, because we lose ownership afterwards
-        self.get_operation_metric(op).inc();
+        self.get_operation_metric(op.as_ref()).inc();
 
         self.queue.lock().await.push(Reverse(op));
     }
 
     /// Pop an element from the queue and update metrics
-    pub async fn pop(&mut self) -> Option<Reverse<Box<dyn PendingOperation>>> {
+    pub async fn pop(&mut self) -> Option<Reverse<QueueOperation>> {
         self.process_retry_requests().await;
         let op = self.queue.lock().await.pop();
         op.map(|op| {
             // even if the metric is decremented here, the operation may fail to process and be re-added to the queue.
             // in those cases, the queue length will decrease to zero until the operation is re-added.
-            self.get_operation_metric(&op.0).dec();
+            self.get_operation_metric(op.0.as_ref()).dec();
             op
         })
     }
@@ -47,7 +47,7 @@ impl OpQueue {
         // The other consideration is whether to put the channel receiver in the OpQueue or in a dedicated task
         // that also holds an Arc to the Mutex. For simplicity, we'll put it in the OpQueue for now.
         let mut message_ids = vec![];
-        while let Ok(message_id) = self.retry_rx.receiver.recv().await {
+        while let Ok(message_id) = self.retry_rx.receiver.try_recv() {
             message_ids.push(message_id);
         }
         if message_ids.is_empty() {
@@ -67,7 +67,7 @@ impl OpQueue {
     }
 
     /// Get the metric associated with this operation
-    fn get_operation_metric(&self, operation: Box<dyn PendingOperation>) -> IntGauge {
+    fn get_operation_metric(&self, operation: &dyn PendingOperation) -> IntGauge {
         let (destination, app_context) = operation.get_operation_labels();
         self.metrics
             .with_label_values(&[&destination, &self.queue_metrics_label, &app_context])
@@ -76,35 +76,46 @@ impl OpQueue {
 
 #[cfg(test)]
 mod test {
-
-    use std::time::Instant;
+    use std::time::{Duration, Instant};
 
     use hyperlane_core::{HyperlaneDomain, MpmcChannel};
 
     use crate::msg::pending_operation::PendingOperationResult;
 
-    #[derive(new, Debug)]
-    struct MockPendingOperation;
+    #[derive(Debug)]
+    struct MockPendingOperation {
+        id: H256,
+        seconds_to_next_attempt: u64,
+    }
+
+    impl MockPendingOperation {
+        fn new(seconds_to_next_attempt: u64) -> Self {
+            Self {
+                id: H256::random(),
+                seconds_to_next_attempt,
+            }
+        }
+    }
 
     #[async_trait::async_trait]
     impl PendingOperation for MockPendingOperation {
         fn id(&self) -> H256 {
-            unimplemented!()
+            self.id
         }
 
         fn reset_attempts(&mut self) {
-            unimplemented!()
+            self.seconds_to_next_attempt = 0;
         }
 
-        fn priority(&mut self) {
-            unimplemented!()
+        fn priority(&self) -> u32 {
+            todo!()
         }
 
         fn get_operation_labels(&self) -> (String, String) {
-            unimplemented!()
+            Default::default()
         }
 
-        fn origin_domain(&self) -> &HyperlaneDomain {
+        fn origin_domain(&self) -> u32 {
             todo!()
         }
 
@@ -134,10 +145,14 @@ mod test {
         }
 
         fn next_attempt_after(&self) -> Option<Instant> {
-            todo!()
+            Some(
+                Instant::now()
+                    .checked_add(Duration::from_secs(self.seconds_to_next_attempt))
+                    .unwrap(),
+            )
         }
 
-        fn set_retries(&mut self, retries: u32) {
+        fn set_retries(&mut self, _retries: u32) {
             todo!()
         }
     }
@@ -153,28 +168,34 @@ mod test {
         .unwrap();
         let queue_metrics_label = "queue_metrics_label".to_string();
         let mpmc_channel = MpmcChannel::new(100);
-        let op_queue = OpQueue::new(metrics, queue_metrics_label, mpmc_channel.receiver());
+        let mut op_queue = OpQueue::new(metrics, queue_metrics_label, mpmc_channel.receiver());
 
         // Add some operations to the queue
-        let op1 = Box::new(MockPendingOperation::new()) as Box<dyn PendingOperation>;
-        let op2 = Box::new(MockPendingOperation::new()) as Box<dyn PendingOperation>;
-        let op3 = Box::new(MockPendingOperation::new()) as Box<dyn PendingOperation>;
+        let op1 = Box::new(MockPendingOperation::new(1)) as QueueOperation;
+        let op2 = Box::new(MockPendingOperation::new(2)) as QueueOperation;
+        let op3 = Box::new(MockPendingOperation::new(3)) as QueueOperation;
+
+        let op1_id = op1.id();
+        let op2_id = op2.id();
+        let op3_id = op3.id();
         op_queue.push(op1).await;
         op_queue.push(op2).await;
         op_queue.push(op3).await;
 
         // Send messages over the channel to retry some operations
         let mpmc_tx = mpmc_channel.sender();
-        mpmc_tx.send(op1.id()).unwrap();
-        mpmc_tx.send(op3.id()).unwrap();
+        mpmc_tx.send(op2_id).unwrap();
+        mpmc_tx.send(op3_id).unwrap();
 
         // Pop elements from the queue and verify the order
         let popped_op1 = op_queue.pop().await.unwrap();
         let popped_op2 = op_queue.pop().await.unwrap();
         let popped_op3 = op_queue.pop().await.unwrap();
 
-        assert_eq!(popped_op1.0.id(), op3.id());
-        assert_eq!(popped_op2.0.id(), op2.id());
-        assert_eq!(popped_op3.0.id(), op1.id());
+        // The elements sent over the channel should be the first ones popped,
+        // regardless of their initial `next_attempt_after`
+        assert_eq!(popped_op1.0.id(), op3_id);
+        assert_eq!(popped_op2.0.id(), op2_id);
+        assert_eq!(popped_op3.0.id(), op1_id);
     }
 }
