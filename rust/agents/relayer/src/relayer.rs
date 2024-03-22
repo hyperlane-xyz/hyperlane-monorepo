@@ -17,7 +17,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, MpmcChannel,
-    MpmcReceiver, H256, U256,
+    MpmcReceiver, U256,
 };
 use tokio::{
     sync::{
@@ -38,7 +38,7 @@ use crate::{
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
     },
-    server as relayer_server,
+    server::{self as relayer_server, MessageRetryRequest},
     settings::{matching_list::MatchingList, RelayerSettings},
 };
 use crate::{
@@ -279,7 +279,7 @@ impl BaseAgent for Relayer {
         let mut tasks = vec![];
 
         // run server
-        let mpmc_channel = MpmcChannel::<H256>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
+        let mpmc_channel = MpmcChannel::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         let custom_routes = relayer_server::routes(mpmc_channel.sender());
 
         let server = self
@@ -443,7 +443,7 @@ impl Relayer {
         &self,
         destination: &HyperlaneDomain,
         receiver: UnboundedReceiver<Box<dyn PendingOperation>>,
-        retry_receiver_channel: MpmcReceiver<H256>,
+        retry_receiver_channel: MpmcReceiver<MessageRetryRequest>,
     ) -> Instrumented<JoinHandle<()>> {
         let serial_submitter = SerialSubmitter::new(
             destination.clone(),

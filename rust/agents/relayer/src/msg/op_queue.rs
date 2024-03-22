@@ -1,9 +1,13 @@
 use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc};
 
 use derive_new::new;
-use hyperlane_core::{MpmcReceiver, H256};
+use ethers::utils::hex::ToHex;
+use hyperlane_core::MpmcReceiver;
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::Mutex;
+use tracing::info;
+
+use crate::server::MessageRetryRequest;
 
 use super::pending_operation::PendingOperation;
 
@@ -15,7 +19,7 @@ pub type QueueOperation = Box<dyn PendingOperation>;
 pub struct OpQueue {
     metrics: IntGaugeVec,
     queue_metrics_label: String,
-    retry_rx: MpmcReceiver<H256>,
+    retry_rx: MpmcReceiver<MessageRetryRequest>,
     #[new(default)]
     queue: Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>,
 }
@@ -46,18 +50,26 @@ impl OpQueue {
         // be very low.
         // The other consideration is whether to put the channel receiver in the OpQueue or in a dedicated task
         // that also holds an Arc to the Mutex. For simplicity, we'll put it in the OpQueue for now.
-        let mut message_ids = vec![];
+        let mut message_retry_requests = vec![];
         while let Ok(message_id) = self.retry_rx.receiver.try_recv() {
-            message_ids.push(message_id);
+            message_retry_requests.push(message_id);
         }
-        if message_ids.is_empty() {
+        if message_retry_requests.is_empty() {
             return;
         }
         let mut queue = self.queue.lock().await;
         let mut repriotized_queue: BinaryHeap<_> = queue
             .drain()
             .map(|Reverse(mut e)| {
-                if message_ids.contains(&e.id()) {
+                // Can check for equality here because of the PartialEq implementation for MessageRetryRequest,
+                // but can't use `contains` because the types are different
+                if message_retry_requests.iter().any(|r| r == e) {
+                    let hex_id = e.id().encode_hex::<String>();
+                    let destination_domain = e.destination_domain().to_string();
+                    info!(
+                        id = hex_id,
+                        destination_domain, "Retrying OpQueue operation"
+                    );
                     e.reset_attempts()
                 }
                 Reverse(e)
@@ -78,7 +90,7 @@ impl OpQueue {
 mod test {
     use super::*;
     use crate::msg::pending_operation::PendingOperationResult;
-    use hyperlane_core::{HyperlaneDomain, MpmcChannel};
+    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, MpmcChannel, H256};
     use std::{
         collections::VecDeque,
         time::{Duration, Instant},
@@ -88,13 +100,15 @@ mod test {
     struct MockPendingOperation {
         id: H256,
         seconds_to_next_attempt: u64,
+        destination_domain: HyperlaneDomain,
     }
 
     impl MockPendingOperation {
-        fn new(seconds_to_next_attempt: u64) -> Self {
+        fn new(seconds_to_next_attempt: u64, destination_domain: HyperlaneDomain) -> Self {
             Self {
                 id: H256::random(),
                 seconds_to_next_attempt,
+                destination_domain,
             }
         }
     }
@@ -122,7 +136,7 @@ mod test {
         }
 
         fn destination_domain(&self) -> &HyperlaneDomain {
-            todo!()
+            &self.destination_domain
         }
 
         fn app_context(&self) -> Option<String> {
@@ -159,15 +173,20 @@ mod test {
         }
     }
 
-    #[tokio::test]
-    async fn test_multiple_op_queues() {
-        // Create a new OpQueue
-        let metrics = IntGaugeVec::new(
-            prometheus::Opts::new("op_queue", "OpQueue metrics"),
-            &["destination", "queue_metrics_label", "app_context"],
+    fn dummy_metrics_and_label() -> (IntGaugeVec, String) {
+        (
+            IntGaugeVec::new(
+                prometheus::Opts::new("op_queue", "OpQueue metrics"),
+                &["destination", "queue_metrics_label", "app_context"],
+            )
+            .unwrap(),
+            "queue_metrics_label".to_string(),
         )
-        .unwrap();
-        let queue_metrics_label = "queue_metrics_label".to_string();
+    }
+
+    #[tokio::test]
+    async fn test_multiple_op_queues_message_id() {
+        let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let mpmc_channel = MpmcChannel::new(100);
         let mut op_queue_1 = OpQueue::new(
             metrics.clone(),
@@ -177,11 +196,15 @@ mod test {
         let mut op_queue_2 = OpQueue::new(metrics, queue_metrics_label, mpmc_channel.receiver());
 
         // Add some operations to the queue with increasing `next_attempt_after` values
+        let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
         let messages_to_send = 5;
         let mut ops: VecDeque<_> = (1..=messages_to_send)
             .into_iter()
             .map(|seconds_to_next_attempt| {
-                Box::new(MockPendingOperation::new(seconds_to_next_attempt)) as QueueOperation
+                Box::new(MockPendingOperation::new(
+                    seconds_to_next_attempt,
+                    destination_domain.clone(),
+                )) as QueueOperation
             })
             .collect();
         let op_ids: Vec<_> = ops.iter().map(|op| op.id()).collect();
@@ -196,10 +219,14 @@ mod test {
             op_queue_2.push(ops.pop_front().unwrap()).await;
         }
 
-        // Send messages over the channel to retry some operations
+        // Retry by message ids
         let mpmc_tx = mpmc_channel.sender();
-        mpmc_tx.send(op_ids[1]).unwrap();
-        mpmc_tx.send(op_ids[2]).unwrap();
+        mpmc_tx
+            .send(MessageRetryRequest::MessageId(op_ids[1]))
+            .unwrap();
+        mpmc_tx
+            .send(MessageRetryRequest::MessageId(op_ids[2]))
+            .unwrap();
 
         // Pop elements from queue 1
         let mut queue_1_popped = vec![];
@@ -222,5 +249,57 @@ mod test {
         // The elements should be popped in the order they were pushed, because there was no retry request for them
         assert_eq!(queue_2_popped[0].id(), op_ids[3]);
         assert_eq!(queue_2_popped[1].id(), op_ids[4]);
+    }
+
+    #[tokio::test]
+    async fn test_destination_domain() {
+        let (metrics, queue_metrics_label) = dummy_metrics_and_label();
+        let mpmc_channel = MpmcChannel::new(100);
+        let mut op_queue = OpQueue::new(
+            metrics.clone(),
+            queue_metrics_label.clone(),
+            mpmc_channel.receiver(),
+        );
+
+        // Add some operations to the queue with increasing `next_attempt_after` values
+        let destination_domain_1: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
+        let destination_domain_2: HyperlaneDomain = KnownHyperlaneDomain::Ethereum.into();
+        let ops = vec![
+            Box::new(MockPendingOperation::new(1, destination_domain_1.clone())) as QueueOperation,
+            Box::new(MockPendingOperation::new(2, destination_domain_1.clone())) as QueueOperation,
+            Box::new(MockPendingOperation::new(3, destination_domain_2.clone())) as QueueOperation,
+            Box::new(MockPendingOperation::new(4, destination_domain_2.clone())) as QueueOperation,
+            Box::new(MockPendingOperation::new(5, destination_domain_2.clone())) as QueueOperation,
+        ];
+
+        let op_ids: Vec<_> = ops.iter().map(|op| op.id()).collect();
+
+        // push to queue
+        for op in ops {
+            op_queue.push(op).await;
+        }
+
+        // Retry by domain
+        let mpmc_tx = mpmc_channel.sender();
+        mpmc_tx
+            .send(MessageRetryRequest::DestinationDomain(
+                destination_domain_2.id(),
+            ))
+            .unwrap();
+
+        // Pop elements from queue
+        let mut popped = vec![];
+        while let Some(op) = op_queue.pop().await {
+            popped.push(op.0.id());
+        }
+
+        // First messages should be those to `destination_domain_2` - their exact order depends on
+        // how they were stored in the heap
+        assert_eq!(popped[0], op_ids[2]);
+        assert_eq!(popped[1], op_ids[4]);
+        assert_eq!(popped[2], op_ids[3]);
+        // Non-retried messages should be at the end
+        assert_eq!(popped[3], op_ids[0]);
+        assert_eq!(popped[4], op_ids[1]);
     }
 }

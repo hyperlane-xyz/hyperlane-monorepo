@@ -11,7 +11,9 @@ use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 
 use hyperlane_base::CoreMetrics;
-use hyperlane_core::{HyperlaneDomain, MpmcReceiver, H256};
+use hyperlane_core::{HyperlaneDomain, MpmcReceiver};
+
+use crate::server::MessageRetryRequest;
 
 use super::op_queue::OpQueue;
 use super::pending_operation::*;
@@ -70,7 +72,7 @@ pub struct SerialSubmitter {
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<Box<dyn PendingOperation>>,
     /// Receiver for retry requests.
-    retry_rx: MpmcReceiver<H256>,
+    retry_rx: MpmcReceiver<MessageRetryRequest>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
 }
