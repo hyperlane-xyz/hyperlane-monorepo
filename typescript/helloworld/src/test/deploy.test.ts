@@ -24,12 +24,13 @@ describe('deploy', async () => {
   let deployer: HelloWorldDeployer;
   let contracts: HyperlaneContractsMap<HelloWorldFactories>;
   let app: HelloWorldApp;
+  let ismFactory: HyperlaneIsmFactory;
 
   before(async () => {
     const [signer] = await ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-    const ismFactory = new HyperlaneIsmFactory(
+    ismFactory = new HyperlaneIsmFactory(
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
       multiProvider,
     );

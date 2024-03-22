@@ -28,12 +28,13 @@ describe('HelloWorld', async () => {
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let config: ChainMap<HelloWorldConfig>;
+  let ismFactory: HyperlaneIsmFactory;
 
   before(async () => {
     [signer] = await ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-    const ismFactory = new HyperlaneIsmFactory(
+    ismFactory = new HyperlaneIsmFactory(
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
       multiProvider,
     );
@@ -45,7 +46,7 @@ describe('HelloWorld', async () => {
   });
 
   beforeEach(async () => {
-    const helloWorld = new HelloWorldDeployer(multiProvider);
+    const helloWorld = new HelloWorldDeployer(multiProvider, ismFactory);
     const contracts = await helloWorld.deploy(config);
 
     local = contracts[localChain].router;

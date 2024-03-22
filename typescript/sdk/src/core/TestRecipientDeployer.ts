@@ -5,6 +5,7 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { MailboxClientConfig } from '../router/types';
 import { ChainName } from '../types';
@@ -34,10 +35,12 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
+    ismFactory?: HyperlaneIsmFactory,
   ) {
     super(multiProvider, testRecipientFactories, {
       logger: debug('hyperlane:TestRecipientDeployer'),
       contractVerifier,
+      ismFactory,
     });
   }
 
