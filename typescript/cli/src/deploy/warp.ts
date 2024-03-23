@@ -9,6 +9,7 @@ import {
   HypERC20Deployer,
   HypERC721Deployer,
   HyperlaneContractsMap,
+  HyperlaneIsmFactory,
   MinimalTokenMetadata,
   MultiProtocolProvider,
   MultiProvider,
@@ -53,12 +54,14 @@ export async function runWarpRouteDeploy({
   outPath: string;
   skipConfirmation: boolean;
 }) {
-  const { multiProvider, signer, coreArtifacts } = await getContext({
-    chainConfigPath,
-    coreConfig: { coreArtifactsPath },
-    keyConfig: { key },
-    skipConfirmation,
-  });
+  const { multiProvider, signer, coreArtifacts, ismFactory } = await getContext(
+    {
+      chainConfigPath,
+      coreConfig: { coreArtifactsPath },
+      keyConfig: { key },
+      skipConfirmation,
+    },
+  );
 
   if (
     !warpRouteDeploymentConfigPath ||
@@ -94,6 +97,7 @@ export async function runWarpRouteDeploy({
     multiProvider,
     outPath,
     skipConfirmation,
+    ismFactory,
   };
 
   logBlue('Warp route deployment plan');
@@ -121,8 +125,8 @@ async function runBuildConfigStep({
 }) {
   log('Assembling token configs');
   const { base, synthetics } = warpRouteConfig;
-  const { type: baseType, chainName: baseChainName, isNft } = base;
 
+  // TODO: support non-signer owner
   const owner = await signer.getAddress();
   const baseMetadata = await fetchBaseTokenMetadata(base, multiProvider);
 
@@ -138,42 +142,23 @@ async function runBuildConfigStep({
   // Create configs that coalesce together values from the config file,
   // the artifacts, and the SDK as a fallback
   const configMap: ChainMap<TokenConfig & RouterConfig> = {
-    [baseChainName]: {
-      type: baseType,
-      token:
-        baseType === TokenType.collateral ||
-        baseType === TokenType.collateralVault
-          ? base.address!
-          : ethers.constants.AddressZero,
+    [base.chainName]: {
+      token: base.address || ethers.constants.AddressZero,
       owner,
-      mailbox: base.mailbox || mergedContractAddrs[baseChainName]?.mailbox,
-      interchainSecurityModule:
-        base.interchainSecurityModule ||
-        mergedContractAddrs[baseChainName]?.interchainSecurityModule ||
-        mergedContractAddrs[baseChainName]?.multisigIsm,
-      // ismFactory: mergedContractAddrs[baseChainName].routingIsmFactory, // TODO fix when updating from routingIsm
-      foreignDeployment: base.foreignDeployment,
-      name: baseMetadata.name,
-      symbol: baseMetadata.symbol,
-      decimals: baseMetadata.decimals,
+      mailbox: mergedContractAddrs[base.chainName]?.mailbox,
+      ...base,
+      ...baseMetadata,
     },
   };
 
   for (const synthetic of synthetics) {
-    const sChainName = synthetic.chainName;
-    configMap[sChainName] = {
+    configMap[synthetic.chainName] = {
       type: TokenType.synthetic,
-      name: synthetic.name || baseMetadata.name,
-      symbol: synthetic.symbol || baseMetadata.symbol,
-      totalSupply: synthetic.totalSupply || 0,
       owner,
-      mailbox: synthetic.mailbox || mergedContractAddrs[sChainName].mailbox,
-      interchainSecurityModule:
-        synthetic.interchainSecurityModule ||
-        mergedContractAddrs[sChainName]?.interchainSecurityModule ||
-        mergedContractAddrs[sChainName]?.multisigIsm,
-      // ismFactory: mergedContractAddrs[sChainName].routingIsmFactory, // TODO fix
-      foreignDeployment: synthetic.foreignDeployment,
+      mailbox: mergedContractAddrs[synthetic.chainName].mailbox,
+      ...baseMetadata,
+      totalSupply: 0,
+      ...synthetic,
     };
   }
 
@@ -203,9 +188,9 @@ async function runBuildConfigStep({
   return {
     configMap,
     metadata: baseMetadata,
-    origin: baseChainName,
+    origin: base.chainName,
     remotes: synthetics.map(({ chainName }) => chainName),
-    isNft: !!isNft,
+    isNft: !!base.isNft,
   };
 }
 
@@ -216,6 +201,7 @@ interface DeployParams {
   origin: ChainName;
   remotes: ChainName[];
   signer: ethers.Signer;
+  ismFactory?: HyperlaneIsmFactory;
   multiProvider: MultiProvider;
   outPath: string;
   skipConfirmation: boolean;
@@ -260,7 +246,7 @@ async function executeDeploy(params: DeployParams) {
 
   const deployer = isNft
     ? new HypERC721Deployer(multiProvider)
-    : new HypERC20Deployer(multiProvider);
+    : new HypERC20Deployer(multiProvider, params.ismFactory);
 
   const deployedContracts = await deployer.deploy(configMap);
   logGreen('Hyp token deployments complete');

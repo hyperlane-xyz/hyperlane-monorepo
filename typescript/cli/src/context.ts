@@ -6,6 +6,7 @@ import {
   ChainMetadata,
   ChainName,
   HyperlaneContractsMap,
+  HyperlaneIsmFactory,
   MultiProvider,
   chainMetadata,
   hyperlaneEnvironments,
@@ -69,7 +70,10 @@ type CommandContext<P extends ContextSettings> = CommandContextBase &
     ? { signer: ethers.Signer }
     : { signer: undefined }) &
   (P extends { coreConfig: object }
-    ? { coreArtifacts: HyperlaneContractsMap<any> }
+    ? {
+        coreArtifacts: HyperlaneContractsMap<any>;
+        ismFactory: HyperlaneIsmFactory;
+      }
     : { coreArtifacts: undefined });
 
 export async function getContext<P extends ContextSettings>({
@@ -94,7 +98,10 @@ export async function getContext<P extends ContextSettings>({
     signer = keyToSigner(key);
   }
 
+  const multiProvider = getMultiProvider(customChains, signer);
+
   let coreArtifacts = undefined;
+  let ismFactory = undefined;
   if (coreConfig) {
     coreArtifacts =
       (await runDeploymentArtifactStep({
@@ -104,15 +111,15 @@ export async function getContext<P extends ContextSettings>({
           'Do you want to use some core deployment address artifacts? This is required for PI chains (non-core chains).',
         skipConfirmation,
       })) || {};
+    ismFactory = new HyperlaneIsmFactory(coreArtifacts, multiProvider);
   }
-
-  const multiProvider = getMultiProvider(customChains, signer);
 
   return {
     customChains,
     signer,
     multiProvider,
     coreArtifacts,
+    ismFactory,
   } as CommandContext<P>;
 }
 
